@@ -35,7 +35,7 @@ Uma task por vez e um commit atômico por task.
 - [x] T004 Provider RabbitMQ/Bun no Ada.
 - [x] T005 Empacotamento e instalação limpa.
 - [x] T006 Bun workspaces e CI.
-- [ ] T007 Drizzle no TransportAdA.
+- [x] T007 Drizzle no TransportAdA.
 - [ ] T008 API Bun.
 - [ ] T009 Worker Bun.
 - [ ] T010 Frontend Vite/PWA.

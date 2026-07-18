@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": ["bun"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["drizzle.config.ts", "scripts/**/*.ts", "src/**/*.ts"]
 }

@@ -193,3 +193,47 @@ substituídos e removidos nas T007–T012, mas não são mais o caminho ativo da
 raiz ou da CI.
 
 Nenhuma ação Railway ou push foi executado.
+
+## T007 — Drizzle no TransportAdA
+
+Modelo executor: Codex Sol high. Revisão independente e gates finais executados
+pelo agente principal.
+
+- `packages/database` usa `@adatechnology/drizzle-provider@0.1.1`,
+  `drizzle-orm@1.0.0-rc.4` e `drizzle-kit@1.0.0-rc.4`;
+- `DatabaseConnection.health()` e `close()` foram preservados, com provider
+  lazy para manter o import transitório dos testes Node de API e worker até as
+  T008/T009;
+- Prisma, `pg` e seus tipos foram removidos somente do package de banco;
+- o schema exportado permanece vazio, sem tabela ou coluna de negócio;
+- migration só ocorre pelo script `db:migrate`, nunca no startup;
+- o baseline foi criado pelo comando oficial
+  `drizzle-kit generate --custom --name baseline` no formato v3 da versão
+  fixada: `migration.sql` contém somente o comentário gerado pelo Kit e o
+  snapshot possui `ddl: []`.
+
+Gates do package:
+
+| Verificação                                     | Resultado                                  |
+| ----------------------------------------------- | ------------------------------------------ |
+| `bun run typecheck`, `lint` e `build`           | aprovados                                  |
+| `bun run test:integration` com PostgreSQL local | 3 testes e 8 asserts aprovados             |
+| `bun run db:check`                              | aprovado                                   |
+| `bun run db:generate`                           | `no_changes`                               |
+| `db:migrate` como processo separado             | somente `__drizzle_migrations` criada      |
+| cleanup do schema descartável                   | schema removido e ausência confirmada      |
+| Prettier dos arquivos do package                | aprovado                                   |
+| `bun install --frozen-lockfile`                 | aprovado, sem mudança                      |
+| lint, typecheck, testes e build da raiz         | 8/8, 13/13, 13/13 e 8/8 unidades aprovadas |
+| `bun run check`                                 | aprovado                                   |
+
+Os hashes SHA-256 permaneceram idênticos antes e depois de `db:generate` e
+`db:check`:
+
+- `migration.sql`:
+  `b3cc75fa802f8a5b333c480eb0d77f3d2185602e108f36fb33d3ade3c6939413`;
+- `snapshot.json`:
+  `b7608eaa4a1ca9ddee5a5f7cc8f855a6ce1d825057eb1997f004b6f2dc4bb781`.
+
+Nenhuma tabela ou coluna de negócio, operação destrutiva, migration no startup,
+ação Railway ou push foi executado.
