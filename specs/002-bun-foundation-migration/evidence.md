@@ -45,3 +45,36 @@ Bloqueios mantidos para produção:
 - DACTE e consulta de CT-e não possuem contrato público confirmado.
 
 Commit no repositório Ada: `eee0ec2`.
+
+## T003 — Provider Drizzle/Bun SQL
+
+Modelo executor: Codex Terra medium. Revisão independente: Codex Sol high.
+
+Alterações em `@adatechnology/drizzle-provider`:
+
+- factory pública sobre `drizzle-orm/bun-sql` e `Bun.SQL`;
+- configuração restrita a PostgreSQL em tipos e validação de runtime;
+- `EmptyRelations` como default, impedindo queries relacionais não configuradas;
+- health check real, transações expostas pelo banco tipado e shutdown
+  idempotente;
+- Drizzle RC e tipos Bun fixados exatamente para reprodutibilidade;
+- nenhum schema ou migration específica do TransportAdA.
+
+Gates locais contra PostgreSQL do Compose em `localhost:55432`:
+
+| Comando                                                  | Resultado                         |
+| -------------------------------------------------------- | --------------------------------- |
+| `bun run check`                                          | aprovado                          |
+| `bun run test:integration` com URL local                 | 4 testes aprovados, nenhum pulado |
+| `bun run build`                                          | ESM e declarações aprovados       |
+| `pnpm exec eslint packages/backend/drizzle-provider/src` | aprovado                          |
+| `bun run format:check`                                   | aprovado                          |
+
+A suíte comprovou conexão/health, rollback transacional, rejeição de protocolo
+incompatível e shutdown com query em voo, closes concorrentes e rejeição de
+novas queries após o fechamento. O script de integração falha cedo quando
+nenhuma URL de teste é fornecida.
+
+Commit no repositório Ada: `64ffa52`.
+
+Nenhuma publicação, ação Railway ou push foi executado.
