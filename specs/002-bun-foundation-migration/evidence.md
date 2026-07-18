@@ -8,3 +8,40 @@
 - documentação oficial confirmou Drizzle com `drizzle-orm/bun-sql`;
 - frontend auditado contra Vite, PWA, tokens, i18n e TanStack Query;
 - nenhuma emissão real ou ação Railway executada.
+
+## T002 — Contrato Bun do fiscal provider
+
+Modelo executor: Codex Sol high. Revisão e gates executados pelo agente
+principal.
+
+Alterações em `@adatechnology/fiscal-provider`:
+
+- suíte consumidora importa somente o entrypoint público `src/index.ts`;
+- factory cria `SefazCteProvider` com `emit`, `cancel` e `testConnection`;
+- mapeamento do TMS `homologation/production` para
+  `homologacao/producao` é explícito;
+- PFX ICP-Brasil sintético é criado e descartado em memória;
+- emissão CT-e assina XML localmente e usa `fetch` mockado, sem rede;
+- erros públicos `FiscalError`, `FiscalConnectionError`,
+  `FiscalRejectionError` e `FiscalTimeoutError` mantêm hierarquia e códigos.
+
+Gates locais:
+
+| Comando                         | Resultado                                               |
+| ------------------------------- | ------------------------------------------------------- |
+| `bun run check`                 | aprovado                                                |
+| `bun run test`                  | 13 locais + 5 contratos aprovados; testes reais pulados |
+| `bun run build`                 | aprovado                                                |
+| Prettier nos arquivos alterados | aprovado                                                |
+
+Nenhum certificado, senha ou XML real foi persistido ou incluído no teste.
+Nenhuma chamada à SEFAZ ou ação Railway foi executada.
+
+Bloqueios mantidos para produção:
+
+- `FiscalValidationError` existe internamente, mas não é exportado;
+- transporte SEFAZ ainda permite TLS sem validar a cadeia;
+- provider CT-e escreve diretamente em stdout/stderr;
+- DACTE e consulta de CT-e não possuem contrato público confirmado.
+
+Commit no repositório Ada: `eee0ec2`.
