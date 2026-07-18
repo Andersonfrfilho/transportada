@@ -120,3 +120,35 @@ e shutdown com handler em voo. A topologia de teste é removida ao final.
 Commit no repositório Ada: `8209d7f`.
 
 Nenhuma publicação, ação Railway ou push foi executado.
+
+## T005 — Empacotamento e instalação Bun limpa
+
+Modelo executor: Codex Terra medium. Revisão e repetição dos gates pelo agente
+principal.
+
+Os manifests dos providers agora declaram:
+
+- export raiz ESM com declarações TypeScript;
+- `sideEffects: false`;
+- Bun `>=1.3.0`, validado com Bun `1.3.14`;
+- changeset patch para o fluxo de release existente.
+
+Gates de empacotamento:
+
+| Verificação                                     | Resultado                               |
+| ----------------------------------------------- | --------------------------------------- |
+| check e build dos dois providers                | aprovado                                |
+| `pnpm pack --dry-run` e `npm pack --dry-run`    | somente JS, declarações e manifest      |
+| instalação dos tarballs em projeto Bun limpo    | aprovado, sem workspace ou `file:`      |
+| typecheck estrito e import ESM consumidor       | aprovado                                |
+| smoke Drizzle em PostgreSQL local               | health e close aprovados                |
+| smoke RabbitMQ em topologia única local         | publish, consume, ack e close aprovados |
+| cleanup RabbitMQ consultado pela API management | topologia removida                      |
+| `changeset status`                              | patch reconhecido para os dois          |
+
+O Drizzle permanece fixado em `1.0.0-rc.4`; a versão não será avançada sem
+nova validação de contrato.
+
+Commit no repositório Ada: `f05b102`.
+
+Nenhuma publicação npm, ação Railway ou push foi executado.
