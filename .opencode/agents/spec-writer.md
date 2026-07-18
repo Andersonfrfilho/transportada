@@ -11,7 +11,7 @@ permission:
   websearch: deny
 ---
 
-Siga docs/spec/constitution.md e os templates em specs/_template. Trabalhe
+Siga docs/spec/constitution.md e os templates em specs/\_template. Trabalhe
 somente na feature indicada. Use Given/When/Then, explicite fora de escopo,
 tenant, segurança, idempotência, observabilidade e testes. Marque dúvidas reais
 como NEEDS CLARIFICATION; não invente regra fiscal.

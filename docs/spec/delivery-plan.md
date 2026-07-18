@@ -2,18 +2,18 @@
 
 ## Fases
 
-| Fase | Objetivo | Entregável / gate |
-| --- | --- | --- |
-| 0 | fundação | monorepo, CI, health, Docker, ADRs |
-| 1 | identidade e tenant | auth/RBAC + prova de isolamento |
-| 2 | empresas/fiscal config | certificado criptografado e sequência |
-| 3 | NF-e | upload/ZIP, storage, parser, duplicidade, jobs |
-| 4 | frete | regra percentual versionada, snapshot e simulação |
-| 5 | lote/CT-e | aprovação, idempotência, worker e gateway mock |
-| 6 | homologação CT-e | pacote Ada, rejeição/retry, XML/protocolo |
-| 7 | faturamento | seleção segura, totais, PDF e cancelamento |
-| 8 | painel/auditoria | UI ponta a ponta, SSE e trilha |
-| 9 | hardening/release | carga, segurança, backup e runbooks |
+| Fase | Objetivo               | Entregável / gate                                 |
+| ---- | ---------------------- | ------------------------------------------------- |
+| 0    | fundação               | monorepo, CI, health, Docker, ADRs                |
+| 1    | identidade e tenant    | auth/RBAC + prova de isolamento                   |
+| 2    | empresas/fiscal config | certificado criptografado e sequência             |
+| 3    | NF-e                   | upload/ZIP, storage, parser, duplicidade, jobs    |
+| 4    | frete                  | regra percentual versionada, snapshot e simulação |
+| 5    | lote/CT-e              | aprovação, idempotência, worker e gateway mock    |
+| 6    | homologação CT-e       | pacote Ada, rejeição/retry, XML/protocolo         |
+| 7    | faturamento            | seleção segura, totais, PDF e cancelamento        |
+| 8    | painel/auditoria       | UI ponta a ponta, SSE e trilha                    |
+| 9    | hardening/release      | carga, segurança, backup e runbooks               |
 
 Cada fase possui demo independente, migration reversível e testes de aceite.
 

@@ -1,14 +1,14 @@
 # Índice da especificação
 
-| Documento | Finalidade |
-| --- | --- |
-| [constitution.md](constitution.md) | princípios imutáveis e gates |
-| [architecture.md](architecture.md) | arquitetura, tecnologias e fluxos |
-| [domain-model.md](domain-model.md) | agregados, estados e integridade |
-| [delivery-plan.md](delivery-plan.md) | fases, backlog e Definition of Done |
-| [agent-strategy.md](agent-strategy.md) | agentes e economia de tokens |
-| [railway.md](railway.md) | staging, production e promoção |
-| [fiscal-integration.md](fiscal-integration.md) | inventário e limites do pacote Ada |
+| Documento                                      | Finalidade                          |
+| ---------------------------------------------- | ----------------------------------- |
+| [constitution.md](constitution.md)             | princípios imutáveis e gates        |
+| [architecture.md](architecture.md)             | arquitetura, tecnologias e fluxos   |
+| [domain-model.md](domain-model.md)             | agregados, estados e integridade    |
+| [delivery-plan.md](delivery-plan.md)           | fases, backlog e Definition of Done |
+| [agent-strategy.md](agent-strategy.md)         | agentes e economia de tokens        |
+| [railway.md](railway.md)                       | staging, production e promoção      |
+| [fiscal-integration.md](fiscal-integration.md) | inventário e limites do pacote Ada  |
 
 ## Ciclo de uma feature
 

@@ -1,0 +1,32 @@
+{
+  "name": "@transportada/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint src test",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/platform-express": "11.1.28",
+    "@transportada/config": "workspace:*",
+    "@transportada/database": "workspace:*",
+    "@transportada/observability": "workspace:*",
+    "@transportada/queue": "workspace:*",
+    "@transportada/shared": "workspace:*",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "11.1.28",
+    "@types/express": "5.0.5",
+    "supertest": "7.1.4",
+    "tsx": "4.20.6"
+  }
+}

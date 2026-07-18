@@ -21,11 +21,44 @@ PROJECT.MD → constitution → spec → plan → tasks → implementação → 
 Nenhuma implementação fiscal começa sem confirmação dos contratos publicados
 por `@adatechnology/fiscal-provider`.
 
-## Comandos previstos
+## Desenvolvimento local
 
-O código da aplicação será criado na primeira feature (`001-foundation`).
-Até lá, este repositório contém somente especificação, decisões e automações de
-agentes.
+Requisitos: Node.js 22+, Corepack e Docker.
+
+```bash
+corepack enable
+corepack prepare pnpm@11.14.0 --activate
+cp .env.example .env
+docker compose up -d
+pnpm install
+pnpm dev
+```
+
+Serviços:
+
+- web: `http://localhost:53000`;
+- API live/ready: `http://localhost:53001/health/live` e `/health/ready`;
+- worker live/ready: `http://localhost:53002/health/live` e `/health/ready`;
+- PostgreSQL: `localhost:55432`;
+- Redis: `localhost:56379`;
+- MinIO: `http://localhost:59001`;
+- Mailpit: `http://localhost:58025`.
+
+Gates completos:
+
+```bash
+pnpm check
+docker compose config --quiet
+```
+
+### Troubleshooting
+
+- Readiness `503`: confirme `docker compose ps` e as URLs do `.env`.
+- Porta ocupada: altere as portas locais e as variáveis correspondentes.
+- Lockfile incompatível: use exatamente a versão de pnpm declarada em
+  `packageManager`; não apague o lockfile.
+- O ambiente local e staging sempre usam fiscal `homologation` e emissão real
+  desabilitada.
 
 ## Ambientes
 

@@ -7,6 +7,9 @@ coverage/
 .env.*
 !.env.example
 *.log
+*.tsbuildinfo
 .DS_Store
+.history/
 .railway/
 tmp/
+packages/database/generated/

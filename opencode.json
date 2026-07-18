@@ -1,9 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "plan",
-  "instructions": [
-    "AGENTS.md",
-    "docs/spec/constitution.md"
-  ],
+  "instructions": ["AGENTS.md", "docs/spec/constitution.md"],
   "share": "disabled"
 }

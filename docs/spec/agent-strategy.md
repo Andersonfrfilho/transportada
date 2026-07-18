@@ -2,15 +2,15 @@
 
 IDs abaixo foram confirmados pelo `opencode models` local em 2026-07-18.
 
-| Agente | Modelo | Uso | Limite |
-| --- | --- | --- | --- |
-| `explorer` | `opencode/deepseek-v4-flash-free` | busca, inventário, resumo | 8 passos |
+| Agente        | Modelo                            | Uso                          | Limite    |
+| ------------- | --------------------------------- | ---------------------------- | --------- |
+| `explorer`    | `opencode/deepseek-v4-flash-free` | busca, inventário, resumo    | 8 passos  |
 | `spec-writer` | `opencode/deepseek-v4-flash-free` | primeira versão de spec/task | 10 passos |
-| `test-writer` | `opencode/north-mini-code-free` | testes bem delimitados | 12 passos |
-| `reviewer` | `opencode/nemotron-3-ultra-free` | revisão somente leitura | 8 passos |
-| Codex Luna | `openai/gpt-5.6-luna` | mecânico/repetitivo | low |
-| Codex Terra | `openai/gpt-5.6-terra` | implementação padrão | medium |
-| Codex Sol | `openai/gpt-5.6-sol` | fiscal/segurança/arquitetura | high |
+| `test-writer` | `opencode/north-mini-code-free`   | testes bem delimitados       | 12 passos |
+| `reviewer`    | `opencode/nemotron-3-ultra-free`  | revisão somente leitura      | 8 passos  |
+| Codex Luna    | `openai/gpt-5.6-luna`             | mecânico/repetitivo          | low       |
+| Codex Terra   | `openai/gpt-5.6-terra`            | implementação padrão         | medium    |
+| Codex Sol     | `openai/gpt-5.6-sol`              | fiscal/segurança/arquitetura | high      |
 
 ## Roteamento econômico
 
