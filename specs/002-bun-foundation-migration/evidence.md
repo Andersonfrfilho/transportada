@@ -237,3 +237,71 @@ Os hashes SHA-256 permaneceram idênticos antes e depois de `db:generate` e
 
 Nenhuma tabela ou coluna de negócio, operação destrutiva, migration no startup,
 ação Railway ou push foi executado.
+
+## T008 — API Bun
+
+Modelo executor: Codex Terra medium, com checklist de revisão Sol aplicado pelo
+agente principal.
+
+- a aplicação foi renomeada para `apps/api-transportada` e tornou-se instalável
+  isoladamente, sem importar código-fonte de outra aplicação ou package local;
+- Nest, Express, `reflect-metadata`, RxJS e imports `@transportada/*` foram
+  removidos da API;
+- o servidor usa `Bun.serve` em `0.0.0.0`, com limite de aplicação de 1 MiB,
+  hard limit nativo de 2 MiB, timeout por request, `error` callback seguro e
+  inicialização protegida por `import.meta.main`;
+- `GET /health/live` não acessa dependências externas e
+  `GET /health/ready` retorna `503` degradado quando o PostgreSQL não está
+  saudável;
+- métodos inválidos retornam `405` com `Allow: GET`, rotas desconhecidas
+  retornam `404` e metadados de request inválidos retornam `400`;
+- `x-correlation-id` válido é propagado e um UUID é gerado para valor ausente
+  ou inválido;
+- logs estruturados não incluem query string, headers, body, credenciais, XML
+  ou stack trace, e falhas do logger não alteram a resposta HTTP;
+- `SIGTERM` e `SIGINT` acionam shutdown idempotente; o banco é fechado mesmo
+  quando `server.stop()` falha, e rejeições do shutdown são tratadas;
+- migrations permanecem exclusivamente em processo separado.
+
+Desenvolvimento orientado por testes:
+
+| Evidência inicial                                    | Resultado esperado                          |
+| ---------------------------------------------------- | ------------------------------------------- |
+| imports dos módulos desejados antes da implementação | 2 arquivos falharam                         |
+| pathname inválido durante parsing                    | falhou com `404` antes do ajuste para `400` |
+| logger lançando erro                                 | handler falhou antes do wrapper seguro      |
+| `server.stop()` lançando erro                        | banco não fechou antes do `finally`         |
+| hard limit nativo acima de 1 MiB                     | `413` sem correlation ID antes das camadas  |
+
+Gates da aplicação:
+
+| Verificação                                                     | Resultado                        |
+| --------------------------------------------------------------- | -------------------------------- |
+| `bun run test`                                                  | 10 testes, 26 asserts, aprovados |
+| `bun run test:integration` com PostgreSQL local                 | 3 testes, 9 asserts, aprovados   |
+| contrato real de corpo maior que 1 MiB                          | `413` tipado e correlacionado    |
+| processo Bun real recebendo `SIGTERM`                           | saída graciosa com código `0`    |
+| `bun run typecheck`, `bun run lint` e `bun run build`           | aprovados                        |
+| instalação em diretório temporário contendo somente a aplicação | 117 packages instalados          |
+| `bun install --frozen-lockfile` no diretório temporário         | aprovado                         |
+| `bun run check` no diretório temporário                         | aprovado, 10 testes              |
+| `bun run test:integration` no diretório temporário              | aprovado, 3 testes               |
+| `bun install --frozen-lockfile` na raiz                         | aprovado, lock sem mudança       |
+| `bun run check` na raiz                                         | aprovado                         |
+| lint, typecheck, testes e build da raiz                         | 8/8, 13/13, 13/13 e 8/8 unidades |
+| busca residual no código e testes da API                        | nenhum import legado/proibido    |
+
+O teste isolado criou um `bun.lock` apenas dentro do diretório temporário para
+então validar uma segunda instalação congelada. Esse lock temporário não faz
+parte da aplicação e não foi copiado nem commitado no repositório. O lock
+versionado do monorepo continua sendo o `bun.lock` da raiz.
+
+As dependências publicadas foram fixadas em
+`@adatechnology/drizzle-provider@0.1.1` e
+`@adatechnology/logger@0.0.1`. O logger publicado não expõe lifecycle `close`;
+por isso o shutdown fecha o servidor e o provider de banco, sem inventar API
+inexistente. A ausência de `exports` no pacote do logger é um risco de
+empacotamento conhecido, mitigado nesta task pela validação de import e build
+em instalação Bun limpa.
+
+Nenhuma migration de startup, ação Railway ou push foi executado.

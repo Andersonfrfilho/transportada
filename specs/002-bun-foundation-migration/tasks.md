@@ -36,7 +36,7 @@ Uma task por vez e um commit atômico por task.
 - [x] T005 Empacotamento e instalação limpa.
 - [x] T006 Bun workspaces e CI.
 - [x] T007 Drizzle no TransportAdA.
-- [ ] T008 API Bun.
+- [x] T008 API Bun.
 - [ ] T009 Worker Bun.
 - [ ] T010 Frontend Vite/PWA.
 - [ ] T011 Compose/Makefile.
