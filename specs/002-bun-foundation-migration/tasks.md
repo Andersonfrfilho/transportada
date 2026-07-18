@@ -32,7 +32,7 @@ Uma task por vez e um commit atômico por task.
 - [x] T001 Registrar ADR, arquitetura, spec e roteamento.
 - [x] T002 Contract suite fiscal Bun, sem emissão real.
 - [x] T003 Provider Drizzle/Bun SQL no Ada.
-- [ ] T004 Provider RabbitMQ/Bun no Ada.
+- [x] T004 Provider RabbitMQ/Bun no Ada.
 - [ ] T005 Empacotamento e instalação limpa.
 - [ ] T006 Bun workspaces e CI.
 - [ ] T007 Drizzle no TransportAdA.

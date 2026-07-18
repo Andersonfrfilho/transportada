@@ -20,7 +20,7 @@ config: ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(APP_ENV)"
 	@$(COMPOSE) config --quiet
 
-up: config ## 🚀 Sobe PostgreSQL, Redis, MinIO e Mailpit
+up: config ## 🚀 Sobe PostgreSQL, Redis, RabbitMQ, MinIO e Mailpit
 	@$(COMPOSE) up -d
 
 down: config ## 🛑 Encerra a infraestrutura local

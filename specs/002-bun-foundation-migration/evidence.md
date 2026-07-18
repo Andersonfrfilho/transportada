@@ -78,3 +78,45 @@ nenhuma URL de teste é fornecida.
 Commit no repositório Ada: `64ffa52`.
 
 Nenhuma publicação, ação Railway ou push foi executado.
+
+## T004 — Provider RabbitMQ/Bun
+
+Modelo executor: Codex Sol high. Revisão e repetição dos gates pelo agente
+principal.
+
+Alterações em `@adatechnology/rabbitmq-provider`:
+
+- publicação persistente por `ConfirmChannel`;
+- topologia durable com exchange/fila principal, retry por TTL/DLX e DLQ;
+- ack manual somente após handler ou republicação confirmada;
+- decoder obrigatório de `unknown` para payload tipado;
+- prefetch e canal isolados por consumidor;
+- retry limitado e DLQ para falha explícita ou exceção persistente;
+- cancelamento, drain dos handlers, espera dos confirms e close idempotente;
+- nenhum envelope ou schema específico do TransportAdA.
+
+Infraestrutura local antecipada para o gate:
+
+- RabbitMQ `4.3.2-management-alpine` fixado no Compose;
+- portas locais `55672` (AMQP) e `55673` (management);
+- recurso criado pelo Makefile com o projeto `transportada-local`;
+- health confirmado por `rabbitmq-diagnostics`.
+
+Gates locais contra RabbitMQ real:
+
+| Comando                                  | Resultado                    |
+| ---------------------------------------- | ---------------------------- |
+| `make config && make up && make ps`      | RabbitMQ saudável            |
+| `bun run check`                          | aprovado                     |
+| `bun run test:integration` com URL local | 8 testes e 21 asserts verdes |
+| `pnpm exec eslint src --max-warnings=0`  | aprovado                     |
+| `bun run build`                          | ESM e declarações aprovados  |
+| `bun run format:check`                   | aprovado                     |
+
+A suíte comprovou persistência, confirmação, ack manual, prefetch, redelivery,
+retry TTL/DLX, contagem e limite de tentativas, DLQ, validação de configuração
+e shutdown com handler em voo. A topologia de teste é removida ao final.
+
+Commit no repositório Ada: `8209d7f`.
+
+Nenhuma publicação, ação Railway ou push foi executado.

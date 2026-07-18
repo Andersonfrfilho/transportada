@@ -30,6 +30,22 @@ services:
     volumes:
       - redis_data:/data
 
+  rabbitmq:
+    image: rabbitmq:4.3.2-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: transportada
+      RABBITMQ_DEFAULT_PASS: transportada
+    ports:
+      - '55672:5672'
+      - '55673:15672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -56,4 +72,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
   minio_data:
