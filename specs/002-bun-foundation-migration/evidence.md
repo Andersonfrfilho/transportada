@@ -305,3 +305,66 @@ empacotamento conhecido, mitigado nesta task pela validação de import e build
 em instalação Bun limpa.
 
 Nenhuma migration de startup, ação Railway ou push foi executado.
+
+## T009 — Worker Bun/RabbitMQ
+
+Modelo executor: Codex Sol high, com revisão de ciclo de vida e repetição dos
+gates pelo agente principal.
+
+- a aplicação foi renomeada para `apps/worker-transportada` e tornou-se
+  instalável isoladamente, sem importar código-fonte de outro app ou package
+  local;
+- Nest, `reflect-metadata`, RxJS, BullMQ e imports `@transportada/*` foram
+  removidos do worker;
+- o composition root usa Bun e os providers publicados
+  `@adatechnology/drizzle-provider@0.1.1` e
+  `@adatechnology/rabbitmq-provider@0.1.1`;
+- a topologia isolada possui exchange e fila principal, exchange e fila de
+  retry com TTL/DLX, e exchange e fila dead-letter, todas duráveis;
+- envelopes sintéticos de contrato são estritos e versionados, com `eventId`,
+  `type`, `version`, `occurredAt`, `companyId`, `correlationId` e payload
+  tipado;
+- o handler só retorna ack depois do efeito e da marca de idempotência; falhas
+  transitórias retornam retry e falhas fatais retornam dead-letter;
+- `GET /health/live` não consulta dependências e `GET /health/ready` verifica
+  PostgreSQL e RabbitMQ, retornando `503` seguro quando degradado;
+- `SIGTERM` e `SIGINT` cancelam novos consumos, drenam o handler em voo e
+  fecham RabbitMQ, PostgreSQL e o health server;
+- o shutdown é idempotente e tenta fechar todos os recursos mesmo quando uma
+  etapa anterior falha; falhas parciais no bootstrap também fecham os recursos
+  já iniciados;
+- o consumidor sintético existe somente para testar a fundação, fica
+  desabilitado por padrão e é rejeitado pela configuração em produção.
+
+Desenvolvimento orientado por testes:
+
+| Evidência inicial                                    | Resultado esperado                         |
+| ---------------------------------------------------- | ------------------------------------------ |
+| imports dos módulos desejados antes da implementação | contratos falharam                         |
+| cancelamento do consumidor lançando erro             | recursos seguintes não eram fechados       |
+| integração com topologia inexistente                 | provider declarou exchanges, filas e binds |
+
+Gates da aplicação:
+
+| Verificação                                                     | Resultado                        |
+| --------------------------------------------------------------- | -------------------------------- |
+| `bun run test`                                                  | 22 testes, 41 asserts, aprovados |
+| `bun run test:integration` com PostgreSQL e RabbitMQ locais     | 4 testes, 9 asserts, aprovados   |
+| declaração real de exchanges/filas principal, retry e DLQ       | aprovada                         |
+| retry por TTL/DLX e falha fatal na DLQ                          | aprovados                        |
+| processo Bun real recebendo `SIGTERM` com efeito em voo         | drain e saída `0` aprovados      |
+| `bun run typecheck`, `bun run lint` e `bun run build`           | aprovados                        |
+| instalação em diretório temporário contendo somente a aplicação | 119 packages instalados          |
+| `bun install --frozen-lockfile` no diretório temporário         | aprovado                         |
+| `bun run check` e integrações no diretório temporário           | aprovados                        |
+| `bun install --frozen-lockfile` na raiz                         | aprovado, lock sem mudança       |
+| `bun run check` na raiz                                         | aprovado                         |
+| lint, typecheck, testes e build da raiz                         | 8/8 unidades aprovadas           |
+| busca residual no código e testes do worker                     | nenhum import legado/proibido    |
+
+Nenhum schema ou consumidor fiscal foi inventado nesta task. O contrato de
+ack após efeito/marca de idempotência prepara o limite transacional, que será
+ligado a uma transação real quando a spec de negócio definir tabelas e eventos.
+Nenhum certificado, senha ou XML fiscal foi lido, persistido ou registrado.
+Nenhuma migration de startup, emissão fiscal, ação Railway ou push foi
+executado.
