@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "nest start --watch",
     "lint": "eslint src test",
     "start": "node dist/main.js",
     "test": "vitest run",
@@ -24,9 +24,9 @@
     "rxjs": "7.8.2"
   },
   "devDependencies": {
+    "@nestjs/cli": "11.0.24",
     "@nestjs/testing": "11.1.28",
     "@types/express": "5.0.5",
-    "supertest": "7.1.4",
-    "tsx": "4.20.6"
+    "supertest": "7.1.4"
   }
 }

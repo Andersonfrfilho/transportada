@@ -13,6 +13,7 @@ Data: 2026-07-18
 | Build                 | 8/8 workspaces; Next static route gerada   |
 | Docker Compose config | válido                                     |
 | Infraestrutura local  | PostgreSQL, Redis, MinIO e Mailpit healthy |
+| Makefile              | `transportada-local`; check e smoke verdes |
 
 ## Smoke test
 
@@ -23,6 +24,8 @@ Data: 2026-07-18
 - correlation ID `smoke-foundation-001` retornado no header e registrado no
   log estruturado da API;
 - API e worker encerrados com `SIGINT`, usando hooks de shutdown do Nest.
+- `make dev` iniciou web, API e worker depois de `make up`;
+- `make smoke` confirmou web `200` e os quatro endpoints de saúde.
 
 ## Escopo
 

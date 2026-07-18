@@ -23,16 +23,20 @@ por `@adatechnology/fiscal-provider`.
 
 ## Desenvolvimento local
 
-Requisitos: Node.js 22+, Corepack e Docker.
+Requisitos: Node.js 22+, Corepack, Make e Docker.
 
 ```bash
 corepack enable
 corepack prepare pnpm@11.14.0 --activate
-cp .env.example .env
-docker compose up -d
 pnpm install
-pnpm dev
+make bootstrap
+make up
+make dev
 ```
+
+O Makefile deriva `PROJECT_NAME` e `APP_ENV` do `.env` e isola os recursos do
+Docker Compose como `<projeto>-<ambiente>`, por exemplo
+`transportada-local`.
 
 Serviços:
 
@@ -47,13 +51,13 @@ Serviços:
 Gates completos:
 
 ```bash
-pnpm check
-docker compose config --quiet
+make check
+make smoke
 ```
 
 ### Troubleshooting
 
-- Readiness `503`: confirme `docker compose ps` e as URLs do `.env`.
+- Readiness `503`: confirme `make ps` e as URLs do `.env`.
 - Porta ocupada: altere as portas locais e as variáveis correspondentes.
 - Lockfile incompatível: use exatamente a versão de pnpm declarada em
   `packageManager`; não apague o lockfile.

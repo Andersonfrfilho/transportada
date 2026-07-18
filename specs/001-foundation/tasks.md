@@ -13,5 +13,26 @@
 - [x] T011 Criar CI GitHub Actions com cache pnpm.
 - [x] T012 Documentar bootstrap e troubleshooting.
 - [x] T013 Executar todos os gates e registrar evidência.
+- [x] T014 Padronizar bootstrap e infraestrutura local via Makefile com
+      `PROJECT_NAME`.
+
+## Roteamento de modelos
+
+| Task | Executor recomendado                |
+| ---- | ----------------------------------- |
+| T001 | Codex Terra                         |
+| T002 | Codex Terra                         |
+| T003 | Codex Terra                         |
+| T004 | Codex Terra                         |
+| T005 | Codex Terra                         |
+| T006 | Codex Terra                         |
+| T007 | Codex Terra                         |
+| T008 | Codex Terra                         |
+| T009 | Codex Luna                          |
+| T010 | Codex Luna                          |
+| T011 | Codex Terra                         |
+| T012 | OpenCode `spec-writer` + Codex Luna |
+| T013 | OpenCode `reviewer` + Codex Terra   |
+| T014 | Codex Terra + OpenCode `reviewer`   |
 
 Evidência: [`evidence.md`](evidence.md).

@@ -1,5 +1,33 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "APP_NAME",
+    "PROJECT_NAME",
+    "APP_ENV",
+    "APP_PORT",
+    "WEB_PORT",
+    "WORKER_PORT",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "JWT_SECRET",
+    "ENCRYPTION_KEY",
+    "QUEUE_PREFIX",
+    "STORAGE_PROVIDER",
+    "STORAGE_BUCKET",
+    "STORAGE_REGION",
+    "STORAGE_ENDPOINT",
+    "STORAGE_ACCESS_KEY",
+    "STORAGE_SECRET_KEY",
+    "EMAIL_PROVIDER",
+    "EMAIL_FROM",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "FISCAL_DEFAULT_ENVIRONMENT",
+    "FISCAL_REAL_ISSUANCE_ENABLED",
+    "LOG_LEVEL",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "NODE_ENV"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

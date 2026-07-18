@@ -33,6 +33,7 @@ ID nos logs.
 - pnpm workspace e Turborepo com TypeScript strict;
 - `apps/web`, `apps/api`, `apps/worker`;
 - Docker Compose com Postgres, Redis, MinIO e Mailpit;
+- ambiente local operado por Makefile com `PROJECT_NAME` isolado por ambiente;
 - `/health/live` e `/health/ready`;
 - Pino estruturado e propagation de `x-correlation-id`;
 - `.env.example` validado no startup;
