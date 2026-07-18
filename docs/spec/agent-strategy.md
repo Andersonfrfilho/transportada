@@ -27,3 +27,13 @@ falhas equivalentes, escale o modelo ou divida a task.
 
 Os modelos gratuitos são úteis, mas não são autoridade fiscal. Toda conclusão
 deve ser validada por testes e revisão de maior capacidade.
+
+Os agentes em `.opencode/agents` são subagentes e não devem ser passados
+diretamente a `opencode run --agent`. Para delegação econômica via CLI, fixe
+explicitamente um modelo `opencode/*-free` no agente primário e forneça uma
+tarefa limitada; caso contrário, o fallback pode selecionar um modelo pago.
+
+Para a migração Bun: Sol decide arquitetura, Drizzle crítico, RabbitMQ, fiscal
+e segurança; Terra implementa API, worker, frontend e tooling; Luna remove
+legado após paridade; OpenCode gratuito faz inventário, primeiros testes
+previsíveis e revisão somente leitura.

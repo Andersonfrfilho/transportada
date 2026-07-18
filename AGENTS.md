@@ -24,10 +24,18 @@
 
 ## Arquitetura
 
-- Monorepo pnpm + Turborepo.
+- Monorepo com Bun workspaces; Bun é runtime, package manager e test runner.
 - TypeScript estrito, sem `any`.
-- Monólito modular: `apps/api`, `apps/worker`, `apps/web`.
-- NestJS, Next.js, PostgreSQL, Prisma, Redis/BullMQ e storage S3 compatível.
+- Aplicações separáveis: `apps/api-transportada`, `apps/worker-transportada` e
+  `apps/frontend-transportada`, cada uma com scripts e dependências próprias.
+- API HTTP usa `Bun.serve`, baseado internamente em uWebSockets; não importe o
+  addon V8 `uWebSockets.js`.
+- Frontend usa React, Vite, TanStack Query, i18n, design tokens e PWA.
+- PostgreSQL com Drizzle/Bun SQL, RabbitMQ para jobs críticos e storage S3
+  compatível.
+- Não crie bibliotecas reutilizáveis neste repositório. Implemente-as e
+  versione-as em `/Users/anderson.filho/Documents/personal/adatechnology-packages`.
+- Nenhuma aplicação importa código-fonte de outra aplicação.
 - Módulos separam `domain`, `application`, `infrastructure` e `presentation`
   quando a complexidade justificar.
 - Dinheiro usa `Decimal`/`numeric`, nunca ponto flutuante binário.

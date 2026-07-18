@@ -18,7 +18,7 @@ Um projeto Railway `transportada` com ambientes isolados:
 Serviços por ambiente:
 
 ```text
-web, api, worker, Postgres, Redis, document-storage
+frontend, api, worker, Postgres, RabbitMQ, document-storage
 ```
 
 API e worker compartilham banco/fila dentro do mesmo ambiente; nunca entre
@@ -30,7 +30,7 @@ private networking.
 Compartilhadas não secretas: `APP_NAME`, `APP_ENV`, `LOG_LEVEL`,
 `QUEUE_PREFIX`, `FISCAL_DEFAULT_ENVIRONMENT`.
 
-Por serviço/ambiente: `DATABASE_URL`, `REDIS_URL`, storage S3, OIDC,
+Por serviço/ambiente: `DATABASE_URL`, `RABBITMQ_URL`, storage S3, OIDC,
 `JWT_SECRET`, `ENCRYPTION_KEY`, e-mail e observabilidade. Segredos nunca entram
 no Git.
 
@@ -44,11 +44,14 @@ no Git.
 6. health/readiness, migration e smoke pós-deploy.
 
 Deploy usa estratégia expand/contract para schema. Worker antigo e novo devem
-conviver durante rolling deploy. Production não emite CT-e real enquanto o
-feature flag e a configuração da empresa não forem explicitamente habilitados.
+conviver somente quando envelopes e efeitos forem compatíveis; consumidores
+fiscais incompatíveis exigem drain e troca controlada. Production não emite
+CT-e real enquanto o feature flag e a configuração da empresa não forem
+explicitamente habilitados.
 
 ## Pendências de provisionamento
 
-O projeto pode ser criado antes do código, mas os serviços e bancos só devem ser
-provisionados após a fundação para evitar recursos ociosos. O repositório GitHub
-precisa estar conectado para configurar branches de deploy.
+Nenhum serviço, banco, variável ou deploy adicional deve ser criado antes de
+`make check` e `make smoke` passarem na fundação Bun e de haver aprovação
+humana. O repositório GitHub precisa estar conectado para configurar branches
+de deploy somente depois desses gates.

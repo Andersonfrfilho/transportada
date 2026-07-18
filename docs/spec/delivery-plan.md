@@ -4,7 +4,7 @@
 
 | Fase | Objetivo               | Entregável / gate                                 |
 | ---- | ---------------------- | ------------------------------------------------- |
-| 0    | fundação               | monorepo, CI, health, Docker, ADRs                |
+| 0    | fundação Bun           | apps separáveis, CI, health, Docker, ADRs         |
 | 1    | identidade e tenant    | auth/RBAC + prova de isolamento                   |
 | 2    | empresas/fiscal config | certificado criptografado e sequência             |
 | 3    | NF-e                   | upload/ZIP, storage, parser, duplicidade, jobs    |
@@ -40,8 +40,9 @@ Cada fase possui demo independente, migration reversível e testes de aceite.
 
 ## Primeira sequência executável
 
-1. concluir `specs/001-foundation`;
-2. criar `002-tenant-auth`;
-3. criar `003-company-fiscal-settings`;
-4. criar `004-nfe-xml-import`;
-5. só então iniciar frete e emissão.
+1. preservar `specs/001-foundation` como baseline histórico;
+2. concluir `002-bun-foundation-migration`;
+3. criar `003-tenant-auth`;
+4. criar `004-company-fiscal-settings`;
+5. criar `005-nfe-xml-import`;
+6. só então iniciar frete e emissão.

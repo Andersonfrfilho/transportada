@@ -1,4 +1,4 @@
-nome do projeto: TranportAdA
+nome do projeto: TransportAdA
 
 # Prompt de Desenvolvimento — TMS Multiempresa para Transportadoras
 
@@ -204,7 +204,7 @@ APP_ENV=
 APP_PORT=
 
 DATABASE_URL=
-REDIS_URL=
+RABBITMQ_URL=
 
 JWT_SECRET=
 ENCRYPTION_KEY=
@@ -1928,7 +1928,7 @@ API
 Frontend
 Worker
 Banco
-Redis
+RabbitMQ
 Storage local
 Mail local
 Mocks fiscais
