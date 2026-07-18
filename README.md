@@ -3,6 +3,8 @@
 TMS multiempresa para importar NF-e, calcular frete, emitir CT-e em lote e
 gerar faturas. O projeto está em fase de especificação dirigida por contrato.
 
+Repositório privado: `https://github.com/Andersonfrfilho/transportada`
+
 ## Comece aqui
 
 1. Leia [`PROJECT.MD`](PROJECT.MD), fonte original dos requisitos.
