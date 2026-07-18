@@ -152,3 +152,36 @@ nova validação de contrato.
 Commit no repositório Ada: `f05b102`.
 
 Nenhuma publicação npm, ação Railway ou push foi executado.
+
+## T006 — Bun workspaces e CI
+
+Modelo executor: Codex Terra medium. Revisão e repetição dos gates pelo agente
+principal.
+
+- Bun `1.3.14` fixado em `packageManager`, engines e CI;
+- workspaces declarados na raiz e `bun.lock` versionado;
+- scripts raiz e comandos `make dev`/`make check` executam por Bun;
+- CI instala com lock congelado e roda cada gate por Bun;
+- dependências com scripts nativos necessárias ao baseline foram declaradas em
+  `trustedDependencies`.
+
+Gates:
+
+| Verificação                                 | Resultado                              |
+| ------------------------------------------- | -------------------------------------- |
+| `bun install --frozen-lockfile`             | aprovado, lock sem mudança             |
+| instalação congelada em checkout temporário | 1176 packages instalados               |
+| `bun run check` no checkout limpo           | todos os gates aprovados               |
+| lint                                        | 8/8 unidades                           |
+| typecheck                                   | 13/13 tarefas                          |
+| testes                                      | API/worker/config/observability verdes |
+| build                                       | 8/8 unidades                           |
+| parse do workflow YAML                      | aprovado                               |
+| `make config` e dry-run de `dev`/`check`    | aprovado, comandos Bun                 |
+
+Turbo permanece apenas como orquestrador transitório. Nest, Next, Vitest,
+Prisma, BullMQ/Redis e os arquivos pnpm legados continuam presentes para serem
+substituídos e removidos nas T007–T012, mas não são mais o caminho ativo da
+raiz ou da CI.
+
+Nenhuma ação Railway ou push foi executado.

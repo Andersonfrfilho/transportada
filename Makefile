@@ -30,10 +30,10 @@ ps: config ## 📋 Exibe os serviços locais
 	@$(COMPOSE) ps
 
 dev: up ## 💻 Inicia web, API e worker
-	@set -a; . "./$(ENV_FILE)"; set +a; pnpm dev
+	@set -a; . "./$(ENV_FILE)"; set +a; bun run dev
 
 check: config ## ✅ Executa todos os gates locais
-	@pnpm check
+	@bun run check
 
 smoke: ## 🩺 Valida API e worker já iniciados
 	@curl --fail --silent --show-error --output /dev/null http://localhost:53000/

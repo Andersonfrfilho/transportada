@@ -34,7 +34,7 @@ Uma task por vez e um commit atômico por task.
 - [x] T003 Provider Drizzle/Bun SQL no Ada.
 - [x] T004 Provider RabbitMQ/Bun no Ada.
 - [x] T005 Empacotamento e instalação limpa.
-- [ ] T006 Bun workspaces e CI.
+- [x] T006 Bun workspaces e CI.
 - [ ] T007 Drizzle no TransportAdA.
 - [ ] T008 API Bun.
 - [ ] T009 Worker Bun.
