@@ -151,7 +151,15 @@ nova validação de contrato.
 
 Commit no repositório Ada: `f05b102`.
 
-Nenhuma publicação npm, ação Railway ou push foi executado.
+Publicação autorizada pelo mantenedor e concluída pelo workflow Ada:
+
+- `@adatechnology/drizzle-provider@0.1.1`;
+- `@adatechnology/rabbitmq-provider@0.1.1`;
+- commit automático de versão: `87f8f21`;
+- workflow de build, versionamento e publish aprovado;
+- manifests versionados confirmados no registry npm.
+
+Nenhuma ação Railway foi executada.
 
 ## T006 — Bun workspaces e CI
 
