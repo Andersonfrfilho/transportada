@@ -544,3 +544,54 @@ os volumes foram preservados e os quatro serviços retornaram saudáveis.
 
 Nenhum certificado, senha ou XML fiscal foi lido, persistido ou registrado.
 Nenhuma emissão fiscal, ação Railway, deploy ou push foi executado.
+
+## T013 — Gates finais e revisão independente
+
+Modelos revisores:
+
+- OpenCode `opencode/nemotron-3-ultra-free`, somente leitura, para revisão
+  independente econômica;
+- Codex Sol high para os limites de migration, mensageria, shutdown, segurança
+  e aceite final.
+
+O reviewer gratuito leu spec, plano, evidência, manifests, código ativo,
+Makefile, Compose e CI. Ele repetiu o frozen install, o check raiz, checks das
+apps e o smoke local, e não encontrou falha nos critérios da T013. A revisão
+Sol confirmou os resultados e repetiu isolamentos e integrações críticas.
+
+Gates finais:
+
+| Verificação                                          | Resultado                              |
+| ---------------------------------------------------- | -------------------------------------- |
+| `bun install --frozen-lockfile` e `make check`       | 506 installs; todos os gates aprovados |
+| API em diretório temporário sem raiz                 | 126 packages; check aprovado           |
+| worker em diretório temporário sem raiz              | 119 packages; check aprovado           |
+| frontend em diretório temporário sem raiz            | 480 packages; check e PWA aprovados    |
+| API + PostgreSQL + migration baseline                | 5 testes, 14 asserts, nenhum pulado    |
+| Drizzle `db:check` e `db:generate`                   | aprovado e `no_changes`                |
+| worker + PostgreSQL + RabbitMQ                       | 4 testes, 9 asserts, nenhum pulado     |
+| main/retry-DLX/DLQ e drain em `SIGTERM`              | aprovados em broker real               |
+| Playwright 375 px, 768 px e 1280 px                  | 3 breakpoints sem overflow             |
+| service worker e reload offline                      | 2 smokes aprovados                     |
+| `make up`, `make dev` e `make smoke`                 | stack local aprovada                   |
+| busca por dependência/import legado no código ativo  | nenhum resultado                       |
+| arquivos versionados em `apps/web` ou `packages`     | nenhum resultado                       |
+| certificado, chave ou configuração Railway rastreada | nenhum resultado                       |
+
+Os caches ignorados que ainda existiam fisicamente em `apps/web` e `packages`
+foram removidos do workspace depois da revisão. A remoção não alterou o Git,
+pois nenhum arquivo nesses caminhos permanecia versionado. O processo
+`make dev` iniciado pelo reviewer foi encerrado e as portas das três apps foram
+confirmadas fechadas.
+
+Riscos residuais não bloqueantes:
+
+- `@adatechnology/logger@0.0.1` ainda não publica um mapa `exports`, embora
+  import, instalação isolada e build estejam aprovados;
+- o fiscal provider ainda possui os gaps de TLS, stdout/stderr e export de erro
+  já registrados na T002;
+- Drizzle permanece fixado em `1.0.0-rc.4` e exige nova validação antes de
+  qualquer upgrade.
+
+Nenhuma emissão fiscal, leitura do certificado fornecido, ação Railway, deploy
+ou push foi executado.

@@ -41,4 +41,4 @@ Uma task por vez e um commit atômico por task.
 - [x] T010 Frontend Vite/PWA.
 - [x] T011 Compose/Makefile.
 - [x] T012 Remoção de legado.
-- [ ] T013 Gates finais.
+- [x] T013 Gates finais.
