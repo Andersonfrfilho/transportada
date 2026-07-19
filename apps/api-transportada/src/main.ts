@@ -25,13 +25,13 @@ export function bootstrap(): Bun.Server<undefined> {
     projectName: 'transportada-api',
     version: '0.1.0',
   })
-  const verifier = createKeycloakAccessTokenVerifier(config.keycloak)
+  const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDrizzleProvider({ connection: config.databaseUrl })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
-    verifier,
+    verifier: identityGateway,
   })
-  const healthService = new HealthService({ database })
+  const healthService = new HealthService({ database, identityReadiness: identityGateway })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })

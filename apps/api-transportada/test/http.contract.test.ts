@@ -5,7 +5,10 @@ import { describe, expect, test } from 'bun:test'
 
 import { HealthService } from '../src/health/health.service'
 import { createRequestHandler } from '../src/http/request-handler.service'
-import type { AuthenticationPort } from '../src/identity/application/identity.port'
+import type {
+  AuthenticationPort,
+  IdentityReadinessPort,
+} from '../src/identity/application/identity.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
 import { HTTP_ERROR } from '../src/shared/api.constant'
 import { ApiError } from '../src/shared/api.error'
@@ -17,6 +20,7 @@ const GENERATED_CORRELATION_ID = '00000000-0000-4000-8000-000000000008'
 describe('API HTTP contracts', () => {
   test('reports liveness without checking PostgreSQL', async () => {
     let healthChecks = 0
+    let identityChecks = 0
     const fixture = createFixture({
       database: {
         async healthCheck() {
@@ -24,6 +28,12 @@ describe('API HTTP contracts', () => {
           return { healthy: true }
         },
         async close() {},
+      },
+      identityReadiness: {
+        async checkReadiness() {
+          identityChecks += 1
+          return true
+        },
       },
     })
 
@@ -42,6 +52,7 @@ describe('API HTTP contracts', () => {
       timestamp: NOW.toISOString(),
     })
     expect(healthChecks).toBe(0)
+    expect(identityChecks).toBe(0)
     expect(fixture.timeouts).toEqual([10])
   })
 
@@ -57,7 +68,7 @@ describe('API HTTP contracts', () => {
     expect(response.headers.get('x-correlation-id')).toBe(GENERATED_CORRELATION_ID)
   })
 
-  test('reports readiness from PostgreSQL only', async () => {
+  test('reports readiness from PostgreSQL and identity independently', async () => {
     const fixture = createFixture()
     const response = await fixture.handle(
       new Request('http://localhost/health/ready'),
@@ -66,7 +77,7 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      dependencies: { database: 'up' },
+      dependencies: { database: 'up', identity: 'up' },
       service: 'api',
       status: 'ok',
       timestamp: NOW.toISOString(),
@@ -89,12 +100,102 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
-      dependencies: { database: 'down' },
+      dependencies: { database: 'down', identity: 'up' },
       service: 'api',
       status: 'degraded',
       timestamp: NOW.toISOString(),
     })
     expect(JSON.stringify(fixture.logs)).not.toContain('secret')
+  })
+
+  test('reports identity degradation without leaking provider details', async () => {
+    const fixture = createFixture({
+      identityReadiness: {
+        async checkReadiness() {
+          throw new Error('http://identity.internal/realms/private?secret=value')
+        },
+      },
+    })
+    const response = await fixture.handle(
+      new Request('http://localhost/health/ready'),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      dependencies: { database: 'up', identity: 'down' },
+      service: 'api',
+      status: 'degraded',
+      timestamp: NOW.toISOString(),
+    })
+    expect(JSON.stringify(fixture.logs)).not.toContain('identity.internal')
+    expect(JSON.stringify(fixture.logs)).not.toContain('secret')
+  })
+
+  test('checks both readiness dependencies even when both fail', async () => {
+    let databaseChecks = 0
+    let identityChecks = 0
+    const fixture = createFixture({
+      database: {
+        async healthCheck() {
+          databaseChecks += 1
+          throw new Error('database unavailable')
+        },
+        async close() {},
+      },
+      identityReadiness: {
+        async checkReadiness() {
+          identityChecks += 1
+          return false
+        },
+      },
+    })
+
+    const response = await fixture.handle(
+      new Request('http://localhost/health/ready'),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      dependencies: { database: 'down', identity: 'down' },
+      status: 'degraded',
+    })
+    expect(databaseChecks).toBe(1)
+    expect(identityChecks).toBe(1)
+  })
+
+  test('returns to ready when identity recovers on a later request', async () => {
+    let identityChecks = 0
+    const fixture = createFixture({
+      identityReadiness: {
+        async checkReadiness() {
+          identityChecks += 1
+          return identityChecks > 1
+        },
+      },
+    })
+
+    const degraded = await fixture.handle(
+      new Request('http://localhost/health/ready'),
+      fixture.server,
+    )
+    const recovered = await fixture.handle(
+      new Request('http://localhost/health/ready'),
+      fixture.server,
+    )
+
+    expect(degraded.status).toBe(503)
+    expect(await degraded.json()).toMatchObject({
+      dependencies: { database: 'up', identity: 'down' },
+      status: 'degraded',
+    })
+    expect(recovered.status).toBe(200)
+    expect(await recovered.json()).toMatchObject({
+      dependencies: { database: 'up', identity: 'up' },
+      status: 'ok',
+    })
+    expect(identityChecks).toBe(2)
   })
 
   test('returns safe structured errors for unknown routes and methods', async () => {
@@ -269,12 +370,14 @@ describe('API HTTP contracts', () => {
 type CreateFixtureParams = {
   readonly authentication?: AuthenticationPort
   readonly database?: DatabaseHealthPort
+  readonly identityReadiness?: IdentityReadinessPort
   readonly loggerThrows?: boolean
 }
 
 function createFixture({
   authentication = authenticated(),
   database = healthyDatabase(),
+  identityReadiness = readyIdentity(),
   loggerThrows = false,
 }: CreateFixtureParams = {}) {
   const logs: Array<Record<string, unknown>> = []
@@ -301,6 +404,7 @@ function createFixture({
   }
   const healthService = new HealthService({
     database,
+    identityReadiness,
     now: () => NOW,
   })
   const handle = createRequestHandler({
@@ -348,5 +452,13 @@ function healthyDatabase(): DatabaseHealthPort {
       return { healthy: true }
     },
     async close() {},
+  }
+}
+
+function readyIdentity(): IdentityReadinessPort {
+  return {
+    async checkReadiness() {
+      return true
+    },
   }
 }

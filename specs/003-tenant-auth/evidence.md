@@ -962,3 +962,67 @@ builds API, worker e frontend/PWA verdes
 Os processos Bun locais foram encerrados após os gates. Nenhum Railway,
 certificado, senha, token, cookie, código de autorização ou dado fiscal foi
 usado, registrado ou publicado.
+
+## T013A — Probe JWKS recuperável e readiness
+
+Modelo executor e revisão: Codex Sol high.
+
+Package Ada:
+
+- `b343f1b feat(auth): add recoverable JWKS readiness probe`;
+- `e30d427 chore(release): version packages`;
+- `@adatechnology/keycloak-jwt@0.1.1` publicado com acesso público e fixado
+  exatamente na API;
+- pipeline GitHub `29695687475` concluiu instalação, build, versionamento,
+  commit de release, publicação e confirmação de acesso público;
+- `probeJwks()` permanece lazy, deduplica chamadas concorrentes, valida uma
+  chave pública resolvível para algoritmo e `kid` permitidos, limita falhas por
+  cooldown e retorna somente `{ ready: boolean }` congelado;
+- a geração exata do cache validado impede readiness positiva após uma troca
+  posterior para um JWKS inutilizável.
+
+Integração da API:
+
+- o mesmo gateway Keycloak implementa verificação de token e a porta local de
+  readiness, sem importar internals do package;
+- o bootstrap permanece síncrono e não acessa rede; o primeiro probe ocorre
+  somente em `/health/ready`;
+- liveness não consulta PostgreSQL nem identidade;
+- readiness verifica PostgreSQL e identidade independentemente e expõe somente
+  `database` e `identity` como `up` ou `down`;
+- falha de qualquer dependência retorna `503 degraded`, sem URL, erro remoto,
+  token, claim ou material JWKS;
+- uma chamada posterior retorna `200 ok` quando a identidade se recupera.
+
+Evidência:
+
+```text
+package @adatechnology/keycloak-jwt
+typecheck, ESLint, Prettier e build ESM/DTS verdes
+42 pass, 0 fail, 156 assertions
+npm pack --dry-run verde
+
+GitHub Actions 29695687475
+publish: success em 1m03s
+
+npm view @adatechnology/keycloak-jwt
+latest 0.1.1
+integrity sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg==
+
+bun install --frozen-lockfile
+509 instalações verificadas; nenhuma mudança
+
+bun run --cwd apps/api-transportada check
+94 pass, 1 migration integration condicional; lint, typecheck e build verdes
+
+bun run --cwd apps/api-transportada test:integration
+15 pass, 1 skip condicional; isolamento PostgreSQL e shutdown verdes
+
+make dev && make smoke
+Compose transportada-local saudável
+API readiness: database up, identity up
+Playwright 6 pass
+```
+
+Os processos Bun foram encerrados após o smoke. Nenhum Railway, certificado ou
+dado fiscal foi utilizado.

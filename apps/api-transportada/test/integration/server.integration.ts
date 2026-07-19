@@ -22,7 +22,16 @@ const logger: ApiLogger = {
   info() {},
   warn() {},
 }
-const healthService = new HealthService({ database })
+let identityReadinessChecks = 0
+const healthService = new HealthService({
+  database,
+  identityReadiness: {
+    async checkReadiness() {
+      identityReadinessChecks += 1
+      return true
+    },
+  },
+})
 const authentication: AuthenticationPort = {
   async authenticate() {
     return {
@@ -72,7 +81,9 @@ afterAll(async () => {
 
 describe('API server integration', () => {
   test('serves liveness and PostgreSQL readiness on an ephemeral port', async () => {
+    expect(identityReadinessChecks).toBe(0)
     const live = await fetch(`${baseUrl}/health/live`)
+    expect(identityReadinessChecks).toBe(0)
     const ready = await fetch(`${baseUrl}/health/ready`)
 
     expect(server.port).toBeGreaterThan(0)
@@ -80,9 +91,10 @@ describe('API server integration', () => {
     expect(live.headers.get('x-correlation-id')).toBeTruthy()
     expect(ready.status).toBe(200)
     expect(await ready.json()).toMatchObject({
-      dependencies: { database: 'up' },
+      dependencies: { database: 'up', identity: 'up' },
       status: 'ok',
     })
+    expect(identityReadinessChecks).toBe(1)
   })
 
   test('rejects request bodies over the application limit with a correlated error', async () => {

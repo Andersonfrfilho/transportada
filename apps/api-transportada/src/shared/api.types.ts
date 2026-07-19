@@ -41,14 +41,24 @@ export type StoppableServer = {
 export type HealthStatus = 'ok' | 'degraded'
 export type DependencyStatus = 'up' | 'down'
 
-export type HealthResponse = {
+type HealthResponseBase = {
   readonly service: 'api'
-  readonly status: HealthStatus
   readonly timestamp: string
-  readonly dependencies?: {
-    readonly database: DependencyStatus
-  }
 }
+
+export type LivenessHealthResponse = HealthResponseBase & {
+  readonly status: 'ok'
+}
+
+export type ReadinessHealthResponse = HealthResponseBase & {
+  readonly dependencies: {
+    readonly database: DependencyStatus
+    readonly identity: DependencyStatus
+  }
+  readonly status: HealthStatus
+}
+
+export type HealthResponse = LivenessHealthResponse | ReadinessHealthResponse
 
 export type ErrorResponse = {
   readonly error: {

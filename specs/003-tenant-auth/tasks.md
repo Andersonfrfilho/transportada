@@ -62,7 +62,7 @@ tentativa com contexto maior.
 - [x] T011 Membership/contextos company e platform.
 - [x] T012 RBAC deny-by-default.
 - [x] T013 `/auth/me` e observabilidade.
-- [ ] T013A Probe JWKS recuperável e readiness.
+- [x] T013A Probe JWKS recuperável e readiness.
 - [x] T014 Frontend PKCE.
 - [x] T014A CORS estrito SPA local para API.
 - [x] T014B Bootstrap da identidade local da aplicação.

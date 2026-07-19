@@ -11,6 +11,7 @@ import {
 import {
   AccessTokenRejectedError,
   type AccessTokenVerifierPort,
+  type IdentityReadinessPort,
 } from '../application/identity.port'
 
 type KeycloakAccessTokenVerifierConfig = {
@@ -30,7 +31,7 @@ const defaultDependencies: KeycloakAccessTokenVerifierDependencies = {
 export function createKeycloakAccessTokenVerifier(
   config: KeycloakAccessTokenVerifierConfig,
   dependencies: KeycloakAccessTokenVerifierDependencies = defaultDependencies,
-): AccessTokenVerifierPort {
+): AccessTokenVerifierPort & IdentityReadinessPort {
   const verifier = dependencies.createVerifier({
     algorithms: ['RS256'],
     audience: config.audience,
@@ -40,6 +41,10 @@ export function createKeycloakAccessTokenVerifier(
   })
 
   return {
+    async checkReadiness() {
+      const result = await verifier.probeJwks()
+      return result.ready
+    },
     async verify(token) {
       try {
         return await verifier.verify(token)

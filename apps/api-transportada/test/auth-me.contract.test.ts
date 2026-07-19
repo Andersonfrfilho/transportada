@@ -218,7 +218,14 @@ function createFixture({
     authentication,
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigin: 'http://localhost:53000',
-    healthService: new HealthService({ database: healthyDatabase() }),
+    healthService: new HealthService({
+      database: healthyDatabase(),
+      identityReadiness: {
+        async checkReadiness() {
+          return true
+        },
+      },
+    }),
     logger,
     requestTimeoutSeconds: 10,
     tenantContext: new TenantContextService({ repository: membership }),

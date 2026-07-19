@@ -76,7 +76,14 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             logLevel: 'error',
             port: 0,
           },
-          healthService: new HealthService({ database }),
+          healthService: new HealthService({
+            database,
+            identityReadiness: {
+              async checkReadiness() {
+                return true
+              },
+            },
+          }),
           logger,
           tenantContext: new TenantContextService({
             repository: new DrizzleMembershipRepository(database.db),

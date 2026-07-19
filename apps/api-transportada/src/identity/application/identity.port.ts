@@ -13,6 +13,10 @@ export type AccessTokenVerifierPort = {
   verify(token: string): Promise<VerifiedIdentityToken>
 }
 
+export type IdentityReadinessPort = {
+  checkReadiness(): Promise<boolean>
+}
+
 export class AccessTokenRejectedError extends Error {
   public constructor() {
     super('Access token rejected')

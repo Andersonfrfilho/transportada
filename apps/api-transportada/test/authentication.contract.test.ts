@@ -193,6 +193,9 @@ describe('authentication contract', () => {
                 hasUsableCachedKey: false,
                 reloading: false,
               }),
+              async probeJwks() {
+                return { ready: false }
+              },
               async verify() {
                 throw new KeycloakJwtVerificationError(code)
               },
@@ -254,6 +257,9 @@ describe('authentication contract', () => {
               hasUsableCachedKey: true,
               reloading: false,
             }),
+            async probeJwks() {
+              return { ready: true }
+            },
             verify,
           }
         },
@@ -273,6 +279,43 @@ describe('authentication contract', () => {
       jwksUri: `${ISSUER}/protocol/openid-connect/certs`,
       requiredClaims: ['company_id'],
     })
+  })
+
+  test('exposes lazy and recoverable identity readiness backed by the Ada JWKS probe', async () => {
+    let isReady = false
+    let probeCalls = 0
+    const gateway = createKeycloakAccessTokenVerifier(
+      {
+        audience: 'transportada-api',
+        issuer: ISSUER,
+        jwksUri: `${ISSUER}/protocol/openid-connect/certs`,
+      },
+      {
+        createVerifier() {
+          return {
+            getJwksStatus: () => ({
+              coolingDown: false,
+              fresh: false,
+              hasUsableCachedKey: false,
+              reloading: false,
+            }),
+            async probeJwks() {
+              probeCalls += 1
+              return { ready: isReady }
+            },
+            async verify() {
+              throw new Error('must not verify a token during readiness')
+            },
+          }
+        },
+      },
+    )
+
+    expect(probeCalls).toBe(0)
+    await expect(gateway.checkReadiness()).resolves.toBe(false)
+    isReady = true
+    await expect(gateway.checkReadiness()).resolves.toBe(true)
+    expect(probeCalls).toBe(2)
   })
 })
 
