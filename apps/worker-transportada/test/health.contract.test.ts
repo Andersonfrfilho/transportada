@@ -137,7 +137,7 @@ function createFixture(
 
   return {
     handle: createHealthRequestHandler({
-      createCorrelationId: params.createCorrelationId,
+      ...(params.createCorrelationId ? { createCorrelationId: params.createCorrelationId } : {}),
       healthService,
       logger,
     }),

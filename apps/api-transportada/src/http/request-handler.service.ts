@@ -239,7 +239,7 @@ function errorResponse({ correlationId, error, logger }: ErrorResponseParams): R
           message: error.message,
         },
       },
-      headers: error.headers,
+      ...(error.headers ? { headers: error.headers } : {}),
       status: error.status,
     })
   }

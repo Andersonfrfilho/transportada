@@ -38,7 +38,7 @@ flowchart LR
 | Banco             | PostgreSQL + Drizzle/Bun SQL      | migrations versionadas pelo Drizzle Kit          |
 | Fila              | RabbitMQ                          | jobs fiscais são críticos; BullMQ não é o padrão |
 | Storage           | interface S3                      | MinIO local; bucket gerenciado apenas após gates |
-| Auth              | `@adatechnology/auth-keycloak`    | tenant derivado do token                         |
+| Auth              | `@adatechnology/keycloak-jwt`     | tenant derivado do token                         |
 | Fiscal            | `@adatechnology/fiscal-provider`  | somente exports públicos via gateway             |
 | Logs              | `@adatechnology/logger`           | redaction e correlação obrigatórias              |
 | Testes            | `bun test` e Playwright           | integração real para banco e broker              |
@@ -67,7 +67,7 @@ adatechnology-packages/
     ├── backend/
     │   ├── fiscal-provider/
     │   ├── logger/
-    │   ├── auth-keycloak/
+    │   ├── keycloak-jwt/
     │   ├── drizzle-provider/       # se aprovado na task correspondente
     │   └── rabbitmq-provider/      # se aprovado na task correspondente
     └── frontend/

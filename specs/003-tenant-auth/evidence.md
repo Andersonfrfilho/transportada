@@ -1026,3 +1026,69 @@ Playwright 6 pass
 
 Os processos Bun foram encerrados após o smoke. Nenhum Railway, certificado ou
 dado fiscal foi utilizado.
+
+## T016 — Gates finais e revisão independente
+
+Modelos:
+
+- OpenCode `nemotron-3-ultra-free` e `deepseek-v4-flash-free`: duas tentativas
+  somente leitura falharam no serviço antes de iniciar a revisão e sem alterar
+  o checkout; a task foi escalada conforme a política;
+- Codex Sol high: revisão final somente leitura de segurança, tenant,
+  autenticação/JWKS, frontend, filas, fiscal, separação dos apps e release.
+
+A revisão Sol não encontrou achado crítico de runtime ou segurança. Confirmou
+que o tenant nasce do token verificado e da membership ativa, `platform-admin`
+não ignora vínculo tenant, JWKS readiness é lazy e recuperável, tokens
+permanecem em memória, os apps são independentes e a topologia RabbitMQ possui
+main, retry e dead-letter exchanges/queues.
+
+Os desvios não críticos encontrados foram corrigidos antes do gate final:
+
+- arquitetura e README da API agora documentam o package
+  `@adatechnology/keycloak-jwt`, `/auth/me` e readiness PostgreSQL/JWKS;
+- `exactOptionalPropertyTypes` foi habilitado nos três apps e os valores
+  opcionais passaram a ser omitidos quando ausentes;
+- o GitHub Actions ganhou job dependente para migration, integrações reais,
+  bootstrap de identidade e smoke autenticado, com teardown garantido.
+
+Evidência local final:
+
+```text
+bun install --frozen-lockfile
+509 instalações verificadas; nenhuma mudança
+
+make check
+format, lint, typecheck estrito e builds verdes
+realm 5 pass
+API 94 pass, 1 migration integration condicional
+worker 22 pass
+frontend 16 pass
+
+make migration-test
+9 pass, 0 fail; apply, constraints, rollback, reaplicação e seed concorrente
+
+bun run --cwd apps/api-transportada test:integration
+15 pass, 1 migration integration condicional
+
+RABBITMQ_TEST_URL="$RABBITMQ_URL" \
+  bun run --cwd apps/worker-transportada test:integration
+4 pass, 0 fail; exchanges/queues, retry TTL/DLX, DLQ e SIGTERM
+
+make identity-bootstrap
+migration e seed idempotentes; Keycloak saudável
+
+make dev && make smoke
+Compose transportada-local saudável
+API readiness: database up, identity up
+worker readiness: database up, rabbitmq up
+Playwright autenticado: 6 pass
+```
+
+Uma execução paralela da integração HTTP atingiu uma vez o timeout de 5s; a
+repetição isolada, igual à ordem sequencial do workflow, passou em menos de um
+segundo. Não houve segunda falha equivalente.
+
+Os processos Bun e a infraestrutura Compose foram encerrados após os gates.
+Nenhum Railway, certificado, senha, token, cookie, XML ou dado fiscal foi
+usado, registrado ou publicado.

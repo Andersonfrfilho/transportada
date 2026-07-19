@@ -137,7 +137,7 @@ function errorResponse({
         message,
       },
     },
-    headers,
+    ...(headers ? { headers } : {}),
     status,
   })
 }

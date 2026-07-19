@@ -185,7 +185,10 @@ describe('API CORS contract', () => {
   ] as const)(
     'keeps actual /auth/me status %i readable by the allowed SPA',
     async (status, authentication, membership, method) => {
-      const fixture = createFixture({ authentication, membership })
+      const fixture = createFixture({
+        ...(authentication ? { authentication } : {}),
+        ...(membership ? { membership } : {}),
+      })
       const response = await fixture.handle(actualRequest('/auth/me', method), fixture.server)
 
       expect(response.status).toBe(status)

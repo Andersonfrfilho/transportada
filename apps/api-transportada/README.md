@@ -7,6 +7,9 @@ Aplicação HTTP independente, executada por Bun 1.3.14 com `Bun.serve`.
 - `DATABASE_URL`: URL PostgreSQL obrigatória;
 - `FRONTEND_ORIGIN`: origin canônica e exata da SPA; HTTPS, exceto HTTP
   permitido somente para o hostname `localhost`;
+- `KEYCLOAK_ISSUER`: issuer OIDC confiável e exato;
+- `KEYCLOAK_JWKS_URI`: endpoint JWKS confiável; HTTPS fora de `localhost`;
+- `KEYCLOAK_AUDIENCE`: audience exclusiva do client da API;
 - `APP_PORT`: porta HTTP, padrão `53001`;
 - `APP_ENV`: ambiente, padrão `local`;
 - `LOG_LEVEL`: `debug`, `info`, `warn` ou `error`.
@@ -40,12 +43,13 @@ do handler.
 Method e pathname são validados por schema Zod antes do roteamento. As rotas
 health não leem body; o servidor rejeita corpos acima de 1 MiB com `413`.
 
-| Método | Rota              | Resposta                                  |
-| ------ | ----------------- | ----------------------------------------- |
-| GET    | `/health/live`    | `200`, sem consultar dependências         |
-| GET    | `/health/ready`   | `200` com PostgreSQL up ou `503` degraded |
-| outro  | rota conhecida    | `405` e erro estruturado                  |
-| outro  | rota desconhecida | `404` e erro estruturado                  |
+| Método | Rota              | Resposta                                             |
+| ------ | ----------------- | ---------------------------------------------------- |
+| GET    | `/health/live`    | `200`, sem consultar dependências                    |
+| GET    | `/health/ready`   | `200` com PostgreSQL/JWKS up ou `503` degraded       |
+| GET    | `/auth/me`        | `200` com identidade tenant autenticada              |
+| outro  | rota conhecida    | `405` e erro estruturado após autenticação aplicável |
+| outro  | rota desconhecida | `404` e erro estruturado após autenticação           |
 
 Erros possuem `{ error: { code, message, correlationId } }` e não expõem
 stack, query string, headers, body ou detalhes da infraestrutura.

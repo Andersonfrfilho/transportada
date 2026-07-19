@@ -205,13 +205,13 @@ function createFixture({
   const logs: Array<{ readonly message: string; readonly metadata?: Record<string, unknown> }> = []
   const logger: ApiLogger = {
     error(message, metadata) {
-      logs.push({ message, metadata })
+      logs.push(metadata ? { message, metadata } : { message })
     },
     info(message, metadata) {
-      logs.push({ message, metadata })
+      logs.push(metadata ? { message, metadata } : { message })
     },
     warn(message, metadata) {
-      logs.push({ message, metadata })
+      logs.push(metadata ? { message, metadata } : { message })
     },
   }
   const handle = createRequestHandler({

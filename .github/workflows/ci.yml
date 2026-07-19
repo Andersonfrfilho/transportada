@@ -23,3 +23,52 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: cp .env.example .env
+      - run: bun install --frozen-lockfile
+      - run: make migration-test
+      - run: make up
+      - name: API and worker integrations
+        run: |
+          set -a
+          . ./.env
+          set +a
+          bun run --cwd apps/api-transportada test:integration
+          RABBITMQ_TEST_URL="$RABBITMQ_URL" \
+            bun run --cwd apps/worker-transportada test:integration
+      - run: make identity-bootstrap
+      - name: Local authenticated smoke
+        run: |
+          make dev >"$RUNNER_TEMP/transportada-dev.log" 2>&1 &
+          dev_pid=$!
+          cleanup() {
+            kill "$dev_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://localhost:53000/; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/transportada-dev.log"
+            exit 1
+          fi
+
+          make smoke
+      - if: always()
+        run: make down

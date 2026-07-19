@@ -68,4 +68,4 @@ tentativa com contexto maior.
 - [x] T014B Bootstrap da identidade local da aplicação.
 - [x] T014C Perfil completo do usuário local do Keycloak.
 - [x] T015 Playwright autenticado.
-- [ ] T016 Gates finais.
+- [x] T016 Gates finais.

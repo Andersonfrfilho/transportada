@@ -7,6 +7,7 @@
     "incremental": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,

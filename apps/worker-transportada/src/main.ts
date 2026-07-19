@@ -50,7 +50,7 @@ export async function bootstrap(
       provider,
     })
     const shutdown = new WorkerShutdown({
-      consumer,
+      ...(consumer ? { consumer } : {}),
       database,
       healthServer,
       provider,
