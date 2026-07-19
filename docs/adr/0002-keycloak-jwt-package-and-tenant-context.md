@@ -38,6 +38,10 @@ responsabilidades distintas.
    request nunca troca seu contexto autenticado em voo.
 9. Publicar e fixar uma versão exata somente após contracts, concorrência JWKS,
    empacotamento e instalação Bun limpa, com aprovação humana.
+10. Tratar somente a realm role exata `platform-admin`, presente em um JWT
+    validado do issuer/audience confiáveis, como atribuição de plataforma.
+    Roles de empresa vindas do token nunca autorizam uma operação: são
+    resolvidas exclusivamente da membership ativa no PostgreSQL.
 
 ## Compatibilidade e migração
 
@@ -57,6 +61,8 @@ responsabilidades distintas.
 - Correções de segurança JWT/JWKS ficam centralizadas e reutilizáveis.
 - O package permanece pequeno, mas o TransportAdA ainda precisa resolver
   identidade, membership e autorização localmente.
+- A revogação de `platform-admin` passa a valer na renovação/expiração do token;
+  sua duração precisa permanecer curta e o refresh deve falhar fechado.
 - A publicação npm vira um gate separado e não é consequência automática da
   implementação local.
 
@@ -70,6 +76,10 @@ responsabilidades distintas.
   verificados por contrato.
 - O contexto tenant só nasce depois da validação criptográfica e da confirmação
   de membership ativo no banco.
+- `platform-admin` somente cria `PlatformContext` em rota declarada como
+  platform-scoped e nunca substitui `CompanyContext` ou membership.
+- Realm roles tenant como `company-admin`, `finance`, `fiscal`, `operator` e
+  `viewer` não são fonte de autoridade, mesmo quando presentes no token.
 
 ## Rollback
 

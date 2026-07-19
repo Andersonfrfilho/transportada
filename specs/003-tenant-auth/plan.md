@@ -123,8 +123,11 @@ Roles de empresa pertencem à membership local e a matriz role → permission é
 código versionado nesta fase. O token seleciona a empresa ativa por
 `company_id`; trocar de empresa exige novo token do Keycloak. O fluxo para
 administrar memberships e emitir o novo claim exige uma feature posterior.
-`platform-admin` é uma atribuição explícita de plataforma e cria
-`PlatformContext`, nunca `CompanyContext`.
+`platform-admin` é uma atribuição explícita do realm Keycloak, aceita somente
+após validação criptográfica, de issuer e de audience. Ela cria
+`PlatformContext`, nunca `CompanyContext`. Nenhuma outra realm role autoriza
+operação tenant: `company-admin`, `finance`, `fiscal`, `operator` e `viewer`
+continuam pertencendo exclusivamente à membership local.
 
 A migration é aditiva, com FKs, checks de status e índices por `company_id`.
 Rollback é um SQL versionado/revisado que remove primeiro vínculos e depois o

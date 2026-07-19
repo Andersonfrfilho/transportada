@@ -52,7 +52,7 @@ tentativa com contexto maior.
 - [x] T005 Empacotamento Bun limpo.
 - [ ] T006 Publicação e pin.
 - [x] T007 Keycloak local.
-- [ ] T008 Schema de identities, company, membership e roles.
+- [x] T008 Schema de identities, company, membership e roles.
 - [ ] T009 Migration e rollback.
 - [ ] T010 Gateway JWT/identidade.
 - [ ] T011 Membership/contextos company e platform.

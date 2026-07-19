@@ -283,3 +283,53 @@ O Keycloak e os demais serviços de infraestrutura permanecem locais e
 saudáveis. Os apps não foram iniciados, portanto o `make smoke` completo ficou
 fora deste gate; discovery, JWKS e health do Keycloak foram validados
 diretamente. Nenhuma ação Railway ou uso do certificado ocorreu.
+
+## T008 — Schema de identidade e tenant
+
+Modelo executor e duas revisões independentes: Codex Sol high.
+
+Schema declarativo:
+
+- cinco tabelas conforme o plano mínimo: usuários internos, identidades
+  externas, empresas, memberships e roles por membership;
+- unicidade global de `(issuer, subject)` e rejeição de ambos quando contêm
+  somente whitespace reconhecido por JavaScript, incluindo espaços Unicode;
+- FKs de usuário e empresa com remoção restrita; cascade somente dos papéis
+  filhos quando a membership é removida;
+- unique `(user_id, company_id)`, chave composta
+  `(membership_id, role)` e índices de consulta por tenant/usuário;
+- status e roles limitados por CHECKs PostgreSQL;
+- UUIDs gerados e timestamps `timestamptz` obrigatórios.
+
+Decisão de autoridade:
+
+- a realm role exata `platform-admin` em JWT já validado é a atribuição de
+  plataforma;
+- ela somente poderá criar `PlatformContext` em rota platform-scoped;
+- roles de empresa presentes no token nunca autorizam operações e continuam
+  exclusivamente na membership ativa do PostgreSQL;
+- o ADR 0002, a spec e o plano foram alinhados antes da migration.
+
+Evidência local:
+
+```text
+bun test test/identity-schema.contract.test.ts
+6 pass, 0 fail, 80 expect() calls
+
+bun run check
+17 pass, 1 integração PostgreSQL condicionada, 0 fail
+lint, typecheck e build verdes
+
+bun run db:check
+Everything's fine
+
+PostgreSQL local: regex de identidade
+tab/newline=false; NBSP=false; texto não vazio=true
+```
+
+A primeira revisão encontrou a origem ainda ambígua de `platform-admin`,
+`issuer/subject` vazios, um timestamp ausente e asserts insuficientes. Todos
+foram corrigidos. A segunda revisão não encontrou bloqueio; seu endurecimento
+de whitespace também foi aplicado e validado no PostgreSQL local. Nenhuma
+migration foi gerada ou aplicada nesta task; inserts negativos e rollback
+pertencem à T009.

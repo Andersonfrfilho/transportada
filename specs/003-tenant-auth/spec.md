@@ -88,6 +88,9 @@ claims e roles previsíveis ficam disponíveis sem Railway.
   `operator` e `viewer`;
 - tratar `platform-admin` em contexto de plataforma separado, nunca como bypass
   implícito de uma rota tenant;
+- obter `platform-admin` somente da realm role exata em JWT já validado; roles
+  de empresa presentes no token não têm autoridade e são resolvidas da
+  membership ativa no PostgreSQL;
 - rotas da API são privadas por padrão; somente health é público nesta fase;
 - expor `GET /auth/me` com identidade, empresa ativa, roles e permissões
   permitidas;
