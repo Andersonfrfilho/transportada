@@ -179,6 +179,10 @@ O primeiro sucesso retorna `201`; replay idempotente retorna o mesmo DTO sem
 revalidar ou substituir novamente. Falha preserva o certificado anterior. A
 resposta diz apenas que a credencial foi validada localmente.
 
+Multipart com `Content-Length` ausente ou transferência chunked é consumido por
+um leitor incremental com contador e abortado ao exceder 1 MiB, antes de
+`formData()`. O servidor continua impondo seu limite absoluto de 2 MiB.
+
 ### `GET /digital-certificates`
 
 Retorna histórico paginado de metadados allowlisted. Aposentadoria é consequência
@@ -187,6 +191,23 @@ da substituição; a spec não justifica endpoint `DELETE`.
 CORS é ampliado somente para a origin exata existente, métodos `GET`, `PATCH`,
 `POST`, `OPTIONS` e headers `Authorization`, `Content-Type`,
 `Idempotency-Key`, sem credentials.
+
+### Limites de boundary
+
+- `Idempotency-Key`: 16–128 caracteres ASCII em `[A-Za-z0-9._:-]`;
+- multipart: exatamente um `certificate`, uma `password` de 1–256 bytes UTF-8
+  e `purpose=cte`; body total máximo de 1 MiB;
+- listagem de certificados: `limit` padrão 25, máximo 100, e cursor base64url
+  estrito de `(createdAt,id)`;
+- CNPJ, CEP e código IBGE: respectivamente 14, 8 e 7 dígitos;
+- UF: duas letras maiúsculas; CRT: `'1' | '2' | '3'`;
+- razão social: 2–200; nome fantasia: 0–200; IE/IM: 0–20; RNTRC: 1–20;
+  e-mail: 0–254; telefone: 0–20 caracteres;
+- logradouro: 2–200; número: 1–20; complemento: 0–100; bairro: 1–100;
+  município: 2–100 caracteres;
+- série e próximo número: strings decimais positivas, sem zero à esquerda e
+  com no máximo 19 dígitos; esse é limite técnico de `bigint`, não regra fiscal;
+- nenhum campo obrigatório aceita string composta somente por espaços.
 
 ## Contrato do package `secret-envelope`
 
@@ -245,7 +266,10 @@ IDEMPOTENCY_HMAC_KEY=<base64-de-32-bytes>
 
 Erros de configuração são genéricos e nunca incluem valores. A chave HMAC é
 separada da chave de envelope e gera fingerprints idempotentes sem persistir
-payload ou hash direto de senha.
+payload ou hash direto de senha. O input do HMAC usa domínio, operação e campos
+normalizados em ordem fixa, cada um com tamanho unsigned de 32 bits big-endian.
+O `PATCH` usa o DTO já validado; multipart usa bytes do certificado, senha UTF-8
+e purpose, evitando colisões por concatenação.
 
 ## Gateway fiscal
 
@@ -359,6 +383,11 @@ Para chave nova, a transação atualiza a linha com
 1 ... RETURNING`, insere o ledger e confirma antes de retornar. Lock da linha
 serializa concorrência; o ledger torna retry idempotente.
 
+Se duas transações disputarem a mesma chave, somente a violação `23505` da
+constraint esperada ativa o recovery: rollback completo, nova transação,
+releitura da reserva e comparação de empresa/ambiente/modelo/série. Intenção
+divergente retorna conflito; o incremento perdedor é revertido.
+
 Substituição de certificado bloqueia o perfil da empresa. O índice parcial é
 uma defesa adicional, não o mecanismo único contra corrida.
 
@@ -433,6 +462,10 @@ uma defesa adicional, não o mecanismo único contra corrida.
 
 Nenhum gate executa deploy. O Makefile conserva `PROJECT_NAME` e
 `COMPOSE_PROJECT_NAME=$(PROJECT_NAME)-$(APP_ENV)`.
+
+Para o smoke final, `make dev` roda em PTY/sessão controlada; após readiness,
+outra sessão executa `make smoke`. O gate envia `SIGTERM`, confirma o término
+dos três apps e encerra a infraestrutura com `make down`.
 
 ## Riscos
 
