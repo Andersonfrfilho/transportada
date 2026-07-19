@@ -14,4 +14,5 @@ coverage/
 .DS_Store
 .history/
 .railway/
+graphify-out/
 tmp/
