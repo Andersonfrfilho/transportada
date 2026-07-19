@@ -4,7 +4,8 @@
 
 A feature 002 entregou três aplicações Bun separáveis. A feature 003 começa no
 provider Ada porque o artefato npm atual não pode ser importado pela API sem
-reintroduzir NestJS. A escolha do nome/package permanece bloqueante.
+reintroduzir NestJS. O ADR 0002 escolhe o novo package
+`@adatechnology/keycloak-jwt` e preserva o artefato NestJS existente.
 
 Keycloak autentica o usuário. O TransportAdA autoriza operações combinando:
 
@@ -21,7 +22,7 @@ do TransportAdA permanecem na API.
 
 ```text
 adatechnology-packages/
-└── packages/backend/<package-auth-escolhido>/
+└── packages/backend/keycloak-jwt/
     ├── src/
     ├── test/
     ├── package.json
@@ -37,7 +38,7 @@ transportada/
 │       └── presentation/
 ├── apps/frontend-transportada/src/modules/identity/
 ├── compose.yaml
-├── docs/adr/0002-keycloak-package-and-tenant-context.md
+├── docs/adr/0002-keycloak-jwt-package-and-tenant-context.md
 └── specs/003-tenant-auth/
 ```
 

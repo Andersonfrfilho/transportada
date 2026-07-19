@@ -31,8 +31,27 @@ Descobertas confirmadas:
 - revisão Sol exigiu identidade por `(issuer, sub)`, roles locais por
   membership e contextos separados de plataforma e empresa;
 - revisão Sol recomenda preservar o package NestJS publicado e adotar um novo
-  nome para o provider Bun, sujeito à decisão do mantenedor.
+  nome para o provider Bun.
 
-Nenhuma implementação começou porque a estratégia do package npm é uma decisão
-bloqueante. Nenhuma publicação, ação Railway ou leitura de certificado foi
-executada.
+## T001 — Identidade do package e ADR
+
+Decisão aceita:
+
+- o provider Bun será `@adatechnology/keycloak-jwt`;
+- o package publicado `@adatechnology/auth-keycloak` permanece compatível com
+  seus consumidores NestJS e não é alterado;
+- identidade externa usa `(issuer, subject)`;
+- tenant, membership e autorização permanecem no TransportAdA;
+- publicação depende de gate próprio e aprovação humana;
+- rollback usa pin de versão e nova correção, nunca `unpublish`.
+
+Arquivos:
+
+- `docs/adr/0002-keycloak-jwt-package-and-tenant-context.md`;
+- `specs/003-tenant-auth/spec.md`;
+- `specs/003-tenant-auth/plan.md`;
+- `specs/003-tenant-auth/tasks.md`;
+- `specs/003-tenant-auth/evidence.md`.
+
+Nenhuma implementação, publicação, ação Railway ou leitura de certificado foi
+executada nesta task.

@@ -1,7 +1,6 @@
 # Tasks — Identidade, tenant e autorização
 
-Uma task por vez e um commit atômico por task. Nenhuma implementação começa
-enquanto a clarification da spec estiver aberta.
+Uma task por vez e um commit atômico por task.
 
 | ID   | Task                                                    | Dependência | Verificação                                                  | Critério de sucesso                                                  | Modelo                           |
 | ---- | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------- |
@@ -46,7 +45,7 @@ tentativa com contexto maior.
 
 ## Estado
 
-- [ ] T001 Resolver package e ADR — bloqueada pela clarification da spec.
+- [x] T001 Resolver package e ADR.
 - [ ] T002 Contract suite do provider.
 - [ ] T003 Verificação JWT/JWKS.
 - [ ] T004 Cache e rotação.

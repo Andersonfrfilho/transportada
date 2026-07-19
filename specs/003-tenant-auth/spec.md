@@ -8,8 +8,7 @@ valida tokens por um package Ada compatível com Bun, deriva `companyId` somente
 da identidade autenticada, confirma o vínculo local ativo e aplica permissões
 deny-by-default.
 
-O inventário encontrou um conflito que precisa ser resolvido antes da
-implementação:
+O inventário encontrou um conflito de identidade entre packages:
 
 - o npm publica `@adatechnology/auth-keycloak@0.1.18` com implementação e peers
   NestJS;
@@ -17,6 +16,10 @@ implementação:
 - o provider Bun local ainda não exige `exp`, `iss`, `aud` e `sub`, não valida
   a audience configurada, aceita fallback de algoritmo e pode escolher a
   primeira JWK quando `kid` está ausente.
+
+O ADR 0002 resolve o conflito criando `@adatechnology/keycloak-jwt` como package
+novo, ESM e compatível com Bun. O package NestJS publicado é preservado sem
+alterações.
 
 ## Fora do escopo
 
@@ -145,8 +148,5 @@ claims e roles previsíveis ficam disponíveis sem Railway.
 
 ## Dúvidas
 
-[NEEDS CLARIFICATION: o nome `@adatechnology/auth-keycloak` no npm já entrega
-uma implementação NestJS, enquanto o checkout Ada contém um provider Bun
-incompatível sob o mesmo nome. Devemos migrar o package público existente para
-um core Bun/runtime-agnostic, com plano explícito para consumidores NestJS, ou
-publicar o provider novo sob outro nome, preservando o package atual?]
+Nenhuma dúvida bloqueante. A identidade do package, a separação das
+responsabilidades tenant e o rollback estão decididos no ADR 0002.
