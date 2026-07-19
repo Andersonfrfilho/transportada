@@ -6,6 +6,7 @@
     "APP_ENV",
     "APP_PORT",
     "WEB_PORT",
+    "FRONTEND_PORT",
     "WORKER_PORT",
     "DATABASE_URL",
     "RABBITMQ_URL",

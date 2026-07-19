@@ -431,3 +431,61 @@ O app Next legado permanece temporariamente em `apps/web` para que a remoção
 ocorra junto dos demais legados na T012, depois dos gates da stack local na
 T011. Nenhuma operação fiscal, certificado, segredo, ação Railway ou push foi
 executado.
+
+## T011 — Compose e Makefile da stack Bun
+
+Modelo planejado: Codex Terra medium. Após duas execuções sem produzir
+alterações, a política de modelos foi aplicada e o agente principal assumiu a
+implementação e a revisão.
+
+- `make bootstrap` cria o `.env` quando necessário e instala pelo Bun `1.3.14`
+  com lock congelado;
+- `make config` exige projeto, ambiente, PostgreSQL, RabbitMQ e a versão exata
+  do Bun antes de aceitar a configuração;
+- o projeto Compose é sempre derivado como `<PROJECT_NAME>-<APP_ENV>`;
+- `make up` sobe e aguarda PostgreSQL, RabbitMQ, MinIO e Mailpit saudáveis,
+  removendo containers órfãos sem apagar volumes;
+- as quatro imagens foram fixadas por digest para evitar mudança implícita de
+  `latest` ou de tags móveis;
+- Redis saiu da stack ativa porque não existe consumidor concreto depois da
+  migração do worker para RabbitMQ; seu volume local não foi apagado;
+- `make dev` filtra explicitamente somente `@transportada/api`,
+  `@transportada/worker` e `@transportada/frontend`, portanto não inicia o Next
+  legado;
+- frontend, API e worker usam respectivamente as portas 53000, 53001 e 53002;
+- `QUEUE_PREFIX` é derivado de projeto e ambiente no comando de
+  desenvolvimento;
+- `make smoke` valida frontend, manifest PWA, live/ready da API e do worker,
+  MinIO e Mailpit;
+- o README agora documenta Bun e a stack ativa, sem Corepack ou pnpm.
+
+Desenvolvimento orientado por validação:
+
+| Evidência inicial                             | Resultado esperado                         |
+| --------------------------------------------- | ------------------------------------------ |
+| `bun run dev` raiz sem filtros                | incluía Next legado e criava conflito      |
+| `.env` local antigo sem `RABBITMQ_URL`        | worker falhava após `make config` aprovado |
+| `FRONTEND_PORT` ausente do allowlist do Turbo | Vite usava a porta padrão 5173             |
+| Compose ainda declarando Redis sem consumidor | container desnecessário era iniciado       |
+| imagens MinIO e Mailpit usando `latest`       | build local não era reproduzível           |
+| `make dev` após correções                     | somente três apps Bun iniciados            |
+
+Gates locais:
+
+| Verificação                                        | Resultado                               |
+| -------------------------------------------------- | --------------------------------------- |
+| `make bootstrap`                                   | frozen install aprovado                 |
+| `make config`                                      | projeto `transportada-local` aprovado   |
+| `make up` e `make ps`                              | 4/4 serviços saudáveis                  |
+| nomes de containers e rede                         | prefixo `transportada-local` confirmado |
+| `make dev`                                         | API, worker e Vite iniciados            |
+| `make smoke`                                       | todos os endpoints aprovados            |
+| readiness real                                     | PostgreSQL e RabbitMQ `up`              |
+| `make check`                                       | 9/9 unidades aprovadas                  |
+| integração worker após recriar a infraestrutura    | 4 testes, 9 asserts, aprovados          |
+| retry/DLX, DLQ e drain após a alteração do Compose | aprovados                               |
+| dry-run de `make dev`                              | filtros e prefixo confirmados           |
+
+O `.env` local ignorado pelo Git foi atualizado somente com as variáveis
+necessárias para executar a stack. Nenhum volume foi removido, nenhuma emissão
+fiscal foi habilitada e nenhuma ação Railway ou push foi executado.

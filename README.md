@@ -23,12 +23,9 @@ por `@adatechnology/fiscal-provider`.
 
 ## Desenvolvimento local
 
-Requisitos: Node.js 22+, Corepack, Make e Docker.
+Requisitos: Bun 1.3.14, Make e Docker.
 
 ```bash
-corepack enable
-corepack prepare pnpm@11.14.0 --activate
-pnpm install
 make bootstrap
 make up
 make dev
@@ -40,11 +37,11 @@ Docker Compose como `<projeto>-<ambiente>`, por exemplo
 
 Serviços:
 
-- web: `http://localhost:53000`;
+- frontend Vite/PWA: `http://localhost:53000`;
 - API live/ready: `http://localhost:53001/health/live` e `/health/ready`;
 - worker live/ready: `http://localhost:53002/health/live` e `/health/ready`;
 - PostgreSQL: `localhost:55432`;
-- Redis: `localhost:56379`;
+- RabbitMQ: `localhost:55672` (AMQP) e `localhost:55673` (management);
 - MinIO: `http://localhost:59001`;
 - Mailpit: `http://localhost:58025`.
 
@@ -59,8 +56,8 @@ make smoke
 
 - Readiness `503`: confirme `make ps` e as URLs do `.env`.
 - Porta ocupada: altere as portas locais e as variáveis correspondentes.
-- Lockfile incompatível: use exatamente a versão de pnpm declarada em
-  `packageManager`; não apague o lockfile.
+- Lockfile incompatível: use Bun 1.3.14 e execute `make bootstrap`; não apague
+  o lockfile.
 - O ambiente local e staging sempre usam fiscal `homologation` e emissão real
   desabilitada.
 
