@@ -155,3 +155,56 @@ O build reutilizou temporariamente o `tsup@8.5.1` já instalado no monorepo,
 sem manter symlink ou `dist`. Instalação Bun limpa, tarball, lockfile, bump,
 publicação npm e push do package pertencem às T004/T005. O certificado PFX,
 sua senha, Railway, S3 e SEFAZ não foram acessados.
+
+## T004 — Empacotamento e consumo Bun isolado
+
+Executor: Codex Terra medium. Revisão independente: Codex Sol high, aprovada
+sem P0–P3 materiais.
+
+Commit Ada local:
+
+- `685d8b3 test(packaging): verify isolated Bun consumption`.
+
+Implementação:
+
+- `prepack` sempre produz ESM e declarações antes do tarball;
+- teste agregado gera dois tarballs e exige bytes idênticos;
+- allowlist exata permite somente `README.md`, `package.json`,
+  `dist/index.js` e `dist/index.d.ts`;
+- consumidor temporário instala o `.tgz` local com Bun, executa typecheck real
+  contra as declarações instaladas e importa o módulo ESM em runtime;
+- package instalado não possui dependências runtime nem referência ao logger;
+- `pnpm-lock.yaml` recebeu somente o importer do novo workspace.
+
+Evidência local:
+
+```text
+pnpm install --frozen-lockfile --offline
+Lockfile is up to date
+exit 0
+
+bun run check
+tsc --noEmit
+exit 0
+
+bun run test
+21 pass, 0 fail, 90 assertions
+
+bun test ./test/package.integration.ts
+1 pass, 0 fail
+
+npm pack --dry-run --json
+4 entries: README.md, package.json, dist/index.js, dist/index.d.ts
+
+prettier + eslint + git diff --check
+exit 0
+```
+
+O comando da task foi corrigido para `bun test ./test/package.integration.ts`,
+pois Bun 1.3.14 exige `./` para tratar um nome que não termina em `.test` ou
+`.spec` como caminho explícito.
+
+Os commits Ada continuam locais porque o push em `packages/**` dispara o
+workflow de publicação. A T005 fará changeset, bump e pin antes desse push,
+evitando publicar acidentalmente `0.0.0`. Nenhum npm publish, certificado,
+Railway, S3 ou SEFAZ foi acessado.
