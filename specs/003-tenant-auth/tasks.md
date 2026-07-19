@@ -53,7 +53,7 @@ tentativa com contexto maior.
 - [ ] T006 Publicação e pin.
 - [x] T007 Keycloak local.
 - [x] T008 Schema de identities, company, membership e roles.
-- [ ] T009 Migration e rollback.
+- [x] T009 Migration e rollback.
 - [ ] T010 Gateway JWT/identidade.
 - [ ] T011 Membership/contextos company e platform.
 - [ ] T012 RBAC deny-by-default.

@@ -5,7 +5,6 @@ ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
 PROJECT_NAME := $(shell sed -n 's/^PROJECT_NAME=//p' $(ENV_FILE) 2>/dev/null)
 APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
-COMPOSE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
@@ -13,9 +12,14 @@ WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_PORT := $(or $(shell sed -n 's/^KEYCLOAK_PORT=//p' $(ENV_FILE) 2>/dev/null),58080)
 KEYCLOAK_MANAGEMENT_PORT := $(or $(shell sed -n 's/^KEYCLOAK_MANAGEMENT_PORT=//p' $(ENV_FILE) 2>/dev/null),59002)
 KEYCLOAK_REALM := $(or $(shell sed -n 's/^KEYCLOAK_REALM=//p' $(ENV_FILE) 2>/dev/null),transportada-local)
+KEYCLOAK_ADMIN_USERNAME := $(shell sed -n 's/^KEYCLOAK_ADMIN_USERNAME=//p' $(ENV_FILE) 2>/dev/null)
+KEYCLOAK_ADMIN_PASSWORD := $(shell sed -n 's/^KEYCLOAK_ADMIN_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
+KEYCLOAK_LOCAL_USER_PASSWORD := $(shell sed -n 's/^KEYCLOAK_LOCAL_USER_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
-.PHONY: help bootstrap realm-contract config up down ps dev check smoke
+COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
+COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
+.PHONY: help bootstrap realm-contract config postgres-up up down ps dev check migration-test smoke
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -35,9 +39,25 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(KEYCLOAK_PORT)"
 	@test -n "$(KEYCLOAK_MANAGEMENT_PORT)"
 	@test -n "$(KEYCLOAK_REALM)"
+	@test -n "$(KEYCLOAK_ADMIN_USERNAME)"
+	@test -n "$(KEYCLOAK_ADMIN_PASSWORD)"
+	@test -n "$(KEYCLOAK_LOCAL_USER_PASSWORD)"
 	@test "$$(bun --version)" = "$(BUN_VERSION)"
 	@test "$(COMPOSE_PROJECT_NAME)" = "$(PROJECT_NAME)-$(APP_ENV)"
 	@$(COMPOSE) config --quiet
+
+postgres-up: ## 🐘 Sobe somente o PostgreSQL local para migrations
+	@test -n "$(PROJECT_NAME)"
+	@test -n "$(APP_ENV)"
+	@test -n "$(DATABASE_URL)"
+	@test "$$(bun --version)" = "$(BUN_VERSION)"
+	@test "$(COMPOSE_PROJECT_NAME)" = "$(PROJECT_NAME)-$(APP_ENV)"
+	@KEYCLOAK_PORT=$(KEYCLOAK_PORT) \
+		KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) \
+		KEYCLOAK_ADMIN_USERNAME=not-used \
+		KEYCLOAK_ADMIN_PASSWORD=not-used \
+		KEYCLOAK_LOCAL_USER_PASSWORD=not-used \
+		$(COMPOSE_BASE) up -d --wait postgres
 
 up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 	@$(COMPOSE) up -d --remove-orphans --wait
@@ -65,6 +85,11 @@ dev: up ## 💻 Inicia somente frontend, API e worker Bun
 
 check: config ## ✅ Executa todos os gates locais
 	@bun run check
+
+migration-test: postgres-up ## 🗃️ Valida migration e rollback em PostgreSQL descartável
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		DRIZZLE_TEST_DATABASE_URL="$$DATABASE_URL" \
+		bun run --cwd apps/api-transportada db:test
 
 smoke: config ## 🩺 Valida a stack local já iniciada
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(FRONTEND_PORT)/"

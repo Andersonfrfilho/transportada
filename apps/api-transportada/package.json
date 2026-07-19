@@ -13,6 +13,7 @@
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:generate": "drizzle-kit generate --output json --config drizzle.config.ts",
     "db:migrate": "bun src/database/database-migration.service.ts",
+    "db:test": "bun test ./test/database-migration.contract.test.ts",
     "dev": "bun --watch ./src/main.ts",
     "lint": "bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0",
     "start": "bun ./dist/main.js",

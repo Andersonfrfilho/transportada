@@ -11,6 +11,20 @@ Aplicação HTTP independente, executada por Bun 1.3.14 com `Bun.serve`.
 
 O startup não executa migrations.
 
+As migrations usam o journal fixo `drizzle.__drizzle_migrations`. Gere e
+valide pelo Makefile da raiz:
+
+```bash
+bun run db:generate --name nome_da_migration
+bun run db:check
+make migration-test
+```
+
+`make migration-test` sobe somente o PostgreSQL do projeto
+`transportada-local`, cria um banco descartável e valida apply, constraints,
+rollback, journal e reaplicação. Rollbacks são manuais e versionados ao lado da
+migration; nunca são chamados pelo startup.
+
 ## Contratos HTTP
 
 Todas as respostas tratadas pela aplicação retornam `x-correlation-id`.

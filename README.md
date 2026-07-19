@@ -66,6 +66,7 @@ Gates completos:
 
 ```bash
 make check
+make migration-test
 make smoke
 ```
 

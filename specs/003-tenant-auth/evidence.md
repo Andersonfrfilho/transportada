@@ -333,3 +333,62 @@ foram corrigidos. A segunda revisão não encontrou bloqueio; seu endurecimento
 de whitespace também foi aplicado e validado no PostgreSQL local. Nenhuma
 migration foi gerada ou aplicada nesta task; inserts negativos e rollback
 pertencem à T009.
+
+## T009 — Migration, rollback e journal
+
+Modelo executor e duas revisões independentes: Codex Sol high.
+
+Artefatos e operação:
+
+- migration Drizzle aditiva `20260719025322_tenant_identity`, sem `DROP`,
+  `DELETE`, `TRUNCATE` ou alteração destrutiva;
+- snapshot versionado e `drizzle-kit check` sem drift;
+- rollback SQL manual remove primeiro roles/memberships e depois identidades e
+  empresas, sem `CASCADE`;
+- rollback remove exatamente o journal por nome e SHA-256 antes das tabelas,
+  tudo na mesma transação, e falha fechado se não houver exatamente uma linha;
+- schema do journal foi fixado em `drizzle` no serviço para não divergir do
+  rollback versionado;
+- startup da API não importa nem executa migrations;
+- `make postgres-up` e `make migration-test` usam o projeto
+  `transportada-local` e não sobem/recriam Keycloak, RabbitMQ, MinIO ou Mailpit.
+
+Contrato PostgreSQL descartável:
+
+- cria banco único e aplica baseline + migration;
+- confirma cinco tabelas e duas entries no journal;
+- aceita múltiplas roles por membership;
+- valida SQLSTATE e nome da constraint para todas as FKs, uniques/PK e CHECKs
+  de status, roles e identidade não vazia;
+- executa rollback, confirma somente baseline no journal, reaplica a migration
+  e executa rollback novamente;
+- fecha conexões mesmo sob falha, remove o banco e confirma zero resíduos.
+
+Evidência local:
+
+```text
+make migration-test
+4 pass, 0 fail, 64 expect() calls
+
+bun run db:check
+Everything's fine
+
+ENV_FILE=.env.example make check
+API 19 pass, 1 integração PostgreSQL condicionada
+worker 22 pass
+frontend 3 pass
+lint, typecheck e builds verdes
+
+containers transportada-local
+PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak healthy
+
+select count(*) from pg_database where datname like 'transportada_t009_%'
+0
+```
+
+A primeira revisão encontrou journal inconsistente após rollback, acoplamento
+do gate à stack inteira, cleanup frágil e negativos genéricos. A segunda pediu
+as três constraints ainda não exercidas e alinhamento do schema do journal.
+Todos os achados foram corrigidos e reexecutados localmente. Nenhuma migration
+foi aplicada ao banco persistente, e nenhuma ação Railway, npm ou certificado
+foi executada.
