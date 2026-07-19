@@ -49,6 +49,18 @@ Serviços:
 - RabbitMQ: `localhost:55672` (AMQP) e `localhost:55673` (management);
 - MinIO: `http://localhost:59001`;
 - Mailpit: `http://localhost:58025`.
+- Keycloak realm `transportada-local`: `http://localhost:58080`; o issuer e o
+  JWKS local ficam definidos em `.env.example`.
+
+O realm é importado de `realm/transportada-local-realm.json`, com uma SPA
+pública usando Authorization Code + PKCE S256 e uma audience separada para a
+API. Execute `make realm-contract` para validar sua configuração antes de
+subir a infraestrutura. As senhas no `.env.example` são apenas placeholders
+locais e não devem ser usadas fora deste ambiente.
+
+As roles existem no realm apenas como fixtures de contrato. Nenhuma role de
+empresa é atribuída ao usuário local ou usada como autoridade: memberships,
+roles e permissões tenant permanecem no PostgreSQL do TransportAdA.
 
 Gates completos:
 

@@ -10,9 +10,12 @@ BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
+KEYCLOAK_PORT := $(or $(shell sed -n 's/^KEYCLOAK_PORT=//p' $(ENV_FILE) 2>/dev/null),58080)
+KEYCLOAK_MANAGEMENT_PORT := $(or $(shell sed -n 's/^KEYCLOAK_MANAGEMENT_PORT=//p' $(ENV_FILE) 2>/dev/null),59002)
+KEYCLOAK_REALM := $(or $(shell sed -n 's/^KEYCLOAK_REALM=//p' $(ENV_FILE) 2>/dev/null),transportada-local)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
-.PHONY: help bootstrap config up down ps dev check smoke
+.PHONY: help bootstrap realm-contract config up down ps dev check smoke
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -21,16 +24,22 @@ bootstrap: ## 🧰 Prepara o .env e instala com Bun congelado
 	@test -f .env || cp .env.example .env
 	@bun install --frozen-lockfile
 
-config: ## 🔎 Valida o Docker Compose com o nome do projeto
+realm-contract: ## 🪪 Valida o contrato versionado do realm Keycloak local
+	@bun test test/keycloak-realm.contract.test.ts
+
+config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(PROJECT_NAME)"
 	@test -n "$(APP_ENV)"
 	@test -n "$(DATABASE_URL)"
 	@test -n "$(RABBITMQ_URL)"
+	@test -n "$(KEYCLOAK_PORT)"
+	@test -n "$(KEYCLOAK_MANAGEMENT_PORT)"
+	@test -n "$(KEYCLOAK_REALM)"
 	@test "$$(bun --version)" = "$(BUN_VERSION)"
 	@test "$(COMPOSE_PROJECT_NAME)" = "$(PROJECT_NAME)-$(APP_ENV)"
 	@$(COMPOSE) config --quiet
 
-up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO e Mailpit
+up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 	@$(COMPOSE) up -d --remove-orphans --wait
 
 down: config ## 🛑 Encerra a infraestrutura local
@@ -66,3 +75,5 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	@curl --fail --silent --show-error "http://localhost:$(WORKER_PORT)/health/ready"
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:59000/minio/health/live"
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:58025/livez"
+	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"
+	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"

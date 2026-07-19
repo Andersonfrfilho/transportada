@@ -1,0 +1,95 @@
+{
+  "realm": "transportada-local",
+  "enabled": true,
+  "sslRequired": "NONE",
+  "displayName": "TransportAdA Local",
+  "registrationAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "platform-admin" },
+      { "name": "company-admin" },
+      { "name": "finance" },
+      { "name": "fiscal" },
+      { "name": "operator" },
+      { "name": "viewer" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "transportada-spa",
+      "name": "TransportAdA local SPA",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:53000/auth/callback"],
+      "webOrigins": ["http://localhost:53000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "transportada-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "transportada-api",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "company-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "company_id",
+            "id.token.claim": "false",
+            "jsonType.label": "String",
+            "userinfo.token.claim": "false",
+            "user.attribute": "company_id"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "transportada-api",
+      "name": "TransportAdA local API audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "local-user",
+      "enabled": true,
+      "attributes": {
+        "company_id": ["00000000-0000-4000-8000-000000000001"]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KEYCLOAK_LOCAL_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
