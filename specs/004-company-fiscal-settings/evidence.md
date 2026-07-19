@@ -102,3 +102,56 @@ As 16 falhas são o estado RED esperado e nascem somente do stub
 `Secret envelope provider is not implemented`. Nenhum AES foi implementado.
 O commit Ada permanece local e não será enviado enquanto a T003 não restaurar
 todos os gates verdes.
+
+## T003 — Envelope AES-256-GCM versionado
+
+Modelo executor e revisão independente: Codex Sol high.
+
+Commit Ada local:
+
+- `1cbbc00 feat(crypto): implement authenticated secret envelopes`.
+
+Implementação:
+
+- AES-256-GCM por Web Crypto, nonce aleatório de 12 bytes e tag de 128 bits;
+- factory síncrona, snapshot do keyring e importação tardia de `CryptoKey` não
+  extraível;
+- envelope e base64url canônicos, parser estrito e limites antes da
+  decodificação;
+- seleção exclusiva por `keyId`, rotação e erros constantes sem payload
+  sensível;
+- AAD interno domain-separated e length-prefixed vinculando versão, algoritmo,
+  `keyId` e AAD externo;
+- limpeza best-effort das cópias temporárias e zero dependências de runtime.
+
+A revisão encontrou adulteração possível do `keyId` quando duas IDs usavam o
+mesmo material. Um contract regressivo reproduziu a falha antes da correção e
+passou depois do framing autenticado. Entradas com getters hostis também foram
+normalizadas para erros tipados sem vazamento. A revisão final aprovou sem
+P0/P1.
+
+Evidência local:
+
+```text
+bun run check
+tsc --noEmit
+exit 0
+
+bun run test
+20 pass, 0 fail, 79 assertions
+
+pnpm exec eslint packages/backend/secret-envelope/src packages/backend/secret-envelope/test
+ESLint: No issues found
+
+bun run format:check
+All matched files use Prettier code style
+
+bun run build
+ESM dist/index.js 11.91 KB
+DTS dist/index.d.ts 1.63 KB
+```
+
+O build reutilizou temporariamente o `tsup@8.5.1` já instalado no monorepo,
+sem manter symlink ou `dist`. Instalação Bun limpa, tarball, lockfile, bump,
+publicação npm e push do package pertencem às T004/T005. O certificado PFX,
+sua senha, Railway, S3 e SEFAZ não foram acessados.

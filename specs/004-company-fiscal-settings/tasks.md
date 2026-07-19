@@ -69,7 +69,7 @@ não recebe contexto crescente indefinidamente.
 
 - [x] T001 Registrar ADRs e decomposição executável.
 - [x] T002 Escrever contracts do package `secret-envelope`.
-- [ ] T003 Implementar o envelope AES-256-GCM versionado.
+- [x] T003 Implementar o envelope AES-256-GCM versionado.
 - [ ] T004 Validar empacotamento e consumo Bun isolado.
 - [ ] T005 Publicar versão Ada e fixar pins na API.
 - [ ] T006 Separar schema de identidade sem alterar SQL.

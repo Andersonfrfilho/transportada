@@ -26,7 +26,11 @@ oferece AAD, versionamento ou rotação de chaves adequados.
 2. Usar AES-256-GCM pelo Web Crypto com chave de 32 bytes, nonce aleatório de
    12 bytes e tag de autenticação de 128 bits.
 3. Exigir AAD em toda cifragem e decifragem. O package recebe bytes e não
-   conhece empresa, certificado ou finalidade.
+   conhece empresa, certificado ou finalidade. Antes do AES-GCM, o package
+   compõe o AAD interno com campos prefixados pelo tamanho, na ordem
+   `adatechnology:secret-envelope`, versão, algoritmo, `keyId` e AAD externo.
+   Assim, o cabeçalho persistido também é autenticado sem colisões por
+   concatenação.
 4. Representar o envelope em base64url canônico com `version`, `algorithm`,
    `keyId`, `nonce` e `ciphertext`. O último campo contém o resultado Web Crypto
    `ciphertext || authenticationTag`, com os 16 bytes finais reservados à tag.
