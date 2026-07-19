@@ -17,6 +17,8 @@ describe('frontend foundation contract', () => {
     expect(packageManifest).toContain('"vite-plugin-pwa"')
     expect(packageManifest).toContain('"workbox-window"')
     expect(viteConfiguration).toContain('VitePWA')
+    expect(viteConfiguration).toContain('devOptions')
+    expect(viteConfiguration).toContain('enabled: true')
     expect(viteConfiguration).toContain("navigateFallback: '/index.html'")
   })
 

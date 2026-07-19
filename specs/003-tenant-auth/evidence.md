@@ -909,3 +909,56 @@ API, worker e frontend verdes
 
 Nenhum arquivo/status da T015, Railway, certificado, push ou configuração de
 produção foi alterado nesta task.
+
+## T015 — Frontend autenticado com Playwright
+
+Modelo executor: Codex Terra medium. Diagnóstico de segurança e revisão do
+fluxo de refresh: Codex Sol high.
+
+Cobertura implementada:
+
+- login real no Keycloak local com Authorization Code e PKCE S256;
+- `/auth/me` autenticado e callback fixo na mesma origem;
+- layouts de 375, 768 e 1280 pixels sem overflow horizontal;
+- ausência de tokens em Local Storage, Session Storage, IndexedDB e Cache
+  Storage;
+- service worker local sem cache de `/auth/me` ou cabeçalho Authorization;
+- reload offline sem exposição de conteúdo protegido;
+- refresh expirado recusado uma vez, nova navegação PKCE observada e
+  reautenticação concluída sem persistir token.
+
+O teste de refresh inicialmente falhou porque interceptava também a troca do
+novo `authorization_code` e observava por polling uma URL intermediária que a
+sessão SSO atravessa rapidamente. A correção limita a falha ao
+`grant_type=refresh_token`, observa a requisição de navegação segura e permite
+que a troca posterior finalize.
+
+O PWA foi habilitado no servidor Vite local por `devOptions.enabled`, permitindo
+que o target oficial `make dev` seja validado por `make smoke`. `dev-dist/` foi
+classificado como artefato gerado e excluído de versionamento, formatação e
+lint.
+
+Evidência local:
+
+```text
+bun run --cwd apps/frontend-transportada smoke
+6 pass, 0 fail
+
+make dev
+Compose transportada-local: PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
+saudáveis; frontend 53000, API 53001 e worker 53002 iniciados
+
+make smoke
+realm 5 pass; health frontend/API/worker/infra verde; Playwright 6 pass
+
+make check
+format, lint e typecheck verdes
+API 90 pass e 1 skip condicional
+worker 22 pass
+frontend 16 pass
+builds API, worker e frontend/PWA verdes
+```
+
+Os processos Bun locais foram encerrados após os gates. Nenhum Railway,
+certificado, senha, token, cookie, código de autorização ou dado fiscal foi
+usado, registrado ou publicado.

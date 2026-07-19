@@ -118,3 +118,4 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:58025/livez"
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
+	@set -a; . "./$(ENV_FILE)"; set +a; bun run --cwd apps/frontend-transportada smoke

@@ -5,6 +5,7 @@ import typescriptEslint from 'typescript-eslint'
 export default typescriptEslint.config(
   {
     ignores: [
+      'dev-dist/**',
       'dist/**',
       'eslint.config.mjs',
       'node_modules/**',

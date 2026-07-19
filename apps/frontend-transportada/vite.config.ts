@@ -13,6 +13,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: { enabled: true },
       includeAssets: ['icons/icon.svg', 'offline.html'],
       manifest: {
         name: 'TransportAdA',

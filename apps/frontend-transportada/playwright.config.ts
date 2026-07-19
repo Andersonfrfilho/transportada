@@ -1,17 +1,31 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { defineConfig } from '@playwright/test'
 
-const FRONTEND_PORT = 4173
+const API_PORT = 53001
+const FRONTEND_PORT = 53000
 
 export default defineConfig({
   testDir: './test',
   testMatch: 'responsive.smoke.spec.ts',
+  workers: 1,
   use: {
-    baseURL: `http://127.0.0.1:${FRONTEND_PORT}`,
+    baseURL: `http://localhost:${FRONTEND_PORT}`,
     browserName: 'chromium',
+    screenshot: 'off',
+    trace: 'off',
+    video: 'off',
   },
-  webServer: {
-    command: `bun run preview -- --port ${FRONTEND_PORT}`,
-    port: FRONTEND_PORT,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: `bun run build && bun run preview -- --port ${FRONTEND_PORT}`,
+      port: FRONTEND_PORT,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'bun run build && bun run start',
+      cwd: '../api-transportada',
+      port: API_PORT,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 })

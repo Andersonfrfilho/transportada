@@ -67,5 +67,5 @@ tentativa com contexto maior.
 - [x] T014A CORS estrito SPA local para API.
 - [x] T014B Bootstrap da identidade local da aplicação.
 - [x] T014C Perfil completo do usuário local do Keycloak.
-- [ ] T015 Playwright autenticado.
+- [x] T015 Playwright autenticado.
 - [ ] T016 Gates finais.
