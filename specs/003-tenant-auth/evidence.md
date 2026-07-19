@@ -141,3 +141,47 @@ DTS dist/index.d.ts 1.80 KB
 A revisão não encontrou bypass restante de issuer, audience, `kid` ou
 algoritmo, nem vazamento no erro público. Cache, cooldown, timeout, limite de
 resposta e rotação permanecem na T004.
+
+## T004 — Ciclo remoto JWKS
+
+Modelo executor e revisão independente: Codex Sol high.
+
+Commit Ada:
+
+- `2259078 feat(auth): harden remote JWKS lifecycle`
+
+Comportamentos:
+
+- 10 verificações concorrentes iniciais usam um único fetch;
+- cache fresco é reutilizado e cache vencido é atualizado;
+- 10 tokens com `kid` rotacionado provocam somente um refetch após cooldown;
+- tokens com `kid` desconhecido durante cooldown não causam rajada;
+- cooldown mínimo é 1 segundo e `cacheMaxAge` não pode neutralizá-lo;
+- timeout cobre espera por headers e corpo interrompido;
+- limite de bytes cobre `Content-Length` e stream chunked;
+- configuração remota inválida produz erro tipado;
+- `getJwksStatus()` expõe apenas booleanos seguros para readiness, sem URL,
+  chaves ou clone do JWKS.
+
+Evidência local:
+
+```text
+pnpm exec tsc --noEmit -p tsconfig.json
+exit 0
+
+pnpm exec prettier --check package.json src test tsconfig.json tsup.config.ts
+All matched files use Prettier code style!
+
+pnpm exec eslint src test
+exit 0
+
+bun test
+36 pass, 0 fail, 128 expect() calls
+
+pnpm exec tsup
+ESM dist/index.js 10.96 KB
+DTS dist/index.d.ts 2.37 KB
+```
+
+A revisão final não encontrou race, bypass do limite, erro de classificação ou
+resource leak bloqueante.

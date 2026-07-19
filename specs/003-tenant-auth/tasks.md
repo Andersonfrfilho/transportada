@@ -48,7 +48,7 @@ tentativa com contexto maior.
 - [x] T001 Resolver package e ADR.
 - [x] T002 Contract suite do provider.
 - [x] T003 Verificação JWT/JWKS.
-- [ ] T004 Cache e rotação.
+- [x] T004 Cache e rotação.
 - [ ] T005 Empacotamento Bun limpo.
 - [ ] T006 Publicação e pin.
 - [ ] T007 Keycloak local.
