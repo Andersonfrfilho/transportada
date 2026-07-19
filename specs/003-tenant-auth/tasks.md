@@ -46,7 +46,7 @@ tentativa com contexto maior.
 ## Estado
 
 - [x] T001 Resolver package e ADR.
-- [ ] T002 Contract suite do provider.
+- [x] T002 Contract suite do provider.
 - [ ] T003 Verificação JWT/JWKS.
 - [ ] T004 Cache e rotação.
 - [ ] T005 Empacotamento Bun limpo.

@@ -55,3 +55,44 @@ Arquivos:
 
 Nenhuma implementação, publicação, ação Railway ou leitura de certificado foi
 executada nesta task.
+
+## T002 — Contract suite de segurança
+
+Modelo executor e revisão: Codex Sol high. O grafo e os providers
+`drizzle-provider`/`rabbitmq-provider` orientaram o formato ESM, exports
+tipados, `tsup`, TypeScript estrito e testes Bun.
+
+Commit Ada:
+
+- `ea93e71 test(auth): define Keycloak JWT security contracts`
+
+Contratos inicialmente vermelhos:
+
+- token válido e audience simples ou em array;
+- assinatura adulterada e token malformado;
+- `iss`, `aud`, `exp`, `sub` e claims configuradas obrigatórias;
+- issuer/audience incorretos e `azp` sem `aud`;
+- expiração, `nbf` opcional e clock tolerance;
+- `sub` vazio ou não textual;
+- algoritmo fora da allowlist, `none`, `kid` ausente ou desconhecido;
+- allowlist insegura e JWKS HTTP fora de loopback;
+- erros tipados, mensagem constante e ausência de token ou `cause`.
+
+Evidência local:
+
+```text
+bunx prettier --check .
+All matched files use Prettier code style!
+
+bunx tsc --noEmit -p tsconfig.json
+exit 0
+
+pnpm exec eslint src test
+exit 0
+
+bun test test/token-verification.contract.test.ts
+0 pass, 23 fail
+```
+
+As 23 falhas são esperadas e causadas pelo stub `Not implemented`. Nenhuma
+dependência JOSE ou lógica de verificação foi adicionada antes dos contratos.
