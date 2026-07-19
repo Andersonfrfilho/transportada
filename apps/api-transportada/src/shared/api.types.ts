@@ -9,6 +9,7 @@ import type { CompanyPermission } from '../identity/domain/authorization.policy'
 export type ApiEnvironment = {
   readonly appEnv: string
   readonly databaseUrl: string
+  readonly frontendOrigin: string
   readonly keycloak: {
     readonly audience: string
     readonly issuer: string

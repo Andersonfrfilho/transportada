@@ -62,6 +62,6 @@ tentativa com contexto maior.
 - [x] T013 `/auth/me` e observabilidade.
 - [ ] T013A Probe JWKS recuperável e readiness.
 - [x] T014 Frontend PKCE.
-- [ ] T014A CORS estrito SPA local para API.
+- [x] T014A CORS estrito SPA local para API.
 - [ ] T015 Playwright autenticado.
 - [ ] T016 Gates finais.

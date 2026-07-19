@@ -701,7 +701,7 @@ realm 4 pass; API 57 pass e 1 integração condicional; worker 22 pass;
 frontend 16 pass; format, lint, typecheck e builds verdes
 ```
 
-Não foram executados Playwright/T015, Railway, certificado, commit ou push.
+Não foram executados Playwright/T015, Railway, certificado ou push.
 
 Gap bloqueante para o fluxo local autenticado:
 
@@ -712,3 +712,67 @@ Gap bloqueante para o fluxo local autenticado:
   a chamada de `/auth/me` apesar do contrato do frontend;
 - T014A foi adicionada como dependência explícita da T015 para implementar e
   testar CORS estrito. Não houve alteração do backend nesta task.
+
+## T014A — CORS estrito da SPA para a API
+
+Modelo executor e revisão: Codex Sol high.
+
+Configuração confiável:
+
+- `FRONTEND_ORIGIN` é obrigatória no schema e no Makefile;
+- `.env.example` fixa a origem local em `http://localhost:53000`;
+- a configuração aceita origin canônica HTTPS e permite HTTP somente quando o
+  hostname é exatamente `localhost`;
+- wildcard, credenciais, path, query, fragment, barra final, loopback por IP e
+  representações não canônicas são rejeitados no startup;
+- `make dev` continua exportando o arquivo selecionado com `set -a`, sem
+  duplicar ou registrar o valor.
+
+Contrato HTTP:
+
+- o único preflight público é `OPTIONS /auth/me`, com origin exata, método
+  solicitado `GET` e headers solicitados limitados a `Authorization`, com
+  parsing case-insensitive e rejeição de tokens vazios ou headers adicionais;
+- o sucesso retorna `204` vazio, allow-origin exata, métodos `GET`, headers
+  `Authorization`, max-age de 300 segundos, `Vary` completo e
+  `Cache-Control: no-store`;
+- preflight inválido retorna o envelope seguro `403 FORBIDDEN`, não autentica,
+  não resolve membership, não executa caso de uso e não reflete a origin;
+- respostas reais da origin permitida recebem allow-origin em health e
+  `/auth/me` para `200`, `401`, `403`, `405` e `500`;
+- respostas sem origin ou com origin diferente preservam o comportamento
+  existente, nunca recebem allow-origin e ainda variam por `Origin`;
+- não existe wildcard nem `Access-Control-Allow-Credentials`;
+- Origin e Authorization não entram nos logs.
+
+Contratos foram escritos primeiro. O gate inicial confirmou 31 falhas e 2
+passes antes da implementação; após o boundary CORS, os 33 casos passaram.
+
+Evidência local:
+
+```text
+bun test test/cors.contract.test.ts
+33 pass, 0 fail, 133 expect() calls
+
+bun run check (apps/api-transportada)
+90 pass, 1 integração PostgreSQL condicionada, 0 fail
+lint, typecheck e build verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 90 pass e 1 integração condicional; worker 22 pass;
+frontend 16 pass; format, lint, typecheck e builds verdes
+
+set -a; . ./.env.example; set +a
+bun run --cwd apps/api-transportada test:integration
+10 pass, 1 skip, 0 fail, 50 expect() calls
+preflight e chamada autenticada cross-origin atravessando Bun.serve verdes
+
+make config
+configuração local padrão via .env e realm contract verdes
+```
+
+O `.env` local ignorado pelo Git foi sincronizado com as variáveis públicas e
+placeholders locais de Keycloak do `.env.example`; nenhum segredo real foi
+adicionado.
+
+Nenhum Playwright/T015, Railway, certificado ou push foi executado.

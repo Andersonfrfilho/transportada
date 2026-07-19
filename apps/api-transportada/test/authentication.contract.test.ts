@@ -26,6 +26,7 @@ describe('authentication contract', () => {
       APP_ENV: 'test',
       APP_PORT: '0',
       DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
+      FRONTEND_ORIGIN: 'http://localhost:53000',
       KEYCLOAK_AUDIENCE: 'transportada-api',
       KEYCLOAK_ISSUER: ISSUER,
       KEYCLOAK_JWKS_URI: `${ISSUER}/protocol/openid-connect/certs`,

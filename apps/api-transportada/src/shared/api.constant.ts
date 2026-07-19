@@ -9,6 +9,9 @@ export const API_AUTH_ME_PATH = '/auth/me'
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
 export const JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 export const HTTP_GET_METHOD = 'GET'
+export const HTTP_OPTIONS_METHOD = 'OPTIONS'
+export const CORS_ALLOW_HEADERS = 'Authorization'
+export const CORS_MAX_AGE_SECONDS = 300
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
 export const IDLE_TIMEOUT_SECONDS = 10

@@ -22,6 +22,9 @@ const environmentSchema = z.object({
         message: 'DATABASE_URL must use PostgreSQL',
       },
     ),
+  FRONTEND_ORIGIN: z.string().refine(isTrustedFrontendOrigin, {
+    message: 'FRONTEND_ORIGIN must be a canonical HTTPS origin or HTTP localhost origin',
+  }),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
   KEYCLOAK_ISSUER: z.string().url(),
   KEYCLOAK_JWKS_URI: z.string().url(),
@@ -34,6 +37,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
   return {
     appEnv: parsed.APP_ENV,
     databaseUrl: parsed.DATABASE_URL,
+    frontendOrigin: parsed.FRONTEND_ORIGIN,
     keycloak: {
       audience: parsed.KEYCLOAK_AUDIENCE,
       issuer: parsed.KEYCLOAK_ISSUER,
@@ -41,5 +45,25 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     },
     logLevel: parsed.LOG_LEVEL,
     port: parsed.APP_PORT,
+  }
+}
+
+function isTrustedFrontendOrigin(value: string): boolean {
+  try {
+    const url = new URL(value)
+    const hasSafeProtocol =
+      url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost')
+
+    return (
+      hasSafeProtocol &&
+      url.origin === value &&
+      url.username === '' &&
+      url.password === '' &&
+      url.pathname === '/' &&
+      url.search === '' &&
+      url.hash === ''
+    )
+  } catch {
+    return false
   }
 }

@@ -36,6 +36,7 @@ export function startApiServer({
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
     authentication,
+    frontendOrigin: config.frontendOrigin,
     healthService,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,

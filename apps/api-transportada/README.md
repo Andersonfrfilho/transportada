@@ -5,6 +5,8 @@ Aplicação HTTP independente, executada por Bun 1.3.14 com `Bun.serve`.
 ## Configuração
 
 - `DATABASE_URL`: URL PostgreSQL obrigatória;
+- `FRONTEND_ORIGIN`: origin canônica e exata da SPA; HTTPS, exceto HTTP
+  permitido somente para o hostname `localhost`;
 - `APP_PORT`: porta HTTP, padrão `53001`;
 - `APP_ENV`: ambiente, padrão `local`;
 - `LOG_LEVEL`: `debug`, `info`, `warn` ou `error`.
@@ -47,3 +49,16 @@ health não leem body; o servidor rejeita corpos acima de 1 MiB com `413`.
 
 Erros possuem `{ error: { code, message, correlationId } }` e não expõem
 stack, query string, headers, body ou detalhes da infraestrutura.
+
+## CORS
+
+Todas as respostas variam por `Origin`. Somente a origin configurada em
+`FRONTEND_ORIGIN` recebe `Access-Control-Allow-Origin`; não há wildcard nem
+`Access-Control-Allow-Credentials`.
+
+O único preflight público é `OPTIONS /auth/me`, com origin exata, método
+solicitado `GET` e headers solicitados limitados a `Authorization`. Ele retorna
+`204`, corpo vazio, `Access-Control-Allow-Methods: GET`,
+`Access-Control-Allow-Headers: Authorization`, max-age de 300 segundos e
+`Cache-Control: no-store`. Preflights inválidos retornam `403` sem autenticar,
+executar o caso de uso ou refletir a origin.

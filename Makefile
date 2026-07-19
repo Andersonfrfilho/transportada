@@ -7,6 +7,7 @@ APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
 BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
+FRONTEND_ORIGIN := $(shell sed -n 's/^FRONTEND_ORIGIN=//p' $(ENV_FILE) 2>/dev/null)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
 KEYCLOAK_PORT := $(or $(shell sed -n 's/^KEYCLOAK_PORT=//p' $(ENV_FILE) 2>/dev/null),58080)
@@ -39,6 +40,7 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(APP_ENV)"
 	@test -n "$(DATABASE_URL)"
 	@test -n "$(RABBITMQ_URL)"
+	@test -n "$(FRONTEND_ORIGIN)"
 	@test -n "$(KEYCLOAK_PORT)"
 	@test -n "$(KEYCLOAK_MANAGEMENT_PORT)"
 	@test -n "$(KEYCLOAK_REALM)"

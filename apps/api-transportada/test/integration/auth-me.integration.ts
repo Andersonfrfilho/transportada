@@ -67,6 +67,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
           config: {
             appEnv: 'test',
             databaseUrl: disposableUrl.toString(),
+            frontendOrigin: 'http://localhost:53000',
             keycloak: {
               audience: 'transportada-api',
               issuer: 'https://identity.example.test/realms/transportada',

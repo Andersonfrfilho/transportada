@@ -136,6 +136,13 @@ shell de empresa; nunca executa automaticamente.
 ## Segurança e tenant
 
 - `companyId` nasce exclusivamente do claim `company_id`;
+- `FRONTEND_ORIGIN` é uma origin canônica exata; HTTPS é obrigatório fora do
+  hostname local `localhost`;
+- o único preflight público é `OPTIONS /auth/me` para `GET` com
+  `Authorization`; ele não usa credentials e qualquer variação falha antes da
+  autenticação sem refletir a origin;
+- respostas reais variam por `Origin` e só a origin confiável recebe
+  `Access-Control-Allow-Origin`;
 - headers alternativos como `x-company-id` não são fonte de autoridade;
 - qualquer `companyId` de payload é ignorado ou rejeitado no boundary;
 - membership ativo é verificado antes do caso de uso;

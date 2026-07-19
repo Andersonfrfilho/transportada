@@ -40,6 +40,7 @@ const server = startApiServer({
   config: {
     appEnv: 'test',
     databaseUrl,
+    frontendOrigin: 'http://localhost:53000',
     keycloak: {
       audience: 'transportada-api',
       issuer: 'http://localhost:58080/realms/transportada-local',
@@ -102,6 +103,29 @@ describe('API server integration', () => {
     })
   })
 
+  test('serves the strict auth preflight and authenticated cross-origin request through Bun', async () => {
+    const preflight = await fetch(`${baseUrl}/auth/me`, {
+      headers: {
+        'access-control-request-headers': 'Authorization',
+        'access-control-request-method': 'GET',
+        origin: 'http://localhost:53000',
+      },
+      method: 'OPTIONS',
+    })
+    const authMe = await fetch(`${baseUrl}/auth/me`, {
+      headers: {
+        authorization: 'Bearer integration-token',
+        origin: 'http://localhost:53000',
+      },
+    })
+
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:53000')
+    expect(preflight.headers.get('cache-control')).toBe('no-store')
+    expect(authMe.status).toBe(200)
+    expect(authMe.headers.get('access-control-allow-origin')).toBe('http://localhost:53000')
+  })
+
   test('drains and exits cleanly on SIGTERM', async () => {
     const child = Bun.spawn({
       cmd: [process.execPath, './test/fixtures/signal-server.fixture.ts'],
@@ -111,6 +135,7 @@ describe('API server integration', () => {
         APP_ENV: 'test',
         APP_PORT: '0',
         DATABASE_URL: databaseUrl,
+        FRONTEND_ORIGIN: 'http://localhost:53000',
         KEYCLOAK_AUDIENCE: 'transportada-api',
         KEYCLOAK_ISSUER: 'http://localhost:58080/realms/transportada-local',
         KEYCLOAK_JWKS_URI:

@@ -25,11 +25,13 @@ import type { HealthService } from '../health/health.service'
 import type { AuthenticationPort } from '../identity/application/identity.port'
 import type { TenantContextService } from '../identity/application/tenant-context.service'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
+import { applyCorsHeaders, handleCorsPreflight } from './cors.service'
 import { parseCorrelationId, parseRequestMetadata } from './request.schema'
 
 type CreateRequestHandlerParams = {
   readonly authentication: AuthenticationPort
   readonly createCorrelationId?: () => string
+  readonly frontendOrigin: string
   readonly healthService: HealthService
   readonly logger: ApiLogger
   readonly requestTimeoutSeconds: number
@@ -48,6 +50,7 @@ type HandleRouteParams = {
 export function createRequestHandler({
   authentication,
   createCorrelationId = () => crypto.randomUUID(),
+  frontendOrigin,
   healthService,
   logger,
   requestTimeoutSeconds,
@@ -77,14 +80,20 @@ export function createRequestHandler({
         throw new ApiError(HTTP_ERROR.payloadTooLarge)
       }
       assertRequestActive(request.signal)
-      response = await handleRoute({
-        authentication,
-        authorizationHeader: request.headers.get('authorization'),
-        healthService,
-        method: metadata.method,
-        pathname: metadata.pathname,
-        tenantContext,
-      })
+      response =
+        handleCorsPreflight({
+          frontendOrigin,
+          pathname: metadata.pathname,
+          request,
+        }) ??
+        (await handleRoute({
+          authentication,
+          authorizationHeader: request.headers.get('authorization'),
+          healthService,
+          method: metadata.method,
+          pathname: metadata.pathname,
+          tenantContext,
+        }))
       assertRequestActive(request.signal)
     } catch (error: unknown) {
       response = errorResponse({ correlationId, error, logger })
@@ -93,6 +102,7 @@ export function createRequestHandler({
     if (pathname === API_AUTH_ME_PATH) {
       response.headers.set('cache-control', 'no-store')
     }
+    applyCorsHeaders({ frontendOrigin, request, response })
     response.headers.set(CORRELATION_ID_HEADER, correlationId)
     logRequestCompletion({ correlationId, logger, pathname, request, response, startedAt })
 
