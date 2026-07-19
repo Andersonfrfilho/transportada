@@ -185,3 +185,50 @@ DTS dist/index.d.ts 2.37 KB
 
 A revisão final não encontrou race, bypass do limite, erro de classificação ou
 resource leak bloqueante.
+
+## T005 — Empacotamento e instalação Bun limpa
+
+Modelo executor: Codex Terra medium. Revisão: Codex Sol high.
+
+Commit Ada:
+
+- `dc068cd docs(auth): prepare Keycloak JWT package release`
+
+Artefato:
+
+- changeset minor prepara a primeira versão sem alterar manualmente `0.0.0`;
+- tarball final contém somente `README.md`, `dist/index.js`,
+  `dist/index.d.ts` e `package.json`;
+- tamanho final: 4,8 kB compactado e 16,8 kB descompactado;
+- metadata não contém `workspace:`, `file:`, NestJS ou source interno;
+- árvore do consumidor contém o package, `jose@6.2.3` e TypeScript usado
+  apenas pelo teste.
+
+Evidência local:
+
+```text
+npm pack --dry-run --json
+4 arquivos; nenhum bundled dependency
+
+bun install --force
+3 packages installed
+
+bun run check
+exit 0
+
+bun run test:runtime
+esm-types-runtime-ok
+
+bun install --frozen-lockfile
+1 package installed
+
+bun run check
+exit 0
+
+bun run test:runtime
+esm-types-runtime-ok
+```
+
+O consumidor temporário usa o tarball local por `file:` somente para testar o
+artefato ainda não publicado. Esse caminho existe no lock temporário, não no
+package empacotado. Nenhuma publicação npm, ação Railway ou push foi executado.
