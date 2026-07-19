@@ -57,7 +57,9 @@ jobs:
 
           ready=false
           for _ in $(seq 1 60); do
-            if curl --fail --silent --output /dev/null http://localhost:53000/; then
+            if curl --fail --silent --output /dev/null http://localhost:53000/ \
+              && curl --fail --silent --output /dev/null http://localhost:53001/health/live \
+              && curl --fail --silent --output /dev/null http://localhost:53002/health/live; then
               ready=true
               break
             fi

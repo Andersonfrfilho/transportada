@@ -1096,6 +1096,10 @@ reuso somente por opt-in explícito; o contract test correspondente e
 `CI=true PLAYWRIGHT_REUSE_EXISTING_SERVER=true make smoke` passaram localmente
 com 6 testes Playwright.
 
+O segundo CI (`29696580296`) confirmou o reuso, mas revelou que aguardar apenas
+o frontend permitia iniciar o smoke antes da porta do worker. O polling passou
+a exigir frontend, API live e worker live antes do gate.
+
 Os processos Bun e a infraestrutura Compose foram encerrados após os gates.
 Nenhum Railway, certificado, senha, token, cookie, XML ou dado fiscal foi
 usado, registrado ou publicado.
