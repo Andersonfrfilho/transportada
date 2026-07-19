@@ -96,3 +96,48 @@ bun test test/token-verification.contract.test.ts
 
 As 23 falhas são esperadas e causadas pelo stub `Not implemented`. Nenhuma
 dependência JOSE ou lógica de verificação foi adicionada antes dos contratos.
+
+## T003 — Verificação JWT/JWKS
+
+Modelo executor e revisão independente: Codex Sol high.
+
+Commit Ada:
+
+- `d79b955 feat(auth): verify Keycloak JWTs with jose`
+
+Implementação:
+
+- `jose@6.2.3` ESM fixado como dependência;
+- factory mantém uma instância `createRemoteJWKSet`;
+- allowlist assimétrica, algoritmo e `kid` validados antes do fetch;
+- issuer, audience, `exp`, `sub` e claims adicionais obrigatórios;
+- `nbf` e clock tolerance explícitos;
+- JWKS HTTP permitido somente em loopback local;
+- erros de configuração e verificação têm tipos e mensagens seguras;
+- JWKS 503/JSON inválido é separado de token inválido;
+- configuração runtime inválida não escapa como `TypeError`;
+- claims retornadas são congeladas.
+
+Evidência local:
+
+```text
+pnpm exec tsc --noEmit -p tsconfig.json
+exit 0
+
+pnpm exec prettier --check package.json src test tsconfig.json tsup.config.ts
+All matched files use Prettier code style!
+
+pnpm exec eslint src test
+exit 0
+
+bun test
+26 pass, 0 fail, 99 expect() calls
+
+pnpm exec tsup
+ESM dist/index.js 7.49 KB
+DTS dist/index.d.ts 1.80 KB
+```
+
+A revisão não encontrou bypass restante de issuer, audience, `kid` ou
+algoritmo, nem vazamento no erro público. Cache, cooldown, timeout, limite de
+resposta e rotação permanecem na T004.
