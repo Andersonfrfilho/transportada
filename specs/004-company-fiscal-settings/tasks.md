@@ -71,7 +71,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T002 Escrever contracts do package `secret-envelope`.
 - [x] T003 Implementar o envelope AES-256-GCM versionado.
 - [x] T004 Validar empacotamento e consumo Bun isolado.
-- [ ] T005 Publicar versão Ada e fixar pins na API.
+- [x] T005 Publicar versão Ada e fixar pins na API.
 - [ ] T006 Separar schema de identidade sem alterar SQL.
 - [ ] T007 Escrever contracts do schema fiscal e isolamento.
 - [ ] T008 Implementar schema, migration aditiva e rollback.

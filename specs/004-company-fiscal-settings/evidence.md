@@ -208,3 +208,59 @@ Os commits Ada continuam locais porque o push em `packages/**` dispara o
 workflow de publicação. A T005 fará changeset, bump e pin antes desse push,
 evitando publicar acidentalmente `0.0.0`. Nenhum npm publish, certificado,
 Railway, S3 ou SEFAZ foi acessado.
+
+## T005 — Publicação Ada e pins da API
+
+Executor e revisões independentes: Codex Sol high.
+
+Commits Ada:
+
+- `65cbe33 chore(release): add secret envelope changeset`;
+- `7206106 chore(release): version packages`, gerado pela pipeline;
+- `e19aaad ci(release): install Bun before package publish`;
+- `11f8a39 ci(release): expose secret envelope package`.
+
+Release:
+
+- o changeset minor promoveu somente `@adatechnology/secret-envelope` de
+  `0.0.0` para `0.1.0`;
+- a primeira execução publicou a versão no npm após a pipeline receber Bun
+  1.3.14; a falha anterior ocorreu antes do upload porque `prepack` não
+  encontrava `bun`;
+- o passo final de acesso tornou explicitamente públicos os packages Bun;
+- `npm view` público confirmou `secret-envelope@0.1.0` e
+  `fiscal-provider@0.1.0`.
+
+Workflows:
+
+- CI `29703896208`: sucesso;
+- publish inicial `29703896228`: falhou em `prepack` com `bun: not found`;
+- publish corrigido `29704014549`: publicou `secret-envelope@0.1.0`;
+- acesso público `29704125610`: sucesso.
+
+Pins da API:
+
+- `@adatechnology/fiscal-provider`: `0.1.0`;
+- `@adatechnology/secret-envelope`: `0.1.0`;
+- `bun.lock` resolve ambos pelo registry com integridade, sem `file:`,
+  `workspace:` ou `link:`.
+
+Evidência local:
+
+```text
+npm view @adatechnology/secret-envelope version
+0.1.0
+
+npm view @adatechnology/fiscal-provider version
+0.1.0
+
+bun install --frozen-lockfile
+no changes
+
+bun run --cwd apps/api-transportada check
+94 pass, 1 conditional database skip, 0 fail, 455 assertions
+lint + typecheck + build: exit 0
+```
+
+A revisão final aprovou package, pipeline, pins e lockfile sem P0–P3. Nenhum
+Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
