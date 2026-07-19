@@ -9,6 +9,7 @@ export type AuthenticatedIdentity = {
   readonly companyIdClaim: string
   readonly externalIdentityId: string
   readonly issuer: string
+  readonly platformAdmin: boolean
   readonly subject: string
   readonly userId: string
 }

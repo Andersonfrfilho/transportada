@@ -92,12 +92,45 @@ describe('authentication contract', () => {
       companyIdClaim: COMPANY_ID,
       externalIdentityId: EXTERNAL_IDENTITY_ID,
       issuer: ISSUER,
+      platformAdmin: false,
       subject: SUBJECT,
       userId: USER_ID,
     })
     expect(Object.isFrozen(identity)).toBe(true)
     expect(identity).not.toHaveProperty('roles')
     expect(identity).not.toHaveProperty('permissions')
+  })
+
+  test('accepts only the exact verified realm role as platform assignment', async () => {
+    const exact = createService({
+      verifier: verifiedTokenVerifier(COMPANY_ID, ['viewer', 'platform-admin']),
+    })
+    const lookalike = createService({
+      verifier: verifiedTokenVerifier(COMPANY_ID, ['company-admin', 'platform-administrator']),
+    })
+    const clientRoleOnly = createService({
+      verifier: verifiedTokenVerifier(COMPANY_ID, [], {
+        resource_access: {
+          'transportada-api': { roles: ['platform-admin'] },
+        },
+      }),
+    })
+    const malformed = createService({
+      verifier: verifiedTokenVerifier(COMPANY_ID, 'platform-admin'),
+    })
+
+    await expect(exact.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
+      platformAdmin: true,
+    })
+    await expect(lookalike.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
+      platformAdmin: false,
+    })
+    await expect(clientRoleOnly.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
+      platformAdmin: false,
+    })
+    await expect(malformed.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
+      platformAdmin: false,
+    })
   })
 
   test('requires company_id to be one UUID without creating tenant context', async () => {
@@ -261,15 +294,21 @@ function createService({
   return new AuthenticationService({ repository, verifier })
 }
 
-function verifiedTokenVerifier(companyIdClaim: unknown): AccessTokenVerifierPort {
+function verifiedTokenVerifier(
+  companyIdClaim: unknown,
+  realmRoles: unknown = ['company-admin', 'fiscal'],
+  additionalClaims: Readonly<Record<string, unknown>> = {},
+): AccessTokenVerifierPort {
   return {
     async verify(token) {
       expect(token).toBe(TOKEN)
       return {
         audience: 'transportada-api',
         claims: {
+          ...additionalClaims,
           company_id: companyIdClaim,
           iss: 'https://untrusted-claim.example',
+          realm_access: { roles: realmRoles },
           sub: 'untrusted-claim-subject',
         },
         expiresAt: 1_800_000_000,

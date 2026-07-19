@@ -55,7 +55,7 @@ tentativa com contexto maior.
 - [x] T008 Schema de identities, company, membership e roles.
 - [x] T009 Migration e rollback.
 - [x] T010 Gateway JWT/identidade.
-- [ ] T011 Membership/contextos company e platform.
+- [x] T011 Membership/contextos company e platform.
 - [ ] T012 RBAC deny-by-default.
 - [ ] T013 `/auth/me` e observabilidade.
 - [ ] T014 Frontend PKCE.

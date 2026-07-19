@@ -66,10 +66,21 @@ export class AuthenticationService implements AuthenticationPort {
       companyIdClaim: companyIdResult.data,
       externalIdentityId: externalIdentity.externalIdentityId,
       issuer: verifiedToken.issuer,
+      platformAdmin: hasPlatformAdminRole(verifiedToken.claims),
       subject: verifiedToken.subject,
       userId: externalIdentity.userId,
     })
   }
+}
+
+function hasPlatformAdminRole(claims: Readonly<Record<string, unknown>>): boolean {
+  const realmAccess = claims.realm_access
+  if (typeof realmAccess !== 'object' || realmAccess === null || Array.isArray(realmAccess)) {
+    return false
+  }
+
+  const roles = (realmAccess as Readonly<Record<string, unknown>>).roles
+  return Array.isArray(roles) && roles.some((role) => role === 'platform-admin')
 }
 
 function unauthenticated(): ApiError {

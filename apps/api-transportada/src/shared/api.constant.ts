@@ -32,6 +32,11 @@ export const HTTP_ERROR = {
     message: 'Authentication required',
     status: 401,
   },
+  forbidden: {
+    code: 'FORBIDDEN',
+    message: 'Access denied',
+    status: 403,
+  },
   methodNotAllowed: {
     code: 'METHOD_NOT_ALLOWED',
     message: 'Method not allowed',

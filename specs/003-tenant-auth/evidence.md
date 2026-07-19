@@ -499,3 +499,52 @@ O teste do repositório cria um banco isolado, aplica as migrations e o remove
 ao final. A revisão encontrou risco de vazamento por pathname desconhecido; o
 log passou a usar `<unmatched>` e ganhou regressão específica. Nenhuma ação
 Railway, uso de certificado ou contexto tenant foi executado.
+
+## T011 — Membership e contextos company/platform
+
+Modelo executor e duas revisões independentes: Codex Sol high.
+
+Contextos:
+
+- `CompanyContext` nasce exclusivamente de `userId` autenticado e
+  `companyIdClaim` verificado, sem parâmetro tenant livre;
+- uma única consulta filtra simultaneamente usuário, empresa, membership ativa
+  e empresa ativa;
+- roles empresariais são lidas somente de `membership_roles`, ordenadas e
+  snapshotadas; roles tenant presentes no JWT são ignoradas;
+- membership ativa sem roles produz `roles: []`; permissões permanecem fora do
+  contexto até a T012;
+- ausência, empresa desativada, membership desativada e tentativa cross-tenant
+  colapsam no mesmo `403 FORBIDDEN`;
+- `PlatformContext` exige somente a realm role exata `platform-admin` do token
+  já verificado e nunca contém `companyId` ou membership;
+- client role, lookalike, claim malformada e roles locais não criam contexto de
+  plataforma;
+- `platform-admin` continua obrigado a possuir membership ativa em toda
+  operação company-scoped.
+
+Imutabilidade:
+
+- envelope, scope, identidade snapshotada e array de roles são congelados;
+- mutar a identidade recebida depois da resolução não altera o contexto em
+  voo.
+
+Evidência local:
+
+```text
+bun test test/tenant-context.contract.test.ts test/authentication.contract.test.ts
+19 pass, 0 fail
+
+bun run test:integration
+9 pass, 0 fail
+duas empresas, seleção A/B, isolamento negativo, estados e roles vazias verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 41 pass; worker 22 pass; frontend 3 pass
+format, lint, typecheck e builds verdes
+```
+
+A primeira revisão definiu os negativos de duas empresas, origem local das
+roles e escopo explícito. A segunda encontrou a identidade ainda referenciada
+no contexto; ela passou a ser copiada e congelada, com regressão de mutação.
+Nenhuma permissão, `/auth/me`, Railway ou certificado entrou nesta task.
