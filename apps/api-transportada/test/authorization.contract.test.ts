@@ -1,0 +1,278 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import { AuthorizationService } from '../src/identity/application/authorization.service'
+import {
+  COMPANY_ROLE_PERMISSIONS,
+  resolveCompanyPermissions,
+  TRANSPORTADA_PERMISSIONS,
+} from '../src/identity/domain/authorization.policy'
+import type { AuthenticatedIdentity } from '../src/identity/domain/authenticated-identity'
+import type {
+  AuthenticatedContext,
+  CompanyContext,
+  PlatformContext,
+} from '../src/identity/domain/tenant-context'
+import { ApiError } from '../src/shared/api.error'
+
+const USER_ID = '00000000-0000-4000-8000-000000000001'
+const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
+
+describe('authorization contract', () => {
+  test('defines the complete conservative permission matrix for every company role', () => {
+    expect(TRANSPORTADA_PERMISSIONS).toEqual([
+      'companies.manage',
+      'users.manage',
+      'invoices.import',
+      'invoices.read',
+      'batches.create',
+      'batches.approve',
+      'freight.simulate',
+      'cte.issue',
+      'cte.cancel',
+      'cte.read',
+      'billing.create',
+      'billing.cancel',
+      'billing.read',
+      'settings.manage',
+      'audit.read',
+    ])
+    expect(COMPANY_ROLE_PERMISSIONS).toEqual({
+      'company-admin': [
+        'users.manage',
+        'invoices.read',
+        'cte.read',
+        'billing.read',
+        'settings.manage',
+        'audit.read',
+      ],
+      finance: ['cte.read', 'billing.create', 'billing.cancel', 'billing.read'],
+      fiscal: [
+        'invoices.import',
+        'invoices.read',
+        'batches.create',
+        'batches.approve',
+        'freight.simulate',
+        'cte.issue',
+        'cte.cancel',
+        'cte.read',
+      ],
+      operator: [
+        'invoices.import',
+        'invoices.read',
+        'batches.create',
+        'freight.simulate',
+        'cte.read',
+      ],
+      viewer: ['invoices.read', 'cte.read'],
+    })
+  })
+
+  test('unions local roles into an immutable permission set without platform access', () => {
+    const permissions = resolveCompanyPermissions(['viewer', 'fiscal', 'viewer'])
+
+    expect([...permissions]).toEqual([
+      'invoices.import',
+      'invoices.read',
+      'batches.create',
+      'batches.approve',
+      'freight.simulate',
+      'cte.issue',
+      'cte.cancel',
+      'cte.read',
+    ])
+    expect(permissions.has('companies.manage')).toBe(false)
+    expect(Object.isFrozen(permissions)).toBe(true)
+    expect('add' in permissions).toBe(false)
+    expect((permissions as unknown as { readonly add?: unknown }).add).toBeUndefined()
+    expect(permissions).not.toHaveProperty('add')
+    expect(permissions).not.toHaveProperty('delete')
+    expect(permissions).not.toHaveProperty('clear')
+  })
+
+  test('does not leak the mutable backing set through forEach', () => {
+    const permissions = resolveCompanyPermissions(['viewer'])
+
+    permissions.forEach((_value, _sameValue, exposedSet) => {
+      const leakedAdd = (
+        exposedSet as unknown as {
+          readonly add?: (permission: string) => unknown
+        }
+      ).add
+      leakedAdd?.('cte.issue')
+    })
+
+    expect(permissions.has('cte.issue')).toBe(false)
+    expect(() =>
+      new AuthorizationService().authorize(companyContext(['viewer']), {
+        permission: 'cte.issue',
+        scope: 'company',
+      }),
+    ).toThrow(expectForbidden())
+  })
+
+  test('does not leak the mutable backing set through inherited object methods', () => {
+    const permissions = resolveCompanyPermissions(['viewer'])
+    const exposedValueOf = (
+      permissions as unknown as {
+        readonly valueOf?: () => unknown
+      }
+    ).valueOf
+
+    expect(exposedValueOf).toBeUndefined()
+    expect(permissions.has('cte.issue')).toBe(false)
+  })
+
+  test('keeps an empty membership at zero permissions', () => {
+    const permissions = resolveCompanyPermissions([])
+
+    expect(permissions.size).toBe(0)
+    expect([...permissions]).toEqual([])
+  })
+
+  test('freezes the matrix and every role assignment', () => {
+    expect(Object.isFrozen(TRANSPORTADA_PERMISSIONS)).toBe(true)
+    expect(Object.isFrozen(COMPANY_ROLE_PERMISSIONS)).toBe(true)
+    for (const permissions of Object.values(COMPANY_ROLE_PERMISSIONS)) {
+      expect(Object.isFrozen(permissions)).toBe(true)
+    }
+  })
+
+  test('allows only an explicit matching company policy', () => {
+    const service = new AuthorizationService()
+    const context = companyContext(['viewer'])
+
+    expect(() =>
+      service.authorize(context, {
+        permission: 'invoices.read',
+        scope: 'company',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      service.authorize(context, {
+        permission: 'invoices.import',
+        scope: 'company',
+      }),
+    ).toThrow(expectForbidden())
+  })
+
+  test('denies missing policy by default before a use case can execute', () => {
+    const service = new AuthorizationService()
+    let useCaseCalls = 0
+
+    try {
+      service.authorize(companyContext(['company-admin']), undefined)
+      useCaseCalls += 1
+    } catch (error: unknown) {
+      expect(error).toEqual(expectForbidden())
+    }
+
+    expect(useCaseCalls).toBe(0)
+  })
+
+  test('keeps platform and company authorization mutually exclusive', () => {
+    const service = new AuthorizationService()
+    const company = companyContext(['company-admin'])
+    const platform = platformContext()
+
+    expect(() =>
+      service.authorize(platform, {
+        permission: 'companies.manage',
+        scope: 'platform',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      service.authorize(company, {
+        permission: 'companies.manage',
+        scope: 'platform',
+      }),
+    ).toThrow(expectForbidden())
+    expect(() =>
+      service.authorize(platform, {
+        permission: 'invoices.read',
+        scope: 'company',
+      }),
+    ).toThrow(expectForbidden())
+  })
+
+  test('returns the same safe 403 without revealing role, permission or tenant', () => {
+    const service = new AuthorizationService()
+
+    const error = captureError(() =>
+      service.authorize(companyContext([]), {
+        permission: 'settings.manage',
+        scope: 'company',
+      }),
+    )
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+      status: 403,
+    })
+    for (const sensitive of ['settings.manage', 'company-admin', COMPANY_ID, USER_ID]) {
+      expect(String(error)).not.toContain(sensitive)
+      expect(JSON.stringify(error)).not.toContain(sensitive)
+    }
+  })
+})
+
+function companyContext(roles: CompanyContext['roles']): AuthenticatedContext<CompanyContext> {
+  const identity = authenticatedIdentity()
+  return {
+    identity,
+    scope: {
+      companyId: COMPANY_ID,
+      kind: 'company',
+      membershipId: '00000000-0000-4000-8000-000000000003',
+      permissions: resolveCompanyPermissions(roles),
+      roles,
+      userId: USER_ID,
+    },
+  }
+}
+
+function platformContext(): AuthenticatedContext<PlatformContext> {
+  return {
+    identity: authenticatedIdentity({ platformAdmin: true }),
+    scope: {
+      kind: 'platform',
+      userId: USER_ID,
+    },
+  }
+}
+
+function authenticatedIdentity(
+  overrides: Partial<AuthenticatedIdentity> = {},
+): AuthenticatedIdentity {
+  return {
+    companyIdClaim: COMPANY_ID,
+    externalIdentityId: '00000000-0000-4000-8000-000000000004',
+    issuer: 'https://identity.example.test/realms/transportada',
+    platformAdmin: false,
+    subject: 'keycloak-user',
+    userId: USER_ID,
+    ...overrides,
+  }
+}
+
+function expectForbidden(): ReturnType<typeof expect.objectContaining> {
+  return expect.objectContaining({
+    code: 'FORBIDDEN',
+    message: 'Access denied',
+    status: 403,
+  })
+}
+
+function captureError(run: () => void): unknown {
+  try {
+    run()
+  } catch (error: unknown) {
+    return error
+  }
+
+  throw new Error('Expected operation to fail')
+}

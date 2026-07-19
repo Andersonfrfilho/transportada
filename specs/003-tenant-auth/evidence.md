@@ -548,3 +548,51 @@ A primeira revisão definiu os negativos de duas empresas, origem local das
 roles e escopo explícito. A segunda encontrou a identidade ainda referenciada
 no contexto; ela passou a ser copiada e congelada, com regressão de mutação.
 Nenhuma permissão, `/auth/me`, Railway ou certificado entrou nesta task.
+
+## T012 — RBAC tipado e deny-by-default
+
+Modelo executor e duas revisões independentes: Codex Sol high.
+
+Decisão:
+
+- o ADR 0003 registra uma matriz conservadora de 15 permissões;
+- `platform-admin` recebe somente `companies.manage` em `PlatformContext`;
+- `company-admin` recebe gestão local, configurações, auditoria e leituras, mas
+  não herda emissão, cancelamento, importação ou faturamento;
+- `finance`, `fiscal`, `operator` e `viewer` recebem somente as capacidades
+  explicitamente listadas para seu domínio;
+- ambiguidades de `users.manage`, `invoices.*` e múltiplas permissões
+  permanecem negadas até nova spec.
+
+Implementação:
+
+- tupla fechada deriva `TransportadaPermission`;
+- a matriz usa cobertura exaustiva de todas as `CompanyRole`;
+- múltiplas roles locais produzem união determinística sem duplicatas;
+- membership sem roles produz zero permissões;
+- `companies.manage` nunca entra em `CompanyContext`;
+- ausência de política, escopo incompatível ou permissão ausente retorna o
+  mesmo `403 FORBIDDEN`;
+- o guard não revela role, permissão, usuário ou tenant e não permite executar
+  o caso de uso depois da negação;
+- arrays, matriz e conjunto de permissões são imutáveis em runtime.
+
+Evidência local:
+
+```text
+bun test test/authorization.contract.test.ts
+10 pass, 0 fail
+
+bun run check (apps/api-transportada)
+51 pass, 1 integração PostgreSQL condicionada, 0 fail
+lint, typecheck e build verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 51 pass; worker 22 pass; frontend 3 pass
+format, lint, typecheck e builds verdes
+```
+
+A revisão encontrou dois vazamentos do backing `Set`: o terceiro argumento de
+`forEach` e `valueOf()` herdado. O wrapper passou a expor somente uma allowlist
+fechada de `ReadonlySet`, com `forEach` encapsulado, e ganhou regressões para os
+dois ataques. `/auth/me`, Railway e certificado permaneceram fora do escopo.

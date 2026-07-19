@@ -4,6 +4,7 @@
 import { HTTP_ERROR } from '../../shared/api.constant'
 import { ApiError } from '../../shared/api.error'
 import type { AuthenticatedIdentity } from '../domain/authenticated-identity'
+import { resolveCompanyPermissions } from '../domain/authorization.policy'
 import type {
   AuthenticatedContext,
   CompanyContext,
@@ -37,6 +38,7 @@ export class TenantContextService {
       companyId: identity.companyIdClaim,
       kind: 'company' as const,
       membershipId: membership.membershipId,
+      permissions: resolveCompanyPermissions(membership.roles),
       roles: Object.freeze([...membership.roles]),
       userId: identity.userId,
     })

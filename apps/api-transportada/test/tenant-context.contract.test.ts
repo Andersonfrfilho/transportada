@@ -35,6 +35,7 @@ describe('tenant context contract', () => {
         companyId: COMPANY_ID,
         kind: 'company',
         membershipId: MEMBERSHIP_ID,
+        permissions: expect.any(Object),
         roles: ['fiscal', 'viewer'],
         userId: USER_ID,
       },
@@ -42,7 +43,17 @@ describe('tenant context contract', () => {
     expect(Object.isFrozen(context)).toBe(true)
     expect(Object.isFrozen(context.scope)).toBe(true)
     expect(Object.isFrozen(context.scope.roles)).toBe(true)
-    expect(context.scope).not.toHaveProperty('permissions')
+    expect([...context.scope.permissions]).toEqual([
+      'invoices.import',
+      'invoices.read',
+      'batches.create',
+      'batches.approve',
+      'freight.simulate',
+      'cte.issue',
+      'cte.cancel',
+      'cte.read',
+    ])
+    expect(Object.isFrozen(context.scope.permissions)).toBe(true)
   })
 
   test('snapshots identity so caller mutation cannot change an in-flight context', async () => {

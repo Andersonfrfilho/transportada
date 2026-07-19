@@ -56,7 +56,7 @@ tentativa com contexto maior.
 - [x] T009 Migration e rollback.
 - [x] T010 Gateway JWT/identidade.
 - [x] T011 Membership/contextos company e platform.
-- [ ] T012 RBAC deny-by-default.
+- [x] T012 RBAC deny-by-default.
 - [ ] T013 `/auth/me` e observabilidade.
 - [ ] T014 Frontend PKCE.
 - [ ] T015 Playwright autenticado.
