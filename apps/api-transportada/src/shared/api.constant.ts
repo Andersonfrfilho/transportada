@@ -14,6 +14,7 @@ export const IDLE_TIMEOUT_SECONDS = 10
 export const REQUEST_TIMEOUT_SECONDS = 10
 export const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export const INVALID_LOG_PATHNAME = '<invalid>'
+export const UNMATCHED_LOG_PATHNAME = '<unmatched>'
 
 export const HTTP_ERROR = {
   internal: {
@@ -25,6 +26,11 @@ export const HTTP_ERROR = {
     code: 'INVALID_REQUEST',
     message: 'Invalid request',
     status: 400,
+  },
+  unauthenticated: {
+    code: 'UNAUTHENTICATED',
+    message: 'Authentication required',
+    status: 401,
   },
   methodNotAllowed: {
     code: 'METHOD_NOT_ALLOWED',

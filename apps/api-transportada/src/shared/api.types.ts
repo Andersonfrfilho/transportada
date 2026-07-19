@@ -6,6 +6,11 @@ import type { LogLevel } from '@adatechnology/logger'
 export type ApiEnvironment = {
   readonly appEnv: string
   readonly databaseUrl: string
+  readonly keycloak: {
+    readonly audience: string
+    readonly issuer: string
+    readonly jwksUri: string
+  }
   readonly logLevel: LogLevel
   readonly port: number
 }

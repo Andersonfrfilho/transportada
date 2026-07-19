@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { HealthService } from '../../src/health/health.service'
+import type { AuthenticationPort } from '../../src/identity/application/identity.port'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
 
@@ -21,10 +22,27 @@ const logger: ApiLogger = {
   warn() {},
 }
 const healthService = new HealthService({ database })
+const authentication: AuthenticationPort = {
+  async authenticate() {
+    return {
+      companyIdClaim: '00000000-0000-4000-8000-000000000001',
+      externalIdentityId: '00000000-0000-4000-8000-000000000002',
+      issuer: 'http://localhost:58080/realms/transportada-local',
+      subject: 'integration-user',
+      userId: '00000000-0000-4000-8000-000000000003',
+    }
+  },
+}
 const server = startApiServer({
+  authentication,
   config: {
     appEnv: 'test',
     databaseUrl,
+    keycloak: {
+      audience: 'transportada-api',
+      issuer: 'http://localhost:58080/realms/transportada-local',
+      jwksUri: 'http://localhost:58080/realms/transportada-local/protocol/openid-connect/certs',
+    },
     logLevel: 'error',
     port: 0,
   },
@@ -84,6 +102,10 @@ describe('API server integration', () => {
         APP_ENV: 'test',
         APP_PORT: '0',
         DATABASE_URL: databaseUrl,
+        KEYCLOAK_AUDIENCE: 'transportada-api',
+        KEYCLOAK_ISSUER: 'http://localhost:58080/realms/transportada-local',
+        KEYCLOAK_JWKS_URI:
+          'http://localhost:58080/realms/transportada-local/protocol/openid-connect/certs',
         LOG_LEVEL: 'error',
       },
       stderr: 'pipe',

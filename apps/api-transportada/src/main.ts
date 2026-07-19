@@ -6,6 +6,9 @@ import { createLogger } from '@adatechnology/logger'
 
 import { parseEnvironment } from './config/environment.schema'
 import { HealthService } from './health/health.service'
+import { AuthenticationService } from './identity/application/authentication.service'
+import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
+import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
   createShutdownHandler,
   registerShutdownSignals,
@@ -20,9 +23,14 @@ export function bootstrap(): Bun.Server<undefined> {
     projectName: 'transportada-api',
     version: '0.1.0',
   })
+  const verifier = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDrizzleProvider({ connection: config.databaseUrl })
+  const authentication = new AuthenticationService({
+    repository: new DrizzleExternalIdentityRepository(database.db),
+    verifier,
+  })
   const healthService = new HealthService({ database })
-  const server = startApiServer({ config, healthService, logger })
+  const server = startApiServer({ authentication, config, healthService, logger })
   const shutdown = createShutdownHandler({ database, logger, server })
 
   registerShutdownSignals({ logger, shutdown })

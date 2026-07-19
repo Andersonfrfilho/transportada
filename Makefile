@@ -12,6 +12,9 @@ WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_PORT := $(or $(shell sed -n 's/^KEYCLOAK_PORT=//p' $(ENV_FILE) 2>/dev/null),58080)
 KEYCLOAK_MANAGEMENT_PORT := $(or $(shell sed -n 's/^KEYCLOAK_MANAGEMENT_PORT=//p' $(ENV_FILE) 2>/dev/null),59002)
 KEYCLOAK_REALM := $(or $(shell sed -n 's/^KEYCLOAK_REALM=//p' $(ENV_FILE) 2>/dev/null),transportada-local)
+KEYCLOAK_ISSUER := $(shell sed -n 's/^KEYCLOAK_ISSUER=//p' $(ENV_FILE) 2>/dev/null)
+KEYCLOAK_JWKS_URI := $(shell sed -n 's/^KEYCLOAK_JWKS_URI=//p' $(ENV_FILE) 2>/dev/null)
+KEYCLOAK_AUDIENCE := $(shell sed -n 's/^KEYCLOAK_AUDIENCE=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_ADMIN_USERNAME := $(shell sed -n 's/^KEYCLOAK_ADMIN_USERNAME=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_ADMIN_PASSWORD := $(shell sed -n 's/^KEYCLOAK_ADMIN_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_LOCAL_USER_PASSWORD := $(shell sed -n 's/^KEYCLOAK_LOCAL_USER_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
@@ -39,6 +42,9 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(KEYCLOAK_PORT)"
 	@test -n "$(KEYCLOAK_MANAGEMENT_PORT)"
 	@test -n "$(KEYCLOAK_REALM)"
+	@test -n "$(KEYCLOAK_ISSUER)"
+	@test -n "$(KEYCLOAK_JWKS_URI)"
+	@test -n "$(KEYCLOAK_AUDIENCE)"
 	@test -n "$(KEYCLOAK_ADMIN_USERNAME)"
 	@test -n "$(KEYCLOAK_ADMIN_PASSWORD)"
 	@test -n "$(KEYCLOAK_LOCAL_USER_PASSWORD)"

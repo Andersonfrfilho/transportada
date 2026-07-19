@@ -3,6 +3,7 @@
  */
 import type { HealthService } from '../health/health.service'
 import { createRequestHandler, createServerErrorHandler } from '../http/request-handler.service'
+import type { AuthenticationPort } from '../identity/application/identity.port'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
 import {
   API_HOSTNAME,
@@ -18,17 +19,20 @@ import type {
 } from '../shared/api.types'
 
 type StartApiServerParams = {
+  readonly authentication: AuthenticationPort
   readonly config: ApiEnvironment
   readonly healthService: HealthService
   readonly logger: ApiLogger
 }
 
 export function startApiServer({
+  authentication,
   config,
   healthService,
   logger,
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
+    authentication,
     healthService,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,

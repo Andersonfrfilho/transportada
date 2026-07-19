@@ -11,6 +11,7 @@ import {
   HTTP_GET_METHOD,
   INVALID_LOG_PATHNAME,
   JSON_CONTENT_TYPE,
+  UNMATCHED_LOG_PATHNAME,
 } from '../shared/api.constant'
 import type {
   ApiLogger,
@@ -19,10 +20,12 @@ import type {
   RequestTimeoutPort,
 } from '../shared/api.types'
 import type { HealthService } from '../health/health.service'
+import type { AuthenticationPort } from '../identity/application/identity.port'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
 import { parseCorrelationId, parseRequestMetadata } from './request.schema'
 
 type CreateRequestHandlerParams = {
+  readonly authentication: AuthenticationPort
   readonly createCorrelationId?: () => string
   readonly healthService: HealthService
   readonly logger: ApiLogger
@@ -30,12 +33,15 @@ type CreateRequestHandlerParams = {
 }
 
 type HandleRouteParams = {
+  readonly authentication: AuthenticationPort
+  readonly authorizationHeader: string | null
   readonly healthService: HealthService
   readonly method: string
   readonly pathname: string
 }
 
 export function createRequestHandler({
+  authentication,
   createCorrelationId = () => crypto.randomUUID(),
   healthService,
   logger,
@@ -56,7 +62,7 @@ export function createRequestHandler({
         method: request.method,
         pathname: new URL(request.url).pathname,
       })
-      pathname = metadata.pathname
+      pathname = resolveLogPathname(metadata.pathname)
       server.timeout(request, requestTimeoutSeconds)
       if (
         metadata.contentLength !== undefined &&
@@ -66,6 +72,8 @@ export function createRequestHandler({
       }
       assertRequestActive(request.signal)
       response = await handleRoute({
+        authentication,
+        authorizationHeader: request.headers.get('authorization'),
         healthService,
         method: metadata.method,
         pathname: metadata.pathname,
@@ -93,30 +101,33 @@ export function createRequestHandler({
 }
 
 async function handleRoute({
+  authentication,
+  authorizationHeader,
   healthService,
   method,
   pathname,
 }: HandleRouteParams): Promise<Response> {
-  if (pathname !== API_LIVE_PATH && pathname !== API_READY_PATH) {
-    throw new ApiError(HTTP_ERROR.notFound)
-  }
+  if (pathname === API_LIVE_PATH || pathname === API_READY_PATH) {
+    if (method !== HTTP_GET_METHOD) {
+      throw new ApiError({
+        ...HTTP_ERROR.methodNotAllowed,
+        headers: { allow: HTTP_GET_METHOD },
+      })
+    }
 
-  if (method !== HTTP_GET_METHOD) {
-    throw new ApiError({
-      ...HTTP_ERROR.methodNotAllowed,
-      headers: { allow: HTTP_GET_METHOD },
+    if (pathname === API_LIVE_PATH) {
+      return jsonResponse({ body: healthService.live(), status: 200 })
+    }
+
+    const readiness = await healthService.ready()
+    return jsonResponse({
+      body: readiness,
+      status: readiness.status === 'ok' ? 200 : 503,
     })
   }
 
-  if (pathname === API_LIVE_PATH) {
-    return jsonResponse({ body: healthService.live(), status: 200 })
-  }
-
-  const readiness = await healthService.ready()
-  return jsonResponse({
-    body: readiness,
-    status: readiness.status === 'ok' ? 200 : 503,
-  })
+  await authentication.authenticate(authorizationHeader)
+  throw new ApiError(HTTP_ERROR.notFound)
 }
 
 type ResolveCorrelationIdParams = {
@@ -126,6 +137,12 @@ type ResolveCorrelationIdParams = {
 
 function resolveCorrelationId({ createCorrelationId, value }: ResolveCorrelationIdParams): string {
   return parseCorrelationId(value) ?? createCorrelationId()
+}
+
+function resolveLogPathname(pathname: string): string {
+  return pathname === API_LIVE_PATH || pathname === API_READY_PATH
+    ? pathname
+    : UNMATCHED_LOG_PATHNAME
 }
 
 function assertRequestActive(signal: AbortSignal): void {

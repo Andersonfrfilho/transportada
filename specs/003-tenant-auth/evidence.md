@@ -448,3 +448,54 @@ as três constraints ainda não exercidas e alinhamento do schema do journal.
 Todos os achados foram corrigidos e reexecutados localmente. Nenhuma migration
 foi aplicada ao banco persistente, e nenhuma ação Railway, npm ou certificado
 foi executada.
+
+## T010 — Gateway JWT e identidade externa
+
+Modelo executor e revisão independente: Codex Sol high.
+
+Boundary de autenticação:
+
+- o bootstrap da API instancia `@adatechnology/keycloak-jwt@0.1.0` com issuer,
+  JWKS URI e audience vindos somente de configuração;
+- o gateway fixa `RS256`, exige `company_id` e reduz os sete erros tipados do
+  provider a uma rejeição interna sem `cause`;
+- Bearer ausente ou malformado, token rejeitado e identidade local inexistente
+  retornam o mesmo `401 UNAUTHENTICATED`;
+- falhas inesperadas de verifier ou PostgreSQL permanecem `500 INTERNAL_ERROR`
+  seguro e não são disfarçadas como credencial inválida;
+- health continua público; toda outra rota autentica antes do roteamento;
+- logs usam marcador para paths desconhecidos e nunca recebem token,
+  Authorization header, erro interno ou payload de claims.
+
+Identidade local:
+
+- o repositório Drizzle consulta conjuntamente `issuer` e `subject`;
+- somente `identity_users.status = 'active'` resolve uma identidade;
+- `company_id` é validado como UUID e preservado apenas como seleção do token;
+  ainda não existe `CompanyContext`, membership, role ou permissão;
+- claims brutas `iss`/`sub` e qualquer tenant enviado pelo cliente não escolhem
+  a identidade local.
+
+Evidência local:
+
+```text
+bun test test/authentication.contract.test.ts
+12 pass, 0 fail
+
+bun run check (apps/api-transportada)
+34 pass, 1 integração PostgreSQL condicionada, 0 fail
+lint, typecheck e build verdes
+
+integração PostgreSQL descartável
+8 pass, 0 fail
+par issuer/subject, usuário desativado, migration, rollback e shutdown verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 34 pass; worker 22 pass; frontend 3 pass
+format, lint, typecheck e builds verdes
+```
+
+O teste do repositório cria um banco isolado, aplica as migrations e o remove
+ao final. A revisão encontrou risco de vazamento por pathname desconhecido; o
+log passou a usar `<unmatched>` e ganhou regressão específica. Nenhuma ação
+Railway, uso de certificado ou contexto tenant foi executado.
