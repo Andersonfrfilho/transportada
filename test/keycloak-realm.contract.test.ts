@@ -46,9 +46,21 @@ type KeycloakProtocolMapper = {
 
 type KeycloakUser = {
   readonly attributes: Readonly<Record<string, readonly string[]>>
+  readonly credentials: readonly KeycloakCredential[]
+  readonly email: string
+  readonly emailVerified: boolean
+  readonly firstName: string
   readonly id: string
+  readonly lastName: string
   readonly realmRoles?: readonly string[]
+  readonly requiredActions: readonly string[]
   readonly username: string
+}
+
+type KeycloakCredential = {
+  readonly temporary: boolean
+  readonly type: string
+  readonly value: string
 }
 
 async function readProjectFile(filePath: string): Promise<string> {
@@ -143,7 +155,7 @@ describe('local Keycloak realm contract', () => {
     })
   })
 
-  test('adds a reproducible API audience, company claim, and fixed realm roles', async () => {
+  test('adds a reproducible API audience, complete local profile, company claim, and roles', async () => {
     const realm = await readRealm()
     const spaClient = findClient(realm, 'transportada-spa')
     const localUser = realm.users.find((candidate) => candidate.username === 'local-user')
@@ -168,7 +180,21 @@ describe('local Keycloak realm contract', () => {
       },
     })
     expect(localUser?.id).toBe('00000000-0000-4000-8000-000000000002')
+    expect(localUser).toMatchObject({
+      email: 'local-user@example.test',
+      emailVerified: true,
+      firstName: 'Local',
+      lastName: 'User',
+      requiredActions: [],
+    })
     expect(localUser?.attributes.company_id).toEqual(['00000000-0000-4000-8000-000000000001'])
+    expect(localUser?.credentials).toEqual([
+      {
+        temporary: false,
+        type: 'password',
+        value: '${KEYCLOAK_LOCAL_USER_PASSWORD}',
+      },
+    ])
     expect(localUser?.realmRoles).toBeUndefined()
   })
 

@@ -81,6 +81,11 @@
       "id": "00000000-0000-4000-8000-000000000002",
       "username": "local-user",
       "enabled": true,
+      "firstName": "Local",
+      "lastName": "User",
+      "email": "local-user@example.test",
+      "emailVerified": true,
+      "requiredActions": [],
       "attributes": {
         "company_id": ["00000000-0000-4000-8000-000000000001"]
       },

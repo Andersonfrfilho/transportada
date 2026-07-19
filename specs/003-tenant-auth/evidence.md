@@ -845,3 +845,67 @@ frontend 16 pass; format, lint, typecheck e builds verdes
 
 Nenhum Playwright/T015, Railway, certificado ou push foi executado; nenhum
 token, senha ou XML foi registrado.
+
+## T014C — Perfil completo do usuário local do Keycloak
+
+Modelo executor e revisão: Codex Sol high.
+
+Contrato e correção:
+
+- o contract test foi ampliado antes do realm e falhou somente porque o perfil
+  do `local-user` não possuía os campos exigidos pelo Keycloak 26.5.2;
+- o usuário local versionado recebeu o perfil fictício e determinístico
+  `Local User`, com `local-user@example.test`, `emailVerified: true` e
+  `requiredActions: []`;
+- UUID/subject, `company_id`, credencial não temporária por
+  `${KEYCLOAK_LOCAL_USER_PASSWORD}` e ausência de realm roles foram
+  preservados;
+- nenhuma required action ou proteção global do realm foi desabilitada.
+
+Operação e validação:
+
+- `make identity-bootstrap` recriou somente o container Keycloak; PostgreSQL
+  apenas foi confirmado saudável antes da migration e do seed idempotentes;
+- o login pelo navegador real chegou a `/auth/callback`, exibiu a aplicação
+  autenticada e não apresentou `Update Account Information`;
+- senha, token, cookie e código de autorização não foram registrados nesta
+  evidência.
+
+Evidência local:
+
+```text
+bun test test/keycloak-realm.contract.test.ts (antes do realm)
+4 pass, 1 fail
+falha exata: perfil local e requiredActions ausentes
+
+bun test test/keycloak-realm.contract.test.ts (depois do realm)
+5 pass, 0 fail, 45 expect() calls
+
+make identity-bootstrap
+Keycloak recriado e saudável; migration e seed locais verdes
+
+browser real
+/auth/callback autenticado; Update Account Information ausente
+
+make check
+realm 5 pass; gate interrompido no format:check somente pelos arquivos
+authenticated-smoke.helper.ts e responsive.smoke.spec.ts da T015 pausada
+
+bunx prettier --check (arquivos da T014C)
+All matched files use Prettier code style!
+
+bun run lint
+exit 0
+
+bun run typecheck
+exit 0
+
+bun run test
+API 90 pass e 1 skip; worker 22 pass; frontend 16 pass
+
+bun run build
+API, worker e frontend verdes
+```
+
+Nenhum arquivo/status da T015, Railway, certificado, push ou configuração de
+produção foi alterado nesta task.

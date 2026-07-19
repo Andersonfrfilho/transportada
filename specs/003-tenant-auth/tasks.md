@@ -21,7 +21,8 @@ Uma task por vez e um commit atômico por task.
 | T014  | Integrar frontend Keycloak com PKCE                     | T007, T013              | `bun run check` no frontend                                  | login-required, updateToken e token somente em memória                                             | Codex Terra medium + revisão Sol |
 | T014A | Habilitar CORS estrito da SPA local para a API          | T014                    | contrato HTTP CORS/OPTIONS e chamada autenticada local       | somente origin local exata, Bearer e métodos necessários são aceitos                               | Codex Sol high                   |
 | T014B | Bootstrap da identidade local da aplicação              | T007, T009, T014A       | target Makefile e integração idempotente aplicada duas vezes | realm e banco local possuem identidade, vínculo e roles determinísticos sem sobrescrever conflitos | Codex Sol high                   |
-| T015  | Validar frontend autenticado com Playwright             | T014B                   | `bun run smoke` no frontend                                  | 375/768/1280, redirect seguro e storages sem token                                                 | Codex Terra medium               |
+| T014C | Completar perfil do usuário local do Keycloak           | T014B                   | contrato do realm, bootstrap e usuário sem required actions  | login local não exige atualização de perfil e preserva subject, claim e senha por ambiente         | Codex Sol high                   |
+| T015  | Validar frontend autenticado com Playwright             | T014C                   | `bun run smoke` no frontend                                  | 375/768/1280, redirect seguro e storages sem token                                                 | Codex Terra medium               |
 | T016  | Executar gates finais e revisão independente            | T001–T015, T013A, T014A | frozen install, `make check`, integrations e `make smoke`    | evidência completa, sem Railway e sem achado crítico                                               | OpenCode free + Codex Sol        |
 
 ## Comandos e gates previstos
@@ -65,5 +66,6 @@ tentativa com contexto maior.
 - [x] T014 Frontend PKCE.
 - [x] T014A CORS estrito SPA local para API.
 - [x] T014B Bootstrap da identidade local da aplicação.
+- [x] T014C Perfil completo do usuário local do Keycloak.
 - [ ] T015 Playwright autenticado.
 - [ ] T016 Gates finais.
