@@ -232,3 +232,54 @@ esm-types-runtime-ok
 O consumidor temporário usa o tarball local por `file:` somente para testar o
 artefato ainda não publicado. Esse caminho existe no lock temporário, não no
 package empacotado. Nenhuma publicação npm, ação Railway ou push foi executado.
+
+## T007 — Keycloak local
+
+Modelo executor: Codex Terra medium. Revisão: Codex Sol high.
+
+Commit TransportAdA:
+
+- `ed98fc1 feat(auth): add local Keycloak realm`
+
+Fundação local:
+
+- Keycloak 26.5.2 fixado por versão e digest;
+- serviço saudável dentro do projeto Compose `transportada-local`;
+- realm importado de JSON versionado;
+- SPA pública com Authorization Code, callback exato e PKCE S256;
+- implicit flow, password grant e service account desabilitados;
+- client API bearer-only usado como audience separada;
+- mapper `company_id` no access token;
+- roles fixas existem como fixtures, mas nenhuma role tenant é atribuída ao
+  usuário ou tratada como autoridade;
+- placeholders do realm são substituídos por ambiente conforme suporte oficial
+  do Keycloak 26.5.2;
+- `make realm-contract`, `make config`, `make up`, `make ps` e o smoke de
+  identidade usam o mesmo Makefile/nome de projeto.
+
+Evidência local:
+
+```text
+ENV_FILE=.env.example make realm-contract
+4 pass, 0 fail, 33 expect() calls
+
+ENV_FILE=.env.example make up
+transportada-local-keycloak-1 healthy
+
+discovery issuer/JWKS
+exit 0
+
+Authorization Code + callback exato + S256
+HTTP 200
+
+ENV_FILE=.env.example make check
+API 11 pass, 1 skip
+worker 22 pass
+frontend 3 pass
+lint, typecheck e builds verdes
+```
+
+O Keycloak e os demais serviços de infraestrutura permanecem locais e
+saudáveis. Os apps não foram iniciados, portanto o `make smoke` completo ficou
+fora deste gate; discovery, JWKS e health do Keycloak foram validados
+diretamente. Nenhuma ação Railway ou uso do certificado ocorreu.

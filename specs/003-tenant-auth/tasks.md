@@ -51,7 +51,7 @@ tentativa com contexto maior.
 - [x] T004 Cache e rotação.
 - [x] T005 Empacotamento Bun limpo.
 - [ ] T006 Publicação e pin.
-- [ ] T007 Keycloak local.
+- [x] T007 Keycloak local.
 - [ ] T008 Schema de identities, company, membership e roles.
 - [ ] T009 Migration e rollback.
 - [ ] T010 Gateway JWT/identidade.
