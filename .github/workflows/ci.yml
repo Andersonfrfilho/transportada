@@ -69,6 +69,6 @@ jobs:
             exit 1
           fi
 
-          make smoke
+          PLAYWRIGHT_REUSE_EXISTING_SERVER=true make smoke
       - if: always()
         run: make down

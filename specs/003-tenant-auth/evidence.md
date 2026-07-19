@@ -1089,6 +1089,13 @@ Uma execução paralela da integração HTTP atingiu uma vez o timeout de 5s; a
 repetição isolada, igual à ordem sequencial do workflow, passou em menos de um
 segundo. Não houve segunda falha equivalente.
 
+O primeiro CI remoto do novo job (`29696400348`) passou qualidade, migration,
+infraestrutura, integrações e bootstrap, mas o Playwright recusou a porta já
+ocupada porque `CI` desabilita reuso por padrão. O workflow passou a habilitar
+reuso somente por opt-in explícito; o contract test correspondente e
+`CI=true PLAYWRIGHT_REUSE_EXISTING_SERVER=true make smoke` passaram localmente
+com 6 testes Playwright.
+
 Os processos Bun e a infraestrutura Compose foram encerrados após os gates.
 Nenhum Railway, certificado, senha, token, cookie, XML ou dado fiscal foi
 usado, registrado ou publicado.

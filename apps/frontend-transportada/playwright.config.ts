@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test'
 
 const API_PORT = 53001
 const FRONTEND_PORT = 53000
+const REUSE_EXISTING_SERVER =
+  process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true' || !process.env.CI
 
 export default defineConfig({
   testDir: './test',
@@ -19,13 +21,13 @@ export default defineConfig({
     {
       command: `bun run build && bun run preview -- --port ${FRONTEND_PORT}`,
       port: FRONTEND_PORT,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: REUSE_EXISTING_SERVER,
     },
     {
       command: 'bun run build && bun run start',
       cwd: '../api-transportada',
       port: API_PORT,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: REUSE_EXISTING_SERVER,
     },
   ],
 })

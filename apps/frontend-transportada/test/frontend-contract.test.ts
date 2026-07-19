@@ -44,6 +44,15 @@ describe('frontend foundation contract', () => {
     expect(englishLocale).toContain('"operationDisabled"')
   })
 
+  test('allows the Makefile smoke gate to reuse explicitly started CI servers', async () => {
+    const playwrightConfiguration = await readApplicationFile('playwright.config.ts')
+
+    expect(playwrightConfiguration).toContain(
+      "process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true'",
+    )
+    expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_SERVER')
+  })
+
   test('uses Keycloak Authorization Code with PKCE and never persists tokens', async () => {
     const packageManifest = await readApplicationFile('package.json')
     const authProvider = await readApplicationFile(
