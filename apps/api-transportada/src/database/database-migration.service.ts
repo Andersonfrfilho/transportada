@@ -1,9 +1,13 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
-const defaultMigrationsDirectory = new URL('../drizzle/', import.meta.url).pathname
+const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
+const DEFAULT_MIGRATIONS_SCHEMA = 'drizzle'
 
-export interface DatabaseMigrationOptions {
+type RunDatabaseMigrationsParams = {
   readonly connectionString: string
   readonly migrationsFolder?: string
   readonly migrationsSchema?: string
@@ -11,18 +15,18 @@ export interface DatabaseMigrationOptions {
 
 export async function runDatabaseMigrations({
   connectionString,
-  migrationsFolder = defaultMigrationsDirectory,
-  migrationsSchema = 'drizzle',
-}: DatabaseMigrationOptions): Promise<void> {
+  migrationsFolder = DEFAULT_MIGRATIONS_DIRECTORY,
+  migrationsSchema = DEFAULT_MIGRATIONS_SCHEMA,
+}: RunDatabaseMigrationsParams): Promise<void> {
   if (connectionString.length === 0) {
     throw new Error('Database connection string must not be empty')
   }
 
   const provider = createDrizzleProvider({
     connection: {
-      url: connectionString,
       adapter: 'postgres',
       max: 1,
+      url: connectionString,
     },
   })
 
@@ -38,7 +42,6 @@ export async function runDatabaseMigrations({
 
 if (import.meta.main) {
   const connectionString = process.env.DATABASE_URL
-
   if (connectionString === undefined || connectionString.length === 0) {
     throw new Error('DATABASE_URL is required to apply database migrations')
   }

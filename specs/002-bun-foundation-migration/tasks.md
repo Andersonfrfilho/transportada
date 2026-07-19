@@ -40,5 +40,5 @@ Uma task por vez e um commit atômico por task.
 - [x] T009 Worker Bun.
 - [x] T010 Frontend Vite/PWA.
 - [x] T011 Compose/Makefile.
-- [ ] T012 Remoção de legado.
+- [x] T012 Remoção de legado.
 - [ ] T013 Gates finais.

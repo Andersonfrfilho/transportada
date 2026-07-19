@@ -12,8 +12,6 @@ API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
-ACTIVE_APP_FILTERS := --filter=@transportada/api --filter=@transportada/worker --filter=@transportada/frontend
-
 .PHONY: help bootstrap config up down ps dev check smoke
 
 help: ## 📚 Lista os comandos disponíveis
@@ -43,9 +41,18 @@ ps: config ## 📋 Exibe os serviços locais
 
 dev: up ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
-		FRONTEND_PORT="$(FRONTEND_PORT)" \
-		QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)" \
-		bunx turbo run dev $(ACTIVE_APP_FILTERS)
+		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
+		export QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)"; \
+		bun run --cwd apps/api-transportada dev & api_process_id=$$!; \
+		bun run --cwd apps/worker-transportada dev & worker_process_id=$$!; \
+		bun run --cwd apps/frontend-transportada dev & frontend_process_id=$$!; \
+		cleanup() { \
+			trap - INT TERM EXIT; \
+			kill $$api_process_id $$worker_process_id $$frontend_process_id 2>/dev/null || true; \
+		}; \
+		trap 'cleanup; exit 130' INT TERM; \
+		trap cleanup EXIT; \
+		wait
 
 check: config ## ✅ Executa todos os gates locais
 	@bun run check

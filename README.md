@@ -35,6 +35,11 @@ O Makefile deriva `PROJECT_NAME` e `APP_ENV` do `.env` e isola os recursos do
 Docker Compose como `<projeto>-<ambiente>`, por exemplo
 `transportada-local`.
 
+A raiz orquestra explicitamente `apps/api-transportada`,
+`apps/worker-transportada` e `apps/frontend-transportada` com Bun. Cada app
+mantém seus próprios scripts e dependências publicadas; não há packages locais
+de runtime.
+
 Serviços:
 
 - frontend Vite/PWA: `http://localhost:53000`;

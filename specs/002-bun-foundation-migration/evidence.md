@@ -489,3 +489,58 @@ Gates locais:
 O `.env` local ignorado pelo Git foi atualizado somente com as variáveis
 necessárias para executar a stack. Nenhum volume foi removido, nenhuma emissão
 fiscal foi habilitada e nenhuma ação Railway ou push foi executado.
+
+## T012 — Remoção do stack legado
+
+Modelo planejado: Codex Luna low. Como Luna não estava disponível, a remoção
+mecânica foi delegada ao Codex Terra low; o agente principal revisou o diff,
+assumiu a transferência da migration e repetiu todos os gates.
+
+- pnpm, Turbo, Next, Nest, Express, Prisma, BullMQ, ioredis e os packages
+  locais foram removidos do código ativo, manifests e lock;
+- a raiz mantém somente `apps/*` como workspace e orquestra explicitamente
+  API, worker e frontend por seus scripts próprios;
+- configs raiz não consumidos de ESLint e TypeScript foram removidos; cada app
+  conserva sua própria toolchain e dependências;
+- o baseline Drizzle foi transferido do package local removido para
+  `apps/api-transportada`, que agora é dona do schema vazio, do config, do
+  comando dedicado de migration e dos testes de contrato;
+- migrations continuam fora do startup da API e o baseline continua sem SQL
+  destrutivo ou de negócio;
+- `make dev` deixou de depender do Turbo e encerra as três aplicações com um
+  único Ctrl-C, sem deixar portas ou processos órfãos;
+- padrões `.turbo/` e `.next/` permanecem apenas no `.gitignore` para impedir
+  que caches antigos locais voltem ao versionamento; não são dependências ou
+  caminhos executáveis.
+
+Gates:
+
+| Verificação                                                   | Resultado                                       |
+| ------------------------------------------------------------- | ----------------------------------------------- |
+| busca residual em código, manifests, CI e configuração ativos | nenhum stack ou import proibido                 |
+| `bun install` e `bun install --frozen-lockfile` na raiz       | 506 installs, lock congelado sem mudança        |
+| `make check`                                                  | lint, typecheck, 36 testes e 3 builds aprovados |
+| API isolada: install, frozen install e `bun run check`        | 126 packages; 11 testes aprovados, 1 pulado     |
+| worker isolado: install, frozen install e `bun run check`     | 119 packages; 22 testes aprovados               |
+| frontend isolado: install, frozen install e `bun run check`   | 480 packages; 3 testes e build PWA aprovados    |
+| API com PostgreSQL e baseline Drizzle                         | 5 testes, 14 asserts, nenhum pulado             |
+| `db:check` e `db:generate`                                    | aprovado e `no_changes`                         |
+| worker com PostgreSQL e RabbitMQ reais                        | 4 testes, 9 asserts, nenhum pulado              |
+| exchanges e filas principal, retry/DLX e dead-letter          | declaradas e exercitadas                        |
+| `make up`, `make dev` e `make smoke`                          | stack `transportada-local` aprovada             |
+| encerramento do `make dev` e portas 53000/53001/53002         | um Ctrl-C; todas as portas fechadas             |
+
+Hashes finais do baseline transferido:
+
+- `migration.sql`:
+  `49a0fa6e06db91f39903f070ad7a4ae2760463f8710ee67ee5848275d3ed7d53`;
+- `snapshot.json`:
+  `b7608eaa4a1ca9ddee5a5f7cc8f855a6ce1d825057eb1997f004b6f2dc4bb781`.
+
+O SQL permaneceu semanticamente idêntico; somente o newline final foi
+normalizado ao transferir o arquivo. O Docker Desktop local precisou de restart
+forçado pelo comando oficial porque seu daemon não respondia nem ao `/_ping`;
+os volumes foram preservados e os quatro serviços retornaram saudáveis.
+
+Nenhum certificado, senha ou XML fiscal foi lido, persistido ou registrado.
+Nenhuma emissão fiscal, ação Railway, deploy ou push foi executado.

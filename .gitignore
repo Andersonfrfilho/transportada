@@ -14,4 +14,3 @@ coverage/
 .history/
 .railway/
 tmp/
-packages/database/generated/
