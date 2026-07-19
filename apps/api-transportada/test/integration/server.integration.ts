@@ -6,6 +6,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { HealthService } from '../../src/health/health.service'
 import type { AuthenticationPort } from '../../src/identity/application/identity.port'
+import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
 
@@ -49,6 +50,13 @@ const server = startApiServer({
   },
   healthService,
   logger,
+  tenantContext: new TenantContextService({
+    repository: {
+      async findActiveByUserAndCompany() {
+        return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+      },
+    },
+  }),
 })
 const baseUrl = `http://127.0.0.1:${server.port}`
 

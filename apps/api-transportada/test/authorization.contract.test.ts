@@ -83,7 +83,7 @@ describe('authorization contract', () => {
       'cte.cancel',
       'cte.read',
     ])
-    expect(permissions.has('companies.manage')).toBe(false)
+    expect([...permissions]).not.toContain('companies.manage')
     expect(Object.isFrozen(permissions)).toBe(true)
     expect('add' in permissions).toBe(false)
     expect((permissions as unknown as { readonly add?: unknown }).add).toBeUndefined()

@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { HealthService } from '../src/health/health.service'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
+import { TenantContextService } from '../src/identity/application/tenant-context.service'
 import { HTTP_ERROR } from '../src/shared/api.constant'
 import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
@@ -308,6 +309,13 @@ function createFixture({
     healthService,
     logger,
     requestTimeoutSeconds: 10,
+    tenantContext: new TenantContextService({
+      repository: {
+        async findActiveByUserAndCompany() {
+          return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+        },
+      },
+    }),
   })
   const server: RequestTimeoutPort = {
     timeout(_request, seconds) {

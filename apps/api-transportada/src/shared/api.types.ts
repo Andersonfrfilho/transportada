@@ -3,6 +3,9 @@
  */
 import type { LogLevel } from '@adatechnology/logger'
 
+import type { CompanyRole } from '../database/database.schema'
+import type { CompanyPermission } from '../identity/domain/authorization.policy'
+
 export type ApiEnvironment = {
   readonly appEnv: string
   readonly databaseUrl: string
@@ -51,5 +54,18 @@ export type ErrorResponse = {
     readonly code: string
     readonly correlationId: string
     readonly message: string
+  }
+}
+
+export type AuthMeResponse = {
+  readonly data: {
+    readonly company: {
+      readonly id: string
+    }
+    readonly identity: {
+      readonly userId: string
+    }
+    readonly permissions: readonly CompanyPermission[]
+    readonly roles: readonly CompanyRole[]
   }
 }

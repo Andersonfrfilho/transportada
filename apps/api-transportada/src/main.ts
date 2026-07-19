@@ -7,7 +7,9 @@ import { createLogger } from '@adatechnology/logger'
 import { parseEnvironment } from './config/environment.schema'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
+import { TenantContextService } from './identity/application/tenant-context.service'
 import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
+import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
   createShutdownHandler,
@@ -30,7 +32,10 @@ export function bootstrap(): Bun.Server<undefined> {
     verifier,
   })
   const healthService = new HealthService({ database })
-  const server = startApiServer({ authentication, config, healthService, logger })
+  const tenantContext = new TenantContextService({
+    repository: new DrizzleMembershipRepository(database.db),
+  })
+  const server = startApiServer({ authentication, config, healthService, logger, tenantContext })
   const shutdown = createShutdownHandler({ database, logger, server })
 
   registerShutdownSignals({ logger, shutdown })

@@ -4,6 +4,7 @@
 import type { HealthService } from '../health/health.service'
 import { createRequestHandler, createServerErrorHandler } from '../http/request-handler.service'
 import type { AuthenticationPort } from '../identity/application/identity.port'
+import type { TenantContextService } from '../identity/application/tenant-context.service'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
 import {
   API_HOSTNAME,
@@ -23,6 +24,7 @@ type StartApiServerParams = {
   readonly config: ApiEnvironment
   readonly healthService: HealthService
   readonly logger: ApiLogger
+  readonly tenantContext: TenantContextService
 }
 
 export function startApiServer({
@@ -30,12 +32,14 @@ export function startApiServer({
   config,
   healthService,
   logger,
+  tenantContext,
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
     authentication,
     healthService,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,
+    tenantContext,
   })
 
   return Bun.serve({

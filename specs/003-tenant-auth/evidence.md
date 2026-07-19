@@ -596,3 +596,56 @@ A revisão encontrou dois vazamentos do backing `Set`: o terceiro argumento de
 `forEach` e `valueOf()` herdado. O wrapper passou a expor somente uma allowlist
 fechada de `ReadonlySet`, com `forEach` encapsulado, e ganhou regressões para os
 dois ataques. `/auth/me`, Railway e certificado permaneceram fora do escopo.
+
+## T013 — `/auth/me` e observabilidade segura
+
+Modelo executor: Codex Terra medium. Revisão e correções: Codex Sol high.
+
+Endpoint:
+
+- `GET /auth/me` executa autenticação e resolve `CompanyContext` pela
+  membership ativa;
+- resposta mínima usa envelope `data` e contém somente `userId`, `companyId`,
+  roles locais e permissões tipadas/determinísticas;
+- token, issuer, subject, external identity, `companyIdClaim`,
+  `platformAdmin` e claims não são serializados;
+- header, query e body não selecionam tenant; a integração prova isolamento
+  negativo entre duas empresas;
+- ausência/token inválido retorna 401, vínculo ausente retorna 403 e método não
+  suportado autentica antes do 405;
+- health continua público e rota desconhecida continua autenticada antes do
+  404 seguro.
+
+Observabilidade e cache:
+
+- o log específico contém somente correlation ID e status; Authorization,
+  query, claims, usuário, empresa, roles e permissões não entram em metadata;
+- todas as respostas de `/auth/me`, inclusive 401, 403, 405 e 500, recebem
+  `Cache-Control: no-store`;
+- o DTO preserva os unions fechados `CompanyRole` e `CompanyPermission`.
+
+Evidência local:
+
+```text
+bun test test/auth-me.contract.test.ts
+6 pass, 0 fail
+
+bun run test:integration
+10 pass, 0 fail
+duas empresas, cross-tenant, migration/rollback e shutdown verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 57 pass; worker 22 pass; frontend 3 pass
+format, lint, typecheck e builds verdes
+```
+
+A revisão Sol encontrou cache autenticado sem `no-store` e DTOs que haviam
+perdido os tipos fechados; ambos foram corrigidos e revalidados.
+
+Readiness JWKS não foi inferido a partir de `getJwksStatus()`: o contrato atual
+não distingue cache frio inicial de falha remota sem chave, e marcá-lo como
+down no bootstrap impediria o primeiro tráfego capaz de preencher o cache.
+Resolver isso exige uma operação explícita de warmup/probe em nova versão do
+provider Ada; não houve publicação implícita nesta task.
+
+Nenhuma ação Railway ou uso do certificado ocorreu.

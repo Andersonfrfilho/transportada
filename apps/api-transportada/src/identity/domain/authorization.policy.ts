@@ -68,7 +68,7 @@ export type RouteAuthorizationPolicy = CompanyAuthorizationPolicy | PlatformAuth
 
 export function resolveCompanyPermissions(
   roles: readonly CompanyRole[],
-): ReadonlySet<TransportadaPermission> {
+): ReadonlySet<CompanyPermission> {
   const granted = new Set<CompanyPermission>()
   for (const role of roles) {
     for (const permission of COMPANY_ROLE_PERMISSIONS[role]) {
