@@ -7,11 +7,20 @@ import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import {
   COMPANY_ROLES,
   companies,
+  databaseSchema,
   externalIdentities,
   identityUsers,
   membershipRoles,
   userCompanyMemberships,
 } from '../src/database/database.schema.js'
+import {
+  COMPANY_ROLES as directCompanyRoles,
+  companies as directCompanies,
+  externalIdentities as directExternalIdentities,
+  identityUsers as directIdentityUsers,
+  membershipRoles as directMembershipRoles,
+  userCompanyMemberships as directUserCompanyMemberships,
+} from '../src/database/identity.schema.js'
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]): readonly string[] =>
   getTableConfig(table).columns.map((column) => column.name)
@@ -29,6 +38,23 @@ const checkSql = (table: Parameters<typeof getTableConfig>[0]): readonly string[
   getTableConfig(table).checks.map((constraint) => dialect.sqlToQuery(constraint.value).sql)
 
 describe('tenant identity schema', () => {
+  test('keeps the database schema aggregator compatible with the identity module', () => {
+    expect(COMPANY_ROLES).toBe(directCompanyRoles)
+    expect(companies).toBe(directCompanies)
+    expect(externalIdentities).toBe(directExternalIdentities)
+    expect(identityUsers).toBe(directIdentityUsers)
+    expect(membershipRoles).toBe(directMembershipRoles)
+    expect(userCompanyMemberships).toBe(directUserCompanyMemberships)
+
+    expect(databaseSchema).toEqual({
+      companies: directCompanies,
+      externalIdentities: directExternalIdentities,
+      identityUsers: directIdentityUsers,
+      membershipRoles: directMembershipRoles,
+      userCompanyMemberships: directUserCompanyMemberships,
+    })
+  })
+
   test('defines only company-scoped roles on memberships', () => {
     expect(COMPANY_ROLES).toEqual(['company-admin', 'finance', 'fiscal', 'operator', 'viewer'])
     expect(COMPANY_ROLES).not.toContain('platform-admin')

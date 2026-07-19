@@ -264,3 +264,45 @@ lint + typecheck + build: exit 0
 
 A revisão final aprovou package, pipeline, pins e lockfile sem P0–P3. Nenhum
 Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
+
+## T006 — Separação do schema de identidade
+
+Executor: Codex Terra medium. Revisão e validação independentes: agente
+principal.
+
+Implementação:
+
+- `identity.schema.ts` preserva integralmente as cinco tabelas, tipos,
+  constantes, checks, índices, chaves e relacionamentos de identidade;
+- `database.schema.ts` permanece como agregador compatível e reexporta os
+  mesmos símbolos;
+- o contrato comprova que o módulo direto e o agregador expõem as mesmas
+  referências, inclusive no objeto `databaseSchema`;
+- consumidores, `drizzle.config.ts`, migrations, rollbacks e snapshots não
+  foram alterados.
+
+Evidência RED:
+
+```text
+bun test test/identity-schema.contract.test.ts
+Cannot find module '../src/database/identity.schema.js'
+0 pass, 1 fail
+```
+
+Evidência local após implementação:
+
+```text
+bun run --cwd apps/api-transportada db:check
+Everything's fine
+
+bun run --cwd apps/api-transportada check
+95 pass, 1 conditional database skip, 0 fail, 462 assertions
+lint + typecheck + build: exit 0
+
+git diff --check
+exit 0
+```
+
+Os hashes SHA-256 dos cinco artefatos em `apps/api-transportada/drizzle`
+permaneceram idênticos ao baseline anterior à extração. Nenhum Railway,
+certificado, PFX, senha, S3 ou SEFAZ foi acessado.
