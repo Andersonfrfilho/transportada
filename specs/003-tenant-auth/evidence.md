@@ -1100,6 +1100,12 @@ O segundo CI (`29696580296`) confirmou o reuso, mas revelou que aguardar apenas
 o frontend permitia iniciar o smoke antes da porta do worker. O polling passou
 a exigir frontend, API live e worker live antes do gate.
 
+O terceiro CI (`29696730261`) chegou aos seis testes e confirmou o polling,
+mas o runner limpo não possuía o binário Chromium. O job passou a executar
+`bun run --cwd apps/frontend-transportada playwright install --with-deps
+chromium`, mantendo a versão `1.58.2` fixada pelo workspace e seguindo o comando
+oficial para instalar somente Chromium e suas dependências Linux.
+
 Os processos Bun e a infraestrutura Compose foram encerrados após os gates.
 Nenhum Railway, certificado, senha, token, cookie, XML ou dado fiscal foi
 usado, registrado ou publicado.

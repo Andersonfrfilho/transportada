@@ -35,6 +35,8 @@ jobs:
           bun-version: 1.3.14
       - run: cp .env.example .env
       - run: bun install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
       - run: make migration-test
       - run: make up
       - name: API and worker integrations
