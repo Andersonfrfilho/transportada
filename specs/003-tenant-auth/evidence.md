@@ -233,6 +233,62 @@ O consumidor temporário usa o tarball local por `file:` somente para testar o
 artefato ainda não publicado. Esse caminho existe no lock temporário, não no
 package empacotado. Nenhuma publicação npm, ação Railway ou push foi executado.
 
+## T006 — Publicação npm e pin exato
+
+Modelo executor e revisão: Codex Sol high. A publicação ocorreu somente após
+aprovação humana explícita.
+
+Release Ada:
+
+- versão pública `@adatechnology/keycloak-jwt@0.1.0`;
+- commit de versão `4538039 chore(release): version packages`;
+- commit de acesso público
+  `25efb68 fix(release): enforce public Keycloak package access`;
+- workflow de publicação inicial
+  [29686827715](https://github.com/Andersonfrfilho/adatechnology-packages/actions/runs/29686827715)
+  verde;
+- workflow de correção/verificação de acesso
+  [29686969381](https://github.com/Andersonfrfilho/adatechnology-packages/actions/runs/29686969381)
+  verde;
+- CI Ada
+  [29686827726](https://github.com/Andersonfrfilho/adatechnology-packages/actions/runs/29686827726)
+  verde.
+
+O primeiro publish criou a versão, mas o pacote scoped ainda não estava
+consultável anonimamente. O workflow foi endurecido com
+`npm access set status=public`, executado com sucesso sem expor credenciais.
+Depois da propagação, `npm view` e `npm pack` anônimos confirmaram:
+
+```text
+name=@adatechnology/keycloak-jwt
+version=0.1.0
+latest=0.1.0
+integrity=sha512-ALHHWeB5VNEyYLyo1MhiyCj0i6Ir/UMikC/+1IhmdVJHM6bqE3Duu05wi6pYHA6Pc1n1XtidItzhtvmDFRCg+Q==
+4 arquivos; 16,8 kB descompactados; nenhum bundled dependency
+```
+
+Consumo TransportAdA:
+
+- a API fixa exatamente `0.1.0`, sem range, `file:` ou dependência reutilizável
+  criada no monorepo;
+- o lock Bun registra o mesmo integrity do registry e `jose@6.2.3`;
+- import ESM runtime a partir da dependência instalada foi validado;
+- `bun install --frozen-lockfile` não alterou o lock.
+
+Evidência local:
+
+```text
+bun run check (apps/api-transportada)
+19 pass, 1 integração PostgreSQL condicionada, 0 fail
+lint, typecheck e build verdes
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 19 pass; worker 22 pass; frontend 3 pass
+format, lint, typecheck e builds verdes
+```
+
+Nenhuma ação Railway, leitura de certificado ou uso de segredo fiscal ocorreu.
+
 ## T007 — Keycloak local
 
 Modelo executor: Codex Terra medium. Revisão: Codex Sol high.

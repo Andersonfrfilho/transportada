@@ -13,6 +13,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
+        "@adatechnology/keycloak-jwt": "0.1.0",
         "@adatechnology/logger": "0.0.1",
         "drizzle-orm": "1.0.0-rc.4",
         "zod": "4.4.3",
@@ -77,6 +78,8 @@
   },
   "packages": {
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
+
+    "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.0", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-ALHHWeB5VNEyYLyo1MhiyCj0i6Ir/UMikC/+1IhmdVJHM6bqE3Duu05wi6pYHA6Pc1n1XtidItzhtvmDFRCg+Q=="],
 
     "@adatechnology/logger": ["@adatechnology/logger@0.0.1", "", {}, "sha512-8DREMp+klFwmzv3KbF7BUG4Dg4qyHYhSlNKo4/BPmya3NHIvINEk3B1U42Qn2MFL6SDYjRKhT68P6OlPwhmSYg=="],
 
@@ -865,6 +868,8 @@
     "jake": ["jake@10.9.4", "", { "dependencies": { "async": "^3.2.6", "filelist": "^1.0.4", "picocolors": "^1.1.1" }, "bin": { "jake": "bin/cli.js" } }, "sha512-wpHYzhxiVQL+IV05BLE2Xn34zW1S223hvjtqk0+gsPrwd/8JNLXJgZZM/iPFsYc1xyphF+6M6EvdE5E9MBGkDA=="],
 
     "jiti": ["jiti@2.7.0", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ=="],
+
+    "jose": ["jose@6.2.3", "", {}, "sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw=="],
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 

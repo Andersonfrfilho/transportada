@@ -50,7 +50,7 @@ tentativa com contexto maior.
 - [x] T003 Verificação JWT/JWKS.
 - [x] T004 Cache e rotação.
 - [x] T005 Empacotamento Bun limpo.
-- [ ] T006 Publicação e pin.
+- [x] T006 Publicação e pin.
 - [x] T007 Keycloak local.
 - [x] T008 Schema de identities, company, membership e roles.
 - [x] T009 Migration e rollback.

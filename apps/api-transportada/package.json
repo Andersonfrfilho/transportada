@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@adatechnology/drizzle-provider": "0.1.1",
+    "@adatechnology/keycloak-jwt": "0.1.0",
     "@adatechnology/logger": "0.0.1",
     "drizzle-orm": "1.0.0-rc.4",
     "zod": "4.4.3"
