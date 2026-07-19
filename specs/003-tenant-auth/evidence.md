@@ -649,3 +649,66 @@ Resolver isso exige uma operação explícita de warmup/probe em nova versão do
 provider Ada; não houve publicação implícita nesta task.
 
 Nenhuma ação Railway ou uso do certificado ocorreu.
+
+## T014 — Frontend Keycloak com PKCE
+
+Modelo executor: Codex Terra medium. Revisão de segurança: Codex Sol.
+
+Implementação:
+
+- `keycloak-js@26.2.4` está fixado; esta é a versão oficial disponível para o
+  adapter, compatível com o servidor local Keycloak 26.5.2;
+- a integração externa está encapsulada em
+  `modules/identity/shared/KeycloakAuthProvider.provider.ts` e inicializa antes
+  da montagem React com Authorization Code, `login-required` e PKCE `S256`;
+- o callback é fixo em `${window.location.origin}/auth/callback`, compatível
+  com o redirect URI estrito do realm local; não há origem de redirect por
+  query, storage ou input do usuário;
+- antes de `/auth/me`, a query TanStack chama `updateToken(30)` e envia somente
+  o access token atual em `Authorization: Bearer`; a resposta é validada contra
+  o DTO fechado de roles e permissões da API;
+- refresh ausente ou falho limpa o estado em memória e reinicia o login; a
+  aplicação não grava token em localStorage, sessionStorage, IndexedDB,
+  service worker, cache ou logs;
+- `.env.example` documenta `VITE_API_URL`, `VITE_KEYCLOAK_URL`,
+  `VITE_KEYCLOAK_REALM` e `VITE_KEYCLOAK_CLIENT_ID`; o service worker mantém
+  runtime cache apenas para health, portanto `/auth/me` não entra em cache;
+- a revisão Sol restringiu as URLs públicas a HTTPS ou HTTP em `localhost`,
+  sem credenciais, query ou fragment, e adicionou contratos comportamentais
+  para inicialização, refresh e falha fechada.
+
+Contratos adicionados antes da implementação:
+
+- uso do adapter exato, `login-required`, PKCE S256, callback fixo e ausência
+  de APIs de persistência;
+- renovação antes de `/auth/me`, Bearer e validação do envelope;
+- variáveis Vite necessárias e ausência de cache autenticado no Workbox.
+
+Evidência local:
+
+```text
+bun test test/frontend-contract.test.ts test/keycloak-auth-provider.test.ts
+16 pass, 0 fail
+
+bun run check (apps/frontend-transportada)
+lint, typecheck, 16 testes e build/PWA verdes
+
+bun install --frozen-lockfile
+509 installs verificados, sem mudanças
+
+ENV_FILE=.env.example make check
+realm 4 pass; API 57 pass e 1 integração condicional; worker 22 pass;
+frontend 16 pass; format, lint, typecheck e builds verdes
+```
+
+Não foram executados Playwright/T015, Railway, certificado, commit ou push.
+
+Gap bloqueante para o fluxo local autenticado:
+
+- a SPA configurada em `http://localhost:53000` chama a API em
+  `http://localhost:53001`; por enviar `Authorization`, o navegador fará
+  preflight `OPTIONS`;
+- a API atual não declara CORS nem trata `OPTIONS`, portanto o browser bloqueará
+  a chamada de `/auth/me` apesar do contrato do frontend;
+- T014A foi adicionada como dependência explícita da T015 para implementar e
+  testar CORS estrito. Não houve alteração do backend nesta task.

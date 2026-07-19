@@ -6,6 +6,7 @@ import { registerSW } from 'virtual:pwa-register'
 
 import '@/modules/shared/i18n/i18n.service'
 import { FoundationStatusPage } from '@/modules/foundation/pages/FoundationStatus.page'
+import { initializeKeycloakAuth } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import '@/styles/index.css'
 
 const queryClient = new QueryClient({
@@ -20,10 +21,18 @@ if (rootElement === null) {
   throw new Error('FRONTEND_ROOT_MISSING')
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <FoundationStatusPage />
-    </QueryClientProvider>
-  </StrictMode>,
-)
+const applicationRootElement = rootElement
+
+async function bootstrapApplication(): Promise<void> {
+  await initializeKeycloakAuth()
+
+  createRoot(applicationRootElement).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <FoundationStatusPage />
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+}
+
+void bootstrapApplication()

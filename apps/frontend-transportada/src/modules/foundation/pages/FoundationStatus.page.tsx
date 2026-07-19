@@ -3,15 +3,17 @@ import { useTranslation } from 'react-i18next'
 
 import { ReadinessMark } from '@/modules/foundation/components/ReadinessMark.component'
 import { useFoundationHealthQuery } from '@/modules/foundation/queries/useFoundationHealth.query'
+import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 export function FoundationStatusPage() {
   const { t } = useTranslation()
   const foundationHealthQuery = useFoundationHealthQuery()
+  const authMeQuery = useAuthMeQuery()
   const hasApiBaseUrl =
     import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== ''
   const integrationKey = !hasApiBaseUrl
     ? 'foundation.integrationNotConfigured'
-    : foundationHealthQuery.isSuccess
+    : foundationHealthQuery.isSuccess && authMeQuery.isSuccess
       ? 'foundation.integrationReady'
       : 'foundation.integrationUnavailable'
 

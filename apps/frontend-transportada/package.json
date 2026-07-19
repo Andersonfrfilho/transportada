@@ -11,12 +11,13 @@
     "preview": "vite preview --host 0.0.0.0 --port ${FRONTEND_PORT:-5173}",
     "smoke": "playwright test",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-5173}",
-    "test": "bun test test/frontend-contract.test.ts",
+    "test": "bun test test/frontend-contract.test.ts test/keycloak-auth-provider.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/react-query": "5.90.20",
     "i18next": "25.7.4",
+    "keycloak-js": "26.2.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-i18next": "16.5.0",

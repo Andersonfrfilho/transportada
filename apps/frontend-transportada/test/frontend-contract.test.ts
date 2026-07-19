@@ -41,4 +41,53 @@ describe('frontend foundation contract', () => {
     expect(styles).toContain('prefers-reduced-motion')
     expect(englishLocale).toContain('"operationDisabled"')
   })
+
+  test('uses Keycloak Authorization Code with PKCE and never persists tokens', async () => {
+    const packageManifest = await readApplicationFile('package.json')
+    const authProvider = await readApplicationFile(
+      'src/modules/identity/shared/KeycloakAuthProvider.provider.ts',
+    )
+
+    expect(packageManifest).toContain('"keycloak-js": "26.2.4"')
+    expect(authProvider).toContain("onLoad: 'login-required'")
+    expect(authProvider).toContain("pkceMethod: 'S256'")
+    expect(authProvider).toContain('${window.location.origin}/auth/callback')
+    expect(authProvider).toContain('keycloak.updateToken')
+    expect(authProvider).toContain('keycloak.clearToken()')
+    expect(authProvider).toContain('keycloak.login')
+    expect(authProvider).not.toContain('localStorage')
+    expect(authProvider).not.toContain('sessionStorage')
+    expect(authProvider).not.toContain('indexedDB')
+  })
+
+  test('fetches the typed authenticated identity without caching it in the service worker', async () => {
+    const identityQuery = await readApplicationFile(
+      'src/modules/identity/queries/useAuthMe.query.ts',
+    )
+    const viteConfiguration = await readApplicationFile('vite.config.ts')
+
+    expect(identityQuery).toContain("'/auth/me'")
+    expect(identityQuery).toContain('authorization: `Bearer ${accessToken}`')
+    expect(identityQuery).toContain('getAccessToken')
+    expect(identityQuery).toContain('isAuthMeResponse')
+    expect(viteConfiguration).not.toContain('auth-cache')
+    expect(viteConfiguration).not.toContain('/auth/me')
+  })
+
+  test('documents the trusted Vite configuration required by the identity provider', async () => {
+    const environmentExample = await readApplicationFile('../../.env.example')
+    const environmentConfiguration = await readApplicationFile(
+      'src/modules/identity/shared/identityEnvironment.config.ts',
+    )
+
+    expect(environmentExample).toContain('VITE_API_URL=')
+    expect(environmentExample).toContain('VITE_KEYCLOAK_URL=')
+    expect(environmentExample).toContain('VITE_KEYCLOAK_REALM=')
+    expect(environmentExample).toContain('VITE_KEYCLOAK_CLIENT_ID=')
+    expect(environmentConfiguration).toContain("url.protocol === 'http:'")
+    expect(environmentConfiguration).toContain("url.protocol !== 'https:'")
+    expect(environmentConfiguration).toContain("url.hostname === 'localhost'")
+    expect(environmentConfiguration).toContain("url.username !== ''")
+    expect(environmentConfiguration).toContain("url.password !== ''")
+  })
 })
