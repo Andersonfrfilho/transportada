@@ -368,3 +368,66 @@ ligado a uma transação real quando a spec de negócio definir tabelas e evento
 Nenhum certificado, senha ou XML fiscal foi lido, persistido ou registrado.
 Nenhuma migration de startup, emissão fiscal, ação Railway ou push foi
 executado.
+
+## T010 — Frontend React/Vite/PWA
+
+Modelo executor: Codex Terra medium. Revisão de arquitetura, compatibilidade,
+acessibilidade e layout executada pelo agente principal.
+
+- `apps/frontend-transportada` é uma aplicação React/Vite independente, sem
+  imports de código-fonte de outro app ou package local;
+- React `19.2.0`, Vite `7.3.6`, TanStack Query `5.90.20`,
+  `react-i18next` `16.5.0` e `vite-plugin-pwa` `1.3.0` foram fixados
+  exatamente;
+- Vite 8 foi recusado durante a revisão porque
+  `@vitejs/plugin-react@5.1.1` ainda limita seu peer ao Vite 7; a instalação
+  limpa final não apresenta conflito de peer;
+- textos visíveis da aplicação usam locales pt-BR e en; a tela não contém
+  documentos, valores, certificados, clientes ou indicadores fiscais
+  fictícios;
+- a consulta de health fica encapsulada em uma query TanStack, desabilitada
+  quando nenhuma URL da API é fornecida;
+- tokens semânticos centralizam cores, tipografia e espaçamento; focus visível,
+  contraste e `prefers-reduced-motion` foram preservados;
+- os breakpoints mobile-first cobrem 640, 768, 1024 e 1280 px, com smoke
+  obrigatório em 375, 768 e 1280 px;
+- o build gera manifest, service worker, app shell offline, ícones PNG opacos
+  de 192 e 512 px e metatags de instalação;
+- o service worker usa o app shell como fallback de navegação e a navegação
+  offline foi comprovada em Chromium real.
+
+Direção visual aplicada pela revisão `frontend-design`: o painel inicial usa um
+“manifesto de despacho” como elemento característico do domínio de transporte.
+O objetivo único da tela é comunicar prontidão da fundação e, ao mesmo tempo,
+deixar explícito que nenhuma operação fiscal está habilitada.
+
+Desenvolvimento orientado por testes:
+
+| Evidência inicial                                     | Resultado esperado                     |
+| ----------------------------------------------------- | -------------------------------------- |
+| contratos antes da criação do novo app                | 3 falhas por arquivos ausentes         |
+| service worker comprovado somente pelo build          | smoke passou a exigir controle real    |
+| navegação sem rede ainda não exercitada               | app shell passou a ser testado offline |
+| Vite 8 em instalação isolada com plugin React 5.1.1   | warning de peer detectado              |
+| Vite fixado em `7.3.6`, compatível com o plugin React | warning removido                       |
+
+Gates:
+
+| Verificação                                                       | Resultado                       |
+| ----------------------------------------------------------------- | ------------------------------- |
+| `bun run test`                                                    | 3 testes, 16 asserts, aprovados |
+| `bun run lint`, `typecheck` e `build`                             | aprovados                       |
+| PWA build                                                         | 11 recursos em precache         |
+| Playwright em 375, 768 e 1280 px                                  | sem overflow horizontal         |
+| service worker após reload                                        | controle confirmado             |
+| reload offline                                                    | app shell disponível            |
+| inspeção visual em navegador nos três breakpoints                 | aprovada, sem erro de console   |
+| instalação em diretório temporário contendo somente a aplicação   | 480 packages instalados         |
+| `bun install --frozen-lockfile`, check e smoke no diretório limpo | aprovados, sem warning de peer  |
+| `bun install --frozen-lockfile` e `bun run check` na raiz         | 9/9 unidades aprovadas          |
+| busca por imports locais e dependências fiscais                   | nenhum uso encontrado           |
+
+O app Next legado permanece temporariamente em `apps/web` para que a remoção
+ocorra junto dos demais legados na T012, depois dos gates da stack local na
+T011. Nenhuma operação fiscal, certificado, segredo, ação Railway ou push foi
+executado.

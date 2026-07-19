@@ -1,0 +1,23 @@
+{
+  "foundation": {
+    "brand": "TransportAdA",
+    "classification": "Painel de prontidão · fundação local",
+    "title": "A operação começa quando a fundação estiver sob controle.",
+    "intro": "Este ambiente prepara a interface, os serviços e os limites de segurança. Nenhuma operação fiscal está habilitada nesta etapa.",
+    "operationDisabled": "Operação fiscal desabilitada",
+    "operationDescription": "A fundação foi montada para validação local. Ações de importação, cálculo, emissão e faturamento permanecem indisponíveis até a implementação dos módulos correspondentes.",
+    "prepared": "Preparado",
+    "preparedDescription": "Interface instalável, contratos de saúde e processamento assíncrono seguem caminhos independentes.",
+    "boundary": "Limite desta etapa",
+    "boundaryDescription": "Sem documentos, valores, certificados ou dados de clientes nesta tela.",
+    "integration": "Integração local",
+    "integrationNotConfigured": "Nenhuma URL da API local foi configurada para esta interface.",
+    "integrationReady": "A consulta de saúde está disponível quando uma URL da API local for configurada.",
+    "integrationUnavailable": "A URL da API local não respondeu à consulta de saúde.",
+    "manifest": "Manifesto de despacho",
+    "manifestEntryOne": "01 · Interface responsiva e instalável",
+    "manifestEntryTwo": "02 · Dados remotos encapsulados por Query",
+    "manifestEntryThree": "03 · Texto preparado para múltiplos idiomas",
+    "footer": "Fundação Bun · validação local antes de qualquer ambiente remoto"
+  }
+}

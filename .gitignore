@@ -2,6 +2,8 @@ node_modules/
 .turbo/
 .next/
 dist/
+playwright-report/
+test-results/
 coverage/
 .env
 .env.*

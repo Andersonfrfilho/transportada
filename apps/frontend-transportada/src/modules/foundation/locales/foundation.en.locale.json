@@ -1,0 +1,23 @@
+{
+  "foundation": {
+    "brand": "TransportAdA",
+    "classification": "Readiness panel · local foundation",
+    "title": "Operations start when the foundation is under control.",
+    "intro": "This environment prepares the interface, services and security boundaries. No fiscal operation is enabled at this stage.",
+    "operationDisabled": "Fiscal operation disabled",
+    "operationDescription": "The foundation is set up for local validation. Import, calculation, issuance and billing actions remain unavailable until their corresponding modules are implemented.",
+    "prepared": "Prepared",
+    "preparedDescription": "The installable interface, health contracts and asynchronous processing follow independent paths.",
+    "boundary": "Stage boundary",
+    "boundaryDescription": "There are no documents, amounts, certificates or customer data on this screen.",
+    "integration": "Local integration",
+    "integrationNotConfigured": "No local API URL is configured for this interface.",
+    "integrationReady": "The health check is available when a local API URL is configured.",
+    "integrationUnavailable": "The local API URL did not respond to the health check.",
+    "manifest": "Dispatch manifest",
+    "manifestEntryOne": "01 · Responsive and installable interface",
+    "manifestEntryTwo": "02 · Remote data encapsulated by Query",
+    "manifestEntryThree": "03 · Copy prepared for multiple languages",
+    "footer": "Bun foundation · local validation before any remote environment"
+  }
+}
