@@ -13,12 +13,13 @@
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:generate": "drizzle-kit generate --output json --config drizzle.config.ts",
     "db:migrate": "bun src/database/database-migration.service.ts",
-    "db:test": "bun test ./test/database-migration.contract.test.ts",
+    "db:seed:local": "bun src/database/local-identity-seed.service.ts",
+    "db:test": "bun test ./test/database-migration.contract.test.ts ./test/integration/local-identity-seed.integration.ts",
     "dev": "bun --watch ./src/main.ts",
     "lint": "bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0",
     "start": "bun ./dist/main.js",
     "test": "bun test ./test/http.contract.test.ts ./test/cors.contract.test.ts ./test/shutdown.contract.test.ts ./test/database-migration.contract.test.ts ./test/identity-schema.contract.test.ts ./test/authentication.contract.test.ts ./test/tenant-context.contract.test.ts ./test/authorization.contract.test.ts ./test/auth-me.contract.test.ts",
-    "test:integration": "bun test ./test/integration/server.integration.ts ./test/integration/authentication-repository.integration.ts ./test/integration/tenant-context.integration.ts ./test/integration/auth-me.integration.ts ./test/database-migration.contract.test.ts",
+    "test:integration": "bun test ./test/integration/server.integration.ts ./test/integration/authentication-repository.integration.ts ./test/integration/tenant-context.integration.ts ./test/integration/auth-me.integration.ts ./test/integration/local-identity-seed.integration.ts ./test/database-migration.contract.test.ts",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {

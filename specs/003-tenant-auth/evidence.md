@@ -776,3 +776,72 @@ placeholders locais de Keycloak do `.env.example`; nenhum segredo real foi
 adicionado.
 
 Nenhum Playwright/T015, Railway, certificado ou push foi executado.
+
+## T014B — Bootstrap da identidade local da aplicação
+
+Modelo executor e revisão: Codex Sol high.
+
+Contrato determinístico:
+
+- o usuário `local-user` do realm versionado possui o UUID fixo
+  `00000000-0000-4000-8000-000000000002`, que se torna o `subject` esperado;
+- o shell de empresa ativo usa o UUID fixo
+  `00000000-0000-4000-8000-000000000001`;
+- usuário interno, identidade externa e membership usam UUIDs distintos e
+  determinísticos;
+- a identidade externa exige o issuer local exato e o subject do realm;
+- a membership ativa recebe somente `viewer`, privilégio mínimo suficiente
+  para resolver `/auth/me`; roles operacionais e `platform-admin` não são
+  concedidas.
+
+Seed e concorrência:
+
+- o seed pertence somente à API TransportAdA e usa o schema Drizzle existente;
+- toda a operação ocorre em uma transação PostgreSQL;
+- `pg_advisory_xact_lock` estável serializa bootstraps concorrentes antes da
+  leitura e inserção;
+- a segunda aplicação e duas aplicações simultâneas preservam exatamente uma
+  company, identidade, external identity, membership e role;
+- linhas compatíveis são reutilizadas sem atualizar timestamps ou estado;
+- colisão de ID, `(issuer, subject)`, membership, status ou role divergente
+  lança erro tipado e reverte toda a transação;
+- dados alheios permanecem intactos e não há delete, truncate ou overwrite;
+- o entrypoint falha antes de abrir o banco fora de `APP_ENV=local|test`, com
+  `PROJECT_NAME` diferente de `transportada` ou issuer diferente do realm
+  versionado.
+
+Operação:
+
+- `db:seed:local` executa somente o seed;
+- `make identity-bootstrap` depende de `postgres-up` e `realm-contract`,
+  recria somente o container Keycloak local para garantir a reimportação do
+  realm versionado, carrega `ENV_FILE`, preserva `PROJECT_NAME`/`APP_ENV`,
+  aplica primeiro `db:migrate` e depois `db:seed:local`;
+- a recriação encerra sessões Keycloak locais; não remove volumes nem toca
+  PostgreSQL, outros serviços ou ambientes externos;
+- migrations continuam explícitas e não foram adicionadas ao startup da API.
+
+Evidência local:
+
+```text
+bun test test/keycloak-realm.contract.test.ts
+5 pass, 0 fail, 43 expect() calls
+
+bun test ./apps/api-transportada/test/integration/local-identity-seed.integration.ts
+5 pass, 0 fail, 13 expect() calls
+execuções concorrentes, repetição, preservação e rollback em conflito verdes
+
+make identity-bootstrap (executado duas vezes)
+migration e seed locais verdes nas duas aplicações
+
+make migration-test
+9 pass, 0 fail, 77 expect() calls
+migration/rollback e seed em PostgreSQL descartável verdes
+
+make check
+realm 5 pass; API 90 pass e 1 integração condicional; worker 22 pass;
+frontend 16 pass; format, lint, typecheck e builds verdes
+```
+
+Nenhum Playwright/T015, Railway, certificado ou push foi executado; nenhum
+token, senha ou XML foi registrado.

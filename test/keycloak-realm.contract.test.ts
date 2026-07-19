@@ -46,6 +46,7 @@ type KeycloakProtocolMapper = {
 
 type KeycloakUser = {
   readonly attributes: Readonly<Record<string, readonly string[]>>
+  readonly id: string
   readonly realmRoles?: readonly string[]
   readonly username: string
 }
@@ -166,7 +167,30 @@ describe('local Keycloak realm contract', () => {
         'user.attribute': 'company_id',
       },
     })
+    expect(localUser?.id).toBe('00000000-0000-4000-8000-000000000002')
     expect(localUser?.attributes.company_id).toEqual(['00000000-0000-4000-8000-000000000001'])
     expect(localUser?.realmRoles).toBeUndefined()
+  })
+
+  test('bootstraps the local application identity after explicit migrations', async () => {
+    const makefile = await readProjectFile('Makefile')
+    const seedService = await readProjectFile(
+      'apps/api-transportada/src/database/local-identity-seed.service.ts',
+    )
+    const apiPackage = JSON.parse(await readProjectFile('apps/api-transportada/package.json')) as {
+      readonly scripts: Readonly<Record<string, string>>
+    }
+
+    expect(apiPackage.scripts['db:seed:local']).toBe(
+      'bun src/database/local-identity-seed.service.ts',
+    )
+    expect(makefile).toContain('identity-bootstrap: postgres-up realm-contract')
+    expect(makefile).toContain('up -d --wait --force-recreate keycloak')
+    expect(makefile).toContain('bun run --cwd apps/api-transportada db:migrate')
+    expect(makefile).toContain('bun run --cwd apps/api-transportada db:seed:local')
+    expect(makefile).toContain('APP_ENV="$(APP_ENV)"')
+    expect(makefile).toContain('PROJECT_NAME="$(PROJECT_NAME)"')
+    expect(makefile.indexOf('db:migrate')).toBeLessThan(makefile.indexOf('db:seed:local'))
+    expect(seedService).toContain('pg_advisory_xact_lock')
   })
 })

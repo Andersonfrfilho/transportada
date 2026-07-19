@@ -23,7 +23,7 @@ DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
-.PHONY: help bootstrap realm-contract config postgres-up up down ps dev check migration-test smoke
+.PHONY: help bootstrap realm-contract config postgres-up identity-bootstrap up down ps dev check migration-test smoke
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -66,6 +66,14 @@ postgres-up: ## 🐘 Sobe somente o PostgreSQL local para migrations
 		KEYCLOAK_ADMIN_PASSWORD=not-used \
 		KEYCLOAK_LOCAL_USER_PASSWORD=not-used \
 		$(COMPOSE_BASE) up -d --wait postgres
+
+identity-bootstrap: postgres-up realm-contract ## 🪪 Migra e cria a identidade local da aplicação
+	@$(COMPOSE) up -d --wait --force-recreate keycloak
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		APP_ENV="$(APP_ENV)" PROJECT_NAME="$(PROJECT_NAME)" \
+		bun run --cwd apps/api-transportada db:migrate && \
+		APP_ENV="$(APP_ENV)" PROJECT_NAME="$(PROJECT_NAME)" \
+		bun run --cwd apps/api-transportada db:seed:local
 
 up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 	@$(COMPOSE) up -d --remove-orphans --wait

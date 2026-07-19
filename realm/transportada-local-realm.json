@@ -78,6 +78,7 @@
   ],
   "users": [
     {
+      "id": "00000000-0000-4000-8000-000000000002",
       "username": "local-user",
       "enabled": true,
       "attributes": {
