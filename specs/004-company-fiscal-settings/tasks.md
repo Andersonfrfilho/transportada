@@ -79,7 +79,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T010 Extrair router modular sem mudar contratos existentes.
 - [x] T011 Escrever contract do gateway fiscal público 0.1.0.
 - [x] T012 Implementar gateway fiscal e configuração criptográfica.
-- [ ] T013 Escrever contracts de perfil, idempotência e auditoria.
+- [x] T013 Escrever contracts de perfil, idempotência e auditoria.
 - [ ] T014 Implementar repositórios e casos de uso de configurações.
 - [ ] T015 Escrever contracts HTTP de `/company-settings`.
 - [ ] T016 Implementar endpoints de configurações.

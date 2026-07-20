@@ -665,3 +665,77 @@ A revisão final foi aprovada sem P0–P2. Como observação P3 não bloqueante 
 T013, o consumidor de HMAC deverá copiar o `Uint8Array` recebido e minimizar o
 tempo de vida e as referências ao material secreto; o `SecretKeyRing` já
 mantém seu próprio snapshot das chaves AES.
+
+## T013 — Contracts de perfil, idempotência e auditoria
+
+Executor principal e revisão independente: Codex Sol high. O primeiro executor
+delegado foi interrompido por não produzir patch dentro do limite; a execução
+foi retomada pelo agente principal sem ampliar o escopo.
+
+Contracts:
+
+- leitura e mutação recebem `CompanyContext` e ignoram qualquer `companyId`
+  livre no input;
+- HMAC-SHA-256 usa domínio `transportada:idempotency:v1`, operação e campos
+  normalizados em ordem fixa, todos enquadrados por tamanho unsigned de 32 bits
+  big-endian;
+- o serviço HMAC copia a chave na criação e não retém o `Uint8Array` mutável do
+  chamador;
+- replay da mesma chave e fingerprint devolve a resposta segura persistida sem
+  nova mutação, auditoria ou registro idempotente;
+- mesma chave com intenção diferente retorna conflito genérico sem chave,
+  empresa ou CNPJ;
+- falha de auditoria ou de persistência idempotente reverte settings, auditoria
+  e idempotência na mesma unidade de trabalho;
+- auditoria e idempotência possuem allowlists estruturais exatas, sem request,
+  segredo ou propriedade adicional;
+- conflitos de CNPJ, versão obsoleta e sequência bloqueada usam erros `409`
+  mínimos e não enumeráveis;
+- leitura ausente retorna `null` sem consultar outro tenant.
+
+Arquivos de runtime não foram criados. O agregador foi registrado no script
+`test`; a T014 deverá implementar somente os quatro módulos contratados:
+
+```text
+companies/application/idempotency-fingerprint.service.ts
+companies/application/get-company-settings.use-case.ts
+companies/application/update-company-settings.use-case.ts
+companies/domain/company-settings.error.ts
+```
+
+Evidência RED e de não regressão:
+
+```text
+bun test test/company-settings-application.contract.test.ts
+0 pass, 15 fail
+todos os RED: somente os quatro módulos T014 ausentes
+
+bun run typecheck
+somente TS2307 para os mesmos módulos T014 ausentes
+
+suite anterior sem o novo agregador
+138 pass, 1 skip condicional de banco, 0 fail, 831 assertions
+
+bun run test
+138 pass, 1 skip condicional de banco, 15 RED esperados
+
+bun run lint
+exit 0
+
+prettier + git diff --check
+exit 0
+```
+
+O OpenCode `north-mini-code-free` foi tentado apenas para ampliar casos
+mecânicos: a primeira chamada foi rejeitada pelo parsing variádico do CLI e a
+segunda pelo servidor remoto. A repetição foi encerrada para economizar tokens;
+nenhuma decisão foi delegada ao modelo gratuito.
+
+A primeira revisão Sol encontrou quatro lacunas: um erro TypeScript independente
+do RED, ausência de leitura tenant-scoped, ausência de rollback na falha da
+idempotência e allowlists frouxas. Todas foram corrigidas. A re-revisão
+confirmou lint, formato e RED exclusivamente causal e aprovou sem P0–P2.
+
+Todos os dados são sintéticos. Nenhum código de produção, banco, Railway, SEFAZ,
+PFX, certificado real, XML fiscal, fila, exchange, commit remoto ou push foi
+acessado nesta task.
