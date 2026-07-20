@@ -9,6 +9,7 @@ import type { AuthenticationPort } from '../../src/identity/application/identity
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
 const databaseUrl = process.env.API_TEST_DATABASE_URL ?? process.env.DATABASE_URL
 
@@ -44,8 +45,14 @@ const authentication: AuthenticationPort = {
     }
   },
 }
+const tenantContext = new TenantContextService({
+  repository: {
+    async findActiveByUserAndCompany() {
+      return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+    },
+  },
+})
 const server = startApiServer({
-  authentication,
   config: {
     appEnv: 'test',
     databaseUrl,
@@ -58,15 +65,8 @@ const server = startApiServer({
     logLevel: 'error',
     port: 0,
   },
-  healthService,
   logger,
-  tenantContext: new TenantContextService({
-    repository: {
-      async findActiveByUserAndCompany() {
-        return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
-      },
-    },
-  }),
+  router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
 })
 const baseUrl = `http://127.0.0.1:${server.port}`
 

@@ -4,7 +4,7 @@
 import { expect } from 'bun:test'
 
 import { HealthService } from '../../src/health/health.service'
-import { createRouter } from '../../src/http/router.service'
+import { createRouter, defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
 import type { RouteAuthorizationPolicy } from '../../src/identity/domain/authorization.policy'
@@ -69,7 +69,7 @@ export function createRouterFixture({
     },
     healthService: healthService(),
     routes: [
-      {
+      defineRoute({
         async handle({ context: routedContext, input }: HandleProtectedRouteParams) {
           events.push('handle')
           expect(routedContext).toBe(context)
@@ -93,7 +93,7 @@ export function createRouterFixture({
                 scope: 'company',
               } as const,
             }),
-      },
+      }),
     ],
     tenantContext: {
       async resolveCompany() {

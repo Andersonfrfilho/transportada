@@ -12,6 +12,7 @@ import {
   ROUTER_USER_ID,
   routerRequest,
 } from './fixtures/router.fixture'
+import { createHeterogeneousRouterFixture } from './fixtures/router-heterogeneous.fixture'
 
 describe('modular router contract', () => {
   test('runs authentication, tenant resolution and RBAC before parser and handler', async () => {
@@ -76,6 +77,25 @@ describe('modular router contract', () => {
 
     expect(error).toMatchObject({ code: 'FORBIDDEN', status: 403 })
     expect(fixture.events).toEqual(['authenticate', 'tenant', 'authorize'])
+  })
+
+  test('keeps each registered route input type independent', async () => {
+    const fixture = createHeterogeneousRouterFixture()
+
+    const stringResponse = await fixture.router.handle({
+      method: 'POST',
+      pathname: '/router-contract/string',
+      request: routerRequest('/router-contract/string'),
+    })
+    const objectResponse = await fixture.router.handle({
+      method: 'PUT',
+      pathname: '/router-contract/object',
+      request: routerRequest('/router-contract/object', 'PUT'),
+    })
+
+    expect(stringResponse.status).toBe(204)
+    expect(objectResponse.status).toBe(204)
+    expect(fixture.received).toEqual(['first-input', 2])
   })
 
   test('preserves public health, authenticated auth-me and authenticated safe 404', async () => {

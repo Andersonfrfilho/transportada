@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { ApiError } from '../shared/api.error'
+import { safeLogInfo } from '../logging/safe-logger.service'
 import {
   API_AUTH_ME_PATH,
   API_LIVE_PATH,
@@ -9,52 +9,30 @@ import {
   APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES,
   CORRELATION_ID_HEADER,
   HTTP_ERROR,
-  HTTP_GET_METHOD,
   INVALID_LOG_PATHNAME,
-  JSON_CONTENT_TYPE,
   UNMATCHED_LOG_PATHNAME,
 } from '../shared/api.constant'
-import type {
-  ApiLogger,
-  AuthMeResponse,
-  ErrorResponse,
-  HealthResponse,
-  RequestTimeoutPort,
-} from '../shared/api.types'
-import type { HealthService } from '../health/health.service'
-import type { AuthenticationPort } from '../identity/application/identity.port'
-import type { TenantContextService } from '../identity/application/tenant-context.service'
-import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
+import { ApiError } from '../shared/api.error'
+import type { ApiLogger, RequestTimeoutPort } from '../shared/api.types'
 import { applyCorsHeaders, handleCorsPreflight } from './cors.service'
+import type { HttpRouter } from './router.service'
 import { parseCorrelationId, parseRequestMetadata } from './request.schema'
+import { createErrorResponse, createServerErrorHandler } from './response.service'
 
 type CreateRequestHandlerParams = {
-  readonly authentication: AuthenticationPort
   readonly createCorrelationId?: () => string
   readonly frontendOrigin: string
-  readonly healthService: HealthService
   readonly logger: ApiLogger
   readonly requestTimeoutSeconds: number
-  readonly tenantContext: TenantContextService
-}
-
-type HandleRouteParams = {
-  readonly authentication: AuthenticationPort
-  readonly authorizationHeader: string | null
-  readonly healthService: HealthService
-  readonly method: string
-  readonly pathname: string
-  readonly tenantContext: TenantContextService
+  readonly router: HttpRouter
 }
 
 export function createRequestHandler({
-  authentication,
   createCorrelationId = () => crypto.randomUUID(),
   frontendOrigin,
-  healthService,
   logger,
   requestTimeoutSeconds,
-  tenantContext,
+  router,
 }: CreateRequestHandlerParams) {
   return async (request: Request, server: RequestTimeoutPort): Promise<Response> => {
     const startedAt = performance.now()
@@ -73,30 +51,18 @@ export function createRequestHandler({
       })
       pathname = resolveLogPathname(metadata.pathname)
       server.timeout(request, requestTimeoutSeconds)
-      if (
-        metadata.contentLength !== undefined &&
-        metadata.contentLength > APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES
-      ) {
-        throw new ApiError(HTTP_ERROR.payloadTooLarge)
-      }
+      assertRequestSize(metadata.contentLength)
       assertRequestActive(request.signal)
       response =
-        handleCorsPreflight({
-          frontendOrigin,
-          pathname: metadata.pathname,
-          request,
-        }) ??
-        (await handleRoute({
-          authentication,
-          authorizationHeader: request.headers.get('authorization'),
-          healthService,
+        handleCorsPreflight({ frontendOrigin, pathname: metadata.pathname, request }) ??
+        (await router.handle({
           method: metadata.method,
           pathname: metadata.pathname,
-          tenantContext,
+          request,
         }))
       assertRequestActive(request.signal)
     } catch (error: unknown) {
-      response = errorResponse({ correlationId, error, logger })
+      response = createErrorResponse({ correlationId, error, logger })
     }
 
     if (pathname === API_AUTH_ME_PATH) {
@@ -105,62 +71,22 @@ export function createRequestHandler({
     applyCorsHeaders({ frontendOrigin, request, response })
     response.headers.set(CORRELATION_ID_HEADER, correlationId)
     logRequestCompletion({ correlationId, logger, pathname, request, response, startedAt })
-
     return response
   }
 }
 
-async function handleRoute({
-  authentication,
-  authorizationHeader,
-  healthService,
-  method,
-  pathname,
-  tenantContext,
-}: HandleRouteParams): Promise<Response> {
-  if (pathname === API_LIVE_PATH || pathname === API_READY_PATH) {
-    if (method !== HTTP_GET_METHOD) {
-      throw new ApiError({
-        ...HTTP_ERROR.methodNotAllowed,
-        headers: { allow: HTTP_GET_METHOD },
-      })
-    }
+export { createServerErrorHandler }
 
-    if (pathname === API_LIVE_PATH) {
-      return jsonResponse({ body: healthService.live(), status: 200 })
-    }
-
-    const readiness = await healthService.ready()
-    return jsonResponse({
-      body: readiness,
-      status: readiness.status === 'ok' ? 200 : 503,
-    })
+function assertRequestSize(contentLength: number | undefined): void {
+  if (contentLength !== undefined && contentLength > APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES) {
+    throw new ApiError(HTTP_ERROR.payloadTooLarge)
   }
+}
 
-  const identity = await authentication.authenticate(authorizationHeader)
-  if (pathname === API_AUTH_ME_PATH) {
-    if (method !== HTTP_GET_METHOD) {
-      throw new ApiError({
-        ...HTTP_ERROR.methodNotAllowed,
-        headers: { allow: HTTP_GET_METHOD },
-      })
-    }
-
-    const context = await tenantContext.resolveCompany(identity)
-    return jsonResponse({
-      body: {
-        data: {
-          company: { id: context.scope.companyId },
-          identity: { userId: context.identity.userId },
-          permissions: [...context.scope.permissions],
-          roles: [...context.scope.roles],
-        },
-      },
-      status: 200,
-    })
+function assertRequestActive(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new ApiError(HTTP_ERROR.requestAborted)
   }
-
-  throw new ApiError(HTTP_ERROR.notFound)
 }
 
 type LogRequestCompletionParams = {
@@ -212,98 +138,7 @@ function resolveCorrelationId({ createCorrelationId, value }: ResolveCorrelation
 }
 
 function resolveLogPathname(pathname: string): string {
-  return pathname === API_LIVE_PATH || pathname === API_READY_PATH || pathname === API_AUTH_ME_PATH
+  return pathname === API_AUTH_ME_PATH || pathname === API_LIVE_PATH || pathname === API_READY_PATH
     ? pathname
     : UNMATCHED_LOG_PATHNAME
-}
-
-function assertRequestActive(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw new ApiError(HTTP_ERROR.requestAborted)
-  }
-}
-
-type ErrorResponseParams = {
-  readonly correlationId: string
-  readonly error: unknown
-  readonly logger: ApiLogger
-}
-
-function errorResponse({ correlationId, error, logger }: ErrorResponseParams): Response {
-  if (error instanceof ApiError) {
-    return jsonResponse({
-      body: {
-        error: {
-          code: error.code,
-          correlationId,
-          message: error.message,
-        },
-      },
-      ...(error.headers ? { headers: error.headers } : {}),
-      status: error.status,
-    })
-  }
-
-  safeLogError({
-    logger,
-    message: 'http_request_failed',
-    metadata: { correlationId },
-  })
-  return jsonResponse({
-    body: {
-      error: {
-        code: HTTP_ERROR.internal.code,
-        correlationId,
-        message: HTTP_ERROR.internal.message,
-      },
-    },
-    status: HTTP_ERROR.internal.status,
-  })
-}
-
-type CreateServerErrorHandlerParams = {
-  readonly createCorrelationId?: () => string
-  readonly logger: ApiLogger
-}
-
-export function createServerErrorHandler({
-  createCorrelationId = () => crypto.randomUUID(),
-  logger,
-}: CreateServerErrorHandlerParams): () => Response {
-  return (): Response => {
-    const correlationId = createCorrelationId()
-    safeLogError({
-      logger,
-      message: 'http_server_error',
-      metadata: { correlationId },
-    })
-    const response = jsonResponse({
-      body: {
-        error: {
-          code: HTTP_ERROR.internal.code,
-          correlationId,
-          message: HTTP_ERROR.internal.message,
-        },
-      },
-      status: HTTP_ERROR.internal.status,
-    })
-    response.headers.set(CORRELATION_ID_HEADER, correlationId)
-    return response
-  }
-}
-
-type JsonResponseParams = {
-  readonly body: AuthMeResponse | ErrorResponse | HealthResponse
-  readonly headers?: Readonly<Record<string, string>>
-  readonly status: number
-}
-
-function jsonResponse({ body, headers, status }: JsonResponseParams): Response {
-  return new Response(JSON.stringify(body), {
-    headers: {
-      'content-type': JSON_CONTENT_TYPE,
-      ...headers,
-    },
-    status,
-  })
 }

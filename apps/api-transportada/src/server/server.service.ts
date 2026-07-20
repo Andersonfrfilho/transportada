@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { HealthService } from '../health/health.service'
 import { createRequestHandler, createServerErrorHandler } from '../http/request-handler.service'
-import type { AuthenticationPort } from '../identity/application/identity.port'
-import type { TenantContextService } from '../identity/application/tenant-context.service'
+import type { HttpRouter } from '../http/router.service'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
 import {
   API_HOSTNAME,
@@ -20,27 +18,21 @@ import type {
 } from '../shared/api.types'
 
 type StartApiServerParams = {
-  readonly authentication: AuthenticationPort
   readonly config: ApiEnvironment
-  readonly healthService: HealthService
   readonly logger: ApiLogger
-  readonly tenantContext: TenantContextService
+  readonly router: HttpRouter
 }
 
 export function startApiServer({
-  authentication,
   config,
-  healthService,
   logger,
-  tenantContext,
+  router,
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
-    authentication,
     frontendOrigin: config.frontendOrigin,
-    healthService,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,
-    tenantContext,
+    router,
   })
 
   return Bun.serve({

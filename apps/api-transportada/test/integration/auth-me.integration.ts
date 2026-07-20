@@ -18,6 +18,7 @@ import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/d
 import { HealthService } from '../../src/health/health.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
 const databaseUrl = process.env.API_TEST_DATABASE_URL ?? process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
@@ -62,8 +63,18 @@ describe('GET /auth/me PostgreSQL isolation', () => {
 
         const authentication = createAuthentication({ companyA, companyB, userA, userB })
         const logger: ApiLogger = { error() {}, info() {}, warn() {} }
+        const healthService = new HealthService({
+          database,
+          identityReadiness: {
+            async checkReadiness() {
+              return true
+            },
+          },
+        })
+        const tenantContext = new TenantContextService({
+          repository: new DrizzleMembershipRepository(database.db),
+        })
         server = startApiServer({
-          authentication,
           config: {
             appEnv: 'test',
             databaseUrl: disposableUrl.toString(),
@@ -76,18 +87,8 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             logLevel: 'error',
             port: 0,
           },
-          healthService: new HealthService({
-            database,
-            identityReadiness: {
-              async checkReadiness() {
-                return true
-              },
-            },
-          }),
           logger,
-          tenantContext: new TenantContextService({
-            repository: new DrizzleMembershipRepository(database.db),
-          }),
+          router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
         })
         const baseUrl = `http://127.0.0.1:${server.port}`
 

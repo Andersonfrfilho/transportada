@@ -11,6 +11,7 @@ import type { MembershipRepositoryPort } from '../src/identity/application/tenan
 import type { AuthenticatedIdentity } from '../src/identity/domain/authenticated-identity'
 import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
+import { createHttpRouterFixture } from './fixtures/http-router.fixture'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-000000000003'
@@ -214,21 +215,21 @@ function createFixture({
       logs.push(metadata ? { message, metadata } : { message })
     },
   }
+  const healthService = new HealthService({
+    database: healthyDatabase(),
+    identityReadiness: {
+      async checkReadiness() {
+        return true
+      },
+    },
+  })
+  const tenantContext = new TenantContextService({ repository: membership })
   const handle = createRequestHandler({
-    authentication,
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigin: 'http://localhost:53000',
-    healthService: new HealthService({
-      database: healthyDatabase(),
-      identityReadiness: {
-        async checkReadiness() {
-          return true
-        },
-      },
-    }),
     logger,
     requestTimeoutSeconds: 10,
-    tenantContext: new TenantContextService({ repository: membership }),
+    router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
   })
   const server: RequestTimeoutPort = { timeout() {} }
 

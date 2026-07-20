@@ -13,6 +13,7 @@ import { TenantContextService } from '../src/identity/application/tenant-context
 import { HTTP_ERROR } from '../src/shared/api.constant'
 import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
+import { createHttpRouterFixture } from './fixtures/http-router.fixture'
 
 const NOW = new Date('2026-07-18T12:00:00.000Z')
 const GENERATED_CORRELATION_ID = '00000000-0000-4000-8000-000000000008'
@@ -54,6 +55,14 @@ describe('API HTTP contracts', () => {
     expect(healthChecks).toBe(0)
     expect(identityChecks).toBe(0)
     expect(fixture.timeouts).toEqual([10])
+    expect(fixture.logs).toContainEqual(
+      expect.objectContaining({
+        correlationId: 'Client-Request_123',
+        method: 'GET',
+        pathname: '/health/live',
+        status: 200,
+      }),
+    )
   })
 
   test('generates a correlation ID when the incoming value is invalid', async () => {
@@ -82,6 +91,14 @@ describe('API HTTP contracts', () => {
       status: 'ok',
       timestamp: NOW.toISOString(),
     })
+    expect(fixture.logs).toContainEqual(
+      expect.objectContaining({
+        correlationId: GENERATED_CORRELATION_ID,
+        method: 'GET',
+        pathname: '/health/ready',
+        status: 200,
+      }),
+    )
   })
 
   test('returns degraded readiness without leaking the database error', async () => {
@@ -407,20 +424,19 @@ function createFixture({
     identityReadiness,
     now: () => NOW,
   })
+  const tenantContext = new TenantContextService({
+    repository: {
+      async findActiveByUserAndCompany() {
+        return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+      },
+    },
+  })
   const handle = createRequestHandler({
-    authentication,
     createCorrelationId: () => GENERATED_CORRELATION_ID,
     frontendOrigin: 'http://localhost:53000',
-    healthService,
     logger,
     requestTimeoutSeconds: 10,
-    tenantContext: new TenantContextService({
-      repository: {
-        async findActiveByUserAndCompany() {
-          return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
-        },
-      },
-    }),
+    router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
   })
   const server: RequestTimeoutPort = {
     timeout(_request, seconds) {

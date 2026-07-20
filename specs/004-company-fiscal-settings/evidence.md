@@ -462,3 +462,56 @@ validar `Request`, contexto e payload tipados; a evidência foi corrigida. A
 re-revisão aprovou sem novos P0–P2.
 
 Nenhum Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
+
+## T010 — Router modular, tipado e deny-by-default
+
+Executor: Codex Terra medium. Revisão independente: Codex Sol high. O Graphify
+confirmou o fluxo existente entre `Bun.serve`, handler, autenticação, contexto
+de empresa e autorização antes da extração.
+
+Implementação:
+
+- `router.service.ts` centraliza health público, `/auth/me`, lookup de rota e
+  dispatch protegido tipado; `defineRoute` preserva o tipo de input de cada
+  rota e o encapsula somente no boundary interno;
+- rotas protegidas resolvem `CompanyContext` e passam por RBAC antes de parser
+  e handler; policy ausente permanece `403` antes de processar o payload;
+- `request-handler.service.ts` preserva limite de body, abort, CORS,
+  correlation ID e logging allowlisted de health/auth, delegando somente o
+  dispatch;
+- `main.ts` cria explicitamente autenticação, tenant, autorização e router;
+- handler e servidor exigem o router composto, sem fallback ou construção
+  implícita de autenticação, tenant ou autorização;
+- fixtures HTTP usam uma factory explícita e o contract registra duas rotas com
+  inputs distintos;
+- erros e respostas foram extraídos para `response.service.ts`, mantendo cada
+  arquivo HTTP abaixo de 200 linhas.
+
+Evidência local:
+
+```text
+bun run --cwd apps/api-transportada check
+111 pass, 1 conditional database skip, 0 fail, 644 assertions
+lint + typecheck + build: exit 0
+
+API_TEST_DATABASE_URL="$DATABASE_URL" DRIZZLE_TEST_DATABASE_URL="$DATABASE_URL" \
+  bun run --cwd apps/api-transportada test:integration
+25 pass, 0 fail, 291 assertions
+
+bun run format:check
+All matched files use Prettier code style
+
+git diff --check
+exit 0
+```
+
+A primeira revisão encontrou um P1 e dois P2: a tabela exigia o mesmo input em
+todas as rotas, health perdeu os pathnames allowlisted nos logs e handler/server
+mantinham fallbacks de composição divergentes do `main`. `defineRoute<TInput>`
+passou a fechar parser e handler antes da erasure interna, um contract com
+inputs heterogêneos foi adicionado, os logs de health foram restaurados e o
+router tornou-se obrigatório abaixo do composition root. A re-revisão aprovou
+sem novos P0–P2.
+
+Nenhum endpoint fiscal, migration, frontend, package, Railway, certificado,
+PFX, senha, S3 ou SEFAZ foi acessado.
