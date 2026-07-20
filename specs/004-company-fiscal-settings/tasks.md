@@ -75,7 +75,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T006 Separar schema de identidade sem alterar SQL.
 - [x] T007 Escrever contracts do schema fiscal e isolamento.
 - [x] T008 Implementar schema, migration aditiva e rollback.
-- [ ] T009 Escrever contracts do router modular e deny-by-default.
+- [x] T009 Escrever contracts do router modular e deny-by-default.
 - [ ] T010 Extrair router modular sem mudar contratos existentes.
 - [ ] T011 Escrever contract do gateway fiscal público 0.1.0.
 - [ ] T012 Implementar gateway fiscal e configuração criptográfica.

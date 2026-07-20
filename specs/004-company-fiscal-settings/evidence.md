@@ -314,7 +314,7 @@ uma checklist mecânica, mas `north-mini-code-free` e
 `deepseek-v4-flash-free` falharam no servidor antes de produzir resultado. A
 tarefa foi escalada após as duas falhas equivalentes, sem repetir tentativas.
 
-Contracts:
+Contracts em `fiscal-schema.contract.test.ts`, com fixtures divididas por tabela:
 
 - seis tabelas fiscais e exports compatíveis pelo agregador;
 - tipos, nullability, PKs, uniques, checks e timestamps UTC;
@@ -410,3 +410,55 @@ O teste descartável provou aplicação sobre banco vazio, constraints, rollback
 fiscal, reaplicação, rollback fiscal seguido do rollback de identidade e
 limpeza do banco temporário. Nenhum Railway, certificado, PFX, senha, S3 ou
 SEFAZ foi acessado.
+
+## T009 — Contracts do router modular e deny-by-default
+
+Executor e revisão independente: Codex Sol high. O Graphify foi usado somente
+para localizar o boundary existente entre `request-handler.service.ts`,
+autenticação e contexto da empresa.
+
+O OpenCode foi usado apenas como test-writer mecânico read-only. Tanto
+`north-mini-code-free` quanto `deepseek-v4-flash-free` falharam no provedor
+antes de produzir resultado ou alterar arquivos. Após as duas falhas
+equivalentes, a delegação econômica foi encerrada sem aumentar o contexto.
+
+Contracts:
+
+- rota protegida exige a ordem autenticação, tenant, RBAC, parser e handler;
+- falhas de autenticação, tenant ou RBAC impedem parser e handler;
+- rota registrada sem policy é negada por padrão antes do parser;
+- health permanece público;
+- `/auth/me` preserva autenticação, tenant e DTO allowlisted;
+- rota desconhecida preserva autenticação antes do 404 seguro.
+
+O contract foi registrado no script `test`. Nenhum router ou código de runtime
+foi implementado nesta task.
+
+Evidência RED:
+
+```text
+bun test test/router.contract.test.ts
+Cannot find module '../../src/http/router.service'
+0 pass, 1 fail
+
+bun run test
+104 pass, 1 conditional database skip
+1 fail: somente router.service ausente
+
+bun run typecheck
+somente TS2307 para router.service ausente
+
+bunx eslint test/router.contract.test.ts test/fixtures/router.fixture.ts --max-warnings=0
+exit 0
+```
+
+A suíte anterior permaneceu verde com 104 testes, 1 skip condicional, 0 falhas
+e 611 assertions. A T010 implementará o router e restaurará o gate agregado.
+
+A primeira revisão encontrou dois P2: o contrato não exigia que parser e handler
+recebessem o mesmo `CompanyContext` autenticado nem que o payload validado
+chegasse ao handler, e o caminho do erro RED estava inexato. A fixture passou a
+validar `Request`, contexto e payload tipados; a evidência foi corrigida. A
+re-revisão aprovou sem novos P0–P2.
+
+Nenhum Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
