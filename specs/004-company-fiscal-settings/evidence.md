@@ -1215,3 +1215,67 @@ máximo 40. Foram usados somente bytes, senhas e certificados sentinela
 sintéticos. O PFX real informado pelo usuário e sua senha não foram acessados,
 copiados ou registrados. Nenhum XML fiscal real, SEFAZ, RabbitMQ, fila,
 exchange, S3, Railway ou deploy participou da T019.
+
+## T020 — Contracts concorrentes da sequência fiscal
+
+Executor e duas revisões independentes: Codex Sol high. A implementação da
+porta e do repositório ficou reservada para a T021.
+
+Os sete contracts PostgreSQL sintéticos definem:
+
+- 20 chaves distintas concorrentes recebem números únicos e monotônicos; os
+  números são ordenados antes da asserção de contiguidade;
+- cada `reservationKey` fica ligada ao `number` e `sequenceId` retornados, ao
+  ledger persistido e ao estado final `lastReservedNumber/nextNumber`;
+- 20 chamadas concorrentes da mesma chave produzem uma primeira reserva, 19
+  replays, um número, uma sequência e uma única linha de ledger;
+- intenção divergente para a mesma chave retorna conflito estável e reverte o
+  incremento perdedor;
+- falha sintética na inserção do ledger reverte o incremento, e o retry em nova
+  transação reserva o número original sem lacuna;
+- empresa, ambiente, modelo e série informada explicitamente permanecem
+  isolados, sem seleção implícita de uma sequência “ativa”;
+- o ledger é append-only, números confirmados não são reutilizados e uma
+  violação `23505` da unique `(sequenceId,number)` não pode ser tratada como
+  recovery da unique idempotente `(companyId,reservationKey)`.
+
+A primeira revisão encontrou falsos positivos possíveis: destinos de sequência
+podiam ser permutados, DTO e ledger não estavam ligados por chave, o estado
+final da sequência não era conferido e não havia uma `23505` inesperada
+determinística. Também encontrou um callback acima de 40 linhas e corrigiu o
+comando Bun documentado para usar `./`. Os contratos passaram a comparar o
+join ledger→sequência com cada intenção e DTO, conferir o estado final, injetar
+a outra unique violation e dividir as asserções. A revisão final aprovou sem
+achados P0–P3.
+
+Evidência RED e de não regressão:
+
+```text
+bun test ./test/fiscal-sequence.integration.ts
+0 pass, 1 fail, 1 erro
+RED exclusivo: drizzle-fiscal-sequence-reservation.repository.js da T021 ausente
+
+bun run typecheck
+somente dois TS2307 para a porta e o repositório T021 ausentes
+
+suíte de integração anterior em PostgreSQL local
+29 pass, 0 fail, 335 assertions
+
+bun run lint
+exit 0
+
+Prettier e git diff --check
+exit 0
+
+make postgres-up
+PostgreSQL local healthy sob transportada-local
+
+make down
+container e rede locais removidos
+```
+
+O agregador está registrado em `test:integration`. Todos os arquivos têm no
+máximo 186 linhas e as funções revisadas no máximo 40. A falha do ledger e os
+dados são exclusivamente sintéticos e usam banco descartável. Nenhum PFX,
+senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy
+participou da T020.
