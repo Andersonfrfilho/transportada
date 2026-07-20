@@ -489,3 +489,47 @@ com sufixo estático. A re-revisão declarou zero P0/P1 residual.
 
 A integração foi executada apenas contra a stack local nomeada pelo Makefile;
 nenhuma Railway, SEFAZ, PFX ou amostra fiscal real foi acessada.
+
+## T010 — Contracts do schema NF-e, outbox e storage
+
+Data: 2026-07-20
+
+O contract agregado define 12 tabelas separadas nos módulos `nfe`,
+`processing` e `storage`. A cobertura inclui importações e itens, linhagem
+append-only de reprocessamento, documentos normalizados, participantes,
+endereços, volumes, produtos, eventos, cursor DFe, outbox, mensagens
+processadas e objetos fiscais.
+
+As relações de negócio usam FKs compostas por tenant; atores referenciam a
+membership da mesma empresa. Uniques cobrem chave NF-e, idempotência, replay,
+NSU, evento, consumer e objeto. Checks fecham estados, contadores, hashes,
+decimais, pares NSU/ambiente, leases e cursores. Campos nulos não conseguem
+contornar identidade, relacionamentos ou deduplicação.
+
+O histórico de reprocessamento usa predecessor e tentativa anterior, FK
+composta que preserva objeto/hash/entrada, sequência contígua, proibição de
+autorreferência e índice parcial que impede branches concorrentes. O XML
+permanece somente como referência imutável ao storage.
+
+### Revisões Sol
+
+A revisão principal corrigiu uma FK de ator inicialmente não tenant-scoped. A
+revisão independente encontrou cinco P1 de cobertura e, depois, três P1
+residuais: modelo NF-e incompleto, semântica NULL/UNKNOWN, FKs anuláveis,
+cursor anulável e linhagem insuficiente. Após as correções, a revisão final
+declarou zero P0/P1 residual.
+
+### Gates
+
+| Comando                                     | Resultado                           |
+| ------------------------------------------- | ----------------------------------- |
+| `bun run lint`                              | aprovado                            |
+| `bun run typecheck`                         | aprovado                            |
+| `bun test test/nfe-schema.contract.test.ts` | vermelho esperado: 0 pass/16 fail   |
+| `bun run test`                              | 306 pass, 1 skip, 16 fail esperadas |
+| `git diff --check`                          | aprovado                            |
+
+As 16 falhas decorrem exclusivamente das 12 exports e dos três módulos que a
+T011 implementará; o teste adicional cobre a linhagem de tentativas. Nenhum
+schema, migration, Railway, certificado, XML real ou infraestrutura externa
+foi utilizado nesta task.

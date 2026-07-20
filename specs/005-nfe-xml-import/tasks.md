@@ -82,7 +82,7 @@ para Terra/Sol sem repetir contexto crescente.
 - [x] T007 Empacotar, versionar, publicar e fixar packages Ada.
 - [x] T008 Escrever contracts de parâmetros dinâmicos do router.
 - [x] T009 Implementar matching tipado sem regressão HTTP.
-- [ ] T010 Escrever contracts do schema NF-e/outbox/storage.
+- [x] T010 Escrever contracts do schema NF-e/outbox/storage.
 - [ ] T011 Implementar schema, migration aditiva e rollback.
 - [ ] T012 Escrever contracts dos gateways de storage dos apps.
 - [ ] T013 Implementar adapters S3 e reconciliador de staging.
