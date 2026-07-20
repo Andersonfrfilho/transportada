@@ -1538,3 +1538,76 @@ no máximo 40. Somente bytes, senha, metadados e identidade sentinela sintético
 foram usados. O PFX real e sua senha não foram acessados, copiados ou
 registrados. Nenhum XML fiscal real, SEFAZ, S3, Railway, ambiente remoto, push
 ou deploy participou da T024.
+
+## T025 — Gates finais e revisão de release
+
+Executor e revisão raiz: Codex Sol high. Revisão independente: Codex Sol high.
+O revisor OpenCode econômico não foi repetido porque já havia falhado duas vezes
+em critérios equivalentes nesta feature; a política de economia exige escalar
+em vez de ampliar contexto na mesma tentativa.
+
+Evidência local final:
+
+```text
+bun install --frozen-lockfile
+564 instalações e 688 packages verificados; nenhuma mudança
+
+make check
+format, lint, typecheck, testes e builds da raiz/API/worker/frontend verdes
+
+make migration-test
+9 pass, 0 fail, 129 assertions
+migration, constraints, rollback/reapply e seed concorrente/isolado aprovados
+
+make identity-bootstrap
+realm 6 pass; Keycloak healthy; migration e seed local concluídos
+
+make dev em sessão PTY controlada
+PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak healthy
+frontend, API e worker Bun iniciados pelos targets oficiais
+
+make smoke em sessão separada
+realm 6 pass; live/ready da API e worker verdes; Playwright 9 pass
+
+Ctrl-C/SIGINT na sessão make dev
+shutdown iniciado por API e worker; make encerrou com o código esperado 130
+
+make down
+containers e rede removidos; portas frontend/API/worker/infra sem listeners
+
+git diff --check origin/main..HEAD
+exit 0
+```
+
+A revisão independente percorreu os sete commits da feature sobre
+`origin/main` e terminou com zero achados P0–P3. Confirmou:
+
+- pins públicos exatos de `@adatechnology/fiscal-provider@0.1.0` e
+  `@adatechnology/secret-envelope@0.1.0`, inclusive `.d.ts` instalados;
+- `Bun.serve`, PostgreSQL/Drizzle, apps separáveis e nenhuma biblioteca
+  reutilizável ou import de código-fonte cruzado no monorepo;
+- autenticação, tenant e RBAC antes de parser/multipart;
+- isolamento tenant-scoped, AEAD com AAD, rotação, auditoria e idempotência
+  transacionais;
+- reserva de sequência atômica com ledger, replay, conflito e recovery;
+- migration aditiva, rollback manual e constraints multiempresa;
+- frontend sem persistência de token, senha ou PFX e smoke binário fail-closed;
+- ausência de PFX, chaves privadas, caminho do certificado real, Railway,
+  deploy ou push no histórico revisado.
+
+Riscos explicitamente adiados, coerentes com a spec:
+
+- `validateCertificate` faz validação local; cadeia ICP-Brasil e comunicação
+  SEFAZ dependem de uma etapa de homologação futura aprovada;
+- produção continua somente configurável; emissão CT-e, filas operacionais,
+  S3, KMS e inutilização não pertencem a esta feature;
+- zeroização de strings/base64 gerenciadas pelo runtime permanece best-effort;
+- o rollback fiscal é destrutivo e continua restrito a execução manual antes de
+  dados reais;
+- dois runners órfãos de 18/jul (`60644`/`60645`) já existiam antes do gate,
+  não possuem sockets de escuta e não foram encerrados por ownership incerto.
+
+Todos os containers, rede e listeners iniciados pela T025 foram encerrados.
+Nenhum PFX real, senha real, XML fiscal real, SEFAZ, Railway, ambiente remoto,
+push ou deploy participou dos gates. A feature fica aprovada localmente e
+aguarda decisão humana separada para publicação.

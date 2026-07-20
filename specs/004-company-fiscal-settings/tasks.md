@@ -92,4 +92,4 @@ não recebe contexto crescente indefinidamente.
 - [x] T022 Escrever contracts do módulo frontend.
 - [x] T023 Implementar tela Vite de configurações fiscais.
 - [x] T024 Validar jornada e ausência de segredo com Playwright.
-- [ ] T025 Executar gates finais, evidência e revisão independente.
+- [x] T025 Executar gates finais, evidência e revisão independente.
