@@ -351,3 +351,62 @@ exit 0
 O commit RED permanece local para não quebrar o `main`; T008 implementará
 schema e migration e restaurará os gates antes do próximo push. Nenhum Railway,
 certificado, PFX, senha, S3 ou SEFAZ foi acessado.
+
+## T008 — Schema fiscal, migration aditiva e rollback
+
+Executor e revisão independente: Codex Sol high.
+
+Implementação:
+
+- schema Drizzle estrito dividido por perfil, certificado, operação e sequência;
+- seis tabelas fiscais reexportadas por `fiscal.schema.ts` e pelo agregador;
+- `bigint` em modo nativo, `jsonb`, timestamps UTC e checks definidos na T007;
+- FK composta da reserva para a sequência e índices/uniques tenant-scoped;
+- índice unique parcial garantindo um certificado ativo por finalidade;
+- triggers PostgreSQL impedindo `UPDATE` e `DELETE` em auditoria e no ledger de
+  reservas;
+- migration única aditiva `20260720003709_company_fiscal_settings`;
+- snapshot gerado pelo Drizzle Kit e rollback manual transacional, sem
+  `CASCADE`, validado por nome e SHA-256 no journal;
+- migrations baseline e identidade preservadas byte a byte.
+
+Hashes:
+
+```text
+migration.sql  839faaf37f9f4e4ed5bce93b1199573795bf9ad83920261efa0a5a4a05ff2222
+rollback.sql   9296fc350da6e2d562d45f4809fc6f684509ac021be89dbc34a0ec4b594a28c7
+snapshot.json  c05782c92caf1eac32c1f51bc4f967d9b487c7f0d461522231ae06550580273e
+```
+
+A primeira revisão encontrou o ledger mutável e ausência de provas reais das
+uniques de concorrência. A correção adicionou o trigger append-only da reserva
+e testes PostgreSQL `23505` para sequência, chave/número de reserva,
+idempotência e versão do certificado. A re-revisão aprovou sem P0–P2.
+
+Evidência local:
+
+```text
+bun run --cwd apps/api-transportada db:check
+Everything's fine
+
+bun run --cwd apps/api-transportada check
+104 pass, 1 conditional database skip, 0 fail, 611 assertions
+lint + typecheck + build: exit 0
+
+make migration-test
+9 pass, 0 fail, 129 assertions
+
+DRIZZLE_TEST_DATABASE_URL="$DATABASE_URL" bun run --cwd apps/api-transportada test:integration
+25 pass, 0 fail, 291 assertions
+
+bun run format:check
+All matched files use Prettier code style
+
+make down
+PostgreSQL e rede local removidos
+```
+
+O teste descartável provou aplicação sobre banco vazio, constraints, rollback
+fiscal, reaplicação, rollback fiscal seguido do rollback de identidade e
+limpeza do banco temporário. Nenhum Railway, certificado, PFX, senha, S3 ou
+SEFAZ foi acessado.

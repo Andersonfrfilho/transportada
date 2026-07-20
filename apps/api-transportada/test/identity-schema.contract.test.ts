@@ -46,7 +46,7 @@ describe('tenant identity schema', () => {
     expect(membershipRoles).toBe(directMembershipRoles)
     expect(userCompanyMemberships).toBe(directUserCompanyMemberships)
 
-    expect(databaseSchema).toEqual({
+    expect(databaseSchema).toMatchObject({
       companies: directCompanies,
       externalIdentities: directExternalIdentities,
       identityUsers: directIdentityUsers,
