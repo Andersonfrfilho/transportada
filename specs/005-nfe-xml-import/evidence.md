@@ -171,3 +171,65 @@ Nenhum source, manifest, lockfile, XML real, certificado ou arquivo sujo
 preexistente entrou no commit. O commit vermelho permanece apenas local até a
 T003 deixá-lo verde; assim a branch remota não recebe uma pipeline
 intencionalmente quebrada.
+
+## T003 — Importação NF-e normalizada e aditiva
+
+Data: 2026-07-20
+
+Commit local no repositório `adatechnology-packages`:
+
+```text
+8f478ec feat(fiscal-provider): normalize imported nfe xml
+```
+
+O contrato público existente `importarNfeXml` foi preservado e ampliado de
+forma aditiva. O retorno continua compatível com `DfeItem` e agora é uma união
+discriminada que separa NF-e autorizada, NF-e sem protocolo e evento.
+
+Arquivos de implementação:
+
+```text
+packages/backend/fiscal-provider/src/errors/NfeXmlImport.error.ts
+packages/backend/fiscal-provider/src/providers/NfeXmlImporter.service.ts
+packages/backend/fiscal-provider/src/providers/NfeDistribuicaoProvider.ts
+packages/backend/fiscal-provider/src/types.ts
+packages/backend/fiscal-provider/src/index.ts
+```
+
+Comportamentos verificados:
+
+- normalização integral do contrato sintético sem I/O de rede;
+- dinheiro, quantidades e pesos preservados como strings decimais;
+- limite público de 5 MiB antes do parse;
+- rejeição de DTD/ENTITY, raiz não suportada e chave inválida/divergente;
+- chave de acesso validada inclusive pelo dígito verificador;
+- protocolo de autorização vinculado somente à mesma chave da NF-e;
+- resposta de evento vinculada somente quando `chNFe`, `tpEvento` e
+  `nSeqEvento` coincidem com a solicitação;
+- erros fiscais especializados com códigos estáveis e mensagens sem payload;
+- exports disponíveis exclusivamente pela raiz pública do package;
+- compatibilidade CommonJS/Bun existente preservada.
+
+### Revisão Sol independente
+
+A revisão encontrou um P1: um `procEventoNFe` adulterado poderia combinar a
+identidade de `evento.infEvento` com protocolo/status de
+`retEvento.infEvento`. A implementação passou a exigir igualdade exata dos
+três campos de identidade e o contract ganhou regressão individual para cada
+divergência. A revalidação declarou zero P0/P1 remanescente.
+
+### Gates
+
+| Comando                                              | Resultado             |
+| ---------------------------------------------------- | --------------------- |
+| `bun run check`                                      | aprovado              |
+| `bun test test/contract/nfe-import.contract.test.ts` | 10 passaram, 0 falhou |
+| `bun run test:contract`                              | 15 passaram, 0 falhou |
+| `bun test`                                           | 15 passaram, 0 falhou |
+| `bun run build`                                      | aprovado              |
+| `bunx prettier --write <arquivos T003>`              | aprovado              |
+| `git diff --cached --check`                          | aprovado              |
+| smoke do `dist` pela raiz pública                    | aprovado              |
+
+Nenhum manifest, lockfile, XML real, certificado ou alteração preexistente foi
+incluído no commit.

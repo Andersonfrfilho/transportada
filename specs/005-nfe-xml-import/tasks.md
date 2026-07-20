@@ -75,7 +75,7 @@ para Terra/Sol sem repetir contexto crescente.
 
 - [x] T001 Registrar ADRs, spec, plano e decomposição executável.
 - [x] T002 Escrever contracts públicos de normalização NF-e no Ada.
-- [ ] T003 Implementar importação NF-e normalizada e aditiva.
+- [x] T003 Implementar importação NF-e normalizada e aditiva.
 - [ ] T004 Validar pack e consumo Bun limpo do fiscal-provider.
 - [ ] T005 Escrever contracts do `object-storage-provider`.
 - [ ] T006 Implementar provider S3 compatível Bun-first.
