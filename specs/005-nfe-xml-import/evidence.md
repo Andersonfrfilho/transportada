@@ -233,3 +233,52 @@ divergência. A revalidação declarou zero P0/P1 remanescente.
 
 Nenhum manifest, lockfile, XML real, certificado ou alteração preexistente foi
 incluído no commit.
+
+## T004 — Pack e consumo Bun limpo do fiscal-provider
+
+Data: 2026-07-20
+
+Commit local no repositório `adatechnology-packages`:
+
+```text
+b8be05e test(fiscal-provider): verify clean bun package consumption
+```
+
+O package agora executa `bun run build` no lifecycle `prepack` e expõe o gate
+`test:package`. O contract de distribuição:
+
+- remove temporariamente `dist/` para provar que o pack não depende de
+  artefato residual;
+- preserva e restaura integralmente qualquer `dist/` preexistente;
+- valida no dry-run a presença de `dist/index.js` e `dist/index.d.ts`;
+- rejeita source `src/` no conteúdo publicado;
+- gera o tarball real em diretório temporário;
+- instala o `.tgz` com Bun em consumidor isolado;
+- faz typecheck de valor e tipo importados somente pela raiz pública;
+- executa a raiz empacotada e confirma resolução dentro do `node_modules` do
+  consumidor, nunca para o checkout;
+- remove tarball, consumidor e backups temporários no cleanup.
+
+### Delegação e revisão
+
+Codex Terra medium produziu a primeira versão. A revisão do agente principal
+encontrou falsos positivos de lifecycle, typecheck, descoberta do teste e
+timeout, assumiu a implementação após a execução delegada ficar sem resposta e
+fechou os gates. A revisão Sol encontrou um P1 de higiene porque o primeiro
+teste removia `dist/` sem restaurá-lo. O cleanup foi corrigido com
+backup/restauração e a revalidação declarou zero P0/P1.
+
+### Gates
+
+| Comando                        | Resultado             |
+| ------------------------------ | --------------------- |
+| `bunx prettier --check ...`    | aprovado              |
+| `bun run check`                | aprovado              |
+| `bun run test:contract`        | 15 passaram, 0 falhou |
+| `bun run test:package`         | 1 passou, 0 falhou    |
+| `bun run build`                | aprovado              |
+| `npm pack --dry-run --json`    | aprovado              |
+| hashes de `dist/` antes/depois | idênticos             |
+| `git diff --cached --check`    | aprovado              |
+
+Nenhuma versão foi alterada ou publicada e nenhum lockfile entrou no commit.
