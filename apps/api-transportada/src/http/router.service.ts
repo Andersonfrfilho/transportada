@@ -25,6 +25,7 @@ type RouteAuthorizationPort = {
 }
 
 type RouteParserParams = {
+  readonly correlationId: string
   readonly context: AuthenticatedContext<CompanyContext>
   readonly request: Request
 }
@@ -50,6 +51,7 @@ type RegisteredRouterRoute = {
 }
 
 type RouterRequest = {
+  readonly correlationId: string
   readonly method: string
   readonly pathname: string
   readonly request: Request
@@ -75,7 +77,7 @@ export function createRouter({
   tenantContext,
 }: CreateRouterParams): HttpRouter {
   return Object.freeze({
-    async handle({ method, pathname, request }: RouterRequest): Promise<Response> {
+    async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
         return handleHealthRequest({ healthService, method, pathname })
       }
@@ -94,15 +96,15 @@ export function createRouter({
 
       const context = await tenantContext.resolveCompany(identity)
       authorization.authorize(context, route.policy)
-      return route.execute({ context, request })
+      return route.execute({ context, correlationId, request })
     },
   })
 }
 
 export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRouterRoute {
   return Object.freeze({
-    async execute({ context, request }: RouteParserParams): Promise<Response> {
-      const input = await route.parse({ context, request })
+    async execute({ context, correlationId, request }: RouteParserParams): Promise<Response> {
+      const input = await route.parse({ context, correlationId, request })
       return route.handle({ context, input })
     },
     method: route.method,

@@ -4,6 +4,7 @@
 import { ApiError } from '../shared/api.error'
 import {
   API_AUTH_ME_PATH,
+  API_COMPANY_SETTINGS_PATH,
   CORS_ALLOW_HEADERS,
   CORS_MAX_AGE_SECONDS,
   HTTP_ERROR,
@@ -38,13 +39,23 @@ export function handleCorsPreflight({
 
   return new Response(null, {
     headers: {
-      'access-control-allow-headers': CORS_ALLOW_HEADERS,
-      'access-control-allow-methods': HTTP_GET_METHOD,
+      'access-control-allow-headers': allowedHeaders(pathname),
+      'access-control-allow-methods': allowedMethods(pathname),
       'access-control-allow-origin': frontendOrigin,
       'access-control-max-age': String(CORS_MAX_AGE_SECONDS),
     },
     status: 204,
   })
+}
+
+function allowedHeaders(pathname: string): string {
+  return pathname === API_COMPANY_SETTINGS_PATH
+    ? 'Authorization, Content-Type, Idempotency-Key'
+    : CORS_ALLOW_HEADERS
+}
+
+function allowedMethods(pathname: string): string {
+  return pathname === API_COMPANY_SETTINGS_PATH ? 'GET, PATCH' : HTTP_GET_METHOD
 }
 
 type ApplyCorsHeadersParams = {
@@ -59,7 +70,10 @@ export function applyCorsHeaders({
   response,
 }: ApplyCorsHeadersParams): void {
   const isPreflight = isCorsPreflight(request)
-  appendVary(response.headers, isPreflight ? CORS_REQUEST_HEADERS : ['Origin'])
+  appendVary({
+    headers: response.headers,
+    values: isPreflight ? CORS_REQUEST_HEADERS : ['Origin'],
+  })
 
   if (!isPreflight && request.headers.get('origin') === frontendOrigin) {
     response.headers.set('access-control-allow-origin', frontendOrigin)
@@ -82,10 +96,38 @@ function isAllowedPreflight({
   request,
 }: IsAllowedPreflightParams): boolean {
   return (
+    isAuthMePreflight({ frontendOrigin, pathname, request }) ||
+    isCompanySettingsPreflight({ frontendOrigin, pathname, request })
+  )
+}
+
+function isAuthMePreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  return (
     pathname === API_AUTH_ME_PATH &&
     request.headers.get('origin') === frontendOrigin &&
     request.headers.get('access-control-request-method') === HTTP_GET_METHOD &&
     hasOnlyAuthorizationHeader(request.headers.get('access-control-request-headers'))
+  )
+}
+
+function isCompanySettingsPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  const requestedMethod = request.headers.get('access-control-request-method')
+  return (
+    pathname === API_COMPANY_SETTINGS_PATH &&
+    request.headers.get('origin') === frontendOrigin &&
+    (requestedMethod === HTTP_GET_METHOD || requestedMethod === 'PATCH') &&
+    hasCompanySettingsHeaders({
+      method: requestedMethod,
+      value: request.headers.get('access-control-request-headers'),
+    })
   )
 }
 
@@ -101,7 +143,30 @@ function hasOnlyAuthorizationHeader(value: string | null): boolean {
   )
 }
 
-function appendVary(headers: Headers, values: readonly string[]): void {
+type HasCompanySettingsHeadersParams = {
+  readonly method: string
+  readonly value: string | null
+}
+
+function hasCompanySettingsHeaders({ method, value }: HasCompanySettingsHeadersParams): boolean {
+  if (value === null) {
+    return false
+  }
+  const headers = value.split(',').map((header) => header.trim().toLowerCase())
+  const expected =
+    method === HTTP_GET_METHOD
+      ? new Set(['authorization'])
+      : new Set(['authorization', 'content-type', 'idempotency-key'])
+  const received = new Set(headers)
+  return received.size === expected.size && [...received].every((header) => expected.has(header))
+}
+
+type AppendVaryParams = {
+  readonly headers: Headers
+  readonly values: readonly string[]
+}
+
+function appendVary({ headers, values }: AppendVaryParams): void {
   const varyValues = new Map<string, string>()
   for (const value of headers.get('vary')?.split(',') ?? []) {
     const trimmedValue = value.trim()

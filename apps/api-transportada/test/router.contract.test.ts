@@ -19,6 +19,7 @@ describe('modular router contract', () => {
     const fixture = createRouterFixture()
 
     const response = await fixture.router.handle({
+      correlationId: 'router-contract',
       method: 'POST',
       pathname: ROUTER_PROTECTED_PATH,
       request: routerRequest(ROUTER_PROTECTED_PATH),
@@ -53,6 +54,7 @@ describe('modular router contract', () => {
 
       const error = await captureRouterError(() =>
         fixture.router.handle({
+          correlationId: 'router-contract',
           method: 'POST',
           pathname: ROUTER_PROTECTED_PATH,
           request: routerRequest(ROUTER_PROTECTED_PATH),
@@ -69,6 +71,7 @@ describe('modular router contract', () => {
 
     const error = await captureRouterError(() =>
       fixture.router.handle({
+        correlationId: 'router-contract',
         method: 'POST',
         pathname: ROUTER_PROTECTED_PATH,
         request: routerRequest(ROUTER_PROTECTED_PATH),
@@ -83,11 +86,13 @@ describe('modular router contract', () => {
     const fixture = createHeterogeneousRouterFixture()
 
     const stringResponse = await fixture.router.handle({
+      correlationId: 'router-contract',
       method: 'POST',
       pathname: '/router-contract/string',
       request: routerRequest('/router-contract/string'),
     })
     const objectResponse = await fixture.router.handle({
+      correlationId: 'router-contract',
       method: 'PUT',
       pathname: '/router-contract/object',
       request: routerRequest('/router-contract/object', 'PUT'),
@@ -102,6 +107,7 @@ describe('modular router contract', () => {
     const fixture = createRouterFixture()
 
     const health = await fixture.router.handle({
+      correlationId: 'router-contract',
       method: 'GET',
       pathname: '/health/live',
       request: routerRequest('/health/live', 'GET'),
@@ -115,6 +121,7 @@ describe('modular router contract', () => {
     expect(fixture.events).toEqual([])
 
     const authMe = await fixture.router.handle({
+      correlationId: 'router-contract',
       method: 'GET',
       pathname: '/auth/me',
       request: routerRequest('/auth/me', 'GET'),
@@ -132,6 +139,7 @@ describe('modular router contract', () => {
 
     const notFoundError = await captureRouterError(() =>
       fixture.router.handle({
+        correlationId: 'router-contract',
         method: 'GET',
         pathname: '/unknown',
         request: routerRequest('/unknown', 'GET'),

@@ -19,6 +19,8 @@ describe('PATCH /company-settings boundary contract', () => {
   test.each([
     ['expectedVersion', '0'],
     ['expectedVersion', '01'],
+    ['expectedVersion', 'not-a-number'],
+    ['expectedVersion', '9223372036854775808'],
     ['expectedVersion', '12345678901234567890'],
     ['expectedVersion', 1],
     ['profile.legalName', ' '],
@@ -54,16 +56,20 @@ describe('PATCH /company-settings boundary contract', () => {
     ['cte.environment', 'test'],
     ['cte.series', '0'],
     ['cte.series', '01'],
+    ['cte.series', 'not-a-number'],
+    ['cte.series', '9223372036854775808'],
     ['cte.series', '12345678901234567890'],
     ['cte.series', 1],
     ['cte.nextNumber', '0'],
     ['cte.nextNumber', '01'],
+    ['cte.nextNumber', 'not-a-number'],
+    ['cte.nextNumber', '9223372036854775808'],
     ['cte.nextNumber', '12345678901234567890'],
     ['cte.nextNumber', 1],
   ])('rejects invalid bounded field %s=%s', async (path, value) => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(
-      patchSettingsRequest({ body: settingsBodyWith(path, value) }),
+      patchSettingsRequest({ body: settingsBodyWith({ path, value }) }),
     )
 
     expect(response.status).toBe(400)
@@ -85,7 +91,10 @@ describe('PATCH /company-settings boundary contract', () => {
   test('accepts the maximum signed bigint as a canonical 19-digit boundary', async () => {
     const fixture = await createCompanySettingsHttpFixture()
     const maximum = '9223372036854775807'
-    const body = settingsBodyWith('expectedVersion', maximum) as Record<string, unknown>
+    const body = settingsBodyWith({
+      path: 'expectedVersion',
+      value: maximum,
+    }) as Record<string, unknown>
     const cte = body.cte as Record<string, unknown>
     cte.series = maximum
     cte.nextNumber = maximum

@@ -3,7 +3,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { COMPANY_CONTEXT, OTHER_COMPANY_ID } from '../fixtures/company-settings-application.fixture'
+import {
+  COMPANY_CONTEXT,
+  EXPECTED_SETTINGS_RESULT,
+  OTHER_COMPANY_ID,
+} from '../fixtures/company-settings-application.fixture'
 import {
   COMPANY_SETTINGS_PATH,
   createCompanySettingsHttpFixture,
@@ -32,10 +36,22 @@ describe('GET /company-settings HTTP contract', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
     expect(fixture.getCalls).toEqual([COMPANY_CONTEXT])
     expect(fixture.events).toEqual(['authenticate', 'tenant', 'authorize'])
+    expect(fixture.logs).toContainEqual(
+      expect.objectContaining({ pathname: COMPANY_SETTINGS_PATH, status: 200 }),
+    )
   })
 
   test('serializes bigint fields as decimal strings using an exact safe allowlist', async () => {
-    const fixture = await createCompanySettingsHttpFixture()
+    const resultWithUnexpectedRuntimeField = {
+      ...EXPECTED_SETTINGS_RESULT,
+      profile: {
+        ...EXPECTED_SETTINGS_RESULT.profile,
+        secretEnvelope: 'must-not-leak',
+      },
+    }
+    const fixture = await createCompanySettingsHttpFixture({
+      getResult: resultWithUnexpectedRuntimeField,
+    })
 
     const response = await fixture.handle(getSettingsRequest())
     const body = await response.json()

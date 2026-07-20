@@ -5,6 +5,12 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 
 import { parseEnvironment } from './config/environment.schema'
+import { createGetCompanySettingsUseCase } from './companies/application/get-company-settings.use-case'
+import { createIdempotencyFingerprintService } from './companies/application/idempotency-fingerprint.service'
+import { createUpdateCompanySettingsUseCase } from './companies/application/update-company-settings.use-case'
+import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
+import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
+import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
 import { TenantContextService } from './identity/application/tenant-context.service'
@@ -13,6 +19,7 @@ import { DrizzleExternalIdentityRepository } from './identity/infrastructure/dri
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import { createRouter } from './http/router.service'
+import type { ApiEnvironment } from './shared/api.types'
 import {
   createShutdownHandler,
   registerShutdownSignals,
@@ -21,12 +28,7 @@ import {
 
 export function bootstrap(): Bun.Server<undefined> {
   const config = parseEnvironment(process.env)
-  const logger = createLogger({
-    logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
-    projectName: 'transportada-api',
-    version: '0.1.0',
-  })
+  const logger = createApiLogger(config)
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDrizzleProvider({ connection: config.databaseUrl })
   const authentication = new AuthenticationService({
@@ -41,7 +43,10 @@ export function bootstrap(): Bun.Server<undefined> {
     authentication,
     authorization: new AuthorizationService(),
     healthService,
-    routes: [],
+    routes: createCompanySettingsApplicationRoutes({
+      database: database.db,
+      idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+    }),
     tenantContext,
   })
   const server = startApiServer({
@@ -59,6 +64,36 @@ export function bootstrap(): Bun.Server<undefined> {
   })
 
   return server
+}
+
+function createApiLogger(
+  config: Pick<ApiEnvironment, 'appEnv' | 'logLevel'>,
+): ReturnType<typeof createLogger> {
+  return createLogger({
+    logLevel: config.logLevel,
+    pretty: config.appEnv !== 'production',
+    projectName: 'transportada-api',
+    version: '0.1.0',
+  })
+}
+
+type CreateCompanySettingsApplicationRoutesParams = {
+  readonly database: CompanySettingsDatabase
+  readonly idempotencyHmacKey: Uint8Array
+}
+
+function createCompanySettingsApplicationRoutes({
+  database,
+  idempotencyHmacKey,
+}: CreateCompanySettingsApplicationRoutesParams): ReturnType<typeof createCompanySettingsRoutes> {
+  const repository = new DrizzleCompanySettingsRepository(database)
+  return createCompanySettingsRoutes({
+    getSettings: createGetCompanySettingsUseCase({ repository }),
+    updateSettings: createUpdateCompanySettingsUseCase({
+      fingerprintService: createIdempotencyFingerprintService({ key: idempotencyHmacKey }),
+      unitOfWork: repository,
+    }),
+  })
 }
 
 if (import.meta.main) {

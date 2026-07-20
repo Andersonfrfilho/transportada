@@ -34,6 +34,7 @@ describe('PATCH /company-settings HTTP contract', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: EXPECTED_HTTP_SETTINGS_DATA })
     expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(request.headers.has('x-correlation-id')).toBe(false)
     expect(fixture.updateCalls).toEqual([
       {
         context: COMPANY_CONTEXT,
@@ -47,7 +48,9 @@ describe('PATCH /company-settings HTTP contract', () => {
   test('parses an optimistic version only from a canonical decimal string', async () => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(
-      patchSettingsRequest({ body: settingsBodyWith('expectedVersion', '42') }),
+      patchSettingsRequest({
+        body: settingsBodyWith({ path: 'expectedVersion', value: '42' }),
+      }),
     )
 
     expect(response.status).toBe(200)
@@ -68,8 +71,8 @@ describe('PATCH /company-settings HTTP contract', () => {
   test.each([
     ['companyId', { ...VALID_HTTP_SETTINGS_BODY, companyId: OTHER_COMPANY_ID }],
     ['top-level secret', { ...VALID_HTTP_SETTINGS_BODY, password: 'must-not-pass' }],
-    ['profile property', settingsBodyWith('profile.unknown', 'value')],
-    ['cte property', settingsBodyWith('cte.model', 'cte')],
+    ['profile property', settingsBodyWith({ path: 'profile.unknown', value: 'value' })],
+    ['cte property', settingsBodyWith({ path: 'cte.model', value: 'cte' })],
   ])('rejects unknown %s before the use case', async (_name, body) => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(patchSettingsRequest({ body }))

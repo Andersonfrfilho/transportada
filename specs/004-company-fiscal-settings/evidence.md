@@ -865,3 +865,69 @@ e as bordas críticas deem cobertura proporcional à task.
 
 Nenhum runtime da T016, banco, PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila,
 exchange, Railway, deploy ou dado real participou da T015.
+
+## T016 — Endpoints de configurações
+
+Executor: Codex Terra medium. Revisão e correções de segurança: Codex Sol high.
+
+Implementação:
+
+- GET e PATCH `/company-settings` usam o router modular com policy company-
+  scoped `settings.manage`, depois de autenticação e resolução do tenant;
+- composition root instancia o repositório Drizzle, os casos de uso T014 e o
+  HMAC vindo exclusivamente da configuração criptográfica validada;
+- schema Zod estrito aceita somente strings decimais canônicas positivas até
+  `9223372036854775807`, formatos e comprimentos definidos no plano;
+- body JSON é lido incrementalmente depois do RBAC e interrompido ao exceder
+  1 MiB, inclusive sem `Content-Length`;
+- correlation ID validado atravessa o router explicitamente, sem mutar o
+  `Request`, e permanece igual em caso de sucesso, erro, resposta e log;
+- respostas usam allowlists explícitas, convertem `bigint` para decimal, não
+  expõem campos runtime extras e mantêm `activeCertificate` como `null` até
+  T018/T019;
+- CORS exige a combinação exata de método e headers por rota, sem credentials;
+  respostas da rota usam `Cache-Control: no-store`, inclusive em metadata
+  inválido;
+- logs reconhecem o pathname estático sem registrar query, token ou tenant.
+
+A primeira implementação Terra deixou os 77 contracts originais verdes. A
+revisão Sol encontrou correlação alterada em erros, overflow de `bigint`,
+serialização por spread, log como `<unmatched>`, lacuna de `no-store`, CORS
+permissivo e funções acima dos limites. Regressões reproduziram 13 falhas antes
+da primeira correção. Uma segunda rodada reproduziu mais quatro falhas para
+decimal não numérico e header CORS duplicado. A rodada final foi aprovada sem
+P0–P3.
+
+Evidência local final:
+
+```text
+bun test test/company-settings-http.contract.test.ts
+87 pass, 0 fail, 313 assertions
+
+bun run --cwd apps/api-transportada check
+240 pass, 1 skip condicional de migration, 0 fail, 1211 assertions
+lint, typecheck e build verdes
+
+bun run --cwd apps/api-transportada test:integration
+26 pass, 1 skip condicional de migration, 0 fail, 238 assertions
+
+make check
+API: 240 pass, 1 skip condicional de migration, 0 fail
+worker: 22 pass, 0 fail
+frontend: 17 pass, 0 fail
+format, lint, typecheck, testes e builds verdes
+
+Prettier e git diff --check
+exit 0
+
+make down
+container PostgreSQL e rede local removidos
+```
+
+Uma execução intermediária da integração expirou no teste CORS do servidor
+Bun. O teste passou imediatamente isolado (4/4) e o rerun agregado passou
+completo; a revisão considerou a falha transitória não reproduzida.
+
+Todos os arquivos alterados têm no máximo 199 linhas e as funções revisadas no
+máximo 40. Nenhum PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange,
+Railway, deploy ou dado real participou da T016.

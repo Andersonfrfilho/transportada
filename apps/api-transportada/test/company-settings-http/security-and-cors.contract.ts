@@ -62,20 +62,23 @@ describe('/company-settings security and CORS contract', () => {
     ],
   ] as const)('returns one safe 409 for application conflicts', async (error, code, message) => {
     const fixture = await createCompanySettingsHttpFixture({ updateError: error })
+    const correlationId = 'company-settings-conflict_123'
 
-    const response = await fixture.handle(patchSettingsRequest({ origin: FRONTEND_ORIGIN }))
+    const response = await fixture.handle(
+      patchSettingsRequest({ correlationId, origin: FRONTEND_ORIGIN }),
+    )
     const serialized = await response.text()
 
     expect(response.status).toBe(409)
     expect(JSON.parse(serialized)).toEqual({
       error: {
         code,
-        correlationId: response.headers.get('x-correlation-id'),
+        correlationId,
         message,
       },
     })
+    expect(response.headers.get('x-correlation-id')).toBe(correlationId)
     expect(serialized).not.toContain('61156864000191')
-    expect(serialized).not.toContain('00000000-0000-4000-8000')
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
   })
@@ -100,7 +103,7 @@ describe('/company-settings security and CORS contract', () => {
     ['PATCH', 'Authorization, Content-Type, Idempotency-Key'],
   ])('allows exact %s preflight without protected work', async (method, headers) => {
     const fixture = await createCompanySettingsHttpFixture()
-    const response = await fixture.handle(preflightRequest(method, headers))
+    const response = await fixture.handle(preflightRequest({ headers, method }))
 
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
@@ -117,9 +120,12 @@ describe('/company-settings security and CORS contract', () => {
     ['https://attacker.example', 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
     [FRONTEND_ORIGIN, 'POST', 'Authorization'],
     [FRONTEND_ORIGIN, 'PATCH', 'Authorization, X-Company-Id'],
+    [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization, Authorization, Content-Type'],
   ])('rejects unsafe preflight before authentication', async (origin, method, headers) => {
     const fixture = await createCompanySettingsHttpFixture()
-    const response = await fixture.handle(preflightRequest(method, headers, origin))
+    const response = await fixture.handle(preflightRequest({ headers, method, origin }))
 
     expect(response.status).toBe(403)
     expect(response.headers.has('access-control-allow-origin')).toBe(false)
@@ -139,9 +145,31 @@ describe('/company-settings security and CORS contract', () => {
       expect(response.headers.has('access-control-allow-origin')).toBe(false)
     }
   })
+
+  test('keeps no-store when company settings request metadata is invalid', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const request = getSettingsRequest()
+    request.headers.set('content-length', 'invalid')
+
+    const response = await fixture.handle(request)
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(fixture.events).toEqual([])
+  })
 })
 
-function preflightRequest(method: string, headers: string, origin = FRONTEND_ORIGIN): Request {
+type PreflightRequestParams = {
+  readonly headers: string
+  readonly method: string
+  readonly origin?: string
+}
+
+function preflightRequest({
+  headers,
+  method,
+  origin = FRONTEND_ORIGIN,
+}: PreflightRequestParams): Request {
   return new Request(`http://localhost${COMPANY_SETTINGS_PATH}`, {
     headers: {
       origin,

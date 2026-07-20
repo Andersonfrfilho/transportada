@@ -63,6 +63,7 @@ export async function createCompanySettingsHttpFixture({
 }: CreateFixtureParams = {}) {
   const events: string[] = []
   const getCalls: CompanyContext[] = []
+  const logs: Array<Record<string, unknown>> = []
   const updateCalls: UpdateCall[] = []
   const context = authenticatedContext(permissions)
   const routes = await loadRoutes({
@@ -77,7 +78,13 @@ export async function createCompanySettingsHttpFixture({
   const handle = createRequestHandler({
     createCorrelationId: () => GENERATED_CORRELATION_ID,
     frontendOrigin: FRONTEND_ORIGIN,
-    logger: { error() {}, info() {}, warn() {} },
+    logger: {
+      error() {},
+      info(_message, metadata) {
+        logs.push(metadata ?? {})
+      },
+      warn() {},
+    },
     requestTimeoutSeconds: 10,
     router,
   })
@@ -85,6 +92,7 @@ export async function createCompanySettingsHttpFixture({
     events,
     getCalls,
     handle: (request: Request) => handle(request, { timeout() {} }),
+    logs,
     updateCalls,
   }
 }

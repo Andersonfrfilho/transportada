@@ -29,7 +29,12 @@ export const EXPECTED_HTTP_SETTINGS_DATA = {
   },
 } as const
 
-export function settingsBodyWith(path: string, value: unknown): unknown {
+type SettingsBodyWithParams = {
+  readonly path: string
+  readonly value: unknown
+}
+
+export function settingsBodyWith({ path, value }: SettingsBodyWithParams): unknown {
   const body: Record<string, unknown> = structuredClone(VALID_HTTP_SETTINGS_BODY)
   const segments = path.split('.')
   let target = body
