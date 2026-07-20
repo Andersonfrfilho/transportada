@@ -73,7 +73,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T004 Validar empacotamento e consumo Bun isolado.
 - [x] T005 Publicar versão Ada e fixar pins na API.
 - [x] T006 Separar schema de identidade sem alterar SQL.
-- [ ] T007 Escrever contracts do schema fiscal e isolamento.
+- [x] T007 Escrever contracts do schema fiscal e isolamento.
 - [ ] T008 Implementar schema, migration aditiva e rollback.
 - [ ] T009 Escrever contracts do router modular e deny-by-default.
 - [ ] T010 Extrair router modular sem mudar contratos existentes.

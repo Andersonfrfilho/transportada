@@ -306,3 +306,48 @@ exit 0
 Os hashes SHA-256 dos cinco artefatos em `apps/api-transportada/drizzle`
 permaneceram idênticos ao baseline anterior à extração. Nenhum Railway,
 certificado, PFX, senha, S3 ou SEFAZ foi acessado.
+
+## T007 — Contracts do schema fiscal e isolamento
+
+Executor e revisão independente: Codex Sol high. O OpenCode foi reservado para
+uma checklist mecânica, mas `north-mini-code-free` e
+`deepseek-v4-flash-free` falharam no servidor antes de produzir resultado. A
+tarefa foi escalada após as duas falhas equivalentes, sem repetir tentativas.
+
+Contracts:
+
+- seis tabelas fiscais e exports compatíveis pelo agregador;
+- tipos, nullability, PKs, uniques, checks e timestamps UTC;
+- FKs tenant-scoped, incluindo a FK composta da reserva para a sequência;
+- CNPJ canônico, ambiente/modelo/purpose fechados e números positivos;
+- coerência entre próximo e último número reservado;
+- um certificado ativo por empresa/finalidade por índice unique parcial;
+- envelope obrigatório somente no ativo e removido no aposentado;
+- validade sem defaults inventados e com `valid_from < expires_at`;
+- índices de lookup tenant-scoped e ausência de colunas com formato de segredo;
+- migration fiscal com trigger que rejeita `UPDATE` e `DELETE` em auditoria.
+
+O contrato foi registrado nos scripts `test` e `test:integration`. Nenhum
+schema, SQL ou migration foi implementado nesta task.
+
+Evidência RED:
+
+```text
+bun test test/fiscal-schema.contract.test.ts
+Cannot find module '../src/database/fiscal.schema.js'
+0 pass, 1 fail
+
+bun run test
+95 pass, 1 conditional database skip
+1 fail: somente fiscal.schema.js ausente
+
+bun run typecheck
+somente fiscal.schema.js e os seis exports fiscais ausentes
+
+prettier + eslint + git diff --check
+exit 0
+```
+
+O commit RED permanece local para não quebrar o `main`; T008 implementará
+schema e migration e restaurará os gates antes do próximo push. Nenhum Railway,
+certificado, PFX, senha, S3 ou SEFAZ foi acessado.
