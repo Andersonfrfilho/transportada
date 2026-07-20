@@ -808,3 +808,60 @@ nos contracts de concorrência.
 
 Todos os dados de integração são sintéticos. Nenhum PFX, senha, XML fiscal,
 SEFAZ, RabbitMQ, fila, exchange, Railway ou deploy participou da T014.
+
+## T015 — Contracts HTTP de `/company-settings`
+
+Executor principal e revisão independente: Codex Sol high. O OpenCode gratuito
+não foi repetido porque as duas tentativas equivalentes da T013 já haviam
+falhado; a política de economia exige escalonamento em vez de novo consumo.
+
+Contracts:
+
+- GET e PATCH exigem especificamente `settings.manage` antes de parser e
+  handler, inclusive quando o contexto possui outra permissão válida;
+- leitura e escrita usam exatamente o `CompanyContext` autenticado e ignoram
+  seletores de tenant por query ou header;
+- GET vazio e configurado usam envelope exato e convertem `bigint` somente em
+  strings decimais, sem campos extras ou segredo;
+- PATCH aceita um DTO estrito, versão otimista decimal canônica, chave
+  idempotente ASCII e correlation ID validado;
+- limites de tamanho, formatos exatos, tipos, campos desconhecidos e bordas
+  críticas são rejeitados antes do caso de uso;
+- o limite de 1 MiB é contratado tanto pelo `Content-Length` quanto por leitura
+  incremental de stream sem esse header;
+- conflitos de CNPJ, versão, sequência e chave idempotente usam respostas `409`
+  mínimas; falhas inesperadas usam `500` sem detalhe interno;
+- preflight permite somente origem local confiável, GET/PATCH e os headers
+  previstos, sem credentials; respostas da rota usam `Cache-Control: no-store`.
+
+Evidência RED e de não regressão:
+
+```text
+bun test test/company-settings-http.contract.test.ts
+0 pass, 77 fail
+todos os RED: somente company-settings.routes.js da T016 ausente
+
+bun run typecheck
+somente TS2307 para o mesmo módulo T016 ausente
+
+suite anterior sem o novo agregador
+153 pass, 1 skip condicional de migration, 0 fail, 898 assertions
+
+bun run lint
+exit 0
+
+Prettier e git diff --check
+exit 0
+```
+
+O agregador está registrado no script `test`. Todos os arquivos têm no máximo
+191 linhas e as funções/callbacks no máximo 40. A revisão inicial encontrou
+lacunas na policy específica, tenant exato, idempotência, correlação e limites;
+os contracts foram ampliados e a revisão final aprovou sem P0–P2.
+
+Risco P3 não bloqueante para futura ampliação: nem toda borda textual válida é
+afirmada isoladamente, embora os fixtures positivos, as rejeições fora da faixa
+e as bordas críticas deem cobertura proporcional à task.
+
+Nenhum runtime da T016, banco, PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila,
+exchange, Railway, deploy ou dado real participou da T015.

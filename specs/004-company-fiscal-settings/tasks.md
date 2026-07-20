@@ -81,7 +81,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T012 Implementar gateway fiscal e configuração criptográfica.
 - [x] T013 Escrever contracts de perfil, idempotência e auditoria.
 - [x] T014 Implementar repositórios e casos de uso de configurações.
-- [ ] T015 Escrever contracts HTTP de `/company-settings`.
+- [x] T015 Escrever contracts HTTP de `/company-settings`.
 - [ ] T016 Implementar endpoints de configurações.
 - [ ] T017 Escrever contracts de validação e rotação do A1.
 - [ ] T018 Implementar serviço e persistência de certificado.
