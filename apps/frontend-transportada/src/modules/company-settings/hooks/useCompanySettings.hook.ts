@@ -49,7 +49,7 @@ export function createCompanySettingsController(input: ControllerInput): Company
 function getCompanySettingsClient(): CompanySettingsClient {
   return createCompanySettingsClient({
     apiBaseUrl: getIdentityEnvironment().apiBaseUrl,
-    fetch,
+    fetch: (request) => fetch(request),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
     newIdempotencyKey: createIdempotencyKey,
   })

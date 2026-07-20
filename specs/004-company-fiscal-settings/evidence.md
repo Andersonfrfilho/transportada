@@ -1468,3 +1468,73 @@ máximo 40. O smoke autenticado e a auditoria de DOM/storage/cache pertencem à
 T024 e não foram antecipados. O PFX real e sua senha não foram acessados,
 copiados ou registrados. Nenhum XML fiscal real, SEFAZ, RabbitMQ, fila,
 exchange, S3, Railway, ambiente remoto ou deploy participou da T023.
+
+## T024 — Jornada fiscal e ausência de segredo
+
+Executor: Codex Terra medium. Revisão raiz e revisão independente de segurança:
+Codex Sol high.
+
+O Playwright autenticado agora comprova:
+
+- renderização responsiva da tela fiscal em 375, 768 e 1280 px, sem overflow
+  horizontal;
+- login real no Keycloak local e identidade sintética elevada somente na visão
+  da UI para exercitar os controles de `settings.manage`;
+- service worker `ready` e controlador ativo antes dos uploads;
+- substituição sintética bem-sucedida, seguida da limpeza do file input, senha
+  e referências observáveis;
+- tentativa com a UI burlada usando o token real do usuário local `viewer`;
+  `route.fetch()` encaminha o POST à API local e o teste exige origem
+  `http://localhost:53001`, status `403` e código seguro `FORBIDDEN`;
+- ausência dos bytes, senha e nome sintéticos no DOM, nas chaves e valores de
+  `localStorage`/`sessionStorage`, nos nomes, URLs e corpos de Cache Storage e
+  nos nomes e registros de IndexedDB;
+- varredura recursiva e fail-closed de IndexedDB para objetos, mapas, conjuntos,
+  `Blob`/`File`, `ArrayBuffer` e views tipadas;
+- teste negativo da própria auditoria, semeando `Blob`, `ArrayBuffer` e
+  `Uint8Array` sintéticos e exigindo que o resíduo seja detectado;
+- preservação dos smokes anteriores de PWA, reload offline e falha fechada no
+  refresh de token.
+
+O primeiro smoke real revelou `Illegal invocation`: o `fetch` global havia sido
+armazenado como método e era chamado com `this` incorreto, lacuna que os mocks
+unitários não reproduziam. O frontend passou a fornecer
+`fetch: (request) => fetch(request)`, mantendo o contrato e o binding correto.
+
+A primeira revisão Sol encontrou três lacunas: serialização IndexedDB incapaz de
+ler material binário, upload sem prova de controle pelo service worker e 403
+sem origem/código explicitamente afirmados. Todas foram corrigidas. A
+re-revisão independente terminou com zero achados P0–P3.
+
+Evidência local final:
+
+```text
+bun run --cwd apps/frontend-transportada check
+33 pass, 0 fail, 176 assertions
+lint, typecheck e build Vite/PWA verdes
+
+bun run --cwd apps/frontend-transportada smoke
+9 pass, 0 fail
+3 viewports, sucesso, detector binário, 403 local, PWA, offline e refresh
+
+make smoke
+realm Keycloak 6 pass; health API/worker verde; Playwright 9 pass
+
+bunx eslint test/certificate-residue-*.helper.ts \
+  test/company-settings-smoke.helper.ts test/responsive.smoke.spec.ts \
+  test/token-refresh-smoke.helper.ts \
+  --rule 'max-lines-per-function:["error",{"max":40,"skipBlankLines":true,"skipComments":true}]'
+exit 0
+
+Prettier e git diff --check
+exit 0
+
+SIGTERM na sessão controlada de make dev; make down
+frontend/API/worker encerrados; containers, rede e portas locais removidos
+```
+
+Todos os arquivos alterados têm menos de 200 linhas e as funções revisadas têm
+no máximo 40. Somente bytes, senha, metadados e identidade sentinela sintéticos
+foram usados. O PFX real e sua senha não foram acessados, copiados ou
+registrados. Nenhum XML fiscal real, SEFAZ, S3, Railway, ambiente remoto, push
+ou deploy participou da T024.
