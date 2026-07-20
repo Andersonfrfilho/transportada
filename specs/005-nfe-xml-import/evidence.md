@@ -119,3 +119,55 @@ A revisão Sol final declarou zero bloqueador ou achado alto remanescente.
 | inventário de tasks/requisitos                            | 31 / 24   |
 
 T001 está concluída com gates documentais verdes.
+
+## T002 — Contracts públicos de normalização NF-e
+
+Data: 2026-07-20
+
+Commit local no repositório `adatechnology-packages`:
+
+```text
+da8693f test(fiscal-provider): define nfe xml import contract
+```
+
+Arquivos:
+
+```text
+packages/backend/fiscal-provider/test/contract/nfe-import.contract.test.ts
+packages/backend/fiscal-provider/test/fixtures/nfe-xml.fixture.ts
+```
+
+O contract usa apenas NF-e 4.00 sintética e fixa o comportamento público de
+`importarNfeXml`:
+
+- retorno discriminado para `nfeProc` autorizada, `NFe` sem protocolo e
+  `procEventoNFe`;
+- preservação do resumo `DfeItem` existente;
+- documento normalizado com emitente, destinatário, transportador, endereços,
+  produtos, volumes, protocolo e informações adicionais;
+- todos os valores monetários, quantidades e pesos normalizados como strings
+  decimais;
+- chave de 44 dígitos válida e coerente entre `infNFe` e protocolo;
+- lista de CNPJs relacionados;
+- zero I/O de rede para importação local;
+- erros estáveis e seguros para DTD/ENTITY, raiz não suportada, chave
+  inválida/divergente e XML acima de 5 MiB.
+
+### Evidência vermelha esperada
+
+| Gate                                                                   | Resultado esperado                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `bun test test/contract/nfe-import.contract.test.ts`                   | 1 passou, 8 falharam nas capacidades novas                                |
+| `bun run test:contract`                                                | 6 passaram, 8 falharam; os 5 contracts CT-e existentes continuaram verdes |
+| `bunx prettier --check test/contract/... test/fixtures/...`            | aprovado                                                                  |
+| `git diff --cached --check`                                            | aprovado                                                                  |
+| inclusão pelo script agregado `test:contract = bun test test/contract` | confirmada                                                                |
+
+O RTK resumiu corretamente os contadores, mas retornou exit code zero para o
+teste vermelho e roteou `rtk diff --check` ao utilitário `diff`. Por isso os
+gates de falha/whitespace foram repetidos com Bun/Git brutos.
+
+Nenhum source, manifest, lockfile, XML real, certificado ou arquivo sujo
+preexistente entrou no commit. O commit vermelho permanece apenas local até a
+T003 deixá-lo verde; assim a branch remota não recebe uma pipeline
+intencionalmente quebrada.
