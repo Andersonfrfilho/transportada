@@ -1089,3 +1089,58 @@ containers e rede locais removidos
 ```
 
 Nenhum Railway ou deploy foi executado.
+
+## T018A — Contracts HTTP de certificados
+
+Executor e revisão independente: Codex Sol high. O OpenCode gratuito não foi
+repetido após duas falhas equivalentes anteriores, conforme a política de
+economia. A implementação da rota ficou reservada para a T019.
+
+Os 27 contracts sintéticos definem:
+
+- autenticação, tenant e `settings.manage` antes de qualquer leitura do
+  multipart, sem aceitar header, query ou campo livre como autoridade;
+- multipart estrito com um `certificate`, um `password` UTF-8 de 1–256 bytes e
+  `purpose=cte`, incluindo duplicados, ausências e campos desconhecidos;
+- limite de 1 MiB por `Content-Length` e por leitura incremental lazy, com
+  cancelamento no 17º chunk de 64 KiB antes de `formData()`;
+- primeiro POST `201` e replay sequencial `200`, ambos com o mesmo DTO seguro e
+  resultado discriminado para a futura rota;
+- idempotency key ASCII de 16–128 caracteres na allowlist `[A-Za-z0-9._:-]`;
+- histórico tenant-scoped com limite padrão 25/máximo 100, cursor base64url
+  canônico de `(createdAt,id)` e serialização allowlisted;
+- erros estáveis `400`, `401`, `403`, `409` e `500`, correlação preservada,
+  `no-store`, CORS exato por recurso e logs de todos os níveis sem segredo.
+
+A revisão inicial encontrou leitura incremental não observável, teste de tenant
+mascarado por multipart inválido, logger de erro descartado e replay fixado em
+`201`. Também apontou bordas UTF-8, allowlist, cursor e função longa. Os
+contracts passaram a usar stream lazy com contador/cancelamento, separar os
+seletores de tenant, capturar `error`/`info`/`warn`, verificar sentinelas
+raw/base64/senha e exigir replay `200`. A re-revisão aprovou sem P0–P3.
+
+Evidência RED e de não regressão:
+
+```text
+bun test test/digital-certificates-http.contract.test.ts
+0 pass, 27 fail
+todos os RED: somente digital-certificates.routes.js da T019 ausente
+
+bun run typecheck
+somente TS2307 para o mesmo módulo T019 ausente
+
+suite anterior sem o novo agregador
+261 pass, 1 skip condicional de migration, 0 fail, 1384 assertions
+
+bun run lint
+exit 0
+
+Prettier e git diff --check
+exit 0
+```
+
+O agregador está registrado no script `test`. Todos os arquivos têm menos de
+200 linhas e as funções revisadas no máximo 40. Foram usados apenas bytes e
+senhas sentinela sintéticos. O PFX real e sua senha não foram acessados,
+copiados ou registrados. Nenhum SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou
+deploy participou da T018A.
