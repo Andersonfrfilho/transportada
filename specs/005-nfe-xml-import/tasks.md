@@ -78,7 +78,7 @@ para Terra/Sol sem repetir contexto crescente.
 - [x] T003 Implementar importação NF-e normalizada e aditiva.
 - [x] T004 Validar pack e consumo Bun limpo do fiscal-provider.
 - [x] T005 Escrever contracts do `object-storage-provider`.
-- [ ] T006 Implementar provider S3 compatível Bun-first.
+- [x] T006 Implementar provider S3 compatível Bun-first.
 - [ ] T007 Empacotar, versionar, publicar e fixar packages Ada.
 - [ ] T008 Escrever contracts de parâmetros dinâmicos do router.
 - [ ] T009 Implementar matching tipado sem regressão HTTP.

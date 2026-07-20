@@ -321,3 +321,51 @@ O teste agregado do package aponta para o mesmo contract. Nenhuma dependência
 foi instalada, nenhum lockfile foi alterado e nenhum segredo, PFX, XML real ou
 alteração preexistente do repositório entrou no commit. O commit vermelho fica
 local até a T006 implementar e deixar o package verde.
+
+## T006 — Provider S3 compatível Bun-first
+
+Data: 2026-07-20
+
+Commit local no repositório `adatechnology-packages`:
+
+```text
+4569775 feat(object-storage): implement immutable s3 provider
+```
+
+A implementação usa `@aws-sdk/client-s3` e o presigner oficial, ambos pinados
+em `3.1091.0`, com endpoint S3 compatível, path-style e credenciais explícitas.
+O provider agora oferece create-only real, replay por SHA-256, conflito fatal
+sem overwrite, put/get/head/delete, health de bucket privado, URL assinada de
+curta duração e shutdown idempotente.
+
+Validações fecham configuração, bucket, key/traversal, MIME/header injection,
+tamanho declarado, limite máximo obrigatório e SHA-256 antes de confirmar o
+upload. Streams de entrada são lidos incrementalmente até o limite declarado,
+falhas são redigidas e `Uint8Array` recebe cópia defensiva antes do hash/envio.
+Streams de download também convertem falhas tardias em erro público seguro.
+
+### Revisão Sol independente
+
+A primeira revisão encontrou dois P1: consumo ilimitado do stream poderia
+causar OOM e a referência mutável de `Uint8Array` poderia mudar depois do hash.
+Foram adicionados `maxObjectSizeBytes`, leitura incremental com cancelamento no
+primeiro byte excedente, cópia defensiva e regressões específicas. A
+revalidação declarou zero P0/P1 residual.
+
+### Gates
+
+| Comando                              | Resultado               |
+| ------------------------------------ | ----------------------- |
+| `make up` no TransportAdA            | infraestrutura saudável |
+| `bun run check`                      | aprovado                |
+| `bunx eslint src test`               | aprovado                |
+| `bun test`                           | 12 passaram, 0 falhou   |
+| `bun run build`                      | aprovado                |
+| `bun run test:integration` com MinIO | 1 passou, 0 falhou      |
+| hook pre-commit ESLint/Prettier      | aprovado                |
+
+O MinIO real foi iniciado exclusivamente pelo Makefile com o projeto Compose
+`transportada-local`; nenhuma Railway, SEFAZ, PFX ou XML real foi acessado. O
+`pnpm-lock.yaml` já continha alterações preexistentes de outros packages e foi
+preservado fora do commit; a reconciliação isolada do lockfile faz parte do
+gate de empacotamento/publicação da T007.
