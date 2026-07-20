@@ -413,3 +413,41 @@ registro npm.
 
 Os workflows versionaram e publicaram pelo GitHub; nenhuma publicação manual,
 Railway, SEFAZ, certificado ou XML real foi utilizada.
+
+## T008 — Contracts de parâmetros dinâmicos do router
+
+Data: 2026-07-20
+
+O contract agregado da API define parâmetros de path imutáveis e tipados,
+precedência de rota exata sobre dinâmica independentemente da ordem de
+registro, decode seguro de um UUID canônico e 404 uniforme para segmentos
+inválidos, codificação malformada, slash codificado, método divergente e
+segmentos excedentes.
+
+As barreiras protegidas são exercitadas com POST e body sentinela: falhas em
+autenticação, resolução de tenant ou RBAC mantêm `bodyUsed === false` e nunca
+alcançam parser ou handler. Health, auth-me e rotas exatas permanecem cobertos.
+O contract também exige o shape público de `RouterPathParameters` e
+`RouteParserParams`, evitando uma implementação apenas dinâmica em runtime.
+
+### Revisão Sol independente
+
+A primeira revisão encontrou três P1: colisão de precedência vacuamente
+inválida, ausência de prova do contrato TypeScript público e falta de body
+sentinela nos gates. Os três foram corrigidos; a re-revisão declarou zero
+P0/P1 residual.
+
+### Gates
+
+| Comando                                                 | Resultado                         |
+| ------------------------------------------------------- | --------------------------------- |
+| `bun run lint`                                          | aprovado                          |
+| `bun run typecheck`                                     | aprovado                          |
+| `bun test test/router-path-parameters.contract.test.ts` | vermelho esperado: 10 pass/4 fail |
+| `bun run test`                                          | vermelho isolado: 301 pass/4 fail |
+| `git diff --check`                                      | aprovado                          |
+
+As quatro falhas correspondem somente às capacidades reservadas para T009:
+shape público, matching/decode e alcance de tenant/RBAC após o match dinâmico.
+Nenhuma implementação, infraestrutura externa, Railway, certificado ou XML
+fiscal real foi utilizada.

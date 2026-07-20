@@ -80,7 +80,7 @@ para Terra/Sol sem repetir contexto crescente.
 - [x] T005 Escrever contracts do `object-storage-provider`.
 - [x] T006 Implementar provider S3 compatível Bun-first.
 - [x] T007 Empacotar, versionar, publicar e fixar packages Ada.
-- [ ] T008 Escrever contracts de parâmetros dinâmicos do router.
+- [x] T008 Escrever contracts de parâmetros dinâmicos do router.
 - [ ] T009 Implementar matching tipado sem regressão HTTP.
 - [ ] T010 Escrever contracts do schema NF-e/outbox/storage.
 - [ ] T011 Implementar schema, migration aditiva e rollback.
