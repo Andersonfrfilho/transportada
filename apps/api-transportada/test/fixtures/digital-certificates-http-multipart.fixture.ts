@@ -62,7 +62,10 @@ export function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
   })
 }
 
-export function observedByteStream(bytes: Uint8Array): {
+export function observedByteStream(input: {
+  readonly bytes: Uint8Array
+  readonly cancelError?: Error
+}): {
   readonly body: ReadableStream<Uint8Array>
   readonly pulls: () => number
   readonly wasCancelled: () => boolean
@@ -74,13 +77,14 @@ export function observedByteStream(bytes: Uint8Array): {
     {
       cancel() {
         cancelled = true
+        if (input.cancelError) throw input.cancelError
       },
       pull(controller) {
         pulls += 1
-        const nextOffset = Math.min(offset + 64 * 1024, bytes.byteLength)
-        controller.enqueue(bytes.slice(offset, nextOffset))
+        const nextOffset = Math.min(offset + 64 * 1024, input.bytes.byteLength)
+        controller.enqueue(input.bytes.slice(offset, nextOffset))
         offset = nextOffset
-        if (offset === bytes.byteLength) controller.close()
+        if (offset === input.bytes.byteLength) controller.close()
       },
     },
     { highWaterMark: 0 },

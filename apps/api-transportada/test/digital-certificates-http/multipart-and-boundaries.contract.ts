@@ -9,12 +9,9 @@ import {
   SYNTHETIC_PASSWORD,
 } from '../fixtures/digital-certificates-http-payload.fixture'
 import {
-  byteStream,
   invalidContentTypes,
   invalidMultipartParts,
   invalidPasswords,
-  multipartBodyOfSize,
-  observedByteStream,
   replaceMultipartPart,
 } from '../fixtures/digital-certificates-http-multipart.fixture'
 import {
@@ -149,38 +146,6 @@ describe('POST /digital-certificates multipart contract', () => {
       expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
       expect(fixture.replaceCalls).toHaveLength(0)
     }
-  })
-
-  test('accepts exactly 1 MiB and rejects the next streamed byte before formData', async () => {
-    const exactBody = multipartBodyOfSize(APPLICATION_LIMIT)
-    const oversized = observedByteStream(multipartBodyOfSize(APPLICATION_LIMIT + 512 * 1024))
-    const accepted = await createDigitalCertificatesHttpFixture()
-    const rejected = await createDigitalCertificatesHttpFixture()
-
-    const acceptedResponse = await accepted.handle(
-      certificatePostRequest({
-        body: byteStream(exactBody),
-        contentType: 'multipart/form-data; boundary=transportada-synthetic-boundary',
-        events: accepted.events,
-      }),
-    )
-    const rejectedResponse = await rejected.handle(
-      certificatePostRequest({
-        body: oversized.body,
-        contentType: 'multipart/form-data; boundary=transportada-synthetic-boundary',
-        events: rejected.events,
-      }),
-    )
-
-    expect(acceptedResponse.status).toBe(201)
-    expect(rejectedResponse.status).toBe(413)
-    expect((await responseApiError(rejectedResponse)).error.code).toBe('PAYLOAD_TOO_LARGE')
-    expect(rejected.events.slice(0, 3)).toEqual(['authenticate', 'tenant', 'authorize'])
-    expect(rejected.events).toContain('body')
-    expect(rejected.events).not.toContain('formData')
-    expect(rejected.replaceCalls).toHaveLength(0)
-    expect(oversized.pulls()).toBe(17)
-    expect(oversized.wasCancelled()).toBe(true)
   })
 
   test('rejects Content-Length above 1 MiB without pulling the body', async () => {

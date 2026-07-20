@@ -1144,3 +1144,74 @@ O agregador está registrado no script `test`. Todos os arquivos têm menos de
 senhas sentinela sintéticos. O PFX real e sua senha não foram acessados,
 copiados ou registrados. Nenhum SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou
 deploy participou da T018A.
+
+## T019 — POST/GET de certificados e CORS estrito
+
+Executor: Codex Terra medium. Revisão raiz e duas revisões independentes de
+segurança: Codex Sol high.
+
+Implementação:
+
+- `POST /digital-certificates` autentica, resolve o tenant e exige
+  `settings.manage` antes de validar a idempotência e ler o corpo;
+- parser multipart enquadrado por boundary aceita exatamente certificado,
+  senha UTF-8 e `purpose=cte`, limita o stream a 1 MiB e limpa buffers mutáveis
+  em sucesso ou falha;
+- falha ao cancelar um stream excedente não mascara o erro estável `413`;
+- primeiro POST retorna `201`; replay concorrente ou sequencial retorna `200`
+  com o mesmo DTO seguro e sem repetir efeitos;
+- `GET /digital-certificates` lista somente metadados do tenant autenticado,
+  com cursor canônico e keyset `(createdAt,id)` descendente;
+- a query Drizzle normaliza `created_at` para milissegundos antes de comparar o
+  cursor JavaScript, evitando gaps ou duplicações causados por microssegundos;
+- CORS permite apenas GET/POST e seus headers exatos, sem reflexão de origem,
+  headers de resposta duplicados ou cache de respostas protegidas;
+- o composition root liga os gateways fiscais e criptográficos públicos,
+  repositório, casos de uso e rotas sem importar internals do provider.
+
+A revisão raiz corrigiu cursor calculado a partir do item extra, propagação do
+resultado de replay transacional, precisão PostgreSQL, offset multipart e
+limpeza de buffers. A primeira revisão Sol adicionou três regressões RED:
+idempotência inválida precisava falhar antes de puxar o corpo, a validação
+UTF-8 não podia aceitar um marcador falso dentro do certificado e uma rejeição
+de `reader.cancel()` não podia transformar `413` em `500`. As três foram
+corrigidas e a segunda revisão não encontrou achados P0–P2. O P3 final de
+nomenclatura foi encerrado renomeando os helpers multipart para
+`*.service.ts`. A revisão final aprovou a T019 sem achados P0–P3.
+
+Evidência local final:
+
+```text
+bun test test/digital-certificates-http.contract.test.ts \
+  test/digital-certificate-application.contract.test.ts
+50 pass, 0 fail, 512 assertions
+
+bun run --cwd apps/api-transportada check
+291 pass, 1 skip condicional de migration, 0 fail, 1725 assertions
+lint, typecheck e build verdes
+
+bun run --cwd apps/api-transportada test:integration
+29 pass, 0 fail, 335 assertions
+
+integração focal em PostgreSQL local
+2 pass: rotação/isolamento e paginação tenant-scoped sem gaps ou duplicações
+
+make check
+API 291 pass e 1 skip condicional; worker 22 pass; frontend 17 pass
+format, lint, typecheck e builds verdes
+
+make postgres-up
+PostgreSQL local healthy sob transportada-local
+
+make down
+container e rede locais removidos
+
+Prettier e git diff --check
+exit 0
+```
+
+Todos os arquivos novos têm menos de 200 linhas e as funções revisadas no
+máximo 40. Foram usados somente bytes, senhas e certificados sentinela
+sintéticos. O PFX real informado pelo usuário e sua senha não foram acessados,
+copiados ou registrados. Nenhum XML fiscal real, SEFAZ, RabbitMQ, fila,
+exchange, S3, Railway ou deploy participou da T019.

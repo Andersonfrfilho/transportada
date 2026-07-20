@@ -12,6 +12,16 @@ export type DigitalCertificateResult = {
   readonly version: bigint
 }
 
+export type DigitalCertificateMetadata = Omit<DigitalCertificateResult, 'status'> & {
+  readonly createdAt: Date
+  readonly status: 'active' | 'retired'
+}
+
+export type DigitalCertificateCursor = {
+  readonly createdAt: Date
+  readonly id: string
+}
+
 export type DigitalCertificateSecret = {
   readonly certificateBase64: string
   readonly password: string
@@ -97,4 +107,15 @@ export type DigitalCertificateRepositoryPort = {
   findIdempotency(
     input: DigitalCertificateIdempotencyLookup,
   ): Promise<DigitalCertificateIdempotencyRecord | null>
+}
+
+export type DigitalCertificateListingRepositoryPort = {
+  list(input: {
+    readonly companyId: string
+    readonly cursor?: DigitalCertificateCursor
+    readonly limit: number
+  }): Promise<{
+    readonly items: readonly DigitalCertificateMetadata[]
+    readonly nextCursor?: DigitalCertificateCursor
+  }>
 }

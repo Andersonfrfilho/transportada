@@ -2,9 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../shared/api.error'
+import { hasResourcePreflightHeaders } from './cors-policy.service'
 import {
   API_AUTH_ME_PATH,
   API_COMPANY_SETTINGS_PATH,
+  API_DIGITAL_CERTIFICATES_PATH,
   CORS_ALLOW_HEADERS,
   CORS_MAX_AGE_SECONDS,
   HTTP_ERROR,
@@ -49,13 +51,14 @@ export function handleCorsPreflight({
 }
 
 function allowedHeaders(pathname: string): string {
-  return pathname === API_COMPANY_SETTINGS_PATH
+  return pathname === API_COMPANY_SETTINGS_PATH || pathname === API_DIGITAL_CERTIFICATES_PATH
     ? 'Authorization, Content-Type, Idempotency-Key'
     : CORS_ALLOW_HEADERS
 }
 
 function allowedMethods(pathname: string): string {
-  return pathname === API_COMPANY_SETTINGS_PATH ? 'GET, PATCH' : HTTP_GET_METHOD
+  if (pathname === API_COMPANY_SETTINGS_PATH) return 'GET, PATCH'
+  return pathname === API_DIGITAL_CERTIFICATES_PATH ? 'GET, POST' : HTTP_GET_METHOD
 }
 
 type ApplyCorsHeadersParams = {
@@ -97,7 +100,25 @@ function isAllowedPreflight({
 }: IsAllowedPreflightParams): boolean {
   return (
     isAuthMePreflight({ frontendOrigin, pathname, request }) ||
-    isCompanySettingsPreflight({ frontendOrigin, pathname, request })
+    isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
+    isDigitalCertificatesPreflight({ frontendOrigin, pathname, request })
+  )
+}
+
+function isDigitalCertificatesPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  const requestedMethod = request.headers.get('access-control-request-method')
+  return (
+    pathname === API_DIGITAL_CERTIFICATES_PATH &&
+    request.headers.get('origin') === frontendOrigin &&
+    (requestedMethod === HTTP_GET_METHOD || requestedMethod === 'POST') &&
+    hasResourcePreflightHeaders({
+      method: requestedMethod,
+      value: request.headers.get('access-control-request-headers'),
+    })
   )
 }
 
@@ -124,7 +145,7 @@ function isCompanySettingsPreflight({
     pathname === API_COMPANY_SETTINGS_PATH &&
     request.headers.get('origin') === frontendOrigin &&
     (requestedMethod === HTTP_GET_METHOD || requestedMethod === 'PATCH') &&
-    hasCompanySettingsHeaders({
+    hasResourcePreflightHeaders({
       method: requestedMethod,
       value: request.headers.get('access-control-request-headers'),
     })
@@ -141,24 +162,6 @@ function hasOnlyAuthorizationHeader(value: string | null): boolean {
     requestedHeaders.length > 0 &&
     requestedHeaders.every((header) => header === CORS_ALLOW_HEADERS.toLowerCase())
   )
-}
-
-type HasCompanySettingsHeadersParams = {
-  readonly method: string
-  readonly value: string | null
-}
-
-function hasCompanySettingsHeaders({ method, value }: HasCompanySettingsHeadersParams): boolean {
-  if (value === null) {
-    return false
-  }
-  const headers = value.split(',').map((header) => header.trim().toLowerCase())
-  const expected =
-    method === HTTP_GET_METHOD
-      ? new Set(['authorization'])
-      : new Set(['authorization', 'content-type', 'idempotency-key'])
-  const received = new Set(headers)
-  return received.size === expected.size && [...received].every((header) => expected.has(header))
 }
 
 type AppendVaryParams = {

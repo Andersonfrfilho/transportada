@@ -51,10 +51,13 @@ describe('POST /digital-certificates idempotency and error contract', () => {
   test('rejects invalid idempotency keys before application work', async () => {
     for (const idempotencyKey of invalidIdempotencyKeys()) {
       const fixture = await createDigitalCertificatesHttpFixture()
-      const response = await fixture.handle(certificatePostRequest({ idempotencyKey }))
+      const response = await fixture.handle(
+        certificatePostRequest({ events: fixture.events, idempotencyKey }),
+      )
 
       expect(response.status).toBe(400)
       expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
+      expect(fixture.events).toEqual(['authenticate', 'tenant', 'authorize'])
       expect(fixture.replaceCalls).toHaveLength(0)
       expect(response.headers.get('cache-control')).toBe('no-store')
     }

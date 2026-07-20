@@ -31,14 +31,17 @@ export function createReplaceDigitalCertificateUseCase(
   input: ReplaceDigitalCertificateDependencies,
 ): ReplaceDigitalCertificateUseCase {
   return {
-    execute: (request) => executeReplace({ dependencies: input, request }),
+    async execute(request) {
+      return (await executeReplace({ dependencies: input, request })).certificate
+    },
+    executeWithOutcome: (request) => executeReplace({ dependencies: input, request }),
   }
 }
 
 async function executeReplace(input: {
   readonly dependencies: ReplaceDigitalCertificateDependencies
   readonly request: ReplaceDigitalCertificateInput
-}): Promise<DigitalCertificateResult> {
+}): Promise<{ readonly certificate: DigitalCertificateResult; readonly replayed: boolean }> {
   try {
     return await replaceDigitalCertificate(input)
   } catch (error) {
@@ -53,7 +56,7 @@ async function executeReplace(input: {
 async function replaceDigitalCertificate(input: {
   readonly dependencies: ReplaceDigitalCertificateDependencies
   readonly request: ReplaceDigitalCertificateInput
-}): Promise<DigitalCertificateResult> {
+}): Promise<{ readonly certificate: DigitalCertificateResult; readonly replayed: boolean }> {
   const companyId = input.request.context.companyId
   const fingerprint = await input.dependencies.fingerprintService.create({
     fields: [
@@ -68,10 +71,10 @@ async function replaceDigitalCertificate(input: {
     lookup: { companyId, idempotencyKey: input.request.idempotencyKey, operation: OPERATION },
     repository: input.dependencies.repository,
   })
-  if (replay !== null) return replay
+  if (replay !== null) return { certificate: replay, replayed: true }
 
   const validated = await validateAndEncrypt({ ...input, companyId, fingerprint })
-  return input.dependencies.repository.execute((transaction) =>
+  return await input.dependencies.repository.execute((transaction) =>
     persistDigitalCertificateRotation({ request: input.request, transaction, validated }),
   )
 }

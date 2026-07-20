@@ -16,7 +16,7 @@ export async function persistDigitalCertificateRotation(input: {
   readonly request: ReplaceDigitalCertificateInput
   readonly transaction: DigitalCertificateTransactionPort
   readonly validated: ValidatedCertificate
-}): Promise<DigitalCertificateResult> {
+}): Promise<{ readonly certificate: DigitalCertificateResult; readonly replayed: boolean }> {
   const replay = await resolveDigitalCertificateReplay({
     fingerprint: input.validated.fingerprint,
     lookup: {
@@ -26,7 +26,7 @@ export async function persistDigitalCertificateRotation(input: {
     },
     repository: input.transaction,
   })
-  if (replay !== null) return replay
+  if (replay !== null) return { certificate: replay, replayed: true }
 
   const profile = await input.transaction.lockCompanyProfile({
     companyId: input.validated.companyId,
@@ -34,7 +34,7 @@ export async function persistDigitalCertificateRotation(input: {
   if (profile?.cnpj !== input.validated.validatedCnpj) {
     throw new DigitalCertificateRejectedError()
   }
-  return await rotateAndRecord(input)
+  return { certificate: await rotateAndRecord(input), replayed: false }
 }
 
 async function rotateAndRecord(input: {

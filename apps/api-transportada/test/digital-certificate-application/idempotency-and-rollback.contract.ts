@@ -23,6 +23,24 @@ import {
 import type { DigitalCertificateSecretService } from '../fixtures/digital-certificate-port.fixture'
 
 describe('digital certificate idempotency and rollback contract', () => {
+  test('reports first execution and replay outcomes without retaining request buffers', async () => {
+    const fixture = await createReplaceUseCaseFixture()
+    const firstInput = createReplaceInput()
+    const replayInput = createReplaceInput()
+    const first = await fixture.useCase.executeWithOutcome(firstInput)
+    const replay = await fixture.useCase.executeWithOutcome(replayInput)
+
+    expect(first.replayed).toBe(false)
+    expect(replay.replayed).toBe(true)
+    expect(replay.certificate).toEqual(first.certificate)
+    expectCleared(
+      firstInput.certificate,
+      firstInput.password,
+      replayInput.certificate,
+      replayInput.password,
+    )
+  })
+
   test('replays without validation, encryption, mutation, or duplicate audit', async () => {
     const fixture = await createReplaceUseCaseFixture()
     const firstInput = createReplaceInput()

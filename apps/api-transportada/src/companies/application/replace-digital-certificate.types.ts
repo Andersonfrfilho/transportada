@@ -41,4 +41,8 @@ export type ValidatedCertificate = {
 
 export type ReplaceDigitalCertificateUseCase = {
   readonly execute: (input: ReplaceDigitalCertificateInput) => Promise<DigitalCertificateResult>
+  readonly executeWithOutcome: (input: ReplaceDigitalCertificateInput) => Promise<{
+    readonly certificate: DigitalCertificateResult
+    readonly replayed: boolean
+  }>
 }

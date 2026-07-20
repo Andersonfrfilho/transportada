@@ -10,8 +10,10 @@ import {
 } from '../../database/database.schema.js'
 import type {
   DigitalCertificateAuditRecord,
+  DigitalCertificateCursor,
   DigitalCertificateIdempotencyLookup,
   DigitalCertificateIdempotencyRecord,
+  DigitalCertificateMetadata,
   DigitalCertificateRepositoryPort,
   DigitalCertificateTransactionPort,
 } from '../application/digital-certificate.port.js'
@@ -20,6 +22,7 @@ import {
   serializeDigitalCertificateResponse,
 } from './drizzle-digital-certificate.mapper.js'
 import { replaceDigitalCertificate } from './drizzle-digital-certificate.persistence.js'
+import { listDigitalCertificates } from './drizzle-digital-certificate-listing.service.js'
 import type {
   DigitalCertificateDatabase,
   DigitalCertificateQueryable,
@@ -48,6 +51,17 @@ export class DrizzleDigitalCertificateRepository implements DigitalCertificateRe
     input: DigitalCertificateIdempotencyLookup,
   ): Promise<DigitalCertificateIdempotencyRecord | null> {
     return findIdempotency({ database: this.database, lookup: input })
+  }
+
+  public async list(input: {
+    readonly companyId: string
+    readonly cursor?: DigitalCertificateCursor
+    readonly limit: number
+  }): Promise<{
+    readonly items: readonly DigitalCertificateMetadata[]
+    readonly nextCursor?: DigitalCertificateCursor
+  }> {
+    return await listDigitalCertificates({ ...input, database: this.database })
   }
 }
 

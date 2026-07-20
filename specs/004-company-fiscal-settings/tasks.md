@@ -86,7 +86,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T017 Escrever contracts de validação e rotação do A1.
 - [x] T018 Implementar serviço e persistência de certificado.
 - [x] T018A Escrever contracts HTTP de certificados.
-- [ ] T019 Expor POST/GET de certificados e CORS estrito.
+- [x] T019 Expor POST/GET de certificados e CORS estrito.
 - [ ] T020 Escrever contracts concorrentes da sequência.
 - [ ] T021 Implementar porta interna de reserva e ledger.
 - [ ] T022 Escrever contracts do módulo frontend.

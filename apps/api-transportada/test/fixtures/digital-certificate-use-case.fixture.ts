@@ -25,6 +25,10 @@ import { DigitalCertificateRepositoryFixture } from './digital-certificate-repos
 
 type ReplaceDigitalCertificateUseCase = {
   readonly execute: (input: ReplaceDigitalCertificateInput) => Promise<DigitalCertificateResult>
+  readonly executeWithOutcome: (input: ReplaceDigitalCertificateInput) => Promise<{
+    readonly certificate: DigitalCertificateResult
+    readonly replayed: boolean
+  }>
 }
 
 type UseCaseDependencies = {
