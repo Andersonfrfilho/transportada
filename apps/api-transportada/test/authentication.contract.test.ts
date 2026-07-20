@@ -12,6 +12,7 @@ import type {
 } from '../src/identity/application/identity.port'
 import { createKeycloakAccessTokenVerifier } from '../src/identity/infrastructure/keycloak-jwt.gateway'
 import { ApiError } from '../src/shared/api.error'
+import { CRYPTOGRAPHIC_ENVIRONMENT } from './fixtures/cryptographic-environment.fixture'
 
 const TOKEN = 'header.payload.signature'
 const ISSUER = 'http://localhost:58080/realms/transportada-local'
@@ -31,6 +32,7 @@ describe('authentication contract', () => {
       KEYCLOAK_ISSUER: ISSUER,
       KEYCLOAK_JWKS_URI: `${ISSUER}/protocol/openid-connect/certs`,
       LOG_LEVEL: 'error',
+      ...CRYPTOGRAPHIC_ENVIRONMENT,
     })
 
     expect(environment.keycloak).toEqual({

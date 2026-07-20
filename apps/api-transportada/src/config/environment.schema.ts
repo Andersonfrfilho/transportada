@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import type { ApiEnvironment } from '../shared/api.types'
+import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 
@@ -33,9 +34,11 @@ const environmentSchema = z.object({
 
 export function parseEnvironment(environment: Record<string, string | undefined>): ApiEnvironment {
   const parsed = environmentSchema.parse(environment)
+  const cryptography = parseCryptographicConfiguration(environment)
 
   return {
     appEnv: parsed.APP_ENV,
+    cryptography,
     databaseUrl: parsed.DATABASE_URL,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     keycloak: {

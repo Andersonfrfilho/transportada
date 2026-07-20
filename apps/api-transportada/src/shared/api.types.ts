@@ -3,11 +3,13 @@
  */
 import type { LogLevel } from '@adatechnology/logger'
 
+import type { CryptographicConfiguration } from '../config/cryptographic-configuration.schema'
 import type { CompanyRole } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
 export type ApiEnvironment = {
   readonly appEnv: string
+  readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   readonly frontendOrigin: string
   readonly keycloak: {

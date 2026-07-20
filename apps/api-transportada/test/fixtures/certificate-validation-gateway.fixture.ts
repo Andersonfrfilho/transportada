@@ -10,6 +10,8 @@ export const CERTIFICATE_INPUT = {
   password: 'synthetic-password',
 } as const
 
+const PROVIDER_DIAGNOSTIC = 'provider diagnostic must stay internal'
+
 export const ACCEPTED_VALIDATION = {
   canSign: true,
   cnpj: '11222333000181',
@@ -34,57 +36,114 @@ const validationWith = (overrides: Partial<CertificateValidation>): CertificateV
   ...overrides,
 })
 
-const createValidationWithoutCnpj = (): CertificateValidation => {
-  const validation = validationWith({})
+const createValidationWithoutCnpj = (
+  overrides: Partial<CertificateValidation> = {},
+): CertificateValidation => {
+  const validation = validationWith(overrides)
   const { cnpj, ...validationWithoutCnpj } = validation
   void cnpj
   return validationWithoutCnpj
 }
 
+const PROVIDER_OPEN_FAILURE_VALIDATION = {
+  canSign: false,
+  errors: [PROVIDER_DIAGNOSTIC],
+  expiresAt: new Date(0),
+  hasClientAuth: false,
+  hasCnpj: false,
+  hasCpf: false,
+  hasPrivateKey: false,
+  isExpired: false,
+  isIcpBrasil: false,
+  isNotYetValid: false,
+  issuer: '',
+  subject: '',
+  valid: false,
+  validFrom: new Date(0),
+  warnings: [],
+} satisfies CertificateValidation
+
+const SPECIFIC_REJECTION_SCENARIOS = [
+  {
+    expectedCode: 'CERTIFICATE_EXPIRED',
+    name: 'certificate is expired',
+    overrides: { isExpired: true },
+  },
+  {
+    expectedCode: 'CERTIFICATE_NOT_YET_VALID',
+    name: 'certificate is not yet valid',
+    overrides: { isNotYetValid: true },
+  },
+  {
+    expectedCode: 'CERTIFICATE_NOT_ICP_BRASIL',
+    name: 'certificate is not ICP-Brasil',
+    overrides: { isIcpBrasil: false },
+  },
+  {
+    expectedCode: 'CERTIFICATE_PRIVATE_KEY_MISSING',
+    name: 'certificate has no private key',
+    overrides: { hasPrivateKey: false },
+  },
+  {
+    expectedCode: 'CERTIFICATE_SIGNATURE_UNAVAILABLE',
+    name: 'certificate cannot sign',
+    overrides: { canSign: false },
+  },
+] as const
+
+const specificRejectionScenarios = SPECIFIC_REJECTION_SCENARIOS.flatMap(
+  ({ expectedCode, name, overrides }) => [
+    {
+      expectedCode,
+      name: `${name} despite valid=true`,
+      validation: validationWith(overrides),
+    },
+    {
+      expectedCode,
+      name: `${name} in a provider-realistic invalid result`,
+      validation: validationWith({
+        ...overrides,
+        errors: [PROVIDER_DIAGNOSTIC],
+        valid: false,
+      }),
+    },
+  ],
+)
+
 export const REJECTION_SCENARIOS = [
+  {
+    expectedCode: 'CERTIFICATE_INVALID',
+    name: 'provider cannot open the PFX or password',
+    validation: PROVIDER_OPEN_FAILURE_VALIDATION,
+  },
   {
     expectedCode: 'CERTIFICATE_INVALID',
     name: 'provider marks the certificate invalid',
     validation: validationWith({
-      errors: ['provider diagnostic must stay internal'],
+      errors: [PROVIDER_DIAGNOSTIC],
       valid: false,
-      warnings: ['provider diagnostic must stay internal'],
+      warnings: [PROVIDER_DIAGNOSTIC],
     }),
   },
-  {
-    expectedCode: 'CERTIFICATE_EXPIRED',
-    name: 'certificate is expired despite valid=true',
-    validation: validationWith({ isExpired: true }),
-  },
-  {
-    expectedCode: 'CERTIFICATE_NOT_YET_VALID',
-    name: 'certificate is not yet valid despite valid=true',
-    validation: validationWith({ isNotYetValid: true }),
-  },
-  {
-    expectedCode: 'CERTIFICATE_NOT_ICP_BRASIL',
-    name: 'certificate is not ICP-Brasil despite valid=true',
-    validation: validationWith({ isIcpBrasil: false }),
-  },
-  {
-    expectedCode: 'CERTIFICATE_PRIVATE_KEY_MISSING',
-    name: 'certificate has no private key despite valid=true',
-    validation: validationWith({ hasPrivateKey: false }),
-  },
+  ...specificRejectionScenarios,
   {
     expectedCode: 'CERTIFICATE_CNPJ_MISSING',
     name: 'provider reports no CNPJ despite valid=true',
-    validation: validationWith({ hasCnpj: false }),
+    validation: createValidationWithoutCnpj({ hasCnpj: false }),
+  },
+  {
+    expectedCode: 'CERTIFICATE_CNPJ_MISSING',
+    name: 'provider reports no CNPJ in a realistic invalid result',
+    validation: createValidationWithoutCnpj({
+      errors: [PROVIDER_DIAGNOSTIC],
+      hasCnpj: false,
+      valid: false,
+    }),
   },
   {
     expectedCode: 'CERTIFICATE_CNPJ_MISSING',
     name: 'provider omits the CNPJ value despite hasCnpj=true',
     validation: createValidationWithoutCnpj(),
-  },
-  {
-    expectedCode: 'CERTIFICATE_SIGNATURE_UNAVAILABLE',
-    name: 'certificate cannot sign despite valid=true',
-    validation: validationWith({ canSign: false }),
   },
 ] as const
 

@@ -575,3 +575,93 @@ inválidas estavam combinadas. O contract passou a observar causalmente o export
 público com `spyOn` restaurável, vigiar `console` e logger Ada e testar cada
 flag crítica isoladamente. A revisão final validou o comportamento
 CommonJS/ESM no Bun 1.3.14 e aprovou sem novos P0–P2.
+
+## T012 — Gateway fiscal e configuração criptográfica
+
+Executor e revisão independente: Codex Sol high.
+
+Implementação:
+
+- port interno expõe somente resultado seguro, datas, CNPJ e códigos de
+  rejeição estáveis;
+- o único adapter fiscal importa `validateCertificate` e seu tipo somente da
+  raiz pública de `@adatechnology/fiscal-provider@0.1.0`;
+- flags críticas, erro lançado, diagnóstico e resultado inconsistente falham
+  fechados; metadados só existem no resultado aceito e datas são copiadas;
+- configuração exige keyring JSON não vazio, IDs simples, chave ativa
+  existente e chaves AES de exatamente 32 bytes em base64 canônico;
+- `SecretKeyRing` vem do export raiz público de
+  `@adatechnology/secret-envelope@0.1.0`, sem contrato duplicado;
+- a chave HMAC também exige 32 bytes canônicos e não pode reutilizar nenhuma
+  chave AES ativa ou anterior;
+- qualquer falha criptográfica vira um erro tipado genérico, sem repetir nome
+  de chave, JSON ou material secreto;
+- `parseEnvironment` torna as três variáveis obrigatórias no startup; Makefile,
+  `.env.example` e README documentam o contrato local fail-closed;
+  `make config` sourceia o dotenv e executa o parser real sem imprimir valores.
+
+Evidência TDD e local:
+
+```text
+bun test test/cryptographic-environment.contract.test.ts
+0 pass, 1 fail
+única falha RED: cryptographic-configuration.error ausente
+
+bun test test/cryptographic-environment.contract.test.ts \
+  test/certificate-validation-gateway.contract.test.ts
+27 pass, 0 fail, 187 assertions
+
+bun run --cwd apps/api-transportada check
+138 pass, 1 conditional database skip, 0 fail, 831 assertions
+lint + typecheck + build: exit 0
+
+make check
+API: 138 pass, 1 conditional database skip, 0 fail
+worker: 22 pass, 0 fail
+frontend: 17 pass, 0 fail
+format + lint + typecheck + tests + builds: exit 0
+
+bun run --cwd apps/api-transportada test:integration
+25 pass, 0 fail, 291 assertions
+
+bun run format:check && git diff --check
+exit 0
+
+make config
+source do .env local + parseEnvironment: exit 0
+
+make config ENV_FILE=.env.example
+source dotenv + parseEnvironment, 5 realm contracts e Compose válidos
+
+make down
+5 realm contracts válidos; container e rede locais removidos
+```
+
+O contract de configuração integra o script agregado `test`. Todos os valores
+versionados são fixtures públicas sintéticas. O `.env` local ignorado foi
+migrado para o novo contrato com material exclusivamente local, sem imprimir
+nem versionar seus valores. Railway, PFX, senha, SEFAZ, emissão, HMAC de
+payload, persistência, endpoint, fila e exchange não foram acessados nem
+implementados.
+
+A revisão encontrou um P1 reproduzível: IDs ativos herdados de
+`Object.prototype`, como `constructor` e `toString`, eram aceitos mesmo sem
+existirem no keyring. Contracts regressivos falharam antes da correção; o lookup
+passou a exigir `Object.hasOwn`.
+
+Uma segunda revisão comparou as fixtures com o source do provider 0.1.0 e
+encontrou dois P1. O provider real retorna `valid=false` e `errors` também para
+expiração, vigência futura, ICP-Brasil, chave privada, CNPJ e assinatura; por
+isso cada flag agora é testada tanto na forma inconsistente `valid=true` quanto
+na forma realista. O adapter reconhece estruturalmente a falha de abertura pelo
+sentinela de datas epoch e DN vazio, sem comparar texto do diagnóstico, e
+preserva os códigos específicos após um parse real. O outro P1 mostrou que JSON
+sem aspas externas perde suas aspas ao source do shell. O exemplo passou a usar
+aspas simples externas, e tanto o source direto seguido de `parseEnvironment`
+quanto `make config ENV_FILE=.env.example` ficaram verdes. Os gates acima foram
+repetidos depois das correções.
+
+A revisão final foi aprovada sem P0–P2. Como observação P3 não bloqueante para a
+T013, o consumidor de HMAC deverá copiar o `Uint8Array` recebido e minimizar o
+tempo de vida e as referências ao material secreto; o `SecretKeyRing` já
+mantém seu próprio snapshot das chaves AES.

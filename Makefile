@@ -19,6 +19,7 @@ KEYCLOAK_AUDIENCE := $(shell sed -n 's/^KEYCLOAK_AUDIENCE=//p' $(ENV_FILE) 2>/de
 KEYCLOAK_ADMIN_USERNAME := $(shell sed -n 's/^KEYCLOAK_ADMIN_USERNAME=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_ADMIN_PASSWORD := $(shell sed -n 's/^KEYCLOAK_ADMIN_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_LOCAL_USER_PASSWORD := $(shell sed -n 's/^KEYCLOAK_LOCAL_USER_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
+ENCRYPTION_ACTIVE_KEY_ID := $(shell sed -n 's/^ENCRYPTION_ACTIVE_KEY_ID=//p' $(ENV_FILE) 2>/dev/null)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
@@ -50,6 +51,11 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(KEYCLOAK_ADMIN_USERNAME)"
 	@test -n "$(KEYCLOAK_ADMIN_PASSWORD)"
 	@test -n "$(KEYCLOAK_LOCAL_USER_PASSWORD)"
+	@test -n "$(ENCRYPTION_ACTIVE_KEY_ID)"
+	@grep -q '^ENCRYPTION_KEYRING_JSON=.' "$(ENV_FILE)"
+	@grep -q '^IDEMPOTENCY_HMAC_KEY=.' "$(ENV_FILE)"
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		bun -e 'import { parseEnvironment } from "./apps/api-transportada/src/config/environment.schema.ts"; parseEnvironment(process.env)'
 	@test "$$(bun --version)" = "$(BUN_VERSION)"
 	@test "$(COMPOSE_PROJECT_NAME)" = "$(PROJECT_NAME)-$(APP_ENV)"
 	@$(COMPOSE) config --quiet

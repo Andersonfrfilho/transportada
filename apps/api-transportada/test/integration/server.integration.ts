@@ -9,6 +9,7 @@ import type { AuthenticationPort } from '../../src/identity/application/identity
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
 const databaseUrl = process.env.API_TEST_DATABASE_URL ?? process.env.DATABASE_URL
@@ -55,6 +56,7 @@ const tenantContext = new TenantContextService({
 const server = startApiServer({
   config: {
     appEnv: 'test',
+    cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     frontendOrigin: 'http://localhost:53000',
     keycloak: {

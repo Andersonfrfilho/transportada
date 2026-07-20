@@ -18,6 +18,7 @@ import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/d
 import { HealthService } from '../../src/health/health.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
 const databaseUrl = process.env.API_TEST_DATABASE_URL ?? process.env.DATABASE_URL
@@ -77,6 +78,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         server = startApiServer({
           config: {
             appEnv: 'test',
+            cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
             frontendOrigin: 'http://localhost:53000',
             keycloak: {

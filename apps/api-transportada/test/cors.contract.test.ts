@@ -11,6 +11,7 @@ import { TenantContextService } from '../src/identity/application/tenant-context
 import type { MembershipRepositoryPort } from '../src/identity/application/tenant-context.port'
 import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
+import { CRYPTOGRAPHIC_ENVIRONMENT } from './fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from './fixtures/http-router.fixture'
 
 const FRONTEND_ORIGIN = 'http://localhost:53000'
@@ -325,6 +326,7 @@ function environmentWith(frontendOrigin: string | undefined): Record<string, str
     KEYCLOAK_ISSUER: 'https://identity.example.test/realms/transportada',
     KEYCLOAK_JWKS_URI: 'https://identity.example.test/realms/transportada/certs',
     LOG_LEVEL: 'error',
+    ...CRYPTOGRAPHIC_ENVIRONMENT,
   }
 }
 
