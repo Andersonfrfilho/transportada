@@ -515,3 +515,63 @@ sem novos P0–P2.
 
 Nenhum endpoint fiscal, migration, frontend, package, Railway, certificado,
 PFX, senha, S3 ou SEFAZ foi acessado.
+
+## T011 — Contract do gateway fiscal público
+
+Executor e revisão independente: Codex Sol high.
+
+O artefato realmente instalado foi inspecionado em
+`node_modules/.bun/@adatechnology+fiscal-provider@0.1.0`. Seu
+`dist/index.d.ts` exporta `validateCertificate` e `CertificateValidation` pela
+raiz pública; a função é síncrona e recebe somente base64 e senha. Nenhum
+internal `src/sefaz/*` foi importado.
+
+Contracts:
+
+- a dependência da API permanece fixada exatamente em `0.1.0`;
+- função e tipo do validator compilam a partir de
+  `@adatechnology/fiscal-provider`;
+- um `spyOn` restaurável no namespace público prova causalmente que a factory
+  default chama `validateCertificate` com material sintético opaco somente em
+  memória, sem substituir persistentemente o módulo;
+- resultado aceito expõe apenas CNPJ, validade e datas;
+- cada flag crítica é testada isoladamente e fecha a validação mesmo diante de
+  um `valid=true` inconsistente;
+- certificado expirado, ainda não válido, não ICP-Brasil, sem chave privada,
+  sem CNPJ declarado/real ou incapaz de assinatura recebe somente seu código
+  interno mínimo;
+- errors, warnings, issuer, subject e diagnóstico lançado não atravessam o
+  gateway nem chegam a `console` ou ao logger Ada.
+
+O contract foi registrado no script `test` e suas fixtures sintéticas foram
+separadas para manter os arquivos abaixo de 200 linhas. Nenhum port, adapter ou
+código de runtime foi implementado nesta task.
+
+Evidência RED:
+
+```text
+bun test test/certificate-validation-gateway.contract.test.ts
+2 pass, 1 fail
+única falha: fiscal-certificate-validation.gateway.js ausente
+
+bun run test
+113 pass, 1 skip condicional, 1 fail
+única falha: fiscal-certificate-validation.gateway.js ausente
+
+bun run typecheck
+somente TS2307 para fiscal-certificate-validation.gateway.js ausente
+
+eslint + prettier + git diff --check
+exit 0
+```
+
+A T012 implementará o port e o adapter e restaurará os gates agregados. Os
+testes usam apenas strings sintéticas; nenhum Railway, certificado, PFX, senha
+real, S3 ou SEFAZ foi acessado.
+
+A primeira revisão encontrou dois P1 e um P2: o import textual não provava o
+binding público, diagnósticos ainda poderiam chegar aos logs e todas as flags
+inválidas estavam combinadas. O contract passou a observar causalmente o export
+público com `spyOn` restaurável, vigiar `console` e logger Ada e testar cada
+flag crítica isoladamente. A revisão final validou o comportamento
+CommonJS/ESM no Bun 1.3.14 e aprovou sem novos P0–P2.

@@ -77,7 +77,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T008 Implementar schema, migration aditiva e rollback.
 - [x] T009 Escrever contracts do router modular e deny-by-default.
 - [x] T010 Extrair router modular sem mudar contratos existentes.
-- [ ] T011 Escrever contract do gateway fiscal público 0.1.0.
+- [x] T011 Escrever contract do gateway fiscal público 0.1.0.
 - [ ] T012 Implementar gateway fiscal e configuração criptográfica.
 - [ ] T013 Escrever contracts de perfil, idempotência e auditoria.
 - [ ] T014 Implementar repositórios e casos de uso de configurações.
