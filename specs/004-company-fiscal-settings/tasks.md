@@ -88,7 +88,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T018A Escrever contracts HTTP de certificados.
 - [x] T019 Expor POST/GET de certificados e CORS estrito.
 - [x] T020 Escrever contracts concorrentes da sequência.
-- [ ] T021 Implementar porta interna de reserva e ledger.
+- [x] T021 Implementar porta interna de reserva e ledger.
 - [ ] T022 Escrever contracts do módulo frontend.
 - [ ] T023 Implementar tela Vite de configurações fiscais.
 - [ ] T024 Validar jornada e ausência de segredo com Playwright.

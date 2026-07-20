@@ -40,15 +40,19 @@ testWithPostgres(
         reservationKey: 'append-only-first',
       })
       await expect(
-        fixture.database.db
-          .update(fiscalSequenceReservations)
-          .set({ number: INITIAL_NUMBER + 100n })
-          .where(eq(fiscalSequenceReservations.id, reservationId)),
+        Promise.resolve(
+          fixture.database.db
+            .update(fiscalSequenceReservations)
+            .set({ number: INITIAL_NUMBER + 100n })
+            .where(eq(fiscalSequenceReservations.id, reservationId)),
+        ),
       ).rejects.toThrow()
       await expect(
-        fixture.database.db
-          .delete(fiscalSequenceReservations)
-          .where(eq(fiscalSequenceReservations.companyId, fixture.companyId)),
+        Promise.resolve(
+          fixture.database.db
+            .delete(fiscalSequenceReservations)
+            .where(eq(fiscalSequenceReservations.companyId, fixture.companyId)),
+        ),
       ).rejects.toThrow()
 
       const second = await fixture.reservationPort.reserve(

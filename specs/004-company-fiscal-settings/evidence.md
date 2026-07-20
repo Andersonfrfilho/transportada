@@ -1279,3 +1279,62 @@ máximo 186 linhas e as funções revisadas no máximo 40. A falha do ledger e o
 dados são exclusivamente sintéticos e usam banco descartável. Nenhum PFX,
 senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy
 participou da T020.
+
+## T021 — Porta interna de reserva e ledger
+
+Executor e revisão independente: Codex Sol high.
+
+Implementação:
+
+- a porta interna recebe explicitamente
+  `(companyId, environment, model, series, reservationKey)` e não seleciona uma
+  sequência ativa implicitamente;
+- uma transação procura replay tenant-scoped, atualiza atomicamente a sequência
+  exata com `lastReservedNumber=nextNumber`, incrementa `nextNumber/version` e
+  usa `RETURNING` para obter o número reservado;
+- a linha append-only do ledger é inserida na mesma transação do incremento;
+- replay compara ambiente, modelo e série completos antes de retornar o mesmo
+  número e `sequenceId`;
+- somente SQLSTATE `23505` da constraint
+  `fiscal_sequence_reservations_company_id_reservation_key_unique`, inclusive
+  quando encapsulada em `cause`, ativa recovery após o rollback;
+- o recovery abre uma nova transação, relê ledger e sequência e retorna replay
+  ou conflito `409` seguro para intenção divergente;
+- qualquer outra unique violation ou erro de ledger é propagado e reverte o
+  incremento; sequência ausente também retorna conflito sem detalhes internos;
+- nenhuma rota HTTP, tabela, migration, auditoria genérica, fila ou serviço
+  assíncrono foi adicionado.
+
+Durante o primeiro GREEN, o contract append-only revelou um defeito no matcher:
+o builder Drizzle é thenable, mas `expect(...).rejects` do Bun exige uma
+`Promise` nativa. O teste passou a usar `Promise.resolve(builder)`, executando
+de fato UPDATE/DELETE contra o trigger sem alterar sua intenção. A revisão
+independente aprovou a implementação e essa correção sem achados P0–P3.
+
+Evidência local final:
+
+```text
+bun test ./test/fiscal-sequence.integration.ts
+7 pass, 0 fail, 39 assertions
+
+bun run --cwd apps/api-transportada test:integration
+36 pass, 0 fail, 374 assertions
+
+bun run --cwd apps/api-transportada check
+291 pass, 1 skip condicional de migration, 0 fail, 1725 assertions
+lint, typecheck e build verdes
+
+make postgres-up
+PostgreSQL local healthy sob transportada-local
+
+make down
+container e rede locais removidos
+
+Prettier e git diff --check
+exit 0
+```
+
+Os três arquivos de produção têm 20, 67 e 136 linhas; as funções revisadas têm
+no máximo 40. Foram usados somente dados sintéticos e bancos descartáveis.
+Nenhum PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou
+deploy participou da T021.
