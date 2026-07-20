@@ -282,3 +282,42 @@ backup/restauração e a revalidação declarou zero P0/P1.
 | `git diff --cached --check`    | aprovado              |
 
 Nenhuma versão foi alterada ou publicada e nenhum lockfile entrou no commit.
+
+## T005 — Contracts do object-storage-provider
+
+Data: 2026-07-20
+
+Commit local no repositório `adatechnology-packages`:
+
+```text
+9b2e67f test(object-storage): define immutable s3 contract
+```
+
+O novo package `@adatechnology/object-storage-provider` fixa uma API pública
+Bun-first e S3 compatível antes da implementação. Os contracts usam somente um
+servidor S3 sintético em memória, iniciado em porta dinâmica, e cobrem:
+
+- escrita obrigatoriamente create-only com `If-None-Match: *`;
+- replay da mesma key/hash e conflito fatal de hash divergente sem overwrite;
+- bytes e `ReadableStream`, preservação do conteúdo, tamanho, SHA-256 e MIME;
+- validação de bucket, key absoluta, backslash, traversal e header injection;
+- `put`, `get`, `head`, `delete` idempotente e metadados sem estado transitório;
+- path-style, health, close idempotente e rejeição após shutdown;
+- URL privada assinada com expiração entre 1 e 300 segundos;
+- erros tipados e mensagens sem credencial, endpoint, bucket ou key.
+
+### Evidência vermelha esperada
+
+| Gate                                            | Resultado                                  |
+| ----------------------------------------------- | ------------------------------------------ |
+| `bun run check`                                 | aprovado                                   |
+| `bun run format:check`                          | aprovado                                   |
+| `bunx eslint src test`                          | aprovado                                   |
+| `bun test test/object-storage.contract.test.ts` | 0 passou, 10 falharam por capacidade stub  |
+| `git diff --cached --check`                     | aprovado                                   |
+| hook pre-commit ESLint/Prettier                 | aprovado após corrigir os dois lint errors |
+
+O teste agregado do package aponta para o mesmo contract. Nenhuma dependência
+foi instalada, nenhum lockfile foi alterado e nenhum segredo, PFX, XML real ou
+alteração preexistente do repositório entrou no commit. O commit vermelho fica
+local até a T006 implementar e deixar o package verde.
