@@ -51,10 +51,11 @@ describe('digital certificate idempotency and rollback contract', () => {
     const expected = await expectedFingerprint(key)
     expect(record?.operation).toBe('digital-certificate.replace')
     expect(record?.fingerprint).toBe(expected)
-    expect(JSON.stringify({ audits: fixture.repository.audits, record })).not.toContain(SECRET_TEXT)
-    expect(JSON.stringify(record)).not.toContain('certificateBase64')
-    expect(JSON.stringify(record)).not.toContain('password')
-    expect(JSON.stringify(record)).not.toContain('secretEnvelope')
+    const persisted = stringifyWithBigInt({ audits: fixture.repository.audits, record })
+    expect(persisted).not.toContain(SECRET_TEXT)
+    expect(persisted).not.toContain('certificateBase64')
+    expect(persisted).not.toContain('password')
+    expect(persisted).not.toContain('secretEnvelope')
   })
 
   test('rejects a divergent replay without revealing tenant or request details', async () => {
@@ -162,4 +163,10 @@ function frame(fields: readonly Uint8Array[]): Uint8Array {
 
 function expectCleared(...buffers: readonly Uint8Array[]): void {
   for (const buffer of buffers) expect([...buffer]).toEqual(new Array(buffer.byteLength).fill(0))
+}
+
+function stringifyWithBigInt(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) =>
+    typeof item === 'bigint' ? item.toString() : item,
+  )
 }

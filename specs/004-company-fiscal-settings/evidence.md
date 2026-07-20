@@ -983,3 +983,72 @@ O agregador está registrado no script `test`. Todos os arquivos têm no máximo
 real informado pelo usuário e sua senha não foram acessados, copiados ou
 registrados. Nenhum SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy
 participou da T017.
+
+## T018 — Serviço e persistência do certificado
+
+Executor: Codex Sol high. Revisão de segurança e re-revisão independente:
+Codex Sol high.
+
+Implementação:
+
+- caso de uso deriva empresa e ator somente do `CompanyContext`, calcula HMAC
+  sobre os bytes originais e resolve replay antes de validar ou cifrar;
+- gateway fiscal T012 valida localmente o PFX; CNPJ, validade e resultado são
+  rechecados sem expor detalhes do provider;
+- serviço de segredo usa o AAD canônico, DTO plaintext estrito, base64
+  canônico, senha UTF-8 de 1–256 bytes e envelope persistível allowlisted;
+- cifragem ocorre antes da transação; buffers mutáveis, plaintext, AAD e
+  framing HMAC são zerados em `finally` best effort;
+- transação Drizzle bloqueia primeiro a chave idempotente e depois o perfil da
+  empresa, revalida CNPJ, aposenta o envelope anterior e insere uma versão
+  monotônica ativa;
+- índices únicos permanecem como defesa adicional para versão e único ativo;
+- auditoria e resposta idempotente allowlisted são gravadas na mesma transação;
+- JSONB idempotente serializa datas e `bigint` explicitamente e faz parsing
+  estrito no replay;
+- repositório e queries usam predicados tenant-scoped e não foram ligados ao
+  HTTP, que pertence às T018A/T019.
+
+A implementação inicial passou os 19 contracts T017. A revisão encontrou dois
+P2: a cópia framed do HMAC não era zerada e o envelope retornado pelo provider
+podia conter campos extras antes do JSONB. Dois contracts regressivos falharam
+primeiro; `finally` passou a zerar o framing e um schema estrito passou a
+validar/copiar somente `version`, `algorithm`, `keyId`, `nonce` e `ciphertext`.
+A re-revisão encerrou os dois P2 sem novos achados P0–P3.
+
+O contract T017 de ausência de segredo também foi corrigido para serializar
+`bigint` com replacer decimal; antes disso, `JSON.stringify` falhava antes da
+asserção sem representar defeito na implementação.
+
+Evidência local final:
+
+```text
+bun test test/digital-certificate-application.contract.test.ts
+20 pass, 0 fail, 171 assertions
+
+bun test test/company-settings-application.contract.test.ts
+16 pass, 0 fail, 69 assertions
+
+bun run --cwd apps/api-transportada check
+261 pass, 1 skip condicional de migration, 0 fail, 1384 assertions
+lint, typecheck e build verdes
+
+bun run --cwd apps/api-transportada test:integration
+27 pass, 1 skip condicional de migration, 0 fail, 254 assertions
+
+integração T018 em PostgreSQL descartável
+rotação concorrente 1/2, um ativo, replay sem efeito, rollback e isolamento
+
+make postgres-up
+PostgreSQL local healthy sob transportada-local
+
+make down
+container e rede locais removidos
+
+Prettier e git diff --check
+exit 0
+```
+
+Todos os arquivos têm no máximo 176 linhas. Nenhum PFX ou senha real, XML
+fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy participou da
+T018.

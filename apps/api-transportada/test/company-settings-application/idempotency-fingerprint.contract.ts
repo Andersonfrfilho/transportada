@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 
 const TEXT_ENCODER = new TextEncoder()
 const HMAC_KEY = Uint8Array.from({ length: 32 }, (_value, index) => index + 1)
@@ -65,6 +65,26 @@ describe('idempotency fingerprint contract', () => {
 
     expect(await service.create(input)).toBe(await (await createService(HMAC_KEY)).create(input))
   })
+
+  test('clears the framed copy after signing sensitive fields', async () => {
+    let framed: Uint8Array | undefined
+    const sign = spyOn(crypto.subtle, 'sign').mockImplementation(async (_algorithm, _key, data) => {
+      framed = asByteView(data)
+      return new ArrayBuffer(32)
+    })
+    try {
+      const service = await createService(HMAC_KEY)
+      await service.create({
+        fields: [TEXT_ENCODER.encode('synthetic-certificate-and-password')],
+        operation: 'digital-certificate.replace',
+      })
+    } finally {
+      sign.mockRestore()
+    }
+
+    expect(framed).toBeDefined()
+    expect(framed && [...framed]).toEqual(new Array(framed?.byteLength ?? 0).fill(0))
+  })
 })
 
 async function createService(key: Uint8Array): Promise<FingerprintService> {
@@ -109,4 +129,9 @@ function frame(fields: readonly Uint8Array[]): Uint8Array {
     offset += field.byteLength
   }
   return framed
+}
+
+function asByteView(data: ArrayBuffer | ArrayBufferView): Uint8Array {
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
 }

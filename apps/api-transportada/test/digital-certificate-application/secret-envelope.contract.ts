@@ -112,6 +112,21 @@ describe('digital certificate secret envelope application contract', () => {
     })
     expect(Object.keys(plaintext).sort()).toEqual(['certificateBase64', 'password'])
   })
+
+  test('rejects a provider envelope with fields outside the persistence allowlist', async () => {
+    const service = await createSecretService({
+      async decrypt() {
+        throw new Error('decrypt should not run')
+      },
+      async encrypt() {
+        return { ...syntheticEnvelope(), unexpectedSecret: SECRET_TEXT }
+      },
+    })
+
+    const error = await captureApiError(() => service.encrypt(secretInput()))
+
+    expectSafeUnavailable(error)
+  })
 })
 
 function secretInput() {

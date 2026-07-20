@@ -16,8 +16,12 @@ export function createIdempotencyFingerprintService(input: {
   return {
     async create({ fields, operation }) {
       const framed = frame([DOMAIN, TEXT_ENCODER.encode(operation), ...fields])
-      const signature = await crypto.subtle.sign('HMAC', await cryptographicKey, framed)
-      return Buffer.from(signature).toString('base64url')
+      try {
+        const signature = await crypto.subtle.sign('HMAC', await cryptographicKey, framed)
+        return Buffer.from(signature).toString('base64url')
+      } finally {
+        framed.fill(0)
+      }
     },
   }
 }
