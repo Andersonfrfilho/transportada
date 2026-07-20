@@ -739,3 +739,72 @@ confirmou lint, formato e RED exclusivamente causal e aprovou sem P0–P2.
 Todos os dados são sintéticos. Nenhum código de produção, banco, Railway, SEFAZ,
 PFX, certificado real, XML fiscal, fila, exchange, commit remoto ou push foi
 acessado nesta task.
+
+## T014 — Repositórios e casos de uso de configurações
+
+Executor principal e duas rodadas de revisão independente: Codex Sol high.
+
+Implementação:
+
+- porta de aplicação tipada para perfil, sequência, auditoria, idempotência e
+  unidade de trabalho, sem dependência do schema Drizzle;
+- HMAC-SHA-256 com domínio e framing canônicos, snapshot da chave do ambiente e
+  limpeza best effort dos bytes após importar a `CryptoKey`;
+- leitura e escrita derivam `companyId` exclusivamente do `CompanyContext`;
+- replay concorrente é serializado por advisory lock derivado por SHA-256, sem
+  nova mutação, auditoria ou gravação idempotente;
+- perfil, sequência, auditoria e resposta idempotente são gravados na mesma
+  transação PostgreSQL;
+- versão otimista do perfil e constraints de CNPJ são convertidas em conflitos
+  mínimos, sem enumerar tenant ou documento;
+- resposta `bigint` é convertida para strings decimais somente no JSONB e
+  validada estritamente ao ser recuperada;
+- leitura usa um único `JOIN` tenant-scoped; o snapshot anterior da auditoria
+  usa o mesmo lock da mutação;
+- série e próximo número de uma sequência reservada são imutáveis;
+- ambientes mantêm sequências independentes: selecionar produção não move nem
+  altera a sequência reservada de homologação.
+
+O contract T013 continha uma chamada direta de `JSON.stringify` sobre o DTO com
+`bigint`, que falhava antes de testar a ausência de segredos. O teste recebeu
+somente um replacer decimal; tipos, comportamento e asserções permaneceram
+inalterados.
+
+Evidência local final:
+
+```text
+bun test test/company-settings-application.contract.test.ts
+15 pass, 0 fail, 67 assertions
+
+bun run --cwd apps/api-transportada check
+153 pass, 1 skip condicional de migration, 0 fail, 898 assertions
+lint, typecheck e build verdes
+
+bun run --cwd apps/api-transportada test:integration
+26 pass, 1 skip condicional de migration, 0 fail, 238 assertions
+
+integração T014 focalizada em PostgreSQL descartável
+2 pass, 0 fail, 23 assertions
+
+make postgres-up
+PostgreSQL local healthy sob transportada-local
+
+make down
+containers e rede locais removidos
+
+Prettier e git diff --check
+exit 0
+```
+
+A primeira revisão encontrou um P1: a implementação inicial movia a mesma
+sequência ao trocar ambiente e bloqueava produção após uma reserva em
+homologação. A correção passou a resolver/criar a sequência do ambiente-alvo e
+a preservar a origem. A re-revisão aprovou sem P0–P2.
+
+Risco P3 deferido para T020/T021: os fluxos atuais mantêm uma sequência
+operacional por ambiente. Se a reserva introduzir múltiplas séries históricas
+no mesmo ambiente, a regra de seleção da sequência ativa deverá ser explicitada
+nos contracts de concorrência.
+
+Todos os dados de integração são sintéticos. Nenhum PFX, senha, XML fiscal,
+SEFAZ, RabbitMQ, fila, exchange, Railway ou deploy participou da T014.

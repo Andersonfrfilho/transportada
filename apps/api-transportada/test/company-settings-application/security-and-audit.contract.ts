@@ -37,10 +37,13 @@ describe('company settings security and audit contract', () => {
 
     await useCase.execute(inputWithUnexpectedSecrets)
 
-    const persisted = JSON.stringify({
-      audits: unitOfWork.audits,
-      idempotency: unitOfWork.idempotencyRecords,
-    })
+    const persisted = JSON.stringify(
+      {
+        audits: unitOfWork.audits,
+        idempotency: unitOfWork.idempotencyRecords,
+      },
+      (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value),
+    )
     expect(persisted).not.toContain(SECRET_SENTINEL)
     expect(unitOfWork.audits[0]).toEqual({
       action: 'company-settings.updated',

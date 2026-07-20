@@ -80,7 +80,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T011 Escrever contract do gateway fiscal público 0.1.0.
 - [x] T012 Implementar gateway fiscal e configuração criptográfica.
 - [x] T013 Escrever contracts de perfil, idempotência e auditoria.
-- [ ] T014 Implementar repositórios e casos de uso de configurações.
+- [x] T014 Implementar repositórios e casos de uso de configurações.
 - [ ] T015 Escrever contracts HTTP de `/company-settings`.
 - [ ] T016 Implementar endpoints de configurações.
 - [ ] T017 Escrever contracts de validação e rotação do A1.
