@@ -19,6 +19,17 @@ const validEnvironment = {
 }
 
 describe('worker environment contract', () => {
+  test('pins the audited fiscal and storage packages exactly', async () => {
+    const packageManifest = (await Bun.file(
+      new URL('../package.json', import.meta.url),
+    ).json()) as {
+      readonly dependencies?: Readonly<Record<string, string>>
+    }
+
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.2.0')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.1.1')
+  })
+
   test('parses the autonomous Bun worker configuration', () => {
     expect(parseWorkerEnvironment(validEnvironment)).toEqual({
       appEnv: 'local',

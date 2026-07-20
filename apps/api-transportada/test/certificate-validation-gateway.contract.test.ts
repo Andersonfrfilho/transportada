@@ -12,14 +12,15 @@ import {
 } from './fixtures/certificate-validation-gateway.fixture'
 
 describe('public fiscal certificate validation gateway contract', () => {
-  test('pins fiscal-provider exactly at the audited public version', async () => {
+  test('pins the audited fiscal and storage packages exactly', async () => {
     const packageManifest = (await Bun.file(
       new URL('../package.json', import.meta.url),
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
 
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.1.0')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.2.0')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.1.1')
   })
 
   test('compiles validateCertificate and its result type from the package root', async () => {

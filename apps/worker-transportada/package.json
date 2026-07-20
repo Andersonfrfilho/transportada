@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@adatechnology/drizzle-provider": "0.1.1",
+    "@adatechnology/fiscal-provider": "0.2.0",
     "@adatechnology/logger": "0.0.1",
+    "@adatechnology/object-storage-provider": "0.1.1",
     "@adatechnology/rabbitmq-provider": "0.1.1",
     "zod": "4.4.3"
   },

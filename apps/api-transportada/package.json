@@ -24,9 +24,10 @@
   },
   "dependencies": {
     "@adatechnology/drizzle-provider": "0.1.1",
-    "@adatechnology/fiscal-provider": "0.1.0",
+    "@adatechnology/fiscal-provider": "0.2.0",
     "@adatechnology/keycloak-jwt": "0.1.1",
     "@adatechnology/logger": "0.0.1",
+    "@adatechnology/object-storage-provider": "0.1.1",
     "@adatechnology/secret-envelope": "0.1.0",
     "drizzle-orm": "1.0.0-rc.4",
     "zod": "4.4.3"

@@ -369,3 +369,47 @@ O MinIO real foi iniciado exclusivamente pelo Makefile com o projeto Compose
 `pnpm-lock.yaml` já continha alterações preexistentes de outros packages e foi
 preservado fora do commit; a reconciliação isolada do lockfile faz parte do
 gate de empacotamento/publicação da T007.
+
+## T007 — Empacotamento, versão, publicação e pins Ada
+
+Data: 2026-07-20
+
+Commits no repositório `adatechnology-packages`:
+
+```text
+3262b82 chore(release): prepare fiscal and storage packages
+22252a7 chore(release): version packages
+```
+
+O changeset publicou as versões auditadas:
+
+- `@adatechnology/fiscal-provider@0.2.0`;
+- `@adatechnology/object-storage-provider@0.1.1`.
+
+O lockfile do monorepo Ada foi gerado em worktree limpa e o commit contém
+somente o importer e as dependências transitivas do novo storage provider. As
+44 linhas preexistentes de `conversations-ui` e `products-ui` foram restauradas
+depois do staging e permanecem fora dos commits da feature.
+
+API e worker do TransportAdA agora declaram os dois packages por versão exata,
+sem `file:`, `workspace:*`, range ou import de source. Contracts independentes
+em cada app verificam esses pins e o `bun.lock` foi resolvido diretamente do
+registro npm.
+
+### Gates
+
+| Gate                                         | Resultado                         |
+| -------------------------------------------- | --------------------------------- |
+| CI packages `29780495141`                    | aprovado                          |
+| Publish packages `29780495233`               | aprovado                          |
+| `npm view ...fiscal-provider version`        | `0.2.0`                           |
+| `npm view ...object-storage... version`      | `0.1.1`                           |
+| fiscal `bun run test:package`                | 1 passou, consumidor Bun limpo    |
+| object storage `npm pack --dry-run --json`   | JS/types, sem source              |
+| packages `pnpm install --frozen-lockfile`    | aprovado em worktree limpa        |
+| API `check`                                  | 291 passaram, 1 skip, build verde |
+| worker `check`                               | 23 passaram, build verde          |
+| TransportAdA `bun install --frozen-lockfile` | aprovado                          |
+
+Os workflows versionaram e publicaram pelo GitHub; nenhuma publicação manual,
+Railway, SEFAZ, certificado ou XML real foi utilizada.
