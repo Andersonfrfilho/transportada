@@ -114,6 +114,25 @@ describe('local Keycloak realm contract', () => {
     )
   })
 
+  test('binds every published development service port only to loopback', async () => {
+    const compose = await readProjectFile('compose.yaml')
+    const publishedPorts = [...compose.matchAll(/^\s+- '([^']+:[0-9]+)'$/gm)].map(
+      (match) => match[1],
+    )
+
+    expect(publishedPorts).toEqual([
+      '127.0.0.1:55432:5432',
+      '127.0.0.1:55672:5672',
+      '127.0.0.1:55673:15672',
+      '127.0.0.1:59000:9000',
+      '127.0.0.1:59001:9001',
+      '127.0.0.1:51025:1025',
+      '127.0.0.1:58025:8025',
+      '127.0.0.1:${KEYCLOAK_PORT}:8080',
+      '127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT}:9000',
+    ])
+  })
+
   test('defines trusted local issuer and JWKS configuration without real secrets', async () => {
     const environment = await readProjectFile('.env.example')
 

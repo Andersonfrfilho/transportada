@@ -1052,3 +1052,40 @@ exit 0
 Todos os arquivos têm no máximo 176 linhas. Nenhum PFX ou senha real, XML
 fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy participou da
 T018.
+
+## Regressão de infraestrutura local/CI
+
+O run GitHub Actions `29753348887` aprovou o job de qualidade, mas o job de
+integração falhou em `make up`: a primeira tentativa encontrou `58080` ocupada
+e a segunda encontrou `59002` ocupada. Ambas estão na faixa efêmera do runner
+Linux e o Compose publicava em `0.0.0.0`.
+
+Um contract RED reproduziu que as nove portas de desenvolvimento não estavam
+limitadas ao loopback. O Compose passou a publicar PostgreSQL, RabbitMQ, MinIO,
+Mailpit e Keycloak explicitamente em `127.0.0.1`, sem mudar números, URLs,
+variáveis, `Makefile` ou `COMPOSE_PROJECT_NAME`.
+
+Evidência local:
+
+```text
+bun test test/keycloak-realm.contract.test.ts
+6 pass, 0 fail, 46 assertions
+
+docker compose config
+as nove portas publicadas possuem host_ip 127.0.0.1
+
+make up
+PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak healthy
+
+make identity-bootstrap
+migrations e seed local concluídos
+
+make check
+API 261 pass, 1 skip condicional; worker 22 pass; frontend 17 pass
+format, lint, typecheck e builds verdes
+
+make down
+containers e rede locais removidos
+```
+
+Nenhum Railway ou deploy foi executado.
