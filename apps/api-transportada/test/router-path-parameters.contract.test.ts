@@ -69,6 +69,23 @@ describe('router path parameters contract', () => {
     ])
   })
 
+  test('matches one UUID parameter before a static suffix', async () => {
+    const fixture = createRouterPathParametersFixture({
+      dynamicPathname: '/nfe-documents/:id/xml',
+    })
+    const pathname = `${ROUTER_DOCUMENT_PATH}/xml`
+
+    const response = await fixture.router.handle({
+      correlationId: 'router-path-parameters',
+      method: 'GET',
+      pathname,
+      request: routerPathRequest(pathname),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: ROUTER_DOCUMENT_ID, route: 'dynamic' })
+  })
+
   for (const failure of [
     {
       events: ['authenticate'],

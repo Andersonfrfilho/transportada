@@ -43,12 +43,14 @@ type DynamicRoute<TInput> = Readonly<{
 
 type CreateRouterPathParametersFixtureParams = Readonly<{
   readonly dynamicFirst?: boolean
+  readonly dynamicPathname?: string
   readonly failAt?: 'authentication' | 'authorization' | 'tenant'
   readonly method?: string
 }>
 
 export function createRouterPathParametersFixture({
   dynamicFirst = false,
+  dynamicPathname = ROUTER_DOCUMENT_ROUTE_PATH,
   failAt,
   method = 'GET',
 }: CreateRouterPathParametersFixtureParams = {}) {
@@ -70,7 +72,7 @@ export function createRouterPathParametersFixture({
       expect(new URL(request.url).pathname).toStartWith('/nfe-documents/')
       return pathParameters
     },
-    pathname: ROUTER_DOCUMENT_ROUTE_PATH,
+    pathname: dynamicPathname,
     policy: documentReadPolicy(),
   })
   const exactRoute = defineRoute({

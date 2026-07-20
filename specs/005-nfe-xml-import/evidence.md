@@ -451,3 +451,41 @@ As quatro falhas correspondem somente às capacidades reservadas para T009:
 shape público, matching/decode e alcance de tenant/RBAC após o match dinâmico.
 Nenhuma implementação, infraestrutura externa, Railway, certificado ou XML
 fiscal real foi utilizada.
+
+## T009 — Matching tipado sem regressão HTTP
+
+Data: 2026-07-20
+
+O router exporta parâmetros de path imutáveis e os entrega ao parser somente
+depois de autenticação, match, resolução de tenant e RBAC. Rotas exatas têm
+precedência determinística; rotas dinâmicas aceitam exatamente um segmento
+`:id` em qualquer posição, preservam todos os segmentos literais e validam o
+valor decodificado como UUID v4 canônico lowercase com variant válida.
+
+Escape malformado, slash codificado, UUID não canônico, método divergente e
+segmentos excedentes resultam no mesmo 404 autenticado. O body permanece
+intocado quando qualquer gate rejeita a chamada. Health, auth-me, rotas exatas
+e rotas com sufixo estático, como `/nfe-documents/:id/xml`, não regrediram.
+
+### Revisão Sol independente
+
+A primeira revisão encontrou um P1: a versão inicial aceitava `:id` apenas no
+último segmento e bloquearia endpoints previstos na feature. O matcher passou
+a localizar exatamente um parâmetro em qualquer posição e ganhou regressão
+com sufixo estático. A re-revisão declarou zero P0/P1 residual.
+
+### Gates
+
+| Comando                                                 | Resultado                |
+| ------------------------------------------------------- | ------------------------ |
+| `bun run lint`                                          | aprovado                 |
+| `bun run typecheck`                                     | aprovado                 |
+| `bun test test/router-path-parameters.contract.test.ts` | 15 passou, 0 falhou      |
+| `bun run test`                                          | 306 passou, 1 skip       |
+| `bun run build`                                         | aprovado                 |
+| `bun run test:integration` com PostgreSQL local         | 35 passou, 1 skip        |
+| `make down`                                             | infraestrutura encerrada |
+| `git diff --check`                                      | aprovado                 |
+
+A integração foi executada apenas contra a stack local nomeada pelo Makefile;
+nenhuma Railway, SEFAZ, PFX ou amostra fiscal real foi acessada.

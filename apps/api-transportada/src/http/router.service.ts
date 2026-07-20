@@ -24,9 +24,12 @@ type RouteAuthorizationPort = {
   ): void
 }
 
-type RouteParserParams = {
+export type RouterPathParameters = Readonly<Record<string, string>>
+
+export type RouteParserParams = {
   readonly correlationId: string
   readonly context: AuthenticatedContext<CompanyContext>
+  readonly pathParameters: RouterPathParameters
   readonly request: Request
 }
 
@@ -55,6 +58,11 @@ type RouterRequest = {
   readonly method: string
   readonly pathname: string
   readonly request: Request
+}
+
+type MatchedRouterRoute = {
+  readonly pathParameters: RouterPathParameters
+  readonly route: RegisteredRouterRoute
 }
 
 export type HttpRouter = {
@@ -87,30 +95,138 @@ export function createRouter({
         return handleAuthMeRequest({ identity, method, tenantContext })
       }
 
-      const route = routes.find(
-        (candidate) => candidate.method === method && candidate.pathname === pathname,
-      )
-      if (route === undefined) {
+      const matchedRoute = matchRoute({ method, pathname, routes })
+      if (matchedRoute === undefined) {
         throw new ApiError(HTTP_ERROR.notFound)
       }
 
       const context = await tenantContext.resolveCompany(identity)
-      authorization.authorize(context, route.policy)
-      return route.execute({ context, correlationId, request })
+      authorization.authorize(context, matchedRoute.route.policy)
+      return matchedRoute.route.execute({
+        context,
+        correlationId,
+        pathParameters: matchedRoute.pathParameters,
+        request,
+      })
     },
   })
 }
 
 export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRouterRoute {
   return Object.freeze({
-    async execute({ context, correlationId, request }: RouteParserParams): Promise<Response> {
-      const input = await route.parse({ context, correlationId, request })
+    async execute({
+      context,
+      correlationId,
+      pathParameters,
+      request,
+    }: RouteParserParams): Promise<Response> {
+      const input = await route.parse({ context, correlationId, pathParameters, request })
       return route.handle({ context, input })
     },
     method: route.method,
     pathname: route.pathname,
     ...(route.policy ? { policy: route.policy } : {}),
   })
+}
+
+type MatchRouteParams = {
+  readonly method: string
+  readonly pathname: string
+  readonly routes: readonly RegisteredRouterRoute[]
+}
+
+function matchRoute({
+  method,
+  pathname,
+  routes,
+}: MatchRouteParams): MatchedRouterRoute | undefined {
+  const exactRoute = routes.find(
+    (candidate) =>
+      candidate.method === method &&
+      candidate.pathname === pathname &&
+      findIdSegmentIndex(candidate.pathname.split('/')) === undefined,
+  )
+  if (exactRoute !== undefined) {
+    return { pathParameters: Object.freeze({}), route: exactRoute }
+  }
+
+  return routes
+    .filter((candidate) => candidate.method === method)
+    .map((candidate) => matchDynamicRoute({ candidate, pathname }))
+    .find((candidate): candidate is MatchedRouterRoute => candidate !== undefined)
+}
+
+type MatchDynamicRouteParams = {
+  readonly candidate: RegisteredRouterRoute
+  readonly pathname: string
+}
+
+function matchDynamicRoute({
+  candidate,
+  pathname,
+}: MatchDynamicRouteParams): MatchedRouterRoute | undefined {
+  const routeSegments = candidate.pathname.split('/')
+  const requestSegments = pathname.split('/')
+  const identifierIndex = findIdSegmentIndex(routeSegments)
+  if (identifierIndex === undefined || routeSegments.length !== requestSegments.length) {
+    return undefined
+  }
+
+  const identifier = requestSegments[identifierIndex]
+  if (
+    identifier === undefined ||
+    !staticSegmentsMatch({ identifierIndex, requestSegments, routeSegments })
+  ) {
+    return undefined
+  }
+
+  const decodedIdentifier = decodeIdentifier(identifier)
+  if (decodedIdentifier === undefined || !isCanonicalUuid(decodedIdentifier)) {
+    return undefined
+  }
+
+  return { pathParameters: Object.freeze({ id: decodedIdentifier }), route: candidate }
+}
+
+function findIdSegmentIndex(routeSegments: readonly string[]): number | undefined {
+  const identifierIndex = routeSegments.indexOf(':id')
+  if (identifierIndex < 0) {
+    return undefined
+  }
+
+  const hasAnotherParameter = routeSegments.some(
+    (segment, index) => index !== identifierIndex && segment.includes(':'),
+  )
+  return hasAnotherParameter ? undefined : identifierIndex
+}
+
+type StaticSegmentsMatchParams = {
+  readonly identifierIndex: number
+  readonly requestSegments: readonly string[]
+  readonly routeSegments: readonly string[]
+}
+
+function staticSegmentsMatch({
+  identifierIndex,
+  requestSegments,
+  routeSegments,
+}: StaticSegmentsMatchParams): boolean {
+  return routeSegments.every(
+    (segment, index) => index === identifierIndex || segment === requestSegments[index],
+  )
+}
+
+function decodeIdentifier(identifier: string): string | undefined {
+  try {
+    const decodedIdentifier = decodeURIComponent(identifier)
+    return decodedIdentifier.includes('/') ? undefined : decodedIdentifier
+  } catch {
+    return undefined
+  }
+}
+
+function isCanonicalUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)
 }
 
 function isHealthPath(pathname: string): boolean {
