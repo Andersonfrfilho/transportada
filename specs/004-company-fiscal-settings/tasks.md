@@ -90,6 +90,6 @@ não recebe contexto crescente indefinidamente.
 - [x] T020 Escrever contracts concorrentes da sequência.
 - [x] T021 Implementar porta interna de reserva e ledger.
 - [x] T022 Escrever contracts do módulo frontend.
-- [ ] T023 Implementar tela Vite de configurações fiscais.
+- [x] T023 Implementar tela Vite de configurações fiscais.
 - [ ] T024 Validar jornada e ausência de segredo com Playwright.
 - [ ] T025 Executar gates finais, evidência e revisão independente.

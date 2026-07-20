@@ -1,0 +1,144 @@
+.companySettingsShell {
+  width: min(100% - var(--space-8), 74rem);
+  margin: 0 auto;
+  padding: var(--space-8) 0 var(--space-16);
+}
+
+.companySettingsHeader {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+}
+
+.companySettingsHeader p,
+.readinessRail,
+.readinessState {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.companySettingsHeader h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 10vw, 5rem);
+  font-weight: 400;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.readinessState {
+  justify-self: start;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid;
+}
+
+.readinessHomologation {
+  color: var(--color-ready);
+}
+
+.readinessProduction {
+  color: var(--color-copper);
+}
+
+.readinessRail {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-6) 0;
+  color: var(--color-slate);
+}
+
+.productionBoundary,
+.permissionBoundary,
+.certificateMetadata {
+  color: var(--color-slate);
+  line-height: 1.6;
+}
+
+.settingsPanel,
+.certificateForm {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding: var(--space-6);
+  border-left: 2px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-graphite) 68%, transparent);
+}
+
+.settingsPanel h2,
+.certificateForm h2 {
+  margin: 0;
+}
+
+.settingsForm,
+.fieldGrid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.fieldGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldGroup legend {
+  margin-bottom: var(--space-4);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fieldGrid label,
+.certificateForm label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-slate);
+}
+
+.fieldGrid input,
+.fieldGrid select,
+.certificateForm input {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  background: var(--color-asphalt);
+}
+
+.primaryAction {
+  justify-self: start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-copper);
+  color: var(--color-asphalt);
+  font: inherit;
+  font-weight: 700;
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.primaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (min-width: 48rem) {
+  .companySettingsShell {
+    width: min(100% - var(--space-12), 74rem);
+  }
+
+  .readinessRail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

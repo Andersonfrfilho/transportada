@@ -1403,3 +1403,68 @@ Foram usados somente tokens, senhas, bytes e metadados sentinela sintéticos. O
 PFX real e sua senha não foram acessados, copiados ou registrados. Nenhum XML
 fiscal real, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy participou
 da T022.
+
+## T023 — Tela Vite de configurações fiscais
+
+Executor: Codex Terra medium. Revisão raiz e revisão independente: Codex Terra
+medium. A skill de frontend design orientou uma mesa operacional fiscal, com
+faixa sequencial de prontidão, tipografia e tokens já presentes no projeto e
+destaque controlado para o ambiente de produção.
+
+Implementação:
+
+- o entrypoint Vite renderiza a página de configurações dentro do
+  `QueryClientProvider`, sem introduzir Next.js ou dependência compartilhada
+  local;
+- o cliente usa paths relativos reais, bearer obtido sob demanda apenas em
+  memória, `cache: "no-store"`, idempotência nas mutações e multipart com
+  boundary gerado automaticamente;
+- erros HTTP, de rede e respostas inválidas são reduzidos a códigos estáveis;
+  nenhum detalhe interno é propagado;
+- validação defensiva exige DTOs com chaves exatas, UUID, ISO UTC canônico,
+  decimal positivo dentro de `bigint`, cursor base64url e somente os seis
+  metadados seguros do certificado;
+- TanStack Query consulta settings e histórico de certificados, invalida ambos
+  após rotação e separa o cache pelo `companyId` obtido da identidade
+  autenticada; esse ID nunca entra no request;
+- queries e mutações permanecem desabilitadas sem `settings.manage`, e dados
+  anteriormente cacheados não são renderizados após perda da permissão;
+- o formulário cobre todos os campos do perfil fiscal, série, próximo número,
+  ambiente e `expectedVersion` otimista, inclusive `null` no primeiro cadastro;
+- upload mantém PFX/senha somente no draft em memória, cria `FormData` no
+  submit e limpa referências, DOM e body em sucesso, falha, build do multipart
+  ou submit incompleto;
+- a UI apresenta status, validade e versão do certificado, estados
+  loading/empty/error/success, feedback de salvamento e produção explicitamente
+  como configuração que não habilita emissão;
+- CSS Modules usa os design tokens existentes, layout responsivo a partir de
+  48 rem, foco global preservado e cópia completa em português e inglês.
+
+A revisão raiz corrigiu cinco lacunas antes do primeiro gate final: remoção
+indevida do `Content-Type` multipart, validação superficial de CT-e/perfil,
+formulário incompleto, estado inicial assíncrono e ausência da query do
+histórico. Também tornou o cache tenant-scoped e aplicou o uso real de CSS
+Modules. A revisão independente encontrou limpeza ausente no submit incompleto,
+validade não apresentada e valores não canônicos ainda aceitos pelos guards.
+Todos os achados foram corrigidos e a revisão final aprovou a T023 sem P0–P3.
+
+Evidência local final:
+
+```text
+bun run --cwd apps/frontend-transportada check
+33 pass, 0 fail, 176 assertions
+lint, typecheck e build Vite/PWA verdes
+
+bunx eslint src/modules/company-settings \
+  --rule 'max-lines-per-function:["error",{"max":40,"skipBlankLines":true,"skipComments":true}]'
+exit 0
+
+Prettier e git diff --check
+exit 0
+```
+
+O maior arquivo de produção tem 190 linhas e todas as funções revisadas têm no
+máximo 40. O smoke autenticado e a auditoria de DOM/storage/cache pertencem à
+T024 e não foram antecipados. O PFX real e sua senha não foram acessados,
+copiados ou registrados. Nenhum XML fiscal real, SEFAZ, RabbitMQ, fila,
+exchange, S3, Railway, ambiente remoto ou deploy participou da T023.
