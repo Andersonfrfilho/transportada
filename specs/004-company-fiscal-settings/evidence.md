@@ -1338,3 +1338,68 @@ Os três arquivos de produção têm 20, 67 e 136 linhas; as funções revisadas
 no máximo 40. Foram usados somente dados sintéticos e bancos descartáveis.
 Nenhum PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou
 deploy participou da T021.
+
+## T022 — Contracts do módulo frontend
+
+Executor e revisão independente: Codex Terra medium. O OpenCode econômico já
+havia falhado duas vezes em critérios equivalentes nesta feature; conforme a
+política de economia, a task foi escalada sem repetir a tentativa.
+
+Os dezesseis contracts RED definem:
+
+- tipos públicos fechados para o PATCH, sem `companyId`, e rejeição ou remoção
+  defensiva de qualquer identidade de tenant fornecida pelo chamador;
+- GET, PATCH e POST nos paths reais, bearer obtido somente em memória,
+  idempotência nas mutações e `Request.cache = "no-store"`;
+- nenhum header `Cache-Control` adicional no request, preservando o contrato
+  CORS estrito da API;
+- paginação do histórico com `limit`, cursor opaco recebido em `nextCursor` e
+  reutilizado sem decodificação pelo cliente;
+- multipart criado somente no submit, sem `Content-Type` manual, com exatamente
+  `certificate`, `password` e `purpose=cte`;
+- limpeza do `FormData`, referência do arquivo e senha em `finally`, tanto no
+  sucesso quanto no erro;
+- respostas validadas por allowlist: certificado expõe somente `id`, `status`,
+  `purpose`, `validFrom`, `expiresAt` e `version`; qualquer campo extra,
+  segredo, identidade de tenant ou detalhe interno vira erro estável;
+- permissão `settings.manage`, ausência total de mutações sem permissão,
+  estados loading/empty/error/success e produção exibida somente como
+  configuração ainda não habilitada para emissão;
+- boundaries React/i18n/design tokens e proibição de persistência sensível em
+  `localStorage`, `sessionStorage`, IndexedDB ou Cache Storage.
+
+A primeira revisão independente encontrou três lacunas P2: cursor/`nextCursor`
+não contratado, DTO público ainda aceitando `unknown` e validação defensiva
+limitada a `ciphertext`. A re-revisão encontrou um P1 adicional: o frontend
+aceitava `test` e excluía `homologation`, divergindo do domínio exato da API.
+Todos foram fechados antes do commit; não restaram achados P0–P3.
+
+Evidência RED e de não regressão:
+
+```text
+bun test test/frontend-contract.test.ts test/keycloak-auth-provider.test.ts
+17 pass, 0 fail, 65 assertions
+
+bun test test/company-settings.contract.test.ts
+0 pass, 16 fail
+RED exclusivo: quatro módulos e a página da T023 ainda ausentes
+
+bun run test
+17 pass, 16 fail
+prova que o novo agregador está registrado no script test
+
+bun run typecheck
+quatro TS2307 dos módulos T023 ausentes e uma asserção de tipo exato ainda RED
+
+bun run lint
+exit 0
+
+Prettier e git diff --check
+exit 0
+```
+
+Todos os arquivos têm menos de 200 linhas e as funções revisadas no máximo 40.
+Foram usados somente tokens, senhas, bytes e metadados sentinela sintéticos. O
+PFX real e sua senha não foram acessados, copiados ou registrados. Nenhum XML
+fiscal real, SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy participou
+da T022.
