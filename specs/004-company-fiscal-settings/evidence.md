@@ -931,3 +931,55 @@ completo; a revisão considerou a falha transitória não reproduzida.
 Todos os arquivos alterados têm no máximo 199 linhas e as funções revisadas no
 máximo 40. Nenhum PFX, senha, XML fiscal, SEFAZ, RabbitMQ, fila, exchange,
 Railway, deploy ou dado real participou da T016.
+
+## T017 — Contracts de validação e rotação do A1
+
+Executor e revisão final: Codex Sol high. A execução delegada produziu o
+rascunho; a revisão raiz corrigiu apenas os contracts e fixtures, sem
+implementar a T018.
+
+Os 19 contracts sintéticos definem:
+
+- rejeição estável para PFX/senha inválidos, certificado expirado e CNPJ
+  diferente do perfil autenticado, preservando a credencial ativa;
+- escopo tenant derivado somente do `CompanyContext`, sem confiar em
+  `companyId` livre;
+- AAD canônico
+  `transportada:certificate:v1:<companyId>:<certificateId>:cte`, plaintext
+  estrito e falha fechada para adulteração ou troca de tenant;
+- cifragem antes da transação, uma credencial ativa, versão monotônica e
+  aposentadoria definitiva do envelope anterior;
+- serialização de substituições concorrentes, auditoria allowlisted e
+  idempotência HMAC sem request, senha, PFX ou envelope persistidos;
+- replay sem nova validação, cifragem, mutação ou auditoria; payload divergente
+  retorna conflito seguro;
+- rollback integral quando validação, cifragem, auditoria ou persistência
+  idempotente falham;
+- limpeza best effort dos buffers mutáveis controlados pela aplicação.
+
+Evidência RED e de não regressão:
+
+```text
+bun test test/digital-certificate-application.contract.test.ts
+0 pass, 19 fail
+todos os RED: somente replace-digital-certificate.use-case.js e
+digital-certificate-secret.service.js da T018 ausentes
+
+bun run typecheck
+somente TS2307 para os mesmos dois módulos T018 ausentes
+
+suite anterior sem o novo agregador
+240 pass, 1 skip condicional de migration, 0 fail, 1211 assertions
+
+bun run lint
+exit 0
+
+Prettier e git diff --check
+exit 0
+```
+
+O agregador está registrado no script `test`. Todos os arquivos têm no máximo
+193 linhas. Os testes usam somente bytes e senhas sentinela sintéticos; o PFX
+real informado pelo usuário e sua senha não foram acessados, copiados ou
+registrados. Nenhum SEFAZ, RabbitMQ, fila, exchange, S3, Railway ou deploy
+participou da T017.

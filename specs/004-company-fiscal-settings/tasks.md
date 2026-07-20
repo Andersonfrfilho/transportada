@@ -83,7 +83,7 @@ não recebe contexto crescente indefinidamente.
 - [x] T014 Implementar repositórios e casos de uso de configurações.
 - [x] T015 Escrever contracts HTTP de `/company-settings`.
 - [x] T016 Implementar endpoints de configurações.
-- [ ] T017 Escrever contracts de validação e rotação do A1.
+- [x] T017 Escrever contracts de validação e rotação do A1.
 - [ ] T018 Implementar serviço e persistência de certificado.
 - [ ] T018A Escrever contracts HTTP de certificados.
 - [ ] T019 Expor POST/GET de certificados e CORS estrito.
