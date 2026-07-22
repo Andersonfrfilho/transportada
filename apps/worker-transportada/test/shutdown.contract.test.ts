@@ -9,12 +9,14 @@ describe('worker shutdown contract', () => {
     const calls: string[] = []
     const cancellation = createDeferred()
     const shutdown = new WorkerShutdown({
-      consumer: {
-        cancel: async () => {
-          calls.push('consumer.cancel')
-          await cancellation.promise
+      consumers: [
+        {
+          cancel: async () => {
+            calls.push('consumer.cancel')
+            await cancellation.promise
+          },
         },
-      },
+      ],
       provider: {
         close: async () => {
           calls.push('provider.close')
@@ -51,12 +53,14 @@ describe('worker shutdown contract', () => {
   it('closes every resource even when consumer cancellation fails', async () => {
     const calls: string[] = []
     const shutdown = new WorkerShutdown({
-      consumer: {
-        cancel: async () => {
-          calls.push('consumer.cancel')
-          throw new Error('consumer cancellation failed')
+      consumers: [
+        {
+          cancel: async () => {
+            calls.push('consumer.cancel')
+            throw new Error('consumer cancellation failed')
+          },
         },
-      },
+      ],
       provider: {
         close: async () => {
           calls.push('provider.close')

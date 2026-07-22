@@ -1,25 +1,23 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { expect, test, type Page, type Response } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import {
   auditAuthenticationStorage,
   expectKeycloakLoginRedirect,
   loginAsLocalUser,
 } from './authenticated-smoke.helper'
-import { expectNoCertificateResidue } from './certificate-residue-audit.helper'
+import { ensureServiceWorkerControl } from './company-settings-smoke.helper'
+import { expectNoSensitiveResidue } from './certificate-residue-audit.helper'
 import {
-  deleteBinaryCertificateResidue,
-  seedBinaryCertificateResidue,
-} from './certificate-residue-fixture.helper'
-import { ensureServiceWorkerControl, mockCompanySettingsApi } from './company-settings-smoke.helper'
+  mockNfeWorkspaceApi,
+  SYNTHETIC_NFE_FILE_NAME,
+  SYNTHETIC_NFE_XML,
+} from './nfe-workspace-smoke.helper'
 import {
   isRefreshTokenRequest,
   rejectFirstRefresh,
   triggerTokenRefresh,
 } from './token-refresh-smoke.helper'
-
-const SYNTHETIC_CERTIFICATE_BYTES = 'synthetic-pfx-bytes'
-const SYNTHETIC_CERTIFICATE_PASSWORD = 'synthetic-certificate-password'
 
 const VIEWPORTS = [
   { height: 812, name: 'mobile', width: 375 },
@@ -28,116 +26,103 @@ const VIEWPORTS = [
 ] as const
 
 for (const viewport of VIEWPORTS) {
-  test(`renders fiscal settings without horizontal overflow at ${viewport.name}`, async ({
+  test(`renders NF-e workspace without horizontal overflow for operator at ${viewport.name}`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport)
-    const api = await mockCompanySettingsApi({ certificateStatus: 201, page })
-    const settingsResponse = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === '/company-settings',
-    )
-    const certificatesResponse = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === '/digital-certificates',
-    )
+    const api = await mockNfeWorkspaceApi({
+      page,
+      permissions: ['invoices.import', 'invoices.read'],
+    })
     await loginAsLocalUser(page)
-    expect((await settingsResponse).status()).toBe(200)
-    expect((await certificatesResponse).status()).toBe(200)
-    expect(api.failures()).toEqual([])
 
-    await expect(page.getByRole('heading', { name: 'Configurações fiscais' })).toBeVisible()
-    await expect(page.getByLabel('Arquivo PFX')).toBeVisible()
-    await expect(page.getByText('Produção é apenas uma configuração nesta etapa.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Workspace NF-e' })).toBeVisible()
+    await expect(page.getByLabel('Arquivos XML ou ZIP')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Enviar lote' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Distribuir DF-e' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reprocessar' })).toBeVisible()
+    await expect(page.getByText('Documentos importados')).toBeVisible()
     await expect
       .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
       .toBe(true)
+    expect(api.failures()).toEqual([])
     await auditAuthenticationStorage(page)
   })
 }
 
-async function uploadSyntheticCertificate(page: Page): Promise<void> {
-  await page.getByLabel('Arquivo PFX').setInputFiles({
-    buffer: Buffer.from(SYNTHETIC_CERTIFICATE_BYTES),
-    mimeType: 'application/x-pkcs12',
-    name: 'synthetic-upload.pfx',
-  })
-  await page.getByLabel('Senha do certificado').fill(SYNTHETIC_CERTIFICATE_PASSWORD)
-  await page.getByRole('button', { name: 'Validar e substituir' }).click()
-}
-
-test('clears synthetic certificate material after a successful replacement', async ({ page }) => {
-  await mockCompanySettingsApi({ certificateStatus: 201, page })
+test('viewer can read NF-e workspace without mutation controls', async ({ page }) => {
+  const api = await mockNfeWorkspaceApi({ page, permissions: ['invoices.read'] })
   await loginAsLocalUser(page)
-  await ensureServiceWorkerControl(page)
-  await uploadSyntheticCertificate(page)
 
-  await expect(page.getByText('Certificado substituído com segurança.')).toBeVisible()
-  await expectNoCertificateResidue({
-    page,
-    sensitiveValues: [
-      SYNTHETIC_CERTIFICATE_BYTES,
-      SYNTHETIC_CERTIFICATE_PASSWORD,
-      'synthetic-upload.pfx',
-    ],
-  })
+  await expect(page.getByRole('heading', { name: 'Workspace NF-e' })).toBeVisible()
+  await expect(page.getByText('Documentos importados')).toBeVisible()
+  await expect(page.getByLabel('Arquivos XML ou ZIP')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Enviar lote' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Distribuir DF-e' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Reprocessar' })).toHaveCount(0)
+  expect(api.importRequests()).toBe(0)
+  expect(api.distributionRequests()).toBe(0)
+  expect(api.reprocessRequests()).toBe(0)
+  await auditAuthenticationStorage(page)
 })
 
-test('certificate residue audit rejects binary IndexedDB representations', async ({ page }) => {
-  await mockCompanySettingsApi({ certificateStatus: 201, page })
+test('user without invoice permissions sees a closed workspace boundary', async ({ page }) => {
+  const api = await mockNfeWorkspaceApi({ page, permissions: [] })
   await loginAsLocalUser(page)
-  await ensureServiceWorkerControl(page)
-  await seedBinaryCertificateResidue({ bytes: SYNTHETIC_CERTIFICATE_BYTES, page })
-  let auditError: unknown
-  try {
-    auditError = await expectNoCertificateResidue({
-      page,
-      sensitiveValues: [SYNTHETIC_CERTIFICATE_BYTES],
-    }).catch((error: unknown) => error)
-  } finally {
-    await deleteBinaryCertificateResidue(page)
-  }
-  expect(auditError).toBeInstanceOf(Error)
-})
 
-function isLocalForbiddenCertificateResponse(response: Response): boolean {
-  const url = new URL(response.url())
-  return (
-    url.origin === 'http://localhost:53001' &&
-    url.pathname === '/digital-certificates' &&
-    response.status() === 403
+  await expect(page.getByRole('heading', { name: 'Workspace NF-e' })).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(
+    'Seu acesso atual não permite consultar este workspace.',
   )
-}
+  await expect(page.getByLabel('Arquivos XML ou ZIP')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Enviar lote' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Distribuir DF-e' })).toHaveCount(0)
+  expect(api.importRequests()).toBe(0)
+  expect(api.distributionRequests()).toBe(0)
+  await auditAuthenticationStorage(page)
+})
 
-test('a tampered certificate action reaches the local 403 boundary without local residue', async ({
-  page,
-}) => {
-  const api = await mockCompanySettingsApi({ certificateStatus: undefined, page })
+test('uploads XML and leaves no fiscal payload in browser storage or caches', async ({ page }) => {
+  const api = await mockNfeWorkspaceApi({
+    page,
+    permissions: ['invoices.import', 'invoices.read'],
+  })
   await loginAsLocalUser(page)
   await ensureServiceWorkerControl(page)
-  const forbiddenResponse = page.waitForResponse(isLocalForbiddenCertificateResponse)
-  await uploadSyntheticCertificate(page)
-  const response = await forbiddenResponse
 
-  expect(new URL(response.url()).origin).toBe('http://localhost:53001')
-  expect(api.boundary()).toMatchObject({
-    body: { error: { code: 'FORBIDDEN' } },
-    origin: 'http://localhost:53001',
-    status: 403,
+  await page.getByLabel('Arquivos XML ou ZIP').setInputFiles({
+    buffer: Buffer.from(SYNTHETIC_NFE_XML),
+    mimeType: 'application/xml',
+    name: SYNTHETIC_NFE_FILE_NAME,
   })
-  await expect(
-    page.getByText('Não foi possível carregar as configurações. Tente novamente.'),
-  ).toBeVisible()
-  expect(api.mutations()).toBe(0)
-  await expectNoCertificateResidue({
+  await page.getByRole('button', { name: 'Enviar lote' }).click()
+  await expect.poll(api.importRequests).toBe(1)
+
+  await expectNoSensitiveResidue({
     page,
-    sensitiveValues: [
-      SYNTHETIC_CERTIFICATE_BYTES,
-      SYNTHETIC_CERTIFICATE_PASSWORD,
-      'synthetic-upload.pfx',
-    ],
+    sensitiveValues: [SYNTHETIC_NFE_XML, SYNTHETIC_NFE_FILE_NAME],
+  })
+  await expect(page.locator('input[type="file"]')).toHaveJSProperty('value', '')
+})
+
+test('downloaded XML is not cached by the SPA service worker', async ({ page }) => {
+  const api = await mockNfeWorkspaceApi({
+    page,
+    permissions: ['invoices.import', 'invoices.read'],
+  })
+  await loginAsLocalUser(page)
+  await ensureServiceWorkerControl(page)
+
+  await page.getByRole('button', { name: 'Baixar XML' }).click()
+  await expect.poll(api.xmlDownloads).toBe(1)
+  await expectNoSensitiveResidue({
+    page,
+    sensitiveValues: [SYNTHETIC_NFE_XML],
   })
 })
 
 test('registers the service worker without caching protected identity data', async ({ page }) => {
+  await mockNfeWorkspaceApi({ page, permissions: ['invoices.read'] })
   await loginAsLocalUser(page)
   await page.evaluate(() => navigator.serviceWorker.ready)
   await page.reload()
@@ -150,6 +135,7 @@ test('registers the service worker without caching protected identity data', asy
 })
 
 test('does not reveal protected content after an offline reload', async ({ context, page }) => {
+  await mockNfeWorkspaceApi({ page, permissions: ['invoices.read'] })
   await loginAsLocalUser(page)
   await page.evaluate(() => navigator.serviceWorker.ready)
   await page.reload()
@@ -171,6 +157,7 @@ test('does not reveal protected content after an offline reload', async ({ conte
 
 test('fails closed when an expired access token cannot refresh', async ({ context, page }) => {
   await page.clock.install({ time: new Date() })
+  await mockNfeWorkspaceApi({ page, permissions: ['invoices.read'] })
   await loginAsLocalUser(page)
   await rejectFirstRefresh(page)
   await auditAuthenticationStorage(page)

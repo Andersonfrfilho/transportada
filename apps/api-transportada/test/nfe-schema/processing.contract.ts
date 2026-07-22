@@ -37,6 +37,7 @@ describe('persistent processing schema', () => {
     ])
     expectGeneratedUuidPrimaryKey(processingOutbox)
     expect(requiredColumnNames(processingOutbox)).toContainAllValues([
+      'id',
       'company_id',
       'event_id',
       'aggregate_type',

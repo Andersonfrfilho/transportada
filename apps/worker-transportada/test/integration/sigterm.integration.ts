@@ -59,7 +59,7 @@ describeLocal('worker SIGTERM integration', () => {
 
     try {
       await waitFor(async () => {
-        const response = await fetch(`http://127.0.0.1:${port}/health/ready`).catch(() => undefined)
+        const response = await fetch(`http://127.0.0.1:${port}/health/live`).catch(() => undefined)
         return response?.status === 200
       })
 

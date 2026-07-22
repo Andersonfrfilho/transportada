@@ -83,24 +83,24 @@ para Terra/Sol sem repetir contexto crescente.
 - [x] T008 Escrever contracts de parâmetros dinâmicos do router.
 - [x] T009 Implementar matching tipado sem regressão HTTP.
 - [x] T010 Escrever contracts do schema NF-e/outbox/storage.
-- [ ] T011 Implementar schema, migration aditiva e rollback.
-- [ ] T012 Escrever contracts dos gateways de storage dos apps.
-- [ ] T013 Implementar adapters S3 e reconciliador de staging.
-- [ ] T014 Escrever contracts da aplicação de importação.
-- [ ] T015 Implementar repositórios, casos de uso e outbox.
-- [ ] T016 Escrever contracts HTTP de importações/documentos.
-- [ ] T017 Implementar rotas HTTP NF-e e streaming seguro.
-- [ ] T018 Escrever contracts de envelope, topologias e backoff.
-- [ ] T019 Implementar topologias e backoff persistido.
-- [ ] T020 Escrever contracts do relay outbox e idempotência persistente.
-- [ ] T021 Implementar relay, repositories e lifecycle do worker.
-- [ ] T022 Escrever contracts do consumer XML/ZIP.
-- [ ] T023 Implementar consumer de importação e normalização.
-- [ ] T024 Escrever contracts do gateway/consumer de distribuição.
-- [ ] T025 Implementar distribuição DFe e cursor persistente.
-- [ ] T026 Integrar bootstrap, readiness e shutdown do worker.
-- [ ] T027 Escrever contracts do frontend NF-e.
-- [ ] T028 Implementar workspace Vite de importações e NF-e.
-- [ ] T029 Validar jornada responsiva e permissões com Playwright.
-- [ ] T030 Executar integração real local de ponta a ponta.
-- [ ] T031 Consolidar evidência e revisão independente de release.
+- [x] T011 Implementar schema, migration aditiva e rollback.
+- [x] T012 Escrever contracts dos gateways de storage dos apps.
+- [x] T013 Implementar adapters S3 e reconciliador de staging.
+- [x] T014 Escrever contracts da aplicação de importação.
+- [x] T015 Implementar repositórios, casos de uso e outbox.
+- [x] T016 Escrever contracts HTTP de importações/documentos.
+- [x] T017 Implementar rotas HTTP NF-e e streaming seguro.
+- [x] T018 Escrever contracts de envelope, topologias e backoff.
+- [x] T019 Implementar topologias e backoff persistido.
+- [x] T020 Escrever contracts do relay outbox e idempotência persistente.
+- [x] T021 Implementar relay, repositories e lifecycle do worker.
+- [x] T022 Escrever contracts do consumer XML/ZIP.
+- [x] T023 Implementar consumer de importação e normalização.
+- [x] T024 Escrever contracts do gateway/consumer de distribuição.
+- [x] T025 Implementar distribuição DFe e cursor persistente.
+- [x] T026 Integrar bootstrap, readiness e shutdown do worker.
+- [x] T027 Escrever contracts do frontend NF-e.
+- [x] T028 Implementar workspace Vite de importações e NF-e.
+- [x] T029 Validar jornada responsiva e permissões com Playwright.
+- [x] T030 Executar integração real local de ponta a ponta.
+- [x] T031 Consolidar evidência e revisão independente de release.

@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
 import '@/modules/shared/i18n/i18n.service'
-import { CompanySettingsPage } from '@/modules/company-settings/pages/CompanySettings.page'
 import { initializeKeycloakAuth } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
 import '@/styles/index.css'
 
 const queryClient = new QueryClient({
@@ -29,7 +29,7 @@ async function bootstrapApplication(): Promise<void> {
   createRoot(applicationRootElement).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <CompanySettingsPage />
+        <NfeWorkspacePage />
       </QueryClientProvider>
     </StrictMode>,
   )

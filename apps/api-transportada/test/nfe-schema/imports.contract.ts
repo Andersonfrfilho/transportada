@@ -101,12 +101,18 @@ describe('NF-e import schema', () => {
     expectGeneratedUuidPrimaryKey(nfeImportItems)
     expect(uniqueColumnsByName(nfeImportItems)).toMatchObject({
       nfe_import_items_company_id_id_unique: ['company_id', 'id'],
-      nfe_import_items_company_id_import_id_ordinal_unique: ['company_id', 'import_id', 'ordinal'],
-      nfe_import_items_company_id_import_id_source_replay_unique: [
+      nfe_import_items_company_id_import_id_ordinal_attempt_unique: [
+        'company_id',
+        'import_id',
+        'ordinal',
+        'attempt',
+      ],
+      nfe_import_items_company_id_import_id_source_attempt_unique: [
         'company_id',
         'import_id',
         'source_sha256',
         'source_entry',
+        'attempt',
       ],
     })
     expect(foreignKeys(nfeImportItems)).toContainEqual({
@@ -126,6 +132,7 @@ describe('NF-e import schema', () => {
       onUpdate: 'cascade',
     })
     expect(requiredColumnNames(nfeImportItems)).toContainAllValues([
+      'id',
       'company_id',
       'import_id',
       'ordinal',

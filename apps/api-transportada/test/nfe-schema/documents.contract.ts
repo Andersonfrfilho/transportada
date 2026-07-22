@@ -52,6 +52,7 @@ describe('normalized NF-e document schema', () => {
     })
     expectGeneratedUuidPrimaryKey(nfeDocuments)
     expect(requiredColumnNames(nfeDocuments)).toContainAllValues([
+      'id',
       'company_id',
       'access_key',
       'model',

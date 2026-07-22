@@ -16,9 +16,25 @@ import {
   fiscalSequences,
   idempotencyRecords,
 } from './fiscal.schema.js'
+import {
+  nfeAddresses,
+  nfeDistributionCursors,
+  nfeDocuments,
+  nfeEvents,
+  nfeImportItems,
+  nfeImports,
+  nfeParticipants,
+  nfeProducts,
+  nfeVolumes,
+} from './nfe.schema.js'
+import { processedMessages, processingOutbox } from './processing.schema.js'
+import { storedObjects } from './storage.schema.js'
 
 export * from './fiscal.schema.js'
 export * from './identity.schema.js'
+export * from './nfe.schema.js'
+export * from './processing.schema.js'
+export * from './storage.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -31,5 +47,17 @@ export const databaseSchema = {
   identityUsers,
   idempotencyRecords,
   membershipRoles,
+  nfeAddresses,
+  nfeDistributionCursors,
+  nfeDocuments,
+  nfeEvents,
+  nfeImportItems,
+  nfeImports,
+  nfeParticipants,
+  nfeProducts,
+  nfeVolumes,
+  processedMessages,
+  processingOutbox,
+  storedObjects,
   userCompanyMemberships,
 }

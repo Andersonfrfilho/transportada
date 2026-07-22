@@ -7,6 +7,8 @@ HTTP são inicializados no composition root da própria aplicação.
 
 - `DATABASE_URL`: conexão PostgreSQL obrigatória;
 - `RABBITMQ_URL`: conexão AMQP/AMQPS obrigatória;
+- `RABBITMQ_TEST_URL`: opcional para integrações RabbitMQ dedicadas; quando
+  ausente, os tests reutilizam `RABBITMQ_URL`;
 - `QUEUE_PREFIX`: prefixo isolado por projeto e ambiente;
 - `WORKER_PORT`: porta do health interno, padrão `53002`;
 - `WORKER_PREFETCH`: prefetch do consumidor, padrão `1`;
@@ -20,6 +22,9 @@ HTTP são inicializados no composition root da própria aplicação.
 O consumidor sintético existe apenas para os contratos da fundação e é
 proibido quando `APP_ENV=production`. Nenhum consumidor ou efeito fiscal é
 criado nesta etapa.
+
+O fluxo comum de contracts e integrações usa o ambiente local (`.env`). A stack
+dedicada em `.env.test` fica reservada para jornadas E2E/smoke isoladas.
 
 ## Health interno
 

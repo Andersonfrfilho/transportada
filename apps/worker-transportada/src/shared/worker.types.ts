@@ -40,6 +40,7 @@ export type WorkerHealthResponse = {
   readonly dependencies?: {
     readonly database: DependencyStatus
     readonly rabbitmq: DependencyStatus
+    readonly storage: DependencyStatus
   }
 }
 

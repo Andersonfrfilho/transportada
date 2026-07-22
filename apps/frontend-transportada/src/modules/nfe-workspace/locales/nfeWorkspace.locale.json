@@ -1,0 +1,57 @@
+{
+  "eyebrow": "Intake fiscal",
+  "title": "Workspace NF-e",
+  "subtitle": "Entrada operacional para XML, distribuição e conferência das notas recebidas.",
+  "statusLabel": "Estado atual",
+  "status": {
+    "empty": "Sem documentos",
+    "error": "Indisponível",
+    "forbidden": "Sem acesso",
+    "loading": "Sincronizando",
+    "ready": "Pronto",
+    "running": "Processando",
+    "cancelled": "Cancelado",
+    "completed": "Concluído",
+    "failed": "Falhou",
+    "partially_processed": "Parcial",
+    "pending": "Pendente",
+    "processing": "Processando",
+    "queued": "Na fila"
+  },
+  "statusMessage": {
+    "empty": "Nenhuma importação ou NF-e disponível ainda.",
+    "error": "Não foi possível carregar o workspace fiscal.",
+    "forbidden": "Seu acesso atual não permite consultar este workspace.",
+    "loading": "Atualizando a visão operacional."
+  },
+  "upload": {
+    "title": "Entrada de arquivos",
+    "subtitle": "Envie XMLs e lotes ZIP sem bloquear o restante da operação.",
+    "files": "Arquivos XML ou ZIP",
+    "submit": "Enviar lote",
+    "empty": "Nenhum arquivo selecionado."
+  },
+  "distribution": {
+    "submit": "Distribuir DF-e"
+  },
+  "imports": {
+    "title": "Processamentos",
+    "subtitle": "Acompanhe fila, totais e reprocessamentos permitidos.",
+    "empty": "Nenhum processamento registrado.",
+    "reprocess": "Reprocessar",
+    "imported": "Importadas",
+    "invalid": "Inválidas",
+    "failed": "Falhas"
+  },
+  "documents": {
+    "title": "Documentos importados",
+    "subtitle": "Consulta rápida das NF-e já persistidas.",
+    "empty": "Nenhum documento disponível.",
+    "downloadXml": "Baixar XML"
+  },
+  "documentStatus": {
+    "authorized": "Autorizada",
+    "cancelled": "Cancelada",
+    "denied": "Denegada"
+  }
+}

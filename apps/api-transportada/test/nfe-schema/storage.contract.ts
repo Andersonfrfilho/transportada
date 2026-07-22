@@ -43,6 +43,7 @@ describe('fiscal stored object schema', () => {
     })
     expectGeneratedUuidPrimaryKey(storedObjects)
     expect(requiredColumnNames(storedObjects)).toContainAllValues([
+      'id',
       'company_id',
       'provider',
       'bucket',

@@ -137,7 +137,7 @@ async function readIndexedDb(page: Page): Promise<readonly string[]> {
   }
 }
 
-export async function expectNoCertificateResidue(
+export async function expectNoSensitiveResidue(
   input: Readonly<{ page: Page; sensitiveValues: readonly string[] }>,
 ): Promise<void> {
   await input.page.evaluate(() => navigator.serviceWorker.ready)
@@ -152,6 +152,12 @@ export async function expectNoCertificateResidue(
     inspected.some((entry) => entry.includes(value)),
   )
   expect(containsSensitiveValue).toBe(false)
+}
+
+export async function expectNoCertificateResidue(
+  input: Readonly<{ page: Page; sensitiveValues: readonly string[] }>,
+): Promise<void> {
+  await expectNoSensitiveResidue(input)
   await expect(input.page.locator('input[type="file"]')).toHaveJSProperty('value', '')
   await expect(input.page.getByLabel('Senha do certificado')).toHaveValue('')
 }

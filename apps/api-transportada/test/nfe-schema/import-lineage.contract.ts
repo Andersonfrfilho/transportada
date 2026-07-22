@@ -16,9 +16,25 @@ describe('NF-e import item lineage schema', () => {
     const nfeImportItems = requireSchemaTable('nfeImportItems')
 
     expect(columnNames(nfeImportItems)).toContainAllValues([
+      'id',
+      'company_id',
+      'import_id',
       'previous_item_id',
       'previous_attempt',
+      'ordinal',
+      'source_name',
+      'source_object_id',
+      'source_sha256',
+      'source_entry',
+      'variant',
+      'access_key',
+      'source_nsu',
+      'environment',
+      'status',
       'attempt',
+      'error',
+      'created_at',
+      'updated_at',
     ])
     expect(columnSqlTypes(nfeImportItems)).toMatchObject({
       previous_attempt: 'bigint',

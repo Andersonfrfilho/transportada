@@ -27,8 +27,12 @@ const environmentSchema = z.object({
     message: 'FRONTEND_ORIGIN must be a canonical HTTPS origin or HTTP localhost origin',
   }),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
-  KEYCLOAK_ISSUER: z.string().url(),
-  KEYCLOAK_JWKS_URI: z.string().url(),
+  KEYCLOAK_ISSUER: z.string().refine(isTrustedIdentityUrl, {
+    message: 'KEYCLOAK_ISSUER must be an HTTPS URL or an HTTP localhost URL',
+  }),
+  KEYCLOAK_JWKS_URI: z.string().refine(isTrustedIdentityUrl, {
+    message: 'KEYCLOAK_JWKS_URI must be an HTTPS URL or an HTTP localhost URL',
+  }),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 })
 
@@ -52,21 +56,15 @@ export function parseEnvironment(environment: Record<string, string | undefined>
 }
 
 function isTrustedFrontendOrigin(value: string): boolean {
-  try {
-    const url = new URL(value)
-    const hasSafeProtocol =
-      url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost')
+  return (
+    /^https:\/\/[a-z0-9.-]+(?::\d{1,5})?$/.test(value) ||
+    /^http:\/\/localhost(?::\d{1,5})?$/.test(value)
+  )
+}
 
-    return (
-      hasSafeProtocol &&
-      url.origin === value &&
-      url.username === '' &&
-      url.password === '' &&
-      url.pathname === '/' &&
-      url.search === '' &&
-      url.hash === ''
-    )
-  } catch {
-    return false
-  }
+function isTrustedIdentityUrl(value: string): boolean {
+  return (
+    /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$/.test(value) ||
+    /^http:\/\/localhost(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$/.test(value)
+  )
 }

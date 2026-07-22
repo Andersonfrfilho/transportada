@@ -25,6 +25,21 @@ export const FISCAL_TABLES = [
   'idempotency_records',
 ] as const
 
+export const NFE_TABLES = [
+  'nfe_addresses',
+  'nfe_distribution_cursors',
+  'nfe_documents',
+  'nfe_events',
+  'nfe_import_items',
+  'nfe_imports',
+  'nfe_participants',
+  'nfe_products',
+  'nfe_volumes',
+  'processed_messages',
+  'processing_outbox',
+  'stored_objects',
+] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
@@ -58,7 +73,7 @@ export async function expectQueryToFail(
 }
 
 export async function readBusinessTables(database: SQL): Promise<readonly string[]> {
-  const expectedTables = [...IDENTITY_TABLES, ...FISCAL_TABLES]
+  const expectedTables = [...IDENTITY_TABLES, ...FISCAL_TABLES, ...NFE_TABLES]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
     from information_schema.tables
