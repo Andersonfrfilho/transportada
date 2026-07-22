@@ -192,6 +192,46 @@ na T003.
 Nenhum banco, RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou
 desta tarefa.
 
+## T006 — Contracts da aplicação de regras
+
+Data: 2026-07-22
+
+Modelo executor recomendado: Codex Sol high, por fixar versionamento,
+idempotência, tenant, auditoria e conflito de vigência antes da implementação.
+
+Arquivos criados/alterados:
+
+- `apps/api-transportada/test/freight-rules-application.contract.test.ts`
+- `apps/api-transportada/package.json`
+- `specs/006-freight-calculation/tasks.md`
+- `specs/006-freight-calculation/evidence.md`
+
+Contratos definidos:
+
+- criação tenant-scoped de regra, primeira versão imutável, auditoria e
+  idempotência;
+- replay idempotente sem duplicar regra, versão ou audit;
+- conflito de replay divergente com erro seguro;
+- atualização de regra criando nova versão e preservando a anterior;
+- ativação/desativação tenant-scoped com conflito de sobreposição seguro;
+- listagem de regras e seleção da versão vigente sempre derivadas do tenant
+  autenticado.
+
+Gate RED executado:
+
+```text
+(cd apps/api-transportada && bun test test/freight-rules-application.contract.test.ts)
+```
+
+Resultado esperado:
+
+```text
+Cannot find module '../src/freight-rules/application/freight-rules.use-case.js'
+```
+
+A falha é intencional e limitada à implementação ausente da T007. Nenhum banco,
+RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta tarefa.
+
 ## T004 — Contracts do motor decimal de cálculo
 
 Data: 2026-07-22
