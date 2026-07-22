@@ -1,10 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { StrictMode } from 'react'
+import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
+import { CteBatchWorkspacePage } from '@/modules/cte-batch/pages/CteBatchWorkspace.page'
 import '@/modules/shared/i18n/i18n.service'
+import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { initializeKeycloakAuth } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
 import '@/styles/index.css'
@@ -23,14 +26,30 @@ if (rootElement === null) {
 
 const applicationRootElement = rootElement
 
+function resolvePage(): ReactNode {
+  if (
+    window.location.pathname === '/cte-batches' ||
+    sessionStorage.getItem('transportada.workspace') === 'cte-batch'
+  ) {
+    return <CteBatchWorkspacePage />
+  }
+
+  if (
+    window.location.pathname === '/freight' ||
+    sessionStorage.getItem('transportada.workspace') === 'freight'
+  ) {
+    return <FreightWorkspacePage />
+  }
+
+  return <NfeWorkspacePage />
+}
+
 async function bootstrapApplication(): Promise<void> {
   await initializeKeycloakAuth()
 
   createRoot(applicationRootElement).render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <NfeWorkspacePage />
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{resolvePage()}</QueryClientProvider>
     </StrictMode>,
   )
 }

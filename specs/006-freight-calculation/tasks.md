@@ -58,10 +58,10 @@ ou escalada para Sol sem repetir a mesma tentativa com contexto maior.
 - [x] T006 Escrever contracts da aplicação de regras.
 - [x] T007 Implementar repositórios e casos de uso de regras.
 - [x] T008 Escrever contracts da aplicação de simulação.
-- [ ] T009 Implementar casos de uso de simulação e consulta.
-- [ ] T010 Escrever contracts HTTP de regras e simulações.
-- [ ] T011 Implementar endpoints HTTP de frete.
-- [ ] T012 Escrever contracts do frontend de frete.
-- [ ] T013 Implementar UI Vite de regras e simulação.
-- [ ] T014 Validar jornada responsiva com Playwright.
-- [ ] T015 Executar integração local e revisão de release.
+- [x] T009 Implementar casos de uso de simulação e consulta.
+- [x] T010 Escrever contracts HTTP de regras e simulações.
+- [x] T011 Implementar endpoints HTTP de frete.
+- [x] T012 Escrever contracts do frontend de frete.
+- [x] T013 Implementar UI Vite de regras e simulação.
+- [x] T014 Validar jornada responsiva com Playwright.
+- [x] T015 Executar integração local e revisão de release.

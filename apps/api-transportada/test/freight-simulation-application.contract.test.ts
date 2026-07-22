@@ -13,14 +13,15 @@ import {
 } from '../src/freight-calculations/application/freight-simulation.use-case.js'
 import { ApiError } from '../src/shared/api.error.js'
 
-const COMPANY_CONTEXT = {
+type FreightSimulationCompanyContext = FreightSimulationInput['context']
+type EligibleDocument = NonNullable<
+  Awaited<ReturnType<FreightSimulationTransactionPort['findDocument']>>
+>
+
+const COMPANY_CONTEXT: FreightSimulationCompanyContext = {
   companyId: 'company-001',
-  membershipId: 'membership-001',
-  permissions: new Set(['freight.simulate', 'invoices.read']),
-  roles: new Set(['fiscal']),
-  kind: 'company',
   userId: 'user-001',
-} as const
+}
 
 const CORRELATION_ID = 'correlation-001'
 const IDEMPOTENCY_KEY = 'freight-simulation-idempotency-0001'
@@ -80,10 +81,7 @@ describe('freight simulation application contract', () => {
       unitOfWork,
     })
 
-    const result = await useCase.execute({
-      ...FREIGHT_INPUT,
-      documentId: 'other-company-document',
-    })
+    const result = await useCase.execute(FREIGHT_INPUT)
 
     expect(result).toEqual(PERSISTED_CALCULATION)
     expect(unitOfWork.documentRequests).toEqual([
@@ -161,6 +159,24 @@ describe('freight simulation application contract', () => {
         entityType: 'freight-calculation',
       },
     ])
+  })
+
+  test('rejects malformed document identifiers before selecting a tenant document', async () => {
+    const unitOfWork = new FreightSimulationUnitOfWorkFixture()
+    const useCase = createFreightSimulationUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    const error = await captureApiError(() =>
+      useCase.execute({
+        ...FREIGHT_INPUT,
+        documentId: 'other-company-document',
+      }),
+    )
+
+    expect(error.code).toBe('FREIGHT_DOCUMENT_NOT_ELIGIBLE')
+    expect(unitOfWork.documentRequests).toEqual([])
   })
 
   test('replays a matching idempotency request without recalculating or duplicating persistence', async () => {
@@ -258,14 +274,14 @@ class FreightSimulationUnitOfWorkFixture implements FreightSimulationUnitOfWorkP
   public readonly documentRequests: Array<Record<string, string>> = []
   public readonly idempotencyRecords: Array<Record<string, unknown>> = []
   public readonly ruleRequests: Array<Record<string, string>> = []
-  public document = {
+  public document: EligibleDocument = {
     companyId: COMPANY_CONTEXT.companyId,
     id: DOCUMENT_ID,
     issuedAt: '2026-07-22T12:00:00.000Z',
     status: 'authorized',
     totalAmount: '10000.0000',
     variant: 'complete',
-  } as const
+  }
   public applicableRule: Record<string, string> | null = {
     freightRuleId: 'rule-001',
     freightRuleVersionId: 'rule-version-001',

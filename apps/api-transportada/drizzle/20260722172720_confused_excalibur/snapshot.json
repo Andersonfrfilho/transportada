@@ -2,10 +2,7 @@
   "version": "8",
   "dialect": "postgres",
   "id": "0a7e7299-45ea-44c7-ab11-7ccb9d46dfe1",
-  "prevIds": [
-    "8f24cb12-86dc-4a1b-9f06-7b6f77e6e4b1",
-    "f77c7a39-0360-4d0c-a071-7a6f958ee0a8"
-  ],
+  "prevIds": ["8f24cb12-86dc-4a1b-9f06-7b6f77e6e4b1", "f77c7a39-0360-4d0c-a071-7a6f958ee0a8"],
   "ddl": [
     {
       "isRlsEnabled": false,
@@ -4661,14 +4658,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "external_identities_user_id_identity_users_id_fkey",
@@ -4678,14 +4671,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "membership_id"
-      ],
+      "columns": ["membership_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "membership_roles_membership_id_user_company_memberships_id_fkey",
@@ -4695,14 +4684,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_company_memberships_user_id_identity_users_id_fkey",
@@ -4712,14 +4697,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_company_memberships_company_id_companies_id_fkey",
@@ -4729,14 +4710,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "company_fiscal_profiles_company_id_companies_id_fkey",
@@ -4746,14 +4723,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "digital_certificates_company_id_companies_id_fkey",
@@ -4763,14 +4736,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "created_by_user_id"
-      ],
+      "columns": ["created_by_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "digital_certificates_created_by_user_id_identity_users_id_fkey",
@@ -4780,14 +4749,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "audit_logs_company_id_companies_id_fkey",
@@ -4797,14 +4762,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "actor_user_id"
-      ],
+      "columns": ["actor_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "audit_logs_actor_user_id_identity_users_id_fkey",
@@ -4814,14 +4775,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "idempotency_records_company_id_companies_id_fkey",
@@ -4831,16 +4788,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "fiscal_sequence_id"
-      ],
+      "columns": ["company_id", "fiscal_sequence_id"],
       "schemaTo": "public",
       "tableTo": "fiscal_sequences",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fiscal_sequence_reservations_company_sequence_fk",
@@ -4850,14 +4801,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fiscal_sequences_company_id_companies_id_fkey",
@@ -4867,14 +4814,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_id_companies_id_fkey",
@@ -4884,16 +4827,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_nfe_document_fk",
@@ -4903,16 +4840,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_fk",
@@ -4922,18 +4853,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id",
-        "rule_version"
-      ],
+      "columns": ["company_id", "freight_rule_id", "rule_version"],
       "schemaTo": "public",
       "tableTo": "freight_rule_versions",
-      "columnsTo": [
-        "company_id",
-        "freight_rule_id",
-        "version"
-      ],
+      "columnsTo": ["company_id", "freight_rule_id", "version"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_version_fk",
@@ -4943,16 +4866,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_version_id"
-      ],
+      "columns": ["company_id", "freight_rule_version_id"],
       "schemaTo": "public",
       "tableTo": "freight_rule_versions",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_version_id_fk",
@@ -4962,16 +4879,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_created_by_membership_fk",
@@ -4981,14 +4892,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_company_id_companies_id_fkey",
@@ -4998,16 +4905,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_company_rule_fk",
@@ -5017,16 +4918,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_created_by_membership_fk",
@@ -5036,14 +4931,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rules_company_id_companies_id_fkey",
@@ -5053,16 +4944,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rules_created_by_membership_fk",
@@ -5072,14 +4957,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_addresses_company_id_companies_id_fkey",
@@ -5089,16 +4970,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "participant_id"
-      ],
+      "columns": ["company_id", "participant_id"],
       "schemaTo": "public",
       "tableTo": "nfe_participants",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_addresses_company_participant_fk",
@@ -5108,14 +4983,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_distribution_cursors_company_id_companies_id_fkey",
@@ -5125,14 +4996,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_id_companies_id_fkey",
@@ -5142,14 +5009,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "created_by_user_id"
-      ],
+      "columns": ["created_by_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_created_by_user_id_identity_users_id_fkey",
@@ -5159,16 +5022,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_xml_object_fk",
@@ -5178,16 +5035,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id"
-      ],
+      "columns": ["company_id", "import_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_import_fk",
@@ -5197,16 +5048,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_created_by_membership_fk",
@@ -5216,14 +5061,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_events_company_id_companies_id_fkey",
@@ -5233,16 +5074,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_events_company_xml_object_fk",
@@ -5252,14 +5087,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_id_companies_id_fkey",
@@ -5269,16 +5100,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id"
-      ],
+      "columns": ["company_id", "import_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_import_fk",
@@ -5288,16 +5113,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "source_object_id"
-      ],
+      "columns": ["company_id", "source_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_source_object_fk",
@@ -5334,14 +5153,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_imports_company_id_companies_id_fkey",
@@ -5351,16 +5166,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "requested_by_user_id",
-        "company_id"
-      ],
+      "columns": ["requested_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_imports_requested_by_membership_fk",
@@ -5370,14 +5179,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_participants_company_id_companies_id_fkey",
@@ -5387,16 +5192,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_participants_company_document_fk",
@@ -5406,14 +5205,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_products_company_id_companies_id_fkey",
@@ -5423,16 +5218,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_products_company_document_fk",
@@ -5442,14 +5231,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_volumes_company_id_companies_id_fkey",
@@ -5459,16 +5244,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_volumes_company_document_fk",
@@ -5478,14 +5257,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processed_messages_company_id_companies_id_fkey",
@@ -5495,16 +5270,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "schemaTo": "public",
       "tableTo": "processing_outbox",
-      "columnsTo": [
-        "company_id",
-        "event_id"
-      ],
+      "columnsTo": ["company_id", "event_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processed_messages_company_event_fk",
@@ -5514,14 +5283,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_company_id_companies_id_fkey",
@@ -5531,16 +5296,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "aggregate_id"
-      ],
+      "columns": ["company_id", "aggregate_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_company_aggregate_fk",
@@ -5550,16 +5309,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_actor_membership_fk",
@@ -5569,14 +5322,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "stored_objects_company_id_companies_id_fkey",
@@ -5585,10 +5334,7 @@
       "table": "stored_objects"
     },
     {
-      "columns": [
-        "membership_id",
-        "role"
-      ],
+      "columns": ["membership_id", "role"],
       "nameExplicit": true,
       "name": "membership_roles_membership_id_role_pk",
       "entityType": "pks",
@@ -5596,10 +5342,7 @@
       "table": "membership_roles"
     },
     {
-      "columns": [
-        "company_id",
-        "environment"
-      ],
+      "columns": ["company_id", "environment"],
       "nameExplicit": true,
       "name": "nfe_distribution_cursors_company_environment_pk",
       "entityType": "pks",
@@ -5607,9 +5350,7 @@
       "table": "nfe_distribution_cursors"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "companies_pkey",
       "schema": "public",
@@ -5617,9 +5358,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "external_identities_pkey",
       "schema": "public",
@@ -5627,9 +5366,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "identity_users_pkey",
       "schema": "public",
@@ -5637,9 +5374,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "user_company_memberships_pkey",
       "schema": "public",
@@ -5647,9 +5382,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "nameExplicit": false,
       "name": "company_fiscal_profiles_pkey",
       "schema": "public",
@@ -5657,9 +5390,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "digital_certificates_pkey",
       "schema": "public",
@@ -5667,9 +5398,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "audit_logs_pkey",
       "schema": "public",
@@ -5677,9 +5406,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fiscal_sequence_reservations_pkey",
       "schema": "public",
@@ -5687,9 +5414,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fiscal_sequences_pkey",
       "schema": "public",
@@ -5697,9 +5422,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_calculations_pkey",
       "schema": "public",
@@ -5707,9 +5430,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_rule_versions_pkey",
       "schema": "public",
@@ -5717,9 +5438,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_rules_pkey",
       "schema": "public",
@@ -5727,9 +5446,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_addresses_pkey",
       "schema": "public",
@@ -5737,9 +5454,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_documents_pkey",
       "schema": "public",
@@ -5747,9 +5462,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_events_pkey",
       "schema": "public",
@@ -5757,9 +5470,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_import_items_pkey",
       "schema": "public",
@@ -5767,9 +5478,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_imports_pkey",
       "schema": "public",
@@ -5777,9 +5486,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_participants_pkey",
       "schema": "public",
@@ -5787,9 +5494,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_products_pkey",
       "schema": "public",
@@ -5797,9 +5502,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_volumes_pkey",
       "schema": "public",
@@ -5807,9 +5510,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "processed_messages_pkey",
       "schema": "public",
@@ -5817,9 +5518,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "processing_outbox_pkey",
       "schema": "public",
@@ -5827,9 +5526,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "stored_objects_pkey",
       "schema": "public",
@@ -5838,10 +5535,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "issuer",
-        "subject"
-      ],
+      "columns": ["issuer", "subject"],
       "nullsNotDistinct": false,
       "name": "external_identities_issuer_subject_unique",
       "entityType": "uniques",
@@ -5850,10 +5544,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "user_id",
-        "company_id"
-      ],
+      "columns": ["user_id", "company_id"],
       "nullsNotDistinct": false,
       "name": "user_company_memberships_user_company_unique",
       "entityType": "uniques",
@@ -5862,9 +5553,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "cnpj"
-      ],
+      "columns": ["cnpj"],
       "nullsNotDistinct": false,
       "name": "company_fiscal_profiles_cnpj_unique",
       "entityType": "uniques",
@@ -5873,11 +5562,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "purpose",
-        "version"
-      ],
+      "columns": ["company_id", "purpose", "version"],
       "nullsNotDistinct": false,
       "name": "digital_certificates_company_id_purpose_version_unique",
       "entityType": "uniques",
@@ -5886,10 +5571,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "digital_certificates_company_id_id_unique",
       "entityType": "uniques",
@@ -5898,11 +5580,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "operation",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "operation", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "idempotency_records_company_id_operation_idempotency_key_unique",
       "entityType": "uniques",
@@ -5911,10 +5589,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "reservation_key"
-      ],
+      "columns": ["company_id", "reservation_key"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequence_reservations_company_id_reservation_key_unique",
       "entityType": "uniques",
@@ -5923,10 +5598,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "fiscal_sequence_id",
-        "number"
-      ],
+      "columns": ["fiscal_sequence_id", "number"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequence_reservations_sequence_id_number_unique",
       "entityType": "uniques",
@@ -5935,12 +5607,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "environment",
-        "model",
-        "series"
-      ],
+      "columns": ["company_id", "environment", "model", "series"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequences_company_id_environment_model_series_unique",
       "entityType": "uniques",
@@ -5949,10 +5616,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequences_company_id_id_unique",
       "entityType": "uniques",
@@ -5961,10 +5625,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_calculations_company_id_id_unique",
       "entityType": "uniques",
@@ -5973,10 +5634,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "freight_calculations_company_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -5985,10 +5643,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_rule_versions_company_id_id_unique",
       "entityType": "uniques",
@@ -5997,11 +5652,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id",
-        "version"
-      ],
+      "columns": ["company_id", "freight_rule_id", "version"],
       "nullsNotDistinct": false,
       "name": "freight_rule_versions_company_rule_version_unique",
       "entityType": "uniques",
@@ -6010,10 +5661,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_rules_company_id_id_unique",
       "entityType": "uniques",
@@ -6022,10 +5670,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "freight_rules_company_id_name_unique",
       "entityType": "uniques",
@@ -6034,10 +5679,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -6046,10 +5688,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "access_key"
-      ],
+      "columns": ["company_id", "access_key"],
       "nullsNotDistinct": false,
       "name": "nfe_documents_company_id_access_key_unique",
       "entityType": "uniques",
@@ -6058,10 +5697,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_events_company_id_id_unique",
       "entityType": "uniques",
@@ -6070,12 +5706,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "target_access_key",
-        "event_type",
-        "event_sequence"
-      ],
+      "columns": ["company_id", "target_access_key", "event_type", "event_sequence"],
       "nullsNotDistinct": false,
       "name": "nfe_events_company_access_key_type_sequence_unique",
       "entityType": "uniques",
@@ -6084,10 +5715,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_id_unique",
       "entityType": "uniques",
@@ -6096,12 +5724,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id",
-        "ordinal",
-        "attempt"
-      ],
+      "columns": ["company_id", "import_id", "ordinal", "attempt"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_import_id_ordinal_attempt_unique",
       "entityType": "uniques",
@@ -6110,13 +5733,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id",
-        "source_sha256",
-        "source_entry",
-        "attempt"
-      ],
+      "columns": ["company_id", "import_id", "source_sha256", "source_entry", "attempt"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_import_id_source_attempt_unique",
       "entityType": "uniques",
@@ -6141,10 +5758,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_imports_company_id_id_unique",
       "entityType": "uniques",
@@ -6153,10 +5767,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "nfe_imports_company_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -6165,10 +5776,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_participants_company_id_id_unique",
       "entityType": "uniques",
@@ -6177,11 +5785,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id",
-        "role"
-      ],
+      "columns": ["company_id", "document_id", "role"],
       "nullsNotDistinct": false,
       "name": "nfe_participants_company_document_role_unique",
       "entityType": "uniques",
@@ -6190,10 +5794,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "processed_messages_company_id_id_unique",
       "entityType": "uniques",
@@ -6202,11 +5803,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "consumer_name",
-        "event_id"
-      ],
+      "columns": ["company_id", "consumer_name", "event_id"],
       "nullsNotDistinct": false,
       "name": "processed_messages_company_consumer_event_unique",
       "entityType": "uniques",
@@ -6215,10 +5812,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "processing_outbox_company_id_id_unique",
       "entityType": "uniques",
@@ -6227,10 +5821,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "processing_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -6239,10 +5830,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "stored_objects_company_id_id_unique",
       "entityType": "uniques",
@@ -6251,12 +5839,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "provider",
-        "bucket",
-        "object_key"
-      ],
+      "columns": ["company_id", "provider", "bucket", "object_key"],
       "nullsNotDistinct": false,
       "name": "stored_objects_company_provider_bucket_key_unique",
       "entityType": "uniques",

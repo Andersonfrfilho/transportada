@@ -54,6 +54,7 @@ describe('Drizzle migrations', () => {
       '20260722024645_boring_leper_queen',
       '20260722170000_nfe_retry_constraints',
       '20260722172720_confused_excalibur',
+      '20260722225555_robust_viper',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

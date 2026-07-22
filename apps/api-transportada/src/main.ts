@@ -18,6 +18,18 @@ import { createFiscalCertificateValidationGateway } from './companies/infrastruc
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
+import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-case'
+import { DrizzleCteBatchRepository } from './cte-batches/infrastructure/drizzle-cte-batch.repository'
+import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.routes'
+import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
+import {
+  DrizzleFreightCalculationListRepository,
+  DrizzleFreightRepository,
+  DrizzleFreightRuleListRepository,
+  DrizzleFreightSimulationRepository,
+} from './freight/infrastructure/drizzle-freight.repository'
+import { createFreightRoutes } from './freight/presentation/freight.routes'
+import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
 import { TenantContextService } from './identity/application/tenant-context.service'
@@ -117,6 +129,11 @@ function createApplicationRoutes({
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
+  const freightRepository = new DrizzleFreightRepository(database)
+  const freightSimulationRepository = new DrizzleFreightSimulationRepository(database)
+  const freightRuleListRepository = new DrizzleFreightRuleListRepository(database)
+  const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
+  const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const nfeImportRepository = new DrizzleNfeImportRepository(database)
   const storageBucket = resolveStorageBucket(environment)
   const storageGateway = createNfeStorageGatewayFromEnvironment({
@@ -134,6 +151,18 @@ function createApplicationRoutes({
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
+  const freightRules = createFreightRulesUseCase({
+    fingerprintService,
+    unitOfWork: freightRepository,
+  })
+  const freightSimulation = createFreightSimulationUseCase({
+    fingerprintService,
+    unitOfWork: freightSimulationRepository,
+  })
+  const cteBatches = createCteBatchUseCase({
+    fingerprintService,
+    unitOfWork: cteBatchRepository,
+  })
   const replace = createReplaceDigitalCertificateUseCase({
     certificateValidationGateway: createFiscalCertificateValidationGateway(),
     createCertificateId: () => crypto.randomUUID(),
@@ -154,6 +183,17 @@ function createApplicationRoutes({
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },
+    }),
+    ...createFreightRoutes({
+      createRule: { execute: (input) => freightRules.create(input) },
+      listCalculations: { execute: (input) => freightCalculationListRepository.list(input) },
+      listRules: { execute: (input) => freightRuleListRepository.list(input) },
+      simulate: { execute: (input) => freightSimulation.execute(input) },
+    }),
+    ...createCteBatchRoutes({
+      cteBatches,
+      listBatches: { execute: (input) => cteBatchRepository.list(input) },
+      listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
     }),
     ...createNfeImportRoutes({
       getImport,
