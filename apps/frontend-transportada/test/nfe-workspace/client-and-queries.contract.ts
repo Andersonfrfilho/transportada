@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  API_IMPORT_SUMMARY,
   DOCUMENT_LIST_PAGE,
   IMPORT_LIST_PAGE,
   IMPORT_SUMMARY,
@@ -119,22 +120,32 @@ describe('nfe workspace client and queries contract', () => {
 
 function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url.endsWith('/nfe-imports/xml')) {
-    return Promise.resolve(Response.json(IMPORT_SUMMARY))
+    return Promise.resolve(Response.json({ data: API_IMPORT_SUMMARY }))
   }
   if (request.url.endsWith('/nfe-imports/distribution')) {
-    return Promise.resolve(Response.json(IMPORT_SUMMARY))
+    return Promise.resolve(Response.json({ data: API_IMPORT_SUMMARY }))
   }
   if (request.url.endsWith(`/nfe-imports/${IMPORT_SUMMARY.id}/reprocess`)) {
-    return Promise.resolve(Response.json(IMPORT_SUMMARY))
+    return Promise.resolve(Response.json({ data: API_IMPORT_SUMMARY }))
   }
   if (request.url.includes('/nfe-imports?')) {
-    return Promise.resolve(Response.json(IMPORT_LIST_PAGE))
+    return Promise.resolve(
+      Response.json({
+        data: [API_IMPORT_SUMMARY],
+        page: { nextCursor: IMPORT_LIST_PAGE.nextCursor },
+      }),
+    )
   }
   if (request.url.endsWith(`/nfe-imports/${IMPORT_SUMMARY.id}`)) {
-    return Promise.resolve(Response.json(IMPORT_SUMMARY))
+    return Promise.resolve(Response.json({ data: API_IMPORT_SUMMARY }))
   }
   if (request.url.includes('/nfe-documents?')) {
-    return Promise.resolve(Response.json(DOCUMENT_LIST_PAGE))
+    return Promise.resolve(
+      Response.json({
+        data: DOCUMENT_LIST_PAGE.items,
+        page: { nextCursor: DOCUMENT_LIST_PAGE.nextCursor },
+      }),
+    )
   }
   if (request.url.endsWith(`/nfe-documents/${DOCUMENT_LIST_PAGE.items[0].id}/xml`)) {
     return Promise.resolve(

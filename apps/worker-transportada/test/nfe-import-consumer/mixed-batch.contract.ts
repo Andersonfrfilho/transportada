@@ -30,6 +30,7 @@ describe('NF-e import consumer contract', () => {
       ['staging/duplicate.xml', encodeXml('duplicate')],
       ['staging/invalid.xml', encodeXml('invalid')],
       ['staging/unrelated.xml', encodeXml('unrelated')],
+      ['staging/foreign-event.xml', encodeXml('foreign-event')],
     ])
     const consumer = await createNfeImportConsumerFixture({
       archiveExpander: {
@@ -82,21 +83,22 @@ describe('NF-e import consumer contract', () => {
       id: IMPORT_ID,
       importedCount: 3,
       invalidCount: 1,
-      processedCount: 6,
-      receivedCount: 6,
-      rejectedCount: 1,
+      processedCount: 7,
+      receivedCount: 7,
+      rejectedCount: 2,
       status: 'partially_processed',
     })
 
     expect(calls).toContain(`lookup:${COMPANY_ID}:35190730290856000160550010000000011000000010`)
     expect(calls).toContain(`lookup:${COMPANY_ID}:35190730290856000160550010000000011000000011`)
-    expect(calls).toContain(`lookup:${COMPANY_ID}:35190730290856000160550010000000011000000012`)
+    expect(calls).toContain(`lookup:${COMPANY_ID}:35190712345678000190550010000000011000000012`)
     expect(calls.filter((call) => call.startsWith('store-document:'))).toHaveLength(2)
     expect(calls.filter((call) => call.startsWith('store-event:'))).toHaveLength(1)
     expect(calls).toContain('complete:item-4:duplicated')
     expect(calls).toContain('complete:item-5:invalid')
     expect(calls).toContain('complete:item-6:rejected')
-    expect(calls).toContain('finalize:partially_processed:3:1:1:1')
+    expect(calls).toContain('complete:item-7:rejected')
+    expect(calls).toContain('finalize:partially_processed:3:1:1:2')
   })
 })
 
@@ -130,6 +132,7 @@ function createRepository(calls: string[]): NfeImportConsumerRepositoryPort {
           createPendingItem('item-4', 'duplicate.xml', 'staging/duplicate.xml'),
           createPendingItem('item-5', 'invalid.xml', 'staging/invalid.xml'),
           createPendingItem('item-6', 'unrelated.xml', 'staging/unrelated.xml'),
+          createPendingItem('item-7', 'foreign-event.xml', 'staging/foreign-event.xml'),
         ],
       }
     },
@@ -189,12 +192,15 @@ function createPendingItem(id: string, sourceName: string, sourceKey: string) {
 
 function createImportedXmlVariant(key: string): ImportedNfeXml {
   if (key.includes('event')) {
+    const accessKey = key.includes('foreign-event')
+      ? '35190730290856000160550010000000011000000012'
+      : '35190712345678000190550010000000011000000012'
     return {
-      chaveNfe: '35190730290856000160550010000000011000000012',
+      chaveNfe: accessKey,
       dataEvento: '2026-07-22T22:00:00.000Z',
       descricaoEvento: 'Carta de Correcao',
       event: {
-        accessKey: '35190730290856000160550010000000011000000012',
+        accessKey,
         occurredAt: '2026-07-22T22:00:00.000Z',
         sequence: '1',
         type: '110110',

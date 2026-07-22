@@ -1,6 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export type NfeImportSummary = Readonly<{
-  companyId: string
   correlationId: string
   createdAt: string
   duplicatedCount: number
@@ -12,7 +11,6 @@ export type NfeImportSummary = Readonly<{
   processedCount: number
   receivedCount: number
   rejectedCount: number
-  requestedByUserId: string
   source: 'distribution' | 'upload'
   status:
     | 'cancelled'
@@ -37,12 +35,13 @@ export type NfeImportListPage = Readonly<{
 
 export type NfeDocumentListItem = Readonly<{
   accessKey: string
+  emitterName: string
   id: string
   issuedAt: string
-  number: string
-  operationNature: string
+  recipientName: string
   status: 'authorized' | 'cancelled' | 'denied'
-  totalValue: string
+  totalAmount: string
+  variant: 'complete' | 'event' | 'summary'
 }>
 
 export type NfeDocumentListPage = Readonly<{
@@ -102,6 +101,12 @@ function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+function parseCounter(value: unknown): number | null {
+  if (!isString(value)) return null
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
+}
+
 function isTerminalError(value: unknown): value is NfeImportSummary['terminalError'] {
   if (value === null) {
     return true
@@ -128,10 +133,13 @@ function isDocumentStatus(value: unknown): value is NfeDocumentListItem['status'
   return isString(value) && ['authorized', 'cancelled', 'denied'].includes(value)
 }
 
+function isDocumentVariant(value: unknown): value is NfeDocumentListItem['variant'] {
+  return isString(value) && ['complete', 'event', 'summary'].includes(value)
+}
+
 function isNfeImportSummary(value: unknown): value is NfeImportSummary {
   return (
     isRecord(value) &&
-    isString(value.companyId) &&
     isString(value.correlationId) &&
     isString(value.createdAt) &&
     isNumber(value.duplicatedCount) &&
@@ -143,7 +151,6 @@ function isNfeImportSummary(value: unknown): value is NfeImportSummary {
     isNumber(value.processedCount) &&
     isNumber(value.receivedCount) &&
     isNumber(value.rejectedCount) &&
-    isString(value.requestedByUserId) &&
     (value.source === 'distribution' || value.source === 'upload') &&
     isImportStatus(value.status) &&
     isTerminalError(value.terminalError) &&
@@ -152,35 +159,102 @@ function isNfeImportSummary(value: unknown): value is NfeImportSummary {
   )
 }
 
-function isNfeImportListPage(value: unknown): value is NfeImportListPage {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.items) &&
-    value.items.every(isNfeImportSummary) &&
-    (value.nextCursor === null || isString(value.nextCursor))
-  )
-}
-
 function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
   return (
     isRecord(value) &&
     isString(value.accessKey) &&
+    isString(value.emitterName) &&
     isString(value.id) &&
     isString(value.issuedAt) &&
-    isString(value.number) &&
-    isString(value.operationNature) &&
+    isString(value.recipientName) &&
     isDocumentStatus(value.status) &&
-    isString(value.totalValue)
+    isString(value.totalAmount) &&
+    isDocumentVariant(value.variant)
   )
 }
 
-function isNfeDocumentListPage(value: unknown): value is NfeDocumentListPage {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.items) &&
-    value.items.every(isNfeDocumentListItem) &&
-    (value.nextCursor === null || isString(value.nextCursor))
-  )
+function envelopeData(value: unknown): unknown {
+  if (!isRecord(value) || !('data' in value)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return value.data
+}
+
+function pageNextCursor(value: unknown): null | string {
+  if (!isRecord(value) || !isRecord(value.page)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  const nextCursor = value.page.nextCursor
+  if (nextCursor !== null && !isString(nextCursor)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return nextCursor
+}
+
+function mapImportSummary(value: unknown): NfeImportSummary {
+  if (!isRecord(value) || !isRecord(value.counters)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  const duplicatedCount = parseCounter(value.counters.duplicated)
+  const failedCount = parseCounter(value.counters.failed)
+  const importedCount = parseCounter(value.counters.imported)
+  const invalidCount = parseCounter(value.counters.invalid)
+  const processedCount = parseCounter(value.counters.processed)
+  const receivedCount = parseCounter(value.counters.received)
+  const rejectedCount = parseCounter(value.counters.rejected)
+  const mapped = {
+    correlationId: value.correlationId,
+    createdAt: value.createdAt,
+    duplicatedCount,
+    failedCount,
+    id: value.id,
+    idempotencyKey: value.idempotencyKey,
+    importedCount,
+    invalidCount,
+    processedCount,
+    receivedCount,
+    rejectedCount,
+    source: value.source,
+    status: value.status,
+    terminalError: value.terminalError,
+    updatedAt: value.updatedAt,
+    version: value.version,
+  }
+  if (
+    mapped.duplicatedCount === null ||
+    mapped.failedCount === null ||
+    mapped.importedCount === null ||
+    mapped.invalidCount === null ||
+    mapped.processedCount === null ||
+    mapped.receivedCount === null ||
+    mapped.rejectedCount === null ||
+    !isNfeImportSummary(mapped)
+  ) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return mapped
+}
+
+function mapImportListPage(value: unknown): NfeImportListPage {
+  const data = envelopeData(value)
+  if (!Array.isArray(data)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return {
+    items: data.map(mapImportSummary),
+    nextCursor: pageNextCursor(value),
+  }
+}
+
+function mapDocumentListPage(value: unknown): NfeDocumentListPage {
+  const data = envelopeData(value)
+  if (!Array.isArray(data) || !data.every(isNfeDocumentListItem)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return {
+    items: data,
+    nextCursor: pageNextCursor(value),
+  }
 }
 
 async function getAccessTokenRequest(
@@ -275,10 +349,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       init: { method: 'GET' },
       path: `/nfe-imports/${input.id}`,
     })
-    if (!isNfeImportSummary(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapImportSummary(envelopeData(response))
   },
   async listDocuments(input) {
     const response = await requestJson({
@@ -286,10 +357,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       init: { method: 'GET' },
       path: searchPath({ ...input, path: '/nfe-documents' }),
     })
-    if (!isNfeDocumentListPage(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapDocumentListPage(response)
   },
   async listImports(input) {
     const response = await requestJson({
@@ -297,10 +365,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       init: { method: 'GET' },
       path: searchPath({ ...input, path: '/nfe-imports' }),
     })
-    if (!isNfeImportListPage(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapImportListPage(response)
   },
   async reprocessImport(input) {
     const response = await requestJson({
@@ -311,10 +376,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       },
       path: `/nfe-imports/${input.id}/reprocess`,
     })
-    if (!isNfeImportSummary(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapImportSummary(envelopeData(response))
   },
   async requestDistribution(input) {
     const response = await requestJson({
@@ -325,10 +387,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       },
       path: '/nfe-imports/distribution',
     })
-    if (!isNfeImportSummary(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapImportSummary(envelopeData(response))
   },
   async requestUpload(input) {
     const body = new FormData()
@@ -344,9 +403,6 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       },
       path: '/nfe-imports/xml',
     })
-    if (!isNfeImportSummary(response)) {
-      throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
-    }
-    return response
+    return mapImportSummary(envelopeData(response))
   },
 })

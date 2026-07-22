@@ -8,19 +8,19 @@ const CORS_HEADERS = {
 }
 
 const IMPORT_SUMMARY = {
-  companyId: '00000000-0000-4000-8000-000000000001',
   correlationId: 'corr-smoke-nfe',
+  counters: {
+    duplicated: '0',
+    failed: '0',
+    imported: '1',
+    invalid: '0',
+    processed: '1',
+    received: '1',
+    rejected: '0',
+  },
   createdAt: '2026-07-22T12:00:00.000Z',
-  duplicatedCount: 0,
-  failedCount: 0,
   id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e91',
   idempotencyKey: 'smoke-idempotency-key',
-  importedCount: 1,
-  invalidCount: 0,
-  processedCount: 1,
-  receivedCount: 1,
-  rejectedCount: 0,
-  requestedByUserId: '00000000-0000-4000-8000-000000000002',
   source: 'upload',
   status: 'completed',
   terminalError: null,
@@ -29,18 +29,19 @@ const IMPORT_SUMMARY = {
 } as const
 
 const DOCUMENT_PAGE = {
-  items: [
+  data: [
     {
       accessKey: '35190730290856000160550010000000011000000010',
+      emitterName: 'Emitente Transportada',
       id: '4c596f2c-388e-4820-8e49-0fa5916f5cb0',
       issuedAt: '2026-07-22T10:00:00.000Z',
-      number: '10',
-      operationNature: 'PRESTACAO DE SERVICO',
+      recipientName: 'Destinatario Cliente',
       status: 'authorized',
-      totalValue: '1234.5600',
+      totalAmount: '1234.5600',
+      variant: 'complete',
     },
   ],
-  nextCursor: null,
+  page: { nextCursor: null },
 } as const
 
 export const SYNTHETIC_NFE_XML = '<nfeProc versao="4.00"><NFe>synthetic-smoke-nfe</NFe></nfeProc>'
@@ -91,7 +92,7 @@ async function registerNfeMocks(input: Readonly<{ page: Page; state: MockState }
       return
     }
     input.state.importRequests += 1
-    await fulfillJson(route, IMPORT_SUMMARY, 202)
+    await fulfillJson(route, { data: IMPORT_SUMMARY }, 202)
   })
   await input.page.route(/\/nfe-imports\/distribution$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -99,14 +100,14 @@ async function registerNfeMocks(input: Readonly<{ page: Page; state: MockState }
       return
     }
     input.state.distributionRequests += 1
-    await fulfillJson(route, { ...IMPORT_SUMMARY, source: 'distribution' }, 202)
+    await fulfillJson(route, { data: { ...IMPORT_SUMMARY, source: 'distribution' } }, 202)
   })
   await input.page.route(/\/nfe-imports\/[^/]+\/reprocess$/, async (route) => {
     input.state.reprocessRequests += 1
-    await fulfillJson(route, IMPORT_SUMMARY, 202)
+    await fulfillJson(route, { data: IMPORT_SUMMARY }, 202)
   })
   await input.page.route(/\/nfe-imports(?:\?.*)?$/, async (route) => {
-    await fulfillJson(route, { items: [IMPORT_SUMMARY], nextCursor: null })
+    await fulfillJson(route, { data: [IMPORT_SUMMARY], page: { nextCursor: null } })
   })
   await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, DOCUMENT_PAGE)

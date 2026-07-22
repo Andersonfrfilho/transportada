@@ -190,9 +190,21 @@ async function processItem(input: {
     const normalizedXml = await input.xmlImporter.importXml({
       xml: new TextDecoder().decode(expandedXmlEntry.sourceBytes),
     })
-    if (!isRelatedToCompany({ companyCnpj: input.companyCnpj, normalizedXml })) {
+    const accessKey = resolveAccessKey(normalizedXml)
+    const existingDocument = await input.repository.findExistingDocument({
+      accessKey,
+      companyId: input.companyId,
+    })
+    if (
+      !isRelatedToCompany({
+        accessKey,
+        companyCnpj: input.companyCnpj,
+        existingDocument,
+        normalizedXml,
+      })
+    ) {
       await input.repository.completeItem({
-        accessKey: resolveAccessKey(normalizedXml),
+        accessKey,
         error: {
           code: 'NFE_IMPORT_UNRELATED_CNPJ',
           message: 'NF-e is not related to the authenticated company',
@@ -205,11 +217,6 @@ async function processItem(input: {
       return 'rejected'
     }
 
-    const accessKey = resolveAccessKey(normalizedXml)
-    const existingDocument = await input.repository.findExistingDocument({
-      accessKey,
-      companyId: input.companyId,
-    })
     if (normalizedXml.kind !== 'nfe-event') {
       if (existingDocument !== null) {
         await input.repository.completeItem({
@@ -300,11 +307,13 @@ function buildSummary(input: {
 }
 
 function isRelatedToCompany(input: {
+  readonly accessKey: string
   readonly companyCnpj: string
+  readonly existingDocument: { readonly documentId: string } | null
   readonly normalizedXml: ImportedNfeXml
 }): boolean {
   if (input.normalizedXml.kind === 'nfe-event') {
-    return true
+    return input.existingDocument !== null || input.accessKey.slice(6, 20) === input.companyCnpj
   }
 
   return input.normalizedXml.document.relatedCnpjs.includes(input.companyCnpj)

@@ -7,7 +7,6 @@ export const SYNTHETIC_CURSOR =
 export const SYNTHETIC_IDEMPOTENCY_KEY = 'nfe-workspace-contract-key-0001'
 
 export type NfeImportSummaryContract = Readonly<{
-  companyId: string
   correlationId: string
   createdAt: string
   duplicatedCount: number
@@ -19,7 +18,6 @@ export type NfeImportSummaryContract = Readonly<{
   processedCount: number
   receivedCount: number
   rejectedCount: number
-  requestedByUserId: string
   source: 'distribution' | 'upload'
   status:
     | 'cancelled'
@@ -44,12 +42,13 @@ export type NfeImportListPageContract = Readonly<{
 
 export type NfeDocumentListItemContract = Readonly<{
   accessKey: string
+  emitterName: string
   id: string
   issuedAt: string
-  number: string
-  operationNature: string
+  recipientName: string
   status: 'authorized' | 'cancelled' | 'denied'
-  totalValue: string
+  totalAmount: string
+  variant: 'complete' | 'event' | 'summary'
 }>
 
 export type NfeDocumentListPageContract = Readonly<{
@@ -58,7 +57,6 @@ export type NfeDocumentListPageContract = Readonly<{
 }>
 
 export const IMPORT_SUMMARY = {
-  companyId: 'fbc033e7-63e0-4698-adc6-12778bedf4a7',
   correlationId: 'corr-nfe-001',
   createdAt: '2026-07-22T12:00:00.000Z',
   duplicatedCount: 0,
@@ -70,13 +68,33 @@ export const IMPORT_SUMMARY = {
   processedCount: 0,
   receivedCount: 2,
   rejectedCount: 0,
-  requestedByUserId: 'd4b4fe43-15c4-4d32-aa52-a8e5b8b6861a',
   source: 'upload',
   status: 'queued',
   terminalError: null,
   updatedAt: '2026-07-22T12:00:00.000Z',
   version: '1',
 } as const satisfies NfeImportSummaryContract
+
+export const API_IMPORT_SUMMARY = {
+  correlationId: IMPORT_SUMMARY.correlationId,
+  counters: {
+    duplicated: String(IMPORT_SUMMARY.duplicatedCount),
+    failed: String(IMPORT_SUMMARY.failedCount),
+    imported: String(IMPORT_SUMMARY.importedCount),
+    invalid: String(IMPORT_SUMMARY.invalidCount),
+    processed: String(IMPORT_SUMMARY.processedCount),
+    received: String(IMPORT_SUMMARY.receivedCount),
+    rejected: String(IMPORT_SUMMARY.rejectedCount),
+  },
+  createdAt: IMPORT_SUMMARY.createdAt,
+  id: IMPORT_SUMMARY.id,
+  idempotencyKey: IMPORT_SUMMARY.idempotencyKey,
+  source: IMPORT_SUMMARY.source,
+  status: IMPORT_SUMMARY.status,
+  terminalError: IMPORT_SUMMARY.terminalError,
+  updatedAt: IMPORT_SUMMARY.updatedAt,
+  version: IMPORT_SUMMARY.version,
+} as const
 
 export const RUNNING_IMPORT = {
   ...IMPORT_SUMMARY,
@@ -100,12 +118,13 @@ export const DOCUMENT_LIST_PAGE = {
   items: [
     {
       accessKey: '35190730290856000160550010000000011000000010',
+      emitterName: 'Emitente Transportada',
       id: '4c596f2c-388e-4820-8e49-0fa5916f5cb0',
       issuedAt: '2026-07-22T10:00:00.000Z',
-      number: '10',
-      operationNature: 'PRESTACAO DE SERVICO',
+      recipientName: 'Destinatario Cliente',
       status: 'authorized',
-      totalValue: '1234.5600',
+      totalAmount: '1234.5600',
+      variant: 'complete',
     },
   ],
   nextCursor: null,

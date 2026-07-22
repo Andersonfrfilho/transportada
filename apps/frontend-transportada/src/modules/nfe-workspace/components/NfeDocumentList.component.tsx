@@ -23,13 +23,13 @@ export function NfeDocumentList({ documents, onDownloadXml }: NfeDocumentListPro
         {documents.map((document) => (
           <article className={styles.documentRow} key={document.id}>
             <div>
-              <strong>{document.number}</strong>
-              <p>{document.operationNature}</p>
+              <strong>{document.emitterName}</strong>
+              <p>{document.recipientName}</p>
               <p className={styles.secondaryText}>{document.accessKey}</p>
             </div>
             <div className={styles.documentMeta}>
               <span>{t(`documentStatus.${document.status}`)}</span>
-              <span>{document.totalValue}</span>
+              <span>{document.totalAmount}</span>
             </div>
             <button
               className={styles.ghostAction}
