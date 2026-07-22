@@ -232,6 +232,51 @@ Cannot find module '../src/freight-rules/application/freight-rules.use-case.js'
 A falha é intencional e limitada à implementação ausente da T007. Nenhum banco,
 RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta tarefa.
 
+## T007 — Repositórios e casos de uso de regras
+
+Data: 2026-07-22
+
+Modelo executor recomendado: Codex Sol high, por envolver versionamento,
+idempotência, tenant, auditoria e conflitos de ativação.
+
+Arquivos criados/alterados:
+
+- `apps/api-transportada/src/freight-rules/application/freight-rules.use-case.ts`
+- `apps/api-transportada/src/freight-calculations/domain/freight-calculation-engine.service.ts`
+- `specs/006-freight-calculation/tasks.md`
+
+Implementado:
+
+- factory `createFreightRulesUseCase` com operações `create`, `update`,
+  `activate`, `deactivate`, `list` e `findApplicableVersion`;
+- criação tenant-scoped da regra com primeira versão imutável e snapshot
+  canônico gerado pelo motor decimal;
+- replay idempotente seguro para criação;
+- atualização criando nova versão e avançando `currentVersion`;
+- mapeamento de conflito de sobreposição para `FREIGHT_RULE_CONFLICT`;
+- seleção da versão vigente sem confiar em `companyId` livre do chamador.
+
+Gates executados:
+
+```text
+(cd apps/api-transportada && bun test test/freight-rules-application.contract.test.ts)
+bun run --cwd apps/api-transportada check
+```
+
+Resultados:
+
+```text
+freight-rules-application.contract: 6 pass, 0 fail, 31 expect() calls.
+api check: 377 pass, 1 skip, 0 fail, 2295 expect() calls; build OK.
+```
+
+O skip no `api check` continua sendo a integração de migration sem
+`DRIZZLE_TEST_DATABASE_URL`, já coberta anteriormente por `make migration-test`
+na T003.
+
+Nenhum banco, RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou
+desta tarefa.
+
 ## T004 — Contracts do motor decimal de cálculo
 
 Data: 2026-07-22

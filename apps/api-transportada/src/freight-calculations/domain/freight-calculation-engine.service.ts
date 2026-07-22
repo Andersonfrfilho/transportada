@@ -23,7 +23,7 @@ type FreightRuleSnapshotInput = {
   readonly maximumAmount: string | null
 }
 
-type FreightRuleSnapshot = {
+export type FreightRuleSnapshot = {
   readonly freightRuleId: string
   readonly freightRuleVersionId: string
   readonly ruleVersion: string
