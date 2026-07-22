@@ -7,6 +7,7 @@ import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import {
   FISCAL_TABLES,
+  FREIGHT_TABLES,
   IDENTITY_TABLES,
   NFE_TABLES,
   listMigrationDirectories,
@@ -31,7 +32,7 @@ describe('Drizzle migration integration', () => {
 
         await runDatabaseMigrations({ connectionString })
         expect(await readBusinessTables(database)).toEqual(
-          [...IDENTITY_TABLES, ...FISCAL_TABLES, ...NFE_TABLES].toSorted(),
+          [...IDENTITY_TABLES, ...FISCAL_TABLES, ...FREIGHT_TABLES, ...NFE_TABLES].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
 
@@ -51,7 +52,7 @@ describe('Drizzle migration integration', () => {
 
         await runDatabaseMigrations({ connectionString })
         expect(await readBusinessTables(database)).toEqual(
-          [...IDENTITY_TABLES, ...FISCAL_TABLES, ...NFE_TABLES].toSorted(),
+          [...IDENTITY_TABLES, ...FISCAL_TABLES, ...FREIGHT_TABLES, ...NFE_TABLES].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
 

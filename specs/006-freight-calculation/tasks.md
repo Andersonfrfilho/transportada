@@ -52,7 +52,7 @@ ou escalada para Sol sem repetir a mesma tentativa com contexto maior.
 
 - [x] T001 Registrar ADR e consolidar spec/plano executável.
 - [x] T002 Escrever contracts do schema de frete e constraints.
-- [ ] T003 Implementar schema, migration aditiva e rollback.
+- [x] T003 Implementar schema, migration aditiva e rollback.
 - [ ] T004 Escrever contracts do motor decimal de cálculo.
 - [ ] T005 Implementar motor de cálculo e snapshots puros.
 - [ ] T006 Escrever contracts da aplicação de regras.

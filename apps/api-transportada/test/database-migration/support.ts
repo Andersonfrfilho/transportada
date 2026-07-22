@@ -25,6 +25,12 @@ export const FISCAL_TABLES = [
   'idempotency_records',
 ] as const
 
+export const FREIGHT_TABLES = [
+  'freight_calculations',
+  'freight_rule_versions',
+  'freight_rules',
+] as const
+
 export const NFE_TABLES = [
   'nfe_addresses',
   'nfe_distribution_cursors',
@@ -73,7 +79,7 @@ export async function expectQueryToFail(
 }
 
 export async function readBusinessTables(database: SQL): Promise<readonly string[]> {
-  const expectedTables = [...IDENTITY_TABLES, ...FISCAL_TABLES, ...NFE_TABLES]
+  const expectedTables = [...IDENTITY_TABLES, ...FISCAL_TABLES, ...FREIGHT_TABLES, ...NFE_TABLES]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
     from information_schema.tables
