@@ -146,6 +146,52 @@ Nenhum RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou desta
 tarefa. O Postgres local usado pelo migration-test foi encerrado após a coleta
 da evidência.
 
+## T005 — Motor de cálculo e snapshots puros
+
+Data: 2026-07-22
+
+Modelo executor recomendado: Codex Terra medium com revisão Sol, porque a
+política decimal já estava fechada pelos contracts e a implementação ficou
+local, pura e reversível.
+
+Arquivos criados/alterados:
+
+- `apps/api-transportada/src/freight-calculations/domain/freight-calculation-engine.service.ts`
+- `specs/006-freight-calculation/tasks.md`
+
+Implementado:
+
+- `createFreightRuleSnapshot` canonicaliza dinheiro para quatro casas,
+  percentual para seis casas e valida faixa de percentual;
+- `calculatePercentageFreight` usa aritmética inteira por escala, sem `number`
+  binário para dinheiro ou percentual;
+- cálculo percentual aplica arredondamento `half_up` na escala 4;
+- mínimo e máximo são aplicados depois do valor percentual, gerando ajustes
+  explícitos;
+- mínimo maior que máximo, percentual fora de `0..1` e escala monetária
+  inválida falham com códigos estáveis.
+
+Gates executados:
+
+```text
+(cd apps/api-transportada && bun test test/freight-calculation-engine.contract.test.ts)
+bun run --cwd apps/api-transportada check
+```
+
+Resultados:
+
+```text
+freight-calculation-engine.contract: 6 pass, 0 fail, 13 expect() calls.
+api check: 371 pass, 1 skip, 0 fail, 2264 expect() calls; build OK.
+```
+
+O skip no `api check` continua sendo a integração de migration sem
+`DRIZZLE_TEST_DATABASE_URL`, já coberta anteriormente por `make migration-test`
+na T003.
+
+Nenhum banco, RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou
+desta tarefa.
+
 ## T004 — Contracts do motor decimal de cálculo
 
 Data: 2026-07-22

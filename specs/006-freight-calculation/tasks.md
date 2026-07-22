@@ -54,7 +54,7 @@ ou escalada para Sol sem repetir a mesma tentativa com contexto maior.
 - [x] T002 Escrever contracts do schema de frete e constraints.
 - [x] T003 Implementar schema, migration aditiva e rollback.
 - [x] T004 Escrever contracts do motor decimal de cálculo.
-- [ ] T005 Implementar motor de cálculo e snapshots puros.
+- [x] T005 Implementar motor de cálculo e snapshots puros.
 - [ ] T006 Escrever contracts da aplicação de regras.
 - [ ] T007 Implementar repositórios e casos de uso de regras.
 - [ ] T008 Escrever contracts da aplicação de simulação.
