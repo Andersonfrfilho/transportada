@@ -57,7 +57,7 @@ ou escalada para Sol sem repetir a mesma tentativa com contexto maior.
 - [x] T005 Implementar motor de cálculo e snapshots puros.
 - [x] T006 Escrever contracts da aplicação de regras.
 - [x] T007 Implementar repositórios e casos de uso de regras.
-- [ ] T008 Escrever contracts da aplicação de simulação.
+- [x] T008 Escrever contracts da aplicação de simulação.
 - [ ] T009 Implementar casos de uso de simulação e consulta.
 - [ ] T010 Escrever contracts HTTP de regras e simulações.
 - [ ] T011 Implementar endpoints HTTP de frete.

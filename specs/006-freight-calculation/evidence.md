@@ -192,6 +192,45 @@ na T003.
 Nenhum banco, RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou
 desta tarefa.
 
+## T008 — Contracts da aplicação de simulação
+
+Data: 2026-07-22
+
+Modelo executor recomendado: Codex Sol high, por fixar elegibilidade da NF-e,
+regra vigente, snapshot, idempotência e anti-enumeração antes da implementação.
+
+Arquivos criados/alterados:
+
+- `apps/api-transportada/test/freight-simulation-application.contract.test.ts`
+- `apps/api-transportada/package.json`
+- `specs/006-freight-calculation/tasks.md`
+- `specs/006-freight-calculation/evidence.md`
+
+Contratos definidos:
+
+- simulação persistente cria um snapshot tenant-scoped para NF-e completa e
+  autorizada usando a regra vigente;
+- replay idempotente não recalcula nem duplica persistência;
+- replay divergente falha com conflito seguro;
+- ausência de regra vigente retorna erro de configuração seguro;
+- NF-e `summary`, `event`, não autorizada ou sem total confiável é rejeitada
+  como inelegível.
+
+Gate RED executado:
+
+```text
+(cd apps/api-transportada && bun test test/freight-simulation-application.contract.test.ts)
+```
+
+Resultado esperado:
+
+```text
+Cannot find module '../src/freight-calculations/application/freight-simulation.use-case.js'
+```
+
+A falha é intencional e limitada à implementação ausente da T009. Nenhum banco,
+RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta tarefa.
+
 ## T006 — Contracts da aplicação de regras
 
 Data: 2026-07-22
