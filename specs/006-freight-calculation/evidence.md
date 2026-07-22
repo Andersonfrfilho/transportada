@@ -145,3 +145,43 @@ migration-test` com PostgreSQL local.
 Nenhum RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo participou desta
 tarefa. O Postgres local usado pelo migration-test foi encerrado após a coleta
 da evidência.
+
+## T004 — Contracts do motor decimal de cálculo
+
+Data: 2026-07-22
+
+Modelo executor recomendado: Codex Sol high, por fixar dinheiro, decimal,
+arredondamento, mínimo/máximo e invariantes antes da implementação.
+
+Arquivos criados/alterados:
+
+- `apps/api-transportada/test/freight-calculation-engine.contract.test.ts`
+- `apps/api-transportada/package.json`
+- `specs/006-freight-calculation/tasks.md`
+- `specs/006-freight-calculation/evidence.md`
+
+Contratos definidos:
+
+- regra percentual de 3,5% sobre NF-e de `10000.0000` retorna `350.0000`;
+- mínimo é aplicado depois do cálculo percentual e gera ajuste positivo;
+- máximo é aplicado depois do cálculo percentual e gera ajuste negativo;
+- arredondamento `half_up` em escala 4 cobre caso de meia unidade decimal;
+- snapshot canonicaliza dinheiro para quatro casas e percentual para seis casas;
+- escala monetária inválida, percentual acima de 1 e mínimo maior que máximo
+  falham com códigos estáveis.
+
+Gate RED executado:
+
+```text
+(cd apps/api-transportada && bun test test/freight-calculation-engine.contract.test.ts)
+```
+
+Resultado esperado:
+
+```text
+Cannot find module '../src/freight-calculations/domain/freight-calculation-engine.service.js'
+```
+
+A falha é intencional e limitada à implementação ausente da T005. Nenhum banco,
+migration, RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta
+tarefa.
