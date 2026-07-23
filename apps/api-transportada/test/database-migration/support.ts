@@ -68,6 +68,8 @@ export const BILLING_TABLES = [
   'billing_invoices',
 ] as const
 
+export const OPERATIONS_TABLES = ['processing_jobs'] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
@@ -109,6 +111,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...CTE_BATCH_TABLES,
     ...CTE_ISSUANCE_TABLES,
     ...BILLING_TABLES,
+    ...OPERATIONS_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

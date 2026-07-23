@@ -9,6 +9,7 @@ import {
   companies,
   digitalCertificates,
   idempotencyRecords,
+  userCompanyMemberships,
 } from '../../../src/database/database.schema'
 import {
   createCertificateInput,
@@ -112,6 +113,12 @@ async function expectOtherTenantIsolation(
 ): Promise<void> {
   const companyId = crypto.randomUUID()
   await fixture.database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await fixture.database.db.insert(userCompanyMemberships).values({
+    companyId,
+    id: crypto.randomUUID(),
+    status: 'active',
+    userId: fixture.userId,
+  })
   await insertProfile({ cnpj: '61156864000192', companyId, database: fixture.database })
   const context = createContext({ companyId, userId: fixture.userId })
   const useCase = createUseCase({ cnpj: '61156864000192', repository: fixture.repository })

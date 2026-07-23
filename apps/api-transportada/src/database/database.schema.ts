@@ -28,7 +28,7 @@ import {
   nfeProducts,
   nfeVolumes,
 } from './nfe.schema.js'
-import { processedMessages, processingOutbox } from './processing.schema.js'
+import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
   cteBatches,
@@ -84,6 +84,7 @@ export const databaseSchema = {
   nfeProducts,
   nfeVolumes,
   processedMessages,
+  processingJobs,
   processingOutbox,
   cteBatches,
   cteBatchEvents,

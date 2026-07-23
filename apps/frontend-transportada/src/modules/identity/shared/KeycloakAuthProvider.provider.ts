@@ -2,6 +2,7 @@
 import Keycloak from 'keycloak-js'
 
 import { getIdentityEnvironment } from './identityEnvironment.config'
+import { isSmokeAuthBypassEnabled } from './smokeAuthBypass.service'
 
 const TOKEN_MINIMUM_VALIDITY_SECONDS = 30
 
@@ -16,6 +17,17 @@ export type KeycloakClient = Pick<
 >
 
 let authProvider: KeycloakAuthProvider | undefined
+
+function createSmokeAuthProvider(): KeycloakAuthProvider {
+  return {
+    getAccessToken(): Promise<string> {
+      return Promise.resolve('smoke-access-token')
+    },
+    initialize(): Promise<void> {
+      return Promise.resolve()
+    },
+  }
+}
 
 function getAuthenticationCallbackUrl(): string {
   return `${window.location.origin}/auth/callback`
@@ -50,6 +62,7 @@ export function createKeycloakAuthProvider(
     },
     async initialize(): Promise<void> {
       const isAuthenticated = await keycloak.init({
+        checkLoginIframe: false,
         onLoad: 'login-required',
         pkceMethod: 'S256',
         redirectUri,
@@ -64,6 +77,10 @@ export function createKeycloakAuthProvider(
 
 export function getKeycloakAuthProvider(): KeycloakAuthProvider {
   if (authProvider === undefined) {
+    if (isSmokeAuthBypassEnabled()) {
+      authProvider = createSmokeAuthProvider()
+      return authProvider
+    }
     const environment = getIdentityEnvironment()
     authProvider = createKeycloakAuthProvider(
       new Keycloak(environment.keycloak),

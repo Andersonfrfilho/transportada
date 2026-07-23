@@ -310,6 +310,7 @@ export async function startWorkerRuntime(
     })
     relayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.relay.${crypto.randomUUID()}`,
+      failureMessage: 'nfe_outbox_relay_failed',
       intervalMs: 1_000,
       leaseMs: 30_000,
       limit: 25,
@@ -319,6 +320,7 @@ export async function startWorkerRuntime(
     relayLoop.start()
     cteRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.cte.relay.${crypto.randomUUID()}`,
+      failureMessage: 'cte_outbox_relay_failed',
       intervalMs: 1_000,
       leaseMs: 30_000,
       limit: 25,

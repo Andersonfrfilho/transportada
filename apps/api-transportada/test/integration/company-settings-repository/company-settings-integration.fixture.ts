@@ -10,7 +10,11 @@ import type { CompanySettingsInput } from '../../../src/companies/application/co
 import { createUpdateCompanySettingsUseCase } from '../../../src/companies/application/update-company-settings.use-case'
 import { DrizzleCompanySettingsRepository } from '../../../src/companies/infrastructure/drizzle-company-settings.repository'
 import { runDatabaseMigrations } from '../../../src/database/database-migration.service'
-import { companies, identityUsers } from '../../../src/database/database.schema'
+import {
+  companies,
+  identityUsers,
+  userCompanyMemberships,
+} from '../../../src/database/database.schema'
 import type { CompanyContext } from '../../../src/identity/domain/tenant-context'
 
 const databaseUrl =
@@ -98,6 +102,11 @@ async function createFixture(database: TestDatabase): Promise<CompanySettingsInt
     { id: rollbackCompanyId, status: 'active' },
   ])
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values([
+    { companyId, id: crypto.randomUUID(), status: 'active', userId },
+    { companyId: otherCompanyId, id: crypto.randomUUID(), status: 'active', userId },
+    { companyId: rollbackCompanyId, id: crypto.randomUUID(), status: 'active', userId },
+  ])
   const repository = new DrizzleCompanySettingsRepository(database.db)
   return {
     companyId,

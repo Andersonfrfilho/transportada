@@ -1,0 +1,40 @@
+{
+  "eyebrow": "Painel operacional",
+  "title": "Radar de jobs, timeline e auditoria",
+  "intro": "Acompanhe retries, falhas, eventos e a trilha de auditoria do tenant sem abrir cada modulo isoladamente.",
+  "status": {
+    "label": "Estado",
+    "detail": "{{retries}} retries em observacao",
+    "empty": "Sem eventos relevantes",
+    "error": "Falha ao carregar",
+    "forbidden": "Acesso operacional bloqueado",
+    "loading": "Atualizando leitura",
+    "ready": "Leitura operacional ativa"
+  },
+  "boundary": {
+    "forbidden": "Seu perfil nao possui permissao para leitura operacional.",
+    "audit": "A trilha de auditoria exige a permissao audit.read."
+  },
+  "filters": {
+    "module": "Modulo",
+    "status": "Status",
+    "correlationId": "Correlation ID",
+    "entityType": "Tipo de entidade",
+    "entityId": "ID da entidade"
+  },
+  "summary": {
+    "succeeded": "concluidos",
+    "pending": "Pendentes",
+    "failed": "Falhas",
+    "retry": "Retries"
+  },
+  "jobs": {
+    "title": "Jobs"
+  },
+  "timeline": {
+    "title": "Timeline"
+  },
+  "audit": {
+    "title": "Auditoria"
+  }
+}

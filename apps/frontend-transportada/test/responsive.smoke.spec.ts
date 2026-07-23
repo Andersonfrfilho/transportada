@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import { auditAuthenticationStorage, loginAsLocalUser } from './authenticated-smoke.helper'
+import { mockBillingWorkspaceApi } from './billing-smoke.helper'
 import { mockCteBatchWorkspaceApi } from './cte-batch-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 
@@ -286,6 +287,111 @@ test('manager cancels a CT-e batch on desktop without submit controls', async ({
     .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
     .toBe(true)
   expect(api.submissions()).toBe(0)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('operator creates a billing invoice on mobile without horizontal overflow', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'billing'))
+  const api = await mockBillingWorkspaceApi({
+    page,
+    permissions: ['billing.read', 'billing.create', 'billing.cancel'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
+  await expect(page.getByText('CT-e elegiveis disponiveis para faturamento.')).toBeVisible()
+  await page.locator('input[type="checkbox"]').first().check()
+  await page.getByLabel('Vencimento').fill('2026-08-05')
+  await page.getByRole('button', { name: 'Gerar fatura' }).click()
+  await expect.poll(api.createRequests).toBe(1)
+  await expect(page.getByText('Numero: 17')).toBeVisible()
+  await expect(page.getByText('Cliente: Transportes Sul Ltda')).toBeVisible()
+  await expect(page.getByText('Status: issued')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Baixar documento' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(api.detailRequests()).toBeGreaterThan(0)
+  expect(api.documentRequests()).toBeGreaterThan(0)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('reader sees an empty billing workspace on tablet without horizontal overflow', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.tablet)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'billing'))
+  const api = await mockBillingWorkspaceApi({
+    eligibleMode: 'empty',
+    page,
+    permissions: ['billing.read'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
+  await expect(page.getByText('Nenhuma fatura ou CT-e elegivel encontrado.')).toBeVisible()
+  await expect(page.getByText('Nenhum CT-e elegivel com os filtros atuais.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Gerar fatura' })).toBeDisabled()
+  await assertNoHorizontalOverflow(page)
+  expect(api.createRequests()).toBe(0)
+  expect(api.listRequests()).toBeGreaterThan(0)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('billing manager reviews details and cancels an invoice on desktop without horizontal overflow', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'billing'))
+  const api = await mockBillingWorkspaceApi({
+    initialInvoiceStatus: 'issued',
+    page,
+    permissions: ['billing.read', 'billing.cancel'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
+  await page
+    .getByRole('textbox', { name: 'ID da fatura' })
+    .fill('00000000-0000-4000-8000-000000000701')
+  await expect(page.getByText('Numero: 17')).toBeVisible()
+  await expect(page.getByText('Cliente: Transportes Sul Ltda')).toBeVisible()
+  await expect(page.getByText('Total: 350.50')).toBeVisible()
+  await expect(page.getByText('Status: issued')).toBeVisible()
+  await expect(page.getByText('invoice_pdf')).toBeVisible()
+  await page.getByRole('textbox', { name: 'Motivo do cancelamento' }).fill('Ajuste operacional')
+  await page.getByRole('button', { name: 'Cancelar fatura' }).click()
+  await expect.poll(api.cancellationRequests).toBe(1)
+  await expect(page.getByText('Fatura cancelada com sucesso.')).toBeVisible()
+  await expect(page.getByText('Status: cancelled')).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(api.detailRequests()).toBeGreaterThan(0)
+  expect(api.documentRequests()).toBeGreaterThan(0)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('user without billing permissions sees a closed workspace boundary on desktop', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'billing'))
+  const api = await mockBillingWorkspaceApi({ page, permissions: [] })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(
+    'Seu acesso atual nao permite consultar este workspace.',
+  )
+  await expect(page.getByRole('button', { name: 'Gerar fatura' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Cancelar fatura' })).toHaveCount(0)
+  await assertNoHorizontalOverflow(page)
+  expect(api.createRequests()).toBe(0)
+  expect(api.cancellationRequests()).toBe(0)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })

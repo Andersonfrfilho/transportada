@@ -1,0 +1,40 @@
+{
+  "eyebrow": "Operations panel",
+  "title": "Jobs, timeline and audit radar",
+  "intro": "Track retries, failures, events and the tenant audit trail without opening each module in isolation.",
+  "status": {
+    "label": "State",
+    "detail": "{{retries}} retries under watch",
+    "empty": "No relevant events",
+    "error": "Load failed",
+    "forbidden": "Operational access blocked",
+    "loading": "Refreshing read model",
+    "ready": "Operational read model active"
+  },
+  "boundary": {
+    "forbidden": "Your profile does not have operational read access.",
+    "audit": "The audit trail requires the audit.read permission."
+  },
+  "filters": {
+    "module": "Module",
+    "status": "Status",
+    "correlationId": "Correlation ID",
+    "entityType": "Entity type",
+    "entityId": "Entity ID"
+  },
+  "summary": {
+    "succeeded": "succeeded",
+    "pending": "Pending",
+    "failed": "Failed",
+    "retry": "Retries"
+  },
+  "jobs": {
+    "title": "Jobs"
+  },
+  "timeline": {
+    "title": "Timeline"
+  },
+  "audit": {
+    "title": "Audit"
+  }
+}

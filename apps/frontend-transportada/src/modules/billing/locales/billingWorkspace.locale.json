@@ -1,0 +1,55 @@
+{
+  "title": "Workspace de faturamento",
+  "status": {
+    "cancelled": "Fatura cancelada com sucesso.",
+    "empty": "Nenhuma fatura ou CT-e elegivel encontrado.",
+    "error": "Nao foi possivel carregar o workspace de faturamento.",
+    "forbidden": "Seu acesso atual nao permite consultar este workspace.",
+    "issued": "Fatura emitida e pronta para conferencia.",
+    "loading": "Carregando faturamento...",
+    "selectable": "CT-e elegiveis disponiveis para faturamento."
+  },
+  "filters": {
+    "title": "Filtros de elegibilidade",
+    "batchId": "Lote",
+    "cteNumber": "Numero do CT-e",
+    "customerDocument": "Documento do cliente",
+    "issuedFrom": "Emitido de",
+    "issuedTo": "Emitido ate",
+    "minAmount": "Valor minimo",
+    "maxAmount": "Valor maximo",
+    "clear": "Limpar filtros"
+  },
+  "eligible": {
+    "title": "CT-e elegiveis",
+    "summary": "{{count}} selecionados, total {{total}}",
+    "empty": "Nenhum CT-e elegivel com os filtros atuais.",
+    "select": "Selecionar",
+    "cteNumber": "CT-e",
+    "customer": "Cliente",
+    "totalAmount": "Total"
+  },
+  "create": {
+    "title": "Gerar fatura",
+    "dueDate": "Vencimento",
+    "submit": "Gerar fatura"
+  },
+  "invoice": {
+    "title": "Detalhe da fatura",
+    "lookup": "ID da fatura",
+    "empty": "Informe ou gere uma fatura para consultar o detalhe.",
+    "number": "Numero: {{value}}",
+    "customer": "Cliente: {{value}}",
+    "total": "Total: {{value}}",
+    "statusValue": "Status: {{value}}"
+  },
+  "cancel": {
+    "reason": "Motivo do cancelamento",
+    "submit": "Cancelar fatura"
+  },
+  "documents": {
+    "title": "Documentos",
+    "empty": "Nenhum documento disponivel para esta fatura.",
+    "download": "Baixar documento"
+  }
+}

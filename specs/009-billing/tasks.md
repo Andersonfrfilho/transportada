@@ -48,9 +48,9 @@ Depois de duas falhas equivalentes em 5.3, escalar para Sol ou dividir a task.
 - [x] T003 Implementar schema, migration aditiva e rollback.
 - [x] T004 Escrever contracts da aplicacao de faturamento.
 - [x] T005 Implementar casos de uso e repositorios de faturamento.
-- [ ] T006 Escrever contracts HTTP de faturamento.
-- [ ] T007 Implementar endpoints HTTP de faturamento.
-- [ ] T008 Escrever contracts frontend de faturamento.
-- [ ] T009 Implementar UI de faturamento.
-- [ ] T010 Validar jornada responsiva com Playwright.
-- [ ] T011 Executar integracao local e revisao de release.
+- [x] T006 Escrever contracts HTTP de faturamento.
+- [x] T007 Implementar endpoints HTTP de faturamento.
+- [x] T008 Escrever contracts frontend de faturamento.
+- [x] T009 Implementar UI de faturamento.
+- [x] T010 Validar jornada responsiva com Playwright.
+- [x] T011 Executar integracao local e revisao de release.

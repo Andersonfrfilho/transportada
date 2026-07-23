@@ -21,6 +21,9 @@ import { createDigitalCertificateRoutes } from './companies/presentation/digital
 import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-case'
 import { DrizzleCteBatchRepository } from './cte-batches/infrastructure/drizzle-cte-batch.repository'
 import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.routes'
+import { createBillingUseCase } from './billing/application/billing.use-case'
+import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
+import { createBillingRoutes } from './billing/presentation/billing.routes'
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
@@ -49,6 +52,9 @@ import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
+import { createOperationsUseCase } from './operations/application/operations.use-case'
+import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
+import { createOperationsRoutes } from './operations/presentation/operations.routes'
 import type { ApiEnvironment } from './shared/api.types'
 import {
   createShutdownHandler,
@@ -137,7 +143,9 @@ function createApplicationRoutes({
   const freightRuleListRepository = new DrizzleFreightRuleListRepository(database)
   const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
+  const billingRepository = new DrizzleBillingRepository(database)
   const cteIssuanceRepository = new DrizzleCteIssuanceRepository(database)
+  const operationsRepository = new DrizzleOperationsRepository(database)
   const nfeImportRepository = new DrizzleNfeImportRepository(database)
   const storageBucket = resolveStorageBucket(environment)
   const storageGateway = createNfeStorageGatewayFromEnvironment({
@@ -167,9 +175,18 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: cteBatchRepository,
   })
+  const billing = createBillingUseCase({
+    clock: { now: () => new Date().toISOString() },
+    fingerprintService,
+    unitOfWork: billingRepository,
+  })
   const cteIssuance = createCteIssuanceUseCase({
     fingerprintService,
     unitOfWork: cteIssuanceRepository,
+  })
+  const operations = createOperationsUseCase({
+    clock: { now: () => new Date().toISOString() },
+    repository: operationsRepository,
   })
   const replace = createReplaceDigitalCertificateUseCase({
     certificateValidationGateway: createFiscalCertificateValidationGateway(),
@@ -203,11 +220,51 @@ function createApplicationRoutes({
       listBatches: { execute: (input) => cteBatchRepository.list(input) },
       listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
     }),
+    ...createBillingRoutes({
+      billingInvoices: {
+        cancel: (input) => billing.cancel(input),
+        create: (input) =>
+          billing.create({
+            context: input.context,
+            correlationId: input.correlationId,
+            cteDocumentIds: input.cteIds,
+            dueDate: input.dueDate,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        get: (input) => billing.get(input),
+      },
+      listEligibleBillingCtes: {
+        async execute(input) {
+          const items = await billing.listEligible({
+            context: input.context,
+            filters: {
+              batchId: input.batchId,
+              cteNumber: input.cteNumber,
+              customerDocument: input.customerDocument,
+              from: input.issuedFrom,
+              maxAmount: input.maxAmount,
+              minAmount: input.minAmount,
+              to: input.issuedTo,
+            },
+            limit: input.limit,
+          })
+          return { items, nextCursor: input.cursor }
+        },
+      },
+    }),
     ...createCteIssuanceRoutes({
       cteIssuance: {
         get: (input) => cteIssuance.getIssuance(input),
         issue: (input) => cteIssuance.issue(input),
         reprocess: (input) => cteIssuance.reprocess(input),
+      },
+    }),
+    ...createOperationsRoutes({
+      audit: { listEvents: (input) => operations.listAuditEvents(input) },
+      operations: {
+        getSummary: (input) => operations.getSummary(input),
+        listJobs: (input) => operations.listJobs(input),
+        listTimeline: (input) => operations.listTimeline(input),
       },
     }),
     ...createNfeImportRoutes({

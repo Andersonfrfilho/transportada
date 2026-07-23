@@ -47,10 +47,12 @@ describe('frontend foundation contract', () => {
   test('allows the Makefile smoke gate to reuse explicitly started CI servers', async () => {
     const playwrightConfiguration = await readApplicationFile('playwright.config.ts')
 
-    expect(playwrightConfiguration).toContain(
-      "process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true'",
-    )
-    expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_SERVER')
+    expect(playwrightConfiguration).toContain("'PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER'")
+    expect(playwrightConfiguration).toContain("'PLAYWRIGHT_REUSE_EXISTING_API_SERVER'")
+    expect(playwrightConfiguration).toContain('PLAYWRIGHT_FRONTEND_PORT')
+    expect(playwrightConfiguration).toContain('PLAYWRIGHT_API_PORT')
+    expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_FRONTEND_SERVER')
+    expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_API_SERVER')
   })
 
   test('uses Keycloak Authorization Code with PKCE and never persists tokens', async () => {
@@ -58,8 +60,12 @@ describe('frontend foundation contract', () => {
     const authProvider = await readApplicationFile(
       'src/modules/identity/shared/KeycloakAuthProvider.provider.ts',
     )
+    const smokeAuthBypass = await readApplicationFile(
+      'src/modules/identity/shared/smokeAuthBypass.service.ts',
+    )
 
     expect(packageManifest).toContain('"keycloak-js": "26.2.4"')
+    expect(authProvider).toContain('checkLoginIframe: false')
     expect(authProvider).toContain("onLoad: 'login-required'")
     expect(authProvider).toContain("pkceMethod: 'S256'")
     expect(authProvider).toContain('${window.location.origin}/auth/callback')
@@ -69,6 +75,10 @@ describe('frontend foundation contract', () => {
     expect(authProvider).not.toContain('localStorage')
     expect(authProvider).not.toContain('sessionStorage')
     expect(authProvider).not.toContain('indexedDB')
+    expect(smokeAuthBypass).toContain('VITE_SMOKE_AUTH_BYPASS')
+    expect(smokeAuthBypass).toContain('LOCAL_SMOKE_HOSTNAMES')
+    expect(smokeAuthBypass).toContain('localhost')
+    expect(smokeAuthBypass).toContain('127.0.0.1')
   })
 
   test('fetches the typed authenticated identity without caching it in the service worker', async () => {

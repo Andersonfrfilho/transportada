@@ -97,7 +97,7 @@ down: config ## 🛑 Encerra a infraestrutura local
 ps: config ## 📋 Exibe os serviços locais
 	@$(COMPOSE) ps $(SERVICES)
 
-dev: up ## 💻 Inicia somente frontend, API e worker Bun
+dev: identity-bootstrap up ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
 		export QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)"; \
@@ -143,7 +143,11 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	check_url "http://localhost:58025/livez"; \
 	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
 	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
-	@set -a; . "./$(ENV_FILE)"; set +a; bun run --cwd apps/frontend-transportada smoke
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		PLAYWRIGHT_FRONTEND_PORT="$${PLAYWRIGHT_FRONTEND_PORT:-53100}" \
+		PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
+		PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
+		bun run --cwd apps/frontend-transportada smoke
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up

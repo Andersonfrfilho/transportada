@@ -3,6 +3,9 @@
  */
 import {
   API_AUTH_ME_PATH,
+  API_AUDIT_EVENTS_PATH,
+  API_BILLING_ELIGIBLE_CTES_PATH,
+  API_BILLING_INVOICES_PATH,
   API_COMPANY_SETTINGS_PATH,
   API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
@@ -11,6 +14,9 @@ import {
   API_LIVE_PATH,
   API_NFE_DOCUMENTS_PATH,
   API_NFE_IMPORTS_PATH,
+  API_OPERATIONS_JOBS_PATH,
+  API_OPERATIONS_SUMMARY_PATH,
+  API_OPERATIONS_TIMELINE_PATH,
   API_READY_PATH,
   UNMATCHED_LOG_PATHNAME,
 } from '../shared/api.constant'
@@ -26,6 +32,14 @@ export function isNoStorePath(pathname: string): boolean {
     pathname.startsWith(`${API_FREIGHT_CALCULATIONS_PATH}/`) ||
     pathname === API_CTE_BATCHES_PATH ||
     pathname.startsWith(`${API_CTE_BATCHES_PATH}/`) ||
+    pathname === API_BILLING_ELIGIBLE_CTES_PATH ||
+    pathname.startsWith(`${API_BILLING_ELIGIBLE_CTES_PATH}/`) ||
+    pathname === API_BILLING_INVOICES_PATH ||
+    pathname.startsWith(`${API_BILLING_INVOICES_PATH}/`) ||
+    pathname === API_OPERATIONS_SUMMARY_PATH ||
+    pathname === API_OPERATIONS_TIMELINE_PATH ||
+    pathname === API_OPERATIONS_JOBS_PATH ||
+    pathname === API_AUDIT_EVENTS_PATH ||
     pathname === API_NFE_IMPORTS_PATH ||
     pathname.startsWith(`${API_NFE_IMPORTS_PATH}/`) ||
     pathname === API_NFE_DOCUMENTS_PATH ||
@@ -43,6 +57,14 @@ export function resolveLogPathname(pathname: string): string {
     pathname.startsWith(`${API_FREIGHT_CALCULATIONS_PATH}/`) ||
     pathname === API_CTE_BATCHES_PATH ||
     pathname.startsWith(`${API_CTE_BATCHES_PATH}/`) ||
+    pathname === API_BILLING_ELIGIBLE_CTES_PATH ||
+    pathname.startsWith(`${API_BILLING_ELIGIBLE_CTES_PATH}/`) ||
+    pathname === API_BILLING_INVOICES_PATH ||
+    pathname.startsWith(`${API_BILLING_INVOICES_PATH}/`) ||
+    pathname === API_OPERATIONS_SUMMARY_PATH ||
+    pathname === API_OPERATIONS_TIMELINE_PATH ||
+    pathname === API_OPERATIONS_JOBS_PATH ||
+    pathname === API_AUDIT_EVENTS_PATH ||
     pathname === API_NFE_IMPORTS_PATH ||
     pathname.startsWith(`${API_NFE_IMPORTS_PATH}/`) ||
     pathname === API_NFE_DOCUMENTS_PATH ||
