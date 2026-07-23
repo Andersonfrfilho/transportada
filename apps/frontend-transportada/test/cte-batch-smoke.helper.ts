@@ -1,0 +1,153 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { type Page, type Route } from '@playwright/test'
+
+const CORS_HEADERS = {
+  'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-origin': 'http://localhost:53000',
+}
+
+const BATCH_ID = '00000000-0000-4000-8000-000000000501'
+
+const BASE_BATCH = {
+  correlationId: 'cte-batch-smoke-correlation',
+  createdAt: '2026-07-22T20:00:00.000Z',
+  id: BATCH_ID,
+  itemCount: 1,
+  name: 'Lote CT-e julho',
+  status: 'draft',
+  updatedAt: '2026-07-22T20:00:00.000Z',
+  version: '1',
+} as const
+
+const EVENT = {
+  batchId: BATCH_ID,
+  createdAt: '2026-07-22T20:00:00.000Z',
+  eventName: 'created',
+  id: '00000000-0000-4000-8000-000000000503',
+  payload: { itemCount: 1, status: 'draft' },
+} as const
+
+type MockPermissions = readonly ('cte.manage' | 'cte.submit')[]
+
+type BatchStatus = 'cancelled' | 'draft' | 'submitted'
+
+type MockState = {
+  batchCreations: number
+  batchStatus: BatchStatus
+  cancellations: number
+  failures: string[]
+  submissions: number
+}
+
+async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+  await route.fulfill({
+    body: JSON.stringify(body),
+    contentType: 'application/json',
+    headers: CORS_HEADERS,
+    status,
+  })
+}
+
+function batchWithStatus(status: BatchStatus) {
+  return { ...BASE_BATCH, status }
+}
+
+async function registerIdentityMock(
+  input: Readonly<{ page: Page; permissions: MockPermissions }>,
+): Promise<void> {
+  await input.page.route('**/auth/me', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await fulfillJson(route, {
+      data: {
+        company: { id: '00000000-0000-4000-8000-000000000001' },
+        identity: { userId: '00000000-0000-4000-8000-000000000002' },
+        permissions: input.permissions,
+        roles: ['viewer'],
+      },
+    })
+  })
+}
+
+async function registerCteBatchMocks(
+  input: Readonly<{ initialStatus: BatchStatus; page: Page; state: MockState }>,
+): Promise<void> {
+  input.state.batchStatus = input.initialStatus
+  await input.page.route(/\/cte-batches(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    if (route.request().method() === 'POST') {
+      input.state.batchCreations += 1
+      input.state.batchStatus = 'draft'
+      await fulfillJson(route, { data: batchWithStatus('draft') }, 201)
+      return
+    }
+    await fulfillJson(route, {
+      data: [batchWithStatus(input.state.batchStatus)],
+      page: { nextCursor: null },
+    })
+  })
+  await input.page.route(/\/cte-batches\/[^/]+\/submit$/, async (route) => {
+    input.state.submissions += 1
+    input.state.batchStatus = 'submitted'
+    await fulfillJson(route, { data: batchWithStatus('submitted') }, 202)
+  })
+  await input.page.route(/\/cte-batches\/[^/]+\/cancel$/, async (route) => {
+    input.state.cancellations += 1
+    input.state.batchStatus = 'cancelled'
+    await fulfillJson(route, { data: batchWithStatus('cancelled') })
+  })
+  await input.page.route(/\/cte-batches\/[^/]+\/events(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, { data: [EVENT], page: { nextCursor: null } })
+  })
+  await input.page.route(/\/cte-batches\/[^/]+$/, async (route) => {
+    await fulfillJson(route, { data: batchWithStatus(input.state.batchStatus) })
+  })
+}
+
+export async function mockCteBatchWorkspaceApi(
+  input: Readonly<{
+    initialStatus?: BatchStatus
+    page: Page
+    permissions: MockPermissions
+  }>,
+): Promise<
+  Readonly<{
+    batchCreations: () => number
+    cancellations: () => number
+    failures: () => readonly string[]
+    submissions: () => number
+  }>
+> {
+  const state: MockState = {
+    batchCreations: 0,
+    batchStatus: input.initialStatus ?? 'draft',
+    cancellations: 0,
+    failures: [],
+    submissions: 0,
+  }
+  input.page.on('requestfailed', (request) => {
+    if (new URL(request.url()).origin === 'http://localhost:53001') {
+      state.failures.push(`${request.url()} ${request.failure()?.errorText}`)
+    }
+  })
+  await Promise.all([
+    registerIdentityMock(input),
+    registerCteBatchMocks({
+      initialStatus: input.initialStatus ?? 'draft',
+      page: input.page,
+      state,
+    }),
+  ])
+  return {
+    batchCreations: () => state.batchCreations,
+    cancellations: () => state.cancellations,
+    failures: () => state.failures,
+    submissions: () => state.submissions,
+  }
+}

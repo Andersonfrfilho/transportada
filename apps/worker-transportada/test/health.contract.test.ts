@@ -49,6 +49,7 @@ describe('worker health HTTP contract', () => {
       dependencies: {
         database: 'up',
         rabbitmq: 'up',
+        storage: 'up',
       },
       service: 'worker',
       status: 'ok',
@@ -73,6 +74,7 @@ describe('worker health HTTP contract', () => {
       dependencies: {
         database: 'up',
         rabbitmq: 'down',
+        storage: 'up',
       },
       service: 'worker',
       status: 'degraded',
@@ -118,6 +120,7 @@ function createFixture(
     createCorrelationId?: () => string
     databaseHealthCheck?: () => Promise<{ readonly healthy: true }>
     rabbitMqHealthCheck?: () => Promise<{ readonly healthy: true }>
+    storageHealthCheck?: () => Promise<{ readonly healthy: true }>
   } = {},
 ) {
   const healthService = new WorkerHealthService({
@@ -127,6 +130,9 @@ function createFixture(
     now: () => new Date('2026-07-18T20:00:00.000Z'),
     rabbitMq: {
       healthCheck: params.rabbitMqHealthCheck ?? (async () => ({ healthy: true })),
+    },
+    storage: {
+      healthCheck: params.storageHealthCheck ?? (async () => ({ healthy: true })),
     },
   })
   const logger = {

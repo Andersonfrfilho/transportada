@@ -49,6 +49,8 @@ describe('tenant context contract', () => {
       'batches.create',
       'batches.approve',
       'freight.simulate',
+      'cte.manage',
+      'cte.submit',
       'cte.issue',
       'cte.cancel',
       'cte.read',

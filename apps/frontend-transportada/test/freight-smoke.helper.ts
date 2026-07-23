@@ -1,0 +1,176 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { type Page, type Route } from '@playwright/test'
+
+const CORS_HEADERS = {
+  'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-origin': 'http://localhost:53000',
+}
+
+const RULE = {
+  createdAt: '2026-07-22T19:00:00.000Z',
+  currentVersion: '1',
+  description: 'Percentual padrao da operacao',
+  id: '00000000-0000-4000-8000-000000000301',
+  name: 'Regra padrao',
+  priority: '10',
+  status: 'draft',
+  type: 'percentage_of_invoice_total',
+  updatedAt: '2026-07-22T19:00:00.000Z',
+} as const
+
+const BASE_SIMULATION = {
+  adjustments: [],
+  baseAmount: '10000.0000',
+  calculatedAmount: '350.0000',
+  calculationDetails: {
+    formula: 'invoiceTotalAmount * percentage',
+    roundingMode: 'half_up',
+    scale: 4,
+  },
+  correlationId: 'freight-http-correlation',
+  createdAt: '2026-07-22T19:00:00.000Z',
+  freightRuleId: '00000000-0000-4000-8000-000000000301',
+  freightRuleVersionId: '00000000-0000-4000-8000-000000000302',
+  id: '00000000-0000-4000-8000-000000000303',
+  maximumAmount: null,
+  minimumAmount: null,
+  nfeDocumentId: '00000000-0000-4000-8000-000000000304',
+  percentage: '0.035000',
+  ruleSnapshot: {
+    freightRuleId: '00000000-0000-4000-8000-000000000301',
+    freightRuleVersionId: '00000000-0000-4000-8000-000000000302',
+    maximumAmount: null,
+    minimumAmount: null,
+    percentage: '0.035000',
+    ruleVersion: '1',
+    type: 'percentage_of_invoice_total',
+    validFrom: '2026-07-01T00:00:00.000Z',
+    validUntil: null,
+  },
+  ruleVersion: '1',
+  status: 'snapshotted',
+  totalAmount: '350.0000',
+  updatedAt: '2026-07-22T19:00:00.000Z',
+} as const
+
+type AdjustmentMode = 'maximum' | 'minimum' | 'none'
+type MockPermissions = readonly ('freight.simulate' | 'settings.manage')[]
+
+type MockState = {
+  failures: string[]
+  ruleCreations: number
+  simulations: number
+}
+
+async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+  await route.fulfill({
+    body: JSON.stringify(body),
+    contentType: 'application/json',
+    headers: CORS_HEADERS,
+    status,
+  })
+}
+
+function createSimulation(adjustment: AdjustmentMode) {
+  if (adjustment === 'minimum') {
+    return {
+      ...BASE_SIMULATION,
+      adjustments: [
+        { amount: '50.0000', description: 'Minimum applied', type: 'minimum_amount' as const },
+      ],
+      totalAmount: '400.0000',
+    }
+  }
+  if (adjustment === 'maximum') {
+    return {
+      ...BASE_SIMULATION,
+      adjustments: [
+        { amount: '25.0000', description: 'Maximum applied', type: 'maximum_amount' as const },
+      ],
+      totalAmount: '325.0000',
+    }
+  }
+  return BASE_SIMULATION
+}
+
+async function registerIdentityMock(
+  input: Readonly<{ page: Page; permissions: MockPermissions }>,
+): Promise<void> {
+  await input.page.route('**/auth/me', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await fulfillJson(route, {
+      data: {
+        company: { id: '00000000-0000-4000-8000-000000000001' },
+        identity: { userId: '00000000-0000-4000-8000-000000000002' },
+        permissions: input.permissions,
+        roles: ['viewer'],
+      },
+    })
+  })
+}
+
+async function registerFreightMocks(
+  input: Readonly<{ adjustment: AdjustmentMode; page: Page; state: MockState }>,
+): Promise<void> {
+  const simulation = createSimulation(input.adjustment)
+  await input.page.route(/\/freight-rules(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    if (route.request().method() === 'POST') {
+      input.state.ruleCreations += 1
+      await fulfillJson(route, { data: RULE }, 201)
+      return
+    }
+    await fulfillJson(route, { data: [RULE], page: { nextCursor: null } })
+  })
+  await input.page.route(/\/freight-calculations$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    input.state.simulations += 1
+    await fulfillJson(route, { data: simulation }, 201)
+  })
+  await input.page.route(
+    /\/nfe-documents\/[^/]+\/freight-calculations(?:\?.*)?$/,
+    async (route) => {
+      await fulfillJson(route, { data: [simulation], page: { nextCursor: null } })
+    },
+  )
+}
+
+export async function mockFreightWorkspaceApi(
+  input: Readonly<{ adjustment?: AdjustmentMode; page: Page; permissions: MockPermissions }>,
+): Promise<
+  Readonly<{
+    failures: () => readonly string[]
+    ruleCreations: () => number
+    simulations: () => number
+  }>
+> {
+  const state: MockState = { failures: [], ruleCreations: 0, simulations: 0 }
+  input.page.on('requestfailed', (request) => {
+    if (new URL(request.url()).origin === 'http://localhost:53001') {
+      state.failures.push(`${request.url()} ${request.failure()?.errorText}`)
+    }
+  })
+  await Promise.all([
+    registerIdentityMock(input),
+    registerFreightMocks({
+      adjustment: input.adjustment ?? 'none',
+      page: input.page,
+      state,
+    }),
+  ])
+  return {
+    failures: () => state.failures,
+    ruleCreations: () => state.ruleCreations,
+    simulations: () => state.simulations,
+  }
+}

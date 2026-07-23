@@ -1,0 +1,124 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import type { CompanyContext } from '../../src/identity/domain/tenant-context'
+import type {
+  NfeImportDetail,
+  NfeImportSummary,
+} from '../../src/nfe-imports/application/nfe-import.types'
+
+export type UploadFileDescriptor = {
+  readonly bytes: Uint8Array
+  readonly contentType: string
+  readonly name: string
+  readonly sha256: string
+}
+
+export type RequestUploadCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly files: readonly UploadFileDescriptor[]
+  readonly idempotencyKey: string
+}
+
+export type RequestDistributionCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly idempotencyKey: string
+}
+
+export type ListImportsCall = {
+  readonly context: CompanyContext
+  readonly cursor: string | null
+  readonly limit: number
+}
+
+export type GetImportCall = {
+  readonly context: CompanyContext
+  readonly importId: string
+}
+
+export type ReprocessImportCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly importId: string
+}
+
+export type NfeDocumentSummary = {
+  readonly accessKey: string
+  readonly emitterName: string
+  readonly id: string
+  readonly issuedAt: string
+  readonly recipientName: string
+  readonly status: 'authorized' | 'cancelled' | 'denied'
+  readonly totalAmount: string
+  readonly variant: 'complete' | 'summary' | 'event'
+}
+
+export type NfeDocumentDetail = NfeDocumentSummary
+
+export type ListDocumentsCall = {
+  readonly context: CompanyContext
+  readonly cursor: string | null
+  readonly limit: number
+}
+
+export type GetDocumentCall = {
+  readonly context: CompanyContext
+  readonly documentId: string
+}
+
+export type DownloadDocumentXmlCall = {
+  readonly context: CompanyContext
+  readonly documentId: string
+}
+
+export type DownloadDocumentXmlResult = {
+  readonly accessKey: string
+  readonly content: Uint8Array
+  readonly contentType: string
+  readonly fileName: string
+}
+
+export type NfeDocumentEligibility = {
+  readonly authorizedDocument: boolean
+  readonly companyRelated: boolean
+  readonly decision: 'PENDING_FREIGHT_AND_CTE_RULES'
+  readonly hasOriginalXml: boolean
+}
+
+export type NfeHttpRouteDependencies = {
+  readonly downloadDocumentXml: {
+    execute(input: DownloadDocumentXmlCall): Promise<DownloadDocumentXmlResult>
+  }
+  readonly getDocument: {
+    execute(input: GetDocumentCall): Promise<NfeDocumentDetail>
+  }
+  readonly getEligibility?: {
+    execute(input: GetDocumentCall): Promise<NfeDocumentEligibility>
+  }
+  readonly getImport: {
+    execute(input: GetImportCall): Promise<NfeImportDetail>
+  }
+  readonly listDocuments: {
+    execute(input: ListDocumentsCall): Promise<{
+      readonly items: readonly NfeDocumentSummary[]
+      readonly nextCursor: string | null
+    }>
+  }
+  readonly listImports: {
+    execute(input: ListImportsCall): Promise<{
+      readonly items: readonly NfeImportSummary[]
+      readonly nextCursor: string | null
+    }>
+  }
+  readonly reprocessImport: {
+    execute(input: ReprocessImportCall): Promise<NfeImportSummary>
+  }
+  readonly requestDistribution: {
+    execute(input: RequestDistributionCall): Promise<NfeImportSummary>
+  }
+  readonly requestUpload: {
+    execute(input: RequestUploadCall): Promise<NfeImportSummary>
+  }
+}

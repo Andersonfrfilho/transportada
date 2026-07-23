@@ -127,6 +127,8 @@ describe('GET /auth/me PostgreSQL isolation', () => {
               'batches.create',
               'batches.approve',
               'freight.simulate',
+              'cte.manage',
+              'cte.submit',
               'cte.issue',
               'cte.cancel',
               'cte.read',

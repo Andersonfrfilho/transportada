@@ -24,7 +24,9 @@ DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
-.PHONY: help bootstrap realm-contract config postgres-up identity-bootstrap up down ps dev check migration-test smoke
+E2E_ENV_FILE ?= .env.test
+
+.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -32,6 +34,11 @@ help: ## 📚 Lista os comandos disponíveis
 bootstrap: ## 🧰 Prepara o .env e instala com Bun congelado
 	@test -f .env || cp .env.example .env
 	@bun install --frozen-lockfile
+
+e2e-bootstrap: ## 🧪 Prepara o ambiente dedicado de E2E a partir do exemplo versionado
+	@test -f $(E2E_ENV_FILE) || cp .env.test.example $(E2E_ENV_FILE)
+
+test-bootstrap: e2e-bootstrap ## 🧪 Alias compatível para preparar o ambiente dedicado de E2E
 
 realm-contract: ## 🪪 Valida o contrato versionado do realm Keycloak local
 	@bun test test/keycloak-realm.contract.test.ts
@@ -82,13 +89,13 @@ identity-bootstrap: postgres-up realm-contract ## 🪪 Migra e cria a identidade
 		bun run --cwd apps/api-transportada db:seed:local
 
 up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
-	@$(COMPOSE) up -d --remove-orphans --wait
+	@$(COMPOSE) up -d --remove-orphans --wait $(SERVICES)
 
 down: config ## 🛑 Encerra a infraestrutura local
 	@$(COMPOSE) down
 
 ps: config ## 📋 Exibe os serviços locais
-	@$(COMPOSE) ps
+	@$(COMPOSE) ps $(SERVICES)
 
 dev: up ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
@@ -125,3 +132,26 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"
 	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
 	@set -a; . "./$(ENV_FILE)"; set +a; bun run --cwd apps/frontend-transportada smoke
+
+e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
+	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up
+
+test-up: e2e-up ## 🧪 Alias compatível para subir a infraestrutura dedicada de E2E
+
+e2e-down: e2e-bootstrap ## 🧪 Encerra a infraestrutura dedicada de E2E
+	@ENV_FILE=$(E2E_ENV_FILE) $(MAKE) down
+
+test-down: e2e-down ## 🧪 Alias compatível para encerrar a infraestrutura dedicada de E2E
+
+e2e-ps: e2e-bootstrap ## 🧪 Exibe os serviços do ambiente dedicado de E2E
+	@ENV_FILE=$(E2E_ENV_FILE) $(MAKE) ps
+
+test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente dedicado de E2E
+
+worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
+	@SERVICES="postgres rabbitmq minio" $(MAKE) up
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		RABBITMQ_TEST_URL="$${RABBITMQ_TEST_URL:-$$RABBITMQ_URL}" \
+		bun run --cwd apps/worker-transportada test:integration
+
+test-worker-integration: worker-integration ## 🧪 Alias compatível para integração comum do worker no ambiente local

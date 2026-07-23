@@ -10,7 +10,7 @@ import {
 } from '../../src/messaging/message-envelope.schema.js'
 import { buildRabbitMqTopology } from '../../src/messaging/rabbitmq-topology.js'
 
-const rabbitMqUrl = process.env.RABBITMQ_TEST_URL
+const rabbitMqUrl = process.env.RABBITMQ_TEST_URL ?? process.env.RABBITMQ_URL
 const describeRabbitMq = rabbitMqUrl ? describe : describe.skip
 
 const waitFor = async <T>(

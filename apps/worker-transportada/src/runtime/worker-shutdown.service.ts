@@ -14,7 +14,8 @@ interface HealthServerPort {
 }
 
 interface WorkerShutdownDependencies {
-  consumer?: ConsumerPort
+  closeables?: readonly CloseablePort[]
+  consumers?: readonly ConsumerPort[]
   provider: CloseablePort
   database: CloseablePort
   healthServer: HealthServerPort
@@ -36,7 +37,12 @@ export class WorkerShutdown {
   async #stopOnce(): Promise<void> {
     const errors: unknown[] = []
 
-    await closeSafely(() => this.#dependencies.consumer?.cancel(), errors)
+    for (const consumer of this.#dependencies.consumers ?? []) {
+      await closeSafely(() => consumer.cancel(), errors)
+    }
+    for (const closeable of this.#dependencies.closeables ?? []) {
+      await closeSafely(() => closeable.close(), errors)
+    }
     await closeSafely(() => this.#dependencies.provider.close(), errors)
     await closeSafely(() => this.#dependencies.database.close(), errors)
     await closeSafely(() => this.#dependencies.healthServer.stop(), errors)

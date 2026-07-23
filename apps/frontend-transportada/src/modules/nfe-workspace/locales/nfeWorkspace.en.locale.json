@@ -1,0 +1,57 @@
+{
+  "eyebrow": "Fiscal intake",
+  "title": "NF-e Workspace",
+  "subtitle": "Operational entry point for XML uploads, distribution, and imported invoice review.",
+  "statusLabel": "Current state",
+  "status": {
+    "empty": "No documents",
+    "error": "Unavailable",
+    "forbidden": "No access",
+    "loading": "Syncing",
+    "ready": "Ready",
+    "running": "Processing",
+    "cancelled": "Cancelled",
+    "completed": "Completed",
+    "failed": "Failed",
+    "partially_processed": "Partial",
+    "pending": "Pending",
+    "processing": "Processing",
+    "queued": "Queued"
+  },
+  "statusMessage": {
+    "empty": "No import or NF-e is available yet.",
+    "error": "The fiscal workspace could not be loaded.",
+    "forbidden": "Your current access does not allow this workspace.",
+    "loading": "Refreshing the operational view."
+  },
+  "upload": {
+    "title": "File intake",
+    "subtitle": "Send XML and ZIP batches without blocking the rest of the operation.",
+    "files": "XML or ZIP files",
+    "submit": "Upload batch",
+    "empty": "No file selected."
+  },
+  "distribution": {
+    "submit": "Run DF-e distribution"
+  },
+  "imports": {
+    "title": "Processings",
+    "subtitle": "Track queue state, totals, and allowed reprocessing.",
+    "empty": "No processing record yet.",
+    "reprocess": "Reprocess",
+    "imported": "Imported",
+    "invalid": "Invalid",
+    "failed": "Failed"
+  },
+  "documents": {
+    "title": "Imported documents",
+    "subtitle": "Fast review of already persisted NF-e records.",
+    "empty": "No documents available.",
+    "downloadXml": "Download XML"
+  },
+  "documentStatus": {
+    "authorized": "Authorized",
+    "cancelled": "Cancelled",
+    "denied": "Denied"
+  }
+}
