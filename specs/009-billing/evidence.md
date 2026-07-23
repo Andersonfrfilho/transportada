@@ -204,3 +204,43 @@ Observacao:
 
 - A falha e intencional para `T004`: os contracts fecham o comportamento da
   aplicacao e a implementacao dos casos de uso e repositorios fica para `T005`.
+
+## T005 — Casos de uso e repositorios de faturamento
+
+Data: 2026-07-23
+
+Modelo executor recomendado: Codex Sol high para dinheiro, idempotencia,
+concorrencia, transacoes e isolamento multiempresa.
+
+Implementacao:
+
+- elegibilidade tenant-scoped com CT-e autorizado e sem item de fatura;
+- criacao transacional com aritmetica decimal baseada em `bigint`;
+- replay por idempotency key e conflito seguro para fingerprint divergente;
+- reserva concorrente por CT-e com `FOR UPDATE` e constraint defensiva;
+- numeracao de fatura serializada por empresa com advisory lock transacional;
+- cancelamento financeiro append-only, motivo sanitizado e replay idempotente;
+- consultas e mutacoes sempre derivando `companyId` do contexto autenticado.
+- integracao PostgreSQL descartavel cobrindo duas criacoes concorrentes,
+  isolamento entre tenants, replay, conflito divergente e cancelamento.
+
+Comandos executados:
+
+```text
+bun test test/billing-application.contract.test.ts
+bun run check
+bun run test:integration
+```
+
+Resultado:
+
+```text
+11 pass, 0 fail no contract isolado
+466 pass, 1 skip, 0 fail no check agregado
+36 pass, 1 skip, 0 fail na integracao agregada
+```
+
+Observacao:
+
+- O cancelamento preserva itens e eventos e nao libera automaticamente o CT-e
+  para refaturamento; uma politica explicita futura podera tratar essa liberacao.
