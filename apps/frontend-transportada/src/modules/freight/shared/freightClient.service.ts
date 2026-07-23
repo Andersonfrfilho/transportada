@@ -77,6 +77,101 @@ export type FreightCalculationListPage = Readonly<{
   nextCursor: null | string
 }>
 
+export type FreightRuleFilters = Readonly<{
+  createdFrom?: string
+  createdUntil?: string
+  currentVersionEq?: string
+  currentVersionNe?: string
+  descriptionContains?: string
+  maximumAmountEq?: string
+  maximumAmountGt?: string
+  maximumAmountGte?: string
+  maximumAmountLt?: string
+  maximumAmountLte?: string
+  maximumAmountNe?: string
+  minimumAmountEq?: string
+  minimumAmountGt?: string
+  minimumAmountGte?: string
+  minimumAmountLt?: string
+  minimumAmountLte?: string
+  minimumAmountNe?: string
+  nameContains?: string
+  percentageEq?: string
+  percentageGt?: string
+  percentageGte?: string
+  percentageLt?: string
+  percentageLte?: string
+  percentageNe?: string
+  priorityEq?: string
+  priorityGt?: string
+  priorityGte?: string
+  priorityLt?: string
+  priorityLte?: string
+  priorityNe?: string
+  statusEq?: FreightRuleSummary['status']
+  statusNe?: FreightRuleSummary['status']
+  typeEq?: FreightRuleSummary['type']
+  typeNe?: FreightRuleSummary['type']
+  updatedFrom?: string
+  updatedUntil?: string
+  validFromFrom?: string
+  validFromUntil?: string
+  validUntilFrom?: string
+  validUntilIsNull?: boolean
+  validUntilUntil?: string
+}>
+
+export type FreightCalculationFilters = Readonly<{
+  baseAmountEq?: string
+  baseAmountGt?: string
+  baseAmountGte?: string
+  baseAmountLt?: string
+  baseAmountLte?: string
+  baseAmountNe?: string
+  calculatedAmountEq?: string
+  calculatedAmountGt?: string
+  calculatedAmountGte?: string
+  calculatedAmountLt?: string
+  calculatedAmountLte?: string
+  calculatedAmountNe?: string
+  createdFrom?: string
+  createdUntil?: string
+  freightRuleIdEq?: string
+  freightRuleIdNe?: string
+  freightRuleVersionIdEq?: string
+  freightRuleVersionIdNe?: string
+  maximumAmountEq?: string
+  maximumAmountGt?: string
+  maximumAmountGte?: string
+  maximumAmountLt?: string
+  maximumAmountLte?: string
+  maximumAmountNe?: string
+  minimumAmountEq?: string
+  minimumAmountGt?: string
+  minimumAmountGte?: string
+  minimumAmountLt?: string
+  minimumAmountLte?: string
+  minimumAmountNe?: string
+  percentageEq?: string
+  percentageGt?: string
+  percentageGte?: string
+  percentageLt?: string
+  percentageLte?: string
+  percentageNe?: string
+  ruleVersionEq?: string
+  ruleVersionNe?: string
+  statusEq?: FreightSimulationResult['status']
+  statusNe?: FreightSimulationResult['status']
+  totalAmountEq?: string
+  totalAmountGt?: string
+  totalAmountGte?: string
+  totalAmountLt?: string
+  totalAmountLte?: string
+  totalAmountNe?: string
+  updatedFrom?: string
+  updatedUntil?: string
+}>
+
 type ClientDependencies = Readonly<{
   apiUrl: string
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -87,10 +182,15 @@ type ClientDependencies = Readonly<{
 export type FreightClient = Readonly<{
   createRule: (input: FreightRuleCreate) => Promise<FreightRuleSummary>
   listCalculations: (
-    input: Readonly<{ cursor: null | string; documentId: string; limit: number }>,
+    input: Readonly<{
+      cursor: null | string
+      documentId: string
+      filters?: FreightCalculationFilters
+      limit: number
+    }>,
   ) => Promise<FreightCalculationListPage>
   listRules: (
-    input: Readonly<{ cursor: null | string; limit: number }>,
+    input: Readonly<{ cursor: null | string; filters?: FreightRuleFilters; limit: number }>,
   ) => Promise<FreightRuleListPage>
   simulateFreight: (input: FreightSimulationRequest) => Promise<FreightSimulationResult>
 }>
@@ -182,6 +282,147 @@ function cleanRuleCreate(input: FreightRuleCreate): FreightRuleCreate {
   }
 }
 
+function appendStringSearch(
+  search: URLSearchParams,
+  input: Readonly<Record<string, string | undefined>>,
+): void {
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined && value.length > 0) {
+      search.set(key, value)
+    }
+  }
+}
+
+function appendBooleanSearch(
+  search: URLSearchParams,
+  input: Readonly<Record<string, boolean | undefined>>,
+): void {
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) {
+      search.set(key, String(value))
+    }
+  }
+}
+
+function buildRuleSearch(
+  input: Readonly<{
+    cursor: null | string
+    filters?: FreightRuleFilters
+    limit: number
+  }>,
+): string {
+  const search = new URLSearchParams()
+  if (input.cursor !== null) search.set('cursor', input.cursor)
+  search.set('limit', String(input.limit))
+  appendStringSearch(search, {
+    currentVersionEq: input.filters?.currentVersionEq,
+    currentVersionNe: input.filters?.currentVersionNe,
+    createdFrom: input.filters?.createdFrom,
+    createdUntil: input.filters?.createdUntil,
+    descriptionContains: input.filters?.descriptionContains,
+    maximumAmountEq: input.filters?.maximumAmountEq,
+    maximumAmountGt: input.filters?.maximumAmountGt,
+    maximumAmountGte: input.filters?.maximumAmountGte,
+    maximumAmountLt: input.filters?.maximumAmountLt,
+    maximumAmountLte: input.filters?.maximumAmountLte,
+    maximumAmountNe: input.filters?.maximumAmountNe,
+    minimumAmountEq: input.filters?.minimumAmountEq,
+    minimumAmountGt: input.filters?.minimumAmountGt,
+    minimumAmountGte: input.filters?.minimumAmountGte,
+    minimumAmountLt: input.filters?.minimumAmountLt,
+    minimumAmountLte: input.filters?.minimumAmountLte,
+    minimumAmountNe: input.filters?.minimumAmountNe,
+    nameContains: input.filters?.nameContains,
+    percentageEq: input.filters?.percentageEq,
+    percentageGt: input.filters?.percentageGt,
+    percentageGte: input.filters?.percentageGte,
+    percentageLt: input.filters?.percentageLt,
+    percentageLte: input.filters?.percentageLte,
+    percentageNe: input.filters?.percentageNe,
+    priorityEq: input.filters?.priorityEq,
+    priorityGt: input.filters?.priorityGt,
+    priorityGte: input.filters?.priorityGte,
+    priorityLt: input.filters?.priorityLt,
+    priorityLte: input.filters?.priorityLte,
+    priorityNe: input.filters?.priorityNe,
+    statusEq: input.filters?.statusEq,
+    statusNe: input.filters?.statusNe,
+    typeEq: input.filters?.typeEq,
+    typeNe: input.filters?.typeNe,
+    updatedFrom: input.filters?.updatedFrom,
+    updatedUntil: input.filters?.updatedUntil,
+    validFromFrom: input.filters?.validFromFrom,
+    validFromUntil: input.filters?.validFromUntil,
+    validUntilFrom: input.filters?.validUntilFrom,
+    validUntilUntil: input.filters?.validUntilUntil,
+  })
+  appendBooleanSearch(search, { validUntilIsNull: input.filters?.validUntilIsNull })
+  return search.toString()
+}
+
+function buildCalculationSearch(
+  input: Readonly<{
+    cursor: null | string
+    filters?: FreightCalculationFilters
+    limit: number
+  }>,
+): string {
+  const search = new URLSearchParams()
+  if (input.cursor !== null) search.set('cursor', input.cursor)
+  search.set('limit', String(input.limit))
+  appendStringSearch(search, {
+    baseAmountEq: input.filters?.baseAmountEq,
+    baseAmountGt: input.filters?.baseAmountGt,
+    baseAmountGte: input.filters?.baseAmountGte,
+    baseAmountLt: input.filters?.baseAmountLt,
+    baseAmountLte: input.filters?.baseAmountLte,
+    baseAmountNe: input.filters?.baseAmountNe,
+    calculatedAmountEq: input.filters?.calculatedAmountEq,
+    calculatedAmountGt: input.filters?.calculatedAmountGt,
+    calculatedAmountGte: input.filters?.calculatedAmountGte,
+    calculatedAmountLt: input.filters?.calculatedAmountLt,
+    calculatedAmountLte: input.filters?.calculatedAmountLte,
+    calculatedAmountNe: input.filters?.calculatedAmountNe,
+    createdFrom: input.filters?.createdFrom,
+    createdUntil: input.filters?.createdUntil,
+    freightRuleIdEq: input.filters?.freightRuleIdEq,
+    freightRuleIdNe: input.filters?.freightRuleIdNe,
+    freightRuleVersionIdEq: input.filters?.freightRuleVersionIdEq,
+    freightRuleVersionIdNe: input.filters?.freightRuleVersionIdNe,
+    maximumAmountEq: input.filters?.maximumAmountEq,
+    maximumAmountGt: input.filters?.maximumAmountGt,
+    maximumAmountGte: input.filters?.maximumAmountGte,
+    maximumAmountLt: input.filters?.maximumAmountLt,
+    maximumAmountLte: input.filters?.maximumAmountLte,
+    maximumAmountNe: input.filters?.maximumAmountNe,
+    minimumAmountEq: input.filters?.minimumAmountEq,
+    minimumAmountGt: input.filters?.minimumAmountGt,
+    minimumAmountGte: input.filters?.minimumAmountGte,
+    minimumAmountLt: input.filters?.minimumAmountLt,
+    minimumAmountLte: input.filters?.minimumAmountLte,
+    minimumAmountNe: input.filters?.minimumAmountNe,
+    percentageEq: input.filters?.percentageEq,
+    percentageGt: input.filters?.percentageGt,
+    percentageGte: input.filters?.percentageGte,
+    percentageLt: input.filters?.percentageLt,
+    percentageLte: input.filters?.percentageLte,
+    percentageNe: input.filters?.percentageNe,
+    ruleVersionEq: input.filters?.ruleVersionEq,
+    ruleVersionNe: input.filters?.ruleVersionNe,
+    statusEq: input.filters?.statusEq,
+    statusNe: input.filters?.statusNe,
+    totalAmountEq: input.filters?.totalAmountEq,
+    totalAmountGt: input.filters?.totalAmountGt,
+    totalAmountGte: input.filters?.totalAmountGte,
+    totalAmountLt: input.filters?.totalAmountLt,
+    totalAmountLte: input.filters?.totalAmountLte,
+    totalAmountNe: input.filters?.totalAmountNe,
+    updatedFrom: input.filters?.updatedFrom,
+    updatedUntil: input.filters?.updatedUntil,
+  })
+  return search.toString()
+}
+
 export const createFreightClient: FreightClientFactory = (dependencies) => {
   const adapters = createFreightResponseAdapters()
 
@@ -201,13 +442,10 @@ export const createFreightClient: FreightClientFactory = (dependencies) => {
       }
     },
     async listCalculations(input) {
-      const search = new URLSearchParams()
-      if (input.cursor !== null) search.set('cursor', input.cursor)
-      search.set('limit', String(input.limit))
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: `/nfe-documents/${input.documentId}/freight-calculations?${search}`,
+        path: `/nfe-documents/${input.documentId}/freight-calculations?${buildCalculationSearch(input)}`,
       })
       try {
         return adapters.calculationListFromApi(response)
@@ -216,13 +454,10 @@ export const createFreightClient: FreightClientFactory = (dependencies) => {
       }
     },
     async listRules(input) {
-      const search = new URLSearchParams()
-      if (input.cursor !== null) search.set('cursor', input.cursor)
-      search.set('limit', String(input.limit))
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: `/freight-rules?${search}`,
+        path: `/freight-rules?${buildRuleSearch(input)}`,
       })
       const data = readEnvelopeData(response)
       if (!Array.isArray(data)) throw requestError('FREIGHT_RESPONSE_INVALID')

@@ -30,13 +30,14 @@ const EVENT = {
 
 type MockPermissions = readonly ('cte.manage' | 'cte.submit')[]
 
-type BatchStatus = 'cancelled' | 'draft' | 'submitted'
+type BatchStatus = 'cancelled' | 'done' | 'draft' | 'error' | 'in_flight' | 'submitted'
 
 type MockState = {
   batchCreations: number
   batchStatus: BatchStatus
   cancellations: number
   failures: string[]
+  listRequests: number
   submissions: number
 }
 
@@ -77,6 +78,9 @@ async function registerCteBatchMocks(
 ): Promise<void> {
   input.state.batchStatus = input.initialStatus
   await input.page.route(/\/cte-batches(?:\?.*)?$/, async (route) => {
+    if (route.request().url().includes('/cte-batches') && route.request().method() === 'GET') {
+      input.state.listRequests += 1
+    }
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ headers: CORS_HEADERS, status: 204 })
       return
@@ -121,6 +125,7 @@ export async function mockCteBatchWorkspaceApi(
     batchCreations: () => number
     cancellations: () => number
     failures: () => readonly string[]
+    listRequests: () => number
     submissions: () => number
   }>
 > {
@@ -129,6 +134,7 @@ export async function mockCteBatchWorkspaceApi(
     batchStatus: input.initialStatus ?? 'draft',
     cancellations: 0,
     failures: [],
+    listRequests: 0,
     submissions: 0,
   }
   input.page.on('requestfailed', (request) => {
@@ -148,6 +154,7 @@ export async function mockCteBatchWorkspaceApi(
     batchCreations: () => state.batchCreations,
     cancellations: () => state.cancellations,
     failures: () => state.failures,
+    listRequests: () => state.listRequests,
     submissions: () => state.submissions,
   }
 }

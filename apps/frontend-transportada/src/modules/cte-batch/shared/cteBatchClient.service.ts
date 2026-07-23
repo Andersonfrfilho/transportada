@@ -32,6 +32,28 @@ export type CteBatchEventListPage = Readonly<{
   nextCursor: null | string
 }>
 
+export type CteBatchFilters = Readonly<{
+  createdFrom?: string
+  createdUntil?: string
+  itemCountEq?: string
+  itemCountGt?: string
+  itemCountGte?: string
+  itemCountLt?: string
+  itemCountLte?: string
+  itemCountNe?: string
+  nameContains?: string
+  statusEq?: CteBatchStatus
+  statusNe?: CteBatchStatus
+  updatedFrom?: string
+  updatedUntil?: string
+  versionEq?: string
+  versionGt?: string
+  versionGte?: string
+  versionLt?: string
+  versionLte?: string
+  versionNe?: string
+}>
+
 export type CteBatchCreate = Readonly<{
   documentIds: readonly string[]
   name: string
@@ -50,7 +72,7 @@ export type CteBatchClient = Readonly<{
   createBatch: (input: CteBatchCreate) => Promise<CteBatchSummary>
   getBatch: (batchId: string) => Promise<CteBatchSummary>
   listBatches: (
-    input: Readonly<{ cursor: null | string; limit: number }>,
+    input: Readonly<{ cursor: null | string; filters?: CteBatchFilters; limit: number }>,
   ) => Promise<CteBatchListPage>
   listEvents: (
     input: Readonly<{ batchId: string; cursor: null | string; limit: number }>,
@@ -137,6 +159,44 @@ function searchParams(input: Readonly<{ cursor: null | string; limit: number }>)
   return search.toString()
 }
 
+function buildBatchSearch(
+  input: Readonly<{
+    cursor: null | string
+    filters?: CteBatchFilters
+    limit: number
+  }>,
+): string {
+  const search = new URLSearchParams(searchParams(input))
+  const filters = input.filters
+  const fields = {
+    createdFrom: filters?.createdFrom,
+    createdUntil: filters?.createdUntil,
+    itemCountEq: filters?.itemCountEq,
+    itemCountGt: filters?.itemCountGt,
+    itemCountGte: filters?.itemCountGte,
+    itemCountLt: filters?.itemCountLt,
+    itemCountLte: filters?.itemCountLte,
+    itemCountNe: filters?.itemCountNe,
+    nameContains: filters?.nameContains,
+    statusEq: filters?.statusEq,
+    statusNe: filters?.statusNe,
+    updatedFrom: filters?.updatedFrom,
+    updatedUntil: filters?.updatedUntil,
+    versionEq: filters?.versionEq,
+    versionGt: filters?.versionGt,
+    versionGte: filters?.versionGte,
+    versionLt: filters?.versionLt,
+    versionLte: filters?.versionLte,
+    versionNe: filters?.versionNe,
+  }
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined && value.length > 0) {
+      search.set(key, value)
+    }
+  }
+  return search.toString()
+}
+
 export const createCteBatchClient: CteBatchClientFactory = (dependencies) => {
   const adapters = createCteBatchResponseAdapters()
 
@@ -184,7 +244,7 @@ export const createCteBatchClient: CteBatchClientFactory = (dependencies) => {
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: `/cte-batches?${searchParams(input)}`,
+        path: `/cte-batches?${buildBatchSearch(input)}`,
       })
       try {
         return adapters.batchListFromApi(response)

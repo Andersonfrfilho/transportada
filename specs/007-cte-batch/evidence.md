@@ -399,6 +399,37 @@ bun run smoke
 0 failed
 ```
 
+## Revisão extra — filtros avançados da workspace de lotes
+
+Data: 2026-07-23
+
+Objetivo:
+
+- completar operação de filtros avançados no workspace de lotes no frontend;
+- incluir `statusNe` e contador numérico com operador `Ne` por padrão de filtros;
+- disponibilizar limpeza de filtros para acelerar jornadas de reuso.
+
+Arquivos alterados:
+
+- `apps/frontend-transportada/src/modules/cte-batch/pages/CteBatchWorkspace.page.tsx`
+
+Observação:
+
+- esta revisão não altera contratos backend nem regras de autorização; apenas melhora
+  usabilidade e consistência da camada de consulta no frontend.
+
+Verificação local (agregada no gate):
+
+```text
+bun run --cwd apps/frontend-transportada check
+```
+
+Evidência:
+
+- filtros com valor de igualdade e diferença (`statusEq`, `statusNe`, campos numéricos)
+  continuam cobertos;
+- botão `Limpar filtros` adicionado para resetar rapidamente os campos de busca.
+
 Observação:
 
 - A primeira execução do smoke falhou antes da UI porque `localhost:58080` não tinha Keycloak

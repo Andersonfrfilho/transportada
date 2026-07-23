@@ -1512,3 +1512,35 @@ executado.
 Conclusão: T031 está concluída sem achado crítico remanescente. A feature 005
 está com evidência consolidada, gates locais verdes e sem publicação remota,
 chamada real à SEFAZ, PFX real, XML fiscal real ou segredo versionado.
+
+## Revisão extra — filtros avançados da workspace de importação NF-e
+
+Data: 2026-07-23
+
+Objetivo:
+
+- cobrir filtros de status e origem por operação de igualdade e diferença;
+- manter todos os campos de contador com operadores `Eq/Ne/Gt/Gte/Lt/Lte`;
+- incluir ação de limpeza de filtros para reduzir busca manual entre execuções.
+
+Arquivos alterados:
+
+- `apps/frontend-transportada/src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx`
+- `apps/frontend-transportada/src/modules/nfe-workspace/locales/nfeWorkspace.locale.json`
+
+Observação:
+
+- os contratos de client/queries já existentes já validam os parâmetros
+  `Ne`/`Eq` no backend-facing query strings.
+
+Verificação local (agregada no gate):
+
+```text
+bun run --cwd apps/frontend-transportada check
+```
+
+Evidência:
+
+- filtros `sourceNe`, `statusNe`, `id/ne` e contadores avançados seguem disponíveis
+  no workspace;
+- `Limpar filtros` padroniza estado limpo e facilita nova busca.

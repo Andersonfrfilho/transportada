@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
 
 import {
   cteBatchEvents,
@@ -167,22 +167,43 @@ class DrizzleCteBatchTransaction {
   public async list(input: {
     readonly context: { readonly companyId: string }
     readonly cursor: string | null
+    readonly filters?: {
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly itemCountEq?: string
+      readonly itemCountGt?: string
+      readonly itemCountGte?: string
+      readonly itemCountLt?: string
+      readonly itemCountLte?: string
+      readonly itemCountNe?: string
+      readonly nameContains?: string
+      readonly statusEq?: CteBatchStatus
+      readonly statusNe?: CteBatchStatus
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly versionEq?: string
+      readonly versionGt?: string
+      readonly versionGte?: string
+      readonly versionLt?: string
+      readonly versionLte?: string
+      readonly versionNe?: string
+    }
     readonly limit: number
   }): Promise<{
     readonly items: readonly Record<string, unknown>[]
     readonly nextCursor: string | null
   }> {
     const cursor = decodeCursor(input.cursor)
-    const condition =
+    const condition = and(
+      eq(cteBatches.companyId, input.context.companyId),
       cursor === null
-        ? eq(cteBatches.companyId, input.context.companyId)
-        : and(
-            eq(cteBatches.companyId, input.context.companyId),
-            or(
-              lt(cteBatches.createdAt, cursor.createdAt),
-              and(eq(cteBatches.createdAt, cursor.createdAt), lt(cteBatches.id, cursor.id)),
-            ),
-          )
+        ? undefined
+        : or(
+            lt(cteBatches.createdAt, cursor.createdAt),
+            and(eq(cteBatches.createdAt, cursor.createdAt), lt(cteBatches.id, cursor.id)),
+          ),
+      createBatchListFilters(input.filters),
+    )
     const rows = await this.database
       .select()
       .from(cteBatches)
@@ -282,6 +303,85 @@ class DrizzleCteBatchTransaction {
       .where(and(eq(cteBatchItems.companyId, companyId), eq(cteBatchItems.batchId, batchId)))
     return rows.length
   }
+}
+
+function createBatchListFilters(
+  input:
+    | {
+        readonly createdFrom?: string
+        readonly createdUntil?: string
+        readonly itemCountEq?: string
+        readonly itemCountGt?: string
+        readonly itemCountGte?: string
+        readonly itemCountLt?: string
+        readonly itemCountLte?: string
+        readonly itemCountNe?: string
+        readonly nameContains?: string
+        readonly statusEq?: CteBatchStatus
+        readonly statusNe?: CteBatchStatus
+        readonly updatedFrom?: string
+        readonly updatedUntil?: string
+        readonly versionEq?: string
+        readonly versionGt?: string
+        readonly versionGte?: string
+        readonly versionLt?: string
+        readonly versionLte?: string
+        readonly versionNe?: string
+      }
+    | undefined,
+) {
+  if (input === undefined) return undefined
+  return and(
+    input.createdFrom === undefined
+      ? undefined
+      : sql`${cteBatches.createdAt} >= ${new Date(input.createdFrom)}`,
+    input.createdUntil === undefined
+      ? undefined
+      : sql`${cteBatches.createdAt} <= ${new Date(input.createdUntil)}`,
+    input.itemCountEq === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) = ${BigInt(input.itemCountEq)}`,
+    input.itemCountGt === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) > ${BigInt(input.itemCountGt)}`,
+    input.itemCountGte === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) >= ${BigInt(input.itemCountGte)}`,
+    input.itemCountLt === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) < ${BigInt(input.itemCountLt)}`,
+    input.itemCountLte === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) <= ${BigInt(input.itemCountLte)}`,
+    input.itemCountNe === undefined
+      ? undefined
+      : sql`(select count(*) from ${cteBatchItems} where ${cteBatchItems.companyId} = ${cteBatches.companyId} and ${cteBatchItems.batchId} = ${cteBatches.id}) <> ${BigInt(input.itemCountNe)}`,
+    input.nameContains === undefined
+      ? undefined
+      : ilike(cteBatches.name, `%${input.nameContains}%`),
+    input.statusEq === undefined ? undefined : eq(cteBatches.status, input.statusEq),
+    input.statusNe === undefined ? undefined : ne(cteBatches.status, input.statusNe),
+    input.updatedFrom === undefined
+      ? undefined
+      : sql`${cteBatches.updatedAt} >= ${new Date(input.updatedFrom)}`,
+    input.updatedUntil === undefined
+      ? undefined
+      : sql`${cteBatches.updatedAt} <= ${new Date(input.updatedUntil)}`,
+    input.versionEq === undefined ? undefined : eq(cteBatches.version, BigInt(input.versionEq)),
+    input.versionGt === undefined
+      ? undefined
+      : sql`${cteBatches.version} > ${BigInt(input.versionGt)}`,
+    input.versionGte === undefined
+      ? undefined
+      : sql`${cteBatches.version} >= ${BigInt(input.versionGte)}`,
+    input.versionLt === undefined
+      ? undefined
+      : sql`${cteBatches.version} < ${BigInt(input.versionLt)}`,
+    input.versionLte === undefined
+      ? undefined
+      : sql`${cteBatches.version} <= ${BigInt(input.versionLte)}`,
+    input.versionNe === undefined ? undefined : ne(cteBatches.version, BigInt(input.versionNe)),
+  )
 }
 
 export class DrizzleCteBatchRepository extends DrizzleCteBatchTransaction {

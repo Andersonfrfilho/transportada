@@ -59,6 +59,71 @@ export type RequestUploadInput = Readonly<{
   idempotencyKey: string
 }>
 
+export type NfeImportFilters = Readonly<{
+  correlationIdEq?: string
+  correlationIdNe?: string
+  createdFrom?: string
+  createdUntil?: string
+  duplicatedCountEq?: string
+  duplicatedCountGt?: string
+  duplicatedCountGte?: string
+  duplicatedCountLt?: string
+  duplicatedCountLte?: string
+  duplicatedCountNe?: string
+  failedCountEq?: string
+  failedCountGt?: string
+  failedCountGte?: string
+  failedCountLt?: string
+  failedCountLte?: string
+  failedCountNe?: string
+  idEq?: string
+  idNe?: string
+  importedCountEq?: string
+  importedCountGt?: string
+  importedCountGte?: string
+  importedCountLt?: string
+  importedCountLte?: string
+  importedCountNe?: string
+  invalidCountEq?: string
+  invalidCountGt?: string
+  invalidCountGte?: string
+  invalidCountLt?: string
+  invalidCountLte?: string
+  invalidCountNe?: string
+  processedCountEq?: string
+  processedCountGt?: string
+  processedCountGte?: string
+  processedCountLt?: string
+  processedCountLte?: string
+  processedCountNe?: string
+  receivedCountEq?: string
+  receivedCountGt?: string
+  receivedCountGte?: string
+  receivedCountLt?: string
+  receivedCountLte?: string
+  receivedCountNe?: string
+  rejectedCountEq?: string
+  rejectedCountGt?: string
+  rejectedCountGte?: string
+  rejectedCountLt?: string
+  rejectedCountLte?: string
+  rejectedCountNe?: string
+  requestedByUserIdEq?: string
+  requestedByUserIdNe?: string
+  sourceEq?: NfeImportSummary['source']
+  sourceNe?: NfeImportSummary['source']
+  statusEq?: NfeImportSummary['status']
+  statusNe?: NfeImportSummary['status']
+  updatedFrom?: string
+  updatedUntil?: string
+  versionEq?: string
+  versionGt?: string
+  versionGte?: string
+  versionLt?: string
+  versionLte?: string
+  versionNe?: string
+}>
+
 type ClientDependencies = Readonly<{
   apiUrl: string
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -72,7 +137,7 @@ export type NfeWorkspaceClient = Readonly<{
     input: Readonly<{ cursor: null | string; limit: number }>,
   ) => Promise<NfeDocumentListPage>
   listImports: (
-    input: Readonly<{ cursor: null | string; limit: number }>,
+    input: Readonly<{ cursor: null | string; filters?: NfeImportFilters; limit: number }>,
   ) => Promise<NfeImportListPage>
   reprocessImport: (
     input: Readonly<{ id: string; idempotencyKey: string }>,
@@ -309,6 +374,87 @@ function searchPath(
   return `${input.path}?${search.toString()}`
 }
 
+function buildImportSearchPath(
+  input: Readonly<{ cursor: null | string; filters?: NfeImportFilters; limit: number }>,
+): string {
+  const search = new URLSearchParams()
+  if (input.cursor !== null) {
+    search.set('cursor', input.cursor)
+  }
+  search.set('limit', String(input.limit))
+  const filters = input.filters
+  const fields = {
+    correlationIdEq: filters?.correlationIdEq,
+    correlationIdNe: filters?.correlationIdNe,
+    createdFrom: filters?.createdFrom,
+    createdUntil: filters?.createdUntil,
+    duplicatedCountEq: filters?.duplicatedCountEq,
+    duplicatedCountGt: filters?.duplicatedCountGt,
+    duplicatedCountGte: filters?.duplicatedCountGte,
+    duplicatedCountLt: filters?.duplicatedCountLt,
+    duplicatedCountLte: filters?.duplicatedCountLte,
+    duplicatedCountNe: filters?.duplicatedCountNe,
+    failedCountEq: filters?.failedCountEq,
+    failedCountGt: filters?.failedCountGt,
+    failedCountGte: filters?.failedCountGte,
+    failedCountLt: filters?.failedCountLt,
+    failedCountLte: filters?.failedCountLte,
+    failedCountNe: filters?.failedCountNe,
+    idEq: filters?.idEq,
+    idNe: filters?.idNe,
+    importedCountEq: filters?.importedCountEq,
+    importedCountGt: filters?.importedCountGt,
+    importedCountGte: filters?.importedCountGte,
+    importedCountLt: filters?.importedCountLt,
+    importedCountLte: filters?.importedCountLte,
+    importedCountNe: filters?.importedCountNe,
+    invalidCountEq: filters?.invalidCountEq,
+    invalidCountGt: filters?.invalidCountGt,
+    invalidCountGte: filters?.invalidCountGte,
+    invalidCountLt: filters?.invalidCountLt,
+    invalidCountLte: filters?.invalidCountLte,
+    invalidCountNe: filters?.invalidCountNe,
+    processedCountEq: filters?.processedCountEq,
+    processedCountGt: filters?.processedCountGt,
+    processedCountGte: filters?.processedCountGte,
+    processedCountLt: filters?.processedCountLt,
+    processedCountLte: filters?.processedCountLte,
+    processedCountNe: filters?.processedCountNe,
+    receivedCountEq: filters?.receivedCountEq,
+    receivedCountGt: filters?.receivedCountGt,
+    receivedCountGte: filters?.receivedCountGte,
+    receivedCountLt: filters?.receivedCountLt,
+    receivedCountLte: filters?.receivedCountLte,
+    receivedCountNe: filters?.receivedCountNe,
+    rejectedCountEq: filters?.rejectedCountEq,
+    rejectedCountGt: filters?.rejectedCountGt,
+    rejectedCountGte: filters?.rejectedCountGte,
+    rejectedCountLt: filters?.rejectedCountLt,
+    rejectedCountLte: filters?.rejectedCountLte,
+    rejectedCountNe: filters?.rejectedCountNe,
+    requestedByUserIdEq: filters?.requestedByUserIdEq,
+    requestedByUserIdNe: filters?.requestedByUserIdNe,
+    sourceEq: filters?.sourceEq,
+    sourceNe: filters?.sourceNe,
+    statusEq: filters?.statusEq,
+    statusNe: filters?.statusNe,
+    updatedFrom: filters?.updatedFrom,
+    updatedUntil: filters?.updatedUntil,
+    versionEq: filters?.versionEq,
+    versionGt: filters?.versionGt,
+    versionGte: filters?.versionGte,
+    versionLt: filters?.versionLt,
+    versionLte: filters?.versionLte,
+    versionNe: filters?.versionNe,
+  }
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined && value.length > 0) {
+      search.set(key, value)
+    }
+  }
+  return `/nfe-imports?${search.toString()}`
+}
+
 export function createImportPollingState(input: {
   readonly activeImport: null | NfeImportSummary
 }): ImportPollingState {
@@ -363,7 +509,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
     const response = await requestJson({
       dependencies,
       init: { method: 'GET' },
-      path: searchPath({ ...input, path: '/nfe-imports' }),
+      path: buildImportSearchPath(input),
     })
     return mapImportListPage(response)
   },

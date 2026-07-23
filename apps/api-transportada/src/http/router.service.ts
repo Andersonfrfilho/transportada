@@ -144,7 +144,7 @@ function matchRoute({
     (candidate) =>
       candidate.method === method &&
       candidate.pathname === pathname &&
-      findIdSegmentIndex(candidate.pathname.split('/')) === undefined,
+      findParameterSegments(candidate.pathname.split('/')).length === 0,
   )
   if (exactRoute !== undefined) {
     return { pathParameters: Object.freeze({}), route: exactRoute }
@@ -167,53 +167,63 @@ function matchDynamicRoute({
 }: MatchDynamicRouteParams): MatchedRouterRoute | undefined {
   const routeSegments = candidate.pathname.split('/')
   const requestSegments = pathname.split('/')
-  const identifierIndex = findIdSegmentIndex(routeSegments)
-  if (identifierIndex === undefined || routeSegments.length !== requestSegments.length) {
+  const parameters = findParameterSegments(routeSegments)
+  if (parameters.length === 0 || routeSegments.length !== requestSegments.length) {
     return undefined
   }
 
-  const identifier = requestSegments[identifierIndex]
-  if (
-    identifier === undefined ||
-    !staticSegmentsMatch({ identifierIndex, requestSegments, routeSegments })
-  ) {
+  if (!staticSegmentsMatch({ parameters, requestSegments, routeSegments })) {
     return undefined
   }
 
-  const decodedIdentifier = decodeIdentifier(identifier)
-  if (decodedIdentifier === undefined || !isCanonicalUuid(decodedIdentifier)) {
-    return undefined
-  }
+  const pathParameters = collectPathParameters({ parameters, requestSegments })
+  if (pathParameters === undefined) return undefined
 
-  return { pathParameters: Object.freeze({ id: decodedIdentifier }), route: candidate }
+  return { pathParameters, route: candidate }
 }
 
-function findIdSegmentIndex(routeSegments: readonly string[]): number | undefined {
-  const identifierIndex = routeSegments.indexOf(':id')
-  if (identifierIndex < 0) {
-    return undefined
-  }
+type PathParameterSegment = {
+  readonly index: number
+  readonly name: string
+}
 
-  const hasAnotherParameter = routeSegments.some(
-    (segment, index) => index !== identifierIndex && segment.includes(':'),
-  )
-  return hasAnotherParameter ? undefined : identifierIndex
+function findParameterSegments(routeSegments: readonly string[]): readonly PathParameterSegment[] {
+  return routeSegments.flatMap((segment, index) => {
+    if (!/^:[A-Za-z][A-Za-z0-9]*$/.test(segment)) return []
+    return [{ index, name: segment.slice(1) }]
+  })
 }
 
 type StaticSegmentsMatchParams = {
-  readonly identifierIndex: number
+  readonly parameters: readonly PathParameterSegment[]
   readonly requestSegments: readonly string[]
   readonly routeSegments: readonly string[]
 }
 
 function staticSegmentsMatch({
-  identifierIndex,
+  parameters,
   requestSegments,
   routeSegments,
 }: StaticSegmentsMatchParams): boolean {
+  const parameterIndexes = new Set(parameters.map((parameter) => parameter.index))
   return routeSegments.every(
-    (segment, index) => index === identifierIndex || segment === requestSegments[index],
+    (segment, index) => parameterIndexes.has(index) || segment === requestSegments[index],
   )
+}
+
+function collectPathParameters(input: {
+  readonly parameters: readonly PathParameterSegment[]
+  readonly requestSegments: readonly string[]
+}): RouterPathParameters | undefined {
+  const entries: [string, string][] = []
+  for (const parameter of input.parameters) {
+    const identifier = input.requestSegments[parameter.index]
+    if (identifier === undefined) return undefined
+    const decodedIdentifier = decodeIdentifier(identifier)
+    if (decodedIdentifier === undefined || !isCanonicalUuid(decodedIdentifier)) return undefined
+    entries.push([parameter.name, decodedIdentifier])
+  }
+  return Object.freeze(Object.fromEntries(entries))
 }
 
 function decodeIdentifier(identifier: string): string | undefined {

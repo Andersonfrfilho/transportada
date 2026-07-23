@@ -13,7 +13,7 @@
     "dev": "bun --watch ./src/main.ts",
     "lint": "bunx eslint src test eslint.config.js --max-warnings=0",
     "start": "bun ./dist/main.js",
-    "test": "bun test ./test/environment.contract.test.ts ./test/health.contract.test.ts ./test/message-envelope.contract.test.ts ./test/message-handler.contract.test.ts ./test/rabbitmq-topology.contract.test.ts ./test/nfe-storage-gateway.contract.test.ts ./test/nfe-messaging.contract.test.ts ./test/nfe-import-consumer.contract.test.ts ./test/nfe-distribution.contract.test.ts ./test/nfe-runtime.contract.test.ts ./test/outbox-relay.contract.test.ts ./test/processed-message.contract.test.ts ./test/shutdown.contract.test.ts",
+    "test": "bun test ./test/environment.contract.test.ts ./test/health.contract.test.ts ./test/message-envelope.contract.test.ts ./test/message-handler.contract.test.ts ./test/rabbitmq-topology.contract.test.ts ./test/nfe-storage-gateway.contract.test.ts ./test/nfe-messaging.contract.test.ts ./test/nfe-import-consumer.contract.test.ts ./test/nfe-distribution.contract.test.ts ./test/nfe-runtime.contract.test.ts ./test/outbox-relay.contract.test.ts ./test/processed-message.contract.test.ts ./test/cte-outbox-relay.contract.test.ts ./test/cte-issuance-topology.contract.test.ts ./test/cte-processing-envelope.contract.test.ts ./test/cte-issuance-worker.contract.test.ts ./test/shutdown.contract.test.ts ./test/cte-fiscal-gateway.contract.test.ts",
     "test:integration": "bun test ./test/integration/rabbitmq.integration.ts ./test/integration/sigterm.integration.ts",
     "typecheck": "bunx tsc --noEmit"
   },
@@ -23,6 +23,7 @@
     "@adatechnology/logger": "0.0.1",
     "@adatechnology/object-storage-provider": "0.1.1",
     "@adatechnology/rabbitmq-provider": "0.1.1",
+    "@adatechnology/secret-envelope": "0.1.0",
     "drizzle-orm": "1.0.0-rc.4",
     "zod": "4.4.3"
   },

@@ -150,6 +150,70 @@ export type NfeImportListReaderPort = {
   list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly filters?: {
+      readonly correlationIdEq?: string
+      readonly correlationIdNe?: string
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly duplicatedCountEq?: string
+      readonly duplicatedCountGt?: string
+      readonly duplicatedCountGte?: string
+      readonly duplicatedCountLt?: string
+      readonly duplicatedCountLte?: string
+      readonly duplicatedCountNe?: string
+      readonly failedCountEq?: string
+      readonly failedCountGt?: string
+      readonly failedCountGte?: string
+      readonly failedCountLt?: string
+      readonly failedCountLte?: string
+      readonly failedCountNe?: string
+      readonly idEq?: string
+      readonly idNe?: string
+      readonly importedCountEq?: string
+      readonly importedCountGt?: string
+      readonly importedCountGte?: string
+      readonly importedCountLt?: string
+      readonly importedCountLte?: string
+      readonly importedCountNe?: string
+      readonly invalidCountEq?: string
+      readonly invalidCountGt?: string
+      readonly invalidCountGte?: string
+      readonly invalidCountLt?: string
+      readonly invalidCountLte?: string
+      readonly invalidCountNe?: string
+      readonly processedCountEq?: string
+      readonly processedCountGt?: string
+      readonly processedCountGte?: string
+      readonly processedCountLt?: string
+      readonly processedCountLte?: string
+      readonly processedCountNe?: string
+      readonly receivedCountEq?: string
+      readonly receivedCountGt?: string
+      readonly receivedCountGte?: string
+      readonly receivedCountLt?: string
+      readonly receivedCountLte?: string
+      readonly receivedCountNe?: string
+      readonly rejectedCountEq?: string
+      readonly rejectedCountGt?: string
+      readonly rejectedCountGte?: string
+      readonly rejectedCountLt?: string
+      readonly rejectedCountLte?: string
+      readonly rejectedCountNe?: string
+      readonly requestedByUserIdEq?: string
+      readonly requestedByUserIdNe?: string
+      readonly sourceEq?: 'distribution' | 'upload'
+      readonly sourceNe?: 'distribution' | 'upload'
+      readonly statusEq?: NfeImportStatus
+      readonly statusNe?: NfeImportStatus
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly versionEq?: string
+      readonly versionGt?: string
+      readonly versionGte?: string
+      readonly versionLt?: string
+      readonly versionLte?: string
+      readonly versionNe?: string
+    }
     readonly limit: number
   }): Promise<NfeImportListPage>
 }

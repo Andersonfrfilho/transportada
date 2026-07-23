@@ -17,6 +17,27 @@ const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as cons
 
 type CteBatchListInput = {
   readonly cursor: string | null
+  readonly filters?: {
+    readonly createdFrom?: string
+    readonly createdUntil?: string
+    readonly itemCountEq?: string
+    readonly itemCountGt?: string
+    readonly itemCountGte?: string
+    readonly itemCountLt?: string
+    readonly itemCountLte?: string
+    readonly itemCountNe?: string
+    readonly nameContains?: string
+    readonly statusEq?: 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
+    readonly statusNe?: 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
+    readonly updatedFrom?: string
+    readonly updatedUntil?: string
+    readonly versionEq?: string
+    readonly versionGt?: string
+    readonly versionGte?: string
+    readonly versionLt?: string
+    readonly versionLte?: string
+    readonly versionNe?: string
+  }
   readonly limit: number
 }
 

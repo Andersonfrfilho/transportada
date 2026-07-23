@@ -21,6 +21,9 @@ import { createDigitalCertificateRoutes } from './companies/presentation/digital
 import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-case'
 import { DrizzleCteBatchRepository } from './cte-batches/infrastructure/drizzle-cte-batch.repository'
 import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.routes'
+import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
+import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
+import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -134,6 +137,7 @@ function createApplicationRoutes({
   const freightRuleListRepository = new DrizzleFreightRuleListRepository(database)
   const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
+  const cteIssuanceRepository = new DrizzleCteIssuanceRepository(database)
   const nfeImportRepository = new DrizzleNfeImportRepository(database)
   const storageBucket = resolveStorageBucket(environment)
   const storageGateway = createNfeStorageGatewayFromEnvironment({
@@ -162,6 +166,10 @@ function createApplicationRoutes({
   const cteBatches = createCteBatchUseCase({
     fingerprintService,
     unitOfWork: cteBatchRepository,
+  })
+  const cteIssuance = createCteIssuanceUseCase({
+    fingerprintService,
+    unitOfWork: cteIssuanceRepository,
   })
   const replace = createReplaceDigitalCertificateUseCase({
     certificateValidationGateway: createFiscalCertificateValidationGateway(),
@@ -194,6 +202,13 @@ function createApplicationRoutes({
       cteBatches,
       listBatches: { execute: (input) => cteBatchRepository.list(input) },
       listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
+    }),
+    ...createCteIssuanceRoutes({
+      cteIssuance: {
+        get: (input) => cteIssuance.getIssuance(input),
+        issue: (input) => cteIssuance.issue(input),
+        reprocess: (input) => cteIssuance.reprocess(input),
+      },
     }),
     ...createNfeImportRoutes({
       getImport,

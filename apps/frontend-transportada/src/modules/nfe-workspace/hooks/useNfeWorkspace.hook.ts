@@ -8,6 +8,7 @@ import {
   createImportPollingState,
   createNfeWorkspaceClient,
   type ImportPollingState,
+  type NfeImportFilters,
   type NfeWorkspaceClient as WorkspaceClient,
   type RequestUploadInput,
 } from '../shared/nfeWorkspaceClient.service'
@@ -104,7 +105,11 @@ function getWorkspaceClient(): NfeWorkspaceClient {
 }
 
 export function useNfeWorkspace(
-  input: Readonly<{ companyId?: string; permissions: readonly string[] }>,
+  input: Readonly<{
+    companyId?: string
+    importFilters?: NfeImportFilters
+    permissions: readonly string[]
+  }>,
 ) {
   const client = getWorkspaceClient()
   const controller = createNfeWorkspaceController({
@@ -112,11 +117,16 @@ export function useNfeWorkspace(
     permissions: input.companyId === undefined ? [] : input.permissions,
   })
   const queryClient = useQueryClient()
-  const importsQueryKey = [IMPORTS_QUERY_KEY, input.companyId] as const
+  const importsQueryKey = [IMPORTS_QUERY_KEY, input.companyId, input.importFilters] as const
   const documentsQueryKey = [DOCUMENTS_QUERY_KEY, input.companyId] as const
   const importsQuery = useQuery({
     enabled: controller.canRead,
-    queryFn: () => client.listImports({ cursor: null, limit: 20 }),
+    queryFn: () =>
+      client.listImports({
+        cursor: null,
+        ...(input.importFilters === undefined ? {} : { filters: input.importFilters }),
+        limit: 20,
+      }),
     queryKey: importsQueryKey,
     refetchInterval: (query) => {
       const data = query.state.data

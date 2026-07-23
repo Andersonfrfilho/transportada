@@ -35,9 +35,87 @@ export async function parseEmptyJsonRequest(request: Request): Promise<void> {
 
 export function parseCteBatchList(url: URL): {
   readonly cursor: string | null
+  readonly filters?: {
+    readonly createdFrom?: string
+    readonly createdUntil?: string
+    readonly itemCountEq?: string
+    readonly itemCountGt?: string
+    readonly itemCountGte?: string
+    readonly itemCountLt?: string
+    readonly itemCountLte?: string
+    readonly itemCountNe?: string
+    readonly nameContains?: string
+    readonly statusEq?: 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
+    readonly statusNe?: 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
+    readonly updatedFrom?: string
+    readonly updatedUntil?: string
+    readonly versionEq?: string
+    readonly versionGt?: string
+    readonly versionGte?: string
+    readonly versionLt?: string
+    readonly versionLte?: string
+    readonly versionNe?: string
+  }
   readonly limit: number
 } {
-  return parseCursorPage(url)
+  const allowedKeys = new Set([
+    'createdFrom',
+    'createdUntil',
+    'cursor',
+    'itemCountEq',
+    'itemCountGt',
+    'itemCountGte',
+    'itemCountLt',
+    'itemCountLte',
+    'itemCountNe',
+    'limit',
+    'nameContains',
+    'statusEq',
+    'statusNe',
+    'updatedFrom',
+    'updatedUntil',
+    'versionEq',
+    'versionGt',
+    'versionGte',
+    'versionLt',
+    'versionLte',
+    'versionNe',
+  ])
+  const entries = [...url.searchParams.entries()]
+  if (entries.some(([key]) => !allowedKeys.has(key))) throw invalidRequest()
+  if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
+  const cursor = url.searchParams.get('cursor')
+  const limit = url.searchParams.get('limit')
+  if (cursor !== null) parseCursor(cursor)
+  const filters = {
+    createdFrom: parseIsoDateTime(url.searchParams.get('createdFrom')),
+    createdUntil: parseIsoDateTime(url.searchParams.get('createdUntil')),
+    itemCountEq: parsePositiveInteger(url.searchParams.get('itemCountEq')),
+    itemCountGt: parsePositiveInteger(url.searchParams.get('itemCountGt')),
+    itemCountGte: parsePositiveInteger(url.searchParams.get('itemCountGte')),
+    itemCountLt: parsePositiveInteger(url.searchParams.get('itemCountLt')),
+    itemCountLte: parsePositiveInteger(url.searchParams.get('itemCountLte')),
+    itemCountNe: parsePositiveInteger(url.searchParams.get('itemCountNe')),
+    nameContains: parseContains(url.searchParams.get('nameContains')),
+    statusEq: parseBatchStatus(url.searchParams.get('statusEq')),
+    statusNe: parseBatchStatus(url.searchParams.get('statusNe')),
+    updatedFrom: parseIsoDateTime(url.searchParams.get('updatedFrom')),
+    updatedUntil: parseIsoDateTime(url.searchParams.get('updatedUntil')),
+    versionEq: parsePositiveInteger(url.searchParams.get('versionEq')),
+    versionGt: parsePositiveInteger(url.searchParams.get('versionGt')),
+    versionGte: parsePositiveInteger(url.searchParams.get('versionGte')),
+    versionLt: parsePositiveInteger(url.searchParams.get('versionLt')),
+    versionLte: parsePositiveInteger(url.searchParams.get('versionLte')),
+    versionNe: parsePositiveInteger(url.searchParams.get('versionNe')),
+  }
+  const parsedFilters = Object.values(filters).some((value) => value !== undefined)
+    ? (filters as NonNullable<ReturnType<typeof parseCteBatchList>['filters']>)
+    : undefined
+  return {
+    cursor,
+    limit: limit === null ? 25 : parseLimit(limit),
+    ...(parsedFilters === undefined ? {} : { filters: parsedFilters }),
+  }
 }
 
 export function parseIdempotencyKey(value: string | null): string {
@@ -84,22 +162,6 @@ function parseCursor(value: string): void {
   }
 }
 
-function parseCursorPage(url: URL): {
-  readonly cursor: string | null
-  readonly limit: number
-} {
-  const entries = [...url.searchParams.entries()]
-  if (entries.some(([key]) => key !== 'cursor' && key !== 'limit')) throw invalidRequest()
-  if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
-  const cursor = url.searchParams.get('cursor')
-  const limit = url.searchParams.get('limit')
-  if (cursor !== null) parseCursor(cursor)
-  return {
-    cursor,
-    limit: limit === null ? 25 : parseLimit(limit),
-  }
-}
-
 async function parseJsonBody(request: Request): Promise<unknown> {
   assertJsonContentType(request.headers.get('content-type'))
   const reader = request.body?.getReader()
@@ -127,4 +189,40 @@ async function parseJsonBody(request: Request): Promise<unknown> {
 function parseLimit(value: string): number {
   if (!PAGE_LIMIT.test(value)) throw invalidRequest()
   return Number(value)
+}
+
+function parseBatchStatus(
+  value: string | null,
+): 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled' | undefined {
+  if (value === null) return undefined
+  if (
+    value === 'draft' ||
+    value === 'submitted' ||
+    value === 'in_flight' ||
+    value === 'done' ||
+    value === 'error' ||
+    value === 'cancelled'
+  ) {
+    return value
+  }
+  throw invalidRequest()
+}
+
+function parseContains(value: string | null): string | undefined {
+  if (value === null) return undefined
+  const trimmed = value.trim()
+  if (trimmed.length < 1 || trimmed.length > 100) throw invalidRequest()
+  return trimmed
+}
+
+function parseIsoDateTime(value: string | null): string | undefined {
+  if (value === null) return undefined
+  if (!z.iso.datetime().safeParse(value).success) throw invalidRequest()
+  return value
+}
+
+function parsePositiveInteger(value: string | null): string | undefined {
+  if (value === null) return undefined
+  if (!/^(?:0|[1-9][0-9]{0,18})$/.test(value)) throw invalidRequest()
+  return value
 }

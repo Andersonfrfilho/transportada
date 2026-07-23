@@ -34,6 +34,19 @@
   "distribution": {
     "submit": "Distribuir DF-e"
   },
+  "filters": {
+    "advancedKey": "Filtro avançado",
+    "advancedValue": "Valor do filtro avançado",
+    "clear": "Limpar filtros",
+    "all": "Todos",
+    "distribution": "Distribuição",
+    "none": "Nenhum",
+    "sourceEq": "Origem",
+    "sourceNe": "Origem diferente de",
+    "statusEq": "Status",
+    "statusNe": "Status diferente de",
+    "upload": "Upload"
+  },
   "imports": {
     "title": "Processamentos",
     "subtitle": "Acompanhe fila, totais e reprocessamentos permitidos.",

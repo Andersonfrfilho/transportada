@@ -25,12 +25,105 @@ const FREIGHT_SIMULATE_POLICY = { permission: 'freight.simulate', scope: 'compan
 
 type FreightRuleListInput = {
   readonly cursor: string | null
+  readonly filters?: {
+    readonly createdFrom?: string
+    readonly createdUntil?: string
+    readonly currentVersionEq?: string
+    readonly currentVersionNe?: string
+    readonly descriptionContains?: string
+    readonly maximumAmountEq?: string
+    readonly maximumAmountGt?: string
+    readonly maximumAmountGte?: string
+    readonly maximumAmountLt?: string
+    readonly maximumAmountLte?: string
+    readonly maximumAmountNe?: string
+    readonly minimumAmountEq?: string
+    readonly minimumAmountGt?: string
+    readonly minimumAmountGte?: string
+    readonly minimumAmountLt?: string
+    readonly minimumAmountLte?: string
+    readonly minimumAmountNe?: string
+    readonly nameContains?: string
+    readonly percentageEq?: string
+    readonly percentageGt?: string
+    readonly percentageGte?: string
+    readonly percentageLt?: string
+    readonly percentageLte?: string
+    readonly percentageNe?: string
+    readonly priorityEq?: string
+    readonly priorityGt?: string
+    readonly priorityGte?: string
+    readonly priorityLt?: string
+    readonly priorityLte?: string
+    readonly priorityNe?: string
+    readonly statusEq?: 'draft' | 'active' | 'inactive'
+    readonly statusNe?: 'draft' | 'active' | 'inactive'
+    readonly typeEq?: 'percentage_of_invoice_total'
+    readonly typeNe?: 'percentage_of_invoice_total'
+    readonly updatedFrom?: string
+    readonly updatedUntil?: string
+    readonly validFromFrom?: string
+    readonly validFromUntil?: string
+    readonly validUntilFrom?: string
+    readonly validUntilIsNull?: boolean
+    readonly validUntilUntil?: string
+  }
   readonly limit: number
 }
 
 type FreightCalculationListInput = {
   readonly cursor: string | null
   readonly documentId: string
+  readonly filters?: {
+    readonly baseAmountEq?: string
+    readonly baseAmountGt?: string
+    readonly baseAmountGte?: string
+    readonly baseAmountLt?: string
+    readonly baseAmountLte?: string
+    readonly baseAmountNe?: string
+    readonly calculatedAmountEq?: string
+    readonly calculatedAmountGt?: string
+    readonly calculatedAmountGte?: string
+    readonly calculatedAmountLt?: string
+    readonly calculatedAmountLte?: string
+    readonly calculatedAmountNe?: string
+    readonly createdFrom?: string
+    readonly createdUntil?: string
+    readonly freightRuleIdEq?: string
+    readonly freightRuleIdNe?: string
+    readonly freightRuleVersionIdEq?: string
+    readonly freightRuleVersionIdNe?: string
+    readonly maximumAmountEq?: string
+    readonly maximumAmountGt?: string
+    readonly maximumAmountGte?: string
+    readonly maximumAmountLt?: string
+    readonly maximumAmountLte?: string
+    readonly maximumAmountNe?: string
+    readonly minimumAmountEq?: string
+    readonly minimumAmountGt?: string
+    readonly minimumAmountGte?: string
+    readonly minimumAmountLt?: string
+    readonly minimumAmountLte?: string
+    readonly minimumAmountNe?: string
+    readonly percentageEq?: string
+    readonly percentageGt?: string
+    readonly percentageGte?: string
+    readonly percentageLt?: string
+    readonly percentageLte?: string
+    readonly percentageNe?: string
+    readonly ruleVersionEq?: string
+    readonly ruleVersionNe?: string
+    readonly statusEq?: 'snapshotted' | 'rejected'
+    readonly statusNe?: 'snapshotted' | 'rejected'
+    readonly totalAmountEq?: string
+    readonly totalAmountGt?: string
+    readonly totalAmountGte?: string
+    readonly totalAmountLt?: string
+    readonly totalAmountLte?: string
+    readonly totalAmountNe?: string
+    readonly updatedFrom?: string
+    readonly updatedUntil?: string
+  }
   readonly limit: number
 }
 
