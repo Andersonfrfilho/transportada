@@ -121,16 +121,28 @@ migration-test: postgres-up ## 🗃️ Valida migration e rollback em PostgreSQL
 		bun run --cwd apps/api-transportada db:test
 
 smoke: config ## 🩺 Valida a stack local já iniciada
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(FRONTEND_PORT)/"
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(FRONTEND_PORT)/manifest.webmanifest"
-	@curl --fail --silent --show-error "http://localhost:$(API_PORT)/health/live"
-	@curl --fail --silent --show-error "http://localhost:$(API_PORT)/health/ready"
-	@curl --fail --silent --show-error "http://localhost:$(WORKER_PORT)/health/live"
-	@curl --fail --silent --show-error "http://localhost:$(WORKER_PORT)/health/ready"
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:59000/minio/health/live"
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:58025/livez"
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"
-	@curl --fail --silent --show-error --output /dev/null "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
+	@check_url() { \
+		url="$$1"; \
+		for attempt in $$(seq 1 60); do \
+			if curl --fail --silent --show-error --output /dev/null "$$url"; then \
+				return 0; \
+			fi; \
+			if [ "$$attempt" -eq 60 ]; then \
+				return 1; \
+			fi; \
+			sleep 1; \
+		done; \
+	}; \
+	check_url "http://localhost:$(FRONTEND_PORT)/"; \
+	check_url "http://localhost:$(FRONTEND_PORT)/manifest.webmanifest"; \
+	check_url "http://localhost:$(API_PORT)/health/live"; \
+	check_url "http://localhost:$(API_PORT)/health/ready"; \
+	check_url "http://localhost:$(WORKER_PORT)/health/live"; \
+	check_url "http://localhost:$(WORKER_PORT)/health/ready"; \
+	check_url "http://localhost:59000/minio/health/live"; \
+	check_url "http://localhost:58025/livez"; \
+	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
+	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
 	@set -a; . "./$(ENV_FILE)"; set +a; bun run --cwd apps/frontend-transportada smoke
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
