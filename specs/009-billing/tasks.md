@@ -46,7 +46,7 @@ Depois de duas falhas equivalentes em 5.3, escalar para Sol ou dividir a task.
 - [x] T001 Consolidar spec/plano executavel.
 - [x] T002 Escrever contracts de schema de faturamento.
 - [x] T003 Implementar schema, migration aditiva e rollback.
-- [ ] T004 Escrever contracts da aplicacao de faturamento.
+- [x] T004 Escrever contracts da aplicacao de faturamento.
 - [ ] T005 Implementar casos de uso e repositorios de faturamento.
 - [ ] T006 Escrever contracts HTTP de faturamento.
 - [ ] T007 Implementar endpoints HTTP de faturamento.

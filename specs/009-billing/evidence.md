@@ -162,3 +162,45 @@ Observacoes:
   geracoes.
 - `T003` esta concluida e libera `T004` para contracts da aplicacao de
   faturamento.
+
+## T004 — Contracts da aplicacao de faturamento
+
+Data: 2026-07-23
+
+Modelo executor recomendado: Codex Sol high para dinheiro, idempotencia,
+concorrencia, transacoes e isolamento multiempresa.
+
+Contracts criados:
+
+- elegibilidade restrita a CT-e autorizado, sem fatura ativa e tenant-scoped;
+- criacao transacional com snapshot decimal imutavel de invoice e itens;
+- replay de idempotencia e conflito para fingerprint divergente;
+- rollback quando o CT-e perde elegibilidade ou e reservado concorrentemente;
+- consulta com anti-enumeracao e escopo derivado do contexto autenticado;
+- cancelamento append-only, motivo sanitizado e replay de fatura ja cancelada.
+
+Arquivos alterados:
+
+- `apps/api-transportada/test/billing-application.contract.test.ts`
+- `apps/api-transportada/test/billing-application/*.contract.ts`
+- `apps/api-transportada/test/billing-application/support.ts`
+- `apps/api-transportada/package.json`
+
+Comando executado:
+
+```text
+bun test test/billing-application.contract.test.ts
+```
+
+Resultado esperado nesta fase:
+
+```text
+0 pass
+11 fail
+T005 application implementation is missing
+```
+
+Observacao:
+
+- A falha e intencional para `T004`: os contracts fecham o comportamento da
+  aplicacao e a implementacao dos casos de uso e repositorios fica para `T005`.
