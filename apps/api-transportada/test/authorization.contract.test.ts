@@ -39,6 +39,7 @@ describe('authorization contract', () => {
       'billing.cancel',
       'billing.read',
       'settings.manage',
+      'operations.read',
       'audit.read',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
@@ -50,9 +51,10 @@ describe('authorization contract', () => {
         'cte.read',
         'billing.read',
         'settings.manage',
+        'operations.read',
         'audit.read',
       ],
-      finance: ['cte.read', 'billing.create', 'billing.cancel', 'billing.read'],
+      finance: ['cte.read', 'billing.create', 'billing.cancel', 'billing.read', 'operations.read'],
       fiscal: [
         'invoices.import',
         'invoices.read',
@@ -64,6 +66,7 @@ describe('authorization contract', () => {
         'cte.issue',
         'cte.cancel',
         'cte.read',
+        'operations.read',
       ],
       operator: [
         'invoices.import',
@@ -73,8 +76,9 @@ describe('authorization contract', () => {
         'cte.manage',
         'cte.submit',
         'cte.read',
+        'operations.read',
       ],
-      viewer: ['invoices.read', 'cte.read'],
+      viewer: ['invoices.read', 'cte.read', 'operations.read'],
     })
   })
 
@@ -92,6 +96,7 @@ describe('authorization contract', () => {
       'cte.issue',
       'cte.cancel',
       'cte.read',
+      'operations.read',
     ])
     expect([...permissions]).not.toContain('companies.manage')
     expect(Object.isFrozen(permissions)).toBe(true)

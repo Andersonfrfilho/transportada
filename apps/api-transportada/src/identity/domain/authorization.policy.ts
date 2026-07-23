@@ -20,6 +20,7 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'billing.cancel',
   'billing.read',
   'settings.manage',
+  'operations.read',
   'audit.read',
 ] as const)
 
@@ -35,9 +36,16 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.read',
     'billing.read',
     'settings.manage',
+    'operations.read',
     'audit.read',
   ]),
-  finance: Object.freeze(['cte.read', 'billing.create', 'billing.cancel', 'billing.read']),
+  finance: Object.freeze([
+    'cte.read',
+    'billing.create',
+    'billing.cancel',
+    'billing.read',
+    'operations.read',
+  ]),
   fiscal: Object.freeze([
     'invoices.import',
     'invoices.read',
@@ -49,6 +57,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.issue',
     'cte.cancel',
     'cte.read',
+    'operations.read',
   ]),
   operator: Object.freeze([
     'invoices.import',
@@ -58,8 +67,9 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.manage',
     'cte.submit',
     'cte.read',
+    'operations.read',
   ]),
-  viewer: Object.freeze(['invoices.read', 'cte.read']),
+  viewer: Object.freeze(['invoices.read', 'cte.read', 'operations.read']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

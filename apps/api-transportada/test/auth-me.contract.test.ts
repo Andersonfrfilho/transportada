@@ -46,6 +46,7 @@ describe('GET /auth/me contract', () => {
           'cte.issue',
           'cte.cancel',
           'cte.read',
+          'operations.read',
         ],
         roles: ['fiscal', 'viewer'],
       },

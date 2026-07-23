@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
+import { isSmokeAuthBypassEnabled } from '../shared/smokeAuthBypass.service'
 
 const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
 const AUTH_ME_PATH = '/auth/me'
+const SMOKE_AUTH_ME_STORAGE_KEY = 'transportada.smoke-auth-me'
 const COMPANY_ROLES = ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
@@ -20,6 +22,7 @@ const COMPANY_PERMISSIONS = [
   'billing.cancel',
   'billing.read',
   'settings.manage',
+  'operations.read',
   'audit.read',
 ] as const
 
@@ -68,7 +71,25 @@ export function isAuthMeResponse(value: unknown): value is AuthMeResponse {
   )
 }
 
+function readSmokeAuthMe(): AuthMeResponse {
+  const serialized = window.sessionStorage.getItem(SMOKE_AUTH_ME_STORAGE_KEY)
+  if (serialized === null) {
+    throw new Error('IDENTITY_SMOKE_AUTH_ME_MISSING')
+  }
+
+  const responseBody: unknown = JSON.parse(serialized)
+  if (!isAuthMeResponse(responseBody)) {
+    throw new Error('IDENTITY_SMOKE_AUTH_ME_INVALID')
+  }
+
+  return responseBody
+}
+
 async function fetchAuthMe(): Promise<AuthMeResponse> {
+  if (isSmokeAuthBypassEnabled()) {
+    return readSmokeAuthMe()
+  }
+
   const accessToken = await getKeycloakAuthProvider().getAccessToken()
   const { apiBaseUrl } = getIdentityEnvironment()
   const response = await fetch(`${apiBaseUrl}${AUTH_ME_PATH}`, {

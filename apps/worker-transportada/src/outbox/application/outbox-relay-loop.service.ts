@@ -20,6 +20,7 @@ type RelayLoopRelay = {
 export class OutboxRelayLoop {
   readonly #claimOwner: string
   readonly #clock: RelayLoopClock
+  readonly #failureMessage: string
   readonly #intervalMs: number
   readonly #leaseMs: number
   readonly #limit: number
@@ -31,6 +32,7 @@ export class OutboxRelayLoop {
   constructor(params: {
     readonly claimOwner: string
     readonly clock?: RelayLoopClock
+    readonly failureMessage: string
     readonly intervalMs: number
     readonly leaseMs: number
     readonly limit: number
@@ -39,6 +41,7 @@ export class OutboxRelayLoop {
   }) {
     this.#claimOwner = params.claimOwner
     this.#clock = params.clock ?? globalThis
+    this.#failureMessage = params.failureMessage
     this.#intervalMs = params.intervalMs
     this.#leaseMs = params.leaseMs
     this.#limit = params.limit
@@ -87,7 +90,7 @@ export class OutboxRelayLoop {
     } catch (error: unknown) {
       safeLogError({
         logger: this.#logger,
-        message: 'nfe_outbox_relay_failed',
+        message: this.#failureMessage,
         metadata: {
           error: error instanceof Error ? error.message : 'unknown',
         },

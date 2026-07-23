@@ -35,8 +35,15 @@ function getLocalUserPassword(): string {
 }
 
 export async function loginAsLocalUser(page: Page): Promise<void> {
+  if (process.env.VITE_SMOKE_AUTH_BYPASS === 'true') {
+    await page.goto('/')
+    await page.locator('main').waitFor()
+    return
+  }
+
+  const loginRedirectRequest = expectKeycloakLoginRedirect(page)
   await page.goto('/')
-  await expect.poll(() => hasExpectedAuthorizationRequest(new URL(page.url()))).toBe(true)
+  await loginRedirectRequest
 
   await page.locator('#username').fill('local-user')
   await page.locator('#password').fill(getLocalUserPassword())

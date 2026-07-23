@@ -28,7 +28,7 @@ import {
   nfeProducts,
   nfeVolumes,
 } from './nfe.schema.js'
-import { processedMessages, processingOutbox } from './processing.schema.js'
+import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
   cteBatches,
@@ -43,6 +43,12 @@ import {
   cteIssuanceOutbox,
   cteRetrySchedules,
 } from './cte-issuance.schema.js'
+import {
+  billingInvoiceDocuments,
+  billingInvoiceEvents,
+  billingInvoiceItems,
+  billingInvoices,
+} from './billing.schema.js'
 
 export * from './fiscal.schema.js'
 export * from './freight.schema.js'
@@ -52,6 +58,7 @@ export * from './processing.schema.js'
 export * from './storage.schema.js'
 export * from './cte-batch.schema.js'
 export * from './cte-issuance.schema.js'
+export * from './billing.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -77,6 +84,7 @@ export const databaseSchema = {
   nfeProducts,
   nfeVolumes,
   processedMessages,
+  processingJobs,
   processingOutbox,
   cteBatches,
   cteBatchEvents,
@@ -87,6 +95,10 @@ export const databaseSchema = {
   cteIssuanceOutbox,
   cteRetrySchedules,
   cteSubmissionRecords,
+  billingInvoiceDocuments,
+  billingInvoiceEvents,
+  billingInvoiceItems,
+  billingInvoices,
   storedObjects,
   userCompanyMemberships,
 }

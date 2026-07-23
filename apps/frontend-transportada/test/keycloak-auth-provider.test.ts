@@ -29,6 +29,7 @@ describe('KeycloakAuthProvider', () => {
     await provider.initialize()
 
     expect(client.init).toHaveBeenCalledWith({
+      checkLoginIframe: false,
       onLoad: 'login-required',
       pkceMethod: 'S256',
       redirectUri: 'http://localhost/auth/callback',

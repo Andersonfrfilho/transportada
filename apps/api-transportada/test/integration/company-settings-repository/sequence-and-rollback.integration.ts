@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { FiscalSequenceLockedError } from '../../../src/companies/domain/company-settings.error'
 import {
@@ -60,6 +60,7 @@ async function updateProfileAndAssertAudit(
     .select({ beforeSnapshot: auditLogs.beforeSnapshot })
     .from(auditLogs)
     .where(eq(auditLogs.companyId, fixture.companyId))
+    .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id))
   expect(audits).toHaveLength(2)
   expect(audits[1]?.beforeSnapshot).toEqual({
     environment: 'homologation',

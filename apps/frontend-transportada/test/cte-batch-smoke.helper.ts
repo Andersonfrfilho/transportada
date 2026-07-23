@@ -4,8 +4,8 @@ import { type Page, type Route } from '@playwright/test'
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
-  'access-control-allow-origin': 'http://localhost:53000',
 }
+const SMOKE_AUTH_ME_STORAGE_KEY = 'transportada.smoke-auth-me'
 
 const BATCH_ID = '00000000-0000-4000-8000-000000000501'
 
@@ -45,8 +45,15 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
   await route.fulfill({
     body: JSON.stringify(body),
     contentType: 'application/json',
-    headers: CORS_HEADERS,
+    headers: { ...CORS_HEADERS, 'access-control-allow-origin': '*' },
     status,
+  })
+}
+
+async function fulfillOptions(route: Route): Promise<void> {
+  await route.fulfill({
+    headers: { ...CORS_HEADERS, 'access-control-allow-origin': '*' },
+    status: 204,
   })
 }
 
@@ -57,9 +64,25 @@ function batchWithStatus(status: BatchStatus) {
 async function registerIdentityMock(
   input: Readonly<{ page: Page; permissions: MockPermissions }>,
 ): Promise<void> {
+  await input.page.addInitScript(
+    ({ permissions, storageKey }) => {
+      window.sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          data: {
+            company: { id: '00000000-0000-4000-8000-000000000001' },
+            identity: { userId: '00000000-0000-4000-8000-000000000002' },
+            permissions,
+            roles: ['viewer'],
+          },
+        }),
+      )
+    },
+    { permissions: input.permissions, storageKey: SMOKE_AUTH_ME_STORAGE_KEY },
+  )
   await input.page.route('**/auth/me', async (route) => {
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      await fulfillOptions(route)
       return
     }
     await fulfillJson(route, {
@@ -82,7 +105,7 @@ async function registerCteBatchMocks(
       input.state.listRequests += 1
     }
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      await fulfillOptions(route)
       return
     }
     if (route.request().method() === 'POST') {
@@ -97,19 +120,35 @@ async function registerCteBatchMocks(
     })
   })
   await input.page.route(/\/cte-batches\/[^/]+\/submit$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
     input.state.submissions += 1
     input.state.batchStatus = 'submitted'
     await fulfillJson(route, { data: batchWithStatus('submitted') }, 202)
   })
   await input.page.route(/\/cte-batches\/[^/]+\/cancel$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
     input.state.cancellations += 1
     input.state.batchStatus = 'cancelled'
     await fulfillJson(route, { data: batchWithStatus('cancelled') })
   })
   await input.page.route(/\/cte-batches\/[^/]+\/events(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
     await fulfillJson(route, { data: [EVENT], page: { nextCursor: null } })
   })
   await input.page.route(/\/cte-batches\/[^/]+$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
     await fulfillJson(route, { data: batchWithStatus(input.state.batchStatus) })
   })
 }
