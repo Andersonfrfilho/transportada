@@ -12,6 +12,7 @@ import {
   NFE_TABLES,
   CTE_BATCH_TABLES,
   CTE_ISSUANCE_TABLES,
+  BILLING_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
   readBusinessTables,
@@ -41,6 +42,7 @@ describe('Drizzle migration integration', () => {
             ...NFE_TABLES,
             ...CTE_BATCH_TABLES,
             ...CTE_ISSUANCE_TABLES,
+            ...BILLING_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -68,6 +70,7 @@ describe('Drizzle migration integration', () => {
             ...NFE_TABLES,
             ...CTE_BATCH_TABLES,
             ...CTE_ISSUANCE_TABLES,
+            ...BILLING_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

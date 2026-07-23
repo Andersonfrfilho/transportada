@@ -43,6 +43,12 @@ import {
   cteIssuanceOutbox,
   cteRetrySchedules,
 } from './cte-issuance.schema.js'
+import {
+  billingInvoiceDocuments,
+  billingInvoiceEvents,
+  billingInvoiceItems,
+  billingInvoices,
+} from './billing.schema.js'
 
 export * from './fiscal.schema.js'
 export * from './freight.schema.js'
@@ -52,6 +58,7 @@ export * from './processing.schema.js'
 export * from './storage.schema.js'
 export * from './cte-batch.schema.js'
 export * from './cte-issuance.schema.js'
+export * from './billing.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -87,6 +94,10 @@ export const databaseSchema = {
   cteIssuanceOutbox,
   cteRetrySchedules,
   cteSubmissionRecords,
+  billingInvoiceDocuments,
+  billingInvoiceEvents,
+  billingInvoiceItems,
+  billingInvoices,
   storedObjects,
   userCompanyMemberships,
 }

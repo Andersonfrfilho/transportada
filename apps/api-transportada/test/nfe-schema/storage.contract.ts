@@ -72,7 +72,7 @@ describe('fiscal stored object schema', () => {
       stored_objects_size_check: `"stored_objects"."size_bytes" >= 0`,
       stored_objects_sha256_check: `"stored_objects"."sha256" ~ '^[0-9a-f]{64}$'`,
       stored_objects_status_check: `"stored_objects"."status" in ('staging', 'final', 'deleted')`,
-      stored_objects_purpose_check: `"stored_objects"."purpose" in ('import_source', 'nfe_document', 'nfe_event')`,
+      stored_objects_purpose_check: `"stored_objects"."purpose" in ('import_source', 'nfe_document', 'nfe_event', 'billing_document')`,
       stored_objects_lease_check: `("stored_objects"."lease_owner" is null) = ("stored_objects"."lease_expires_at" is null)`,
       stored_objects_deleted_check: `("stored_objects"."status" = 'deleted') = ("stored_objects"."deleted_at" is not null)`,
       stored_objects_final_lease_check: `"stored_objects"."status" <> 'final' or ("stored_objects"."lease_owner" is null and "stored_objects"."lease_expires_at" is null)`,

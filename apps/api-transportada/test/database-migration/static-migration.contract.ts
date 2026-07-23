@@ -57,6 +57,7 @@ describe('Drizzle migrations', () => {
       '20260722225555_robust_viper',
       '20260723004735_cte_issuance_schema',
       '20260723090000_cte_issuance_outbox',
+      '20260723125103_oval_dexter_bennett',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
