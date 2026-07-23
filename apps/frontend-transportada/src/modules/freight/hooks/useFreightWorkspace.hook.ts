@@ -7,7 +7,9 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createFreightClient,
   type FreightClient as Client,
+  type FreightCalculationFilters,
   type FreightRuleCreate,
+  type FreightRuleFilters,
   type FreightSimulationResult,
   type FreightSimulationRequest,
 } from '../shared/freightClient.service'
@@ -66,7 +68,9 @@ export function useFreightWorkspace(
   input: Readonly<{
     companyId?: string
     documentId?: string
+    calculationFilters?: FreightCalculationFilters
     permissions: readonly string[]
+    ruleFilters?: FreightRuleFilters
   }>,
 ) {
   const client = getFreightClient()
@@ -75,16 +79,22 @@ export function useFreightWorkspace(
     permissions: input.companyId === undefined ? [] : input.permissions,
   })
   const queryClient = useQueryClient()
-  const rulesQueryKey = [FREIGHT_RULES_QUERY_KEY, input.companyId] as const
+  const rulesQueryKey = [FREIGHT_RULES_QUERY_KEY, input.companyId, input.ruleFilters] as const
   const calculationsQueryKey = [
     FREIGHT_CALCULATIONS_QUERY_KEY,
     input.companyId,
+    input.calculationFilters,
     input.documentId,
   ] as const
 
   const rulesQuery = useQuery({
     enabled: controller.canManageRules,
-    queryFn: () => client.listRules({ cursor: null, limit: 25 }),
+    queryFn: () =>
+      client.listRules({
+        cursor: null,
+        ...(input.ruleFilters === undefined ? {} : { filters: input.ruleFilters }),
+        limit: 25,
+      }),
     queryKey: rulesQueryKey,
   })
   const calculationsQuery = useQuery({
@@ -93,6 +103,7 @@ export function useFreightWorkspace(
       client.listCalculations({
         cursor: null,
         documentId: input.documentId ?? '',
+        ...(input.calculationFilters === undefined ? {} : { filters: input.calculationFilters }),
         limit: 10,
       }),
     queryKey: calculationsQueryKey,

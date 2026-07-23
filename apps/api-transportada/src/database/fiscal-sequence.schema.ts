@@ -83,6 +83,7 @@ export const fiscalSequenceReservations = pgTable(
       table.companyId,
       table.reservationKey,
     ),
+    unique('fiscal_sequence_reservations_company_id_id_unique').on(table.companyId, table.id),
     unique('fiscal_sequence_reservations_sequence_id_number_unique').on(
       table.fiscalSequenceId,
       table.number,

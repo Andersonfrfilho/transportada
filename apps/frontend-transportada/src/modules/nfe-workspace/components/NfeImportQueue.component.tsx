@@ -1,11 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
+import type { ReactNode } from 'react'
 
 import type { NfeImportSummary } from '../shared/nfeWorkspaceClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 
 type NfeImportQueueProps = Readonly<{
   readonly canImport: boolean
+  readonly filterActions?: ReactNode
   readonly imports: readonly NfeImportSummary[]
   readonly onReprocess: (id: string) => void
   readonly reprocessPending: boolean
@@ -13,6 +15,7 @@ type NfeImportQueueProps = Readonly<{
 
 export function NfeImportQueue({
   canImport,
+  filterActions,
   imports,
   onReprocess,
   reprocessPending,
@@ -25,6 +28,7 @@ export function NfeImportQueue({
         <h2 id="nfe-imports-title">{t('imports.title')}</h2>
         <p>{t('imports.subtitle')}</p>
       </div>
+      {filterActions}
       <div className={styles.importList}>
         {imports.length === 0 && <p className={styles.emptyState}>{t('imports.empty')}</p>}
         {imports.map((item) => (

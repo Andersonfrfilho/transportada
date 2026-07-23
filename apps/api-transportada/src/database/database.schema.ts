@@ -36,6 +36,13 @@ import {
   cteBatchItems,
   cteSubmissionRecords,
 } from './cte-batch.schema.js'
+import {
+  cteFiscalDocuments,
+  cteIssuanceAttempts,
+  cteIssuanceEvents,
+  cteIssuanceOutbox,
+  cteRetrySchedules,
+} from './cte-issuance.schema.js'
 
 export * from './fiscal.schema.js'
 export * from './freight.schema.js'
@@ -44,6 +51,7 @@ export * from './nfe.schema.js'
 export * from './processing.schema.js'
 export * from './storage.schema.js'
 export * from './cte-batch.schema.js'
+export * from './cte-issuance.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -73,6 +81,11 @@ export const databaseSchema = {
   cteBatches,
   cteBatchEvents,
   cteBatchItems,
+  cteFiscalDocuments,
+  cteIssuanceAttempts,
+  cteIssuanceEvents,
+  cteIssuanceOutbox,
+  cteRetrySchedules,
   cteSubmissionRecords,
   storedObjects,
   userCompanyMemberships,

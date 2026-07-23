@@ -8,6 +8,8 @@ import { startWorkerRuntime } from '../src/main.js'
 const ENVIRONMENT = {
   APP_ENV: 'test',
   DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/transportada',
+  ENCRYPTION_ACTIVE_KEY_ID: 'test-key',
+  ENCRYPTION_KEYRING_JSON: '{"test-key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}',
   LOG_LEVEL: 'info',
   QUEUE_PREFIX: 'transportada.runtime.contract',
   RABBITMQ_URL: 'amqp://guest:guest@127.0.0.1:5672',
@@ -71,6 +73,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('distribution.cancel')
           },
         }),
+        startCteIssuanceConsumer: async () => ({
+          cancel: async () => {
+            calls.push('cteIssuance.cancel')
+          },
+        }),
         startFoundationSyntheticConsumer: async () => ({
           cancel: async () => {
             calls.push('synthetic.cancel')
@@ -105,10 +112,12 @@ describe('NF-e worker runtime contract', () => {
       'synthetic.cancel',
       'import.cancel',
       'distribution.cancel',
+      'cteIssuance.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-import.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-distribution.v1.main.queue',
+      'provider.close:transportada.runtime.contract.cte-issuance.v1.main.queue',
       'database.close',
       'health.stop',
     ])
@@ -160,6 +169,7 @@ describe('NF-e worker runtime contract', () => {
           }
         },
         startDistributionConsumer: async () => undefined,
+        startCteIssuanceConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {
           return {

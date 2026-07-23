@@ -8,6 +8,7 @@ import {
   createCteBatchClient,
   type CteBatchClient as Client,
   type CteBatchCreate,
+  type CteBatchFilters,
 } from '../shared/cteBatchClient.service'
 
 const CTE_MANAGE = 'cte.manage'
@@ -65,6 +66,7 @@ export function useCteBatchWorkspace(
   input: Readonly<{
     batchId?: string
     companyId?: string
+    filters?: CteBatchFilters
     permissions: readonly string[]
   }>,
 ) {
@@ -74,12 +76,17 @@ export function useCteBatchWorkspace(
     permissions: input.companyId === undefined ? [] : input.permissions,
   })
   const queryClient = useQueryClient()
-  const batchesQueryKey = [CTE_BATCHES_QUERY_KEY, input.companyId] as const
+  const batchesQueryKey = [CTE_BATCHES_QUERY_KEY, input.companyId, input.filters] as const
   const eventsQueryKey = [CTE_BATCH_EVENTS_QUERY_KEY, input.companyId, input.batchId] as const
 
   const batchesQuery = useQuery({
     enabled: controller.canSubmitBatches || controller.canManageBatches,
-    queryFn: () => client.listBatches({ cursor: null, limit: 25 }),
+    queryFn: () =>
+      client.listBatches({
+        cursor: null,
+        ...(input.filters === undefined ? {} : { filters: input.filters }),
+        limit: 25,
+      }),
     queryKey: batchesQueryKey,
   })
   const eventsQuery = useQuery({

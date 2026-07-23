@@ -90,6 +90,7 @@ describe('tenant fiscal schema', () => {
     })
     expectGeneratedUuidPrimaryKey(fiscalSequenceReservations)
     expect(uniqueColumnsByName(fiscalSequenceReservations)).toEqual({
+      fiscal_sequence_reservations_company_id_id_unique: ['company_id', 'id'],
       fiscal_sequence_reservations_company_id_reservation_key_unique: [
         'company_id',
         'reservation_key',

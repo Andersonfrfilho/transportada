@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, lt, ne, or, sql } from 'drizzle-orm'
 
 import { nfeImportItems, nfeImports } from '../../database/nfe.schema.js'
 import { processingOutbox } from '../../database/processing.schema.js'
@@ -119,19 +119,97 @@ export class DrizzleNfeImportRepository
   public async list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly filters?: {
+      readonly correlationIdEq?: string
+      readonly correlationIdNe?: string
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly duplicatedCountEq?: string
+      readonly duplicatedCountGt?: string
+      readonly duplicatedCountGte?: string
+      readonly duplicatedCountLt?: string
+      readonly duplicatedCountLte?: string
+      readonly duplicatedCountNe?: string
+      readonly failedCountEq?: string
+      readonly failedCountGt?: string
+      readonly failedCountGte?: string
+      readonly failedCountLt?: string
+      readonly failedCountLte?: string
+      readonly failedCountNe?: string
+      readonly idEq?: string
+      readonly idNe?: string
+      readonly importedCountEq?: string
+      readonly importedCountGt?: string
+      readonly importedCountGte?: string
+      readonly importedCountLt?: string
+      readonly importedCountLte?: string
+      readonly importedCountNe?: string
+      readonly invalidCountEq?: string
+      readonly invalidCountGt?: string
+      readonly invalidCountGte?: string
+      readonly invalidCountLt?: string
+      readonly invalidCountLte?: string
+      readonly invalidCountNe?: string
+      readonly processedCountEq?: string
+      readonly processedCountGt?: string
+      readonly processedCountGte?: string
+      readonly processedCountLt?: string
+      readonly processedCountLte?: string
+      readonly processedCountNe?: string
+      readonly receivedCountEq?: string
+      readonly receivedCountGt?: string
+      readonly receivedCountGte?: string
+      readonly receivedCountLt?: string
+      readonly receivedCountLte?: string
+      readonly receivedCountNe?: string
+      readonly rejectedCountEq?: string
+      readonly rejectedCountGt?: string
+      readonly rejectedCountGte?: string
+      readonly rejectedCountLt?: string
+      readonly rejectedCountLte?: string
+      readonly rejectedCountNe?: string
+      readonly requestedByUserIdEq?: string
+      readonly requestedByUserIdNe?: string
+      readonly sourceEq?: 'distribution' | 'upload'
+      readonly sourceNe?: 'distribution' | 'upload'
+      readonly statusEq?:
+        | 'pending'
+        | 'queued'
+        | 'processing'
+        | 'completed'
+        | 'partially_processed'
+        | 'failed'
+        | 'cancelled'
+      readonly statusNe?:
+        | 'pending'
+        | 'queued'
+        | 'processing'
+        | 'completed'
+        | 'partially_processed'
+        | 'failed'
+        | 'cancelled'
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly versionEq?: string
+      readonly versionGt?: string
+      readonly versionGte?: string
+      readonly versionLt?: string
+      readonly versionLte?: string
+      readonly versionNe?: string
+    }
     readonly limit: number
   }): Promise<NfeImportListPage> {
     const cursor = decodeCursor(input.cursor)
-    const condition =
+    const condition = and(
+      eq(nfeImports.companyId, input.companyId),
       cursor === null
-        ? eq(nfeImports.companyId, input.companyId)
-        : and(
-            eq(nfeImports.companyId, input.companyId),
-            or(
-              lt(nfeImports.createdAt, cursor.createdAt),
-              and(eq(nfeImports.createdAt, cursor.createdAt), lt(nfeImports.id, cursor.id)),
-            ),
-          )
+        ? undefined
+        : or(
+            lt(nfeImports.createdAt, cursor.createdAt),
+            and(eq(nfeImports.createdAt, cursor.createdAt), lt(nfeImports.id, cursor.id)),
+          ),
+      createImportListFilters(input.filters),
+    )
     const rows = await this.database
       .select()
       .from(nfeImports)
@@ -147,6 +225,263 @@ export class DrizzleNfeImportRepository
         hasMore && last !== undefined ? `${last.createdAt.toISOString()}::${last.id}` : null,
     }
   }
+}
+
+function createImportListFilters(
+  input:
+    | {
+        readonly correlationIdEq?: string
+        readonly correlationIdNe?: string
+        readonly createdFrom?: string
+        readonly createdUntil?: string
+        readonly duplicatedCountEq?: string
+        readonly duplicatedCountGt?: string
+        readonly duplicatedCountGte?: string
+        readonly duplicatedCountLt?: string
+        readonly duplicatedCountLte?: string
+        readonly duplicatedCountNe?: string
+        readonly failedCountEq?: string
+        readonly failedCountGt?: string
+        readonly failedCountGte?: string
+        readonly failedCountLt?: string
+        readonly failedCountLte?: string
+        readonly failedCountNe?: string
+        readonly idEq?: string
+        readonly idNe?: string
+        readonly importedCountEq?: string
+        readonly importedCountGt?: string
+        readonly importedCountGte?: string
+        readonly importedCountLt?: string
+        readonly importedCountLte?: string
+        readonly importedCountNe?: string
+        readonly invalidCountEq?: string
+        readonly invalidCountGt?: string
+        readonly invalidCountGte?: string
+        readonly invalidCountLt?: string
+        readonly invalidCountLte?: string
+        readonly invalidCountNe?: string
+        readonly processedCountEq?: string
+        readonly processedCountGt?: string
+        readonly processedCountGte?: string
+        readonly processedCountLt?: string
+        readonly processedCountLte?: string
+        readonly processedCountNe?: string
+        readonly receivedCountEq?: string
+        readonly receivedCountGt?: string
+        readonly receivedCountGte?: string
+        readonly receivedCountLt?: string
+        readonly receivedCountLte?: string
+        readonly receivedCountNe?: string
+        readonly rejectedCountEq?: string
+        readonly rejectedCountGt?: string
+        readonly rejectedCountGte?: string
+        readonly rejectedCountLt?: string
+        readonly rejectedCountLte?: string
+        readonly rejectedCountNe?: string
+        readonly requestedByUserIdEq?: string
+        readonly requestedByUserIdNe?: string
+        readonly sourceEq?: 'distribution' | 'upload'
+        readonly sourceNe?: 'distribution' | 'upload'
+        readonly statusEq?:
+          | 'pending'
+          | 'queued'
+          | 'processing'
+          | 'completed'
+          | 'partially_processed'
+          | 'failed'
+          | 'cancelled'
+        readonly statusNe?:
+          | 'pending'
+          | 'queued'
+          | 'processing'
+          | 'completed'
+          | 'partially_processed'
+          | 'failed'
+          | 'cancelled'
+        readonly updatedFrom?: string
+        readonly updatedUntil?: string
+        readonly versionEq?: string
+        readonly versionGt?: string
+        readonly versionGte?: string
+        readonly versionLt?: string
+        readonly versionLte?: string
+        readonly versionNe?: string
+      }
+    | undefined,
+) {
+  if (input === undefined) return undefined
+  return and(
+    input.correlationIdEq === undefined
+      ? undefined
+      : eq(nfeImports.correlationId, input.correlationIdEq),
+    input.correlationIdNe === undefined
+      ? undefined
+      : ne(nfeImports.correlationId, input.correlationIdNe),
+    input.createdFrom === undefined
+      ? undefined
+      : sql`${nfeImports.createdAt} >= ${new Date(input.createdFrom)}`,
+    input.createdUntil === undefined
+      ? undefined
+      : sql`${nfeImports.createdAt} <= ${new Date(input.createdUntil)}`,
+    input.duplicatedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.duplicatedCount, BigInt(input.duplicatedCountEq)),
+    input.duplicatedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.duplicatedCount} > ${BigInt(input.duplicatedCountGt)}`,
+    input.duplicatedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.duplicatedCount} >= ${BigInt(input.duplicatedCountGte)}`,
+    input.duplicatedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.duplicatedCount} < ${BigInt(input.duplicatedCountLt)}`,
+    input.duplicatedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.duplicatedCount} <= ${BigInt(input.duplicatedCountLte)}`,
+    input.duplicatedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.duplicatedCount, BigInt(input.duplicatedCountNe)),
+    input.failedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.failedCount, BigInt(input.failedCountEq)),
+    input.failedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.failedCount} > ${BigInt(input.failedCountGt)}`,
+    input.failedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.failedCount} >= ${BigInt(input.failedCountGte)}`,
+    input.failedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.failedCount} < ${BigInt(input.failedCountLt)}`,
+    input.failedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.failedCount} <= ${BigInt(input.failedCountLte)}`,
+    input.failedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.failedCount, BigInt(input.failedCountNe)),
+    input.idEq === undefined ? undefined : eq(nfeImports.id, input.idEq),
+    input.idNe === undefined ? undefined : ne(nfeImports.id, input.idNe),
+    input.importedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.importedCount, BigInt(input.importedCountEq)),
+    input.importedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.importedCount} > ${BigInt(input.importedCountGt)}`,
+    input.importedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.importedCount} >= ${BigInt(input.importedCountGte)}`,
+    input.importedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.importedCount} < ${BigInt(input.importedCountLt)}`,
+    input.importedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.importedCount} <= ${BigInt(input.importedCountLte)}`,
+    input.importedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.importedCount, BigInt(input.importedCountNe)),
+    input.invalidCountEq === undefined
+      ? undefined
+      : eq(nfeImports.invalidCount, BigInt(input.invalidCountEq)),
+    input.invalidCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.invalidCount} > ${BigInt(input.invalidCountGt)}`,
+    input.invalidCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.invalidCount} >= ${BigInt(input.invalidCountGte)}`,
+    input.invalidCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.invalidCount} < ${BigInt(input.invalidCountLt)}`,
+    input.invalidCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.invalidCount} <= ${BigInt(input.invalidCountLte)}`,
+    input.invalidCountNe === undefined
+      ? undefined
+      : ne(nfeImports.invalidCount, BigInt(input.invalidCountNe)),
+    input.processedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.processedCount, BigInt(input.processedCountEq)),
+    input.processedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.processedCount} > ${BigInt(input.processedCountGt)}`,
+    input.processedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.processedCount} >= ${BigInt(input.processedCountGte)}`,
+    input.processedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.processedCount} < ${BigInt(input.processedCountLt)}`,
+    input.processedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.processedCount} <= ${BigInt(input.processedCountLte)}`,
+    input.processedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.processedCount, BigInt(input.processedCountNe)),
+    input.receivedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.receivedCount, BigInt(input.receivedCountEq)),
+    input.receivedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.receivedCount} > ${BigInt(input.receivedCountGt)}`,
+    input.receivedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.receivedCount} >= ${BigInt(input.receivedCountGte)}`,
+    input.receivedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.receivedCount} < ${BigInt(input.receivedCountLt)}`,
+    input.receivedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.receivedCount} <= ${BigInt(input.receivedCountLte)}`,
+    input.receivedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.receivedCount, BigInt(input.receivedCountNe)),
+    input.rejectedCountEq === undefined
+      ? undefined
+      : eq(nfeImports.rejectedCount, BigInt(input.rejectedCountEq)),
+    input.rejectedCountGt === undefined
+      ? undefined
+      : sql`${nfeImports.rejectedCount} > ${BigInt(input.rejectedCountGt)}`,
+    input.rejectedCountGte === undefined
+      ? undefined
+      : sql`${nfeImports.rejectedCount} >= ${BigInt(input.rejectedCountGte)}`,
+    input.rejectedCountLt === undefined
+      ? undefined
+      : sql`${nfeImports.rejectedCount} < ${BigInt(input.rejectedCountLt)}`,
+    input.rejectedCountLte === undefined
+      ? undefined
+      : sql`${nfeImports.rejectedCount} <= ${BigInt(input.rejectedCountLte)}`,
+    input.rejectedCountNe === undefined
+      ? undefined
+      : ne(nfeImports.rejectedCount, BigInt(input.rejectedCountNe)),
+    input.requestedByUserIdEq === undefined
+      ? undefined
+      : eq(nfeImports.requestedByUserId, input.requestedByUserIdEq),
+    input.requestedByUserIdNe === undefined
+      ? undefined
+      : ne(nfeImports.requestedByUserId, input.requestedByUserIdNe),
+    input.sourceEq === undefined ? undefined : eq(nfeImports.source, input.sourceEq),
+    input.sourceNe === undefined ? undefined : ne(nfeImports.source, input.sourceNe),
+    input.statusEq === undefined ? undefined : eq(nfeImports.status, input.statusEq),
+    input.statusNe === undefined ? undefined : ne(nfeImports.status, input.statusNe),
+    input.updatedFrom === undefined
+      ? undefined
+      : sql`${nfeImports.updatedAt} >= ${new Date(input.updatedFrom)}`,
+    input.updatedUntil === undefined
+      ? undefined
+      : sql`${nfeImports.updatedAt} <= ${new Date(input.updatedUntil)}`,
+    input.versionEq === undefined ? undefined : eq(nfeImports.version, BigInt(input.versionEq)),
+    input.versionGt === undefined
+      ? undefined
+      : sql`${nfeImports.version} > ${BigInt(input.versionGt)}`,
+    input.versionGte === undefined
+      ? undefined
+      : sql`${nfeImports.version} >= ${BigInt(input.versionGte)}`,
+    input.versionLt === undefined
+      ? undefined
+      : sql`${nfeImports.version} < ${BigInt(input.versionLt)}`,
+    input.versionLte === undefined
+      ? undefined
+      : sql`${nfeImports.version} <= ${BigInt(input.versionLte)}`,
+    input.versionNe === undefined ? undefined : ne(nfeImports.version, BigInt(input.versionNe)),
+  )
 }
 
 class DrizzleNfeImportTransaction

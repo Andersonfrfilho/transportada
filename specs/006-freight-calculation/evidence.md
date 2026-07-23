@@ -775,3 +775,30 @@ make check: 393 pass, 1 skip, 0 fail na API; 59 pass, 0 fail no worker; 43 pass,
 git diff --check: sem erros.
 make down: infraestrutura local encerrada e network removida.
 ```
+
+## Revisão extra — filtros avançados do workspace de frete
+
+Data: 2026-07-23
+
+Objetivo:
+
+- garantir cobertura de `Ne` em todos os campos de filtro suportados no workspace
+  de frete;
+- oferecer ação de limpeza rápida de filtros avançados.
+
+Arquivos alterados:
+
+- `apps/frontend-transportada/src/modules/freight/pages/FreightWorkspace.page.tsx`
+
+Verificação local (agregada no fluxo já executado):
+
+```text
+bun run --cwd apps/frontend-transportada check
+```
+
+Evidência:
+
+- filtro avançado mantém tipos (`keyof FreightRuleFilters` / `FreightCalculationFilters`)
+  e aceita `...Ne` nos campos numéricos disponíveis;
+- ação `Limpar filtros` foi adicionada para reduzir inconsistência de estado entre
+  sessão de análise e pesquisa.

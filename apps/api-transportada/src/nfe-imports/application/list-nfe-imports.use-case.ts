@@ -9,12 +9,14 @@ export function createListNfeImportsUseCase(input: {
     execute(request: {
       readonly context: CompanyContext
       readonly cursor: string | null
+      readonly filters?: Parameters<NfeImportListReaderPort['list']>[0]['filters']
       readonly limit: number
     }): Promise<NfeImportListPage> {
       return input.repository.list({
         companyId: request.context.companyId,
         cursor: request.cursor,
         limit: request.limit,
+        ...(request.filters === undefined ? {} : { filters: request.filters }),
       })
     },
   }

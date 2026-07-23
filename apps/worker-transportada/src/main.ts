@@ -4,7 +4,9 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider, type RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
+import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
+import { parseWorkerCryptographicConfiguration } from './config/cryptographic-configuration.schema.js'
 import { parseWorkerEnvironment } from './config/environment.schema.js'
 import { WorkerHealthService } from './health/health.service.js'
 import { safeLogInfo } from './logging/safe-logger.service.js'
@@ -12,9 +14,21 @@ import {
   buildNfeDistributionRabbitMqTopology,
   buildNfeImportRabbitMqTopology,
 } from './messaging/nfe-rabbitmq-topology.js'
+import { buildCteIssuanceRabbitMqTopology } from './messaging/cte-rabbitmq-topology.js'
+import type { CteProcessingEnvelopeV1 } from './messaging/cte-processing-envelope.schema.js'
 import { buildRabbitMqTopology } from './messaging/rabbitmq-topology.js'
 import { OutboxRelayLoop } from './outbox/application/outbox-relay-loop.service.js'
 import { NfeOutboxPublisherService } from './outbox/application/nfe-outbox-publisher.service.js'
+import { DrizzleCteOutboxRepository } from './cte-issuance/infrastructure/drizzle-cte-outbox.repository.js'
+import { createDigitalCertificateSecretService } from './cte-issuance/application/digital-certificate-secret.service.js'
+import { createCteIssuanceExecutionInputResolver } from './cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
+import { DrizzleCteIssuanceWorkerRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-worker.repository.js'
+import { DrizzleCteIssuanceExecutionInputRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-execution-input.repository.js'
+import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastructure/adatechnology-cte-fiscal-provider.factory.js'
+import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
+import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
+import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
+import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
@@ -78,6 +92,43 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startCteIssuanceConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly effect: {
+      execute(params: { readonly envelope: CteProcessingEnvelopeV1 }): Promise<void>
+    }
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+    readonly repository: {
+      hasProcessed(input: {
+        readonly attemptId: string
+        readonly batchItemId: string
+        readonly companyId: string
+        readonly eventId: string
+      }): Promise<boolean>
+      markDeadLettered(input: {
+        readonly attemptId: string
+        readonly batchItemId: string
+        readonly companyId: string
+        readonly eventId: string
+        readonly reason: string
+      }): Promise<void>
+      markProcessed(input: {
+        readonly attemptId: string
+        readonly batchItemId: string
+        readonly companyId: string
+        readonly eventId: string
+      }): Promise<void>
+      scheduleRetry(input: {
+        readonly attempt: number
+        readonly attemptId: string
+        readonly batchItemId: string
+        readonly companyId: string
+        readonly eventId: string
+        readonly nextAttemptAt: Date
+      }): Promise<void>
+    }
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startFoundationSyntheticConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly logger: WorkerLogger
@@ -103,6 +154,7 @@ export async function startWorkerRuntime(
   const environment = params.environment ?? process.env
   const dependencies = params.dependencies ?? {}
   const config = parseWorkerEnvironment(environment)
+  const cryptography = parseWorkerCryptographicConfiguration(environment)
   const loggerFactory = dependencies.createLogger ?? createLogger
   const databaseFactory = dependencies.createDatabase ?? createDrizzleProvider
   const rabbitProviderFactory = dependencies.createRabbitMqProvider ?? createRabbitMqProvider
@@ -110,6 +162,7 @@ export async function startWorkerRuntime(
     dependencies.startFoundationSyntheticConsumer ?? startFoundationSyntheticConsumer
   const importStarter = dependencies.startImportConsumer ?? startNfeImportConsumer
   const distributionStarter = dependencies.startDistributionConsumer ?? startNfeDistributionConsumer
+  const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
     dependencies.createStorageGateway ??
@@ -132,6 +185,9 @@ export async function startWorkerRuntime(
     projectName: 'transportada-worker',
     version: '0.1.0',
   })
+  const digitalCertificateSecretService = createDigitalCertificateSecretService({
+    envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+  })
   const database = databaseFactory({ connection: config.databaseUrl })
   const storageGateway = storageGatewayFactory({ environment })
   const syntheticTopology = buildRabbitMqTopology(`${config.queuePrefix}.synthetic.v1`)
@@ -141,13 +197,19 @@ export async function startWorkerRuntime(
   const nfeDistributionTopology = buildNfeDistributionRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const cteIssuanceTopology = buildCteIssuanceRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
   let importConsumer: RuntimeConsumer | undefined
   let importPublisher: RabbitMqProvider | undefined
   let distributionConsumer: RuntimeConsumer | undefined
+  let cteIssuanceConsumer: RuntimeConsumer | undefined
   let relayLoop: OutboxRelayLoop | undefined
+  let cteRelayLoop: OutboxRelayLoop | undefined
+  let cteIssuancePublisher: RabbitMqProvider | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
 
   try {
@@ -162,6 +224,10 @@ export async function startWorkerRuntime(
     distributionPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: nfeDistributionTopology,
+    })
+    cteIssuancePublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: cteIssuanceTopology,
     })
     const healthService = new WorkerHealthService({
       database,
@@ -188,6 +254,24 @@ export async function startWorkerRuntime(
       logger,
       provider: distributionPublisher,
     })
+    cteIssuanceConsumer = await cteIssuanceStarter({
+      config,
+      effect: createCteIssuanceWorkerEffect({
+        createProvider: createAdatechnologyCteFiscalProvider,
+        logger,
+        resolveExecutionInput: createCteIssuanceExecutionInputResolver({
+          repository: new DrizzleCteIssuanceExecutionInputRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          secretService: digitalCertificateSecretService,
+        }),
+      }),
+      logger,
+      provider: cteIssuancePublisher,
+      repository: new DrizzleCteIssuanceWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+    })
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -212,6 +296,18 @@ export async function startWorkerRuntime(
         },
       },
     })
+    const cteRelay = new CteOutboxRelayService({
+      clock: { now: () => new Date() },
+      publisher: new CteOutboxPublisherService(cteIssuancePublisher),
+      repository: new DrizzleCteOutboxRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+      retryPolicy: {
+        classify(error: unknown): never {
+          throw error instanceof Error ? error : new Error('CT-e outbox relay publish failed')
+        },
+      },
+    })
     relayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.relay.${crypto.randomUUID()}`,
       intervalMs: 1_000,
@@ -221,14 +317,31 @@ export async function startWorkerRuntime(
       relay,
     })
     relayLoop.start()
+    cteRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.cte.relay.${crypto.randomUUID()}`,
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: cteRelay,
+    })
+    cteRelayLoop.start()
     const shutdown = new WorkerShutdown({
-      closeables: [relayLoop, storageGateway],
-      consumers: [syntheticConsumer, importConsumer, distributionConsumer].filter(
-        (consumer): consumer is RuntimeConsumer => consumer !== undefined,
-      ),
+      closeables: [relayLoop, cteRelayLoop, storageGateway],
+      consumers: [
+        syntheticConsumer,
+        importConsumer,
+        distributionConsumer,
+        cteIssuanceConsumer,
+      ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
-      provider: createCloseableGroup([provider, importPublisher, distributionPublisher]),
+      provider: createCloseableGroup([
+        provider,
+        importPublisher,
+        distributionPublisher,
+        cteIssuancePublisher,
+      ]),
     })
     registerWorkerShutdownSignals({ logger, shutdown })
     safeLogInfo({
@@ -246,11 +359,14 @@ export async function startWorkerRuntime(
     await syntheticConsumer?.cancel().catch(() => undefined)
     await importConsumer?.cancel().catch(() => undefined)
     await distributionConsumer?.cancel().catch(() => undefined)
+    await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
+    await cteRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
     await importPublisher?.close().catch(() => undefined)
+    await cteIssuancePublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
     throw error

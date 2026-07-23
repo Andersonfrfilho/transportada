@@ -67,6 +67,49 @@ type ChangeFreightRuleStatusInput = {
 type ListFreightRulesInput = {
   readonly context: FreightRuleCompanyContext
   readonly cursor: string | null
+  readonly filters?: {
+    readonly createdFrom?: string
+    readonly createdUntil?: string
+    readonly currentVersionEq?: string
+    readonly currentVersionNe?: string
+    readonly descriptionContains?: string
+    readonly maximumAmountEq?: string
+    readonly maximumAmountGt?: string
+    readonly maximumAmountGte?: string
+    readonly maximumAmountLt?: string
+    readonly maximumAmountLte?: string
+    readonly maximumAmountNe?: string
+    readonly minimumAmountEq?: string
+    readonly minimumAmountGt?: string
+    readonly minimumAmountGte?: string
+    readonly minimumAmountLt?: string
+    readonly minimumAmountLte?: string
+    readonly minimumAmountNe?: string
+    readonly nameContains?: string
+    readonly percentageEq?: string
+    readonly percentageGt?: string
+    readonly percentageGte?: string
+    readonly percentageLt?: string
+    readonly percentageLte?: string
+    readonly percentageNe?: string
+    readonly priorityEq?: string
+    readonly priorityGt?: string
+    readonly priorityGte?: string
+    readonly priorityLt?: string
+    readonly priorityLte?: string
+    readonly priorityNe?: string
+    readonly statusEq?: FreightRuleStatus
+    readonly statusNe?: FreightRuleStatus
+    readonly typeEq?: FreightRuleType
+    readonly typeNe?: FreightRuleType
+    readonly updatedFrom?: string
+    readonly updatedUntil?: string
+    readonly validFromFrom?: string
+    readonly validFromUntil?: string
+    readonly validUntilFrom?: string
+    readonly validUntilIsNull?: boolean
+    readonly validUntilUntil?: string
+  }
   readonly limit: number
 }
 
@@ -123,6 +166,7 @@ export type FreightRulesTransactionPort = {
   listRules(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly filters?: ListFreightRulesInput['filters']
     readonly limit: number
   }): Promise<{
     readonly items: readonly FreightRuleSummary[]
@@ -283,6 +327,7 @@ export function createFreightRulesUseCase(dependencies: {
         transaction.listRules({
           companyId: input.context.companyId,
           cursor: input.cursor,
+          filters: input.filters,
           limit: input.limit,
         }),
       )

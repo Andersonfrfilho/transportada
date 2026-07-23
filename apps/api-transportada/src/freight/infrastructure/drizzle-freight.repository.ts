@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gte, isNull, lt, lte, or } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 
 import {
   auditLogs,
@@ -66,6 +66,49 @@ export class DrizzleFreightRuleListRepository {
   public list(input: {
     readonly context: { readonly companyId: string }
     readonly cursor: string | null
+    readonly filters?: {
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly currentVersionEq?: string
+      readonly currentVersionNe?: string
+      readonly descriptionContains?: string
+      readonly maximumAmountEq?: string
+      readonly maximumAmountGt?: string
+      readonly maximumAmountGte?: string
+      readonly maximumAmountLt?: string
+      readonly maximumAmountLte?: string
+      readonly maximumAmountNe?: string
+      readonly minimumAmountEq?: string
+      readonly minimumAmountGt?: string
+      readonly minimumAmountGte?: string
+      readonly minimumAmountLt?: string
+      readonly minimumAmountLte?: string
+      readonly minimumAmountNe?: string
+      readonly nameContains?: string
+      readonly percentageEq?: string
+      readonly percentageGt?: string
+      readonly percentageGte?: string
+      readonly percentageLt?: string
+      readonly percentageLte?: string
+      readonly percentageNe?: string
+      readonly priorityEq?: string
+      readonly priorityGt?: string
+      readonly priorityGte?: string
+      readonly priorityLt?: string
+      readonly priorityLte?: string
+      readonly priorityNe?: string
+      readonly statusEq?: FreightRuleStatus
+      readonly statusNe?: FreightRuleStatus
+      readonly typeEq?: 'percentage_of_invoice_total'
+      readonly typeNe?: 'percentage_of_invoice_total'
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly validFromFrom?: string
+      readonly validFromUntil?: string
+      readonly validUntilFrom?: string
+      readonly validUntilIsNull?: boolean
+      readonly validUntilUntil?: string
+    }
     readonly limit: number
   }): Promise<{
     readonly items: readonly FreightRuleSummary[]
@@ -75,6 +118,7 @@ export class DrizzleFreightRuleListRepository {
       companyId: input.context.companyId,
       cursor: input.cursor,
       limit: input.limit,
+      ...(input.filters === undefined ? {} : { filters: input.filters }),
     })
   }
 }
@@ -85,6 +129,56 @@ export class DrizzleFreightCalculationListRepository {
   public list(input: {
     readonly context: { readonly companyId: string }
     readonly cursor: string | null
+    readonly filters?: {
+      readonly baseAmountEq?: string
+      readonly baseAmountGt?: string
+      readonly baseAmountGte?: string
+      readonly baseAmountLt?: string
+      readonly baseAmountLte?: string
+      readonly baseAmountNe?: string
+      readonly calculatedAmountEq?: string
+      readonly calculatedAmountGt?: string
+      readonly calculatedAmountGte?: string
+      readonly calculatedAmountLt?: string
+      readonly calculatedAmountLte?: string
+      readonly calculatedAmountNe?: string
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly freightRuleIdEq?: string
+      readonly freightRuleIdNe?: string
+      readonly freightRuleVersionIdEq?: string
+      readonly freightRuleVersionIdNe?: string
+      readonly maximumAmountEq?: string
+      readonly maximumAmountGt?: string
+      readonly maximumAmountGte?: string
+      readonly maximumAmountLt?: string
+      readonly maximumAmountLte?: string
+      readonly maximumAmountNe?: string
+      readonly minimumAmountEq?: string
+      readonly minimumAmountGt?: string
+      readonly minimumAmountGte?: string
+      readonly minimumAmountLt?: string
+      readonly minimumAmountLte?: string
+      readonly minimumAmountNe?: string
+      readonly percentageEq?: string
+      readonly percentageGt?: string
+      readonly percentageGte?: string
+      readonly percentageLt?: string
+      readonly percentageLte?: string
+      readonly percentageNe?: string
+      readonly ruleVersionEq?: string
+      readonly ruleVersionNe?: string
+      readonly statusEq?: 'snapshotted' | 'rejected'
+      readonly statusNe?: 'snapshotted' | 'rejected'
+      readonly totalAmountEq?: string
+      readonly totalAmountGt?: string
+      readonly totalAmountGte?: string
+      readonly totalAmountLt?: string
+      readonly totalAmountLte?: string
+      readonly totalAmountNe?: string
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+    }
     readonly documentId: string
     readonly limit: number
   }): Promise<{
@@ -96,6 +190,7 @@ export class DrizzleFreightCalculationListRepository {
       cursor: input.cursor,
       documentId: input.documentId,
       limit: input.limit,
+      ...(input.filters === undefined ? {} : { filters: input.filters }),
     })
   }
 }
@@ -210,6 +305,49 @@ class DrizzleFreightTransaction {
   public listRules(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly filters?: {
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly currentVersionEq?: string
+      readonly currentVersionNe?: string
+      readonly descriptionContains?: string
+      readonly maximumAmountEq?: string
+      readonly maximumAmountGt?: string
+      readonly maximumAmountGte?: string
+      readonly maximumAmountLt?: string
+      readonly maximumAmountLte?: string
+      readonly maximumAmountNe?: string
+      readonly minimumAmountEq?: string
+      readonly minimumAmountGt?: string
+      readonly minimumAmountGte?: string
+      readonly minimumAmountLt?: string
+      readonly minimumAmountLte?: string
+      readonly minimumAmountNe?: string
+      readonly nameContains?: string
+      readonly percentageEq?: string
+      readonly percentageGt?: string
+      readonly percentageGte?: string
+      readonly percentageLt?: string
+      readonly percentageLte?: string
+      readonly percentageNe?: string
+      readonly priorityEq?: string
+      readonly priorityGt?: string
+      readonly priorityGte?: string
+      readonly priorityLt?: string
+      readonly priorityLte?: string
+      readonly priorityNe?: string
+      readonly statusEq?: FreightRuleStatus
+      readonly statusNe?: FreightRuleStatus
+      readonly typeEq?: 'percentage_of_invoice_total'
+      readonly typeNe?: 'percentage_of_invoice_total'
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly validFromFrom?: string
+      readonly validFromUntil?: string
+      readonly validUntilFrom?: string
+      readonly validUntilIsNull?: boolean
+      readonly validUntilUntil?: string
+    }
     readonly limit: number
   }): Promise<{
     readonly items: readonly FreightRuleSummary[]
@@ -297,34 +435,259 @@ async function findApplicableVersion(
 
 async function listRules(
   queryable: Queryable,
-  input: { readonly companyId: string; readonly cursor: string | null; readonly limit: number },
+  input: {
+    readonly companyId: string
+    readonly cursor: string | null
+    readonly filters?: {
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly currentVersionEq?: string
+      readonly currentVersionNe?: string
+      readonly descriptionContains?: string
+      readonly maximumAmountEq?: string
+      readonly maximumAmountGt?: string
+      readonly maximumAmountGte?: string
+      readonly maximumAmountLt?: string
+      readonly maximumAmountLte?: string
+      readonly maximumAmountNe?: string
+      readonly minimumAmountEq?: string
+      readonly minimumAmountGt?: string
+      readonly minimumAmountGte?: string
+      readonly minimumAmountLt?: string
+      readonly minimumAmountLte?: string
+      readonly minimumAmountNe?: string
+      readonly nameContains?: string
+      readonly percentageEq?: string
+      readonly percentageGt?: string
+      readonly percentageGte?: string
+      readonly percentageLt?: string
+      readonly percentageLte?: string
+      readonly percentageNe?: string
+      readonly priorityEq?: string
+      readonly priorityGt?: string
+      readonly priorityGte?: string
+      readonly priorityLt?: string
+      readonly priorityLte?: string
+      readonly priorityNe?: string
+      readonly statusEq?: FreightRuleStatus
+      readonly statusNe?: FreightRuleStatus
+      readonly typeEq?: 'percentage_of_invoice_total'
+      readonly typeNe?: 'percentage_of_invoice_total'
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+      readonly validFromFrom?: string
+      readonly validFromUntil?: string
+      readonly validUntilFrom?: string
+      readonly validUntilIsNull?: boolean
+      readonly validUntilUntil?: string
+    }
+    readonly limit: number
+  },
 ): Promise<{ readonly items: readonly FreightRuleSummary[]; readonly nextCursor: string | null }> {
   const cursor = decodeCursor(input.cursor)
-  const condition =
+  const condition = and(
+    eq(freightRules.companyId, input.companyId),
     cursor === null
-      ? eq(freightRules.companyId, input.companyId)
-      : and(
-          eq(freightRules.companyId, input.companyId),
-          or(
-            lt(freightRules.createdAt, cursor.createdAt),
-            and(eq(freightRules.createdAt, cursor.createdAt), lt(freightRules.id, cursor.id)),
-          ),
-        )
+      ? undefined
+      : or(
+          lt(freightRules.createdAt, cursor.createdAt),
+          and(eq(freightRules.createdAt, cursor.createdAt), lt(freightRules.id, cursor.id)),
+        ),
+    createRuleListFilters(input.filters),
+  )
   const rows = await queryable
     .select()
     .from(freightRules)
+    .innerJoin(
+      freightRuleVersions,
+      and(
+        eq(freightRuleVersions.companyId, freightRules.companyId),
+        eq(freightRuleVersions.freightRuleId, freightRules.id),
+        eq(freightRuleVersions.version, freightRules.currentVersion),
+      ),
+    )
     .where(condition)
     .orderBy(desc(freightRules.createdAt), desc(freightRules.id))
     .limit(input.limit + 1)
   const pageRows = rows.slice(0, input.limit)
-  const last = pageRows.at(-1)
+  const last = pageRows.at(-1)?.freight_rules
   return {
-    items: pageRows.map(mapRule),
+    items: pageRows.map((row) => mapRule(row.freight_rules)),
     nextCursor:
       rows.length > input.limit && last !== undefined
         ? `${last.createdAt.toISOString()}::${last.id}`
         : null,
   }
+}
+
+function createRuleListFilters(
+  input:
+    | {
+        readonly createdFrom?: string
+        readonly createdUntil?: string
+        readonly currentVersionEq?: string
+        readonly currentVersionNe?: string
+        readonly descriptionContains?: string
+        readonly maximumAmountEq?: string
+        readonly maximumAmountGt?: string
+        readonly maximumAmountGte?: string
+        readonly maximumAmountLt?: string
+        readonly maximumAmountLte?: string
+        readonly maximumAmountNe?: string
+        readonly minimumAmountEq?: string
+        readonly minimumAmountGt?: string
+        readonly minimumAmountGte?: string
+        readonly minimumAmountLt?: string
+        readonly minimumAmountLte?: string
+        readonly minimumAmountNe?: string
+        readonly nameContains?: string
+        readonly percentageEq?: string
+        readonly percentageGt?: string
+        readonly percentageGte?: string
+        readonly percentageLt?: string
+        readonly percentageLte?: string
+        readonly percentageNe?: string
+        readonly priorityEq?: string
+        readonly priorityGt?: string
+        readonly priorityGte?: string
+        readonly priorityLt?: string
+        readonly priorityLte?: string
+        readonly priorityNe?: string
+        readonly statusEq?: FreightRuleStatus
+        readonly statusNe?: FreightRuleStatus
+        readonly typeEq?: 'percentage_of_invoice_total'
+        readonly typeNe?: 'percentage_of_invoice_total'
+        readonly updatedFrom?: string
+        readonly updatedUntil?: string
+        readonly validFromFrom?: string
+        readonly validFromUntil?: string
+        readonly validUntilFrom?: string
+        readonly validUntilIsNull?: boolean
+        readonly validUntilUntil?: string
+      }
+    | undefined,
+) {
+  if (input === undefined) return undefined
+
+  return and(
+    input.createdFrom === undefined
+      ? undefined
+      : gte(freightRules.createdAt, new Date(input.createdFrom)),
+    input.createdUntil === undefined
+      ? undefined
+      : lte(freightRules.createdAt, new Date(input.createdUntil)),
+    input.currentVersionEq === undefined
+      ? undefined
+      : eq(freightRules.currentVersion, BigInt(input.currentVersionEq)),
+    input.currentVersionNe === undefined
+      ? undefined
+      : ne(freightRules.currentVersion, BigInt(input.currentVersionNe)),
+    input.descriptionContains === undefined
+      ? undefined
+      : ilike(freightRules.description, `%${input.descriptionContains}%`),
+    input.maximumAmountEq === undefined
+      ? undefined
+      : eq(freightRuleVersions.maximumAmount, input.maximumAmountEq),
+    input.maximumAmountGt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.maximumAmount} > ${input.maximumAmountGt}`,
+    input.maximumAmountGte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.maximumAmount} >= ${input.maximumAmountGte}`,
+    input.maximumAmountLt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.maximumAmount} < ${input.maximumAmountLt}`,
+    input.maximumAmountLte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.maximumAmount} <= ${input.maximumAmountLte}`,
+    input.maximumAmountNe === undefined
+      ? undefined
+      : ne(freightRuleVersions.maximumAmount, input.maximumAmountNe),
+    input.minimumAmountEq === undefined
+      ? undefined
+      : eq(freightRuleVersions.minimumAmount, input.minimumAmountEq),
+    input.minimumAmountGt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.minimumAmount} > ${input.minimumAmountGt}`,
+    input.minimumAmountGte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.minimumAmount} >= ${input.minimumAmountGte}`,
+    input.minimumAmountLt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.minimumAmount} < ${input.minimumAmountLt}`,
+    input.minimumAmountLte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.minimumAmount} <= ${input.minimumAmountLte}`,
+    input.minimumAmountNe === undefined
+      ? undefined
+      : ne(freightRuleVersions.minimumAmount, input.minimumAmountNe),
+    input.nameContains === undefined
+      ? undefined
+      : ilike(freightRules.name, `%${input.nameContains}%`),
+    input.percentageEq === undefined
+      ? undefined
+      : eq(freightRuleVersions.percentage, input.percentageEq),
+    input.percentageGt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.percentage} > ${input.percentageGt}`,
+    input.percentageGte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.percentage} >= ${input.percentageGte}`,
+    input.percentageLt === undefined
+      ? undefined
+      : sql`${freightRuleVersions.percentage} < ${input.percentageLt}`,
+    input.percentageLte === undefined
+      ? undefined
+      : sql`${freightRuleVersions.percentage} <= ${input.percentageLte}`,
+    input.percentageNe === undefined
+      ? undefined
+      : ne(freightRuleVersions.percentage, input.percentageNe),
+    input.priorityEq === undefined
+      ? undefined
+      : eq(freightRules.priority, BigInt(input.priorityEq)),
+    input.priorityGt === undefined
+      ? undefined
+      : sql`${freightRules.priority} > ${BigInt(input.priorityGt)}`,
+    input.priorityGte === undefined
+      ? undefined
+      : sql`${freightRules.priority} >= ${BigInt(input.priorityGte)}`,
+    input.priorityLt === undefined
+      ? undefined
+      : sql`${freightRules.priority} < ${BigInt(input.priorityLt)}`,
+    input.priorityLte === undefined
+      ? undefined
+      : sql`${freightRules.priority} <= ${BigInt(input.priorityLte)}`,
+    input.priorityNe === undefined
+      ? undefined
+      : ne(freightRules.priority, BigInt(input.priorityNe)),
+    input.statusEq === undefined ? undefined : eq(freightRules.status, input.statusEq),
+    input.statusNe === undefined ? undefined : ne(freightRules.status, input.statusNe),
+    input.typeEq === undefined ? undefined : eq(freightRules.type, input.typeEq),
+    input.typeNe === undefined ? undefined : ne(freightRules.type, input.typeNe),
+    input.updatedFrom === undefined
+      ? undefined
+      : gte(freightRules.updatedAt, new Date(input.updatedFrom)),
+    input.updatedUntil === undefined
+      ? undefined
+      : lte(freightRules.updatedAt, new Date(input.updatedUntil)),
+    input.validFromFrom === undefined
+      ? undefined
+      : gte(freightRuleVersions.validFrom, new Date(input.validFromFrom)),
+    input.validFromUntil === undefined
+      ? undefined
+      : lte(freightRuleVersions.validFrom, new Date(input.validFromUntil)),
+    input.validUntilFrom === undefined
+      ? undefined
+      : gte(freightRuleVersions.validUntil, new Date(input.validUntilFrom)),
+    input.validUntilIsNull === undefined
+      ? undefined
+      : input.validUntilIsNull
+        ? isNull(freightRuleVersions.validUntil)
+        : sql`${freightRuleVersions.validUntil} is not null`,
+    input.validUntilUntil === undefined
+      ? undefined
+      : lte(freightRuleVersions.validUntil, new Date(input.validUntilUntil)),
+  )
 }
 
 async function listCalculations(
@@ -333,6 +696,56 @@ async function listCalculations(
     readonly companyId: string
     readonly cursor: string | null
     readonly documentId: string
+    readonly filters?: {
+      readonly baseAmountEq?: string
+      readonly baseAmountGt?: string
+      readonly baseAmountGte?: string
+      readonly baseAmountLt?: string
+      readonly baseAmountLte?: string
+      readonly baseAmountNe?: string
+      readonly calculatedAmountEq?: string
+      readonly calculatedAmountGt?: string
+      readonly calculatedAmountGte?: string
+      readonly calculatedAmountLt?: string
+      readonly calculatedAmountLte?: string
+      readonly calculatedAmountNe?: string
+      readonly createdFrom?: string
+      readonly createdUntil?: string
+      readonly freightRuleIdEq?: string
+      readonly freightRuleIdNe?: string
+      readonly freightRuleVersionIdEq?: string
+      readonly freightRuleVersionIdNe?: string
+      readonly maximumAmountEq?: string
+      readonly maximumAmountGt?: string
+      readonly maximumAmountGte?: string
+      readonly maximumAmountLt?: string
+      readonly maximumAmountLte?: string
+      readonly maximumAmountNe?: string
+      readonly minimumAmountEq?: string
+      readonly minimumAmountGt?: string
+      readonly minimumAmountGte?: string
+      readonly minimumAmountLt?: string
+      readonly minimumAmountLte?: string
+      readonly minimumAmountNe?: string
+      readonly percentageEq?: string
+      readonly percentageGt?: string
+      readonly percentageGte?: string
+      readonly percentageLt?: string
+      readonly percentageLte?: string
+      readonly percentageNe?: string
+      readonly ruleVersionEq?: string
+      readonly ruleVersionNe?: string
+      readonly statusEq?: 'snapshotted' | 'rejected'
+      readonly statusNe?: 'snapshotted' | 'rejected'
+      readonly totalAmountEq?: string
+      readonly totalAmountGt?: string
+      readonly totalAmountGte?: string
+      readonly totalAmountLt?: string
+      readonly totalAmountLte?: string
+      readonly totalAmountNe?: string
+      readonly updatedFrom?: string
+      readonly updatedUntil?: string
+    }
     readonly limit: number
   },
 ): Promise<{
@@ -346,9 +759,10 @@ async function listCalculations(
   )
   const condition =
     cursor === null
-      ? baseCondition
+      ? and(baseCondition, createCalculationListFilters(input.filters))
       : and(
           baseCondition,
+          createCalculationListFilters(input.filters),
           or(
             lt(freightCalculations.createdAt, cursor.createdAt),
             and(
@@ -372,6 +786,206 @@ async function listCalculations(
         ? `${last.createdAt.toISOString()}::${last.id}`
         : null,
   }
+}
+
+function createCalculationListFilters(
+  input:
+    | {
+        readonly baseAmountEq?: string
+        readonly baseAmountGt?: string
+        readonly baseAmountGte?: string
+        readonly baseAmountLt?: string
+        readonly baseAmountLte?: string
+        readonly baseAmountNe?: string
+        readonly calculatedAmountEq?: string
+        readonly calculatedAmountGt?: string
+        readonly calculatedAmountGte?: string
+        readonly calculatedAmountLt?: string
+        readonly calculatedAmountLte?: string
+        readonly calculatedAmountNe?: string
+        readonly createdFrom?: string
+        readonly createdUntil?: string
+        readonly freightRuleIdEq?: string
+        readonly freightRuleIdNe?: string
+        readonly freightRuleVersionIdEq?: string
+        readonly freightRuleVersionIdNe?: string
+        readonly maximumAmountEq?: string
+        readonly maximumAmountGt?: string
+        readonly maximumAmountGte?: string
+        readonly maximumAmountLt?: string
+        readonly maximumAmountLte?: string
+        readonly maximumAmountNe?: string
+        readonly minimumAmountEq?: string
+        readonly minimumAmountGt?: string
+        readonly minimumAmountGte?: string
+        readonly minimumAmountLt?: string
+        readonly minimumAmountLte?: string
+        readonly minimumAmountNe?: string
+        readonly percentageEq?: string
+        readonly percentageGt?: string
+        readonly percentageGte?: string
+        readonly percentageLt?: string
+        readonly percentageLte?: string
+        readonly percentageNe?: string
+        readonly ruleVersionEq?: string
+        readonly ruleVersionNe?: string
+        readonly statusEq?: 'snapshotted' | 'rejected'
+        readonly statusNe?: 'snapshotted' | 'rejected'
+        readonly totalAmountEq?: string
+        readonly totalAmountGt?: string
+        readonly totalAmountGte?: string
+        readonly totalAmountLt?: string
+        readonly totalAmountLte?: string
+        readonly totalAmountNe?: string
+        readonly updatedFrom?: string
+        readonly updatedUntil?: string
+      }
+    | undefined,
+) {
+  if (input === undefined) return undefined
+
+  return and(
+    input.baseAmountEq === undefined
+      ? undefined
+      : eq(freightCalculations.baseAmount, input.baseAmountEq),
+    input.baseAmountGt === undefined
+      ? undefined
+      : sql`${freightCalculations.baseAmount} > ${input.baseAmountGt}`,
+    input.baseAmountGte === undefined
+      ? undefined
+      : sql`${freightCalculations.baseAmount} >= ${input.baseAmountGte}`,
+    input.baseAmountLt === undefined
+      ? undefined
+      : sql`${freightCalculations.baseAmount} < ${input.baseAmountLt}`,
+    input.baseAmountLte === undefined
+      ? undefined
+      : sql`${freightCalculations.baseAmount} <= ${input.baseAmountLte}`,
+    input.baseAmountNe === undefined
+      ? undefined
+      : ne(freightCalculations.baseAmount, input.baseAmountNe),
+    input.calculatedAmountEq === undefined
+      ? undefined
+      : eq(freightCalculations.calculatedAmount, input.calculatedAmountEq),
+    input.calculatedAmountGt === undefined
+      ? undefined
+      : sql`${freightCalculations.calculatedAmount} > ${input.calculatedAmountGt}`,
+    input.calculatedAmountGte === undefined
+      ? undefined
+      : sql`${freightCalculations.calculatedAmount} >= ${input.calculatedAmountGte}`,
+    input.calculatedAmountLt === undefined
+      ? undefined
+      : sql`${freightCalculations.calculatedAmount} < ${input.calculatedAmountLt}`,
+    input.calculatedAmountLte === undefined
+      ? undefined
+      : sql`${freightCalculations.calculatedAmount} <= ${input.calculatedAmountLte}`,
+    input.calculatedAmountNe === undefined
+      ? undefined
+      : ne(freightCalculations.calculatedAmount, input.calculatedAmountNe),
+    input.createdFrom === undefined
+      ? undefined
+      : gte(freightCalculations.createdAt, new Date(input.createdFrom)),
+    input.createdUntil === undefined
+      ? undefined
+      : lte(freightCalculations.createdAt, new Date(input.createdUntil)),
+    input.freightRuleIdEq === undefined
+      ? undefined
+      : eq(freightCalculations.freightRuleId, input.freightRuleIdEq),
+    input.freightRuleIdNe === undefined
+      ? undefined
+      : ne(freightCalculations.freightRuleId, input.freightRuleIdNe),
+    input.freightRuleVersionIdEq === undefined
+      ? undefined
+      : eq(freightCalculations.freightRuleVersionId, input.freightRuleVersionIdEq),
+    input.freightRuleVersionIdNe === undefined
+      ? undefined
+      : ne(freightCalculations.freightRuleVersionId, input.freightRuleVersionIdNe),
+    input.maximumAmountEq === undefined
+      ? undefined
+      : eq(freightCalculations.maximumAmount, input.maximumAmountEq),
+    input.maximumAmountGt === undefined
+      ? undefined
+      : sql`${freightCalculations.maximumAmount} > ${input.maximumAmountGt}`,
+    input.maximumAmountGte === undefined
+      ? undefined
+      : sql`${freightCalculations.maximumAmount} >= ${input.maximumAmountGte}`,
+    input.maximumAmountLt === undefined
+      ? undefined
+      : sql`${freightCalculations.maximumAmount} < ${input.maximumAmountLt}`,
+    input.maximumAmountLte === undefined
+      ? undefined
+      : sql`${freightCalculations.maximumAmount} <= ${input.maximumAmountLte}`,
+    input.maximumAmountNe === undefined
+      ? undefined
+      : ne(freightCalculations.maximumAmount, input.maximumAmountNe),
+    input.minimumAmountEq === undefined
+      ? undefined
+      : eq(freightCalculations.minimumAmount, input.minimumAmountEq),
+    input.minimumAmountGt === undefined
+      ? undefined
+      : sql`${freightCalculations.minimumAmount} > ${input.minimumAmountGt}`,
+    input.minimumAmountGte === undefined
+      ? undefined
+      : sql`${freightCalculations.minimumAmount} >= ${input.minimumAmountGte}`,
+    input.minimumAmountLt === undefined
+      ? undefined
+      : sql`${freightCalculations.minimumAmount} < ${input.minimumAmountLt}`,
+    input.minimumAmountLte === undefined
+      ? undefined
+      : sql`${freightCalculations.minimumAmount} <= ${input.minimumAmountLte}`,
+    input.minimumAmountNe === undefined
+      ? undefined
+      : ne(freightCalculations.minimumAmount, input.minimumAmountNe),
+    input.percentageEq === undefined
+      ? undefined
+      : eq(freightCalculations.percentage, input.percentageEq),
+    input.percentageGt === undefined
+      ? undefined
+      : sql`${freightCalculations.percentage} > ${input.percentageGt}`,
+    input.percentageGte === undefined
+      ? undefined
+      : sql`${freightCalculations.percentage} >= ${input.percentageGte}`,
+    input.percentageLt === undefined
+      ? undefined
+      : sql`${freightCalculations.percentage} < ${input.percentageLt}`,
+    input.percentageLte === undefined
+      ? undefined
+      : sql`${freightCalculations.percentage} <= ${input.percentageLte}`,
+    input.percentageNe === undefined
+      ? undefined
+      : ne(freightCalculations.percentage, input.percentageNe),
+    input.ruleVersionEq === undefined
+      ? undefined
+      : eq(freightCalculations.ruleVersion, BigInt(input.ruleVersionEq)),
+    input.ruleVersionNe === undefined
+      ? undefined
+      : ne(freightCalculations.ruleVersion, BigInt(input.ruleVersionNe)),
+    input.statusEq === undefined ? undefined : eq(freightCalculations.status, input.statusEq),
+    input.statusNe === undefined ? undefined : ne(freightCalculations.status, input.statusNe),
+    input.totalAmountEq === undefined
+      ? undefined
+      : eq(freightCalculations.totalAmount, input.totalAmountEq),
+    input.totalAmountGt === undefined
+      ? undefined
+      : sql`${freightCalculations.totalAmount} > ${input.totalAmountGt}`,
+    input.totalAmountGte === undefined
+      ? undefined
+      : sql`${freightCalculations.totalAmount} >= ${input.totalAmountGte}`,
+    input.totalAmountLt === undefined
+      ? undefined
+      : sql`${freightCalculations.totalAmount} < ${input.totalAmountLt}`,
+    input.totalAmountLte === undefined
+      ? undefined
+      : sql`${freightCalculations.totalAmount} <= ${input.totalAmountLte}`,
+    input.totalAmountNe === undefined
+      ? undefined
+      : ne(freightCalculations.totalAmount, input.totalAmountNe),
+    input.updatedFrom === undefined
+      ? undefined
+      : gte(freightCalculations.updatedAt, new Date(input.updatedFrom)),
+    input.updatedUntil === undefined
+      ? undefined
+      : lte(freightCalculations.updatedAt, new Date(input.updatedUntil)),
+  )
 }
 
 function decodeCursor(
