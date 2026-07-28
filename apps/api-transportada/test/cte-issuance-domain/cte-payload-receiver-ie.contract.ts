@@ -15,19 +15,9 @@ import {
   expectApiErrorCode,
 } from './support.js'
 
-const referenceXml = await Bun.file(
-  new URL(
-    '../../../../example/exportacao_20_07_2026_13_17_59/CTe-35260761156864000191570010000138081000168240.xml',
-    import.meta.url,
-  ),
-).text()
-
-function readReferenceTag(tag: string): string {
-  const match = new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(referenceXml)
-  if (match?.[1] === undefined) throw new Error(`Reference CT-e has no <${tag}>`)
-
-  return match[1]
-}
+// Congelados do <ide> de uma CT-e autorizada de referência: o XML é documento fiscal de
+// terceiro e vive fora do repositório, então o valor entra aqui como o resto do golden.
+const REFERENCE_IDE = { indIEToma: '1', toma: '0' } as const
 
 function withInvoiceParty(party: {
   readonly recipient?: CtePayloadParty
@@ -46,10 +36,8 @@ describe('buildCtePayload — indIEToma derivado da inscrição estadual do toma
   test('reproduz o indIEToma e o tomador da CT-e de referência', () => {
     const payload = buildCtePayload(buildGoldenParams())
 
-    expect(readReferenceTag('toma')).toBe('0')
-    expect(readReferenceTag('indIEToma')).toBe('1')
-    expect(readReferenceTag('toma')).toBe(payload.tomador)
-    expect(readReferenceTag('indIEToma')).toBe(payload.indIEToma ?? '')
+    expect(payload.tomador).toBe(REFERENCE_IDE.toma)
+    expect(payload.indIEToma ?? '').toBe(REFERENCE_IDE.indIEToma)
   })
 
   test('deriva do destinatário quando o tomador configurado é o destinatário', () => {
