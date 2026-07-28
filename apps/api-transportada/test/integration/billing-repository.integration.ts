@@ -36,6 +36,12 @@ const databaseUrl =
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 const HMAC_KEY = Uint8Array.from({ length: 32 }, (_value, index) => index + 41)
 const NOW = '2026-07-23T15:00:00.000Z'
+// A criação concorrente perde na reserva ou na leitura de elegibilidade, conforme a vencedora
+// tenha commitado depois ou antes dessa leitura. Ambas negam a segunda fatura com 409.
+const CONCURRENT_BILLING_CONFLICT_CODES: readonly string[] = [
+  'BILLING_CTE_ALREADY_INVOICED',
+  'BILLING_CTE_NOT_ELIGIBLE',
+]
 
 describe('billing repository integration', () => {
   testWithPostgres(
@@ -102,10 +108,8 @@ describe('billing repository integration', () => {
         expect(fulfilled).toHaveLength(1)
         expect(rejected).toHaveLength(1)
         expect(rejected[0]?.reason).toBeInstanceOf(ApiError)
-        expect(rejected[0]?.reason).toMatchObject({
-          code: 'BILLING_CTE_ALREADY_INVOICED',
-          status: 409,
-        })
+        expect(rejected[0]?.reason).toMatchObject({ status: 409 })
+        expect(CONCURRENT_BILLING_CONFLICT_CODES).toContain((rejected[0]?.reason as ApiError).code)
         expect(await useCase.listEligible({ context, filters: {}, limit: 20 })).toEqual([])
 
         const winnerIndex = attempts.findIndex((result) => result.status === 'fulfilled')
