@@ -61,7 +61,7 @@ describe('tenant fiscal schema', () => {
     })
     expect(checkSqlByName(fiscalSequences)).toEqual({
       fiscal_sequences_environment_check: `"fiscal_sequences"."environment" in ('homologation', 'production')`,
-      fiscal_sequences_model_check: `"fiscal_sequences"."model" = 'cte'`,
+      fiscal_sequences_model_check: `"fiscal_sequences"."model" in ('cte', 'mdfe')`,
       fiscal_sequences_number_coherence_check: `"fiscal_sequences"."next_number" > 0 and ("fiscal_sequences"."last_reserved_number" is null or ("fiscal_sequences"."last_reserved_number" > 0 and "fiscal_sequences"."next_number" = "fiscal_sequences"."last_reserved_number" + 1))`,
       fiscal_sequences_series_check: `"fiscal_sequences"."series" > 0`,
       fiscal_sequences_version_check: `"fiscal_sequences"."version" > 0`,

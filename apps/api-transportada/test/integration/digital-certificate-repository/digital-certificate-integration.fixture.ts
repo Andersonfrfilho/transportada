@@ -16,6 +16,7 @@ import {
   companies,
   companyFiscalProfiles,
   identityUsers,
+  userCompanyMemberships,
 } from '../../../src/database/database.schema'
 import type { CompanyContext } from '../../../src/identity/domain/tenant-context'
 
@@ -114,6 +115,12 @@ async function createFixture(
   const userId = crypto.randomUUID()
   await database.db.insert(companies).values({ id: companyId, status: 'active' })
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values({
+    companyId,
+    id: crypto.randomUUID(),
+    status: 'active',
+    userId,
+  })
   await insertProfile({ companyId, database, cnpj: '61156864000191' })
   const repository = new DrizzleDigitalCertificateRepository(database.db)
   return {

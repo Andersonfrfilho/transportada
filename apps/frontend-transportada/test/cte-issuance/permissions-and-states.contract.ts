@@ -5,6 +5,9 @@ import {
   CTE_AUTHORIZED_ISSUANCE,
   CTE_BATCH_ID,
   CTE_BATCH_ITEM_ID,
+  CTE_CANCEL,
+  CTE_CANCELLED_ISSUANCE,
+  CTE_CANCEL_JUSTIFICATION,
   CTE_DOCUMENT_PAGE,
   CTE_REJECTED_ISSUANCE,
   CTE_RETRY_ISSUANCE,
@@ -41,6 +44,52 @@ describe('CT-e issuance permissions and states contract', () => {
 
     const submitterController = createCteIssuanceController({ client, permissions: [CTE_SUBMIT] })
     expect(submitterController.canSubmitCte).toBe(true)
+  })
+
+  test('keeps the 110111 cancellation behind cte.cancel even for who can transmit', async () => {
+    const { createCteIssuanceController } = await loadFutureModule<CteIssuanceHookModule>(
+      '../../src/modules/cte-issuance/hooks/useCteIssuanceStatus.hook',
+    )
+    const client = createMutationRecordingClient()
+    const cancelRequest = {
+      batchId: CTE_BATCH_ID,
+      batchItemId: CTE_BATCH_ITEM_ID,
+      idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
+      justification: CTE_CANCEL_JUSTIFICATION,
+    }
+
+    const submitterController = createCteIssuanceController({ client, permissions: [CTE_SUBMIT] })
+    expect(submitterController.canCancelCte).toBe(false)
+    expect(
+      await submitterController.cancelItem(cancelRequest).catch((caught: unknown) => caught),
+    ).toEqual(expect.objectContaining({ message: 'CTE_ISSUANCE_FORBIDDEN' }))
+    expect(client.mutationCount).toBe(0)
+
+    const cancellerController = createCteIssuanceController({
+      client,
+      permissions: [CTE_SUBMIT, CTE_CANCEL],
+    })
+    expect(cancellerController.canCancelCte).toBe(true)
+    expect(await cancellerController.cancelItem(cancelRequest)).toBeUndefined()
+    expect(client.mutationCount).toBe(1)
+  })
+
+  test('surfaces the cancelled document as a terminal state without polling or reprocess', async () => {
+    const { createCteIssuanceViewModel } = await loadFutureModule<CteIssuanceViewModelModule>(
+      '../../src/modules/cte-issuance/shared/cteIssuanceViewModel.service',
+    )
+
+    const cancelled = createCteIssuanceViewModel({
+      documents: CTE_DOCUMENT_PAGE,
+      issuance: CTE_CANCELLED_ISSUANCE,
+      permissions: [CTE_SUBMIT],
+      status: 'success',
+    })
+
+    expect(cancelled.status).toBe('cancelled')
+    expect(cancelled.canReprocess).toBe(false)
+    expect(cancelled.shouldPollStatus).toBe(false)
+    expect(cancelled.canDownloadXml).toBe(false)
   })
 
   test('maps authorized, rejected, retry and forbidden states without XML persistence', async () => {
@@ -93,6 +142,10 @@ describe('CT-e issuance permissions and states contract', () => {
 function createMutationRecordingClient(): CteIssuanceClient & { readonly mutationCount: number } {
   let mutationCount = 0
   return {
+    cancelItem: () => {
+      mutationCount += 1
+      return Promise.resolve(undefined)
+    },
     getIssuance: () => Promise.resolve(CTE_REJECTED_ISSUANCE),
     get mutationCount(): number {
       return mutationCount
@@ -110,6 +163,12 @@ function createMutationRecordingClient(): CteIssuanceClient & { readonly mutatio
 }
 
 type CteIssuanceClient = {
+  cancelItem(input: {
+    readonly batchId: string
+    readonly batchItemId: string
+    readonly idempotencyKey: string
+    readonly justification: string
+  }): Promise<unknown>
   getIssuance(input: { readonly batchId: string; readonly batchItemId: string }): Promise<unknown>
   issueBatch(input: { readonly batchId: string; readonly idempotencyKey: string }): Promise<unknown>
   listDocuments(input: { readonly batchId: string; readonly batchItemId: string }): Promise<unknown>
@@ -126,6 +185,13 @@ type CteIssuanceHookModule = {
     readonly client: CteIssuanceClient
     readonly permissions: readonly string[]
   }) => {
+    readonly canCancelCte: boolean
+    readonly cancelItem: (input: {
+      readonly batchId: string
+      readonly batchItemId: string
+      readonly idempotencyKey: string
+      readonly justification: string
+    }) => Promise<void>
     readonly canSubmitCte: boolean
     readonly issueBatch: (input: {
       readonly batchId: string
@@ -148,6 +214,7 @@ type CteIssuanceViewModel = {
   readonly shouldPollStatus?: boolean
   readonly status:
     | 'authorized'
+    | 'cancelled'
     | 'error'
     | 'failed'
     | 'forbidden'

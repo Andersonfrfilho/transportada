@@ -9,7 +9,20 @@ export type CompanySettings = {
     readonly nextNumber: bigint
     readonly series: bigint
   }
+  readonly cteRetry: {
+    readonly backoffSeconds: readonly number[]
+    readonly maxAttempts: number
+  }
   readonly expectedVersion: bigint | null
+  readonly mdfe: {
+    readonly bankBranch: string
+    readonly bankCode: string
+    readonly insurancePolicy: string
+    readonly insuranceResponsibility: '' | '1' | '2'
+    readonly insurerName: string
+    readonly insurerTaxId: string
+    readonly pixKey: string
+  }
   readonly profile: {
     readonly city: string
     readonly cityIbgeCode: string
@@ -54,13 +67,28 @@ export const COMPANY_CONTEXT: CompanyContext = {
   userId: USER_ID,
 }
 
+const CTE_RETRY_POLICY: CompanySettings['cteRetry'] = {
+  backoffSeconds: [10, 60, 900],
+  maxAttempts: 5,
+}
+
 export const COMPANY_SETTINGS = {
   cte: {
     environment: 'homologation',
     nextNumber: 13_809n,
     series: 1n,
   },
+  cteRetry: CTE_RETRY_POLICY,
   expectedVersion: null,
+  mdfe: {
+    bankBranch: '1234',
+    bankCode: '341',
+    insurancePolicy: '1234567890',
+    insuranceResponsibility: '1',
+    insurerName: 'Seguradora Contract',
+    insurerTaxId: '11222333000181',
+    pixKey: '',
+  },
   profile: {
     city: 'Ribeirao Preto',
     cityIbgeCode: '3543402',
@@ -96,6 +124,8 @@ export const EXPECTED_SETTINGS_RESULT = {
     series: 1n,
     version: 1n,
   },
+  cteRetry: CTE_RETRY_POLICY,
+  mdfe: COMPANY_SETTINGS.mdfe,
   profile: {
     ...COMPANY_SETTINGS.profile,
     version: 1n,
@@ -125,4 +155,13 @@ export const EXPECTED_FINGERPRINT_FIELDS = [
   COMPANY_SETTINGS.cte.environment,
   COMPANY_SETTINGS.cte.series.toString(),
   COMPANY_SETTINGS.cte.nextNumber.toString(),
+  COMPANY_SETTINGS.cteRetry.maxAttempts.toString(),
+  COMPANY_SETTINGS.cteRetry.backoffSeconds.join(','),
+  COMPANY_SETTINGS.mdfe.insuranceResponsibility,
+  COMPANY_SETTINGS.mdfe.insurerName,
+  COMPANY_SETTINGS.mdfe.insurerTaxId,
+  COMPANY_SETTINGS.mdfe.insurancePolicy,
+  COMPANY_SETTINGS.mdfe.bankCode,
+  COMPANY_SETTINGS.mdfe.bankBranch,
+  COMPANY_SETTINGS.mdfe.pixKey,
 ] as const

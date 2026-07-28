@@ -3,6 +3,7 @@
  */
 import type { FreightCalculationDetail } from '../../src/freight-calculations/application/freight-simulation.use-case.js'
 import type { FreightRuleSummary } from '../../src/freight-rules/application/freight-rules.use-case.js'
+import { FREIGHT_RULE_ID } from './freight-http-request.fixture.js'
 
 export const RULE_SUMMARY = {
   companyId: 'company-001',
@@ -10,7 +11,7 @@ export const RULE_SUMMARY = {
   createdByUserId: 'user-001',
   currentVersion: '1',
   description: 'Percentual padrão da operação',
-  id: '00000000-0000-4000-8000-000000000301',
+  id: FREIGHT_RULE_ID,
   name: 'Regra padrão',
   priority: '10',
   status: 'draft',

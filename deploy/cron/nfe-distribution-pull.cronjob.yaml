@@ -1,0 +1,95 @@
+# Copyright (c) 2026 Ada Technology. MIT License.
+#
+# Reference K8s manifest for the scheduled NF-e distribution pull
+# (apps/cron-transportada). Feature 011 / ADR-0012.
+#
+# Real cluster deploy is out of scope (gates locais + aprovação humana first).
+# This is a reviewable infra-as-code artifact:
+#   - the DATABASE_URL secret is referenced, never defined here (segredos nunca
+#     são commitados);
+#   - `schedule` and CADENCE_MINUTES share the same 60-min window — change both
+#     together or the idempotency bucket stops matching the run window;
+#   - concurrencyPolicy=Forbid + the Postgres advisory lock + the
+#     (company_id, idempotency_key) unique keep overlapping cycles safe.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cron-transportada-config
+  labels:
+    app.kubernetes.io/name: cron-transportada
+    app.kubernetes.io/part-of: transportada
+data:
+  APP_ENV: 'production'
+  CRON_JOB: 'nfe.distribution.pull'
+  # Fiscal environment is explicit and never mixed; set per cluster/namespace.
+  FISCAL_ENVIRONMENT: 'homologation'
+  # Must mirror the CronJob schedule below (60 min → "0 * * * *").
+  CADENCE_MINUTES: '60'
+  PAGE_SIZE: '50'
+  LOG_LEVEL: 'info'
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-transportada-nfe-distribution-pull
+  labels:
+    app.kubernetes.io/name: cron-transportada
+    app.kubernetes.io/part-of: transportada
+    app.kubernetes.io/component: nfe-distribution-pull
+spec:
+  # Hourly. Mirror of CADENCE_MINUTES=60 — change both together.
+  schedule: '0 * * * *'
+  timeZone: 'America/Sao_Paulo'
+  # One instance per window; a late start never overlaps the previous run.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # The job body is idempotent per cadence bucket; leave retries to the next
+      # cycle rather than hammering SEFAZ within the same window.
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cron-transportada
+            app.kubernetes.io/component: nfe-distribution-pull
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cron
+              # Built and published by the deploy pipeline (out of scope here).
+              image: 'REGISTRY/adatechnology/cron-transportada:REPLACE_WITH_DIGEST'
+              imagePullPolicy: IfNotPresent
+              command: ['bun', 'run', 'start']
+              envFrom:
+                - configMapRef:
+                    name: cron-transportada-config
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cron-transportada-secrets
+                      key: DATABASE_URL
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ['ALL']
+              resources:
+                requests:
+                  cpu: '50m'
+                  memory: '128Mi'
+                limits:
+                  cpu: '500m'
+                  memory: '256Mi'

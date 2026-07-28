@@ -1,0 +1,55 @@
+{
+  "title": "Billing workspace",
+  "status": {
+    "cancelled": "Invoice cancelled successfully.",
+    "empty": "No invoice or eligible CT-e found.",
+    "error": "Billing workspace could not be loaded.",
+    "forbidden": "Your current access does not allow this workspace.",
+    "issued": "Invoice issued and ready for review.",
+    "loading": "Loading billing...",
+    "selectable": "Eligible CT-es are available for billing."
+  },
+  "filters": {
+    "title": "Eligibility filters",
+    "batchId": "Batch",
+    "cteNumber": "CT-e number",
+    "customerDocument": "Customer document",
+    "issuedFrom": "Issued from",
+    "issuedTo": "Issued until",
+    "minAmount": "Minimum amount",
+    "maxAmount": "Maximum amount",
+    "clear": "Clear filters"
+  },
+  "eligible": {
+    "title": "Eligible CT-es",
+    "summary": "{{count}} selected, total {{total}}",
+    "empty": "No eligible CT-e matches the current filters.",
+    "select": "Select",
+    "cteNumber": "CT-e",
+    "customer": "Customer",
+    "totalAmount": "Total"
+  },
+  "create": {
+    "title": "Create invoice",
+    "dueDate": "Due date",
+    "submit": "Create invoice"
+  },
+  "invoice": {
+    "title": "Invoice detail",
+    "lookup": "Invoice ID",
+    "empty": "Type or create an invoice to inspect its detail.",
+    "number": "Number: {{value}}",
+    "customer": "Customer: {{value}}",
+    "total": "Total: {{value}}",
+    "statusValue": "Status: {{value}}"
+  },
+  "cancel": {
+    "reason": "Cancellation reason",
+    "submit": "Cancel invoice"
+  },
+  "documents": {
+    "title": "Documents",
+    "empty": "No document is available for this invoice.",
+    "download": "Download document"
+  }
+}

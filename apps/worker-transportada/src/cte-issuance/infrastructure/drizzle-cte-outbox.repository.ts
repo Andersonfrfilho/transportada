@@ -8,7 +8,9 @@ import { cteIssuanceOutbox } from '../../database/processing.schema.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-type CteOutboxEventType = 'transportada.cte.item.issue.requested'
+type CteOutboxEventType =
+  | 'transportada.cte.item.issue.requested'
+  | 'transportada.cte.item.cancel.requested'
 
 type CteOutboxClaimedEntry = {
   readonly actorId: string
@@ -22,7 +24,7 @@ type CteOutboxClaimedEntry = {
   readonly aggregateId: string
   readonly batchId: string
   readonly batchItemId: string
-  readonly attemptKind: 'issue' | 'reprocess'
+  readonly attemptKind: 'issue' | 'reprocess' | 'cancel'
   readonly aggregateType: 'cte_batch'
   readonly aggregateSubtype: 'item'
   readonly eventVersion: 1
@@ -30,11 +32,22 @@ type CteOutboxClaimedEntry = {
   readonly payload: {
     readonly batchItemId: string
     readonly batchId: string
-    readonly attemptKind: 'issue' | 'reprocess'
+    readonly attemptKind: 'issue' | 'reprocess' | 'cancel'
     readonly status: string
     readonly attemptFingerprint: string
     readonly attemptId: string
   }
+}
+
+function isCteOutboxEventType(value: string): value is CteOutboxEventType {
+  return (
+    value === 'transportada.cte.item.issue.requested' ||
+    value === 'transportada.cte.item.cancel.requested'
+  )
+}
+
+function isCteOutboxAttemptKind(value: string): value is CteOutboxClaimedEntry['attemptKind'] {
+  return value === 'issue' || value === 'reprocess' || value === 'cancel'
 }
 
 export class DrizzleCteOutboxRepository {
@@ -103,8 +116,8 @@ export class DrizzleCteOutboxRepository {
         if (
           row.aggregateType !== 'cte_batch' ||
           row.aggregateSubtype !== 'item' ||
-          row.eventType !== 'transportada.cte.item.issue.requested' ||
-          (row.attemptKind !== 'issue' && row.attemptKind !== 'reprocess') ||
+          !isCteOutboxEventType(row.eventType) ||
+          !isCteOutboxAttemptKind(row.attemptKind) ||
           row.eventVersion <= 0n
         ) {
           throw new Error('Unsupported CT-e outbox record')

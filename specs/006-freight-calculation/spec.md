@@ -289,7 +289,7 @@ snapshot histórico.
 - NF-e cross-tenant ou inexistente retorna resposta indistinguível;
 - permissões negam configuração/simulação por padrão;
 - frontend responsivo permite configurar regra e simular frete sem persistir XML;
-- gates locais, migration/rollback e revisão Sol ficam verdes antes da próxima
+- gates locais, migration/rollback e revisão Opus ficam verdes antes da próxima
   feature de lote/CT-e.
 
 ## Decisões fechadas e pendências não bloqueantes

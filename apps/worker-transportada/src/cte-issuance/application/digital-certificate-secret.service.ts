@@ -35,7 +35,7 @@ export function createDigitalCertificateSecretService(input: {
     readonly certificateId: string
     readonly companyId: string
     readonly envelope: unknown
-    readonly purpose: 'cte'
+    readonly purpose: 'cte' | 'mdfe'
   }) => Promise<DigitalCertificateSecret>
 } {
   return {

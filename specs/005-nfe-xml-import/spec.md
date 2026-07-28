@@ -344,7 +344,7 @@ uma nova tentativa vinculada, sem reescrever o histórico.
   viewports sem persistir XML;
 - package fiscal e object storage são empacotados, publicados e consumidos por
   versões exatas, sem `workspace:*`, `file:` ou imports entre apps;
-- `make check`, migration/rollback, smoke gerenciado e revisão Sol ficam verdes
+- `make check`, migration/rollback, smoke gerenciado e revisão Opus ficam verdes
   antes de qualquer Railway ou chamada real à SEFAZ.
 
 ## Decisões fechadas e pendências não bloqueantes

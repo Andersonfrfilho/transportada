@@ -9,11 +9,13 @@ function readModule(filePath: string): Promise<string> {
 
 describe('company settings presentation boundary contract', () => {
   test('uses localized component boundaries and design tokens without secret persistence', async () => {
-    const [page, client, upload, form] = await Promise.all([
+    const [page, client, upload, form, settingsForm, retryFields] = await Promise.all([
       readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
       readModule('src/modules/company-settings/shared/companySettingsClient.service.ts'),
       readModule('src/modules/company-settings/hooks/useCertificateUpload.hook.ts'),
       readModule('src/modules/company-settings/components/CompanyProfileFields.component.tsx'),
+      readModule('src/modules/company-settings/components/CompanySettingsForm.component.tsx'),
+      readModule('src/modules/company-settings/components/CteRetryFields.component.tsx'),
     ])
     const locale = await readModule(
       'src/modules/company-settings/locales/companySettings.locale.json',
@@ -30,7 +32,14 @@ describe('company settings presentation boundary contract', () => {
     expect(form).toContain('cityIbgeCode')
     expect(form).toContain('stateRegistration')
     expect(form).toContain('taxRegime')
+    expect(settingsForm).toContain('CteRetryFields')
+    expect(retryFields).toContain("useTranslation('companySettings')")
+    expect(retryFields).toContain('maxAttempts')
+    expect(retryFields).toContain('backoffSeconds')
     expect(locale).toContain('"production"')
+    expect(locale).toContain('"cteRetryLegend"')
+    expect(locale).toContain('"cteRetryMaxAttempts"')
+    expect(locale).toContain('"cteRetryBackoffStep"')
     expect(locale).toContain('{{expiresAt}}')
     expect(locale).toContain('{{validFrom}}')
     expect(styles).toContain('var(--')

@@ -59,6 +59,7 @@ describe('normalized NF-e document children schema', () => {
       'number',
       'complement',
       'district',
+      'city_code',
       'city',
       'state',
       'postal_code',

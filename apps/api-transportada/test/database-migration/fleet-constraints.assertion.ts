@@ -1,0 +1,130 @@
+import { SQL } from 'bun'
+
+import type { IdentityFixture } from './identity-constraints.assertion.js'
+import { expectQueryToFail } from './support.js'
+
+export type FleetFixture = {
+  readonly otherCompanyId: string
+  readonly vehicleId: string
+  readonly trailerId: string
+  readonly driverId: string
+  readonly secondDriverId: string
+}
+
+export async function assertFleetConstraints(
+  database: SQL,
+  identity: IdentityFixture,
+): Promise<FleetFixture> {
+  const { companyId, membershipId } = identity
+  const otherCompanyId = crypto.randomUUID()
+  const vehicleId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
+  const driverId = crypto.randomUUID()
+  const secondDriverId = crypto.randomUUID()
+  const assignmentId = crypto.randomUUID()
+
+  await database`insert into companies (id, status) values (${otherCompanyId}, 'active')`
+  await database`
+    insert into fleet_vehicles (id, company_id, plate, role, wheel_type, state)
+    values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', '03', 'SP')
+  `
+  await database`
+    insert into fleet_vehicles (id, company_id, plate, role, body_type, state)
+    values (${trailerId}, ${companyId}, 'XYZ9A88', 'trailer', '01', 'SP')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
+      values (${companyId}, 'ABC1D23', 'traction', '03', 'SP')
+    `,
+    '23505',
+    'fleet_vehicles_company_id_plate_unique',
+  )
+  await database`
+    insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
+    values (${otherCompanyId}, 'ABC1D23', 'traction', '03', 'SP')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
+      values (${companyId}, 'QQQ1B11', 'trailer', '03', 'SP')
+    `,
+    '23514',
+    'fleet_vehicles_wheel_type_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, wheel_type, state, ownership, owner_tax_id)
+      values (${companyId}, 'QQQ1B11', 'traction', '03', 'SP', 'own', '12345678000195')
+    `,
+    '23514',
+    'fleet_vehicles_owner_check',
+  )
+
+  await database`
+    insert into fleet_drivers (id, company_id, membership_id, name, tax_id)
+    values (${driverId}, ${companyId}, ${membershipId}, 'Motorista Titular', '12345678901')
+  `
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id)
+    values (${secondDriverId}, ${companyId}, 'Motorista Sem Login', '98765432100')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id)
+      values (${companyId}, 'Motorista Repetido', '12345678901')
+    `,
+    '23505',
+    'fleet_drivers_company_id_tax_id_unique',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, membership_id, name, tax_id)
+      values (${companyId}, ${membershipId}, 'Motorista Clonado', '11122233344')
+    `,
+    '23505',
+    'fleet_drivers_company_membership_unique',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, membership_id, name, tax_id)
+      values (${otherCompanyId}, ${membershipId}, 'Motorista De Outro Tenant', '11122233344')
+    `,
+    '23503',
+    'fleet_drivers_company_membership_fk',
+  )
+
+  await database`
+    insert into fleet_driver_vehicle_assignments (id, company_id, driver_id, vehicle_id)
+    values (${assignmentId}, ${companyId}, ${driverId}, ${vehicleId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
+      values (${companyId}, ${secondDriverId}, ${vehicleId})
+    `,
+    '23505',
+    'fleet_driver_vehicle_assignments_live_vehicle_unique',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
+      values (${companyId}, ${driverId}, ${trailerId})
+    `,
+    '23505',
+    'fleet_driver_vehicle_assignments_live_driver_unique',
+  )
+
+  await database`
+    update fleet_driver_vehicle_assignments set released_at = now() where id = ${assignmentId}
+  `
+  await database`
+    insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
+    values (${companyId}, ${secondDriverId}, ${vehicleId})
+  `
+
+  return { otherCompanyId, vehicleId, trailerId, driverId, secondDriverId }
+}

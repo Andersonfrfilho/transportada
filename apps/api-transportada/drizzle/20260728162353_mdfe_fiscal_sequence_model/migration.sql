@@ -1,0 +1,1 @@
+ALTER TABLE "fiscal_sequences" DROP CONSTRAINT "fiscal_sequences_model_check", ADD CONSTRAINT "fiscal_sequences_model_check" CHECK ("model" in ('cte', 'mdfe'));

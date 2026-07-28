@@ -1,5 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  CTE_RETRY_BACKOFF_STEPS_LIMIT,
+  CTE_RETRY_MAX_ATTEMPTS_LIMIT,
+} from './companySettings.constant'
 import type {
+  CompanyProfileLookup,
+  CompanyProfileLookupResponse,
   CompanySettingsResponse,
   DigitalCertificatesResponse,
   SafeCertificate,
@@ -7,7 +13,17 @@ import type {
 
 const CERTIFICATE_KEYS = ['expiresAt', 'id', 'purpose', 'status', 'validFrom', 'version']
 const CTE_KEYS = ['environment', 'nextNumber', 'series', 'version']
+const CTE_RETRY_KEYS = ['backoffSeconds', 'maxAttempts']
 const DECIMAL = /^[1-9][0-9]{0,18}$/
+const MDFE_KEYS = [
+  'bankBranch',
+  'bankCode',
+  'insurancePolicy',
+  'insuranceResponsibility',
+  'insurerName',
+  'insurerTaxId',
+  'pixKey',
+]
 const MAX_DATABASE_BIGINT = 9_223_372_036_854_775_807n
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const PROFILE_KEYS = [
@@ -29,6 +45,22 @@ const PROFILE_KEYS = [
   'taxRegime',
   'tradeName',
   'version',
+]
+const LOOKUP_PROFILE_KEYS = [
+  'city',
+  'cityIbgeCode',
+  'cnpj',
+  'complement',
+  'district',
+  'email',
+  'legalName',
+  'number',
+  'phone',
+  'postalCode',
+  'state',
+  'stateRegistration',
+  'street',
+  'tradeName',
 ]
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -83,6 +115,14 @@ export function toSafeCertificate(value: SafeCertificate): SafeCertificate {
   }
 }
 
+export function isCompanyProfileLookup(value: unknown): value is CompanyProfileLookup {
+  return (
+    isRecord(value) &&
+    hasExactKeys({ keys: LOOKUP_PROFILE_KEYS, value }) &&
+    LOOKUP_PROFILE_KEYS.every((key) => typeof value[key] === 'string')
+  )
+}
+
 function isCteSettings(value: unknown): boolean {
   if (!isRecord(value) || !hasExactKeys({ keys: CTE_KEYS, value })) return false
   return (
@@ -90,6 +130,32 @@ function isCteSettings(value: unknown): boolean {
     isDecimal(value.nextNumber) &&
     isDecimal(value.series) &&
     isDecimal(value.version)
+  )
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+}
+
+function isCteRetryPolicy(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys({ keys: CTE_RETRY_KEYS, value })) return false
+  const { backoffSeconds, maxAttempts } = value
+  return (
+    Array.isArray(backoffSeconds) &&
+    backoffSeconds.length >= 1 &&
+    backoffSeconds.length <= CTE_RETRY_BACKOFF_STEPS_LIMIT &&
+    backoffSeconds.every(isPositiveInteger) &&
+    isPositiveInteger(maxAttempts) &&
+    maxAttempts <= CTE_RETRY_MAX_ATTEMPTS_LIMIT
+  )
+}
+
+function isMdfeDefaults(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys({ keys: MDFE_KEYS, value })) return false
+  const responsibility = value.insuranceResponsibility
+  return (
+    MDFE_KEYS.every((key) => typeof value[key] === 'string') &&
+    (responsibility === '' || responsibility === '1' || responsibility === '2')
   )
 }
 
@@ -106,11 +172,12 @@ function isFiscalProfile(value: unknown): boolean {
 export function isSettingsResponse(value: unknown): value is CompanySettingsResponse {
   if (!isRecord(value) || !hasExactKeys({ keys: ['data'], value }) || !isRecord(value.data))
     return false
-  const { activeCertificate, cte, profile } = value.data
+  const { cte, cteRetry, mdfe, profile } = value.data
   return (
-    hasExactKeys({ keys: ['activeCertificate', 'cte', 'profile'], value: value.data }) &&
-    (activeCertificate === null || isSafeCertificate(activeCertificate)) &&
+    hasExactKeys({ keys: ['cte', 'cteRetry', 'mdfe', 'profile'], value: value.data }) &&
     (cte === null || isCteSettings(cte)) &&
+    (cteRetry === null || isCteRetryPolicy(cteRetry)) &&
+    (mdfe === null || isMdfeDefaults(mdfe)) &&
     (profile === null || isFiscalProfile(profile))
   )
 }
@@ -129,5 +196,15 @@ export function isCertificatesResponse(value: unknown): value is DigitalCertific
       (typeof value.page.nextCursor === 'string' &&
         /^[A-Za-z0-9_-]+$/.test(value.page.nextCursor))) &&
     value.data.every(isSafeCertificate)
+  )
+}
+
+export function isCompanyProfileLookupResponse(
+  value: unknown,
+): value is CompanyProfileLookupResponse {
+  return (
+    isRecord(value) &&
+    hasExactKeys({ keys: ['data'], value }) &&
+    (value.data === null || isCompanyProfileLookup(value.data))
   )
 }

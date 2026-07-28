@@ -14,9 +14,11 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 type EligibleNfeDocument = {
   readonly companyId: string
+  readonly destinationState?: string | null
   readonly id: string
   readonly issuedAt: string
-  readonly status: 'authorized' | 'cancelled' | 'denied'
+  readonly senderTaxId?: string | null
+  readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
   readonly variant: 'complete' | 'summary' | 'event'
 }
@@ -92,8 +94,10 @@ export type FreightSimulationTransactionPort = {
   createCalculation(input: Record<string, unknown>): Promise<FreightCalculationDetail>
   findApplicableRule(input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: string | null
   }): Promise<Record<string, string> | null>
   findDocument(input: {
     readonly companyId: string
@@ -150,8 +154,10 @@ export function createFreightSimulationUseCase(dependencies: {
 
         const applicableRule = await transaction.findApplicableRule({
           companyId: input.context.companyId,
+          destinationState: document.destinationState ?? null,
           issuedAt: document.issuedAt,
           ruleType: 'percentage_of_invoice_total',
+          senderTaxId: document.senderTaxId ?? null,
         })
         if (applicableRule === null) {
           throw new ApiError({

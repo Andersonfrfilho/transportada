@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { companyFiscalProfiles } from '../../database/database.schema.js'
 import type {
+  CompanyMdfeDefaultsInput,
   CompanySettingsInput,
   CompanySettingsResult,
 } from '../application/company-settings.port.js'
@@ -20,6 +21,26 @@ import type { CompanySettingsTransaction } from './drizzle-company-settings.type
 type SaveSettingsInput = {
   readonly companyId: string
   readonly settings: CompanySettingsInput
+}
+
+function toMdfeColumns(mdfe: CompanyMdfeDefaultsInput): {
+  readonly mdfeInsurancePolicy: string
+  readonly mdfeInsuranceResponsibility: CompanyMdfeDefaultsInput['insuranceResponsibility']
+  readonly mdfeInsurerName: string
+  readonly mdfeInsurerTaxId: string
+  readonly mdfePaymentBankBranch: string
+  readonly mdfePaymentBankCode: string
+  readonly mdfePaymentPixKey: string
+} {
+  return {
+    mdfeInsurancePolicy: mdfe.insurancePolicy,
+    mdfeInsuranceResponsibility: mdfe.insuranceResponsibility,
+    mdfeInsurerName: mdfe.insurerName,
+    mdfeInsurerTaxId: mdfe.insurerTaxId,
+    mdfePaymentBankBranch: mdfe.bankBranch,
+    mdfePaymentBankCode: mdfe.bankCode,
+    mdfePaymentPixKey: mdfe.pixKey,
+  }
 }
 
 export async function saveCompanySettings(
@@ -70,6 +91,9 @@ async function createSettings(
       companyId: input.companyId,
       environment: input.settings.cte.environment,
       ...input.settings.profile,
+      ...toMdfeColumns(input.settings.mdfe),
+      cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
+      cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
     .returning({ version: companyFiscalProfiles.version })
   if (profile === undefined) {
@@ -101,6 +125,9 @@ async function updateProfile(
       updatedAt: new Date(),
       version: currentVersion + 1n,
       ...input.settings.profile,
+      ...toMdfeColumns(input.settings.mdfe),
+      cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
+      cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
     .where(
       and(

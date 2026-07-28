@@ -8,8 +8,10 @@ import {
   cteProcessingEnvelopeV1Schema,
   type CteProcessingEnvelopeV1,
 } from '../messaging/cte-processing-envelope.schema.js'
-import { CteIssuanceWorkerMessageHandler } from '../cte-issuance/application/cte-issuance-worker-message-handler.service.js'
-import { CTE_ISSUANCE_BACKOFF_ATTEMPTS_MS } from '../messaging/cte-backoff-policy.js'
+import {
+  CteIssuanceWorkerMessageHandler,
+  type CteRetryPolicyResolver,
+} from '../cte-issuance/application/cte-issuance-worker-message-handler.service.js'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
 import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
 
@@ -39,12 +41,13 @@ export async function startCteIssuanceConsumer(params: {
   readonly logger: WorkerLogger
   readonly provider: RabbitMqProvider
   readonly repository: CteIssuanceWorkerRepository
+  readonly retryPolicyResolver: CteRetryPolicyResolver
 }): Promise<RabbitMqConsumer> {
   const handler = new CteIssuanceWorkerMessageHandler({
     clock: { now: () => new Date() },
     effect: params.effect,
-    maxAttempts: CTE_ISSUANCE_BACKOFF_ATTEMPTS_MS.length,
     repository: params.repository,
+    retryPolicyResolver: params.retryPolicyResolver,
   })
 
   return params.provider.consume<CteProcessingEnvelopeV1>({
@@ -52,7 +55,10 @@ export async function startCteIssuanceConsumer(params: {
     handler: async ({ payload, retryCount }) => {
       const attempt = typeof retryCount === 'number' ? retryCount : 0
 
-      if (payload.type !== CTE_PROCESSING_EVENT_TYPE.ITEM_ISSUE_REQUESTED) {
+      if (
+        payload.type !== CTE_PROCESSING_EVENT_TYPE.ITEM_ISSUE_REQUESTED &&
+        payload.type !== CTE_PROCESSING_EVENT_TYPE.ITEM_CANCEL_REQUESTED
+      ) {
         safeLogError({
           logger: params.logger,
           message: 'cte_issuance_unexpected_event_type',

@@ -5,8 +5,22 @@ import { ApiError } from '../shared/api.error'
 import { hasResourcePreflightHeaders } from './cors-policy.service'
 import {
   API_AUTH_ME_PATH,
+  API_AUDIT_EVENTS_PATH,
+  API_BILLING_ELIGIBLE_CTES_PATH,
+  API_BILLING_INVOICES_PATH,
+  API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH,
   API_COMPANY_SETTINGS_PATH,
+  API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
+  API_FREIGHT_CALCULATIONS_PATH,
+  API_FREIGHT_RULES_PATH,
+  API_NFE_DOCUMENTS_PATH,
+  API_NFE_IMPORTS_DISTRIBUTION_PATH,
+  API_NFE_IMPORTS_PATH,
+  API_NFE_IMPORTS_XML_PATH,
+  API_OPERATIONS_JOBS_PATH,
+  API_OPERATIONS_SUMMARY_PATH,
+  API_OPERATIONS_TIMELINE_PATH,
   CORS_ALLOW_HEADERS,
   CORS_MAX_AGE_SECONDS,
   HTTP_ERROR,
@@ -51,14 +65,42 @@ export function handleCorsPreflight({
 }
 
 function allowedHeaders(pathname: string): string {
-  return pathname === API_COMPANY_SETTINGS_PATH || pathname === API_DIGITAL_CERTIFICATES_PATH
+  if (isCteBatchItemPath(pathname)) return 'Authorization'
+
+  return requiresResourceHeaders(pathname)
     ? 'Authorization, Content-Type, Idempotency-Key'
     : CORS_ALLOW_HEADERS
 }
 
+/**
+ * Remover item de lote é DELETE sem corpo, então só o Bearer é liberado. Sub-recursos do item
+ * (`/reprocess`, `/cancel`) são POST com corpo e chave de idempotência — não casam aqui.
+ */
+function isCteBatchItemPath(pathname: string): boolean {
+  if (!pathname.startsWith(`${API_CTE_BATCHES_PATH}/`)) return false
+
+  const itemSegment = pathname.split('/items/')[1]
+  return itemSegment !== undefined && itemSegment.length > 0 && !itemSegment.includes('/')
+}
+
 function allowedMethods(pathname: string): string {
+  if (isCteBatchItemPath(pathname)) return 'DELETE'
   if (pathname === API_COMPANY_SETTINGS_PATH) return 'GET, PATCH'
-  return pathname === API_DIGITAL_CERTIFICATES_PATH ? 'GET, POST' : HTTP_GET_METHOD
+  if (pathname === API_DIGITAL_CERTIFICATES_PATH) return 'GET, POST, DELETE'
+  if (pathname === API_FREIGHT_RULES_PATH) return 'GET, POST'
+  if (pathname === API_FREIGHT_CALCULATIONS_PATH) return 'GET, POST'
+  if (pathname === API_CTE_BATCHES_PATH) return 'GET, POST'
+  if (pathname === API_BILLING_INVOICES_PATH) return 'GET, POST'
+  if (
+    pathname === API_NFE_IMPORTS_XML_PATH ||
+    pathname === API_NFE_IMPORTS_DISTRIBUTION_PATH ||
+    pathname.endsWith('/reprocess') ||
+    pathname.endsWith('/submit') ||
+    pathname.endsWith('/cancel')
+  ) {
+    return 'POST'
+  }
+  return HTTP_GET_METHOD
 }
 
 type ApplyCorsHeadersParams = {
@@ -101,7 +143,38 @@ function isAllowedPreflight({
   return (
     isAuthMePreflight({ frontendOrigin, pathname, request }) ||
     isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
-    isDigitalCertificatesPreflight({ frontendOrigin, pathname, request })
+    isDigitalCertificatesPreflight({ frontendOrigin, pathname, request }) ||
+    isWorkspaceResourcePreflight({ frontendOrigin, pathname, request })
+  )
+}
+
+function isWorkspaceResourcePreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  const requestedMethod = request.headers.get('access-control-request-method')
+  if (request.headers.get('origin') !== frontendOrigin || requestedMethod === null) {
+    return false
+  }
+
+  if (isAuthorizationOnlyPath(pathname) && requestedMethod === HTTP_GET_METHOD) {
+    return hasOnlyAuthorizationHeader(request.headers.get('access-control-request-headers'))
+  }
+
+  if (!requiresResourceHeaders(pathname)) {
+    return false
+  }
+
+  return (
+    (requestedMethod === HTTP_GET_METHOD ||
+      requestedMethod === 'POST' ||
+      requestedMethod === 'PATCH' ||
+      (requestedMethod === 'DELETE' && isCteBatchItemPath(pathname))) &&
+    hasResourcePreflightHeaders({
+      method: requestedMethod,
+      value: request.headers.get('access-control-request-headers'),
+    })
   )
 }
 
@@ -114,7 +187,9 @@ function isDigitalCertificatesPreflight({
   return (
     pathname === API_DIGITAL_CERTIFICATES_PATH &&
     request.headers.get('origin') === frontendOrigin &&
-    (requestedMethod === HTTP_GET_METHOD || requestedMethod === 'POST') &&
+    (requestedMethod === HTTP_GET_METHOD ||
+      requestedMethod === 'POST' ||
+      requestedMethod === 'DELETE') &&
     hasResourcePreflightHeaders({
       method: requestedMethod,
       value: request.headers.get('access-control-request-headers'),
@@ -161,6 +236,38 @@ function hasOnlyAuthorizationHeader(value: string | null): boolean {
   return (
     requestedHeaders.length > 0 &&
     requestedHeaders.every((header) => header === CORS_ALLOW_HEADERS.toLowerCase())
+  )
+}
+
+function isAuthorizationOnlyPath(pathname: string): boolean {
+  return (
+    pathname === API_AUTH_ME_PATH ||
+    pathname === API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH ||
+    pathname === API_NFE_IMPORTS_PATH ||
+    pathname.startsWith(`${API_NFE_IMPORTS_PATH}/`) ||
+    pathname === API_NFE_DOCUMENTS_PATH ||
+    pathname.startsWith(`${API_NFE_DOCUMENTS_PATH}/`) ||
+    pathname === API_BILLING_ELIGIBLE_CTES_PATH ||
+    pathname === API_OPERATIONS_SUMMARY_PATH ||
+    pathname === API_OPERATIONS_TIMELINE_PATH ||
+    pathname === API_OPERATIONS_JOBS_PATH ||
+    pathname === API_AUDIT_EVENTS_PATH
+  )
+}
+
+function requiresResourceHeaders(pathname: string): boolean {
+  return (
+    pathname === API_COMPANY_SETTINGS_PATH ||
+    pathname === API_DIGITAL_CERTIFICATES_PATH ||
+    pathname === API_FREIGHT_RULES_PATH ||
+    pathname === API_FREIGHT_CALCULATIONS_PATH ||
+    pathname === API_CTE_BATCHES_PATH ||
+    pathname.startsWith(`${API_CTE_BATCHES_PATH}/`) ||
+    pathname === API_BILLING_INVOICES_PATH ||
+    pathname.startsWith(`${API_BILLING_INVOICES_PATH}/`) ||
+    pathname === API_NFE_IMPORTS_XML_PATH ||
+    pathname === API_NFE_IMPORTS_DISTRIBUTION_PATH ||
+    pathname.endsWith('/reprocess')
   )
 }
 

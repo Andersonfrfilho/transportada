@@ -2,9 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
 
-import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -21,6 +21,29 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type DocumentRecord = typeof nfeDocuments.$inferSelect
 type StoredObjectRecord = typeof storedObjects.$inferSelect
+
+type ParticipantDetail = {
+  readonly address: string | null
+  readonly city: string | null
+  readonly cityCode: string | null
+  readonly name: string
+  readonly state: string | null
+  readonly taxId: string | null
+}
+
+type DocumentParticipants = {
+  readonly emitter: ParticipantDetail
+  readonly recipient: ParticipantDetail
+}
+
+const EMPTY_PARTICIPANT: ParticipantDetail = {
+  address: null,
+  city: null,
+  cityCode: null,
+  name: '',
+  state: null,
+  taxId: null,
+}
 
 export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   public constructor(
@@ -52,8 +75,12 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
       .limit(input.limit + 1)
     const pageRows = rows.slice(0, input.limit)
     const last = pageRows.at(-1)
+    const participantsByDocument = await this.loadParticipants(
+      input.context.companyId,
+      pageRows.map((record) => record.id),
+    )
     return {
-      items: await Promise.all(pageRows.map((record) => this.mapSummary(record))),
+      items: pageRows.map((record) => mapSummary(record, participantsByDocument.get(record.id))),
       nextCursor:
         rows.length > input.limit && last !== undefined
           ? `${last.issuedAt.toISOString()}::${last.id}`
@@ -67,7 +94,10 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   }): Promise<NfeDocumentDetail> {
     const document = await this.findDocument(input.context.companyId, input.documentId)
     if (document === null) throw notFound()
-    return this.mapSummary(document)
+    const participantsByDocument = await this.loadParticipants(input.context.companyId, [
+      document.id,
+    ])
+    return mapSummary(document, participantsByDocument.get(document.id))
   }
 
   public async getEligibility(input: {
@@ -135,38 +165,103 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
     return row ?? null
   }
 
-  private async mapSummary(document: DocumentRecord): Promise<NfeDocumentSummary> {
-    const names = await this.findParticipantNames(document.companyId, document.id)
-    return {
-      accessKey: document.accessKey,
-      emitterName: names.emitterName,
-      id: document.id,
-      issuedAt: document.issuedAt.toISOString(),
-      recipientName: names.recipientName,
-      status: document.status,
-      totalAmount: document.totalValue,
-      variant: 'complete',
-    }
-  }
-
-  private async findParticipantNames(
+  private async loadParticipants(
     companyId: string,
-    documentId: string,
-  ): Promise<{
-    readonly emitterName: string
-    readonly recipientName: string
-  }> {
+    documentIds: readonly string[],
+  ): Promise<Map<string, DocumentParticipants>> {
+    const result = new Map<string, DocumentParticipants>()
+    if (documentIds.length === 0) return result
     const rows = await this.database
-      .select()
+      .select({
+        documentId: nfeParticipants.documentId,
+        role: nfeParticipants.role,
+        legalName: nfeParticipants.legalName,
+        taxId: nfeParticipants.taxId,
+        city: nfeAddresses.city,
+        cityCode: nfeAddresses.cityCode,
+        district: nfeAddresses.district,
+        number: nfeAddresses.number,
+        state: nfeAddresses.state,
+        street: nfeAddresses.street,
+      })
       .from(nfeParticipants)
-      .where(
-        and(eq(nfeParticipants.companyId, companyId), eq(nfeParticipants.documentId, documentId)),
+      .leftJoin(
+        nfeAddresses,
+        and(
+          eq(nfeAddresses.companyId, nfeParticipants.companyId),
+          eq(nfeAddresses.participantId, nfeParticipants.id),
+        ),
       )
-    return {
-      emitterName: rows.find((participant) => participant.role === 'emitter')?.legalName ?? '',
-      recipientName: rows.find((participant) => participant.role === 'recipient')?.legalName ?? '',
+      .where(
+        and(
+          eq(nfeParticipants.companyId, companyId),
+          inArray(nfeParticipants.documentId, [...documentIds]),
+        ),
+      )
+    for (const row of rows) {
+      const detail: ParticipantDetail = {
+        address: composeAddress(row.street, row.number, row.district),
+        city: row.city,
+        cityCode: row.cityCode,
+        name: row.legalName ?? '',
+        state: row.state,
+        taxId: row.taxId,
+      }
+      const current = result.get(row.documentId) ?? {
+        emitter: EMPTY_PARTICIPANT,
+        recipient: EMPTY_PARTICIPANT,
+      }
+      result.set(
+        row.documentId,
+        row.role === 'emitter'
+          ? { ...current, emitter: detail }
+          : row.role === 'recipient'
+            ? { ...current, recipient: detail }
+            : current,
+      )
     }
+    return result
   }
+}
+
+function mapSummary(
+  document: DocumentRecord,
+  participants: DocumentParticipants | undefined,
+): NfeDocumentSummary {
+  const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
+  const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
+  return {
+    accessKey: document.accessKey,
+    emitterAddress: emitter.address,
+    emitterCity: emitter.city,
+    emitterCityCode: emitter.cityCode,
+    emitterName: emitter.name,
+    emitterState: emitter.state,
+    emitterTaxId: emitter.taxId,
+    id: document.id,
+    issuedAt: document.issuedAt.toISOString(),
+    number: document.number,
+    recipientAddress: recipient.address,
+    recipientCity: recipient.city,
+    recipientCityCode: recipient.cityCode,
+    recipientName: recipient.name,
+    recipientState: recipient.state,
+    recipientTaxId: recipient.taxId,
+    series: document.series,
+    status: document.status,
+    totalAmount: document.totalValue,
+    variant: 'complete',
+  }
+}
+
+function composeAddress(
+  street: string | null,
+  number: string | null,
+  district: string | null,
+): string | null {
+  const line = [street, number].filter((part) => part !== null && part.length > 0).join(', ')
+  const full = [line, district].filter((part) => part !== null && part.length > 0).join(' - ')
+  return full.length > 0 ? full : null
 }
 
 function decodeCursor(

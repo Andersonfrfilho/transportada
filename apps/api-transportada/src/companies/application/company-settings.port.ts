@@ -1,8 +1,22 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CteRetryPolicy } from '../../cte-issuance/domain/cte-retry.policy.js'
+import type { MdfeInsuranceResponsibility } from '../../database/mdfe.schema.js'
+
 export type FiscalEnvironment = 'homologation' | 'production'
 export type TaxRegime = '1' | '2' | '3'
+
+/** Defaults de empresa que o payload do MDF-e usa em infPag (rejeição 580) e seg (rejeição 698). */
+export type CompanyMdfeDefaultsInput = {
+  readonly bankBranch: string
+  readonly bankCode: string
+  readonly insurancePolicy: string
+  readonly insuranceResponsibility: '' | MdfeInsuranceResponsibility
+  readonly insurerName: string
+  readonly insurerTaxId: string
+  readonly pixKey: string
+}
 
 export type CompanyFiscalProfileInput = {
   readonly city: string
@@ -30,7 +44,9 @@ export type CompanySettingsInput = {
     readonly nextNumber: bigint
     readonly series: bigint
   }
+  readonly cteRetry: CteRetryPolicy
   readonly expectedVersion: bigint | null
+  readonly mdfe: CompanyMdfeDefaultsInput
   readonly profile: CompanyFiscalProfileInput
 }
 
@@ -41,13 +57,36 @@ export type CompanySettingsResult = {
     readonly series: bigint
     readonly version: bigint
   }
+  readonly cteRetry: CteRetryPolicy
+  readonly mdfe: CompanyMdfeDefaultsInput
   readonly profile: CompanyFiscalProfileInput & {
     readonly version: bigint
   }
 }
 
+export type CompanyProfileLookupResult = Readonly<{
+  readonly city: string
+  readonly cityIbgeCode: string
+  readonly cnpj: string
+  readonly complement: string
+  readonly district: string
+  readonly email: string
+  readonly legalName: string
+  readonly number: string
+  readonly phone: string
+  readonly postalCode: string
+  readonly state: string
+  readonly stateRegistration: string
+  readonly street: string
+  readonly tradeName: string
+}>
+
 export type CompanySettingsReaderPort = {
   findByCompanyId(input: { readonly companyId: string }): Promise<CompanySettingsResult | null>
+}
+
+export type CompanyProfileLookupPort = {
+  lookupByCnpj(input: { readonly cnpj: string }): Promise<CompanyProfileLookupResult | null>
 }
 
 export type IdempotencyFingerprintPort = {
@@ -78,6 +117,7 @@ export type CompanySettingsIdempotencyRecord = {
 
 export type CompanySettingsTransactionPort = {
   appendAudit(record: CompanySettingsAuditRecord): Promise<void>
+  findActiveCertificateCnpj(input: { readonly companyId: string }): Promise<string | null>
   findByCompanyId?(input: { readonly companyId: string }): Promise<CompanySettingsResult | null>
   findIdempotency(input: {
     readonly companyId: string

@@ -13,6 +13,8 @@ import {
 } from '../../cte-batches/presentation/cte-batch.schema.js'
 
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
+/** Cancelar documento autorizado é irreversível na SEFAZ — não basta poder transmitir. */
+const CTE_CANCEL_POLICY = { permission: 'cte.cancel', scope: 'company' } as const
 
 type BatchIdentifierInput = {
   readonly batchId: string
@@ -33,6 +35,12 @@ type ReprocessCteInput = BatchItemIdentifierInput & {
   readonly reason?: string
 }
 
+type CancelCteInput = BatchItemIdentifierInput & {
+  readonly correlationId: string
+  readonly idempotencyKey: string
+  readonly justification: string
+}
+
 type WithContext<TInput> = TInput & {
   readonly context: CompanyContext
 }
@@ -46,16 +54,30 @@ type CteDocumentPage = {
 
 type Dependencies = {
   readonly cteIssuance: {
+    readonly cancel: (input: WithContext<CancelCteInput>) => Promise<CteIssuanceSummary>
     readonly get: (input: WithContext<BatchItemIdentifierInput>) => Promise<CteIssuanceSummary>
     readonly issue: (input: WithContext<IssueCteInput>) => Promise<CteIssuanceSummary>
-    readonly listDocuments?: (
+    readonly listDocuments: (
       input: WithContext<BatchItemIdentifierInput>,
     ) => Promise<CteDocumentPage>
     readonly reprocess: (input: WithContext<ReprocessCteInput>) => Promise<CteIssuanceSummary>
   }
 }
 
+/** Limites da tag xJust do evento 110111. */
+const CANCELLATION_JUSTIFICATION_MIN_LENGTH = 15
+const CANCELLATION_JUSTIFICATION_MAX_LENGTH = 255
+
 const issueBodySchema = z.object({}).strict()
+const cancelBodySchema = z
+  .object({
+    justification: z
+      .string()
+      .trim()
+      .min(CANCELLATION_JUSTIFICATION_MIN_LENGTH)
+      .max(CANCELLATION_JUSTIFICATION_MAX_LENGTH),
+  })
+  .strict()
 const reprocessBodySchema = z
   .object({
     reason: z.string().trim().min(3).max(500).optional(),
@@ -105,6 +127,28 @@ export function createCteIssuanceRoutes(
       pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId/reprocess`,
       policy: CTE_SUBMIT_POLICY,
     }),
+    defineRoute<CancelCteInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.cteIssuance.cancel({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeReprocess(result) }, status: 202 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseCancelRequest(request)
+        return {
+          batchId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          batchItemId: parseUuidPathIdentifier(pathParameters.itemId ?? ''),
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          justification: body.justification,
+        }
+      },
+      pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId/cancel`,
+      policy: CTE_CANCEL_POLICY,
+    }),
     defineRoute<BatchItemIdentifierInput>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.cteIssuance.get({ context: context.scope, ...input })
@@ -117,9 +161,10 @@ export function createCteIssuanceRoutes(
     }),
     defineRoute<BatchItemIdentifierInput>({
       async handle({ context, input }): Promise<Response> {
-        const page =
-          (await dependencies.cteIssuance.listDocuments?.({ context: context.scope, ...input })) ??
-          emptyDocumentPage()
+        const page = await dependencies.cteIssuance.listDocuments({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({
           body: {
             data: page.items.map(serializeDocument),
@@ -145,6 +190,12 @@ async function parseReprocessRequest(
   request: Request,
 ): Promise<{ readonly reason?: string | undefined }> {
   const result = reprocessBodySchema.safeParse(await parseJsonBody(request))
+  if (!result.success) throw invalidRequest()
+  return result.data
+}
+
+async function parseCancelRequest(request: Request): Promise<{ readonly justification: string }> {
+  const result = cancelBodySchema.safeParse(await parseJsonBody(request))
   if (!result.success) throw invalidRequest()
   return result.data
 }
@@ -226,10 +277,6 @@ function getContextValue(result: CteIssuanceSummary, key: string): unknown {
   const context = result['context']
   if (typeof context !== 'object' || context === null) return undefined
   return (context as Readonly<Record<string, unknown>>)[key]
-}
-
-function emptyDocumentPage(): CteDocumentPage {
-  return { items: [], nextCursor: null }
 }
 
 function invalidRequest(): ApiError {

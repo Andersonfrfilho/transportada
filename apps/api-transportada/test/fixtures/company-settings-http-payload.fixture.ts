@@ -11,18 +11,27 @@ export const VALID_HTTP_SETTINGS_BODY = {
     nextNumber: COMPANY_SETTINGS.cte.nextNumber.toString(),
     series: COMPANY_SETTINGS.cte.series.toString(),
   },
+  cteRetry: {
+    backoffSeconds: [...COMPANY_SETTINGS.cteRetry.backoffSeconds],
+    maxAttempts: COMPANY_SETTINGS.cteRetry.maxAttempts,
+  },
   expectedVersion: null,
+  mdfe: { ...COMPANY_SETTINGS.mdfe },
   profile: { ...COMPANY_SETTINGS.profile },
 } as const
 
 export const EXPECTED_HTTP_SETTINGS_DATA = {
-  activeCertificate: null,
   cte: {
     environment: EXPECTED_SETTINGS_RESULT.cte.environment,
     nextNumber: EXPECTED_SETTINGS_RESULT.cte.nextNumber.toString(),
     series: EXPECTED_SETTINGS_RESULT.cte.series.toString(),
     version: EXPECTED_SETTINGS_RESULT.cte.version.toString(),
   },
+  cteRetry: {
+    backoffSeconds: [...EXPECTED_SETTINGS_RESULT.cteRetry.backoffSeconds],
+    maxAttempts: EXPECTED_SETTINGS_RESULT.cteRetry.maxAttempts,
+  },
+  mdfe: { ...EXPECTED_SETTINGS_RESULT.mdfe },
   profile: {
     ...EXPECTED_SETTINGS_RESULT.profile,
     version: EXPECTED_SETTINGS_RESULT.profile.version.toString(),

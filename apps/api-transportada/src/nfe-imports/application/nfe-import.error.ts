@@ -19,6 +19,14 @@ export function nfeImportReprocessNotAllowed(): ApiError {
   })
 }
 
+export function nfeDistributionNotConfigured(): ApiError {
+  return new ApiError({
+    code: 'NFE_DISTRIBUTION_NOT_CONFIGURED',
+    message: 'NF-e distribution is not configured for this company',
+    status: 409,
+  })
+}
+
 export function idempotencyKeyReused(): ApiError {
   return new ApiError({
     code: 'IDEMPOTENCY_KEY_REUSED',

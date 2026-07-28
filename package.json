@@ -1,6 +1,6 @@
 {
   "name": "transportada",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "packageManager": "bun@1.3.14",
   "workspaces": [
@@ -10,13 +10,13 @@
     "bun": "1.3.14"
   },
   "scripts": {
-    "build": "bun run --cwd apps/api-transportada build && bun run --cwd apps/worker-transportada build && bun run --cwd apps/frontend-transportada build",
+    "build": "bun run --cwd apps/api-transportada build && bun run --cwd apps/worker-transportada build && bun run --cwd apps/cron-transportada build && bun run --cwd apps/frontend-transportada build",
     "dev": "make dev",
     "format": "bunx prettier --write .",
     "format:check": "bunx prettier --check .",
-    "lint": "bun run --cwd apps/api-transportada lint && bun run --cwd apps/worker-transportada lint && bun run --cwd apps/frontend-transportada lint",
-    "test": "bun run --cwd apps/api-transportada test && bun run --cwd apps/worker-transportada test && bun run --cwd apps/frontend-transportada test",
-    "typecheck": "bun run --cwd apps/api-transportada typecheck && bun run --cwd apps/worker-transportada typecheck && bun run --cwd apps/frontend-transportada typecheck",
+    "lint": "bun run --cwd apps/api-transportada lint && bun run --cwd apps/worker-transportada lint && bun run --cwd apps/cron-transportada lint && bun run --cwd apps/frontend-transportada lint",
+    "test": "bun run --cwd apps/api-transportada test && bun run --cwd apps/worker-transportada test && bun run --cwd apps/cron-transportada test && bun run --cwd apps/frontend-transportada test",
+    "typecheck": "bun run --cwd apps/api-transportada typecheck && bun run --cwd apps/worker-transportada typecheck && bun run --cwd apps/cron-transportada typecheck && bun run --cwd apps/frontend-transportada typecheck",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {

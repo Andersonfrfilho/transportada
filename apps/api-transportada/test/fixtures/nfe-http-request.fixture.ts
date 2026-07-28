@@ -72,6 +72,12 @@ export function distributionRequest(options: RequestOptions = {}): Request {
   })
 }
 
+export function distributionStatusRequest(options: RequestOptions = {}): Request {
+  return new Request(`http://localhost${NFE_IMPORTS_DISTRIBUTION_PATH}${options.query ?? ''}`, {
+    headers: baseHeaders(options),
+  })
+}
+
 export function importsListRequest(options: RequestOptions = {}): Request {
   return new Request(`http://localhost${NFE_IMPORTS_PATH}${options.query ?? ''}`, {
     headers: baseHeaders(options),

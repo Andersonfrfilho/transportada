@@ -5,11 +5,23 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 
 export type NfeDocumentSummary = {
   readonly accessKey: string
+  readonly emitterAddress: string | null
+  readonly emitterCity: string | null
+  readonly emitterCityCode: string | null
   readonly emitterName: string
+  readonly emitterState: string | null
+  readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly number: string
+  readonly recipientAddress: string | null
+  readonly recipientCity: string | null
+  readonly recipientCityCode: string | null
   readonly recipientName: string
-  readonly status: 'authorized' | 'cancelled' | 'denied'
+  readonly recipientState: string | null
+  readonly recipientTaxId: string | null
+  readonly series: string
+  readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
   readonly variant: 'complete' | 'summary' | 'event'
 }

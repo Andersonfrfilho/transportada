@@ -32,7 +32,7 @@ describe('company settings client error boundary contract', () => {
       Promise.reject(new Error('synthetic network implementation detail')),
     )
     const error = await client.getSettings().catch(identity)
-    expect(error).toEqual(expect.objectContaining({ message: 'COMPANY_SETTINGS_REQUEST_FAILED' }))
+    expect(error).toEqual(expect.objectContaining({ message: 'COMPANY_SETTINGS_NETWORK_ERROR' }))
     expect(JSON.stringify(error)).not.toContain('synthetic network implementation detail')
   })
 
@@ -120,6 +120,65 @@ describe('company settings client error boundary contract', () => {
         expect.objectContaining({ message: 'COMPANY_SETTINGS_RESPONSE_INVALID' }),
       )
     }
+  })
+
+  test('validates the exact CT-e retry policy response DTO', async () => {
+    const { cteRetry } = COMPANY_SETTINGS_RESPONSE.data
+    const unsafeRetryBlocks = [
+      { ...cteRetry, unexpected: 'unsafe' },
+      { backoffSeconds: cteRetry.backoffSeconds },
+      { ...cteRetry, backoffSeconds: [] },
+      { ...cteRetry, backoffSeconds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+      { ...cteRetry, backoffSeconds: [5, 0] },
+      { ...cteRetry, backoffSeconds: ['5', '30'] },
+      { ...cteRetry, maxAttempts: 0 },
+      { ...cteRetry, maxAttempts: 11 },
+      { ...cteRetry, maxAttempts: '5' },
+    ]
+    for (const unsafeRetry of unsafeRetryBlocks) {
+      const client = await createClient(() =>
+        Promise.resolve(
+          Response.json({ data: { ...COMPANY_SETTINGS_RESPONSE.data, cteRetry: unsafeRetry } }),
+        ),
+      )
+      const error = await client.getSettings().catch(identity)
+      expect(error).toEqual(
+        expect.objectContaining({ message: 'COMPANY_SETTINGS_RESPONSE_INVALID' }),
+      )
+    }
+  })
+
+  test('rejects a settings response that omits the CT-e retry policy', async () => {
+    const dataWithoutRetry: Record<string, unknown> = { ...COMPANY_SETTINGS_RESPONSE.data }
+    delete dataWithoutRetry.cteRetry
+    const client = await createClient(() =>
+      Promise.resolve(Response.json({ data: dataWithoutRetry })),
+    )
+
+    const error = await client.getSettings().catch(identity)
+    expect(error).toEqual(expect.objectContaining({ message: 'COMPANY_SETTINGS_RESPONSE_INVALID' }))
+  })
+
+  test('surfaces the profile-certificate CNPJ mismatch code from a settings update', async () => {
+    const client = await createClient(() =>
+      Promise.resolve(
+        Response.json(
+          {
+            error: {
+              code: 'FISCAL_PROFILE_CERTIFICATE_CNPJ_MISMATCH',
+              message: 'synthetic mismatch detail',
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    )
+
+    const error = await client.updateSettings(COMPANY_SETTINGS_UPDATE).catch(identity)
+    expect(error).toEqual(
+      expect.objectContaining({ message: 'FISCAL_PROFILE_CERTIFICATE_CNPJ_MISMATCH' }),
+    )
+    expect(JSON.stringify(error)).not.toContain('synthetic mismatch detail')
   })
 
   test('never forwards a caller-supplied companyId in a settings update', async () => {

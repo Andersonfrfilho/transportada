@@ -28,16 +28,39 @@
     "title": "File intake",
     "subtitle": "Send XML and ZIP batches without blocking the rest of the operation.",
     "files": "XML or ZIP files",
+    "select": "Select files",
     "submit": "Upload batch",
+    "pending": "Uploading batch...",
+    "success": "Batch uploaded. Processing will appear in the queue.",
+    "error": "The batch could not be uploaded. The files remain selected so you can try again.",
     "empty": "No file selected."
   },
   "distribution": {
-    "submit": "Run DF-e distribution"
+    "submit": "Run DF-e distribution",
+    "emergencyTitle": "DF-e emergency pull",
+    "emergencySubtitle": "Manual fetch of your company's NF-e straight from SEFAZ. Use with care — SEFAZ enforces a minimum interval between pulls.",
+    "pending": "Pulling...",
+    "lastPull": "Last pull: {{when}}",
+    "lastPullNever": "No pull recorded yet.",
+    "ready": "Safe to pull now.",
+    "busy": "A pull is already in progress.",
+    "cooldown": "Wait for the SEFAZ interval. Next attempt allowed in {{countdown}}.",
+    "unavailable": "Pull unavailable right now."
+  },
+  "tabs": {
+    "documents": "Invoices",
+    "imports": "Imports"
+  },
+  "mechanism": {
+    "section": "Import source",
+    "manual": "Manual",
+    "remote": "Remote"
   },
   "imports": {
     "title": "Processings",
     "subtitle": "Track queue state, totals, and allowed reprocessing.",
     "empty": "No processing record yet.",
+    "executedAt": "Executed at",
     "reprocess": "Reprocess",
     "imported": "Imported",
     "invalid": "Invalid",
@@ -47,11 +70,61 @@
     "title": "Imported documents",
     "subtitle": "Fast review of already persisted NF-e records.",
     "empty": "No documents available.",
-    "downloadXml": "Download XML"
+    "downloadXml": "Download XML",
+    "emitCte": "Issue CT-es ({{count}})"
   },
   "documentStatus": {
     "authorized": "Authorized",
     "cancelled": "Cancelled",
     "denied": "Denied"
+  },
+  "cteEmission": {
+    "title": "Issue CT-es",
+    "subtitle": "Review the fiscal projection before creating the batch. Nothing is transmitted here.",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Create batch",
+    "creating": "Creating batch...",
+    "loading": "Calculating projection...",
+    "batchName": "Batch name",
+    "profile": "Emission profile",
+    "profileAutomatic": "Automatic (by sender tax id)",
+    "grouping": "Grouping",
+    "groupingMode": {
+      "per_invoice": "One CT-e per invoice",
+      "sender_recipient": "Group by sender and recipient"
+    },
+    "projections": "Projected CT-es",
+    "columns": {
+      "documents": "Invoices",
+      "baseAmount": "Base",
+      "percentage": "Rate",
+      "profile": "Profile",
+      "amount": "CT-e amount"
+    },
+    "resolvedBy": {
+      "auto": "automatic",
+      "manual": "manual"
+    },
+    "componentsLabel": "Components",
+    "total": "Batch total",
+    "blocked": "Blocked invoices",
+    "blockedCount": "{{count}} blocked invoice",
+    "blockedCount_other": "{{count}} blocked invoices",
+    "empty": "No selected invoice produces a CT-e with the current parameters.",
+    "forbidden": "You are not allowed to issue CT-es.",
+    "blockReason": {
+      "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Already linked to another CT-e",
+      "CTE_BATCH_DOCUMENT_DUPLICATED": "Repeated in the selection",
+      "CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY": "Missing municipality code",
+      "CTE_BATCH_DOCUMENT_MISSING_PARTY": "Missing sender or recipient",
+      "CTE_BATCH_DOCUMENT_MISSING_TOTAL": "Missing total amount",
+      "CTE_BATCH_DOCUMENT_MISSING_WEIGHT": "Missing cargo weight",
+      "CTE_BATCH_DOCUMENT_NOT_AUTHORIZED": "Invoice is not authorized",
+      "CTE_BATCH_DOCUMENT_NOT_FOUND": "Invoice not found",
+      "CTE_PROFILE_RULE_NOT_IN_FORCE": "No freight rule in force",
+      "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Summary only, no full XML"
+    },
+    "error": "The projection could not be calculated. Try again."
   }
 }

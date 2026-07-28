@@ -7,6 +7,8 @@ export const CTE_ISSUANCE_SCHEMA_EXPORT_NAMES = [
   'cteFiscalDocuments',
   'cteIssuanceEvents',
   'cteRetrySchedules',
+  'cteIssuancePayloads',
+  'cteProcessedMessages',
 ] as const
 
 export type CteIssuanceSchemaExportName = (typeof CTE_ISSUANCE_SCHEMA_EXPORT_NAMES)[number]

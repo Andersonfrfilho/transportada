@@ -9,6 +9,7 @@ import {
   parseCteBatchList,
   parseEmptyJsonRequest,
   parseIdempotencyKey,
+  parsePreviewCteBatchRequest,
   parseUuidPathIdentifier,
 } from './cte-batch.schema.js'
 
@@ -44,8 +45,16 @@ type CteBatchListInput = {
 type CreateCteBatchInput = {
   readonly correlationId: string
   readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
   readonly idempotencyKey: string
   readonly name: string
+}
+
+type PreviewCteBatchInput = {
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
 }
 
 type BatchIdentifierInput = {
@@ -59,6 +68,11 @@ type SubmitCteBatchInput = BatchIdentifierInput & {
 
 type CancelCteBatchInput = BatchIdentifierInput & {
   readonly correlationId: string
+}
+
+type RemoveCteBatchItemInput = BatchIdentifierInput & {
+  readonly correlationId: string
+  readonly itemId: string
 }
 
 type CteBatchEventsInput = BatchIdentifierInput & CteBatchListInput
@@ -78,11 +92,17 @@ type CteBatchEventPage = {
   readonly nextCursor: string | null
 }
 
+/** O lote é limitado a 100 notas, então os itens saem sem paginação. */
+type CteBatchItemPage = {
+  readonly items: readonly CteBatchSummary[]
+}
+
 type Dependencies = {
   readonly cteBatches: {
     readonly cancel: (input: WithContext<CancelCteBatchInput>) => Promise<CteBatchSummary>
     readonly create: (input: WithContext<CreateCteBatchInput>) => Promise<CteBatchSummary>
     readonly get: (input: WithContext<BatchIdentifierInput>) => Promise<CteBatchSummary>
+    readonly removeItem: (input: WithContext<RemoveCteBatchItemInput>) => Promise<CteBatchSummary>
     readonly submit: (input: WithContext<SubmitCteBatchInput>) => Promise<CteBatchSummary>
   }
   readonly listBatches: {
@@ -90,6 +110,12 @@ type Dependencies = {
   }
   readonly listEvents: {
     readonly execute: (input: WithContext<CteBatchEventsInput>) => Promise<CteBatchEventPage>
+  }
+  readonly listItems: {
+    readonly execute: (input: WithContext<BatchIdentifierInput>) => Promise<CteBatchItemPage>
+  }
+  readonly previewBatches: {
+    readonly execute: (input: WithContext<PreviewCteBatchInput>) => Promise<CteBatchSummary>
   }
 }
 
@@ -127,6 +153,19 @@ export function createCteBatchRoutes(
         }
       },
       pathname: API_CTE_BATCHES_PATH,
+      policy: CTE_MANAGE_POLICY,
+    }),
+    defineRoute<PreviewCteBatchInput>({
+      async handle({ context, input }): Promise<Response> {
+        const preview = await dependencies.previewBatches.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: preview }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ request }) => parsePreviewCteBatchRequest(request),
+      pathname: `${API_CTE_BATCHES_PATH}/preview`,
       policy: CTE_MANAGE_POLICY,
     }),
     defineRoute<BatchIdentifierInput>({
@@ -174,6 +213,32 @@ export function createCteBatchRoutes(
       pathname: `${API_CTE_BATCHES_PATH}/:id/cancel`,
       policy: CTE_MANAGE_POLICY,
     }),
+    defineRoute<BatchIdentifierInput>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.listItems.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: page.items.map(serializeItem) }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        batchId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${API_CTE_BATCHES_PATH}/:id/items`,
+      policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<RemoveCteBatchItemInput>({
+      async handle({ context, input }): Promise<Response> {
+        const batch = await dependencies.cteBatches.removeItem({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: serializeBatch(batch) }, status: 200 })
+      },
+      method: 'DELETE',
+      parse: ({ correlationId, pathParameters }) => ({
+        batchId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        correlationId,
+        itemId: parseUuidPathIdentifier(pathParameters.itemId ?? ''),
+      }),
+      pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId`,
+      policy: CTE_MANAGE_POLICY,
+    }),
     defineRoute<CteBatchEventsInput>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listEvents.execute({ context: context.scope, ...input })
@@ -213,6 +278,26 @@ function serializeBatch(batch: CteBatchSummary): object {
     status: batch['status'],
     updatedAt: batch['updatedAt'],
     version: batch['version'],
+  }
+}
+
+function serializeItem(item: CteBatchSummary): object {
+  return {
+    accessKey: item['accessKey'],
+    authorizationProtocol: item['authorizationProtocol'],
+    authorizedAt: item['authorizedAt'],
+    baseAmount: item['baseAmount'],
+    charges: item['charges'],
+    documents: item['documents'],
+    fiscalAmount: item['fiscalAmount'],
+    fiscalDocumentId: item['fiscalDocumentId'],
+    fiscalNumber: item['fiscalNumber'],
+    fiscalSeries: item['fiscalSeries'],
+    id: item['id'],
+    lastErrorCode: item['lastErrorCode'],
+    position: item['position'],
+    status: item['status'],
+    totalAmount: item['totalAmount'],
   }
 }
 

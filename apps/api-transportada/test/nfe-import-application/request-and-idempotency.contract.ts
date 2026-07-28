@@ -80,6 +80,30 @@ describe('request nfe import application contract', () => {
     expect(persisted).not.toContain('batch.zip')
   })
 
+  test('emits a distribution event when the source is distribution', async () => {
+    const unitOfWork = new RequestNfeImportUnitOfWorkFixture()
+    const useCase = await createRequestNfeImportUseCaseFixture({
+      fingerprintService: createFingerprintFixture(REQUEST_FINGERPRINT),
+      unitOfWork,
+    })
+
+    await useCase.execute({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      idempotencyKey: IDEMPOTENCY_KEY,
+      source: 'distribution',
+      stagedSources: [],
+    })
+
+    expect(unitOfWork.createdImports.map((draft) => draft.source)).toEqual(['distribution'])
+    expect(unitOfWork.outboxEntries.map((entry) => entry.eventType)).toEqual([
+      'transportada.nfe.distribution.requested',
+    ])
+    expect(unitOfWork.outboxEntries.map((entry) => entry.payload)).toEqual([
+      { importId: IMPORT_ID },
+    ])
+  })
+
   test('replays a matching idempotency request without duplicating import, items, or outbox', async () => {
     const unitOfWork = new RequestNfeImportUnitOfWorkFixture()
     unitOfWork.replayedIdempotency = {
@@ -159,7 +183,9 @@ class RequestNfeImportUnitOfWorkFixture implements RequestNfeImportUnitOfWorkPor
     readonly companyId: string
     readonly correlationId: string
     readonly eventId: string
-    readonly eventType: 'transportada.nfe.import.requested'
+    readonly eventType:
+      | 'transportada.nfe.distribution.requested'
+      | 'transportada.nfe.import.requested'
     readonly eventVersion: 1
     readonly payload: { readonly importId: string }
   }> = []
@@ -207,7 +233,9 @@ class RequestNfeImportUnitOfWorkFixture implements RequestNfeImportUnitOfWorkPor
     readonly companyId: string
     readonly correlationId: string
     readonly eventId: string
-    readonly eventType: 'transportada.nfe.import.requested'
+    readonly eventType:
+      | 'transportada.nfe.distribution.requested'
+      | 'transportada.nfe.import.requested'
     readonly eventVersion: 1
     readonly payload: { readonly importId: string }
   }): Promise<void> {

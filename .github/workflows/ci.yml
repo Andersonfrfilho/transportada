@@ -45,8 +45,7 @@ jobs:
           . ./.env
           set +a
           bun run --cwd apps/api-transportada test:integration
-          RABBITMQ_TEST_URL="$RABBITMQ_URL" \
-            bun run --cwd apps/worker-transportada test:integration
+          make worker-integration
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |

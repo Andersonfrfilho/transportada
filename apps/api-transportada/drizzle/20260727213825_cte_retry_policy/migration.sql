@@ -1,0 +1,4 @@
+ALTER TABLE "company_fiscal_profiles" ADD COLUMN "cte_retry_max_attempts" integer DEFAULT 3 NOT NULL;--> statement-breakpoint
+ALTER TABLE "company_fiscal_profiles" ADD COLUMN "cte_retry_backoff_seconds" integer[] DEFAULT '{5,30,300}'::integer[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "company_fiscal_profiles" ADD CONSTRAINT "company_fiscal_profiles_cte_retry_backoff_check" CHECK (array_length("cte_retry_backoff_seconds", 1) between 1 and 10 and 0 < all("cte_retry_backoff_seconds"));--> statement-breakpoint
+ALTER TABLE "company_fiscal_profiles" ADD CONSTRAINT "company_fiscal_profiles_cte_retry_max_attempts_check" CHECK ("cte_retry_max_attempts" between 1 and 10);

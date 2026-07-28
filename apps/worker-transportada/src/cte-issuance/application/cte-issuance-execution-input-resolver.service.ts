@@ -1,15 +1,51 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
+import { z } from 'zod'
 
-import type { CteIssuanceExecutionPrerequisites } from '../infrastructure/drizzle-cte-issuance-execution-input.repository.js'
+import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
+import type { CteFiscalProviderConfig } from '../infrastructure/cte-fiscal-gateway.js'
+import type { CteActiveCertificate } from '../infrastructure/drizzle-cte-certificate.repository.js'
+import type { CteIssuancePersistedPayload } from '../infrastructure/drizzle-cte-issuance-payload.repository.js'
+
+import { CteIssuanceFatalError } from './cte-issuance-worker-message-handler.service.js'
+
+const providerConfigSchema = z.object({
+  bairro: z.string(),
+  cep: z.string(),
+  cnpj: z.string().min(1),
+  codigoMunicipio: z.string().min(1),
+  crt: z.string().min(1),
+  environment: z.enum(['homologation', 'production']),
+  inscricaoEstadual: z.string(),
+  logradouro: z.string(),
+  municipio: z.string().min(1),
+  numero: z.string(),
+  numeroCte: z.number().int().positive(),
+  razaoSocial: z.string().min(1),
+  rntrc: z.string(),
+  serie: z.string().min(1),
+  uf: z.string().length(2),
+})
+
+export type CteIssuanceExecutionInput = {
+  readonly config: CteFiscalProviderConfig
+  readonly cteData: unknown
+  readonly documentId: string
+  readonly tenantId: string
+}
 
 export function createCteIssuanceExecutionInputResolver(input: {
-  readonly repository: {
-    findByCompanyId(input: {
+  readonly certificateRepository: {
+    findActiveCertificate(input: {
       readonly companyId: string
-    }): Promise<CteIssuanceExecutionPrerequisites>
+    }): Promise<CteActiveCertificate | null>
+  }
+  readonly payloadRepository: {
+    findByAttempt(input: {
+      readonly attemptId: string
+      readonly companyId: string
+    }): Promise<CteIssuancePersistedPayload | null>
   }
   readonly secretService: {
     decrypt(input: {
@@ -22,23 +58,47 @@ export function createCteIssuanceExecutionInputResolver(input: {
       readonly password: string
     }>
   }
-}): (params: { readonly envelope: CteProcessingEnvelopeV1 }) => Promise<null> {
+}): (params: { readonly envelope: CteProcessingEnvelopeV1 }) => Promise<CteIssuanceExecutionInput> {
   return async ({ envelope }) => {
-    const prerequisites = await input.repository.findByCompanyId({
-      companyId: envelope.companyId,
+    const companyId = envelope.companyId
+    const persisted = await input.payloadRepository.findByAttempt({
+      attemptId: envelope.payload.attemptId,
+      companyId,
     })
-    if (prerequisites.profile === null) return null
-    if (prerequisites.sequence === null) return null
-    if (prerequisites.certificate === null) return null
+    if (persisted === null) {
+      throw new CteIssuanceFatalError('cte issuance payload not found for attempt')
+    }
 
-    await input.secretService.decrypt({
-      certificateId: prerequisites.certificate.id,
-      companyId: envelope.companyId,
-      envelope: prerequisites.certificate.secretEnvelope,
+    const providerConfig = parseProviderConfig(persisted.providerConfig)
+    const certificate = await input.certificateRepository.findActiveCertificate({ companyId })
+    if (certificate === null) {
+      throw new CteIssuanceFatalError('company has no active CT-e certificate')
+    }
+
+    const secret = await input.secretService.decrypt({
+      certificateId: certificate.id,
+      companyId,
+      envelope: certificate.secretEnvelope,
       purpose: 'cte',
     })
 
-    // The worker still lacks persisted CT-e payload data and certificate decryption.
-    return null
+    return {
+      config: {
+        ...providerConfig,
+        certificadoBase64: secret.certificateBase64,
+        certificadoSenha: secret.password,
+      },
+      cteData: persisted.payload,
+      documentId: envelope.payload.batchItemId,
+      tenantId: companyId,
+    }
   }
+}
+
+function parseProviderConfig(value: unknown): z.infer<typeof providerConfigSchema> {
+  const parsed = providerConfigSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new CteIssuanceFatalError('persisted CT-e provider config is incomplete')
+  }
+  return parsed.data
 }

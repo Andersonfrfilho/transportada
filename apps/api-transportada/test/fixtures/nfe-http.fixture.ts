@@ -12,6 +12,7 @@ import { HTTP_ERROR } from '../../src/shared/api.constant'
 import { COMPANY_CONTEXT, READ_ONLY_CONTEXT } from './nfe-import-application.fixture'
 import {
   DISTRIBUTION_RESPONSE,
+  DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
   DOCUMENT_SUMMARY,
@@ -24,6 +25,7 @@ import { FRONTEND_ORIGIN } from './nfe-http-request.fixture'
 import type {
   DownloadDocumentXmlCall,
   DownloadDocumentXmlResult,
+  GetDistributionStatusCall,
   GetDocumentCall,
   GetImportCall,
   ListDocumentsCall,
@@ -37,6 +39,7 @@ import type {
   RequestUploadCall,
 } from './nfe-http.types'
 import type {
+  NfeDistributionStatus,
   NfeImportDetail,
   NfeImportSummary,
 } from '../../src/nfe-imports/application/nfe-import.types'
@@ -51,8 +54,10 @@ type CreateFixtureParams = {
     readonly nextCursor: string | null
   }
   readonly eligibilityResult?: NfeDocumentEligibility
+  readonly distributionStatus?: NfeDistributionStatus
   readonly downloadError?: Error
   readonly downloadResult?: DownloadDocumentXmlResult
+  readonly getDistributionStatusError?: Error
   readonly getDocumentError?: Error
   readonly getImportError?: Error
   readonly importDetail?: NfeImportDetail
@@ -74,6 +79,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   readonly documentEligibilityCalls: GetDocumentCall[]
   readonly documentListCalls: ListDocumentsCall[]
   readonly events: string[]
+  readonly distributionStatusCalls: GetDistributionStatusCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly importGetCalls: GetImportCall[]
   readonly importListCalls: ListImportsCall[]
@@ -86,6 +92,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   const documentGetCalls: GetDocumentCall[] = []
   const documentEligibilityCalls: GetDocumentCall[] = []
   const documentListCalls: ListDocumentsCall[] = []
+  const distributionStatusCalls: GetDistributionStatusCall[] = []
   const events: string[] = []
   const importGetCalls: GetImportCall[] = []
   const importListCalls: ListImportsCall[] = []
@@ -119,6 +126,13 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
       async execute(input) {
         documentEligibilityCalls.push(structuredClone(input))
         return params.eligibilityResult ?? DOCUMENT_ELIGIBILITY
+      },
+    },
+    getDistributionStatus: {
+      async execute(input) {
+        distributionStatusCalls.push(structuredClone(input))
+        if (params.getDistributionStatusError) throw params.getDistributionStatusError
+        return params.distributionStatus ?? DISTRIBUTION_STATUS
       },
     },
     getImport: {
@@ -215,6 +229,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
     documentEligibilityCalls,
     documentGetCalls,
     documentListCalls,
+    distributionStatusCalls,
     events,
     handle: (request) => handleRequest(request, { timeout() {} }),
     importGetCalls,

@@ -1,12 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   isCertificatesResponse,
+  isCompanyProfileLookupResponse,
   isRecord,
   isSafeCertificate,
   isSettingsResponse,
   toSafeCertificate,
 } from './companySettingsResponse.validation'
 import type {
+  CompanyProfileLookup,
   CompanySettingsResponse,
   CompanySettingsUpdate,
   DigitalCertificatesResponse,
@@ -14,6 +16,8 @@ import type {
 } from './companySettings.types'
 
 export type {
+  CompanyProfileLookup,
+  CompanyProfileLookupResponse,
   CompanySettingsResponse,
   CompanySettingsUpdate,
   DigitalCertificatesResponse,
@@ -27,11 +31,23 @@ type ClientDependencies = Readonly<{
   newIdempotencyKey: () => string
 }>
 
+class CompanySettingsRequestError extends Error {
+  public readonly code: string
+
+  public constructor(code: string) {
+    super(code)
+    this.name = 'CompanySettingsRequestError'
+    this.code = code
+  }
+}
+
 export type CompanySettingsClient = Readonly<{
   getSettings: () => Promise<CompanySettingsResponse>
   listCertificates: (
     input: Readonly<{ cursor?: string; limit: number }>,
   ) => Promise<DigitalCertificatesResponse>
+  lookupProfileByCnpj: (cnpj: string) => Promise<CompanyProfileLookup | null>
+  retireCertificate: () => Promise<void>
   replaceCertificate: (input: FormData) => Promise<SafeCertificate>
   updateSettings: (input: CompanySettingsUpdate) => Promise<CompanySettingsResponse>
 }>
@@ -39,7 +55,7 @@ export type CompanySettingsClient = Readonly<{
 export type CompanySettingsClientFactory = (input: ClientDependencies) => CompanySettingsClient
 
 function requestError(code: string): Error {
-  return new Error(code)
+  return new CompanySettingsRequestError(code)
 }
 
 async function requestJson(
@@ -49,13 +65,26 @@ async function requestJson(
   try {
     response = await input.fetch(input.request)
   } catch {
-    throw requestError('COMPANY_SETTINGS_REQUEST_FAILED')
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
   }
-  if (!response.ok) throw requestError('COMPANY_SETTINGS_REQUEST_FAILED')
+  const responseText = await response.text()
+  if (!response.ok) throw requestError(readErrorCode(responseText))
   try {
-    return JSON.parse(await response.text()) as unknown
+    return JSON.parse(responseText) as unknown
   } catch {
     throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  }
+}
+
+function readErrorCode(responseText: string): string {
+  try {
+    const parsed = JSON.parse(responseText) as unknown
+    if (!isRecord(parsed) || !isRecord(parsed.error)) return 'COMPANY_SETTINGS_REQUEST_FAILED'
+    return typeof parsed.error.code === 'string'
+      ? parsed.error.code
+      : 'COMPANY_SETTINGS_REQUEST_FAILED'
+  } catch {
+    return 'COMPANY_SETTINGS_REQUEST_FAILED'
   }
 }
 
@@ -81,7 +110,20 @@ function cleanUpdate(input: CompanySettingsUpdate): CompanySettingsUpdate {
       nextNumber: input.cte.nextNumber,
       series: input.cte.series,
     },
+    cteRetry: {
+      backoffSeconds: [...input.cteRetry.backoffSeconds],
+      maxAttempts: input.cteRetry.maxAttempts,
+    },
     expectedVersion: input.expectedVersion,
+    mdfe: {
+      bankBranch: input.mdfe.bankBranch,
+      bankCode: input.mdfe.bankCode,
+      insurancePolicy: input.mdfe.insurancePolicy,
+      insuranceResponsibility: input.mdfe.insuranceResponsibility,
+      insurerName: input.mdfe.insurerName,
+      insurerTaxId: input.mdfe.insurerTaxId,
+      pixKey: input.mdfe.pixKey,
+    },
     profile: {
       city: input.profile.city,
       cityIbgeCode: input.profile.cityIbgeCode,
@@ -140,6 +182,18 @@ async function readCertificates(
   return response
 }
 
+async function lookupProfileByCnpj(
+  input: Readonly<{ cnpj: string; dependencies: ClientDependencies }>,
+): Promise<CompanyProfileLookup | null> {
+  const response = await getRequest({
+    dependencies: input.dependencies,
+    path: `/company-settings/cnpj-info?cnpj=${encodeURIComponent(input.cnpj)}`,
+  })
+  if (!isCompanyProfileLookupResponse(response))
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
 async function replaceCertificate(
   input: Readonly<{ body: FormData; dependencies: ClientDependencies }>,
 ): Promise<SafeCertificate> {
@@ -159,6 +213,18 @@ async function replaceCertificate(
   )
     throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
   return toSafeCertificate(response.data)
+}
+
+async function retireCertificate(dependencies: ClientDependencies): Promise<void> {
+  const accessToken = await dependencies.getAccessToken()
+  await requestJson({
+    fetch: dependencies.fetch,
+    request: new Request(`${dependencies.apiBaseUrl}/digital-certificates`, {
+      cache: 'no-store',
+      headers: { authorization: `Bearer ${accessToken}` },
+      method: 'DELETE',
+    }),
+  })
 }
 
 async function updateSettings(
@@ -185,6 +251,8 @@ async function updateSettings(
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
   getSettings: () => readSettings(dependencies),
   listCertificates: (request) => readCertificates({ dependencies, request }),
+  lookupProfileByCnpj: (cnpj) => lookupProfileByCnpj({ cnpj, dependencies }),
+  retireCertificate: () => retireCertificate(dependencies),
   replaceCertificate: (body) => replaceCertificate({ body, dependencies }),
   updateSettings: (settings) => updateSettings({ dependencies, settings }),
 })

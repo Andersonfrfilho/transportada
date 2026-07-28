@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { CteBatchCreate } from './cteBatchClient.service'
+import { validateCancellationJustification } from './cteBatchItemActions.service'
 
 const DEFAULT_BATCH_NAME = 'Lote CT-e julho'
 
@@ -36,6 +37,16 @@ export function createCteBatchDrafts() {
     },
     createCancelDraft(): Record<string, never> {
       return {}
+    },
+    createItemCancelDraft(input: Record<string, unknown>): Readonly<{ justification: string }> {
+      if (!isRecord(input)) throw draftError('CTE_BATCH_INVALID_DRAFT')
+      rejectExtraKeys(input, ['justification'])
+      const justification =
+        typeof input.justification === 'string' ? input.justification.trim() : ''
+      if (validateCancellationJustification(justification) !== null) {
+        throw draftError('CTE_BATCH_INVALID_DRAFT')
+      }
+      return { justification }
     },
     createSubmitDraft(): Record<string, never> {
       return {}

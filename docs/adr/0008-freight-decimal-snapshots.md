@@ -70,4 +70,4 @@ motor monetário junto com emissão fiscal.
   compostas por empresa.
 - Contract de aplicação prova que alteração posterior de regra não altera
   snapshot histórico.
-- Revisão Sol é obrigatória antes de iniciar lote/CT-e.
+- Revisão Opus é obrigatória antes de iniciar lote/CT-e.

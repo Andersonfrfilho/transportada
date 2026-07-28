@@ -2,7 +2,21 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gte, ilike, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
+import {
+  aliasedTable,
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 
 import {
   auditLogs,
@@ -10,7 +24,9 @@ import {
   freightRules,
   freightRuleVersions,
   idempotencyRecords,
+  nfeAddresses,
   nfeDocuments,
+  nfeParticipants,
 } from '../../database/database.schema.js'
 import type {
   FreightCalculationDetail,
@@ -31,6 +47,10 @@ type RuleRecord = typeof freightRules.$inferSelect
 type RuleVersionRecord = typeof freightRuleVersions.$inferSelect
 type CalculationRecord = typeof freightCalculations.$inferSelect
 type DocumentRecord = typeof nfeDocuments.$inferSelect
+
+const emitterParticipant = aliasedTable(nfeParticipants, 'emitter_participant')
+const recipientParticipant = aliasedTable(nfeParticipants, 'recipient_participant')
+const recipientAddress = aliasedTable(nfeAddresses, 'recipient_address')
 
 export class DrizzleFreightRepository implements FreightRulesUnitOfWorkPort {
   public constructor(private readonly database: Database) {}
@@ -245,16 +265,20 @@ class DrizzleFreightTransaction {
 
   public findApplicableRule(input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: string | null
   }): Promise<Record<string, string> | null> {
     return findApplicableVersion(this.transaction, input)
   }
 
   public findApplicableVersion(input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: string | null
   }): Promise<Record<string, string> | null> {
     return findApplicableVersion(this.transaction, input)
   }
@@ -264,13 +288,46 @@ class DrizzleFreightTransaction {
     readonly documentId: string
   }): ReturnType<FreightSimulationTransactionPort['findDocument']> {
     const [record] = await this.transaction
-      .select()
+      .select({
+        destinationState: recipientAddress.state,
+        document: nfeDocuments,
+        senderTaxId: emitterParticipant.taxId,
+      })
       .from(nfeDocuments)
+      .leftJoin(
+        emitterParticipant,
+        and(
+          eq(emitterParticipant.companyId, nfeDocuments.companyId),
+          eq(emitterParticipant.documentId, nfeDocuments.id),
+          eq(emitterParticipant.role, 'emitter'),
+        ),
+      )
+      .leftJoin(
+        recipientParticipant,
+        and(
+          eq(recipientParticipant.companyId, nfeDocuments.companyId),
+          eq(recipientParticipant.documentId, nfeDocuments.id),
+          eq(recipientParticipant.role, 'recipient'),
+        ),
+      )
+      .leftJoin(
+        recipientAddress,
+        and(
+          eq(recipientAddress.companyId, recipientParticipant.companyId),
+          eq(recipientAddress.participantId, recipientParticipant.id),
+        ),
+      )
       .where(
         and(eq(nfeDocuments.companyId, input.companyId), eq(nfeDocuments.id, input.documentId)),
       )
       .limit(1)
-    return record === undefined ? null : mapDocument(record)
+    if (record === undefined) return null
+
+    return {
+      ...mapDocument(record.document),
+      destinationState: record.destinationState,
+      senderTaxId: record.senderTaxId,
+    }
   }
 
   public async findIdempotency(input: {
@@ -371,13 +428,42 @@ class DrizzleFreightTransaction {
     readonly companyId: string
     readonly freightRuleId: string
     readonly nextStatus: 'active' | 'inactive'
-  }): Promise<void> {
-    await this.transaction
+  }): Promise<FreightRuleSummary | null> {
+    const [record] = await this.transaction
       .update(freightRules)
       .set({ status: input.nextStatus, updatedAt: new Date() })
       .where(
         and(eq(freightRules.companyId, input.companyId), eq(freightRules.id, input.freightRuleId)),
       )
+      .returning()
+    return record === undefined ? null : mapRule(record)
+  }
+
+  public async setVersionsStatus(input: {
+    readonly companyId: string
+    readonly freightRuleId: string
+    readonly nextStatus: 'active' | 'inactive'
+  }): Promise<void> {
+    const ruleScope = and(
+      eq(freightRuleVersions.companyId, input.companyId),
+      eq(freightRuleVersions.freightRuleId, input.freightRuleId),
+    )
+    await this.transaction.update(freightRuleVersions).set({ status: 'inactive' }).where(ruleScope)
+    if (input.nextStatus !== 'active') return
+
+    const [rule] = await this.transaction
+      .select({ currentVersion: freightRules.currentVersion })
+      .from(freightRules)
+      .where(
+        and(eq(freightRules.companyId, input.companyId), eq(freightRules.id, input.freightRuleId)),
+      )
+      .limit(1)
+    if (rule === undefined) return
+
+    await this.transaction
+      .update(freightRuleVersions)
+      .set({ status: 'active' })
+      .where(and(ruleScope, eq(freightRuleVersions.version, rule.currentVersion)))
   }
 
   public async updateCurrentVersion(input: {
@@ -385,8 +471,8 @@ class DrizzleFreightTransaction {
     readonly currentVersion: string
     readonly freightRuleId: string
     readonly previousVersion: string
-  }): Promise<void> {
-    await this.transaction
+  }): Promise<FreightRuleSummary | null> {
+    const [record] = await this.transaction
       .update(freightRules)
       .set({ currentVersion: BigInt(input.currentVersion), updatedAt: new Date() })
       .where(
@@ -396,6 +482,8 @@ class DrizzleFreightTransaction {
           eq(freightRules.currentVersion, BigInt(input.previousVersion)),
         ),
       )
+      .returning()
+    return record === undefined ? null : mapRule(record)
   }
 }
 
@@ -403,8 +491,10 @@ async function findApplicableVersion(
   queryable: Queryable,
   input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: string | null
   },
 ): Promise<Record<string, string> | null> {
   const issuedAt = new Date(input.issuedAt)
@@ -426,11 +516,20 @@ async function findApplicableVersion(
         eq(freightRuleVersions.status, 'active'),
         lte(freightRuleVersions.validFrom, issuedAt),
         or(isNull(freightRuleVersions.validUntil), gte(freightRuleVersions.validUntil, issuedAt)),
+        versionSelectorMatches('destinationStates', input.destinationState),
+        versionSelectorMatches('senderTaxIds', input.senderTaxId),
       ),
     )
     .orderBy(desc(freightRules.priority), desc(freightRuleVersions.validFrom))
     .limit(1)
   return record === undefined ? null : mapApplicableVersion(record.version)
+}
+
+function versionSelectorMatches(selector: string, value: string | null | undefined): SQL {
+  const unrestricted = sql`(not jsonb_exists(${freightRuleVersions.filters}, ${selector}) or jsonb_array_length(${freightRuleVersions.filters} -> ${selector}) = 0)`
+  if (value === null || value === undefined || value.length === 0) return unrestricted
+
+  return sql`(${unrestricted} or jsonb_exists(${freightRuleVersions.filters} -> ${selector}, ${value.toUpperCase()}))`
 }
 
 async function listRules(

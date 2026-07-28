@@ -1,0 +1,395 @@
+.manifestShell {
+  width: min(100% - var(--space-8), 82rem);
+  margin: 0 auto;
+  padding: var(--space-5) 0 var(--space-16);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-graphite) 90%, transparent),
+    color-mix(in srgb, var(--color-asphalt) 82%, transparent)
+  );
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.intro {
+  max-width: 46rem;
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.deck {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.panel h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.modeSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fieldGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fieldGrid label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.fieldGrid input,
+.fieldGrid select,
+.fieldGrid textarea {
+  min-height: 2.75rem;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.statusChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.statusChip {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.statusChipActive {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+  color: var(--color-copper);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.counter {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.alert {
+  margin: 0;
+  color: var(--color-copper);
+  font-size: 0.82rem;
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.columnsMenu {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.columnsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.columnsRow label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.tableScroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.dataTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
+}
+
+.dataTable tbody tr[aria-selected='true'] {
+  outline: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.statusBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.statusReady {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.statusAlert {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.conditionGroup {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.conditionRow {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 48rem) {
+  .conditionRow {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    align-items: end;
+  }
+}
+
+.conditionRow label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+}
+
+.conditionRow input,
+.conditionRow select {
+  min-height: 2.5rem;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.candidateList {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.candidateRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.candidateKey {
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+}
+
+.driverChecklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 0.85rem;
+}
+
+.driverChecklist label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.summaryLine {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 92%, white 8%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.actionForm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
+}
+
+.actionForm label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+}
+
+.actionForm input,
+.actionForm textarea {
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.actionForm textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.actionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

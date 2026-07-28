@@ -162,7 +162,9 @@ function createFinalStorage(calls: string[]): NfeImportFinalStoragePort {
       return {
         bucket: 'transportada-private',
         key: `tenants/${input.companyId}/nfe-documents/${input.accessKey}/original.xml`,
+        objectId: `object-${input.accessKey}`,
         sha256: input.sourceSha256,
+        sizeBytes: input.sourceBytes.length,
       }
     },
     async storeImportedEvent(input) {
@@ -170,7 +172,9 @@ function createFinalStorage(calls: string[]): NfeImportFinalStoragePort {
       return {
         bucket: 'transportada-private',
         key: `tenants/${input.companyId}/nfe-events/${input.accessKey}/${input.type}-${input.sequence}.xml`,
+        objectId: `object-${input.accessKey}-${input.sequence}`,
         sha256: input.sourceSha256,
+        sizeBytes: input.sourceBytes.length,
       }
     },
   }

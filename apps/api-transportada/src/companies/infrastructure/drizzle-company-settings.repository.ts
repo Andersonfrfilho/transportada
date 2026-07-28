@@ -3,7 +3,11 @@
  */
 import { and, eq } from 'drizzle-orm'
 
-import { auditLogs, idempotencyRecords } from '../../database/database.schema.js'
+import {
+  auditLogs,
+  digitalCertificates,
+  idempotencyRecords,
+} from '../../database/database.schema.js'
 import type {
   CompanySettingsAuditRecord,
   CompanySettingsIdempotencyRecord,
@@ -61,6 +65,23 @@ class DrizzleCompanySettingsTransaction implements CompanySettingsTransactionPor
       entityId: record.entityId,
       entityType: record.entityType,
     })
+  }
+
+  public async findActiveCertificateCnpj(input: {
+    readonly companyId: string
+  }): Promise<string | null> {
+    const [certificate] = await this.transaction
+      .select({ validatedCnpj: digitalCertificates.validatedCnpj })
+      .from(digitalCertificates)
+      .where(
+        and(
+          eq(digitalCertificates.companyId, input.companyId),
+          eq(digitalCertificates.purpose, 'cte'),
+          eq(digitalCertificates.status, 'active'),
+        ),
+      )
+      .limit(1)
+    return certificate?.validatedCnpj ?? null
   }
 
   public async findByCompanyId(input: {

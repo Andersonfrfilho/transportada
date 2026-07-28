@@ -2,3 +2,4 @@
 import './cte-issuance/client-and-queries.contract.js'
 import './cte-issuance/permissions-and-states.contract.js'
 import './cte-issuance/status-and-download.contract.js'
+import './cte-issuance/status-tracking.contract.js'

@@ -22,7 +22,9 @@ function isString(value: unknown): value is string {
 function isStatus(value: unknown): value is CteIssuanceStatus {
   return (
     isString(value) &&
-    ['authorized', 'failed', 'rejected', 'requested', 'retry_scheduled'].includes(value)
+    ['authorized', 'cancelled', 'failed', 'rejected', 'requested', 'retry_scheduled'].includes(
+      value,
+    )
   )
 }
 

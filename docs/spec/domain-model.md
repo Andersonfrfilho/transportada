@@ -1,5 +1,44 @@
 # Modelo de domínio e integridade
 
+## Identidades fiscais e papéis (quem é quem por CNPJ)
+
+Regra central do produto — vale para toda importação de NF-e e emissão de CT-e.
+
+- **Nossa empresa = a transportadora (transportador/carrier).** É o tenant
+  (`company`). Tem um CNPJ próprio, que é o mesmo do **certificado digital**
+  usado para assinar os CT-e. _Exemplo:_ `61156864000191` (AFR FERNANDES).
+- **Cliente = o emitente da NF-e.** É quem vende a mercadoria e emite a nota;
+  cada cliente tem seu próprio CNPJ, que **varia de nota para nota**.
+  _Exemplo:_ `05868574001090` (COMERCIAL ZARAGOZA).
+- **O vínculo:** na NF-e do cliente, a **nossa transportadora** aparece como
+  **transportador**. É isso que liga a nota à nossa empresa e nos autoriza a
+  transportar aquela carga.
+
+### Fluxo
+
+```
+NF-e do cliente (emitente = cliente, transportador = nós)
+  → importa para o TransportAdA
+  → agrupa em lote (CteBatch)
+  → emite CT-e do frete (assinado com o certificado da transportadora)
+```
+
+### Invariante inegociável
+
+O CNPJ do perfil fiscal da empresa (`company_fiscal_profiles.cnpj`) **é sempre
+o CNPJ da nossa transportadora** e **deve ser igual** ao
+`digital_certificates.validated_cnpj` do certificado ativo. Nunca é o CNPJ do
+emitente da nota.
+
+- O CNPJ do **emitente** (`nfe_participants.tax_id`, role `emitter`) é dado do
+  **cliente** e legitimamente difere do nosso — não é erro, não deve ser
+  "corrigido".
+- Confundir os dois — salvar o CNPJ do cliente no perfil da empresa — quebra a
+  emissão de CT-e, porque o CNPJ do perfil não bate com o certificado que
+  assina o documento. A tela de configurações deve **bloquear** salvar um CNPJ
+  diferente do certificado ativo (mesma validação já aplicada na troca de
+  certificado em `digital-certificate-rotation.service.ts`).
+
 ## Agregados
 
 - Company: configurações, certificado, ambiente e sequências.

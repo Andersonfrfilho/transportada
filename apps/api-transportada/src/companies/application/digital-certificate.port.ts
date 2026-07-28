@@ -94,6 +94,10 @@ export type DigitalCertificateTransactionPort = {
     readonly companyId: string
   }): Promise<{ readonly cnpj: string } | null>
   replaceCertificate(input: RotateDigitalCertificateInput): Promise<DigitalCertificateRotation>
+  retireActiveCertificate(input: {
+    readonly companyId: string
+    readonly purpose: 'cte'
+  }): Promise<DigitalCertificateMetadata | null>
   saveIdempotency(record: DigitalCertificateIdempotencyRecord): Promise<void>
 }
 

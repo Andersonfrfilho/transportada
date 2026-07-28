@@ -5,6 +5,7 @@ export const FRONTEND_ORIGIN = 'http://localhost:53000'
 export const FREIGHT_RULES_PATH = '/freight-rules'
 export const FREIGHT_SIMULATIONS_PATH = '/freight-calculations'
 export const FREIGHT_CALCULATIONS_PATH = '/nfe-documents'
+export const FREIGHT_RULE_ID = '00000000-0000-4000-8000-000000000301'
 export const CREATE_RULE_IDEMPOTENCY_KEY = 'freight-rule-create-0001'
 export const SIMULATION_IDEMPOTENCY_KEY = 'freight-simulation-create-0001'
 
@@ -16,6 +17,16 @@ export const CREATE_RULE_BODY = {
   percentage: '0.035000',
   priority: '10',
   validFrom: '2026-07-01T00:00:00.000Z',
+  validUntil: null,
+} as const
+
+export const UPDATE_RULE_BODY = {
+  expectedCurrentVersion: '1',
+  filters: { destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
+  maximumAmount: '900.0000',
+  minimumAmount: '120.0000',
+  percentage: '0.060000',
+  validFrom: '2026-08-01T00:00:00.000Z',
   validUntil: null,
 } as const
 
@@ -45,6 +56,26 @@ export function createRuleRequest(options: RequestOptions = {}): Request {
     },
     method: 'POST',
     pathname: FREIGHT_RULES_PATH,
+  })
+}
+
+export function updateRuleRequest(options: RequestOptions = {}): Request {
+  return observedJsonRequest({
+    body: options.body ?? UPDATE_RULE_BODY,
+    headers: baseHeaders(options),
+    method: 'PATCH',
+    pathname: `${FREIGHT_RULES_PATH}/${FREIGHT_RULE_ID}`,
+  })
+}
+
+export function changeRuleStatusRequest(
+  options: RequestOptions & { readonly status?: string } = {},
+): Request {
+  return observedJsonRequest({
+    body: options.body ?? { status: options.status },
+    headers: baseHeaders(options),
+    method: 'PATCH',
+    pathname: `${FREIGHT_RULES_PATH}/${FREIGHT_RULE_ID}/status`,
   })
 }
 

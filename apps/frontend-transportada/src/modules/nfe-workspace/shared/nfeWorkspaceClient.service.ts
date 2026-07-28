@@ -33,12 +33,36 @@ export type NfeImportListPage = Readonly<{
   nextCursor: null | string
 }>
 
+export type NfeDistributionEnvironment = 'homologation' | 'production'
+
+export type NfeDistributionStatus = Readonly<{
+  canPull: boolean
+  environment: NfeDistributionEnvironment
+  lastPulledAt: null | string
+  maxNsu: string
+  nextAllowedAt: null | string
+  pullInProgress: boolean
+  ultNsu: string
+}>
+
 export type NfeDocumentListItem = Readonly<{
   accessKey: string
+  emitterAddress: null | string
+  emitterCity: null | string
+  emitterCityCode: null | string
   emitterName: string
+  emitterState: null | string
+  emitterTaxId: null | string
   id: string
   issuedAt: string
+  number: string
+  recipientAddress: null | string
+  recipientCity: null | string
+  recipientCityCode: null | string
   recipientName: string
+  recipientState: null | string
+  recipientTaxId: null | string
+  series: string
   status: 'authorized' | 'cancelled' | 'denied'
   totalAmount: string
   variant: 'complete' | 'event' | 'summary'
@@ -57,6 +81,9 @@ export type ImportPollingState = Readonly<{
 export type RequestUploadInput = Readonly<{
   files: readonly File[]
   idempotencyKey: string
+  onBatchStarted?: (files: readonly File[]) => void
+  onBatchFailed?: (files: readonly File[]) => void
+  onBatchUploaded?: (files: readonly File[]) => void
 }>
 
 export type NfeImportFilters = Readonly<{
@@ -132,6 +159,7 @@ type ClientDependencies = Readonly<{
 
 export type NfeWorkspaceClient = Readonly<{
   downloadDocumentXml: (input: Readonly<{ id: string }>) => Promise<Blob>
+  getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
@@ -149,6 +177,9 @@ export type NfeWorkspaceClient = Readonly<{
 export type NfeWorkspaceClientFactory = (input: ClientDependencies) => NfeWorkspaceClient
 
 const ACTIVE_IMPORT_POLL_INTERVAL_MS = 5_000
+const DISTRIBUTION_IN_PROGRESS_POLL_MS = 5_000
+const DISTRIBUTION_TRIGGER_POLL_MS = 2_000
+const DISTRIBUTION_TRIGGER_GRACE_MS = 20_000
 
 function requestError(code: string): Error {
   return new Error(code)
@@ -160,6 +191,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string'
+}
+
+function isNullableString(value: unknown): value is null | string {
+  return value === null || typeof value === 'string'
 }
 
 function isNumber(value: unknown): value is number {
@@ -228,10 +263,22 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
   return (
     isRecord(value) &&
     isString(value.accessKey) &&
+    isNullableString(value.emitterAddress) &&
+    isNullableString(value.emitterCity) &&
+    isNullableString(value.emitterCityCode) &&
     isString(value.emitterName) &&
+    isNullableString(value.emitterState) &&
+    isNullableString(value.emitterTaxId) &&
     isString(value.id) &&
     isString(value.issuedAt) &&
+    isString(value.number) &&
+    isNullableString(value.recipientAddress) &&
+    isNullableString(value.recipientCity) &&
+    isNullableString(value.recipientCityCode) &&
     isString(value.recipientName) &&
+    isNullableString(value.recipientState) &&
+    isNullableString(value.recipientTaxId) &&
+    isString(value.series) &&
     isDocumentStatus(value.status) &&
     isString(value.totalAmount) &&
     isDocumentVariant(value.variant)
@@ -308,6 +355,31 @@ function mapImportListPage(value: unknown): NfeImportListPage {
   return {
     items: data.map(mapImportSummary),
     nextCursor: pageNextCursor(value),
+  }
+}
+
+function mapDistributionStatus(value: unknown): NfeDistributionStatus {
+  const data = envelopeData(value)
+  if (
+    !isRecord(data) ||
+    typeof data.canPull !== 'boolean' ||
+    typeof data.pullInProgress !== 'boolean' ||
+    (data.environment !== 'homologation' && data.environment !== 'production') ||
+    !isNullableString(data.lastPulledAt) ||
+    !isNullableString(data.nextAllowedAt) ||
+    !isString(data.maxNsu) ||
+    !isString(data.ultNsu)
+  ) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return {
+    canPull: data.canPull,
+    environment: data.environment,
+    lastPulledAt: data.lastPulledAt,
+    maxNsu: data.maxNsu,
+    nextAllowedAt: data.nextAllowedAt,
+    pullInProgress: data.pullInProgress,
+    ultNsu: data.ultNsu,
   }
 }
 
@@ -468,6 +540,22 @@ export function createImportPollingState(input: {
   return { enabled: true, intervalMs: ACTIVE_IMPORT_POLL_INTERVAL_MS }
 }
 
+export function createDistributionPollingState(input: {
+  readonly now: number
+  readonly status: NfeDistributionStatus | undefined
+  readonly triggeredAt: null | number
+}): ImportPollingState {
+  if (input.status?.pullInProgress === true) {
+    return { enabled: true, intervalMs: DISTRIBUTION_IN_PROGRESS_POLL_MS }
+  }
+  const withinGraceWindow =
+    input.triggeredAt !== null && input.now - input.triggeredAt < DISTRIBUTION_TRIGGER_GRACE_MS
+  if (withinGraceWindow) {
+    return { enabled: true, intervalMs: DISTRIBUTION_TRIGGER_POLL_MS }
+  }
+  return { enabled: false, intervalMs: null }
+}
+
 export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies) => ({
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({
@@ -488,6 +576,14 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       throw requestError('NFE_WORKSPACE_REQUEST_FAILED')
     }
     return response.blob()
+  },
+  async getDistributionStatus() {
+    const response = await requestJson({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/nfe-imports/distribution',
+    })
+    return mapDistributionStatus(response)
   },
   async getImportDetail(input) {
     const response = await requestJson({

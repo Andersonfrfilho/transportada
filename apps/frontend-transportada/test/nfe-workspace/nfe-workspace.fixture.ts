@@ -40,12 +40,34 @@ export type NfeImportListPageContract = Readonly<{
   nextCursor: null | string
 }>
 
+export type NfeDistributionStatusContract = Readonly<{
+  canPull: boolean
+  environment: 'homologation' | 'production'
+  lastPulledAt: null | string
+  maxNsu: string
+  nextAllowedAt: null | string
+  pullInProgress: boolean
+  ultNsu: string
+}>
+
 export type NfeDocumentListItemContract = Readonly<{
   accessKey: string
+  emitterAddress: null | string
+  emitterCity: null | string
+  emitterCityCode: null | string
   emitterName: string
+  emitterState: null | string
+  emitterTaxId: null | string
   id: string
   issuedAt: string
+  number: string
+  recipientAddress: null | string
+  recipientCity: null | string
+  recipientCityCode: null | string
   recipientName: string
+  recipientState: null | string
+  recipientTaxId: null | string
+  series: string
   status: 'authorized' | 'cancelled' | 'denied'
   totalAmount: string
   variant: 'complete' | 'event' | 'summary'
@@ -114,14 +136,48 @@ export const IMPORT_LIST_PAGE = {
   nextCursor: SYNTHETIC_CURSOR,
 } as const satisfies NfeImportListPageContract
 
+export const DISTRIBUTION_STATUS = {
+  canPull: true,
+  environment: 'homologation',
+  lastPulledAt: '2026-07-22T13:40:00.000Z',
+  maxNsu: '000000000000120',
+  nextAllowedAt: null,
+  pullInProgress: false,
+  ultNsu: '000000000000120',
+} as const satisfies NfeDistributionStatusContract
+
+export const DISTRIBUTION_STATUS_COOLDOWN = {
+  ...DISTRIBUTION_STATUS,
+  canPull: false,
+  nextAllowedAt: '2026-07-22T14:30:00.000Z',
+} as const satisfies NfeDistributionStatusContract
+
+export const DISTRIBUTION_STATUS_RUNNING = {
+  ...DISTRIBUTION_STATUS,
+  canPull: false,
+  pullInProgress: true,
+} as const satisfies NfeDistributionStatusContract
+
 export const DOCUMENT_LIST_PAGE = {
   items: [
     {
       accessKey: '35190730290856000160550010000000011000000010',
+      emitterAddress: 'Rua das Cargas, 100 - Centro',
+      emitterCity: 'Campinas',
+      emitterCityCode: '3509502',
       emitterName: 'Emitente Transportada',
+      emitterState: 'SP',
+      emitterTaxId: '30290856000160',
       id: '4c596f2c-388e-4820-8e49-0fa5916f5cb0',
       issuedAt: '2026-07-22T10:00:00.000Z',
+      number: '000000011',
+      recipientAddress: 'Avenida Logística, 500 - Distrito Industrial',
+      recipientCity: 'Jundiaí',
+      recipientCityCode: '3525904',
       recipientName: 'Destinatario Cliente',
+      recipientState: 'SP',
+      recipientTaxId: '12345678000199',
+      series: '001',
       status: 'authorized',
       totalAmount: '1234.5600',
       variant: 'complete',

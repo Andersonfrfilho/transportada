@@ -8,18 +8,18 @@ IDs abaixo foram confirmados pelo `opencode models` local em 2026-07-18.
 | `spec-writer` | `opencode/deepseek-v4-flash-free` | primeira versão de spec/task | 10 passos |
 | `test-writer` | `opencode/north-mini-code-free`   | testes bem delimitados       | 12 passos |
 | `reviewer`    | `opencode/nemotron-3-ultra-free`  | revisão somente leitura      | 8 passos  |
-| Codex Luna    | `openai/gpt-5.6-luna`             | mecânico/repetitivo          | low       |
-| Codex Terra   | `openai/gpt-5.6-terra`            | implementação padrão         | medium    |
-| Codex Sol     | `openai/gpt-5.6-sol`              | fiscal/segurança/arquitetura | high      |
+| Haiku         | `haiku`                           | mecânico/repetitivo          | baixo     |
+| Sonnet        | `sonnet`                          | implementação padrão         | médio     |
+| Opus          | `opus`                            | fiscal/segurança/arquitetura | alto      |
 
 ## Roteamento econômico
 
 1. Explorer reúne evidência sem editar.
 2. Spec-writer propõe artefatos pequenos.
-3. Terra implementa e integra.
+3. Sonnet implementa e integra.
 4. Test-writer amplia casos previsíveis.
 5. Reviewer faz leitura independente.
-6. Sol é gate para fiscal, concorrência, auth, criptografia e produção.
+6. Opus é gate para fiscal, concorrência, auth, criptografia e produção.
 
 Use contexto mínimo: informe task, arquivos relevantes e critérios; não envie
 todo o `PROJECT.MD` repetidamente. Uma task deve caber em uma sessão. Após duas
@@ -33,7 +33,7 @@ diretamente a `opencode run --agent`. Para delegação econômica via CLI, fixe
 explicitamente um modelo `opencode/*-free` no agente primário e forneça uma
 tarefa limitada; caso contrário, o fallback pode selecionar um modelo pago.
 
-Para a migração Bun: Sol decide arquitetura, Drizzle crítico, RabbitMQ, fiscal
-e segurança; Terra implementa API, worker, frontend e tooling; Luna remove
-legado após paridade; OpenCode gratuito faz inventário, primeiros testes
-previsíveis e revisão somente leitura.
+Para a migração Bun: Opus decide arquitetura, Drizzle crítico, RabbitMQ, fiscal
+e segurança; Sonnet implementa API, worker, frontend e tooling; Haiku remove
+legado após paridade e faz inventário, primeiros testes previsíveis e revisão
+somente leitura.

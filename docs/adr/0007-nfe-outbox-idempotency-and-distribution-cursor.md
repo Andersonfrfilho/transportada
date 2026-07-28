@@ -2,7 +2,7 @@
 
 - Status: aceito
 - Data: 2026-07-20
-- Decisores: mantenedor do projeto e revisão Codex Sol
+- Decisores: mantenedor do projeto e revisão Opus
 
 ## Contexto
 

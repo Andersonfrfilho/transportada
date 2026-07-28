@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { startWorkerRuntime } from '../src/main.js'
+import { OutboxRelayLoop } from '../src/outbox/application/outbox-relay-loop.service.js'
 
 const ENVIRONMENT = {
   APP_ENV: 'test',
@@ -17,6 +18,44 @@ const ENVIRONMENT = {
 } as const
 
 describe('NF-e worker runtime contract', () => {
+  test('logs relay failures with the configured domain-specific message', async () => {
+    const errors: readonly string[] = []
+    const mutableErrors: string[] = []
+    const loop = new OutboxRelayLoop({
+      claimOwner: 'transportada.runtime.contract.relay',
+      clock: {
+        clearInterval(timer) {
+          clearInterval(timer)
+        },
+        setInterval(handler, intervalMs) {
+          return setInterval(handler, intervalMs)
+        },
+      },
+      failureMessage: 'cte_outbox_relay_failed',
+      intervalMs: 60_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger: {
+        error(message) {
+          mutableErrors.push(message)
+        },
+        info() {},
+        warn() {},
+      },
+      relay: {
+        async relayDueEntries() {
+          throw new Error('relation "cte_issuance_outbox" does not exist')
+        },
+      },
+    })
+
+    loop.start()
+    await Bun.sleep(0)
+    await loop.close()
+
+    expect(errors.concat(mutableErrors)).toEqual(['cte_outbox_relay_failed'])
+  })
+
   test('starts relay plus synthetic/import/distribution consumers independently and drains them before infrastructure shutdown', async () => {
     const calls: string[] = []
     const importCancellation = createDeferred()
@@ -78,6 +117,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('cteIssuance.cancel')
           },
         }),
+        startMdfeIssuanceConsumer: async () => ({
+          cancel: async () => {
+            calls.push('mdfeIssuance.cancel')
+          },
+        }),
         startFoundationSyntheticConsumer: async () => ({
           cancel: async () => {
             calls.push('synthetic.cancel')
@@ -113,11 +157,13 @@ describe('NF-e worker runtime contract', () => {
       'import.cancel',
       'distribution.cancel',
       'cteIssuance.cancel',
+      'mdfeIssuance.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-import.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-distribution.v1.main.queue',
       'provider.close:transportada.runtime.contract.cte-issuance.v1.main.queue',
+      'provider.close:transportada.runtime.contract.mdfe-issuance.v1.main.queue',
       'database.close',
       'health.stop',
     ])
@@ -170,6 +216,7 @@ describe('NF-e worker runtime contract', () => {
         },
         startDistributionConsumer: async () => undefined,
         startCteIssuanceConsumer: async () => undefined,
+        startMdfeIssuanceConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {
           return {

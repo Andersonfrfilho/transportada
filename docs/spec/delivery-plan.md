@@ -36,7 +36,7 @@ Cada fase possui demo independente, migration reversível e testes de aceite.
 - migrations e rollback revisados;
 - logs sem segredo e métricas relevantes;
 - OpenAPI e documentação atualizados;
-- evidência anexada à task; revisão Terra/Sol conforme risco.
+- evidência anexada à task; revisão Sonnet/Opus conforme risco.
 
 ## Primeira sequência executável
 

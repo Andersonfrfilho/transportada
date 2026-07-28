@@ -37,7 +37,7 @@ gateway interno, com as seguintes decisões:
 - timeout após chamada fiscal exige estado de reconciliação ou retry
   conservador antes de nova emissão;
 - as tarefas críticas de fiscal, certificado, numeração, storage e concorrência
-  devem ser executadas ou revisadas por modelo Sol.
+  devem ser executadas ou revisadas por modelo Opus.
 
 ## Alternativas consideradas
 

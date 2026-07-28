@@ -458,7 +458,7 @@ uma defesa adicional, não o mecanismo único contra corrida.
 | API         | lint, typecheck, contracts, integration, `db:check`, migration/rollback |
 | frontend    | lint, typecheck, unit, build e Playwright                               |
 | stack       | `make up`, `make ps`, `make check`, `make migration-test`, `make smoke` |
-| repositório | `bun install --frozen-lockfile`, revisão Sol e evidência por task       |
+| repositório | `bun install --frozen-lockfile`, revisão Opus e evidência por task      |
 
 Nenhum gate executa deploy. O Makefile conserva `PROJECT_NAME` e
 `COMPOSE_PROJECT_NAME=$(PROJECT_NAME)-$(APP_ENV)`.

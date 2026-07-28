@@ -5,8 +5,8 @@
 Modelos:
 
 - OpenCode gratuito: reservado para inventários e casos mecânicos;
-- Codex Terra medium: implementação padrão e frontend;
-- Codex Sol high: spec, desenho, criptografia, fiscal, tenant, concorrência e
+- Sonnet (médio): implementação padrão e frontend;
+- Opus (alto): spec, desenho, criptografia, fiscal, tenant, concorrência e
   revisão de release.
 
 Fontes confirmadas:
@@ -31,7 +31,7 @@ Decisões:
 
 ## T001 — ADRs e decomposição
 
-Modelo executor e revisão independente: Codex Sol high.
+Modelo executor e revisão independente: Opus (alto).
 
 Commits TransportAdA:
 
@@ -52,7 +52,7 @@ cada task declara dependência, verificação, critério de sucesso e modelo.
 
 ## T002 — Contracts do `secret-envelope`
 
-Modelo executor e revisão: Codex Sol high.
+Modelo executor e revisão: Opus (alto).
 
 Commit Ada local:
 
@@ -105,7 +105,7 @@ todos os gates verdes.
 
 ## T003 — Envelope AES-256-GCM versionado
 
-Modelo executor e revisão independente: Codex Sol high.
+Modelo executor e revisão independente: Opus (alto).
 
 Commit Ada local:
 
@@ -158,7 +158,7 @@ sua senha, Railway, S3 e SEFAZ não foram acessados.
 
 ## T004 — Empacotamento e consumo Bun isolado
 
-Executor: Codex Terra medium. Revisão independente: Codex Sol high, aprovada
+Executor: Sonnet (médio). Revisão independente: Opus (alto), aprovada
 sem P0–P3 materiais.
 
 Commit Ada local:
@@ -211,7 +211,7 @@ Railway, S3 ou SEFAZ foi acessado.
 
 ## T005 — Publicação Ada e pins da API
 
-Executor e revisões independentes: Codex Sol high.
+Executor e revisões independentes: Opus (alto).
 
 Commits Ada:
 
@@ -267,7 +267,7 @@ Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
 
 ## T006 — Separação do schema de identidade
 
-Executor: Codex Terra medium. Revisão e validação independentes: agente
+Executor: Sonnet (médio). Revisão e validação independentes: agente
 principal.
 
 Implementação:
@@ -309,7 +309,7 @@ certificado, PFX, senha, S3 ou SEFAZ foi acessado.
 
 ## T007 — Contracts do schema fiscal e isolamento
 
-Executor e revisão independente: Codex Sol high. O OpenCode foi reservado para
+Executor e revisão independente: Opus (alto). O OpenCode foi reservado para
 uma checklist mecânica, mas `north-mini-code-free` e
 `deepseek-v4-flash-free` falharam no servidor antes de produzir resultado. A
 tarefa foi escalada após as duas falhas equivalentes, sem repetir tentativas.
@@ -354,7 +354,7 @@ certificado, PFX, senha, S3 ou SEFAZ foi acessado.
 
 ## T008 — Schema fiscal, migration aditiva e rollback
 
-Executor e revisão independente: Codex Sol high.
+Executor e revisão independente: Opus (alto).
 
 Implementação:
 
@@ -413,7 +413,7 @@ SEFAZ foi acessado.
 
 ## T009 — Contracts do router modular e deny-by-default
 
-Executor e revisão independente: Codex Sol high. O Graphify foi usado somente
+Executor e revisão independente: Opus (alto). O Graphify foi usado somente
 para localizar o boundary existente entre `request-handler.service.ts`,
 autenticação e contexto da empresa.
 
@@ -465,7 +465,7 @@ Nenhum Railway, certificado, PFX, senha, S3 ou SEFAZ foi acessado.
 
 ## T010 — Router modular, tipado e deny-by-default
 
-Executor: Codex Terra medium. Revisão independente: Codex Sol high. O Graphify
+Executor: Sonnet (médio). Revisão independente: Opus (alto). O Graphify
 confirmou o fluxo existente entre `Bun.serve`, handler, autenticação, contexto
 de empresa e autorização antes da extração.
 
@@ -518,7 +518,7 @@ PFX, senha, S3 ou SEFAZ foi acessado.
 
 ## T011 — Contract do gateway fiscal público
 
-Executor e revisão independente: Codex Sol high.
+Executor e revisão independente: Opus (alto).
 
 O artefato realmente instalado foi inspecionado em
 `node_modules/.bun/@adatechnology+fiscal-provider@0.1.0`. Seu
@@ -578,7 +578,7 @@ CommonJS/ESM no Bun 1.3.14 e aprovou sem novos P0–P2.
 
 ## T012 — Gateway fiscal e configuração criptográfica
 
-Executor e revisão independente: Codex Sol high.
+Executor e revisão independente: Opus (alto).
 
 Implementação:
 
@@ -668,7 +668,7 @@ mantém seu próprio snapshot das chaves AES.
 
 ## T013 — Contracts de perfil, idempotência e auditoria
 
-Executor principal e revisão independente: Codex Sol high. O primeiro executor
+Executor principal e revisão independente: Opus (alto). O primeiro executor
 delegado foi interrompido por não produzir patch dentro do limite; a execução
 foi retomada pelo agente principal sem ampliar o escopo.
 
@@ -731,7 +731,7 @@ mecânicos: a primeira chamada foi rejeitada pelo parsing variádico do CLI e a
 segunda pelo servidor remoto. A repetição foi encerrada para economizar tokens;
 nenhuma decisão foi delegada ao modelo gratuito.
 
-A primeira revisão Sol encontrou quatro lacunas: um erro TypeScript independente
+A primeira revisão Opus encontrou quatro lacunas: um erro TypeScript independente
 do RED, ausência de leitura tenant-scoped, ausência de rollback na falha da
 idempotência e allowlists frouxas. Todas foram corrigidas. A re-revisão
 confirmou lint, formato e RED exclusivamente causal e aprovou sem P0–P2.
@@ -742,7 +742,7 @@ acessado nesta task.
 
 ## T014 — Repositórios e casos de uso de configurações
 
-Executor principal e duas rodadas de revisão independente: Codex Sol high.
+Executor principal e duas rodadas de revisão independente: Opus (alto).
 
 Implementação:
 
@@ -811,7 +811,7 @@ SEFAZ, RabbitMQ, fila, exchange, Railway ou deploy participou da T014.
 
 ## T015 — Contracts HTTP de `/company-settings`
 
-Executor principal e revisão independente: Codex Sol high. O OpenCode gratuito
+Executor principal e revisão independente: Opus (alto). O OpenCode gratuito
 não foi repetido porque as duas tentativas equivalentes da T013 já haviam
 falhado; a política de economia exige escalonamento em vez de novo consumo.
 
@@ -868,7 +868,7 @@ exchange, Railway, deploy ou dado real participou da T015.
 
 ## T016 — Endpoints de configurações
 
-Executor: Codex Terra medium. Revisão e correções de segurança: Codex Sol high.
+Executor: Sonnet (médio). Revisão e correções de segurança: Opus (alto).
 
 Implementação:
 
@@ -890,8 +890,8 @@ Implementação:
   inválido;
 - logs reconhecem o pathname estático sem registrar query, token ou tenant.
 
-A primeira implementação Terra deixou os 77 contracts originais verdes. A
-revisão Sol encontrou correlação alterada em erros, overflow de `bigint`,
+A primeira implementação Sonnet deixou os 77 contracts originais verdes. A
+revisão Opus encontrou correlação alterada em erros, overflow de `bigint`,
 serialização por spread, log como `<unmatched>`, lacuna de `no-store`, CORS
 permissivo e funções acima dos limites. Regressões reproduziram 13 falhas antes
 da primeira correção. Uma segunda rodada reproduziu mais quatro falhas para
@@ -934,7 +934,7 @@ Railway, deploy ou dado real participou da T016.
 
 ## T017 — Contracts de validação e rotação do A1
 
-Executor e revisão final: Codex Sol high. A execução delegada produziu o
+Executor e revisão final: Opus (alto). A execução delegada produziu o
 rascunho; a revisão raiz corrigiu apenas os contracts e fixtures, sem
 implementar a T018.
 
@@ -986,8 +986,8 @@ participou da T017.
 
 ## T018 — Serviço e persistência do certificado
 
-Executor: Codex Sol high. Revisão de segurança e re-revisão independente:
-Codex Sol high.
+Executor: Opus (alto). Revisão de segurança e re-revisão independente:
+Opus (alto).
 
 Implementação:
 
@@ -1092,7 +1092,7 @@ Nenhum Railway ou deploy foi executado.
 
 ## T018A — Contracts HTTP de certificados
 
-Executor e revisão independente: Codex Sol high. O OpenCode gratuito não foi
+Executor e revisão independente: Opus (alto). O OpenCode gratuito não foi
 repetido após duas falhas equivalentes anteriores, conforme a política de
 economia. A implementação da rota ficou reservada para a T019.
 
@@ -1147,8 +1147,8 @@ deploy participou da T018A.
 
 ## T019 — POST/GET de certificados e CORS estrito
 
-Executor: Codex Terra medium. Revisão raiz e duas revisões independentes de
-segurança: Codex Sol high.
+Executor: Sonnet (médio). Revisão raiz e duas revisões independentes de
+segurança: Opus (alto).
 
 Implementação:
 
@@ -1171,7 +1171,7 @@ Implementação:
 
 A revisão raiz corrigiu cursor calculado a partir do item extra, propagação do
 resultado de replay transacional, precisão PostgreSQL, offset multipart e
-limpeza de buffers. A primeira revisão Sol adicionou três regressões RED:
+limpeza de buffers. A primeira revisão Opus adicionou três regressões RED:
 idempotência inválida precisava falhar antes de puxar o corpo, a validação
 UTF-8 não podia aceitar um marcador falso dentro do certificado e uma rejeição
 de `reader.cancel()` não podia transformar `413` em `500`. As três foram
@@ -1218,7 +1218,7 @@ exchange, S3, Railway ou deploy participou da T019.
 
 ## T020 — Contracts concorrentes da sequência fiscal
 
-Executor e duas revisões independentes: Codex Sol high. A implementação da
+Executor e duas revisões independentes: Opus (alto). A implementação da
 porta e do repositório ficou reservada para a T021.
 
 Os sete contracts PostgreSQL sintéticos definem:
@@ -1282,7 +1282,7 @@ participou da T020.
 
 ## T021 — Porta interna de reserva e ledger
 
-Executor e revisão independente: Codex Sol high.
+Executor e revisão independente: Opus (alto).
 
 Implementação:
 
@@ -1341,7 +1341,7 @@ deploy participou da T021.
 
 ## T022 — Contracts do módulo frontend
 
-Executor e revisão independente: Codex Terra medium. O OpenCode econômico já
+Executor e revisão independente: Sonnet (médio). O OpenCode econômico já
 havia falhado duas vezes em critérios equivalentes nesta feature; conforme a
 política de economia, a task foi escalada sem repetir a tentativa.
 
@@ -1406,7 +1406,7 @@ da T022.
 
 ## T023 — Tela Vite de configurações fiscais
 
-Executor: Codex Terra medium. Revisão raiz e revisão independente: Codex Terra
+Executor: Sonnet (médio). Revisão raiz e revisão independente: Sonnet
 medium. A skill de frontend design orientou uma mesa operacional fiscal, com
 faixa sequencial de prontidão, tipografia e tokens já presentes no projeto e
 destaque controlado para o ambiente de produção.
@@ -1471,8 +1471,8 @@ exchange, S3, Railway, ambiente remoto ou deploy participou da T023.
 
 ## T024 — Jornada fiscal e ausência de segredo
 
-Executor: Codex Terra medium. Revisão raiz e revisão independente de segurança:
-Codex Sol high.
+Executor: Sonnet (médio). Revisão raiz e revisão independente de segurança:
+Opus (alto).
 
 O Playwright autenticado agora comprova:
 
@@ -1501,7 +1501,7 @@ armazenado como método e era chamado com `this` incorreto, lacuna que os mocks
 unitários não reproduziam. O frontend passou a fornecer
 `fetch: (request) => fetch(request)`, mantendo o contrato e o binding correto.
 
-A primeira revisão Sol encontrou três lacunas: serialização IndexedDB incapaz de
+A primeira revisão Opus encontrou três lacunas: serialização IndexedDB incapaz de
 ler material binário, upload sem prova de controle pelo service worker e 403
 sem origem/código explicitamente afirmados. Todas foram corrigidas. A
 re-revisão independente terminou com zero achados P0–P3.
@@ -1541,7 +1541,7 @@ ou deploy participou da T024.
 
 ## T025 — Gates finais e revisão de release
 
-Executor e revisão raiz: Codex Sol high. Revisão independente: Codex Sol high.
+Executor e revisão raiz: Opus (alto). Revisão independente: Opus (alto).
 O revisor OpenCode econômico não foi repetido porque já havia falhado duas vezes
 em critérios equivalentes nesta feature; a política de economia exige escalar
 em vez de ampliar contexto na mesma tentativa.

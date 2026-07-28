@@ -3,7 +3,10 @@
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
 
-import type { NfeProcessingEnvelopeV1 } from '../src/messaging/nfe-processing-envelope.schema.js'
+import {
+  nfeProcessingEnvelopeV1Schema,
+  type NfeProcessingEnvelopeV1,
+} from '../src/messaging/nfe-processing-envelope.schema.js'
 import {
   buildNfeDistributionRabbitMqTopology,
   buildNfeImportRabbitMqTopology,
@@ -187,6 +190,66 @@ describe('outbox relay contract', () => {
       publishedCount: 1,
     })
     expect(sharedEntries[0]!.claimOwner).toBe('relay-c')
+  })
+})
+
+// Parity with the API/cron SYSTEM_DISTRIBUTION_ACTOR_USER_ID; the worker never
+// imports another app's source, so the fixed UUID is inlined here.
+const SYSTEM_DISTRIBUTION_ACTOR_USER_ID = '00000000-0000-4000-8000-000000000006'
+
+describe('automation-origin distribution regression (T017)', () => {
+  it('relays a cron-written automation distribution row unchanged into a consumer-valid envelope', async () => {
+    const importId = 'a1a2a3a4-b1b2-4c3c-8d4d-e5e6e7e8e9ea'
+    const automationEntry = createOutboxEntry({
+      companyId: '11111111-2222-4333-8444-555566667777',
+      eventId: '99999999-8888-4777-8666-555544443333',
+      eventType: 'transportada.nfe.distribution.requested',
+    })
+    const entries: OutboxEntry[] = [
+      { ...automationEntry, actorId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID, importId },
+    ]
+
+    let publishedEnvelope: NfeProcessingEnvelopeV1 | undefined
+    let publishedQueue: string | undefined
+    const relay = new OutboxRelayService({
+      clock: { now: () => now },
+      publisher: {
+        async publish(params: {
+          readonly envelope: NfeProcessingEnvelopeV1
+          readonly topology: { readonly queue: string }
+        }) {
+          publishedEnvelope = params.envelope
+          publishedQueue = params.topology.queue
+        },
+      },
+      repository: createOutboxRepository(entries, []),
+      retryPolicy: {
+        classify(error: unknown) {
+          throw error
+        },
+      },
+      topologyResolver: {
+        resolve(params: { readonly eventType: OutboxEntry['eventType'] }) {
+          return params.eventType === 'transportada.nfe.import.requested'
+            ? importTopology
+            : distributionTopology
+        },
+      },
+    })
+
+    await expect(
+      relay.relayDueEntries({ claimOwner: 'relay-cron', leaseMs: 30_000, limit: 10 }),
+    ).resolves.toEqual({ claimedCount: 1, publishedCount: 1 })
+
+    expect(publishedQueue).toBe(distributionTopology.queue)
+
+    // The relay ignores triggered_by/automation_job — the automation row yields a
+    // plain distribution envelope that passes the consumer's exact input gate.
+    const parsed = nfeProcessingEnvelopeV1Schema.parse(publishedEnvelope)
+    expect(parsed.type).toBe('transportada.nfe.distribution.requested')
+    expect(parsed.version).toBe(1)
+    expect(parsed.actorId).toBe(SYSTEM_DISTRIBUTION_ACTOR_USER_ID)
+    expect(parsed.payload.importId).toBe(importId)
   })
 })
 

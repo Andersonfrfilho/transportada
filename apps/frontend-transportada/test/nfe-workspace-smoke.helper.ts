@@ -4,7 +4,6 @@ import { type Page, type Route } from '@playwright/test'
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key, Accept',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
-  'access-control-allow-origin': 'http://localhost:53000',
 }
 
 const IMPORT_SUMMARY = {
@@ -58,10 +57,11 @@ type MockState = {
 type MockPermissions = readonly ('invoices.import' | 'invoices.read')[]
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+  const origin = (await route.request().headerValue('origin')) ?? 'http://localhost:53000'
   await route.fulfill({
     body: JSON.stringify(body),
     contentType: 'application/json',
-    headers: CORS_HEADERS,
+    headers: { ...CORS_HEADERS, 'access-control-allow-origin': origin },
     status,
   })
 }
@@ -71,7 +71,11 @@ async function registerIdentityMock(
 ): Promise<void> {
   await input.page.route('**/auth/me', async (route) => {
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      const origin = (await route.request().headerValue('origin')) ?? 'http://localhost:53000'
+      await route.fulfill({
+        headers: { ...CORS_HEADERS, 'access-control-allow-origin': origin },
+        status: 204,
+      })
       return
     }
     await fulfillJson(route, {
@@ -88,7 +92,11 @@ async function registerIdentityMock(
 async function registerNfeMocks(input: Readonly<{ page: Page; state: MockState }>): Promise<void> {
   await input.page.route(/\/nfe-imports\/xml$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      const origin = (await route.request().headerValue('origin')) ?? 'http://localhost:53000'
+      await route.fulfill({
+        headers: { ...CORS_HEADERS, 'access-control-allow-origin': origin },
+        status: 204,
+      })
       return
     }
     input.state.importRequests += 1
@@ -96,7 +104,11 @@ async function registerNfeMocks(input: Readonly<{ page: Page; state: MockState }
   })
   await input.page.route(/\/nfe-imports\/distribution$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      const origin = (await route.request().headerValue('origin')) ?? 'http://localhost:53000'
+      await route.fulfill({
+        headers: { ...CORS_HEADERS, 'access-control-allow-origin': origin },
+        status: 204,
+      })
       return
     }
     input.state.distributionRequests += 1

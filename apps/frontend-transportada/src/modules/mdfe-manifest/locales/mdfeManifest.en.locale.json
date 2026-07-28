@@ -1,0 +1,209 @@
+{
+  "kicker": "Fiscal issuance",
+  "title": "MDF-e manifests",
+  "intro": "Build the manifest from authorized CT-es, transmit it to SEFAZ and close or cancel the trip.",
+  "loading": "Loading manifests",
+  "error": "Could not load the manifests",
+  "empty": "No manifest found",
+  "forbidden": "Your current access does not allow reading MDF-e manifests",
+  "resultCounter": "{{shown}} of {{total}} manifests",
+  "manifestsTitle": "Manifests",
+  "filters": {
+    "title": "Filters",
+    "simple": "Simple",
+    "advanced": "Advanced",
+    "clear": "Clear filters",
+    "active": "{{count}} active filter(s)",
+    "fiscalNumber": "Number",
+    "status": "Status",
+    "cteCountFrom": "CT-es (minimum)",
+    "cteCountTo": "CT-es (maximum)",
+    "createdFrom": "Created from",
+    "createdTo": "Created until"
+  },
+  "status": {
+    "draft": "Draft",
+    "issuing": "Transmitting",
+    "authorized": "Authorized",
+    "rejected": "Rejected",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "columns": {
+    "title": "Columns",
+    "cargoValue": "Cargo value",
+    "cargoWeight": "Weight",
+    "createdAt": "Created at",
+    "cteCount": "CT-es",
+    "destinationState": "Destination state",
+    "fiscalNumber": "Number",
+    "originState": "Origin state",
+    "status": "Status",
+    "updatedAt": "Updated at",
+    "vehicleId": "Vehicle"
+  },
+  "column": {
+    "moveUp": "Move column left",
+    "moveDown": "Move column right",
+    "toggle": "Show column"
+  },
+  "sort": {
+    "asc": "sorted ascending",
+    "desc": "sorted descending",
+    "none": "not sorted"
+  },
+  "selection": {
+    "selectAll": "Select all manifests",
+    "select": "Select manifest",
+    "summary": "{{count}} manifest(s) selected",
+    "clear": "Clear selection"
+  },
+  "actions": {
+    "title": "Actions",
+    "issue": "Transmit",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "create": "Create manifest",
+    "preview": "Generate preview",
+    "resetCreation": "Clear draft"
+  },
+  "advanced": {
+    "title": "Advanced conditions",
+    "modelConnector": "Connector between groups",
+    "groupConnector": "Connector inside the group",
+    "addGroup": "Add group",
+    "removeGroup": "Remove group",
+    "addCondition": "Add condition",
+    "removeCondition": "Remove condition",
+    "field": "Field",
+    "operator": "Operator",
+    "value": "Value",
+    "valueTo": "Up to"
+  },
+  "connector": {
+    "and": "AND",
+    "or": "OR"
+  },
+  "operator": {
+    "between": "between",
+    "contains": "contains",
+    "eq": "equals",
+    "gt": "greater than",
+    "gte": "greater or equal",
+    "lt": "less than",
+    "lte": "less or equal",
+    "ne": "different from",
+    "notContains": "does not contain"
+  },
+  "creation": {
+    "title": "New manifest",
+    "batch": "CT-e batch",
+    "batchPlaceholder": "Pick a batch",
+    "loadingBatches": "Loading batches",
+    "loadingCandidates": "Loading the CT-es of the batch",
+    "candidates": "Authorized CT-es",
+    "candidatesEmpty": "This batch has no authorized CT-e with a stored fiscal document yet.",
+    "selectCandidate": "Include CT-e in the manifest",
+    "selectedSummary": "{{count}} CT-e(s) selected",
+    "vehicle": "Vehicle",
+    "vehiclePlaceholder": "Pick the vehicle",
+    "drivers": "Drivers",
+    "driversEmpty": "Register an active driver in the fleet before manifesting.",
+    "destinationState": "Destination state",
+    "cargoProduct": "Predominant product",
+    "cargoProductNcm": "Product NCM",
+    "cargoType": "Cargo type",
+    "cargoUnit": "Weight unit",
+    "emitterType": "Emitter type",
+    "transporterType": "Transporter type",
+    "tripStartedAt": "Trip start",
+    "additionalInformation": "Additional information",
+    "lotacaoLegend": "Full truckload — contractor, freight and insurance",
+    "contractorName": "Transport contractor",
+    "contractorTaxId": "Contractor CNPJ or CPF",
+    "freightValue": "Freight value",
+    "loadingPostalCode": "Loading postal code",
+    "dischargePostalCode": "Discharge postal code",
+    "insuranceEndorsement": "Insurance endorsement",
+    "previewTitle": "Manifest preview",
+    "previewSummary": "{{count}} CT-e(s) · cargo {{value}} · weight {{weight}}",
+    "previewRoute": "{{origin}} → {{destination}}",
+    "previewLoading": "Loading cities: {{cities}}",
+    "previewDischarge": "Discharge cities: {{cities}}",
+    "previewBlocked": "{{count}} CT-e(s) blocked by SEFAZ or already manifested",
+    "readOnly": "Your current access does not allow creating manifests.",
+    "pending": "Sending manifest…"
+  },
+  "cargoType": {
+    "01": "Solid bulk",
+    "02": "Liquid bulk",
+    "03": "Refrigerated",
+    "04": "Containerized",
+    "05": "General cargo",
+    "06": "Neobulk",
+    "07": "Dangerous (solid bulk)",
+    "08": "Dangerous (liquid bulk)",
+    "09": "Dangerous (refrigerated)",
+    "10": "Dangerous (containerized)",
+    "11": "Dangerous (general cargo)",
+    "12": "Pressurized bulk"
+  },
+  "cargoUnit": {
+    "01": "Kilogram",
+    "02": "Metric ton"
+  },
+  "emitterType": {
+    "1": "Transport service provider",
+    "2": "Own cargo transport",
+    "3": "Provider with globalized CT-e"
+  },
+  "transporterType": {
+    "none": "Not informed",
+    "1": "ETC",
+    "2": "TAC",
+    "3": "CTC"
+  },
+  "formIssue": {
+    "cargoProductRequired": "Inform the predominant cargo product.",
+    "destinationRequired": "Inform the destination state.",
+    "documentsRequired": "Pick at least one authorized CT-e.",
+    "driverRequired": "Pick at least one driver.",
+    "vehicleRequired": "Pick the traction vehicle."
+  },
+  "issue": {
+    "title": "Transmit manifest {{fiscal}}",
+    "warning": "Transmitting sends the MDF-e to SEFAZ and cannot be undone."
+  },
+  "closure": {
+    "title": "Close manifest {{fiscal}}",
+    "warning": "Closing tells SEFAZ in which city the trip ended.",
+    "cityCode": "IBGE city code (7 digits)",
+    "state": "Closure state",
+    "invalidCity": "Inform an IBGE code with 7 digits.",
+    "invalidState": "Inform the state with two uppercase letters."
+  },
+  "cancellation": {
+    "title": "Cancel manifest {{fiscal}}",
+    "warning": "Cancelling is irreversible and only valid inside the SEFAZ window.",
+    "justification": "Justification (15 to 255 characters)",
+    "placeholder": "Describe the cancellation reason",
+    "required": "Inform the justification.",
+    "tooShort": "The justification needs at least 15 characters.",
+    "tooLong": "The justification cannot exceed 255 characters."
+  },
+  "feedback": {
+    "alreadyCancelled": "This manifest was already cancelled.",
+    "alreadyClosed": "This manifest was already closed.",
+    "documentAlreadyManifested": "One of the CT-es already belongs to another manifest.",
+    "documentNotAuthorized": "Only an authorized CT-e can enter the manifest.",
+    "inFlight": "There is a transmission in flight for this manifest.",
+    "notAuthorized": "The manifest is not authorized yet.",
+    "notIssuable": "The manifest is not in a state that allows transmission.",
+    "readOnly": "Your current access does not allow this action.",
+    "requestFailed": "Could not reach the API.",
+    "responseInvalid": "The API answered in an unexpected format.",
+    "windowExpired": "The SEFAZ cancellation window has expired."
+  }
+}

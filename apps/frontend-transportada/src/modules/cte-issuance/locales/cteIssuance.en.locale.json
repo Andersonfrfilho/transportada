@@ -1,0 +1,52 @@
+{
+  "panel": {
+    "title": "CT-e issuance tracking",
+    "loading": "Checking the status at SEFAZ",
+    "error": "Could not check the status of this CT-e",
+    "forbidden": "Your current access does not allow tracking the issuance",
+    "empty": "No issuance attempt recorded for this CT-e",
+    "accessKey": "Access key",
+    "protocol": "Authorization protocol",
+    "environment": "Environment",
+    "updatedAt": "Updated at",
+    "rejectionCode": "Rejection code",
+    "rejectionCause": "Reason reported by SEFAZ",
+    "documents": "Authorized XML available",
+    "polling": "Refreshing automatically while SEFAZ processes the request"
+  },
+  "environment": {
+    "homologation": "Homologation",
+    "production": "Production"
+  },
+  "timeline": {
+    "authorized": {
+      "title": "Authorized",
+      "description": "SEFAZ authorized the CT-e and the XML is already stored."
+    },
+    "failed": {
+      "title": "Technical failure",
+      "description": "The attempt never reached a SEFAZ response and can be reprocessed."
+    },
+    "rejected": {
+      "title": "Rejected",
+      "description": "SEFAZ refused the CT-e. Fix the cause and reprocess the issuance."
+    },
+    "requested": {
+      "title": "Transmitting",
+      "description": "The issuance was queued and awaits the SEFAZ response."
+    },
+    "retry_scheduled": {
+      "title": "Retry scheduled",
+      "description": "A temporary failure happened and a new attempt is already scheduled."
+    }
+  },
+  "actions": {
+    "download": "Download XML",
+    "reprocess": "Reprocess",
+    "close": "Close tracking"
+  },
+  "errors": {
+    "download": "The authorized XML is not available for download yet",
+    "reprocess": "Could not request the reprocessing"
+  }
+}

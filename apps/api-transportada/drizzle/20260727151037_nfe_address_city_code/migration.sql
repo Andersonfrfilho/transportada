@@ -1,0 +1,1 @@
+ALTER TABLE "nfe_addresses" ADD COLUMN "city_code" text;

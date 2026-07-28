@@ -38,7 +38,9 @@ describe('NF-e import consumer ZIP contract', () => {
           return {
             bucket: 'transportada-private',
             key: `tenants/${input.companyId}/nfe-documents/${input.accessKey}/original.xml`,
+            objectId: `object-${input.accessKey}`,
             sha256: input.sourceSha256,
+            sizeBytes: input.sourceBytes.length,
           }
         },
         async storeImportedEvent() {

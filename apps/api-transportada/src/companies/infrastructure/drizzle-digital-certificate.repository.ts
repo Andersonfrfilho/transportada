@@ -21,7 +21,10 @@ import {
   deserializeDigitalCertificateResponse,
   serializeDigitalCertificateResponse,
 } from './drizzle-digital-certificate.mapper.js'
-import { replaceDigitalCertificate } from './drizzle-digital-certificate.persistence.js'
+import {
+  replaceDigitalCertificate,
+  retireActiveDigitalCertificate,
+} from './drizzle-digital-certificate.persistence.js'
 import { listDigitalCertificates } from './drizzle-digital-certificate-listing.service.js'
 import type {
   DigitalCertificateDatabase,
@@ -106,6 +109,12 @@ class DrizzleDigitalCertificateTransaction implements DigitalCertificateTransact
     input: Parameters<DigitalCertificateTransactionPort['replaceCertificate']>[0],
   ): ReturnType<DigitalCertificateTransactionPort['replaceCertificate']> {
     return replaceDigitalCertificate({ certificate: input, transaction: this.transaction })
+  }
+
+  public retireActiveCertificate(
+    input: Parameters<DigitalCertificateTransactionPort['retireActiveCertificate']>[0],
+  ): ReturnType<DigitalCertificateTransactionPort['retireActiveCertificate']> {
+    return retireActiveDigitalCertificate({ ...input, transaction: this.transaction })
   }
 
   public async saveIdempotency(record: DigitalCertificateIdempotencyRecord): Promise<void> {

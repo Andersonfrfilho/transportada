@@ -8,9 +8,15 @@ import {
   CteIssuanceRecoverableError,
   CteIssuanceWorkerMessageHandler,
 } from '../src/cte-issuance/application/cte-issuance-worker-message-handler.service.js'
+import { createCteRetryPolicy } from '../src/cte-issuance/domain/cte-retry.policy.js'
 import type { CteProcessingEnvelopeV1 } from '../src/messaging/cte-processing-envelope.schema.js'
 
 const now = new Date('2026-07-22T21:00:00.000Z')
+const defaultRetryPolicyResolver = {
+  async resolve() {
+    return createCteRetryPolicy({})
+  },
+}
 const envelope: CteProcessingEnvelopeV1 = {
   actorId: '94127a9d-22c9-4df0-805f-7654290e251a',
   companyId: 'fbc033e7-63e0-4698-adc6-12778bedf4a7',
@@ -43,7 +49,7 @@ describe('CT-e issuance worker contract', () => {
           await effect.promise
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({
         calls,
         markProcessed: async () => {
@@ -84,7 +90,7 @@ describe('CT-e issuance worker contract', () => {
           calls.push('effect.execute')
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({
         calls,
         processedKeys: new Set([cteMessageKey(envelope)]),
@@ -106,7 +112,7 @@ describe('CT-e issuance worker contract', () => {
           throw new CteIssuanceRecoverableError('sefaz timeout')
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({ calls }),
     })
 
@@ -129,7 +135,7 @@ describe('CT-e issuance worker contract', () => {
           throw new CteIssuanceRecoverableError('sefaz unavailable')
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({ calls }),
     })
 
@@ -155,7 +161,7 @@ describe('CT-e issuance worker contract', () => {
           calls.push(`effect.execute:${params.envelope.companyId}`)
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({
         calls,
         processedKeys: new Set([cteMessageKey(envelope)]),
@@ -183,7 +189,7 @@ describe('CT-e issuance worker contract', () => {
           throw new CteIssuanceFatalError('cte rejected')
         },
       },
-      maxAttempts: 3,
+      retryPolicyResolver: defaultRetryPolicyResolver,
       repository: createRepository({ calls }),
     })
 

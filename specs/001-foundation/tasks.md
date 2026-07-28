@@ -18,21 +18,21 @@
 
 ## Roteamento de modelos
 
-| Task | Executor recomendado                |
-| ---- | ----------------------------------- |
-| T001 | Codex Terra                         |
-| T002 | Codex Terra                         |
-| T003 | Codex Terra                         |
-| T004 | Codex Terra                         |
-| T005 | Codex Terra                         |
-| T006 | Codex Terra                         |
-| T007 | Codex Terra                         |
-| T008 | Codex Terra                         |
-| T009 | Codex Luna                          |
-| T010 | Codex Luna                          |
-| T011 | Codex Terra                         |
-| T012 | OpenCode `spec-writer` + Codex Luna |
-| T013 | OpenCode `reviewer` + Codex Terra   |
-| T014 | Codex Terra + OpenCode `reviewer`   |
+| Task | Executor recomendado           |
+| ---- | ------------------------------ |
+| T001 | Sonnet                         |
+| T002 | Sonnet                         |
+| T003 | Sonnet                         |
+| T004 | Sonnet                         |
+| T005 | Sonnet                         |
+| T006 | Sonnet                         |
+| T007 | Sonnet                         |
+| T008 | Sonnet                         |
+| T009 | Haiku                          |
+| T010 | Haiku                          |
+| T011 | Sonnet                         |
+| T012 | OpenCode `spec-writer` + Haiku |
+| T013 | OpenCode `reviewer` + Sonnet   |
+| T014 | Sonnet + OpenCode `reviewer`   |
 
 Evidência: [`evidence.md`](evidence.md).

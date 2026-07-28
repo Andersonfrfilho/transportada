@@ -20,6 +20,8 @@ describe('NF-e import schema', () => {
       'id',
       'company_id',
       'source',
+      'triggered_by',
+      'automation_job',
       'requested_by_user_id',
       'correlation_id',
       'idempotency_key',
@@ -41,6 +43,8 @@ describe('NF-e import schema', () => {
       id: 'uuid',
       company_id: 'uuid',
       source: 'text',
+      triggered_by: 'text',
+      automation_job: 'text',
       requested_by_user_id: 'uuid',
       correlation_id: 'text',
       idempotency_key: 'text',
@@ -60,7 +64,9 @@ describe('NF-e import schema', () => {
     })
     expectGeneratedUuidPrimaryKey(nfeImports)
     expect(requiredColumnNames(nfeImports)).toEqual(
-      columnNames(nfeImports).filter((columnName) => columnName !== 'terminal_error'),
+      columnNames(nfeImports).filter(
+        (columnName) => columnName !== 'terminal_error' && columnName !== 'automation_job',
+      ),
     )
     expect(uniqueColumnsByName(nfeImports)).toMatchObject({
       nfe_imports_company_id_id_unique: ['company_id', 'id'],

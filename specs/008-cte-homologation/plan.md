@@ -139,7 +139,7 @@ Rollback:
 - Smoke frontend 375/768/1280 cobrindo autorização, rejeição, retry e usuário sem
   permissão.
 - Gate final: `bun install --frozen-lockfile`, `make check`,
-  `make migration-test`, smoke local gerenciado e revisão Sol.
+  `make migration-test`, smoke local gerenciado e revisão Opus.
 
 ## Riscos
 

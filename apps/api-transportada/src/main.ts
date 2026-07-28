@@ -15,15 +15,41 @@ import { createDigitalCertificateSecretService } from './companies/application/d
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
+import { createFiscalCompanyProfileLookupGateway } from './companies/infrastructure/fiscal-company-profile-lookup.gateway'
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
+import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
 import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-case'
+import { createListCteBatchItemsUseCase } from './cte-batches/application/list-cte-batch-items.use-case'
+import { createPreviewCteBatchUseCase } from './cte-batches/application/preview-cte-batch.use-case'
+import { DrizzleCteBatchItemRepository } from './cte-batches/infrastructure/drizzle-cte-batch-item.repository'
+import { DrizzleCteBatchPreviewRepository } from './cte-batches/infrastructure/drizzle-cte-batch-preview.repository'
 import { DrizzleCteBatchRepository } from './cte-batches/infrastructure/drizzle-cte-batch.repository'
+import { DrizzleCteEmissionProfileCatalogRepository } from './cte-batches/infrastructure/drizzle-cte-emission-profile-catalog.repository'
 import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.routes'
+import { createCteEmissionProfilesUseCase } from './cte-profiles/application/cte-emission-profiles.use-case'
+import { DrizzleCteEmissionProfileRepository } from './cte-profiles/infrastructure/drizzle-cte-emission-profile.repository'
+import { createCteEmissionProfileRoutes } from './cte-profiles/presentation/cte-emission-profiles.routes'
+import { createBillingUseCase } from './billing/application/billing.use-case'
+import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
+import { createBillingRoutes } from './billing/presentation/billing.routes'
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
+import { createCteDocumentDownloadGateway } from './cte-issuance/infrastructure/cte-document-download.gateway.js'
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
+import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
+import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
+import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
+import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
+import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
+import { createMdfeManifestsUseCase } from './mdfe-manifests/application/mdfe-manifests.use-case'
+import { createPreviewMdfeManifestUseCase } from './mdfe-manifests/application/preview-mdfe-manifest.use-case'
+import { DrizzleMdfeIssuanceRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-issuance.repository'
+import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-manifest.repository'
+import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
+import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -41,14 +67,23 @@ import { DrizzleExternalIdentityRepository } from './identity/infrastructure/dri
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import { createRouter } from './http/router.service'
+import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
 import { createReprocessNfeImportUseCase } from './nfe-imports/application/reprocess-nfe-import.use-case'
 import { createRequestNfeImportUseCase } from './nfe-imports/application/request-nfe-import.use-case'
+import { DrizzleNfeDistributionStatusRepository } from './nfe-imports/infrastructure/drizzle-nfe-distribution-status.repository'
 import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle-nfe-import.repository'
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
+import { createOperationsUseCase } from './operations/application/operations.use-case'
+import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
+import { createOperationsRoutes } from './operations/presentation/operations.routes'
+import { createGetViewPreferencesUseCase } from './view-preferences/application/get-view-preferences.use-case'
+import { createSaveViewPreferencesUseCase } from './view-preferences/application/save-view-preferences.use-case'
+import { DrizzleViewPreferencesRepository } from './view-preferences/infrastructure/drizzle-view-preferences.repository'
+import { createViewPreferencesRoutes } from './view-preferences/presentation/view-preferences.routes'
 import type { ApiEnvironment } from './shared/api.types'
 import {
   createShutdownHandler,
@@ -132,12 +167,20 @@ function createApplicationRoutes({
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
+  const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
   const freightRepository = new DrizzleFreightRepository(database)
   const freightSimulationRepository = new DrizzleFreightSimulationRepository(database)
   const freightRuleListRepository = new DrizzleFreightRuleListRepository(database)
   const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
+  const fleetVehicleRepository = new DrizzleFleetVehicleRepository(database)
+  const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
+  const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
+  const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
+  const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
+  const billingRepository = new DrizzleBillingRepository(database)
   const cteIssuanceRepository = new DrizzleCteIssuanceRepository(database)
+  const operationsRepository = new DrizzleOperationsRepository(database)
   const nfeImportRepository = new DrizzleNfeImportRepository(database)
   const storageBucket = resolveStorageBucket(environment)
   const storageGateway = createNfeStorageGatewayFromEnvironment({
@@ -147,10 +190,15 @@ function createApplicationRoutes({
   })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
+  const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
   const requestImport = createRequestNfeImportUseCase({
     fingerprintService,
     unitOfWork: nfeImportRepository,
+  })
+  const getDistributionStatus = createGetNfeDistributionStatusUseCase({
+    clock: { now: () => new Date() },
+    reader: new DrizzleNfeDistributionStatusRepository(database),
   })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
@@ -163,13 +211,48 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: freightSimulationRepository,
   })
+  const fleetVehicles = createFleetVehiclesUseCase({ repository: fleetVehicleRepository })
+  const fleetDrivers = createFleetDriversUseCase({ repository: fleetDriverRepository })
+  const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
+  const previewMdfeManifest = createPreviewMdfeManifestUseCase({
+    repository: mdfeManifestRepository,
+  })
+  const mdfeIssuance = createMdfeIssuanceUseCase({
+    now: () => new Date(),
+    repository: mdfeIssuanceRepository,
+  })
+  const cteEmissionProfileCatalog = new DrizzleCteEmissionProfileCatalogRepository(
+    cteEmissionProfileRepository,
+  )
   const cteBatches = createCteBatchUseCase({
     fingerprintService,
+    profiles: cteEmissionProfileCatalog,
     unitOfWork: cteBatchRepository,
   })
+  const cteEmissionProfiles = createCteEmissionProfilesUseCase({
+    fingerprintService,
+    unitOfWork: cteEmissionProfileRepository,
+  })
+  const previewCteBatches = createPreviewCteBatchUseCase({
+    profiles: cteEmissionProfileCatalog,
+    reader: new DrizzleCteBatchPreviewRepository(database),
+  })
+  const listCteBatchItems = createListCteBatchItemsUseCase({
+    reader: new DrizzleCteBatchItemRepository(database),
+  })
+  const billing = createBillingUseCase({
+    clock: { now: () => new Date().toISOString() },
+    fingerprintService,
+    unitOfWork: billingRepository,
+  })
   const cteIssuance = createCteIssuanceUseCase({
+    documentDownload: createCteDocumentDownloadGateway({ storage: storageGateway }),
     fingerprintService,
     unitOfWork: cteIssuanceRepository,
+  })
+  const operations = createOperationsUseCase({
+    clock: { now: () => new Date().toISOString() },
+    repository: operationsRepository,
   })
   const replace = createReplaceDigitalCertificateUseCase({
     certificateValidationGateway: createFiscalCertificateValidationGateway(),
@@ -183,6 +266,9 @@ function createApplicationRoutes({
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
+      lookupProfileByCnpj: {
+        execute: ({ cnpj }) => companyProfileLookupGateway.lookupByCnpj({ cnpj }),
+      },
       updateSettings: createUpdateCompanySettingsUseCase({
         fingerprintService,
         unitOfWork: settingsRepository,
@@ -191,26 +277,105 @@ function createApplicationRoutes({
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },
+      retireCertificate: createRetireDigitalCertificateUseCase({
+        repository: certificateRepository,
+      }),
     }),
     ...createFreightRoutes({
+      activateRule: { execute: (input) => freightRules.activate(input) },
       createRule: { execute: (input) => freightRules.create(input) },
+      deactivateRule: { execute: (input) => freightRules.deactivate(input) },
       listCalculations: { execute: (input) => freightCalculationListRepository.list(input) },
       listRules: { execute: (input) => freightRuleListRepository.list(input) },
       simulate: { execute: (input) => freightSimulation.execute(input) },
+      updateRule: { execute: (input) => freightRules.update(input) },
+    }),
+    ...createFleetRoutes({
+      createDriver: { execute: (input) => fleetDrivers.create(input) },
+      createVehicle: { execute: (input) => fleetVehicles.create(input) },
+      listDrivers: { execute: (input) => fleetDrivers.list(input) },
+      listVehicles: { execute: (input) => fleetVehicles.list(input) },
+      updateDriver: { execute: (input) => fleetDrivers.update(input) },
+      updateVehicle: { execute: (input) => fleetVehicles.update(input) },
+    }),
+    ...createMdfeManifestRoutes({
+      createManifest: { execute: (input) => mdfeManifests.create(input) },
+      getManifest: { execute: (input) => mdfeManifests.get(input) },
+      listManifests: { execute: (input) => mdfeManifests.list(input) },
+      previewManifest: { execute: (input) => previewMdfeManifest.execute(input) },
+    }),
+    ...createMdfeIssuanceRoutes({
+      mdfeIssuance: {
+        cancel: (input) => mdfeIssuance.cancel(input),
+        close: (input) => mdfeIssuance.close(input),
+        issue: (input) => mdfeIssuance.issue(input),
+      },
+    }),
+    ...createCteEmissionProfileRoutes({
+      activateProfile: { execute: (input) => cteEmissionProfiles.activate(input) },
+      createProfile: { execute: (input) => cteEmissionProfiles.create(input) },
+      deactivateProfile: { execute: (input) => cteEmissionProfiles.deactivate(input) },
+      listProfiles: { execute: (input) => cteEmissionProfiles.list(input) },
+      updateProfile: { execute: (input) => cteEmissionProfiles.update(input) },
     }),
     ...createCteBatchRoutes({
       cteBatches,
       listBatches: { execute: (input) => cteBatchRepository.list(input) },
       listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
+      listItems: { execute: (input) => listCteBatchItems.execute(input) },
+      previewBatches: { execute: (input) => previewCteBatches.execute(input) },
+    }),
+    ...createBillingRoutes({
+      billingInvoices: {
+        cancel: (input) => billing.cancel(input),
+        create: (input) =>
+          billing.create({
+            context: input.context,
+            correlationId: input.correlationId,
+            cteDocumentIds: input.cteIds,
+            dueDate: input.dueDate,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        get: (input) => billing.get(input),
+      },
+      listEligibleBillingCtes: {
+        async execute(input) {
+          const items = await billing.listEligible({
+            context: input.context,
+            filters: {
+              batchId: input.batchId,
+              cteNumber: input.cteNumber,
+              customerDocument: input.customerDocument,
+              from: input.issuedFrom,
+              maxAmount: input.maxAmount,
+              minAmount: input.minAmount,
+              to: input.issuedTo,
+            },
+            limit: input.limit,
+          })
+          return { items, nextCursor: input.cursor }
+        },
+      },
     }),
     ...createCteIssuanceRoutes({
       cteIssuance: {
+        cancel: (input) => cteIssuance.cancel(input),
         get: (input) => cteIssuance.getIssuance(input),
         issue: (input) => cteIssuance.issue(input),
         reprocess: (input) => cteIssuance.reprocess(input),
+        listDocuments: (input) => cteIssuance.listDocuments(input),
+      },
+    }),
+    ...createOperationsRoutes({
+      audit: { listEvents: (input) => operations.listAuditEvents(input) },
+      operations: {
+        getSummary: (input) => operations.getSummary(input),
+        listJobs: (input) => operations.listJobs(input),
+        listTimeline: (input) => operations.listTimeline(input),
       },
     }),
     ...createNfeImportRoutes({
+      getDistributionStatus,
       getImport,
       listImports,
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
@@ -240,6 +405,10 @@ function createApplicationRoutes({
       getDocument: { execute: (input) => nfeDocumentRepository.get(input) },
       getEligibility: { execute: (input) => nfeDocumentRepository.getEligibility(input) },
       listDocuments: { execute: (input) => nfeDocumentRepository.list(input) },
+    }),
+    ...createViewPreferencesRoutes({
+      getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),
+      savePreferences: createSaveViewPreferencesUseCase({ repository: viewPreferencesRepository }),
     }),
   ]
 }

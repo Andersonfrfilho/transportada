@@ -1,5 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import './nfe-workspace/advanced-filter-and-columns.contract.js'
 import './nfe-workspace/client-and-queries.contract.js'
+import './nfe-workspace/cte-emission-dialog.contract.js'
+import './nfe-workspace/distribution-status.contract.js'
+import './nfe-workspace/import-execution-timestamp.contract.js'
+import './nfe-workspace/import-mechanism.contract.js'
 import './nfe-workspace/module-imports.contract.js'
 import './nfe-workspace/permissions-and-states.contract.js'
 import './nfe-workspace/polling-and-cleanup.contract.js'
+import './nfe-workspace/view-preferences-client.contract.js'
+import './nfe-workspace/view-preferences-serialization.contract.js'

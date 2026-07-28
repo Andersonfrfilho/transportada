@@ -48,6 +48,9 @@ export type NfeStorageGateway = {
   ) => ReturnType<ObjectStorageProvider['put']>
   readonly getObjectStream: (input: ObjectLocation) => Promise<ReadableStream<Uint8Array>>
   readonly headObject: (input: ObjectLocation) => Promise<StoredObject | undefined>
+  readonly createSignedDownload: (
+    input: ObjectLocation & { readonly expiresInSeconds: number },
+  ) => Promise<URL>
   readonly health: () => Promise<{ readonly status: 'up' | 'down' }>
   readonly close: () => Promise<void>
 }
@@ -142,6 +145,9 @@ export function createNfeStorageGateway(input: {
     },
     async headObject(location) {
       return provider.head(location)
+    },
+    async createSignedDownload(location) {
+      return provider.createSignedDownload(location)
     },
     health: provider.health,
     close: provider.close,

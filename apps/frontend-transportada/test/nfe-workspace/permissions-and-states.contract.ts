@@ -126,6 +126,28 @@ describe('nfe workspace permissions and states contract', () => {
       canRead: true,
       status: 'error',
     })
+
+    expect(
+      createNfeWorkspaceViewModel({
+        permissions: [],
+        status: 'error',
+      }),
+    ).toEqual({
+      canImport: false,
+      canRead: false,
+      status: 'error',
+    })
+
+    expect(
+      createNfeWorkspaceViewModel({
+        permissions: [],
+        status: 'loading',
+      }),
+    ).toEqual({
+      canImport: false,
+      canRead: false,
+      status: 'loading',
+    })
   })
 })
 
@@ -193,7 +215,7 @@ type NfeWorkspaceViewModel = {
   readonly canImport: boolean
   readonly canRead: boolean
   readonly shouldPollActiveImport?: boolean
-  readonly status: 'empty' | 'error' | 'forbidden' | 'ready' | 'running'
+  readonly status: 'empty' | 'error' | 'forbidden' | 'loading' | 'ready' | 'running'
 }
 
 type NfeWorkspaceViewModelModule = {

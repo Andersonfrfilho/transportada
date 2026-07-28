@@ -1,0 +1,140 @@
+{
+  "kicker": "Emissão fiscal",
+  "title": "Lotes de CT-e",
+  "intro": "Acompanhe os lotes gerados a partir das notas, transmita para a SEFAZ e trate rejeições item a item.",
+  "loading": "Carregando lotes",
+  "error": "Não foi possível carregar os lotes",
+  "empty": "Nenhum lote encontrado",
+  "forbidden": "Seu acesso atual não permite consultar os lotes de CT-e",
+  "resultCounter": "{{shown}} de {{total}} lotes",
+  "batchesTitle": "Lotes",
+  "filters": {
+    "title": "Filtros",
+    "simple": "Simples",
+    "advanced": "Avançado",
+    "clear": "Limpar filtros",
+    "active": "{{count}} filtro(s) ativo(s)",
+    "name": "Nome do lote",
+    "status": "Situação",
+    "itemCountFrom": "CT-es (mínimo)",
+    "itemCountTo": "CT-es (máximo)",
+    "createdFrom": "Criado de",
+    "createdTo": "Criado até"
+  },
+  "status": {
+    "cancelled": "Cancelado",
+    "done": "Concluído",
+    "draft": "Rascunho",
+    "error": "Erro",
+    "in_flight": "Em processamento",
+    "submitted": "Submetido"
+  },
+  "columns": {
+    "title": "Colunas",
+    "createdAt": "Criado em",
+    "itemCount": "CT-es",
+    "name": "Nome",
+    "status": "Situação",
+    "updatedAt": "Atualizado em",
+    "version": "Versão"
+  },
+  "column": {
+    "moveUp": "Mover coluna para a esquerda",
+    "moveDown": "Mover coluna para a direita",
+    "toggle": "Exibir coluna"
+  },
+  "sort": {
+    "asc": "ordenado crescente",
+    "desc": "ordenado decrescente",
+    "none": "sem ordenação"
+  },
+  "selection": {
+    "selectAll": "Selecionar todos os lotes",
+    "select": "Selecionar lote",
+    "summary": "{{count}} lote(s) selecionado(s)",
+    "clear": "Limpar seleção"
+  },
+  "actions": {
+    "submit": "Submeter",
+    "transmit": "Transmitir",
+    "cancel": "Cancelar lote",
+    "reprocess": "Reprocessar",
+    "download": "Baixar XML",
+    "openItems": "Ver CT-es",
+    "closeItems": "Fechar CT-es",
+    "track": "Acompanhar",
+    "closeTrack": "Fechar acompanhamento",
+    "remove": "Remover do lote",
+    "cancelItem": "Cancelar CT-e",
+    "confirmCancelItem": "Confirmar cancelamento",
+    "closeCancelItem": "Desistir"
+  },
+  "items": {
+    "title": "CT-es do lote {{name}}",
+    "loading": "Carregando CT-es",
+    "error": "Não foi possível carregar os CT-es do lote",
+    "empty": "Este lote ainda não possui CT-es",
+    "position": "#",
+    "status": "Situação",
+    "documents": "Notas vinculadas",
+    "fiscal": "Série/Número",
+    "baseAmount": "Base",
+    "fiscalAmount": "Frete",
+    "accessKey": "Chave de acesso",
+    "protocol": "Protocolo",
+    "lastError": "Rejeição",
+    "actions": "Ações",
+    "summary": "{{authorized}} autorizado(s) · {{pending}} em andamento · {{rejected}} rejeitado(s) · {{documents}} nota(s) · total {{total}}"
+  },
+  "itemStatus": {
+    "authorized": "Autorizado",
+    "cancelled": "Cancelado",
+    "failed": "Falhou",
+    "in_flight": "Transmitindo",
+    "pending": "Pendente",
+    "rejected": "Rejeitado",
+    "retry_scheduled": "Nova tentativa agendada"
+  },
+  "advanced": {
+    "title": "Condições avançadas",
+    "modelConnector": "Combinação entre grupos",
+    "groupConnector": "Combinação no grupo",
+    "addGroup": "Adicionar grupo",
+    "removeGroup": "Remover grupo",
+    "addCondition": "Adicionar condição",
+    "removeCondition": "Remover condição",
+    "field": "Campo",
+    "operator": "Operador",
+    "value": "Valor",
+    "valueTo": "Até"
+  },
+  "connector": {
+    "and": "E",
+    "or": "OU"
+  },
+  "operator": {
+    "between": "entre",
+    "contains": "contém",
+    "eq": "igual a",
+    "gt": "maior que",
+    "gte": "maior ou igual a",
+    "lt": "menor que",
+    "lte": "menor ou igual a",
+    "ne": "diferente de",
+    "notContains": "não contém"
+  },
+  "cancellation": {
+    "title": "Cancelar CT-e {{fiscal}} na SEFAZ",
+    "warning": "O cancelamento é irreversível e vale como evento 110111 no documento autorizado.",
+    "justification": "Justificativa (15 a 255 caracteres)",
+    "placeholder": "Descreva o motivo do cancelamento",
+    "pending": "Enviando cancelamento…",
+    "error": "Não foi possível enviar o cancelamento.",
+    "required": "Informe a justificativa.",
+    "tooShort": "A justificativa precisa de pelo menos 15 caracteres.",
+    "tooLong": "A justificativa não pode passar de 255 caracteres."
+  },
+  "removal": {
+    "error": "Não foi possível remover a nota do lote."
+  }
+}

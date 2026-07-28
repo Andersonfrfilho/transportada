@@ -39,7 +39,18 @@ describe('authorization contract', () => {
       'billing.cancel',
       'billing.read',
       'settings.manage',
+      'operations.read',
       'audit.read',
+      'view-preferences.manage',
+      'fleet.read',
+      'fleet.manage',
+      'mdfe.read',
+      'mdfe.manage',
+      'mdfe.issue',
+      'mdfe.close',
+      'mdfe.cancel',
+      'trip.read',
+      'trip.report',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -50,9 +61,22 @@ describe('authorization contract', () => {
         'cte.read',
         'billing.read',
         'settings.manage',
+        'operations.read',
         'audit.read',
+        'view-preferences.manage',
+        'fleet.read',
+        'fleet.manage',
+        'mdfe.read',
+        'mdfe.manage',
       ],
-      finance: ['cte.read', 'billing.create', 'billing.cancel', 'billing.read'],
+      finance: [
+        'cte.read',
+        'billing.create',
+        'billing.cancel',
+        'billing.read',
+        'operations.read',
+        'view-preferences.manage',
+      ],
       fiscal: [
         'invoices.import',
         'invoices.read',
@@ -64,6 +88,14 @@ describe('authorization contract', () => {
         'cte.issue',
         'cte.cancel',
         'cte.read',
+        'operations.read',
+        'view-preferences.manage',
+        'fleet.read',
+        'mdfe.read',
+        'mdfe.manage',
+        'mdfe.issue',
+        'mdfe.close',
+        'mdfe.cancel',
       ],
       operator: [
         'invoices.import',
@@ -73,9 +105,63 @@ describe('authorization contract', () => {
         'cte.manage',
         'cte.submit',
         'cte.read',
+        'operations.read',
+        'view-preferences.manage',
+        'fleet.read',
+        'fleet.manage',
+        'mdfe.read',
+        'mdfe.manage',
       ],
-      viewer: ['invoices.read', 'cte.read'],
+      viewer: [
+        'invoices.read',
+        'cte.read',
+        'operations.read',
+        'view-preferences.manage',
+        'fleet.read',
+        'mdfe.read',
+      ],
+      driver: ['trip.read', 'trip.report'],
     })
+  })
+
+  // O motorista é o menor conjunto do sistema — nota, CT-e, faturamento e frota ficam fora
+  test('grants the driver role only its own trip permissions', () => {
+    const permissions = resolveCompanyPermissions(['driver'])
+
+    expect([...permissions]).toEqual(['trip.read', 'trip.report'])
+    for (const denied of [
+      'invoices.read',
+      'cte.read',
+      'billing.read',
+      'fleet.read',
+      'mdfe.read',
+      'operations.read',
+      'view-preferences.manage',
+    ] as const) {
+      expect(permissions.has(denied)).toBe(false)
+    }
+  })
+
+  test('keeps trip permissions exclusive to the driver role', () => {
+    for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
+      const permissions = resolveCompanyPermissions([role])
+      expect(permissions.has('trip.read')).toBe(false)
+      expect(permissions.has('trip.report')).toBe(false)
+    }
+  })
+
+  test('restricts the MDF-e fiscal events to the fiscal role', () => {
+    for (const role of ['company-admin', 'operator', 'viewer', 'finance', 'driver'] as const) {
+      const permissions = resolveCompanyPermissions([role])
+      expect(permissions.has('mdfe.issue')).toBe(false)
+      expect(permissions.has('mdfe.close')).toBe(false)
+      expect(permissions.has('mdfe.cancel')).toBe(false)
+    }
+
+    const fiscal = resolveCompanyPermissions(['fiscal'])
+    expect(fiscal.has('mdfe.issue')).toBe(true)
+    expect(fiscal.has('mdfe.close')).toBe(true)
+    expect(fiscal.has('mdfe.cancel')).toBe(true)
   })
 
   test('unions local roles into an immutable permission set without platform access', () => {
@@ -92,6 +178,14 @@ describe('authorization contract', () => {
       'cte.issue',
       'cte.cancel',
       'cte.read',
+      'operations.read',
+      'view-preferences.manage',
+      'fleet.read',
+      'mdfe.read',
+      'mdfe.manage',
+      'mdfe.issue',
+      'mdfe.close',
+      'mdfe.cancel',
     ])
     expect([...permissions]).not.toContain('companies.manage')
     expect(Object.isFrozen(permissions)).toBe(true)

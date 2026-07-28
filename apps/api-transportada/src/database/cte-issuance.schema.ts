@@ -35,6 +35,7 @@ export const CTE_DOCUMENT_STATUSES = ['authorized', 'cancelled'] as const
 export const CTE_RETRY_STATUSES = ['scheduled', 'claimed', 'exhausted', 'cancelled'] as const
 export const CTE_ISSUANCE_EVENTS = [
   'issue_requested',
+  'cancel_requested',
   'in_flight',
   'authorized',
   'rejected',
@@ -44,8 +45,11 @@ export const CTE_ISSUANCE_EVENTS = [
   'cancelled',
 ] as const
 export const CTE_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
-export const CTE_ISSUANCE_OUTBOX_EVENT_TYPES = ['transportada.cte.item.issue.requested'] as const
-export const CTE_ISSUANCE_OUTBOX_ATTEMPT_KINDS = ['issue', 'reprocess'] as const
+export const CTE_ISSUANCE_OUTBOX_EVENT_TYPES = [
+  'transportada.cte.item.issue.requested',
+  'transportada.cte.item.cancel.requested',
+] as const
+export const CTE_ISSUANCE_OUTBOX_ATTEMPT_KINDS = ['issue', 'reprocess', 'cancel'] as const
 export const CTE_ISSUANCE_OUTBOX_STATUSES = ['requested', 'retry_scheduled'] as const
 
 export const cteIssuanceAttempts = pgTable(
@@ -158,6 +162,12 @@ export const cteFiscalDocuments = pgTable(
     xmlObjectId: uuid('xml_object_id').notNull(),
     xmlSha256: text('xml_sha256').notNull(),
     authorizedAt: timestamp('authorized_at', { withTimezone: true }),
+    cancellationJustification: text('cancellation_justification'),
+    cancellationRequestedAt: timestamp('cancellation_requested_at', { withTimezone: true }),
+    cancellationProtocol: text('cancellation_protocol'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancellationXmlObjectId: uuid('cancellation_xml_object_id'),
+    cancellationXmlSha256: text('cancellation_xml_sha256'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -190,6 +200,13 @@ export const cteFiscalDocuments = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.cancellationXmlObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'cte_fiscal_documents_company_cancellation_xml_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('cte_fiscal_documents_company_id_id_unique').on(table.companyId, table.id),
     unique('cte_fiscal_documents_company_access_key_unique').on(table.companyId, table.accessKey),
     unique('cte_fiscal_documents_company_batch_item_unique').on(table.companyId, table.batchItemId),
@@ -200,6 +217,22 @@ export const cteFiscalDocuments = pgTable(
       sql`${table.fiscalEnvironment} in ('homologation', 'production')`,
     ),
     check('cte_fiscal_documents_sha256_check', sql`${table.xmlSha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'cte_fiscal_documents_cancellation_justification_check',
+      sql`${table.cancellationJustification} is null or length(${table.cancellationJustification}) >= 15`,
+    ),
+    check(
+      'cte_fiscal_documents_cancellation_sha256_check',
+      sql`${table.cancellationXmlSha256} is null or ${table.cancellationXmlSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'cte_fiscal_documents_cancellation_xml_check',
+      sql`(${table.cancellationXmlObjectId} is null) = (${table.cancellationXmlSha256} is null)`,
+    ),
+    check(
+      'cte_fiscal_documents_cancelled_state_check',
+      sql`${table.status} <> 'cancelled' or (${table.cancellationProtocol} is not null and ${table.cancellationJustification} is not null and ${table.cancelledAt} is not null)`,
+    ),
   ],
 )
 
@@ -245,7 +278,7 @@ export const cteIssuanceEvents = pgTable(
     ),
     check(
       'cte_issuance_events_name_check',
-      sql`${table.eventName} in ('issue_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')`,
+      sql`${table.eventName} in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')`,
     ),
   ],
 )
@@ -300,6 +333,59 @@ export const cteRetrySchedules = pgTable(
     ),
     check('cte_retry_schedules_attempt_count_check', sql`${table.attemptCount} >= 0`),
     check('cte_retry_schedules_max_attempts_check', sql`${table.maxAttempts} > 0`),
+  ],
+)
+
+export const cteIssuancePayloads = pgTable(
+  'cte_issuance_payloads',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    batchId: uuid('batch_id').notNull(),
+    batchItemId: uuid('batch_item_id').notNull(),
+    attemptId: uuid('attempt_id').notNull(),
+    payload: jsonb().notNull(),
+    providerConfig: jsonb('provider_config').notNull(),
+    payloadSha256: text('payload_sha256').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_issuance_payloads_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.batchId],
+      foreignColumns: [cteBatches.companyId, cteBatches.id],
+      name: 'cte_issuance_payloads_company_batch_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.batchItemId],
+      foreignColumns: [cteBatchItems.companyId, cteBatchItems.id],
+      name: 'cte_issuance_payloads_company_batch_item_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.attemptId],
+      foreignColumns: [cteIssuanceAttempts.companyId, cteIssuanceAttempts.id],
+      name: 'cte_issuance_payloads_company_attempt_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('cte_issuance_payloads_company_id_id_unique').on(table.companyId, table.id),
+    unique('cte_issuance_payloads_company_attempt_unique').on(table.companyId, table.attemptId),
+    index('cte_issuance_payloads_company_batch_item_created_at_idx').on(
+      table.companyId,
+      table.batchItemId,
+      table.createdAt,
+    ),
+    check('cte_issuance_payloads_sha256_check', sql`${table.payloadSha256} ~ '^[0-9a-f]{64}$'`),
   ],
 )
 
@@ -387,7 +473,7 @@ export const cteIssuanceOutbox = pgTable(
     ),
     check(
       'cte_issuance_outbox_attempt_kind_check',
-      sql`${table.attemptKind} in ('issue', 'reprocess')`,
+      sql`${table.attemptKind} in ('issue', 'reprocess', 'cancel')`,
     ),
     check(
       'cte_issuance_outbox_status_check',
@@ -395,12 +481,45 @@ export const cteIssuanceOutbox = pgTable(
     ),
     check(
       'cte_issuance_outbox_event_type_check',
-      sql`${table.eventType} in ('transportada.cte.item.issue.requested')`,
+      sql`${table.eventType} in ('transportada.cte.item.issue.requested', 'transportada.cte.item.cancel.requested')`,
     ),
     check('cte_issuance_outbox_attempt_version_check', sql`${table.eventVersion} > 0`),
     check(
       'cte_issuance_outbox_attempt_check',
       sql`((${table.claimOwner} is null) = (${table.claimExpiresAt} is null))`,
+    ),
+  ],
+)
+
+/**
+ * Ledger de idempotência do trilho CT-e. Não referencia o outbox de origem de propósito: amarrar
+ * este ledger a uma tabela de outbox específica foi o que impediu o consumidor de gravar.
+ */
+export const cteProcessedMessages = pgTable(
+  'cte_processed_messages',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    consumerName: text('consumer_name').notNull(),
+    eventId: uuid('event_id').notNull(),
+    batchItemId: uuid('batch_item_id').notNull(),
+    attemptId: uuid('attempt_id').notNull(),
+    result: text().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_processed_messages_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('cte_processed_messages_company_id_id_unique').on(table.companyId, table.id),
+    unique('cte_processed_messages_company_consumer_event_unique').on(
+      table.companyId,
+      table.consumerName,
+      table.eventId,
     ),
   ],
 )

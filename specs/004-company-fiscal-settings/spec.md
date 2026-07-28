@@ -257,7 +257,7 @@ tasks será preenchido após aprovação da spec.
 - uma versão ativa por empresa é garantida também pelo PostgreSQL;
 - frontend autenticado conclui o fluxo responsivo sem persistir segredo;
 - frozen install, typecheck, lint, contratos, integrações, migration/rollback,
-  smoke local e revisão Sol ficam verdes antes de qualquer deploy.
+  smoke local e revisão Opus ficam verdes antes de qualquer deploy.
 
 ## Decisões fechadas e pendências não bloqueantes
 

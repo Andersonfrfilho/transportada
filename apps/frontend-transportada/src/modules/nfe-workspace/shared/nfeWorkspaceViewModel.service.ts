@@ -32,11 +32,11 @@ export const createNfeWorkspaceViewModel: NfeWorkspaceViewModelFactory = (input)
   const canImport = input.permissions.includes(IMPORT_PERMISSION)
   const canRead = input.permissions.includes(READ_PERMISSION)
 
-  if (!canImport && !canRead) {
-    return { canImport, canRead, status: 'forbidden' }
-  }
   if (input.status !== 'success') {
     return { canImport, canRead, status: input.status }
+  }
+  if (!canImport && !canRead) {
+    return { canImport, canRead, status: 'forbidden' }
   }
 
   const imports = input.imports?.items ?? []

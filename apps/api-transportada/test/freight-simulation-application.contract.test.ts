@@ -93,8 +93,10 @@ describe('freight simulation application contract', () => {
     expect(unitOfWork.ruleRequests).toEqual([
       {
         companyId: COMPANY_CONTEXT.companyId,
+        destinationState: 'MG',
         issuedAt: '2026-07-22T12:00:00.000Z',
         ruleType: 'percentage_of_invoice_total',
+        senderTaxId: '61084018000109',
       },
     ])
     expect(unitOfWork.createdCalculations).toEqual([
@@ -276,8 +278,10 @@ class FreightSimulationUnitOfWorkFixture implements FreightSimulationUnitOfWorkP
   public readonly ruleRequests: Array<Record<string, string>> = []
   public document: EligibleDocument = {
     companyId: COMPANY_CONTEXT.companyId,
+    destinationState: 'MG',
     id: DOCUMENT_ID,
     issuedAt: '2026-07-22T12:00:00.000Z',
+    senderTaxId: '61084018000109',
     status: 'authorized',
     totalAmount: '10000.0000',
     variant: 'complete',
@@ -325,7 +329,7 @@ class FreightSimulationUnitOfWorkFixture implements FreightSimulationUnitOfWorkP
     readonly companyId: string
     readonly id: string
     readonly issuedAt: string
-    readonly status: 'authorized' | 'cancelled' | 'denied'
+    readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
     readonly totalAmount: string
     readonly variant: 'complete' | 'summary' | 'event'
   } | null> {

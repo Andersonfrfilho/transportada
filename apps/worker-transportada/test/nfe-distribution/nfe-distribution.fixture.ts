@@ -8,6 +8,7 @@ import type {
 } from '@adatechnology/fiscal-provider'
 
 import type { NfeProcessingEnvelopeV1 } from '../../src/messaging/nfe-processing-envelope.schema.js'
+import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
 export type DistributionCursorRecord = {
   readonly companyId: string
@@ -75,14 +76,24 @@ export type NfeDistributionProfilePort = {
 }
 
 export type NfeDistributionRepositoryPort = {
+  finalizeImport(input: {
+    readonly companyId: string
+    readonly duplicatedCount: number
+    readonly importId: string
+    readonly importedCount: number
+    readonly processedCount: number
+    readonly receivedCount: number
+    readonly status: 'completed'
+  }): Promise<void>
   persistPage(input: {
     readonly companyId: string
     readonly environment: 'homologation' | 'production'
+    readonly importId: string
     readonly items: readonly DfeItem[]
     readonly maxNsu: string
     readonly ultNsu: string
   }): Promise<{
-    readonly acceptedItems: readonly DfeItem[]
+    readonly acceptedCount: number
     readonly duplicatedCount: number
   }>
 }
@@ -106,9 +117,16 @@ type CreateNfeDistributionConsumer = (input: {
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
   readonly gatewayFactory: NfeDistributionGatewayFactory
   readonly leaseMs: number
+  readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
 }) => NfeDistributionConsumer
+
+export const SILENT_LOGGER: WorkerLogger = {
+  error() {},
+  info() {},
+  warn() {},
+}
 
 export async function createNfeDistributionGatewayFixture(
   input: NfeDistributionGatewayDependencies,
@@ -127,6 +145,7 @@ export async function createNfeDistributionConsumerFixture(input: {
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
   readonly gatewayFactory: NfeDistributionGatewayFactory
   readonly leaseMs: number
+  readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
 }): Promise<NfeDistributionConsumer> {

@@ -9,6 +9,7 @@ const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
 
 export default defineConfig({
+  envDir: resolve(import.meta.dirname, '../..'),
   plugins: [
     react(),
     VitePWA({
@@ -46,5 +47,14 @@ export default defineConfig({
   ],
   resolve: {
     alias: { '@': resolve(import.meta.dirname, './src') },
+  },
+  server: {
+    proxy: {
+      '/api': {
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        target: 'http://localhost:53001',
+      },
+    },
   },
 })

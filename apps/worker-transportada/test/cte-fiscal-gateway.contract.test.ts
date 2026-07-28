@@ -49,6 +49,7 @@ describe('worker CT-e fiscal gateway contract', () => {
             return {
               success: true,
               protocolo: 'PROTO-01',
+              xmlAutorizado: '<cteProc versao="4.00"/>',
               rawResponse: undefined,
             }
           },
@@ -72,6 +73,7 @@ describe('worker CT-e fiscal gateway contract', () => {
     })
     expect(outcome).toMatchObject({
       status: 'ok',
+      authorizedXml: '<cteProc versao="4.00"/>',
       protocol: 'PROTO-01',
     })
     expect(JSON.stringify(outcome)).not.toContain(CTE_FISCAL_CONFIG.certificadoBase64)

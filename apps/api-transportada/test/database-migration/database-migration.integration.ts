@@ -4,14 +4,21 @@ import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
+import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
+import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import {
   FISCAL_TABLES,
+  FLEET_TABLES,
   FREIGHT_TABLES,
   IDENTITY_TABLES,
   NFE_TABLES,
   CTE_BATCH_TABLES,
   CTE_ISSUANCE_TABLES,
+  CTE_PROFILE_TABLES,
+  BILLING_TABLES,
+  OPERATIONS_TABLES,
+  MDFE_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
   readBusinessTables,
@@ -41,12 +48,19 @@ describe('Drizzle migration integration', () => {
             ...NFE_TABLES,
             ...CTE_BATCH_TABLES,
             ...CTE_ISSUANCE_TABLES,
+            ...CTE_PROFILE_TABLES,
+            ...BILLING_TABLES,
+            ...OPERATIONS_TABLES,
+            ...FLEET_TABLES,
+            ...MDFE_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
 
         const identityFixture = await assertIdentityConstraints(database)
         await assertFiscalConstraints(database, identityFixture)
+        const fleetFixture = await assertFleetConstraints(database, identityFixture)
+        await assertMdfeConstraints(database, identityFixture, fleetFixture)
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -68,6 +82,11 @@ describe('Drizzle migration integration', () => {
             ...NFE_TABLES,
             ...CTE_BATCH_TABLES,
             ...CTE_ISSUANCE_TABLES,
+            ...CTE_PROFILE_TABLES,
+            ...BILLING_TABLES,
+            ...OPERATIONS_TABLES,
+            ...FLEET_TABLES,
+            ...MDFE_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

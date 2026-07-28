@@ -1,0 +1,2 @@
+ALTER TABLE "cte_emission_profiles" ADD COLUMN "pickup_details" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "cte_emission_profiles" ADD CONSTRAINT "cte_emission_profiles_pickup_details_check" CHECK (length("pickup_details") <= 160 and ("pickup_indicator" = '0' or length("pickup_details") = 0));

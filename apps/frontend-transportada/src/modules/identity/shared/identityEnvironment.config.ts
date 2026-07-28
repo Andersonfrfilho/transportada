@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 type IdentityEnvironment = {
   readonly apiBaseUrl: string
+  readonly appBaseUrl: string
   readonly keycloak: {
     readonly clientId: string
     readonly realm: string
@@ -36,6 +37,7 @@ export function readTrustedUrl(value: string | undefined, name: string): string 
 export function getIdentityEnvironment(): IdentityEnvironment {
   return {
     apiBaseUrl: readTrustedUrl(import.meta.env.VITE_API_URL, 'VITE_API_URL'),
+    appBaseUrl: readTrustedUrl(import.meta.env.VITE_APP_URL, 'VITE_APP_URL'),
     keycloak: {
       clientId: readRequiredEnvironmentValue(
         import.meta.env.VITE_KEYCLOAK_CLIENT_ID,

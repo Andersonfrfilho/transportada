@@ -19,7 +19,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
   { field: 'cnpj', inputMode: 'numeric', maximum: 14, required: true },
   { field: 'stateRegistration', maximum: 20 },
   { field: 'municipalRegistration', maximum: 20 },
-  { field: 'rntrc', maximum: 20, required: true },
+  { field: 'rntrc', inputMode: 'numeric', maximum: 8, required: true },
   { field: 'street', maximum: 200, required: true },
   { field: 'number', maximum: 20, required: true },
   { field: 'complement', maximum: 100 },
@@ -34,33 +34,107 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
 
 type CompanyProfileFieldsProps = Readonly<{
   disabled: boolean
+  lookupPending: boolean
+  lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: Readonly<{ field: TextField; value: string }>) => void
+  onLookupCnpj: () => void
   onTaxRegimeChange: (value: Profile['taxRegime']) => void
   profile: Profile
 }>
 
 function ProfileTextField(
   props: Readonly<{
+    disabled: boolean
     definition: FieldDefinition
+    lookupPending?: boolean | undefined
+    lookupStatus?: CompanyProfileFieldsProps['lookupStatus'] | undefined
     onChange: CompanyProfileFieldsProps['onChange']
+    onLookupCnpj?: CompanyProfileFieldsProps['onLookupCnpj'] | undefined
     value: string
   }>,
 ) {
   const { t } = useTranslation('companySettings')
   const { field, inputMode, maximum, required } = props.definition
+  const normalizeValue = (value: string) =>
+    inputMode === 'numeric' ? value.replace(/\D/g, '').slice(0, maximum) : value
+  const formatDisplayValue = (value: string) => {
+    if (field === 'cnpj') return formatCnpj(value)
+    if (field === 'postalCode') return formatPostalCode(value)
+    return value
+  }
+  const input = (
+    <input
+      inputMode={inputMode ?? 'text'}
+      maxLength={inputMode === 'numeric' ? undefined : maximum}
+      required={required}
+      type={inputMode === 'email' ? 'email' : 'text'}
+      value={formatDisplayValue(props.value)}
+      onChange={(event) => props.onChange({ field, value: normalizeValue(event.target.value) })}
+    />
+  )
+  if (field !== 'cnpj') {
+    return (
+      <label>
+        <span>{t(field)}</span>
+        {input}
+      </label>
+    )
+  }
   return (
     <label>
       <span>{t(field)}</span>
-      <input
-        inputMode={inputMode ?? 'text'}
-        maxLength={maximum}
-        required={required}
-        type={inputMode === 'email' ? 'email' : 'text'}
-        value={props.value}
-        onChange={(event) => props.onChange({ field, value: event.target.value })}
-      />
+      <div className={styles.lookupField}>
+        {input}
+        <button
+          className={styles.lookupAction}
+          disabled={props.disabled || props.lookupPending}
+          type="button"
+          onClick={() => props.onLookupCnpj?.()}
+          aria-label={t(props.lookupPending ? 'lookupLoading' : 'lookupAction')}
+          title={t(props.lookupPending ? 'lookupLoading' : 'lookupAction')}
+        >
+          <SearchIcon />
+        </button>
+      </div>
+      {props.lookupStatus !== 'idle' && (
+        <span className={styles.fieldHint}>
+          {t(props.lookupStatus === 'error' ? 'lookupError' : 'lookupSuccess')}
+        </span>
+      )}
     </label>
   )
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className={styles.actionIcon}
+      fill="none"
+      focusable="false"
+      height="20"
+      viewBox="0 0 24 24"
+      width="20"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4.35-4.35" />
+    </svg>
+  )
+}
+
+function formatCnpj(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+}
+
+function formatPostalCode(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  return digits.replace(/^(\d{5})(\d)/, '$1-$2')
 }
 
 function TaxRegimeField(
@@ -70,28 +144,42 @@ function TaxRegimeField(
   }>,
 ) {
   const { t } = useTranslation('companySettings')
+  const options: readonly Readonly<{ label: string; value: Profile['taxRegime'] }>[] = [
+    { label: t('taxRegime1'), value: '1' },
+    { label: t('taxRegime2'), value: '2' },
+    { label: t('taxRegime3'), value: '3' },
+  ]
   return (
-    <label>
+    <div className={styles.taxRegimeField}>
       <span>{t('taxRegime')}</span>
-      <select
-        required
-        value={props.value}
-        onChange={(event) => {
-          const value = event.target.value
-          if (value === '1' || value === '2' || value === '3') props.onChange(value)
-        }}
-      >
-        <option value="1">{t('taxRegime1')}</option>
-        <option value="2">{t('taxRegime2')}</option>
-        <option value="3">{t('taxRegime3')}</option>
-      </select>
-    </label>
+      <div className={styles.taxRegimeOptions} role="radiogroup" aria-label={t('taxRegime')}>
+        {options.map((option) => (
+          <button
+            aria-checked={props.value === option.value}
+            className={
+              props.value === option.value
+                ? `${styles.taxRegimeOption} ${styles.taxRegimeOptionSelected}`
+                : styles.taxRegimeOption
+            }
+            key={option.value}
+            role="radio"
+            type="button"
+            onClick={() => props.onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
 export function CompanyProfileFields({
   disabled,
+  lookupPending,
+  lookupStatus,
   onChange,
+  onLookupCnpj,
   onTaxRegimeChange,
   profile,
 }: CompanyProfileFieldsProps) {
@@ -102,9 +190,13 @@ export function CompanyProfileFields({
       <div className={styles.fieldGrid}>
         {PROFILE_FIELDS.map((definition) => (
           <ProfileTextField
+            disabled={disabled}
             definition={definition}
             key={definition.field}
+            lookupPending={definition.field === 'cnpj' ? lookupPending : undefined}
+            lookupStatus={definition.field === 'cnpj' ? lookupStatus : undefined}
             onChange={onChange}
+            onLookupCnpj={definition.field === 'cnpj' ? onLookupCnpj : undefined}
             value={profile[definition.field]}
           />
         ))}

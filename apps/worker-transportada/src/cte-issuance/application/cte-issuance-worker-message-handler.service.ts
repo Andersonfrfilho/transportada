@@ -4,7 +4,11 @@
 import type { RabbitMqDisposition } from '@adatechnology/rabbitmq-provider'
 
 import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
-import { calculateCtePersistentBackoff } from '../../messaging/cte-backoff-policy.js'
+import {
+  calculateCteRetryNextAttemptAt,
+  isCteRetryExhausted,
+  type CteRetryPolicy,
+} from '../domain/cte-retry.policy.js'
 
 type CteIssuanceWorkerClock = {
   now(): Date
@@ -38,21 +42,25 @@ export class CteIssuanceFatalError extends Error {
   override readonly name = 'CteIssuanceFatalError'
 }
 
+export type CteRetryPolicyResolver = {
+  resolve(params: { readonly companyId: string }): Promise<CteRetryPolicy>
+}
+
 export class CteIssuanceWorkerMessageHandler {
   readonly #clock: CteIssuanceWorkerClock
   readonly #effect: CteIssuanceWorkerEffect
-  readonly #maxAttempts: number
+  readonly #retryPolicyResolver: CteRetryPolicyResolver
   readonly #repository: CteIssuanceWorkerRepository
 
   constructor(params: {
     readonly clock: CteIssuanceWorkerClock
     readonly effect: CteIssuanceWorkerEffect
-    readonly maxAttempts: number
+    readonly retryPolicyResolver: CteRetryPolicyResolver
     readonly repository: CteIssuanceWorkerRepository
   }) {
     this.#clock = params.clock
     this.#effect = params.effect
-    this.#maxAttempts = params.maxAttempts
+    this.#retryPolicyResolver = params.retryPolicyResolver
     this.#repository = params.repository
   }
 
@@ -94,7 +102,11 @@ export class CteIssuanceWorkerMessageHandler {
     readonly messageKey: CteIssuanceMessageKey
     readonly reason: string
   }): Promise<RabbitMqDisposition> {
-    if (params.attempt >= this.#maxAttempts) {
+    const policy = await this.#retryPolicyResolver.resolve({
+      companyId: params.messageKey.companyId,
+    })
+    const attemptsMade = params.attempt + 1
+    if (isCteRetryExhausted({ attemptsMade, policy })) {
       await this.#repository.markDeadLettered({
         ...params.messageKey,
         reason: params.reason,
@@ -103,14 +115,14 @@ export class CteIssuanceWorkerMessageHandler {
       return { type: 'dead-letter' }
     }
 
-    const backoff = calculateCtePersistentBackoff({
-      attempt: params.attempt,
-      now: this.#clock.now(),
-    })
     await this.#repository.scheduleRetry({
       ...params.messageKey,
-      attempt: backoff.attempt,
-      nextAttemptAt: backoff.nextAttemptAt,
+      attempt: attemptsMade,
+      nextAttemptAt: calculateCteRetryNextAttemptAt({
+        attemptsMade,
+        now: this.#clock.now(),
+        policy,
+      }),
     })
 
     return { type: 'retry' }

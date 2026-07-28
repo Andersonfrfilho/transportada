@@ -13,6 +13,7 @@ const EXPECTED_ROLES = [
   'fiscal',
   'operator',
   'viewer',
+  'driver',
 ]
 
 type KeycloakRealm = {
@@ -164,6 +165,9 @@ describe('local Keycloak realm contract', () => {
       standardFlowEnabled: true,
     })
     expect(spaClient.attributes?.['pkce.code.challenge.method']).toBe('S256')
+    expect(spaClient.attributes?.['post.logout.redirect.uris']).toBe(
+      'http://localhost:53000/*##http://localhost:53000',
+    )
     expect(spaClient.redirectUris).toEqual(['http://localhost:53000/auth/callback'])
     expect(spaClient.webOrigins).toEqual(['http://localhost:53000'])
     expect(apiClient).toMatchObject({
@@ -230,6 +234,7 @@ describe('local Keycloak realm contract', () => {
       'bun src/database/local-identity-seed.service.ts',
     )
     expect(makefile).toContain('identity-bootstrap: postgres-up realm-contract')
+    expect(makefile).toContain('dev: identity-bootstrap up')
     expect(makefile).toContain('up -d --wait --force-recreate keycloak')
     expect(makefile).toContain('bun run --cwd apps/api-transportada db:migrate')
     expect(makefile).toContain('bun run --cwd apps/api-transportada db:seed:local')

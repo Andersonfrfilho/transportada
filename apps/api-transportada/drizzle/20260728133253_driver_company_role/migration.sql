@@ -1,0 +1,1 @@
+ALTER TABLE "membership_roles" DROP CONSTRAINT "membership_roles_role_check", ADD CONSTRAINT "membership_roles_role_check" CHECK ("role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver'));

@@ -8,6 +8,7 @@ import {
   foreignKey,
   index,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -26,6 +27,11 @@ export const CTE_BATCH_STATUSES = [
   'done',
   'error',
   'cancelled',
+] as const
+export const CTE_BATCH_ITEM_CHARGE_CALCULATIONS = [
+  'percentage_of_cargo',
+  'percentage_of_freight',
+  'fixed_amount',
 ] as const
 export const CTE_SUBMISSION_STATUSES = ['pending', 'accepted', 'conflict', 'rejected'] as const
 export const CTE_SUBMISSION_RESULTS = ['ok', 'error'] as const
@@ -152,6 +158,118 @@ export const cteBatchItems = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     check('cte_batch_items_position_check', sql`${table.position} > 0`),
+  ],
+)
+
+export const cteBatchItemDocuments = pgTable(
+  'cte_batch_item_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    batchId: uuid('batch_id').notNull(),
+    itemId: uuid('item_id').notNull(),
+    nfeDocumentId: uuid('nfe_document_id').notNull(),
+    position: bigint({ mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_batch_item_documents_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('cte_batch_item_documents_company_id_id_unique').on(table.companyId, table.id),
+    unique('cte_batch_item_documents_company_batch_nfe_unique').on(
+      table.companyId,
+      table.batchId,
+      table.nfeDocumentId,
+    ),
+    unique('cte_batch_item_documents_company_item_position_unique').on(
+      table.companyId,
+      table.itemId,
+      table.position,
+    ),
+    index('cte_batch_item_documents_company_item_idx').on(table.companyId, table.itemId),
+    foreignKey({
+      columns: [table.companyId, table.itemId],
+      foreignColumns: [cteBatchItems.companyId, cteBatchItems.id],
+      name: 'cte_batch_item_documents_company_item_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.batchId],
+      foreignColumns: [cteBatches.companyId, cteBatches.id],
+      name: 'cte_batch_item_documents_company_batch_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'cte_batch_item_documents_company_nfe_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check('cte_batch_item_documents_position_check', sql`${table.position} > 0`),
+  ],
+)
+
+export const cteBatchItemCharges = pgTable(
+  'cte_batch_item_charges',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    itemId: uuid('item_id').notNull(),
+    ordinal: bigint({ mode: 'bigint' }).notNull(),
+    label: text().notNull(),
+    calculationType: text('calculation_type')
+      .$type<(typeof CTE_BATCH_ITEM_CHARGE_CALCULATIONS)[number]>()
+      .notNull(),
+    rate: numeric({ precision: 9, scale: 6 }),
+    baseAmount: numeric('base_amount', { precision: 19, scale: 4 }).notNull(),
+    amount: numeric({ precision: 19, scale: 4 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_batch_item_charges_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('cte_batch_item_charges_company_id_id_unique').on(table.companyId, table.id),
+    unique('cte_batch_item_charges_company_item_ordinal_unique').on(
+      table.companyId,
+      table.itemId,
+      table.ordinal,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.itemId],
+      foreignColumns: [cteBatchItems.companyId, cteBatchItems.id],
+      name: 'cte_batch_item_charges_company_item_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'cte_batch_item_charges_calculation_type_check',
+      sql`${table.calculationType} in ('percentage_of_cargo', 'percentage_of_freight', 'fixed_amount')`,
+    ),
+    check(
+      'cte_batch_item_charges_value_coherence_check',
+      sql`case when ${table.calculationType} = 'fixed_amount' then ${table.rate} is null else ${table.rate} is not null end`,
+    ),
+    check(
+      'cte_batch_item_charges_rate_check',
+      sql`${table.rate} is null or (${table.rate} >= 0 and ${table.rate} <= 1)`,
+    ),
+    check('cte_batch_item_charges_amount_check', sql`${table.amount} >= 0`),
+    check('cte_batch_item_charges_base_amount_check', sql`${table.baseAmount} >= 0`),
+    check('cte_batch_item_charges_ordinal_check', sql`${table.ordinal} > 0`),
+    check('cte_batch_item_charges_label_check', sql`length(${table.label}) > 0`),
   ],
 )
 

@@ -7,7 +7,9 @@ import type {
   NfeDistribuicaoResult,
 } from '@adatechnology/fiscal-provider'
 
+import { safeLogInfo } from '../../logging/safe-logger.service.js'
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 
 type DistributionCursorRecord = {
   readonly companyId: string
@@ -64,15 +66,25 @@ type NfeDistributionProfilePort = {
   loadConfig(input: { readonly companyId: string }): Promise<NfeDistributionRuntimeConfig>
 }
 
-type NfeDistributionRepositoryPort = {
+export type NfeDistributionRepositoryPort = {
+  finalizeImport(input: {
+    readonly companyId: string
+    readonly duplicatedCount: number
+    readonly importId: string
+    readonly importedCount: number
+    readonly processedCount: number
+    readonly receivedCount: number
+    readonly status: 'completed'
+  }): Promise<void>
   persistPage(input: {
     readonly companyId: string
     readonly environment: 'homologation' | 'production'
+    readonly importId: string
     readonly items: readonly DfeItem[]
     readonly maxNsu: string
     readonly ultNsu: string
   }): Promise<{
-    readonly acceptedItems: readonly DfeItem[]
+    readonly acceptedCount: number
     readonly duplicatedCount: number
   }>
 }
@@ -99,6 +111,7 @@ export function createNfeDistributionConsumer(input: {
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
   readonly gatewayFactory: NfeDistributionGatewayFactory
   readonly leaseMs: number
+  readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
 }): NfeDistributionConsumer {
@@ -125,6 +138,34 @@ export function createNfeDistributionConsumer(input: {
         throw new Error('NF-e distribution lease is already held by another worker')
       }
 
+      if (cursor.nextAllowedAt !== null && cursor.nextAllowedAt.getTime() > now.getTime()) {
+        try {
+          await input.repository.finalizeImport({
+            companyId: params.envelope.companyId,
+            duplicatedCount: 0,
+            importId: params.envelope.payload.importId,
+            importedCount: 0,
+            processedCount: 0,
+            receivedCount: 0,
+            status: 'completed',
+          })
+
+          return {
+            duplicatedCount: 0,
+            fetchedCount: 0,
+            persistedCount: 0,
+            status: 'rate-limited',
+            ultNsu: cursor.ultNsu,
+          }
+        } finally {
+          await input.cursorRepository.releaseLease({
+            companyId: params.envelope.companyId,
+            environment: config.environment,
+            owner: LEASE_OWNER,
+          })
+        }
+      }
+
       const gateway = input.gatewayFactory.create({ config })
       let duplicatedCount = 0
       let fetchedCount = 0
@@ -139,6 +180,19 @@ export function createNfeDistributionConsumer(input: {
             ultNSU: ultNsu,
           })
           fetchedCount += page.itens.length
+
+          safeLogInfo({
+            logger: input.logger,
+            message: 'nfe_distribution_sefaz_page_received',
+            metadata: {
+              companyId: params.envelope.companyId,
+              fetched: page.itens.length,
+              importId: params.envelope.payload.importId,
+              maxNsu: page.maxNSU,
+              temMais: page.temMais,
+              ultNsu: page.ultNSU,
+            },
+          })
 
           if (page.itens.length === 0) {
             status = 'rate-limited'
@@ -156,12 +210,13 @@ export function createNfeDistributionConsumer(input: {
           const persistence = await input.repository.persistPage({
             companyId: params.envelope.companyId,
             environment: config.environment,
+            importId: params.envelope.payload.importId,
             items: page.itens,
             maxNsu: page.maxNSU,
             ultNsu: page.ultNSU,
           })
           duplicatedCount += persistence.duplicatedCount
-          persistedCount += persistence.acceptedItems.length
+          persistedCount += persistence.acceptedCount
           ultNsu = page.ultNSU
 
           await input.cursorRepository.saveCursor({
@@ -177,6 +232,16 @@ export function createNfeDistributionConsumer(input: {
             break
           }
         }
+
+        await input.repository.finalizeImport({
+          companyId: params.envelope.companyId,
+          duplicatedCount,
+          importId: params.envelope.payload.importId,
+          importedCount: persistedCount,
+          processedCount: fetchedCount,
+          receivedCount: fetchedCount,
+          status: 'completed',
+        })
 
         return {
           duplicatedCount,

@@ -30,7 +30,15 @@
   `apps/frontend-transportada`, cada uma com scripts e dependências próprias.
 - API HTTP usa `Bun.serve`, baseado internamente em uWebSockets; não importe o
   addon V8 `uWebSockets.js`.
-- Frontend usa React, Vite, TanStack Query, i18n, design tokens e PWA.
+- Frontend usa React, Vite, TanStack Query, `shadcn/ui`, i18n, design tokens e
+  PWA.
+- Todo app frontend deste repositório deve ser PWA e adotar `shadcn/ui` como
+  base de componentes, evitando UI paralela fora do design system salvo ADR.
+- Toda tabela com muitas informações (listagens/grids densos) segue o contrato
+  obrigatório de `docs/frontend/data-tables.md`: ordenação por cabeçalho,
+  filtros multi-valor, filtro simples + avançado (grupos E/OU aninhados,
+  operadores por tipo), seleção em massa, reordenação/visibilidade de colunas
+  persistida em `localStorage` e evidência de teste de contrato.
 - PostgreSQL com Drizzle/Bun SQL, RabbitMQ para jobs críticos e storage S3
   compatível.
 - Não crie bibliotecas reutilizáveis neste repositório. Implemente-as e
@@ -57,12 +65,11 @@ aplicação. Não importe internals `src/sefaz/*`.
 
 ## Política de modelos
 
-- OpenCode gratuito: exploração, documentação, testes simples e tarefas
-  mecânicas pequenas.
-- Codex Terra (`gpt-5.6-terra`, medium): implementação padrão.
-- Codex Sol (`gpt-5.6-sol`, high): arquitetura, fiscal, concorrência,
-  segurança, migrations críticas e revisão de release.
-- Codex Luna (`gpt-5.6-luna`, low): mudanças repetitivas e documentação curta.
+- Haiku (`haiku`, baixo): mudanças repetitivas, documentação curta,
+  exploração, testes simples e tarefas mecânicas pequenas.
+- Sonnet (`sonnet`, médio): implementação padrão.
+- Opus (`opus`, alto): arquitetura, fiscal, concorrência, segurança,
+  migrations críticas e revisão de release.
 
 Se o modelo econômico falhar duas vezes no mesmo critério, escale; não consuma
 contexto repetindo a mesma tentativa.

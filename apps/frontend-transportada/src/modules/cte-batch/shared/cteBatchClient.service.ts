@@ -1,4 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { CteBatchItem } from './cteBatchItem.types'
+import { createCteBatchItemsAdapter } from './cteBatchItem.validation'
+import type {
+  CteBatchGroupingMode,
+  CteBatchPreview,
+  CteBatchPreviewRequest,
+} from './cteBatchPreview.types'
+import { createCteBatchPreviewAdapter } from './cteBatchPreview.validation'
 import { createCteBatchResponseAdapters } from './cteBatchResponse.validation'
 
 export type CteBatchStatus = 'cancelled' | 'done' | 'draft' | 'error' | 'in_flight' | 'submitted'
@@ -56,6 +64,8 @@ export type CteBatchFilters = Readonly<{
 
 export type CteBatchCreate = Readonly<{
   documentIds: readonly string[]
+  emissionProfileId?: string
+  groupingMode?: CteBatchGroupingMode
   name: string
 }>
 
@@ -77,6 +87,9 @@ export type CteBatchClient = Readonly<{
   listEvents: (
     input: Readonly<{ batchId: string; cursor: null | string; limit: number }>,
   ) => Promise<CteBatchEventListPage>
+  listItems: (batchId: string) => Promise<readonly CteBatchItem[]>
+  previewBatch: (input: CteBatchPreviewRequest) => Promise<CteBatchPreview>
+  removeItem: (input: Readonly<{ batchId: string; itemId: string }>) => Promise<CteBatchSummary>
   submitBatch: (batchId: string) => Promise<CteBatchSummary>
 }>
 
@@ -108,7 +121,7 @@ async function authorizedRequest(
     body?: string
     dependencies: ClientDependencies
     idempotencyKey?: string
-    method: 'GET' | 'POST'
+    method: 'DELETE' | 'GET' | 'POST'
     path: string
   }>,
 ): Promise<unknown> {
@@ -145,11 +158,18 @@ function readEnvelopeData(input: unknown): unknown {
   return input.data
 }
 
-function cleanCreateBatch(input: CteBatchCreate): CteBatchCreate {
+function cleanPreviewBatch(input: CteBatchPreviewRequest): CteBatchPreviewRequest {
   return {
     documentIds: input.documentIds,
-    name: input.name,
+    ...(input.emissionProfileId === undefined
+      ? {}
+      : { emissionProfileId: input.emissionProfileId }),
+    ...(input.groupingMode === undefined ? {} : { groupingMode: input.groupingMode }),
   }
+}
+
+function cleanCreateBatch(input: CteBatchCreate): CteBatchCreate {
+  return { ...cleanPreviewBatch(input), name: input.name }
 }
 
 function searchParams(input: Readonly<{ cursor: null | string; limit: number }>): string {
@@ -199,6 +219,8 @@ function buildBatchSearch(
 
 export const createCteBatchClient: CteBatchClientFactory = (dependencies) => {
   const adapters = createCteBatchResponseAdapters()
+  const itemsFromApi = createCteBatchItemsAdapter()
+  const previewFromApi = createCteBatchPreviewAdapter()
 
   return {
     async cancelBatch(batchId) {
@@ -260,6 +282,39 @@ export const createCteBatchClient: CteBatchClientFactory = (dependencies) => {
       })
       try {
         return adapters.eventsFromApi(response)
+      } catch {
+        throw requestError('CTE_BATCH_RESPONSE_INVALID')
+      }
+    },
+    async listItems(batchId) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `/cte-batches/${batchId}/items`,
+      })
+      return itemsFromApi(response)
+    },
+    async previewBatch(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(cleanPreviewBatch(input)),
+        dependencies,
+        method: 'POST',
+        path: '/cte-batches/preview',
+      })
+      try {
+        return previewFromApi(readEnvelopeData(response))
+      } catch {
+        throw requestError('CTE_BATCH_INVALID_PREVIEW_RESPONSE')
+      }
+    },
+    async removeItem(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'DELETE',
+        path: `/cte-batches/${input.batchId}/items/${input.itemId}`,
+      })
+      try {
+        return adapters.batchFromApi(readEnvelopeData(response))
       } catch {
         throw requestError('CTE_BATCH_RESPONSE_INVALID')
       }

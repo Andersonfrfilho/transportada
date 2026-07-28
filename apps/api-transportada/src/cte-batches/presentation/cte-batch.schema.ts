@@ -13,7 +13,17 @@ const UUID = z.uuid()
 const createBatchSchema = z
   .object({
     documentIds: z.array(UUID).min(1).max(100),
+    emissionProfileId: UUID.optional(),
+    groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
     name: z.string().trim().min(2).max(100),
+  })
+  .strict()
+
+const previewBatchSchema = z
+  .object({
+    documentIds: z.array(UUID).min(1).max(100),
+    emissionProfileId: UUID.optional(),
+    groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
   })
   .strict()
 
@@ -21,11 +31,36 @@ const emptyObjectSchema = z.object({}).strict()
 
 export async function parseCreateCteBatchRequest(request: Request): Promise<{
   readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
   readonly name: string
 }> {
   const result = createBatchSchema.safeParse(await parseJsonBody(request))
   if (!result.success) throw invalidRequest()
-  return result.data
+  const { documentIds, emissionProfileId, groupingMode, name } = result.data
+
+  return {
+    documentIds,
+    name,
+    ...(emissionProfileId === undefined ? {} : { emissionProfileId }),
+    ...(groupingMode === undefined ? {} : { groupingMode }),
+  }
+}
+
+export async function parsePreviewCteBatchRequest(request: Request): Promise<{
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
+}> {
+  const result = previewBatchSchema.safeParse(await parseJsonBody(request))
+  if (!result.success) throw invalidRequest()
+  const { documentIds, emissionProfileId, groupingMode } = result.data
+
+  return {
+    documentIds,
+    ...(emissionProfileId === undefined ? {} : { emissionProfileId }),
+    ...(groupingMode === undefined ? {} : { groupingMode }),
+  }
 }
 
 export async function parseEmptyJsonRequest(request: Request): Promise<void> {

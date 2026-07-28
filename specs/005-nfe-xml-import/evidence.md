@@ -77,7 +77,7 @@ Nenhum internal `src/sefaz/*` foi adotado como dependência do projeto.
 - frontend permanece Vite;
 - nenhuma SEFAZ, PFX, Railway ou infraestrutura remota participa desta task.
 
-### Revisão Sol independente
+### Revisão Opus independente
 
 A primeira revisão encontrou cinco inconsistências, todas corrigidas:
 
@@ -86,7 +86,7 @@ A primeira revisão encontrou cinco inconsistências, todas corrigidas:
   o agregado persistido;
 - T019 depende do schema que contém a agenda de backoff;
 - pack fiscal exige compatibilidade Bun real, sem presumir ESM inexistente;
-- mudança no boundary do router recebe revisão Sol.
+- mudança no boundary do router recebe revisão Opus.
 
 A revalidação encontrou três lacunas adicionais, também corrigidas:
 
@@ -97,15 +97,15 @@ A revalidação encontrou três lacunas adicionais, também corrigidas:
 - T010 depende do contract fiscal empacotado e T024 depende da versão publicada
   e pinada.
 
-A revisão Sol final declarou zero bloqueador ou achado alto remanescente.
+A revisão Opus final declarou zero bloqueador ou achado alto remanescente.
 
 ### Delegação e revisão
 
-- Codex Terra medium: inventários read-only delimitados de arquitetura e
+- Sonnet (médio): inventários read-only delimitados de arquitetura e
   contrato público;
-- Codex Sol high: cruzamento das evidências e decisões fiscal, tenant, storage,
+- Opus (alto): cruzamento das evidências e decisões fiscal, tenant, storage,
   concorrência, filas e release;
-- OpenCode/Luna ficam reservados a tarefas mecânicas futuras conforme
+- Haiku ficam reservados a tarefas mecânicas futuras conforme
   `tasks.md`; nenhuma decisão crítica será delegada a modelo econômico.
 
 ### Gates
@@ -210,7 +210,7 @@ Comportamentos verificados:
 - exports disponíveis exclusivamente pela raiz pública do package;
 - compatibilidade CommonJS/Bun existente preservada.
 
-### Revisão Sol independente
+### Revisão Opus independente
 
 A revisão encontrou um P1: um `procEventoNFe` adulterado poderia combinar a
 identidade de `evento.infEvento` com protocolo/status de
@@ -261,10 +261,10 @@ O package agora executa `bun run build` no lifecycle `prepack` e expõe o gate
 
 ### Delegação e revisão
 
-Codex Terra medium produziu a primeira versão. A revisão do agente principal
+Sonnet (médio) produziu a primeira versão. A revisão do agente principal
 encontrou falsos positivos de lifecycle, typecheck, descoberta do teste e
 timeout, assumiu a implementação após a execução delegada ficar sem resposta e
-fechou os gates. A revisão Sol encontrou um P1 de higiene porque o primeiro
+fechou os gates. A revisão Opus encontrou um P1 de higiene porque o primeiro
 teste removia `dist/` sem restaurá-lo. O cleanup foi corrigido com
 backup/restauração e a revalidação declarou zero P0/P1.
 
@@ -344,7 +344,7 @@ upload. Streams de entrada são lidos incrementalmente até o limite declarado,
 falhas são redigidas e `Uint8Array` recebe cópia defensiva antes do hash/envio.
 Streams de download também convertem falhas tardias em erro público seguro.
 
-### Revisão Sol independente
+### Revisão Opus independente
 
 A primeira revisão encontrou dois P1: consumo ilimitado do stream poderia
 causar OOM e a referência mutável de `Uint8Array` poderia mudar depois do hash.
@@ -430,7 +430,7 @@ alcançam parser ou handler. Health, auth-me e rotas exatas permanecem cobertos.
 O contract também exige o shape público de `RouterPathParameters` e
 `RouteParserParams`, evitando uma implementação apenas dinâmica em runtime.
 
-### Revisão Sol independente
+### Revisão Opus independente
 
 A primeira revisão encontrou três P1: colisão de precedência vacuamente
 inválida, ausência de prova do contrato TypeScript público e falta de body
@@ -467,7 +467,7 @@ segmentos excedentes resultam no mesmo 404 autenticado. O body permanece
 intocado quando qualquer gate rejeita a chamada. Health, auth-me, rotas exatas
 e rotas com sufixo estático, como `/nfe-documents/:id/xml`, não regrediram.
 
-### Revisão Sol independente
+### Revisão Opus independente
 
 A primeira revisão encontrou um P1: a versão inicial aceitava `:id` apenas no
 último segmento e bloquearia endpoints previstos na feature. O matcher passou
@@ -511,7 +511,7 @@ composta que preserva objeto/hash/entrada, sequência contígua, proibição de
 autorreferência e índice parcial que impede branches concorrentes. O XML
 permanece somente como referência imutável ao storage.
 
-### Revisões Sol
+### Revisões Opus
 
 A revisão principal corrigiu uma FK de ator inicialmente não tenant-scoped. A
 revisão independente encontrou cinco P1 de cobertura e, depois, três P1
@@ -1544,3 +1544,601 @@ Evidência:
 - filtros `sourceNe`, `statusNe`, `id/ne` e contadores avançados seguem disponíveis
   no workspace;
 - `Limpar filtros` padroniza estado limpo e facilita nova busca.
+
+## Remediação do consumer de importação NF-e (R01–R03)
+
+Data: 2026-07-24
+
+Contexto:
+
+- o `nfe-import` consumer do worker era um stub que apenas dava `ack` na
+  mensagem — nenhum lote saía de `Na fila · 0/N`. A remediação segue as tasks
+  R01–R09 de `tasks.md`, uma por vez, com contrato antes da implementação.
+
+R01 — schema NF-e duplicado por valor no worker:
+
+- `apps/worker-transportada/src/database/nfe.schema.ts` recebeu
+  `company_fiscal_profiles` (necessário para o CNPJ do tenant em
+  `getPendingImport`), espelhando colunas/constraints da API sem redeclarar FKs
+  cross-app; `companyId` explícito em toda linha.
+
+R02 — contract test de integração (RED antes da implementação):
+
+- `apps/worker-transportada/test/nfe-import-repository.integration.test.ts`
+  cobre `getPendingImport` (agregado tenant-scoped + isolamento por tenant),
+  `findExistingDocument`, `completeItem` (grava `stored_objects` final +
+  `nfe_documents` + participantes em transação) e `finalizeImport` (contadores
+  bigint + status parcial). Falhava por ausência do módulo do repository.
+- registrado em `package.json` (`test:integration`).
+
+R03 — `DrizzleNfeImportConsumerRepository`:
+
+- `apps/worker-transportada/src/nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.ts`
+  implementa as 4 portas do `NfeImportConsumerRepositoryPort`. `completeItem`
+  deriva `companyId`/`importId` da linha do item, insere em transação o
+  `stored_objects` final (`purpose` `nfe_document`/`nfe_event`, `status`
+  `final`) e o `nfe_documents` (ou `nfe_events`) com filhos
+  (participantes/produtos/volumes), idempotente via `onConflictDoNothing` nos
+  uniques documentados; toda query é tenant-scoped por `companyId`; conversões
+  bigint↔number nos contadores/ordinais. XML sensível não é logado.
+
+Verificação local:
+
+```text
+bun run --cwd apps/worker-transportada check
+# lint + typecheck + 78 contract tests + build — verde
+(cd apps/worker-transportada && DATABASE_URL=… bun test ./test/nfe-import-repository.integration.test.ts)
+# 5 pass / 0 fail / 32 expect()
+```
+
+R04 — adapters de storage (source read + final create-only):
+
+- `apps/worker-transportada/src/nfe-imports/infrastructure/nfe-import-storage.gateway.ts`
+  expõe `createNfeImportSourceStorage` (`readSource` lê o staging via
+  `gateway.getObjectStream`) e `createNfeImportFinalStorage`
+  (`storeImportedDocument`/`storeImportedEvent`). Ambos gravam em chave final
+  imutável e opaca por documento/evento
+  (`tenants/${companyId}/nfe-documents/${accessKey}/original.xml` e
+  `tenants/${companyId}/nfe-events/${accessKey}/${type}-${sequence}.xml`) via
+  `storeObject` create-only — replay idempotente para bytes idênticos e falha
+  fatal quando a chave já guarda conteúdo diferente (delegado ao gateway). XML
+  fiscal não é logado.
+- contract test `apps/worker-transportada/test/nfe-import-storage.contract.test.ts`
+  (RED→GREEN) com gateway fake em memória: `readSource` devolve os bytes do
+  staging; `storeImportedDocument` grava create-only na chave imutável com
+  `objectId`/`sha256`/`sizeBytes`; replay idempotente (2 puts, 1 objeto);
+  conteúdo divergente na mesma chave rejeita; `storeImportedEvent` usa a chave
+  por evento. Registrado no script `test` do `package.json`.
+
+Verificação local:
+
+```text
+bun run --cwd apps/worker-transportada check
+# lint + typecheck + 83 contract tests + build — verde
+```
+
+R05 — archive expander (XML passthrough + ZIP seguro):
+
+- `apps/worker-transportada/src/nfe-imports/infrastructure/nfe-import-archive-expander.gateway.ts`
+  implementa `createNfeImportArchiveExpander`. `application/xml` passa o
+  conteúdo adiante sem alteração (sha256 recalculado). `application/zip`
+  extrai só entradas `.xml` via `fflate.unzipSync` com `filter`, aplicando as
+  defesas do plano **antes** de descomprimir (usa `originalSize`/`size`/
+  `compression` do diretório central): ratio > 20:1 e limites de contagem
+  (500), tamanho por entrada (5 MiB) e total (100 MiB) → `ZIP_EXPANSION_LIMIT`/
+  `ZIP_ENTRY_TOO_LARGE`; nomes com `..`, `/` inicial, `\`, `NUL` ou drive
+  Windows → `ZIP_PATH_TRAVERSAL`; entrada `.xml` vazia → `ZIP_EMPTY_ENTRY`;
+  arquivo sem XML → `ZIP_NO_XML_ENTRIES`; zip corrompido → `ZIP_INVALID_ARCHIVE`.
+  Todos os códigos com prefixo `ZIP_`, que o `createNfeImportConsumer` mapeia
+  para item `invalid` (não `failed`). Limites parametrizáveis por opção para
+  teste. `fflate@0.8.3` adicionado como dependência (unzip seguro, TS nativo,
+  zero deps, roda no Bun).
+- contract test `apps/worker-transportada/test/nfe-import-archive-expander.contract.test.ts`
+  (RED→GREEN, 9 casos) com ZIPs reais construídos por `fflate.zipSync`:
+  passthrough de XML; extração de 1 e de N XMLs (ordenados, ignorando `.txt`);
+  path traversal; entrada vazia; ausência de XML; zip-bomb por ratio; estouro
+  de contagem; estouro de tamanho por entrada. Registrado no script `test`.
+  O `zip-safety.contract.ts` (expander fake no nível do consumer) segue verde.
+
+Verificação local:
+
+```text
+bun run --cwd apps/worker-transportada check
+# lint + typecheck + 92 contract tests + build — verde
+```
+
+R06 — `NfeXmlImporterPort` sobre `fiscal-provider.importXml`:
+
+- `apps/worker-transportada/src/nfe-imports/infrastructure/nfe-xml-importer.gateway.ts`
+  expõe `createNfeXmlImporter`, adapter fino sobre `importarNfeXml` (função
+  síncrona pura do pacote: parse/validação, sem rede nem segredo). Envolve a
+  chamada num `async importXml({ xml })`, encaminha o XML cru sem regra própria
+  e deixa o `NfeXmlImportError` do pacote propagar intacto (o consumer usa
+  `error.code` `NFE_XML_*` para classificar item `invalid`). A função
+  subjacente é injetável por opção para teste.
+- contract test `apps/worker-transportada/test/nfe-xml-importer.contract.test.ts`
+  (RED→GREEN, 3 casos): delega o XML cru e resolve o documento parseado;
+  propaga `NfeXmlImportError` (com `code`) sem alterar; e, sem injeção, fia o
+  `importarNfeXml` real e rejeita XML inválido como `NfeXmlImportError`.
+  Registrado no script `test`.
+
+Verificação local:
+
+```text
+bun run --cwd apps/worker-transportada check
+# lint + typecheck + 95 contract tests + build — verde
+```
+
+R07 — handler idempotente + rewire do runtime consumer:
+
+- `apps/worker-transportada/src/nfe-imports/application/nfe-import-worker-message-handler.service.ts`
+  novo `NfeImportWorkerMessageHandler`, espelhando `CteIssuanceWorkerMessageHandler`.
+  Fluxo: `hasProcessed` → ack (efeito não roda); senão `effect.execute` →
+  `markProcessed` → ack (marca de idempotência só após o efeito comitar os
+  contadores em `finalizeImport`). `NfeImportFatalError` → `markDeadLettered` +
+  dead-letter; `NfeImportRecoverableError` e qualquer falha não classificada
+  (ex.: o `Error('NF-e import not found for worker consumption')` do efeito) →
+  backoff persistente via `calculateNfePersistentBackoff` (retry) até
+  `NFE_IMPORT_BACKOFF_ATTEMPTS_MS.length` tentativas, então dead-letter. Chave de
+  idempotência = `{ companyId, eventId }` (+ `importId` no payload do marcador);
+  isolamento por empresa comprovado em teste.
+  - Desvio consciente vs. CTE: onde o CTE relança erro desconhecido, o NF-e roteia
+    para o caminho recuperável (retry limitado → dead-letter). Reler o import não
+    tem efeito fiscal colateral, então backoff limitado + DLQ observável é mais
+    seguro que hot-loop de requeue infinito. Documentado aqui.
+- `apps/worker-transportada/src/runtime/nfe-import-consumer.service.ts`
+  `startNfeImportConsumer` reescrito: agora recebe `effect` + `repository`,
+  constrói o handler e delega. Mantém `decode` via `nfeProcessingEnvelopeV1Schema`,
+  dead-letter em tipo de evento inesperado (não `IMPORT_REQUESTED`), log
+  `nfe_import_consumer_received` e `attempt = retryCount ?? 0` — espelho exato de
+  `startCteIssuanceConsumer`. O stub que só dava ack (causa do lote travado em
+  `0/N`) foi removido.
+- contract sub-suite `apps/worker-transportada/test/nfe-import-consumer/handler.contract.ts`
+  (RED→GREEN, 7 casos), importada em `test/nfe-import-consumer.contract.test.ts`:
+  ack só após efeito + marca (ordenação com deferreds); redelivery não duplica
+  efeito; backoff persistido antes de retry; falha não classificada tratada como
+  recuperável; dead-letter ao atingir o limite finito; idempotência isolada por
+  empresa+evento; falha permanente vai direto à DLQ.
+
+Verificação local:
+
+```text
+bun test ./test/nfe-import-consumer.contract.test.ts ./test/nfe-runtime.contract.test.ts
+# 12 pass / 0 fail (7 do handler + mixed-batch + zip-safety + runtime)
+```
+
+Nota: o `main.ts` ainda injeta o stub antigo; a assinatura nova de
+`startNfeImportConsumer` (effect+repository) é conectada em R08, que fecha o
+`typecheck`/`check` completo. `nfe-runtime.contract.test.ts` mocka
+`startImportConsumer`, então a mudança de assinatura não o quebra.
+
+## R08 — Injeção de adapters no `main.ts`
+
+- `apps/worker-transportada/src/nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.ts`
+  (novo) `DrizzleNfeImportWorkerRepository` implementa `NfeImportWorkerRepository`
+  com `consumerName = 'nfe-import-worker'`. `hasProcessed`/`markProcessed`/
+  `markDeadLettered` operam em `processed_messages` pela chave
+  `(companyId, consumerName, eventId)`; `result` guarda `{ importId }` (+`reason`
+  no dead-letter). `scheduleRetry` atualiza `processing_outbox`
+  (`attempt = BigInt`, `nextAttemptAt`, `updatedAt`) filtrando por
+  `companyId + eventId` — **não** copia o `status:'retry_scheduled'` do CTE (a
+  tabela não tem coluna `status`) e **não** limpa `publishedAt` (evita entrega
+  dupla pelo relay, que publica `WHERE published_at IS NULL`).
+- `apps/worker-transportada/src/main.ts`: tipo da dependência `startImportConsumer`
+  ampliado para `{ config, effect, logger, provider, repository }`
+  (`NfeImportWorkerEffect` + `NfeImportWorkerRepository`). No call site, o efeito
+  real é construído via `createNfeImportConsumer({ archiveExpander, finalStorage,
+repository: new DrizzleNfeImportConsumerRepository(...), sourceStorage,
+xmlImporter })` e o `repository` de idempotência via
+  `new DrizzleNfeImportWorkerRepository(...)` — bloco análogo ao
+  `cteIssuanceStarter`. `sourceStorage`/`finalStorage` compartilham o
+  `storageGateway` e o bucket resolvido de `OBJECT_STORAGE_BUCKET ??
+STORAGE_BUCKET ?? 'transportada-private'`. `database.db` sofre o mesmo cast
+  `as ReturnType<typeof createDrizzleProvider>['db']` usado no CTE. Readiness e a
+  lista de shutdown (`importConsumer` entre os consumidores cancelados)
+  permanecem intactos.
+
+Verificação local (gate completo):
+
+```text
+bun run --cwd apps/worker-transportada check
+# lint (eslint --max-warnings=0) OK
+# typecheck (tsc --noEmit) OK
+# 102 pass / 0 fail (21 arquivos)
+# build (bun build ./src/main.ts) OK — main.js 103.11 KB, 49 módulos
+```
+
+Pendências: R09 (integração real ponta a ponta: `make up && make
+worker-integration && make smoke`, lote misto saindo de `0/N` para contadores
+reais no Postgres).
+
+## R09 — Integração real ponta a ponta + evidência
+
+Stack local reiniciada sobre o código R08 (`make dev`, projeto
+`transportada-local`). Readiness confirmada antes do teste:
+
+```text
+worker /health → 200 {"dependencies":{"database":"up","rabbitmq":"up","storage":"up"},"status":"ok"}
+api    /health → 200 {"dependencies":{"database":"up","identity":"up"},"status":"ok"}
+```
+
+### Comprovação do fix (lote sai de `0/N` para contadores reais)
+
+Dois lotes mistos foram enviados via `POST /nfe-imports/xml` (multipart, JWT de
+tenant do contexto autenticado — `companyId` nunca do payload) e processados
+**pelo worker real** (consumidor `nfe-import` + `DrizzleNfeImportConsumerRepository`
+
+- outbox relay), cobrindo as quatro classificações:
+
+Lote 2 — `8b74a730-9459-4e93-bd15-79d245dc40fe` (`válido`/`duplicado`/`inválido`):
+
+```text
+status=partially_processed | received=3 processed=3
+imported=1 duplicated=1 invalid=1 rejected=0 failed=0
+```
+
+Itens (`nfe_import_items`):
+
+| ordinal | source          | status     | detalhe                                       |
+| ------- | --------------- | ---------- | --------------------------------------------- |
+| 1       | 3526…978623.xml | imported   | access_key 3526…978623 (emitente relacionado) |
+| 2       | 3526…978623.xml | duplicated | mesmo access_key já importado no item 1       |
+| 3       | broken-nfe.xml  | invalid    | error `{"code":"NFE_XML_INVALID_STRUCTURE"}`  |
+
+Lote 1 — `b10e73a4-2d72-448c-af87-270a43fb0f96` (caminho `CNPJ alheio`, antes de
+corrigir o CNPJ do perfil fiscal):
+
+```text
+status=partially_processed | received=3 processed=3
+imported=0 duplicated=0 invalid=1 rejected=2 failed=0
+```
+
+### Preservação do XML original + hash
+
+`nfe_documents` ⨝ `stored_objects` (item importado do lote 2):
+
+```text
+access_key    = 35260705868574001090550020008526741408978623
+xml_sha256    = 9b241d14cd789afc06a5d1d6b26849ef2c386935a777afbb45cd3ee675d5c79d
+object_sha256 = 9b241d14cd789afc06a5d1d6b26849ef2c386935a777afbb45cd3ee675d5c79d
+hash_matches  = true
+object_key    = tenants/00000000-…-0001/nfe-documents/3526…978623/original.xml
+```
+
+O `source_sha256` gravado no item (`9b241d14…`) é idêntico ao `xml_sha256` do
+documento — XML original preservado byte-a-byte, sem reescrita. Outbox
+`processing_outbox.published_at` fica preenchido após a publicação; item inválido
+não gera documento.
+
+### Suítes automatizadas
+
+```text
+make worker-integration → bun test (rabbitmq + sigterm + nfe-import-repository)
+  9 pass / 0 fail (3 arquivos)
+make smoke → 9 pass / 12 fail
+```
+
+Os 12 testes que falham em `make smoke` são de `responsive.smoke.spec.ts` e são
+**pré-existentes e alheios a esta feature** (telas de `billing` e `cte-batch`:
+overflow horizontal + violação de strict-mode no seletor
+`'Fatura cancelada com sucesso.'`). Confirmado via `git diff --name-only HEAD`
+que decorrem de trabalho de UI de billing/CT-e não commitado, não do worker de
+importação (mudança 005 é worker-only). Os specs de NF-e/health passam.
+
+### Diagnóstico de infraestrutura (não é bug de código)
+
+O lote 2 ficou preso em `queued|proc=0` por um **processo worker órfão** de sessão
+de debug anterior (`bun src/main.ts`, PID 40817, cwd `apps/worker-transportada`),
+cujo relay (`claim_owner = transportada.debug.sigterm.relay.*`) reivindicava a
+linha do outbox e renovava o lease sem publicar, faminto o worker vivo. Após
+`kill` do processo órfão e liberação do claim órfão
+(`claim_owner=null, claim_expires_at=null`), o relay real publicou em ~1s e o
+worker processou o lote imediatamente. Nenhuma alteração de código foi necessária
+— o pipeline R08 funciona; era contaminação de ambiente local.
+
+Critério de aceite R09 satisfeito: lote misto (válido/duplicado/inválido/CNPJ
+alheio) processa pelo worker real; original e hash preservados; contadores e
+status por item corretos; lote sai de `0/N` para contadores reais no Postgres.
+
+## Incremento — Persistência da visão da tabela "Notas" (view-preferences)
+
+Substitui a persistência por-navegador (`localStorage`) por persistência
+**por-usuário no banco**, salvando a **visão completa** da data-table de NF-e
+(ordem/visibilidade de colunas, `pageSize`, ordenação, filtros simples e a pill
+de filtro avançado salvo). O módulo backend é genérico e reutilizável por
+`viewKey`; primeira chave consumidora: `nfe-workspace.documents`. O
+`localStorage` permanece como cache de partida rápida (write-through); o banco é
+autoritativo.
+
+### Backend (contrato)
+
+- `GET /view-preferences?viewKey=<key>` → `{ data: ViewPreferencesRecord | null }`
+- `PUT /view-preferences` body `{ preferences, viewKey }` (JSON) →
+  `{ data: ViewPreferencesRecord }`
+- `ViewPreferencesRecord = { preferences: Record<string, unknown>; updatedAt }`;
+  ambos com `cache-control: no-store`.
+- Tabela `view_preferences` em migration aditiva com rollback ao lado
+  (`drizzle/20260724220724_view_preferences/`), única por `(company_id, user_id,
+view_key)`; `companyId`/`userId` derivados do contexto autenticado, nunca do
+  payload. Teste de isolamento de tenant em
+  `test/view-preferences-schema/tenant-safety.contract.ts`.
+
+### Frontend — Task #12 (client + hook + wiring)
+
+Cliente HTTP por módulo (`viewPreferencesClient.service.ts`, `fetch` injetado),
+serialização tolerante (`viewPreferences.serialization.ts`, defaults completos
+para payload malformado, sobrevive à fronteira JSON do tipo coluna do banco),
+wrapper `useTableViewPreferences.hook.ts` (TanStack Query `retry:false`,
+`staleTime` 30s; mutation com debounce de 800ms; write-through no cache local) e
+fiação em `NfeDocumentTable.component.tsx`. O `useNfeDocumentTable.hook.ts` ganhou
+o parâmetro opcional `preferences` com hidratação única guardada por refs
+(seed a partir do cache → hidrata do backend só se o usuário ainda não editou →
+write-through nas edições); sem `preferences`, mantém o caminho legado de coluna
+por `localStorage` (retrocompatível para os testes existentes do hook).
+
+Ciclo de módulo evitado: `TableViewPreferences` mora no hook e é re-exportado
+(type-only) pela serialização — nenhuma importação de runtime da serialização
+para o hook.
+
+Teste de contrato **antes** da implementação:
+`test/nfe-workspace/view-preferences-client.contract.ts` (5 testes: GET
+autenticado no-store com `viewKey` na query; `null` quando não há visão salva;
+PUT JSON autenticado carregando `preferences`+`viewKey` no corpo; envelope
+malformado rejeita `VIEW_PREFERENCES_RESPONSE_INVALID`; falha de rede
+`VIEW_PREFERENCES_REQUEST_FAILED`), registrado no entrypoint agregado
+`test/nfe-workspace.contract.test.ts`.
+
+Gate (frontend):
+
+```text
+bun run typecheck          → OK (tsc --noEmit)
+bun run lint               → arquivos deste incremento limpos
+bun test nfe-workspace     → 39 pass / 0 fail / 138 expect()
+bun run build              → OK (index-*.js 513.52 kB, PWA sw.js gerado)
+```
+
+Os 2 achados restantes de `bun run lint` (em
+`company-settings/CompanySettingsForm.component.tsx:118` e
+`companySettingsClient.service.ts:12`) são **pré-existentes e alheios a este
+incremento** — pertencem ao trabalho não-commitado de billing/company-settings
+(confirmado via `git status`, módulo inteiro marcado `M`), não ao nfe-workspace.
+
+---
+
+## Remediação distribuição DF-e — D02/D03 (cursor repository)
+
+Teste de contrato de integração **antes** da implementação (RED):
+`apps/worker-transportada/test/nfe-distribution-cursor-repository.integration.test.ts`,
+registrado em `apps/worker-transportada/package.json` `test:integration`.
+
+RED confirmado (D02) sem a implementação:
+
+```text
+error: Cannot find module '../src/nfe-distribution/infrastructure/drizzle-nfe-distribution-cursor.repository.js'
+0 pass / 1 fail / 1 error
+```
+
+Implementação (D03):
+`apps/worker-transportada/src/nfe-distribution/infrastructure/drizzle-nfe-distribution-cursor.repository.ts`
+— `acquireLease` (upsert do cursor + UPDATE guardado por `lease_owner IS NULL OR
+lease_expires_at <= now`, `RETURNING`), `releaseLease` e `saveCursor`, ambos
+escopados por `(company_id, environment, lease_owner)`.
+
+GREEN contra Postgres local (`127.0.0.1:55432`, tabela já migrada):
+
+```text
+DATABASE_URL=…@localhost:55432/transportada bun test nfe-distribution-cursor-repository.integration
+6 pass / 0 fail / 21 expect()
+```
+
+Cobertura: cria cursor no 1º `acquireLease` com NSU default `000000000000000`;
+lease válido de outro dono retorna `null`; `saveCursor` avança `ult_nsu`/`max_nsu`
+(monotônico) e grava `next_allowed_at`; `releaseLease` zera par `lease_owner`/
+`lease_expires_at` (constraint `lease_check`); lease expirada é roubada; cursores
+isolados por tenant. `typecheck` verde (`tsc --noEmit`, sem saída).
+
+---
+
+## Remediação distribuição DF-e — D04/D05 (persistPage + contadores + eventos)
+
+Teste de contrato de integração **antes** da implementação (RED):
+`apps/worker-transportada/test/nfe-distribution-repository.integration.test.ts`,
+registrado em `apps/worker-transportada/package.json` `test:integration`.
+
+RED confirmado (D04) sem a implementação:
+
+```text
+error: Cannot find module '../src/nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.js'
+```
+
+Implementação (D05):
+`apps/worker-transportada/src/nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.ts`
+— `persistPage`: uma execução = uma linha `nfe_imports` (`source='distribution'`);
+cada DFe da página vira uma linha `nfe_import_items` criada pelo próprio
+`persistPage` (a API não conhece os NSUs de antemão), carregando
+`variant`/`accessKey`/`source_nsu`/`environment`. Kernel de escrita de documento
+(`writeDocumentChildren`, participantes/endereços/produtos/volumes) **reusado por
+export** do repositório de import — fonte única, sem cópia. Variantes:
+`complete`→`nfe_documents` (`source='distribution'`, elegível a CT-e),
+`event`→`nfe_events`, `summary`→apenas `nfe_import_items` (resumo preservado e
+correlacionado). Dedup de replay por `(company_id, import_id, source_nsu)` +
+`onConflictDoNothing` em documento/evento/objeto.
+
+Contadores de `nfe_imports` respeitam a invariante do banco
+(`nfe_imports_counters_check`: `processed = imported + duplicated + invalid +
+rejected + failed` e `processed <= received`). Como toda linha de item aceita
+grava `status='imported'` (igual ao fluxo de import), `imported_count` soma os
+itens aceitos (documento + evento + resumo), não só documentos; o detalhamento
+`documentCount`/`eventCount`/`summaryCount` fica no `PersistPageResult` para a
+tela de execução (D12), não na coluna do banco.
+
+GREEN contra Postgres local (`127.0.0.1:55432`, tabelas já migradas):
+
+```text
+DATABASE_URL=…@localhost:55432/transportada bun test nfe-distribution-repository.integration
+3 pass / 0 fail / 38 expect()
+```
+
+Cobertura: (1) persiste documento+evento+resumo com proveniência de distribuição
+— `source='distribution'`, `import_id`, `created_by_user_id`, papéis
+`['emitter','recipient']`, evento `110111`/`sequence=1`/`source_nsu`/`environment`,
+3 itens ordenados por `source_nsu` todos `status='imported'`/`environment=homologation`,
+3 objetos `status='final'`, contadores `received=3 processed=3 imported=3
+duplicated=0`; (2) replay da mesma página não duplica (accepted=0, duplicated=3,
+segue 1 documento / 1 evento / 3 itens); (3) isolamento por tenant (outra empresa
+enxerga 0 documentos). `typecheck` verde (`tsc --noEmit`, sem saída).
+
+## D06 — `NfeDistributionProfilePort.loadConfig` (perfil + certificado A1)
+
+`DrizzleNfeDistributionProfileRepository.loadConfig({ companyId })` monta o
+`NfeDistributionRuntimeConfig` a partir do `company_fiscal_profiles` (cnpj,
+`environment`, `state`→`uf`) e do certificado A1 ativo (`purpose='cte'`,
+`status='active'`, ordenado por `created_at`/`version` desc). Reusa o
+`createDigitalCertificateSecretService` do CT-e para decifrar o `secret_envelope`
+(mesma AAD `transportada:certificate:v1:${companyId}:${certificateId}:cte`),
+sem duplicar cripto. **Falha fechado**: sem perfil →
+`NFE_DISTRIBUTION_PROFILE_MISSING`; sem certificado ativo/envelope →
+`NFE_DISTRIBUTION_CERTIFICATE_MISSING`; CNPJ validado do certificado divergente do
+perfil → `NFE_DISTRIBUTION_CERTIFICATE_CNPJ_MISMATCH` (perfil fiscal tem de bater
+com o certificado). Nenhum log de certificado/senha.
+
+RED inicial: o teste falhava no round-trip do `secret_envelope` jsonb — semeado
+via `${JSON.stringify(envelope)}::jsonb`, o driver Bun grava um valor string
+(double-encoded) e o `.select` tipado o devolve como `string`, quebrando o
+`envelopeSchema.parse` (`expected object, received string`). Verificado por probe
+contra o Postgres vivo: passar o envelope como **parâmetro objeto puro**
+(`${envelope}`, sem `JSON.stringify` e sem cast `::jsonb`) faz o driver serializar
+como jsonb e o `.select` devolver `object` — igual ao caminho de escrita do
+drizzle em produção. Seed corrigido para `${envelope}`.
+
+GREEN contra Postgres local (`127.0.0.1:55432`, tabelas já migradas):
+
+```text
+DATABASE_URL=…@localhost:55432/transportada bun test ./test/nfe-distribution-profile.integration.test.ts
+2 pass / 0 fail / 7 expect()
+```
+
+Cobertura: (1) monta config com `model='nfe-distribuicao'`, `cnpj`, `uf='SP'`,
+`environment='homologation'`, `certificadoBase64`/`certificadoSenha` decifrados;
+(2) empresa sem certificado ativo → `loadConfig` rejeita (fail-closed).
+`typecheck` verde (`tsc --noEmit`, sem saída).
+
+## D07 — Factory de produção do provider de distribuição real
+
+`src/nfe-distribution/infrastructure/adatechnology-nfe-distribution-provider.factory.ts`
+instancia `NfeDistribuicaoProvider` real do `@adatechnology/fiscal-provider` e o pluga
+como `createProvider` do gateway (espelho de `createAdatechnologyCteFiscalProvider`).
+`createFiscalProvider` NÃO serve para distribuição (lança para `model='nfe-distribuicao'`);
+por isso o provider é instanciado diretamente. `toNfeDistribuicaoProviderConfig` mapeia o
+ambiente interno da app → ambiente SEFAZ antes de cada `consultarDFe`:
+`homologation → homologacao`, `production → producao`, preservando cnpj/uf/certificado/model.
+
+Test-first: `test/nfe-distribution/provider-factory.contract.ts` (via entrypoint
+`test/nfe-distribution.contract.test.ts`).
+
+- RED: `error: Cannot find module '.../adatechnology-nfe-distribution-provider.factory.js'`
+  (3 fail antes da implementação).
+- GREEN: `6 pass / 0 fail / 21 expect()`.
+
+Cobertura: (1) mapeamento de ambiente homologação/produção preservando material do
+certificado; (2) delegação ao provider SEFAZ com a config mapeada (via seam
+`instantiateProvider`, sem bater no SEFAZ) e repasse do resultado paginado; (3) isolamento
+de fonte — factory importa `@adatechnology/fiscal-provider` (sem deep import
+`@adatechnology/fiscal-provider/`), referencia `NfeDistribuicaoProvider`, sem `src/sefaz`,
+sem `console.` (zero vazamento de certificado).
+
+Gate completo verde: `bun run --cwd apps/worker-transportada check` →
+lint + `tsc --noEmit` + `105 pass / 0 fail / 245 expect()` (21 arquivos) + build
+(`Bundled 49 modules`). `gateway.contract.ts` permanece verde.
+
+## D08 — Handler idempotente + rewire do runtime consumer
+
+`src/runtime/nfe-distribution-consumer.service.ts` deixou de ser stub log-only: agora
+delega ao `NfeImportWorkerMessageHandler` (handler de idempotência já verde e neutro em
+relação a domínio — opera sobre `NfeProcessingEnvelopeV1`), reusado como segundo consumidor
+do mesmo mecanismo (Regra do 2º uso; copy-paste do handler seria antipadrão). O consumer de
+distribuição (`createNfeDistributionConsumer`, D04) entra como `effect` do handler.
+
+Fluxo por mensagem: type-check (`DISTRIBUTION_REQUESTED`; qualquer outro tipo →
+`dead-letter` antes de tocar repositório) → `hasProcessed(key)` → se já processado, `ack`
+sem re-pull; senão `effect.execute` → `markProcessed` → `ack`. Erro recuperável →
+`scheduleRetry` com backoff persistente; `maxAttempts` estourado → `dead-letter`. Chave =
+`{companyId, eventId, importId}` (mesma da importação — o trigger é o eventId, então
+re-disparo de emergência é um novo eventId e re-executa; redelivery do mesmo trigger não).
+
+Ponte (strangler): `consumer`/`repository` são opcionais no runtime service. Sem ambos,
+mantém o caminho log-only + `ack` que existe hoje, preservando `main.ts` compilando e
+executando. D09 injeta os adapters reais e o caminho idempotente passa a ser o único.
+
+Test-first: `test/nfe-distribution/runtime-consumer.contract.ts` (via entrypoint
+`test/nfe-distribution.contract.test.ts`).
+
+- RED: 2 fail — idempotência não fiada (`calls` vazio onde se esperava
+  `hasProcessed → execute → markProcessed` e `hasProcessed` no redelivery).
+- GREEN: `bun test ./test/nfe-distribution.contract.test.ts ./test/nfe-runtime.contract.test.ts`
+  → `13 pass / 0 fail / 34 expect()` (2 arquivos).
+
+Cobertura: (1) decode usa o schema do envelope de processamento e o prefetch configurado é
+repassado ao `consume`; (2) trigger de distribuição roda o consumer uma vez e marca
+processado antes do ack (ordem `hasProcessed → execute → markProcessed`); (3) redelivery do
+mesmo trigger dá `ack` sem re-executar o pull SEFAZ (só `hasProcessed`); (4) envelope de
+tipo não-distribuição (`import.requested`) vai a `dead-letter` sem tocar repositório.
+
+Regressão/gates parciais (escopo D08): worker `typecheck` limpo (`tsc --noEmit`), `lint`
+limpo (`eslint --max-warnings=0`), suíte unitária/contrato `109 pass / 0 fail / 254 expect()`
+(25 arquivos). `nfe-runtime.contract.ts` permanece verde (ordem de drain/readiness intacta).
+Os 4 `errors` restantes são os `*.integration.test.ts` de repositório/perfil/cursor que
+exigem Postgres vivo (`connection.adapter undefined` sem `make up`) — pré-existentes e
+independentes de D08 (nenhum repositório foi tocado). `check` completo (com infra) fica no
+gate de D09.
+
+## Defeito — janela anti-656 persistida mas não respeitada pelo consumer (2026-07-26)
+
+Sintoma: a janela anti-656 (`nfe_distribution_cursors.next_allowed_at`) era **gravada**
+após uma página vazia (D05), mas o consumer **nunca a consultava** antes de chamar
+`gateway.consultarDFe`. Um novo disparo dentro da janela adquiria o lease e batia na SEFAZ
+mesmo assim — exatamente o consumo indevido que a janela existe para evitar (rejeição 656 /
+banimento temporário). Além do risco fiscal, cada disparo em cooldown ainda finalizava a
+execução, mascarando o problema.
+
+Correção (test-first) em `nfe-distribution-consumer.service.ts`: logo após adquirir o lease,
+se `cursor.nextAllowedAt > now`, o consumer **não** cria o gateway nem consulta a SEFAZ —
+finaliza a execução com contadores zerados (`status: completed`, 0 notas), libera o lease no
+`finally` e devolve `status: 'rate-limited'` com o `ultNsu` corrente. Isso preserva o
+comportamento de "a execução sai de `Na fila` para um estado terminal" (sem lote preso) e
+mantém a janela persistida intacta (não estende nem reseta `next_allowed_at`).
+
+Test-first em `test/nfe-distribution/consumer.contract.ts`:
+
+- RED: `skips the SEFAZ call while still inside the persisted anti-656 window` falha porque
+  `consultarDFe` era invocado dentro da janela (o fake lança e a promise rejeita).
+- GREEN: `bun test ./test/nfe-distribution.contract.test.ts` → `11 pass / 0 fail / 35 expect()`.
+  Assertivas: `consultarDFe` **não** é chamado; `finalize:completed:0:0:0`; lease liberado;
+  retorno `{duplicated:0, fetched:0, persisted:0, status:'rate-limited', ultNsu:<corrente>}`.
+
+Gates (worker): `typecheck` limpo, `lint --max-warnings=0` limpo, suíte unitária/contrato
+`110 pass / 0 fail`. Os 4 `errors` restantes seguem sendo os `*.integration.test.ts` que
+exigem Postgres vivo (pré-existentes; nenhum repositório tocado).
+
+## Diagnóstico — execução de distribuição órfã `6e2be328` (2026-07-26)
+
+Verificado no banco (não é teoria):
+
+- `nfe_imports` `6e2be328-29bd-44b3-a8bc-f3494beb16ce`: `source=distribution`, `status=queued`,
+  `0/0/0`, criada 13:44:58, `updated_at` nunca mudou.
+- `processing_outbox`: evento `transportada.nfe.distribution.requested` publicado no trilho de
+  **distribuição** às 13:44:59.308 (routing correto, main.ts `resolve`).
+- `processed_messages`: linha `nfe-import-worker` / result `{importId: 6e2be328...}` às 13:44:59.569.
+
+O handler (`nfe-import-worker-message-handler.service.ts:67-71`) grava `markProcessed`
+**somente após** `effect.execute` retornar sem lançar. Logo o effect que rodou às 13:44
+concluiu com sucesso mas **não** finalizou a execução — sinal de que o worker em execução
+naquele instante ainda não fiava `createNfeDistributionConsumer` como effect da distribuição
+(build/sessão anterior de hoje). O build atual (`main.ts:298-326`) injeta corretamente o
+effect de distribuição — comprovado por uma puxada posterior (14:55) que atualizou o cursor.
+
+Consequência: a linha está **marcada como processada**, então redelivery do mesmo `eventId`
+é sempre `ack` sem reexecutar (idempotência) — ela **não** se auto-cura. Não é bug do build
+atual; é registro órfão de build antigo. Uma nova puxada de emergência gera novo `eventId` e
+funciona. Limpeza da linha órfã (marcar `failed`) é operação de dados — requer confirmação do
+usuário; não executada.

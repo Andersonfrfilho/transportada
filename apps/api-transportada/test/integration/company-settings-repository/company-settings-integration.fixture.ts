@@ -10,7 +10,11 @@ import type { CompanySettingsInput } from '../../../src/companies/application/co
 import { createUpdateCompanySettingsUseCase } from '../../../src/companies/application/update-company-settings.use-case'
 import { DrizzleCompanySettingsRepository } from '../../../src/companies/infrastructure/drizzle-company-settings.repository'
 import { runDatabaseMigrations } from '../../../src/database/database-migration.service'
-import { companies, identityUsers } from '../../../src/database/database.schema'
+import {
+  companies,
+  identityUsers,
+  userCompanyMemberships,
+} from '../../../src/database/database.schema'
 import type { CompanyContext } from '../../../src/identity/domain/tenant-context'
 
 const databaseUrl =
@@ -64,7 +68,17 @@ export function createContext(companyId: string, userId: string): CompanyContext
 export function createSettings(cnpj: string): CompanySettingsInput {
   return {
     cte: { environment: 'homologation', nextNumber: 13_809n, series: 1n },
+    cteRetry: { backoffSeconds: [10, 60, 900], maxAttempts: 5 },
     expectedVersion: null,
+    mdfe: {
+      bankBranch: '1234',
+      bankCode: '341',
+      insurancePolicy: '1234567890',
+      insuranceResponsibility: '1',
+      insurerName: 'Seguradora Integration',
+      insurerTaxId: '11222333000181',
+      pixKey: '',
+    },
     profile: {
       city: 'Ribeirao Preto',
       cityIbgeCode: '3543402',
@@ -98,6 +112,11 @@ async function createFixture(database: TestDatabase): Promise<CompanySettingsInt
     { id: rollbackCompanyId, status: 'active' },
   ])
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values([
+    { companyId, id: crypto.randomUUID(), status: 'active', userId },
+    { companyId: otherCompanyId, id: crypto.randomUUID(), status: 'active', userId },
+    { companyId: rollbackCompanyId, id: crypto.randomUUID(), status: 'active', userId },
+  ])
   const repository = new DrizzleCompanySettingsRepository(database.db)
   return {
     companyId,

@@ -2,7 +2,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  DISTRIBUTION_STATUS,
+  DISTRIBUTION_STATUS_RUNNING,
   IMPORT_SUMMARY,
+  type NfeDistributionStatusContract,
   type NfeImportSummaryContract,
   RUNNING_IMPORT,
   TERMINAL_IMPORT,
@@ -30,6 +33,52 @@ describe('nfe workspace polling and cleanup contract', () => {
       enabled: false,
       intervalMs: null,
     })
+  })
+
+  test('keeps polling distribution status within the trigger grace window even when idle', async () => {
+    const { createDistributionPollingState } = await loadFutureModule<NfeDistributionPollingModule>(
+      '../../src/modules/nfe-workspace/shared/nfeWorkspaceClient.service',
+    )
+
+    expect(
+      createDistributionPollingState({
+        now: 10_000,
+        status: DISTRIBUTION_STATUS_RUNNING,
+        triggeredAt: null,
+      }),
+    ).toEqual({ enabled: true, intervalMs: 5_000 })
+
+    expect(
+      createDistributionPollingState({
+        now: 10_000,
+        status: DISTRIBUTION_STATUS,
+        triggeredAt: 9_000,
+      }),
+    ).toEqual({ enabled: true, intervalMs: 2_000 })
+
+    expect(
+      createDistributionPollingState({
+        now: 10_000,
+        status: undefined,
+        triggeredAt: 9_000,
+      }),
+    ).toEqual({ enabled: true, intervalMs: 2_000 })
+
+    expect(
+      createDistributionPollingState({
+        now: 40_000,
+        status: DISTRIBUTION_STATUS,
+        triggeredAt: 9_000,
+      }),
+    ).toEqual({ enabled: false, intervalMs: null })
+
+    expect(
+      createDistributionPollingState({
+        now: 10_000,
+        status: DISTRIBUTION_STATUS,
+        triggeredAt: null,
+      }),
+    ).toEqual({ enabled: false, intervalMs: null })
   })
 
   test('clears selected fiscal files after submit success, submit failure and manual reset', async () => {
@@ -72,6 +121,17 @@ describe('nfe workspace polling and cleanup contract', () => {
 type NfePollingModule = {
   readonly createImportPollingState: (input: {
     readonly activeImport: null | NfeImportSummaryContract
+  }) => {
+    readonly enabled: boolean
+    readonly intervalMs: null | number
+  }
+}
+
+type NfeDistributionPollingModule = {
+  readonly createDistributionPollingState: (input: {
+    readonly now: number
+    readonly status: NfeDistributionStatusContract | undefined
+    readonly triggeredAt: null | number
   }) => {
     readonly enabled: boolean
     readonly intervalMs: null | number

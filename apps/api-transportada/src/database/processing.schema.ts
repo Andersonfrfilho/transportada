@@ -7,6 +7,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -16,13 +17,91 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies, userCompanyMemberships } from './identity.schema.js'
-import { nfeImports } from './nfe.schema.js'
+import { nfeImports, type NfeOriginTrigger } from './nfe.schema.js'
 
 export const PROCESSING_EVENT_TYPES = [
   'transportada.nfe.import.requested',
   'transportada.nfe.distribution.requested',
 ] as const
 export type ProcessingEventType = (typeof PROCESSING_EVENT_TYPES)[number]
+
+export const PROCESSING_JOB_MODULES = [
+  'nfe',
+  'freight',
+  'cte_batch',
+  'cte_issuance',
+  'billing',
+] as const
+export const PROCESSING_JOB_STATUSES = [
+  'pending',
+  'processing',
+  'succeeded',
+  'retry_scheduled',
+  'failed',
+  'dead_letter',
+  'cancelled',
+] as const
+export type ProcessingJobModule = (typeof PROCESSING_JOB_MODULES)[number]
+export type ProcessingJobStatus = (typeof PROCESSING_JOB_STATUSES)[number]
+
+export const processingJobs = pgTable(
+  'processing_jobs',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    module: text().$type<ProcessingJobModule>().notNull(),
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    status: text().$type<ProcessingJobStatus>().notNull(),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastErrorCode: text('last_error_code'),
+    lastErrorMessage: text('last_error_message'),
+    correlationId: text('correlation_id').notNull(),
+    metadata: jsonb()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('processing_jobs_company_id_id_unique').on(table.companyId, table.id),
+    index('processing_jobs_company_status_next_attempt_idx').on(
+      table.companyId,
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index('processing_jobs_company_module_entity_idx').on(
+      table.companyId,
+      table.module,
+      table.entityType,
+      table.entityId,
+    ),
+    index('processing_jobs_company_correlation_idx').on(table.companyId, table.correlationId),
+    check(
+      'processing_jobs_status_check',
+      sql`${table.status} in ('pending', 'processing', 'succeeded', 'retry_scheduled', 'failed', 'dead_letter', 'cancelled')`,
+    ),
+    check('processing_jobs_attempt_count_check', sql`${table.attemptCount} >= 0`),
+    check(
+      'processing_jobs_module_check',
+      sql`${table.module} in ('nfe', 'freight', 'cte_batch', 'cte_issuance', 'billing')`,
+    ),
+    check(
+      'processing_jobs_safe_error_code_check',
+      sql`${table.lastErrorCode} is null or length(${table.lastErrorCode}) between 1 and 80`,
+    ),
+    check(
+      'processing_jobs_safe_error_message_check',
+      sql`${table.lastErrorMessage} is null or length(${table.lastErrorMessage}) <= 500`,
+    ),
+  ],
+)
 
 export const processingOutbox = pgTable(
   'processing_outbox',
@@ -40,6 +119,8 @@ export const processingOutbox = pgTable(
     eventType: text('event_type').$type<ProcessingEventType>().notNull(),
     eventVersion: bigint('event_version', { mode: 'bigint' }).notNull(),
     actorUserId: uuid('actor_user_id').notNull(),
+    triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
+    automationJob: text('automation_job'),
     correlationId: text('correlation_id').notNull(),
     payload: jsonb().notNull(),
     attempt: bigint({ mode: 'bigint' }).notNull().default(0n),
@@ -73,6 +154,10 @@ export const processingOutbox = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    check(
+      'processing_outbox_origin_ck',
+      sql`(${table.triggeredBy} = 'user' and ${table.automationJob} is null) or (${table.triggeredBy} = 'automation' and ${table.automationJob} is not null)`,
+    ),
     check('processing_outbox_attempt_check', sql`${table.attempt} >= 0`),
     check('processing_outbox_event_version_check', sql`${table.eventVersion} > 0`),
     check('processing_outbox_aggregate_type_check', sql`${table.aggregateType} = 'nfe_import'`),

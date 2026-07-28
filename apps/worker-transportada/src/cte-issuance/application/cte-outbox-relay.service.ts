@@ -3,7 +3,9 @@
  */
 import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
 
-type CteOutboxEventType = 'transportada.cte.item.issue.requested'
+type CteOutboxEventType =
+  | 'transportada.cte.item.issue.requested'
+  | 'transportada.cte.item.cancel.requested'
 
 type ClaimedOutboxEntry = {
   readonly actorId: string
@@ -19,13 +21,13 @@ type ClaimedOutboxEntry = {
   readonly aggregateSubtype: string
   readonly batchId: string
   readonly batchItemId: string
-  readonly attemptKind: 'issue' | 'reprocess'
+  readonly attemptKind: 'issue' | 'reprocess' | 'cancel'
   readonly eventVersion: 1
   readonly occurredAt: string
   readonly payload: {
     readonly batchItemId: string
     readonly batchId: string
-    readonly attemptKind: 'issue' | 'reprocess'
+    readonly attemptKind: 'issue' | 'reprocess' | 'cancel'
     readonly status: string
     readonly attemptFingerprint: string
     readonly attemptId: string

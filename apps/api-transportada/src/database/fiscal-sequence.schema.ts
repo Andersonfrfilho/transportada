@@ -17,7 +17,7 @@ import {
 import type { FiscalEnvironment } from './company-fiscal-profile.schema.js'
 import { companies } from './identity.schema.js'
 
-export const FISCAL_MODELS = ['cte'] as const
+export const FISCAL_MODELS = ['cte', 'mdfe'] as const
 export type FiscalModel = (typeof FISCAL_MODELS)[number]
 
 export const fiscalSequences = pgTable(
@@ -51,7 +51,7 @@ export const fiscalSequences = pgTable(
       'fiscal_sequences_environment_check',
       sql`${table.environment} in ('homologation', 'production')`,
     ),
-    check('fiscal_sequences_model_check', sql`${table.model} = 'cte'`),
+    check('fiscal_sequences_model_check', sql`${table.model} in ('cte', 'mdfe')`),
     check('fiscal_sequences_series_check', sql`${table.series} > 0`),
     check(
       'fiscal_sequences_number_coherence_check',

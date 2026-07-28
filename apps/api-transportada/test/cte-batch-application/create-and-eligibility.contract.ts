@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   BATCH_ID,
+  BATCH_NAME,
   CALCULATION_ID,
   COMPANY_CONTEXT,
   CORRELATION_ID,
@@ -9,44 +10,42 @@ import {
   EXPECTED_BATCH_SUMMARY,
   FINGERPRINT,
   IDEMPOTENCY_KEY,
+  ITEM_ID,
+  SECOND_CALCULATION_ID,
+  SECOND_DOCUMENT_ID,
+  SECOND_ITEM_ID,
   captureApiError,
   createCteBatchUseCaseForTest,
+  CteBatchFingerprintFixture,
   CteBatchUnitOfWorkFixture,
+  decodeFingerprintFields,
 } from './support.js'
 
 describe('CT-e batch application create contract', () => {
-  test('creates a tenant-scoped draft batch with immutable calculation snapshots', async () => {
+  test('creates one item per selected document with frozen snapshots and charges', async () => {
     const unitOfWork = new CteBatchUnitOfWorkFixture()
-    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+    const fingerprintService = new CteBatchFingerprintFixture(FINGERPRINT)
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork, fingerprintService)
 
     const result = await useCase.create({
       companyId: 'attacker-company',
       context: COMPANY_CONTEXT,
       correlationId: CORRELATION_ID,
-      documentIds: [DOCUMENT_ID],
+      documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID],
       idempotencyKey: IDEMPOTENCY_KEY,
-      name: 'Lote CT-e julho',
+      name: BATCH_NAME,
     })
 
-    expect(result).toEqual(EXPECTED_BATCH_SUMMARY)
+    expect(result).toEqual({ ...EXPECTED_BATCH_SUMMARY, itemCount: 2 })
     expect(unitOfWork.executedTransactions).toEqual(['cte-batch'])
     expect(unitOfWork.idempotencyQueries).toEqual([
-      {
-        companyId: COMPANY_CONTEXT.companyId,
-        idempotencyKey: IDEMPOTENCY_KEY,
-      },
+      { companyId: COMPANY_CONTEXT.companyId, idempotencyKey: IDEMPOTENCY_KEY },
     ])
     expect(unitOfWork.documentQueries).toEqual([
-      {
-        companyId: COMPANY_CONTEXT.companyId,
-        documentId: DOCUMENT_ID,
-      },
+      { companyId: COMPANY_CONTEXT.companyId, documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID] },
     ])
-    expect(unitOfWork.freightQueries).toEqual([
-      {
-        companyId: COMPANY_CONTEXT.companyId,
-        documentId: DOCUMENT_ID,
-      },
+    expect(unitOfWork.activeLinkQueries).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID] },
     ])
     expect(unitOfWork.createdBatches).toEqual([
       {
@@ -54,43 +53,104 @@ describe('CT-e batch application create contract', () => {
         correlationId: CORRELATION_ID,
         idempotencyFingerprint: FINGERPRINT,
         idempotencyKey: IDEMPOTENCY_KEY,
-        name: 'Lote CT-e julho',
+        name: BATCH_NAME,
         operatorUserId: COMPANY_CONTEXT.userId,
         status: 'draft',
         version: '1',
       },
     ])
-    expect(unitOfWork.createdItems).toEqual([
-      {
-        batchId: BATCH_ID,
-        calculationSnapshot: {
-          calculatedAmount: '350.0000',
-          freightCalculationId: CALCULATION_ID,
-          ruleSnapshot: {
-            percentage: '0.035000',
-            ruleVersion: '1',
-            type: 'percentage_of_invoice_total',
-          },
-          totalAmount: '350.0000',
-        },
-        companyId: COMPANY_CONTEXT.companyId,
-        freightCalculationId: CALCULATION_ID,
-        nfeDocumentId: DOCUMENT_ID,
-        position: '1',
-      },
+    expect(unitOfWork.createdItems.map((item) => item['position'])).toEqual(['1', '2'])
+    expect(unitOfWork.createdItems.map((item) => item['nfeDocumentId'])).toEqual([
+      DOCUMENT_ID,
+      SECOND_DOCUMENT_ID,
     ])
+    expect(unitOfWork.createdItems.map((item) => item['freightCalculationId'])).toEqual([
+      CALCULATION_ID,
+      SECOND_CALCULATION_ID,
+    ])
+    expect(unitOfWork.createdItems[0]).toMatchObject({
+      batchId: BATCH_ID,
+      calculationSnapshot: {
+        baseAmount: '10000.0000',
+        calculatedAmount: '450.0000',
+        fiscalAmount: '450.00',
+        freightCalculationId: CALCULATION_ID,
+        percentage: '0.045000',
+      },
+      companyId: COMPANY_CONTEXT.companyId,
+    })
     expect(JSON.stringify(unitOfWork.createdItems)).not.toContain('xml')
     expect(unitOfWork.createdEvents).toContainEqual({
       batchId: BATCH_ID,
       companyId: COMPANY_CONTEXT.companyId,
       eventName: 'created',
       payload: {
-        documentIds: [DOCUMENT_ID],
-        itemCount: 1,
+        documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID],
+        itemCount: 2,
         status: 'draft',
       },
       userId: COMPANY_CONTEXT.userId,
     })
+    expect(decodeFingerprintFields(fingerprintService.payloads[0])).toEqual([
+      COMPANY_CONTEXT.companyId,
+      BATCH_NAME,
+      '',
+      '',
+      DOCUMENT_ID,
+      SECOND_DOCUMENT_ID,
+    ])
+  })
+
+  test('binds every document to its projected CT-e item and freezes the charge breakdown', async () => {
+    const unitOfWork = new CteBatchUnitOfWorkFixture()
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+
+    await useCase.create({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      name: BATCH_NAME,
+    })
+
+    expect(unitOfWork.createdItemDocuments).toEqual([
+      {
+        batchId: BATCH_ID,
+        companyId: COMPANY_CONTEXT.companyId,
+        itemId: ITEM_ID,
+        nfeDocumentId: DOCUMENT_ID,
+        position: '1',
+      },
+      {
+        batchId: BATCH_ID,
+        companyId: COMPANY_CONTEXT.companyId,
+        itemId: SECOND_ITEM_ID,
+        nfeDocumentId: SECOND_DOCUMENT_ID,
+        position: '1',
+      },
+    ])
+    expect(unitOfWork.createdItemCharges).toEqual([
+      {
+        amount: '450.0000',
+        baseAmount: '10000.0000',
+        calculationType: 'percentage_of_cargo',
+        companyId: COMPANY_CONTEXT.companyId,
+        itemId: ITEM_ID,
+        label: 'Frete',
+        ordinal: '1',
+        rate: '0.045000',
+      },
+      {
+        amount: '900.0000',
+        baseAmount: '20000.0000',
+        calculationType: 'percentage_of_cargo',
+        companyId: COMPANY_CONTEXT.companyId,
+        itemId: SECOND_ITEM_ID,
+        label: 'Frete',
+        ordinal: '1',
+        rate: '0.045000',
+      },
+    ])
   })
 
   test('replays matching create idempotency without creating another partial batch', async () => {
@@ -104,15 +164,18 @@ describe('CT-e batch application create contract', () => {
     const result = await useCase.create({
       context: COMPANY_CONTEXT,
       correlationId: CORRELATION_ID,
-      documentIds: [DOCUMENT_ID],
+      documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID],
       idempotencyKey: IDEMPOTENCY_KEY,
-      name: 'Lote CT-e julho',
+      name: BATCH_NAME,
     })
 
     expect(result).toEqual(EXPECTED_BATCH_SUMMARY)
     expect(unitOfWork.executedTransactions).toEqual(['cte-batch'])
     expect(unitOfWork.createdBatches).toEqual([])
     expect(unitOfWork.createdItems).toEqual([])
+    expect(unitOfWork.createdItemDocuments).toEqual([])
+    expect(unitOfWork.createdItemCharges).toEqual([])
+    expect(unitOfWork.createdFreightCalculations).toEqual([])
     expect(unitOfWork.createdEvents).toEqual([])
   })
 
@@ -130,7 +193,7 @@ describe('CT-e batch application create contract', () => {
         correlationId: CORRELATION_ID,
         documentIds: [DOCUMENT_ID],
         idempotencyKey: IDEMPOTENCY_KEY,
-        name: 'Lote CT-e julho',
+        name: BATCH_NAME,
       }),
     )
 
@@ -142,35 +205,5 @@ describe('CT-e batch application create contract', () => {
     expect(JSON.stringify(error)).not.toContain(COMPANY_CONTEXT.companyId)
     expect(JSON.stringify(error)).not.toContain(FINGERPRINT)
     expect(unitOfWork.createdBatches).toEqual([])
-  })
-
-  test('rejects ineligible documents without creating a partial batch', async () => {
-    const unitOfWork = new CteBatchUnitOfWorkFixture()
-    unitOfWork.document = {
-      companyId: COMPANY_CONTEXT.companyId,
-      id: DOCUMENT_ID,
-      status: 'cancelled',
-      variant: 'complete',
-    }
-    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
-
-    const error = await captureApiError(() =>
-      useCase.create({
-        context: COMPANY_CONTEXT,
-        correlationId: CORRELATION_ID,
-        documentIds: [DOCUMENT_ID],
-        idempotencyKey: IDEMPOTENCY_KEY,
-        name: 'Lote CT-e julho',
-      }),
-    )
-
-    expect(error).toMatchObject({
-      code: 'CTE_BATCH_DOCUMENT_NOT_ELIGIBLE',
-      message: 'NF-e is not eligible for CT-e batch',
-      status: 409,
-    })
-    expect(unitOfWork.createdBatches).toEqual([])
-    expect(unitOfWork.createdItems).toEqual([])
-    expect(unitOfWork.createdEvents).toEqual([])
   })
 })

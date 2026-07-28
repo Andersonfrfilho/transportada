@@ -4,6 +4,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 
 import { fiscalSequenceReservations, fiscalSequences } from '../../database/database.schema.js'
+import type { FiscalModel } from '../../database/fiscal-sequence.schema.js'
 import { ApiError } from '../../shared/api.error.js'
 import type {
   FiscalNumberReservation,
@@ -13,7 +14,7 @@ import type { CompanySettingsTransaction } from './drizzle-company-settings.type
 
 type ReservationRecord = {
   readonly environment: 'homologation' | 'production'
-  readonly model: 'cte'
+  readonly model: FiscalModel
   readonly number: bigint
   readonly sequenceId: string
   readonly series: bigint
