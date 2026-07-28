@@ -109,9 +109,9 @@ carga lotação sem esses grupos. Cada task nasceu de um teste vermelho.
 
 ## Fase J — Pendências externas (bloqueadas fora do repositório)
 
-- [ ] T023 Publicar `@adatechnology/fiscal-provider@0.3.0-rc.3` (exige `npm login` do usuário) e subir
+- [x] T023 Publicar `@adatechnology/fiscal-provider@0.3.0-rc.3` (exige `npm login` do usuário) e subir
       a versão em `apps/api-transportada/package.json` e `apps/worker-transportada/package.json` — a
       `rc.2` instalada não expõe nenhum símbolo de MDF-e
-- [ ] T024 Ligar `createProvider` de MDF-e no worker: fábrica
+- [x] T024 Ligar `createProvider` de MDF-e no worker: fábrica
       `adatechnology-mdfe-fiscal-provider.factory.ts` espelhando a de CT-e e injeção em
       `createMdfeIssuanceWorkerEffect` (`apps/worker-transportada/src/main.ts`) — depende de T023

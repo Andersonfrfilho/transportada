@@ -1312,3 +1312,69 @@ make check     exit 0 — format:check · lint · typecheck · test · build
   cron-transportada      24 pass  0 fail
   frontend-transportada 196 pass  0 fail
 ```
+
+## T023 — `@adatechnology/fiscal-provider@0.3.0-rc.3` publicado e consumido
+
+O `0.3.0-rc.3` saiu do merge do PR #4 do `adatechnology-packages` (`779934d` em `main`), que consumiu
+quatro changesets pendentes: MDF-e 3.00 (emissão/encerramento/cancelamento), grupos exigidos pela SVRS
+em carga lotação, `procEventoCTe` no `cancel` de CT-e e escape de texto livre no XML. O workflow
+`publish.yml` (run `30407905694`, success) rodou `changeset version` em modo pre/rc e publicou.
+
+```
+npm view @adatechnology/fiscal-provider dist-tags
+  { latest: '0.2.0', rc: '0.3.0-rc.3' }
+```
+
+Dependência subida de `0.3.0-rc.2` para `0.3.0-rc.3` em `apps/api-transportada/package.json` e
+`apps/worker-transportada/package.json`, com `bun.lock` regravado pelo `bun install`. Os três
+contratos que fixam a versão auditada acompanharam o bump — foram eles que quebraram o `make check` e
+denunciaram a divergência, que é exatamente o serviço que prestam:
+`apps/api-transportada/test/certificate-validation-gateway.contract.test.ts`,
+`apps/worker-transportada/test/environment.contract.test.ts` e
+`apps/worker-transportada/test/nfe-distribution/gateway.contract.ts`.
+
+## T024 — `createProvider` de MDF-e ligado no worker
+
+Contrato antes da implementação: dois testes novos em
+`apps/worker-transportada/test/mdfe-fiscal-gateway.contract.test.ts` — um exige que a fábrica seja o
+único ponto que toca o pacote fiscal, o outro exige a injeção real dentro do
+`createMdfeIssuanceWorkerEffect` do `main.ts`. Ambos falharam pelo motivo certo (`ENOENT` na fábrica
+inexistente e ausência de `createAdatechnologyMdfeFiscalProvider` no `main.ts`) antes do código
+existir.
+
+### Por que a fábrica de MDF-e não espelha a de CT-e
+
+A task pedia espelhar `adatechnology-cte-fiscal-provider.factory.ts`, que usa `createFiscalProvider`.
+Isso não compila para MDF-e: `createFiscalProvider` é declarado como `(config: FiscalConfig) =>
+FiscalProvider`, e `FiscalProvider` só tem `emit`, `cancel` e `testConnection`. O evento **110112**
+(encerramento) existe apenas no tipo da classe `SefazMdfeProvider`, e sem encerramento o MDF-e aberto
+trava a emissão do próximo. O `tsc` recusou o cast com `TS2352 — neither type sufficiently overlaps`,
+que aqui é diagnóstico correto e não ruído. A fábrica instancia `SefazMdfeProvider` direto; a classe é
+export de raiz do pacote, então a regra de não importar `src/sefaz/*` continua respeitada, e o teste
+de isolamento passou a fixar `SefazMdfeProvider` em vez de `createFiscalProvider`.
+
+Conferido campo a campo contra o `dist/types.d.ts` do pacote instalado, porque o cast apaga a
+checagem: `emit` recebe `mdfeData`/`referenceId`/`items`/`payments`/`totalAmount`/`discountAmount`;
+`close` recebe `chaveAcesso`/`protocolo`/`dataEncerramento`/`ufEncerramento`/
+`codigoMunicipioEncerramento`; `cancel` recebe `chaveAcesso`/`protocolo`/`justificativa`; o
+`FiscalResult` devolve `chaveAcesso`/`protocolo`/`xmlAutorizado`/`xmlEvento`/`errorCode`/
+`errorMessage`. Todos batem com o que `mdfe-fiscal-gateway.ts` já enviava e mapeava.
+`MdfeProviderConfig` satisfaz `MdfeConfig` — a única diferença é `crt` alargado de `'1'|'2'|'3'` para
+`string`, mesmo motivo do cast na fábrica de CT-e.
+
+O comentário do `main.ts` que dizia "o pacote fiscal ainda não expõe MDF-e" saiu junto com o
+`createProvider` ausente: a partir daqui o efeito emite de verdade em vez de gravar tentativa
+pendente.
+
+```
+bun test ./test/mdfe-fiscal-gateway.contract.test.ts     8 pass  0 fail
+
+make check     exit 0 — format:check · lint · typecheck · test · build
+  api-transportada     1008 pass  0 fail
+  worker-transportada   211 pass  0 fail
+  cron-transportada      24 pass  0 fail
+  frontend-transportada 196 pass  0 fail
+```
+
+⚠️ Nenhuma emissão real de MDF-e na SEFAZ foi executada aqui — o que está provado é o wiring e a
+aderência de contrato ao pacote, não a resposta da SVRS.

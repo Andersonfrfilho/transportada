@@ -19,7 +19,7 @@ describe('public fiscal certificate validation gateway contract', () => {
       readonly dependencies?: Readonly<Record<string, string>>
     }
 
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.2')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.3')
     expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.1.1')
   })
 

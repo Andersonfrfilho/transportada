@@ -38,6 +38,7 @@ import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-rel
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
 import { buildMdfeIssuanceRabbitMqTopology } from './messaging/mdfe-rabbitmq-topology.js'
+import { createAdatechnologyMdfeFiscalProvider } from './mdfe-issuance/infrastructure/adatechnology-mdfe-fiscal-provider.factory.js'
 import { DrizzleMdfeOutboxRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-outbox.repository.js'
 import { DrizzleMdfeCertificateRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-certificate.repository.js'
 import { DrizzleMdfeEventTargetRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-event-target.repository.js'
@@ -456,12 +457,11 @@ export async function startWorkerRuntime(
       ),
       secretService: digitalCertificateSecretService,
     }
-    // Sem `createProvider`: o pacote fiscal ainda não expõe MDF-e, então o efeito apenas registra
-    // a tentativa pendente em vez de inventar uma emissão.
     mdfeIssuanceConsumer = await mdfeIssuanceStarter({
       config,
       effect: createMdfeIssuanceWorkerEffect({
         authorizedDocumentStorage: mdfeFiscalDocumentStorage,
+        createProvider: createAdatechnologyMdfeFiscalProvider,
         eventDocumentStorage: mdfeFiscalDocumentStorage,
         logger,
         resolveCancellationInput: createMdfeCancellationInputResolver(

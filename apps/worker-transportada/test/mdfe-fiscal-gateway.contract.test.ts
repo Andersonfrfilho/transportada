@@ -77,6 +77,30 @@ describe('worker MDF-e fiscal gateway contract', () => {
     expect(gatewaySource).not.toContain('src/sefaz')
   })
 
+  test('keeps the real Ada fiscal package isolated in the provider factory', async () => {
+    const providerFactorySource = await Bun.file(
+      new URL(
+        '../src/mdfe-issuance/infrastructure/adatechnology-mdfe-fiscal-provider.factory.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(providerFactorySource).toContain("from '@adatechnology/fiscal-provider'")
+    expect(providerFactorySource).toContain('SefazMdfeProvider')
+    expect(providerFactorySource).not.toContain('@adatechnology/fiscal-provider/')
+    expect(providerFactorySource).not.toContain('src/sefaz')
+  })
+
+  test('wires the real provider factory into the mdfe issuance consumer', async () => {
+    const mainSource = await Bun.file(new URL('../src/main.ts', import.meta.url)).text()
+    const mdfeEffectSource = mainSource.slice(
+      mainSource.indexOf('createMdfeIssuanceWorkerEffect({'),
+    )
+
+    expect(mainSource).toContain('createAdatechnologyMdfeFiscalProvider')
+    expect(mdfeEffectSource).toContain('createProvider: createAdatechnologyMdfeFiscalProvider')
+  })
+
   test('adapts provider emit output to internal outcome without leaking cert payload', async () => {
     const calls: Record<string, unknown>[] = []
     const gateway = await createMdfeFiscalGatewayFixture({
