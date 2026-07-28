@@ -4,6 +4,11 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
+import {
+  CTE_RETRY_BACKOFF_STEPS_LIMIT,
+  CTE_RETRY_MAX_ATTEMPTS_LIMIT,
+  createCteRetryPolicy,
+} from '../../cte-issuance/domain/cte-retry.policy.js'
 import { companyFiscalProfiles, fiscalSequences } from '../../database/database.schema.js'
 import type {
   CompanySettingsInput,
@@ -19,6 +24,23 @@ const persistedResponseSchema = z
         nextNumber: z.string().regex(/^[1-9][0-9]*$/),
         series: z.string().regex(/^[1-9][0-9]*$/),
         version: z.string().regex(/^[1-9][0-9]*$/),
+      })
+      .strict(),
+    cteRetry: z
+      .object({
+        backoffSeconds: z.array(z.number().int().min(1)).min(1).max(CTE_RETRY_BACKOFF_STEPS_LIMIT),
+        maxAttempts: z.number().int().min(1).max(CTE_RETRY_MAX_ATTEMPTS_LIMIT),
+      })
+      .strict(),
+    mdfe: z
+      .object({
+        bankBranch: z.string(),
+        bankCode: z.string(),
+        insurancePolicy: z.string(),
+        insuranceResponsibility: z.enum(['', '1', '2']),
+        insurerName: z.string(),
+        insurerTaxId: z.string(),
+        pixKey: z.string(),
       })
       .strict(),
     profile: z
@@ -52,6 +74,19 @@ const settingsSelection = {
     nextNumber: fiscalSequences.nextNumber,
     series: fiscalSequences.series,
     version: fiscalSequences.version,
+  },
+  cteRetry: {
+    backoffSeconds: companyFiscalProfiles.cteRetryBackoffSeconds,
+    maxAttempts: companyFiscalProfiles.cteRetryMaxAttempts,
+  },
+  mdfe: {
+    bankBranch: companyFiscalProfiles.mdfePaymentBankBranch,
+    bankCode: companyFiscalProfiles.mdfePaymentBankCode,
+    insurancePolicy: companyFiscalProfiles.mdfeInsurancePolicy,
+    insuranceResponsibility: companyFiscalProfiles.mdfeInsuranceResponsibility,
+    insurerName: companyFiscalProfiles.mdfeInsurerName,
+    insurerTaxId: companyFiscalProfiles.mdfeInsurerTaxId,
+    pixKey: companyFiscalProfiles.mdfePaymentPixKey,
   },
   profile: {
     city: companyFiscalProfiles.city,
@@ -98,7 +133,12 @@ export async function findCompanySettings(
   if (cte === null) {
     throw new Error('Company fiscal settings are inconsistent')
   }
-  return { cte, profile: settings.profile }
+  return {
+    cte,
+    cteRetry: createCteRetryPolicy(settings.cteRetry),
+    mdfe: settings.mdfe,
+    profile: settings.profile,
+  }
 }
 
 export function createCompanySettingsResult(
@@ -108,6 +148,8 @@ export function createCompanySettingsResult(
 ): CompanySettingsResult {
   return {
     cte: { ...settings.cte, version: sequenceVersion },
+    cteRetry: settings.cteRetry,
+    mdfe: settings.mdfe,
     profile: { ...settings.profile, version: profileVersion },
   }
 }
@@ -122,6 +164,11 @@ export function serializeCompanySettingsResponse(
       series: response.cte.series.toString(),
       version: response.cte.version.toString(),
     },
+    cteRetry: {
+      backoffSeconds: [...response.cteRetry.backoffSeconds],
+      maxAttempts: response.cteRetry.maxAttempts,
+    },
+    mdfe: { ...response.mdfe },
     profile: {
       ...response.profile,
       version: response.profile.version.toString(),
@@ -138,6 +185,8 @@ export function deserializeCompanySettingsResponse(response: unknown): CompanySe
       series: BigInt(parsed.cte.series),
       version: BigInt(parsed.cte.version),
     },
+    cteRetry: parsed.cteRetry,
+    mdfe: parsed.mdfe,
     profile: {
       ...parsed.profile,
       version: BigInt(parsed.profile.version),

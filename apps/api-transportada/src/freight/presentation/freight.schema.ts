@@ -42,7 +42,7 @@ export async function parseCreateFreightRuleRequest(request: Request): Promise<{
   readonly validFrom: string
   readonly validUntil: string | null
 }> {
-  const result = createFreightRuleSchema.safeParse(await parseJsonBody(request))
+  const result = createFreightRuleSchema.safeParse(await parseFreightJsonBody(request))
   if (!result.success) throw invalidRequest()
   return result.data
 }
@@ -277,7 +277,7 @@ export function parseIdempotencyKey(value: string | null): string {
 export async function parseSimulateFreightRequest(request: Request): Promise<{
   readonly documentId: string
 }> {
-  const result = simulateFreightSchema.safeParse(await parseJsonBody(request))
+  const result = simulateFreightSchema.safeParse(await parseFreightJsonBody(request))
   if (!result.success) throw invalidRequest()
   return result.data
 }
@@ -534,7 +534,7 @@ function parseOptionalUuid(value: string | null): string | undefined {
   return value
 }
 
-async function parseJsonBody(request: Request): Promise<unknown> {
+export async function parseFreightJsonBody(request: Request): Promise<unknown> {
   assertJsonContentType(request.headers.get('content-type'))
   const reader = request.body?.getReader()
   if (reader === undefined) throw invalidRequest()

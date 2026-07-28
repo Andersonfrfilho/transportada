@@ -18,11 +18,13 @@ type CteIssuanceCall = {
   readonly context: CompanyContext
   readonly correlationId?: string
   readonly idempotencyKey?: string
+  readonly justification?: string
   readonly reason?: string
 }
 
 type CreateFixtureParams = {
   readonly authenticationError?: Error
+  readonly cancelError?: Error
   readonly getError?: Error
   readonly issueError?: Error
   readonly permissions?: CompanyContext['permissions']
@@ -31,6 +33,7 @@ type CreateFixtureParams = {
 
 type CteIssuanceHttpRouteDependencies = {
   readonly cteIssuance: {
+    readonly cancel: (input: CteIssuanceCall) => Promise<typeof CANCEL_RESPONSE>
     readonly get: (input: CteIssuanceCall) => Promise<typeof ISSUANCE_SUMMARY>
     readonly issue: (input: CteIssuanceCall) => Promise<typeof ISSUE_RESPONSE>
     readonly listDocuments: (input: CteIssuanceCall) => Promise<typeof DOCUMENTS_PAGE>
@@ -45,6 +48,8 @@ export const ATTEMPT_ID = '00000000-0000-4000-8000-000000000603'
 export const DOCUMENT_ID = '00000000-0000-4000-8000-000000000604'
 export const ISSUE_IDEMPOTENCY_KEY = 'cte-issue-http-key-0001'
 export const REPROCESS_IDEMPOTENCY_KEY = 'cte-reprocess-http-key-0001'
+export const CANCEL_IDEMPOTENCY_KEY = 'cte-cancel-http-key-0001'
+export const CANCEL_JUSTIFICATION = 'Prestacao de servico nao realizada pelo tomador'
 export const CTE_BATCHES_PATH = '/cte-batches'
 
 export const COMPANY_CONTEXT: CompanyContext = {
@@ -55,6 +60,10 @@ export const READ_ONLY_CONTEXT: CompanyContext = {
   ...COMPANY_CONTEXT,
   permissions: new Set(['invoices.read']),
 }
+export const CANCEL_CONTEXT: CompanyContext = {
+  ...COMPANY_CONTEXT,
+  permissions: new Set(['cte.submit', 'cte.cancel']),
+}
 
 export const ISSUE_RESPONSE = {
   batchId: BATCH_ID,
@@ -63,6 +72,13 @@ export const ISSUE_RESPONSE = {
 } as const
 
 export const REPROCESS_RESPONSE = {
+  attemptId: ATTEMPT_ID,
+  batchId: BATCH_ID,
+  batchItemId: BATCH_ITEM_ID,
+  status: 'requested',
+} as const
+
+export const CANCEL_RESPONSE = {
   attemptId: ATTEMPT_ID,
   batchId: BATCH_ID,
   batchItemId: BATCH_ITEM_ID,
@@ -97,6 +113,7 @@ export const DOCUMENTS_PAGE = {
 } as const
 
 export async function createCteIssuanceHttpFixture(params: CreateFixtureParams = {}): Promise<{
+  readonly cancelCalls: CteIssuanceCall[]
   readonly events: string[]
   readonly getCalls: CteIssuanceCall[]
   readonly handle: (request: Request) => Promise<Response>
@@ -104,6 +121,7 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   readonly listDocumentCalls: CteIssuanceCall[]
   readonly reprocessCalls: CteIssuanceCall[]
 }> {
+  const cancelCalls: CteIssuanceCall[] = []
   const events: string[] = []
   const getCalls: CteIssuanceCall[] = []
   const issueCalls: CteIssuanceCall[] = []
@@ -111,6 +129,11 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   const reprocessCalls: CteIssuanceCall[] = []
   const routes = await loadRoutes({
     cteIssuance: {
+      async cancel(input) {
+        cancelCalls.push(structuredClone(input))
+        if (params.cancelError) throw params.cancelError
+        return CANCEL_RESPONSE
+      },
       async get(input) {
         getCalls.push(structuredClone(input))
         if (params.getError) throw params.getError
@@ -147,6 +170,7 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   })
 
   return {
+    cancelCalls,
     events,
     getCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
@@ -187,6 +211,23 @@ export function reprocessItemRequest(
     method: 'POST',
     origin: input.origin,
     pathname: `${CTE_BATCHES_PATH}/${BATCH_ID}/items/${BATCH_ITEM_ID}/reprocess`,
+  })
+}
+
+export function cancelItemRequest(
+  input: {
+    readonly body?: unknown
+    readonly events?: string[]
+    readonly origin?: string
+  } = {},
+): Request {
+  return jsonRequest({
+    body: input.body ?? { justification: CANCEL_JUSTIFICATION },
+    events: input.events,
+    idempotencyKey: CANCEL_IDEMPOTENCY_KEY,
+    method: 'POST',
+    origin: input.origin,
+    pathname: `${CTE_BATCHES_PATH}/${BATCH_ID}/items/${BATCH_ITEM_ID}/cancel`,
   })
 }
 

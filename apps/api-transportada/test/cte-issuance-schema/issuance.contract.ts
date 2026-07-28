@@ -120,6 +120,12 @@ describe('CT-e issuance schema', () => {
       'xml_object_id',
       'xml_sha256',
       'authorized_at',
+      'cancellation_justification',
+      'cancellation_requested_at',
+      'cancellation_protocol',
+      'cancelled_at',
+      'cancellation_xml_object_id',
+      'cancellation_xml_sha256',
       'created_at',
       'updated_at',
     ])
@@ -159,7 +165,12 @@ describe('CT-e issuance schema', () => {
     })
     expect(
       columnNames(cteFiscalDocuments).filter((columnName) => columnName.includes('xml')),
-    ).toEqual(['xml_object_id', 'xml_sha256'])
+    ).toEqual([
+      'xml_object_id',
+      'xml_sha256',
+      'cancellation_xml_object_id',
+      'cancellation_xml_sha256',
+    ])
     expect(foreignKeys(cteFiscalDocuments)).toContainEqual({
       columns: ['company_id', 'xml_object_id'],
       foreignColumns: ['company_id', 'id'],
@@ -168,6 +179,74 @@ describe('CT-e issuance schema', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+
+  test('defines one transmittable payload per attempt without certificate material', () => {
+    const cteIssuancePayloads = requireSchemaTable('cteIssuancePayloads')
+
+    expect(columnNames(cteIssuancePayloads)).toContainAllValues([
+      'id',
+      'company_id',
+      'batch_id',
+      'batch_item_id',
+      'attempt_id',
+      'payload',
+      'provider_config',
+      'payload_sha256',
+      'created_at',
+    ])
+    expect(requiredColumnNames(cteIssuancePayloads)).toContainAllValues([
+      'id',
+      'company_id',
+      'batch_id',
+      'batch_item_id',
+      'attempt_id',
+      'payload',
+      'provider_config',
+      'payload_sha256',
+      'created_at',
+    ])
+    expect(columnSqlTypes(cteIssuancePayloads)).toMatchObject({
+      payload: 'jsonb',
+      provider_config: 'jsonb',
+    })
+    expectGeneratedUuidPrimaryKey(cteIssuancePayloads)
+    expect(uniqueColumnsByName(cteIssuancePayloads)).toMatchObject({
+      cte_issuance_payloads_company_id_id_unique: ['company_id', 'id'],
+      cte_issuance_payloads_company_attempt_unique: ['company_id', 'attempt_id'],
+    })
+    expect(indexColumnsByName(cteIssuancePayloads)).toMatchObject({
+      cte_issuance_payloads_company_batch_item_created_at_idx: [
+        'company_id',
+        'batch_item_id',
+        'created_at',
+      ],
+    })
+    expect(checkSqlByName(cteIssuancePayloads)).toMatchObject({
+      cte_issuance_payloads_sha256_check:
+        '"cte_issuance_payloads"."payload_sha256" ~ \'^[0-9a-f]{64}$\'',
+    })
+    expect(foreignKeys(cteIssuancePayloads)).toContainEqual({
+      columns: ['company_id', 'attempt_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'cte_issuance_attempts',
+      name: 'cte_issuance_payloads_company_attempt_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(cteIssuancePayloads)).toContainEqual({
+      columns: ['company_id', 'batch_item_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'cte_batch_items',
+      name: 'cte_issuance_payloads_company_batch_item_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(
+      columnNames(cteIssuancePayloads).filter(
+        (columnName) => columnName.includes('certificate') || columnName.includes('password'),
+      ),
+    ).toEqual([])
   })
 
   test('defines append-only events and retry schedules scoped by tenant and attempt', () => {
@@ -197,7 +276,7 @@ describe('CT-e issuance schema', () => {
     ])
     expect(checkSqlByName(cteIssuanceEvents)).toMatchObject({
       cte_issuance_events_name_check:
-        "\"cte_issuance_events\".\"event_name\" in ('issue_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')",
+        "\"cte_issuance_events\".\"event_name\" in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')",
     })
 
     expect(columnNames(cteRetrySchedules)).toContainAllValues([

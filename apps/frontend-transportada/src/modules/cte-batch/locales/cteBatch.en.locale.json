@@ -1,0 +1,140 @@
+{
+  "kicker": "Fiscal issuance",
+  "title": "CT-e batches",
+  "intro": "Track the batches generated from invoices, transmit them to SEFAZ and handle rejections item by item.",
+  "loading": "Loading batches",
+  "error": "Could not load the batches",
+  "empty": "No batch found",
+  "forbidden": "Your current access does not allow browsing CT-e batches",
+  "resultCounter": "{{shown}} of {{total}} batches",
+  "batchesTitle": "Batches",
+  "filters": {
+    "title": "Filters",
+    "simple": "Simple",
+    "advanced": "Advanced",
+    "clear": "Clear filters",
+    "active": "{{count}} active filter(s)",
+    "name": "Batch name",
+    "status": "Status",
+    "itemCountFrom": "CT-es (minimum)",
+    "itemCountTo": "CT-es (maximum)",
+    "createdFrom": "Created from",
+    "createdTo": "Created until"
+  },
+  "status": {
+    "cancelled": "Cancelled",
+    "done": "Done",
+    "draft": "Draft",
+    "error": "Error",
+    "in_flight": "Processing",
+    "submitted": "Submitted"
+  },
+  "columns": {
+    "title": "Columns",
+    "createdAt": "Created at",
+    "itemCount": "CT-es",
+    "name": "Name",
+    "status": "Status",
+    "updatedAt": "Updated at",
+    "version": "Version"
+  },
+  "column": {
+    "moveUp": "Move column left",
+    "moveDown": "Move column right",
+    "toggle": "Show column"
+  },
+  "sort": {
+    "asc": "sorted ascending",
+    "desc": "sorted descending",
+    "none": "not sorted"
+  },
+  "selection": {
+    "selectAll": "Select all batches",
+    "select": "Select batch",
+    "summary": "{{count}} batch(es) selected",
+    "clear": "Clear selection"
+  },
+  "actions": {
+    "submit": "Submit",
+    "transmit": "Transmit",
+    "cancel": "Cancel batch",
+    "reprocess": "Reprocess",
+    "download": "Download XML",
+    "openItems": "View CT-es",
+    "closeItems": "Close CT-es",
+    "track": "Track",
+    "closeTrack": "Close tracking",
+    "remove": "Remove from batch",
+    "cancelItem": "Cancel CT-e",
+    "confirmCancelItem": "Confirm cancellation",
+    "closeCancelItem": "Dismiss"
+  },
+  "items": {
+    "title": "CT-es of batch {{name}}",
+    "loading": "Loading CT-es",
+    "error": "Could not load the CT-es of this batch",
+    "empty": "This batch has no CT-e yet",
+    "position": "#",
+    "status": "Status",
+    "documents": "Linked invoices",
+    "fiscal": "Series/Number",
+    "baseAmount": "Base",
+    "fiscalAmount": "Freight",
+    "accessKey": "Access key",
+    "protocol": "Protocol",
+    "lastError": "Rejection",
+    "actions": "Actions",
+    "summary": "{{authorized}} authorized · {{pending}} in progress · {{rejected}} rejected · {{documents}} invoice(s) · total {{total}}"
+  },
+  "itemStatus": {
+    "authorized": "Authorized",
+    "cancelled": "Cancelled",
+    "failed": "Failed",
+    "in_flight": "Transmitting",
+    "pending": "Pending",
+    "rejected": "Rejected",
+    "retry_scheduled": "Retry scheduled"
+  },
+  "advanced": {
+    "title": "Advanced conditions",
+    "modelConnector": "Combination between groups",
+    "groupConnector": "Combination inside the group",
+    "addGroup": "Add group",
+    "removeGroup": "Remove group",
+    "addCondition": "Add condition",
+    "removeCondition": "Remove condition",
+    "field": "Field",
+    "operator": "Operator",
+    "value": "Value",
+    "valueTo": "To"
+  },
+  "connector": {
+    "and": "AND",
+    "or": "OR"
+  },
+  "operator": {
+    "between": "between",
+    "contains": "contains",
+    "eq": "equals",
+    "gt": "greater than",
+    "gte": "greater or equal to",
+    "lt": "less than",
+    "lte": "less or equal to",
+    "ne": "different from",
+    "notContains": "does not contain"
+  },
+  "cancellation": {
+    "title": "Cancel CT-e {{fiscal}} at SEFAZ",
+    "warning": "Cancellation is irreversible and files a 110111 event against the authorized document.",
+    "justification": "Justification (15 to 255 characters)",
+    "placeholder": "Describe the cancellation reason",
+    "pending": "Sending cancellation…",
+    "error": "The cancellation could not be sent.",
+    "required": "Provide the justification.",
+    "tooShort": "The justification needs at least 15 characters.",
+    "tooLong": "The justification cannot exceed 255 characters."
+  },
+  "removal": {
+    "error": "The note could not be removed from the batch."
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "kicker": "Administração",
+  "title": "Perfis de emissão de CT-e",
+  "intro": "Parâmetros fiscais e de cobrança aplicados quando os CT-es são gerados a partir das notas selecionadas.",
+  "loading": "Carregando perfis",
+  "error": "Não foi possível carregar os perfis",
+  "empty": "Nenhum perfil cadastrado",
+  "readOnly": "Você não tem permissão para gerenciar perfis de emissão",
+  "listTitle": "Perfis cadastrados",
+  "newProfile": "Novo perfil",
+  "edit": "Editar",
+  "cancel": "Cancelar",
+  "save": "Salvar perfil",
+  "saved": "Perfil salvo",
+  "saveError": "Não foi possível salvar o perfil",
+  "versionConflict": "O perfil foi alterado em outra sessão. Recarregue a página antes de salvar.",
+  "activate": "Ativar",
+  "deactivate": "Desativar",
+  "columnName": "Nome",
+  "columnStatus": "Situação",
+  "columnPriority": "Prioridade",
+  "columnPercentage": "Percentual",
+  "columnGrouping": "Agrupamento",
+  "columnActions": "Ações",
+  "status": {
+    "active": "Ativo",
+    "draft": "Rascunho",
+    "inactive": "Inativo"
+  },
+  "identificationLegend": "Identificação",
+  "name": "Nome do perfil",
+  "priority": "Prioridade",
+  "matchMode": "Resolução do perfil",
+  "matchModeOption": {
+    "manual": "Manual, escolhido na seleção das notas",
+    "sender_tax_id": "Automática pelo CNPJ do remetente"
+  },
+  "groupingMode": "Agrupamento dos CT-es",
+  "groupingModeOption": {
+    "per_invoice": "Um CT-e por nota",
+    "sender_recipient": "Agrupar por remetente e destinatário"
+  },
+  "chargeLegend": "Cobrança",
+  "percentage": "Percentual sobre o valor da NF-e (%)",
+  "percentageHint": "Padrão da operação: 4,5% do valor da nota referenciada.",
+  "minimumAmount": "Frete mínimo por CT-e (R$)",
+  "maximumAmount": "Teto por CT-e (R$)",
+  "validFrom": "Vigência a partir de",
+  "validUntil": "Vigência até",
+  "componentsLegend": "Componentes adicionais",
+  "addComponent": "Adicionar componente",
+  "removeComponent": "Remover componente",
+  "componentLabel": "Descrição",
+  "componentCalculation": "Base de cálculo",
+  "componentCalculationOption": {
+    "fixed_amount": "Valor fixo",
+    "percentage_of_cargo": "Percentual sobre o valor da carga",
+    "percentage_of_freight": "Percentual sobre o frete"
+  },
+  "componentRate": "Percentual (%)",
+  "componentAmount": "Valor (R$)",
+  "matchersLegend": "CNPJs vinculados",
+  "addMatcher": "Adicionar CNPJ",
+  "removeMatcher": "Remover CNPJ",
+  "matchRole": "Papel na nota",
+  "matchRoleOption": {
+    "recipient": "Destinatário",
+    "sender": "Remetente"
+  },
+  "taxId": "CNPJ completo ou raiz",
+  "fiscalLegend": "Parâmetros fiscais",
+  "operationNature": "Natureza da operação",
+  "cfopInternal": "CFOP interno",
+  "cfopInterstate": "CFOP interestadual",
+  "icmsCst": "CST do ICMS",
+  "icmsCstOption": {
+    "00": "00 — Tributação normal",
+    "20": "20 — Base de cálculo reduzida",
+    "40": "40 — Isenta",
+    "41": "41 — Não tributada",
+    "51": "51 — Diferimento",
+    "60": "60 — ICMS cobrado por substituição",
+    "90": "90 — Outros"
+  },
+  "icmsRate": "Alíquota de ICMS (%)",
+  "icmsBaseReductionRate": "Redução da base de cálculo (%)",
+  "modal": "Modal",
+  "modalOption": {
+    "01": "01 — Rodoviário",
+    "02": "02 — Aéreo",
+    "03": "03 — Aquaviário",
+    "04": "04 — Ferroviário",
+    "05": "05 — Dutoviário"
+  },
+  "serviceType": "Tipo de serviço",
+  "serviceTypeOption": {
+    "0": "0 — Normal",
+    "1": "1 — Subcontratação",
+    "2": "2 — Redespacho",
+    "3": "3 — Redespacho intermediário",
+    "4": "4 — Serviço vinculado a multimodal"
+  },
+  "taker": "Tomador do serviço",
+  "takerOption": {
+    "0": "0 — Remetente",
+    "1": "1 — Expedidor",
+    "2": "2 — Recebedor",
+    "3": "3 — Destinatário"
+  },
+  "receiverIeIndicator": "Indicador de IE do destinatário",
+  "receiverIeOption": {
+    "1": "1 — Contribuinte do ICMS",
+    "2": "2 — Contribuinte isento",
+    "9": "9 — Não contribuinte"
+  },
+  "pickupDetails": "Detalhe da retirada",
+  "pickupIndicator": "Recebedor retira no destino",
+  "pickupOption": {
+    "0": "0 — Sim",
+    "1": "1 — Não"
+  },
+  "deliveryDays": "Prazo de entrega (dias)",
+  "chargeComponentLabel": "Descrição do componente de frete",
+  "cargoInsuranceDeclared": "Declarar seguro da carga",
+  "predominantProductMode": "Produto predominante",
+  "predominantProductOption": {
+    "fixed": "Fixo",
+    "highest_value": "Item de maior valor",
+    "highest_weight": "Item de maior peso"
+  },
+  "predominantProductName": "Nome do produto predominante",
+  "observations": "Observações do CT-e",
+  "invalidRate": "Percentual inválido",
+  "invalidAmount": "Valor inválido"
+}

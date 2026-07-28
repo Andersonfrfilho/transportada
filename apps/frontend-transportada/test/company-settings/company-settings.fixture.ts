@@ -11,7 +11,20 @@ export type CompanySettingsUpdateContract = Readonly<{
     nextNumber: string
     series: string
   }>
+  cteRetry: Readonly<{
+    backoffSeconds: readonly number[]
+    maxAttempts: number
+  }>
   expectedVersion: string | null
+  mdfe: Readonly<{
+    bankBranch: string
+    bankCode: string
+    insurancePolicy: string
+    insuranceResponsibility: '' | '1' | '2'
+    insurerName: string
+    insurerTaxId: string
+    pixKey: string
+  }>
   profile: Readonly<{
     city: string
     cityIbgeCode: string
@@ -56,12 +69,24 @@ export type DigitalCertificatesResponseContract = Readonly<{
 
 export const COMPANY_SETTINGS_RESPONSE = {
   data: {
-    activeCertificate: null,
     cte: {
       environment: 'production',
       nextNumber: '9007199254740991',
       series: '1',
       version: '2',
+    },
+    cteRetry: {
+      backoffSeconds: [10, 60, 900],
+      maxAttempts: 5,
+    },
+    mdfe: {
+      bankBranch: '1234',
+      bankCode: '341',
+      insurancePolicy: '1234567890',
+      insuranceResponsibility: '1',
+      insurerName: 'Seguradora Sintética',
+      insurerTaxId: '11222333000181',
+      pixKey: '',
     },
     profile: {
       city: 'Ribeirao Preto',
@@ -92,7 +117,20 @@ export const COMPANY_SETTINGS_UPDATE = {
     nextNumber: '9007199254740991',
     series: '1',
   },
+  cteRetry: {
+    backoffSeconds: [10, 60, 900],
+    maxAttempts: 5,
+  },
   expectedVersion: '2',
+  mdfe: {
+    bankBranch: '1234',
+    bankCode: '341',
+    insurancePolicy: '1234567890',
+    insuranceResponsibility: '1',
+    insurerName: 'Seguradora Sintética',
+    insurerTaxId: '11222333000181',
+    pixKey: '',
+  },
   profile: {
     city: 'Ribeirao Preto',
     cityIbgeCode: '3543402',
@@ -120,7 +158,7 @@ export const DIGITAL_CERTIFICATES_RESPONSE = {
 } as const satisfies DigitalCertificatesResponseContract
 
 export const EMPTY_COMPANY_SETTINGS_RESPONSE = {
-  data: { activeCertificate: null, cte: null, profile: null },
+  data: { cte: null, cteRetry: null, mdfe: null, profile: null },
 } as const
 
 export function syntheticCertificateFile(): File {

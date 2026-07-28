@@ -4,7 +4,7 @@
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4, com revisao Sol para dinheiro,
+Modelo executor recomendado: Opus, com revisao Opus para dinheiro,
 concorrencia, idempotencia e release.
 
 Estado inicial: abertura da fase 7 do plano de entrega para fechar o MVP
@@ -55,7 +55,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para schema financeiro, dinheiro,
+Modelo executor recomendado: Opus (alto) para schema financeiro, dinheiro,
 concorrencia, idempotencia, constraints tenant-scoped e rollback.
 
 Contracts criados:
@@ -104,7 +104,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para schema financeiro, dinheiro,
+Modelo executor recomendado: Opus (alto) para schema financeiro, dinheiro,
 constraints tenant-scoped, rollback e concorrencia.
 
 Implementacao confirmada:
@@ -167,7 +167,7 @@ Observacoes:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para dinheiro, idempotencia,
+Modelo executor recomendado: Opus (alto) para dinheiro, idempotencia,
 concorrencia, transacoes e isolamento multiempresa.
 
 Contracts criados:
@@ -209,7 +209,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para dinheiro, idempotencia,
+Modelo executor recomendado: Opus (alto) para dinheiro, idempotencia,
 concorrencia, transacoes e isolamento multiempresa.
 
 Implementacao:
@@ -249,7 +249,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para RBAC, anti-enumeracao,
+Modelo executor recomendado: Opus (alto) para RBAC, anti-enumeracao,
 documentos seguros e matriz HTTP tenant-scoped.
 
 Contracts criados:
@@ -289,7 +289,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 com revisao Sol para RBAC,
+Modelo executor recomendado: Sonnet com revisao Opus para RBAC,
 anti-enumeracao, no-store e adaptacao segura entre HTTP e dominio.
 
 Implementacao:
@@ -347,7 +347,7 @@ Observacoes:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 para DTOs, clients, permissao de tela e
+Modelo executor recomendado: Sonnet para DTOs, clients, permissao de tela e
 view-models previsiveis.
 
 Contracts criados:
@@ -394,7 +394,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 com foco em UI previsivel, clients,
+Modelo executor recomendado: Sonnet com foco em UI previsivel, clients,
 queries, view-models e i18n.
 
 Implementacao:
@@ -446,7 +446,7 @@ Observacoes:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 com revisao Sol para smoke, auth e
+Modelo executor recomendado: Sonnet com revisao Opus para smoke, auth e
 regressao responsiva.
 
 Implementacao:
@@ -504,7 +504,7 @@ Observacoes:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high com revisao independente de release.
+Modelo executor recomendado: Opus (alto) com revisao independente de release.
 
 Gates executados:
 

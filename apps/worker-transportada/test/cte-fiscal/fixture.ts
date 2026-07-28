@@ -2,21 +2,45 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 type CteFiscalConfig = {
-  environment: 'homologation' | 'production'
-  cnpj: string
+  bairro: string
+  cep: string
   certificadoBase64: string
   certificadoSenha: string
+  cnpj: string
+  codigoMunicipio: string
+  crt: string
+  environment: 'homologation' | 'production'
+  inscricaoEstadual: string
+  logradouro: string
+  municipio: string
+  numero: string
+  numeroCte: number
+  razaoSocial: string
+  rntrc: string
+  serie: string
   uf: string
 }
 
+type CteCancelCommandShape = {
+  accessKey: string
+  authorizationProtocol: string
+  documentId: string
+  justification: string
+  tenantId: string
+}
+
+type CteCancelOutcomeShape = {
+  status: 'ok' | 'rejected' | 'error'
+  eventXml?: string
+  protocol?: string
+  rejection?: { code: string }
+  cause?: string
+}
+
 type ProviderCreateInput = {
-  readonly config: {
+  readonly config: Omit<CteFiscalConfig, 'environment'> & {
     model: 'cte'
     environment: 'homologacao' | 'producao'
-    cnpj: string
-    certificadoBase64: string
-    certificadoSenha: string
-    uf: string
   }
 }
 
@@ -34,6 +58,7 @@ type CteFiscalProvider = {
     protocolo?: string
     chaveAcesso?: string
     errorCode?: string
+    xmlAutorizado?: string
     rawResponse: unknown
   }>
   cancel(input: {
@@ -43,6 +68,9 @@ type CteFiscalProvider = {
     justificativa: string
   }): Promise<{
     success: boolean
+    errorCode?: string
+    protocolo?: string
+    xmlEvento?: string
     rawResponse: unknown
   }>
   testConnection(input: { config: ProviderCreateInput['config'] }): Promise<{
@@ -63,17 +91,15 @@ export async function createCteFiscalGatewayFixture(input: {
     }
   }): Promise<{
     status: 'ok' | 'rejected' | 'error'
+    authorizedXml?: string
     protocol?: string
     rejection?: { code: string }
     cause?: string
   }>
   cancel(input: {
     config: CteFiscalConfig
-    command: {
-      tenantId: string
-      documentId: string
-    }
-  }): Promise<{ status: 'ok' | 'failed' }>
+    command: CteCancelCommandShape
+  }): Promise<CteCancelOutcomeShape>
   testConnection(input: { config: CteFiscalConfig }): Promise<{ status: 'ok' | 'failed' }>
 }> {
   const module = (await import('../../src/cte-issuance/infrastructure/cte-fiscal-gateway.js')) as {
@@ -89,17 +115,15 @@ export async function createCteFiscalGatewayFixture(input: {
         }
       }): Promise<{
         status: 'ok' | 'rejected' | 'error'
+        authorizedXml?: string
         protocol?: string
         rejection?: { code: string }
         cause?: string
       }>
       cancel(input: {
         config: CteFiscalConfig
-        command: {
-          tenantId: string
-          documentId: string
-        }
-      }): Promise<{ status: 'ok' | 'failed' }>
+        command: CteCancelCommandShape
+      }): Promise<CteCancelOutcomeShape>
       testConnection(input: { config: CteFiscalConfig }): Promise<{ status: 'ok' | 'failed' }>
     }
   }
@@ -117,9 +141,21 @@ export const CTE_FISCAL_COMMAND = {
 } as const
 
 export const CTE_FISCAL_CONFIG = {
-  environment: 'homologation' as const,
-  cnpj: '12345678000190',
+  bairro: 'Centro',
+  cep: '09010000',
   certificadoBase64: 'BASE64CERT',
   certificadoSenha: 'secret-password',
+  cnpj: '12345678000190',
+  codigoMunicipio: '3526902',
+  crt: '3',
+  environment: 'homologation' as const,
+  inscricaoEstadual: '111222333444',
+  logradouro: 'Rua das Transportadoras',
+  municipio: 'Jundiai',
+  numero: '250',
+  numeroCte: 100000001,
+  razaoSocial: 'Transportadora Exemplo LTDA',
+  rntrc: '12345678',
+  serie: '7',
   uf: 'SP',
 } as const

@@ -3,7 +3,7 @@
 ## T001 — Decisão arquitetural
 
 - decisão explícita do mantenedor registrada na ADR 0001;
-- revisão Codex Sol confirmou conflitos da fundação anterior;
+- revisão Opus confirmou conflitos da fundação anterior;
 - documentação oficial confirmou `Bun.serve` sobre uWebSockets;
 - documentação oficial confirmou Drizzle com `drizzle-orm/bun-sql`;
 - frontend auditado contra Vite, PWA, tokens, i18n e TanStack Query;
@@ -11,7 +11,7 @@
 
 ## T002 — Contrato Bun do fiscal provider
 
-Modelo executor: Codex Sol high. Revisão e gates executados pelo agente
+Modelo executor: Opus (alto). Revisão e gates executados pelo agente
 principal.
 
 Alterações em `@adatechnology/fiscal-provider`:
@@ -48,7 +48,7 @@ Commit no repositório Ada: `eee0ec2`.
 
 ## T003 — Provider Drizzle/Bun SQL
 
-Modelo executor: Codex Terra medium. Revisão independente: Codex Sol high.
+Modelo executor: Sonnet (médio). Revisão independente: Opus (alto).
 
 Alterações em `@adatechnology/drizzle-provider`:
 
@@ -81,7 +81,7 @@ Nenhuma publicação, ação Railway ou push foi executado.
 
 ## T004 — Provider RabbitMQ/Bun
 
-Modelo executor: Codex Sol high. Revisão e repetição dos gates pelo agente
+Modelo executor: Opus (alto). Revisão e repetição dos gates pelo agente
 principal.
 
 Alterações em `@adatechnology/rabbitmq-provider`:
@@ -123,7 +123,7 @@ Nenhuma publicação, ação Railway ou push foi executado.
 
 ## T005 — Empacotamento e instalação Bun limpa
 
-Modelo executor: Codex Terra medium. Revisão e repetição dos gates pelo agente
+Modelo executor: Sonnet (médio). Revisão e repetição dos gates pelo agente
 principal.
 
 Os manifests dos providers agora declaram:
@@ -163,7 +163,7 @@ Nenhuma ação Railway foi executada.
 
 ## T006 — Bun workspaces e CI
 
-Modelo executor: Codex Terra medium. Revisão e repetição dos gates pelo agente
+Modelo executor: Sonnet (médio). Revisão e repetição dos gates pelo agente
 principal.
 
 - Bun `1.3.14` fixado em `packageManager`, engines e CI;
@@ -196,7 +196,7 @@ Nenhuma ação Railway ou push foi executado.
 
 ## T007 — Drizzle no TransportAdA
 
-Modelo executor: Codex Sol high. Revisão independente e gates finais executados
+Modelo executor: Opus (alto). Revisão independente e gates finais executados
 pelo agente principal.
 
 - `packages/database` usa `@adatechnology/drizzle-provider@0.1.1`,
@@ -240,7 +240,7 @@ ação Railway ou push foi executado.
 
 ## T008 — API Bun
 
-Modelo executor: Codex Terra medium, com checklist de revisão Sol aplicado pelo
+Modelo executor: Sonnet (médio), com checklist de revisão Opus aplicado pelo
 agente principal.
 
 - a aplicação foi renomeada para `apps/api-transportada` e tornou-se instalável
@@ -308,7 +308,7 @@ Nenhuma migration de startup, ação Railway ou push foi executado.
 
 ## T009 — Worker Bun/RabbitMQ
 
-Modelo executor: Codex Sol high, com revisão de ciclo de vida e repetição dos
+Modelo executor: Opus (alto), com revisão de ciclo de vida e repetição dos
 gates pelo agente principal.
 
 - a aplicação foi renomeada para `apps/worker-transportada` e tornou-se
@@ -371,7 +371,7 @@ executado.
 
 ## T010 — Frontend React/Vite/PWA
 
-Modelo executor: Codex Terra medium. Revisão de arquitetura, compatibilidade,
+Modelo executor: Sonnet (médio). Revisão de arquitetura, compatibilidade,
 acessibilidade e layout executada pelo agente principal.
 
 - `apps/frontend-transportada` é uma aplicação React/Vite independente, sem
@@ -434,7 +434,7 @@ executado.
 
 ## T011 — Compose e Makefile da stack Bun
 
-Modelo planejado: Codex Terra medium. Após duas execuções sem produzir
+Modelo planejado: Sonnet (médio). Após duas execuções sem produzir
 alterações, a política de modelos foi aplicada e o agente principal assumiu a
 implementação e a revisão.
 
@@ -492,8 +492,8 @@ fiscal foi habilitada e nenhuma ação Railway ou push foi executado.
 
 ## T012 — Remoção do stack legado
 
-Modelo planejado: Codex Luna low. Como Luna não estava disponível, a remoção
-mecânica foi delegada ao Codex Terra low; o agente principal revisou o diff,
+Modelo planejado: Haiku (baixo). Como Haiku não estava disponível, a remoção
+mecânica foi delegada ao Sonnet (baixo); o agente principal revisou o diff,
 assumiu a transferência da migration e repetiu todos os gates.
 
 - pnpm, Turbo, Next, Nest, Express, Prisma, BullMQ, ioredis e os packages
@@ -551,13 +551,13 @@ Modelos revisores:
 
 - OpenCode `opencode/nemotron-3-ultra-free`, somente leitura, para revisão
   independente econômica;
-- Codex Sol high para os limites de migration, mensageria, shutdown, segurança
+- Opus (alto) para os limites de migration, mensageria, shutdown, segurança
   e aceite final.
 
 O reviewer gratuito leu spec, plano, evidência, manifests, código ativo,
 Makefile, Compose e CI. Ele repetiu o frozen install, o check raiz, checks das
 apps e o smoke local, e não encontrou falha nos critérios da T013. A revisão
-Sol confirmou os resultados e repetiu isolamentos e integrações críticas.
+Opus confirmou os resultados e repetiu isolamentos e integrações críticas.
 
 Gates finais:
 

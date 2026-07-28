@@ -120,6 +120,78 @@ describe('update company settings application contract', () => {
     expect(unitOfWork.audits).toHaveLength(1)
   })
 
+  test('rejects reuse of the idempotency key when only the retry policy changed', async () => {
+    const unitOfWork = new CompanySettingsUnitOfWorkFixture()
+    const useCase = await createUpdateCompanySettingsUseCaseFixture({
+      fingerprintService: createFingerprintFixture().port,
+      unitOfWork,
+    })
+    await useCase.execute(UPDATE_COMPANY_SETTINGS_INPUT)
+
+    const error = await captureApiError(() =>
+      useCase.execute({
+        ...UPDATE_COMPANY_SETTINGS_INPUT,
+        settings: {
+          ...COMPANY_SETTINGS,
+          cteRetry: { backoffSeconds: [10, 60, 900], maxAttempts: 4 },
+        },
+      }),
+    )
+
+    expect(error).toEqual(expect.objectContaining({ code: 'IDEMPOTENCY_KEY_REUSED', status: 409 }))
+    expect(unitOfWork.saveInputs).toHaveLength(1)
+  })
+
+  test('carries the retry policy into persistence untouched', async () => {
+    const unitOfWork = new CompanySettingsUnitOfWorkFixture()
+    const useCase = await createUpdateCompanySettingsUseCaseFixture({
+      fingerprintService: createFingerprintFixture().port,
+      unitOfWork,
+    })
+
+    await useCase.execute(UPDATE_COMPANY_SETTINGS_INPUT)
+
+    expect(unitOfWork.saveInputs[0]?.settings.cteRetry).toEqual(COMPANY_SETTINGS.cteRetry)
+  })
+
+  test('rejects a profile CNPJ that diverges from the active digital certificate', async () => {
+    const unitOfWork = new CompanySettingsUnitOfWorkFixture()
+    unitOfWork.activeCertificateCnpj = '05868574001090'
+    const useCase = await createUpdateCompanySettingsUseCaseFixture({
+      fingerprintService: createFingerprintFixture().port,
+      unitOfWork,
+    })
+
+    const error = await captureApiError(() => useCase.execute(UPDATE_COMPANY_SETTINGS_INPUT))
+
+    expect(error).toEqual(
+      expect.objectContaining({
+        code: 'FISCAL_PROFILE_CERTIFICATE_CNPJ_MISMATCH',
+        status: 409,
+      }),
+    )
+    for (const sensitive of ['05868574001090', COMPANY_SETTINGS.profile.cnpj]) {
+      expect(String(error)).not.toContain(sensitive)
+      expect(JSON.stringify(error)).not.toContain(sensitive)
+    }
+    expect(unitOfWork.saveInputs).toEqual([])
+    expect(unitOfWork.audits).toEqual([])
+    expect(unitOfWork.idempotencyRecords).toEqual([])
+  })
+
+  test('accepts a profile CNPJ that matches the active digital certificate', async () => {
+    const unitOfWork = new CompanySettingsUnitOfWorkFixture()
+    unitOfWork.activeCertificateCnpj = COMPANY_SETTINGS.profile.cnpj
+    const useCase = await createUpdateCompanySettingsUseCaseFixture({
+      fingerprintService: createFingerprintFixture().port,
+      unitOfWork,
+    })
+
+    expect(await useCase.execute(UPDATE_COMPANY_SETTINGS_INPUT)).toEqual(EXPECTED_SETTINGS_RESULT)
+    expect(unitOfWork.saveInputs).toHaveLength(1)
+    expect(unitOfWork.audits).toHaveLength(1)
+  })
+
   test('rolls back settings and idempotency when append-only audit persistence fails', async () => {
     const unitOfWork = new CompanySettingsUnitOfWorkFixture()
     unitOfWork.auditError = new Error('audit persistence unavailable')

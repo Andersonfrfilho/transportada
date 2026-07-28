@@ -10,6 +10,7 @@ import {
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type {
+  NfeDistributionStatus,
   NfeImportDetail,
   NfeImportItem,
   NfeImportListPage,
@@ -132,6 +133,9 @@ type ReprocessImportInput = {
 }
 
 type Dependencies = {
+  readonly getDistributionStatus: {
+    execute(input: { readonly context: CompanyContext }): Promise<NfeDistributionStatus>
+  }
   readonly getImport: {
     execute(input: {
       readonly context: CompanyContext
@@ -207,6 +211,20 @@ export function createNfeImportRoutes(
       },
       pathname: API_NFE_IMPORTS_DISTRIBUTION_PATH,
       policy: INVOICES_IMPORT_POLICY,
+    }),
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        return jsonResponse({
+          body: {
+            data: await dependencies.getDistributionStatus.execute({ context: context.scope }),
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: (): Record<string, never> => ({}),
+      pathname: API_NFE_IMPORTS_DISTRIBUTION_PATH,
+      policy: INVOICES_READ_POLICY,
     }),
     defineRoute<ListImportsInput>({
       async handle({ context, input }): Promise<Response> {

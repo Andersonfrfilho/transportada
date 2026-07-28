@@ -4,6 +4,23 @@
 import { expect } from 'bun:test'
 
 import { ApiError } from '../../src/shared/api.error.js'
+import { cteIssuanceAttempts } from '../../src/database/database.schema.js'
+import type { CteIssuanceCreatedAttempt } from '../../src/cte-issuance/application/cte-issuance.use-case.js'
+import type { CteIssuancePayloadSource } from '../../src/cte-issuance/application/cte-issuance-payload.port.js'
+import { mapCteIssuanceAttempt } from '../../src/cte-issuance/infrastructure/cte-issuance-attempt.mapper.js'
+import type { CteRetryPolicy } from '../../src/cte-issuance/domain/cte-retry.policy.js'
+import { GOLDEN_CHARGE, GOLDEN_INVOICE, GOLDEN_PROFILE } from '../cte-issuance-domain/support.js'
+
+export type CteIssuanceFiscalSettings = {
+  readonly environment: 'homologation' | 'production'
+  readonly retryPolicy: CteRetryPolicy
+  readonly series: string
+}
+
+export const DEFAULT_RETRY_POLICY: CteRetryPolicy = {
+  backoffSeconds: [5, 30, 300],
+  maxAttempts: 3,
+}
 
 export type CteIssuanceStatus =
   | 'requested'
@@ -11,10 +28,13 @@ export type CteIssuanceStatus =
   | 'rejected'
   | 'retry_scheduled'
   | 'failed'
+  | 'cancelled'
 
 export type CteIssuanceRecord = {
   readonly batchId: string
   readonly companyId: string
+  readonly attemptId?: string
+  readonly reservationId?: string
   readonly context: {
     readonly batchItemId: string
     readonly companyId: string
@@ -25,7 +45,7 @@ export type CteIssuanceRecord = {
     readonly reasonCode?: string
     readonly reasonCause?: string
     readonly retryCount: number
-    readonly attemptKind: 'issue' | 'reprocess'
+    readonly attemptKind: 'issue' | 'reprocess' | 'cancel'
     readonly attemptNumber: number
     readonly correlationId: string
     readonly idempotencyKey: string
@@ -36,13 +56,21 @@ export type CteIssuanceRecord = {
   readonly issueRequestedAt?: string
 }
 
+export type CteDocumentPageContract = {
+  readonly items: readonly Record<string, unknown>[]
+  readonly nextCursor: string | null
+}
+
 export type CteIssuanceUseCaseContract = {
   readonly issue: (input: unknown) => Promise<unknown>
   readonly reprocess: (input: unknown) => Promise<unknown>
+  readonly cancel: (input: unknown) => Promise<unknown>
   readonly getIssuance: (input: unknown) => Promise<unknown>
+  readonly listDocuments: (input: unknown) => Promise<CteDocumentPageContract>
 }
 
 export type CteIssuanceUseCaseFactory = (input: {
+  readonly documentDownload: CteIssuanceUnitOfWorkFixture
   readonly fingerprintService: CteIssuanceFingerprintService
   readonly unitOfWork: CteIssuanceUnitOfWorkFixture
 }) => CteIssuanceUseCaseContract
@@ -73,6 +101,10 @@ export type CteIssuanceReprocessInput = {
   readonly idempotencyKey: string
 }
 
+export type CteIssuanceCancelInput = CteIssuanceReprocessInput & {
+  readonly justification: string
+}
+
 export const COMPANY_CONTEXT = {
   companyId: 'company-001',
   kind: 'company' as const,
@@ -89,8 +121,47 @@ export const OTHER_BATCH_ID = 'cte-batch-002'
 export const OTHER_BATCH_ITEM_ID = 'cte-batch-item-002'
 export const IDEMPOTENCY_KEY = 'cte-issue-idempotency-001'
 export const REPROCESS_IDEMPOTENCY_KEY = 'cte-reprocess-idempotency-001'
+export const CANCEL_IDEMPOTENCY_KEY = 'cte-cancel-idempotency-001'
 export const ISSUE_FINGERPRINT = 'cte-issue-fingerprint-001'
 export const REPROCESS_FINGERPRINT = 'cte-reprocess-fingerprint-001'
+export const CANCEL_FINGERPRINT = 'cte-cancel-fingerprint-001'
+export const CANCEL_JUSTIFICATION = 'Prestacao de servico nao realizada pelo tomador'
+export const AUTHORIZED_ACCESS_KEY = '35260712345678000190570070000000011000000019'
+export const AUTHORIZED_PROTOCOL = '135260000123456'
+export const AUTHORIZED_RESERVATION_ID = '00000000-0000-4000-8000-0000000000ff'
+
+export const PAYLOAD_EMITTER = {
+  city: 'Taubate',
+  cityIbgeCode: '3554102',
+  cnpj: '12345678000195',
+  district: 'CENTRO',
+  legalName: 'TRANSPORTADORA TRANSPORTADA LTDA',
+  number: '100',
+  postalCode: '12010000',
+  rntrc: '58151044',
+  state: 'SP',
+  stateRegistration: '688292870119',
+  street: 'AVENIDA DO PORTO',
+  taxRegime: '1',
+} as const
+
+export const PAYLOAD_SOURCE: CteIssuancePayloadSource = {
+  charge: GOLDEN_CHARGE,
+  emitter: PAYLOAD_EMITTER,
+  invoices: [GOLDEN_INVOICE],
+  profile: GOLDEN_PROFILE,
+}
+
+export const SIGNED_URL_EXPIRES_AT = '2026-07-27T20:15:00.000Z'
+
+export const FISCAL_DOCUMENT_RECORD = {
+  accessKey: '35260712345678000190570070000000011000000019',
+  bucket: 'transportada-fiscal',
+  contentType: 'application/xml',
+  documentId: 'cte-fiscal-document-001',
+  objectKey: 'cte-document-001',
+  sha256: 'c'.repeat(64),
+} as const
 
 export const ISSUE_COMMAND_RESULT = {
   attemptId: 'attempt-001',
@@ -105,6 +176,90 @@ export const ISSUE_COMMAND_RESULT = {
   idempotencyKey: IDEMPOTENCY_KEY,
   status: 'requested',
 } as const
+
+export const AUTHORIZED_ISSUANCE: CteIssuanceRecord = {
+  attemptId: ISSUE_COMMAND_RESULT.attemptId,
+  batchId: BATCH_ID,
+  companyId: COMPANY_CONTEXT.companyId,
+  reservationId: AUTHORIZED_RESERVATION_ID,
+  context: {
+    batchItemId: BATCH_ITEM_ID,
+    companyId: COMPANY_CONTEXT.companyId,
+    fiscalEnvironment: 'homologation',
+    fiscalNumber: '100000001',
+    fiscalSeries: '1',
+    status: 'authorized',
+    retryCount: 0,
+    attemptKind: 'issue',
+    attemptNumber: 1,
+    correlationId: CORRELATION_ID,
+    idempotencyKey: IDEMPOTENCY_KEY,
+    fingerprint: ISSUE_FINGERPRINT,
+  },
+  accessKey: AUTHORIZED_ACCESS_KEY,
+  protocol: AUTHORIZED_PROTOCOL,
+  issueRequestedAt: '2026-07-27T18:00:00.000Z',
+}
+
+type PersistedAttemptRecord = typeof cteIssuanceAttempts.$inferSelect
+
+function readAttemptKind(value: unknown): 'issue' | 'reprocess' | 'cancel' {
+  if (value === 'issue' || value === 'reprocess' || value === 'cancel') return value
+  throw new Error('createIssuance recebeu attemptKind fora do contrato')
+}
+
+function readFiscalEnvironment(value: unknown): 'homologation' | 'production' {
+  if (value === 'homologation' || value === 'production') return value
+  throw new Error('createIssuance recebeu fiscalEnvironment fora do contrato')
+}
+
+function readAttemptNumber(value: unknown): bigint {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    throw new Error('createIssuance recebeu attemptNumber fora do contrato')
+  }
+  return BigInt(value)
+}
+
+function readOptionalText(input: Record<string, unknown>, key: string): string | undefined {
+  const value = input[key]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function readText(input: Record<string, unknown>, key: string): string {
+  const value = input[key]
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`createIssuance recebeu ${key} fora do contrato`)
+  }
+  return value
+}
+
+/** Espelha a linha gravada em `cte_issuance_attempts` para o fixture usar o mapper de produção. */
+export function buildPersistedAttemptRecord(
+  input: Record<string, unknown>,
+): PersistedAttemptRecord {
+  const persistedAt = new Date(readText(input, 'issueRequestedAt'))
+  return {
+    attemptKind: readAttemptKind(input['attemptKind']),
+    attemptNumber: readAttemptNumber(input['attemptNumber']),
+    batchId: readText(input, 'batchId'),
+    batchItemId: readText(input, 'batchItemId'),
+    companyId: readText(input, 'companyId'),
+    correlationId: readText(input, 'correlationId'),
+    createdAt: persistedAt,
+    fiscalEnvironment: readFiscalEnvironment(input['fiscalEnvironment']),
+    fiscalNumber: BigInt(readText(input, 'fiscalNumber')),
+    fiscalSeries: readText(input, 'fiscalSeries'),
+    id: ISSUE_COMMAND_RESULT.attemptId,
+    idempotencyFingerprint: ISSUE_FINGERPRINT,
+    idempotencyKey: readText(input, 'idempotencyKey'),
+    lastErrorCause: null,
+    lastErrorCode: null,
+    requestFingerprint: ISSUE_FINGERPRINT,
+    reservationId: readOptionalText(input, 'reservationId') ?? AUTHORIZED_RESERVATION_ID,
+    status: 'in_flight',
+    updatedAt: persistedAt,
+  }
+}
 
 export async function createCteIssuanceUseCaseForTest(
   unitOfWork: CteIssuanceUnitOfWorkFixture,
@@ -125,6 +280,7 @@ export async function createCteIssuanceUseCaseForTest(
   if (factory === undefined) throw new Error('CT-e issuance use case factory is missing')
 
   return factory({
+    documentDownload: unitOfWork,
     fingerprintService: new CteIssuanceFingerprintFixture(issueFingerprint),
     unitOfWork,
   })
@@ -154,6 +310,22 @@ export class CteIssuanceUnitOfWorkFixture {
   public readonly retries: Array<Record<string, unknown>> = []
   public readonly executedTransactions: Array<'cte-issuance'> = []
   public readonly lookupQueries: Array<Record<string, unknown>> = []
+  public readonly payloadSourceQueries: Array<Record<string, unknown>> = []
+  public readonly savedPayloads: Array<Record<string, unknown>> = []
+  public readonly fiscalSettingsQueries: Array<Record<string, unknown>> = []
+  public readonly reservations: Array<Record<string, unknown>> = []
+  public readonly fiscalDocumentQueries: Array<Record<string, unknown>> = []
+  public readonly downloadRequests: Array<Record<string, unknown>> = []
+  public readonly cancellationRequests: Array<Record<string, unknown>> = []
+
+  public fiscalDocuments: readonly Record<string, unknown>[] = [{ ...FISCAL_DOCUMENT_RECORD }]
+
+  public payloadSource: CteIssuancePayloadSource | null = PAYLOAD_SOURCE
+  public fiscalSettings: CteIssuanceFiscalSettings | null = {
+    environment: 'homologation',
+    retryPolicy: DEFAULT_RETRY_POLICY,
+    series: '1',
+  }
 
   public batch: Record<string, unknown> | null = {
     companyId: COMPANY_CONTEXT.companyId,
@@ -169,6 +341,10 @@ export class CteIssuanceUnitOfWorkFixture {
   public issueReplay: { readonly requestFingerprint: string; readonly response: unknown } | null =
     null
   public reprocessReplay: {
+    readonly requestFingerprint: string
+    readonly response: unknown
+  } | null = null
+  public cancelReplay: {
     readonly requestFingerprint: string
     readonly response: unknown
   } | null = null
@@ -251,7 +427,29 @@ export class CteIssuanceUnitOfWorkFixture {
     input: Record<string, unknown>,
   ): Promise<Record<string, unknown> | null> {
     this.batchItemQueries.push(input)
+    const requestedItemId = input['batchItemId']
+    if (typeof requestedItemId === 'string' && this.batchItem?.['id'] !== requestedItemId) {
+      return null
+    }
     return this.batchItem
+  }
+
+  public async listFiscalDocuments(
+    input: Record<string, unknown>,
+  ): Promise<readonly Record<string, unknown>[]> {
+    this.fiscalDocumentQueries.push(input)
+    return this.fiscalDocuments
+  }
+
+  public async createDownloadUrl(input: {
+    readonly bucket: string
+    readonly key: string
+  }): Promise<{ readonly expiresAt: string; readonly url: string }> {
+    this.downloadRequests.push(input)
+    return {
+      expiresAt: SIGNED_URL_EXPIRES_AT,
+      url: `https://storage.local/signed/${input.key}?signature=stub`,
+    }
   }
 
   public async findIssuanceReplay(input: Record<string, unknown>): Promise<{
@@ -261,6 +459,7 @@ export class CteIssuanceUnitOfWorkFixture {
     this.issueIdempotencyQueries.push(input)
     if (input['idempotencyKey'] === IDEMPOTENCY_KEY) return this.issueReplay
     if (input['idempotencyKey'] === REPROCESS_IDEMPOTENCY_KEY) return this.reprocessReplay
+    if (input['idempotencyKey'] === CANCEL_IDEMPOTENCY_KEY) return this.cancelReplay
     return null
   }
 
@@ -272,6 +471,8 @@ export class CteIssuanceUnitOfWorkFixture {
   }): Promise<void> {
     if (input.idempotencyKey === IDEMPOTENCY_KEY) {
       this.issueReplay = { requestFingerprint: input.requestFingerprint, response: input.response }
+    } else if (input.idempotencyKey === CANCEL_IDEMPOTENCY_KEY) {
+      this.cancelReplay = { requestFingerprint: input.requestFingerprint, response: input.response }
     } else {
       this.reprocessReplay = {
         requestFingerprint: input.requestFingerprint,
@@ -291,12 +492,16 @@ export class CteIssuanceUnitOfWorkFixture {
     return this.issuanceResult
   }
 
-  public async createIssuance(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  public async createIssuance(input: Record<string, unknown>): Promise<CteIssuanceCreatedAttempt> {
     this.attempts.push(input)
-    return {
-      ...ISSUE_COMMAND_RESULT,
-      ...input,
-    }
+    return mapCteIssuanceAttempt(buildPersistedAttemptRecord(input))
+  }
+
+  public async findFiscalSettings(
+    input: Record<string, unknown>,
+  ): Promise<CteIssuanceFiscalSettings | null> {
+    this.fiscalSettingsQueries.push(input)
+    return this.fiscalSettings
   }
 
   public async reserveFiscalNumber(input: Record<string, unknown>): Promise<{
@@ -305,12 +510,28 @@ export class CteIssuanceUnitOfWorkFixture {
     readonly fiscalNumber: string
     readonly companyId: string
   }> {
+    this.reservations.push(input)
     return {
       id: 'reservation-001',
       companyId: input['companyId'] as string,
-      fiscalSeries: '1',
+      fiscalSeries: input['series'] as string,
       fiscalNumber: input['kind'] === 'reprocess' ? '100000002' : '100000001',
     }
+  }
+
+  public async findPayloadSource(
+    input: Record<string, unknown>,
+  ): Promise<CteIssuancePayloadSource | null> {
+    this.payloadSourceQueries.push(input)
+    return this.payloadSource
+  }
+
+  public async savePayload(input: Record<string, unknown>): Promise<void> {
+    this.savedPayloads.push(input)
+  }
+
+  public async requestCancellation(input: Record<string, unknown>): Promise<void> {
+    this.cancellationRequests.push(input)
   }
 
   public async scheduleRetry(input: Record<string, unknown>): Promise<void> {

@@ -5,7 +5,7 @@
 Modelos:
 
 - OpenCode `deepseek-v4-flash-free`: primeiro rascunho de spec, plano e tasks;
-- Codex Sol high: revisão de segurança, tenant, dados e contratos reais.
+- Opus (alto): revisão de segurança, tenant, dados e contratos reais.
 
 Fontes inspecionadas:
 
@@ -28,9 +28,9 @@ Descobertas confirmadas:
   issuer, audience, required claims, cache e cooldown;
 - `company_id` e a matriz de permissões são regras do TransportAdA, não do
   package genérico.
-- revisão Sol exigiu identidade por `(issuer, sub)`, roles locais por
+- revisão Opus exigiu identidade por `(issuer, sub)`, roles locais por
   membership e contextos separados de plataforma e empresa;
-- revisão Sol recomenda preservar o package NestJS publicado e adotar um novo
+- revisão Opus recomenda preservar o package NestJS publicado e adotar um novo
   nome para o provider Bun.
 
 ## T001 — Identidade do package e ADR
@@ -58,7 +58,7 @@ executada nesta task.
 
 ## T002 — Contract suite de segurança
 
-Modelo executor e revisão: Codex Sol high. O grafo e os providers
+Modelo executor e revisão: Opus (alto). O grafo e os providers
 `drizzle-provider`/`rabbitmq-provider` orientaram o formato ESM, exports
 tipados, `tsup`, TypeScript estrito e testes Bun.
 
@@ -99,7 +99,7 @@ dependência JOSE ou lógica de verificação foi adicionada antes dos contratos
 
 ## T003 — Verificação JWT/JWKS
 
-Modelo executor e revisão independente: Codex Sol high.
+Modelo executor e revisão independente: Opus (alto).
 
 Commit Ada:
 
@@ -144,7 +144,7 @@ resposta e rotação permanecem na T004.
 
 ## T004 — Ciclo remoto JWKS
 
-Modelo executor e revisão independente: Codex Sol high.
+Modelo executor e revisão independente: Opus (alto).
 
 Commit Ada:
 
@@ -188,7 +188,7 @@ resource leak bloqueante.
 
 ## T005 — Empacotamento e instalação Bun limpa
 
-Modelo executor: Codex Terra medium. Revisão: Codex Sol high.
+Modelo executor: Sonnet (médio). Revisão: Opus (alto).
 
 Commit Ada:
 
@@ -235,7 +235,7 @@ package empacotado. Nenhuma publicação npm, ação Railway ou push foi executa
 
 ## T006 — Publicação npm e pin exato
 
-Modelo executor e revisão: Codex Sol high. A publicação ocorreu somente após
+Modelo executor e revisão: Opus (alto). A publicação ocorreu somente após
 aprovação humana explícita.
 
 Release Ada:
@@ -291,7 +291,7 @@ Nenhuma ação Railway, leitura de certificado ou uso de segredo fiscal ocorreu.
 
 ## T007 — Keycloak local
 
-Modelo executor: Codex Terra medium. Revisão: Codex Sol high.
+Modelo executor: Sonnet (médio). Revisão: Opus (alto).
 
 Commit TransportAdA:
 
@@ -342,7 +342,7 @@ diretamente. Nenhuma ação Railway ou uso do certificado ocorreu.
 
 ## T008 — Schema de identidade e tenant
 
-Modelo executor e duas revisões independentes: Codex Sol high.
+Modelo executor e duas revisões independentes: Opus (alto).
 
 Schema declarativo:
 
@@ -392,7 +392,7 @@ pertencem à T009.
 
 ## T009 — Migration, rollback e journal
 
-Modelo executor e duas revisões independentes: Codex Sol high.
+Modelo executor e duas revisões independentes: Opus (alto).
 
 Artefatos e operação:
 
@@ -451,7 +451,7 @@ foi executada.
 
 ## T010 — Gateway JWT e identidade externa
 
-Modelo executor e revisão independente: Codex Sol high.
+Modelo executor e revisão independente: Opus (alto).
 
 Boundary de autenticação:
 
@@ -502,7 +502,7 @@ Railway, uso de certificado ou contexto tenant foi executado.
 
 ## T011 — Membership e contextos company/platform
 
-Modelo executor e duas revisões independentes: Codex Sol high.
+Modelo executor e duas revisões independentes: Opus (alto).
 
 Contextos:
 
@@ -551,7 +551,7 @@ Nenhuma permissão, `/auth/me`, Railway ou certificado entrou nesta task.
 
 ## T012 — RBAC tipado e deny-by-default
 
-Modelo executor e duas revisões independentes: Codex Sol high.
+Modelo executor e duas revisões independentes: Opus (alto).
 
 Decisão:
 
@@ -599,7 +599,7 @@ dois ataques. `/auth/me`, Railway e certificado permaneceram fora do escopo.
 
 ## T013 — `/auth/me` e observabilidade segura
 
-Modelo executor: Codex Terra medium. Revisão e correções: Codex Sol high.
+Modelo executor: Sonnet (médio). Revisão e correções: Opus (alto).
 
 Endpoint:
 
@@ -639,7 +639,7 @@ realm 4 pass; API 57 pass; worker 22 pass; frontend 3 pass
 format, lint, typecheck e builds verdes
 ```
 
-A revisão Sol encontrou cache autenticado sem `no-store` e DTOs que haviam
+A revisão Opus encontrou cache autenticado sem `no-store` e DTOs que haviam
 perdido os tipos fechados; ambos foram corrigidos e revalidados.
 
 Readiness JWKS não foi inferido a partir de `getJwksStatus()`: o contrato atual
@@ -652,7 +652,7 @@ Nenhuma ação Railway ou uso do certificado ocorreu.
 
 ## T014 — Frontend Keycloak com PKCE
 
-Modelo executor: Codex Terra medium. Revisão de segurança: Codex Sol.
+Modelo executor: Sonnet (médio). Revisão de segurança: Opus.
 
 Implementação:
 
@@ -673,7 +673,7 @@ Implementação:
 - `.env.example` documenta `VITE_API_URL`, `VITE_KEYCLOAK_URL`,
   `VITE_KEYCLOAK_REALM` e `VITE_KEYCLOAK_CLIENT_ID`; o service worker mantém
   runtime cache apenas para health, portanto `/auth/me` não entra em cache;
-- a revisão Sol restringiu as URLs públicas a HTTPS ou HTTP em `localhost`,
+- a revisão Opus restringiu as URLs públicas a HTTPS ou HTTP em `localhost`,
   sem credenciais, query ou fragment, e adicionou contratos comportamentais
   para inicialização, refresh e falha fechada.
 
@@ -715,7 +715,7 @@ Gap bloqueante para o fluxo local autenticado:
 
 ## T014A — CORS estrito da SPA para a API
 
-Modelo executor e revisão: Codex Sol high.
+Modelo executor e revisão: Opus (alto).
 
 Configuração confiável:
 
@@ -779,7 +779,7 @@ Nenhum Playwright/T015, Railway, certificado ou push foi executado.
 
 ## T014B — Bootstrap da identidade local da aplicação
 
-Modelo executor e revisão: Codex Sol high.
+Modelo executor e revisão: Opus (alto).
 
 Contrato determinístico:
 
@@ -848,7 +848,7 @@ token, senha ou XML foi registrado.
 
 ## T014C — Perfil completo do usuário local do Keycloak
 
-Modelo executor e revisão: Codex Sol high.
+Modelo executor e revisão: Opus (alto).
 
 Contrato e correção:
 
@@ -912,8 +912,8 @@ produção foi alterado nesta task.
 
 ## T015 — Frontend autenticado com Playwright
 
-Modelo executor: Codex Terra medium. Diagnóstico de segurança e revisão do
-fluxo de refresh: Codex Sol high.
+Modelo executor: Sonnet (médio). Diagnóstico de segurança e revisão do
+fluxo de refresh: Opus (alto).
 
 Cobertura implementada:
 
@@ -965,7 +965,7 @@ usado, registrado ou publicado.
 
 ## T013A — Probe JWKS recuperável e readiness
 
-Modelo executor e revisão: Codex Sol high.
+Modelo executor e revisão: Opus (alto).
 
 Package Ada:
 
@@ -1034,10 +1034,10 @@ Modelos:
 - OpenCode `nemotron-3-ultra-free` e `deepseek-v4-flash-free`: duas tentativas
   somente leitura falharam no serviço antes de iniciar a revisão e sem alterar
   o checkout; a task foi escalada conforme a política;
-- Codex Sol high: revisão final somente leitura de segurança, tenant,
+- Opus (alto): revisão final somente leitura de segurança, tenant,
   autenticação/JWKS, frontend, filas, fiscal, separação dos apps e release.
 
-A revisão Sol não encontrou achado crítico de runtime ou segurança. Confirmou
+A revisão Opus não encontrou achado crítico de runtime ou segurança. Confirmou
 que o tenant nasce do token verificado e da membership ativa, `platform-admin`
 não ignora vínculo tenant, JWKS readiness é lazy e recuperável, tokens
 permanecem em memória, os apps são independentes e a topologia RabbitMQ possui

@@ -17,6 +17,8 @@ import { createHttpRouterFixture } from './fixtures/http-router.fixture'
 const FRONTEND_ORIGIN = 'http://localhost:53000'
 const OTHER_ORIGIN = 'https://attacker.example'
 const CORRELATION_ID = 'cors-contract'
+const CTE_BATCH_PATH = '/cte-batches/00000000-0000-4000-8000-000000000501'
+const CTE_BATCH_ITEM_PATH = `${CTE_BATCH_PATH}/items/00000000-0000-4000-8000-000000000507`
 
 describe('trusted frontend origin configuration', () => {
   test.each(['https://spa.example.test', 'https://spa.example.test:5443', FRONTEND_ORIGIN])(
@@ -75,6 +77,9 @@ describe('API CORS contract', () => {
     ['/auth/me', FRONTEND_ORIGIN, 'GET', 'Authorization, Content-Type'],
     ['/auth/me', FRONTEND_ORIGIN, 'GET', 'Authorization,,'],
     ['/auth/me', FRONTEND_ORIGIN, 'GET', ''],
+    [CTE_BATCH_PATH, FRONTEND_ORIGIN, 'DELETE', 'Authorization'],
+    [CTE_BATCH_ITEM_PATH, FRONTEND_ORIGIN, 'DELETE', 'Authorization, Content-Type'],
+    [CTE_BATCH_ITEM_PATH, OTHER_ORIGIN, 'DELETE', 'Authorization'],
   ])(
     'rejects invalid preflight without reflection or protected work: %s %s %s %s',
     async (pathname, origin, requestedMethod, requestedHeaders) => {
@@ -118,6 +123,50 @@ describe('API CORS contract', () => {
 
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+  })
+
+  test('answers the Bearer DELETE preflight of a CT-e batch item', async () => {
+    const fixture = createFixture()
+    const response = await fixture.handle(
+      preflightRequest({ pathname: CTE_BATCH_ITEM_PATH, requestedMethod: 'DELETE' }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')).toBe('DELETE')
+    expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+    expect(fixture.authenticationCalls()).toBe(0)
+  })
+
+  test('answers the idempotent POST preflight of a CT-e item cancellation', async () => {
+    const fixture = createFixture()
+    const response = await fixture.handle(
+      preflightRequest({
+        pathname: `${CTE_BATCH_ITEM_PATH}/cancel`,
+        requestedHeaders: 'Authorization, Content-Type, Idempotency-Key',
+        requestedMethod: 'POST',
+      }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')).toBe('POST')
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'Authorization, Content-Type, Idempotency-Key',
+    )
+    expect(fixture.authenticationCalls()).toBe(0)
+  })
+
+  test('refuses a DELETE preflight on a CT-e item sub-resource', async () => {
+    const fixture = createFixture()
+    const response = await fixture.handle(
+      preflightRequest({ pathname: `${CTE_BATCH_ITEM_PATH}/cancel`, requestedMethod: 'DELETE' }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(403)
   })
 
   test('keeps a plain non-CORS OPTIONS request on the authenticated default path', async () => {

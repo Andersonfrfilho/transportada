@@ -10,6 +10,7 @@ import type { AuthenticatedContext, CompanyContext } from '../../src/identity/do
 import { ApiError } from '../../src/shared/api.error'
 import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application.fixture'
 import {
+  changeRuleStatusRequest,
   CREATE_RULE_BODY,
   CREATE_RULE_IDEMPOTENCY_KEY,
   FREIGHT_CALCULATIONS_PATH,
@@ -23,6 +24,8 @@ import {
   responseApiError,
   SIMULATION_IDEMPOTENCY_KEY,
   simulateFreightRequest,
+  UPDATE_RULE_BODY,
+  updateRuleRequest,
 } from './freight-http-request.fixture'
 import {
   RULE_SUMMARY,
@@ -69,8 +72,32 @@ type SimulateCall = {
   readonly idempotencyKey: string
 }
 
+type ChangeRuleStatusCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly freightRuleId: string
+}
+
+type UpdateRuleCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly expectedCurrentVersion: string
+  readonly filters: {
+    readonly destinationStates: readonly string[]
+    readonly senderTaxIds: readonly string[]
+  }
+  readonly freightRuleId: string
+  readonly maximumAmount: string | null
+  readonly minimumAmount: string | null
+  readonly percentage: string
+  readonly validFrom: string
+  readonly validUntil: string | null
+}
+
 type FreightHttpRouteDependencies = {
+  readonly activateRule: { execute(input: ChangeRuleStatusCall): Promise<typeof RULE_SUMMARY> }
   readonly createRule: { execute(input: CreateRuleCall): Promise<typeof RULE_SUMMARY> }
+  readonly deactivateRule: { execute(input: ChangeRuleStatusCall): Promise<typeof RULE_SUMMARY> }
   readonly listCalculations: {
     execute(input: FreightCalculationListCall): Promise<typeof SIMULATIONS_PAGE>
   }
@@ -78,15 +105,18 @@ type FreightHttpRouteDependencies = {
     execute(input: FreightRuleListCall): Promise<typeof RULES_PAGE>
   }
   readonly simulate: { execute(input: SimulateCall): Promise<typeof SIMULATION_RESULT> }
+  readonly updateRule: { execute(input: UpdateRuleCall): Promise<typeof RULE_SUMMARY> }
 }
 
 type CreateFixtureParams = {
   readonly authenticationError?: Error
+  readonly changeRuleStatusError?: Error
   readonly createRuleError?: Error
   readonly listCalculationsError?: Error
   readonly listRulesError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly simulationError?: Error
+  readonly updateRuleError?: Error
 }
 
 export const RULES_PATH = FREIGHT_RULES_PATH
@@ -104,6 +134,7 @@ export const READ_ONLY_CONTEXT: CompanyContext = {
 }
 
 export {
+  changeRuleStatusRequest,
   CREATE_RULE_BODY,
   CREATE_RULE_IDEMPOTENCY_KEY,
   FREIGHT_SIMULATION_BODY,
@@ -118,26 +149,48 @@ export {
   SIMULATION_IDEMPOTENCY_KEY,
   SIMULATION_RESULT,
   simulateFreightRequest,
+  UPDATE_RULE_BODY,
+  updateRuleRequest,
 }
 
 export async function createFreightHttpFixture(params: CreateFixtureParams = {}): Promise<{
+  readonly activateRuleCalls: ChangeRuleStatusCall[]
   readonly createRuleCalls: CreateRuleCall[]
+  readonly deactivateRuleCalls: ChangeRuleStatusCall[]
   readonly events: string[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalculationsCalls: FreightCalculationListCall[]
   readonly listRulesCalls: FreightRuleListCall[]
   readonly simulationCalls: SimulateCall[]
+  readonly updateRuleCalls: UpdateRuleCall[]
 }> {
+  const activateRuleCalls: ChangeRuleStatusCall[] = []
   const createRuleCalls: CreateRuleCall[] = []
+  const deactivateRuleCalls: ChangeRuleStatusCall[] = []
   const events: string[] = []
   const listCalculationsCalls: FreightCalculationListCall[] = []
   const listRulesCalls: FreightRuleListCall[] = []
   const simulationCalls: SimulateCall[] = []
+  const updateRuleCalls: UpdateRuleCall[] = []
   const routes = await loadRoutes({
+    activateRule: {
+      async execute(input) {
+        activateRuleCalls.push(structuredClone(input))
+        if (params.changeRuleStatusError) throw params.changeRuleStatusError
+        return RULE_SUMMARY
+      },
+    },
     createRule: {
       async execute(input) {
         createRuleCalls.push(structuredClone(input))
         if (params.createRuleError) throw params.createRuleError
+        return RULE_SUMMARY
+      },
+    },
+    deactivateRule: {
+      async execute(input) {
+        deactivateRuleCalls.push(structuredClone(input))
+        if (params.changeRuleStatusError) throw params.changeRuleStatusError
         return RULE_SUMMARY
       },
     },
@@ -162,6 +215,13 @@ export async function createFreightHttpFixture(params: CreateFixtureParams = {})
         return SIMULATION_RESULT
       },
     },
+    updateRule: {
+      async execute(input) {
+        updateRuleCalls.push(structuredClone(input))
+        if (params.updateRuleError) throw params.updateRuleError
+        return RULE_SUMMARY
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -179,12 +239,15 @@ export async function createFreightHttpFixture(params: CreateFixtureParams = {})
   })
 
   return {
+    activateRuleCalls,
     createRuleCalls,
+    deactivateRuleCalls,
     events,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalculationsCalls,
     listRulesCalls,
     simulationCalls,
+    updateRuleCalls,
   }
 }
 

@@ -23,6 +23,9 @@ import { storedObjects } from './storage.schema.js'
 export const NFE_IMPORT_SOURCES = ['upload', 'distribution'] as const
 export type NfeImportSource = (typeof NFE_IMPORT_SOURCES)[number]
 
+export const NFE_ORIGIN_TRIGGERS = ['user', 'automation'] as const
+export type NfeOriginTrigger = (typeof NFE_ORIGIN_TRIGGERS)[number]
+
 export const NFE_IMPORT_STATUSES = [
   'pending',
   'queued',
@@ -51,7 +54,7 @@ export type NfeItemVariant = (typeof NFE_ITEM_VARIANTS)[number]
 export const NFE_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export type NfeFiscalEnvironment = (typeof NFE_FISCAL_ENVIRONMENTS)[number]
 
-export const NFE_DOCUMENT_STATUSES = ['authorized', 'cancelled', 'denied'] as const
+export const NFE_DOCUMENT_STATUSES = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
 export type NfeDocumentStatus = (typeof NFE_DOCUMENT_STATUSES)[number]
 
 const decimalColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
@@ -67,6 +70,8 @@ export const nfeImports = pgTable(
         onUpdate: 'cascade',
       }),
     source: text().$type<NfeImportSource>().notNull(),
+    triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
+    automationJob: text('automation_job'),
     requestedByUserId: uuid('requested_by_user_id').notNull(),
     correlationId: text('correlation_id').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
@@ -98,6 +103,10 @@ export const nfeImports = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     check('nfe_imports_source_check', sql`${table.source} in ('upload', 'distribution')`),
+    check(
+      'nfe_imports_origin_ck',
+      sql`(${table.triggeredBy} = 'user' and ${table.automationJob} is null) or (${table.triggeredBy} = 'automation' and ${table.automationJob} is not null)`,
+    ),
     check(
       'nfe_imports_status_check',
       sql`${table.status} in ('pending', 'queued', 'processing', 'completed', 'partially_processed', 'failed', 'cancelled')`,
@@ -266,7 +275,7 @@ export const nfeDocuments = pgTable(
     discountValue: decimalColumn('discount_value').default('0'),
     otherExpensesValue: decimalColumn('other_expenses_value').default('0'),
     additionalInformation: text('additional_information'),
-    authorizationProtocol: text('authorization_protocol').notNull(),
+    authorizationProtocol: text('authorization_protocol'),
     xmlObjectId: uuid('xml_object_id').notNull(),
     xmlSha256: text('xml_sha256').notNull(),
     importId: uuid('import_id').notNull(),
@@ -310,7 +319,11 @@ export const nfeDocuments = pgTable(
     check('nfe_documents_operation_type_check', sql`${table.operationType} in ('0', '1')`),
     check(
       'nfe_documents_status_check',
-      sql`${table.status} in ('authorized', 'cancelled', 'denied')`,
+      sql`${table.status} in ('authorized', 'cancelled', 'denied', 'unsigned')`,
+    ),
+    check(
+      'nfe_documents_authorization_protocol_presence_check',
+      sql`(${table.status} = 'unsigned') or (${table.authorizationProtocol} is not null)`,
     ),
     check('nfe_documents_source_check', sql`${table.source} in ('upload', 'distribution')`),
     check(
@@ -370,6 +383,7 @@ export const nfeAddresses = pgTable(
     number: text(),
     complement: text(),
     district: text(),
+    cityCode: text('city_code'),
     city: text(),
     state: text(),
     postalCode: text('postal_code'),

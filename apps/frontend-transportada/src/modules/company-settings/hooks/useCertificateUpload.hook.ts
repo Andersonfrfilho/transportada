@@ -1,15 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { SafeCertificate } from '../shared/companySettingsClient.service'
+
 export type CertificateUploadController = Readonly<{
   readonly hasSensitiveDraft: boolean
   selectCertificate: (file: File) => void
   setPassword: (password: string) => void
-  submit: () => Promise<void>
+  submit: () => Promise<SafeCertificate>
 }>
 
 type CertificateUploadDependencies = Readonly<{
   clearFileInput: () => void
   clearPasswordInput: () => void
-  replaceCertificate: (body: FormData) => Promise<unknown>
+  replaceCertificate: (body: FormData) => Promise<SafeCertificate>
 }>
 
 function clearFormData(formData: FormData): void {
@@ -70,13 +72,18 @@ export function createCertificateUploadController(
       let body: FormData | undefined
       try {
         body = buildCertificateFormData({ file, password })
-        await dependencies.replaceCertificate(body)
-      } catch {
-        throw new Error('CERTIFICATE_UPLOAD_FAILED')
+        return await dependencies.replaceCertificate(body)
+      } catch (error) {
+        throw new Error(toSafeUploadErrorCode(error))
       } finally {
         if (body !== undefined) clearFormData(body)
         clear()
       }
     },
   }
+}
+
+function toSafeUploadErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : ''
+  return /^[A-Z][A-Z0-9_]{0,100}$/.test(message) ? message : 'CERTIFICATE_UPLOAD_FAILED'
 }

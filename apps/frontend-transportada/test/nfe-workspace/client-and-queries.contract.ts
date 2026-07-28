@@ -116,7 +116,39 @@ describe('nfe workspace client and queries contract', () => {
     expect(downloadXmlRequest.headers.get('accept')).toBe('application/xml')
     expect(downloadXmlRequest.cache).toBe('no-store')
   })
+
+  test('rejects a document listing without the tax id and ibge city code of both parties', async () => {
+    const { createNfeWorkspaceClient } = await loadFutureModule<NfeWorkspaceClientModule>(
+      '../../src/modules/nfe-workspace/shared/nfeWorkspaceClient.service',
+    )
+    const client = createNfeWorkspaceClient({
+      apiUrl: 'https://api.example.test',
+      fetch: () =>
+        Promise.resolve(
+          Response.json({
+            data: [documentWithoutCteFields()],
+            page: { nextCursor: null },
+          }),
+        ),
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+    })
+
+    const error = await client.listDocuments({ cursor: null, limit: 20 }).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    )
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('NFE_WORKSPACE_RESPONSE_INVALID')
+  })
 })
+
+function documentWithoutCteFields(): Record<string, unknown> {
+  const document: Record<string, unknown> = { ...DOCUMENT_LIST_PAGE.items[0] }
+  for (const field of ['emitterCityCode', 'emitterTaxId', 'recipientCityCode', 'recipientTaxId']) {
+    delete document[field]
+  }
+  return document
+}
 
 function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url.endsWith('/nfe-imports/xml')) {

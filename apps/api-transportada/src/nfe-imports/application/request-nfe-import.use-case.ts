@@ -14,6 +14,11 @@ import type {
 const OPERATION = 'nfe-import.request'
 const ENCODER = new TextEncoder()
 
+const REQUEST_EVENT_TYPE = {
+  distribution: 'transportada.nfe.distribution.requested',
+  upload: 'transportada.nfe.import.requested',
+} as const
+
 export function createRequestNfeImportUseCase(dependencies: {
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly unitOfWork: RequestNfeImportUnitOfWorkPort
@@ -101,7 +106,7 @@ async function executeRequest(
     companyId,
     correlationId: request.correlationId,
     eventId: crypto.randomUUID(),
-    eventType: 'transportada.nfe.import.requested',
+    eventType: REQUEST_EVENT_TYPE[request.source],
     eventVersion: 1,
     payload: { importId: summary.id },
   })

@@ -50,4 +50,11 @@ export type RouteDependencies = {
   readonly replaceCertificate: {
     execute(input: ReplaceCertificateCall): Promise<ReplaceCertificateResult>
   }
+  readonly retireCertificate: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly correlationId: string
+      readonly purpose: 'cte'
+    }): Promise<CertificateMetadata | null>
+  }
 }

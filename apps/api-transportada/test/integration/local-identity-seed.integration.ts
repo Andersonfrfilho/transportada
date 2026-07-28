@@ -17,6 +17,7 @@ import {
 import {
   LOCAL_COMPANY_ID,
   LOCAL_EXTERNAL_IDENTITY_ID,
+  LOCAL_IDENTITY_ROLES,
   LOCAL_IDENTITY_USER_ID,
   LOCAL_KEYCLOAK_ISSUER,
   LOCAL_KEYCLOAK_SUBJECT,
@@ -153,7 +154,11 @@ describe('local application identity seed', () => {
               .from(membershipRoles)
               .where(eq(membershipRoles.membershipId, LOCAL_MEMBERSHIP_ID))
               .orderBy(asc(membershipRoles.role)),
-          ).toEqual([{ role: 'viewer' }])
+          ).toEqual(
+            [...LOCAL_IDENTITY_ROLES]
+              .sort((first, second) => first.localeCompare(second))
+              .map((role) => ({ role })),
+          )
           expect(
             await provider.db
               .select({ id: companies.id, status: companies.status })

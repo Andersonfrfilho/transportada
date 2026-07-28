@@ -8,6 +8,8 @@ const EXPECTED_TABLE_NAMES = [
   'cte_fiscal_documents',
   'cte_issuance_events',
   'cte_retry_schedules',
+  'cte_issuance_payloads',
+  'cte_processed_messages',
 ]
 
 describe('CT-e issuance schema aggregation', () => {

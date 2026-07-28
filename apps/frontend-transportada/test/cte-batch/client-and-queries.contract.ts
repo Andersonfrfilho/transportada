@@ -6,7 +6,13 @@ import {
   CTE_BATCH_CREATE,
   CTE_BATCH_EVENTS_PAGE,
   CTE_BATCH_ID,
+  CTE_BATCH_ITEM_ID,
   CTE_BATCH_PAGE,
+  CTE_BATCH_PREVIEW,
+  CTE_BATCH_WITHOUT_ITEM,
+  CTE_BLOCKED_DOCUMENT_ID,
+  CTE_DOCUMENT_ID,
+  CTE_PROFILE_ID,
   CTE_SUBMITTED_BATCH,
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_CURSOR,
@@ -78,6 +84,158 @@ describe('CT-e batch client and queries contract', () => {
     expect(await cancelRequest.json()).toEqual({})
   })
 
+  test('removes a draft batch item with an authenticated DELETE and returns the shrunk batch', async () => {
+    const requests: Request[] = []
+    const { createCteBatchClient } = await loadFutureModule<CteBatchClientModule>(
+      '../../src/modules/cte-batch/shared/cteBatchClient.service',
+    )
+    const client = createCteBatchClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return resolveSyntheticResponse(request)
+      },
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+      newIdempotencyKey: () => SYNTHETIC_IDEMPOTENCY_KEY,
+      newSubmitIdempotencyKey: () => SYNTHETIC_SUBMIT_KEY,
+    })
+
+    expect(await client.removeItem({ batchId: CTE_BATCH_ID, itemId: CTE_BATCH_ITEM_ID })).toEqual(
+      CTE_BATCH_WITHOUT_ITEM,
+    )
+
+    const [removeRequest] = requests
+    if (removeRequest === undefined) throw new Error('CTE_BATCH_CONTRACT_REQUEST_MISSING')
+    expect(removeRequest.method).toBe('DELETE')
+    expect(removeRequest.url).toBe(
+      `https://api.example.test/cte-batches/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}`,
+    )
+    expect(removeRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
+    expect(removeRequest.cache).toBe('no-store')
+  })
+
+  test('previews the emission without persisting and carries profile and grouping into the creation', async () => {
+    const requests: Request[] = []
+    const { createCteBatchClient } = await loadFutureModule<CteBatchClientModule>(
+      '../../src/modules/cte-batch/shared/cteBatchClient.service',
+    )
+    const client = createCteBatchClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return resolveSyntheticResponse(request)
+      },
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+      newIdempotencyKey: () => SYNTHETIC_IDEMPOTENCY_KEY,
+      newSubmitIdempotencyKey: () => SYNTHETIC_SUBMIT_KEY,
+    })
+
+    expect(
+      await client.previewBatch({
+        documentIds: [CTE_DOCUMENT_ID, CTE_BLOCKED_DOCUMENT_ID],
+        emissionProfileId: CTE_PROFILE_ID,
+        groupingMode: 'per_invoice',
+      }),
+    ).toEqual(CTE_BATCH_PREVIEW)
+    await client.createBatch({
+      documentIds: [CTE_DOCUMENT_ID],
+      emissionProfileId: CTE_PROFILE_ID,
+      groupingMode: 'per_invoice',
+      name: 'Lote CT-e julho',
+    })
+
+    const [previewRequest, createRequest] = requests
+    if (previewRequest === undefined || createRequest === undefined) {
+      throw new Error('CTE_BATCH_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(previewRequest.url).toBe('https://api.example.test/cte-batches/preview')
+    expect(previewRequest.method).toBe('POST')
+    expect(previewRequest.cache).toBe('no-store')
+    expect(previewRequest.headers.get('idempotency-key')).toBeNull()
+    expect(await previewRequest.json()).toEqual({
+      documentIds: [CTE_DOCUMENT_ID, CTE_BLOCKED_DOCUMENT_ID],
+      emissionProfileId: CTE_PROFILE_ID,
+      groupingMode: 'per_invoice',
+    })
+    expect(await createRequest.json()).toEqual({
+      documentIds: [CTE_DOCUMENT_ID],
+      emissionProfileId: CTE_PROFILE_ID,
+      groupingMode: 'per_invoice',
+      name: 'Lote CT-e julho',
+    })
+  })
+
+  test('omits profile and grouping from the payload when the emission runs on automatic resolution', async () => {
+    const requests: Request[] = []
+    const { createCteBatchClient } = await loadFutureModule<CteBatchClientModule>(
+      '../../src/modules/cte-batch/shared/cteBatchClient.service',
+    )
+    const client = createCteBatchClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return resolveSyntheticResponse(request)
+      },
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+      newIdempotencyKey: () => SYNTHETIC_IDEMPOTENCY_KEY,
+      newSubmitIdempotencyKey: () => SYNTHETIC_SUBMIT_KEY,
+    })
+
+    await client.previewBatch({ documentIds: [CTE_DOCUMENT_ID] })
+    await client.createBatch({ documentIds: [CTE_DOCUMENT_ID], name: 'Lote CT-e julho' })
+
+    const [previewRequest, createRequest] = requests
+    if (previewRequest === undefined || createRequest === undefined) {
+      throw new Error('CTE_BATCH_CONTRACT_REQUEST_MISSING')
+    }
+    expect(await previewRequest.json()).toEqual({ documentIds: [CTE_DOCUMENT_ID] })
+    expect(await createRequest.json()).toEqual({
+      documentIds: [CTE_DOCUMENT_ID],
+      name: 'Lote CT-e julho',
+    })
+  })
+
+  test('rejects a preview whose summary leaks fields outside the projection envelope', async () => {
+    const { createCteBatchPreviewAdapter } = await loadFutureModule<CteBatchPreviewAdapterModule>(
+      '../../src/modules/cte-batch/shared/cteBatchPreview.validation',
+    )
+    const previewFromApi = createCteBatchPreviewAdapter()
+
+    expect(() =>
+      previewFromApi({
+        ...CTE_BATCH_PREVIEW,
+        summary: { ...CTE_BATCH_PREVIEW.summary, companyId: 'forbidden-company' },
+      }),
+    ).toThrow('CTE_BATCH_INVALID_PREVIEW_RESPONSE')
+    expect(() => previewFromApi({ ...CTE_BATCH_PREVIEW, projections: {} })).toThrow(
+      'CTE_BATCH_INVALID_PREVIEW_RESPONSE',
+    )
+    expect(() =>
+      previewFromApi({
+        ...CTE_BATCH_PREVIEW,
+        blocked: [{ ...CTE_BATCH_PREVIEW.blocked[0], xml: '<cteProc />' }],
+      }),
+    ).toThrow('CTE_BATCH_INVALID_PREVIEW_RESPONSE')
+  })
+
+  test('accepts a projection carrying fiscal fields the dialog does not read yet', async () => {
+    const { createCteBatchPreviewAdapter } = await loadFutureModule<CteBatchPreviewAdapterModule>(
+      '../../src/modules/cte-batch/shared/cteBatchPreview.validation',
+    )
+    const previewFromApi = createCteBatchPreviewAdapter()
+
+    const preview = previewFromApi({
+      ...CTE_BATCH_PREVIEW,
+      projections: [{ ...CTE_BATCH_PREVIEW.projections[0], cargoWeight: '120.0000' }],
+    }) as { readonly projections: readonly { readonly fiscalAmount: string }[] }
+
+    expect(preview.projections[0]?.fiscalAmount).toBe('43.13')
+  })
+
   test('keeps batch DTO boundaries strict and excludes tenant or fiscal payload fields', async () => {
     const { createCteBatchResponseAdapters } = await loadFutureModule<CteBatchAdaptersModule>(
       '../../src/modules/cte-batch/shared/cteBatchResponse.validation',
@@ -103,6 +261,9 @@ describe('CT-e batch client and queries contract', () => {
 })
 
 function resolveSyntheticResponse(request: Request): Promise<Response> {
+  if (request.url.endsWith('/cte-batches/preview')) {
+    return Promise.resolve(Response.json({ data: CTE_BATCH_PREVIEW }))
+  }
   if (request.url.includes('/cte-batches?')) {
     return Promise.resolve(
       Response.json({
@@ -113,6 +274,9 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   }
   if (request.url.endsWith('/cte-batches')) {
     return Promise.resolve(Response.json({ data: CTE_BATCH }))
+  }
+  if (request.url.endsWith(`/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}`)) {
+    return Promise.resolve(Response.json({ data: CTE_BATCH_WITHOUT_ITEM }))
   }
   if (request.url.endsWith(`/${CTE_BATCH_ID}/submit`)) {
     return Promise.resolve(Response.json({ data: CTE_SUBMITTED_BATCH }))
@@ -135,9 +299,22 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   throw new Error(`Unexpected request in contract: ${request.url}`)
 }
 
+type CteBatchCreateInput = {
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
+  readonly name: string
+}
+
+type CteBatchPreviewInput = {
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
+}
+
 type CteBatchClient = {
   cancelBatch(batchId: string): Promise<unknown>
-  createBatch(input: typeof CTE_BATCH_CREATE): Promise<unknown>
+  createBatch(input: CteBatchCreateInput): Promise<unknown>
   getBatch(batchId: string): Promise<unknown>
   listBatches(input: { readonly cursor: null | string; readonly limit: number }): Promise<unknown>
   listEvents(input: {
@@ -145,7 +322,13 @@ type CteBatchClient = {
     readonly cursor: null | string
     readonly limit: number
   }): Promise<unknown>
+  previewBatch(input: CteBatchPreviewInput): Promise<unknown>
+  removeItem(input: { readonly batchId: string; readonly itemId: string }): Promise<unknown>
   submitBatch(batchId: string): Promise<unknown>
+}
+
+type CteBatchPreviewAdapterModule = {
+  readonly createCteBatchPreviewAdapter: () => (input: unknown) => unknown
 }
 
 type CteBatchClientModule = {

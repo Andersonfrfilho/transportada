@@ -26,23 +26,23 @@ flowchart LR
 
 ## Tecnologias
 
-| Área              | Escolha                           | Regra                                            |
-| ----------------- | --------------------------------- | ------------------------------------------------ |
-| Runtime e pacotes | Bun com versão fixada             | Também executa testes e scripts                  |
-| Monorepo          | Bun workspaces                    | Raiz apenas orquestra apps independentes         |
-| API               | `Bun.serve` + Zod + OpenAPI       | uWebSockets é interno ao Bun; sem addon V8       |
-| Worker            | Bun + consumidor RabbitMQ         | Manual ack, prefetch, retry, DLX e DLQ           |
-| Web               | React + Vite                      | SPA/PWA; sem SSR no MVP                          |
-| Estado remoto web | TanStack Query                    | Sem fetch manual em `useEffect`                  |
-| UI                | tokens, i18n e componentes locais | mobile-first; sem textos/cores soltos            |
-| Banco             | PostgreSQL + Drizzle/Bun SQL      | migrations versionadas pelo Drizzle Kit          |
-| Fila              | RabbitMQ                          | jobs fiscais são críticos; BullMQ não é o padrão |
-| Storage           | interface S3                      | MinIO local; bucket gerenciado apenas após gates |
-| Auth              | `@adatechnology/keycloak-jwt`     | tenant derivado do token                         |
-| Fiscal            | `@adatechnology/fiscal-provider`  | somente exports públicos via gateway             |
-| Logs              | `@adatechnology/logger`           | redaction e correlação obrigatórias              |
-| Testes            | `bun test` e Playwright           | integração real para banco e broker              |
-| Deploy            | Railway depois dos gates locais   | nenhuma promoção automática                      |
+| Área              | Escolha                          | Regra                                            |
+| ----------------- | -------------------------------- | ------------------------------------------------ |
+| Runtime e pacotes | Bun com versão fixada            | Também executa testes e scripts                  |
+| Monorepo          | Bun workspaces                   | Raiz apenas orquestra apps independentes         |
+| API               | `Bun.serve` + Zod + OpenAPI      | uWebSockets é interno ao Bun; sem addon V8       |
+| Worker            | Bun + consumidor RabbitMQ        | Manual ack, prefetch, retry, DLX e DLQ           |
+| Web               | React + Vite + `shadcn/ui`       | SPA/PWA; sem SSR no MVP                          |
+| Estado remoto web | TanStack Query                   | Sem fetch manual em `useEffect`                  |
+| UI                | tokens, i18n e `shadcn/ui`       | mobile-first; sem textos/cores soltos            |
+| Banco             | PostgreSQL + Drizzle/Bun SQL     | migrations versionadas pelo Drizzle Kit          |
+| Fila              | RabbitMQ                         | jobs fiscais são críticos; BullMQ não é o padrão |
+| Storage           | interface S3                     | MinIO local; bucket gerenciado apenas após gates |
+| Auth              | `@adatechnology/keycloak-jwt`    | tenant derivado do token                         |
+| Fiscal            | `@adatechnology/fiscal-provider` | somente exports públicos via gateway             |
+| Logs              | `@adatechnology/logger`          | redaction e correlação obrigatórias              |
+| Testes            | `bun test` e Playwright          | integração real para banco e broker              |
+| Deploy            | Railway depois dos gates locais  | nenhuma promoção automática                      |
 
 Next.js não traz benefício proporcional para o painel autenticado atual: não
 há requisito de SEO, SSR, Server Components ou BFF no frontend. Vite reduz
@@ -103,6 +103,7 @@ O frontend é publicável como artefato estático e configurado por
 
 - módulos por domínio e sufixos de arquivo definidos nas regras;
 - TanStack Query para dados remotos;
+- `shadcn/ui` como base obrigatória de componentes visuais;
 - `react-i18next` e arquivos `*.locale.json`;
 - design tokens sem valores visuais arbitrários em componentes;
 - manifest, service worker e fallback offline;

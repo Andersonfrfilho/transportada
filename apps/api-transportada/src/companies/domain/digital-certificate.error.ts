@@ -23,6 +23,16 @@ export class DigitalCertificateOperationFailedError extends ApiError {
   }
 }
 
+export class DigitalCertificateProfileMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DIGITAL_CERTIFICATE_PROFILE_MISSING',
+      message: 'Company fiscal profile is required before replacing a digital certificate',
+      status: 409,
+    })
+  }
+}
+
 export class DigitalCertificateUnavailableError extends ApiError {
   public constructor() {
     super({

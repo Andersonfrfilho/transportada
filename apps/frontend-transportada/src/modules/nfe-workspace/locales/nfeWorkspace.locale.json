@@ -28,16 +28,37 @@
     "title": "Entrada de arquivos",
     "subtitle": "Envie XMLs e lotes ZIP sem bloquear o restante da operação.",
     "files": "Arquivos XML ou ZIP",
+    "select": "Selecionar arquivos",
     "submit": "Enviar lote",
-    "empty": "Nenhum arquivo selecionado."
+    "pending": "Enviando lote...",
+    "success": "Lote enviado. O processamento aparecerá na fila.",
+    "error": "Não foi possível enviar o lote. Os arquivos continuam selecionados para tentar novamente.",
+    "empty": "Nenhum arquivo selecionado.",
+    "fileStatus": {
+      "pending": "Aguardando",
+      "uploading": "Enviando",
+      "uploaded": "Enviado",
+      "failed": "Falhou"
+    }
   },
   "distribution": {
-    "submit": "Distribuir DF-e"
+    "submit": "Distribuir DF-e",
+    "emergencyTitle": "Puxada de emergência DF-e",
+    "emergencySubtitle": "Busca manual das NF-e da sua empresa direto no SEFAZ. Use com cautela — o SEFAZ exige intervalo mínimo entre puxadas.",
+    "pending": "Puxando...",
+    "lastPull": "Última puxada: {{when}}",
+    "lastPullNever": "Nenhuma puxada registrada ainda.",
+    "ready": "Seguro puxar agora.",
+    "busy": "Uma puxada já está em andamento.",
+    "cooldown": "Aguarde o intervalo do SEFAZ. Nova tentativa liberada em {{countdown}}.",
+    "unavailable": "Puxada indisponível no momento."
   },
   "filters": {
     "advancedKey": "Filtro avançado",
     "advancedValue": "Valor do filtro avançado",
     "clear": "Limpar filtros",
+    "toggle": "Filtros",
+    "toggleClose": "Ocultar filtros",
     "all": "Todos",
     "distribution": "Distribuição",
     "none": "Nenhum",
@@ -47,24 +68,217 @@
     "statusNe": "Status diferente de",
     "upload": "Upload"
   },
+  "common": {
+    "loadMore": "Carregar mais",
+    "loadingMore": "Carregando...",
+    "copy": "Copiar",
+    "copied": "Copiado"
+  },
+  "toolbar": {
+    "import": "Importar notas",
+    "importClose": "Fechar importação",
+    "section": "Ações"
+  },
+  "tabs": {
+    "documents": "Notas",
+    "imports": "Importações"
+  },
+  "mechanism": {
+    "section": "Origem da importação",
+    "manual": "Manual",
+    "remote": "Remota"
+  },
   "imports": {
     "title": "Processamentos",
     "subtitle": "Acompanhe fila, totais e reprocessamentos permitidos.",
     "empty": "Nenhum processamento registrado.",
+    "executedAt": "Executado em",
+    "count": "{{count}} processamento",
+    "count_other": "{{count}} processamentos",
     "reprocess": "Reprocessar",
+    "reprocessPending": "Reprocessando...",
+    "reprocessSuccess": "Reprocessamento enfileirado.",
+    "reprocessError": "Não foi possível reprocessar.",
+    "reprocessNotAllowed": "Sem itens com falha para reprocessar.",
+    "reprocessDisabledHint": "Só é possível reprocessar processamentos com falha ou parciais que tenham itens falhados.",
     "imported": "Importadas",
+    "duplicated": "Duplicadas",
     "invalid": "Inválidas",
-    "failed": "Falhas"
+    "rejected": "De terceiros",
+    "failed": "Falhas",
+    "copyId": "Copiar identificador do lote"
   },
   "documents": {
     "title": "Documentos importados",
     "subtitle": "Consulta rápida das NF-e já persistidas.",
     "empty": "Nenhum documento disponível.",
-    "downloadXml": "Baixar XML"
+    "emptyFiltered": "Nenhuma nota corresponde aos filtros atuais.",
+    "count": "{{count}} nota",
+    "count_other": "{{count}} notas",
+    "countFiltered": "{{shown}} de {{total}}",
+    "loadingAll": "Carregando notas...",
+    "search": "Buscar notas",
+    "searchPlaceholder": "Buscar por emitente, destinatário ou chave",
+    "filterStatus": "Status",
+    "filterEmitter": "Emitente",
+    "selectAll": "Selecionar todas as notas",
+    "selectRow": "Selecionar nota",
+    "selectedCount": "{{count}} nota selecionada",
+    "selectedCount_other": "{{count}} notas selecionadas",
+    "downloadSelected": "Baixar XML das selecionadas",
+    "emitCte": "Gerar CT-es ({{count}})",
+    "clearSelection": "Limpar seleção",
+    "actions": "Ações",
+    "status": "Status",
+    "range": "{{start}}–{{end}} de {{total}}",
+    "pageSize": "Registros por página",
+    "perPage": "{{count}} por página",
+    "previousPage": "Anterior",
+    "nextPage": "Próxima",
+    "firstPage": "Primeira página",
+    "lastPage": "Última página",
+    "pageIndicator": "Página {{current}} de {{total}}",
+    "numberFrom": "Número inicial",
+    "numberTo": "Número final",
+    "operator": "Operador",
+    "datePlaceholder": "Selecione o período",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês",
+    "downloadXml": "Baixar XML",
+    "downloadPending": "Baixando...",
+    "downloadError": "Falha ao baixar o XML.",
+    "emitter": "Emitente",
+    "recipient": "Destinatário",
+    "amount": "Valor",
+    "accessKey": "Chave de acesso",
+    "copyAccessKey": "Copiar chave de acesso",
+    "copyValue": "Copiar {{field}}",
+    "columnsMenu": "Colunas",
+    "clearAll": "Limpar filtros",
+    "removeFilter": "Remover filtro {{field}}",
+    "filterMode": {
+      "label": "Modo de filtro",
+      "simple": "Simples",
+      "advanced": "Avançado"
+    },
+    "connector": {
+      "and": "E",
+      "or": "OU"
+    },
+    "operators": {
+      "contains": "contém",
+      "notContains": "não contém",
+      "eq": "igual a",
+      "neq": "diferente de",
+      "gt": "maior que",
+      "gte": "maior ou igual",
+      "lt": "menor que",
+      "lte": "menor ou igual",
+      "between": "entre",
+      "before": "antes de",
+      "after": "depois de"
+    },
+    "builder": {
+      "field": "Campo",
+      "operator": "Operador",
+      "value": "Valor",
+      "addCondition": "Adicionar condição",
+      "removeCondition": "Remover condição",
+      "addGroup": "Adicionar grupo",
+      "removeGroup": "Remover grupo",
+      "groupTitle": "Grupo {{index}}",
+      "hint": "Monte condições e clique no conector E / OU entre elas para alternar como se combinam.",
+      "rootConnectorLabel": "Alternar como os grupos se combinam (E / OU)",
+      "groupConnectorLabel": "Alternar como as condições se combinam (E / OU)",
+      "save": "Salvar filtro",
+      "savedPill": "Filtro avançado · {{count}} condição",
+      "savedPill_other": "Filtro avançado · {{count}} condições",
+      "editSaved": "Editar filtro avançado",
+      "removeSaved": "Remover filtro avançado"
+    },
+    "columnsReorder": {
+      "moveUp": "Mover coluna para cima",
+      "moveDown": "Mover coluna para baixo"
+    },
+    "columns": {
+      "amount": "Valor",
+      "emitter": "Emitente",
+      "emitterLocation": "Origem",
+      "issuedAt": "Emissão",
+      "number": "Número",
+      "recipient": "Destinatário",
+      "recipientLocation": "Destino",
+      "series": "Série",
+      "status": "Status"
+    },
+    "fields": {
+      "emitterAddress": "Endereço origem",
+      "emitterCity": "Cidade origem",
+      "emitterName": "Emitente",
+      "emitterState": "UF origem",
+      "issuedAt": "Emissão",
+      "number": "Número",
+      "recipientAddress": "Endereço destino",
+      "recipientCity": "Cidade destino",
+      "recipientName": "Destinatário",
+      "recipientState": "UF destino",
+      "series": "Série",
+      "status": "Status",
+      "totalAmount": "Valor"
+    }
   },
   "documentStatus": {
     "authorized": "Autorizada",
     "cancelled": "Cancelada",
     "denied": "Denegada"
+  },
+  "cteEmission": {
+    "title": "Gerar CT-es",
+    "subtitle": "Confira a projeção fiscal antes de criar o lote. Nada é transmitido nesta etapa.",
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "confirm": "Criar lote",
+    "creating": "Criando lote...",
+    "loading": "Calculando projeção...",
+    "batchName": "Nome do lote",
+    "profile": "Perfil de emissão",
+    "profileAutomatic": "Automático (pelo CNPJ do emitente)",
+    "grouping": "Agrupamento",
+    "groupingMode": {
+      "per_invoice": "Um CT-e por nota",
+      "sender_recipient": "Agrupar por remetente e destinatário"
+    },
+    "projections": "CT-es projetados",
+    "columns": {
+      "documents": "Notas",
+      "baseAmount": "Base",
+      "percentage": "Alíquota",
+      "profile": "Perfil",
+      "amount": "Valor do CT-e"
+    },
+    "resolvedBy": {
+      "auto": "automático",
+      "manual": "manual"
+    },
+    "componentsLabel": "Componentes",
+    "total": "Total do lote",
+    "blocked": "Notas bloqueadas",
+    "blockedCount": "{{count}} nota bloqueada",
+    "blockedCount_other": "{{count}} notas bloqueadas",
+    "empty": "Nenhuma nota selecionada gera CT-e com os parâmetros atuais.",
+    "forbidden": "Você não tem permissão para gerar CT-es.",
+    "blockReason": {
+      "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Já vinculada a outro CT-e",
+      "CTE_BATCH_DOCUMENT_DUPLICATED": "Repetida na seleção",
+      "CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY": "Sem código de município",
+      "CTE_BATCH_DOCUMENT_MISSING_PARTY": "Sem emitente ou destinatário",
+      "CTE_BATCH_DOCUMENT_MISSING_TOTAL": "Sem valor total",
+      "CTE_BATCH_DOCUMENT_MISSING_WEIGHT": "Sem peso da carga",
+      "CTE_BATCH_DOCUMENT_NOT_AUTHORIZED": "Nota não autorizada",
+      "CTE_BATCH_DOCUMENT_NOT_FOUND": "Nota não encontrada",
+      "CTE_PROFILE_RULE_NOT_IN_FORCE": "Sem regra de frete vigente",
+      "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Somente resumo, sem XML completo"
+    },
+    "error": "Não foi possível calcular a projeção. Tente novamente."
   }
 }

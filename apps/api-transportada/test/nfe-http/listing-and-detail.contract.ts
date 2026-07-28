@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
   DOCUMENT_SUMMARY,
@@ -15,6 +16,7 @@ import {
 } from '../fixtures/nfe-http-payload.fixture'
 import { createNfeHttpFixture } from '../fixtures/nfe-http.fixture'
 import {
+  distributionStatusRequest,
   documentDetailRequest,
   documentEligibilityRequest,
   documentsListRequest,
@@ -98,6 +100,59 @@ describe('nfe http listing and detail contract', () => {
     })
   })
 
+  test('exposes both parties tax id and ibge city code required by the CT-e payload', async () => {
+    const fixture = await createNfeHttpFixture()
+
+    const response = await fixture.handle(documentsListRequest({ query: '?limit=10' }))
+    const [document] = (await documentListBody(response)).data
+
+    expect(document).toMatchObject({
+      emitterCityCode: '3509502',
+      emitterTaxId: '61156864000191',
+      recipientCityCode: '3525904',
+      recipientTaxId: '12345678000199',
+    })
+  })
+
+  test('keeps tax id and city code nullable for documents imported without those fields', async () => {
+    const fixture = await createNfeHttpFixture({
+      documentList: {
+        items: [
+          {
+            ...DOCUMENT_SUMMARY,
+            emitterCityCode: null,
+            emitterTaxId: null,
+            recipientCityCode: null,
+            recipientTaxId: null,
+          },
+        ],
+        nextCursor: null,
+      },
+    })
+
+    const response = await fixture.handle(documentsListRequest({ query: '?limit=10' }))
+    const [document] = (await documentListBody(response)).data
+
+    expect(document).toMatchObject({
+      emitterCityCode: null,
+      emitterTaxId: null,
+      recipientCityCode: null,
+      recipientTaxId: null,
+    })
+  })
+
+  test('returns distribution pull status with cooldown state and no leaked identifiers', async () => {
+    const fixture = await createNfeHttpFixture()
+
+    const response = await fixture.handle(distributionStatusRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(body).toEqual({ data: DISTRIBUTION_STATUS })
+    expect(fixture.distributionStatusCalls).toEqual([{ context: COMPANY_CONTEXT }])
+  })
+
   test('returns structural document eligibility without inventing fiscal rules', async () => {
     const fixture = await createNfeHttpFixture()
 
@@ -111,3 +166,9 @@ describe('nfe http listing and detail contract', () => {
     })
   })
 })
+
+async function documentListBody(
+  response: Response,
+): Promise<{ readonly data: readonly Record<string, unknown>[] }> {
+  return (await response.json()) as { readonly data: readonly Record<string, unknown>[] }
+}

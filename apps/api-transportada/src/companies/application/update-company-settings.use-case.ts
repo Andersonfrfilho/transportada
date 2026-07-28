@@ -1,9 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createCteRetryPolicy } from '../../cte-issuance/domain/cte-retry.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { ApiError } from '../../shared/api.error.js'
-import { InvalidCompanySettingsError } from '../domain/company-settings.error.js'
+import {
+  CompanyProfileCertificateCnpjMismatchError,
+  InvalidCompanySettingsError,
+} from '../domain/company-settings.error.js'
 import type {
   CompanySettingsInput,
   CompanySettingsResult,
@@ -75,6 +79,7 @@ async function persistUpdate(
   companyId: string,
   fingerprint: string,
 ): Promise<CompanySettingsResult> {
+  await assertProfileCnpjMatchesActiveCertificate(transaction, companyId, request.settings)
   const before = await transaction.findByCompanyId?.({ companyId })
   const response = await transaction.saveSettings({ companyId, settings: request.settings })
   await transaction.appendAudit({
@@ -105,12 +110,32 @@ function createIdempotencyConflict(): ApiError {
   })
 }
 
+async function assertProfileCnpjMatchesActiveCertificate(
+  transaction: CompanySettingsTransactionPort,
+  companyId: string,
+  settings: CompanySettingsInput,
+): Promise<void> {
+  const activeCertificateCnpj = await transaction.findActiveCertificateCnpj({ companyId })
+  if (activeCertificateCnpj !== null && activeCertificateCnpj !== settings.profile.cnpj) {
+    throw new CompanyProfileCertificateCnpjMismatchError()
+  }
+}
+
 function assertSettingsInvariants(settings: CompanySettingsInput): void {
   if (
     settings.cte.series <= 0n ||
     settings.cte.nextNumber <= 0n ||
     (settings.expectedVersion !== null && settings.expectedVersion <= 0n)
   ) {
+    throw new InvalidCompanySettingsError()
+  }
+  assertRetryPolicyInvariants(settings)
+}
+
+function assertRetryPolicyInvariants(settings: CompanySettingsInput): void {
+  try {
+    createCteRetryPolicy(settings.cteRetry)
+  } catch {
     throw new InvalidCompanySettingsError()
   }
 }
@@ -142,12 +167,23 @@ function createFingerprintFields(
     settings.cte.environment,
     settings.cte.series.toString(),
     settings.cte.nextNumber.toString(),
+    settings.cteRetry.maxAttempts.toString(),
+    settings.cteRetry.backoffSeconds.join(','),
+    settings.mdfe.insuranceResponsibility,
+    settings.mdfe.insurerName,
+    settings.mdfe.insurerTaxId,
+    settings.mdfe.insurancePolicy,
+    settings.mdfe.bankCode,
+    settings.mdfe.bankBranch,
+    settings.mdfe.pixKey,
   ]
   return values.map((value) => TEXT_ENCODER.encode(value))
 }
 
 function createAuditSnapshot(settings: CompanySettingsResult): Readonly<Record<string, string>> {
   return {
+    cteRetryBackoffSeconds: settings.cteRetry.backoffSeconds.join(','),
+    cteRetryMaxAttempts: settings.cteRetry.maxAttempts.toString(),
     environment: settings.cte.environment,
     nextNumber: settings.cte.nextNumber.toString(),
     profileVersion: settings.profile.version.toString(),

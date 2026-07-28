@@ -5,10 +5,37 @@ import { and, desc, eq } from 'drizzle-orm'
 
 import { digitalCertificates } from '../../database/database.schema.js'
 import type {
+  DigitalCertificateMetadata,
   DigitalCertificateResult,
   DigitalCertificateRotation,
   RotateDigitalCertificateInput,
 } from '../application/digital-certificate.port.js'
+
+export async function retireActiveDigitalCertificate(input: {
+  readonly companyId: string
+  readonly purpose: 'cte'
+  readonly transaction: DigitalCertificateTransaction
+}): Promise<DigitalCertificateMetadata | null> {
+  const [record] = await input.transaction
+    .update(digitalCertificates)
+    .set({ secretEnvelope: null, status: 'retired', updatedAt: new Date() })
+    .where(
+      and(
+        eq(digitalCertificates.companyId, input.companyId),
+        eq(digitalCertificates.purpose, input.purpose),
+        eq(digitalCertificates.status, 'active'),
+      ),
+    )
+    .returning({
+      createdAt: digitalCertificates.createdAt,
+      expiresAt: digitalCertificates.expiresAt,
+      id: digitalCertificates.id,
+      purpose: digitalCertificates.purpose,
+      validFrom: digitalCertificates.validFrom,
+      version: digitalCertificates.version,
+    })
+  return record === undefined ? null : { ...record, status: 'retired' }
+}
 import type { DigitalCertificateTransaction } from './drizzle-digital-certificate.types.js'
 
 export async function replaceDigitalCertificate(input: {

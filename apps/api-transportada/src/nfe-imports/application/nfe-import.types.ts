@@ -81,10 +81,36 @@ export type OutboxInput = {
   readonly companyId: string
   readonly correlationId: string
   readonly eventId: string
-  readonly eventType: 'transportada.nfe.import.requested'
+  readonly eventType:
+    | 'transportada.nfe.distribution.requested'
+    | 'transportada.nfe.import.requested'
   readonly eventVersion: 1
   readonly payload: { readonly importId: string }
 }
+export type NfeFiscalEnvironment = 'homologation' | 'production'
+export type NfeDistributionCursorSnapshot = {
+  readonly leaseExpiresAt: string | null
+  readonly maxNsu: string
+  readonly nextAllowedAt: string | null
+  readonly ultNsu: string
+  readonly updatedAt: string
+} | null
+export type NfeDistributionStatus = {
+  readonly canPull: boolean
+  readonly environment: NfeFiscalEnvironment
+  readonly lastPulledAt: string | null
+  readonly maxNsu: string
+  readonly nextAllowedAt: string | null
+  readonly pullInProgress: boolean
+  readonly ultNsu: string
+}
+export type NfeDistributionStatusReaderPort = {
+  read(input: { readonly companyId: string }): Promise<{
+    readonly cursor: NfeDistributionCursorSnapshot
+    readonly environment: NfeFiscalEnvironment
+  } | null>
+}
+export type NfeDistributionClockPort = { now(): Date }
 export type IdempotencyFingerprintPort = {
   create(input: {
     readonly fields: readonly Uint8Array[]

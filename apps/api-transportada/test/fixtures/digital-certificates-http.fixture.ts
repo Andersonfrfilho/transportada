@@ -63,6 +63,7 @@ export async function createDigitalCertificatesHttpFixture(
       result: params.listResult,
     }),
     replaceCertificate: replaceSpy({ calls: replaceCalls, error: params.replaceError }),
+    retireCertificate: { execute: async () => null },
   })
   const router = createTestRouter({
     authenticationError: params.authenticationError,

@@ -5,6 +5,8 @@ import type { SchemaTable } from '../fiscal-schema/support.js'
 export const CTE_BATCH_SCHEMA_EXPORT_NAMES = [
   'cteBatches',
   'cteBatchItems',
+  'cteBatchItemDocuments',
+  'cteBatchItemCharges',
   'cteBatchEvents',
   'cteSubmissionRecords',
 ] as const

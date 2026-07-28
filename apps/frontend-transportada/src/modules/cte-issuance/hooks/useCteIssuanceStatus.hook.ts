@@ -8,15 +8,28 @@ import {
   createCteIssuanceClient,
   type CteIssuanceClient as Client,
 } from '../shared/cteIssuanceClient.service'
+import { createCteIssuanceQueryPlan } from '../shared/cteIssuancePolling.service'
+import { createCteIssuanceTimeline } from '../shared/cteIssuanceTimeline.service'
+import { createCteIssuanceViewModel } from '../shared/cteIssuanceViewModel.service'
 
 const CTE_SUBMIT = 'cte.submit'
+const CTE_CANCEL = 'cte.cancel'
 const CTE_ISSUANCE_QUERY_KEY = 'cte-issuance'
 const CTE_DOCUMENTS_QUERY_KEY = 'cte-issuance-documents'
 
 export type CteIssuanceClient = Client
 
 export type CteIssuanceController = Readonly<{
+  canCancelCte: boolean
   canSubmitCte: boolean
+  cancelItem: (
+    input: Readonly<{
+      batchId: string
+      batchItemId: string
+      idempotencyKey: string
+      justification: string
+    }>,
+  ) => Promise<void>
   issueBatch: (input: Readonly<{ batchId: string; idempotencyKey: string }>) => Promise<void>
   reprocessItem: (
     input: Readonly<{
@@ -43,9 +56,13 @@ function forbidden(): Promise<never> {
 
 export function createCteIssuanceController(input: ControllerInput): CteIssuanceController {
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT)
+  const canCancelCte = input.permissions.includes(CTE_CANCEL)
 
   return {
+    canCancelCte,
     canSubmitCte,
+    cancelItem: (request) =>
+      canCancelCte ? input.client.cancelItem(request).then(() => undefined) : forbidden(),
     issueBatch: (request) =>
       canSubmitCte ? input.client.issueBatch(request).then(() => undefined) : forbidden(),
     reprocessItem: (request) =>
@@ -53,12 +70,20 @@ export function createCteIssuanceController(input: ControllerInput): CteIssuance
   }
 }
 
-function getCteIssuanceClient(): CteIssuanceClient {
+export function getCteIssuanceClient(): CteIssuanceClient {
   return createCteIssuanceClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
   })
+}
+
+function resolveLoadState(input: {
+  readonly isError: boolean
+  readonly isSuccess: boolean
+}): 'error' | 'loading' | 'success' {
+  if (input.isError) return 'error'
+  return input.isSuccess ? 'success' : 'loading'
 }
 
 export function useCteIssuanceStatus(
@@ -70,10 +95,8 @@ export function useCteIssuanceStatus(
   }>,
 ) {
   const client = getCteIssuanceClient()
-  const controller = createCteIssuanceController({
-    client,
-    permissions: input.companyId === undefined ? [] : input.permissions,
-  })
+  const permissions = input.companyId === undefined ? [] : input.permissions
+  const controller = createCteIssuanceController({ client, permissions })
   const queryClient = useQueryClient()
   const issuanceQueryKey = [
     CTE_ISSUANCE_QUERY_KEY,
@@ -87,26 +110,34 @@ export function useCteIssuanceStatus(
     input.batchId,
     input.batchItemId,
   ] as const
-  const hasSelection = input.batchId !== undefined && input.batchItemId !== undefined
+  const selection = {
+    ...(input.batchId === undefined ? {} : { batchId: input.batchId }),
+    ...(input.batchItemId === undefined ? {} : { batchItemId: input.batchItemId }),
+    canSubmitCte: controller.canSubmitCte,
+  }
 
   const issuanceQuery = useQuery({
-    enabled: controller.canSubmitCte && hasSelection,
+    enabled: createCteIssuanceQueryPlan(selection).issuanceEnabled,
     queryFn: () =>
       client.getIssuance({ batchId: input.batchId ?? '', batchItemId: input.batchItemId ?? '' }),
     queryKey: issuanceQueryKey,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'requested' || status === 'retry_scheduled' ? 5_000 : false
-    },
+    refetchInterval: (query) =>
+      createCteIssuanceQueryPlan({ ...selection, status: query.state.data?.status })
+        .refetchInterval,
   })
+  const plan = createCteIssuanceQueryPlan({ ...selection, status: issuanceQuery.data?.status })
   const documentsQuery = useQuery({
-    enabled: controller.canSubmitCte && hasSelection,
+    enabled: plan.documentsEnabled,
     queryFn: () =>
       client.listDocuments({ batchId: input.batchId ?? '', batchItemId: input.batchItemId ?? '' }),
     queryKey: documentsQueryKey,
   })
   const issueMutation = useMutation({
     mutationFn: controller.issueBatch,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: issuanceQueryKey }),
+  })
+  const cancelMutation = useMutation({
+    mutationFn: controller.cancelItem,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: issuanceQueryKey }),
   })
   const reprocessMutation = useMutation({
@@ -118,14 +149,25 @@ export function useCteIssuanceStatus(
       ])
     },
   })
+  const viewModel = createCteIssuanceViewModel({
+    ...(documentsQuery.data === undefined ? {} : { documents: documentsQuery.data }),
+    ...(issuanceQuery.data === undefined ? {} : { issuance: issuanceQuery.data }),
+    permissions,
+    status: resolveLoadState(issuanceQuery),
+  })
 
   return {
+    canCancelCte: controller.canCancelCte,
     canSubmitCte: controller.canSubmitCte,
+    cancelMutation,
     controller,
     documentsQuery,
+    hasSelection: plan.issuanceEnabled,
     issuanceQuery,
     issueMutation,
     newIdempotencyKey: createIdempotencyKey,
     reprocessMutation,
+    timeline: createCteIssuanceTimeline({ issuance: issuanceQuery.data }),
+    viewModel,
   }
 }

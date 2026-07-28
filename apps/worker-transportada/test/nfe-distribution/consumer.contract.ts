@@ -3,14 +3,32 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { WorkerLogger } from '../../src/shared/worker.types.js'
+
 import {
   DISTRIBUTION_CONFIG,
   DISTRIBUTION_ENVELOPE,
+  SILENT_LOGGER,
   type DistributionCursorRecord,
   type NfeDistributionCursorRepositoryPort,
   createDistributionItem,
   createNfeDistributionConsumerFixture,
 } from './nfe-distribution.fixture.js'
+
+type LoggedEvent = {
+  readonly message: string
+  readonly metadata: Record<string, unknown> | undefined
+}
+
+function createSpyLogger(events: LoggedEvent[]): WorkerLogger {
+  return {
+    error() {},
+    info(message, metadata) {
+      events.push({ message, metadata })
+    },
+    warn() {},
+  }
+}
 
 describe('NF-e distribution consumer contract', () => {
   test('consumes 51 DF-es across overlapping pages, persists a monotonic cursor, and deduplicates repeated NSUs', async () => {
@@ -60,6 +78,7 @@ describe('NF-e distribution consumer contract', () => {
         },
       },
       leaseMs: 30_000,
+      logger: SILENT_LOGGER,
       profile: {
         async loadConfig(input) {
           calls.push(`profile:${input.companyId}`)
@@ -67,15 +86,20 @@ describe('NF-e distribution consumer contract', () => {
         },
       },
       repository: {
+        async finalizeImport(input) {
+          calls.push(
+            `finalize:${input.status}:${input.receivedCount}:${input.importedCount}:${input.duplicatedCount}`,
+          )
+        },
         async persistPage(input) {
           calls.push(`persist:${input.ultNsu}:${input.items.length}`)
-          const acceptedItems =
+          const acceptedCount =
             input.ultNsu === '000000000000050'
-              ? input.items
-              : input.items.filter((item) => item.nsu !== '000000000000050')
+              ? input.items.length
+              : input.items.filter((item) => item.nsu !== '000000000000050').length
           return {
-            acceptedItems,
-            duplicatedCount: input.items.length - acceptedItems.length,
+            acceptedCount,
+            duplicatedCount: input.items.length - acceptedCount,
           }
         },
       },
@@ -98,6 +122,7 @@ describe('NF-e distribution consumer contract', () => {
       'consultarDFe:000000000000050',
       'persist:000000000000051:2',
       'cursor:000000000000051:000000000000051:open',
+      'finalize:completed:52:51:1',
       'release:fbc033e7-63e0-4698-adc6-12778bedf4a7:homologation:distribution-consumer',
     ])
   })
@@ -124,12 +149,18 @@ describe('NF-e distribution consumer contract', () => {
         },
       },
       leaseMs: 30_000,
+      logger: SILENT_LOGGER,
       profile: {
         async loadConfig() {
           return DISTRIBUTION_CONFIG
         },
       },
       repository: {
+        async finalizeImport(input) {
+          calls.push(
+            `finalize:${input.status}:${input.receivedCount}:${input.importedCount}:${input.duplicatedCount}`,
+          )
+        },
         async persistPage() {
           throw new Error('No documents should be persisted on an empty page')
         },
@@ -145,10 +176,119 @@ describe('NF-e distribution consumer contract', () => {
     })
 
     expect(calls).toContain('cursor:000000000000000:000000000000200:blocked')
+    expect(calls).toContain('finalize:completed:0:0:0')
+  })
+
+  test('skips the SEFAZ call while still inside the persisted anti-656 window', async () => {
+    const calls: string[] = []
+    const cursorRepository = createCursorRepository(calls, {
+      maxNsu: '000000000000200',
+      nextAllowedAt: new Date('2026-07-22T23:59:00.000Z'),
+      ultNsu: '000000000000120',
+    })
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-07-22T23:20:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            async consultarDFe(input) {
+              calls.push(`consultarDFe:${input.ultNSU}`)
+              throw new Error('SEFAZ must not be queried during the anti-656 cooldown window')
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport(input) {
+          calls.push(
+            `finalize:${input.status}:${input.receivedCount}:${input.importedCount}:${input.duplicatedCount}`,
+          )
+        },
+        async persistPage() {
+          throw new Error('No documents should be persisted during the cooldown window')
+        },
+      },
+    })
+
+    await expect(consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })).resolves.toEqual({
+      duplicatedCount: 0,
+      fetchedCount: 0,
+      persistedCount: 0,
+      status: 'rate-limited',
+      ultNsu: '000000000000120',
+    })
+
+    expect(calls).not.toContain('consultarDFe:000000000000120')
+    expect(calls).toContain('finalize:completed:0:0:0')
+    expect(calls).toContain(
+      `release:${DISTRIBUTION_ENVELOPE.companyId}:homologation:distribution-consumer`,
+    )
+  })
+  test('logs the SEFAZ distribution page response for observability', async () => {
+    const events: LoggedEvent[] = []
+    const calls: string[] = []
+    const cursorRepository = createCursorRepository(calls)
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-07-22T23:20:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            async consultarDFe() {
+              return {
+                itens: [],
+                maxNSU: '000000000000000',
+                temMais: false,
+                ultNSU: '000000000000000',
+              }
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: createSpyLogger(events),
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport() {},
+        async persistPage() {
+          throw new Error('An empty page must not persist documents')
+        },
+      },
+    })
+
+    await consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })
+
+    const pageEvent = events.find(
+      (event) => event.message === 'nfe_distribution_sefaz_page_received',
+    )
+    expect(pageEvent).toBeDefined()
+    expect(pageEvent?.metadata).toEqual({
+      companyId: DISTRIBUTION_ENVELOPE.companyId,
+      fetched: 0,
+      importId: DISTRIBUTION_ENVELOPE.payload.importId,
+      maxNsu: '000000000000000',
+      temMais: false,
+      ultNsu: '000000000000000',
+    })
   })
 })
 
-function createCursorRepository(calls: string[]): NfeDistributionCursorRepositoryPort {
+function createCursorRepository(
+  calls: string[],
+  initialOverride?: Partial<DistributionCursorRecord>,
+): NfeDistributionCursorRepositoryPort {
   let cursor: DistributionCursorRecord = {
     companyId: DISTRIBUTION_ENVELOPE.companyId,
     environment: 'homologation',
@@ -158,6 +298,7 @@ function createCursorRepository(calls: string[]): NfeDistributionCursorRepositor
     nextAllowedAt: null,
     ultNsu: '000000000000000',
     version: 1n,
+    ...initialOverride,
   }
 
   return {

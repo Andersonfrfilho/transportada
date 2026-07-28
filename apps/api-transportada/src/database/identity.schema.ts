@@ -26,7 +26,14 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number]
  * Platform roles are intentionally excluded. They create a PlatformContext and
  * must never be interpreted as company membership authorization.
  */
-export const COMPANY_ROLES = ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const
+export const COMPANY_ROLES = [
+  'company-admin',
+  'finance',
+  'fiscal',
+  'operator',
+  'viewer',
+  'driver',
+] as const
 export type CompanyRole = (typeof COMPANY_ROLES)[number]
 
 export const identityUsers = pgTable(
@@ -99,6 +106,7 @@ export const userCompanyMemberships = pgTable(
   (table) => [
     check('user_company_memberships_status_check', sql`${table.status} in ('active', 'disabled')`),
     unique('user_company_memberships_user_company_unique').on(table.userId, table.companyId),
+    unique('user_company_memberships_id_company_id_unique').on(table.id, table.companyId),
     index('user_company_memberships_company_id_idx').on(table.companyId),
     index('user_company_memberships_user_id_idx').on(table.userId),
   ],
@@ -120,7 +128,7 @@ export const membershipRoles = pgTable(
   (table) => [
     check(
       'membership_roles_role_check',
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer')`,
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

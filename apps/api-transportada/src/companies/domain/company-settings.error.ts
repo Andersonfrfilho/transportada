@@ -42,3 +42,13 @@ export class InvalidCompanySettingsError extends ApiError {
     })
   }
 }
+
+export class CompanyProfileCertificateCnpjMismatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FISCAL_PROFILE_CERTIFICATE_CNPJ_MISMATCH',
+      message: 'Company fiscal profile CNPJ must match the active digital certificate',
+      status: 409,
+    })
+  }
+}

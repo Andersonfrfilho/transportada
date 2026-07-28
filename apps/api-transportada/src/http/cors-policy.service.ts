@@ -13,6 +13,8 @@ export function hasResourcePreflightHeaders(input: {
   const expected =
     input.method === HTTP_GET_METHOD
       ? new Set(['authorization'])
-      : new Set(['authorization', 'content-type', 'idempotency-key'])
+      : input.method === 'DELETE'
+        ? new Set(['authorization'])
+        : new Set(['authorization', 'content-type', 'idempotency-key'])
   return headers.length === expected.size && headers.every((header) => expected.has(header))
 }

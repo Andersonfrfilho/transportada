@@ -12,18 +12,20 @@ export function CompanySettingsHeader({ environment }: CompanySettingsHeaderProp
   const environmentStyle =
     environment === 'production' ? styles.readinessProduction : styles.readinessHomologation
   return (
-    <>
-      <header className={styles.companySettingsHeader}>
+    <section className={styles.heroPanel}>
+      <div className={styles.heroTopline}>
         <p>{t('eyebrow')}</p>
-        <h1>{t('title')}</h1>
         <span className={`${styles.readinessState} ${environmentStyle}`}>{t(environment)}</span>
+      </div>
+      <header className={styles.companySettingsHeader}>
+        <h1>{t('title')}</h1>
+        <p className={styles.heroCopy}>{t('productionBoundary')}</p>
       </header>
       <section className={styles.readinessRail} aria-label={t('readinessTitle')}>
         <span>{t('profileStep')}</span>
         <span>{t('certificateStep')}</span>
         <span>{t('environmentStep')}</span>
       </section>
-      <p className={styles.productionBoundary}>{t('productionBoundary')}</p>
-    </>
+    </section>
   )
 }

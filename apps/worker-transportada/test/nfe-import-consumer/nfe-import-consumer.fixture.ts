@@ -67,6 +67,14 @@ export type NfeImportSourceStoragePort = {
   readSource(input: { readonly key: string }): Promise<Uint8Array>
 }
 
+export type NfeImportStoredObject = {
+  readonly bucket: string
+  readonly key: string
+  readonly objectId: string
+  readonly sha256: string
+  readonly sizeBytes: number
+}
+
 export type NfeImportFinalStoragePort = {
   storeImportedDocument(input: {
     readonly accessKey: string
@@ -74,7 +82,7 @@ export type NfeImportFinalStoragePort = {
     readonly importId: string
     readonly sourceBytes: Uint8Array
     readonly sourceSha256: string
-  }): Promise<{ readonly bucket: string; readonly key: string; readonly sha256: string }>
+  }): Promise<NfeImportStoredObject>
   storeImportedEvent(input: {
     readonly accessKey: string
     readonly companyId: string
@@ -83,7 +91,7 @@ export type NfeImportFinalStoragePort = {
     readonly sourceBytes: Uint8Array
     readonly sourceSha256: string
     readonly type: string
-  }): Promise<{ readonly bucket: string; readonly key: string; readonly sha256: string }>
+  }): Promise<NfeImportStoredObject>
 }
 
 export type NfeXmlImporterPort = {
@@ -94,11 +102,7 @@ export type NfeImportConsumerRepositoryPort = {
   completeItem(input: {
     readonly accessKey?: string
     readonly error?: NfeImportSafeError
-    readonly finalObject?: {
-      readonly bucket: string
-      readonly key: string
-      readonly sha256: string
-    }
+    readonly finalObject?: NfeImportStoredObject
     readonly itemId: string
     readonly normalizedXml?: ImportedNfeXml
     readonly status: NfeImportItemProcessingStatus

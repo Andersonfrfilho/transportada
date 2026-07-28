@@ -3,6 +3,7 @@ import { createCteIssuanceResponseAdapters } from './cteIssuanceResponse.validat
 
 export type CteIssuanceStatus =
   | 'authorized'
+  | 'cancelled'
   | 'failed'
   | 'rejected'
   | 'requested'
@@ -48,6 +49,14 @@ type ClientDependencies = Readonly<{
 }>
 
 export type CteIssuanceClient = Readonly<{
+  cancelItem: (
+    input: Readonly<{
+      batchId: string
+      batchItemId: string
+      idempotencyKey: string
+      justification: string
+    }>,
+  ) => Promise<CteIssuanceRequest>
   getIssuance: (
     input: Readonly<{ batchId: string; batchItemId: string }>,
   ) => Promise<CteIssuanceSummary>
@@ -119,6 +128,16 @@ export const createCteIssuanceClient: CteIssuanceClientFactory = (dependencies) 
   const adapters = createCteIssuanceResponseAdapters()
 
   return {
+    async cancelItem(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ justification: input.justification }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `/cte-batches/${input.batchId}/items/${input.batchItemId}/cancel`,
+      })
+      return adapters.requestFromApi(envelopeData(response))
+    },
     async getIssuance(input) {
       const response = await authorizedRequest({
         dependencies,

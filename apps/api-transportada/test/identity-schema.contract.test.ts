@@ -56,7 +56,14 @@ describe('tenant identity schema', () => {
   })
 
   test('defines only company-scoped roles on memberships', () => {
-    expect(COMPANY_ROLES).toEqual(['company-admin', 'finance', 'fiscal', 'operator', 'viewer'])
+    expect(COMPANY_ROLES).toEqual([
+      'company-admin',
+      'finance',
+      'fiscal',
+      'operator',
+      'viewer',
+      'driver',
+    ])
     expect(COMPANY_ROLES).not.toContain('platform-admin')
   })
 
@@ -146,7 +153,7 @@ describe('tenant identity schema', () => {
       `"user_company_memberships"."status" in ('active', 'disabled')`,
     ])
     expect(checkSql(membershipRoles)).toEqual([
-      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer')`,
+      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver')`,
     ])
   })
 

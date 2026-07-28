@@ -59,7 +59,7 @@ entram antes de produção.
 - smoke HTTP e PWA;
 - Playwright nos três breakpoints;
 - contract test fiscal no Bun sem emissão real;
-- revisão independente OpenCode gratuita e gate Sol.
+- revisão independente OpenCode gratuita e gate Opus.
 
 ## Riscos
 

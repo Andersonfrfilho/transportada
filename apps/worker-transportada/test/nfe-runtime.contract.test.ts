@@ -117,6 +117,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('cteIssuance.cancel')
           },
         }),
+        startMdfeIssuanceConsumer: async () => ({
+          cancel: async () => {
+            calls.push('mdfeIssuance.cancel')
+          },
+        }),
         startFoundationSyntheticConsumer: async () => ({
           cancel: async () => {
             calls.push('synthetic.cancel')
@@ -152,11 +157,13 @@ describe('NF-e worker runtime contract', () => {
       'import.cancel',
       'distribution.cancel',
       'cteIssuance.cancel',
+      'mdfeIssuance.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-import.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-distribution.v1.main.queue',
       'provider.close:transportada.runtime.contract.cte-issuance.v1.main.queue',
+      'provider.close:transportada.runtime.contract.mdfe-issuance.v1.main.queue',
       'database.close',
       'health.stop',
     ])
@@ -209,6 +216,7 @@ describe('NF-e worker runtime contract', () => {
         },
         startDistributionConsumer: async () => undefined,
         startCteIssuanceConsumer: async () => undefined,
+        startMdfeIssuanceConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {
           return {

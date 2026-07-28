@@ -86,7 +86,7 @@ describe('freight rules application contract', () => {
       {
         companyId: COMPANY_CONTEXT.companyId,
         createdByUserId: COMPANY_CONTEXT.userId,
-        filters: {},
+        filters: { destinationStates: [], senderTaxIds: [] },
         freightRuleId: RULE_ID,
         maximumAmount: '500.0000',
         minimumAmount: '100.0000',
@@ -188,10 +188,11 @@ describe('freight rules application contract', () => {
       unitOfWork,
     })
 
-    await useCase.update({
+    const updatedRule = await useCase.update({
       context: COMPANY_CONTEXT,
       correlationId: CORRELATION_ID,
       expectedCurrentVersion: '1',
+      filters: { destinationStates: ['mg'], senderTaxIds: ['61084018000109'] },
       freightRuleId: RULE_ID,
       maximumAmount: '550.0000',
       minimumAmount: '110.0000',
@@ -200,6 +201,7 @@ describe('freight rules application contract', () => {
       validUntil: null,
     })
 
+    expect(updatedRule).toEqual(CREATED_RULE)
     expect(unitOfWork.updatedRuleVersionPointers).toEqual([
       {
         companyId: COMPANY_CONTEXT.companyId,
@@ -211,7 +213,7 @@ describe('freight rules application contract', () => {
     expect(unitOfWork.createdVersions).toContainEqual({
       companyId: COMPANY_CONTEXT.companyId,
       createdByUserId: COMPANY_CONTEXT.userId,
-      filters: {},
+      filters: { destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
       freightRuleId: RULE_ID,
       maximumAmount: '550.0000',
       minimumAmount: '110.0000',
@@ -234,6 +236,61 @@ describe('freight rules application contract', () => {
     })
   })
 
+  test('keeps a new version of an already active rule applicable instead of parking it as draft', async () => {
+    const unitOfWork = new FreightRulesUnitOfWorkFixture()
+    unitOfWork.ruleAfterPointerUpdate = { ...CREATED_RULE, currentVersion: '2', status: 'active' }
+    const useCase = createFreightRulesUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    await useCase.update({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      expectedCurrentVersion: '1',
+      freightRuleId: RULE_ID,
+      maximumAmount: null,
+      minimumAmount: null,
+      percentage: '0.045000',
+      validFrom: '2026-09-01T00:00:00.000Z',
+      validUntil: null,
+    })
+
+    expect(unitOfWork.createdVersions).toHaveLength(1)
+    expect(unitOfWork.createdVersions[0]).toMatchObject({ status: 'active', version: '2' })
+  })
+
+  test('rejects an update whose expected current version no longer matches the stored rule', async () => {
+    const unitOfWork = new FreightRulesUnitOfWorkFixture()
+    unitOfWork.ruleAfterPointerUpdate = null
+    const useCase = createFreightRulesUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    const error = await captureApiError(() =>
+      useCase.update({
+        context: COMPANY_CONTEXT,
+        correlationId: CORRELATION_ID,
+        expectedCurrentVersion: '7',
+        freightRuleId: RULE_ID,
+        maximumAmount: null,
+        minimumAmount: null,
+        percentage: '0.045000',
+        validFrom: '2026-09-01T00:00:00.000Z',
+        validUntil: null,
+      }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'FREIGHT_RULE_VERSION_CONFLICT',
+      message: 'Freight rule version conflict',
+      status: 409,
+    })
+    expect(JSON.stringify(error)).not.toContain(COMPANY_CONTEXT.companyId)
+    expect(unitOfWork.createdVersions).toEqual([])
+  })
+
   test('activates and deactivates freight rules tenant-scoped and blocks overlap conflicts with a safe error', async () => {
     const unitOfWork = new FreightRulesUnitOfWorkFixture()
     unitOfWork.activationConflictError = new Error('FREIGHT_RULE_OVERLAP_CONFLICT')
@@ -242,12 +299,18 @@ describe('freight rules application contract', () => {
       unitOfWork,
     })
 
-    await useCase.deactivate({
+    const deactivatedRule = await useCase.deactivate({
       context: COMPANY_CONTEXT,
       correlationId: CORRELATION_ID,
       freightRuleId: RULE_ID,
     })
+    expect(deactivatedRule).toEqual(CREATED_RULE)
     expect(unitOfWork.statusChanges).toContainEqual({
+      companyId: COMPANY_CONTEXT.companyId,
+      freightRuleId: RULE_ID,
+      nextStatus: 'inactive',
+    })
+    expect(unitOfWork.versionStatusChanges).toContainEqual({
       companyId: COMPANY_CONTEXT.companyId,
       freightRuleId: RULE_ID,
       nextStatus: 'inactive',
@@ -268,6 +331,86 @@ describe('freight rules application contract', () => {
     })
     expect(JSON.stringify(error)).not.toContain(COMPANY_CONTEXT.companyId)
     expect(JSON.stringify(error)).not.toContain(RULE_ID)
+  })
+
+  test('publishes the rule versions together with the rule so an activated rule is actually applicable', async () => {
+    const unitOfWork = new FreightRulesUnitOfWorkFixture()
+    const useCase = createFreightRulesUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    await useCase.activate({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      freightRuleId: RULE_ID,
+    })
+
+    expect(unitOfWork.statusChanges).toEqual([
+      {
+        companyId: COMPANY_CONTEXT.companyId,
+        freightRuleId: RULE_ID,
+        nextStatus: 'active',
+      },
+    ])
+    expect(unitOfWork.versionStatusChanges).toEqual([
+      {
+        companyId: COMPANY_CONTEXT.companyId,
+        freightRuleId: RULE_ID,
+        nextStatus: 'active',
+      },
+    ])
+  })
+
+  test('reports a status change on a rule outside the tenant as not found', async () => {
+    const unitOfWork = new FreightRulesUnitOfWorkFixture()
+    unitOfWork.ruleAfterStatusChange = null
+    const useCase = createFreightRulesUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    const error = await captureApiError(() =>
+      useCase.activate({
+        context: COMPANY_CONTEXT,
+        correlationId: CORRELATION_ID,
+        freightRuleId: RULE_ID,
+      }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'FREIGHT_RULE_NOT_FOUND',
+      message: 'Freight rule not found',
+      status: 404,
+    })
+    expect(unitOfWork.versionStatusChanges).toEqual([])
+  })
+
+  test('narrows the applicable version by destination state and sender tax id of the document', async () => {
+    const unitOfWork = new FreightRulesUnitOfWorkFixture()
+    const useCase = createFreightRulesUseCase({
+      fingerprintService: createFingerprintFixture(FINGERPRINT),
+      unitOfWork,
+    })
+
+    await useCase.list({ context: COMPANY_CONTEXT, cursor: null, limit: 20 })
+    await useCase.findApplicableVersion({
+      companyId: OTHER_COMPANY_ID,
+      destinationState: 'MG',
+      issuedAt: '2026-08-02T00:00:00.000Z',
+      ruleType: 'percentage_of_invoice_total',
+      senderTaxId: '61084018000109',
+    })
+
+    expect(unitOfWork.applicableVersionRequests).toEqual([
+      {
+        companyId: COMPANY_CONTEXT.companyId,
+        destinationState: 'MG',
+        issuedAt: '2026-08-02T00:00:00.000Z',
+        ruleType: 'percentage_of_invoice_total',
+        senderTaxId: '61084018000109',
+      },
+    ])
   })
 
   test('lists rules and selects the current applicable version only for the authenticated tenant', async () => {
@@ -321,7 +464,10 @@ class FreightRulesUnitOfWorkFixture implements FreightRulesUnitOfWorkPort {
   public readonly applicableVersionRequests: Array<Record<string, unknown>> = []
   public readonly statusChanges: Array<Record<string, string>> = []
   public readonly updatedRuleVersionPointers: Array<Record<string, string>> = []
+  public readonly versionStatusChanges: Array<Record<string, string>> = []
   public activationConflictError: Error | null = null
+  public ruleAfterPointerUpdate: FreightRuleSummary | null = CREATED_RULE
+  public ruleAfterStatusChange: FreightRuleSummary | null = CREATED_RULE
   public replayedIdempotency: {
     readonly fingerprint: string
     readonly response: FreightRuleSummary
@@ -355,8 +501,10 @@ class FreightRulesUnitOfWorkFixture implements FreightRulesUnitOfWorkPort {
 
   async findApplicableVersion(input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: string | null
   }): Promise<Record<string, string> | null> {
     this.applicableVersionRequests.push(structuredClone(input))
     return {
@@ -394,11 +542,20 @@ class FreightRulesUnitOfWorkFixture implements FreightRulesUnitOfWorkPort {
     readonly companyId: string
     readonly freightRuleId: string
     readonly nextStatus: 'active' | 'inactive'
-  }): Promise<void> {
+  }): Promise<FreightRuleSummary | null> {
     this.statusChanges.push(structuredClone(input))
     if (input.nextStatus === 'active' && this.activationConflictError !== null) {
       throw this.activationConflictError
     }
+    return this.ruleAfterStatusChange
+  }
+
+  async setVersionsStatus(input: {
+    readonly companyId: string
+    readonly freightRuleId: string
+    readonly nextStatus: 'active' | 'inactive'
+  }): Promise<void> {
+    this.versionStatusChanges.push(structuredClone(input))
   }
 
   async updateCurrentVersion(input: {
@@ -406,8 +563,9 @@ class FreightRulesUnitOfWorkFixture implements FreightRulesUnitOfWorkPort {
     readonly currentVersion: string
     readonly freightRuleId: string
     readonly previousVersion: string
-  }): Promise<void> {
+  }): Promise<FreightRuleSummary | null> {
     this.updatedRuleVersionPointers.push(structuredClone(input))
+    return this.ruleAfterPointerUpdate
   }
 }
 

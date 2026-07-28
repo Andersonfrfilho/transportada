@@ -17,7 +17,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies, userCompanyMemberships } from './identity.schema.js'
-import { nfeImports } from './nfe.schema.js'
+import { nfeImports, type NfeOriginTrigger } from './nfe.schema.js'
 
 export const PROCESSING_EVENT_TYPES = [
   'transportada.nfe.import.requested',
@@ -119,6 +119,8 @@ export const processingOutbox = pgTable(
     eventType: text('event_type').$type<ProcessingEventType>().notNull(),
     eventVersion: bigint('event_version', { mode: 'bigint' }).notNull(),
     actorUserId: uuid('actor_user_id').notNull(),
+    triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
+    automationJob: text('automation_job'),
     correlationId: text('correlation_id').notNull(),
     payload: jsonb().notNull(),
     attempt: bigint({ mode: 'bigint' }).notNull().default(0n),
@@ -152,6 +154,10 @@ export const processingOutbox = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    check(
+      'processing_outbox_origin_ck',
+      sql`(${table.triggeredBy} = 'user' and ${table.automationJob} is null) or (${table.triggeredBy} = 'automation' and ${table.automationJob} is not null)`,
+    ),
     check('processing_outbox_attempt_check', sql`${table.attempt} >= 0`),
     check('processing_outbox_event_version_check', sql`${table.eventVersion} > 0`),
     check('processing_outbox_aggregate_type_check', sql`${table.aggregateType} = 'nfe_import'`),

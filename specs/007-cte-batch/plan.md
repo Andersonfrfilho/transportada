@@ -85,12 +85,12 @@ Diretrizes:
 
 ## Estratégia de implementação
 
-1. Contratos de schema e migration (Sol high)
-2. Contratos de domínio de lote e estado (Sol high)
-3. Implementação de repositório e use-cases (Sol high)
-4. Contratos de HTTP e implementação de rotas (Terra + revisão Sol)
-5. Contratos frontend e implementação de UI (Terra)
-6. Smoke responsivo Playwright (Terra + revisão Sol)
+1. Contratos de schema e migration (Opus (alto))
+2. Contratos de domínio de lote e estado (Opus (alto))
+3. Implementação de repositório e use-cases (Opus (alto))
+4. Contratos de HTTP e implementação de rotas (Sonnet + revisão Opus)
+5. Contratos frontend e implementação de UI (Sonnet)
+6. Smoke responsivo Playwright (Sonnet + revisão Opus)
 7. Integração de `make check` final da feature
 
 ## Riscos e dependências

@@ -18,7 +18,10 @@ type CteBatchCall = {
   readonly correlationId?: string
   readonly cursor?: string | null
   readonly documentIds?: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: string
   readonly idempotencyKey?: string
+  readonly itemId?: string
   readonly limit?: number
   readonly name?: string
 }
@@ -35,6 +38,7 @@ type CteBatchHttpRouteDependencies = {
     readonly cancel: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly create: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly get: (input: CteBatchCall) => Promise<CteBatchSummary>
+    readonly removeItem: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly submit: (input: CteBatchCall) => Promise<CteBatchSummary>
   }
   readonly listBatches: {
@@ -43,12 +47,20 @@ type CteBatchHttpRouteDependencies = {
   readonly listEvents: {
     readonly execute: (input: CteBatchCall) => Promise<typeof EVENTS_PAGE>
   }
+  readonly listItems: {
+    readonly execute: (input: CteBatchCall) => Promise<typeof ITEMS_RESULT>
+  }
+  readonly previewBatches: {
+    readonly execute: (input: CteBatchCall) => Promise<typeof PREVIEW_RESULT>
+  }
 }
 
 type CreateFixtureParams = {
   readonly authenticationError?: Error
   readonly createError?: Error
+  readonly listItemsError?: Error
   readonly permissions?: CompanyContext['permissions']
+  readonly removeItemError?: Error
   readonly submitError?: Error
 }
 
@@ -56,6 +68,9 @@ export const FRONTEND_ORIGIN = 'http://localhost:53000'
 export const CTE_BATCHES_PATH = '/cte-batches'
 export const BATCH_ID = '00000000-0000-4000-8000-000000000501'
 export const DOCUMENT_ID = '00000000-0000-4000-8000-000000000502'
+export const EMISSION_PROFILE_ID = '00000000-0000-4000-8000-000000000503'
+export const ITEM_ID = '00000000-0000-4000-8000-000000000507'
+export const FISCAL_DOCUMENT_ID = '00000000-0000-4000-8000-000000000508'
 export const IDEMPOTENCY_KEY = 'cte-batch-http-key-0001'
 export const SUBMIT_IDEMPOTENCY_KEY = 'cte-submit-http-key-0001'
 export const COMPANY_CONTEXT: CompanyContext = {
@@ -82,6 +97,86 @@ export const BATCH_SUMMARY = {
   version: '1',
 } as const
 
+export const PREVIEW_RESULT = {
+  blocked: [
+    {
+      batchId: '00000000-0000-4000-8000-000000000504',
+      documentId: '00000000-0000-4000-8000-000000000505',
+      reason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+    },
+  ],
+  projections: [
+    {
+      adjustments: [],
+      baseAmount: '958.4800',
+      calculatedAmount: '43.1316',
+      components: [{ amount: '43.1316', calculationType: 'main', label: 'Frete' }],
+      documents: [
+        {
+          accessKey: '35260705868574001090550020008526741408978623',
+          documentId: DOCUMENT_ID,
+          number: '852674',
+          series: '2',
+          totalAmount: '958.4800',
+        },
+      ],
+      fiscalAmount: '43.13',
+      fiscalComponents: [{ amount: '43.13', calculationType: 'main', label: 'Frete' }],
+      percentage: '0.045000',
+      profile: {
+        groupingMode: 'per_invoice',
+        id: '00000000-0000-4000-8000-000000000506',
+        matchedBy: 'sender_tax_id',
+        name: 'Perfil Zaragoza',
+        resolvedBy: 'auto',
+      },
+      recipientTaxId: '19354980000159',
+      senderTaxId: '05868574001090',
+    },
+  ],
+  summary: { blockedCount: 1, documentCount: 2, projectedCount: 1, totalAmount: '43.13' },
+} as const
+
+export const ITEMS_RESULT = {
+  items: [
+    {
+      accessKey: '35260705868574001090570010000000011000000012',
+      authorizationProtocol: '135260000000123',
+      authorizedAt: '2026-07-23T10:00:00.000Z',
+      baseAmount: '958.4800',
+      charges: [
+        {
+          amount: '43.1316',
+          baseAmount: '958.4800',
+          calculationType: 'percentage_of_cargo',
+          label: 'Frete',
+          ordinal: '1',
+          rate: '0.045000',
+        },
+      ],
+      documents: [
+        {
+          accessKey: '35260705868574001090550020008526741408978623',
+          id: DOCUMENT_ID,
+          number: '852674',
+          position: '1',
+          series: '2',
+          totalAmount: '958.4800',
+        },
+      ],
+      fiscalAmount: '43.13',
+      fiscalDocumentId: FISCAL_DOCUMENT_ID,
+      fiscalNumber: '17',
+      fiscalSeries: '1',
+      id: '00000000-0000-4000-8000-000000000507',
+      lastErrorCode: null,
+      position: '1',
+      status: 'authorized',
+      totalAmount: '43.1316',
+    },
+  ],
+} as const
+
 export const EVENTS_PAGE = {
   items: [
     {
@@ -103,6 +198,9 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: CteBatchCall[]
   readonly listEventCalls: CteBatchCall[]
+  readonly listItemCalls: CteBatchCall[]
+  readonly previewCalls: CteBatchCall[]
+  readonly removeItemCalls: CteBatchCall[]
   readonly submitCalls: CteBatchCall[]
 }> {
   const cancelCalls: CteBatchCall[] = []
@@ -111,6 +209,9 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   const getCalls: CteBatchCall[] = []
   const listCalls: CteBatchCall[] = []
   const listEventCalls: CteBatchCall[] = []
+  const listItemCalls: CteBatchCall[] = []
+  const previewCalls: CteBatchCall[] = []
+  const removeItemCalls: CteBatchCall[] = []
   const submitCalls: CteBatchCall[] = []
   const routes = await loadRoutes({
     cteBatches: {
@@ -126,6 +227,11 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
       async get(input) {
         getCalls.push(structuredClone(input))
         return BATCH_SUMMARY
+      },
+      async removeItem(input) {
+        removeItemCalls.push(structuredClone(input))
+        if (params.removeItemError) throw params.removeItemError
+        return { ...BATCH_SUMMARY, itemCount: 0, version: '2' }
       },
       async submit(input) {
         submitCalls.push(structuredClone(input))
@@ -143,6 +249,19 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
       async execute(input) {
         listEventCalls.push(structuredClone(input))
         return EVENTS_PAGE
+      },
+    },
+    listItems: {
+      async execute(input) {
+        listItemCalls.push(structuredClone(input))
+        if (params.listItemsError) throw params.listItemsError
+        return ITEMS_RESULT
+      },
+    },
+    previewBatches: {
+      async execute(input) {
+        previewCalls.push(structuredClone(input))
+        return PREVIEW_RESULT
       },
     },
   })
@@ -168,8 +287,46 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
     listEventCalls,
+    listItemCalls,
+    previewCalls,
+    removeItemCalls,
     submitCalls,
   }
+}
+
+export function deleteBatchItemRequest(
+  input: {
+    readonly batchId?: string
+    readonly itemId?: string
+    readonly origin?: string
+  } = {},
+): Request {
+  const headers = new Headers({ authorization: 'Bearer token' })
+  if (input.origin) headers.set('origin', input.origin)
+
+  return new Request(
+    `http://api.test${CTE_BATCHES_PATH}/${input.batchId ?? BATCH_ID}/items/${input.itemId ?? ITEM_ID}`,
+    { headers, method: 'DELETE' },
+  )
+}
+
+export function previewBatchRequest(
+  input: {
+    readonly body?: unknown
+    readonly origin?: string
+  } = {},
+): Request {
+  const headers = new Headers({
+    authorization: 'Bearer token',
+    'content-type': 'application/json',
+  })
+  if (input.origin) headers.set('origin', input.origin)
+
+  return new Request(`http://api.test${CTE_BATCHES_PATH}/preview`, {
+    body: JSON.stringify(input.body ?? { documentIds: [DOCUMENT_ID] }),
+    headers,
+    method: 'POST',
+  })
 }
 
 export function createBatchRequest(
@@ -217,6 +374,13 @@ export function listBatchesRequest(input: { readonly search?: string } = {}): Re
 
 export function getBatchRequest(): Request {
   return new Request(`http://api.test${CTE_BATCHES_PATH}/${BATCH_ID}`, {
+    headers: { authorization: 'Bearer token' },
+    method: 'GET',
+  })
+}
+
+export function getBatchItemsRequest(input: { readonly batchId?: string } = {}): Request {
+  return new Request(`http://api.test${CTE_BATCHES_PATH}/${input.batchId ?? BATCH_ID}/items`, {
     headers: { authorization: 'Bearer token' },
     method: 'GET',
   })

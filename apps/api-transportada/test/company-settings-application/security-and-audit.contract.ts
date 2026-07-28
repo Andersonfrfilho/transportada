@@ -49,6 +49,8 @@ describe('company settings security and audit contract', () => {
       action: 'company-settings.updated',
       actorUserId: UPDATE_COMPANY_SETTINGS_INPUT.context.userId,
       afterSnapshot: {
+        cteRetryBackoffSeconds: '10,60,900',
+        cteRetryMaxAttempts: '5',
         environment: 'homologation',
         nextNumber: '13809',
         profileVersion: '1',

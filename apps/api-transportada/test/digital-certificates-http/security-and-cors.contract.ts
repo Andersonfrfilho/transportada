@@ -60,7 +60,7 @@ describe('/digital-certificates security and CORS contract', () => {
 
       expect(response.status).toBe(204)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
-      expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST')
+      expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE')
       expect(response.headers.get('access-control-allow-headers')).toBe(
         'Authorization, Content-Type, Idempotency-Key',
       )

@@ -44,12 +44,43 @@ type Dependencies = {
       readonly purpose: 'cte'
     }): Promise<{ readonly certificate: Metadata; readonly replayed: boolean }>
   }
+  readonly retireCertificate: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly correlationId: string
+      readonly purpose: 'cte'
+    }): Promise<Metadata | null>
+  }
 }
 
 export function createDigitalCertificateRoutes(
   dependencies: Dependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
-  return [createListRoute(dependencies), createReplaceRoute(dependencies)]
+  return [
+    createListRoute(dependencies),
+    createReplaceRoute(dependencies),
+    createRetireRoute(dependencies),
+  ]
+}
+
+function createRetireRoute(dependencies: Dependencies): ReturnType<typeof defineRoute> {
+  return defineRoute<{ readonly correlationId: string; readonly purpose: 'cte' }>({
+    async handle({ context, input }): Promise<Response> {
+      const certificate = await dependencies.retireCertificate.execute({
+        context: context.scope,
+        correlationId: input.correlationId,
+        purpose: input.purpose,
+      })
+      return jsonResponse({
+        body: { data: certificate === null ? null : serialize(certificate) },
+        status: 200,
+      })
+    },
+    method: 'DELETE',
+    parse: ({ correlationId }) => ({ correlationId, purpose: 'cte' }),
+    pathname: API_DIGITAL_CERTIFICATES_PATH,
+    policy: SETTINGS_MANAGE_POLICY,
+  })
 }
 
 function createListRoute(dependencies: Dependencies): ReturnType<typeof defineRoute> {

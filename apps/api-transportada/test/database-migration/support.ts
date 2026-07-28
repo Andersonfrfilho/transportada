@@ -50,6 +50,8 @@ export const CTE_BATCH_TABLES = [
   'cte_batches',
   'cte_batch_events',
   'cte_batch_items',
+  'cte_batch_item_charges',
+  'cte_batch_item_documents',
   'cte_submission_records',
 ] as const
 
@@ -61,6 +63,12 @@ export const CTE_ISSUANCE_TABLES = [
   'cte_issuance_outbox',
 ] as const
 
+export const CTE_PROFILE_TABLES = [
+  'cte_emission_profiles',
+  'cte_emission_profile_matchers',
+  'cte_emission_profile_components',
+] as const
+
 export const BILLING_TABLES = [
   'billing_invoice_documents',
   'billing_invoice_events',
@@ -69,6 +77,25 @@ export const BILLING_TABLES = [
 ] as const
 
 export const OPERATIONS_TABLES = ['processing_jobs'] as const
+
+export const FLEET_TABLES = [
+  'fleet_vehicles',
+  'fleet_drivers',
+  'fleet_driver_vehicle_assignments',
+] as const
+
+export const MDFE_TABLES = [
+  'mdfe_manifests',
+  'mdfe_manifest_drivers',
+  'mdfe_manifest_items',
+  'mdfe_manifest_loading_cities',
+  'mdfe_issuance_attempts',
+  'mdfe_fiscal_documents',
+  'mdfe_issuance_events',
+  'mdfe_issuance_outbox',
+  'mdfe_processed_messages',
+  'mdfe_issuance_payloads',
+] as const
 
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
@@ -110,8 +137,11 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...NFE_TABLES,
     ...CTE_BATCH_TABLES,
     ...CTE_ISSUANCE_TABLES,
+    ...CTE_PROFILE_TABLES,
     ...BILLING_TABLES,
     ...OPERATIONS_TABLES,
+    ...FLEET_TABLES,
+    ...MDFE_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

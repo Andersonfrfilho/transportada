@@ -6,6 +6,11 @@ import {
   createFreightRuleSnapshot,
   type FreightRuleSnapshot,
 } from '../../freight-calculations/domain/freight-calculation-engine.service.js'
+import {
+  normalizeFreightRuleFilters,
+  type FreightRuleFiltersInput,
+  type FreightRuleVersionFilters,
+} from '../domain/freight-rule-filters.policy.js'
 
 const CREATE_OPERATION = 'freight-rule.create'
 const TEXT_ENCODER = new TextEncoder()
@@ -36,6 +41,7 @@ export type CreateFreightRuleInput = {
   readonly context: FreightRuleCompanyContext
   readonly correlationId: string
   readonly description: string
+  readonly filters?: FreightRuleFiltersInput
   readonly idempotencyKey: string
   readonly maximumAmount: string | null
   readonly minimumAmount: string | null
@@ -50,6 +56,7 @@ type UpdateFreightRuleInput = {
   readonly context: FreightRuleCompanyContext
   readonly correlationId: string
   readonly expectedCurrentVersion: string
+  readonly filters?: FreightRuleFiltersInput
   readonly freightRuleId: string
   readonly maximumAmount: string | null
   readonly minimumAmount: string | null
@@ -115,8 +122,10 @@ type ListFreightRulesInput = {
 
 type FindApplicableVersionInput = {
   readonly companyId: string
+  readonly destinationState?: string | null
   readonly issuedAt: string
   readonly ruleType: FreightRuleType
+  readonly senderTaxId?: string | null
 }
 
 type FreightRulesIdempotencyRecord = {
@@ -127,7 +136,7 @@ type FreightRulesIdempotencyRecord = {
 type FreightRuleVersionRecord = {
   readonly companyId: string
   readonly createdByUserId: string
-  readonly filters: Readonly<Record<string, never>>
+  readonly filters: FreightRuleVersionFilters
   readonly freightRuleId: string
   readonly maximumAmount: string | null
   readonly minimumAmount: string | null
@@ -155,8 +164,10 @@ export type FreightRulesTransactionPort = {
   }>
   findApplicableVersion(input: {
     readonly companyId: string
+    readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: FreightRuleType
+    readonly senderTaxId?: string | null
   }): Promise<Record<string, string> | null>
   findIdempotency(input: {
     readonly companyId: string
@@ -177,13 +188,18 @@ export type FreightRulesTransactionPort = {
     readonly companyId: string
     readonly freightRuleId: string
     readonly nextStatus: 'active' | 'inactive'
+  }): Promise<FreightRuleSummary | null>
+  setVersionsStatus(input: {
+    readonly companyId: string
+    readonly freightRuleId: string
+    readonly nextStatus: 'active' | 'inactive'
   }): Promise<void>
   updateCurrentVersion(input: {
     readonly companyId: string
     readonly currentVersion: string
     readonly freightRuleId: string
     readonly previousVersion: string
-  }): Promise<void>
+  }): Promise<FreightRuleSummary | null>
 }
 
 export type FreightRulesUnitOfWorkPort = {
@@ -196,9 +212,9 @@ export function createFreightRulesUseCase(dependencies: {
   readonly fingerprintService: FreightRulesFingerprintPort
   readonly unitOfWork: FreightRulesUnitOfWorkPort
 }): {
-  readonly activate: (input: ChangeFreightRuleStatusInput) => Promise<void>
+  readonly activate: (input: ChangeFreightRuleStatusInput) => Promise<FreightRuleSummary>
   readonly create: (input: CreateFreightRuleInput) => Promise<FreightRuleSummary>
-  readonly deactivate: (input: ChangeFreightRuleStatusInput) => Promise<void>
+  readonly deactivate: (input: ChangeFreightRuleStatusInput) => Promise<FreightRuleSummary>
   readonly findApplicableVersion: (
     input: FindApplicableVersionInput,
   ) => Promise<Record<string, string> | null>
@@ -206,21 +222,19 @@ export function createFreightRulesUseCase(dependencies: {
     readonly items: readonly FreightRuleSummary[]
     readonly nextCursor: string | null
   }>
-  readonly update: (input: UpdateFreightRuleInput) => Promise<void>
+  readonly update: (input: UpdateFreightRuleInput) => Promise<FreightRuleSummary>
 } {
   let authenticatedCompanyId: string | null = null
 
   return {
     activate: async (input) => {
       authenticatedCompanyId = input.context.companyId
-      await dependencies.unitOfWork.execute((transaction) =>
+      return dependencies.unitOfWork.execute((transaction) =>
         changeRuleStatus({
           companyId: input.context.companyId,
-          correlationId: input.correlationId,
           freightRuleId: input.freightRuleId,
           nextStatus: 'active',
           transaction,
-          userId: input.context.userId,
         }),
       )
     },
@@ -259,6 +273,7 @@ export function createFreightRulesUseCase(dependencies: {
           createRuleVersionRecord({
             companyId: input.context.companyId,
             createdByUserId: input.context.userId,
+            filters: normalizeFreightRuleFilters(input.filters),
             freightRuleId: createdRule.id,
             freightRuleVersionId: null,
             maximumAmount: input.maximumAmount,
@@ -300,14 +315,12 @@ export function createFreightRulesUseCase(dependencies: {
     },
     deactivate: async (input) => {
       authenticatedCompanyId = input.context.companyId
-      await dependencies.unitOfWork.execute((transaction) =>
+      return dependencies.unitOfWork.execute((transaction) =>
         changeRuleStatus({
           companyId: input.context.companyId,
-          correlationId: input.correlationId,
           freightRuleId: input.freightRuleId,
           nextStatus: 'inactive',
           transaction,
-          userId: input.context.userId,
         }),
       )
     },
@@ -316,8 +329,12 @@ export function createFreightRulesUseCase(dependencies: {
       return dependencies.unitOfWork.execute((transaction) =>
         transaction.findApplicableVersion({
           companyId,
+          ...(input.destinationState === undefined
+            ? {}
+            : { destinationState: input.destinationState }),
           issuedAt: input.issuedAt,
           ruleType: input.ruleType,
+          ...(input.senderTaxId === undefined ? {} : { senderTaxId: input.senderTaxId }),
         }),
       )
     },
@@ -334,30 +351,42 @@ export function createFreightRulesUseCase(dependencies: {
     },
     update: async (input) => {
       authenticatedCompanyId = input.context.companyId
-      await dependencies.unitOfWork.execute(async (transaction) => {
+      const filters = normalizeFreightRuleFilters(input.filters)
+
+      return dependencies.unitOfWork.execute(async (transaction) => {
         const nextVersion = incrementVersion(input.expectedCurrentVersion)
+        const updatedRule = await transaction.updateCurrentVersion({
+          companyId: input.context.companyId,
+          currentVersion: nextVersion,
+          freightRuleId: input.freightRuleId,
+          previousVersion: input.expectedCurrentVersion,
+        })
+        if (updatedRule === null) {
+          throw new ApiError({
+            code: 'FREIGHT_RULE_VERSION_CONFLICT',
+            message: 'Freight rule version conflict',
+            status: 409,
+          })
+        }
+
         await transaction.createRuleVersion(
           createRuleVersionRecord({
             companyId: input.context.companyId,
             createdByUserId: input.context.userId,
+            filters,
             freightRuleId: input.freightRuleId,
             freightRuleVersionId: null,
             maximumAmount: input.maximumAmount,
             minimumAmount: input.minimumAmount,
             percentage: input.percentage,
-            status: 'draft',
+            status: updatedRule.status === 'active' ? 'active' : 'draft',
             validFrom: input.validFrom,
             validUntil: input.validUntil,
             version: nextVersion,
           }),
         )
 
-        await transaction.updateCurrentVersion({
-          companyId: input.context.companyId,
-          currentVersion: nextVersion,
-          freightRuleId: input.freightRuleId,
-          previousVersion: input.expectedCurrentVersion,
-        })
+        return updatedRule
       })
     },
   }
@@ -365,14 +394,36 @@ export function createFreightRulesUseCase(dependencies: {
 
 async function changeRuleStatus(input: {
   readonly companyId: string
-  readonly correlationId: string
   readonly freightRuleId: string
   readonly nextStatus: 'active' | 'inactive'
   readonly transaction: FreightRulesTransactionPort
-  readonly userId: string
-}): Promise<void> {
+}): Promise<FreightRuleSummary> {
+  const updatedRule = await setRuleStatusOrTranslateConflict(input)
+  if (updatedRule === null) {
+    throw new ApiError({
+      code: 'FREIGHT_RULE_NOT_FOUND',
+      message: 'Freight rule not found',
+      status: 404,
+    })
+  }
+
+  await input.transaction.setVersionsStatus({
+    companyId: input.companyId,
+    freightRuleId: input.freightRuleId,
+    nextStatus: input.nextStatus,
+  })
+
+  return updatedRule
+}
+
+async function setRuleStatusOrTranslateConflict(input: {
+  readonly companyId: string
+  readonly freightRuleId: string
+  readonly nextStatus: 'active' | 'inactive'
+  readonly transaction: FreightRulesTransactionPort
+}): Promise<FreightRuleSummary | null> {
   try {
-    await input.transaction.setRuleStatus({
+    return await input.transaction.setRuleStatus({
       companyId: input.companyId,
       freightRuleId: input.freightRuleId,
       nextStatus: input.nextStatus,
@@ -416,6 +467,7 @@ function createIdempotencyConflict(): ApiError {
 function createRuleVersionRecord(input: {
   readonly companyId: string
   readonly createdByUserId: string
+  readonly filters: FreightRuleVersionFilters
   readonly freightRuleId: string
   readonly freightRuleVersionId: string | null
   readonly maximumAmount: string | null
@@ -441,7 +493,7 @@ function createRuleVersionRecord(input: {
   return {
     companyId: input.companyId,
     createdByUserId: input.createdByUserId,
-    filters: {},
+    filters: input.filters,
     freightRuleId: input.freightRuleId,
     maximumAmount: snapshot.maximumAmount,
     minimumAmount: snapshot.minimumAmount,

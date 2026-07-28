@@ -510,7 +510,7 @@ class DrizzleNfeImportTransaction
       throw new Error('NFE import fingerprint was not initialized')
     const [record] = await this.transaction
       .insert(nfeImports)
-      .values({ ...input, requestFingerprint: this.requestFingerprint })
+      .values({ ...input, requestFingerprint: this.requestFingerprint, triggeredBy: 'user' })
       .returning()
     if (record === undefined) throw new Error('NFE import was not persisted')
     return mapSummary(record)
@@ -533,7 +533,7 @@ class DrizzleNfeImportTransaction
   public async saveOutbox(input: OutboxInput): Promise<void> {
     await this.transaction
       .insert(processingOutbox)
-      .values({ ...input, eventVersion: BigInt(input.eventVersion) })
+      .values({ ...input, eventVersion: BigInt(input.eventVersion), triggeredBy: 'user' })
   }
 
   public findById(input: ImportLookup): Promise<NfeImportDetail | null> {

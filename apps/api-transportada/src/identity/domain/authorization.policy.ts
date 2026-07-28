@@ -22,6 +22,16 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'settings.manage',
   'operations.read',
   'audit.read',
+  'view-preferences.manage',
+  'fleet.read',
+  'fleet.manage',
+  'mdfe.read',
+  'mdfe.manage',
+  'mdfe.issue',
+  'mdfe.close',
+  'mdfe.cancel',
+  'trip.read',
+  'trip.report',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -38,6 +48,11 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'settings.manage',
     'operations.read',
     'audit.read',
+    'view-preferences.manage',
+    'fleet.read',
+    'fleet.manage',
+    'mdfe.read',
+    'mdfe.manage',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -45,6 +60,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'billing.cancel',
     'billing.read',
     'operations.read',
+    'view-preferences.manage',
   ]),
   fiscal: Object.freeze([
     'invoices.import',
@@ -58,6 +74,13 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.cancel',
     'cte.read',
     'operations.read',
+    'view-preferences.manage',
+    'fleet.read',
+    'mdfe.read',
+    'mdfe.manage',
+    'mdfe.issue',
+    'mdfe.close',
+    'mdfe.cancel',
   ]),
   operator: Object.freeze([
     'invoices.import',
@@ -68,8 +91,22 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.submit',
     'cte.read',
     'operations.read',
+    'view-preferences.manage',
+    'fleet.read',
+    'fleet.manage',
+    'mdfe.read',
+    'mdfe.manage',
   ]),
-  viewer: Object.freeze(['invoices.read', 'cte.read', 'operations.read']),
+  viewer: Object.freeze([
+    'invoices.read',
+    'cte.read',
+    'operations.read',
+    'view-preferences.manage',
+    'fleet.read',
+    'mdfe.read',
+  ]),
+  // O motorista é papel de campo: só a própria viagem, nada de nota, CT-e, faturamento ou frota
+  driver: Object.freeze(['trip.read', 'trip.report']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

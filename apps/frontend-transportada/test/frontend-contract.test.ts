@@ -68,7 +68,9 @@ describe('frontend foundation contract', () => {
     expect(authProvider).toContain('checkLoginIframe: false')
     expect(authProvider).toContain("onLoad: 'login-required'")
     expect(authProvider).toContain("pkceMethod: 'S256'")
-    expect(authProvider).toContain('${window.location.origin}/auth/callback')
+    expect(authProvider).toContain('getIdentityEnvironment().appBaseUrl')
+    expect(authProvider).toContain('${AUTHENTICATION_CALLBACK_PATH}')
+    expect(authProvider).not.toContain('window.location.origin')
     expect(authProvider).toContain('keycloak.updateToken')
     expect(authProvider).toContain('keycloak.clearToken()')
     expect(authProvider).toContain('keycloak.login')
@@ -95,6 +97,99 @@ describe('frontend foundation contract', () => {
     expect(viteConfiguration).not.toContain('/auth/me')
   })
 
+  test('accepts the full company permission catalogue emitted by the API auth/me contract', async () => {
+    const { isAuthMeResponse } = await import('../src/modules/identity/queries/useAuthMe.query')
+
+    const response = {
+      data: {
+        company: { id: '00000000-0000-0000-0000-000000000001' },
+        identity: { userId: '00000000-0000-0000-0000-000000000002' },
+        permissions: [
+          'users.manage',
+          'invoices.import',
+          'invoices.read',
+          'batches.create',
+          'batches.approve',
+          'freight.simulate',
+          'cte.manage',
+          'cte.submit',
+          'cte.issue',
+          'cte.cancel',
+          'cte.read',
+          'billing.create',
+          'billing.cancel',
+          'billing.read',
+          'settings.manage',
+          'operations.read',
+          'audit.read',
+          'view-preferences.manage',
+          'fleet.read',
+          'fleet.manage',
+          'mdfe.read',
+          'mdfe.manage',
+          'mdfe.issue',
+          'mdfe.close',
+          'mdfe.cancel',
+          'trip.read',
+          'trip.report',
+        ],
+        roles: ['company-admin'],
+      },
+    }
+
+    expect(isAuthMeResponse(response)).toBe(true)
+  })
+
+  test('accepts the driver field role with its own trip permissions', async () => {
+    const { isAuthMeResponse } = await import('../src/modules/identity/queries/useAuthMe.query')
+
+    const response = {
+      data: {
+        company: { id: '00000000-0000-0000-0000-000000000001' },
+        identity: { userId: '00000000-0000-0000-0000-000000000002' },
+        permissions: ['trip.read', 'trip.report'],
+        roles: ['driver'],
+      },
+    }
+
+    expect(isAuthMeResponse(response)).toBe(true)
+  })
+
+  // A allowlist atrasada em relação à API rejeita um 200 válido e a tela cai em "Indisponível"
+  test('keeps the allowlist in sync with the API authorization policy', async () => {
+    const policySource = await readApplicationFile(
+      '../../apps/api-transportada/src/identity/domain/authorization.policy.ts',
+    )
+    const identityQuery = await readApplicationFile(
+      'src/modules/identity/queries/useAuthMe.query.ts',
+    )
+    const schemaSource = await readApplicationFile(
+      '../../apps/api-transportada/src/database/identity.schema.ts',
+    )
+
+    const readLiterals = (source: string, constantName: string): readonly string[] => {
+      const block = new RegExp(`${constantName} = (?:Object\\.freeze\\()?\\[([^\\]]*)\\]`).exec(
+        source,
+      )?.[1]
+      if (block === undefined) {
+        throw new Error(`Expected ${constantName} in the versioned source`)
+      }
+
+      return [...block.matchAll(/'([^']+)'/g)].map((match) => match[1] as string)
+    }
+
+    const apiPermissions = readLiterals(policySource, 'TRANSPORTADA_PERMISSIONS').filter(
+      (permission) => permission !== 'companies.manage',
+    )
+    const frontendPermissions = readLiterals(identityQuery, 'COMPANY_PERMISSIONS')
+    const apiRoles = readLiterals(schemaSource, 'COMPANY_ROLES')
+    const frontendRoles = readLiterals(identityQuery, 'COMPANY_ROLES')
+
+    expect(apiPermissions.length).toBeGreaterThan(0)
+    expect(frontendPermissions).toEqual(apiPermissions)
+    expect(frontendRoles).toEqual(apiRoles)
+  })
+
   test('documents the trusted Vite configuration required by the identity provider', async () => {
     const environmentExample = await readApplicationFile('../../.env.example')
     const environmentConfiguration = await readApplicationFile(
@@ -102,6 +197,7 @@ describe('frontend foundation contract', () => {
     )
 
     expect(environmentExample).toContain('VITE_API_URL=')
+    expect(environmentExample).toContain('VITE_APP_URL=')
     expect(environmentExample).toContain('VITE_KEYCLOAK_URL=')
     expect(environmentExample).toContain('VITE_KEYCLOAK_REALM=')
     expect(environmentExample).toContain('VITE_KEYCLOAK_CLIENT_ID=')

@@ -4,7 +4,7 @@
 
 Data: 2026-07-22
 
-Modelo executor: Codex Sol high recomendado para especificação/revisão de dinheiro,
+Modelo executor: Opus (alto) recomendado para especificação/revisão de dinheiro,
 snapshots, idempotência e migration.
 
 Arquivos criados:
@@ -44,7 +44,7 @@ segredo nesta tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por envolver schema, dinheiro,
+Modelo executor recomendado: Opus (alto), por envolver schema, dinheiro,
 constraints, tenant e vigência.
 
 Arquivos criados/alterados:
@@ -92,7 +92,7 @@ tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por envolver migration, dinheiro,
+Modelo executor recomendado: Opus (alto), por envolver migration, dinheiro,
 constraints, tenant e rollback.
 
 Arquivos criados/alterados:
@@ -150,7 +150,7 @@ da evidência.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium com revisão Sol, porque a
+Modelo executor recomendado: Sonnet (médio) com revisão Opus, porque a
 política decimal já estava fechada pelos contracts e a implementação ficou
 local, pura e reversível.
 
@@ -196,7 +196,7 @@ desta tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por fixar elegibilidade da NF-e,
+Modelo executor recomendado: Opus (alto), por fixar elegibilidade da NF-e,
 regra vigente, snapshot, idempotência e anti-enumeração antes da implementação.
 
 Arquivos criados/alterados:
@@ -235,7 +235,7 @@ RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por envolver idempotência,
+Modelo executor recomendado: Opus (alto), por envolver idempotência,
 anti-enumeração, snapshot imutável, tenant e cálculo monetário persistido.
 
 Arquivos criados/alterados:
@@ -291,7 +291,7 @@ tarefa. O PostgreSQL local foi usado apenas para os gates de integração da API
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high com apoio mecânico para matriz de
+Modelo executor recomendado: Opus (alto) com apoio mecânico para matriz de
 rotas, permissões e DTOs.
 
 Arquivos criados/alterados:
@@ -338,7 +338,7 @@ fronteira.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium com revisão Sol, porque a
+Modelo executor recomendado: Sonnet (médio) com revisão Opus, porque a
 fronteira HTTP já estava fechada pelos contracts e a implementação foi
 reversível.
 
@@ -398,7 +398,7 @@ tarefa. O PostgreSQL local foi usado apenas para os gates de integração da API
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium, por ser uma task de matriz de
+Modelo executor recomendado: Sonnet (médio), por ser uma task de matriz de
 client/query/permissões/estados sem mudança visual ainda.
 
 Arquivos criados/alterados:
@@ -449,7 +449,7 @@ tipagem antes dessa fronteira.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium, porque a superfície do módulo
+Modelo executor recomendado: Sonnet (médio), porque a superfície do módulo
 já estava delimitada pelos contracts e a implementação foi local ao frontend.
 
 Arquivos criados/alterados:
@@ -499,7 +499,7 @@ indevido para endpoints de frete.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por fixar versionamento,
+Modelo executor recomendado: Opus (alto), por fixar versionamento,
 idempotência, tenant, auditoria e conflito de vigência antes da implementação.
 
 Arquivos criados/alterados:
@@ -539,7 +539,7 @@ RabbitMQ, SEFAZ, Railway, XML fiscal, PFX ou segredo foi usado nesta tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por envolver versionamento,
+Modelo executor recomendado: Opus (alto), por envolver versionamento,
 idempotência, tenant, auditoria e conflitos de ativação.
 
 Arquivos criados/alterados:
@@ -584,7 +584,7 @@ desta tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, por fixar dinheiro, decimal,
+Modelo executor recomendado: Opus (alto), por fixar dinheiro, decimal,
 arredondamento, mínimo/máximo e invariantes antes da implementação.
 
 Arquivos criados/alterados:
@@ -624,7 +624,7 @@ tarefa.
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium, com revisão posterior em Sol
+Modelo executor recomendado: Sonnet (médio), com revisão posterior em Opus
 se necessário.
 
 Arquivos criados/alterados:
@@ -676,7 +676,7 @@ Cobertura validada:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high, com foco em integração final,
+Modelo executor recomendado: Opus (alto), com foco em integração final,
 gates globais e revisão de release.
 
 Arquivos criados/alterados:

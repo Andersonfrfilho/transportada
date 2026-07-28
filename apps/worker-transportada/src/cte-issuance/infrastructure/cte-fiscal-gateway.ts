@@ -5,12 +5,24 @@
 type FiscalEnvironment = 'homologation' | 'production'
 type FiscalProviderEnvironment = 'homologacao' | 'producao'
 
-type CteFiscalProviderConfig = {
-  environment: FiscalEnvironment
-  cnpj: string
-  certificadoBase64: string
-  certificadoSenha: string
-  uf: string
+export type CteFiscalProviderConfig = {
+  readonly bairro: string
+  readonly cep: string
+  readonly certificadoBase64: string
+  readonly certificadoSenha: string
+  readonly cnpj: string
+  readonly codigoMunicipio: string
+  readonly crt: string
+  readonly environment: FiscalEnvironment
+  readonly inscricaoEstadual: string
+  readonly logradouro: string
+  readonly municipio: string
+  readonly numero: string
+  readonly numeroCte: number
+  readonly razaoSocial: string
+  readonly rntrc: string
+  readonly serie: string
+  readonly uf: string
 }
 
 export type CteProviderConfig = {
@@ -43,12 +55,21 @@ type CteProviderEmitResult = {
   protocolo?: string
   chaveAcesso?: string
   errorCode?: string
+  xmlAutorizado?: string
   rawResponse: unknown
 }
 
 type CteProviderResult = {
   ok: boolean
   message?: string
+  rawResponse: unknown
+}
+
+type CteProviderCancelResult = {
+  success: boolean
+  errorCode?: string
+  protocolo?: string
+  xmlEvento?: string
   rawResponse: unknown
 }
 
@@ -67,8 +88,37 @@ export type CteFiscalProvider = {
     chaveAcesso: string
     protocolo?: string
     justificativa: string
-  }): Promise<{ success: boolean; rawResponse: unknown }>
+  }): Promise<CteProviderCancelResult>
   testConnection(input: { config: CteProviderConfig }): Promise<CteProviderResult>
+}
+
+export type CteIssueOutcome = {
+  status: 'ok' | 'rejected' | 'error'
+  accessKey?: string
+  authorizedXml?: string
+  protocol?: string
+  rejection?: {
+    code: string
+  }
+  cause?: string
+}
+
+export type CteCancelOutcome = {
+  status: 'ok' | 'rejected' | 'error'
+  eventXml?: string
+  protocol?: string
+  rejection?: {
+    code: string
+  }
+  cause?: string
+}
+
+export type CteCancelCommand = {
+  accessKey: string
+  authorizationProtocol: string
+  documentId: string
+  justification: string
+  tenantId: string
 }
 
 type CteGateway = {
@@ -79,21 +129,11 @@ type CteGateway = {
       documentId: string
       cteData: unknown
     }
-  }): Promise<{
-    status: 'ok' | 'rejected' | 'error'
-    protocol?: string
-    rejection?: {
-      code: string
-    }
-    cause?: string
-  }>
+  }): Promise<CteIssueOutcome>
   cancel(input: {
     config: CteFiscalProviderConfig
-    command: {
-      tenantId: string
-      documentId: string
-    }
-  }): Promise<{ status: 'ok' | 'failed' }>
+    command: CteCancelCommand
+  }): Promise<CteCancelOutcome>
   testConnection(input: { config: CteFiscalProviderConfig }): Promise<{ status: 'ok' | 'failed' }>
 }
 
@@ -105,44 +145,33 @@ function toProviderConfig(input: CteFiscalProviderConfig): CteProviderConfig {
   return {
     model: 'cte',
     environment: input.environment === 'homologation' ? 'homologacao' : 'producao',
-    cnpj: input.cnpj,
+    bairro: input.bairro,
+    cep: input.cep,
     certificadoBase64: input.certificadoBase64,
     certificadoSenha: input.certificadoSenha,
+    cnpj: input.cnpj,
+    codigoMunicipio: input.codigoMunicipio,
+    crt: input.crt,
+    inscricaoEstadual: input.inscricaoEstadual,
+    logradouro: input.logradouro,
+    municipio: input.municipio,
+    numero: input.numero,
+    numeroCte: input.numeroCte,
+    razaoSocial: input.razaoSocial,
+    rntrc: input.rntrc,
+    serie: input.serie,
     uf: input.uf,
-    inscricaoEstadual: '',
-    razaoSocial: '',
-    municipio: '',
-    cep: '',
-    logradouro: '',
-    numero: '',
-    bairro: '',
-    crt: '1',
-    serie: '1',
-    numeroCte: 0,
-    codigoMunicipio: '',
-    rntrc: '',
   }
 }
 
-function mapIssueOutcome(result: CteProviderEmitResult): {
-  status: 'ok' | 'rejected' | 'error'
-  protocol?: string
-  rejection?: {
-    code: string
-  }
-  cause?: string
-} {
+function mapIssueOutcome(result: CteProviderEmitResult): CteIssueOutcome {
   if (result.success) {
     const protocol = result.protocolo ?? result.chaveAcesso
-    if (protocol === undefined) {
-      return {
-        status: 'ok',
-      }
-    }
-
     return {
       status: 'ok',
-      protocol,
+      ...(result.chaveAcesso === undefined ? {} : { accessKey: result.chaveAcesso }),
+      ...(result.xmlAutorizado === undefined ? {} : { authorizedXml: result.xmlAutorizado }),
+      ...(protocol === undefined ? {} : { protocol }),
     }
   }
 
@@ -183,6 +212,23 @@ function classifyIssueError(error: unknown): {
   }
 }
 
+function mapCancelOutcome(result: CteProviderCancelResult): CteCancelOutcome {
+  if (result.success) {
+    return {
+      status: 'ok',
+      ...(result.xmlEvento === undefined ? {} : { eventXml: result.xmlEvento }),
+      ...(result.protocolo === undefined ? {} : { protocol: result.protocolo }),
+    }
+  }
+
+  return {
+    status: 'rejected',
+    rejection: {
+      code: result.errorCode ?? 'FISCAL_REJECTED',
+    },
+  }
+}
+
 function mapTestConnectionResult(input: { ok: boolean }): { status: 'ok' | 'failed' } {
   return { status: input.ok ? 'ok' : 'failed' }
 }
@@ -213,13 +259,17 @@ export function createCteFiscalGateway(input: CteGatewayDependencies): CteGatewa
     async cancel({ config, command }) {
       const providerConfig = toProviderConfig(config)
       const provider = input.createProvider({ config: providerConfig })
-      const result = await provider.cancel({
-        config: providerConfig,
-        chaveAcesso: `tenant:${command.tenantId}:document:${command.documentId}`,
-        justificativa: 'cancelado',
-      })
-      return {
-        status: result.success ? 'ok' : 'failed',
+      try {
+        const result = await provider.cancel({
+          config: providerConfig,
+          chaveAcesso: command.accessKey,
+          protocolo: command.authorizationProtocol,
+          justificativa: command.justification,
+        })
+
+        return mapCancelOutcome(result)
+      } catch (error) {
+        return classifyIssueError(error)
       }
     },
     async testConnection({ config }) {

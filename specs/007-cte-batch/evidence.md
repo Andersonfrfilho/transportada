@@ -4,7 +4,7 @@
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high.
+Modelo executor recomendado: Opus (alto).
 
 Estado inicial: criação da estrutura de spec/plan/tasks e decisões de escopo.
 
@@ -44,7 +44,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high.
+Modelo executor recomendado: Opus (alto).
 
 Arquivos criados:
 
@@ -76,7 +76,7 @@ Status: `T002` registrada com sucesso de contrato vermelho para orientar a imple
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high.
+Modelo executor recomendado: Opus (alto).
 
 Arquivos criados/alterados:
 
@@ -123,7 +123,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high.
+Modelo executor recomendado: Opus (alto).
 
 Arquivos criados:
 
@@ -154,7 +154,7 @@ Status: `T004` registrada com contrato vermelho para orientar a implementação 
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high.
+Modelo executor recomendado: Opus (alto).
 
 Arquivos criados/alterados:
 
@@ -200,7 +200,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high + OpenCode para matriz mecânica.
+Modelo executor recomendado: Opus (alto) + OpenCode para matriz mecânica.
 
 Arquivos criados:
 
@@ -229,7 +229,7 @@ Status: `T006` registrada com contrato vermelho para orientar a implementação 
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium + revisão Sol.
+Modelo executor recomendado: Sonnet (médio) + revisão Opus.
 
 Arquivos criados/alterados:
 
@@ -286,7 +286,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium.
+Modelo executor recomendado: Sonnet (médio).
 
 Arquivos criados:
 
@@ -316,7 +316,7 @@ Status: `T008` registrada com contrato vermelho para orientar a implementação 
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium.
+Modelo executor recomendado: Sonnet (médio).
 
 Arquivos criados:
 
@@ -360,7 +360,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Terra medium + revisão Sol.
+Modelo executor recomendado: Sonnet (médio) + revisão Opus.
 
 Arquivos criados/alterados:
 
@@ -446,7 +446,7 @@ Observação:
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex Sol high + reviewer independente.
+Modelo executor recomendado: Opus (alto) + reviewer independente.
 
 Arquivos ajustados durante o gate:
 

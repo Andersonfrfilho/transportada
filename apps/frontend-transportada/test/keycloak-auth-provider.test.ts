@@ -15,6 +15,7 @@ function createClient(overrides: Partial<KeycloakClient> = {}): KeycloakClient {
     clearToken: mock(() => undefined),
     init: mock(() => Promise.resolve(true)),
     login: mock(() => Promise.resolve()),
+    logout: mock(() => Promise.resolve()),
     token: ACCESS_TOKEN,
     updateToken: mock(() => Promise.resolve(false)),
     ...overrides,
@@ -74,6 +75,16 @@ describe('KeycloakAuthProvider', () => {
     expect((error as Error).message).toBe('IDENTITY_REFRESH_FAILED')
     expect(client.clearToken).toHaveBeenCalledTimes(1)
     expect(client.login).toHaveBeenCalledTimes(1)
+  })
+
+  test('clears token and redirects to the application origin on logout', async () => {
+    const client = createClient()
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+
+    await provider.logout()
+
+    expect(client.clearToken).toHaveBeenCalledTimes(1)
+    expect(client.logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost' })
   })
 })
 

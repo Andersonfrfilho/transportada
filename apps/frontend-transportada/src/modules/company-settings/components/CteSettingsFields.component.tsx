@@ -17,21 +17,35 @@ function EnvironmentField(
   }>,
 ) {
   const { t } = useTranslation('companySettings')
+  const options: readonly Readonly<{
+    label: string
+    value: CompanySettingsUpdate['cte']['environment']
+  }>[] = [
+    { label: t('homologation'), value: 'homologation' },
+    { label: t('production'), value: 'production' },
+  ]
   return (
-    <label>
+    <div className={styles.taxRegimeField}>
       <span>{t('environment')}</span>
-      <select
-        value={props.cte.environment}
-        onChange={(event) => {
-          const environment = event.target.value
-          if (environment === 'homologation' || environment === 'production')
-            props.onChange({ ...props.cte, environment })
-        }}
-      >
-        <option value="homologation">{t('homologation')}</option>
-        <option value="production">{t('production')}</option>
-      </select>
-    </label>
+      <div className={styles.environmentOptions} role="radiogroup" aria-label={t('environment')}>
+        {options.map((option) => (
+          <button
+            aria-checked={props.cte.environment === option.value}
+            className={
+              props.cte.environment === option.value
+                ? `${styles.environmentOption} ${styles.environmentOptionSelected}`
+                : styles.environmentOption
+            }
+            key={option.value}
+            role="radio"
+            type="button"
+            onClick={() => props.onChange({ ...props.cte, environment: option.value })}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 

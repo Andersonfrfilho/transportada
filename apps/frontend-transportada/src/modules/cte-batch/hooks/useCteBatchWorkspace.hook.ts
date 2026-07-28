@@ -23,6 +23,9 @@ export type CteBatchController = Readonly<{
   canSubmitBatches: boolean
   cancelBatch: (batchId: string) => ReturnType<CteBatchClient['cancelBatch']>
   createBatch: (input: CteBatchCreate) => ReturnType<CteBatchClient['createBatch']>
+  removeItem: (
+    input: Readonly<{ batchId: string; itemId: string }>,
+  ) => ReturnType<CteBatchClient['removeItem']>
   submitBatch: (batchId: string) => ReturnType<CteBatchClient['submitBatch']>
 }>
 
@@ -48,11 +51,12 @@ export function createCteBatchController(input: ControllerInput): CteBatchContro
     canSubmitBatches,
     cancelBatch: (batchId) => (canManageBatches ? input.client.cancelBatch(batchId) : forbidden()),
     createBatch: (request) => (canManageBatches ? input.client.createBatch(request) : forbidden()),
+    removeItem: (request) => (canManageBatches ? input.client.removeItem(request) : forbidden()),
     submitBatch: (batchId) => (canSubmitBatches ? input.client.submitBatch(batchId) : forbidden()),
   }
 }
 
-function getCteBatchClient(): CteBatchClient {
+export function getCteBatchClient(): CteBatchClient {
   return createCteBatchClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),

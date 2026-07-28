@@ -2,22 +2,38 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 
 import {
   cteBatchItems,
   cteBatches,
+  cteFiscalDocuments,
   cteIssuanceAttempts,
   cteIssuanceEvents,
   cteIssuanceOutbox,
+  cteIssuancePayloads,
   cteRetrySchedules,
   fiscalSequenceReservations,
   idempotencyRecords,
+  storedObjects,
 } from '../../database/database.schema.js'
 import type {
+  CteFiscalDocumentRecord,
+  CteIssuanceCreatedAttempt,
+  CteIssuanceFiscalSettings,
   CteIssuanceIssuanceRecord,
   CteIssuanceUnitOfWorkPort,
 } from '../application/cte-issuance.use-case.js'
+import type {
+  CteIssuanceFiscalEnvironment,
+  CteIssuancePayloadRecord,
+  CteIssuancePayloadSource,
+  CteIssuancePayloadSourceQuery,
+} from '../application/cte-issuance-payload.port.js'
+import { getCteIssuanceAttemptKind, mapCteIssuanceAttempt } from './cte-issuance-attempt.mapper.js'
+import { ApiError } from '../../shared/api.error.js'
+import { findCteIssuanceFiscalSettings } from './cte-issuance-fiscal-settings.query.js'
+import { findCteIssuancePayloadSource } from './cte-issuance-payload.query.js'
 import type { CompanySettingsDatabase } from '../../companies/infrastructure/drizzle-company-settings.types.js'
 import { DrizzleFiscalSequenceReservationRepository } from '../../companies/infrastructure/drizzle-fiscal-sequence-reservation.repository.js'
 import type { ReserveFiscalNumberInput } from '../../companies/application/fiscal-sequence-reservation.port.js'
@@ -28,6 +44,12 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Queryable = Database | Transaction
 
+type BatchItemQuery = {
+  readonly batchId: string
+  readonly batchItemId?: string | undefined
+  readonly companyId: string
+}
+
 type IssuanceAttemptRecord = typeof cteIssuanceAttempts.$inferSelect
 type CteIssuanceAttemptStatus =
   | 'requested'
@@ -36,12 +58,63 @@ type CteIssuanceAttemptStatus =
   | 'rejected'
   | 'retry_scheduled'
   | 'failed'
+  | 'cancelled'
+type CteIssuanceAttemptKind = 'issue' | 'reprocess' | 'cancel'
+type CteIssuanceOutboxEventType =
+  | 'transportada.cte.item.issue.requested'
+  | 'transportada.cte.item.cancel.requested'
+type CteIssuanceCreateAttemptInput = {
+  readonly attemptKind: CteIssuanceAttemptKind
+  readonly attemptNumber: number
+  readonly batchId: string
+  readonly batchItemId: string
+  readonly companyId: string
+  readonly correlationId: string
+  readonly fiscalEnvironment: 'homologation' | 'production'
+  readonly fiscalSeries: string
+  readonly fiscalNumber: string
+  readonly idempotencyKey: string
+  readonly reservationId?: string | undefined
+  readonly status: CteIssuanceAttemptStatus
+  readonly issueRequestedAt: string
+}
+type CteIssuanceCancellationRequest = {
+  readonly attemptId: string
+  readonly batchItemId: string
+  readonly companyId: string
+  readonly justification: string
+  readonly requestedAt: string
+}
+type CteIssuanceOutboxCommand = {
+  readonly aggregateId: string
+  readonly actorUserId: string
+  readonly aggregateType: 'cte_batch'
+  readonly aggregateSubtype: 'item'
+  readonly batchItemId: string
+  readonly batchId: string
+  readonly companyId: string
+  readonly correlationId: string
+  readonly eventType: CteIssuanceOutboxEventType
+  readonly attemptKind: CteIssuanceAttemptKind
+  readonly status: CteIssuanceAttemptStatus
+  readonly issueId: string
+  readonly attemptFingerprint: string
+}
+type CteIssuanceReservationRequest = {
+  readonly batchItemId: string
+  readonly batchId: string
+  readonly companyId: string
+  readonly environment: CteIssuanceFiscalEnvironment
+  readonly kind: 'issue' | 'reprocess'
+  readonly series: string
+}
 type CteIssuancePersistedStatus =
   | 'in_flight'
   | 'authorized'
   | 'rejected'
   | 'retry_scheduled'
   | 'failed'
+  | 'cancelled'
 
 export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
   public constructor(private readonly database: Database) {
@@ -69,22 +142,16 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
     return record === undefined ? null : mapBatch(record)
   }
 
-  public async findBatchItem(input: { readonly batchId: string; readonly companyId: string }) {
-    const [record] = await this.database
-      .select()
-      .from(cteBatchItems)
-      .where(
-        and(eq(cteBatchItems.batchId, input.batchId), eq(cteBatchItems.companyId, input.companyId)),
-      )
-      .limit(1)
-    return record === undefined
-      ? null
-      : {
-          batchId: record.batchId,
-          companyId: record.companyId,
-          id: record.id,
-          status: 'unknown',
-        }
+  public async findBatchItem(input: BatchItemQuery) {
+    return findBatchItemRecord(this.database, input)
+  }
+
+  public async listFiscalDocuments(input: {
+    readonly batchId: string
+    readonly batchItemId: string
+    readonly companyId: string
+  }) {
+    return listCteFiscalDocuments(this.database, input)
   }
 
   public async findIssuanceReplay(input: {
@@ -125,10 +192,7 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
   }): Promise<void> {
     await this.database.insert(idempotencyRecords).values({
       companyId: input.companyId,
-      operation:
-        input.operation === 'cte-issuance.reprocess'
-          ? 'cte-issuance.reprocess'
-          : 'cte-issuance.issue',
+      operation: getReplayOperation(input.operation),
       idempotencyKey: input.idempotencyKey,
       requestFingerprint: input.requestFingerprint,
       response: input.response,
@@ -149,41 +213,32 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
     return new CteIssuanceRepositoryQuery(this.database).findIssuance(input)
   }
 
-  public createIssuance(input: {
-    readonly attemptKind: 'issue' | 'reprocess'
-    readonly attemptNumber: number
-    readonly batchId: string
-    readonly batchItemId: string
-    readonly companyId: string
-    readonly correlationId: string
-    readonly fiscalEnvironment: 'homologation' | 'production'
-    readonly fiscalSeries: string
-    readonly fiscalNumber: string
-    readonly idempotencyKey: string
-    readonly status: CteIssuanceAttemptStatus
-    readonly issueRequestedAt: string
-  }): Promise<Record<string, unknown>> {
+  public createIssuance(input: CteIssuanceCreateAttemptInput): Promise<CteIssuanceCreatedAttempt> {
     return createIssuance(this.database, input)
   }
 
-  public async reserveFiscalNumber(input: {
-    readonly batchItemId: string
-    readonly batchId: string
+  public async requestCancellation(input: CteIssuanceCancellationRequest): Promise<void> {
+    await requestCancellation(this.database, input)
+  }
+
+  public findFiscalSettings(input: {
     readonly companyId: string
-    readonly kind: 'issue' | 'reprocess'
-  }): Promise<{
+  }): Promise<CteIssuanceFiscalSettings | null> {
+    return findCteIssuanceFiscalSettings(this.database, input.companyId)
+  }
+
+  public async reserveFiscalNumber(input: CteIssuanceReservationRequest): Promise<{
     readonly id: string
     readonly fiscalSeries: string
     readonly fiscalNumber: string
     readonly companyId: string
   }> {
-    const reservation = await this.fiscalSequenceReservationRepository.reserve(
-      createReservationInput(input.companyId, input.batchId, input.batchItemId, input.kind),
-    )
+    const intention = createReservationInput(input)
+    const reservation = await this.fiscalSequenceReservationRepository.reserve(intention)
     const reservationRecord = await findReservation(this.database, input)
     return {
       id: reservationRecord?.id ?? reservation.sequenceId,
-      fiscalSeries: '1',
+      fiscalSeries: intention.series.toString(),
       fiscalNumber: reservation.number.toString(),
       companyId: input.companyId,
     }
@@ -196,8 +251,20 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
     readonly companyId: string
     readonly status: 'scheduled' | 'claimed' | 'exhausted' | 'cancelled'
     readonly attemptCount: number
+    readonly maxAttempts: number
+    readonly nextAttemptAt: string
   }): Promise<void> {
     await scheduleRetry(this.database, input)
+  }
+
+  public findPayloadSource(
+    input: CteIssuancePayloadSourceQuery,
+  ): Promise<CteIssuancePayloadSource | null> {
+    return findCteIssuancePayloadSource(this.database, input)
+  }
+
+  public async savePayload(input: CteIssuancePayloadRecord): Promise<void> {
+    await savePayload(this.database, input)
   }
 
   public async appendEvent(input: {
@@ -212,63 +279,14 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
       attemptId: input.attemptId,
       batchItemId: input.batchItemId,
       companyId: input.companyId,
-      eventName: getEventName(input.eventName),
+      eventName: resolveIssuanceEventName(input.eventName),
       payload: input.payload,
       occurredAt: new Date(),
     })
   }
 
-  public async pushOutbox(_input: {
-    readonly aggregateId: string
-    readonly actorUserId: string
-    readonly aggregateType: 'cte_batch'
-    readonly aggregateSubtype: 'item'
-    readonly batchItemId: string
-    readonly batchId: string
-    readonly companyId: string
-    readonly correlationId: string
-    readonly eventType: 'transportada.cte.item.issue.requested'
-    readonly attemptKind: 'issue' | 'reprocess'
-    readonly status: 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed'
-    readonly issueId: string
-    readonly attemptFingerprint: string
-  }): Promise<void> {
-    if (
-      _input.aggregateType !== 'cte_batch' ||
-      _input.eventType !== 'transportada.cte.item.issue.requested'
-    ) {
-      return
-    }
-
-    if (_input.attemptKind !== 'issue' && _input.attemptKind !== 'reprocess') {
-      return
-    }
-
-    await this.database.insert(cteIssuanceOutbox).values({
-      aggregateId: _input.aggregateId,
-      aggregateSubtype: _input.aggregateSubtype,
-      aggregateType: _input.aggregateType,
-      actorUserId: _input.actorUserId,
-      attemptFingerprint: _input.attemptFingerprint,
-      attemptId: _input.issueId,
-      attemptKind: _input.attemptKind,
-      batchId: _input.batchId,
-      batchItemId: _input.batchItemId,
-      companyId: _input.companyId,
-      correlationId: _input.correlationId,
-      eventType: _input.eventType,
-      eventVersion: 1n,
-      nextAttemptAt: new Date(),
-      status: getOutboxStatus(_input.status),
-      payload: {
-        batchItemId: _input.batchItemId,
-        batchId: _input.batchId,
-        attemptKind: _input.attemptKind,
-        status: getOutboxStatus(_input.status),
-        attemptFingerprint: _input.attemptFingerprint,
-        issueId: _input.issueId,
-      },
-    })
+  public async pushOutbox(input: CteIssuanceOutboxCommand): Promise<void> {
+    await pushOutbox(this.database, input)
   }
 }
 
@@ -306,30 +324,37 @@ class CteIssuanceRepositoryQuery {
 
     const attempt = attempts[0]
     if (attempt === undefined) return null
-    const retryCount = await countRetries(this.database, attempt.id)
-    const schedule = await findRetrySchedule(this.database, attempt.companyId, attempt.id)
+    const retryCount = await countRetries(this.database, {
+      attemptId: attempt.id,
+      companyId: attempt.companyId,
+    })
+    const document = await findIssuedDocument(this.database, {
+      batchItemId: attempt.batchItemId,
+      companyId: attempt.companyId,
+    })
     return {
       attemptId: attempt.id,
       batchId: attempt.batchId,
       companyId: attempt.companyId,
+      reservationId: attempt.reservationId,
       context: {
         batchItemId: attempt.batchItemId,
         companyId: attempt.companyId,
         fiscalEnvironment: attempt.fiscalEnvironment,
         fiscalNumber: attempt.fiscalNumber.toString(),
         fiscalSeries: attempt.fiscalSeries,
-        status: getDomainStatus(attempt.status),
+        status: resolveIssuanceStatus(attempt.status, document),
         reasonCode: attempt.lastErrorCode ?? undefined,
         reasonCause: attempt.lastErrorCause ?? undefined,
         retryCount,
-        attemptKind: getAttemptKind(attempt.attemptKind),
+        attemptKind: getCteIssuanceAttemptKind(attempt.attemptKind),
         attemptNumber: Number(attempt.attemptNumber),
         correlationId: attempt.correlationId,
         idempotencyKey: attempt.idempotencyKey,
         fingerprint: attempt.requestFingerprint,
       },
-      protocol: schedule?.protocol,
-      accessKey: schedule?.accessKey,
+      protocol: document?.authorizationProtocol,
+      accessKey: document?.accessKey,
       issueRequestedAt: attempt.createdAt.toISOString(),
     }
   }
@@ -351,22 +376,16 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
     return record === undefined ? null : mapBatch(record)
   }
 
-  public async findBatchItem(input: { readonly batchId: string; readonly companyId: string }) {
-    const [record] = await this.transaction
-      .select()
-      .from(cteBatchItems)
-      .where(
-        and(eq(cteBatchItems.batchId, input.batchId), eq(cteBatchItems.companyId, input.companyId)),
-      )
-      .limit(1)
-    return record === undefined
-      ? null
-      : {
-          batchId: record.batchId,
-          companyId: record.companyId,
-          id: record.id,
-          status: 'unknown',
-        }
+  public async findBatchItem(input: BatchItemQuery) {
+    return findBatchItemRecord(this.transaction, input)
+  }
+
+  public async listFiscalDocuments(input: {
+    readonly batchId: string
+    readonly batchItemId: string
+    readonly companyId: string
+  }) {
+    return listCteFiscalDocuments(this.transaction, input)
   }
 
   public async findIssuanceReplay(input: {
@@ -407,10 +426,7 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
   }): Promise<void> {
     await this.transaction.insert(idempotencyRecords).values({
       companyId: input.companyId,
-      operation:
-        input.operation === 'cte-issuance.reprocess'
-          ? 'cte-issuance.reprocess'
-          : 'cte-issuance.issue',
+      operation: getReplayOperation(input.operation),
       idempotencyKey: input.idempotencyKey,
       requestFingerprint: input.requestFingerprint,
       response: input.response,
@@ -431,40 +447,29 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
     return new CteIssuanceRepositoryQuery(this.transaction).findIssuance(input)
   }
 
-  public async createIssuance(input: {
-    readonly attemptKind: 'issue' | 'reprocess'
-    readonly attemptNumber: number
-    readonly batchId: string
-    readonly batchItemId: string
-    readonly companyId: string
-    readonly correlationId: string
-    readonly fiscalEnvironment: 'homologation' | 'production'
-    readonly fiscalSeries: string
-    readonly fiscalNumber: string
-    readonly idempotencyKey: string
-    readonly status: CteIssuanceAttemptStatus
-    readonly issueRequestedAt: string
-  }): Promise<Record<string, unknown>> {
+  public async createIssuance(
+    input: CteIssuanceCreateAttemptInput,
+  ): Promise<CteIssuanceCreatedAttempt> {
     return createIssuance(this.transaction, input)
   }
 
-  public async reserveFiscalNumber(input: {
-    readonly batchItemId: string
-    readonly batchId: string
+  public async requestCancellation(input: CteIssuanceCancellationRequest): Promise<void> {
+    await requestCancellation(this.transaction, input)
+  }
+
+  public findFiscalSettings(input: {
     readonly companyId: string
-    readonly kind: 'issue' | 'reprocess'
-  }): Promise<{
+  }): Promise<CteIssuanceFiscalSettings | null> {
+    return findCteIssuanceFiscalSettings(this.transaction, input.companyId)
+  }
+
+  public async reserveFiscalNumber(input: CteIssuanceReservationRequest): Promise<{
     readonly id: string
     readonly fiscalSeries: string
     readonly fiscalNumber: string
     readonly companyId: string
   }> {
-    const intention = createReservationInput(
-      input.companyId,
-      input.batchId,
-      input.batchItemId,
-      input.kind,
-    )
+    const intention = createReservationInput(input)
     const reservation = await reserveFiscalNumber({
       intention,
       transaction: this.transaction as CompanySettingsTransaction,
@@ -485,8 +490,20 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
     readonly companyId: string
     readonly status: 'scheduled' | 'claimed' | 'exhausted' | 'cancelled'
     readonly attemptCount: number
+    readonly maxAttempts: number
+    readonly nextAttemptAt: string
   }): Promise<void> {
     await scheduleRetry(this.transaction, input)
+  }
+
+  public findPayloadSource(
+    input: CteIssuancePayloadSourceQuery,
+  ): Promise<CteIssuancePayloadSource | null> {
+    return findCteIssuancePayloadSource(this.transaction, input)
+  }
+
+  public async savePayload(input: CteIssuancePayloadRecord): Promise<void> {
+    await savePayload(this.transaction, input)
   }
 
   public async appendEvent(input: {
@@ -501,51 +518,69 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
       attemptId: input.attemptId,
       batchItemId: input.batchItemId,
       companyId: input.companyId,
-      eventName: getEventName(input.eventName),
+      eventName: resolveIssuanceEventName(input.eventName),
       payload: input.payload,
       occurredAt: new Date(),
     })
   }
 
-  public async pushOutbox(input: {
-    readonly aggregateId: string
-    readonly actorUserId: string
-    readonly aggregateType: 'cte_batch'
-    readonly aggregateSubtype: 'item'
-    readonly batchItemId: string
-    readonly batchId: string
-    readonly companyId: string
-    readonly correlationId: string
-    readonly eventType: 'transportada.cte.item.issue.requested'
-    readonly attemptKind: 'issue' | 'reprocess'
-    readonly status: 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed'
-    readonly issueId: string
-    readonly attemptFingerprint: string
-  }): Promise<void> {
-    await this.transaction.insert(cteIssuanceOutbox).values({
-      aggregateId: input.aggregateId,
-      aggregateSubtype: input.aggregateSubtype,
-      aggregateType: input.aggregateType,
-      actorUserId: input.actorUserId,
-      attemptFingerprint: input.attemptFingerprint,
-      attemptId: input.issueId,
-      attemptKind: input.attemptKind,
-      batchId: input.batchId,
+  public async pushOutbox(input: CteIssuanceOutboxCommand): Promise<void> {
+    await pushOutbox(this.transaction, input)
+  }
+}
+
+async function pushOutbox(database: Queryable, input: CteIssuanceOutboxCommand): Promise<void> {
+  await database.insert(cteIssuanceOutbox).values({
+    aggregateId: input.aggregateId,
+    aggregateSubtype: input.aggregateSubtype,
+    aggregateType: input.aggregateType,
+    actorUserId: input.actorUserId,
+    attemptFingerprint: input.attemptFingerprint,
+    attemptId: input.issueId,
+    attemptKind: input.attemptKind,
+    batchId: input.batchId,
+    batchItemId: input.batchItemId,
+    companyId: input.companyId,
+    correlationId: input.correlationId,
+    eventType: input.eventType,
+    eventVersion: 1n,
+    nextAttemptAt: new Date(),
+    status: getOutboxStatus(input.status),
+    payload: {
       batchItemId: input.batchItemId,
-      companyId: input.companyId,
-      correlationId: input.correlationId,
-      eventType: input.eventType,
-      eventVersion: 1n,
-      nextAttemptAt: new Date(),
+      batchId: input.batchId,
+      attemptKind: input.attemptKind,
       status: getOutboxStatus(input.status),
-      payload: {
-        batchItemId: input.batchItemId,
-        batchId: input.batchId,
-        attemptKind: input.attemptKind,
-        status: getOutboxStatus(input.status),
-        attemptFingerprint: input.attemptFingerprint,
-        issueId: input.issueId,
-      },
+      attemptFingerprint: input.attemptFingerprint,
+      issueId: input.issueId,
+    },
+  })
+}
+
+/**
+ * Marca a intenção de cancelar no próprio documento fiscal. O filtro por status e por
+ * `cancellation_requested_at` nulo é o que impede duas requisições concorrentes de disparar
+ * dois eventos 110111 para a mesma chave.
+ */
+async function requestCancellation(
+  database: Queryable,
+  input: CteIssuanceCancellationRequest,
+): Promise<void> {
+  const updated = await database
+    .update(cteFiscalDocuments)
+    .set({
+      cancellationJustification: input.justification,
+      cancellationRequestedAt: new Date(input.requestedAt),
+      updatedAt: new Date(),
+    })
+    .where(and(...buildCancellationRequestFilters(input)))
+    .returning({ id: cteFiscalDocuments.id })
+
+  if (updated.length !== 1) {
+    throw new ApiError({
+      code: 'CTE_ISSUANCE_NOT_CANCELLABLE',
+      message: 'CT-e issuance cannot be cancelled',
+      status: 409,
     })
   }
 }
@@ -573,23 +608,20 @@ async function resolveReservationId(
   return row?.id ?? crypto.randomUUID()
 }
 
+/** O cancelamento reaproveita a reserva já autorizada — não queima número fiscal novo. */
+async function resolveAttemptReservationId(
+  database: Queryable,
+  input: CteIssuanceCreateAttemptInput,
+): Promise<string> {
+  if (input.reservationId !== undefined) return input.reservationId
+  if (input.attemptKind === 'cancel') throw new Error('CTE_ISSUANCE_CANCEL_RESERVATION_REQUIRED')
+  return resolveReservationId(database, { ...input, kind: input.attemptKind })
+}
+
 async function createIssuance(
   database: Queryable,
-  input: {
-    readonly attemptKind: 'issue' | 'reprocess'
-    readonly attemptNumber: number
-    readonly batchId: string
-    readonly batchItemId: string
-    readonly companyId: string
-    readonly correlationId: string
-    readonly fiscalEnvironment: 'homologation' | 'production'
-    readonly fiscalSeries: string
-    readonly fiscalNumber: string
-    readonly idempotencyKey: string
-    readonly status: CteIssuanceAttemptStatus
-    readonly issueRequestedAt: string
-  },
-): Promise<Record<string, unknown>> {
+  input: CteIssuanceCreateAttemptInput,
+): Promise<CteIssuanceCreatedAttempt> {
   const requestFingerprint = createAttemptFingerprint(input)
   const [record] = await database
     .insert(cteIssuanceAttempts)
@@ -606,14 +638,14 @@ async function createIssuance(
       requestFingerprint,
       idempotencyFingerprint: requestFingerprint,
       correlationId: input.correlationId,
-      reservationId: await resolveReservationId(database, { ...input, kind: input.attemptKind }),
+      reservationId: await resolveAttemptReservationId(database, input),
       status: getPersistedStatus(input.status),
       createdAt: new Date(input.issueRequestedAt),
       updatedAt: new Date(),
     })
     .returning()
   if (record === undefined) throw new Error('CTE_ISSUANCE_CREATE_FAILED')
-  return mapIssuanceAttempt(record)
+  return mapCteIssuanceAttempt(record)
 }
 
 async function scheduleRetry(
@@ -624,6 +656,8 @@ async function scheduleRetry(
     readonly companyId: string
     readonly status: 'scheduled' | 'claimed' | 'exhausted' | 'cancelled'
     readonly attemptCount: number
+    readonly maxAttempts: number
+    readonly nextAttemptAt: string
   },
 ): Promise<void> {
   await database.insert(cteRetrySchedules).values({
@@ -631,11 +665,28 @@ async function scheduleRetry(
     companyId: input.companyId,
     status: input.status,
     attemptCount: BigInt(input.attemptCount),
-    maxAttempts: 3n,
-    nextAttemptAt: new Date(Date.now() + 10_000),
+    maxAttempts: BigInt(input.maxAttempts),
+    nextAttemptAt: new Date(input.nextAttemptAt),
     lastErrorCause: 'retry requested',
     batchItemId: input.batchItemId,
   })
+}
+
+async function savePayload(database: Queryable, input: CteIssuancePayloadRecord): Promise<void> {
+  await database
+    .insert(cteIssuancePayloads)
+    .values({
+      attemptId: input.attemptId,
+      batchId: input.batchId,
+      batchItemId: input.batchItemId,
+      companyId: input.companyId,
+      payload: input.payload,
+      payloadSha256: input.payloadSha256,
+      providerConfig: input.providerConfig,
+    })
+    .onConflictDoNothing({
+      target: [cteIssuancePayloads.companyId, cteIssuancePayloads.attemptId],
+    })
 }
 
 async function findReservation(
@@ -661,18 +712,13 @@ async function findReservation(
   return record ?? null
 }
 
-function createReservationInput(
-  companyId: string,
-  batchId: string,
-  batchItemId: string,
-  kind: 'issue' | 'reprocess',
-): ReserveFiscalNumberInput {
+function createReservationInput(input: CteIssuanceReservationRequest): ReserveFiscalNumberInput {
   return {
-    companyId,
-    environment: 'homologation',
+    companyId: input.companyId,
+    environment: input.environment,
     model: 'cte',
-    reservationKey: `${batchId}:${batchItemId}:${kind}`,
-    series: 1n,
+    reservationKey: `${input.batchId}:${input.batchItemId}:${input.kind}`,
+    series: BigInt(input.series),
   }
 }
 
@@ -706,7 +752,7 @@ function statusFilter(input: {
 }
 
 function createAttemptFingerprint(input: {
-  readonly attemptKind: 'issue' | 'reprocess'
+  readonly attemptKind: CteIssuanceAttemptKind
   readonly attemptNumber: number
   readonly batchId: string
   readonly batchItemId: string
@@ -722,33 +768,154 @@ function getPersistedStatus(status: CteIssuanceAttemptStatus): CteIssuancePersis
 
 function getDomainStatus(
   status: IssuanceAttemptRecord['status'],
-): 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed' {
+): 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed' | 'cancelled' {
   if (status === 'in_flight' || status === 'pending') return 'requested'
   if (
     status === 'authorized' ||
     status === 'rejected' ||
     status === 'retry_scheduled' ||
-    status === 'failed'
+    status === 'failed' ||
+    status === 'cancelled'
   )
     return status
   throw new Error('CTE_ISSUANCE_UNSUPPORTED_STATUS')
 }
 
-function getAttemptKind(kind: IssuanceAttemptRecord['attemptKind']): 'issue' | 'reprocess' {
-  if (kind === 'issue' || kind === 'reprocess') return kind
-  throw new Error('CTE_ISSUANCE_UNSUPPORTED_ATTEMPT_KIND')
-}
-
-function getEventName(value: string): 'issue_requested' | 'retry_scheduled' {
+export function resolveIssuanceEventName(
+  value: string,
+): 'issue_requested' | 'cancel_requested' | 'retry_scheduled' {
+  if (value === 'cancel_requested') return 'cancel_requested'
   if (value === 'retry_scheduled') return 'retry_scheduled'
   return 'issue_requested'
 }
 
-function getOutboxStatus(
-  status: 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed',
-): 'requested' | 'retry_scheduled' {
+function getReplayOperation(
+  operation: string | undefined,
+): 'cte-issuance.issue' | 'cte-issuance.reprocess' | 'cte-issuance.cancel' {
+  if (operation === 'cte-issuance.reprocess') return 'cte-issuance.reprocess'
+  if (operation === 'cte-issuance.cancel') return 'cte-issuance.cancel'
+  return 'cte-issuance.issue'
+}
+
+function getOutboxStatus(status: CteIssuanceAttemptStatus): 'requested' | 'retry_scheduled' {
   if (status === 'retry_scheduled') return 'retry_scheduled'
   return 'requested'
+}
+
+export function buildBatchItemFilters(input: BatchItemQuery) {
+  const filters = [
+    eq(cteBatchItems.batchId, input.batchId),
+    eq(cteBatchItems.companyId, input.companyId),
+  ]
+  if (input.batchItemId !== undefined) filters.push(eq(cteBatchItems.id, input.batchItemId))
+  return filters
+}
+
+export function buildRetryScheduleFilters(input: {
+  readonly attemptId: string
+  readonly companyId: string
+}) {
+  return [
+    eq(cteRetrySchedules.companyId, input.companyId),
+    eq(cteRetrySchedules.attemptId, input.attemptId),
+  ]
+}
+
+export function buildIssuedDocumentFilters(input: {
+  readonly batchItemId: string
+  readonly companyId: string
+}) {
+  return [
+    eq(cteFiscalDocuments.companyId, input.companyId),
+    eq(cteFiscalDocuments.batchItemId, input.batchItemId),
+  ]
+}
+
+export function buildCancellationRequestFilters(input: {
+  readonly batchItemId: string
+  readonly companyId: string
+}) {
+  return [
+    ...buildIssuedDocumentFilters(input),
+    eq(cteFiscalDocuments.status, 'authorized'),
+    isNull(cteFiscalDocuments.cancellationRequestedAt),
+  ]
+}
+
+export function buildFiscalDocumentFilters(input: {
+  readonly batchId: string
+  readonly batchItemId: string
+  readonly companyId: string
+}) {
+  return [
+    eq(cteFiscalDocuments.companyId, input.companyId),
+    eq(cteFiscalDocuments.batchItemId, input.batchItemId),
+    eq(cteBatchItems.batchId, input.batchId),
+  ]
+}
+
+async function findBatchItemRecord(
+  queryable: Queryable,
+  input: BatchItemQuery,
+): Promise<Record<string, unknown> | null> {
+  const [record] = await queryable
+    .select()
+    .from(cteBatchItems)
+    .where(and(...buildBatchItemFilters(input)))
+    .limit(1)
+  return record === undefined
+    ? null
+    : {
+        batchId: record.batchId,
+        companyId: record.companyId,
+        id: record.id,
+        status: 'unknown',
+      }
+}
+
+async function listCteFiscalDocuments(
+  queryable: Queryable,
+  input: {
+    readonly batchId: string
+    readonly batchItemId: string
+    readonly companyId: string
+  },
+): Promise<readonly CteFiscalDocumentRecord[]> {
+  const records = await queryable
+    .select({
+      accessKey: cteFiscalDocuments.accessKey,
+      bucket: storedObjects.bucket,
+      documentId: cteFiscalDocuments.id,
+      mimeType: storedObjects.mimeType,
+      objectKey: storedObjects.objectKey,
+      sha256: cteFiscalDocuments.xmlSha256,
+    })
+    .from(cteFiscalDocuments)
+    .innerJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.id, cteFiscalDocuments.xmlObjectId),
+        eq(storedObjects.companyId, cteFiscalDocuments.companyId),
+      ),
+    )
+    .innerJoin(
+      cteBatchItems,
+      and(
+        eq(cteBatchItems.id, cteFiscalDocuments.batchItemId),
+        eq(cteBatchItems.companyId, cteFiscalDocuments.companyId),
+      ),
+    )
+    .where(and(...buildFiscalDocumentFilters(input)))
+    .orderBy(desc(cteFiscalDocuments.createdAt))
+
+  return records.map((record) => ({
+    accessKey: record.accessKey,
+    bucket: record.bucket,
+    contentType: record.mimeType,
+    documentId: record.documentId,
+    objectKey: record.objectKey,
+    sha256: record.sha256,
+  }))
 }
 
 function mapBatch(record: typeof cteBatches.$inferSelect): Record<string, unknown> {
@@ -759,45 +926,58 @@ function mapBatch(record: typeof cteBatches.$inferSelect): Record<string, unknow
   }
 }
 
-function mapIssuanceAttempt(record: IssuanceAttemptRecord): Record<string, unknown> {
-  return {
-    batchId: record.batchId,
-    companyId: record.companyId,
-    attemptId: record.id,
-    attemptNumber: record.attemptNumber.toString(),
-    attemptKind: getAttemptKind(record.attemptKind),
-    attemptFingerprint: record.requestFingerprint,
-    context: {
-      attemptId: record.id,
-      batchItemId: record.batchItemId,
-      batchId: record.batchId,
-      companyId: record.companyId,
-    },
-  }
+type IssuedDocumentRecord = {
+  readonly accessKey: string
+  readonly authorizationProtocol: string
+  readonly cancellationRequestedAt: Date | null
+  readonly status: 'authorized' | 'cancelled'
 }
 
-async function findRetrySchedule(
+async function findIssuedDocument(
   database: Queryable,
-  companyId: string,
-  attemptId: string,
-): Promise<{ readonly protocol?: string; readonly accessKey?: string } | null> {
+  input: { readonly batchItemId: string; readonly companyId: string },
+): Promise<IssuedDocumentRecord | null> {
   const [record] = await database
     .select({
-      protocol: sql<string>`NULL`,
-      accessKey: sql<string>`NULL`,
+      accessKey: cteFiscalDocuments.accessKey,
+      authorizationProtocol: cteFiscalDocuments.authorizationProtocol,
+      cancellationRequestedAt: cteFiscalDocuments.cancellationRequestedAt,
+      status: cteFiscalDocuments.status,
     })
-    .from(cteRetrySchedules)
-    .where(
-      and(eq(cteRetrySchedules.companyId, companyId), eq(cteRetrySchedules.attemptId, attemptId)),
-    )
+    .from(cteFiscalDocuments)
+    .where(and(...buildIssuedDocumentFilters(input)))
     .limit(1)
-  return record === undefined ? null : record
+  return record ?? null
 }
 
-async function countRetries(database: Queryable, attemptId: string): Promise<number> {
+/**
+ * O documento fiscal, e não a tentativa, é a fonte da verdade sobre cancelamento — a tentativa
+ * autorizada continua autorizada mesmo depois do evento 110111.
+ */
+export function resolveIssuedDocumentStatus(document: {
+  readonly cancellationRequestedAt: Date | null
+  readonly status: string
+}): 'authorized' | 'cancelled' {
+  if (document.status === 'cancelled') return 'cancelled'
+  return document.cancellationRequestedAt === null ? 'authorized' : 'cancelled'
+}
+
+function resolveIssuanceStatus(
+  attemptStatus: IssuanceAttemptRecord['status'],
+  document: IssuedDocumentRecord | null,
+): 'requested' | 'authorized' | 'rejected' | 'retry_scheduled' | 'failed' | 'cancelled' {
+  const status = getDomainStatus(attemptStatus)
+  if (status !== 'authorized' || document === null) return status
+  return resolveIssuedDocumentStatus(document)
+}
+
+async function countRetries(
+  database: Queryable,
+  input: { readonly attemptId: string; readonly companyId: string },
+): Promise<number> {
   const rows = await database
     .select({ attemptCount: cteRetrySchedules.attemptCount })
     .from(cteRetrySchedules)
-    .where(eq(cteRetrySchedules.attemptId, attemptId))
+    .where(and(...buildRetryScheduleFilters(input)))
   return rows.length === 0 ? 0 : Number(rows[0]?.attemptCount ?? 0)
 }

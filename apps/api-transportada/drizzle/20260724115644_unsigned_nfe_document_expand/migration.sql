@@ -1,0 +1,3 @@
+ALTER TABLE "nfe_documents" ALTER COLUMN "authorization_protocol" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "nfe_documents" ADD CONSTRAINT "nfe_documents_authorization_protocol_presence_check" CHECK (("status" = 'unsigned') or ("authorization_protocol" is not null));--> statement-breakpoint
+ALTER TABLE "nfe_documents" DROP CONSTRAINT "nfe_documents_status_check", ADD CONSTRAINT "nfe_documents_status_check" CHECK ("status" in ('authorized', 'cancelled', 'denied', 'unsigned'));

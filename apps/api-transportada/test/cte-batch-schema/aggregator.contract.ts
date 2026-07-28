@@ -6,6 +6,8 @@ import { CTE_BATCH_SCHEMA_EXPORT_NAMES, readSchemaExport, requireSchemaTable } f
 const EXPECTED_TABLE_NAMES = [
   'cte_batches',
   'cte_batch_items',
+  'cte_batch_item_documents',
+  'cte_batch_item_charges',
   'cte_batch_events',
   'cte_submission_records',
 ]

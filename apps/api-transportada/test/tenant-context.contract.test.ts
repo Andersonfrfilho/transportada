@@ -55,6 +55,13 @@ describe('tenant context contract', () => {
       'cte.cancel',
       'cte.read',
       'operations.read',
+      'view-preferences.manage',
+      'fleet.read',
+      'mdfe.read',
+      'mdfe.manage',
+      'mdfe.issue',
+      'mdfe.close',
+      'mdfe.cancel',
     ])
     expect(Object.isFrozen(context.scope.permissions)).toBe(true)
   })

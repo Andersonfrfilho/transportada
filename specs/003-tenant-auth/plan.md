@@ -190,7 +190,7 @@ shell de empresa; nunca executa automaticamente.
 - testes negativos de repository e HTTP com duas empresas;
 - unit tests da matriz de permissões e proteção default;
 - Playwright para PKCE/login, sessão expirada e ausência de token em storages;
-- revisão Sol de auth/tenant e reviewer gratuito nos gates finais.
+- revisão Opus de auth/tenant e reviewer gratuito nos gates finais.
 
 ## Riscos
 

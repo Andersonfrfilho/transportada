@@ -16,22 +16,67 @@ import {
 } from './messaging/nfe-rabbitmq-topology.js'
 import { buildCteIssuanceRabbitMqTopology } from './messaging/cte-rabbitmq-topology.js'
 import type { CteProcessingEnvelopeV1 } from './messaging/cte-processing-envelope.schema.js'
+import type { MdfeProcessingEnvelopeV1 } from './messaging/mdfe-processing-envelope.schema.js'
 import { buildRabbitMqTopology } from './messaging/rabbitmq-topology.js'
 import { OutboxRelayLoop } from './outbox/application/outbox-relay-loop.service.js'
 import { NfeOutboxPublisherService } from './outbox/application/nfe-outbox-publisher.service.js'
 import { DrizzleCteOutboxRepository } from './cte-issuance/infrastructure/drizzle-cte-outbox.repository.js'
 import { createDigitalCertificateSecretService } from './cte-issuance/application/digital-certificate-secret.service.js'
+import { createCteCancellationInputResolver } from './cte-issuance/application/cte-cancellation-input-resolver.service.js'
 import { createCteIssuanceExecutionInputResolver } from './cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import { DrizzleCteIssuanceWorkerRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-worker.repository.js'
-import { DrizzleCteIssuanceExecutionInputRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-execution-input.repository.js'
+import { DrizzleCteSettledAttemptRepository } from './cte-issuance/infrastructure/drizzle-cte-settled-attempt.repository.js'
+import { DrizzleCteCancellationTargetRepository } from './cte-issuance/infrastructure/drizzle-cte-cancellation-target.repository.js'
+import { DrizzleCteCertificateRepository } from './cte-issuance/infrastructure/drizzle-cte-certificate.repository.js'
+import { DrizzleCteIssuancePayloadRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-payload.repository.js'
+import { DrizzleCteRetryPolicyRepository } from './cte-issuance/infrastructure/drizzle-cte-retry-policy.repository.js'
+import { createCteFiscalDocumentStorage } from './cte-issuance/infrastructure/cte-fiscal-document-storage.gateway.js'
+import { DrizzleCteIssuanceWriteBackRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-write-back.repository.js'
 import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastructure/adatechnology-cte-fiscal-provider.factory.js'
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
+import { buildMdfeIssuanceRabbitMqTopology } from './messaging/mdfe-rabbitmq-topology.js'
+import { DrizzleMdfeOutboxRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-outbox.repository.js'
+import { DrizzleMdfeCertificateRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-certificate.repository.js'
+import { DrizzleMdfeEventTargetRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-event-target.repository.js'
+import { DrizzleMdfeIssuancePayloadRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-issuance-payload.repository.js'
+import { DrizzleMdfeIssuanceWorkerRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-issuance-worker.repository.js'
+import { DrizzleMdfeIssuanceWriteBackRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-issuance-write-back.repository.js'
+import { DrizzleMdfeRetryPolicyRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-retry-policy.repository.js'
+import { DrizzleMdfeSettledAttemptRepository } from './mdfe-issuance/infrastructure/drizzle-mdfe-settled-attempt.repository.js'
+import { createMdfeFiscalDocumentStorage } from './mdfe-issuance/infrastructure/mdfe-fiscal-document-storage.gateway.js'
+import { createMdfeCancellationInputResolver } from './mdfe-issuance/application/mdfe-cancellation-input-resolver.service.js'
+import { createMdfeClosureInputResolver } from './mdfe-issuance/application/mdfe-closure-input-resolver.service.js'
+import { createMdfeIssuanceExecutionInputResolver } from './mdfe-issuance/application/mdfe-issuance-execution-input-resolver.service.js'
+import { createMdfeIssuanceWorkerEffect } from './mdfe-issuance/application/mdfe-issuance-consumer.effect.js'
+import { MdfeOutboxPublisherService } from './mdfe-issuance/application/mdfe-outbox-publisher.service.js'
+import { MdfeOutboxRelayService } from './mdfe-issuance/application/mdfe-outbox-relay.service.js'
+import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.service.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
+import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
+import { createAdatechnologyNfeDistributionProvider } from './nfe-distribution/infrastructure/adatechnology-nfe-distribution-provider.factory.js'
+import { createNfeDistributionGatewayFactory } from './nfe-distribution/infrastructure/nfe-distribution-gateway.js'
+import { createNfeDistributionPersistenceAdapter } from './nfe-distribution/infrastructure/nfe-distribution-persistence.adapter.js'
+import { DrizzleNfeDistributionCursorRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution-cursor.repository.js'
+import { DrizzleNfeDistributionProfileRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution-profile.repository.js'
+import { DrizzleNfeDistributionRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
+import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
+import type {
+  NfeImportWorkerEffect,
+  NfeImportWorkerRepository,
+} from './nfe-imports/application/nfe-import-worker-message-handler.service.js'
+import { createNfeImportArchiveExpander } from './nfe-imports/infrastructure/nfe-import-archive-expander.gateway.js'
+import {
+  createNfeImportFinalStorage,
+  createNfeImportSourceStorage,
+} from './nfe-imports/infrastructure/nfe-import-storage.gateway.js'
+import { createNfeXmlImporter } from './nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
+import { DrizzleNfeImportConsumerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
+import { DrizzleNfeImportWorkerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.js'
 import { registerWorkerShutdownSignals } from './runtime/shutdown-signals.service.js'
 import { WorkerShutdown } from './runtime/worker-shutdown.service.js'
 import { startHealthServer } from './server/health-server.service.js'
@@ -42,6 +87,8 @@ import {
   type NfeStorageGateway,
 } from './storage/infrastructure/nfe-storage-gateway.js'
 import type { WorkerLogger } from './shared/worker.types.js'
+
+const NFE_DISTRIBUTION_LEASE_MS = 30_000
 
 type RuntimeDatabasePort = {
   readonly close: () => Promise<void>
@@ -80,6 +127,13 @@ type RuntimeHealthServerFactory = (input: {
   readonly logger: WorkerLogger
 }) => RuntimeHealthServer
 
+type MdfeIssuanceMessageKey = {
+  readonly attemptId: string
+  readonly companyId: string
+  readonly eventId: string
+  readonly manifestId: string
+}
+
 type WorkerRuntimeDependencies = {
   readonly createDatabase?: RuntimeDatabaseFactory
   readonly createLogger?: RuntimeLoggerFactory
@@ -89,8 +143,10 @@ type WorkerRuntimeDependencies = {
   }) => NfeStorageGateway
   readonly startDistributionConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly consumer?: NfeImportWorkerEffect
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
+    readonly repository?: NfeImportWorkerRepository
   }) => Promise<RuntimeConsumer | undefined>
   readonly startCteIssuanceConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
@@ -129,6 +185,22 @@ type WorkerRuntimeDependencies = {
       }): Promise<void>
     }
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startMdfeIssuanceConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly effect: {
+      execute(params: { readonly envelope: MdfeProcessingEnvelopeV1 }): Promise<void>
+    }
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+    readonly repository: {
+      hasProcessed(input: MdfeIssuanceMessageKey): Promise<boolean>
+      markDeadLettered(input: MdfeIssuanceMessageKey & { readonly reason: string }): Promise<void>
+      markProcessed(input: MdfeIssuanceMessageKey): Promise<void>
+      scheduleRetry(
+        input: MdfeIssuanceMessageKey & { readonly attempt: number; readonly nextAttemptAt: Date },
+      ): Promise<void>
+    }
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startFoundationSyntheticConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly logger: WorkerLogger
@@ -137,8 +209,10 @@ type WorkerRuntimeDependencies = {
   readonly startHealthServer?: RuntimeHealthServerFactory
   readonly startImportConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly effect: NfeImportWorkerEffect
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
+    readonly repository: NfeImportWorkerRepository
   }) => Promise<RuntimeConsumer | undefined>
 }
 
@@ -163,6 +237,7 @@ export async function startWorkerRuntime(
   const importStarter = dependencies.startImportConsumer ?? startNfeImportConsumer
   const distributionStarter = dependencies.startDistributionConsumer ?? startNfeDistributionConsumer
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
+  const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
     dependencies.createStorageGateway ??
@@ -190,6 +265,8 @@ export async function startWorkerRuntime(
   })
   const database = databaseFactory({ connection: config.databaseUrl })
   const storageGateway = storageGatewayFactory({ environment })
+  const storageBucket =
+    environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? 'transportada-private'
   const syntheticTopology = buildRabbitMqTopology(`${config.queuePrefix}.synthetic.v1`)
   const nfeImportTopology = buildNfeImportRabbitMqTopology({
     queuePrefix: config.queuePrefix,
@@ -198,6 +275,9 @@ export async function startWorkerRuntime(
     queuePrefix: config.queuePrefix,
   })
   const cteIssuanceTopology = buildCteIssuanceRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
+  const mdfeIssuanceTopology = buildMdfeIssuanceRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
   let provider: RabbitMqProvider | undefined
@@ -210,6 +290,9 @@ export async function startWorkerRuntime(
   let relayLoop: OutboxRelayLoop | undefined
   let cteRelayLoop: OutboxRelayLoop | undefined
   let cteIssuancePublisher: RabbitMqProvider | undefined
+  let mdfeIssuanceConsumer: RuntimeConsumer | undefined
+  let mdfeIssuancePublisher: RabbitMqProvider | undefined
+  let mdfeRelayLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
 
   try {
@@ -229,6 +312,10 @@ export async function startWorkerRuntime(
       connection: config.rabbitMqUrl,
       topology: cteIssuanceTopology,
     })
+    mdfeIssuancePublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: mdfeIssuanceTopology,
+    })
     const healthService = new WorkerHealthService({
       database,
       rabbitMq: provider,
@@ -246,29 +333,156 @@ export async function startWorkerRuntime(
     })
     importConsumer = await importStarter({
       config,
+      effect: createNfeImportConsumer({
+        archiveExpander: createNfeImportArchiveExpander(),
+        finalStorage: createNfeImportFinalStorage({
+          bucket: storageBucket,
+          gateway: storageGateway,
+        }),
+        repository: new DrizzleNfeImportConsumerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        sourceStorage: createNfeImportSourceStorage({
+          bucket: storageBucket,
+          gateway: storageGateway,
+        }),
+        xmlImporter: createNfeXmlImporter(),
+      }),
       logger,
       provider: importPublisher,
+      repository: new DrizzleNfeImportWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
     })
     distributionConsumer = await distributionStarter({
       config,
+      consumer: createNfeDistributionConsumer({
+        clock: { now: () => new Date() },
+        cursorRepository: new DrizzleNfeDistributionCursorRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        gatewayFactory: createNfeDistributionGatewayFactory({
+          createProvider: createAdatechnologyNfeDistributionProvider(),
+        }),
+        leaseMs: NFE_DISTRIBUTION_LEASE_MS,
+        logger,
+        profile: new DrizzleNfeDistributionProfileRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          { secretService: digitalCertificateSecretService },
+        ),
+        repository: createNfeDistributionPersistenceAdapter({
+          finalStorage: createNfeImportFinalStorage({
+            bucket: storageBucket,
+            gateway: storageGateway,
+          }),
+          repository: new DrizzleNfeDistributionRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          xmlImporter: createNfeXmlImporter(),
+        }),
+      }),
       logger,
       provider: distributionPublisher,
+      repository: new DrizzleNfeImportWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+    })
+    const cteIssuanceWriteBack = new DrizzleCteIssuanceWriteBackRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
+    const cteFiscalDocumentStorage = createCteFiscalDocumentStorage({
+      bucket: storageBucket,
+      gateway: storageGateway,
     })
     cteIssuanceConsumer = await cteIssuanceStarter({
       config,
       effect: createCteIssuanceWorkerEffect({
+        authorizedDocumentStorage: cteFiscalDocumentStorage,
+        cancellationDocumentStorage: cteFiscalDocumentStorage,
         createProvider: createAdatechnologyCteFiscalProvider,
         logger,
+        settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        resolveCancellationInput: createCteCancellationInputResolver({
+          certificateRepository: new DrizzleCteCertificateRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          payloadRepository: new DrizzleCteIssuancePayloadRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          secretService: digitalCertificateSecretService,
+          targetRepository: new DrizzleCteCancellationTargetRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+        }),
         resolveExecutionInput: createCteIssuanceExecutionInputResolver({
-          repository: new DrizzleCteIssuanceExecutionInputRepository(
+          certificateRepository: new DrizzleCteCertificateRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          payloadRepository: new DrizzleCteIssuancePayloadRepository(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
           ),
           secretService: digitalCertificateSecretService,
         }),
+        writeBack: cteIssuanceWriteBack,
       }),
       logger,
       provider: cteIssuancePublisher,
       repository: new DrizzleCteIssuanceWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        cteIssuanceWriteBack,
+      ),
+      retryPolicyResolver: new DrizzleCteRetryPolicyRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+    })
+    const mdfeIssuanceWriteBack = new DrizzleMdfeIssuanceWriteBackRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
+    const mdfeFiscalDocumentStorage = createMdfeFiscalDocumentStorage({
+      bucket: storageBucket,
+      gateway: storageGateway,
+    })
+    const mdfeEventResolverDependencies = {
+      certificateRepository: new DrizzleMdfeCertificateRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+      eventTargetRepository: new DrizzleMdfeEventTargetRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+      payloadRepository: new DrizzleMdfeIssuancePayloadRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+      secretService: digitalCertificateSecretService,
+    }
+    // Sem `createProvider`: o pacote fiscal ainda não expõe MDF-e, então o efeito apenas registra
+    // a tentativa pendente em vez de inventar uma emissão.
+    mdfeIssuanceConsumer = await mdfeIssuanceStarter({
+      config,
+      effect: createMdfeIssuanceWorkerEffect({
+        authorizedDocumentStorage: mdfeFiscalDocumentStorage,
+        eventDocumentStorage: mdfeFiscalDocumentStorage,
+        logger,
+        resolveCancellationInput: createMdfeCancellationInputResolver(
+          mdfeEventResolverDependencies,
+        ),
+        resolveClosureInput: createMdfeClosureInputResolver(mdfeEventResolverDependencies),
+        resolveExecutionInput: createMdfeIssuanceExecutionInputResolver(
+          mdfeEventResolverDependencies,
+        ),
+        settledAttemptGuard: new DrizzleMdfeSettledAttemptRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        writeBack: mdfeIssuanceWriteBack,
+      }),
+      logger,
+      provider: mdfeIssuancePublisher,
+      repository: new DrizzleMdfeIssuanceWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        mdfeIssuanceWriteBack,
+      ),
+      retryPolicyResolver: new DrizzleMdfeRetryPolicyRepository(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
@@ -328,13 +542,35 @@ export async function startWorkerRuntime(
       relay: cteRelay,
     })
     cteRelayLoop.start()
+    mdfeRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.mdfe.relay.${crypto.randomUUID()}`,
+      failureMessage: 'mdfe_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new MdfeOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new MdfeOutboxPublisherService(mdfeIssuancePublisher),
+        repository: new DrizzleMdfeOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error ? error : new Error('MDF-e outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    mdfeRelayLoop.start()
     const shutdown = new WorkerShutdown({
-      closeables: [relayLoop, cteRelayLoop, storageGateway],
+      closeables: [relayLoop, cteRelayLoop, mdfeRelayLoop, storageGateway],
       consumers: [
         syntheticConsumer,
         importConsumer,
         distributionConsumer,
         cteIssuanceConsumer,
+        mdfeIssuanceConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -343,6 +579,7 @@ export async function startWorkerRuntime(
         importPublisher,
         distributionPublisher,
         cteIssuancePublisher,
+        mdfeIssuancePublisher,
       ]),
     })
     registerWorkerShutdownSignals({ logger, shutdown })
@@ -362,13 +599,16 @@ export async function startWorkerRuntime(
     await importConsumer?.cancel().catch(() => undefined)
     await distributionConsumer?.cancel().catch(() => undefined)
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
+    await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
+    await mdfeRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
     await importPublisher?.close().catch(() => undefined)
     await cteIssuancePublisher?.close().catch(() => undefined)
+    await mdfeIssuancePublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
     throw error

@@ -1,8 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const CTE_SUBMIT = 'cte.submit'
+export const CTE_CANCEL = 'cte.cancel'
 export const SYNTHETIC_ACCESS_TOKEN = 'synthetic-access-token'
 export const SYNTHETIC_IDEMPOTENCY_KEY = 'cte-issuance-contract-key-0001'
 export const SYNTHETIC_REPROCESS_KEY = 'cte-reprocess-contract-key-0001'
+export const SYNTHETIC_CANCEL_KEY = 'cte-cancel-contract-key-0001'
+export const CTE_CANCEL_JUSTIFICATION = 'Prestacao de servico nao realizada pelo tomador'
 export const CTE_BATCH_ID = '00000000-0000-4000-8000-000000000601'
 export const CTE_BATCH_ITEM_ID = '00000000-0000-4000-8000-000000000602'
 export const CTE_ATTEMPT_ID = '00000000-0000-4000-8000-000000000603'
@@ -10,6 +13,7 @@ export const CTE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000604'
 
 export type CteIssuanceStatusContract =
   | 'authorized'
+  | 'cancelled'
   | 'failed'
   | 'rejected'
   | 'requested'
@@ -81,6 +85,17 @@ export const CTE_AUTHORIZED_ISSUANCE = {
   protocol: CTE_REJECTED_ISSUANCE.protocol,
   status: 'authorized',
   updatedAt: CTE_REJECTED_ISSUANCE.updatedAt,
+} as const satisfies CteIssuanceSummaryContract
+
+export const CTE_CANCEL_RESPONSE = {
+  ...CTE_ISSUE_RESPONSE,
+  requestedAt: '2026-07-23T12:20:00.000Z',
+} as const satisfies CteIssuanceRequestContract
+
+export const CTE_CANCELLED_ISSUANCE = {
+  ...CTE_AUTHORIZED_ISSUANCE,
+  status: 'cancelled',
+  updatedAt: '2026-07-23T12:25:00.000Z',
 } as const satisfies CteIssuanceSummaryContract
 
 export const CTE_RETRY_ISSUANCE = {

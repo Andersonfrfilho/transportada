@@ -4,7 +4,7 @@
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4 para especificacao, com revisao Sol por
+Modelo executor recomendado: Opus para especificacao, com revisao Opus por
 envolver auditoria, seguranca e leitura transversal de dados tenant-scoped.
 
 Estado inicial:
@@ -55,7 +55,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para schema transversal, auditoria,
+Modelo executor recomendado: Opus (alto) para schema transversal, auditoria,
 tenant safety, indices e bloqueio de payload sensivel.
 
 Contracts criados:
@@ -100,7 +100,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high por envolver schema transversal,
+Modelo executor recomendado: Opus (alto) por envolver schema transversal,
 auditoria, tenant safety, migration e rollback.
 
 Arquivos alterados:
@@ -208,7 +208,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high por cobrir auditoria, permissao,
+Modelo executor recomendado: Opus (alto) por cobrir auditoria, permissao,
 anti-enumeracao, filtros tenant-scoped e sanitizacao transversal.
 
 Arquivos criados/alterados:
@@ -255,7 +255,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high por envolver leitura transversal,
+Modelo executor recomendado: Opus (alto) por envolver leitura transversal,
 tenant-scope, sanitizacao, auditoria e repositorio SQL.
 
 Arquivos criados/alterados:
@@ -352,7 +352,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high + modelo economico para matriz de
+Modelo executor recomendado: Opus (alto) + modelo economico para matriz de
 filtros, por envolver RBAC, DTO strict, no-store, cursores e erros seguros.
 
 Arquivos criados/alterados:
@@ -401,7 +401,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4 + revisao Sol por envolver rotas
+Modelo executor recomendado: Opus + revisao Opus por envolver rotas
 tenant-scoped, RBAC, no-store, permissao nova e serializacao segura.
 
 Arquivos criados/alterados:
@@ -479,8 +479,8 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4 por ser contrato frontend previsivel,
-com revisao Sol posterior para seguranca/payload sensivel.
+Modelo executor recomendado: Opus por ser contrato frontend previsivel,
+com revisao Opus posterior para seguranca/payload sensivel.
 
 Arquivos criados/alterados:
 
@@ -525,7 +525,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4 + revisao Sol por envolver boundaries
+Modelo executor recomendado: Opus + revisao Opus por envolver boundaries
 de payload sensivel, polling controlado, permissao segregada e consistencia de
 estado no dashboard.
 
@@ -597,7 +597,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.4 + revisao Sol por ser uma validacao E2E
+Modelo executor recomendado: Opus + revisao Opus por ser uma validacao E2E
 previsivel, mas com impacto direto em boundary visual, permissao e fluxo real.
 
 Comando executado:
@@ -630,7 +630,7 @@ Observacao:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high + reviewer por envolver release
+Modelo executor recomendado: Opus (alto) + reviewer por envolver release
 review, ambiente local, migrations, worker, mensageria, auditoria e gates
 agregados.
 

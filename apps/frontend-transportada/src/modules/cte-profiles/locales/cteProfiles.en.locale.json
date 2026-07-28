@@ -1,0 +1,135 @@
+{
+  "kicker": "Administration",
+  "title": "CT-e emission profiles",
+  "intro": "Fiscal and charging parameters applied when CT-es are generated from the selected invoices.",
+  "loading": "Loading profiles",
+  "error": "Could not load the profiles",
+  "empty": "No profile registered",
+  "readOnly": "You are not allowed to manage emission profiles",
+  "listTitle": "Registered profiles",
+  "newProfile": "New profile",
+  "edit": "Edit",
+  "cancel": "Cancel",
+  "save": "Save profile",
+  "saved": "Profile saved",
+  "saveError": "Could not save the profile",
+  "versionConflict": "The profile changed in another session. Reload the page before saving.",
+  "activate": "Activate",
+  "deactivate": "Deactivate",
+  "columnName": "Name",
+  "columnStatus": "Status",
+  "columnPriority": "Priority",
+  "columnPercentage": "Rate",
+  "columnGrouping": "Grouping",
+  "columnActions": "Actions",
+  "status": {
+    "active": "Active",
+    "draft": "Draft",
+    "inactive": "Inactive"
+  },
+  "identificationLegend": "Identification",
+  "name": "Profile name",
+  "priority": "Priority",
+  "matchMode": "Profile resolution",
+  "matchModeOption": {
+    "manual": "Manual, picked during invoice selection",
+    "sender_tax_id": "Automatic by sender tax id"
+  },
+  "groupingMode": "CT-e grouping",
+  "groupingModeOption": {
+    "per_invoice": "One CT-e per invoice",
+    "sender_recipient": "Group by sender and recipient"
+  },
+  "chargeLegend": "Charging",
+  "percentage": "Rate over the invoice total (%)",
+  "percentageHint": "Operation default: 4.5% of the referenced invoice total.",
+  "minimumAmount": "Minimum freight per CT-e (BRL)",
+  "maximumAmount": "Cap per CT-e (BRL)",
+  "validFrom": "Valid from",
+  "validUntil": "Valid until",
+  "componentsLegend": "Additional components",
+  "addComponent": "Add component",
+  "removeComponent": "Remove component",
+  "componentLabel": "Description",
+  "componentCalculation": "Calculation base",
+  "componentCalculationOption": {
+    "fixed_amount": "Fixed amount",
+    "percentage_of_cargo": "Percentage of the cargo value",
+    "percentage_of_freight": "Percentage of the freight"
+  },
+  "componentRate": "Rate (%)",
+  "componentAmount": "Amount (BRL)",
+  "matchersLegend": "Linked tax ids",
+  "addMatcher": "Add tax id",
+  "removeMatcher": "Remove tax id",
+  "matchRole": "Role in the invoice",
+  "matchRoleOption": {
+    "recipient": "Recipient",
+    "sender": "Sender"
+  },
+  "taxId": "Full tax id or root",
+  "fiscalLegend": "Fiscal parameters",
+  "operationNature": "Operation nature",
+  "cfopInternal": "Internal CFOP",
+  "cfopInterstate": "Interstate CFOP",
+  "icmsCst": "ICMS CST",
+  "icmsCstOption": {
+    "00": "00 — Regular taxation",
+    "20": "20 — Reduced tax base",
+    "40": "40 — Exempt",
+    "41": "41 — Not taxed",
+    "51": "51 — Deferral",
+    "60": "60 — ICMS charged by substitution",
+    "90": "90 — Others"
+  },
+  "icmsRate": "ICMS rate (%)",
+  "icmsBaseReductionRate": "Tax base reduction (%)",
+  "modal": "Modal",
+  "modalOption": {
+    "01": "01 — Road",
+    "02": "02 — Air",
+    "03": "03 — Waterway",
+    "04": "04 — Rail",
+    "05": "05 — Pipeline"
+  },
+  "serviceType": "Service type",
+  "serviceTypeOption": {
+    "0": "0 — Regular",
+    "1": "1 — Subcontracting",
+    "2": "2 — Redispatch",
+    "3": "3 — Intermediate redispatch",
+    "4": "4 — Multimodal linked service"
+  },
+  "taker": "Service taker",
+  "takerOption": {
+    "0": "0 — Sender",
+    "1": "1 — Dispatcher",
+    "2": "2 — Receiver",
+    "3": "3 — Recipient"
+  },
+  "receiverIeIndicator": "Recipient state registration indicator",
+  "receiverIeOption": {
+    "1": "1 — ICMS taxpayer",
+    "2": "2 — Exempt taxpayer",
+    "9": "9 — Non taxpayer"
+  },
+  "pickupDetails": "Pickup details",
+  "pickupIndicator": "Receiver picks up at destination",
+  "pickupOption": {
+    "0": "0 — Yes",
+    "1": "1 — No"
+  },
+  "deliveryDays": "Delivery lead time (days)",
+  "chargeComponentLabel": "Freight component description",
+  "cargoInsuranceDeclared": "Declare cargo insurance",
+  "predominantProductMode": "Predominant product",
+  "predominantProductOption": {
+    "fixed": "Fixed",
+    "highest_value": "Highest value item",
+    "highest_weight": "Highest weight item"
+  },
+  "predominantProductName": "Predominant product name",
+  "observations": "CT-e observations",
+  "invalidRate": "Invalid rate",
+  "invalidAmount": "Invalid amount"
+}

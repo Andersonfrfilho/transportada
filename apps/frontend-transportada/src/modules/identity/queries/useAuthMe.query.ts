@@ -8,7 +8,14 @@ import { isSmokeAuthBypassEnabled } from '../shared/smokeAuthBypass.service'
 const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
 const AUTH_ME_PATH = '/auth/me'
 const SMOKE_AUTH_ME_STORAGE_KEY = 'transportada.smoke-auth-me'
-const COMPANY_ROLES = ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const
+const COMPANY_ROLES = [
+  'company-admin',
+  'finance',
+  'fiscal',
+  'operator',
+  'viewer',
+  'driver',
+] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
   'invoices.import',
@@ -18,12 +25,25 @@ const COMPANY_PERMISSIONS = [
   'freight.simulate',
   'cte.manage',
   'cte.submit',
+  'cte.issue',
+  'cte.cancel',
+  'cte.read',
   'billing.create',
   'billing.cancel',
   'billing.read',
   'settings.manage',
   'operations.read',
   'audit.read',
+  'view-preferences.manage',
+  'fleet.read',
+  'fleet.manage',
+  'mdfe.read',
+  'mdfe.manage',
+  'mdfe.issue',
+  'mdfe.close',
+  'mdfe.cancel',
+  'trip.read',
+  'trip.report',
 ] as const
 
 type CompanyRole = (typeof COMPANY_ROLES)[number]

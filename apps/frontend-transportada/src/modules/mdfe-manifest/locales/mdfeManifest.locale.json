@@ -1,0 +1,209 @@
+{
+  "kicker": "Emissão fiscal",
+  "title": "Manifestos MDF-e",
+  "intro": "Monte o manifesto a partir dos CT-es autorizados, transmita para a SEFAZ e encerre ou cancele a viagem.",
+  "loading": "Carregando manifestos",
+  "error": "Não foi possível carregar os manifestos",
+  "empty": "Nenhum manifesto encontrado",
+  "forbidden": "Seu acesso atual não permite consultar os manifestos MDF-e",
+  "resultCounter": "{{shown}} de {{total}} manifestos",
+  "manifestsTitle": "Manifestos",
+  "filters": {
+    "title": "Filtros",
+    "simple": "Simples",
+    "advanced": "Avançado",
+    "clear": "Limpar filtros",
+    "active": "{{count}} filtro(s) ativo(s)",
+    "fiscalNumber": "Número",
+    "status": "Situação",
+    "cteCountFrom": "CT-es (mínimo)",
+    "cteCountTo": "CT-es (máximo)",
+    "createdFrom": "Criado de",
+    "createdTo": "Criado até"
+  },
+  "status": {
+    "draft": "Rascunho",
+    "issuing": "Transmitindo",
+    "authorized": "Autorizado",
+    "rejected": "Rejeitado",
+    "closed": "Encerrado",
+    "cancelled": "Cancelado"
+  },
+  "columns": {
+    "title": "Colunas",
+    "cargoValue": "Valor da carga",
+    "cargoWeight": "Peso",
+    "createdAt": "Criado em",
+    "cteCount": "CT-es",
+    "destinationState": "UF destino",
+    "fiscalNumber": "Número",
+    "originState": "UF origem",
+    "status": "Situação",
+    "updatedAt": "Atualizado em",
+    "vehicleId": "Veículo"
+  },
+  "column": {
+    "moveUp": "Mover coluna para a esquerda",
+    "moveDown": "Mover coluna para a direita",
+    "toggle": "Exibir coluna"
+  },
+  "sort": {
+    "asc": "ordenado crescente",
+    "desc": "ordenado decrescente",
+    "none": "sem ordenação"
+  },
+  "selection": {
+    "selectAll": "Selecionar todos os manifestos",
+    "select": "Selecionar manifesto",
+    "summary": "{{count}} manifesto(s) selecionado(s)",
+    "clear": "Limpar seleção"
+  },
+  "actions": {
+    "title": "Ações",
+    "issue": "Transmitir",
+    "close": "Encerrar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "dismiss": "Desistir",
+    "create": "Criar manifesto",
+    "preview": "Gerar prévia",
+    "resetCreation": "Limpar rascunho"
+  },
+  "advanced": {
+    "title": "Condições avançadas",
+    "modelConnector": "Combinação entre grupos",
+    "groupConnector": "Combinação no grupo",
+    "addGroup": "Adicionar grupo",
+    "removeGroup": "Remover grupo",
+    "addCondition": "Adicionar condição",
+    "removeCondition": "Remover condição",
+    "field": "Campo",
+    "operator": "Operador",
+    "value": "Valor",
+    "valueTo": "Até"
+  },
+  "connector": {
+    "and": "E",
+    "or": "OU"
+  },
+  "operator": {
+    "between": "entre",
+    "contains": "contém",
+    "eq": "igual a",
+    "gt": "maior que",
+    "gte": "maior ou igual a",
+    "lt": "menor que",
+    "lte": "menor ou igual a",
+    "ne": "diferente de",
+    "notContains": "não contém"
+  },
+  "creation": {
+    "title": "Novo manifesto",
+    "batch": "Lote de CT-e",
+    "batchPlaceholder": "Selecione um lote",
+    "loadingBatches": "Carregando lotes",
+    "loadingCandidates": "Carregando CT-es do lote",
+    "candidates": "CT-es autorizados",
+    "candidatesEmpty": "Este lote ainda não tem CT-e autorizado com documento fiscal gravado.",
+    "selectCandidate": "Incluir CT-e no manifesto",
+    "selectedSummary": "{{count}} CT-e(s) selecionado(s)",
+    "vehicle": "Veículo",
+    "vehiclePlaceholder": "Selecione o veículo",
+    "drivers": "Motoristas",
+    "driversEmpty": "Cadastre um motorista ativo na frota antes de manifestar.",
+    "destinationState": "UF de destino",
+    "cargoProduct": "Produto predominante",
+    "cargoProductNcm": "NCM do produto",
+    "cargoType": "Tipo de carga",
+    "cargoUnit": "Unidade de peso",
+    "emitterType": "Tipo de emitente",
+    "transporterType": "Tipo de transportador",
+    "tripStartedAt": "Início da viagem",
+    "additionalInformation": "Informações adicionais",
+    "lotacaoLegend": "Carga lotação — contratante, frete e seguro",
+    "contractorName": "Contratante do transporte",
+    "contractorTaxId": "CNPJ ou CPF do contratante",
+    "freightValue": "Valor do frete",
+    "loadingPostalCode": "CEP de carregamento",
+    "dischargePostalCode": "CEP de descarregamento",
+    "insuranceEndorsement": "Averbação do seguro",
+    "previewTitle": "Prévia do manifesto",
+    "previewSummary": "{{count}} CT-e(s) · carga {{value}} · peso {{weight}}",
+    "previewRoute": "{{origin}} → {{destination}}",
+    "previewLoading": "Municípios de carregamento: {{cities}}",
+    "previewDischarge": "Municípios de descarregamento: {{cities}}",
+    "previewBlocked": "{{count}} CT-e(s) bloqueado(s) pela SEFAZ ou por já estarem manifestados",
+    "readOnly": "Seu acesso atual não permite criar manifestos.",
+    "pending": "Enviando manifesto…"
+  },
+  "cargoType": {
+    "01": "Granel sólido",
+    "02": "Granel líquido",
+    "03": "Frigorificada",
+    "04": "Conteinerizada",
+    "05": "Carga geral",
+    "06": "Neogranel",
+    "07": "Perigosa (granel sólido)",
+    "08": "Perigosa (granel líquido)",
+    "09": "Perigosa (carga frigorificada)",
+    "10": "Perigosa (conteinerizada)",
+    "11": "Perigosa (carga geral)",
+    "12": "Granel pressurizada"
+  },
+  "cargoUnit": {
+    "01": "Quilograma",
+    "02": "Tonelada"
+  },
+  "emitterType": {
+    "1": "Prestador de serviço de transporte",
+    "2": "Transporte de carga própria",
+    "3": "Prestador com CT-e globalizado"
+  },
+  "transporterType": {
+    "none": "Não informado",
+    "1": "ETC",
+    "2": "TAC",
+    "3": "CTC"
+  },
+  "formIssue": {
+    "cargoProductRequired": "Informe o produto predominante da carga.",
+    "destinationRequired": "Informe a UF de destino.",
+    "documentsRequired": "Selecione ao menos um CT-e autorizado.",
+    "driverRequired": "Selecione ao menos um motorista.",
+    "vehicleRequired": "Selecione o veículo de tração."
+  },
+  "issue": {
+    "title": "Transmitir manifesto {{fiscal}}",
+    "warning": "A transmissão envia o MDF-e para a SEFAZ e não pode ser desfeita."
+  },
+  "closure": {
+    "title": "Encerrar manifesto {{fiscal}}",
+    "warning": "O encerramento informa à SEFAZ o município onde a viagem terminou.",
+    "cityCode": "Código IBGE do município (7 dígitos)",
+    "state": "UF do encerramento",
+    "invalidCity": "Informe um código IBGE com 7 dígitos.",
+    "invalidState": "Informe a UF com duas letras maiúsculas."
+  },
+  "cancellation": {
+    "title": "Cancelar manifesto {{fiscal}}",
+    "warning": "O cancelamento é irreversível e só vale dentro da janela permitida pela SEFAZ.",
+    "justification": "Justificativa (15 a 255 caracteres)",
+    "placeholder": "Descreva o motivo do cancelamento",
+    "required": "Informe a justificativa.",
+    "tooShort": "A justificativa precisa de pelo menos 15 caracteres.",
+    "tooLong": "A justificativa não pode passar de 255 caracteres."
+  },
+  "feedback": {
+    "alreadyCancelled": "Este manifesto já foi cancelado.",
+    "alreadyClosed": "Este manifesto já foi encerrado.",
+    "documentAlreadyManifested": "Um dos CT-es já está em outro manifesto.",
+    "documentNotAuthorized": "Só CT-e autorizado pode entrar no manifesto.",
+    "inFlight": "Há uma transmissão em andamento para este manifesto.",
+    "notAuthorized": "O manifesto ainda não está autorizado.",
+    "notIssuable": "O manifesto não está em um estado que permita transmissão.",
+    "readOnly": "Seu acesso atual não permite esta ação.",
+    "requestFailed": "Não foi possível falar com a API.",
+    "responseInvalid": "A API respondeu em um formato inesperado.",
+    "windowExpired": "A janela de cancelamento da SEFAZ expirou."
+  }
+}

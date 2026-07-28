@@ -44,6 +44,7 @@ type SaveSettingsInput = {
 
 export type CompanySettingsTransactionPort = {
   appendAudit(record: AuditRecord): Promise<void>
+  findActiveCertificateCnpj(input: { readonly companyId: string }): Promise<string | null>
   findIdempotency(input: {
     readonly companyId: string
     readonly idempotencyKey: string
@@ -71,6 +72,7 @@ export class CompanySettingsUnitOfWorkFixture implements CompanySettingsUnitOfWo
   public auditError: Error | undefined
   public idempotencyError: Error | undefined
   public saveError: Error | undefined
+  public activeCertificateCnpj: string | null = null
   public settings: SafeCompanySettingsResult | null = null
 
   public async execute<TResult>(
@@ -99,6 +101,10 @@ export class CompanySettingsUnitOfWorkFixture implements CompanySettingsUnitOfWo
   public async appendAudit(record: AuditRecord): Promise<void> {
     if (this.auditError) throw this.auditError
     this.audits.push(structuredClone(record))
+  }
+
+  public async findActiveCertificateCnpj(): Promise<string | null> {
+    return this.activeCertificateCnpj
   }
 
   public async findIdempotency(input: {

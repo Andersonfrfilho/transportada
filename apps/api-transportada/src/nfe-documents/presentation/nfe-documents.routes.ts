@@ -13,11 +13,23 @@ const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } a
 
 type NfeDocumentSummary = {
   readonly accessKey: string
+  readonly emitterAddress: string | null
+  readonly emitterCity: string | null
+  readonly emitterCityCode: string | null
   readonly emitterName: string
+  readonly emitterState: string | null
+  readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly number: string
+  readonly recipientAddress: string | null
+  readonly recipientCity: string | null
+  readonly recipientCityCode: string | null
   readonly recipientName: string
-  readonly status: 'authorized' | 'cancelled' | 'denied'
+  readonly recipientState: string | null
+  readonly recipientTaxId: string | null
+  readonly series: string
+  readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
   readonly variant: 'complete' | 'summary' | 'event'
 }
@@ -155,10 +167,22 @@ export function createNfeDocumentRoutes(
 function serializeDocument(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
+    emitterAddress: document.emitterAddress,
+    emitterCity: document.emitterCity,
+    emitterCityCode: document.emitterCityCode,
     emitterName: document.emitterName,
+    emitterState: document.emitterState,
+    emitterTaxId: document.emitterTaxId,
     id: document.id,
     issuedAt: document.issuedAt,
+    number: document.number,
+    recipientAddress: document.recipientAddress,
+    recipientCity: document.recipientCity,
+    recipientCityCode: document.recipientCityCode,
     recipientName: document.recipientName,
+    recipientState: document.recipientState,
+    recipientTaxId: document.recipientTaxId,
+    series: document.series,
     status: document.status,
     totalAmount: document.totalAmount,
     variant: document.variant,

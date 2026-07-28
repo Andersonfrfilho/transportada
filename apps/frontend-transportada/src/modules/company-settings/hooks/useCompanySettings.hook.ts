@@ -6,8 +6,10 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   createCompanySettingsClient,
+  type CompanyProfileLookup,
   type CompanySettingsClient as SettingsClient,
   type CompanySettingsUpdate,
+  type SafeCertificate,
 } from '../shared/companySettingsClient.service'
 
 const SETTINGS_MANAGE = 'settings.manage'
@@ -18,7 +20,9 @@ export type CompanySettingsClient = SettingsClient
 
 export type CompanySettingsController = Readonly<{
   canManageSettings: boolean
-  replaceCertificate: (body: FormData) => Promise<void>
+  lookupProfileByCnpj: (cnpj: string) => Promise<CompanyProfileLookup | null>
+  retireCertificate: () => Promise<void>
+  replaceCertificate: (body: FormData) => Promise<SafeCertificate>
   save: (input: CompanySettingsUpdate) => Promise<void>
 }>
 
@@ -39,8 +43,11 @@ export function createCompanySettingsController(input: ControllerInput): Company
   const canManageSettings = input.permissions.includes(SETTINGS_MANAGE)
   return {
     canManageSettings,
+    lookupProfileByCnpj: (cnpj) =>
+      canManageSettings ? input.client.lookupProfileByCnpj(cnpj) : forbidden(),
+    retireCertificate: () => (canManageSettings ? input.client.retireCertificate() : forbidden()),
     replaceCertificate: (body) =>
-      canManageSettings ? input.client.replaceCertificate(body).then(() => undefined) : forbidden(),
+      canManageSettings ? input.client.replaceCertificate(body) : forbidden(),
     save: (update) =>
       canManageSettings ? input.client.updateSettings(update).then(() => undefined) : forbidden(),
   }
@@ -95,11 +102,23 @@ function useSettingsMutations(
       ])
     },
   })
+  const certificateRetireMutation = useMutation({
+    mutationFn: input.controller.retireCertificate,
+    async onSuccess() {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: input.settingsKey }),
+        queryClient.invalidateQueries({ queryKey: input.certificatesKey }),
+      ])
+    },
+  })
+  const lookupMutation = useMutation({
+    mutationFn: input.controller.lookupProfileByCnpj,
+  })
   const settingsMutation = useMutation({
     mutationFn: input.controller.save,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: input.settingsKey }),
   })
-  return { certificateMutation, settingsMutation }
+  return { certificateMutation, certificateRetireMutation, lookupMutation, settingsMutation }
 }
 
 export function useCompanySettings(

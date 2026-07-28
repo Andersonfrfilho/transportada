@@ -4,7 +4,9 @@
 import {
   DigitalCertificateIdempotencyConflictError,
   DigitalCertificateOperationFailedError,
+  DigitalCertificateProfileMissingError,
   DigitalCertificateRejectedError,
+  DigitalCertificateUnavailableError,
 } from '../domain/digital-certificate.error.js'
 import type { CertificateValidationOutcome } from './certificate-validation.port.js'
 import type { DigitalCertificateResult } from './digital-certificate.port.js'
@@ -88,7 +90,7 @@ async function validateAndEncrypt(input: {
   const profile = await input.dependencies.repository.findCompanyProfile({
     companyId: input.companyId,
   })
-  if (profile === null) throw new DigitalCertificateOperationFailedError()
+  if (profile === null) throw new DigitalCertificateProfileMissingError()
   const certificateBase64 = Buffer.from(input.request.certificate).toString('base64')
   const password = decodePassword(input.request.password)
   const outcome = input.dependencies.certificateValidationGateway.validate({
@@ -120,14 +122,19 @@ function acceptOutcome(input: {
   readonly outcome: CertificateValidationOutcome
 }): AcceptedCertificateOutcome {
   const { outcome } = input
-  const isAccepted =
-    outcome.valid &&
-    outcome.rejectionCodes.length === 0 &&
-    outcome.certificateCnpj === input.expectedCnpj &&
-    isValidDate(outcome.validFrom) &&
-    isValidDate(outcome.expiresAt) &&
-    outcome.validFrom.getTime() < outcome.expiresAt.getTime()
-  if (!isAccepted) throw new DigitalCertificateRejectedError()
+  if (!outcome.valid || outcome.rejectionCodes.length > 0) {
+    throw new DigitalCertificateRejectedError()
+  }
+  if (outcome.certificateCnpj !== input.expectedCnpj) {
+    throw new DigitalCertificateRejectedError()
+  }
+  if (
+    !isValidDate(outcome.validFrom) ||
+    !isValidDate(outcome.expiresAt) ||
+    outcome.validFrom.getTime() >= outcome.expiresAt.getTime()
+  ) {
+    throw new DigitalCertificateRejectedError()
+  }
   return outcome as AcceptedCertificateOutcome
 }
 
@@ -146,6 +153,8 @@ function decodePassword(password: Uint8Array): string {
 function isExpectedError(error: unknown): boolean {
   return (
     error instanceof DigitalCertificateRejectedError ||
+    error instanceof DigitalCertificateProfileMissingError ||
+    error instanceof DigitalCertificateUnavailableError ||
     error instanceof DigitalCertificateIdempotencyConflictError
   )
 }

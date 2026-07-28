@@ -3,6 +3,7 @@
  */
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 import type {
+  NfeDistributionStatus,
   NfeImportDetail,
   NfeImportSummary,
 } from '../../src/nfe-imports/application/nfe-import.types'
@@ -38,6 +39,10 @@ export type GetImportCall = {
   readonly importId: string
 }
 
+export type GetDistributionStatusCall = {
+  readonly context: CompanyContext
+}
+
 export type ReprocessImportCall = {
   readonly context: CompanyContext
   readonly correlationId: string
@@ -46,10 +51,22 @@ export type ReprocessImportCall = {
 
 export type NfeDocumentSummary = {
   readonly accessKey: string
+  readonly emitterAddress: string | null
+  readonly emitterCity: string | null
+  readonly emitterCityCode: string | null
   readonly emitterName: string
+  readonly emitterState: string | null
+  readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly number: string
+  readonly recipientAddress: string | null
+  readonly recipientCity: string | null
+  readonly recipientCityCode: string | null
   readonly recipientName: string
+  readonly recipientState: string | null
+  readonly recipientTaxId: string | null
+  readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied'
   readonly totalAmount: string
   readonly variant: 'complete' | 'summary' | 'event'
@@ -96,6 +113,9 @@ export type NfeHttpRouteDependencies = {
   }
   readonly getEligibility?: {
     execute(input: GetDocumentCall): Promise<NfeDocumentEligibility>
+  }
+  readonly getDistributionStatus: {
+    execute(input: GetDistributionStatusCall): Promise<NfeDistributionStatus>
   }
   readonly getImport: {
     execute(input: GetImportCall): Promise<NfeImportDetail>

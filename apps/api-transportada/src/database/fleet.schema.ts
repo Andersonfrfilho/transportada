@@ -1,0 +1,250 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { sql } from 'drizzle-orm'
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core'
+
+import { companies, userCompanyMemberships } from './identity.schema.js'
+import { inList } from './schema-check.constant.js'
+
+export const FLEET_VEHICLE_ROLES = ['traction', 'trailer'] as const
+export type FleetVehicleRole = (typeof FLEET_VEHICLE_ROLES)[number]
+
+export const FLEET_VEHICLE_STATUSES = ['active', 'inactive'] as const
+export type FleetVehicleStatus = (typeof FLEET_VEHICLE_STATUSES)[number]
+
+/** tpRod — 01 truck, 02 toco, 03 cavalo mecânico, 04 VAN, 05 utilitário, 06 outros. */
+export const MDFE_WHEEL_TYPES = ['01', '02', '03', '04', '05', '06'] as const
+export type MdfeWheelType = (typeof MDFE_WHEEL_TYPES)[number]
+
+/** tpCar — 00 não aplicável, 01 aberta, 02 fechada/baú, 03 granelera, 04 porta container, 05 sider. */
+export const MDFE_BODY_TYPES = ['00', '01', '02', '03', '04', '05'] as const
+export type MdfeBodyType = (typeof MDFE_BODY_TYPES)[number]
+
+export const FLEET_VEHICLE_OWNERSHIPS = ['own', 'aggregate', 'third_party'] as const
+export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIPS)[number]
+
+/** tpProp — 0 TAC agregado, 1 TAC independente, 2 outros. */
+export const MDFE_OWNER_TAX_REGIMES = ['0', '1', '2'] as const
+export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIMES)[number]
+
+export const FLEET_DRIVER_STATUSES = ['active', 'inactive'] as const
+export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUSES)[number]
+
+/** xNome do condutor cabe em 60 caracteres no layout 3.00. */
+const DRIVER_NAME_MAX_LENGTH = 60
+
+/** Mercosul (AAA1A23) e o formato antigo (AAA1234) cabem no mesmo padrão, sempre sem separador. */
+const PLATE_PATTERN = '^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$'
+
+const STATE_PATTERN = '^[A-Z]{2}$'
+
+export const fleetVehicles = pgTable(
+  'fleet_vehicles',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    plate: text().notNull(),
+    renavam: text().notNull().default(''),
+    role: text().$type<FleetVehicleRole>().notNull(),
+    status: text().$type<FleetVehicleStatus>().notNull().default('active'),
+    tareWeightKg: bigint('tare_weight_kg', { mode: 'bigint' }).notNull().default(0n),
+    capacityKg: bigint('capacity_kg', { mode: 'bigint' }).notNull().default(0n),
+    capacityM3: bigint('capacity_m3', { mode: 'bigint' }).notNull().default(0n),
+    wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
+    bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
+    state: text().notNull(),
+    ownership: text().$type<FleetVehicleOwnership>().notNull().default('own'),
+    ownerTaxId: text('owner_tax_id').notNull().default(''),
+    ownerName: text('owner_name').notNull().default(''),
+    ownerState: text('owner_state').notNull().default(''),
+    ownerRntrc: text('owner_rntrc').notNull().default(''),
+    ownerTaxRegime: text('owner_tax_regime').$type<MdfeOwnerTaxRegime | ''>().notNull().default(''),
+    version: bigint({ mode: 'bigint' }).notNull().default(1n),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'fleet_vehicles_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('fleet_vehicles_company_id_id_unique').on(table.companyId, table.id),
+    unique('fleet_vehicles_company_id_plate_unique').on(table.companyId, table.plate),
+    index('fleet_vehicles_company_status_plate_idx').on(table.companyId, table.status, table.plate),
+    check('fleet_vehicles_plate_check', sql`${table.plate} ~ ${sql.raw(`'${PLATE_PATTERN}'`)}`),
+    check(
+      'fleet_vehicles_renavam_check',
+      sql`length(${table.renavam}) = 0 or ${table.renavam} ~ '^[0-9]{9,11}$'`,
+    ),
+    check(
+      'fleet_vehicles_role_check',
+      sql`${table.role} in (${sql.raw(inList(FLEET_VEHICLE_ROLES))})`,
+    ),
+    check(
+      'fleet_vehicles_status_check',
+      sql`${table.status} in (${sql.raw(inList(FLEET_VEHICLE_STATUSES))})`,
+    ),
+    check(
+      'fleet_vehicles_capacity_check',
+      sql`${table.tareWeightKg} >= 0 and ${table.capacityKg} >= 0 and ${table.capacityM3} >= 0`,
+    ),
+    check(
+      'fleet_vehicles_wheel_type_check',
+      sql`(${table.role} = 'traction') = (${table.wheelType} in (${sql.raw(inList(MDFE_WHEEL_TYPES))}))`,
+    ),
+    check(
+      'fleet_vehicles_body_type_check',
+      sql`${table.bodyType} in (${sql.raw(inList(MDFE_BODY_TYPES))})`,
+    ),
+    check(
+      'fleet_vehicles_state_check',
+      sql`${table.state} ~ ${sql.raw(`'${STATE_PATTERN}'`)} and (length(${table.ownerState}) = 0 or ${table.ownerState} ~ ${sql.raw(`'${STATE_PATTERN}'`)})`,
+    ),
+    check(
+      'fleet_vehicles_ownership_check',
+      sql`${table.ownership} in (${sql.raw(inList(FLEET_VEHICLE_OWNERSHIPS))})`,
+    ),
+    check(
+      'fleet_vehicles_owner_check',
+      sql`case when ${table.ownership} = 'own' then length(${table.ownerTaxId}) = 0 and length(${table.ownerName}) = 0 and length(${table.ownerState}) = 0 and length(${table.ownerRntrc}) = 0 and length(${table.ownerTaxRegime}) = 0 else length(${table.ownerTaxId}) > 0 and length(${table.ownerName}) > 0 and length(${table.ownerState}) > 0 and length(${table.ownerRntrc}) > 0 and length(${table.ownerTaxRegime}) > 0 end`,
+    ),
+    check(
+      'fleet_vehicles_owner_tax_id_check',
+      sql`length(${table.ownerTaxId}) = 0 or ${table.ownerTaxId} ~ '^[0-9]{11}$' or ${table.ownerTaxId} ~ '^[0-9]{14}$'`,
+    ),
+    check(
+      'fleet_vehicles_owner_rntrc_check',
+      sql`length(${table.ownerRntrc}) = 0 or ${table.ownerRntrc} ~ '^[0-9]{8}$'`,
+    ),
+    check(
+      'fleet_vehicles_owner_tax_regime_check',
+      sql`length(${table.ownerTaxRegime}) = 0 or ${table.ownerTaxRegime} in (${sql.raw(inList(MDFE_OWNER_TAX_REGIMES))})`,
+    ),
+    check('fleet_vehicles_version_check', sql`${table.version} > 0`),
+  ],
+)
+
+export const fleetDrivers = pgTable(
+  'fleet_drivers',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    membershipId: uuid('membership_id'),
+    name: text().notNull(),
+    taxId: text('tax_id').notNull(),
+    licenseNumber: text('license_number').notNull().default(''),
+    phone: text().notNull().default(''),
+    status: text().$type<FleetDriverStatus>().notNull().default('active'),
+    version: bigint({ mode: 'bigint' }).notNull().default(1n),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'fleet_drivers_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.membershipId, table.companyId],
+      foreignColumns: [userCompanyMemberships.id, userCompanyMemberships.companyId],
+      name: 'fleet_drivers_company_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('fleet_drivers_company_id_id_unique').on(table.companyId, table.id),
+    unique('fleet_drivers_company_id_tax_id_unique').on(table.companyId, table.taxId),
+    uniqueIndex('fleet_drivers_company_membership_unique')
+      .on(table.companyId, table.membershipId)
+      .where(sql`${table.membershipId} is not null`),
+    index('fleet_drivers_company_status_name_idx').on(table.companyId, table.status, table.name),
+    check('fleet_drivers_tax_id_check', sql`${table.taxId} ~ '^[0-9]{11}$'`),
+    check(
+      'fleet_drivers_name_check',
+      sql`length(${table.name}) > 0 and length(${table.name}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))}`,
+    ),
+    check(
+      'fleet_drivers_license_number_check',
+      sql`length(${table.licenseNumber}) = 0 or ${table.licenseNumber} ~ '^[0-9]{11}$'`,
+    ),
+    check(
+      'fleet_drivers_phone_check',
+      sql`length(${table.phone}) = 0 or ${table.phone} ~ '^[0-9]{10,11}$'`,
+    ),
+    check(
+      'fleet_drivers_status_check',
+      sql`${table.status} in (${sql.raw(inList(FLEET_DRIVER_STATUSES))})`,
+    ),
+    check('fleet_drivers_version_check', sql`${table.version} > 0`),
+  ],
+)
+
+export const fleetDriverVehicleAssignments = pgTable(
+  'fleet_driver_vehicle_assignments',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    driverId: uuid('driver_id').notNull(),
+    vehicleId: uuid('vehicle_id').notNull(),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'fleet_driver_vehicle_assignments_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'fleet_driver_vehicle_assignments_company_driver_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.vehicleId],
+      foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
+      name: 'fleet_driver_vehicle_assignments_company_vehicle_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('fleet_driver_vehicle_assignments_company_id_id_unique').on(table.companyId, table.id),
+    uniqueIndex('fleet_driver_vehicle_assignments_live_vehicle_unique')
+      .on(table.companyId, table.vehicleId)
+      .where(sql`${table.releasedAt} is null`),
+    uniqueIndex('fleet_driver_vehicle_assignments_live_driver_unique')
+      .on(table.companyId, table.driverId)
+      .where(sql`${table.releasedAt} is null`),
+    index('fleet_driver_vehicle_assignments_company_driver_assigned_at_idx').on(
+      table.companyId,
+      table.driverId,
+      table.assignedAt,
+    ),
+    check(
+      'fleet_driver_vehicle_assignments_period_check',
+      sql`${table.releasedAt} is null or ${table.releasedAt} >= ${table.assignedAt}`,
+    ),
+  ],
+)

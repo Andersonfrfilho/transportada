@@ -7,6 +7,7 @@ import {
   COMPANY_CONTEXT,
   CTE_BATCHES_PATH,
   DOCUMENT_ID,
+  EMISSION_PROFILE_ID,
   EVENTS_PAGE,
   IDEMPOTENCY_KEY,
   SUBMIT_IDEMPOTENCY_KEY,
@@ -57,6 +58,52 @@ describe('CT-e batch HTTP create, submit, and query contract', () => {
     ])
     expect(JSON.stringify(responseBody)).not.toContain('xml')
     expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  test('forwards the emission profile and grouping mode selected during note selection', async () => {
+    const fixture = await createCteBatchHttpFixture()
+
+    const response = await fixture.handle(
+      createBatchRequest({
+        body: {
+          documentIds: [DOCUMENT_ID],
+          emissionProfileId: EMISSION_PROFILE_ID,
+          groupingMode: 'sender_recipient',
+          name: 'Lote CT-e julho',
+        },
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'cte-batch-http-correlation',
+        documentIds: [DOCUMENT_ID],
+        emissionProfileId: EMISSION_PROFILE_ID,
+        groupingMode: 'sender_recipient',
+        idempotencyKey: IDEMPOTENCY_KEY,
+        name: 'Lote CT-e julho',
+      },
+    ])
+  })
+
+  test('rejects an unknown grouping mode before application work', async () => {
+    const fixture = await createCteBatchHttpFixture()
+
+    const response = await fixture.handle(
+      createBatchRequest({
+        body: {
+          documentIds: [DOCUMENT_ID],
+          groupingMode: 'per_carrier',
+          name: 'Lote CT-e julho',
+        },
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
+    expect(fixture.createCalls).toEqual([])
   })
 
   test('submits a batch by path id with idempotency key and returns processing state', async () => {

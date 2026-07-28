@@ -25,8 +25,7 @@ export const createCompanySettingsViewModel: CompanySettingsViewModelFactory = (
   const settings = input.data?.data
   if (settings?.profile === null || settings?.cte === null || settings === undefined)
     return { status: 'empty' }
-  const activeCertificate =
-    settings.activeCertificate ?? input.certificates?.data.find(({ status }) => status === 'active')
+  const activeCertificate = input.certificates?.data.find(({ status }) => status === 'active')
   const safeCertificate =
     activeCertificate === undefined
       ? undefined

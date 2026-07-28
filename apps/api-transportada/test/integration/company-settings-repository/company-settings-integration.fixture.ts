@@ -68,7 +68,17 @@ export function createContext(companyId: string, userId: string): CompanyContext
 export function createSettings(cnpj: string): CompanySettingsInput {
   return {
     cte: { environment: 'homologation', nextNumber: 13_809n, series: 1n },
+    cteRetry: { backoffSeconds: [10, 60, 900], maxAttempts: 5 },
     expectedVersion: null,
+    mdfe: {
+      bankBranch: '1234',
+      bankCode: '341',
+      insurancePolicy: '1234567890',
+      insuranceResponsibility: '1',
+      insurerName: 'Seguradora Integration',
+      insurerTaxId: '11222333000181',
+      pixKey: '',
+    },
     profile: {
       city: 'Ribeirao Preto',
       cityIbgeCode: '3543402',

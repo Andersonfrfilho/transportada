@@ -4,11 +4,15 @@ import { describe, expect, test } from 'bun:test'
 import {
   CTE_BATCH_ID,
   CTE_BATCH_ITEM_ID,
+  CTE_CANCELLED_ISSUANCE,
+  CTE_CANCEL_JUSTIFICATION,
+  CTE_CANCEL_RESPONSE,
   CTE_DOCUMENT_PAGE,
   CTE_ISSUE_RESPONSE,
   CTE_REJECTED_ISSUANCE,
   CTE_REPROCESS_RESPONSE,
   SYNTHETIC_ACCESS_TOKEN,
+  SYNTHETIC_CANCEL_KEY,
   SYNTHETIC_IDEMPOTENCY_KEY,
   SYNTHETIC_REPROCESS_KEY,
   loadFutureModule,
@@ -91,6 +95,53 @@ describe('CT-e issuance client and queries contract', () => {
     ).not.toContain('<cte')
   })
 
+  test('sends the SEFAZ justification and its own idempotency key on the cancel request', async () => {
+    const requests: Request[] = []
+    const { createCteIssuanceClient } = await loadFutureModule<CteIssuanceClientModule>(
+      '../../src/modules/cte-issuance/shared/cteIssuanceClient.service',
+    )
+    const client = createCteIssuanceClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return resolveSyntheticResponse(request)
+      },
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+    })
+
+    expect(
+      await client.cancelItem({
+        batchId: CTE_BATCH_ID,
+        batchItemId: CTE_BATCH_ITEM_ID,
+        idempotencyKey: SYNTHETIC_CANCEL_KEY,
+        justification: CTE_CANCEL_JUSTIFICATION,
+      }),
+    ).toEqual(CTE_CANCEL_RESPONSE)
+
+    const [cancelRequest] = requests
+    if (cancelRequest === undefined) throw new Error('CTE_ISSUANCE_CONTRACT_REQUEST_MISSING')
+    expect(cancelRequest.url).toBe(
+      `https://api.example.test/cte-batches/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}/cancel`,
+    )
+    expect(cancelRequest.method).toBe('POST')
+    expect(cancelRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
+    expect(cancelRequest.headers.get('idempotency-key')).toBe(SYNTHETIC_CANCEL_KEY)
+    expect(cancelRequest.cache).toBe('no-store')
+    expect(await cancelRequest.json()).toEqual({ justification: CTE_CANCEL_JUSTIFICATION })
+  })
+
+  test('accepts a cancelled issuance so the tracking panel survives the 110111 event', async () => {
+    const { createCteIssuanceResponseAdapters } = await loadFutureModule<CteIssuanceAdaptersModule>(
+      '../../src/modules/cte-issuance/shared/cteIssuanceResponse.validation',
+    )
+    const adapters = createCteIssuanceResponseAdapters()
+
+    expect(adapters.issuanceFromApi({ data: CTE_CANCELLED_ISSUANCE })).toEqual(
+      CTE_CANCELLED_ISSUANCE,
+    )
+  })
+
   test('keeps DTO boundaries strict and rejects XML, storage keys and tenant selectors', async () => {
     const { createCteIssuanceResponseAdapters } = await loadFutureModule<CteIssuanceAdaptersModule>(
       '../../src/modules/cte-issuance/shared/cteIssuanceResponse.validation',
@@ -119,6 +170,9 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url.endsWith(`/cte-batches/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}/reprocess`)) {
     return Promise.resolve(Response.json({ data: CTE_REPROCESS_RESPONSE }))
   }
+  if (request.url.endsWith(`/cte-batches/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}/cancel`)) {
+    return Promise.resolve(Response.json({ data: CTE_CANCEL_RESPONSE }))
+  }
   if (request.url.endsWith(`/cte-batches/${CTE_BATCH_ID}/items/${CTE_BATCH_ITEM_ID}/issuance`)) {
     return Promise.resolve(Response.json({ data: CTE_REJECTED_ISSUANCE }))
   }
@@ -134,6 +188,12 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
 }
 
 type CteIssuanceClient = {
+  cancelItem(input: {
+    readonly batchId: string
+    readonly batchItemId: string
+    readonly idempotencyKey: string
+    readonly justification: string
+  }): Promise<unknown>
   getIssuance(input: { readonly batchId: string; readonly batchItemId: string }): Promise<unknown>
   issueBatch(input: { readonly batchId: string; readonly idempotencyKey: string }): Promise<unknown>
   listDocuments(input: { readonly batchId: string; readonly batchItemId: string }): Promise<unknown>

@@ -1,0 +1,52 @@
+{
+  "panel": {
+    "title": "Acompanhamento do CT-e",
+    "loading": "Consultando a situação na SEFAZ",
+    "error": "Não foi possível consultar a situação deste CT-e",
+    "forbidden": "Seu acesso atual não permite acompanhar a emissão",
+    "empty": "Nenhuma tentativa de emissão registrada para este CT-e",
+    "accessKey": "Chave de acesso",
+    "protocol": "Protocolo de autorização",
+    "environment": "Ambiente",
+    "updatedAt": "Atualizado em",
+    "rejectionCode": "Código da rejeição",
+    "rejectionCause": "Motivo informado pela SEFAZ",
+    "documents": "XML autorizado disponível",
+    "polling": "Atualizando automaticamente enquanto a SEFAZ processa"
+  },
+  "environment": {
+    "homologation": "Homologação",
+    "production": "Produção"
+  },
+  "timeline": {
+    "authorized": {
+      "title": "Autorizado",
+      "description": "A SEFAZ autorizou o CT-e e o XML já está armazenado."
+    },
+    "failed": {
+      "title": "Falha técnica",
+      "description": "A tentativa não chegou a uma resposta da SEFAZ e pode ser reprocessada."
+    },
+    "rejected": {
+      "title": "Rejeitado",
+      "description": "A SEFAZ recusou o CT-e. Corrija a causa e reprocesse a emissão."
+    },
+    "requested": {
+      "title": "Transmitindo",
+      "description": "A emissão foi enfileirada e aguarda a resposta da SEFAZ."
+    },
+    "retry_scheduled": {
+      "title": "Nova tentativa agendada",
+      "description": "Houve uma falha temporária e uma nova tentativa já está programada."
+    }
+  },
+  "actions": {
+    "download": "Baixar XML",
+    "reprocess": "Reprocessar",
+    "close": "Fechar acompanhamento"
+  },
+  "errors": {
+    "download": "O XML autorizado ainda não está disponível para download",
+    "reprocess": "Não foi possível solicitar o reprocessamento"
+  }
+}

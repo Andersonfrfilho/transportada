@@ -1,0 +1,14 @@
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancellation_justification" text;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancellation_requested_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancellation_protocol" text;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancelled_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancellation_xml_object_id" uuid;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD COLUMN "cancellation_xml_sha256" text;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD CONSTRAINT "cte_fiscal_documents_company_cancellation_xml_object_fk" FOREIGN KEY ("company_id","cancellation_xml_object_id") REFERENCES "stored_objects"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD CONSTRAINT "cte_fiscal_documents_cancellation_justification_check" CHECK ("cancellation_justification" is null or length("cancellation_justification") >= 15);--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD CONSTRAINT "cte_fiscal_documents_cancellation_sha256_check" CHECK ("cancellation_xml_sha256" is null or "cancellation_xml_sha256" ~ '^[0-9a-f]{64}$');--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD CONSTRAINT "cte_fiscal_documents_cancellation_xml_check" CHECK (("cancellation_xml_object_id" is null) = ("cancellation_xml_sha256" is null));--> statement-breakpoint
+ALTER TABLE "cte_fiscal_documents" ADD CONSTRAINT "cte_fiscal_documents_cancelled_state_check" CHECK ("status" <> 'cancelled' or ("cancellation_protocol" is not null and "cancellation_justification" is not null and "cancelled_at" is not null));--> statement-breakpoint
+ALTER TABLE "cte_issuance_events" DROP CONSTRAINT "cte_issuance_events_name_check", ADD CONSTRAINT "cte_issuance_events_name_check" CHECK ("event_name" in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled'));--> statement-breakpoint
+ALTER TABLE "cte_issuance_outbox" DROP CONSTRAINT "cte_issuance_outbox_attempt_kind_check", ADD CONSTRAINT "cte_issuance_outbox_attempt_kind_check" CHECK ("attempt_kind" in ('issue', 'reprocess', 'cancel'));--> statement-breakpoint
+ALTER TABLE "cte_issuance_outbox" DROP CONSTRAINT "cte_issuance_outbox_event_type_check", ADD CONSTRAINT "cte_issuance_outbox_event_type_check" CHECK ("event_type" in ('transportada.cte.item.issue.requested', 'transportada.cte.item.cancel.requested'));

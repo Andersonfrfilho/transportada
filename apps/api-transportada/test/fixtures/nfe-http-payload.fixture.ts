@@ -10,6 +10,7 @@ import {
 } from './nfe-import-application.fixture'
 import type { NfeDocumentDetail, NfeDocumentSummary } from './nfe-http.types'
 import type {
+  NfeDistributionStatus,
   NfeImportDetail,
   NfeImportItem,
   NfeImportSummary,
@@ -35,6 +36,16 @@ export const DISTRIBUTION_RESPONSE: NfeImportSummary = {
   source: 'distribution',
 }
 
+export const DISTRIBUTION_STATUS: NfeDistributionStatus = {
+  canPull: true,
+  environment: 'homologation',
+  lastPulledAt: '2026-07-22T13:40:00.000Z',
+  maxNsu: '000000000000120',
+  nextAllowedAt: null,
+  pullInProgress: false,
+  ultNsu: '000000000000120',
+}
+
 export const REPROCESS_RESPONSE: NfeImportSummary = {
   ...FAILED_IMPORT,
   id: IMPORT_ID,
@@ -45,10 +56,22 @@ export const REPROCESS_RESPONSE: NfeImportSummary = {
 
 export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
   accessKey: DOCUMENT_ACCESS_KEY,
+  emitterAddress: 'Rua das Cargas, 100 - Centro',
+  emitterCity: 'Campinas',
+  emitterCityCode: '3509502',
   emitterName: 'Emitente Teste LTDA',
+  emitterState: 'SP',
+  emitterTaxId: '61156864000191',
   id: DOCUMENT_ID,
   issuedAt: '2026-07-22T14:00:00.000Z',
+  number: '000012345',
+  recipientAddress: 'Avenida Logística, 500 - Distrito Industrial',
+  recipientCity: 'Jundiaí',
+  recipientCityCode: '3525904',
   recipientName: 'TransportAdA LTDA',
+  recipientState: 'SP',
+  recipientTaxId: '12345678000199',
+  series: '001',
   status: 'authorized',
   totalAmount: '1250.4500',
   variant: 'complete',
@@ -95,10 +118,22 @@ export function serializeImportDetail(detail: NfeImportDetail): object {
 export function serializeDocumentSummary(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
+    emitterAddress: document.emitterAddress,
+    emitterCity: document.emitterCity,
+    emitterCityCode: document.emitterCityCode,
     emitterName: document.emitterName,
+    emitterState: document.emitterState,
+    emitterTaxId: document.emitterTaxId,
     id: document.id,
     issuedAt: document.issuedAt,
+    number: document.number,
+    recipientAddress: document.recipientAddress,
+    recipientCity: document.recipientCity,
+    recipientCityCode: document.recipientCityCode,
     recipientName: document.recipientName,
+    recipientState: document.recipientState,
+    recipientTaxId: document.recipientTaxId,
+    series: document.series,
     status: document.status,
     totalAmount: document.totalAmount,
     variant: document.variant,

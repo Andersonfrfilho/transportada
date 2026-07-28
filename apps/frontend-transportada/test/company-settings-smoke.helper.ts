@@ -18,7 +18,6 @@ const CORS_HEADERS = {
 
 const COMPANY_SETTINGS = {
   data: {
-    activeCertificate: null,
     cte: { environment: 'homologation', nextNumber: '1', series: '1', version: '1' },
     profile: {
       city: 'Ribeirao Preto',

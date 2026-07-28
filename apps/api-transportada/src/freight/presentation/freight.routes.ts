@@ -12,6 +12,11 @@ import {
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import {
+  parseChangeFreightRuleStatusRequest,
+  parseUpdateFreightRuleRequest,
+  type FreightRuleMutationFilters,
+} from './freight-rule-mutation.schema.js'
+import {
   parseCreateFreightRuleRequest,
   parseFreightCalculationList,
   parseFreightRuleList,
@@ -141,6 +146,25 @@ type CreateFreightRuleInput = {
   readonly validUntil: string | null
 }
 
+type UpdateFreightRuleInput = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly expectedCurrentVersion: string
+  readonly filters: FreightRuleMutationFilters
+  readonly freightRuleId: string
+  readonly maximumAmount: string | null
+  readonly minimumAmount: string | null
+  readonly percentage: string
+  readonly validFrom: string
+  readonly validUntil: string | null
+}
+
+type ChangeFreightRuleStatusInput = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly freightRuleId: string
+}
+
 type SimulateFreightInput = {
   readonly context: CompanyContext
   readonly correlationId: string
@@ -149,8 +173,14 @@ type SimulateFreightInput = {
 }
 
 type Dependencies = {
+  readonly activateRule: {
+    execute(input: ChangeFreightRuleStatusInput): Promise<FreightRuleSummary>
+  }
   readonly createRule: {
     execute(input: CreateFreightRuleInput): Promise<FreightRuleSummary>
+  }
+  readonly deactivateRule: {
+    execute(input: ChangeFreightRuleStatusInput): Promise<FreightRuleSummary>
   }
   readonly listCalculations: {
     execute(input: FreightCalculationListInput & { readonly context: CompanyContext }): Promise<{
@@ -166,6 +196,9 @@ type Dependencies = {
   }
   readonly simulate: {
     execute(input: SimulateFreightInput): Promise<FreightCalculationDetail>
+  }
+  readonly updateRule: {
+    execute(input: UpdateFreightRuleInput): Promise<FreightRuleSummary>
   }
 }
 
@@ -203,6 +236,43 @@ export function createFreightRoutes(
         }
       },
       pathname: API_FREIGHT_RULES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<UpdateFreightRuleInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const rule = await dependencies.updateRule.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: serializeFreightRule(rule) }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ correlationId, pathParameters, request }) {
+        return {
+          correlationId,
+          freightRuleId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(await parseUpdateFreightRuleRequest(request)),
+        }
+      },
+      pathname: `${API_FREIGHT_RULES_PATH}/:id`,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<
+      Omit<ChangeFreightRuleStatusInput, 'context'> & { readonly status: 'active' | 'inactive' }
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const { status, ...transition } = input
+        const useCase =
+          status === 'active' ? dependencies.activateRule : dependencies.deactivateRule
+        const rule = await useCase.execute({ ...transition, context: context.scope })
+        return jsonResponse({ body: { data: serializeFreightRule(rule) }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ correlationId, pathParameters, request }) {
+        return {
+          correlationId,
+          freightRuleId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(await parseChangeFreightRuleStatusRequest(request)),
+        }
+      },
+      pathname: `${API_FREIGHT_RULES_PATH}/:id/status`,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<Omit<SimulateFreightInput, 'context'>>({

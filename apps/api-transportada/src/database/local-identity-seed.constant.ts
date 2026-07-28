@@ -9,4 +9,10 @@ export const LOCAL_MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000005'
 export const LOCAL_KEYCLOAK_ISSUER = 'http://localhost:58080/realms/transportada-local'
 export const LOCAL_PROJECT_NAME = 'transportada'
 export const LOCAL_IDENTITY_SEED_LOCK_ID = 14_014
-export const LOCAL_IDENTITY_ROLES = ['viewer'] as const
+export const LOCAL_IDENTITY_ROLES = [
+  'company-admin',
+  'finance',
+  'fiscal',
+  'operator',
+  'viewer',
+] as const

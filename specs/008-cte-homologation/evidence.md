@@ -4,7 +4,7 @@
 
 Data: 2026-07-22
 
-Modelo executor recomendado: Codex 5.4, com revisão Sol para decisões fiscais.
+Modelo executor recomendado: Opus, com revisão Opus para decisões fiscais.
 
 Estado inicial: criação da estrutura de spec/plan/tasks para fase 6 do plano de
 entrega.
@@ -51,7 +51,7 @@ Observação:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para idempotência fiscal,
+Modelo executor recomendado: Opus (alto) para idempotência fiscal,
 numeração, transação e persistência multiempresa.
 
 Escopo entregue:
@@ -123,7 +123,7 @@ Observações:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para ack pós-commit, redelivery,
+Modelo executor recomendado: Opus (alto) para ack pós-commit, redelivery,
 backoff persistido e DLQ fiscal.
 
 Contracts confirmados:
@@ -163,7 +163,7 @@ Observação:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para lifecycle de worker, RabbitMQ,
+Modelo executor recomendado: Opus (alto) para lifecycle de worker, RabbitMQ,
 idempotência, retries e efeito fiscal externo.
 
 Validações confirmadas:
@@ -223,7 +223,7 @@ Observações:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para RBAC fiscal, anti-enumeração,
+Modelo executor recomendado: Opus (alto) para RBAC fiscal, anti-enumeração,
 DTO strict, no-store e bloqueio de produção fiscal.
 
 Contracts criados:
@@ -264,7 +264,7 @@ Observação:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para HTTP fiscal, RBAC, roteamento
+Modelo executor recomendado: Opus (alto) para HTTP fiscal, RBAC, roteamento
 multi-parametro, anti-enumeração e integração com worker assíncrono.
 
 Implementação confirmada:
@@ -336,8 +336,8 @@ Observações:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 para matriz mecânica de contracts, com
-revisão Sol quando integrar UI fiscal.
+Modelo executor recomendado: Sonnet para matriz mecânica de contracts, com
+revisão Opus quando integrar UI fiscal.
 
 Contracts criados:
 
@@ -377,8 +377,8 @@ Observação:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3 para implementação frontend mecânica,
-com revisão Sol por envolver status fiscal e ausência de payload sensível.
+Modelo executor recomendado: Sonnet para implementação frontend mecânica,
+com revisão Opus por envolver status fiscal e ausência de payload sensível.
 
 Implementação confirmada:
 
@@ -433,7 +433,7 @@ Observação:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex 5.3, com revisão Sol.
+Modelo executor recomendado: Sonnet, com revisão Opus.
 
 Implementação confirmada:
 
@@ -461,7 +461,7 @@ Resultado:
 
 Data: 2026-07-23
 
-Modelo executor recomendado: Codex Sol high para revisão de release com impacto fiscal.
+Modelo executor recomendado: Opus (alto) para revisão de release com impacto fiscal.
 
 Comandos executados:
 

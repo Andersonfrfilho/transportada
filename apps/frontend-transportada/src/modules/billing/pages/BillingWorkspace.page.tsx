@@ -96,32 +96,60 @@ export function BillingWorkspacePage() {
   }
 
   return (
-    <main>
-      <h1>{t('title')}</h1>
+    <main className="workspace-shell">
+      <header className="workspace-hero">
+        <div>
+          <p className="workspace-kicker">Fechamento financeiro</p>
+          <h1>{t('title')}</h1>
+          <p className="workspace-intro">
+            Selecione CT-e elegiveis, gere a fatura e acompanhe os documentos financeiros do lote.
+          </p>
+        </div>
+        <div className="workspace-status-card">
+          <span>Estado atual</span>
+          <strong>{t(`status.${viewModel.status}`)}</strong>
+          <p className="workspace-status-text">
+            {t('eligible.summary', { count: selectedIds.length, total: totalSelectedAmount })}
+          </p>
+        </div>
+      </header>
       <p
+        className={
+          viewModel.status === 'error' || viewModel.status === 'forbidden'
+            ? 'workspace-boundary'
+            : 'workspace-status-text'
+        }
         role={viewModel.status === 'error' || viewModel.status === 'forbidden' ? 'alert' : 'status'}
       >
         {t(`status.${viewModel.status}`)}
       </p>
       {viewModel.status === 'forbidden' ? null : (
-        <>
-          <section>
+        <div className="workspace-grid">
+          <section className="workspace-panel">
             <h2>{t('filters.title')}</h2>
-            {FILTER_FIELDS.map((field) => (
-              <label key={field}>
-                <span>{t(`filters.${field}`)}</span>
-                <input
-                  onChange={(event) => updateFilter(field, event.target.value)}
-                  type="text"
-                  value={filters[field] ?? ''}
-                />
-              </label>
-            ))}
-            <button onClick={() => setFilters({})} type="button">
-              {t('filters.clear')}
-            </button>
+            <div className="workspace-filter-grid">
+              {FILTER_FIELDS.map((field) => (
+                <label key={field}>
+                  <span>{t(`filters.${field}`)}</span>
+                  <input
+                    onChange={(event) => updateFilter(field, event.target.value)}
+                    type="text"
+                    value={filters[field] ?? ''}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="workspace-actions">
+              <button
+                className="workspace-secondary-action"
+                onClick={() => setFilters({})}
+                type="button"
+              >
+                {t('filters.clear')}
+              </button>
+            </div>
           </section>
-          <section>
+          <section className="workspace-panel workspace-panel-full">
             <h2>{t('eligible.title')}</h2>
             <p>
               {t('eligible.summary', { count: selectedIds.length, total: totalSelectedAmount })}
@@ -129,7 +157,7 @@ export function BillingWorkspacePage() {
             {eligibleItems.length === 0 ? (
               <p>{t('eligible.empty')}</p>
             ) : (
-              <table>
+              <table className="workspace-table">
                 <thead>
                   <tr>
                     <th>{t('eligible.select')}</th>
@@ -166,7 +194,7 @@ export function BillingWorkspacePage() {
               </table>
             )}
           </section>
-          <section>
+          <section className="workspace-panel">
             <h2>{t('create.title')}</h2>
             <label>
               <span>{t('create.dueDate')}</span>
@@ -177,6 +205,7 @@ export function BillingWorkspacePage() {
               />
             </label>
             <button
+              className="workspace-primary-action"
               disabled={!viewModel.canCreateBilling || selectedIds.length === 0 || dueDate === ''}
               onClick={() => void handleCreateInvoice()}
               type="button"
@@ -184,7 +213,7 @@ export function BillingWorkspacePage() {
               {t('create.submit')}
             </button>
           </section>
-          <section>
+          <section className="workspace-panel">
             <h2>{t('invoice.title')}</h2>
             <label>
               <span>{t('invoice.lookup')}</span>
@@ -213,6 +242,7 @@ export function BillingWorkspacePage() {
               />
             </label>
             <button
+              className="workspace-secondary-action"
               disabled={
                 !viewModel.canCancelBilling ||
                 selectedInvoiceId === '' ||
@@ -224,16 +254,17 @@ export function BillingWorkspacePage() {
               {t('cancel.submit')}
             </button>
           </section>
-          <section>
+          <section className="workspace-panel">
             <h2>{t('documents.title')}</h2>
             {(workspace.documentsQuery.data?.items ?? []).length === 0 ? (
               <p>{t('documents.empty')}</p>
             ) : (
-              <ul>
+              <ul className="workspace-list">
                 {workspace.documentsQuery.data?.items.map((document) => (
                   <li key={document.documentId}>
-                    <span>{document.documentType}</span>
+                    <strong>{document.documentType}</strong>
                     <button
+                      className="workspace-secondary-action"
                       disabled={!viewModel.canDownloadBillingDocument}
                       onClick={() => downloadController.openDocument(document)}
                       type="button"
@@ -245,7 +276,7 @@ export function BillingWorkspacePage() {
               </ul>
             )}
           </section>
-        </>
+        </div>
       )}
     </main>
   )
