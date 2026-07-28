@@ -167,6 +167,11 @@ test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente d
 worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
 	@SERVICES="postgres rabbitmq minio" $(MAKE) up
 	@set -a; . "./$(ENV_FILE)"; set +a; \
+		worker_database="$$(bun apps/worker-transportada/scripts/provision-integration-database.ts)"; \
+		worker_database_url="$${DATABASE_URL%/*}/$$worker_database"; \
+		DATABASE_URL="$$worker_database_url" \
+		bun run --cwd apps/api-transportada db:migrate && \
+		DATABASE_URL="$$worker_database_url" \
 		RABBITMQ_TEST_URL="$${RABBITMQ_TEST_URL:-$$RABBITMQ_URL}" \
 		bun run --cwd apps/worker-transportada test:integration
 

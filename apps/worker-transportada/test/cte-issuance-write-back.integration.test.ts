@@ -157,10 +157,6 @@ describeDatabase('CT-e issuance write-back (integration)', () => {
     await database.execute(sql`delete from cte_batch_events where company_id = ${companyId}`)
     await database.execute(sql`delete from cte_fiscal_documents where company_id = ${companyId}`)
     await database.execute(sql`delete from cte_issuance_attempts where company_id = ${companyId}`)
-    await database.execute(
-      sql`delete from fiscal_sequence_reservations where company_id = ${companyId}`,
-    )
-    await database.execute(sql`delete from fiscal_sequences where company_id = ${companyId}`)
     await database.execute(sql`delete from cte_batch_items where company_id = ${companyId}`)
     await database.execute(sql`delete from cte_batches where company_id = ${companyId}`)
     await database.execute(sql`delete from freight_calculations where company_id = ${companyId}`)
@@ -173,7 +169,8 @@ describeDatabase('CT-e issuance write-back (integration)', () => {
       sql`delete from user_company_memberships where company_id = ${companyId}`,
     )
     await database.execute(sql`delete from identity_users where id = ${userId}`)
-    await database.execute(sql`delete from companies where id = ${companyId}`)
+    // Reservas fiscais são append-only e prendem sequência e empresa por FK restrita: o resíduo
+    // fica contido no banco dedicado da integração do worker.
     await provider.close()
   })
 
