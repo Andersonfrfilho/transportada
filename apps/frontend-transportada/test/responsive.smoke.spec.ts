@@ -16,6 +16,7 @@ const VIEWPORTS = {
 type ViewportName = keyof typeof VIEWPORTS
 
 const CTE_BATCH_VIEWPORTS: readonly ViewportName[] = ['mobile', 'tablet', 'desktop']
+const CTE_BATCH_FORBIDDEN_MESSAGE = 'Seu acesso atual não permite consultar os lotes de CT-e'
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   await expect
@@ -58,12 +59,10 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'cte-batch'))
     await loginAsLocalUser(page)
 
-    await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-    await expect(
-      page.getByText('Seu acesso atual nao permite consultar este workspace.'),
-    ).toHaveCount(0)
-    await expect(page.getByText(/^Lote CT-e julho$/)).toBeVisible()
-    await expect(page.getByText(/Status:/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+    await expect(page.getByText(CTE_BATCH_FORBIDDEN_MESSAGE)).toHaveCount(0)
+    await expect(page.getByRole('cell', { exact: true, name: 'Lote CT-e julho' })).toBeVisible()
+    await expect(page.getByRole('cell', { exact: true, name: 'Concluído' })).toBeVisible()
     await assertNoHorizontalOverflow(page)
     expect(api.batchCreations()).toBe(0)
     expect(api.submissions()).toBe(0)
@@ -84,12 +83,10 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'cte-batch'))
     await loginAsLocalUser(page)
 
-    await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-    await expect(
-      page.getByText('Seu acesso atual nao permite consultar este workspace.'),
-    ).toHaveCount(0)
-    await expect(page.getByText(/^Lote CT-e julho$/)).toBeVisible()
-    await expect(page.getByText(/Status:/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+    await expect(page.getByText(CTE_BATCH_FORBIDDEN_MESSAGE)).toHaveCount(0)
+    await expect(page.getByRole('cell', { exact: true, name: 'Lote CT-e julho' })).toBeVisible()
+    await expect(page.getByRole('cell', { exact: true, name: 'Erro' })).toBeVisible()
     await assertNoHorizontalOverflow(page)
     expect(api.batchCreations()).toBe(0)
     expect(api.submissions()).toBe(0)
@@ -110,13 +107,12 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'cte-batch'))
     await loginAsLocalUser(page)
 
-    await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-    await expect(
-      page.getByText('Seu acesso atual nao permite consultar este workspace.'),
-    ).toHaveCount(0)
-    await expect(page.getByText(/^Lote CT-e julho$/)).toBeVisible()
-    await expect(page.getByText(/Status:/)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Submeter lote CT-e' })).toBeDisabled()
+    await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+    await expect(page.getByText(CTE_BATCH_FORBIDDEN_MESSAGE)).toHaveCount(0)
+    await expect(page.getByRole('cell', { exact: true, name: 'Lote CT-e julho' })).toBeVisible()
+    await expect(page.getByRole('cell', { exact: true, name: 'Em processamento' })).toBeVisible()
+    // Lote em voo não é submetível: a ação some da linha em vez de ficar desabilitada.
+    await expect(page.getByRole('button', { name: 'Submeter' })).toHaveCount(0)
     await assertNoHorizontalOverflow(page)
     expect(api.batchCreations()).toBe(0)
     expect(api.submissions()).toBe(0)
@@ -174,9 +170,7 @@ test('user without freight permissions sees a closed workspace boundary on deskt
   await auditAuthenticationStorage(page)
 })
 
-test('admin creates and submits a CT-e batch on mobile without horizontal overflow', async ({
-  page,
-}) => {
+test('admin submits a CT-e batch on mobile without horizontal overflow', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile)
   await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'cte-batch'))
   const api = await mockCteBatchWorkspaceApi({
@@ -185,21 +179,19 @@ test('admin creates and submits a CT-e batch on mobile without horizontal overfl
   })
   await loginAsLocalUser(page)
 
-  await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-  await expect(page.getByText('Documento elegivel para CT-e')).toBeVisible()
-  await page.getByRole('button', { name: 'Criar lote CT-e' }).click()
-  await expect.poll(api.batchCreations).toBe(1)
-  await page.getByRole('button', { name: 'Submeter lote CT-e' }).click()
+  await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+  await expect(page.getByRole('cell', { exact: true, name: 'Rascunho' })).toBeVisible()
+  await page.getByRole('button', { name: 'Submeter' }).click()
   await expect.poll(api.submissions).toBe(1)
-  await expect(page.getByText('Status: submitted')).toBeVisible()
-  await expect
-    .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
-    .toBe(true)
+  await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  // O lote nasce no workspace de notas: aqui não existe criação, só operação sobre o lote.
+  expect(api.batchCreations()).toBe(0)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })
 
-test('usuario sem permissao cte visualiza boundary no tablet e usa filtros de estado', async ({
+test('usuario sem permissao cte visualiza boundary no tablet sem tabela nem filtros', async ({
   page,
 }) => {
   await page.setViewportSize(VIEWPORTS.tablet)
@@ -207,19 +199,18 @@ test('usuario sem permissao cte visualiza boundary no tablet e usa filtros de es
   const api = await mockCteBatchWorkspaceApi({ page, permissions: [] })
   await loginAsLocalUser(page)
 
-  await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-  await expect(page.getByRole('alert')).toContainText(
-    'Seu acesso atual nao permite consultar este workspace.',
-  )
-  await expect(page.getByRole('button', { name: 'Submeter lote CT-e' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Cancelar lote CT-e' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Criar lote CT-e' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(CTE_BATCH_FORBIDDEN_MESSAGE)
+  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Filtros' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Submeter' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Cancelar lote' })).toHaveCount(0)
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })
 
-test('usuario com acesso consulta filtros de status e valor diferente de no desktop', async ({
+test('usuario com acesso filtra lotes por situacao e por condicao avancada no desktop', async ({
   page,
 }) => {
   await page.setViewportSize(VIEWPORTS.desktop)
@@ -231,17 +222,18 @@ test('usuario com acesso consulta filtros de status e valor diferente de no desk
   })
   await loginAsLocalUser(page)
 
-  await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Status do lote' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Status diferente de' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Filtro avançado' })).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'Valor do filtro avançado' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Filtros' })).toBeVisible()
+
+  await page.getByRole('checkbox', { name: 'Concluído' }).check()
+  await expect(page.getByRole('cell', { exact: true, name: 'Lote CT-e julho' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Limpar filtros' })).toBeVisible()
 
-  await page.getByRole('combobox', { name: 'Status do lote' }).selectOption('done')
-  await page.getByRole('combobox', { name: 'Status diferente de' }).selectOption('error')
-  await page.getByRole('combobox', { name: 'Filtro avançado' }).selectOption('itemCountGt')
-  await page.getByRole('textbox', { name: 'Valor do filtro avançado' }).fill('1')
+  await page.getByRole('button', { name: 'Avançado' }).click()
+  await page.getByRole('combobox', { name: 'Campo' }).selectOption('status')
+  await page.getByRole('combobox', { name: 'Operador' }).selectOption('ne')
+  await page.getByRole('combobox', { name: 'Valor', exact: true }).selectOption('error')
+  await expect(page.getByRole('cell', { exact: true, name: 'Lote CT-e julho' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
 
   expect(api.failures()).toEqual([])
@@ -257,15 +249,12 @@ test('submitter handles an existing CT-e draft on tablet without management cont
   const api = await mockCteBatchWorkspaceApi({ page, permissions: ['cte.submit'] })
   await loginAsLocalUser(page)
 
-  await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Criar lote CT-e' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Cancelar lote CT-e' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Submeter lote CT-e' }).click()
+  await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancelar lote' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Submeter' }).click()
   await expect.poll(api.submissions).toBe(1)
-  await expect(page.getByText('Status: submitted')).toBeVisible()
-  await expect
-    .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
-    .toBe(true)
+  await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
   expect(api.batchCreations()).toBe(0)
   expect(api.cancellations()).toBe(0)
   expect(api.failures()).toEqual([])
@@ -278,14 +267,12 @@ test('manager cancels a CT-e batch on desktop without submit controls', async ({
   const api = await mockCteBatchWorkspaceApi({ page, permissions: ['cte.manage'] })
   await loginAsLocalUser(page)
 
-  await expect(page.getByRole('heading', { name: 'Workspace de CT-e' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Submeter lote CT-e' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Cancelar lote CT-e' }).click()
+  await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Submeter' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancelar lote' }).click()
   await expect.poll(api.cancellations).toBe(1)
-  await expect(page.getByText('Status: cancelled')).toBeVisible()
-  await expect
-    .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
-    .toBe(true)
+  await expect(page.getByRole('cell', { exact: true, name: 'Cancelado' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
   expect(api.submissions()).toBe(0)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)

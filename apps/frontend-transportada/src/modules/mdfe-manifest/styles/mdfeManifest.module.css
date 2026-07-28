@@ -203,6 +203,7 @@
 }
 
 .tableScroll {
+  position: relative;
   overflow-x: auto;
 }
 

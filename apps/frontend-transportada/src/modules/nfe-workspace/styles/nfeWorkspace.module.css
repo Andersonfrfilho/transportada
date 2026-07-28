@@ -969,6 +969,7 @@
 }
 
 .tableWrap {
+  position: relative;
   width: 100%;
   overflow-x: auto;
   border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);

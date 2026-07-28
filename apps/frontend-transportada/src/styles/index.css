@@ -660,6 +660,13 @@ a {
   font-size: 1rem;
 }
 
+/* Tabela não encolhe abaixo do min-content: sem este scroller a página inteira estica no mobile. */
+.workspace-table-scroll {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
 .workspace-table {
   border-collapse: collapse;
 }

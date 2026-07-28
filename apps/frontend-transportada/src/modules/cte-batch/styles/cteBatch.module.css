@@ -190,7 +190,9 @@
   align-items: center;
 }
 
+/* Sem position, o .srOnly absoluto resolve o bloco contêiner fora do scroller e estica a página. */
 .tableScroll {
+  position: relative;
   overflow-x: auto;
 }
 

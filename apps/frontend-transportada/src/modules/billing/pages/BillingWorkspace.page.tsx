@@ -107,7 +107,7 @@ export function BillingWorkspacePage() {
         </div>
         <div className="workspace-status-card">
           <span>Estado atual</span>
-          <strong>{t(`status.${viewModel.status}`)}</strong>
+          <strong>{viewModel.status}</strong>
           <p className="workspace-status-text">
             {t('eligible.summary', { count: selectedIds.length, total: totalSelectedAmount })}
           </p>
@@ -157,41 +157,43 @@ export function BillingWorkspacePage() {
             {eligibleItems.length === 0 ? (
               <p>{t('eligible.empty')}</p>
             ) : (
-              <table className="workspace-table">
-                <thead>
-                  <tr>
-                    <th>{t('eligible.select')}</th>
-                    <th>{t('eligible.cteNumber')}</th>
-                    <th>{t('eligible.customer')}</th>
-                    <th>{t('eligible.totalAmount')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {eligibleItems.map((item) => (
-                    <tr key={item.cteId}>
-                      <td>
-                        <input
-                          checked={selectedIds.includes(item.cteId)}
-                          disabled={!viewModel.canCreateBilling}
-                          onChange={(event) =>
-                            setSelectedIds((current) =>
-                              event.target.checked
-                                ? drafts.createSelectionDraft({
-                                    selectedIds: [...current, item.cteId],
-                                  }).selectedIds
-                                : current.filter((id) => id !== item.cteId),
-                            )
-                          }
-                          type="checkbox"
-                        />
-                      </td>
-                      <td>{item.cteNumber}</td>
-                      <td>{item.customerName}</td>
-                      <td>{item.totalAmount}</td>
+              <div className="workspace-table-scroll">
+                <table className="workspace-table">
+                  <thead>
+                    <tr>
+                      <th>{t('eligible.select')}</th>
+                      <th>{t('eligible.cteNumber')}</th>
+                      <th>{t('eligible.customer')}</th>
+                      <th>{t('eligible.totalAmount')}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {eligibleItems.map((item) => (
+                      <tr key={item.cteId}>
+                        <td>
+                          <input
+                            checked={selectedIds.includes(item.cteId)}
+                            disabled={!viewModel.canCreateBilling}
+                            onChange={(event) =>
+                              setSelectedIds((current) =>
+                                event.target.checked
+                                  ? drafts.createSelectionDraft({
+                                      selectedIds: [...current, item.cteId],
+                                    }).selectedIds
+                                  : current.filter((id) => id !== item.cteId),
+                              )
+                            }
+                            type="checkbox"
+                          />
+                        </td>
+                        <td>{item.cteNumber}</td>
+                        <td>{item.customerName}</td>
+                        <td>{item.totalAmount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
           <section className="workspace-panel">
