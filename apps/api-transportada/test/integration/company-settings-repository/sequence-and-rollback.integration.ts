@@ -63,6 +63,8 @@ async function updateProfileAndAssertAudit(
     .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id))
   expect(audits).toHaveLength(2)
   expect(audits[1]?.beforeSnapshot).toEqual({
+    cteRetryBackoffSeconds: '10,60,900',
+    cteRetryMaxAttempts: '5',
     environment: 'homologation',
     nextNumber: '13809',
     profileVersion: '1',
