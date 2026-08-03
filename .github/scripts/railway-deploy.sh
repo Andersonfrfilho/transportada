@@ -5,6 +5,9 @@ set -euo pipefail
 readonly POLL_INTERVAL_SECONDS=10
 readonly POLL_ATTEMPTS=90
 readonly TERMINAL_FAILURE_STATUSES='FAILED CRASHED REMOVED SKIPPED'
+# `SUCCESS` marca o release publicado, não o processo vivo: um contêiner em crash-loop passa por
+# `SUCCESS` antes de virar `CRASHED`. Só aceitamos o deploy depois de o status se sustentar.
+readonly STABLE_CONFIRMATIONS=3
 
 usage() {
   echo "uso: $0 <deploy|has-succeeded> <serviço>" >&2
@@ -43,6 +46,7 @@ sys.exit(0 if any(d.get("status") == "SUCCESS" for d in deployments) else 1)'
 wait_for_deployment() {
   local service="$1"
   local status
+  local confirmations=0
 
   for _ in $(seq 1 "$POLL_ATTEMPTS"); do
     status="$(latest_status "$service")"
@@ -54,10 +58,16 @@ wait_for_deployment() {
         ;;
     esac
     if [ "$status" = SUCCESS ]; then
-      echo "$service: deploy concluído"
-      return 0
+      confirmations=$((confirmations + 1))
+      if [ "$confirmations" -ge "$STABLE_CONFIRMATIONS" ]; then
+        echo "$service: deploy concluído"
+        return 0
+      fi
+      echo "$service: SUCCESS ($confirmations/$STABLE_CONFIRMATIONS)"
+    else
+      confirmations=0
+      echo "$service: $status"
     fi
-    echo "$service: $status"
     sleep "$POLL_INTERVAL_SECONDS"
   done
 

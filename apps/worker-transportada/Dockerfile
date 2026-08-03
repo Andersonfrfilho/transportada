@@ -22,7 +22,9 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 transportada \
   && adduser --system --uid 1001 --ingroup transportada transportada
 
+# O Bun instala por workspace: as dependências da app ficam no node_modules dela, não na raiz.
 COPY --from=production-dependencies /app/node_modules node_modules
+COPY --from=production-dependencies /app/apps/worker-transportada/node_modules apps/worker-transportada/node_modules
 COPY --from=build /app/apps/worker-transportada/dist apps/worker-transportada/dist
 COPY apps/worker-transportada/package.json apps/worker-transportada/package.json
 
