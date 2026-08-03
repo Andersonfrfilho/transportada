@@ -5,9 +5,15 @@ Contexto operacional do monorepo **TransportAdA**. Para regras de processo compl
 
 ## Produto
 
-TMS multiempresa (SaaS) para transportadoras: importa NF-e → organiza em lotes → calcula frete →
-emite CT-e 4.00 em lote via `@adatechnology/fiscal-provider` → armazena XMLs fiscais → gera faturas.
-Genérico e parametrizável — nenhuma regra ou CNPJ de transportadora específica no código.
+TMS para transportadoras: importa NF-e → organiza em lotes → calcula frete → emite CT-e 4.00 em lote
+via `@adatechnology/fiscal-provider` → armazena XMLs fiscais → gera faturas. Genérico e
+parametrizável — nenhuma regra ou CNPJ de transportadora específica no código.
+
+**Distribuição é instalação dedicada: um deploy por transportadora** (ADR-0021). A empresa não é
+criada em tempo de execução — ela é o ambiente. Não existe `POST /companies` nem ator de plataforma;
+`companies.manage` segue reservada e sem consumidor. O isolamento multiempresa (`companyId`,
+membership, contratos negativos) **continua invariável**: é capacidade do produto — uma transportadora
+costuma ter mais de um CNPJ — e defesa em profundidade, não o modelo comercial.
 
 ## Estrutura
 

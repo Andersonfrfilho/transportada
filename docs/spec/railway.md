@@ -1,5 +1,10 @@
 # Railway: staging e production
 
+> A distribuição é **um deploy por transportadora** (ADR-0021). Este projeto do
+> Railway, com os seus dois ambientes, é a instalação de **um** cliente. Cliente
+> novo é projeto novo, com o mesmo pipeline e as mesmas variáveis — nunca um
+> segundo tenant dentro do mesmo banco, fila, bucket ou realm.
+
 - dashboard: `https://railway.com/project/62de4c69-216a-4335-93a0-4942c6a95c54`;
 - project ID: `62de4c69-216a-4335-93a0-4942c6a95c54`;
 - production ID: `4e24a47a-1514-4106-9d38-52420bd4cef6`;
