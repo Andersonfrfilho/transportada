@@ -104,26 +104,29 @@ export async function assertFleetConstraints(
   await expectQueryToFail(
     database`
       insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
-      values (${companyId}, ${secondDriverId}, ${vehicleId})
+      values (${companyId}, ${driverId}, ${vehicleId})
     `,
     '23505',
-    'fleet_driver_vehicle_assignments_live_vehicle_unique',
+    'fleet_driver_vehicle_assignments_live_link_unique',
   )
-  await expectQueryToFail(
-    database`
-      insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
-      values (${companyId}, ${driverId}, ${trailerId})
-    `,
-    '23505',
-    'fleet_driver_vehicle_assignments_live_driver_unique',
-  )
+
+  // O vínculo vivo é único pela trinca: o mesmo veículo aceita outro motorista e o mesmo
+  // motorista aceita outro veículo ao mesmo tempo.
+  await database`
+    insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
+    values (${companyId}, ${secondDriverId}, ${vehicleId})
+  `
+  await database`
+    insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
+    values (${companyId}, ${driverId}, ${trailerId})
+  `
 
   await database`
     update fleet_driver_vehicle_assignments set released_at = now() where id = ${assignmentId}
   `
   await database`
     insert into fleet_driver_vehicle_assignments (company_id, driver_id, vehicle_id)
-    values (${companyId}, ${secondDriverId}, ${vehicleId})
+    values (${companyId}, ${driverId}, ${vehicleId})
   `
 
   return { otherCompanyId, vehicleId, trailerId, driverId, secondDriverId }
