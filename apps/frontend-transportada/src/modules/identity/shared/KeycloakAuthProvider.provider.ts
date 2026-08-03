@@ -15,11 +15,15 @@ export type IdentityProfile = {
   readonly subtitle: string | undefined
 }
 
+export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
+
 export type KeycloakAuthProvider = {
   getAccessToken(): Promise<string>
   getProfile(): IdentityProfile
   initialize(): Promise<void>
   logout(): Promise<void>
+  onSessionExpired(listener: () => void): () => void
+  restartAuthentication(): Promise<void>
 }
 
 const FALLBACK_PROFILE: IdentityProfile = {
@@ -98,6 +102,12 @@ function createSmokeAuthProvider(): KeycloakAuthProvider {
       window.location.assign('/')
       return Promise.resolve()
     },
+    onSessionExpired(): () => void {
+      return () => undefined
+    },
+    restartAuthentication(): Promise<void> {
+      return Promise.resolve()
+    },
   }
 }
 
@@ -173,16 +183,25 @@ export function createKeycloakAuthProvider(
   keycloak: KeycloakClient,
   redirectUri: string,
 ): KeycloakAuthProvider {
+  const sessionExpiryListeners = new Set<() => void>()
+
+  /** Redirecionar aqui abortaria o `fetch` em voo — a tela decide quando reautenticar. */
+  function expireSession(): never {
+    keycloak.clearToken()
+    for (const listener of sessionExpiryListeners) listener()
+    throw new Error(IDENTITY_SESSION_EXPIRED)
+  }
+
   return {
     async getAccessToken(): Promise<string> {
       try {
         await keycloak.updateToken(TOKEN_MINIMUM_VALIDITY_SECONDS)
       } catch {
-        return restartAuthentication(keycloak, redirectUri)
+        return expireSession()
       }
 
       if (keycloak.token === undefined) {
-        return restartAuthentication(keycloak, redirectUri)
+        return expireSession()
       }
 
       return keycloak.token
@@ -217,6 +236,17 @@ export function createKeycloakAuthProvider(
     async logout(): Promise<void> {
       keycloak.clearToken()
       await keycloak.logout({ redirectUri: new URL(redirectUri).origin })
+    },
+    onSessionExpired(listener: () => void): () => void {
+      sessionExpiryListeners.add(listener)
+      return () => {
+        sessionExpiryListeners.delete(listener)
+      }
+    },
+    async restartAuthentication(): Promise<void> {
+      persistPostAuthenticationPath()
+      keycloak.clearToken()
+      await keycloak.login({ redirectUri })
     },
   }
 }

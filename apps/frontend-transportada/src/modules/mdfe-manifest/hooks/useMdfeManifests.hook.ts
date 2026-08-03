@@ -41,6 +41,7 @@ export type MdfeManifestController = Readonly<{
   cancelManifest: (input: MdfeCancelInput) => Promise<MdfeIssuanceSummary>
   closeManifest: (input: MdfeCloseInput) => Promise<MdfeIssuanceSummary>
   createManifest: (input: MdfeManifestCreateBody) => Promise<MdfeManifestDetail>
+  discardManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   getManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   issueManifest: (input: MdfeActionInput) => Promise<MdfeIssuanceSummary>
   listManifests: (input: MdfeManifestListInput) => Promise<MdfeManifestPage>
@@ -76,6 +77,8 @@ export function createMdfeManifestController(input: ControllerInput): MdfeManife
     closeManifest: (body) => (canCloseManifests ? input.client.closeManifest(body) : forbidden()),
     createManifest: (body) =>
       canManageManifests ? input.client.createManifest(body) : forbidden(),
+    discardManifest: (body) =>
+      canManageManifests ? input.client.discardManifest(body) : forbidden(),
     getManifest: (query) => (canReadManifests ? input.client.getManifest(query) : forbidden()),
     issueManifest: (body) => (canIssueManifests ? input.client.issueManifest(body) : forbidden()),
     listManifests: (query) => (canReadManifests ? input.client.listManifests(query) : forbidden()),
@@ -111,6 +114,10 @@ function useMdfeManifestMutations(
     }),
     createManifestMutation: useMutation({
       mutationFn: input.controller.createManifest,
+      onSuccess: invalidateManifests,
+    }),
+    discardManifestMutation: useMutation({
+      mutationFn: input.controller.discardManifest,
       onSuccess: invalidateManifests,
     }),
     issueManifestMutation: useMutation({

@@ -1,5 +1,6 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 .manifestShell {
-  width: min(100% - var(--space-8), 82rem);
+  width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-5) 0 var(--space-16);
 }
@@ -99,18 +100,18 @@
 .fieldGrid label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.85rem;
 }
 
 .fieldGrid input,
-.fieldGrid select,
 .fieldGrid textarea {
-  min-height: 2.75rem;
-  padding: var(--space-2);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   color: var(--color-fog);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--field-font-size);
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
@@ -274,6 +275,13 @@
   color: var(--color-copper);
 }
 
+.rejectionReason {
+  margin: var(--space-1) 0 0;
+  max-width: 22rem;
+  color: var(--color-copper);
+  font-size: 0.78rem;
+}
+
 .rowActions {
   display: flex;
   flex-wrap: wrap;
@@ -303,17 +311,17 @@
 .conditionRow label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.8rem;
 }
 
-.conditionRow input,
-.conditionRow select {
-  min-height: 2.5rem;
-  padding: var(--space-2);
+.conditionRow input {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   color: var(--color-fog);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--field-font-size-compact);
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
@@ -371,6 +379,7 @@
 .actionForm label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.8rem;
 }
 

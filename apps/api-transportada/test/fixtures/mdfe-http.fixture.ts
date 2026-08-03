@@ -15,6 +15,9 @@ type ExecuteCall = Record<string, unknown>
 
 type RouteDependencies = {
   readonly createManifest: { execute(input: ExecuteCall): Promise<typeof MANIFEST_DETAIL> }
+  readonly discardManifest: {
+    execute(input: ExecuteCall): Promise<typeof DISCARDED_MANIFEST_DETAIL>
+  }
   readonly getManifest: { execute(input: ExecuteCall): Promise<typeof MANIFEST_DETAIL> }
   readonly listManifests: { execute(input: ExecuteCall): Promise<typeof MANIFEST_PAGE> }
   readonly previewManifest: { execute(input: ExecuteCall): Promise<typeof PREVIEW> }
@@ -32,6 +35,7 @@ type CreateFixtureParams = {
   readonly cancelError?: Error
   readonly closeError?: Error
   readonly createError?: Error
+  readonly discardError?: Error
   readonly getError?: Error
   readonly issueError?: Error
   readonly listError?: Error
@@ -103,6 +107,7 @@ export const MANIFEST = {
   freightValue: '480.00',
   id: MANIFEST_ID,
   insuranceEndorsement: '12345678901234',
+  lastRejection: null,
   loadingPostalCode: '80010000',
   originState: 'PR',
   rntrc: '12345678',
@@ -132,8 +137,22 @@ export const MANIFEST_DETAIL = {
   loadingCities: [{ cityCode: '4106902', cityName: 'Curitiba', position: 1 }],
 } as const
 
+export const DISCARDED_MANIFEST_DETAIL = { ...MANIFEST_DETAIL, status: 'discarded' } as const
+
+export const REJECTED_MANIFEST = {
+  ...MANIFEST,
+  id: '00000000-0000-4000-8000-0000000009b7',
+  lastRejection: {
+    attemptKind: 'issue',
+    code: '726',
+    message: 'Rejeicao: Numero do MDF-e ja utilizado',
+    occurredAt: '2026-07-28T12:30:00.000Z',
+  },
+  status: 'rejected',
+} as const
+
 export const MANIFEST_PAGE = {
-  items: [MANIFEST],
+  items: [MANIFEST, REJECTED_MANIFEST],
   nextCursor: '2026-07-27T12:00:00.000Z::00000000-0000-4000-8000-0000000009b4',
 } as const
 
@@ -184,6 +203,7 @@ export async function createMdfeHttpFixture(params: CreateFixtureParams = {}): P
   readonly cancelCalls: ExecuteCall[]
   readonly closeCalls: ExecuteCall[]
   readonly createCalls: ExecuteCall[]
+  readonly discardCalls: ExecuteCall[]
   readonly getCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly issueCalls: ExecuteCall[]
@@ -193,6 +213,7 @@ export async function createMdfeHttpFixture(params: CreateFixtureParams = {}): P
   const cancelCalls: ExecuteCall[] = []
   const closeCalls: ExecuteCall[] = []
   const createCalls: ExecuteCall[] = []
+  const discardCalls: ExecuteCall[] = []
   const getCalls: ExecuteCall[] = []
   const issueCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
@@ -224,6 +245,13 @@ export async function createMdfeHttpFixture(params: CreateFixtureParams = {}): P
         createCalls.push(structuredClone(input))
         if (params.createError) throw params.createError
         return MANIFEST_DETAIL
+      },
+    },
+    discardManifest: {
+      async execute(input) {
+        discardCalls.push(structuredClone(input))
+        if (params.discardError) throw params.discardError
+        return DISCARDED_MANIFEST_DETAIL
       },
     },
     getManifest: {
@@ -265,6 +293,7 @@ export async function createMdfeHttpFixture(params: CreateFixtureParams = {}): P
     cancelCalls,
     closeCalls,
     createCalls,
+    discardCalls,
     getCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     issueCalls,

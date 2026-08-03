@@ -19,6 +19,7 @@ import type { NfeDocumentListItem } from '../../src/modules/nfe-workspace/shared
 function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumentListItem {
   return {
     accessKey: '35240712345678000199550010000000011000000010',
+    cteBlockReason: null,
     emitterAddress: 'Rua das Cargas, 100',
     emitterCity: 'São Paulo',
     emitterCityCode: '3550308',

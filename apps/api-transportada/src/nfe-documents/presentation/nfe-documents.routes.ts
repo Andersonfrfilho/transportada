@@ -13,6 +13,7 @@ const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } a
 
 type NfeDocumentSummary = {
   readonly accessKey: string
+  readonly cteBlockReason: string | null
   readonly emitterAddress: string | null
   readonly emitterCity: string | null
   readonly emitterCityCode: string | null
@@ -167,6 +168,7 @@ export function createNfeDocumentRoutes(
 function serializeDocument(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
+    cteBlockReason: document.cteBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,
     emitterCityCode: document.emitterCityCode,

@@ -27,6 +27,12 @@ function readString(value: unknown): string {
   return value
 }
 
+/** API antiga sem o campo não pode derrubar a tela: ausência vira vazio, tipo errado ainda rejeita. */
+function readOptionalString(value: unknown): string {
+  if (value === undefined) return ''
+  return readString(value)
+}
+
 function readInteger(value: unknown): number {
   if (typeof value !== 'number' || !Number.isInteger(value)) throw invalid()
   return value
@@ -130,10 +136,11 @@ function readSummary(input: unknown): CteBatchPreviewSummary {
 export function createCteBatchPreviewAdapter(): (input: unknown) => CteBatchPreview {
   return (input) => {
     const preview = readRecord(input)
-    rejectExtraKeys(preview, ['blocked', 'projections', 'summary'])
+    rejectExtraKeys(preview, ['blocked', 'projections', 'suggestedName', 'summary'])
     return {
       blocked: readArray(preview.blocked).map(readBlock),
       projections: readArray(preview.projections).map(readProjection),
+      suggestedName: readOptionalString(preview.suggestedName),
       summary: readSummary(preview.summary),
     }
   }

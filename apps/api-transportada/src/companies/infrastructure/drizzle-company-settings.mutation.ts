@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { companyFiscalProfiles } from '../../database/database.schema.js'
 import type {
+  CompanyBillingDefaultsInput,
   CompanyMdfeDefaultsInput,
   CompanySettingsInput,
   CompanySettingsResult,
@@ -40,6 +41,24 @@ function toMdfeColumns(mdfe: CompanyMdfeDefaultsInput): {
     mdfePaymentBankBranch: mdfe.bankBranch,
     mdfePaymentBankCode: mdfe.bankCode,
     mdfePaymentPixKey: mdfe.pixKey,
+  }
+}
+
+function toBillingColumns(billing: CompanyBillingDefaultsInput): {
+  readonly billingBankAccount: string
+  readonly billingBankBranch: string
+  readonly billingBankCode: string
+  readonly billingBankName: string
+  readonly billingObservations: string
+  readonly billingPixKey: string
+} {
+  return {
+    billingBankAccount: billing.bankAccount,
+    billingBankBranch: billing.bankBranch,
+    billingBankCode: billing.bankCode,
+    billingBankName: billing.bankName,
+    billingObservations: billing.observations,
+    billingPixKey: billing.pixKey,
   }
 }
 
@@ -92,6 +111,7 @@ async function createSettings(
       environment: input.settings.cte.environment,
       ...input.settings.profile,
       ...toMdfeColumns(input.settings.mdfe),
+      ...toBillingColumns(input.settings.billing),
       cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
       cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
@@ -126,6 +146,7 @@ async function updateProfile(
       version: currentVersion + 1n,
       ...input.settings.profile,
       ...toMdfeColumns(input.settings.mdfe),
+      ...toBillingColumns(input.settings.billing),
       cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
       cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })

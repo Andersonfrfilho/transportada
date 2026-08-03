@@ -79,6 +79,16 @@ describe('Drizzle migrations', () => {
       '20260728165555_mdfe_issuance_payloads',
       '20260728172757_mdfe_document_storage_purpose',
       '20260728201709_mdfe_lotacao_contratante_pagamento_seguro',
+      '20260728235419_mdfe_certificate_purpose',
+      '20260729105113_mdfe_manifest_discarded_status',
+      '20260729114737_mdfe_attempt_last_error_message',
+      '20260729182304_cte_predominant_product_highest_quantity',
+      '20260730121112_cte_batch_item_company_keyset_index',
+      '20260731230527_billing_invoice_observations',
+      '20260801040948_company_billing_defaults',
+      '20260801043234_company_logos',
+      '20260802205604_fleet_driver_linked_tax_id',
+      '20260803000529_fleet_driver_vehicle_link',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -125,6 +135,111 @@ describe('Drizzle migrations', () => {
     expect(reservationTriggerPosition).toBeGreaterThan(dropOrder[1] ?? -1)
     expect(reservationFunctionPosition).toBeGreaterThan(reservationTriggerPosition)
     expect(dropOrder[2]).toBeGreaterThan(reservationFunctionPosition)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the billing invoice observations as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_billing_invoice_observations'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('ADD COLUMN "observations"')
+    expect(migrationSql).toContain('billing_invoices_observations_check')
+    // Ampliar um CHECK exige substituí-lo; a única troca permitida re-adiciona na mesma instrução.
+    expect(migrationSql).toMatch(
+      /DROP CONSTRAINT "billing_invoice_events_name_check", ADD CONSTRAINT "billing_invoice_events_name_check"/,
+    )
+    expect(migrationSql).toContain('invoice_updated')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the company billing defaults as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_company_billing_defaults'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const column of [
+      'billing_bank_name',
+      'billing_bank_code',
+      'billing_bank_branch',
+      'billing_bank_account',
+      'billing_pix_key',
+      'billing_observations',
+    ]) {
+      expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+    }
+    expect(migrationSql).toContain('company_fiscal_profiles_billing_bank_code_check')
+    expect(migrationSql).toContain('company_fiscal_profiles_billing_observations_check')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the driver linked tax id as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_driver_linked_tax_id'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('ADD COLUMN "linked_tax_id"')
+    expect(migrationSql).toContain('fleet_drivers_linked_tax_id_check')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  // Trocar índice é a única destruição aceita aqui: nenhuma linha de vínculo é apagada
+  test('versions the driver vehicle link index swap with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_driver_vehicle_link'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "fleet_driver_vehicle_assignments_live_link_unique"',
+    )
+    expect(migrationSql).toContain(
+      'DROP INDEX "fleet_driver_vehicle_assignments_live_vehicle_unique"',
+    )
+    expect(rollbackSql).toContain('fleet_driver_vehicle_assignments_live_driver_unique')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')

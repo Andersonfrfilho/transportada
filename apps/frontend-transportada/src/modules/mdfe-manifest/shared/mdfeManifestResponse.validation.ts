@@ -10,6 +10,7 @@ import {
   MANIFEST_ITEM_KEYS,
   MANIFEST_LOADING_CITY_KEYS,
   MANIFEST_PREVIEW_KEYS,
+  MANIFEST_REJECTION_KEYS,
   MANIFEST_SUMMARY_KEYS,
   MANIFEST_TOTALS_KEYS,
   MDFE_MANIFEST_ERROR,
@@ -25,6 +26,7 @@ import type {
   MdfeManifestLoadingCityLine,
   MdfeManifestPage,
   MdfeManifestPreview,
+  MdfeManifestRejection,
   MdfeManifestSummary,
   MdfeManifestTotals,
   MdfeManifestableDocument,
@@ -46,6 +48,16 @@ import {
 
 function invalid(): Error {
   return new Error(MDFE_MANIFEST_ERROR.RESPONSE_INVALID)
+}
+
+function isRejection(value: unknown): value is MdfeManifestRejection {
+  if (!hasExactKeys(value, MANIFEST_REJECTION_KEYS)) return false
+  return (
+    isOneOf(value.attemptKind, MDFE_ENUMS.attemptKind) &&
+    isString(value.code) &&
+    isNullableString(value.message) &&
+    isString(value.occurredAt)
+  )
 }
 
 function isSummary(value: unknown): value is MdfeManifestSummary {
@@ -71,6 +83,7 @@ function isSummary(value: unknown): value is MdfeManifestSummary {
     isDecimalString(value.freightValue) &&
     isString(value.id) &&
     isString(value.insuranceEndorsement) &&
+    (value.lastRejection === null || isRejection(value.lastRejection)) &&
     isString(value.loadingPostalCode) &&
     isString(value.originState) &&
     isString(value.rntrc) &&

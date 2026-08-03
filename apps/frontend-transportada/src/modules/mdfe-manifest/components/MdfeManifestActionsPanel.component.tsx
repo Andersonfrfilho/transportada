@@ -2,15 +2,19 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
-import type { MdfeManifestActionFormController } from '../hooks/useMdfeManifestActionForm.hook'
+import type {
+  MdfeManifestActionFormController,
+  MdfeManifestActionKind,
+} from '../hooks/useMdfeManifestActionForm.hook'
 import { MDFE_CANCELLATION_JUSTIFICATION_MAX_LENGTH } from '../shared/mdfeManifest.constant'
-import type { MdfeAttemptKind } from '../shared/mdfeManifest.types'
 import styles from '../styles/mdfeManifest.module.css'
 
-const LOCALE_SCOPE_BY_KIND: Readonly<Record<MdfeAttemptKind, string>> = {
+const LOCALE_SCOPE_BY_KIND: Readonly<Record<MdfeManifestActionKind, string>> = {
   cancel: 'cancellation',
   close: 'closure',
+  discard: 'discard',
   issue: 'issue',
 }
 
@@ -88,9 +92,11 @@ export function MdfeManifestActionsPanel({
 
       <div className={styles.actionActions}>
         <Button disabled={isBlocked || isPending} onClick={onConfirm} size="sm" type="button">
+          <Icon name="check" />
           {t('actions.confirm')}
         </Button>
         <Button onClick={form.dismiss} size="sm" type="button" variant="ghost">
+          <Icon name="close" />
           {t('actions.dismiss')}
         </Button>
       </div>

@@ -87,7 +87,7 @@ export class MdfeOutboxRelayService {
               attemptId: entry.attemptId,
               attemptKind: entry.attemptKind,
               manifestId: entry.manifestId,
-              status: entry.payload.status,
+              status: entry.status,
             },
             type: entry.eventType,
             version: entry.eventVersion,

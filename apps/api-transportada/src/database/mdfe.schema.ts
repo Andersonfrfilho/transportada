@@ -31,6 +31,7 @@ export const MDFE_MANIFEST_STATUSES = [
   'rejected',
   'closed',
   'cancelled',
+  'discarded',
 ] as const
 export type MdfeManifestStatus = (typeof MDFE_MANIFEST_STATUSES)[number]
 
@@ -459,6 +460,7 @@ export const mdfeIssuanceAttempts = pgTable(
     reservationId: uuid('reservation_id'),
     lastErrorCode: text('last_error_code'),
     lastErrorCause: text('last_error_cause'),
+    lastErrorMessage: text('last_error_message'),
     correlationId: text('correlation_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

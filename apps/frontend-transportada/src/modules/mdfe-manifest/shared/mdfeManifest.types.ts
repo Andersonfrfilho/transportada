@@ -6,6 +6,7 @@ export const MDFE_MANIFEST_STATUS = [
   'rejected',
   'closed',
   'cancelled',
+  'discarded',
 ] as const
 export type MdfeManifestStatus = (typeof MDFE_MANIFEST_STATUS)[number]
 
@@ -44,6 +45,14 @@ export type MdfeFiscalEnvironment = (typeof MDFE_FISCAL_ENVIRONMENT)[number]
 export const MDFE_ATTEMPT_KIND = ['issue', 'close', 'cancel'] as const
 export type MdfeAttemptKind = (typeof MDFE_ATTEMPT_KIND)[number]
 
+/** `message` vem `null` quando a SEFAZ recusou sem texto — não é o mesmo que não ter recusa. */
+export type MdfeManifestRejection = Readonly<{
+  attemptKind: MdfeAttemptKind
+  code: string
+  message: null | string
+  occurredAt: string
+}>
+
 export type MdfeManifestSummary = Readonly<{
   additionalInformation: string
   cargoProduct: string
@@ -65,6 +74,7 @@ export type MdfeManifestSummary = Readonly<{
   freightValue: string
   id: string
   insuranceEndorsement: string
+  lastRejection: MdfeManifestRejection | null
   loadingPostalCode: string
   originState: string
   rntrc: string

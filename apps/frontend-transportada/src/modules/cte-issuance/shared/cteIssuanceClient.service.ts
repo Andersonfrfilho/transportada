@@ -78,6 +78,10 @@ export type CteIssuanceClient = Readonly<{
 
 export type CteIssuanceClientFactory = (input: ClientDependencies) => CteIssuanceClient
 
+export const CTE_ISSUANCE_REQUEST_FAILED = 'CTE_ISSUANCE_REQUEST_FAILED'
+export const CTE_ISSUANCE_REQUEST_UNCONFIRMED = 'CTE_ISSUANCE_REQUEST_UNCONFIRMED'
+export const CTE_ISSUANCE_RESPONSE_INVALID = 'CTE_ISSUANCE_RESPONSE_INVALID'
+
 function requestError(code: string): Error {
   return new Error(code)
 }
@@ -87,8 +91,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function envelopeData(value: unknown): unknown {
-  if (!isRecord(value) || !('data' in value)) throw requestError('CTE_ISSUANCE_RESPONSE_INVALID')
+  if (!isRecord(value) || !('data' in value)) throw requestError(CTE_ISSUANCE_RESPONSE_INVALID)
   return value.data
+}
+
+/** O envelope `{error:{code}}` da API é o único motivo real da recusa — genérico só como último recurso. */
+async function readApiErrorCode(response: Response): Promise<string> {
+  let payload: unknown
+  try {
+    payload = JSON.parse(await response.text())
+  } catch {
+    return CTE_ISSUANCE_REQUEST_FAILED
+  }
+
+  if (!isRecord(payload)) return CTE_ISSUANCE_REQUEST_FAILED
+  const error = payload['error']
+  if (!isRecord(error)) return CTE_ISSUANCE_REQUEST_FAILED
+  const code = error['code']
+  return typeof code === 'string' && code !== '' ? code : CTE_ISSUANCE_REQUEST_FAILED
 }
 
 async function authorizedRequest(
@@ -114,13 +134,16 @@ async function authorizedRequest(
   try {
     response = await input.dependencies.fetch(request)
   } catch {
-    throw requestError('CTE_ISSUANCE_REQUEST_FAILED')
+    // Escrita idempotente sem resposta pode ter sido aplicada: dizer "falhou" seria inventar o fato.
+    throw requestError(
+      input.method === 'POST' ? CTE_ISSUANCE_REQUEST_UNCONFIRMED : CTE_ISSUANCE_REQUEST_FAILED,
+    )
   }
-  if (!response.ok) throw requestError('CTE_ISSUANCE_REQUEST_FAILED')
+  if (!response.ok) throw requestError(await readApiErrorCode(response))
   try {
     return JSON.parse(await response.text()) as unknown
   } catch {
-    throw requestError('CTE_ISSUANCE_RESPONSE_INVALID')
+    throw requestError(CTE_ISSUANCE_RESPONSE_INVALID)
   }
 }
 

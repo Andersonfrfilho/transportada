@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import { useCountdown } from '../hooks/useCountdown.hook'
 import {
   type NfeDistributionPullControl,
@@ -57,7 +59,7 @@ export function NfeDistributionControl(props: NfeDistributionControlProps) {
           onClick={props.onRequest}
           type="button"
         >
-          <DistributionIcon />
+          <Icon name="refresh" />
           {props.pending ? t('distribution.pending') : t('distribution.submit')}
         </button>
       </div>
@@ -74,16 +76,5 @@ export function NfeDistributionControl(props: NfeDistributionControlProps) {
         {pullControl.tone === 'unavailable' && t('distribution.unavailable')}
       </p>
     </section>
-  )
-}
-
-function DistributionIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M4 7h11" />
-      <path d="m12 4 3 3-3 3" />
-      <path d="M20 17H9" />
-      <path d="m12 14-3 3 3 3" />
-    </svg>
   )
 }

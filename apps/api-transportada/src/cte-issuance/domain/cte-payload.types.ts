@@ -30,6 +30,9 @@ export type CtePayloadParty = {
 export type CtePayloadProduct = {
   readonly description: string
   readonly grossWeight: null | string
+  /** nItem da NF-e — desempate estável do produto predominante. */
+  readonly ordinal: number
+  readonly quantity: null | string
   readonly totalValue: string
 }
 

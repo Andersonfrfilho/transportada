@@ -1,9 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { DRIVER_DETAIL_KEYS, FLEET_ERROR, OWNER_KEYS, VEHICLE_DETAIL_KEYS } from './fleet.constant'
+import {
+  DRIVER_DETAIL_KEYS,
+  DRIVER_VEHICLE_LINK_KEYS,
+  FLEET_CAPABILITY_KEYS,
+  FLEET_ERROR,
+  OWNER_KEYS,
+  VEHICLE_DETAIL_KEYS,
+  VEHICLE_LOOKUP_KEYS,
+} from './fleet.constant'
 import type {
+  FleetCapabilities,
   FleetDriverDetail,
   FleetDriverPage,
+  FleetDriverVehicleLink,
   FleetVehicleDetail,
+  FleetVehicleLookup,
   FleetVehiclePage,
 } from './fleet.types'
 import {
@@ -68,6 +79,7 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isString(value.createdAt) &&
     isString(value.id) &&
     isString(value.licenseNumber) &&
+    isString(value.linkedTaxId) &&
     isNullableString(value.membershipId) &&
     isString(value.name) &&
     isString(value.phone) &&
@@ -76,6 +88,38 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isString(value.updatedAt) &&
     isUnsignedIntegerString(value.version)
   )
+}
+
+function isDriverVehicleLink(value: unknown): value is FleetDriverVehicleLink {
+  if (!isRecord(value)) return false
+  if (
+    !hasOnlyKeys(value, DRIVER_VEHICLE_LINK_KEYS) ||
+    !hasEveryKey(value, DRIVER_VEHICLE_LINK_KEYS)
+  ) {
+    return false
+  }
+  return (
+    isString(value.assignedAt) &&
+    isString(value.id) &&
+    typeof value.ownedByDriver === 'boolean' &&
+    isVehicle(value.vehicle)
+  )
+}
+
+function isVehicleLookup(value: unknown): value is FleetVehicleLookup {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, VEHICLE_LOOKUP_KEYS) || !hasEveryKey(value, VEHICLE_LOOKUP_KEYS)) {
+    return false
+  }
+  return VEHICLE_LOOKUP_KEYS.every((key) => isString(value[key]))
+}
+
+function isCapabilities(value: unknown): value is FleetCapabilities {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, FLEET_CAPABILITY_KEYS) || !hasEveryKey(value, FLEET_CAPABILITY_KEYS)) {
+    return false
+  }
+  return typeof value.vehicleLookup === 'boolean'
 }
 
 function readPage<TItem>(
@@ -103,11 +147,27 @@ export function createFleetResponseAdapters() {
   }
 
   return {
+    capabilitiesFromApi(input: unknown): FleetCapabilities {
+      if (!isCapabilities(input)) throw invalid()
+      return input
+    },
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
       return readPage(input, driverFromApi)
     },
+    driverVehicleListFromApi(input: unknown): readonly FleetDriverVehicleLink[] {
+      if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
+      return input.data.map((item) => {
+        if (!isDriverVehicleLink(item)) throw invalid()
+        return item
+      })
+    },
     vehicleFromApi,
+    vehicleLookupFromApi(input: unknown): FleetVehicleLookup | null {
+      if (input === null) return null
+      if (!isVehicleLookup(input)) throw invalid()
+      return input
+    },
     vehicleListFromApi(input: unknown): FleetVehiclePage {
       return readPage(input, vehicleFromApi)
     },

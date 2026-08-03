@@ -1,0 +1,2 @@
+ALTER TABLE "fleet_drivers" ADD COLUMN "linked_tax_id" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "fleet_drivers" ADD CONSTRAINT "fleet_drivers_linked_tax_id_check" CHECK (length("linked_tax_id") = 0 or "linked_tax_id" ~ '^[0-9]{14}$');

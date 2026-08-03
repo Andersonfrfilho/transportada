@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import { useCteProfileForm } from '../hooks/useCteProfileForm.hook'
 import type {
@@ -52,9 +53,11 @@ export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CtePro
       )}
       <div className={styles.formActions}>
         <Button type="button" variant="ghost" onClick={onCancel}>
+          <Icon name="close" />
           {t('cancel')}
         </Button>
         <Button disabled={form.isSaving} type="submit">
+          <Icon name="save" />
           {t('save')}
         </Button>
       </div>

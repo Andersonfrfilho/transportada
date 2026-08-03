@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 
 import {
+  cteBatchEvents,
   cteBatchItems,
   cteBatches,
   cteFiscalDocuments,
@@ -13,6 +14,7 @@ import {
   cteIssuanceOutbox,
   cteIssuancePayloads,
   cteRetrySchedules,
+  cteSubmissionRecords,
   fiscalSequenceReservations,
   idempotencyRecords,
   storedObjects,
@@ -30,6 +32,7 @@ import type {
   CteIssuancePayloadSource,
   CteIssuancePayloadSourceQuery,
 } from '../application/cte-issuance-payload.port.js'
+import { resolveIssuedDocumentStatus } from '../domain/cte-fiscal-document-status.policy.js'
 import { getCteIssuanceAttemptKind, mapCteIssuanceAttempt } from './cte-issuance-attempt.mapper.js'
 import { ApiError } from '../../shared/api.error.js'
 import { findCteIssuanceFiscalSettings } from './cte-issuance-fiscal-settings.query.js'
@@ -108,6 +111,13 @@ type CteIssuanceReservationRequest = {
   readonly kind: 'issue' | 'reprocess'
   readonly series: string
 }
+type SubmitDraftBatchInput = {
+  readonly batchId: string
+  readonly companyId: string
+  readonly idempotencyKey: string
+  readonly requestFingerprint: string
+  readonly userId: string
+}
 type CteIssuancePersistedStatus =
   | 'in_flight'
   | 'authorized'
@@ -140,6 +150,10 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
       .where(and(eq(cteBatches.companyId, input.companyId), eq(cteBatches.id, input.batchId)))
       .limit(1)
     return record === undefined ? null : mapBatch(record)
+  }
+
+  public async submitDraftBatch(input: SubmitDraftBatchInput): Promise<void> {
+    await submitDraftBatchRecord(this.database, input)
   }
 
   public async findBatchItem(input: BatchItemQuery) {
@@ -374,6 +388,10 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
       .where(and(eq(cteBatches.companyId, input.companyId), eq(cteBatches.id, input.batchId)))
       .limit(1)
     return record === undefined ? null : mapBatch(record)
+  }
+
+  public async submitDraftBatch(input: SubmitDraftBatchInput): Promise<void> {
+    await submitDraftBatchRecord(this.transaction, input)
   }
 
   public async findBatchItem(input: BatchItemQuery) {
@@ -854,6 +872,57 @@ export function buildFiscalDocumentFilters(input: {
   ]
 }
 
+/**
+ * Fecha o rascunho junto com a emissão: sem isso existiria um instante em que o lote já foi
+ * transmitido e ainda aceitaria remoção de item.
+ */
+async function submitDraftBatchRecord(
+  queryable: Queryable,
+  input: SubmitDraftBatchInput,
+): Promise<void> {
+  await queryable.insert(cteSubmissionRecords).values({
+    batchId: input.batchId,
+    companyId: input.companyId,
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: input.requestFingerprint,
+    result: null,
+    submissionStatus: 'pending',
+  })
+
+  const [record] = await queryable
+    .update(cteBatches)
+    .set({
+      status: 'submitted',
+      updatedAt: new Date(),
+      version: sql`${cteBatches.version} + 1`,
+    })
+    .where(
+      and(
+        eq(cteBatches.companyId, input.companyId),
+        eq(cteBatches.id, input.batchId),
+        eq(cteBatches.status, 'draft'),
+      ),
+    )
+    .returning({ id: cteBatches.id })
+  if (record === undefined) throw createBatchInvalidState()
+
+  await queryable.insert(cteBatchEvents).values({
+    batchId: input.batchId,
+    companyId: input.companyId,
+    eventName: 'submitted',
+    occurredAt: new Date(),
+    payload: { previousStatus: 'draft', status: 'submitted', userId: input.userId },
+  })
+}
+
+function createBatchInvalidState(): ApiError {
+  return new ApiError({
+    code: 'CTE_BATCH_INVALID_STATE',
+    message: 'CT-e batch state transition is not allowed',
+    status: 409,
+  })
+}
+
 async function findBatchItemRecord(
   queryable: Queryable,
   input: BatchItemQuery,
@@ -948,18 +1017,6 @@ async function findIssuedDocument(
     .where(and(...buildIssuedDocumentFilters(input)))
     .limit(1)
   return record ?? null
-}
-
-/**
- * O documento fiscal, e não a tentativa, é a fonte da verdade sobre cancelamento — a tentativa
- * autorizada continua autorizada mesmo depois do evento 110111.
- */
-export function resolveIssuedDocumentStatus(document: {
-  readonly cancellationRequestedAt: Date | null
-  readonly status: string
-}): 'authorized' | 'cancelled' {
-  if (document.status === 'cancelled') return 'cancelled'
-  return document.cancellationRequestedAt === null ? 'authorized' : 'cancelled'
 }
 
 function resolveIssuanceStatus(

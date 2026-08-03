@@ -1,0 +1,3 @@
+ALTER TABLE "billing_invoices" ADD COLUMN "observations" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "billing_invoices" ADD CONSTRAINT "billing_invoices_observations_check" CHECK (length("observations") <= 500);--> statement-breakpoint
+ALTER TABLE "billing_invoice_events" DROP CONSTRAINT "billing_invoice_events_name_check", ADD CONSTRAINT "billing_invoice_events_name_check" CHECK ("event_name" in ('invoice_created', 'invoice_updated', 'invoice_cancelled', 'document_generated', 'document_failed'));

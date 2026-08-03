@@ -53,6 +53,16 @@ function parseStringRecord<TKey extends string>(
   return result
 }
 
+function parseSelectFilters(raw: unknown): Record<SelectFilterField, string> {
+  const source = isRecord(raw) ? raw : {}
+  const result = {} as Record<SelectFilterField, string>
+  for (const field of SELECT_FILTER_FIELDS) {
+    const stored = source[field]
+    result[field] = typeof stored === 'string' ? stored : EMPTY_FILTERS.select[field]
+  }
+  return result
+}
+
 function parseFilters(raw: unknown): DocumentFilters {
   if (!isRecord(raw)) return EMPTY_FILTERS
   const amountOperator = AMOUNT_OPERATORS.includes(raw.amountOperator as AmountOperator)
@@ -65,7 +75,7 @@ function parseFilters(raw: unknown): DocumentFilters {
     dateTo: parseString(raw.dateTo),
     numberFrom: parseString(raw.numberFrom),
     numberTo: parseString(raw.numberTo),
-    select: parseStringRecord(raw.select, SELECT_FILTER_FIELDS),
+    select: parseSelectFilters(raw.select),
     text: parseStringRecord(raw.text, TEXT_FILTER_FIELDS),
   }
 }

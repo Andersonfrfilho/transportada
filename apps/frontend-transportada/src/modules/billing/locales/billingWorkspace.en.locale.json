@@ -9,47 +9,221 @@
     "loading": "Loading billing...",
     "selectable": "Eligible CT-es are available for billing."
   },
-  "filters": {
-    "title": "Eligibility filters",
-    "batchId": "Batch",
-    "cteNumber": "CT-e number",
-    "customerDocument": "Customer document",
-    "issuedFrom": "Issued from",
-    "issuedTo": "Issued until",
-    "minAmount": "Minimum amount",
-    "maxAmount": "Maximum amount",
-    "clear": "Clear filters"
+  "dateRange": {
+    "clear": "Clear period",
+    "nextMonth": "Next month",
+    "placeholder": "Select the period",
+    "previousMonth": "Previous month"
+  },
+  "dueDate": {
+    "clear": "Clear date",
+    "date": "Due date",
+    "datePlaceholder": "Pick the date",
+    "label": "Due date",
+    "nextMonth": "Next month",
+    "previousMonth": "Previous month",
+    "term": "Payment term",
+    "termOption": "{{days}} days",
+    "termPlaceholder": "Term"
   },
   "eligible": {
     "title": "Eligible CT-es",
-    "summary": "{{count}} selected, total {{total}}",
+    "loading": "Loading eligible CT-es...",
+    "error": "Eligible CT-es could not be loaded.",
     "empty": "No eligible CT-e matches the current filters.",
-    "select": "Select",
-    "cteNumber": "CT-e",
-    "customer": "Customer",
-    "totalAmount": "Total"
+    "resultsCount": "{{count}} CT-e(s) on the current page",
+    "selectAll": "Select every CT-e on this page",
+    "selectRow": "Select CT-e",
+    "selectedCount": "{{count}} CT-e(s) selected",
+    "selectedTotal": "Selected total: {{value}}",
+    "multipleCustomers": "The selection mixes {{count}} customers. One invoice covers a single customer.",
+    "clearSelection": "Clear selection",
+    "clearFilters": "Clear filters",
+    "removeFilter": "Remove the {{field}} filter",
+    "removeAdvanced": "Remove the advanced filter",
+    "editAdvanced": "Edit the advanced filter",
+    "advancedPill": "{{count}} condition(s)",
+    "filtersToggle": "Filters",
+    "columnsToggle": "Columns",
+    "moveColumnUp": "Move column up",
+    "moveColumnDown": "Move column down",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "sort": {
+      "none": "Not sorted",
+      "asc": "Sorted ascending",
+      "desc": "Sorted descending"
+    },
+    "columns": {
+      "cteNumber": "CT-e",
+      "nfeNumber": "Note",
+      "customerName": "Customer",
+      "customerDocument": "Customer document",
+      "batchName": "Batch",
+      "issuedAt": "Authorized at",
+      "totalAmount": "Total"
+    },
+    "filters": {
+      "advanced": "Advanced filter",
+      "batchId": "Batch",
+      "cteNumberQuery": "CT-e number",
+      "nfeNumberQuery": "Note number",
+      "customerDocument": "Customer document",
+      "customerName": "Customer",
+      "issuedRange": "Authorized between",
+      "minAmount": "Minimum amount",
+      "maxAmount": "Maximum amount",
+      "hints": {
+        "cteNumberQuery": "E.g. 3, 7, 10-40",
+        "nfeNumberQuery": "E.g. 3, 7, 10-40"
+      },
+      "errors": {
+        "invalid": "Use numbers separated by commas, with at most one range (e.g. 3, 7, 10-40).",
+        "multiple-ranges": "One range at a time. Keep a single interval in the field.",
+        "range-inverted": "The start of the range must be lower than or equal to the end.",
+        "too-many-values": "At most 100 numbers per query."
+      }
+    },
+    "advanced": {
+      "title": "Condition group",
+      "field": "Field",
+      "operator": "Operator",
+      "value": "Value",
+      "valueTo": "Final value",
+      "addCondition": "Add condition",
+      "addGroup": "Add group",
+      "removeCondition": "Remove condition",
+      "removeGroup": "Remove group",
+      "connectorAnd": "AND",
+      "connectorOr": "OR",
+      "operators": {
+        "between": "between",
+        "contains": "contains",
+        "eq": "equals",
+        "gt": "greater than",
+        "gte": "greater or equal",
+        "lt": "less than",
+        "lte": "less or equal",
+        "ne": "not equal",
+        "notContains": "does not contain"
+      }
+    }
   },
   "create": {
     "title": "Create invoice",
     "dueDate": "Due date",
+    "selectionSummary": "{{count}} CT-e(s) selected, total {{total}}",
     "submit": "Create invoice"
   },
-  "invoice": {
+  "invoiceDetail": {
     "title": "Invoice detail",
-    "lookup": "Invoice ID",
-    "empty": "Type or create an invoice to inspect its detail.",
-    "number": "Number: {{value}}",
-    "customer": "Customer: {{value}}",
-    "total": "Total: {{value}}",
-    "statusValue": "Status: {{value}}"
+    "close": "Back to invoices",
+    "pageKicker": "Financial closing",
+    "pageIntro": "Review the invoice CT-es, adjust amounts, generate the PDF and register the cancellation.",
+    "empty": "This invoice could not be loaded. Go back to the list and open it again.",
+    "number": "Number",
+    "statusValue": "Status",
+    "customer": "Customer",
+    "document": "Customer document",
+    "issuedAt": "Issued at",
+    "dueDate": "Due date",
+    "total": "Total",
+    "itemsTitle": "Invoice CT-es",
+    "itemsEmpty": "No CT-e is linked to this invoice.",
+    "itemsNumber": "CT-e",
+    "itemsDescription": "Description",
+    "itemsAccessKey": "Access key",
+    "itemsAmount": "Amount",
+    "editTitle": "Invoice adjustments",
+    "editDiscount": "Discount",
+    "editSurcharge": "Surcharge",
+    "editTotalPreview": "Total after adjustments",
+    "editObservations": "Observations",
+    "editSubmit": "Save adjustments",
+    "editAmountHint": "Use amounts with up to two decimal places and no negative sign.",
+    "editDiscountHint": "The discount cannot be greater than the invoice subtotal.",
+    "editObservationsHint": "Observations must have at most 500 characters.",
+    "editCancelled": "A cancelled invoice does not accept adjustments.",
+    "editForbidden": "Your current access does not allow adjusting invoices.",
+    "documentsTitle": "Documents",
+    "documentsEmpty": "No document is available for this invoice.",
+    "generateDocument": "Generate PDF",
+    "generatingDocument": "Generating PDF...",
+    "generateDocumentError": "The PDF for this invoice could not be generated.",
+    "download": "Download document",
+    "cancelTitle": "Cancellation",
+    "cancelReason": "Cancellation reason",
+    "cancelReasonHint": "Describe the reason with at least 3 characters to enable the cancellation.",
+    "cancelSubmit": "Cancel invoice",
+    "cancelAlready": "This invoice is already cancelled.",
+    "cancelForbidden": "Your current access does not allow cancelling invoices."
   },
-  "cancel": {
-    "reason": "Cancellation reason",
-    "submit": "Cancel invoice"
+  "tabs": {
+    "create": "Create invoice",
+    "invoices": "Invoices"
   },
-  "documents": {
-    "title": "Documents",
-    "empty": "No document is available for this invoice.",
-    "download": "Download document"
+  "invoices": {
+    "title": "Issued invoices",
+    "empty": "No invoice found with the current filters.",
+    "loading": "Loading invoices...",
+    "error": "Invoices could not be loaded.",
+    "resultsCount": "{{count}} invoice(s) on this page",
+    "clearFilters": "Clear filters",
+    "clearSelection": "Clear selection",
+    "selectedCount": "{{count}} invoice(s) selected",
+    "selectAll": "Select all invoices on this page",
+    "selectRow": "Select invoice",
+    "openDetail": "Open invoice detail",
+    "filtersToggle": "Filters",
+    "columnsToggle": "Columns",
+    "moveColumnUp": "Move column up",
+    "moveColumnDown": "Move column down",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "sort": {
+      "none": "Not sorted",
+      "asc": "Sorted ascending",
+      "desc": "Sorted descending"
+    },
+    "statusOptions": {
+      "all": "All statuses",
+      "issued": "Issued",
+      "cancelled": "Cancelled"
+    },
+    "columns": {
+      "invoiceNumber": "Number",
+      "status": "Status",
+      "customerName": "Customer",
+      "customerDocument": "Document",
+      "issuedAt": "Issued at",
+      "dueDate": "Due date",
+      "itemCount": "CT-es",
+      "totalAmount": "Total",
+      "createdAt": "Created at"
+    },
+    "filters": {
+      "customerDocument": "Customer document",
+      "dueFrom": "Due from",
+      "dueTo": "Due until",
+      "invoiceNumber": "Invoice number",
+      "issuedFrom": "Issued from",
+      "issuedTo": "Issued until",
+      "status": "Status",
+      "issuedRange": "Issue date",
+      "dueRange": "Due date"
+    },
+    "documentAction": {
+      "columnHeader": "PDF",
+      "generate": "Generate PDF",
+      "generating": "Generating...",
+      "errors": {
+        "conflict": "A PDF is already being generated for this invoice. Try again shortly.",
+        "fiscalProfileMissing": "Set up the company fiscal profile before generating the PDF.",
+        "forbidden": "You are not allowed to generate the PDF for this invoice.",
+        "notFound": "Invoice not found.",
+        "unknown": "The invoice PDF could not be generated."
+      }
+    },
+    "removeFilter": "Remove the {{field}} filter"
   }
 }

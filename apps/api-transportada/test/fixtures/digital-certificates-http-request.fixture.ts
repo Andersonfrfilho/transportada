@@ -25,7 +25,17 @@ type PostRequestParams = {
   readonly events?: string[]
   readonly idempotencyKey?: string
   readonly origin?: string
+  readonly purpose?: string
   readonly query?: string
+}
+
+export function certificateDeleteRequest(
+  params: { readonly authorization?: string; readonly query?: string } = {},
+): Request {
+  return new Request(`http://localhost${DIGITAL_CERTIFICATES_PATH}${params.query ?? ''}`, {
+    headers: requestHeaders(params),
+    method: 'DELETE',
+  })
 }
 
 export function certificateGetRequest(
@@ -44,7 +54,7 @@ export function certificatePostRequest(params: PostRequestParams = {}): Request 
   const form = new FormData()
   form.append('certificate', new File([SYNTHETIC_CERTIFICATE], 'synthetic.pfx'))
   form.append('password', new TextDecoder().decode(SYNTHETIC_PASSWORD))
-  form.append('purpose', 'cte')
+  form.append('purpose', params.purpose ?? 'cte')
   return observedRequest({
     body: params.body ?? form,
     events: params.events,
@@ -89,11 +99,11 @@ export function multipartBytes(parts: readonly MultipartPart[]): Uint8Array {
   return concatenateBytes(chunks)
 }
 
-export function validMultipartParts(): readonly MultipartPart[] {
+export function validMultipartParts(purpose = 'cte'): readonly MultipartPart[] {
   return [
     { filename: 'synthetic.pfx', name: 'certificate', value: SYNTHETIC_CERTIFICATE },
     { name: 'password', value: SYNTHETIC_PASSWORD },
-    { name: 'purpose', value: 'cte' },
+    { name: 'purpose', value: purpose },
   ]
 }
 

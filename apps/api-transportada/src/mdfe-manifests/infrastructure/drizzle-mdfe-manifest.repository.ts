@@ -1,11 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc } from 'drizzle-orm'
+import { and, asc, desc, sql } from 'drizzle-orm'
 
 import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import {
+  mdfeIssuanceAttempts,
   mdfeManifestDrivers,
   mdfeManifestItems,
   mdfeManifestLoadingCities,
@@ -20,6 +21,7 @@ import type {
   MdfeManifestDriver,
   MdfeManifestFilters,
   MdfeManifestPage,
+  MdfeManifestRejection,
   MdfeManifestRepositoryPort,
   MdfeManifestVehicle,
 } from '../application/mdfe-manifest.port.js'
@@ -28,9 +30,15 @@ import type { MdfeCandidateDocument } from '../domain/mdfe-manifest-eligibility.
 import { MdfeManifestDocumentsBlockedError } from '../domain/mdfe-manifest.error.js'
 import { loadCandidateDocuments } from './mdfe-candidate-document.query.js'
 import {
+  buildManifestRejectionFilters,
+  indexLastRejections,
+} from './mdfe-manifest-rejection.query.js'
+import {
   buildFiscalProfileFilters,
   buildFleetDriverFilters,
   buildFleetVehicleFilters,
+  buildLiveManifestItemFilters,
+  buildManifestDiscardFilters,
   buildManifestDriverFilters,
   buildManifestFilters,
   buildManifestItemFilters,
@@ -70,6 +78,32 @@ export class DrizzleMdfeManifestRepository implements MdfeManifestRepositoryPort
       }
       throw error
     }
+  }
+
+  /** ADR-0017: `released_at` no mesmo `commit` do estado — meio caminho prenderia o CT-e de novo. */
+  public async discard(input: {
+    readonly companyId: string
+    readonly manifestId: string
+  }): Promise<MdfeManifestDetail | null> {
+    return this.database.transaction(async (transaction) => {
+      const [discarded] = await transaction
+        .update(mdfeManifests)
+        .set({
+          status: 'discarded',
+          updatedAt: sql`now()`,
+          version: sql`${mdfeManifests.version} + 1`,
+        })
+        .where(and(...buildManifestDiscardFilters(input)))
+        .returning({ id: mdfeManifests.id })
+      if (discarded === undefined) return null
+
+      await transaction
+        .update(mdfeManifestItems)
+        .set({ releasedAt: sql`now()` })
+        .where(and(...buildLiveManifestItemFilters(input)))
+
+      return readManifestDetail(transaction, input)
+    })
   }
 
   public async findById(input: {
@@ -156,13 +190,40 @@ export class DrizzleMdfeManifestRepository implements MdfeManifestRepositoryPort
 
     const pageRecords = records.slice(0, input.limit)
     const last = pageRecords.at(-1)
+    const rejections = await loadLastRejections(this.database, {
+      companyId: input.companyId,
+      manifestIds: pageRecords.map((record) => record.id),
+    })
 
     return {
-      items: pageRecords.map(mapManifest),
+      items: pageRecords.map((record) =>
+        mapManifest({ record, rejection: rejections.get(record.id) ?? null }),
+      ),
       nextCursor:
         records.length > input.limit && last !== undefined ? encodeKeysetCursor(last) : null,
     }
   }
+}
+
+/** A recusa vive nas tentativas: sem esta leitura a tela mostra `rejected` sem dizer o porquê. */
+async function loadLastRejections(
+  queryable: MdfeQueryable,
+  input: { readonly companyId: string; readonly manifestIds: readonly string[] },
+): Promise<ReadonlyMap<string, MdfeManifestRejection>> {
+  if (input.manifestIds.length === 0) return new Map()
+
+  const records = await queryable
+    .select({
+      attemptKind: mdfeIssuanceAttempts.attemptKind,
+      lastErrorCode: mdfeIssuanceAttempts.lastErrorCode,
+      lastErrorMessage: mdfeIssuanceAttempts.lastErrorMessage,
+      manifestId: mdfeIssuanceAttempts.manifestId,
+      updatedAt: mdfeIssuanceAttempts.updatedAt,
+    })
+    .from(mdfeIssuanceAttempts)
+    .where(and(...buildManifestRejectionFilters(input)))
+
+  return indexLastRejections(records)
 }
 
 async function readManifestDetail(
@@ -191,9 +252,13 @@ async function readManifestDetail(
     .from(mdfeManifestLoadingCities)
     .where(and(...buildManifestLoadingCityFilters(input)))
     .orderBy(asc(mdfeManifestLoadingCities.position))
+  const rejections = await loadLastRejections(queryable, {
+    companyId: input.companyId,
+    manifestIds: [input.manifestId],
+  })
 
   return {
-    ...mapManifest(record),
+    ...mapManifest({ record, rejection: rejections.get(record.id) ?? null }),
     drivers: drivers.map(mapManifestDriver),
     items: items.map(mapManifestItem),
     loadingCities: loadingCities.map(mapManifestLoadingCity),

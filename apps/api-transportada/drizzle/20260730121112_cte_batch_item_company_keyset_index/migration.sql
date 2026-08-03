@@ -1,0 +1,1 @@
+CREATE INDEX "cte_batch_items_company_created_at_id_idx" ON "cte_batch_items" ("company_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);

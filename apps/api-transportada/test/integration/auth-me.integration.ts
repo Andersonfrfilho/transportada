@@ -88,6 +88,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             },
             logLevel: 'error',
             port: 0,
+            vehicleLookup: null,
           },
           logger,
           router: createHttpRouterFixture({ authentication, healthService, tenantContext }),

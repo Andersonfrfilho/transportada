@@ -3,9 +3,15 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
-import { API_CTE_BATCHES_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import {
+  API_CTE_BATCHES_PATH,
+  API_CTE_BATCH_ITEMS_PATH,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
+import {
+  type CteBatchItemListFilters,
   parseCreateCteBatchRequest,
+  parseCteBatchItemList,
   parseCteBatchList,
   parseEmptyJsonRequest,
   parseIdempotencyKey,
@@ -97,6 +103,17 @@ type CteBatchItemPage = {
   readonly items: readonly CteBatchSummary[]
 }
 
+type CompanyCteItemListInput = {
+  readonly cursor: string | null
+  readonly filters?: CteBatchItemListFilters
+  readonly limit: number
+}
+
+type CompanyCteItemPage = {
+  readonly items: readonly CteBatchSummary[]
+  readonly nextCursor: string | null
+}
+
 type Dependencies = {
   readonly cteBatches: {
     readonly cancel: (input: WithContext<CancelCteBatchInput>) => Promise<CteBatchSummary>
@@ -107,6 +124,9 @@ type Dependencies = {
   }
   readonly listBatches: {
     readonly execute: (input: WithContext<CteBatchListInput>) => Promise<CteBatchPage>
+  }
+  readonly listCompanyItems: {
+    readonly execute: (input: WithContext<CompanyCteItemListInput>) => Promise<CompanyCteItemPage>
   }
   readonly listEvents: {
     readonly execute: (input: WithContext<CteBatchEventsInput>) => Promise<CteBatchEventPage>
@@ -137,6 +157,25 @@ export function createCteBatchRoutes(
       method: 'GET',
       parse: ({ request }) => parseCteBatchList(new URL(request.url)),
       pathname: API_CTE_BATCHES_PATH,
+      policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<CompanyCteItemListInput>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.listCompanyItems.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: page.items.map(serializeCompanyItem),
+            page: { nextCursor: page.nextCursor },
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseCteBatchItemList(new URL(request.url)),
+      pathname: API_CTE_BATCH_ITEMS_PATH,
       policy: CTE_SUBMIT_POLICY,
     }),
     defineRoute<CreateCteBatchInput>({
@@ -287,6 +326,7 @@ function serializeItem(item: CteBatchSummary): object {
     authorizationProtocol: item['authorizationProtocol'],
     authorizedAt: item['authorizedAt'],
     baseAmount: item['baseAmount'],
+    billingStatus: item['billingStatus'],
     charges: item['charges'],
     documents: item['documents'],
     fiscalAmount: item['fiscalAmount'],
@@ -298,6 +338,15 @@ function serializeItem(item: CteBatchSummary): object {
     position: item['position'],
     status: item['status'],
     totalAmount: item['totalAmount'],
+  }
+}
+
+function serializeCompanyItem(item: CteBatchSummary): object {
+  return {
+    ...serializeItem(item),
+    batchId: item['batchId'],
+    batchName: item['batchName'],
+    createdAt: item['createdAt'],
   }
 }
 

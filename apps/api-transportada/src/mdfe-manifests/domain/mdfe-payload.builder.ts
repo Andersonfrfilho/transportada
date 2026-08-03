@@ -5,7 +5,10 @@ import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.se
 
 import {
   MdfePayloadEmptySelectionError,
+  MdfePayloadMissingCargoNcmError,
   MdfePayloadMissingDriverError,
+  MdfePayloadMissingInsuranceEndorsementError,
+  MdfePayloadMissingInsuranceResponsibleError,
   MdfePayloadMissingLoadingCityError,
   MdfePayloadMissingOwnerError,
   MdfePayloadMissingRntrcError,
@@ -30,6 +33,9 @@ const CARGO_WEIGHT_SCALE = 4n
 const CNPJ_LENGTH = 14
 const HIRED_CARRIER = '1'
 
+/** respSeg 1 — a apólice é da própria transportadora emitente. */
+const EMITTER_RESPONSIBLE = '1'
+
 /** tpComp 99 (outros) com xComp é como o valor do frete entra no Comp do infPag. */
 const OTHER_COMPONENT = '99'
 const FREIGHT_COMPONENT_LABEL = 'FRETE'
@@ -43,6 +49,7 @@ export function buildMdfePayload({
   companyDefaults,
   documents,
   drivers,
+  emitterTaxId,
   loadingCities,
   manifest,
   vehicle,
@@ -73,12 +80,12 @@ export function buildMdfePayload({
     ufFim: manifest.destinationState,
     ufInicio: manifest.originState,
     veiculoTracao: buildTractionVehicle(vehicle, condutores),
-    ...(manifest.transporterType === '' ? {} : { tipoTransportador: manifest.transporterType }),
+    ...buildTransporterType({ manifest, vehicle }),
     ...(manifest.rntrc.length > 0 ? { rntrc: manifest.rntrc } : {}),
     ...buildPredominantProduct(manifest),
     ...buildContractors(manifest),
     ...buildPayments({ bank: companyDefaults.bank, manifest }),
-    ...buildInsurance({ insurance: companyDefaults.insurance, manifest }),
+    ...buildInsurance({ emitterTaxId, insurance: companyDefaults.insurance, manifest }),
     ...(manifest.tripStartedAt === null
       ? {}
       : { dataInicioViagem: toBrasiliaDateTime(manifest.tripStartedAt) }),
@@ -153,6 +160,15 @@ function buildTractionVehicle(
   }
 }
 
+/** Rejeição 745: tpTransp só é aceito junto do proprietário do veículo de tração. */
+function buildTransporterType(
+  params: Pick<BuildMdfePayloadParams, 'manifest' | 'vehicle'>,
+): Pick<MdfeManifestPayload, 'tipoTransportador'> | Record<string, never> {
+  if (params.manifest.transporterType === '' || params.vehicle.ownership === 'own') return {}
+
+  return { tipoTransportador: params.manifest.transporterType }
+}
+
 function buildOwner(vehicle: MdfePayloadVehicle): MdfePayloadOwner {
   if (
     vehicle.ownerTaxId.length === 0 ||
@@ -180,6 +196,9 @@ function buildPredominantProduct(
   if (manifest.cargoType === '' || manifest.cargoProduct.length === 0) return {}
 
   const isLotacao = manifest.loadingPostalCode.length > 0 && manifest.dischargePostalCode.length > 0
+  if (isLotacao && manifest.cargoProductNcm.length === 0) {
+    throw new MdfePayloadMissingCargoNcmError()
+  }
 
   return {
     produtoPredominante: {
@@ -257,12 +276,14 @@ function buildBankDetails(
 }
 
 type BuildInsuranceParams = {
+  readonly emitterTaxId: BuildMdfePayloadParams['emitterTaxId']
   readonly insurance: BuildMdfePayloadParams['companyDefaults']['insurance']
   readonly manifest: BuildMdfePayloadParams['manifest']
 }
 
 /** Seguro da carga — a SVRS rejeita com 698 quando o emitente é prestador de serviço sem ele. */
 function buildInsurance({
+  emitterTaxId,
   insurance,
   manifest,
 }: BuildInsuranceParams): Pick<MdfeManifestPayload, 'seguro'> | Record<string, never> {
@@ -274,19 +295,38 @@ function buildInsurance({
     return {}
   }
 
+  if (manifest.insuranceEndorsement.length === 0) {
+    throw new MdfePayloadMissingInsuranceEndorsementError()
+  }
+
   return {
     seguro: {
       apolice: insurance.policy,
+      averbacoes: [manifest.insuranceEndorsement],
       responsavel: insurance.responsibility,
       seguradora: {
         nome: insurance.insurerName,
         ...(insurance.insurerTaxId.length > 0 ? buildTaxIdField(insurance.insurerTaxId) : {}),
       },
-      ...(manifest.insuranceEndorsement.length > 0
-        ? { averbacoes: [manifest.insuranceEndorsement] }
-        : {}),
+      ...buildInsuranceResponsible({ emitterTaxId, insurance, manifest }),
     },
   }
+}
+
+/** Rejeição 699: no rodoviário o grupo seg só fecha com o documento de quem responde pela apólice. */
+function buildInsuranceResponsible({
+  emitterTaxId,
+  insurance,
+  manifest,
+}: BuildInsuranceParams):
+  | { readonly responsavelCnpj: string }
+  | { readonly responsavelCpf: string } {
+  const taxId =
+    insurance.responsibility === EMITTER_RESPONSIBLE ? emitterTaxId : manifest.contractorTaxId
+
+  if (taxId.length === 0) throw new MdfePayloadMissingInsuranceResponsibleError()
+
+  return taxId.length === CNPJ_LENGTH ? { responsavelCnpj: taxId } : { responsavelCpf: taxId }
 }
 
 function buildTaxIdField(taxId: string): { readonly cnpj: string } | { readonly cpf: string } {

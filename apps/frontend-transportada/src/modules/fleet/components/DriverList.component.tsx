@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { FleetDriverDetail } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
@@ -23,6 +24,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
           <tr>
             <th scope="col">{t('columnDriverName')}</th>
             <th scope="col">{t('columnTaxId')}</th>
+            <th scope="col">{t('columnLinkedTaxId')}</th>
             <th scope="col">{t('columnLicense')}</th>
             <th scope="col">{t('columnAppAccess')}</th>
             <th scope="col">{t('columnStatus')}</th>
@@ -34,6 +36,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
             <tr key={driver.id}>
               <td>{driver.name}</td>
               <td>{driver.taxId}</td>
+              <td>{driver.linkedTaxId === '' ? t('emptyValue') : driver.linkedTaxId}</td>
               <td>{driver.licenseNumber}</td>
               <td>{t(driver.membershipId === null ? 'appAccessOff' : 'appAccessOn')}</td>
               <td>
@@ -51,6 +54,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
                 <td>
                   <div className={styles.rowActions}>
                     <Button size="sm" type="button" variant="ghost" onClick={() => onEdit(driver)}>
+                      <Icon name="edit" />
                       {t('edit')}
                     </Button>
                     <Button
@@ -59,6 +63,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
                       variant={driver.status === 'active' ? 'ghost' : 'secondary'}
                       onClick={() => onToggleStatus(driver)}
                     >
+                      <Icon name="power" />
                       {t(driver.status === 'active' ? 'deactivate' : 'activate')}
                     </Button>
                   </div>

@@ -3,13 +3,14 @@
  */
 import { z } from 'zod'
 
+import { CERTIFICATE_PURPOSES } from '../../database/digital-certificate.schema.js'
 import type { DigitalCertificateResult } from '../application/digital-certificate.port.js'
 
 const persistedCertificateResponseSchema = z
   .object({
     expiresAt: z.iso.datetime({ offset: true }),
     id: z.uuid(),
-    purpose: z.literal('cte'),
+    purpose: z.enum(CERTIFICATE_PURPOSES),
     status: z.literal('active'),
     validFrom: z.iso.datetime({ offset: true }),
     version: z.string().regex(/^[1-9][0-9]*$/),

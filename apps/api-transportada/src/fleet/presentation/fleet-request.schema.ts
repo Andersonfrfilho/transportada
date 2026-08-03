@@ -13,6 +13,7 @@ import {
   MDFE_WHEEL_TYPES,
 } from '../../database/fleet.schema.js'
 
+const CNPJ = /^[0-9]{14}$/
 const CPF = /^[0-9]{11}$/
 const NAME_MAX_LENGTH = 60
 const OWNER_TAX_ID = /^(?:[0-9]{11}|[0-9]{14})$/
@@ -54,11 +55,14 @@ const vehicleFieldsSchema = z.object({
 
 const driverFieldsSchema = z.object({
   licenseNumber: optionalDigits(CPF),
+  linkedTaxId: optionalDigits(CNPJ),
   membershipId: z.uuid().nullable(),
   name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
   phone: optionalDigits(PHONE),
   taxId: z.string().regex(CPF),
 })
+
+export const plateSchema = z.string().regex(PLATE)
 
 export type FleetVehicleFields = z.infer<typeof vehicleFieldsSchema>
 export type FleetDriverFields = z.infer<typeof driverFieldsSchema>
@@ -74,6 +78,14 @@ export const updateVehicleSchema = vehicleFieldsSchema
   .superRefine(assertVehicleRules)
 
 export const createDriverSchema = driverFieldsSchema.strict()
+
+export const replaceDriverVehiclesSchema = z
+  .object({
+    vehicleIds: z
+      .array(z.uuid())
+      .refine((value) => new Set(value).size === value.length, 'vehicleIds must be unique'),
+  })
+  .strict()
 
 export const updateDriverSchema = driverFieldsSchema
   .extend({

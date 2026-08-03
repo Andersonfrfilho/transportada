@@ -24,6 +24,7 @@ import { storedObjects } from './storage.schema.js'
 export const BILLING_INVOICE_STATUSES = ['issued', 'cancelled'] as const
 export const BILLING_EVENT_NAMES = [
   'invoice_created',
+  'invoice_updated',
   'invoice_cancelled',
   'document_generated',
   'document_failed',
@@ -51,6 +52,7 @@ export const billingInvoices = pgTable(
     actorUserId: uuid('actor_user_id').notNull(),
     correlationId: text('correlation_id').notNull(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    observations: text().notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -108,6 +110,7 @@ export const billingInvoices = pgTable(
       'billing_invoices_customer_document_check',
       sql`${table.customerDocument} ~ '^[0-9]{11,14}$'`,
     ),
+    check('billing_invoices_observations_check', sql`length(${table.observations}) <= 500`),
   ],
 )
 
@@ -235,7 +238,7 @@ export const billingInvoiceEvents = pgTable(
     ),
     check(
       'billing_invoice_events_name_check',
-      sql`${table.eventName} in ('invoice_created', 'invoice_cancelled', 'document_generated', 'document_failed')`,
+      sql`${table.eventName} in ('invoice_created', 'invoice_updated', 'invoice_cancelled', 'document_generated', 'document_failed')`,
     ),
     check('billing_invoice_events_version_check', sql`${table.eventVersion} > 0`),
   ],

@@ -12,15 +12,19 @@ import { createUpdateCompanySettingsUseCase } from './companies/application/upda
 import { createListDigitalCertificatesUseCase } from './companies/application/list-digital-certificates.use-case'
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
+import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
 import { createFiscalCompanyProfileLookupGateway } from './companies/infrastructure/fiscal-company-profile-lookup.gateway'
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
+import { createCompanyLogoRoutes } from './companies/presentation/company-logo.routes.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
 import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-case'
+import { createListCompanyCteItemsUseCase } from './cte-batches/application/list-company-cte-items.use-case'
 import { createListCteBatchItemsUseCase } from './cte-batches/application/list-cte-batch-items.use-case'
 import { createPreviewCteBatchUseCase } from './cte-batches/application/preview-cte-batch.use-case'
 import { DrizzleCteBatchItemRepository } from './cte-batches/infrastructure/drizzle-cte-batch-item.repository'
@@ -32,14 +36,26 @@ import { createCteEmissionProfilesUseCase } from './cte-profiles/application/cte
 import { DrizzleCteEmissionProfileRepository } from './cte-profiles/infrastructure/drizzle-cte-emission-profile.repository'
 import { createCteEmissionProfileRoutes } from './cte-profiles/presentation/cte-emission-profiles.routes'
 import { createBillingUseCase } from './billing/application/billing.use-case'
+import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
 import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
+import { DrizzleInvoiceDocumentRepository } from './billing/infrastructure/drizzle-invoice-document.repository'
+import { createInvoiceDocumentArchiveGateway } from './billing/infrastructure/invoice-document-archive.gateway'
+import { createInvoicePdfGateway } from './billing/infrastructure/invoice-pdf.gateway'
 import { createBillingRoutes } from './billing/presentation/billing.routes'
+import { toBillingInvoiceListFilters } from './billing/presentation/billing.schema.js'
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
+import { createExportCteDocumentsUseCase } from './cte-issuance/application/export-cte-documents.use-case.js'
+import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
 import { createCteDocumentDownloadGateway } from './cte-issuance/infrastructure/cte-document-download.gateway.js'
+import { createCteExportSelection } from './cte-issuance/infrastructure/cte-export-selection.query.js'
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
+import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
+import { createFleetVehicleLookupUseCase } from './fleet/application/fleet-vehicle-lookup.use-case'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
+import { createHttpVehicleLookupGateway } from './fleet/infrastructure/http-vehicle-lookup.gateway'
+import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/drizzle-fleet-driver-vehicle.repository'
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
@@ -119,6 +135,7 @@ export function bootstrap(): Bun.Server<undefined> {
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+      vehicleLookup: config.vehicleLookup,
     }),
     tenantContext,
   })
@@ -155,6 +172,7 @@ type CreateApplicationRoutesParams = {
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
+  readonly vehicleLookup: ApiEnvironment['vehicleLookup']
 }
 
 function createApplicationRoutes({
@@ -162,10 +180,12 @@ function createApplicationRoutes({
   envelopeKeyRing,
   environment,
   idempotencyHmacKey,
+  vehicleLookup,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
+  const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
   const freightRepository = new DrizzleFreightRepository(database)
@@ -174,6 +194,7 @@ function createApplicationRoutes({
   const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
   const fleetVehicleRepository = new DrizzleFleetVehicleRepository(database)
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
+  const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository(database)
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
@@ -213,6 +234,19 @@ function createApplicationRoutes({
   })
   const fleetVehicles = createFleetVehiclesUseCase({ repository: fleetVehicleRepository })
   const fleetDrivers = createFleetDriversUseCase({ repository: fleetDriverRepository })
+  const fleetDriverVehicles = createFleetDriverVehiclesUseCase({
+    driverRepository: fleetDriverRepository,
+    repository: fleetDriverVehicleRepository,
+  })
+  const fleetVehicleLookup = createFleetVehicleLookupUseCase({
+    gateway:
+      vehicleLookup === null
+        ? null
+        : createHttpVehicleLookupGateway({
+            configuration: vehicleLookup,
+            fetch: (target, init) => fetch(target, init),
+          }),
+  })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -234,21 +268,37 @@ function createApplicationRoutes({
     unitOfWork: cteEmissionProfileRepository,
   })
   const previewCteBatches = createPreviewCteBatchUseCase({
+    clock: { now: () => new Date() },
     profiles: cteEmissionProfileCatalog,
     reader: new DrizzleCteBatchPreviewRepository(database),
   })
-  const listCteBatchItems = createListCteBatchItemsUseCase({
-    reader: new DrizzleCteBatchItemRepository(database),
-  })
+  const cteBatchItemReader = new DrizzleCteBatchItemRepository(database)
+  const listCteBatchItems = createListCteBatchItemsUseCase({ reader: cteBatchItemReader })
+  const listCompanyCteItems = createListCompanyCteItemsUseCase({ reader: cteBatchItemReader })
   const billing = createBillingUseCase({
     clock: { now: () => new Date().toISOString() },
     fingerprintService,
     unitOfWork: billingRepository,
   })
+  const invoiceDocuments = createInvoiceDocumentUseCase({
+    archive: createInvoiceDocumentArchiveGateway({
+      bucket: storageBucket,
+      storage: storageGateway,
+    }),
+    clock: () => new Date(),
+    createObjectId: () => crypto.randomUUID(),
+    renderer: createInvoicePdfGateway(),
+    repository: new DrizzleInvoiceDocumentRepository(database),
+  })
   const cteIssuance = createCteIssuanceUseCase({
     documentDownload: createCteDocumentDownloadGateway({ storage: storageGateway }),
     fingerprintService,
     unitOfWork: cteIssuanceRepository,
+  })
+  const exportCteDocuments = createExportCteDocumentsUseCase({
+    archive: createCteArchiveGateway({ storage: storageGateway }),
+    clock: () => new Date(),
+    selection: createCteExportSelection(database),
   })
   const operations = createOperationsUseCase({
     clock: { now: () => new Date().toISOString() },
@@ -274,6 +324,9 @@ function createApplicationRoutes({
         unitOfWork: settingsRepository,
       }),
     }),
+    ...createCompanyLogoRoutes({
+      companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
+    }),
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },
@@ -293,13 +346,22 @@ function createApplicationRoutes({
     ...createFleetRoutes({
       createDriver: { execute: (input) => fleetDrivers.create(input) },
       createVehicle: { execute: (input) => fleetVehicles.create(input) },
+      driverVehicles: {
+        list: (input) => fleetDriverVehicles.list(input),
+        replace: (input) => fleetDriverVehicles.replace(input),
+      },
       listDrivers: { execute: (input) => fleetDrivers.list(input) },
       listVehicles: { execute: (input) => fleetVehicles.list(input) },
       updateDriver: { execute: (input) => fleetDrivers.update(input) },
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },
+      vehicleLookup: {
+        isAvailable: () => fleetVehicleLookup.isAvailable(),
+        lookup: (input) => fleetVehicleLookup.lookup(input),
+      },
     }),
     ...createMdfeManifestRoutes({
       createManifest: { execute: (input) => mdfeManifests.create(input) },
+      discardManifest: { execute: (input) => mdfeManifests.discard(input) },
       getManifest: { execute: (input) => mdfeManifests.get(input) },
       listManifests: { execute: (input) => mdfeManifests.list(input) },
       previewManifest: { execute: (input) => previewMdfeManifest.execute(input) },
@@ -321,6 +383,7 @@ function createApplicationRoutes({
     ...createCteBatchRoutes({
       cteBatches,
       listBatches: { execute: (input) => cteBatchRepository.list(input) },
+      listCompanyItems: { execute: (input) => listCompanyCteItems.execute(input) },
       listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
       listItems: { execute: (input) => listCteBatchItems.execute(input) },
       previewBatches: { execute: (input) => previewCteBatches.execute(input) },
@@ -336,7 +399,29 @@ function createApplicationRoutes({
             dueDate: input.dueDate,
             idempotencyKey: input.idempotencyKey,
           }),
+        generateDocument: (input) =>
+          invoiceDocuments.generate({ context: input.context, invoiceId: input.invoiceId }),
         get: (input) => billing.get(input),
+        list: ({ context, ...input }) =>
+          billing.list({
+            context,
+            cursor: input.cursor,
+            filters: toBillingInvoiceListFilters(input),
+            limit: input.limit,
+          }),
+        listDocuments: (input) =>
+          invoiceDocuments.list({ context: input.context, invoiceId: input.invoiceId }),
+        preview: (input) =>
+          billing.preview({ context: input.context, cteDocumentIds: input.cteIds }),
+        update: (input) =>
+          billing.update({
+            context: input.context,
+            correlationId: input.correlationId,
+            discountAmount: input.discountAmount,
+            invoiceId: input.invoiceId,
+            observations: input.observations,
+            surchargeAmount: input.surchargeAmount,
+          }),
       },
       listEligibleBillingCtes: {
         async execute(input) {
@@ -344,11 +429,19 @@ function createApplicationRoutes({
             context: input.context,
             filters: {
               batchId: input.batchId,
+              batchIdIn: input.batchIdIn,
               cteNumber: input.cteNumber,
+              cteNumberFrom: input.cteNumberFrom,
+              cteNumberIn: input.cteNumberIn,
+              cteNumberTo: input.cteNumberTo,
               customerDocument: input.customerDocument,
+              customerName: input.customerName,
               from: input.issuedFrom,
               maxAmount: input.maxAmount,
               minAmount: input.minAmount,
+              nfeNumberFrom: input.nfeNumberFrom,
+              nfeNumberIn: input.nfeNumberIn,
+              nfeNumberTo: input.nfeNumberTo,
               to: input.issuedTo,
             },
             limit: input.limit,
@@ -358,6 +451,9 @@ function createApplicationRoutes({
       },
     }),
     ...createCteIssuanceRoutes({
+      cteExport: {
+        exportDocuments: (input) => exportCteDocuments.exportDocuments(input),
+      },
       cteIssuance: {
         cancel: (input) => cteIssuance.cancel(input),
         get: (input) => cteIssuance.getIssuance(input),

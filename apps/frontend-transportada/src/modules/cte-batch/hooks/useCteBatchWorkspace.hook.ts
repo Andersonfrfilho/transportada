@@ -10,10 +10,11 @@ import {
   type CteBatchCreate,
   type CteBatchFilters,
 } from '../shared/cteBatchClient.service'
+import { resolveCteBatchProgressInterval } from '../shared/cteBatchProgress.service'
 
 const CTE_MANAGE = 'cte.manage'
 const CTE_SUBMIT = 'cte.submit'
-const CTE_BATCHES_QUERY_KEY = 'cte-batches'
+export const CTE_BATCHES_QUERY_KEY = 'cte-batches'
 const CTE_BATCH_EVENTS_QUERY_KEY = 'cte-batch-events'
 
 export type CteBatchClient = Client
@@ -26,7 +27,6 @@ export type CteBatchController = Readonly<{
   removeItem: (
     input: Readonly<{ batchId: string; itemId: string }>,
   ) => ReturnType<CteBatchClient['removeItem']>
-  submitBatch: (batchId: string) => ReturnType<CteBatchClient['submitBatch']>
 }>
 
 type ControllerInput = Readonly<{
@@ -52,7 +52,6 @@ export function createCteBatchController(input: ControllerInput): CteBatchContro
     cancelBatch: (batchId) => (canManageBatches ? input.client.cancelBatch(batchId) : forbidden()),
     createBatch: (request) => (canManageBatches ? input.client.createBatch(request) : forbidden()),
     removeItem: (request) => (canManageBatches ? input.client.removeItem(request) : forbidden()),
-    submitBatch: (batchId) => (canSubmitBatches ? input.client.submitBatch(batchId) : forbidden()),
   }
 }
 
@@ -92,6 +91,8 @@ export function useCteBatchWorkspace(
         limit: 25,
       }),
     queryKey: batchesQueryKey,
+    /** Depois de transmitir, quem fecha o lote é o worker — a listagem acompanha sem F5. */
+    refetchInterval: (query) => resolveCteBatchProgressInterval(query.state.data),
   })
   const eventsQuery = useQuery({
     enabled:
@@ -108,10 +109,6 @@ export function useCteBatchWorkspace(
     mutationFn: controller.createBatch,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
   })
-  const submitBatchMutation = useMutation({
-    mutationFn: controller.submitBatch,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
-  })
   const cancelBatchMutation = useMutation({
     mutationFn: controller.cancelBatch,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
@@ -126,6 +123,5 @@ export function useCteBatchWorkspace(
     createBatchMutation,
     eventsQuery,
     newIdempotencyKey: createIdempotencyKey,
-    submitBatchMutation,
   }
 }

@@ -145,6 +145,53 @@ describe('cte emission profiles http create contract', () => {
 
     expect(unusedNameResponse.status).toBe(400)
     expect(unusedNameFixture.createCalls).toEqual([])
+
+    const quantityNameFixture = await createCteProfilesHttpFixture()
+    const quantityNameResponse = await quantityNameFixture.handle(
+      jsonRequest({
+        body: {
+          ...CREATE_PROFILE_BODY,
+          settings: {
+            ...PROFILE_SETTINGS_BODY,
+            predominantProductMode: 'highest_quantity',
+            predominantProductName: 'ARROZ',
+          },
+        },
+        idempotencyKey: IDEMPOTENCY_KEY,
+        method: 'POST',
+        path: CTE_PROFILES_PATH,
+      }),
+    )
+
+    expect(quantityNameResponse.status).toBe(400)
+    expect(quantityNameFixture.createCalls).toEqual([])
+  })
+
+  test('persists and returns the highest quantity predominant product mode', async () => {
+    const settings = { ...PROFILE_SETTINGS_BODY, predominantProductMode: 'highest_quantity' }
+    const fixture = await createCteProfilesHttpFixture({
+      createResult: { ...PROFILE_DETAIL, predominantProductMode: 'highest_quantity' },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_PROFILE_BODY, settings },
+        idempotencyKey: IDEMPOTENCY_KEY,
+        method: 'POST',
+        path: CTE_PROFILES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createCalls[0]?.settings).toEqual(
+      expect.objectContaining({ predominantProductMode: 'highest_quantity' }),
+    )
+    expect(await response.json()).toEqual({
+      data: serializeProfileDetail({
+        ...PROFILE_DETAIL,
+        predominantProductMode: 'highest_quantity',
+      }),
+    })
   })
 
   test('accepts pickup details only when the profile indicates pickup at the destination', async () => {

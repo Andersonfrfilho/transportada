@@ -17,6 +17,7 @@ import {
   MANIFEST_PREVIEW,
   MANIFEST_SUMMARY,
   type MdfeManifestSummaryContract,
+  REJECTED_MANIFEST_SUMMARY,
 } from './mdfe-manifest.fixture'
 
 const TABLE_MODULE = '../../src/modules/mdfe-manifest/shared/mdfeManifestTable.service'
@@ -77,6 +78,21 @@ describe('mdfe manifest table contract', () => {
       AUTHORIZED_MANIFEST_SUMMARY.id,
     ])
     expect(table.sortManifests(MANIFESTS, null)).toEqual(MANIFESTS)
+  })
+
+  test('shows the sefaz refusal beside the status and stays quiet without one', async () => {
+    const table = await loadFutureModule<TableModule>(TABLE_MODULE)
+
+    expect(table.formatManifestRejection(REJECTED_MANIFEST_SUMMARY)).toBe(
+      '726 · Rejeicao: Numero do MDF-e ja utilizado',
+    )
+    expect(
+      table.formatManifestRejection({
+        ...REJECTED_MANIFEST_SUMMARY,
+        lastRejection: { ...REJECTED_MANIFEST_SUMMARY.lastRejection, message: null },
+      }),
+    ).toBe('726')
+    expect(table.formatManifestRejection(MANIFEST_SUMMARY)).toBeNull()
   })
 
   test('filters by multi-value status, text and numeric ranges and counts what is active', async () => {
@@ -229,37 +245,50 @@ describe('mdfe manifest advanced filter contract', () => {
 })
 
 describe('mdfe manifest actions contract', () => {
-  test('exposes issue, close and cancel only where the fiscal state allows', async () => {
+  test('exposes issue, close, cancel and discard only where the fiscal state allows', async () => {
     const actions = await loadFutureModule<ActionsModule>(ACTIONS_MODULE)
 
     expect(actions.resolveManifestActions('draft')).toEqual({
       canCancel: false,
       canClose: false,
+      canDiscard: true,
       canIssue: true,
     })
     expect(actions.resolveManifestActions('rejected')).toEqual({
       canCancel: false,
       canClose: false,
+      canDiscard: true,
       canIssue: true,
     })
     expect(actions.resolveManifestActions('issuing')).toEqual({
       canCancel: false,
       canClose: false,
+      canDiscard: false,
       canIssue: false,
     })
     expect(actions.resolveManifestActions('authorized')).toEqual({
       canCancel: true,
       canClose: true,
+      canDiscard: false,
       canIssue: false,
     })
     expect(actions.resolveManifestActions('closed')).toEqual({
       canCancel: false,
       canClose: false,
+      canDiscard: false,
       canIssue: false,
     })
     expect(actions.resolveManifestActions('cancelled')).toEqual({
       canCancel: false,
       canClose: false,
+      canDiscard: false,
+      canIssue: false,
+    })
+    // ADR-0017: um manifesto descartado é fim de linha — nada mais é oferecido sobre ele
+    expect(actions.resolveManifestActions('discarded')).toEqual({
+      canCancel: false,
+      canClose: false,
+      canDiscard: false,
       canIssue: false,
     })
   })
@@ -490,6 +519,7 @@ type TableFilters = Readonly<{
 
 type TableModule = {
   readonly EMPTY_MDFE_MANIFEST_FILTERS: TableFilters
+  readonly formatManifestRejection: (manifest: MdfeManifestSummaryContract) => null | string
   readonly MDFE_MANIFEST_COLUMNS_STORAGE_KEY: string
   readonly MDFE_MANIFEST_COLUMN_KEYS: readonly string[]
   readonly countActiveFilters: (filters: TableFilters) => number
@@ -558,6 +588,7 @@ type ActionsModule = {
   readonly resolveManifestActions: (status: string) => Readonly<{
     canCancel: boolean
     canClose: boolean
+    canDiscard: boolean
     canIssue: boolean
   }>
   readonly validateCancellationJustification: (

@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { FleetVehicleDetail } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
@@ -56,6 +57,7 @@ export function VehicleList({
                 <td>
                   <div className={styles.rowActions}>
                     <Button size="sm" type="button" variant="ghost" onClick={() => onEdit(vehicle)}>
+                      <Icon name="edit" />
                       {t('edit')}
                     </Button>
                     <Button
@@ -64,6 +66,7 @@ export function VehicleList({
                       variant={vehicle.status === 'active' ? 'ghost' : 'secondary'}
                       onClick={() => onToggleStatus(vehicle)}
                     >
+                      <Icon name="power" />
                       {t(vehicle.status === 'active' ? 'deactivate' : 'activate')}
                     </Button>
                   </div>

@@ -43,6 +43,15 @@ describe('CT-e fiscal document listing contract', () => {
     expect(unitOfWork.fiscalDocumentQueries).toEqual([
       { batchId: BATCH_ID, batchItemId: BATCH_ITEM_ID, companyId: COMPANY_CONTEXT.companyId },
     ])
+
+    // O nome do arquivo sai da chave de acesso, não da chave do objeto no bucket.
+    expect(unitOfWork.downloadRequests).toEqual([
+      {
+        bucket: FISCAL_DOCUMENT_RECORD.bucket,
+        fileName: `${FISCAL_DOCUMENT_RECORD.accessKey}.xml`,
+        key: FISCAL_DOCUMENT_RECORD.objectKey,
+      },
+    ])
   })
 
   test('never exposes the bucket, the storage key or the XML itself', async () => {

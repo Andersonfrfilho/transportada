@@ -55,8 +55,20 @@ export const GOLDEN_RECIPIENT: CtePayloadParty = {
 export const GOLDEN_INVOICE: CtePayloadInvoice = {
   accessKey: GOLDEN_ACCESS_KEY,
   products: [
-    { description: GOLDEN_PREDOMINANT_PRODUCT, grossWeight: null, totalValue: '700.0000' },
-    { description: 'AMACIANTE FOFO 2L', grossWeight: null, totalValue: '258.4800' },
+    {
+      description: GOLDEN_PREDOMINANT_PRODUCT,
+      grossWeight: null,
+      ordinal: 1,
+      quantity: '5.0000',
+      totalValue: '700.0000',
+    },
+    {
+      description: 'AMACIANTE FOFO 2L',
+      grossWeight: null,
+      ordinal: 2,
+      quantity: '12.0000',
+      totalValue: '258.4800',
+    },
   ],
   recipient: GOLDEN_RECIPIENT,
   sender: GOLDEN_SENDER,

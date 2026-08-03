@@ -12,6 +12,7 @@ import type {
   MdfeFiscalProvider,
   MdfeIssueOutcome,
   MdfeProviderConfig,
+  MdfeRejection,
 } from '../infrastructure/mdfe-fiscal-gateway.js'
 import { createMdfeFiscalGateway } from '../infrastructure/mdfe-fiscal-gateway.js'
 
@@ -25,6 +26,11 @@ const DEFAULT_REJECTION_CODE = 'FISCAL_REJECTED'
 
 type MdfeIssuanceWorkerEffect = {
   execute(params: { readonly envelope: MdfeProcessingEnvelopeV1 }): Promise<void>
+}
+
+export type MdfeRejectionWriteBack = {
+  readonly errorCode: string
+  readonly errorMessage?: string
 }
 
 export type MdfeIssuanceWriteBackKey = {
@@ -99,7 +105,7 @@ export type MdfeIssuanceWriteBack = {
     },
   ): Promise<void>
   recordCancellationRejected(
-    input: MdfeIssuanceWriteBackKey & { readonly errorCode: string },
+    input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack,
   ): Promise<void>
   recordCancelled(
     input: MdfeIssuanceWriteBackKey & {
@@ -117,11 +123,9 @@ export type MdfeIssuanceWriteBack = {
       readonly xml?: MdfeStoredXmlObject
     },
   ): Promise<void>
-  recordClosureRejected(
-    input: MdfeIssuanceWriteBackKey & { readonly errorCode: string },
-  ): Promise<void>
+  recordClosureRejected(input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack): Promise<void>
   recordInFlight(input: MdfeIssuanceWriteBackKey): Promise<void>
-  recordRejected(input: MdfeIssuanceWriteBackKey & { readonly errorCode: string }): Promise<void>
+  recordRejected(input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack): Promise<void>
   recordRetryScheduled(input: MdfeIssuanceWriteBackKey & { readonly cause: string }): Promise<void>
 }
 
@@ -179,9 +183,9 @@ export function createMdfeIssuanceWorkerEffect(
     })
 
     if (outcome.status === 'rejected') {
-      const errorCode = outcome.rejection?.code ?? DEFAULT_REJECTION_CODE
-      await input.writeBack?.recordRejected({ ...createKey(), errorCode })
-      throw new MdfeIssuanceFatalError(errorCode)
+      const rejection = toRejectionWriteBack(outcome.rejection)
+      await input.writeBack?.recordRejected({ ...createKey(), ...rejection })
+      throw new MdfeIssuanceFatalError(rejection.errorCode)
     }
 
     if (outcome.status === 'error') {
@@ -242,8 +246,8 @@ export function createMdfeIssuanceWorkerEffect(
 
     const protocol = await guardEventOutcome({
       envelope,
-      onRejected: async (errorCode) => {
-        await input.writeBack?.recordClosureRejected({ ...createKey(), errorCode })
+      onRejected: async (rejection) => {
+        await input.writeBack?.recordClosureRejected({ ...createKey(), ...rejection })
       },
       onRetryScheduled: async (cause) => {
         await input.writeBack?.recordRetryScheduled({ ...createKey(), cause })
@@ -300,8 +304,8 @@ export function createMdfeIssuanceWorkerEffect(
 
     const protocol = await guardEventOutcome({
       envelope,
-      onRejected: async (errorCode) => {
-        await input.writeBack?.recordCancellationRejected({ ...createKey(), errorCode })
+      onRejected: async (rejection) => {
+        await input.writeBack?.recordCancellationRejected({ ...createKey(), ...rejection })
       },
       onRetryScheduled: async (cause) => {
         await input.writeBack?.recordRetryScheduled({ ...createKey(), cause })
@@ -379,15 +383,15 @@ export function createMdfeIssuanceWorkerEffect(
 
 async function guardEventOutcome(input: {
   readonly envelope: MdfeProcessingEnvelopeV1
-  onRejected(errorCode: string): Promise<void>
+  onRejected(rejection: MdfeRejectionWriteBack): Promise<void>
   onRetryScheduled(cause: string): Promise<void>
   readonly outcome: MdfeEventOutcome
   readonly settledWithoutProtocol: string
 }): Promise<string> {
   if (input.outcome.status === 'rejected') {
-    const errorCode = input.outcome.rejection?.code ?? DEFAULT_REJECTION_CODE
-    await input.onRejected(errorCode)
-    throw new MdfeIssuanceFatalError(errorCode)
+    const rejection = toRejectionWriteBack(input.outcome.rejection)
+    await input.onRejected(rejection)
+    throw new MdfeIssuanceFatalError(rejection.errorCode)
   }
 
   if (input.outcome.status === 'error') {
@@ -401,6 +405,14 @@ async function guardEventOutcome(input: {
   }
 
   return input.outcome.protocol
+}
+
+/** A mensagem da SEFAZ é o único texto que explica a recusa ao operador — só o código não basta. */
+function toRejectionWriteBack(rejection: MdfeRejection | undefined): MdfeRejectionWriteBack {
+  return {
+    errorCode: rejection?.code ?? DEFAULT_REJECTION_CODE,
+    ...(rejection?.message === undefined ? {} : { errorMessage: rejection.message }),
+  }
 }
 
 function createWriteBackKey(envelope: MdfeProcessingEnvelopeV1): MdfeIssuanceWriteBackKey {

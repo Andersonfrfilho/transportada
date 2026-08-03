@@ -3,7 +3,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { GOLDEN_ACCESS_KEY, GOLDEN_SENDER } from '../cte-issuance-domain/support.js'
+import {
+  GROUPED_ACCESS_KEYS,
+  GROUPED_RECIPIENT,
+  GROUPED_SENDER,
+} from '../cte-issuance-domain/grouped.support.js'
+import { GOLDEN_ACCESS_KEY, GOLDEN_PROFILE, GOLDEN_SENDER } from '../cte-issuance-domain/support.js'
 
 import {
   BATCH_ID,
@@ -11,6 +16,7 @@ import {
   COMPANY_CONTEXT,
   CORRELATION_ID,
   CteIssuanceUnitOfWorkFixture,
+  GROUPED_PAYLOAD_SOURCE,
   IDEMPOTENCY_KEY,
   ISSUE_COMMAND_RESULT,
   PAYLOAD_EMITTER,
@@ -121,6 +127,89 @@ describe('CT-e issuance payload assembly contract', () => {
 
     expect(digest).toMatch(SHA256_PATTERN)
     expect(second.savedPayloads[0]?.['payloadSha256']).toBe(digest)
+  })
+
+  test('carries a grouped selection of three invoices into the persisted payload', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = GROUPED_PAYLOAD_SOURCE
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const payload = unitOfWork.savedPayloads[0]?.['payload'] as Record<string, unknown>
+
+    expect(payload['documentos']).toEqual([
+      { chave: GROUPED_ACCESS_KEYS[0], tipo: 'nfe' },
+      { chave: GROUPED_ACCESS_KEYS[1], tipo: 'nfe' },
+      { chave: GROUPED_ACCESS_KEYS[2], tipo: 'nfe' },
+    ])
+    expect(payload['carga']).toMatchObject({ vCarga: 430.5 })
+    expect(payload['remetente']).toMatchObject({ cnpj: GROUPED_SENDER.taxId })
+    expect(payload['destinatario']).toMatchObject({ cnpj: GROUPED_RECIPIENT.taxId })
+  })
+
+  test('fingerprints a grouped attempt apart from a single invoice attempt', async () => {
+    const first = new CteIssuanceUnitOfWorkFixture()
+    const second = new CteIssuanceUnitOfWorkFixture()
+    const single = new CteIssuanceUnitOfWorkFixture()
+    first.payloadSource = GROUPED_PAYLOAD_SOURCE
+    second.payloadSource = GROUPED_PAYLOAD_SOURCE
+
+    await (await createCteIssuanceUseCaseForTest(first)).issue(ISSUE_INPUT)
+    await (await createCteIssuanceUseCaseForTest(second)).issue(ISSUE_INPUT)
+    await (await createCteIssuanceUseCaseForTest(single)).issue(ISSUE_INPUT)
+
+    const digest = first.savedPayloads[0]?.['payloadSha256'] as string
+
+    expect(digest).toMatch(SHA256_PATTERN)
+    expect(second.savedPayloads[0]?.['payloadSha256']).toBe(digest)
+    expect(single.savedPayloads[0]?.['payloadSha256']).not.toBe(digest)
+  })
+
+  test('takes the provider CRT from the company fiscal profile, never from a fixed value', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = {
+      ...PAYLOAD_SOURCE,
+      emitter: { ...PAYLOAD_EMITTER, taxRegime: '3' },
+    }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const providerConfig = unitOfWork.savedPayloads[0]?.['providerConfig'] as Record<
+      string,
+      unknown
+    >
+
+    expect(providerConfig['crt']).toBe('3')
+    expect(providerConfig['crt']).not.toBe(PAYLOAD_EMITTER.taxRegime)
+  })
+
+  test('rejects issuance when the company has no tax regime recorded', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = { ...PAYLOAD_SOURCE, emitter: { ...PAYLOAD_EMITTER, taxRegime: '' } }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    const error = await captureApiError(() => useCase.issue(ISSUE_INPUT))
+
+    expect(error).toMatchObject({ code: 'CTE_ISSUANCE_EMITTER_INCOMPLETE', status: 422 })
+    expect(unitOfWork.savedPayloads).toEqual([])
+  })
+
+  // <ICMSSN><indSN>1</indSN> é decisão do CteXmlBuilder do pacote a partir do crt — não do payload.
+  test('emits only cst 90 for a Simples Nacional profile, without any ICMSSN field', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const payload = unitOfWork.savedPayloads[0]?.['payload'] as Record<string, unknown>
+
+    expect(GOLDEN_PROFILE.icmsCst).toBe('90')
+    expect(GOLDEN_PROFILE.icmsRate).toBe('0.000000')
+    expect(payload['icms']).toEqual({ cst: '90' })
+    expect(JSON.stringify(payload)).not.toContain('indSN')
+    expect(JSON.stringify(payload)).not.toContain('ICMSSN')
   })
 
   test('rejects issuance when the batch item has no payload source', async () => {

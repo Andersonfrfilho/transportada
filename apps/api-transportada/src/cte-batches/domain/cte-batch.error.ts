@@ -19,6 +19,14 @@ export function createDocumentAlreadyLinkedError(): ApiError {
   })
 }
 
+export function createBatchNameTakenError(): ApiError {
+  return new ApiError({
+    code: 'CTE_BATCH_NAME_TAKEN',
+    message: 'Another CT-e batch already uses this name',
+    status: 409,
+  })
+}
+
 export function createDocumentNotEligibleError(): ApiError {
   return new ApiError({
     code: 'CTE_BATCH_DOCUMENT_NOT_ELIGIBLE',

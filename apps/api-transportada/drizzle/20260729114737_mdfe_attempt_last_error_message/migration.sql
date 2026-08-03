@@ -1,0 +1,1 @@
+ALTER TABLE "mdfe_issuance_attempts" ADD COLUMN "last_error_message" text;

@@ -19,6 +19,11 @@ export type ApiEnvironment = {
   }
   readonly logLevel: LogLevel
   readonly port: number
+  /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
+  readonly vehicleLookup: {
+    readonly token: string
+    readonly url: string
+  } | null
 }
 
 export type DatabaseHealthPort = {

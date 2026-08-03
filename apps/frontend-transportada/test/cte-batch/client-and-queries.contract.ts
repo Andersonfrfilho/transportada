@@ -14,6 +14,7 @@ import {
   CTE_DOCUMENT_ID,
   CTE_PROFILE_ID,
   CTE_SUBMITTED_BATCH,
+  CTE_SUGGESTED_BATCH_NAME,
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_CURSOR,
   SYNTHETIC_IDEMPOTENCY_KEY,
@@ -199,6 +200,54 @@ describe('CT-e batch client and queries contract', () => {
     })
   })
 
+  test('surfaces the api error code of a failed create and falls back only without a readable code', async () => {
+    const scenarios = [
+      {
+        expectedCode: 'CTE_BATCH_NAME_TAKEN',
+        response: () =>
+          Response.json(
+            { error: { code: 'CTE_BATCH_NAME_TAKEN', message: 'name already used' } },
+            { status: 409 },
+          ),
+      },
+      {
+        expectedCode: 'CTE_BATCH_REQUEST_FAILED',
+        response: () => Response.json({ error: { message: 'no code here' } }, { status: 500 }),
+      },
+      {
+        expectedCode: 'CTE_BATCH_REQUEST_FAILED',
+        response: () => new Response('<html>gateway</html>', { status: 502 }),
+      },
+      {
+        expectedCode: 'CTE_BATCH_RESPONSE_INVALID',
+        response: () => new Response('not json', { status: 201 }),
+      },
+    ] as const
+
+    const { createCteBatchClient } = await loadFutureModule<CteBatchClientModule>(
+      '../../src/modules/cte-batch/shared/cteBatchClient.service',
+    )
+    const rejectedCodes = await Promise.all(
+      scenarios.map(async (scenario) => {
+        const client = createCteBatchClient({
+          apiUrl: 'https://api.example.test',
+          fetch: () => Promise.resolve(scenario.response()),
+          getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+          newIdempotencyKey: () => SYNTHETIC_IDEMPOTENCY_KEY,
+          newSubmitIdempotencyKey: () => SYNTHETIC_SUBMIT_KEY,
+        })
+        try {
+          await client.createBatch(CTE_BATCH_CREATE)
+          return 'CTE_BATCH_UNEXPECTED_SUCCESS'
+        } catch (error) {
+          return error instanceof Error ? error.message : 'CTE_BATCH_UNEXPECTED_THROWN_VALUE'
+        }
+      }),
+    )
+
+    expect(rejectedCodes).toEqual(scenarios.map((scenario) => scenario.expectedCode))
+  })
+
   test('rejects a preview whose summary leaks fields outside the projection envelope', async () => {
     const { createCteBatchPreviewAdapter } = await loadFutureModule<CteBatchPreviewAdapterModule>(
       '../../src/modules/cte-batch/shared/cteBatchPreview.validation',
@@ -234,6 +283,31 @@ describe('CT-e batch client and queries contract', () => {
     }) as { readonly projections: readonly { readonly fiscalAmount: string }[] }
 
     expect(preview.projections[0]?.fiscalAmount).toBe('43.13')
+  })
+
+  test('carries the batch name suggested by the api and survives its absence', async () => {
+    const { createCteBatchPreviewAdapter } = await loadFutureModule<CteBatchPreviewAdapterModule>(
+      '../../src/modules/cte-batch/shared/cteBatchPreview.validation',
+    )
+    const previewFromApi = createCteBatchPreviewAdapter()
+
+    const suggested = previewFromApi(CTE_BATCH_PREVIEW) as { readonly suggestedName: string }
+    expect(suggested.suggestedName).toBe(CTE_SUGGESTED_BATCH_NAME)
+
+    // API sem a sugestão não pode derrubar o modal — o vazio é o sinal de "não há sugestão".
+    const withoutSuggestion = previewFromApi({
+      blocked: CTE_BATCH_PREVIEW.blocked,
+      projections: CTE_BATCH_PREVIEW.projections,
+      summary: CTE_BATCH_PREVIEW.summary,
+    }) as { readonly suggestedName: string }
+    expect(withoutSuggestion.suggestedName).toBe('')
+
+    expect(() => previewFromApi({ ...CTE_BATCH_PREVIEW, suggestedName: 2 })).toThrow(
+      'CTE_BATCH_INVALID_PREVIEW_RESPONSE',
+    )
+    expect(() => previewFromApi({ ...CTE_BATCH_PREVIEW, companyId: 'forbidden-company' })).toThrow(
+      'CTE_BATCH_INVALID_PREVIEW_RESPONSE',
+    )
   })
 
   test('keeps batch DTO boundaries strict and excludes tenant or fiscal payload fields', async () => {

@@ -71,7 +71,13 @@
     "subtitle": "Fast review of already persisted NF-e records.",
     "empty": "No documents available.",
     "downloadXml": "Download XML",
-    "emitCte": "Issue CT-es ({{count}})"
+    "emitCte": "Issue CT-es ({{count}})",
+    "blockedRow": "Invoice blocked for CT-e",
+    "blockedCount": "{{count}} blocked out of the selection",
+    "blockedCount_other": "{{count}} blocked out of the selection",
+    "fields": {
+      "cteIssued": "CT-e"
+    }
   },
   "documentStatus": {
     "authorized": "Authorized",
@@ -89,6 +95,7 @@
     "batchName": "Batch name",
     "profile": "Emission profile",
     "profileAutomatic": "Automatic (by sender tax id)",
+    "manageProfiles": "Adjust emission profiles",
     "grouping": "Grouping",
     "groupingMode": {
       "per_invoice": "One CT-e per invoice",
@@ -102,9 +109,10 @@
       "profile": "Profile",
       "amount": "CT-e amount"
     },
-    "resolvedBy": {
-      "auto": "automatic",
-      "manual": "manual"
+    "matchedBy": {
+      "manual": "chosen in the dialog",
+      "recipient_tax_id": "matched by recipient tax id",
+      "sender_tax_id": "matched by sender tax id"
     },
     "componentsLabel": "Components",
     "total": "Batch total",
@@ -125,6 +133,13 @@
       "CTE_PROFILE_RULE_NOT_IN_FORCE": "No freight rule in force",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Summary only, no full XML"
     },
-    "error": "The projection could not be calculated. Try again."
+    "errorPreview": "The projection could not be calculated. Try again.",
+    "errorNameTaken": "A batch already uses this name. Pick another name to create the batch.",
+    "errorCreate": "The batch could not be created. Try again.",
+    "errorAlreadyLinked": "One or more notes already belong to another CT-e. The projection was recalculated — review it before creating the batch."
+  },
+  "filters": {
+    "cteIssuedPending": "Without issued CT-e",
+    "cteIssuedIssued": "With issued CT-e"
   }
 }

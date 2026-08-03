@@ -2,11 +2,16 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
 
 import type { MdfeManifestTableController } from '../hooks/useMdfeManifestTable.hook'
 import type { MdfeManifestStatus, MdfeManifestSummary } from '../shared/mdfeManifest.types'
 import { resolveManifestActions } from '../shared/mdfeManifestActions.service'
-import type { MdfeManifestColumnKey } from '../shared/mdfeManifestTable.service'
+import {
+  formatManifestRejection,
+  type MdfeManifestColumnKey,
+} from '../shared/mdfeManifestTable.service'
 import styles from '../styles/mdfeManifest.module.css'
 import { MdfeManifestColumnsMenu } from './MdfeManifestColumnsMenu.component'
 
@@ -16,12 +21,14 @@ const ALERT_STATUSES: readonly MdfeManifestStatus[] = ['cancelled', 'rejected']
 export type MdfeManifestTablePermissions = Readonly<{
   canCancel: boolean
   canClose: boolean
+  canDiscard: boolean
   canIssue: boolean
 }>
 
 export type MdfeManifestTableActions = Readonly<{
   onCancel: (manifest: MdfeManifestSummary) => void
   onClose: (manifest: MdfeManifestSummary) => void
+  onDiscard: (manifest: MdfeManifestSummary) => void
   onIssue: (manifest: MdfeManifestSummary) => void
 }>
 
@@ -61,10 +68,23 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
     return permissions.canCancel && resolveManifestActions(manifest.status).canCancel
   }
 
+  function canDiscard(manifest: MdfeManifestSummary): boolean {
+    return permissions.canDiscard && resolveManifestActions(manifest.status).canDiscard
+  }
+
   function renderCell(manifest: MdfeManifestSummary, column: MdfeManifestColumnKey) {
     if (column === 'status') {
+      const rejection = formatManifestRejection(manifest)
       return (
-        <span className={statusClassName(manifest.status)}>{t(`status.${manifest.status}`)}</span>
+        <>
+          <span className={statusClassName(manifest.status)}>{t(`status.${manifest.status}`)}</span>
+          {rejection === null ? null : (
+            <p className={styles.rejectionReason} title={rejection}>
+              <span className={styles.srOnly}>{t('rejection.label')}</span>
+              {rejection}
+            </p>
+          )}
+        </>
       )
     }
     if (column === 'createdAt') return formatMoment(manifest.createdAt)
@@ -107,9 +127,11 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
               size="sm"
               type="button"
             >
+              <Icon name="send" />
               {t('actions.issue')}
             </Button>
             <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
               {t('selection.clear')}
             </Button>
           </div>
@@ -121,14 +143,17 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
           <thead>
             <tr>
               <th scope="col">
-                <input
-                  aria-label={t('selection.selectAll')}
+                <Checkbox
+                  ariaLabel={t('selection.selectAll')}
                   checked={
                     table.visibleManifests.length > 0 &&
                     table.selectedManifests.length === table.visibleManifests.length
                   }
-                  onChange={table.toggleAllSelection}
-                  type="checkbox"
+                  indeterminate={
+                    table.selectedManifests.length > 0 &&
+                    table.selectedManifests.length < table.visibleManifests.length
+                  }
+                  onChange={() => table.toggleAllSelection()}
                 />
               </th>
               {table.visibleColumns.map((column) => (
@@ -153,11 +178,10 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
             {table.visibleManifests.map((manifest) => (
               <tr aria-selected={table.selectedIds.includes(manifest.id)} key={manifest.id}>
                 <td>
-                  <input
-                    aria-label={`${t('selection.select')} ${describeManifest(manifest)}`}
+                  <Checkbox
+                    ariaLabel={`${t('selection.select')} ${describeManifest(manifest)}`}
                     checked={table.selectedIds.includes(manifest.id)}
                     onChange={() => table.toggleSelection(manifest.id)}
-                    type="checkbox"
                   />
                 </td>
                 {table.visibleColumns.map((column) => (
@@ -167,6 +191,7 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
                   <div className={styles.rowActions}>
                     {canIssue(manifest) ? (
                       <Button onClick={() => actions.onIssue(manifest)} size="sm" type="button">
+                        <Icon name="send" />
                         {t('actions.issue')}
                       </Button>
                     ) : null}
@@ -177,6 +202,7 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
                         type="button"
                         variant="secondary"
                       >
+                        <Icon name="check" />
                         {t('actions.close')}
                       </Button>
                     ) : null}
@@ -187,7 +213,19 @@ export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestT
                         type="button"
                         variant="ghost"
                       >
+                        <Icon name="alert" />
                         {t('actions.cancel')}
+                      </Button>
+                    ) : null}
+                    {canDiscard(manifest) ? (
+                      <Button
+                        onClick={() => actions.onDiscard(manifest)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Icon name="trash" />
+                        {t('actions.discard')}
                       </Button>
                     ) : null}
                   </div>

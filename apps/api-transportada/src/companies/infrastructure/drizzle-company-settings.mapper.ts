@@ -18,6 +18,16 @@ import type { CompanySettingsQueryable } from './drizzle-company-settings.types.
 
 const persistedResponseSchema = z
   .object({
+    billing: z
+      .object({
+        bankAccount: z.string(),
+        bankBranch: z.string(),
+        bankCode: z.string(),
+        bankName: z.string(),
+        observations: z.string(),
+        pixKey: z.string(),
+      })
+      .strict(),
     cte: z
       .object({
         environment: z.enum(['homologation', 'production']),
@@ -69,6 +79,14 @@ const persistedResponseSchema = z
   .strict()
 
 const settingsSelection = {
+  billing: {
+    bankAccount: companyFiscalProfiles.billingBankAccount,
+    bankBranch: companyFiscalProfiles.billingBankBranch,
+    bankCode: companyFiscalProfiles.billingBankCode,
+    bankName: companyFiscalProfiles.billingBankName,
+    observations: companyFiscalProfiles.billingObservations,
+    pixKey: companyFiscalProfiles.billingPixKey,
+  },
   cte: {
     environment: fiscalSequences.environment,
     nextNumber: fiscalSequences.nextNumber,
@@ -134,6 +152,7 @@ export async function findCompanySettings(
     throw new Error('Company fiscal settings are inconsistent')
   }
   return {
+    billing: settings.billing,
     cte,
     cteRetry: createCteRetryPolicy(settings.cteRetry),
     mdfe: settings.mdfe,
@@ -147,6 +166,7 @@ export function createCompanySettingsResult(
   sequenceVersion: bigint,
 ): CompanySettingsResult {
   return {
+    billing: settings.billing,
     cte: { ...settings.cte, version: sequenceVersion },
     cteRetry: settings.cteRetry,
     mdfe: settings.mdfe,
@@ -158,6 +178,7 @@ export function serializeCompanySettingsResponse(
   response: CompanySettingsResult,
 ): z.input<typeof persistedResponseSchema> {
   return {
+    billing: { ...response.billing },
     cte: {
       environment: response.cte.environment,
       nextNumber: response.cte.nextNumber.toString(),
@@ -179,6 +200,7 @@ export function serializeCompanySettingsResponse(
 export function deserializeCompanySettingsResponse(response: unknown): CompanySettingsResult {
   const parsed = persistedResponseSchema.parse(response)
   return {
+    billing: parsed.billing,
     cte: {
       environment: parsed.cte.environment,
       nextNumber: BigInt(parsed.cte.nextNumber),

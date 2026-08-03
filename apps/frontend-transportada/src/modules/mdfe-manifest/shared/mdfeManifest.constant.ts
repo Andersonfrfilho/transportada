@@ -24,10 +24,12 @@ export const MDFE_MANIFEST_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string
   MDFE_DOCUMENT_NOT_AUTHORIZED: 'documentNotAuthorized',
   MDFE_MANIFEST_ALREADY_CANCELLED: 'alreadyCancelled',
   MDFE_MANIFEST_ALREADY_CLOSED: 'alreadyClosed',
+  MDFE_MANIFEST_ALREADY_DISCARDED: 'alreadyDiscarded',
   MDFE_MANIFEST_CANCELLATION_WINDOW_EXPIRED: 'windowExpired',
   MDFE_MANIFEST_FORBIDDEN: 'readOnly',
   MDFE_MANIFEST_IN_FLIGHT: 'inFlight',
   MDFE_MANIFEST_NOT_AUTHORIZED: 'notAuthorized',
+  MDFE_MANIFEST_NOT_DISCARDABLE: 'notDiscardable',
   MDFE_MANIFEST_NOT_ISSUABLE: 'notIssuable',
   MDFE_MANIFEST_REQUEST_FAILED: 'requestFailed',
   MDFE_MANIFEST_RESPONSE_INVALID: 'responseInvalid',
@@ -54,6 +56,7 @@ export const MANIFEST_SUMMARY_KEYS = [
   'freightValue',
   'id',
   'insuranceEndorsement',
+  'lastRejection',
   'loadingPostalCode',
   'originState',
   'rntrc',
@@ -71,6 +74,8 @@ export const MANIFEST_DETAIL_KEYS = [
   'items',
   'loadingCities',
 ] as const
+
+export const MANIFEST_REJECTION_KEYS = ['attemptKind', 'code', 'message', 'occurredAt'] as const
 
 export const MANIFEST_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 

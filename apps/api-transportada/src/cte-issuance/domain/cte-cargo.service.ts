@@ -10,7 +10,11 @@ import {
 } from '../../shared/decimal.service.js'
 
 import { CtePayloadUnresolvedPredominantProductError } from './cte-payload.error.js'
-import type { CtePayloadInvoice, CtePayloadProfile } from './cte-payload.types.js'
+import type {
+  CtePayloadInvoice,
+  CtePayloadProduct,
+  CtePayloadProfile,
+} from './cte-payload.types.js'
 
 const ERROR_CODE_PREFIX = 'CTE_PAYLOAD'
 const WEIGHT_SCALE = MONEY_SCALE
@@ -32,7 +36,19 @@ type CargoTotals = {
   readonly quantity: bigint
 }
 
-function parseWeight(value: null | string): bigint {
+type CalculatedPredominantMode = Exclude<CtePayloadProfile['predominantProductMode'], 'fixed'>
+
+type MagnitudeResolver = (invoicePosition: number, product: CtePayloadProduct) => bigint
+
+type PredominantCandidate = {
+  readonly description: string
+  readonly invoicePosition: number
+  readonly magnitude: bigint
+  readonly ordinal: number
+  readonly totalValue: bigint
+}
+
+function parseAmount(value: null | string): bigint {
   if (value === null) return 0n
   return parseScaledDecimal({ errorCodePrefix: ERROR_CODE_PREFIX, scale: WEIGHT_SCALE, value })
 }
@@ -44,9 +60,9 @@ function sumTotals(invoices: readonly CtePayloadInvoice[]): CargoTotals {
 
   for (const invoice of invoices) {
     for (const volume of invoice.volumes) {
-      grossWeight += parseWeight(volume.grossWeight)
-      netWeight += parseWeight(volume.netWeight)
-      quantity += parseWeight(volume.quantity)
+      grossWeight += parseAmount(volume.grossWeight)
+      netWeight += parseAmount(volume.netWeight)
+      quantity += parseAmount(volume.quantity)
     }
   }
 
@@ -88,29 +104,76 @@ export function composeCargoQuantities(
   return quantities
 }
 
-function resolveByHighest(
-  invoices: readonly CtePayloadInvoice[],
-  pick: (product: CtePayloadInvoice['products'][number]) => null | string,
-): null | string {
-  let description: null | string = null
-  let highest = 0n
+function sumVolumeGrossWeight(invoice: CtePayloadInvoice): bigint {
+  let total = 0n
+  for (const volume of invoice.volumes) total += parseAmount(volume.grossWeight)
+  return total
+}
+
+/** Peso por item só escolhe o produto predominante se todos os itens do grupo o declararem. */
+function hasWeightOnEveryProduct(invoices: readonly CtePayloadInvoice[]): boolean {
+  let hasProduct = false
 
   for (const invoice of invoices) {
     for (const product of invoice.products) {
-      const raw = pick(product)
-      if (raw === null) continue
-      const value = parseScaledDecimal({
-        errorCodePrefix: ERROR_CODE_PREFIX,
-        scale: MONEY_SCALE,
-        value: raw,
-      })
-      if (value <= highest) continue
-      description = product.description
-      highest = value
+      if (parseAmount(product.grossWeight) <= 0n) return false
+      hasProduct = true
     }
   }
 
-  return description
+  return hasProduct
+}
+
+function buildMagnitudeResolver(
+  invoices: readonly CtePayloadInvoice[],
+  mode: CalculatedPredominantMode,
+): MagnitudeResolver {
+  if (mode === 'highest_quantity') return (_position, product) => parseAmount(product.quantity)
+  if (mode === 'highest_value') return (_position, product) => parseAmount(product.totalValue)
+  if (hasWeightOnEveryProduct(invoices)) {
+    return (_position, product) => parseAmount(product.grossWeight)
+  }
+
+  // Sem peso em todos os itens vale o peso do volume, que é a declaração legal da carga.
+  const volumeWeights = invoices.map(sumVolumeGrossWeight)
+  return (position) => volumeWeights[position] ?? 0n
+}
+
+function isBetterCandidate(
+  candidate: PredominantCandidate,
+  current: null | PredominantCandidate,
+): boolean {
+  if (current === null) return true
+  if (candidate.magnitude !== current.magnitude) return candidate.magnitude > current.magnitude
+  if (candidate.totalValue !== current.totalValue) return candidate.totalValue > current.totalValue
+  if (candidate.ordinal !== current.ordinal) return candidate.ordinal < current.ordinal
+  return candidate.invoicePosition < current.invoicePosition
+}
+
+function resolveByHighest(
+  invoices: readonly CtePayloadInvoice[],
+  mode: CalculatedPredominantMode,
+): null | string {
+  const resolveMagnitude = buildMagnitudeResolver(invoices, mode)
+  let best: null | PredominantCandidate = null
+
+  for (const [invoicePosition, invoice] of invoices.entries()) {
+    for (const product of invoice.products) {
+      const magnitude = resolveMagnitude(invoicePosition, product)
+      if (magnitude <= 0n) continue
+
+      const candidate: PredominantCandidate = {
+        description: product.description,
+        invoicePosition,
+        magnitude,
+        ordinal: product.ordinal,
+        totalValue: parseAmount(product.totalValue),
+      }
+      if (isBetterCandidate(candidate, best)) best = candidate
+    }
+  }
+
+  return best?.description ?? null
 }
 
 export function resolvePredominantProduct(
@@ -128,11 +191,7 @@ export function resolvePredominantProduct(
     return name
   }
 
-  const resolved =
-    mode === 'highest_weight'
-      ? resolveByHighest(invoices, (product) => product.grossWeight)
-      : resolveByHighest(invoices, (product) => product.totalValue)
-
+  const resolved = resolveByHighest(invoices, mode)
   if (resolved === null) throw new CtePayloadUnresolvedPredominantProductError(mode)
   return resolved
 }

@@ -10,6 +10,7 @@ import {
   DRIVER_ID,
   FLEET_DRIVERS_PATH,
   jsonRequest,
+  LINKED_COMPANY_TAX_ID,
   MEMBERSHIP_ID,
   responseApiError,
   responseData,
@@ -66,6 +67,44 @@ describe('fleet drivers http contract', () => {
     const response = await fixture.handle(
       jsonRequest({
         body: { ...CREATE_DRIVER_BODY, taxId: '123.456.789-01' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+    expect(fixture.createDriverCalls).toEqual([])
+  })
+
+  // Autônomo fatura pelo próprio CNPJ, mas o condutor do MDF-e continua sendo o CPF
+  test('accepts the linked company tax id beside the mandatory cpf', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, linkedTaxId: LINKED_COMPANY_TAX_ID },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: { ...CREATE_DRIVER_BODY, linkedTaxId: LINKED_COMPANY_TAX_ID },
+      },
+    ])
+  })
+
+  test('rejects a linked tax id that is not a plain fourteen digit cnpj', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, linkedTaxId: CREATE_DRIVER_BODY.taxId },
         method: 'POST',
         path: FLEET_DRIVERS_PATH,
       }),

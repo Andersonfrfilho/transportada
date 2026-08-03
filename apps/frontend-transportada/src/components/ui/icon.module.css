@@ -1,0 +1,36 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.icon {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sizeSm {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.sizeMd {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.spinning {
+  animation: icon-spin 900ms linear infinite;
+  transform-origin: center;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+}

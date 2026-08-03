@@ -13,6 +13,10 @@ import {
   type MdfeManifestCondition,
 } from '../shared/mdfeManifestAdvancedFilter.service'
 import {
+  clearMdfeManifestFilterField,
+  type MdfeManifestPillField,
+} from '../shared/mdfeManifestFilterPills.service'
+import {
   EMPTY_MDFE_MANIFEST_FILTERS,
   countActiveFilters,
   manifestMatchesFilters,
@@ -107,6 +111,8 @@ export function useMdfeManifestTable(
           condition.id === conditionId ? applyConditionChanges(condition, changes) : condition,
         ),
       })),
+    clearFilterField: (field: MdfeManifestPillField) =>
+      setFilters((current) => clearMdfeManifestFilterField({ field, filters: current })),
     clearFilters: () => {
       setFilters(EMPTY_MDFE_MANIFEST_FILTERS)
       setAdvancedFilter(createAdvancedFilterModel(nextId))

@@ -49,6 +49,7 @@ export const CTE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000502'
 export const CTE_BLOCKED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000504'
 export const CTE_PROFILE_ID = '00000000-0000-4000-8000-000000000505'
 export const CTE_REFERENCE_ACCESS_KEY = '35260761156864000191550010000000022000000022'
+export const CTE_SUGGESTED_BATCH_NAME = 'CT-e 2026-07-30 #2'
 
 export const CTE_BATCH = {
   correlationId: 'cte-batch-http-correlation',
@@ -90,6 +91,7 @@ export const CTE_BATCH_AUTHORIZED_ITEM = {
   authorizationProtocol: '135260000000001',
   authorizedAt: '2026-07-22T21:00:00.000Z',
   baseAmount: '1058.4800',
+  billingStatus: 'invoiced',
   charges: [
     {
       amount: '47.6316',
@@ -134,6 +136,7 @@ export const CTE_BATCH_REJECTED_ITEM = {
   authorizationProtocol: null,
   authorizedAt: null,
   baseAmount: '958.4800',
+  billingStatus: 'pending',
   charges: [
     {
       amount: '43.1316',
@@ -254,6 +257,7 @@ export const CTE_BATCH_PREVIEW = {
       senderTaxId: '61156864000191',
     },
   ],
+  suggestedName: CTE_SUGGESTED_BATCH_NAME,
   summary: {
     blockedCount: 1,
     documentCount: 2,

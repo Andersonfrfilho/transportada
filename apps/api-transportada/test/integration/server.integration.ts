@@ -66,6 +66,7 @@ const server = startApiServer({
     },
     logLevel: 'error',
     port: 0,
+    vehicleLookup: null,
   },
   logger,
   router: createHttpRouterFixture({ authentication, healthService, tenantContext }),

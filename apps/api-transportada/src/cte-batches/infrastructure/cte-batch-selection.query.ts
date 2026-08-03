@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, ne, sum } from 'drizzle-orm'
+import { and, eq, inArray, like, ne, sum } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import {
@@ -12,6 +12,7 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import type {
+  CteBatchNameQuery,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
   CteBatchPreviewQuery,
@@ -33,12 +34,33 @@ type DocumentParties = {
   readonly sender: PartyLocation
 }
 
+/** Postgres usa `\` como escape padrão do LIKE, então o prefixo só precisa neutralizar os coringas. */
+const LIKE_WILDCARDS = /[%_\\]/g
+
+function escapeLike(value: string): string {
+  return value.replace(LIKE_WILDCARDS, '\\$&')
+}
+
 const EMPTY_PARTY: PartyLocation = { city: null, state: null, taxId: null }
 const EMPTY_PARTIES: DocumentParties = { recipient: EMPTY_PARTY, sender: EMPTY_PARTY }
 const SENDER_ROLE = 'emitter'
 const RECIPIENT_ROLE = 'recipient'
 const CANCELLED_STATUS = 'cancelled'
 const COMPLETE_VARIANT = 'complete'
+
+export async function findBatchNamesByPrefix(
+  queryable: SelectionQueryable,
+  { companyId, prefix }: CteBatchNameQuery,
+): Promise<readonly string[]> {
+  const rows = await queryable
+    .select({ name: cteBatches.name })
+    .from(cteBatches)
+    .where(
+      and(eq(cteBatches.companyId, companyId), like(cteBatches.name, `${escapeLike(prefix)}%`)),
+    )
+
+  return rows.map((row) => row.name)
+}
 
 export async function findActiveBatchLinks(
   queryable: SelectionQueryable,

@@ -2,6 +2,8 @@
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import type {
   CompanyProfileLookup,
   CompanySettingsUpdate,
@@ -10,8 +12,10 @@ import styles from '../styles/companySettings.module.css'
 import {
   CTE_RETRY_DEFAULT_BACKOFF_SECONDS,
   CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
+  EMPTY_BILLING_DEFAULTS,
   EMPTY_MDFE_DEFAULTS,
 } from '../shared/companySettings.constant'
+import { BillingDefaultsFields } from './BillingDefaultsFields.component'
 import { CompanyProfileFields } from './CompanyProfileFields.component'
 import { CteRetryFields } from './CteRetryFields.component'
 import { CteSettingsFields } from './CteSettingsFields.component'
@@ -26,6 +30,7 @@ type CompanySettingsFormProps = Readonly<{
 
 function fallbackSettings(): CompanySettingsUpdate {
   return {
+    billing: { ...EMPTY_BILLING_DEFAULTS },
     cte: { environment: 'homologation', nextNumber: '1', series: '1' },
     cteRetry: {
       backoffSeconds: [...CTE_RETRY_DEFAULT_BACKOFF_SECONDS],
@@ -148,7 +153,13 @@ export function CompanySettingsForm({
         mdfe={settings.mdfe}
         onChange={(mdfe) => setSettings({ ...settings, mdfe })}
       />
+      <BillingDefaultsFields
+        billing={settings.billing}
+        disabled={disabled}
+        onChange={(billing) => setSettings({ ...settings, billing })}
+      />
       <button className={styles.primaryAction} disabled={disabled} type="submit">
+        <Icon name="save" />
         {t('save')}
       </button>
     </form>

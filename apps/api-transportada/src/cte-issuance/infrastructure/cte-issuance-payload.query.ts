@@ -51,6 +51,77 @@ type PartyRow = {
 const SENDER_ROLE = 'emitter'
 const RECIPIENT_ROLE = 'recipient'
 
+type CompanyScope = {
+  readonly companyId: string
+}
+
+type DocumentScope = CompanyScope & {
+  readonly documentIds: readonly string[]
+}
+
+export function buildBatchItemFilters(
+  input: CompanyScope & { readonly batchId: string; readonly batchItemId: string },
+) {
+  return [
+    eq(cteBatchItems.companyId, input.companyId),
+    eq(cteBatchItems.batchId, input.batchId),
+    eq(cteBatchItems.id, input.batchItemId),
+  ]
+}
+
+export function buildEmitterFilters(input: CompanyScope) {
+  return [eq(companyFiscalProfiles.companyId, input.companyId)]
+}
+
+export function buildProfileFilters(input: CompanyScope & { readonly profileId: string }) {
+  return [
+    eq(cteEmissionProfiles.companyId, input.companyId),
+    eq(cteEmissionProfiles.id, input.profileId),
+  ]
+}
+
+export function buildItemDocumentFilters(input: CompanyScope & { readonly batchItemId: string }) {
+  return [
+    eq(cteBatchItemDocuments.companyId, input.companyId),
+    eq(cteBatchItemDocuments.itemId, input.batchItemId),
+  ]
+}
+
+export function buildDocumentJoinFilters() {
+  return [
+    eq(nfeDocuments.companyId, cteBatchItemDocuments.companyId),
+    eq(nfeDocuments.id, cteBatchItemDocuments.nfeDocumentId),
+  ]
+}
+
+export function buildParticipantFilters(input: DocumentScope) {
+  return [
+    eq(nfeParticipants.companyId, input.companyId),
+    inArray(nfeParticipants.documentId, [...input.documentIds]),
+  ]
+}
+
+export function buildAddressJoinFilters() {
+  return [
+    eq(nfeAddresses.companyId, nfeParticipants.companyId),
+    eq(nfeAddresses.participantId, nfeParticipants.id),
+  ]
+}
+
+export function buildProductFilters(input: DocumentScope) {
+  return [
+    eq(nfeProducts.companyId, input.companyId),
+    inArray(nfeProducts.documentId, [...input.documentIds]),
+  ]
+}
+
+export function buildVolumeFilters(input: DocumentScope) {
+  return [
+    eq(nfeVolumes.companyId, input.companyId),
+    inArray(nfeVolumes.documentId, [...input.documentIds]),
+  ]
+}
+
 export async function findCteIssuancePayloadSource(
   queryable: PayloadQueryable,
   query: CteIssuancePayloadSourceQuery,
@@ -60,9 +131,11 @@ export async function findCteIssuancePayloadSource(
     .from(cteBatchItems)
     .where(
       and(
-        eq(cteBatchItems.companyId, query.companyId),
-        eq(cteBatchItems.batchId, query.batchId),
-        eq(cteBatchItems.id, query.batchItemId),
+        ...buildBatchItemFilters({
+          batchId: query.batchId,
+          batchItemId: query.batchItemId,
+          companyId: query.companyId,
+        }),
       ),
     )
     .limit(1)
@@ -138,7 +211,7 @@ async function loadEmitter(
       taxRegime: companyFiscalProfiles.taxRegime,
     })
     .from(companyFiscalProfiles)
-    .where(eq(companyFiscalProfiles.companyId, companyId))
+    .where(and(...buildEmitterFilters({ companyId })))
     .limit(1)
 
   return record ?? null
@@ -168,7 +241,7 @@ async function loadProfile(
       taker: cteEmissionProfiles.taker,
     })
     .from(cteEmissionProfiles)
-    .where(and(eq(cteEmissionProfiles.companyId, companyId), eq(cteEmissionProfiles.id, profileId)))
+    .where(and(...buildProfileFilters({ companyId, profileId })))
     .limit(1)
 
   return record ?? null
@@ -185,17 +258,13 @@ async function loadInvoices(
       totalAmount: nfeDocuments.totalValue,
     })
     .from(cteBatchItemDocuments)
-    .innerJoin(
-      nfeDocuments,
-      and(
-        eq(nfeDocuments.companyId, cteBatchItemDocuments.companyId),
-        eq(nfeDocuments.id, cteBatchItemDocuments.nfeDocumentId),
-      ),
-    )
+    .innerJoin(nfeDocuments, and(...buildDocumentJoinFilters()))
     .where(
       and(
-        eq(cteBatchItemDocuments.companyId, query.companyId),
-        eq(cteBatchItemDocuments.itemId, query.batchItemId),
+        ...buildItemDocumentFilters({
+          batchItemId: query.batchItemId,
+          companyId: query.companyId,
+        }),
       ),
     )
     .orderBy(asc(cteBatchItemDocuments.position))
@@ -246,19 +315,8 @@ async function loadParties(
       taxId: nfeParticipants.taxId,
     })
     .from(nfeParticipants)
-    .leftJoin(
-      nfeAddresses,
-      and(
-        eq(nfeAddresses.companyId, nfeParticipants.companyId),
-        eq(nfeAddresses.participantId, nfeParticipants.id),
-      ),
-    )
-    .where(
-      and(
-        eq(nfeParticipants.companyId, companyId),
-        inArray(nfeParticipants.documentId, [...documentIds]),
-      ),
-    )
+    .leftJoin(nfeAddresses, and(...buildAddressJoinFilters()))
+    .where(and(...buildParticipantFilters({ companyId, documentIds })))
 
   const senders = new Map<string, CtePayloadParty>()
   const recipients = new Map<string, CtePayloadParty>()
@@ -308,18 +366,24 @@ async function loadProducts(
     .select({
       description: nfeProducts.description,
       documentId: nfeProducts.documentId,
+      ordinal: nfeProducts.ordinal,
+      quantity: nfeProducts.quantity,
       totalValue: nfeProducts.totalValue,
     })
     .from(nfeProducts)
-    .where(
-      and(eq(nfeProducts.companyId, companyId), inArray(nfeProducts.documentId, [...documentIds])),
-    )
+    .where(and(...buildProductFilters({ companyId, documentIds })))
     .orderBy(asc(nfeProducts.documentId), asc(nfeProducts.ordinal))
 
   const products = new Map<string, CtePayloadProduct[]>()
   for (const row of rows) {
     const current = products.get(row.documentId) ?? []
-    current.push({ description: row.description, grossWeight: null, totalValue: row.totalValue })
+    current.push({
+      description: row.description,
+      grossWeight: null,
+      ordinal: Number(row.ordinal),
+      quantity: row.quantity,
+      totalValue: row.totalValue,
+    })
     products.set(row.documentId, current)
   }
 
@@ -339,9 +403,7 @@ async function loadVolumes(
       quantity: nfeVolumes.quantity,
     })
     .from(nfeVolumes)
-    .where(
-      and(eq(nfeVolumes.companyId, companyId), inArray(nfeVolumes.documentId, [...documentIds])),
-    )
+    .where(and(...buildVolumeFilters({ companyId, documentIds })))
     .orderBy(asc(nfeVolumes.documentId), asc(nfeVolumes.ordinal))
 
   const volumes = new Map<string, CtePayloadVolume[]>()

@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import { CTE_PROFILE_MATCH_ROLE, type CteProfileMatcher } from '../shared/cteProfiles.types'
 import type { ProfileFormState } from '../shared/cteProfilesForm.service'
@@ -29,6 +30,7 @@ export function CteProfileMatcherFields({ matchers, onChange }: CteProfileMatche
   return (
     <fieldset className={styles.fieldGroup}>
       <legend>{t('matchersLegend')}</legend>
+      {matchers.length === 0 ? <p className={styles.emptyGroup}>{t('matchersEmpty')}</p> : null}
       {matchers.map((matcher, index) => (
         <div className={styles.repeatableRow} key={`matcher-${String(index)}`}>
           <div className={styles.fieldGrid}>
@@ -56,6 +58,7 @@ export function CteProfileMatcherFields({ matchers, onChange }: CteProfileMatche
                 onChange({ matchers: matchers.filter((_item, position) => position !== index) })
               }
             >
+              <Icon name="remove" />
               {t('removeMatcher')}
             </Button>
           </div>
@@ -68,6 +71,7 @@ export function CteProfileMatcherFields({ matchers, onChange }: CteProfileMatche
           variant="secondary"
           onClick={() => onChange({ matchers: [...matchers, EMPTY_MATCHER] })}
         >
+          <Icon name="add" />
           {t('addMatcher')}
         </Button>
       </div>

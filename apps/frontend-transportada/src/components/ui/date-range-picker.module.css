@@ -1,0 +1,147 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.datePicker {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+/* Em portal e ancorado na viewport: dentro de modal ou tabela rolável o painel era recortado. */
+.calendar {
+  position: fixed;
+  z-index: 60;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  gap: var(--space-2);
+  max-height: var(--floating-layer-max-height, none);
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  background: var(--color-graphite);
+  box-shadow: 0 var(--space-2) var(--space-5)
+    color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+}
+
+.calendarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.calendarTitle {
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: var(--color-fog);
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 2rem);
+  gap: 2px;
+}
+
+.calendarWeekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.5rem;
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--color-slate);
+}
+
+.calendarBlank {
+  height: 2rem;
+}
+
+.calendarDay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  border: none;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.calendarDay:hover {
+  background: color-mix(in srgb, var(--color-copper) 20%, transparent);
+}
+
+.calendarDayInRange {
+  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
+}
+
+.calendarDayEdge {
+  color: var(--color-asphalt);
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+.calendarDayHoliday {
+  color: var(--color-copper);
+  font-weight: 700;
+}
+
+.calendarHolidays {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  list-style: none;
+}
+
+.calendarHoliday {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  color: var(--color-slate);
+  font-size: 0.72rem;
+}
+
+.calendarHolidayDay {
+  min-width: var(--space-4);
+  color: var(--color-copper);
+  font-weight: 700;
+}
+
+.calendarFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.calendarClear {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-slate);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.iconAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  background: transparent;
+}
+
+.actionIcon {
+  flex: 0 0 auto;
+}

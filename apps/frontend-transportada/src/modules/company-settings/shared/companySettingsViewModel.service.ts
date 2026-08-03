@@ -1,12 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { CERTIFICATE_PURPOSES } from './companySettings.types'
 import type {
+  CertificatePurpose,
   CompanySettingsResponse,
   DigitalCertificatesResponse,
   SafeCertificate,
 } from './companySettingsClient.service'
 
+export type ActiveCertificatesByPurpose = Readonly<
+  Partial<Record<CertificatePurpose, SafeCertificate>>
+>
+
 export type CompanySettingsViewModel = Readonly<{
-  activeCertificate?: SafeCertificate
+  activeCertificates: ActiveCertificatesByPurpose
   canIssueInProduction?: false
   environment?: 'homologation' | 'production'
   status: 'empty' | 'error' | 'loading' | 'success'
@@ -20,25 +26,36 @@ type ViewModelInput = Readonly<{
 
 export type CompanySettingsViewModelFactory = (input: ViewModelInput) => CompanySettingsViewModel
 
+function toSafeView(certificate: SafeCertificate): SafeCertificate {
+  return {
+    id: certificate.id,
+    status: certificate.status,
+    purpose: certificate.purpose,
+    validFrom: certificate.validFrom,
+    expiresAt: certificate.expiresAt,
+    version: certificate.version,
+  }
+}
+
+function resolveActiveCertificates(
+  certificates: DigitalCertificatesResponse | undefined,
+): ActiveCertificatesByPurpose {
+  const active = certificates?.data.filter(({ status }) => status === 'active') ?? []
+  return Object.fromEntries(
+    CERTIFICATE_PURPOSES.flatMap((purpose) => {
+      const certificate = active.find((candidate) => candidate.purpose === purpose)
+      return certificate === undefined ? [] : [[purpose, toSafeView(certificate)]]
+    }),
+  )
+}
+
 export const createCompanySettingsViewModel: CompanySettingsViewModelFactory = (input) => {
-  if (input.status !== 'success') return { status: input.status }
+  if (input.status !== 'success') return { activeCertificates: {}, status: input.status }
   const settings = input.data?.data
   if (settings?.profile === null || settings?.cte === null || settings === undefined)
-    return { status: 'empty' }
-  const activeCertificate = input.certificates?.data.find(({ status }) => status === 'active')
-  const safeCertificate =
-    activeCertificate === undefined
-      ? undefined
-      : {
-          id: activeCertificate.id,
-          status: activeCertificate.status,
-          purpose: activeCertificate.purpose,
-          validFrom: activeCertificate.validFrom,
-          expiresAt: activeCertificate.expiresAt,
-          version: activeCertificate.version,
-        }
+    return { activeCertificates: {}, status: 'empty' }
   return {
-    ...(safeCertificate === undefined ? {} : { activeCertificate: safeCertificate }),
+    activeCertificates: resolveActiveCertificates(input.certificates),
     canIssueInProduction: false,
     environment: settings.cte.environment,
     status: 'success',

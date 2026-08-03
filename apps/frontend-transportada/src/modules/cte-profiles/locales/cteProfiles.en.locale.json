@@ -48,6 +48,7 @@
   "validFrom": "Valid from",
   "validUntil": "Valid until",
   "componentsLegend": "Additional components",
+  "componentsEmpty": "No additional component in this profile.",
   "addComponent": "Add component",
   "removeComponent": "Remove component",
   "componentLabel": "Description",
@@ -60,6 +61,7 @@
   "componentRate": "Rate (%)",
   "componentAmount": "Amount (BRL)",
   "matchersLegend": "Linked tax ids",
+  "matchersEmpty": "No linked tax id — this profile acts as the company default.",
   "addMatcher": "Add tax id",
   "removeMatcher": "Remove tax id",
   "matchRole": "Role in the invoice",
@@ -126,7 +128,8 @@
   "predominantProductOption": {
     "fixed": "Fixed",
     "highest_value": "Highest value item",
-    "highest_weight": "Highest weight item"
+    "highest_weight": "Highest weight item",
+    "highest_quantity": "Highest quantity item"
   },
   "predominantProductName": "Predominant product name",
   "observations": "CT-e observations",

@@ -6,6 +6,13 @@ tabulares densos (listagens, grids, relatórios). Consolidada a partir da tabela
 muitas colunas/registros deve seguir este contrato. Divergência exige ADR em
 `docs/adr/`.
 
+Referências vivas — leia o código antes de inventar tabela nova:
+
+| Referência            | Módulo          | O que ela demonstra                                                                              |
+| --------------------- | --------------- | ------------------------------------------------------------------------------------------------ |
+| Tabela "Notas"        | `nfe-workspace` | O contrato base: filtro simples + avançado (grupos E/OU), colunas persistidas, filtro no cliente |
+| Tabela de CT-es (§ 7) | `cte-batch`     | Paginação por cursor, soma decimal da seleção entre páginas, status escondido por padrão         |
+
 ## 1. Capacidades obrigatórias
 
 - **Ordenação por cabeçalho** — colunas ordenáveis expõem cabeçalho clicável
@@ -100,7 +107,93 @@ novo tipo e o valor é limpo. Ao sair do operador "entre", `valorAté` é limpo.
 ## 6. Evidência de teste obrigatória
 
 Toda mudança nesta camada fecha com testes de contrato registrados
-explicitamente no script `"test"` do `package.json` da app. Referência:
-`test/nfe-workspace/advanced-filter-and-columns.contract.ts` cobre o avaliador
-avançado (E/OU aninhado, operadores por tipo, neutralidade), o contador de
-condições ativas e a reordenação de colunas.
+explicitamente no script `"test"` do `package.json` da app. Referências:
+
+- `test/nfe-workspace/advanced-filter-and-columns.contract.ts` cobre o avaliador
+  avançado (E/OU aninhado, operadores por tipo, neutralidade), o contador de
+  condições ativas e a reordenação de colunas.
+- `test/cte-batch/item-table.contract.ts` cobre o que a § 7 acrescenta:
+  serialização de faixas na query string, ida e volta de cursor, soma acumulada
+  entre páginas e os status escondidos por padrão.
+
+## 7. Segunda referência viva: tabela de CT-es (`cte-batch`)
+
+A tabela de CT-es de `/cte-batches` cumpre tudo acima e acrescenta três
+capacidades que **toda tabela sobre volume grande deve copiar** — o dataset
+fiscal cresce sem teto, então filtrar no cliente (§ 4) deixa de ser aceitável.
+
+- **Paginação por cursor, com volta.** O endpoint devolve
+  `{ data, page: { nextCursor } }`; `nextCursor` é opaco (`"<iso>::<uuid>"` sobre
+  o keyset `(created_at desc, id desc)`) e o cliente **não** o interpreta. Como
+  keyset não tem "página anterior", o hook guarda uma **pilha de cursores já
+  visitados** para o botão de voltar; `hasNextPage` é `nextCursor !== null`. Toda
+  mudança de filtro ou de ordenação reseta para `CTE_ITEM_FIRST_PAGE` — cursor de
+  uma consulta não vale para outra.
+- **Filtro e ordenação no servidor.** As faixas (`issuedFrom`/`issuedUntil`,
+  `cteNumberGte`/`cteNumberLte`, `invoiceNumberGte`/`invoiceNumberLte`) e o
+  `statusIn` viajam na query string **só quando preenchidas** — chave vazia não é
+  serializada, e a API rejeita com `400` chave fora da allowlist, chave repetida,
+  faixa invertida ou cursor corrompido.
+- **Status escondido por padrão.** `CTE_ITEM_DEFAULT_HIDDEN_STATUSES`
+  (`authorized`, `cancelled`, `in_flight`) sai do filtro inicial: CT-e já enviado
+  à SEFAZ não polui a lista de trabalho, e volta só quando o chip do status é
+  marcado. Quando uma tabela esconde linha por padrão, o default precisa ser uma
+  constante exportada e testada — nunca um `if` solto no componente.
+- **Situação de faturamento como coluna e chip.** `billingStatus` (`invoiced` /
+  `pending`) vem derivado da API pela **mesma** regra da elegibilidade de
+  faturamento — existir item de fatura para o documento fiscal tira o CT-e da
+  fila — e o chip serializa `billingStatusIn` só quando restringe. Situação
+  derivada de outro agregado é coluna do servidor, nunca cálculo do cliente.
+- **Soma decimal da seleção, sobrevivendo à troca de página.** A seleção é por
+  id e a soma vem de um **mapa acumulado** `id → { baseAmount, totalAmount }`
+  alimentado a cada página carregada — assim o total não zera ao paginar nem
+  depende da linha ainda estar na tela. A soma usa `sumScaledAmounts` (`BigInt`
+  sobre string decimal, `Intl` só na formatação); **proibido** somar dinheiro em
+  `Number`.
+- **Onde cada coisa mora.** Estado e paginação em
+  `hooks/useCteItemTable.hook.ts`; puro e testável em
+  `shared/cteBatchItemTable.service.ts` (colunas, filtros, serialização,
+  `CTE_ITEM_COLUMNS_STORAGE_KEY = 'cte-batch.items.columns.v1'`); HTTP em
+  `shared/cteBatchItemClient.service.ts` com validação por type guard manual.
+- **Controles recolhidos.** Filtros e organização de colunas não ficam inline:
+  abrem por botão de ícone na barra da tabela (`aria-expanded`, `aria-label`
+  traduzido, pastilha com a contagem de filtros ativos) e são montados só quando
+  abertos. Vale para as duas tabelas da tela — lote e CT-e.
+
+## 8. Pílulas de filtro ativo (obrigatório)
+
+Filtro aplicado que não aparece na tela é filtro invisível: o usuário vê uma
+lista curta e não sabe por quê. Toda tabela densa **precisa** mostrar uma pílula
+removível por filtro ativo, logo abaixo do painel de filtros.
+
+- **Componente único.** A pílula vem de `@/components/ui/filter-pills`
+  (`components/ui/filter-pills.tsx`). Ele é agnóstico de i18n: recebe
+  `removeLabel`/`clearAllLabel` já traduzidos, devolve `null` quando não há
+  pílula e renderiza o "limpar tudo" junto delas. Proibido cada módulo desenhar
+  a sua própria pílula.
+- **Descritor puro por módulo.** A tradução não entra no serviço: cada módulo
+  tem um `shared/<modulo>FilterPills.service.ts` com
+  `describe*FilterPills({ filters, formatDay })` devolvendo descritores
+  `{ field, labelKey, value, valueKey? | valueKeys? }`. `formatDay` é injetado
+  para a pílula de data ser assertável sem depender do `Intl` da máquina. O
+  componente é quem chama `t()` e liga o `onRemove`.
+- **Remoção por campo no hook.** O mesmo serviço exporta
+  `clear*FilterField({ field, filters })`, exposto pelo hook como
+  `clearFilterField`. Limpar uma faixa zera as **duas** pontas; limpar uma
+  seleção múltipla cujo default já esconde valores (§ 7) restaura o **default**,
+  nunca `[]` — seleção vazia esconderia a tabela inteira. Em tabela paginada,
+  remover pílula reinicia a paginação.
+- **A contagem vem das pílulas.** No modo simples o badge do filtro usa
+  `pills.length`, não um contador paralelo; no modo avançado continua vindo do
+  construtor de condições, e nesse modo não há pílula — condição E/OU aninhada
+  não cabe em pílula. Onde a tela já tinha um botão "limpar tudo" na barra, ele
+  só aparece quando `pills.length === 0`, para não duplicar o controle.
+- **Rótulos por chave.** `labelKey`/`valueKeys` são chaves de locale, com par
+  pt/en obrigatório (os contratos de paridade falham se faltar o gêmeo em `en`).
+  Sigla que já é o próprio rótulo (UF, por exemplo) vai em `value` cru.
+- **Separadores centralizados.** `OPEN_RANGE_MARK`, `RANGE_SEPARATOR` e
+  `SELECTION_SEPARATOR` vivem em `src/modules/shared/filterPill.service.ts`,
+  junto de `describeRangeValue` e `selectionDiffersFromDefault` — literal
+  repetido em módulo é rejeitado em review.
+- **Contrato.** `test/design-system/filter-pills.contract.ts` cobre o
+  componente, os descritores de cada módulo e esta regra.

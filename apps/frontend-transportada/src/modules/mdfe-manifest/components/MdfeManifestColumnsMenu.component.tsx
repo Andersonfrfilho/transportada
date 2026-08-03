@@ -2,6 +2,8 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
 
 import type { MdfeManifestTableController } from '../hooks/useMdfeManifestTable.hook'
 import styles from '../styles/mdfeManifest.module.css'
@@ -17,14 +19,11 @@ export function MdfeManifestColumnsMenu({ table }: MdfeManifestColumnsMenuProps)
       <legend className={styles.hint}>{t('columns.title')}</legend>
       {order.map((column, index) => (
         <div className={styles.columnsRow} key={column}>
-          <label>
-            <input
-              checked={visibility[column]}
-              onChange={(event) => table.hideColumn(column, event.target.checked)}
-              type="checkbox"
-            />
-            {t(`columns.${column}`)}
-          </label>
+          <Checkbox
+            checked={visibility[column]}
+            label={t(`columns.${column}`)}
+            onChange={(checked) => table.hideColumn(column, checked)}
+          />
           <span className={styles.bulkActions}>
             <Button
               aria-label={t('column.moveUp')}
@@ -34,7 +33,7 @@ export function MdfeManifestColumnsMenu({ table }: MdfeManifestColumnsMenuProps)
               type="button"
               variant="ghost"
             >
-              ↑
+              <Icon name="arrow-up" />
             </Button>
             <Button
               aria-label={t('column.moveDown')}
@@ -44,7 +43,7 @@ export function MdfeManifestColumnsMenu({ table }: MdfeManifestColumnsMenuProps)
               type="button"
               variant="ghost"
             >
-              ↓
+              <Icon name="arrow-down" />
             </Button>
           </span>
         </div>

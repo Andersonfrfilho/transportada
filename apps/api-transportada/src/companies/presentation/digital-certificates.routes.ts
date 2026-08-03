@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CertificatePurpose } from '../../database/digital-certificate.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { defineRoute } from '../../http/router.service.js'
 import { API_DIGITAL_CERTIFICATES_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
@@ -12,6 +13,7 @@ import {
   parseCertificateForm,
   parseCertificateIdempotencyKey,
   parseCertificateList,
+  parseCertificatePurposeQuery,
   type CertificateCursor,
 } from './digital-certificates.schema.js'
 
@@ -24,7 +26,7 @@ type ReplaceRouteInput = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly password: Uint8Array
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
 }
 type Dependencies = {
   readonly listCertificates: {
@@ -41,14 +43,14 @@ type Dependencies = {
       readonly correlationId: string
       readonly idempotencyKey: string
       readonly password: Uint8Array
-      readonly purpose: 'cte'
+      readonly purpose: CertificatePurpose
     }): Promise<{ readonly certificate: Metadata; readonly replayed: boolean }>
   }
   readonly retireCertificate: {
     execute(input: {
       readonly context: CompanyContext
       readonly correlationId: string
-      readonly purpose: 'cte'
+      readonly purpose: CertificatePurpose
     }): Promise<Metadata | null>
   }
 }
@@ -64,7 +66,7 @@ export function createDigitalCertificateRoutes(
 }
 
 function createRetireRoute(dependencies: Dependencies): ReturnType<typeof defineRoute> {
-  return defineRoute<{ readonly correlationId: string; readonly purpose: 'cte' }>({
+  return defineRoute<{ readonly correlationId: string; readonly purpose: CertificatePurpose }>({
     async handle({ context, input }): Promise<Response> {
       const certificate = await dependencies.retireCertificate.execute({
         context: context.scope,
@@ -77,7 +79,10 @@ function createRetireRoute(dependencies: Dependencies): ReturnType<typeof define
       })
     },
     method: 'DELETE',
-    parse: ({ correlationId }) => ({ correlationId, purpose: 'cte' }),
+    parse: ({ correlationId, request }) => ({
+      correlationId,
+      purpose: parseCertificatePurposeQuery(new URL(request.url)),
+    }),
     pathname: API_DIGITAL_CERTIFICATES_PATH,
     policy: SETTINGS_MANAGE_POLICY,
   })

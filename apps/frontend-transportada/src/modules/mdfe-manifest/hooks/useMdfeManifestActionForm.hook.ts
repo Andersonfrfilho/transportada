@@ -7,8 +7,11 @@ import {
   validateClosure,
 } from '../shared/mdfeManifestActions.service'
 
+/** Descarte não é tentativa fiscal — não vai à SEFAZ, mas pede a mesma confirmação da tela. */
+export type MdfeManifestActionKind = MdfeAttemptKind | 'discard'
+
 export type MdfeManifestPendingAction = null | Readonly<{
-  kind: MdfeAttemptKind
+  kind: MdfeManifestActionKind
   manifest: MdfeManifestSummary
 }>
 
@@ -32,7 +35,7 @@ export function useMdfeManifestActionForm() {
       setJustification('')
     },
     justification,
-    openAction: (kind: MdfeAttemptKind, manifest: MdfeManifestSummary) =>
+    openAction: (kind: MdfeManifestActionKind, manifest: MdfeManifestSummary) =>
       setPendingAction({ kind, manifest }),
     pendingAction,
     setClosureCityCode,

@@ -4,10 +4,16 @@
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
+  API_FLEET_CAPABILITIES_PATH,
   API_FLEET_DRIVERS_PATH,
+  API_FLEET_VEHICLE_LOOKUP_PATH,
   API_FLEET_VEHICLES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type {
+  ListFleetDriverVehiclesInput,
+  ReplaceFleetDriverVehiclesInput,
+} from '../application/fleet-driver-vehicles.use-case.js'
 import type {
   CreateFleetDriverInput,
   ListFleetDriversInput,
@@ -18,23 +24,29 @@ import type {
   ListFleetVehiclesInput,
   UpdateFleetVehicleInput,
 } from '../application/fleet-vehicles.use-case.js'
+import type { LookupFleetVehicleInput } from '../application/fleet-vehicle-lookup.use-case.js'
 import type {
   FleetDriver,
   FleetDriverPage,
+  FleetDriverVehicleAssignment,
   FleetVehicle,
+  FleetVehicleLookup,
   FleetVehiclePage,
 } from '../application/fleet.port.js'
 import {
   parseCreateDriverRequest,
   parseCreateVehicleRequest,
   parseDriverList,
+  parseReplaceDriverVehiclesRequest,
   parseUpdateDriverRequest,
   parseUpdateVehicleRequest,
   parseUuidPathIdentifier,
   parseVehicleList,
+  parseVehicleLookupQuery,
 } from './fleet.schema.js'
 
 const DRIVER_PATH = `${API_FLEET_DRIVERS_PATH}/:id`
+const DRIVER_VEHICLES_PATH = `${API_FLEET_DRIVERS_PATH}/:id/vehicles`
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
 const FLEET_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const VEHICLE_PATH = `${API_FLEET_VEHICLES_PATH}/:id`
@@ -48,6 +60,14 @@ type Dependencies = {
   readonly createVehicle: {
     execute(input: TenantInput<CreateFleetVehicleInput>): Promise<FleetVehicle>
   }
+  readonly driverVehicles: {
+    list(
+      input: TenantInput<ListFleetDriverVehiclesInput>,
+    ): Promise<readonly FleetDriverVehicleAssignment[]>
+    replace(
+      input: TenantInput<ReplaceFleetDriverVehiclesInput>,
+    ): Promise<readonly FleetDriverVehicleAssignment[]>
+  }
   readonly listDrivers: {
     execute(input: TenantInput<ListFleetDriversInput>): Promise<FleetDriverPage>
   }
@@ -59,6 +79,10 @@ type Dependencies = {
   }
   readonly updateVehicle: {
     execute(input: TenantInput<UpdateFleetVehicleInput>): Promise<FleetVehicle>
+  }
+  readonly vehicleLookup: {
+    isAvailable(): boolean
+    lookup(input: TenantInput<LookupFleetVehicleInput>): Promise<FleetVehicleLookup | null>
   }
 }
 
@@ -90,6 +114,30 @@ export function createFleetRoutes(
       },
       pathname: API_FLEET_VEHICLES_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    // Consultar placa é serviço pago por consulta: fica atrás de fleet.manage, não de fleet.read
+    defineRoute<Omit<LookupFleetVehicleInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const vehicle = await dependencies.vehicleLookup.lookup({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: vehicle }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseVehicleLookupQuery(new URL(request.url)),
+      pathname: API_FLEET_VEHICLE_LOOKUP_PATH,
+      policy: FLEET_MANAGE_POLICY,
+    }),
+    defineRoute<Record<string, never>>({
+      async handle(): Promise<Response> {
+        const vehicleLookup = dependencies.vehicleLookup.isAvailable()
+        return jsonResponse({ body: { data: { vehicleLookup } }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: API_FLEET_CAPABILITIES_PATH,
+      policy: FLEET_READ_POLICY,
     }),
     defineRoute<Omit<UpdateFleetVehicleInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -154,6 +202,38 @@ export function createFleetRoutes(
       pathname: DRIVER_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
+    defineRoute<Omit<ListFleetDriverVehiclesInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const links = await dependencies.driverVehicles.list({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: links.map(serializeDriverVehicle) }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: DRIVER_VEHICLES_PATH,
+      policy: FLEET_READ_POLICY,
+    }),
+    defineRoute<Omit<ReplaceFleetDriverVehiclesInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const links = await dependencies.driverVehicles.replace({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: links.map(serializeDriverVehicle) }, status: 200 })
+      },
+      method: 'PUT',
+      async parse({ correlationId, pathParameters, request }) {
+        const { vehicleIds } = await parseReplaceDriverVehiclesRequest(request)
+        return {
+          correlationId,
+          driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          vehicleIds,
+        }
+      },
+      pathname: DRIVER_VEHICLES_PATH,
+      policy: FLEET_MANAGE_POLICY,
+    }),
   ]
 }
 
@@ -173,6 +253,7 @@ function serializeDriver(driver: FleetDriver): object {
     createdAt: driver.createdAt,
     id: driver.id,
     licenseNumber: driver.licenseNumber,
+    linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
     name: driver.name,
     phone: driver.phone,
@@ -180,6 +261,15 @@ function serializeDriver(driver: FleetDriver): object {
     taxId: driver.taxId,
     updatedAt: driver.updatedAt,
     version: driver.version,
+  }
+}
+
+function serializeDriverVehicle(link: FleetDriverVehicleAssignment): object {
+  return {
+    assignedAt: link.assignedAt,
+    id: link.id,
+    ownedByDriver: link.ownedByDriver,
+    vehicle: serializeVehicle(link.vehicle),
   }
 }
 

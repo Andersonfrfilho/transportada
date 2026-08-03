@@ -6,6 +6,10 @@
   "error": "Could not load the fleet",
   "empty": "No vehicle or driver registered",
   "readOnly": "You are not allowed to manage the fleet",
+  "tabs": {
+    "vehicles": "Vehicles",
+    "drivers": "Drivers"
+  },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",
   "newVehicle": "New vehicle",
@@ -33,10 +37,12 @@
   "columnActions": "Actions",
   "columnDriverName": "Name",
   "columnTaxId": "Tax id",
+  "columnLinkedTaxId": "Linked company tax id",
   "columnLicense": "License",
   "columnAppAccess": "App access",
   "appAccessOn": "Linked",
   "appAccessOff": "Not linked",
+  "emptyValue": "—",
   "filterPlate": "Plate contains",
   "filterRole": "Role",
   "filterStatus": "Status",
@@ -82,6 +88,11 @@
     "own": "Owned by the carrier",
     "third_party": "Third party"
   },
+  "lookupPlate": "Look up by plate",
+  "lookupPlateHint": "Fills the available fields with the vehicle lookup service data. Review them before saving.",
+  "lookupNotFound": "No vehicle found for this plate",
+  "lookupFailed": "The plate lookup is not answering right now",
+  "lookupUnavailable": "The plate lookup is not configured in this installation",
   "vehicleOwnerLegend": "Vehicle owner",
   "vehicleOwnerHint": "Required for aggregate or third-party vehicles — it fills the MDF-e owner group.",
   "ownerName": "Owner name",
@@ -97,8 +108,15 @@
   "driverIdentityLegend": "Driver identification",
   "driverName": "Name",
   "driverTaxId": "Tax id",
+  "driverLinkedTaxId": "Linked company tax id",
+  "driverLinkedTaxIdHint": "Company tax id of the self-employed driver, used for invoicing. The MDF-e driver is still the personal tax id — leave it empty when the driver works as an individual only.",
   "driverLicense": "License",
   "driverPhone": "Phone",
   "driverMembership": "Linked user",
-  "driverMembershipHint": "Identifier of the company user who will sign in on the driver app. Leave it empty when there is no access yet."
+  "driverMembershipHint": "Identifier of the company user who will sign in on the driver app. Leave it empty when there is no access yet.",
+  "driverVehiclesLegend": "Linked vehicles",
+  "driverVehiclesHint": "Check the vehicles this driver operates — both their own and the carrier ones. The link keeps history: unchecking closes the period instead of erasing the past.",
+  "driverVehiclesEmpty": "No active vehicle available to link",
+  "driverOwnedVehicle": "Driver owned",
+  "vehicleNotFound": "One of the selected vehicles no longer exists in this company"
 }

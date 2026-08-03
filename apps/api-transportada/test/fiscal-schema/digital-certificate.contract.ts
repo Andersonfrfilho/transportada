@@ -67,7 +67,7 @@ describe('tenant fiscal schema', () => {
     })
     expect(checkSqlByName(digitalCertificates)).toEqual({
       digital_certificates_envelope_status_check: `("digital_certificates"."status" = 'active' and "digital_certificates"."secret_envelope" is not null) or ("digital_certificates"."status" = 'retired' and "digital_certificates"."secret_envelope" is null)`,
-      digital_certificates_purpose_check: `"digital_certificates"."purpose" = 'cte'`,
+      digital_certificates_purpose_check: `"digital_certificates"."purpose" in ('cte', 'mdfe')`,
       digital_certificates_status_check: `"digital_certificates"."status" in ('active', 'retired')`,
       digital_certificates_validated_cnpj_check: `"digital_certificates"."validated_cnpj" ~ '^[0-9]{14}$'`,
       digital_certificates_validity_range_check: `"digital_certificates"."valid_from" < "digital_certificates"."expires_at"`,

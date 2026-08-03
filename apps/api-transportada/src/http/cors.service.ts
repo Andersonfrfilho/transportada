@@ -7,11 +7,16 @@ import {
   API_AUTH_ME_PATH,
   API_AUDIT_EVENTS_PATH,
   API_BILLING_ELIGIBLE_CTES_PATH,
+  API_BILLING_INVOICE_PREVIEW_PATH,
   API_BILLING_INVOICES_PATH,
   API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH,
   API_COMPANY_SETTINGS_PATH,
   API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
+  API_FLEET_CAPABILITIES_PATH,
+  API_FLEET_DRIVERS_PATH,
+  API_FLEET_VEHICLE_LOOKUP_PATH,
+  API_FLEET_VEHICLES_PATH,
   API_FREIGHT_CALCULATIONS_PATH,
   API_FREIGHT_RULES_PATH,
   API_NFE_DOCUMENTS_PATH,
@@ -27,6 +32,8 @@ import {
   HTTP_GET_METHOD,
   HTTP_OPTIONS_METHOD,
 } from '../shared/api.constant'
+
+const FLEET_VEHICLES_SUFFIX = '/vehicles'
 
 const CORS_REQUEST_HEADERS = [
   'Origin',
@@ -83,8 +90,26 @@ function isCteBatchItemPath(pathname: string): boolean {
   return itemSegment !== undefined && itemSegment.length > 0 && !itemSegment.includes('/')
 }
 
+/**
+ * Editar a fatura é PATCH no recurso em si; `preview` e os sub-recursos (`/documents`, `/cancel`)
+ * continuam fora da fronteira de edição.
+ */
+function isBillingInvoiceResourcePath(pathname: string): boolean {
+  const segment = pathname.slice(`${API_BILLING_INVOICES_PATH}/`.length)
+  return (
+    pathname.startsWith(`${API_BILLING_INVOICES_PATH}/`) &&
+    segment.length > 0 &&
+    !segment.includes('/') &&
+    `${API_BILLING_INVOICES_PATH}/${segment}` !== API_BILLING_INVOICE_PREVIEW_PATH
+  )
+}
+
 function allowedMethods(pathname: string): string {
   if (isCteBatchItemPath(pathname)) return 'DELETE'
+  if (isBillingInvoiceResourcePath(pathname)) return 'GET, PATCH'
+  if (isFleetDriverVehiclesPath(pathname)) return 'GET, PUT'
+  if (isFleetCollectionPath(pathname)) return 'GET, POST'
+  if (isFleetResourcePath(pathname)) return 'GET, PATCH'
   if (pathname === API_COMPANY_SETTINGS_PATH) return 'GET, PATCH'
   if (pathname === API_DIGITAL_CERTIFICATES_PATH) return 'GET, POST, DELETE'
   if (pathname === API_FREIGHT_RULES_PATH) return 'GET, POST'
@@ -168,8 +193,10 @@ function isWorkspaceResourcePreflight({
 
   return (
     (requestedMethod === HTTP_GET_METHOD ||
-      requestedMethod === 'POST' ||
-      requestedMethod === 'PATCH' ||
+      (requestedMethod === 'POST' && !isFleetResourcePath(pathname)) ||
+      (requestedMethod === 'PATCH' &&
+        (isBillingInvoiceResourcePath(pathname) || isFleetResourcePath(pathname))) ||
+      (requestedMethod === 'PUT' && isFleetDriverVehiclesPath(pathname)) ||
       (requestedMethod === 'DELETE' && isCteBatchItemPath(pathname))) &&
     hasResourcePreflightHeaders({
       method: requestedMethod,
@@ -251,12 +278,44 @@ function isAuthorizationOnlyPath(pathname: string): boolean {
     pathname === API_OPERATIONS_SUMMARY_PATH ||
     pathname === API_OPERATIONS_TIMELINE_PATH ||
     pathname === API_OPERATIONS_JOBS_PATH ||
-    pathname === API_AUDIT_EVENTS_PATH
+    pathname === API_AUDIT_EVENTS_PATH ||
+    pathname === API_FLEET_VEHICLE_LOOKUP_PATH ||
+    pathname === API_FLEET_CAPABILITIES_PATH
   )
+}
+
+function isFleetCollectionPath(pathname: string): boolean {
+  return pathname === API_FLEET_VEHICLES_PATH || pathname === API_FLEET_DRIVERS_PATH
+}
+
+/** `/fleet/drivers/:id/vehicles` é o conjunto de vínculos, trocado inteiro num PUT. */
+function isFleetDriverVehiclesPath(pathname: string): boolean {
+  const segment = fleetSegment(API_FLEET_DRIVERS_PATH, pathname)
+  const driverId = segment.endsWith(FLEET_VEHICLES_SUFFIX)
+    ? segment.slice(0, -FLEET_VEHICLES_SUFFIX.length)
+    : ''
+  return driverId.length > 0 && !driverId.includes('/')
+}
+
+function isFleetResourcePath(pathname: string): boolean {
+  // `/fleet/vehicles/lookup` é consulta por placa, não um veículo cadastrado
+  if (pathname === API_FLEET_VEHICLE_LOOKUP_PATH) return false
+
+  return [API_FLEET_VEHICLES_PATH, API_FLEET_DRIVERS_PATH].some((collection) => {
+    const segment = fleetSegment(collection, pathname)
+    return segment.length > 0 && !segment.includes('/')
+  })
+}
+
+function fleetSegment(collection: string, pathname: string): string {
+  return pathname.startsWith(`${collection}/`) ? pathname.slice(`${collection}/`.length) : ''
 }
 
 function requiresResourceHeaders(pathname: string): boolean {
   return (
+    isFleetCollectionPath(pathname) ||
+    isFleetResourcePath(pathname) ||
+    isFleetDriverVehiclesPath(pathname) ||
     pathname === API_COMPANY_SETTINGS_PATH ||
     pathname === API_DIGITAL_CERTIFICATES_PATH ||
     pathname === API_FREIGHT_RULES_PATH ||

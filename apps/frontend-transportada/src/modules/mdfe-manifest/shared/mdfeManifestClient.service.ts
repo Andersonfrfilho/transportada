@@ -29,6 +29,7 @@ export type MdfeManifestClient = Readonly<{
   cancelManifest: (input: MdfeCancelInput) => Promise<MdfeIssuanceSummary>
   closeManifest: (input: MdfeCloseInput) => Promise<MdfeIssuanceSummary>
   createManifest: (input: MdfeManifestCreateBody) => Promise<MdfeManifestDetail>
+  discardManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   getManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   issueManifest: (input: MdfeActionInput) => Promise<MdfeIssuanceSummary>
   listManifests: (input: MdfeManifestListInput) => Promise<MdfeManifestPage>
@@ -161,6 +162,15 @@ export function createMdfeManifestClient(dependencies: ClientDependencies): Mdfe
         dependencies,
         method: 'POST',
         path: MDFE_MANIFESTS_PATH,
+      })
+      return adapters.manifestDetailFromApi(readEnvelopeData(response))
+    },
+    /** ADR-0017: descarte não vai à SEFAZ — responde o manifesto pronto, sem chave de idempotência. */
+    async discardManifest(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${MDFE_MANIFESTS_PATH}/${input.manifestId}/discard`,
       })
       return adapters.manifestDetailFromApi(readEnvelopeData(response))
     },

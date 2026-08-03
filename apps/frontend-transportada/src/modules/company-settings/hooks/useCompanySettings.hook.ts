@@ -6,6 +6,9 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   createCompanySettingsClient,
+  type CertificatePurpose,
+  type CompanyLogoImage,
+  type CompanyLogoMetadata,
   type CompanyProfileLookup,
   type CompanySettingsClient as SettingsClient,
   type CompanySettingsUpdate,
@@ -14,15 +17,19 @@ import {
 
 const SETTINGS_MANAGE = 'settings.manage'
 const COMPANY_SETTINGS_QUERY_KEY = 'company-settings'
+const COMPANY_LOGO_QUERY_KEY = 'company-logo'
 const DIGITAL_CERTIFICATES_QUERY_KEY = 'digital-certificates'
 
 export type CompanySettingsClient = SettingsClient
 
 export type CompanySettingsController = Readonly<{
   canManageSettings: boolean
+  getLogo: () => Promise<CompanyLogoImage | null>
   lookupProfileByCnpj: (cnpj: string) => Promise<CompanyProfileLookup | null>
-  retireCertificate: () => Promise<void>
+  removeLogo: () => Promise<void>
+  retireCertificate: (purpose: CertificatePurpose) => Promise<void>
   replaceCertificate: (body: FormData) => Promise<SafeCertificate>
+  replaceLogo: (file: File) => Promise<CompanyLogoMetadata>
   save: (input: CompanySettingsUpdate) => Promise<void>
 }>
 
@@ -43,11 +50,15 @@ export function createCompanySettingsController(input: ControllerInput): Company
   const canManageSettings = input.permissions.includes(SETTINGS_MANAGE)
   return {
     canManageSettings,
+    getLogo: () => (canManageSettings ? input.client.getLogo() : forbidden()),
     lookupProfileByCnpj: (cnpj) =>
       canManageSettings ? input.client.lookupProfileByCnpj(cnpj) : forbidden(),
-    retireCertificate: () => (canManageSettings ? input.client.retireCertificate() : forbidden()),
+    removeLogo: () => (canManageSettings ? input.client.removeLogo() : forbidden()),
+    retireCertificate: (purpose) =>
+      canManageSettings ? input.client.retireCertificate(purpose) : forbidden(),
     replaceCertificate: (body) =>
       canManageSettings ? input.client.replaceCertificate(body) : forbidden(),
+    replaceLogo: (file) => (canManageSettings ? input.client.replaceLogo(file) : forbidden()),
     save: (update) =>
       canManageSettings ? input.client.updateSettings(update).then(() => undefined) : forbidden(),
   }
@@ -121,6 +132,30 @@ function useSettingsMutations(
   return { certificateMutation, certificateRetireMutation, lookupMutation, settingsMutation }
 }
 
+function useLogo(
+  input: Readonly<{
+    controller: CompanySettingsController
+    logoKey: QueryKey
+  }>,
+) {
+  const queryClient = useQueryClient()
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: input.logoKey })
+  const logoQuery = useQuery({
+    enabled: input.controller.canManageSettings,
+    queryFn: input.controller.getLogo,
+    queryKey: input.logoKey,
+  })
+  const logoMutation = useMutation({
+    mutationFn: input.controller.replaceLogo,
+    onSuccess: invalidate,
+  })
+  const logoRemoveMutation = useMutation({
+    mutationFn: input.controller.removeLogo,
+    onSuccess: invalidate,
+  })
+  return { logoMutation, logoQuery, logoRemoveMutation }
+}
+
 export function useCompanySettings(
   input: Readonly<{
     companyId?: string
@@ -141,8 +176,13 @@ export function useCompanySettings(
     settingsKey,
   })
   const mutations = useSettingsMutations({ certificatesKey, controller, settingsKey })
+  const logo = useLogo({
+    controller,
+    logoKey: [COMPANY_LOGO_QUERY_KEY, input.companyId] as const,
+  })
   return {
     canManageSettings: controller.canManageSettings,
+    ...logo,
     ...mutations,
     ...queries,
   }

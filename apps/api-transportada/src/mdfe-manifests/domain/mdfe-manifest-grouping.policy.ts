@@ -1,7 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import {
+  formatScaledDecimal,
+  MONEY_SCALE,
+  parseScaledDecimal,
+  rescaleHalfUp,
+} from '../../shared/decimal.service.js'
 import type { ManifestableDocument } from './mdfe-manifest-eligibility.policy.js'
 import { MdfeManifestMultipleOriginStatesError } from './mdfe-manifest.error.js'
 
@@ -95,6 +100,18 @@ export function sumTotals(documents: readonly ManifestableDocument[]): MdfeManif
     cargoWeight: formatScaledDecimal(weight, CARGO_WEIGHT_SCALE),
     cteCount: documents.length,
   }
+}
+
+/** A NF-e guarda valor em quatro casas e o vCarga aceita duas — soma cheia, um arredondamento só. */
+export function sumCargoValue(values: readonly string[]): string {
+  return formatScaledDecimal(
+    rescaleHalfUp({
+      fromScale: MONEY_SCALE,
+      toScale: CARGO_VALUE_SCALE,
+      value: sumScaled(values, MONEY_SCALE),
+    }),
+    CARGO_VALUE_SCALE,
+  )
 }
 
 export function sumScaled(values: readonly string[], scale: bigint): bigint {

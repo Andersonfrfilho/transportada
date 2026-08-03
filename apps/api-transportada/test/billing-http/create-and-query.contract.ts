@@ -64,10 +64,19 @@ describe('Billing HTTP create and query contract', () => {
     const detailResponse = await fixture.handle(getBillingInvoiceRequest())
 
     expect(listResponse.status).toBe(200)
-    expect(await listResponse.json()).toEqual({
+    const listBody = (await listResponse.json()) as {
+      readonly data: readonly Record<string, unknown>[]
+      readonly page: { readonly nextCursor: null | string }
+    }
+    expect(listBody).toEqual({
       data: ELIGIBLE_CTES_PAGE.items,
       page: { nextCursor: ELIGIBLE_CTES_PAGE.nextCursor },
     })
+    // A tela lista o lote pelo nome; o id sozinho não serve para consultar.
+    expect(listBody.data[0]?.['batchName']).toBe('Lote CT-e julho')
+    // O número da nota vinculada é o que o operador confere contra o pedido do cliente.
+    expect(listBody.data[0]?.['nfeNumber']).toBe('4521')
+    expect(listBody.data[1]?.['nfeNumber']).toBeNull()
     expect(detailResponse.status).toBe(200)
     expect(await detailResponse.json()).toEqual({ data: INVOICE_SUMMARY })
     expect(fixture.listEligibleCalls).toEqual([

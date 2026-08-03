@@ -139,7 +139,9 @@ describe('worker nfe storage gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.1.1')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
+      '0.2.0-rc.0',
+    )
   })
 
   test('streams and keys must follow tenant-safe opaque format', async () => {

@@ -66,6 +66,7 @@ import {
 } from './mdfe.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
+import { companyLogos } from './company-logo.schema.js'
 import {
   cteEmissionProfileComponents,
   cteEmissionProfileMatchers,
@@ -85,6 +86,7 @@ export * from './cte-issuance.schema.js'
 export * from './billing.schema.js'
 export * from './view-preferences.schema.js'
 export * from './company-distribution-settings.schema.js'
+export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
 
 export const databaseSchema = {
@@ -92,6 +94,7 @@ export const databaseSchema = {
   companies,
   companyDistributionSettings,
   companyFiscalProfiles,
+  companyLogos,
   digitalCertificates,
   externalIdentities,
   fiscalSequenceReservations,

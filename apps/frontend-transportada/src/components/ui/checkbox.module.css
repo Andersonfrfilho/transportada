@@ -1,0 +1,110 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/* Classe dobrada de propósito: módulos declaram `.fieldGrid label` e venceriam a raiz. */
+.root.root {
+  position: relative;
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--space-6);
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+/* O widget nativo continua sendo o alvo de foco e teclado: só some da pintura.
+   O seletor descendente existe para vencer regras de módulo do tipo `.fieldGrid input`. */
+.root .input {
+  position: absolute;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: inherit;
+  inset: 0;
+}
+
+.box {
+  position: relative;
+  display: inline-flex;
+  width: var(--space-5);
+  height: var(--space-5);
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.root:hover .box {
+  border-color: color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.input:focus-visible + .box {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.input:checked + .box,
+.input:indeterminate + .box {
+  border-color: var(--color-copper);
+  background: var(--color-copper);
+}
+
+.input:disabled + .box {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.input:disabled ~ .label {
+  opacity: 0.55;
+}
+
+.mark {
+  width: var(--space-4);
+  height: var(--space-4);
+  fill: none;
+  stroke: var(--color-asphalt);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.check,
+.dash {
+  opacity: 0;
+}
+
+.input:checked + .box .check,
+.input:indeterminate + .box .dash {
+  opacity: 1;
+}
+
+.label {
+  min-width: 0;
+}
+
+/* Dedo não acerta 20px: no toque a área clicável cresce sem mudar o desenho da caixa. */
+@media (pointer: coarse) {
+  .root {
+    min-height: calc(var(--space-10) + var(--space-1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    transition: none;
+  }
+}

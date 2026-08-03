@@ -2,16 +2,25 @@
 import { type RefObject, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
+
 import {
   createCertificateUploadController,
   type CertificateUploadController,
 } from '../hooks/useCertificateUpload.hook'
-import type { SafeCertificate } from '../shared/companySettingsClient.service'
+import { CERTIFICATE_PURPOSE_LABEL_KEYS } from '../shared/companySettings.constant'
+import {
+  CERTIFICATE_PURPOSES,
+  type CertificatePurpose,
+  type SafeCertificate,
+} from '../shared/companySettingsClient.service'
+import type { ActiveCertificatesByPurpose } from '../shared/companySettingsViewModel.service'
 import styles from '../styles/companySettings.module.css'
 
 type CertificateUploadFormProps = Readonly<{
-  certificate: SafeCertificate | undefined
-  onDelete: () => Promise<void>
+  certificates: ActiveCertificatesByPurpose
+  onDelete: (purpose: CertificatePurpose) => Promise<void>
   disabled: boolean
   onSubmit: (body: FormData) => Promise<SafeCertificate>
 }>
@@ -53,41 +62,37 @@ type CertificateInputsProps = Readonly<{
   onTogglePasswordVisibility: () => void
 }>
 
-function UploadIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 3v12" />
-      <path d="m7 8 5-5 5 5" />
-      <path d="M5 15v4h14v-4" />
-    </svg>
-  )
+function isCertificatePurpose(value: string): value is CertificatePurpose {
+  return CERTIFICATE_PURPOSES.some((purpose) => purpose === value)
 }
 
-function ShieldIcon() {
+function CertificatePurposeField(
+  props: Readonly<{
+    disabled: boolean
+    purpose: CertificatePurpose
+    onChange: (purpose: CertificatePurpose) => void
+  }>,
+) {
+  const { t } = useTranslation('companySettings')
   return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 3 5 6v5c0 4.5 2.8 8.4 7 10 4.2-1.6 7-5.5 7-10V6l-7-3Z" />
-      <path d="m9 12 2 2 4-5" />
-    </svg>
-  )
-}
-
-function EyeIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M2.062 11.99C3.173 7.39 7.1 3.9 12 3.9s8.827 3.49 9.938 8.09c-.39 1.75-1.36 3.26-2.73 4.4" />
-      <path d="M9.88 9.88a3 3 0 1 1 4.24 4.24 3 3 0 0 1-4.24-4.24" />
-    </svg>
-  )
-}
-
-function EyeOffIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M2.062 11.99C3.173 7.39 7.1 3.9 12 3.9c4.9 0 8.827 3.49 9.938 8.09-.39 1.75-1.36 3.26-2.73 4.4" />
-      <path d="m2 2 20 20" />
-      <path d="M9.88 9.88a3 3 0 0 1 4.24 4.24" />
-    </svg>
+    <div className={styles.fieldGrid}>
+      <label>
+        <span>{t('certificatePurpose')}</span>
+        <Select
+          ariaLabel={t('certificatePurpose')}
+          disabled={props.disabled}
+          options={CERTIFICATE_PURPOSES.map((purpose) => ({
+            label: t(CERTIFICATE_PURPOSE_LABEL_KEYS[purpose]),
+            value: purpose,
+          }))}
+          value={props.purpose}
+          onChange={(value) => {
+            if (isCertificatePurpose(value)) props.onChange(value)
+          }}
+        />
+      </label>
+      <p className={styles.fieldHint}>{t('certificatePurposeHint')}</p>
+    </div>
   )
 }
 
@@ -118,7 +123,7 @@ function CertificateInputs(props: CertificateInputsProps) {
           type="button"
           onClick={props.onPickFile}
         >
-          <UploadIcon />
+          <Icon name="upload" />
           <span>{t('chooseCertificateFile')}</span>
         </button>
         <span className={styles.fileUploadName}>
@@ -144,7 +149,7 @@ function CertificateInputs(props: CertificateInputsProps) {
             type="button"
             onClick={props.onTogglePasswordVisibility}
           >
-            {props.passwordVisible ? <EyeOffIcon /> : <EyeIcon />}
+            {props.passwordVisible ? <Icon name="eye-off" /> : <Icon name="eye" />}
           </button>
         </div>
       </label>
@@ -153,7 +158,7 @@ function CertificateInputs(props: CertificateInputsProps) {
 }
 
 export function CertificateUploadForm({
-  certificate,
+  certificates,
   disabled,
   onDelete,
   onSubmit,
@@ -167,6 +172,8 @@ export function CertificateUploadForm({
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [status, setStatus] = useState<CertificateStatus>({ key: 'idle' })
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [purpose, setPurpose] = useState<CertificatePurpose>('cte')
+  const certificate = certificates[purpose]
   const controllerRef = useRef<CertificateUploadController | null>(null)
   controllerRef.current ??= createCertificateUploadController({
     clearFileInput: () => {
@@ -190,7 +197,19 @@ export function CertificateUploadForm({
   return (
     <section className={styles.certificateForm} aria-labelledby="certificate-title">
       <h2 id="certificate-title">{t('certificateTitle')}</h2>
-      {certificate !== undefined && (
+      <CertificatePurposeField
+        disabled={disabled}
+        purpose={purpose}
+        onChange={(next) => {
+          controller.setPurpose(next)
+          setPurpose(next)
+          setConfirmDelete(false)
+          setStatus({ key: 'idle' })
+        }}
+      />
+      {certificate === undefined ? (
+        <p className={styles.certificateMetadata}>{t('certificateMissingForPurpose')}</p>
+      ) : (
         <div className={styles.certificateCurrentRecord}>
           <div className={styles.certificateCurrentHeading}>
             <p className={styles.certificateSavedLabel}>{t('certificateCurrentLabel')}</p>
@@ -222,7 +241,7 @@ export function CertificateUploadForm({
         passwordInput={passwordInput}
       />
       <button className={styles.primaryAction} disabled={disabled} type="button" onClick={submit}>
-        <ShieldIcon />
+        <Icon name="shield" />
         {t('replaceCertificate')}
       </button>
       {status.key === 'success' && (
@@ -248,6 +267,7 @@ export function CertificateUploadForm({
               type="button"
               onClick={() => setConfirmDelete(true)}
             >
+              <Icon name="trash" />
               {t('removeCertificate')}
             </button>
           ) : (
@@ -260,6 +280,7 @@ export function CertificateUploadForm({
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                 >
+                  <Icon name="close" />
                   {t('cancelRemoveCertificate')}
                 </button>
                 <button
@@ -267,7 +288,7 @@ export function CertificateUploadForm({
                   disabled={disabled}
                   type="button"
                   onClick={() => {
-                    void onDelete()
+                    void onDelete(purpose)
                       .then(() => {
                         setConfirmDelete(false)
                         setStatus({ key: 'deleted' })
@@ -275,6 +296,7 @@ export function CertificateUploadForm({
                       .catch((error) => setStatus(resolveCertificateStatus(error)))
                   }}
                 >
+                  <Icon name="check" />
                   {t('confirmRemoveCertificate')}
                 </button>
               </div>

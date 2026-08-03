@@ -1,13 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import {
   mdfeFiscalDocuments,
   mdfeIssuanceAttempts,
   mdfeIssuanceEvents,
+  mdfeManifestItems,
   mdfeManifests,
   type MdfeIssuanceStatus,
   type MdfeManifestStatus,
@@ -17,6 +18,7 @@ import type {
   MdfeIssuanceFiscalDocument,
   MdfeIssuanceWriteBack,
   MdfeIssuanceWriteBackKey,
+  MdfeRejectionWriteBack,
   MdfeStoredXmlObject,
 } from '../application/mdfe-issuance-consumer.effect.js'
 import { MDFE_NON_SETTLED_ATTEMPT_STATUSES } from '../domain/mdfe-attempt-status.policy.js'
@@ -39,9 +41,37 @@ type AttemptTransition = {
   readonly key: MdfeIssuanceWriteBackKey
   readonly lastErrorCause?: string
   readonly lastErrorCode?: string
+  readonly lastErrorMessage?: string
   readonly manifestStatus?: MdfeManifestStatus
   readonly settle?: (transaction: Transaction) => Promise<void>
   readonly status: MdfeIssuanceStatus
+}
+
+type RejectionTransition = {
+  readonly lastErrorCode: string
+  readonly lastErrorMessage?: string
+  readonly payload: Record<string, string>
+}
+
+function toWriteBackKey(input: MdfeIssuanceWriteBackKey): MdfeIssuanceWriteBackKey {
+  return {
+    attemptId: input.attemptId,
+    companyId: input.companyId,
+    manifestId: input.manifestId,
+    occurredAt: input.occurredAt,
+  }
+}
+
+/** Recusa sem mensagem não apaga a que já está gravada — a SEFAZ nem sempre repete o texto. */
+function toRejectionTransition(input: MdfeRejectionWriteBack): RejectionTransition {
+  return {
+    lastErrorCode: input.errorCode,
+    ...(input.errorMessage === undefined ? {} : { lastErrorMessage: input.errorMessage }),
+    payload: {
+      errorCode: input.errorCode,
+      ...(input.errorMessage === undefined ? {} : { errorMessage: input.errorMessage }),
+    },
+  }
 }
 
 export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWriteBack {
@@ -99,14 +129,13 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
     })
   }
 
-  async recordRejected(
-    input: MdfeIssuanceWriteBackKey & { readonly errorCode: string },
-  ): Promise<void> {
-    const { errorCode, ...key } = input
+  async recordRejected(input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack): Promise<void> {
+    const key = toWriteBackKey(input)
+    const { payload, ...rejection } = toRejectionTransition(input)
     await this.#apply({
-      eventPayload: { errorCode },
+      ...rejection,
+      eventPayload: payload,
       key,
-      lastErrorCode: errorCode,
       manifestStatus: 'rejected',
       status: 'rejected',
     })
@@ -171,13 +200,14 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
 
   /** SEFAZ recusou o 110112: o manifesto continua autorizado e o encerramento pode ser refeito. */
   async recordClosureRejected(
-    input: MdfeIssuanceWriteBackKey & { readonly errorCode: string },
+    input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack,
   ): Promise<void> {
-    const { errorCode, ...key } = input
+    const key = toWriteBackKey(input)
+    const { payload, ...rejection } = toRejectionTransition(input)
     await this.#apply({
-      eventPayload: { errorCode, operation: CLOSE_OPERATION },
+      ...rejection,
+      eventPayload: { ...payload, operation: CLOSE_OPERATION },
       key,
-      lastErrorCode: errorCode,
       manifestStatus: 'authorized',
       status: 'rejected',
     })
@@ -196,6 +226,8 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
       key,
       manifestStatus: 'cancelled',
       settle: async (transaction) => {
+        await releaseManifestItems(transaction, key)
+
         const cancellationXmlObjectId = await this.#resolveEventXmlObjectId(transaction, {
           key,
           reason: MISSING_CANCELLATION_XML_REASON,
@@ -226,13 +258,14 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
 
   /** SEFAZ recusou o 110111: libera a intenção para que uma nova solicitação seja possível. */
   async recordCancellationRejected(
-    input: MdfeIssuanceWriteBackKey & { readonly errorCode: string },
+    input: MdfeIssuanceWriteBackKey & MdfeRejectionWriteBack,
   ): Promise<void> {
-    const { errorCode, ...key } = input
+    const key = toWriteBackKey(input)
+    const { payload, ...rejection } = toRejectionTransition(input)
     await this.#apply({
-      eventPayload: { errorCode, operation: CANCEL_OPERATION },
+      ...rejection,
+      eventPayload: { ...payload, operation: CANCEL_OPERATION },
       key,
-      lastErrorCode: errorCode,
       manifestStatus: 'authorized',
       settle: async (transaction) => {
         await transaction
@@ -321,6 +354,9 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
           ...(transition.lastErrorCode === undefined
             ? {}
             : { lastErrorCode: transition.lastErrorCode }),
+          ...(transition.lastErrorMessage === undefined
+            ? {}
+            : { lastErrorMessage: transition.lastErrorMessage }),
         })
         .where(
           and(
@@ -356,6 +392,26 @@ export class DrizzleMdfeIssuanceWriteBackRepository implements MdfeIssuanceWrite
       }
     })
   }
+}
+
+/**
+ * ADR-0017: manifesto cancelado não prende mais o CT-e. Só as linhas ainda vivas são carimbadas —
+ * recarimbar apagaria a data real da saída, e o unique parcial já solta o documento na primeira.
+ */
+async function releaseManifestItems(
+  transaction: Transaction,
+  key: MdfeIssuanceWriteBackKey,
+): Promise<void> {
+  await transaction
+    .update(mdfeManifestItems)
+    .set({ releasedAt: key.occurredAt })
+    .where(
+      and(
+        eq(mdfeManifestItems.companyId, key.companyId),
+        eq(mdfeManifestItems.manifestId, key.manifestId),
+        isNull(mdfeManifestItems.releasedAt),
+      ),
+    )
 }
 
 async function persistFiscalDocument(

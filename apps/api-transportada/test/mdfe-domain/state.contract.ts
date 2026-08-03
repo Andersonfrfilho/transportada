@@ -154,6 +154,54 @@ describe('MDF-e manifest state policy', () => {
     ).toEqual({ allowed: false, reason: MDFE_TRANSITION_BLOCK.windowExpired })
   })
 
+  // ADR-0017: manifesto rejeitado é descartado e devolve o CT-e, em vez de ser corrigido
+  test('discards a manifest that never reached the SEFAZ', () => {
+    for (const status of ['draft', 'rejected'] as const) {
+      expect(transition(MDFE_MANIFEST_ACTION.discard, status)).toEqual({
+        allowed: true,
+        nextStatus: 'discarded',
+      })
+    }
+  })
+
+  test('refuses to discard while the SEFAZ still decides', () => {
+    expect(transition(MDFE_MANIFEST_ACTION.discard, 'issuing')).toEqual({
+      allowed: false,
+      reason: MDFE_TRANSITION_BLOCK.inFlight,
+    })
+  })
+
+  test('refuses to discard what the SEFAZ already authorized', () => {
+    for (const status of ['authorized', 'closed', 'cancelled'] as const) {
+      expect(transition(MDFE_MANIFEST_ACTION.discard, status)).toEqual({
+        allowed: false,
+        reason: MDFE_TRANSITION_BLOCK.notDiscardable,
+      })
+    }
+  })
+
+  test('reports a second discard as already discarded', () => {
+    expect(transition(MDFE_MANIFEST_ACTION.discard, 'discarded')).toEqual({
+      allowed: false,
+      reason: MDFE_TRANSITION_BLOCK.alreadyDiscarded,
+    })
+  })
+
+  test('closes every other door on a discarded manifest', () => {
+    expect(transition(MDFE_MANIFEST_ACTION.issue, 'discarded')).toEqual({
+      allowed: false,
+      reason: MDFE_TRANSITION_BLOCK.notIssuable,
+    })
+    expect(transition(MDFE_MANIFEST_ACTION.close, 'discarded')).toEqual({
+      allowed: false,
+      reason: MDFE_TRANSITION_BLOCK.alreadyDiscarded,
+    })
+    expect(transition(MDFE_MANIFEST_ACTION.cancel, 'discarded')).toEqual({
+      allowed: false,
+      reason: MDFE_TRANSITION_BLOCK.alreadyDiscarded,
+    })
+  })
+
   test('requires the justification length the SEFAZ demands', () => {
     expect(MDFE_CANCELLATION_JUSTIFICATION_MIN_LENGTH).toBe(15)
     expect(isCancellationJustificationValid('curta demais')).toBeFalse()

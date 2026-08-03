@@ -1,0 +1,265 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 46%, transparent);
+}
+
+.panelHead {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.82rem;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .summaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.summaryItem {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.summaryLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.summaryValue {
+  font-family: var(--font-utility);
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.amountValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.statusBadge {
+  justify-self: start;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.statusReady {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.statusAlert {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-utility);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.itemsScroll {
+  overflow-x: auto;
+}
+
+.itemsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-utility);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.itemsTable th,
+.itemsTable td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+  text-align: left;
+}
+
+.itemsTable th {
+  color: var(--color-slate);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.itemsTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-asphalt) 30%, transparent);
+}
+
+.accessKeyCell {
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.documentList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.documentRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.documentType {
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+}
+
+.cancelRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.cancelField {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 14rem;
+}
+
+.cancelField span {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.cancelField input[type='text'] {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: inherit;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.action {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  white-space: nowrap;
+  background: none;
+  cursor: pointer;
+}
+
+.action:disabled {
+  border-color: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+  cursor: not-allowed;
+}
+
+.editGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .editGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.editField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.editField > span:first-child {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.editField input[type='text'],
+.editField textarea {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: inherit;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.editField textarea {
+  resize: vertical;
+}
+
+.editTotal {
+  align-self: center;
+  font-family: var(--font-utility);
+  font-size: 1.05rem;
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}

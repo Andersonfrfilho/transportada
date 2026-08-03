@@ -6,10 +6,17 @@
   "error": "Could not load the manifests",
   "empty": "No manifest found",
   "forbidden": "Your current access does not allow reading MDF-e manifests",
+  "dateRange": {
+    "placeholder": "Select the period",
+    "clear": "Clear period",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
+  },
   "resultCounter": "{{shown}} of {{total}} manifests",
   "manifestsTitle": "Manifests",
   "filters": {
     "title": "Filters",
+    "all": "All",
     "simple": "Simple",
     "advanced": "Advanced",
     "clear": "Clear filters",
@@ -18,8 +25,8 @@
     "status": "Status",
     "cteCountFrom": "CT-es (minimum)",
     "cteCountTo": "CT-es (maximum)",
-    "createdFrom": "Created from",
-    "createdTo": "Created until"
+    "createdRange": "Created period",
+    "removeFilter": "Remove the {{field}} filter"
   },
   "status": {
     "draft": "Draft",
@@ -27,7 +34,8 @@
     "authorized": "Authorized",
     "rejected": "Rejected",
     "closed": "Closed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "discarded": "Discarded"
   },
   "columns": {
     "title": "Columns",
@@ -47,6 +55,9 @@
     "moveDown": "Move column right",
     "toggle": "Show column"
   },
+  "rejection": {
+    "label": "SEFAZ refusal reason:"
+  },
   "sort": {
     "asc": "sorted ascending",
     "desc": "sorted descending",
@@ -63,6 +74,7 @@
     "issue": "Transmit",
     "close": "Close",
     "cancel": "Cancel",
+    "discard": "Discard",
     "confirm": "Confirm",
     "dismiss": "Dismiss",
     "create": "Create manifest",
@@ -193,9 +205,15 @@
     "tooShort": "The justification needs at least 15 characters.",
     "tooLong": "The justification cannot exceed 255 characters."
   },
+  "discard": {
+    "title": "Discard manifest {{fiscal}}",
+    "warning": "Discarding ends the manifest without sending it to SEFAZ and releases its CT-es for another manifest. It cannot be undone."
+  },
   "feedback": {
     "alreadyCancelled": "This manifest was already cancelled.",
     "alreadyClosed": "This manifest was already closed.",
+    "alreadyDiscarded": "This manifest was already discarded.",
+    "notDiscardable": "Only a draft or rejected manifest can be discarded.",
     "documentAlreadyManifested": "One of the CT-es already belongs to another manifest.",
     "documentNotAuthorized": "Only an authorized CT-e can enter the manifest.",
     "inFlight": "There is a transmission in flight for this manifest.",

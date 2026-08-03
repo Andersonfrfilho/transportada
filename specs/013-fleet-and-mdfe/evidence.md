@@ -1378,3 +1378,667 @@ make check     exit 0 — format:check · lint · typecheck · test · build
 
 ⚠️ Nenhuma emissão real de MDF-e na SEFAZ foi executada aqui — o que está provado é o wiring e a
 aderência de contrato ao pacote, não a resposta da SVRS.
+
+## T027 — Certificado com `purpose = 'mdfe'`
+
+O bloqueio apareceu ao montar o E2E da T028: `DrizzleMdfeCertificateRepository.findActiveCertificate`
+(worker) consulta `digital_certificates.purpose = 'mdfe'`, mas três camadas da API só conheciam
+`'cte'` — a check constraint `digital_certificates_purpose_check CHECK (purpose = 'cte')`, a constante
+`CERTIFICATE_PURPOSES` e o `parseForm` da rota de upload. Qualquer emissão de MDF-e morria em
+`MdfeIssuanceFatalError('company has no active MDF-e certificate')`, sem caminho de contorno pela UI.
+
+### Por que estender o enum em vez de reaproveitar o certificado de CT-e
+
+O schema já foi desenhado para múltiplas finalidades: `CERTIFICATE_PURPOSES` é array, o índice único
+de ativo é `(company_id, purpose)` e o de versão é `(company_id, purpose, version)`. Mais decisivo:
+`purpose` entra no AAD/derivação de chave do envelope de segredo
+(`transportada:certificate:v1:${companyId}:${certificateId}:${purpose}`) e na impressão digital de
+idempotência da substituição. Fazer o worker cair no certificado de CT-e quebraria as duas coisas —
+a linha própria é o modelo fiel. Na prática o operador envia o mesmo arquivo A1 uma vez por documento.
+
+`DELETE /companies/digital-certificates` passou a exigir `?purpose=` explícito e responde 400 sem ele:
+aposentar a finalidade errada derruba a emissão do outro documento fiscal em silêncio.
+
+Testes de contrato escritos antes da implementação, vermelhos pelo motivo certo (3 falhas na API por
+201/aceite indevido e 400 ausente; 3 no frontend por `setPurpose` inexistente e view-model de um
+certificado só).
+
+### Migração
+
+`20260728235419_mdfe_certificate_purpose` — troca a check constraint por `in ('cte', 'mdfe')`.
+Rollback manual verificado contra o Postgres local: reverte para `purpose = 'cte'` e apaga exatamente
+uma linha de `drizzle.__drizzle_migrations`; migração reaplicada em seguida.
+
+```
+psql -Atc "select pg_get_constraintdef(oid) ... 'digital_certificates_purpose_check'"
+  antes do rollback   CHECK ((purpose = ANY (ARRAY['cte'::text, 'mdfe'::text])))
+  após o rollback     CHECK ((purpose = 'cte'::text))     journal: 0 linhas
+  após reaplicar      CHECK ((purpose = ANY (ARRAY['cte'::text, 'mdfe'::text])))
+
+make migration-test     9 pass  0 fail
+
+make check     exit 0 — format:check · lint · typecheck · test · build
+  api-transportada      1013 pass  1 skip  0 fail
+  frontend-transportada  200 pass  0 fail
+```
+
+O frontend deixou de exibir "um certificado ativo" ambíguo: o view-model devolve
+`activeCertificates` por finalidade, o formulário tem seletor de documento e mostra o certificado
+daquela finalidade, e o painel lateral lista CT-e e MDF-e separadamente — inclusive a ausência.
+
+## T028 — MDF-e autorizado e encerrado na SVRS em homologação
+
+Caminho do produto inteiro, sem atalho: `POST /mdfe-manifests` → `POST /mdfe-manifests/:id/issue`
+(202, só o aceite) → `mdfe_issuance_outbox` → relay → RabbitMQ `mdfe-issuance.v1` → consumer →
+SVRS. O worker rodou com `WORKER_PORT=53012`; a API, na 53001.
+
+```
+MDF-e   manifesto  7e40598d-4b53-438a-ad4c-6af14a0d5695   série 1 número 4
+        chave      35260761156864000191580010000000041061278030
+        protocolo  935260000051971    autorizado 2026-07-29T01:25:14.129Z
+encerramento (110112)
+        protocolo  935260000051972    ARARAQUARA/SP (3503208)   2026-07-29T01:25:41.929Z
+        mdfe_fiscal_documents.status = closed · mdfe_manifests.status = closed
+
+CT-e manifestado  67cd1d03-f7b1-4b93-9033-66a44651314f
+        chave      35260761156864000191570010000000051429363835
+        protocolo  135260001964480
+```
+
+### Três defeitos que só o caminho real revelou
+
+**Envelope do outbox sem `status` — mensagem morria na dead queue sem log nem motivo.**
+`DrizzleMdfeOutboxRepository` lia `payload` (JSON livre do outbox) e o entregava com um cast para
+`MdfeProcessingEnvelopeV1['payload']`; o cast escondia do TypeScript que `status` não existia ali. O
+`decode` do `provider.consume` estourava o Zod **antes** do handler, então nada era logado e
+`mdfe_processed_messages` ficava vazia. Passou a ler a coluna `status`, que é a autoridade. Teste de
+contrato novo (`test/mdfe-outbox-relay.contract.test.ts`) faz `mdfeProcessingEnvelopeV1Schema.parse`
+no envelope publicado — vermelho antes da correção.
+
+**Rejeição 745** — `O tipo de transportador não pode ser informado quando não estiver informado
+proprietário do veículo de tração`. O builder mandava `tpTransp` mesmo com veículo próprio (que não
+tem grupo `prop`). `buildTransporterType` omite o campo quando `vehicle.ownership === 'own'`.
+
+**Rejeição 301** — `O NCM do produto predominante da carga lotação deve ser informado`. Agora o
+manifesto de lotação sem NCM falha na fronteira com `MDFE_PAYLOAD_MISSING_CARGO_NCM` (422), em vez
+de queimar número e viajar até a SEFAZ.
+
+**Rejeição 699** — `Dados do seguro de carga incompletos para o modal rodoviário`. Faltavam duas
+coisas no grupo `seg`: o documento de quem responde pela apólice (`infResp/CNPJ|CPF`) e a averbação
+(`nAver`). O builder emitia só `respSeg`, `infSeg` e `nApol`. Correções: `buildInsuranceResponsible`
+carimba o CNPJ do emitente quando `respSeg = 1` e o CNPJ/CPF do contratante quando `respSeg = 2`
+(sem documento → `MDFE_PAYLOAD_MISSING_INSURANCE_RESPONSIBLE`), e a averbação virou obrigatória
+sempre que o grupo é emitido (`MDFE_PAYLOAD_MISSING_INSURANCE_ENDORSEMENT`). Ambos 422 no
+`POST /:id/issue`, dentro da transação — nenhum número de série é gasto.
+
+O payload é montado pela API e congelado em `mdfe_issuance_payloads`; o worker o repassa ao provider
+sem remapear. Por isso `responsavelCnpj`/`responsavelCpf` e `averbacoes` são exatamente os nomes de
+campo do contrato `MdfeSeguro` do pacote fiscal.
+
+```
+bun test apps/api-transportada/test/mdfe-domain.contract.test.ts        54 pass  0 fail
+bun test apps/api-transportada/test/mdfe-application.contract.test.ts   39 pass  0 fail
+bun test apps/worker-transportada/test/mdfe-outbox-relay.contract.test.ts  2 pass  0 fail
+```
+
+### Duas lacunas de produto abertas por esta task
+
+**Manifesto rejeitado é beco sem saída e sequestra o CT-e.** Não existe rota de edição de manifesto,
+`checkCancel` só aceita `authorized`, e `released_at` de `mdfe_manifest_items` **não é escrito por
+nenhum caminho de código** — apesar de este mesmo arquivo documentar que cancelar devolveria o CT-e.
+O unique parcial `mdfe_manifest_items_live_document_unique` então prende o CT-e para sempre no
+manifesto rejeitado. Foi o que aconteceu com `4ef75fa1` (rejeição 301) e `4da262d0` (rejeição 699):
+cada rejeição que exige corrigir dado do manifesto custou um CT-e novo. Precisa de task própria —
+descarte de manifesto rejeitado ou correção antes de reemitir.
+
+**Falha de `decode` no worker morre calada.** A rejeição do Zod dentro de `provider.consume` manda a
+mensagem direto para a dead queue sem linha de log e sem `markDeadLettered`, então não há motivo
+persistido. Foi o que tornou o primeiro defeito invisível. Precisa de task própria.
+
+**A SEFAZ devolve o texto da rejeição e nós descartamos.** `recordRejected` grava só
+`last_error_code`; `outcome.rejection.message` — que é o que explica o erro — não é persistido em
+lugar nenhum. O diagnóstico das rejeições 745, 301 e 699 saiu do stdout do worker, não do banco.
+
+## T029 — Descarte de manifesto devolve o CT-e ao pool
+
+Fecha a primeira das lacunas que a T028 abriu: manifesto rejeitado deixou de ser beco sem saída.
+Decisão em `docs/adr/0017-discarding-a-rejected-mdfe-manifest.md`.
+
+**Estado terminal novo.** `discarded` entrou em `MDFE_MANIFEST_STATUSES` e na check constraint
+(`drizzle/20260729105113_mdfe_manifest_discarded_status/`, com `rollback.sql` manual guardado pelo
+sha256 do `migration.sql`). Migration aplicada no Postgres local e coberta pelo assert de constraints:
+
+```sql
+ALTER TABLE "mdfe_manifests" DROP CONSTRAINT "mdfe_manifests_status_check",
+  ADD CONSTRAINT "mdfe_manifests_status_check"
+  CHECK ("status" in ('draft','issuing','authorized','rejected','closed','cancelled','discarded'));
+```
+
+**Rota.** `POST /mdfe-manifests/:id/discard`, política `mdfe.manage`, sem corpo e sem chave de
+idempotência — não é tentativa fiscal, não vai à SEFAZ. Aceita só `draft` e `rejected`
+(`checkManifestDiscard`); `issuing` responde 409 `MDFE_MANIFEST_IN_FLIGHT`, `discarded` responde 409
+`MDFE_MANIFEST_ALREADY_DISCARDED`, o resto 409 `MDFE_MANIFEST_NOT_DISCARDABLE`.
+
+**O que devolve o CT-e.** `DrizzleMdfeManifestRepository.discard` roda estado e liberação na mesma
+transação: `UPDATE mdfe_manifests` com o `WHERE` repetindo `MDFE_DISCARDABLE_STATUSES` (perde a
+corrida em silêncio em vez de estragar), seguido de `UPDATE mdfe_manifest_items SET released_at =
+now()` apenas nas linhas com `released_at IS NULL` — recarimbar uma linha já liberada apagaria a
+data real da saída. Com `released_at` preenchido o unique parcial
+`mdfe_manifest_items_live_document_unique` solta o CT-e, e ele volta a ser candidato no preview.
+
+**Frontend.** ADR-0017 previa a ação na tela e ela veio junto: `discarded` em
+`MDFE_MANIFEST_STATUS`, `canDiscard` em `resolveManifestActions` (só `draft`/`rejected`; manifesto
+descartado não oferece mais nada), `discardManifest` no client e no controller atrás de
+`mdfe.manage`, botão por linha na tabela e confirmação no painel de ações — `discard` não é
+`MdfeAttemptKind`, então o `kind` do formulário virou `MdfeManifestActionKind`. Locales pt-BR e en
+ganharam `actions.discard`, `status.discarded`, o escopo `discard.*` e os feedbacks
+`alreadyDiscarded` / `notDiscardable`.
+
+```
+bun test apps/api-transportada/test/{mdfe-schema,mdfe-domain,mdfe-application,mdfe-http,mdfe-infrastructure,database-migration}.contract.test.ts
+                                                          194 pass  1 skip  0 fail
+bun test --cwd apps/api-transportada (58 arquivos)        1040 pass  1 skip  0 fail
+bun test --cwd apps/frontend-transportada                  201 pass         0 fail
+make migration-test                                          9 pass         0 fail
+make check (format:check + lint + typecheck + test + build)  tudo verde
+```
+
+Testes que seguram o comportamento: `test/mdfe-schema/*.contract.ts` (constraint e tenant-safety),
+`test/mdfe-http/manifests.contract.ts` (403 sem `mdfe.manage`, 409 por estado, repetição),
+`test/mdfe-infrastructure/manifest-query.contract.ts` (o `WHERE` do descarte e o filtro de item
+vivo), `test/mdfe-domain/eligibility.contract.ts` (CT-e liberado volta a ser manifestável — a task
+apontava `grouping.contract.ts`, que só cobre a soma da carga) e, no frontend,
+`test/mdfe-manifest/client-and-queries.contract.ts` (POST sem `idempotency-key` respondendo detalhe,
+gate de permissão) e `test/mdfe-manifest/table-and-actions.contract.ts` (`canDiscard` por estado).
+
+T032 — descartar por esta rota os manifestos `4ef75fa1` e `4da262d0` — está desbloqueada.
+
+## T030 — Cancelamento do MDF-e devolve o CT-e ao pool
+
+Segunda lacuna da T028. O `evidence.md` já dizia que o cancelamento libera os CT-es, mas nenhuma
+linha de código fazia isso: o manifesto virava `cancelled` e os itens continuavam com
+`released_at` nulo, ou seja, o CT-e seguia preso pelo unique parcial
+`mdfe_manifest_items_live_document_unique` e nunca voltava ao preview.
+
+**Onde estava o buraco.** A task apontava `src/mdfe-manifests/application/**`, mas quem confirma o
+110111 é o worker: `DrizzleMdfeIssuanceWriteBackRepository.recordCancelled`. O `settle` dele
+carimbava só `mdfe_fiscal_documents`. Agora libera os itens antes disso, dentro da mesma transação
+que move a tentativa e o manifesto:
+
+```sql
+UPDATE mdfe_manifest_items SET released_at = $occurredAt
+ WHERE company_id = $1 AND manifest_id = $2 AND released_at IS NULL
+```
+
+`occurredAt` é o instante do evento da SEFAZ, não `now()` — é a data real da saída. O
+`released_at IS NULL` protege redelivery: recarimbar apagaria a data da primeira liberação.
+
+**O que continua preso.** `recordCancellationRejected` não libera nada — a SEFAZ recusou o evento, o
+manifesto volta para `authorized` e os CT-es continuam manifestados. E, quando a tentativa já foi
+encerrada por uma entrega anterior, o `UPDATE` da tentativa não devolve linha e o `#apply` sai antes
+do `settle`: nenhuma liberação acontece duas vezes.
+
+**Como o teste prova sem banco.** `test/mdfe-issuance-write-back.contract.test.ts` injeta uma
+transação que grava cada statement e renderiza o `where` com o `PgDialect`, no mesmo espírito do
+`test/mdfe-infrastructure/manifest-query.contract.ts` da API. Os quatro casos: libera item vivo com
+escopo de empresa e manifesto; libera antes de fechar o manifesto como `cancelled`; não toca nos
+itens quando a SEFAZ recusa; não toca em nada quando a tentativa já estava encerrada.
+
+De brinde, a cópia do schema no worker ganhou `discarded` em `MdfeManifestStatus` — a T029 mudou a
+check constraint no banco e a união do worker tinha ficado para trás.
+
+```
+bun test apps/worker-transportada/test/mdfe-issuance-write-back.contract.test.ts   4 pass  0 fail
+bun test --cwd apps/worker-transportada (36 arquivos)                            217 pass  0 fail
+make check (format:check + lint + typecheck + test + build)
+  raiz 6 pass · api 1040 pass 1 skip · worker 217 pass · cron 24 pass · frontend 201 pass · 0 fail
+```
+
+Com T029 e T030 no lugar, as duas saídas do manifesto — descarte antes da SEFAZ e cancelamento
+depois dela — devolvem o CT-e. Falta a T031 (motivo da recusa persistido) e a T032 (descartar os
+dois manifestos travados).
+
+## T031 — Motivo da recusa persistido e visível
+
+Um manifesto rejeitado só carregava o código (`last_error_code`). O texto da SEFAZ — o `xMotivo`,
+que é a única parte que explica _o que_ corrigir — chegava no `outcome.rejection.message` e era
+descartado. Na tela o operador via `Rejeitado` e nada mais.
+
+**Banco.** `20260729114737_mdfe_attempt_last_error_message` adiciona
+`mdfe_issuance_attempts.last_error_message text` (nullable — recusa sem texto continua sendo recusa
+sem texto, e as tentativas antigas não ganham valor inventado). O `rollback.sql` correspondente
+derruba a coluna e apaga a linha do `drizzle.__drizzle_migrations` sob `GET DIAGNOSTICS`, com o
+cabeçalho avisando que é destrutivo: todo motivo já gravado se perde. Diferente de
+`processed_messages.last_error_message`, esta coluna não tem `CHECK` de comprimento — o valor vem do
+`xMotivo`, limitado pelo layout do MDF-e, e nada no caminho o concatena.
+
+**Worker.** `recordRejected` e `recordCancellationRejected` passam a gravar `lastErrorMessage` e a
+repetir a mensagem no payload do evento de emissão (o histórico precisa se explicar sozinho). Quando
+a SEFAZ recusa sem texto, o `UPDATE` não inclui a coluna — não sobrescreve o motivo de uma recusa
+anterior com `null`.
+
+**Consumer.** O `decode` do envelope rodava dentro do `provider.consume`: um envelope fora do schema
+(campo novo vindo de uma API mais recente, por exemplo) fazia o Zod lançar dentro do provider e a
+mensagem morria sem log e sem dead-letter. Agora o `decode` é identidade e o `safeParse` acontece no
+handler:
+
+```ts
+const decoded = mdfeProcessingEnvelopeV1Schema.safeParse(raw)
+if (!decoded.success) {
+  return deadLetterUndecodableMessage({ error: decoded.error, ... })
+}
+```
+
+O motivo gravado é montado só com `code@caminho.campo` das issues do Zod — o conteúdo do envelope
+nunca entra, porque ali pode haver dado fiscal. Quando o envelope quebrado ainda traz
+`companyId`/`eventId`/`manifestId`/`attemptId`, o `markDeadLettered` registra a morte; quando não
+traz identidade nenhuma, resta o log e o `dead-letter` — e uma falha ao escrever o dead-letter é
+logada em vez de derrubar o consumer.
+
+**API.** A recusa não vive no manifesto, vive na tentativa. `listManifests` e `readManifestDetail`
+fazem uma segunda leitura em `mdfe_issuance_attempts` filtrada por `company_id` + `manifest_id in
+(...)` + `status = 'rejected'`, e `indexLastRejections` mantém em memória só a mais recente de cada
+manifesto — a anterior já foi respondida por outra tentativa. O resultado sai no contrato como
+`lastRejection: { attemptKind, code, message, occurredAt } | null`, com `message` preservando `null`
+ponta a ponta (nunca vira `''`): a tela distingue "recusado sem texto" de "não recusado".
+
+**Frontend.** `MANIFEST_SUMMARY_KEYS` ganhou `lastRejection` e o type guard rejeita objeto de recusa
+com chave a mais ou `attemptKind` fora do enum — sem isso o allowlist estrito derrubaria o 200
+válido. `formatManifestRejection` monta `726 · Rejeicao: Numero do MDF-e ja utilizado` (só o código
+quando não há texto; o texto da SEFAZ não é traduzível e sai como veio) e a coluna de situação
+imprime a linha abaixo do badge, com `title` para o texto longo e rótulo em leitor de tela.
+
+```
+bun test apps/api-transportada/test/mdfe-infrastructure.contract.test.ts        22 pass  0 fail
+bun test apps/worker-transportada/test/mdfe-issuance-{consumer,write-back}      14 pass  0 fail
+bun test apps/frontend-transportada/test/mdfe-manifest.contract.test.ts         23 pass  0 fail
+make migration-test (migration + rollback em Postgres descartável)               9 pass  0 fail
+make check (format:check + lint + typecheck + test + build)
+  api 1044 pass 1 skip · worker 228 pass · cron 24 pass · frontend 203 pass · 0 fail
+```
+
+Migration aplicada no banco local (`db:migrate`); `information_schema` confirma
+`mdfe_issuance_attempts.last_error_message text`. Testes que seguram o comportamento:
+`test/mdfe-infrastructure/manifest-rejection.contract.ts` (escopo por empresa, recusa mais recente,
+`message` nula preservada, recusa chegando no manifesto), `test/mdfe-issuance-consumer.contract.test.ts`
+(envelope fora do schema vira dead-letter com identidade e sem vazar conteúdo) e
+`test/mdfe-issuance-write-back.contract.test.ts` (mensagem na tentativa e no evento, coluna intocada
+quando não há texto).
+
+## T032 — Descarte dos dois manifestos travados
+
+Operação sobre dado real do ambiente local, pela rota entregue na T029 (`POST
+/mdfe-manifests/:id/discard`), acionada pela tela de manifestos com o usuário `local-user`
+(company-admin da empresa `00000000-0000-4000-8000-000000000001`). Nada de SQL direto: o descarte
+saiu do botão "Descartar" da linha, com confirmação no painel de ações.
+
+**Antes.** `4ef75fa1-ed1b-4f14-8280-442c3f8cf40f` (número 2) e `4da262d0-ee1d-42f8-aecc-793f40a18b1d`
+(número 3) em `rejected`, cada um segurando um item vivo (`mdfe_manifest_items.released_at` nulo) —
+os CT-es `3abe7870-d8d5-45c4-bc78-77c2d0797acd` (chave `…31844361565`) e
+`fbe957fa-5504-4f5d-a7c4-6441209ac05d` (chave `…41124736622`).
+
+**Prévia antes do descarte** (`POST /mdfe-manifests/preview` com os dois documentos):
+
+```json
+{
+  "documents": [],
+  "blocked": [
+    { "fiscalDocumentId": "3abe7870-…", "reason": "MDFE_DOCUMENT_ALREADY_MANIFESTED" },
+    { "fiscalDocumentId": "fbe957fa-…", "reason": "MDFE_DOCUMENT_ALREADY_MANIFESTED" }
+  ]
+}
+```
+
+**Descarte.** Duas chamadas, ambas `200`; a tabela passou a mostrar "Descartado" nas duas linhas.
+
+**Prévia depois do descarte**, mesma requisição:
+
+```json
+{
+  "blocked": [],
+  "documents": [
+    { "accessKey": "35260761156864000191570010000000031844361565" },
+    { "accessKey": "35260761156864000191570010000000041124736622" }
+  ]
+}
+```
+
+Banco confirma o efeito: os dois manifestos em `discarded` e os dois itens com `released_at`
+carimbado (`2026-07-29T12:16:17Z`); o manifesto `7e40598d` (encerrado) segue intocado, com item vivo.
+
+O roteiro rodou num spec Playwright temporário contra a stack de `make dev`, removido depois da
+execução — é operação, não teste permanente; a rota já é coberta por
+`test/mdfe-http/*.contract.ts` e `test/mdfe-domain/eligibility.contract.ts` desde a T029.
+
+Dois achados registrados no caminho, nenhum deles regressão desta task:
+
+- `test/authenticated-smoke.helper.ts` espera `/auth/me` na origem `http://localhost:53001`, mas o
+  frontend hoje fala com a API pelo proxy do Vite (`VITE_API_URL=http://localhost:53000/api`). O
+  helper só não quebra porque `bun run smoke` roda com `VITE_SMOKE_AUTH_BYPASS=true` e sai antes
+  desse trecho — o caminho de login real está morto ali.
+- O CT-e `3abe7870` não aparece na lista de candidatos da tela: `cte_fiscal_documents` diz
+  `authorized`, mas a última tentativa do item de lote ficou `rejected`, e o frontend monta o
+  candidato pelo status da tentativa (`collectManifestCteCandidates`). A API não se importa — a
+  prévia aceitou o documento e o devolveu como manifestável.
+
+## T033 — Status do item do lote reconciliado com o documento fiscal
+
+Segundo achado da T032, corrigido na origem: quem inventava o status era a API, não o frontend.
+`DrizzleCteBatchItemRepository.listItems` devolvia `status: attempt?.status` e ignorava o
+`cte_fiscal_documents` que a própria query já juntava.
+
+**Estado que reproduzia o defeito** (dado real do ambiente local):
+
+```
+name                        | doc_status | cancellation_requested_at | attempt_status | attempt_number
+T022 homologacao referencia | authorized |                           | rejected       | 8
+T028 MDFe E2E               | authorized |                           | authorized     | 1
+```
+
+A tentativa 8 do item `b7cdbb42` é um replay recusado por duplicidade (`last_error_code = 539`)
+sobre um CT-e que a SEFAZ já tinha autorizado — protocolo `135260001960948`, chave `…31844361565`.
+
+**Teste antes da implementação.** `test/cte-batch-infrastructure/batch-item-status.contract.ts`
+(entrypoint `test/cte-batch-infrastructure.contract.test.ts`, ambos novos e adicionados à lista
+explícita do `package.json`) sobre a função pura `resolveBatchItemStatus`. Primeira execução
+vermelha por ausência do símbolo:
+
+```
+SyntaxError: Export named 'resolveBatchItemStatus' not found in module
+  '.../src/cte-batches/infrastructure/drizzle-cte-batch-item.repository.ts'
+```
+
+Casos cobertos: documento autorizado + tentativa `rejected` → `authorized`; documento autorizado +
+tentativa `failed` → `authorized`; `cancellation_requested_at` preenchido → `cancelled`; documento
+`cancelled` → `cancelled`; sem documento → status da tentativa; sem documento e sem tentativa →
+`pending`.
+
+**Implementação.** A regra virou política pura em
+`src/cte-issuance/domain/cte-fiscal-document-status.policy.ts` (`resolveIssuedDocumentStatus`, movida
+de dentro do `drizzle-cte-issuance.repository.ts`), consumida pelos dois leitores. `listItems` passou
+a selecionar `cte_fiscal_documents.status` e `cancellation_requested_at` e a resolver o status por
+`resolveBatchItemStatus`. Decisão registrada em
+`docs/adr/0018-authorized-fiscal-document-outranks-latest-attempt.md`.
+
+**Evidência pela tela**, mesmo caminho da T032 (login real como `local-user`, stack de `make dev`):
+selecionando o lote "T022 homologacao referencia" na criação de manifesto, o CT-e volta a aparecer
+como candidato e a resposta de `GET /cte-batches/:id/items` traz o item já reconciliado.
+
+```json
+{
+  "candidateVisible": true,
+  "item": {
+    "id": "b7cdbb42-c037-442c-bf7b-78dd1690e3df",
+    "fiscalDocumentId": "3abe7870-d8d5-45c4-bc78-77c2d0797acd",
+    "accessKey": "35260761156864000191570010000000031844361565",
+    "authorizationProtocol": "135260001960948",
+    "lastErrorCode": "539",
+    "status": "authorized"
+  }
+}
+```
+
+O spec Playwright que produziu essa captura era temporário e foi removido — a regra permanente está
+no contrato da função pura. `git status` sem resíduo.
+
+**Gates.** `bun run typecheck` limpo; `bun run test` da API `1050 pass / 1 skip / 0 fail` (o skip é o
+gate de integração que só roda com `DATABASE_URL`, anterior a esta task); `bun run test` do frontend
+`203 pass / 0 fail`, provando que a tela do lote continua íntegra com o status novo.
+
+**Efeito colateral esperado, e desejado:** com o item lido como `authorized`, a tela do lote passa a
+oferecer download e cancelamento para ele e deixa de oferecer "reprocessar" — reemitir CT-e já
+autorizado duplicaria documento fiscal.
+
+## T034 — Login real do smoke autenticado de volta à vida
+
+**Defeito.** `test/authenticated-smoke.helper.ts` casava a resposta de `/auth/me` com a origem fixa
+`http://localhost:53001`. Com o `.env` local apontando `VITE_API_URL=http://localhost:53000/api`
+(proxy do Vite), a resposta chega na origem do frontend e o `waitForResponse` nunca resolvia — o
+login real morria no timeout. Como `bun run smoke` sempre roda com `VITE_SMOKE_AUTH_BYPASS=true`, que
+retorna antes do login, o caminho autenticado estava morto sem que nenhum gate reclamasse.
+
+**Teste antes da correção** (`bun test ./test/frontend-contract.test.ts`, 4 casos novos):
+
+```
+error: Cannot find module './smoke-api-url.helper'
+error: expect(received).toContain(expected)  // "isAuthMeResponseUrl" ausente no helper de login
+error: expect(received).toContain(expected)  // "preview:" ausente no vite.config.ts
+error: expect(received).toBeDefined()        // scripts["smoke:auth"] === undefined
+
+ 10 pass
+ 4 fail
+```
+
+**Correção.**
+
+- `test/smoke-api-url.helper.ts` (novo, sem dependência de Playwright): `getApiBaseUrl()` lê
+  `VITE_API_URL` e `isAuthMeResponseUrl()` compara origem **e** caminho do
+  `${VITE_API_URL}/auth/me` — é o caminho que distingue proxy de API direta, já que no proxy as duas
+  origens são a mesma.
+- `test/authenticated-smoke.helper.ts` consome as duas funções no lugar da origem fixa.
+- `vite.config.ts`: `API_PROXY` extraído e aplicado em `server.proxy` **e** `preview.proxy` — o smoke
+  roda sobre `vite preview`, que não herda o proxy do servidor de dev.
+- `package.json`: script `smoke:auth` sem `VITE_SMOKE_AUTH_BYPASS`, preservando um `VITE_API_URL`
+  passado inline (`INLINE_API_URL`) para permitir provar as duas formas sem editar `.env`.
+  `bun run smoke` continua com o bypass, para o gate do `make smoke` não depender do Keycloak.
+
+Uma asserção a mais caiu junto: o helper exigia terminar em `/auth/callback`, mas
+`KeycloakAuthProvider.provider.ts:159` faz `replaceState` de volta para o caminho de origem assim que
+a sessão é estabelecida. A asserção agora cobra o comportamento real do provider (`/`), e essa
+diferença só apareceu porque o login real voltou a executar.
+
+**Prova nas duas formas de `VITE_API_URL`** (stack subida pelo próprio Playwright, `21 passed` em
+ambas):
+
+```
+bun run smoke:auth                                  # VITE_API_URL=http://localhost:53000/api → 21 passed (15.1s)
+VITE_API_URL=http://localhost:53001 bun run smoke:auth  # → 21 passed (14.1s)
+```
+
+Resolução do override confirmada isoladamente: com inline → `http://localhost:53001`; sem inline →
+`http://localhost:53000/api`.
+
+**Controle — o login real está mesmo sendo exercitado.** Removendo `KEYCLOAK_LOCAL_USER_PASSWORD` do
+ambiente, o teste falha em `getLocalUserPassword (authenticated-smoke.helper.ts:33)`, dentro de
+`loginAsLocalUser` — prova de que o fluxo PKCE roda e não o atalho do bypass.
+
+**Sem segredo em log.** Busca literal pela senha e por `bearer |access_token|refresh_token|
+authorization:` nos dois logs do `smoke:auth`: `0` ocorrências em cada.
+
+**Gates.** `bun run typecheck` limpo; `bun run lint` limpo nas quatro apps; `bun run format:check`
+limpo; `bun run test` do frontend `207 pass / 0 fail` (203 + 4 novos); `bun run smoke` (bypass, o
+gate do `make smoke`) `21 passed`, intacto.
+
+## T033 — CNPJ vinculado ao motorista pessoa física
+
+O motorista autônomo fatura pela própria empresa, mas o `<condutor>` do MDF-e é sempre pessoa
+física — o layout exige CPF. Por isso o CNPJ entra **ao lado** do CPF, nunca no lugar dele: coluna
+nova `fleet_drivers.linked_tax_id`, `text not null default ''`, com check
+`length = 0 or ~ '^[0-9]{14}$'`. Sem unique: um MEI de família ou uma sociedade entre dois motoristas
+compartilham CNPJ legitimamente, e um unique bloquearia o cadastro do segundo.
+
+**Testes antes da implementação.** Backend vermelho em `35 pass / 7 fail`
+(`fleet-schema`, `fleet-http`, `database-migration`); frontend vermelho em `11 pass / 6 fail`
+(`test/fleet/presentation-boundaries.contract.ts`).
+
+Asserções novas:
+
+- `test/fleet-schema/drivers.contract.ts` — `linked_tax_id` na lista de colunas e
+  `keeps the CPF mandatory and the linked CNPJ optional`: o check do CNPJ aceita vazio (`= 0`) e
+  catorze dígitos, e o check do CPF **não** aceita `{14}`.
+- `test/fleet-http/drivers.contract.ts` — `201` com `linkedTaxId` de catorze dígitos chegando ao use
+  case; `400 INVALID_REQUEST` quando o valor tem onze dígitos (CPF no campo errado).
+- `test/database-migration/static-migration.contract.ts` — diretório novo na lista ordenada e teste
+  de reversibilidade: migração aditiva (sem `drop/delete/truncate`), rollback dentro de
+  `BEGIN;`/`COMMIT;`, sem `CASCADE`, apagando exatamente uma linha de `__drizzle_migrations` casada
+  por `name` + `hash`.
+- `test/fleet/presentation-boundaries.contract.ts` (frontend) — o formulário oferece o campo com
+  `maxLength={14}`, as duas locales nomeiam `driverLinkedTaxId` e `driverLinkedTaxIdHint`, e
+  `toDriverBody` remove a máscara (`12.345.678/0001-95` → `12345678000195`) mantendo o CPF
+  normalizado.
+
+**Implementação.** `fleet.schema.ts` (coluna + check), migração
+`20260802205604_fleet_driver_linked_tax_id` com `rollback.sql` manual guardado por
+`RAISE EXCEPTION` quando `deleted_migrations <> 1`, `fleet.port.ts`, `fleet.mapper.ts`,
+`fleet-request.schema.ts` (`optionalDigits(CNPJ)`), `serializeDriver`. No frontend:
+`fleet.types.ts`, `DRIVER_BODY_KEYS`, `fleetForm.service.ts`, `fleetResponse.validation.ts`,
+`DriverForm.component.tsx` (campo + hint), `DriverList.component.tsx` (coluna "CNPJ vinculado",
+`—` quando vazio) e as duas locales.
+
+**Verde.** API `1418 pass / 1 skip / 0 fail` (65 arquivos); frontend `585 pass / 0 fail`
+(14 arquivos), `test/fleet.contract.test.ts` `17 pass`.
+
+**Gates.** `bun run typecheck` limpo nas quatro apps; `bun run lint` limpo; `bun run format:check`
+limpo — o `snapshot.json` gerado pelo Drizzle Kit saiu fora do estilo e foi formatado com
+`prettier --write` (o hash cobrado pelo contrato é o de `migration.sql`, intocado; o teste de
+migração seguiu `6 pass / 1 skip / 0 fail` depois da formatação).
+
+## T035 — Vínculo motorista ↔ veículos (próprios e da transportadora)
+
+**O que o pedido exigia.** "Deve poder vincular veículos a motoristas: veículos deles próprios e
+também veículos da transportadora que os motoristas utilizam." Uma tela só, uma lista só — o
+operador não deveria precisar saber de quem é o veículo para marcá-lo.
+
+**O índice antigo proibia exatamente isso.** `fleet_driver_vehicle_assignments` tinha dois uniques
+parciais herdados do desenho original — `..._live_vehicle_unique (company_id, vehicle_id)` e
+`..._live_driver_unique (company_id, driver_id)` — que juntos impunham 1:1: um veículo com um
+motorista e um motorista com um veículo. Um motorista que dirige o próprio cavalo e mais dois
+carretas da transportadora era rejeitado pelo banco. A migração
+`20260803000529_fleet_driver_vehicle_link` troca os dois por
+`..._live_link_unique (company_id, driver_id, vehicle_id) where released_at is null` — que continua
+impedindo o vínculo duplicado, sem impedir o N:N — e acrescenta
+`..._company_vehicle_idx (company_id, vehicle_id)` para a busca pelo lado do veículo. `rollback.sql`
+manual ao lado, restaurando os dois uniques.
+
+**`ownedByDriver` é derivado, nunca gravado.** Veículo próprio da transportadora não tem `<prop>`
+cadastrado; agregado e terceiro têm. `src/fleet/domain/driver-vehicle-ownership.policy.ts` compara
+`vehicle.owner?.taxId` com `driver.taxId` **e** com `driver.linkedTaxId` (o CNPJ da T033) — o
+autônomo que emite pela própria empresa aparece como dono do mesmo jeito. Nada disso vira coluna:
+mudou o dono do veículo, a marcação acompanha na próxima leitura.
+
+**O vínculo é histórico.** `replaceForDriver` não apaga: o que sai ganha `released_at`, o que já
+estava vivo é preservado para não reiniciar `assigned_at` a cada gravação da tela, e só o que
+faltava é inserido — tudo numa transação. `PUT` idempotente: gravar a mesma seleção duas vezes não
+mexe em nada.
+
+**Testes antes da implementação.** Frontend vermelho em `17 pass / 8 fail`
+(`test/fleet/driver-vehicles.contract.ts`, arquivo novo importado pelo entrypoint
+`test/fleet.contract.test.ts`).
+
+Asserções novas no backend:
+
+- `test/fleet-schema/assignments.contract.ts` — o unique vivo é o de três colunas; os dois antigos
+  não existem mais; o índice por veículo existe.
+- `test/fleet-application/driver-vehicles.contract.ts` — `list`/`replace` resolvem o motorista antes
+  de tudo (`FLEET_DRIVER_NOT_FOUND`), `replace` rejeita id de veículo de fora da empresa
+  (`FLEET_VEHICLE_NOT_FOUND`) **antes** de escrever, e `ownedByDriver` sai `true` tanto pelo CPF
+  quanto pelo CNPJ vinculado, `false` para veículo sem dono.
+- `test/fleet-http/driver-vehicles.contract.ts` — `GET /fleet/drivers/:id/vehicles` sob `fleet.read`,
+  `PUT` sob `fleet.manage`, `companyId` do contexto autenticado (payload com `companyId` é
+  ignorado), `400` para uuid inválido no path e para `vehicleIds` fora do formato.
+
+Asserções novas no frontend (`test/fleet/driver-vehicles.contract.ts`, 8 testes): URL/método/`Bearer`/
+`cache: no-store`/`content-type` exatos nas duas chamadas; corpo do `PUT` é exatamente
+`{ vehicleIds: [...] }` e nunca carrega tenant nem `driverId`; `FLEET_VEHICLE_NOT_FOUND` propagado do
+404; dto estrito (rejeita `companyId` extra, `ownedByDriver` string, papel de veículo inválido, item
+sem chaves, `data` não-array); controller barra `replace` sem `fleet.manage` (`replaceCount` fica 0)
+e `list` sem `fleet.read`; `toSelectedVehicleIds`/`toggleVehicleSelection`/`toOwnedVehicleIds`; e o
+formulário usa `@/components/ui/checkbox`, sem `type="checkbox"` cru, com as quatro chaves de locale
+nos dois idiomas.
+
+**Implementação.** Backend: `fleet.schema.ts` (índices), migração + rollback,
+`fleet-driver-vehicles.use-case.ts`, `driver-vehicle-ownership.policy.ts`,
+`drizzle-fleet-driver-vehicle.repository.ts`, `fleet.port.ts`, `fleet-request.schema.ts`,
+`fleet.schema.ts` (`serializeDriverVehicle`), duas rotas em `fleet.routes.ts`. Frontend:
+`fleet.types.ts`, `fleet.constant.ts` (`DRIVER_VEHICLE_LINK_KEYS`,
+`FLEET_VEHICLE_OPTIONS_PAGE_SIZE`), `fleetResponse.validation.ts` (`driverVehicleListFromApi`),
+`driverVehicles.service.ts`, `fleetClient.service.ts` (`PUT` no union de métodos),
+`useFleet.hook.ts` (gating), `useDriverVehicles.hook.ts`, `useDriverForm.hook.ts`,
+`DriverForm.component.tsx`, `FleetWorkspace.page.tsx`, locales e CSS.
+
+**Duas decisões de tela.** (1) A lista de opções tem **chave de query própria**
+(`fleet-vehicle-options`), separada da tabela de veículos: um filtro aplicado na aba de veículos não
+pode esconder do formulário um veículo que o motorista já dirige. (2) A marcação é **derivada, sem
+`useEffect`** — `selection` começa `null` ("o operador ainda não mexeu") e o valor efetivo é
+`selection ?? toSelectedVehicleIds(links)`, então os vínculos que chegam pela query populam os
+checkboxes sozinhos.
+
+**Verde.** API `1442 pass / 1 skip / 0 fail` (65 arquivos); frontend `593 pass / 0 fail`
+(14 arquivos), `test/fleet.contract.test.ts` `25 pass / 151 expect()`.
+
+**Gates.** `bun run typecheck` limpo nas quatro apps; `bun run lint` limpo (dois erros do ESLint no
+teste novo — `no-unnecessary-type-assertion` e `require-await` — corrigidos antes do fechamento);
+`bun run format` aplicado.
+
+**Defeito pré-existente encontrado de lado.** O preflight de CORS
+(`src/http/cors.service.ts`) não reconhecia os caminhos de frota: `POST`/`PATCH` em
+`/fleet/vehicles` e `/fleet/drivers` já falhavam o `OPTIONS` do navegador com 403 **antes** desta
+mudança. `isFleetDriverVehiclesPath` entrou junto e o `allowedMethods()` de frota passou a anunciar
+`GET, PUT` no caminho novo.
+
+## T036 — Consulta de veículo por placa em serviço externo
+
+**O que o pedido exigia.** "Buscar veículo em API externa por placa", sem amarrar o produto a um
+fornecedor: porta de domínio mais gateway HTTP configurado por env. Autorização explícita do
+usuário: _"pode seguir com o gateway genérico"_.
+
+**Nenhum provedor no código.** `createHttpVehicleLookupGateway` lê `FLEET_VEHICLE_LOOKUP_URL` e
+`FLEET_VEHICLE_LOOKUP_TOKEN` e não sabe com quem fala. A placa entra por placeholder (`{placa}` ou
+`{plate}` no template) ou, na falta dele, como query `?placa=`; o token, quando existe, vai em
+`Authorization: Bearer`; timeout de 8s por `AbortSignal.timeout`. A tradução do payload é política
+pura de domínio (`vehicle-lookup-payload.policy.ts`): desembrulha envelope (`data`, `dados`,
+`resultado`, `result`, `veiculo`, `vehicle`, até 3 níveis), compara chaves sem acento/caixa/separador
+contra uma tabela de apelidos, quebra `marcaModelo` no `/`, normaliza por tipo (só dígitos em
+Renavam, capacidade, tara, ano e documento do proprietário; placa e UF em maiúsculas) e **descarta
+todo campo que não pedimos**. Payload sem placa devolve `null`. Racional completo em
+`docs/adr/0020-generic-plate-lookup-gateway.md`.
+
+**Três respostas diferentes, porque exigem três ações diferentes.** Sem provedor configurado, a rota
+responde `503 FLEET_VEHICLE_LOOKUP_UNAVAILABLE`; falha do provedor (rede, timeout, status não-ok,
+JSON ilegível) vira `502 FLEET_VEHICLE_LOOKUP_FAILED`; placa desconhecida (404 do provedor, ou
+payload sem placa) vira `null` — na tela, "nenhum veículo encontrado para essa placa".
+
+**Env vazia não derruba o boot.** `FLEET_VEHICLE_LOOKUP_URL` declarada e vazia significava, antes
+desta correção, `ZodError` no boot — armadilha em qualquer ambiente que injeta env vazia por padrão.
+O schema passou a `trim()` e a tratar `''` como não configurado; quatro asserções novas em
+`test/fleet-application/vehicle-lookup.contract.ts` fixam isso (ausente → `null`, `''` e `'   '` →
+`null`, URL e token com espaço → aparados, `http://` não-localhost → recusado).
+
+**Consultar exige `fleet.manage`, não `fleet.read`.** O serviço é pago por consulta: quem só lê a
+frota não gasta o saldo da transportadora. O gating é repetido no controller do frontend
+(`useFleet.hook.ts`), e `GET /fleet/capabilities` — essa sim sob `fleet.read` — devolve
+`{ vehicleLookup: boolean }`, que é o que faz o botão existir ou não na tela.
+
+**A capability ficou fora do view-model de propósito.** `test/fleet/permissions-and-states.contract.ts`
+compara o view-model por igualdade exata (`toEqual({canManageFleet, canReadFleet, status})`);
+acrescentar um campo ali quebraria o contrato sem necessidade. A consulta ganhou hook próprio,
+`useVehicleLookup.hook.ts`, com chave de query separada (`fleet-capabilities`).
+
+**Preenchimento aditivo.** `applyVehicleLookup` só escreve os sete campos que existem no formulário
+(`VEHICLE_LOOKUP_FORM_KEYS`) e **ignora campo vazio** — a consulta não apaga o que o operador já
+digitou. Marca, modelo e ano voltam do provedor mas não têm campo: servem para conferência visual
+antes de salvar.
+
+**Testes antes da implementação.** Frontend vermelho em `25 pass / 7 fail`
+(`test/fleet/vehicle-lookup.contract.ts`, arquivo novo importado pelo entrypoint
+`test/fleet.contract.test.ts`), com as falhas esperadas — `lookupVehicleByPlate is not a function`,
+`applyVehicleLookup is not a function`, `readOnlyController.lookupVehicleByPlate is not a function`,
+`expect(form).toContain("t('lookupPlate')")`. Backend com suítes novas em
+`test/fleet-application/vehicle-lookup.contract.ts`, `test/fleet-infrastructure/vehicle-lookup.contract.ts`
+e `test/fleet-http/vehicle-lookup.contract.ts`.
+
+**Segredo não vaza.** O token do provedor não é logado, não volta na resposta e não aparece em
+`/fleet/capabilities`, que expõe só o booleano. Nenhum dado real entrou em fixture: a `VEHICLE_LOOKUP`
+do frontend usa "Marca Sintetica"/"Modelo Sintetico" e documento sintético.
+
+**Rota não colide.** `/fleet/vehicles/lookup` convive com `/fleet/vehicles/:id` porque
+`collectPathParameters` só aceita UUID canônico em segmento dinâmico — método não-GET nesse caminho
+dá 404, não 400. `cors.service.ts` reconhece os dois caminhos novos no preflight.
+
+**Verde.** API `1475 pass / 1 skip / 0 fail` (66 arquivos); frontend `600 pass / 0 fail`
+(14 arquivos), `test/fleet.contract.test.ts` `32 pass / 186 expect()`.
+
+**Gates.** `bun run typecheck` e `bun run lint` limpos nas duas apps (um `require-await` do ESLint no
+stub de `fetch` do teste novo, corrigido antes do fechamento). `.env.example` ganhou
+`FLEET_VEHICLE_LOOKUP_URL=` e `FLEET_VEHICLE_LOOKUP_TOKEN=` vazias — a instalação que não contrata
+provedor não precisa fazer nada.

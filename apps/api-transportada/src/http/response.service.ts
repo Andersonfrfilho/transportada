@@ -4,6 +4,7 @@
 import { CORRELATION_ID_HEADER, HTTP_ERROR, JSON_CONTENT_TYPE } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { ApiLogger, ErrorResponse } from '../shared/api.types'
+import { describeErrorForLog } from '../logging/error-descriptor.service'
 import { safeLogError } from '../logging/safe-logger.service'
 
 type ErrorResponseParams = {
@@ -27,7 +28,11 @@ export function createErrorResponse({
     })
   }
 
-  safeLogError({ logger, message: 'http_request_failed', metadata: { correlationId } })
+  safeLogError({
+    logger,
+    message: 'http_request_failed',
+    metadata: { correlationId, ...describeErrorForLog(error) },
+  })
   return jsonResponse({
     body: {
       error: {

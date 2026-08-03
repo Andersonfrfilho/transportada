@@ -13,6 +13,10 @@ import {
   type CteBatchCondition,
 } from '../shared/cteBatchAdvancedFilter.service'
 import {
+  clearCteBatchFilterField,
+  type CteBatchPillField,
+} from '../shared/cteBatchFilterPills.service'
+import {
   EMPTY_CTE_BATCH_FILTERS,
   batchMatchesFilters,
   countActiveFilters,
@@ -106,6 +110,8 @@ export function useCteBatchTable(input: Readonly<{ batches: readonly CteBatchSum
           condition.id === conditionId ? applyConditionChanges(condition, changes) : condition,
         ),
       })),
+    clearFilterField: (field: CteBatchPillField) =>
+      setFilters((current) => clearCteBatchFilterField({ field, filters: current })),
     clearFilters: () => {
       setFilters(EMPTY_CTE_BATCH_FILTERS)
       setAdvancedFilter(createAdvancedFilterModel(nextId))

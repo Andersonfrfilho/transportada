@@ -1,5 +1,6 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 .workspaceShell {
-  width: min(100% - var(--space-8), 78rem);
+  width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-8) 0 var(--space-16);
 }
@@ -136,10 +137,12 @@
 .fileField input {
   width: 100%;
   min-width: 0;
-  padding: var(--space-3);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
   border: 1px solid var(--color-slate);
   color: var(--color-fog);
   font: inherit;
+  font-size: var(--field-font-size);
   background: var(--color-asphalt);
 }
 
@@ -147,31 +150,10 @@
   position: absolute;
   width: 1px;
   height: 1px;
+  min-height: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-.fileField select {
-  width: 100%;
-  min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-slate);
-  color: var(--color-fog);
-  font: inherit;
-  background: var(--color-asphalt);
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--color-slate) 50%),
-    linear-gradient(135deg, var(--color-slate) 50%, transparent 50%);
-  background-position:
-    calc(100% - 1.1rem) 1.35rem,
-    calc(100% - 0.8rem) 1.35rem;
-  background-repeat: no-repeat;
-  background-size:
-    0.3rem 0.3rem,
-    0.3rem 0.3rem;
-  padding-right: 2.5rem;
 }
 
 .fileSelectButton {
@@ -180,7 +162,7 @@
   justify-content: center;
   gap: var(--space-2);
   width: fit-content;
-  min-height: 3rem;
+  min-height: var(--field-height);
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);
@@ -188,21 +170,6 @@
   font-weight: 700;
   background: var(--color-copper);
   cursor: pointer;
-}
-
-.actionIcon {
-  width: 1.1rem;
-  height: 1.1rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.spinnerIcon {
-  animation: nfe-spin 0.8s linear infinite;
 }
 
 .uploadStatusPending,
@@ -254,18 +221,6 @@
   color: var(--color-copper);
 }
 
-@keyframes nfe-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinnerIcon {
-    animation: none;
-  }
-}
-
 .primaryAction,
 .secondaryAction,
 .ghostAction {
@@ -279,18 +234,6 @@
   border-radius: 0;
   font: inherit;
   cursor: pointer;
-}
-
-.actionIcon,
-.workspace-nav-icon {
-  width: 1.1rem;
-  height: 1.1rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
 }
 
 .primaryAction {
@@ -393,10 +336,6 @@
 }
 
 @media (min-width: 40rem) {
-  .workspaceShell {
-    width: min(100% - var(--space-12), 78rem);
-  }
-
   .actionRow {
     grid-template-columns: minmax(0, 1.4fr) auto auto;
     align-items: end;
@@ -855,7 +794,7 @@
   flex: 1 1 16rem;
   min-width: 12rem;
   max-width: 28rem;
-  height: 2.25rem;
+  min-height: var(--field-height-compact);
   padding: 0 var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   color: var(--color-fog);
@@ -943,12 +882,6 @@
   cursor: pointer;
 }
 
-.checkOption input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--color-copper);
-}
-
 .selectionBar {
   display: flex;
   flex-wrap: wrap;
@@ -966,6 +899,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.selectionBlocked {
+  color: var(--color-slate);
+  font-size: 0.8rem;
 }
 
 .tableWrap {
@@ -1044,12 +982,6 @@
 .selectCell {
   width: 2.5rem;
   text-align: center;
-}
-
-.selectCell input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--color-copper);
 }
 
 .emitterCell {
@@ -1138,88 +1070,17 @@
 .filterInput {
   width: 100%;
   min-width: 0;
-  padding: var(--space-2) var(--space-3);
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
   border: 1px solid var(--color-slate);
   color: var(--color-fog);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: var(--field-font-size-compact);
   background: var(--color-asphalt);
 }
 
 .filterInput:focus {
   outline: 1px solid var(--color-copper);
-}
-
-.filterPills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.filterPill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-copper);
-  color: var(--color-fog);
-  font-size: 0.76rem;
-  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
-}
-
-.filterPillLabel {
-  color: var(--color-slate);
-  font-family: var(--font-utility);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.filterPillRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  padding: 0;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  background: transparent;
-}
-
-.filterPillRemove .actionIcon {
-  width: 0.85rem;
-  height: 0.85rem;
-}
-
-.filterPillAdvanced {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
-  border: 1px solid var(--color-copper);
-  color: var(--color-fog);
-  font-size: 0.76rem;
-  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
-}
-
-.filterPillEdit {
-  display: inline-flex;
-  align-items: center;
-  padding: 0;
-  border: none;
-  color: var(--color-fog);
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
-}
-
-.filterPillEdit:hover {
-  color: var(--color-copper);
 }
 
 .headerEnd,
@@ -1266,29 +1127,6 @@
 .headerEnd .columnSort,
 .headerEnd .columnSortActive {
   flex-direction: row-reverse;
-}
-
-.sortIcon {
-  width: 0.9rem;
-  height: 0.9rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.sortArrow {
-  opacity: 0.3;
-  transition:
-    opacity 0.12s ease,
-    stroke-width 0.12s ease;
-}
-
-.sortActiveArrow {
-  opacity: 1;
-  stroke-width: 2.6;
 }
 
 .pagination {
@@ -1399,197 +1237,6 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2);
   align-items: stretch;
-}
-
-.selectMenu {
-  position: relative;
-  display: flex;
-  min-width: 0;
-}
-
-.selectMenuCompact {
-  min-width: 4.5rem;
-}
-
-.selectTrigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  width: 100%;
-  min-width: 0;
-  min-height: 2.4rem;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-slate);
-  color: var(--color-fog);
-  font: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-  background: var(--color-asphalt);
-}
-
-.selectTrigger:focus-visible {
-  outline: 1px solid var(--color-copper);
-}
-
-.selectPlaceholder {
-  overflow: hidden;
-  color: var(--color-slate);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selectValue {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selectChevron {
-  width: 1rem;
-  height: 1rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-  opacity: 0.7;
-}
-
-.selectList {
-  position: absolute;
-  z-index: 6;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  display: grid;
-  gap: 1px;
-  min-width: 100%;
-  max-height: 16rem;
-  margin: 0;
-  padding: var(--space-1);
-  overflow-y: auto;
-  list-style: none;
-  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
-  background: var(--color-graphite);
-}
-
-.selectListEnd {
-  left: auto;
-  right: 0;
-}
-
-.selectOption {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-fog);
-  font-size: 0.82rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.selectOption:hover {
-  background: color-mix(in srgb, var(--color-copper) 16%, transparent);
-}
-
-.selectOptionActive {
-  color: var(--color-copper);
-  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
-}
-
-.datePicker {
-  position: relative;
-  display: flex;
-  min-width: 0;
-}
-
-.calendar {
-  position: absolute;
-  z-index: 6;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
-  background: var(--color-graphite);
-}
-
-.calendarHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.calendarTitle {
-  font-family: var(--font-utility);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: capitalize;
-  color: var(--color-fog);
-}
-
-.calendarGrid {
-  display: grid;
-  grid-template-columns: repeat(7, 2rem);
-  gap: 2px;
-}
-
-.calendarWeekday {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 1.5rem;
-  font-family: var(--font-utility);
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  color: var(--color-slate);
-}
-
-.calendarBlank {
-  height: 2rem;
-}
-
-.calendarDay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 2rem;
-  border: none;
-  color: var(--color-fog);
-  font: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-  background: transparent;
-}
-
-.calendarDay:hover {
-  background: color-mix(in srgb, var(--color-copper) 20%, transparent);
-}
-
-.calendarDayInRange {
-  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
-}
-
-.calendarDayEdge {
-  color: var(--color-asphalt);
-  font-weight: 700;
-  background: var(--color-copper);
-}
-
-.calendarFooter {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.calendarClear {
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
-  color: var(--color-slate);
-  font: inherit;
-  font-size: 0.72rem;
-  cursor: pointer;
-  background: transparent;
 }
 
 .filterModeBar {
@@ -1734,6 +1381,9 @@
 }
 
 .builderSave {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   justify-self: start;
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--color-copper);
@@ -1811,6 +1461,28 @@
   align-content: start;
 }
 
+.cteEmissionField input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.cteEmissionField input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cteEmissionField input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
 .cteEmissionField > span {
   color: var(--color-slate);
   font-family: var(--font-utility);
@@ -1835,6 +1507,26 @@
 
 .cteEmissionNotes {
   display: block;
+}
+
+.cteEmissionProfileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--color-copper);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cteEmissionProfileLink:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .cteEmissionComponents {

@@ -7,6 +7,7 @@ import type {
   FleetVehicleStatus,
 } from '../../database/fleet.schema.js'
 import type {
+  MdfeAttemptKind,
   MdfeCargoType,
   MdfeCargoUnit,
   MdfeEmitterType,
@@ -62,6 +63,14 @@ export type MdfeManifestLoadingCity = {
   readonly position: number
 }
 
+/** `message` fica `null` quando a SEFAZ recusou sem texto — a tela distingue isso de "sem recusa". */
+export type MdfeManifestRejection = {
+  readonly attemptKind: MdfeAttemptKind
+  readonly code: string
+  readonly message: string | null
+  readonly occurredAt: string
+}
+
 export type MdfeManifest = {
   readonly additionalInformation: string
   readonly cargoProduct: string
@@ -83,6 +92,7 @@ export type MdfeManifest = {
   readonly freightValue: string
   readonly id: string
   readonly insuranceEndorsement: string
+  readonly lastRejection: MdfeManifestRejection | null
   readonly loadingPostalCode: string
   readonly originState: string
   readonly rntrc: string
@@ -145,6 +155,11 @@ export type CreateMdfeManifestRecord = {
 
 export type MdfeManifestRepositoryPort = {
   create(input: CreateMdfeManifestRecord): Promise<MdfeManifestDetail>
+  /** Devolve `null` quando o manifesto saiu de `draft`/`rejected` entre a leitura e o update. */
+  discard(input: {
+    readonly companyId: string
+    readonly manifestId: string
+  }): Promise<MdfeManifestDetail | null>
   findById(input: {
     readonly companyId: string
     readonly manifestId: string

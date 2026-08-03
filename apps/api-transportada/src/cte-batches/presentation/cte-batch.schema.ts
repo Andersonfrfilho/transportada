@@ -3,9 +3,13 @@
  */
 import { z } from 'zod'
 
+import { CTE_ISSUANCE_STATUSES } from '../../database/cte-issuance.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { CTE_BATCH_ITEM_BILLING_STATUSES } from '../application/cte-batch-item.port.js'
 
+const BILLING_STATUSES: ReadonlySet<string> = new Set(CTE_BATCH_ITEM_BILLING_STATUSES)
+const ISSUANCE_STATUSES: ReadonlySet<string> = new Set(CTE_ISSUANCE_STATUSES)
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,256}$/
 const PAGE_LIMIT = /^(?:[1-9]|[1-9][0-9]|100)$/
 const UUID = z.uuid()
@@ -153,6 +157,89 @@ export function parseCteBatchList(url: URL): {
   }
 }
 
+export type CteBatchItemListFilters = {
+  readonly batchId?: string
+  readonly billingStatusIn?: readonly string[]
+  readonly cteNumberGte?: string
+  readonly cteNumberIn?: readonly string[]
+  readonly cteNumberLte?: string
+  readonly invoiceNumberGte?: string
+  readonly invoiceNumberIn?: readonly string[]
+  readonly invoiceNumberLte?: string
+  readonly issuedFrom?: string
+  readonly issuedUntil?: string
+  readonly statusIn?: readonly string[]
+}
+
+export function parseCteBatchItemList(url: URL): {
+  readonly cursor: string | null
+  readonly filters?: CteBatchItemListFilters
+  readonly limit: number
+} {
+  const allowedKeys = new Set([
+    'batchId',
+    'billingStatusIn',
+    'cteNumberGte',
+    'cteNumberIn',
+    'cteNumberLte',
+    'cursor',
+    'invoiceNumberGte',
+    'invoiceNumberIn',
+    'invoiceNumberLte',
+    'issuedFrom',
+    'issuedUntil',
+    'limit',
+    'statusIn',
+  ])
+  const entries = [...url.searchParams.entries()]
+  if (entries.some(([key]) => !allowedKeys.has(key))) throw invalidRequest()
+  if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
+  const cursor = url.searchParams.get('cursor')
+  const limit = url.searchParams.get('limit')
+  if (cursor !== null) parseCursor(cursor)
+  const parsedFilters = parseCteBatchItemFilters((key) => url.searchParams.get(key))
+
+  return {
+    cursor,
+    limit: limit === null ? 25 : parseLimit(limit),
+    ...(parsedFilters === undefined ? {} : { filters: parsedFilters }),
+  }
+}
+
+/**
+ * Leitura em `string | null` para a mesma validação servir à query string da listagem e ao corpo JSON
+ * da exportação — filtro divergente entre as duas entradas viraria exportação fora do que a tela mostra.
+ */
+export function parseCteBatchItemFilters(
+  read: (key: string) => string | null,
+): CteBatchItemListFilters | undefined {
+  const filters = {
+    batchId: parseOptionalUuid(read('batchId')),
+    billingStatusIn: parseBillingStatusList(read('billingStatusIn')),
+    cteNumberGte: parsePositiveInteger(read('cteNumberGte')),
+    cteNumberIn: parsePositiveIntegerList(read('cteNumberIn')),
+    cteNumberLte: parsePositiveInteger(read('cteNumberLte')),
+    invoiceNumberGte: parsePositiveInteger(read('invoiceNumberGte')),
+    invoiceNumberIn: parsePositiveIntegerList(read('invoiceNumberIn')),
+    invoiceNumberLte: parsePositiveInteger(read('invoiceNumberLte')),
+    issuedFrom: parseIsoDateTime(read('issuedFrom')),
+    issuedUntil: parseIsoDateTime(read('issuedUntil')),
+    statusIn: parseIssuanceStatusList(read('statusIn')),
+  }
+  assertOrderedNumbers(filters.cteNumberGte, filters.cteNumberLte)
+  assertOrderedNumbers(filters.invoiceNumberGte, filters.invoiceNumberLte)
+  assertOrderedDates(filters.issuedFrom, filters.issuedUntil)
+  assertNotCombinedWithRange(filters.cteNumberIn, filters.cteNumberGte, filters.cteNumberLte)
+  assertNotCombinedWithRange(
+    filters.invoiceNumberIn,
+    filters.invoiceNumberGte,
+    filters.invoiceNumberLte,
+  )
+  if (!Object.values(filters).some((value) => value !== undefined)) return undefined
+
+  return filters as CteBatchItemListFilters
+}
+
 export function parseIdempotencyKey(value: string | null): string {
   if (value === null || !IDEMPOTENCY_KEY.test(value)) throw invalidRequest()
   return value
@@ -197,7 +284,7 @@ function parseCursor(value: string): void {
   }
 }
 
-async function parseJsonBody(request: Request): Promise<unknown> {
+export async function parseJsonBody(request: Request): Promise<unknown> {
   assertJsonContentType(request.headers.get('content-type'))
   const reader = request.body?.getReader()
   if (reader === undefined) throw invalidRequest()
@@ -260,4 +347,59 @@ function parsePositiveInteger(value: string | null): string | undefined {
   if (value === null) return undefined
   if (!/^(?:0|[1-9][0-9]{0,18})$/.test(value)) throw invalidRequest()
   return value
+}
+
+function parsePositiveIntegerList(value: string | null): readonly string[] | undefined {
+  if (value === null) return undefined
+  const values = value.split(',')
+  if (values.length === 0 || new Set(values).size !== values.length) throw invalidRequest()
+  for (const entry of values) {
+    if (!/^(?:0|[1-9][0-9]{0,18})$/.test(entry)) throw invalidRequest()
+  }
+  return values
+}
+
+function parseOptionalUuid(value: string | null): string | undefined {
+  if (value === null) return undefined
+  if (!UUID.safeParse(value).success) throw invalidRequest()
+  return value
+}
+
+function parseBillingStatusList(value: string | null): readonly string[] | undefined {
+  if (value === null) return undefined
+  const statuses = value.split(',')
+  if (new Set(statuses).size !== statuses.length) throw invalidRequest()
+  for (const status of statuses) {
+    if (!BILLING_STATUSES.has(status)) throw invalidRequest()
+  }
+  return statuses
+}
+
+function parseIssuanceStatusList(value: string | null): readonly string[] | undefined {
+  if (value === null) return undefined
+  const statuses = value.split(',')
+  if (statuses.length === 0 || new Set(statuses).size !== statuses.length) throw invalidRequest()
+  for (const status of statuses) {
+    if (!ISSUANCE_STATUSES.has(status)) throw invalidRequest()
+  }
+  return statuses
+}
+
+function assertOrderedNumbers(lower: string | undefined, upper: string | undefined): void {
+  if (lower === undefined || upper === undefined) return
+  if (BigInt(lower) > BigInt(upper)) throw invalidRequest()
+}
+
+function assertOrderedDates(lower: string | undefined, upper: string | undefined): void {
+  if (lower === undefined || upper === undefined) return
+  if (new Date(lower).getTime() > new Date(upper).getTime()) throw invalidRequest()
+}
+
+function assertNotCombinedWithRange(
+  list: readonly string[] | undefined,
+  lower: string | undefined,
+  upper: string | undefined,
+): void {
+  if (list === undefined) return
+  if (lower !== undefined || upper !== undefined) throw invalidRequest()
 }

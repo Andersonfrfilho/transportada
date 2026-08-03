@@ -36,6 +36,7 @@ describe('billing schema', () => {
       'actor_user_id',
       'correlation_id',
       'cancelled_at',
+      'observations',
       'created_at',
       'updated_at',
     ])
@@ -58,6 +59,7 @@ describe('billing schema', () => {
       'request_fingerprint',
       'actor_user_id',
       'correlation_id',
+      'observations',
       'created_at',
       'updated_at',
     ])
@@ -93,6 +95,7 @@ describe('billing schema', () => {
         'length("billing_invoices"."request_fingerprint") > 0',
       billing_invoices_customer_document_check:
         '"billing_invoices"."customer_document" ~ \'^[0-9]{11,14}$\'',
+      billing_invoices_observations_check: 'length("billing_invoices"."observations") <= 500',
     })
     expect(foreignKeys(billingInvoices)).toContainEqual({
       columns: ['actor_user_id', 'company_id'],
@@ -212,7 +215,7 @@ describe('billing schema', () => {
     ])
     expect(checkSqlByName(billingInvoiceEvents)).toMatchObject({
       billing_invoice_events_name_check:
-        "\"billing_invoice_events\".\"event_name\" in ('invoice_created', 'invoice_cancelled', 'document_generated', 'document_failed')",
+        "\"billing_invoice_events\".\"event_name\" in ('invoice_created', 'invoice_updated', 'invoice_cancelled', 'document_generated', 'document_failed')",
       billing_invoice_events_version_check: '"billing_invoice_events"."event_version" > 0',
     })
 

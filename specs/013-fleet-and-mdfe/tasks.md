@@ -115,3 +115,78 @@ carga lotação sem esses grupos. Cada task nasceu de um teste vermelho.
 - [x] T024 Ligar `createProvider` de MDF-e no worker: fábrica
       `adatechnology-mdfe-fiscal-provider.factory.ts` espelhando a de CT-e e injeção em
       `createMdfeIssuanceWorkerEffect` (`apps/worker-transportada/src/main.ts`) — depende de T023
+
+## Fase K — E2E do produto contra a SEFAZ
+
+- [x] T027 Certificado com `purpose = 'mdfe'`: o worker busca
+      `digital_certificates.purpose = 'mdfe'`, mas a check constraint aceita só `'cte'` e a rota de
+      upload rejeita qualquer outro valor — nenhuma emissão de MDF-e consegue sair hoje. Estender
+      `CERTIFICATE_PURPOSES`, constraint (migration + rollback), `POST`/`DELETE`
+      `/companies/digital-certificates` e o upload do frontend —
+      `apps/{api,frontend}-transportada/**` — `test/digital-certificates-http/*.contract.ts`,
+      `test/digital-certificate-application/*.contract.ts`, `test/certificate-schema/*.contract.ts`
+- [x] T028 MDF-e autorizado em homologação pelo caminho do produto (API → outbox → worker → SVRS),
+      espelhando o E2E de CT-e da T022 da feature 012 — evidência com chave, protocolo e encerramento
+      — depende de T027
+
+## Fase L — Buracos que o E2E da T028 abriu
+
+Decisão em `docs/adr/0017-discarding-a-rejected-mdfe-manifest.md`. Não abrimos feature nova: os três
+itens são dívida do que esta mesma feature entregou.
+
+- [x] T029 Descarte de manifesto: estado `discarded` em `MDFE_MANIFEST_STATUSES` (migration da check
+      constraint + rollback), `POST /mdfe-manifests/:id/discard` com `mdfe.manage`, idempotente,
+      aceitando só `draft` e `rejected`, carimbando `released_at` em todo `mdfe_manifest_items`, mais
+      a ação de descarte na tela de manifestos (ADR-0017) —
+      `apps/api-transportada/src/{database/mdfe.schema.ts,mdfe-manifests/**}`,
+      `apps/frontend-transportada/src/modules/mdfe-manifest/**` —
+      `test/mdfe-schema/*.contract.ts` (constraint, tenant-safety), `test/mdfe-http/*.contract.ts`
+      (403/409 por estado, idempotência), `test/mdfe-domain/eligibility.contract.ts` (o CT-e liberado
+      volta a ser candidato — não `grouping.contract.ts`, que só cobre a soma da carga) e, no
+      frontend, `test/mdfe-manifest/{client-and-queries,table-and-actions}.contract.ts`
+- [x] T030 Cancelamento devolve o CT-e: o write-back do worker que confirma o 110111 carimba
+      `released_at` dos itens, cumprindo o que o `evidence.md` já documentava — não em
+      `src/mdfe-manifests/application/**` como esta linha dizia: quem grava a confirmação é
+      `apps/worker-transportada/src/mdfe-issuance/infrastructure/drizzle-mdfe-issuance-write-back.repository.ts`
+      — `test/mdfe-issuance-write-back.contract.test.ts` (libera só item vivo, na mesma transação,
+      nada liberado quando a SEFAZ recusa ou quando a tentativa já estava encerrada)
+- [x] T031 Motivo da recusa persistido e visível: coluna de mensagem em `mdfe_issuance_attempts`
+      (migration + rollback), `recordRejected` gravando `outcome.rejection.message`, campo no detalhe
+      do manifesto e na tela; e falha de `decode` do envelope logada com `markDeadLettered` em vez de
+      morrer calada dentro do `provider.consume` — `apps/{api,worker,frontend}-transportada/**` —
+      contratos de aplicação da rejeição e do consumer
+- [x] T032 Descartar por esta rota os manifestos `4ef75fa1` e `4da262d0`, devolvendo os CT-es
+      `3abe7870` e `fbe957fa` ao pool de candidatos — evidência com o CT-e reaparecendo no preview —
+      depende de T029
+
+## Fase M — Achados da T032
+
+Dois defeitos que a operação da T032 desenterrou, nenhum regressão dela: um esconde CT-e autorizado
+da lista de candidatos a manifesto, o outro mantém morto o único caminho de login real dos testes de
+smoke. Mesma regra de sempre: teste vermelho antes da correção.
+
+- [x] T033 Status do item do lote reconciliado com o documento fiscal: `listItems` devolve
+      `status: attempt?.status`
+      (`apps/api-transportada/src/cte-batches/infrastructure/drizzle-cte-batch-item.repository.ts:96`)
+      e ignora o `cte_fiscal_documents` que a própria query já junta — uma tentativa `rejected`
+      posterior passa a esconder um CT-e autorizado, que foi o que tirou o CT-e `3abe7870` da lista
+      de candidatos a MDF-e na T032 enquanto a elegibilidade do backend continuava aceitando o
+      documento. Extrair a precedência (documento fiscal autorizado manda sobre a última tentativa;
+      cancelamento vem do documento) reaproveitando `resolveIssuedDocumentStatus` de
+      `drizzle-cte-issuance.repository.ts`, e registrar a decisão em
+      `docs/adr/0018-authorized-fiscal-document-outranks-latest-attempt.md` —
+      `test/cte-batch-infrastructure/*.contract.ts` (função pura: tentativa `rejected` + documento
+      autorizado → `authorized`; documento cancelado → `cancelled`; sem documento → status da
+      tentativa), arquivo novo **adicionado à lista explícita de testes do `package.json`** — e
+      evidência com o CT-e `3abe7870` aparecendo como candidato na tela de manifestos
+- [x] T034 Login real do smoke autenticado de volta à vida:
+      `apps/frontend-transportada/test/authenticated-smoke.helper.ts:53` compara a resposta de
+      `/auth/me` com a origem fixa `http://localhost:53001`, que só vale quando `VITE_API_URL` aponta
+      direto para a API; com o `VITE_API_URL=http://localhost:53000/api` do proxy o `waitForResponse`
+      nunca resolve e o teste morre no timeout. Derivar a origem esperada de `VITE_API_URL` em vez de
+      fixá-la, espelhar `server.proxy` em `preview.proxy` no `vite.config.ts` (hoje só o dev tem
+      proxy — com `VITE_API_URL` proxiado o `vite preview` do smoke não alcança a API) e expor um
+      script `smoke:auth` sem `VITE_SMOKE_AUTH_BYPASS`, mantendo o bypass como padrão de
+      `bun run smoke` para que o gate do `make smoke` siga rodando sem depender de Keycloak —
+      `apps/frontend-transportada/{test/smoke-api-url.helper.ts,test/authenticated-smoke.helper.ts,vite.config.ts,package.json}` —
+      evidência: `smoke:auth` verde nas duas formas de `VITE_API_URL`, sem senha nem token no log

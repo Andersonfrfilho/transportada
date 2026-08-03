@@ -29,6 +29,27 @@ export class FleetVehiclePlateTakenError extends ApiError {
   }
 }
 
+export class FleetVehicleLookupUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_LOOKUP_UNAVAILABLE',
+      message: 'Vehicle lookup provider is not configured',
+      status: 503,
+    })
+  }
+}
+
+/** Sem detalhe do provedor na mensagem: a URL e o token não podem acabar num log. */
+export class FleetVehicleLookupFailedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_LOOKUP_FAILED',
+      message: 'Vehicle lookup provider failed',
+      status: 502,
+    })
+  }
+}
+
 export class FleetDriverNotFoundError extends ApiError {
   public constructor() {
     super({ code: 'FLEET_DRIVER_NOT_FOUND', message: 'Fleet driver not found', status: 404 })

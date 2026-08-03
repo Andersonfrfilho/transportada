@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import {
@@ -15,6 +18,8 @@ import {
 } from '../shared/cteBatchAdvancedFilter.service'
 import { CTE_BATCH_STATUSES } from '../shared/cteBatchTable.service'
 import styles from '../styles/cteBatch.module.css'
+
+const CONNECTOR_OPTIONS = ['and', 'or'] as const
 
 const INPUT_TYPE_BY_CONDITION: Readonly<Record<CteBatchConditionType, string>> = {
   date: 'date',
@@ -39,54 +44,53 @@ function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowPr
     <div className={styles.conditionRow}>
       <label>
         {t('advanced.field')}
-        <select
-          onChange={(event) =>
+        <Select
+          ariaLabel={t('advanced.field')}
+          compact
+          options={CTE_BATCH_CONDITION_FIELDS.map((field) => ({
+            label: t(`columns.${field}`),
+            value: field,
+          }))}
+          value={condition.field}
+          onChange={(value) =>
             table.changeCondition(groupId, condition.id, {
-              field: event.target.value as CteBatchConditionField,
+              field: value as CteBatchConditionField,
             })
           }
-          value={condition.field}
-        >
-          {CTE_BATCH_CONDITION_FIELDS.map((field) => (
-            <option key={field} value={field}>
-              {t(`columns.${field}`)}
-            </option>
-          ))}
-        </select>
+        />
       </label>
       <label>
         {t('advanced.operator')}
-        <select
-          onChange={(event) =>
+        <Select
+          ariaLabel={t('advanced.operator')}
+          compact
+          options={operators.map((operator) => ({
+            label: t(`operator.${operator}`),
+            value: operator,
+          }))}
+          value={condition.operator}
+          onChange={(value) =>
             table.changeCondition(groupId, condition.id, {
-              operator: event.target.value as CteBatchConditionOperator,
+              operator: value as CteBatchConditionOperator,
             })
           }
-          value={condition.operator}
-        >
-          {operators.map((operator) => (
-            <option key={operator} value={operator}>
-              {t(`operator.${operator}`)}
-            </option>
-          ))}
-        </select>
+        />
       </label>
       <label>
         {t('advanced.value')}
         {conditionType === 'option' ? (
-          <select
-            onChange={(event) =>
-              table.changeCondition(groupId, condition.id, { value: event.target.value })
-            }
+          <Select
+            ariaLabel={t('advanced.value')}
+            clearable
+            compact
+            options={CTE_BATCH_STATUSES.map((status) => ({
+              label: t(`status.${status}`),
+              value: status,
+            }))}
+            placeholder={t('filters.all')}
             value={condition.value}
-          >
-            <option value="" />
-            {CTE_BATCH_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t(`status.${status}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => table.changeCondition(groupId, condition.id, { value })}
+          />
         ) : (
           <input
             onChange={(event) =>
@@ -115,6 +119,7 @@ function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowPr
           type="button"
           variant="ghost"
         >
+          <Icon name="remove" />
           {t('advanced.removeCondition')}
         </Button>
       ) : null}
@@ -131,28 +136,32 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
     <div className={styles.deck}>
       <label className={styles.counter}>
         {t('advanced.modelConnector')}
-        <select
-          onChange={(event) => table.setModelConnector(event.target.value === 'or' ? 'or' : 'and')}
+        <Select
+          ariaLabel={t('advanced.modelConnector')}
+          compact
+          options={CONNECTOR_OPTIONS.map((connector) => ({
+            label: t(`connector.${connector}`),
+            value: connector,
+          }))}
           value={table.advancedFilter.connector}
-        >
-          <option value="and">{t('connector.and')}</option>
-          <option value="or">{t('connector.or')}</option>
-        </select>
+          onChange={(value) => table.setModelConnector(value === 'or' ? 'or' : 'and')}
+        />
       </label>
       {table.advancedFilter.groups.map((group) => (
         <fieldset className={styles.conditionGroup} key={group.id}>
           <legend className={styles.hint}>{t('advanced.title')}</legend>
           <label className={styles.counter}>
             {t('advanced.groupConnector')}
-            <select
-              onChange={(event) =>
-                table.setGroupConnector(group.id, event.target.value === 'or' ? 'or' : 'and')
-              }
+            <Select
+              ariaLabel={t('advanced.groupConnector')}
+              compact
+              options={CONNECTOR_OPTIONS.map((connector) => ({
+                label: t(`connector.${connector}`),
+                value: connector,
+              }))}
               value={group.connector}
-            >
-              <option value="and">{t('connector.and')}</option>
-              <option value="or">{t('connector.or')}</option>
-            </select>
+              onChange={(value) => table.setGroupConnector(group.id, value === 'or' ? 'or' : 'and')}
+            />
           </label>
           {group.conditions.map((condition) => (
             <ConditionRow
@@ -170,6 +179,7 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
               type="button"
               variant="secondary"
             >
+              <Icon name="add" />
               {t('advanced.addCondition')}
             </Button>
             {table.advancedFilter.groups.length > 1 ? (
@@ -179,6 +189,7 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
                 type="button"
                 variant="ghost"
               >
+                <Icon name="trash" />
                 {t('advanced.removeGroup')}
               </Button>
             ) : null}
@@ -187,6 +198,7 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
       ))}
       <div className={styles.bulkActions}>
         <Button onClick={table.addConditionGroup} size="sm" type="button" variant="secondary">
+          <Icon name="add" />
           {t('advanced.addGroup')}
         </Button>
       </div>

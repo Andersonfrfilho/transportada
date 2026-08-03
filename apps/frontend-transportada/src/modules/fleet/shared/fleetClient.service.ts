@@ -1,25 +1,33 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   DRIVER_BODY_KEYS,
+  FLEET_CAPABILITIES_PATH,
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
+  FLEET_VEHICLE_LOOKUP_PATH,
   FLEET_VEHICLES_PATH,
   OWNER_KEYS,
   VEHICLE_BODY_KEYS,
 } from './fleet.constant'
 import type {
+  FleetCapabilities,
   FleetDriverBody,
   FleetDriverDetail,
   FleetDriverFilters,
   FleetDriverPage,
+  FleetDriverVehicleLink,
+  FleetDriverVehiclesInput,
   FleetDriverVersionInput,
   FleetListInput,
+  FleetReplaceDriverVehiclesInput,
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFilters,
+  FleetVehicleLookup,
   FleetVehiclePage,
   FleetVehicleVersionInput,
 } from './fleet.types'
+import { normalizePlate } from './fleetForm.service'
 import { isRecord, isString } from './fleetGuards.validation'
 import { createFleetResponseAdapters } from './fleetResponse.validation'
 
@@ -32,8 +40,16 @@ type ClientDependencies = Readonly<{
 export type FleetClient = Readonly<{
   createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  getFleetCapabilities: () => Promise<FleetCapabilities>
+  listDriverVehicles: (
+    input: FleetDriverVehiclesInput,
+  ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
+  lookupVehicleByPlate: (input: Readonly<{ plate: string }>) => Promise<FleetVehicleLookup | null>
+  replaceDriverVehicles: (
+    input: FleetReplaceDriverVehiclesInput,
+  ) => Promise<readonly FleetDriverVehicleLink[]>
   updateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
   updateVehicle: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
 }>
@@ -73,7 +89,7 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
-    method: 'GET' | 'PATCH' | 'POST'
+    method: 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
   }>,
 ): Promise<unknown> {
@@ -87,6 +103,10 @@ async function authorizedRequest(
     fetch: input.dependencies.fetch,
     request: new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
   })
+}
+
+function driverVehiclesPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/vehicles`
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -144,6 +164,22 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
       })
       return adapters.vehicleFromApi(readEnvelopeData(response))
     },
+    async getFleetCapabilities() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: FLEET_CAPABILITIES_PATH,
+      })
+      return adapters.capabilitiesFromApi(readEnvelopeData(response))
+    },
+    async listDriverVehicles(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: driverVehiclesPath(input.driverId),
+      })
+      return adapters.driverVehicleListFromApi(response)
+    },
     async listDrivers(input) {
       const search = buildSearch(input, {
         nameContains: input.filters?.nameContains,
@@ -168,6 +204,24 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_VEHICLES_PATH}?${search}`,
       })
       return adapters.vehicleListFromApi(response)
+    },
+    async lookupVehicleByPlate(input) {
+      const search = new URLSearchParams({ plate: normalizePlate(input.plate) })
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${FLEET_VEHICLE_LOOKUP_PATH}?${search.toString()}`,
+      })
+      return adapters.vehicleLookupFromApi(readEnvelopeData(response))
+    },
+    async replaceDriverVehicles(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ vehicleIds: input.vehicleIds }),
+        dependencies,
+        method: 'PUT',
+        path: driverVehiclesPath(input.driverId),
+      })
+      return adapters.driverVehicleListFromApi(response)
     },
     async updateDriver(input) {
       const response = await authorizedRequest({

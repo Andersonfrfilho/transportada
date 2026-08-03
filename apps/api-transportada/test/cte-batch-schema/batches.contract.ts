@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import {
   checkSqlByName,
@@ -182,6 +183,18 @@ describe('CT-e batch schema', () => {
     for (const forbiddenColumn of FORBIDDEN_CTE_BATCH_COLUMNS) {
       expect(allColumnNames).not.toContain(forbiddenColumn)
     }
+  })
+
+  test('indexes the cross batch keyset the CT-e listing pages by', () => {
+    const indexes = getTableConfig(requireSchemaTable('cteBatchItems')).indexes.map((index) => ({
+      columns: index.config.columns.map((column) => (column as { readonly name: string }).name),
+      name: index.config.name,
+    }))
+
+    expect(indexes).toContainEqual({
+      columns: ['company_id', 'created_at', 'id'],
+      name: 'cte_batch_items_company_created_at_id_idx',
+    })
   })
 
   test('enforces critical business checks for idempotency, state, and snapshots', () => {

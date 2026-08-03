@@ -1,0 +1,53 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.root {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.tab,
+.tabActive {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font: inherit;
+  font-weight: 700;
+  background: transparent;
+}
+
+.tab {
+  color: var(--color-slate);
+}
+
+.tabActive {
+  color: var(--color-fog);
+  border-bottom-color: var(--color-copper);
+}
+
+.badge {
+  padding: 0 var(--space-2);
+  border: 1px solid currentColor;
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.panel:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: var(--space-1);
+}

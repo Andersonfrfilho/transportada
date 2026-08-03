@@ -17,7 +17,7 @@ import {
 
 import { companies, identityUsers } from './identity.schema.js'
 
-export const CERTIFICATE_PURPOSES = ['cte'] as const
+export const CERTIFICATE_PURPOSES = ['cte', 'mdfe'] as const
 export type CertificatePurpose = (typeof CERTIFICATE_PURPOSES)[number]
 
 export const CERTIFICATE_STATUSES = ['active', 'retired'] as const
@@ -65,7 +65,7 @@ export const digitalCertificates = pgTable(
       table.createdAt,
       table.id,
     ),
-    check('digital_certificates_purpose_check', sql`${table.purpose} = 'cte'`),
+    check('digital_certificates_purpose_check', sql`${table.purpose} in ('cte', 'mdfe')`),
     check('digital_certificates_status_check', sql`${table.status} in ('active', 'retired')`),
     check('digital_certificates_version_check', sql`${table.version} > 0`),
     check(

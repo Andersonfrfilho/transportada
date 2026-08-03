@@ -1,5 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { CteBatchItem, CteBatchItemCharge, CteBatchItemDocument } from './cteBatchItem.types'
+import type {
+  CompanyCteItem,
+  CompanyCteItemPage,
+  CteBatchItem,
+  CteBatchItemCharge,
+  CteBatchItemDocument,
+} from './cteBatchItem.types'
 
 const INVALID_ITEMS = 'CTE_BATCH_INVALID_ITEMS_RESPONSE'
 
@@ -8,6 +14,7 @@ const ITEM_KEYS = [
   'authorizationProtocol',
   'authorizedAt',
   'baseAmount',
+  'billingStatus',
   'charges',
   'documents',
   'fiscalAmount',
@@ -24,6 +31,10 @@ const ITEM_KEYS = [
 const CHARGE_KEYS = ['amount', 'baseAmount', 'calculationType', 'label', 'ordinal', 'rate'] as const
 
 const DOCUMENT_KEYS = ['accessKey', 'id', 'number', 'position', 'series', 'totalAmount'] as const
+
+const COMPANY_ITEM_KEYS = [...ITEM_KEYS, 'batchId', 'batchName', 'createdAt'] as const
+
+const PAGE_KEYS = ['data', 'page'] as const
 
 function validationError(): Error {
   return new Error(INVALID_ITEMS)
@@ -99,6 +110,7 @@ function itemFromApi(input: unknown): CteBatchItem {
     !isNullableString(input.authorizationProtocol) ||
     !isNullableString(input.authorizedAt) ||
     !isString(input.baseAmount) ||
+    !isString(input.billingStatus) ||
     !Array.isArray(input.charges) ||
     !Array.isArray(input.documents) ||
     !isString(input.fiscalAmount) ||
@@ -118,6 +130,7 @@ function itemFromApi(input: unknown): CteBatchItem {
     authorizationProtocol: input.authorizationProtocol,
     authorizedAt: input.authorizedAt,
     baseAmount: input.baseAmount,
+    billingStatus: input.billingStatus,
     charges: input.charges.map(chargeFromApi),
     documents: input.documents.map(documentFromApi),
     fiscalAmount: input.fiscalAmount,
@@ -132,10 +145,48 @@ function itemFromApi(input: unknown): CteBatchItem {
   }
 }
 
+function companyItemFromApi(input: unknown): CompanyCteItem {
+  if (!isRecord(input)) throw validationError()
+  rejectExtraKeys(input, COMPANY_ITEM_KEYS)
+  if (!isString(input.batchId) || !isString(input.batchName) || !isString(input.createdAt)) {
+    throw validationError()
+  }
+  return {
+    ...itemFromApi(onlyBatchItemKeys(input)),
+    batchId: input.batchId,
+    batchName: input.batchName,
+    createdAt: input.createdAt,
+  }
+}
+
+/** As colunas do lote entram por fora porque `itemFromApi` rejeita qualquer chave além das dele. */
+function onlyBatchItemKeys(input: Record<string, unknown>): Record<string, unknown> {
+  const allowedKeys: readonly string[] = ITEM_KEYS
+  return Object.fromEntries(Object.entries(input).filter(([key]) => allowedKeys.includes(key)))
+}
+
+function nextCursorFromApi(input: unknown): null | string {
+  if (!isRecord(input)) throw validationError()
+  rejectExtraKeys(input, ['nextCursor'])
+  if (!isNullableString(input.nextCursor)) throw validationError()
+  return input.nextCursor
+}
+
 export function createCteBatchItemsAdapter(): (input: unknown) => readonly CteBatchItem[] {
   return (input) => {
     if (!isRecord(input) || !Array.isArray(input.data)) throw validationError()
     rejectExtraKeys(input, ['data'])
     return input.data.map(itemFromApi)
+  }
+}
+
+export function createCompanyCteItemPageAdapter(): (input: unknown) => CompanyCteItemPage {
+  return (input) => {
+    if (!isRecord(input) || !Array.isArray(input.data)) throw validationError()
+    rejectExtraKeys(input, PAGE_KEYS)
+    return {
+      items: input.data.map(companyItemFromApi),
+      nextCursor: nextCursorFromApi(input.page),
+    }
   }
 }

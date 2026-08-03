@@ -23,6 +23,16 @@ type ObjectLocation = {
   readonly key: string
 }
 
+/**
+ * `disposition` e `filename` entram na assinatura da URL: quem emite decide se o navegador abre ou
+ * salva o arquivo — o cliente não consegue trocar isso depois.
+ */
+export type SignedDownloadInput = ObjectLocation & {
+  readonly expiresInSeconds: number
+  readonly disposition?: 'inline' | 'attachment'
+  readonly filename?: string
+}
+
 export type NfeStorageGateway = {
   readonly storeObject: (input: PutInput) => ReturnType<ObjectStorageProvider['put']>
   readonly storeImportSource: (
@@ -48,9 +58,7 @@ export type NfeStorageGateway = {
   ) => ReturnType<ObjectStorageProvider['put']>
   readonly getObjectStream: (input: ObjectLocation) => Promise<ReadableStream<Uint8Array>>
   readonly headObject: (input: ObjectLocation) => Promise<StoredObject | undefined>
-  readonly createSignedDownload: (
-    input: ObjectLocation & { readonly expiresInSeconds: number },
-  ) => Promise<URL>
+  readonly createSignedDownload: (input: SignedDownloadInput) => Promise<URL>
   readonly health: () => Promise<{ readonly status: 'up' | 'down' }>
   readonly close: () => Promise<void>
 }

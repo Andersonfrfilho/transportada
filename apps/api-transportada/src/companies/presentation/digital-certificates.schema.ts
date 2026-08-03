@@ -3,6 +3,10 @@
  */
 import { z } from 'zod'
 
+import {
+  CERTIFICATE_PURPOSES,
+  type CertificatePurpose,
+} from '../../database/digital-certificate.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { readCertificateMultipart } from './digital-certificates-multipart.service.js'
@@ -16,7 +20,7 @@ export type CertificateCursor = { readonly createdAt: Date; readonly id: string 
 export async function parseCertificateForm(request: Request): Promise<{
   readonly certificate: Uint8Array
   readonly password: Uint8Array
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
 }> {
   if (new URL(request.url).search !== '') throw invalidRequest()
   const { body, contentType } = await readCertificateMultipart(request)
@@ -30,6 +34,12 @@ export async function parseCertificateForm(request: Request): Promise<{
   } finally {
     body.fill(0)
   }
+}
+
+export function parseCertificatePurposeQuery(url: URL): CertificatePurpose {
+  const entries = [...url.searchParams.entries()]
+  if (entries.length !== 1 || entries[0]?.[0] !== 'purpose') throw invalidRequest()
+  return parsePurpose(entries[0][1])
 }
 
 export function parseCertificateIdempotencyKey(value: string | null): string {
@@ -55,21 +65,22 @@ export function parseCertificateList(url: URL): {
 async function parseForm(form: MultipartForm): Promise<{
   readonly certificate: Uint8Array
   readonly password: Uint8Array
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
 }> {
   const entries = [...form.entries()]
   if (entries.length !== 3 || new Set(entries.map(([name]) => name)).size !== 3)
     throw invalidRequest()
   const certificate = form.get('certificate')
   const password = form.get('password')
-  const purpose = form.get('purpose')
+  const purposeValue = form.get('purpose')
   if (
     !(certificate instanceof File) ||
     certificate.size === 0 ||
     typeof password !== 'string' ||
-    purpose !== 'cte'
+    typeof purposeValue !== 'string'
   )
     throw invalidRequest()
+  const purpose = parsePurpose(purposeValue)
   const passwordBytes = new TextEncoder().encode(password)
   if (passwordBytes.byteLength < 1 || passwordBytes.byteLength > 256) {
     passwordBytes.fill(0)
@@ -85,6 +96,12 @@ async function parseForm(form: MultipartForm): Promise<{
     passwordBytes.fill(0)
     throw error
   }
+}
+
+function parsePurpose(value: string): CertificatePurpose {
+  const purpose = CERTIFICATE_PURPOSES.find((candidate) => candidate === value)
+  if (purpose === undefined) throw invalidRequest()
+  return purpose
 }
 
 function parseLimit(value: string): number {

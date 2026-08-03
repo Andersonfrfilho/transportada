@@ -35,9 +35,19 @@ export type CteBatchPreviewQuery = {
   readonly documentIds: readonly string[]
 }
 
+export type CteBatchNameQuery = {
+  readonly companyId: string
+  readonly prefix: string
+}
+
 export type CteBatchPreviewReaderPort = {
   findActiveBatchLinks(query: CteBatchPreviewQuery): Promise<readonly CteBatchPreviewLink[]>
+  findBatchNamesStartingWith(query: CteBatchNameQuery): Promise<readonly string[]>
   findPreviewDocuments(query: CteBatchPreviewQuery): Promise<readonly CteBatchPreviewDocument[]>
+}
+
+export type CteBatchClockPort = {
+  now(): Date
 }
 
 export type CteEmissionProfileCatalogPort = {
@@ -63,6 +73,7 @@ export type CteBatchPreviewBlock = {
 export type CteBatchPreviewResult = {
   readonly blocked: readonly CteBatchPreviewBlock[]
   readonly projections: readonly CteBatchProjection[]
+  readonly suggestedName: string
   readonly summary: {
     readonly blockedCount: number
     readonly documentCount: number

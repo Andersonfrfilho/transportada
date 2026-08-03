@@ -75,6 +75,7 @@ describe('PATCH /company-settings HTTP contract', () => {
     ['cte property', settingsBodyWith({ path: 'cte.model', value: 'cte' })],
     ['cteRetry property', settingsBodyWith({ path: 'cteRetry.jitter', value: true })],
     ['mdfe property', settingsBodyWith({ path: 'mdfe.insurerAddress', value: 'value' })],
+    ['billing property', settingsBodyWith({ path: 'billing.bankSwift', value: 'value' })],
   ])('rejects unknown %s before the use case', async (_name, body) => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(patchSettingsRequest({ body }))
@@ -223,6 +224,70 @@ describe('PATCH /company-settings MDF-e defaults contract', () => {
     expect(fixture.updateCalls).toHaveLength(0)
   })
 })
+
+// Sem esse cadastro o PDF da fatura sai sem dados bancários e o tomador não sabe onde pagar.
+describe('PATCH /company-settings billing defaults contract', () => {
+  test('forwards the bank and the default observations the invoice PDF prints', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+
+    const response = await fixture.handle(patchSettingsRequest())
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]?.settings.billing).toEqual(COMPANY_SETTINGS.billing)
+    expect(await response.json()).toEqual({ data: EXPECTED_HTTP_SETTINGS_DATA })
+  })
+
+  test('accepts an unconfigured billing block so a tenant without bank keeps saving', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const body = settingsBodyWith({
+      path: 'billing',
+      value: {
+        bankAccount: '',
+        bankBranch: '',
+        bankCode: '',
+        bankName: '',
+        observations: '',
+        pixKey: '',
+      },
+    })
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]?.settings.billing.bankName).toBe('')
+  })
+
+  test.each([
+    ['a missing billing block', bodyWithoutBilling()],
+    [
+      'a bank code that is not three digits',
+      settingsBodyWith({ path: 'billing.bankCode', value: '3411' }),
+    ],
+    ['a non-numeric bank branch', settingsBodyWith({ path: 'billing.bankBranch', value: '12A4' })],
+    [
+      'an account beyond the column width',
+      settingsBodyWith({ path: 'billing.bankAccount', value: '1'.repeat(21) }),
+    ],
+    [
+      'default observations beyond the printable block',
+      settingsBodyWith({ path: 'billing.observations', value: 'a'.repeat(501) }),
+    ],
+  ])('rejects %s before the use case', async (_name, body) => {
+    const fixture = await createCompanySettingsHttpFixture()
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
+    expect(fixture.updateCalls).toHaveLength(0)
+  })
+})
+
+function bodyWithoutBilling(): unknown {
+  const body: Record<string, unknown> = { ...VALID_HTTP_SETTINGS_BODY }
+  delete body.billing
+  return body
+}
 
 function bodyWithoutMdfe(): unknown {
   const body: Record<string, unknown> = { ...VALID_HTTP_SETTINGS_BODY }

@@ -49,17 +49,63 @@ describe('KeycloakAuthProvider', () => {
     expect(client.login).not.toHaveBeenCalled()
   })
 
-  test('clears the in-memory session and restarts login when refresh fails', async () => {
+  /**
+   * Navegar para o login no meio de uma requisição aborta o `fetch` em voo e a tela volta sem
+   * saber o que aconteceu com o comando. A sessão expirada é avisada; quem reautentica é o usuário.
+   */
+  test('clears the in-memory session and reports expiry without navigating away', async () => {
     const client = createClient({
       updateToken: mock(() => Promise.reject(new Error('remote refresh detail'))),
     })
     const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+    const notified = mock(() => undefined)
+    provider.onSessionExpired(notified)
 
     const error = await provider.getAccessToken().catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('IDENTITY_REFRESH_FAILED')
+    expect((error as Error).message).toBe('IDENTITY_SESSION_EXPIRED')
     expect(client.clearToken).toHaveBeenCalledTimes(1)
+    expect(client.login).not.toHaveBeenCalled()
+    expect(notified).toHaveBeenCalledTimes(1)
+  })
+
+  test('reports expiry when the refresh succeeds but leaves no token', async () => {
+    const client: KeycloakClient = {
+      clearToken: mock(() => undefined),
+      init: mock(() => Promise.resolve(true)),
+      login: mock(() => Promise.resolve()),
+      logout: mock(() => Promise.resolve()),
+      updateToken: mock(() => Promise.resolve(false)),
+    }
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+
+    const error = await provider.getAccessToken().catch((caught: unknown) => caught)
+
+    expect((error as Error).message).toBe('IDENTITY_SESSION_EXPIRED')
+    expect(client.login).not.toHaveBeenCalled()
+  })
+
+  test('stops notifying an unsubscribed session listener', async () => {
+    const client = createClient({
+      updateToken: mock(() => Promise.reject(new Error('remote refresh detail'))),
+    })
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+    const notified = mock(() => undefined)
+    const unsubscribe = provider.onSessionExpired(notified)
+
+    unsubscribe()
+    await provider.getAccessToken().catch(() => undefined)
+
+    expect(notified).not.toHaveBeenCalled()
+  })
+
+  test('restarts authentication only when the application asks for it', async () => {
+    const client = createClient()
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+
+    await provider.restartAuthentication()
+
     expect(client.login).toHaveBeenCalledWith({
       redirectUri: 'http://localhost/auth/callback',
     })

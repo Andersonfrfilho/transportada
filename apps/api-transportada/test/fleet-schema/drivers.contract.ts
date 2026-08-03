@@ -29,6 +29,7 @@ describe('fleet driver schema', () => {
       'membership_id',
       'name',
       'tax_id',
+      'linked_tax_id',
       'license_number',
       'phone',
       'status',
@@ -81,6 +82,15 @@ describe('fleet driver schema', () => {
     expect(checks.fleet_drivers_name_check).toContain('> 0')
     expect(checks.fleet_drivers_name_check).toContain('<= 60')
     expect(checks.fleet_drivers_status_check).toContain("in ('active', 'inactive')")
+  })
+
+  // O condutor do MDF-e é sempre pessoa física; o CNPJ do autônomo entra ao lado do CPF, nunca no lugar dele
+  test('keeps the CPF mandatory and the linked CNPJ optional', () => {
+    const checks = checkSqlByName(fleetDrivers)
+
+    expect(checks.fleet_drivers_linked_tax_id_check).toContain("~ '^[0-9]{14}$'")
+    expect(checks.fleet_drivers_linked_tax_id_check).toContain('= 0')
+    expect(checks.fleet_drivers_tax_id_check).not.toContain('{14}')
   })
 
   test('accepts an empty CNH and phone, which the MDF-e does not require', () => {

@@ -52,6 +52,7 @@ export type NfeDistributionStatusContract = Readonly<{
 
 export type NfeDocumentListItemContract = Readonly<{
   accessKey: string
+  cteBlockReason: null | string
   emitterAddress: null | string
   emitterCity: null | string
   emitterCityCode: null | string
@@ -162,6 +163,7 @@ export const DOCUMENT_LIST_PAGE = {
   items: [
     {
       accessKey: '35190730290856000160550010000000011000000010',
+      cteBlockReason: null,
       emitterAddress: 'Rua das Cargas, 100 - Centro',
       emitterCity: 'Campinas',
       emitterCityCode: '3509502',

@@ -71,8 +71,26 @@ export type FleetVehiclePage = Readonly<{
   nextCursor: null | string
 }>
 
+/** Resposta já traduzida da consulta por placa; marca, modelo e ano são só para conferência visual. */
+export type FleetVehicleLookup = Readonly<{
+  brand: string
+  capacityKilograms: string
+  model: string
+  modelYear: string
+  ownerName: string
+  ownerTaxId: string
+  plate: string
+  renavam: string
+  state: string
+  tareWeightKilograms: string
+}>
+
+export type FleetCapabilities = Readonly<{ vehicleLookup: boolean }>
+
 export type FleetDriverBody = Readonly<{
   licenseNumber: string
+  /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
+  linkedTaxId: string
   membershipId: null | string
   name: string
   phone: string
@@ -87,6 +105,21 @@ export type FleetDriverDetail = FleetDriverBody &
     updatedAt: string
     version: string
   }>
+
+/** `ownedByDriver` é derivado na API comparando o dono do veículo com o CPF/CNPJ do motorista. */
+export type FleetDriverVehicleLink = Readonly<{
+  assignedAt: string
+  id: string
+  ownedByDriver: boolean
+  vehicle: FleetVehicleDetail
+}>
+
+export type FleetDriverVehiclesInput = Readonly<{ driverId: string }>
+
+export type FleetReplaceDriverVehiclesInput = Readonly<{
+  driverId: string
+  vehicleIds: readonly string[]
+}>
 
 export type FleetDriverVersionInput = Readonly<{
   driverId: string
@@ -124,6 +157,7 @@ export type FleetVehicleFormState = Readonly<{
 
 export type FleetDriverFormState = Readonly<{
   licenseNumber: string
+  linkedTaxId: string
   membershipId: string
   name: string
   phone: string

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { CteProfileForm } from '../components/CteProfileForm.component'
@@ -22,7 +23,15 @@ function ListPanel({ onEdit, workspace }: ListPanelProps) {
 
   return (
     <section className={styles.panel} aria-labelledby="cte-profiles-list">
-      <h2 id="cte-profiles-list">{t('listTitle')}</h2>
+      <div className={styles.panelHead}>
+        <h2 id="cte-profiles-list">{t('listTitle')}</h2>
+        {viewModel.canManageProfiles ? (
+          <Button size="sm" type="button" onClick={() => onEdit(undefined)}>
+            <Icon name="add" />
+            {t('newProfile')}
+          </Button>
+        ) : null}
+      </div>
       {viewModel.status === 'forbidden' ? <p className={styles.hint}>{t('readOnly')}</p> : null}
       {viewModel.status === 'loading' ? <p className={styles.hint}>{t('loading')}</p> : null}
       {viewModel.status === 'error' ? <p className={styles.hint}>{t('error')}</p> : null}
@@ -38,13 +47,6 @@ function ListPanel({ onEdit, workspace }: ListPanelProps) {
           onEdit={onEdit}
         />
       ) : null}
-      {viewModel.canManageProfiles ? (
-        <div className={styles.formActions}>
-          <Button type="button" onClick={() => onEdit(undefined)}>
-            {t('newProfile')}
-          </Button>
-        </div>
-      ) : null}
     </section>
   )
 }
@@ -59,6 +61,10 @@ export function CteProfilesPage() {
     permissions,
   })
   const [editing, setEditing] = useState<null | { profile?: CteProfileDetail }>(null)
+  const isEditing = editing !== null && workspace.viewModel.canManageProfiles
+  const deckClassName = isEditing
+    ? `${styles.workspaceDeck} ${styles.workspaceDeckEditing}`
+    : styles.workspaceDeck
 
   return (
     <main className={styles.cteProfilesShell}>
@@ -67,12 +73,12 @@ export function CteProfilesPage() {
         <h1>{t('title')}</h1>
         <p className={styles.intro}>{t('intro')}</p>
       </header>
-      <section className={styles.workspaceDeck}>
+      <section className={deckClassName}>
         <ListPanel
           onEdit={(profile) => setEditing({ ...(profile ? { profile } : {}) })}
           workspace={workspace}
         />
-        {editing === null || !workspace.viewModel.canManageProfiles ? null : (
+        {!isEditing || editing === null ? null : (
           <CteProfileForm
             key={editing.profile?.id ?? 'new-profile'}
             {...(editing.profile === undefined ? {} : { profile: editing.profile })}

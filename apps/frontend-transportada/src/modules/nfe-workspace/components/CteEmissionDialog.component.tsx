@@ -1,15 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+import { Select, type SelectOption } from '@/components/ui/select'
+import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
+
 import {
-  AUTOMATIC_PROFILE_ID,
+  buildProfileSelectOptions,
   CTE_EMISSION_GROUPING_MODES,
+  selectEmissionMessageKey,
   type CteEmissionRow,
 } from '../shared/cteEmission.service'
 import type { UseCteEmissionDialogResult } from '../hooks/useCteEmissionDialog.hook'
 import styles from '../styles/nfeWorkspace.module.css'
-import { SelectMenu, type SelectMenuOption } from './SelectMenu.component'
 
 type CteEmissionDialogProps = Readonly<{
   dialog: UseCteEmissionDialogResult
@@ -24,21 +28,25 @@ function formatAmount(value: string): string {
 
 export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const { dialogRef, handleKeyDown } = useModalDialog({
+    isOpen: dialog.isOpen,
+    onClose: dialog.close,
+  })
 
   if (!dialog.isOpen) return null
 
-  const profileOptions: readonly SelectMenuOption[] = [
-    { label: t('cteEmission.profileAutomatic'), value: AUTOMATIC_PROFILE_ID },
-    ...dialog.profileOptions.map((option) => ({ label: option.name, value: option.id })),
-  ]
-  const groupingOptions: readonly SelectMenuOption[] = CTE_EMISSION_GROUPING_MODES.map((mode) => ({
+  const profileOptions: readonly SelectOption[] = buildProfileSelectOptions({
+    automaticLabel: t('cteEmission.profileAutomatic'),
+    profiles: dialog.profileOptions,
+  })
+  const groupingOptions: readonly SelectOption[] = CTE_EMISSION_GROUPING_MODES.map((mode) => ({
     label: t(`cteEmission.groupingMode.${mode}`),
     value: mode,
   }))
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === 'Escape') dialog.close()
-  }
+  const messageKey = selectEmissionMessageKey({
+    errorCode: dialog.errorCode,
+    status: dialog.status,
+  })
 
   function renderRow(row: CteEmissionRow) {
     return (
@@ -54,7 +62,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
         <td>
           {row.profileName}
           <span className={styles.cteEmissionComponents}>
-            {t(`cteEmission.resolvedBy.${row.resolvedBy}`)}
+            {t(`cteEmission.matchedBy.${row.matchedBy}`, { defaultValue: row.matchedBy })}
           </span>
         </td>
         <td className={styles.amountCell}>{formatAmount(row.fiscalAmount)}</td>
@@ -62,13 +70,17 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
     )
   }
 
-  return (
+  // Fora de `document.body` o overlay herdaria o `transform` da transição de página como bloco
+  // de contenção, e o `position: fixed` deixaria de se referir à viewport.
+  return createPortal(
     <div className={styles.cteEmissionOverlay} onKeyDown={handleKeyDown} role="presentation">
       <div
         aria-labelledby="cte-emission-title"
         aria-modal="true"
         className={styles.cteEmissionDialog}
+        ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
       >
         <header className={styles.cteEmissionHeader}>
           <div>
@@ -81,7 +93,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             onClick={dialog.close}
             type="button"
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
 
@@ -89,7 +101,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
           <label className={styles.cteEmissionField}>
             <span>{t('cteEmission.batchName')}</span>
             <input
-              className={styles.filterInput}
+              disabled={dialog.isFormLocked}
               onChange={(event) => dialog.setName(event.target.value)}
               type="text"
               value={dialog.name}
@@ -97,20 +109,33 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
           </label>
           <div className={styles.cteEmissionField}>
             <span>{t('cteEmission.profile')}</span>
-            <SelectMenu
+            <Select
               ariaLabel={t('cteEmission.profile')}
               clearable={false}
+              disabled={dialog.isFormLocked}
               onChange={dialog.setProfileId}
               options={profileOptions}
               placeholder={t('cteEmission.profileAutomatic')}
               value={dialog.profileId}
             />
+            {dialog.canManageProfiles && (
+              <button
+                className={styles.cteEmissionProfileLink}
+                disabled={dialog.isFormLocked}
+                onClick={dialog.openProfileSettings}
+                type="button"
+              >
+                <Icon name="edit" />
+                {t('cteEmission.manageProfiles')}
+              </button>
+            )}
           </div>
           <div className={styles.cteEmissionField}>
             <span>{t('cteEmission.grouping')}</span>
-            <SelectMenu
+            <Select
               ariaLabel={t('cteEmission.grouping')}
               clearable={false}
+              disabled={dialog.isFormLocked}
               onChange={(value) =>
                 dialog.setGroupingMode(
                   value === 'sender_recipient' ? 'sender_recipient' : 'per_invoice',
@@ -127,7 +152,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
         {dialog.status === 'loading' && (
           <p className={styles.emptyState}>{t('cteEmission.loading')}</p>
         )}
-        {dialog.status === 'error' && <p className={styles.emptyState}>{t('cteEmission.error')}</p>}
+        {messageKey !== null && <p className={styles.emptyState}>{t(messageKey)}</p>}
 
         {dialog.summary !== null && (
           <section className={styles.cteEmissionSection}>
@@ -172,6 +197,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
 
         <footer className={styles.cteEmissionFooter}>
           <button className={styles.ghostAction} onClick={dialog.close} type="button">
+            <Icon name="close" />
             {t('cteEmission.cancel')}
           </button>
           <button
@@ -180,10 +206,12 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             onClick={dialog.confirm}
             type="button"
           >
+            <Icon name="check" />
             {dialog.status === 'creating' ? t('cteEmission.creating') : t('cteEmission.confirm')}
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

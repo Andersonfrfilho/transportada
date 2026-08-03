@@ -22,6 +22,8 @@ export type BillingUseCaseContract = {
   readonly create: (input: Record<string, unknown>) => Promise<unknown>
   readonly get: (input: Record<string, unknown>) => Promise<unknown>
   readonly listEligible: (input: Record<string, unknown>) => Promise<unknown>
+  readonly preview: (input: Record<string, unknown>) => Promise<unknown>
+  readonly update: (input: Record<string, unknown>) => Promise<unknown>
 }
 
 export type BillingApplicationFactory = (options: {
@@ -62,6 +64,15 @@ export const EXPECTED_INVOICE = {
   invoiceNumber: '1001',
   issueDate: NOW,
   itemCount: 1,
+  items: [
+    {
+      accessKey: ELIGIBLE_CTE.accessKey,
+      cteNumber: ELIGIBLE_CTE.cteNumber,
+      description: `Frete CT-e ${ELIGIBLE_CTE.cteNumber}`,
+      totalAmount: ELIGIBLE_CTE.totalAmount,
+    },
+  ],
+  observations: '',
   status: 'issued',
   subtotalAmount: '350.00',
   surchargeAmount: '0.00',
@@ -114,16 +125,19 @@ export class BillingFingerprintFixture {
 export class BillingUnitOfWorkFixture {
   public readonly cancellationUpdates: Array<Record<string, unknown>> = []
   public readonly createdEvents: Array<Record<string, unknown>> = []
+  public readonly detailUpdates: Array<Record<string, unknown>> = []
   public readonly createdInvoices: Array<Record<string, unknown>> = []
   public readonly createdItems: Array<Record<string, unknown>> = []
   public readonly eligibilityQueries: Array<Record<string, unknown>> = []
   public readonly executedTransactions: Array<'billing'> = []
   public readonly idempotencyQueries: Array<Record<string, unknown>> = []
   public readonly invoiceQueries: Array<Record<string, unknown>> = []
+  public readonly previewQueries: Array<Record<string, unknown>> = []
   public readonly reservations: Array<Record<string, unknown>> = []
 
   public concurrentReservationAllowed = true
   public eligibleCtes: Array<Record<string, unknown>> = [{ ...ELIGIBLE_CTE }]
+  public previewRecords: Array<Record<string, unknown>> = []
   public invoice: Record<string, unknown> | null = EXPECTED_INVOICE
   public replayedCreate: {
     readonly invoice: Record<string, unknown>
@@ -139,6 +153,7 @@ export class BillingUnitOfWorkFixture {
       createdEvents: this.createdEvents.length,
       createdInvoices: this.createdInvoices.length,
       createdItems: this.createdItems.length,
+      detailUpdates: this.detailUpdates.length,
       reservations: this.reservations.length,
     }
 
@@ -149,6 +164,7 @@ export class BillingUnitOfWorkFixture {
       this.createdEvents.length = writeLengths.createdEvents
       this.createdInvoices.length = writeLengths.createdInvoices
       this.createdItems.length = writeLengths.createdItems
+      this.detailUpdates.length = writeLengths.detailUpdates
       this.reservations.length = writeLengths.reservations
       throw error
     }
@@ -166,6 +182,13 @@ export class BillingUnitOfWorkFixture {
   ): Promise<readonly Record<string, unknown>[]> {
     this.eligibilityQueries.push(input)
     return this.eligibleCtes
+  }
+
+  public async findBillingPreviewByIds(
+    input: Record<string, unknown>,
+  ): Promise<readonly Record<string, unknown>[]> {
+    this.previewQueries.push(input)
+    return this.previewRecords
   }
 
   public async findInvoiceByIdempotency(
@@ -207,6 +230,20 @@ export class BillingUnitOfWorkFixture {
     return {
       ...EXPECTED_INVOICE,
       status: 'cancelled',
+      updatedAt: NOW,
+    }
+  }
+
+  public async updateInvoiceDetails(
+    input: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    this.detailUpdates.push(input)
+    return {
+      ...EXPECTED_INVOICE,
+      discountAmount: input.discountAmount,
+      observations: input.observations,
+      surchargeAmount: input.surchargeAmount,
+      totalAmount: input.totalAmount,
       updatedAt: NOW,
     }
   }

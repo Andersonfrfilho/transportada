@@ -46,6 +46,24 @@ export type FleetVehicle = FleetVehicleInput & {
   readonly version: string
 }
 
+/** Resposta já traduzida de um serviço externo de consulta de placa: só o que preenche o cadastro. */
+export type FleetVehicleLookup = {
+  readonly brand: string
+  readonly capacityKilograms: string
+  readonly model: string
+  readonly modelYear: string
+  readonly ownerName: string
+  readonly ownerTaxId: string
+  readonly plate: string
+  readonly renavam: string
+  readonly state: string
+  readonly tareWeightKilograms: string
+}
+
+export type FleetVehicleLookupPort = {
+  lookupByPlate(input: { readonly plate: string }): Promise<FleetVehicleLookup | null>
+}
+
 export type FleetVehicleFilters = {
   readonly plateContains?: string
   readonly roleEq?: FleetVehicleRole
@@ -59,6 +77,8 @@ export type FleetVehiclePage = {
 
 export type FleetDriverInput = {
   readonly licenseNumber: string
+  /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
+  readonly linkedTaxId: string
   readonly membershipId: string | null
   readonly name: string
   readonly phone: string
@@ -83,6 +103,17 @@ export type FleetDriverPage = {
   readonly nextCursor: string | null
 }
 
+export type FleetDriverVehicleLink = {
+  readonly assignedAt: string
+  readonly id: string
+  readonly vehicle: FleetVehicle
+}
+
+/** O veículo é do próprio motorista quando o dono cadastrado é o CPF dele ou o CNPJ vinculado. */
+export type FleetDriverVehicleAssignment = FleetDriverVehicleLink & {
+  readonly ownedByDriver: boolean
+}
+
 export type FleetVehicleRepositoryPort = {
   create(input: {
     readonly companyId: string
@@ -105,6 +136,22 @@ export type FleetVehicleRepositoryPort = {
     readonly vehicle: FleetVehicleInput
     readonly vehicleId: string
   }): Promise<FleetVehicle | null>
+}
+
+export type FleetDriverVehicleRepositoryPort = {
+  listByDriver(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<readonly FleetDriverVehicleLink[]>
+  listExistingVehicleIds(input: {
+    readonly companyId: string
+    readonly vehicleIds: readonly string[]
+  }): Promise<readonly string[]>
+  replaceForDriver(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly vehicleIds: readonly string[]
+  }): Promise<readonly FleetDriverVehicleLink[]>
 }
 
 export type FleetDriverRepositoryPort = {

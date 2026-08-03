@@ -176,6 +176,12 @@ function createFingerprintFields(
     settings.mdfe.bankCode,
     settings.mdfe.bankBranch,
     settings.mdfe.pixKey,
+    settings.billing.bankName,
+    settings.billing.bankCode,
+    settings.billing.bankBranch,
+    settings.billing.bankAccount,
+    settings.billing.pixKey,
+    settings.billing.observations,
   ]
   return values.map((value) => TEXT_ENCODER.encode(value))
 }

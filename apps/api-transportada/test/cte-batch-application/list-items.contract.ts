@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 
 import type {
+  CompanyCteItemPage,
+  CompanyCteItemQuery,
   CteBatchItem,
   CteBatchItemQuery,
   CteBatchItemReaderPort,
@@ -14,6 +16,7 @@ const GROUPED_ITEM: CteBatchItem = {
   authorizationProtocol: '135260000000123',
   authorizedAt: '2026-07-23T10:00:00.000Z',
   baseAmount: '30000.0000',
+  billingStatus: 'invoiced',
   charges: [
     {
       amount: '1350.0000',
@@ -66,6 +69,7 @@ const PENDING_ITEM: CteBatchItem = {
   authorizationProtocol: null,
   authorizedAt: null,
   baseAmount: '5000.0000',
+  billingStatus: 'pending',
   charges: [],
   documents: [
     {
@@ -90,6 +94,7 @@ const PENDING_ITEM: CteBatchItem = {
 
 class CteBatchItemReaderFixture implements CteBatchItemReaderPort {
   public readonly batchQueries: CteBatchItemQuery[] = []
+  public readonly companyQueries: CompanyCteItemQuery[] = []
   public readonly itemQueries: CteBatchItemQuery[] = []
   public batch: { readonly id: string } | null = { id: BATCH_ID }
   public items: readonly CteBatchItem[] = [GROUPED_ITEM, PENDING_ITEM]
@@ -97,6 +102,11 @@ class CteBatchItemReaderFixture implements CteBatchItemReaderPort {
   public async findBatch(query: CteBatchItemQuery): Promise<{ readonly id: string } | null> {
     this.batchQueries.push(query)
     return this.batch
+  }
+
+  public async listCompanyItems(query: CompanyCteItemQuery): Promise<CompanyCteItemPage> {
+    this.companyQueries.push(query)
+    return { items: [], nextCursor: null }
   }
 
   public async listItems(query: CteBatchItemQuery): Promise<readonly CteBatchItem[]> {

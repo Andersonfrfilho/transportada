@@ -1,8 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './nfe-workspace/advanced-filter-and-columns.contract.js'
 import './nfe-workspace/client-and-queries.contract.js'
+import './nfe-workspace/cte-block-indicator.contract.js'
 import './nfe-workspace/cte-emission-dialog.contract.js'
+import './nfe-workspace/cte-emission-profile-access.contract.js'
+import './nfe-workspace/cte-issued-filter.contract.js'
 import './nfe-workspace/distribution-status.contract.js'
+import './nfe-workspace/filter-pills.contract.js'
 import './nfe-workspace/import-execution-timestamp.contract.js'
 import './nfe-workspace/import-mechanism.contract.js'
 import './nfe-workspace/module-imports.contract.js'

@@ -7,6 +7,12 @@ import { buildCtePayload } from '../../src/cte-issuance/domain/cte-payload.build
 import type { CtePayloadInvoice } from '../../src/cte-issuance/domain/cte-payload.types.js'
 
 import {
+  GROUPED_ACCESS_KEYS,
+  GROUPED_INVOICES,
+  GROUPED_RECIPIENT,
+  GROUPED_SENDER,
+} from './grouped.support.js'
+import {
   GOLDEN_ACCESS_KEY,
   GOLDEN_CHARGE_LABEL,
   GOLDEN_INVOICE,
@@ -82,6 +88,48 @@ describe('buildCtePayload — golden CT-e 3526…8240', () => {
     ])
   })
 
+  test('declara o peso do volume mesmo quando os itens trazem peso próprio', () => {
+    const invoice: CtePayloadInvoice = {
+      ...GOLDEN_INVOICE,
+      products: [
+        {
+          description: GOLDEN_PREDOMINANT_PRODUCT,
+          grossWeight: '10.0000',
+          ordinal: 1,
+          quantity: '5.0000',
+          totalValue: '700.0000',
+        },
+        {
+          description: 'AMACIANTE FOFO 2L',
+          grossWeight: '80.0000',
+          ordinal: 2,
+          quantity: '12.0000',
+          totalValue: '258.4800',
+        },
+      ],
+    }
+
+    const payload = buildCtePayload(
+      buildGoldenParams({
+        invoices: [invoice],
+        profile: { ...GOLDEN_PROFILE, predominantProductMode: 'highest_weight' },
+      }),
+    )
+
+    const declaredGrossWeight = payload.carga.quantidades.find(
+      (quantity) => quantity.tpMed === 'PESO BRUTO',
+    )
+
+    expect(declaredGrossWeight?.qCarga).toBe(101.732)
+    expect(declaredGrossWeight?.qCarga).not.toBe(90)
+    expect(payload.carga.quantidades).toEqual([
+      { cUnid: '03', qCarga: 8, tpMed: 'UN' },
+      { cUnid: '01', qCarga: 101.732, tpMed: 'PESO BRUTO' },
+      { cUnid: '01', qCarga: 92.765, tpMed: 'PESO LIQUIDO' },
+    ])
+    expect(payload.carga.proPred).toBe('AMACIANTE FOFO 2L')
+  })
+
   test('reproduz documentos, modal e observações', () => {
     const payload = buildCtePayload(buildGoldenParams())
 
@@ -148,7 +196,15 @@ describe('buildCtePayload — agrupamento de notas', () => {
     const second: CtePayloadInvoice = {
       ...GOLDEN_INVOICE,
       accessKey: SECOND_ACCESS_KEY,
-      products: [{ description: 'CAFE TORRADO 500G', grossWeight: null, totalValue: '1200.0000' }],
+      products: [
+        {
+          description: 'CAFE TORRADO 500G',
+          grossWeight: null,
+          ordinal: 1,
+          quantity: '20.0000',
+          totalValue: '1200.0000',
+        },
+      ],
       totalAmount: '1200.0000',
       volumes: [{ grossWeight: '48.5000', netWeight: '40.0000', quantity: '2.0000' }],
     }
@@ -166,6 +222,67 @@ describe('buildCtePayload — agrupamento de notas', () => {
       { chave: GOLDEN_ACCESS_KEY, tipo: 'nfe' },
       { chave: SECOND_ACCESS_KEY, tipo: 'nfe' },
     ])
+  })
+
+  test('monta vCarga, documentos e quantidades de um grupo de três notas', () => {
+    const payload = buildCtePayload(buildGoldenParams({ invoices: GROUPED_INVOICES }))
+
+    expect(payload.carga.vCarga).toBe(430.5)
+    expect(payload.documentos).toEqual([
+      { chave: GROUPED_ACCESS_KEYS[0], tipo: 'nfe' },
+      { chave: GROUPED_ACCESS_KEYS[1], tipo: 'nfe' },
+      { chave: GROUPED_ACCESS_KEYS[2], tipo: 'nfe' },
+    ])
+    expect(payload.carga.quantidades).toEqual([
+      { cUnid: '03', qCarga: 6, tpMed: 'UN' },
+      { cUnid: '01', qCarga: 62.75, tpMed: 'PESO BRUTO' },
+      { cUnid: '01', qCarga: 53, tpMed: 'PESO LIQUIDO' },
+    ])
+  })
+
+  test('escolhe o produto predominante entre os itens de todas as notas do grupo', () => {
+    const expectedByMode = [
+      { mode: 'highest_quantity', product: 'PRODUTO ALFA' },
+      { mode: 'highest_value', product: 'PRODUTO CHARLIE' },
+      { mode: 'highest_weight', product: 'PRODUTO DELTA' },
+    ] as const
+
+    for (const { mode, product } of expectedByMode) {
+      const payload = buildCtePayload(
+        buildGoldenParams({
+          invoices: GROUPED_INVOICES,
+          profile: { ...GOLDEN_PROFILE, predominantProductMode: mode },
+        }),
+      )
+
+      expect(payload.carga.proPred, `modo ${mode}`).toBe(product)
+    }
+  })
+
+  test('toma remetente, destinatário e municípios da primeira nota do grupo', () => {
+    const payload = buildCtePayload(buildGoldenParams({ invoices: GROUPED_INVOICES }))
+
+    expect(payload.remetente.cnpj).toBe(GROUPED_SENDER.taxId)
+    expect(payload.destinatario.cnpj).toBe(GROUPED_RECIPIENT.taxId)
+    expect(payload.municipioOrigem.codigo).toBe(GROUPED_SENDER.cityCode)
+    expect(payload.municipioDestino.codigo).toBe(GROUPED_RECIPIENT.cityCode)
+  })
+
+  test('rejeita o grupo quando o destinatário de uma das notas diverge', () => {
+    const [first, second, third] = GROUPED_INVOICES as readonly [
+      CtePayloadInvoice,
+      CtePayloadInvoice,
+      CtePayloadInvoice,
+    ]
+    const divergent: CtePayloadInvoice = {
+      ...third,
+      recipient: { ...GROUPED_RECIPIENT, taxId: '44555666000253' },
+    }
+
+    expectApiErrorCode(
+      () => buildCtePayload(buildGoldenParams({ invoices: [first, second, divergent] })),
+      'CTE_PAYLOAD_INCONSISTENT_PARTIES',
+    )
   })
 })
 
@@ -188,8 +305,20 @@ describe('buildCtePayload — produto predominante', () => {
     const invoice: CtePayloadInvoice = {
       ...GOLDEN_INVOICE,
       products: [
-        { description: GOLDEN_PREDOMINANT_PRODUCT, grossWeight: '10.0000', totalValue: '700.0000' },
-        { description: 'AMACIANTE FOFO 2L', grossWeight: '80.0000', totalValue: '258.4800' },
+        {
+          description: GOLDEN_PREDOMINANT_PRODUCT,
+          grossWeight: '10.0000',
+          ordinal: 1,
+          quantity: '5.0000',
+          totalValue: '700.0000',
+        },
+        {
+          description: 'AMACIANTE FOFO 2L',
+          grossWeight: '80.0000',
+          ordinal: 2,
+          quantity: '12.0000',
+          totalValue: '258.4800',
+        },
       ],
     }
 
@@ -203,16 +332,14 @@ describe('buildCtePayload — produto predominante', () => {
     expect(payload.carga.proPred).toBe('AMACIANTE FOFO 2L')
   })
 
-  test('rejeita highest_weight quando nenhum item declara peso', () => {
-    expectApiErrorCode(
-      () =>
-        buildCtePayload(
-          buildGoldenParams({
-            profile: { ...GOLDEN_PROFILE, predominantProductMode: 'highest_weight' },
-          }),
-        ),
-      'CTE_PAYLOAD_UNRESOLVED_PREDOMINANT_PRODUCT',
+  test('cai no peso do volume no modo highest_weight quando a nota não traz peso por item', () => {
+    const payload = buildCtePayload(
+      buildGoldenParams({
+        profile: { ...GOLDEN_PROFILE, predominantProductMode: 'highest_weight' },
+      }),
     )
+
+    expect(payload.carga.proPred).toBe(GOLDEN_PREDOMINANT_PRODUCT)
   })
 
   test('rejeita fixed sem nome configurado', () => {

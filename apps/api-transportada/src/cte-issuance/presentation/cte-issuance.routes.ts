@@ -11,6 +11,11 @@ import {
   parseIdempotencyKey,
   parseUuidPathIdentifier,
 } from '../../cte-batches/presentation/cte-batch.schema.js'
+import {
+  CTE_EXPORT_CONTENT_TYPE,
+  type CteExportResult,
+} from '../application/export-cte-documents.port.js'
+import { type CteExportRequestBody, parseCteExportRequest } from './cte-export.schema.js'
 
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
 /** Cancelar documento autorizado é irreversível na SEFAZ — não basta poder transmitir. */
@@ -53,6 +58,9 @@ type CteDocumentPage = {
 }
 
 type Dependencies = {
+  readonly cteExport: {
+    readonly exportDocuments: (input: WithContext<CteExportRequestBody>) => Promise<CteExportResult>
+  }
   readonly cteIssuance: {
     readonly cancel: (input: WithContext<CancelCteInput>) => Promise<CteIssuanceSummary>
     readonly get: (input: WithContext<BatchItemIdentifierInput>) => Promise<CteIssuanceSummary>
@@ -176,6 +184,26 @@ export function createCteIssuanceRoutes(
       method: 'GET',
       parse: ({ pathParameters }) => parseBatchItemPath(pathParameters),
       pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId/documents`,
+      policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<CteExportRequestBody>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.cteExport.exportDocuments({
+          context: context.scope,
+          ...input,
+        })
+        return new Response(result.stream, {
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${result.fileName}"`,
+            'content-type': CTE_EXPORT_CONTENT_TYPE,
+          },
+          status: 200,
+        })
+      },
+      method: 'POST',
+      parse: ({ request }) => parseCteExportRequest(request),
+      pathname: `${API_CTE_BATCHES_PATH}/items/export`,
       policy: CTE_SUBMIT_POLICY,
     }),
   ]

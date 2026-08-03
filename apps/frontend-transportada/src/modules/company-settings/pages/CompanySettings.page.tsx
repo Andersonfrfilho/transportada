@@ -4,17 +4,27 @@ import { useTranslation } from 'react-i18next'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { CertificateUploadForm } from '../components/CertificateUploadForm.component'
+import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
-import { EMPTY_MDFE_DEFAULTS } from '../shared/companySettings.constant'
+import {
+  CERTIFICATE_PURPOSE_LABEL_KEYS,
+  EMPTY_BILLING_DEFAULTS,
+  EMPTY_MDFE_DEFAULTS,
+} from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
-import type {
-  CompanyProfileLookup,
-  CompanySettingsUpdate,
-  SafeCertificate,
+import {
+  CERTIFICATE_PURPOSES,
+  type CertificatePurpose,
+  type CompanyLogoImage,
+  type CompanyLogoMetadata,
+  type CompanyProfileLookup,
+  type CompanySettingsUpdate,
+  type SafeCertificate,
 } from '../shared/companySettingsClient.service'
 import {
   createCompanySettingsViewModel,
+  type ActiveCertificatesByPurpose,
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
 import styles from '../styles/companySettings.module.css'
@@ -37,6 +47,7 @@ function toUpdate(
     series: settings.cte.series,
   }
   return {
+    billing: settings.billing ?? EMPTY_BILLING_DEFAULTS,
     cte,
     cteRetry: settings.cteRetry,
     expectedVersion: profileVersion,
@@ -45,13 +56,21 @@ function toUpdate(
   }
 }
 
+type LogoSection = Readonly<{
+  image: CompanyLogoImage | null
+  onRemove: () => Promise<void>
+  onSubmit: (file: File) => Promise<CompanyLogoMetadata>
+  pending: boolean
+}>
+
 type SettingsBodyProps = Readonly<{
   canManageSettings: boolean
-  certificate: SafeCertificate | undefined
+  certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   initialValue: CompanySettingsUpdate | undefined
+  logo: LogoSection
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
-  onCertificateDelete: () => Promise<void>
+  onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
   onSave: (input: CompanySettingsUpdate) => void
   settingsErrorCode: string | undefined
@@ -71,9 +90,7 @@ function SettingsStatus({ status }: Pick<CompanySettingsViewModel, 'status'>) {
   )
 }
 
-function CertificateMetadata({
-  certificate,
-}: Readonly<{ certificate: NonNullable<CompanySettingsViewModel['activeCertificate']> }>) {
+function CertificateMetadata({ certificate }: Readonly<{ certificate: SafeCertificate }>) {
   const { i18n, t } = useTranslation('companySettings')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
@@ -88,6 +105,29 @@ function CertificateMetadata({
         version: certificate.version,
       })}
     </p>
+  )
+}
+
+function CertificateSignals({
+  certificates,
+}: Readonly<{ certificates: ActiveCertificatesByPurpose }>) {
+  const { t } = useTranslation('companySettings')
+  return (
+    <>
+      {CERTIFICATE_PURPOSES.map((purpose) => {
+        const certificate = certificates[purpose]
+        return (
+          <div key={`certificate-signal-${purpose}`}>
+            <p className={styles.sectionKicker}>{t(CERTIFICATE_PURPOSE_LABEL_KEYS[purpose])}</p>
+            {certificate === undefined ? (
+              <p className={styles.certificateMetadata}>{t('certificateMissingForPurpose')}</p>
+            ) : (
+              <CertificateMetadata certificate={certificate} />
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -132,8 +172,14 @@ function SettingsBody(props: SettingsBodyProps) {
                 onSave={props.onSave}
               />
             </section>
+            <CompanyLogoUpload
+              disabled={props.logo.pending}
+              logo={props.logo.image}
+              onRemove={props.logo.onRemove}
+              onSubmit={props.logo.onSubmit}
+            />
             <CertificateUploadForm
-              certificate={props.certificate}
+              certificates={props.certificates}
               disabled={props.certificatePending}
               onDelete={props.onCertificateDelete}
               onSubmit={props.onCertificateSubmit}
@@ -151,11 +197,7 @@ function SettingsBody(props: SettingsBodyProps) {
           <p className={styles.sectionKicker}>{t('environmentStep')}</p>
           <h2>{t('title')}</h2>
           <p className={styles.productionBoundary}>{t('productionBoundary')}</p>
-          {props.viewModel.activeCertificate !== undefined ? (
-            <CertificateMetadata certificate={props.viewModel.activeCertificate} />
-          ) : (
-            <p className={styles.certificateMetadata}>{t('empty')}</p>
-          )}
+          <CertificateSignals certificates={props.viewModel.activeCertificates} />
           <SaveStatus code={props.settingsErrorCode} state={props.settingsState} />
         </section>
       </aside>
@@ -173,6 +215,9 @@ export function CompanySettingsPage() {
     certificateRetireMutation,
     certificateMutation,
     certificatesQuery,
+    logoMutation,
+    logoQuery,
+    logoRemoveMutation,
     lookupMutation,
     query,
     settingsMutation,
@@ -196,11 +241,17 @@ export function CompanySettingsPage() {
       <CompanySettingsHeader environment={viewModel.environment ?? 'homologation'} />
       <SettingsBody
         canManageSettings={canManageSettings}
-        certificate={viewModel.activeCertificate}
+        certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
+        logo={{
+          image: logoQuery.data ?? null,
+          onRemove: () => logoRemoveMutation.mutateAsync(),
+          onSubmit: (file) => logoMutation.mutateAsync(file),
+          pending: logoMutation.isPending || logoRemoveMutation.isPending,
+        }}
         onCertificateSubmit={(body) => certificateMutation.mutateAsync(body)}
-        onCertificateDelete={() => certificateRetireMutation.mutateAsync()}
+        onCertificateDelete={(purpose) => certificateRetireMutation.mutateAsync(purpose)}
         onLookupProfile={(cnpj) => lookupMutation.mutateAsync(cnpj)}
         onSave={(input) => settingsMutation.mutate(input)}
         settingsErrorCode={

@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { CteIssuanceStatusPanel } from '@/modules/cte-issuance/components/CteIssuanceStatusPanel.component'
 
 import type { CteBatchItemsController } from '../hooks/useCteBatchItems.hook'
@@ -84,6 +85,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
               type="button"
               variant="ghost"
             >
+              <Icon name="search" />
               {trackedItem?.id === item.id ? t('actions.closeTrack') : t('actions.track')}
             </Button>
             {canReprocessItem({ item, permissions }) ? (
@@ -94,6 +96,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
                 type="button"
                 variant="secondary"
               >
+                <Icon name="refresh" />
                 {t('actions.reprocess')}
               </Button>
             ) : null}
@@ -105,6 +108,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
                 type="button"
                 variant="ghost"
               >
+                <Icon name="trash" />
                 {t('actions.remove')}
               </Button>
             ) : null}
@@ -116,6 +120,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
                 type="button"
                 variant="secondary"
               >
+                <Icon name="alert" />
                 {t('actions.cancelItem')}
               </Button>
             ) : null}
@@ -126,6 +131,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
                 type="button"
                 variant="ghost"
               >
+                <Icon name="download" />
                 {t('actions.download')}
               </Button>
             ) : null}
@@ -146,6 +152,7 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
             size="sm"
             type="button"
           >
+            <Icon name="upload" />
             {t('actions.transmit')}
           </Button>
         ) : null}
@@ -243,11 +250,13 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
           ) : null}
           <div className={styles.cancellationActions}>
             <Button disabled={controller.cancelMutation.isPending} size="sm" type="submit">
+              <Icon name="check" />
               {controller.cancelMutation.isPending
                 ? t('cancellation.pending')
                 : t('actions.confirmCancelItem')}
             </Button>
             <Button onClick={controller.closeCancellation} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
               {t('actions.closeCancelItem')}
             </Button>
           </div>

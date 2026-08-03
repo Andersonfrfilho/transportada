@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   AUTHORIZED_MANIFEST_SUMMARY,
   CREATE_MANIFEST_BODY,
+  DISCARDED_MANIFEST_DETAIL,
   DOCUMENT_ID,
   ISSUANCE_SUMMARY,
   loadFutureModule,
@@ -12,6 +13,7 @@ import {
   MANIFEST_PAGE,
   MANIFEST_PREVIEW,
   MANIFEST_SUMMARY,
+  REJECTED_MANIFEST_SUMMARY,
   SECOND_DOCUMENT_ID,
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_CURSOR,
@@ -118,6 +120,24 @@ describe('mdfe manifest client contract', () => {
     })
   })
 
+  // ADR-0017: descarte não passa pela SEFAZ, então responde o manifesto e não um aceite de fila
+  test('discards a manifest with a plain post that answers the released detail', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(await client.discardManifest({ manifestId: MANIFEST_ID })).toEqual(
+      DISCARDED_MANIFEST_DETAIL,
+    )
+
+    const [discardRequest] = requests
+    if (discardRequest === undefined) throw new Error('MDFE_CONTRACT_REQUEST_MISSING')
+
+    expect(discardRequest.url).toBe(`${MANIFESTS_PATH}/${MANIFEST_ID}/discard`)
+    expect(discardRequest.method).toBe('POST')
+    expect(discardRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
+    expect(discardRequest.headers.get('idempotency-key')).toBeNull()
+  })
+
   test('never smuggles the tenant identifier into the request path or body', async () => {
     const requests: Request[] = []
     const client = await createRecordingClient(requests)
@@ -212,6 +232,33 @@ describe('mdfe manifest client contract', () => {
       'MDFE_MANIFEST_RESPONSE_INVALID',
     )
   })
+
+  test('carries the sefaz refusal of the manifest and refuses a malformed one', async () => {
+    const { createMdfeManifestResponseAdapters } =
+      await loadFutureModule<AdaptersModule>(ADAPTERS_MODULE)
+    const adapters = createMdfeManifestResponseAdapters()
+
+    expect(adapters.manifestFromApi(REJECTED_MANIFEST_SUMMARY)).toEqual(REJECTED_MANIFEST_SUMMARY)
+    expect(
+      adapters.manifestFromApi({
+        ...REJECTED_MANIFEST_SUMMARY,
+        lastRejection: { ...REJECTED_MANIFEST_SUMMARY.lastRejection, message: null },
+      }),
+    ).toMatchObject({ lastRejection: { code: '726', message: null } })
+
+    expect(() =>
+      adapters.manifestFromApi({
+        ...REJECTED_MANIFEST_SUMMARY,
+        lastRejection: { ...REJECTED_MANIFEST_SUMMARY.lastRejection, attemptKind: 'archive' },
+      }),
+    ).toThrow('MDFE_MANIFEST_RESPONSE_INVALID')
+    expect(() =>
+      adapters.manifestFromApi({
+        ...REJECTED_MANIFEST_SUMMARY,
+        lastRejection: { ...REJECTED_MANIFEST_SUMMARY.lastRejection, xml: '<mdfeProc />' },
+      }),
+    ).toThrow('MDFE_MANIFEST_RESPONSE_INVALID')
+  })
 })
 
 describe('mdfe manifest controller contract', () => {
@@ -234,6 +281,12 @@ describe('mdfe manifest controller contract', () => {
     expect(
       await readerOnly
         .issueManifest({ idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY, manifestId: MANIFEST_ID })
+        .catch((caught: unknown) => caught),
+    ).toEqual(expect.objectContaining({ message: 'MDFE_MANIFEST_FORBIDDEN' }))
+    // ADR-0017: descartar libera CT-e e mexe no manifesto — anda junto de mdfe.manage
+    expect(
+      await readerOnly
+        .discardManifest({ manifestId: MANIFEST_ID })
         .catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'MDFE_MANIFEST_FORBIDDEN' }))
     expect(calls).toEqual([])
@@ -265,7 +318,8 @@ describe('mdfe manifest controller contract', () => {
       justification: 'Viagem cancelada pelo embarcador',
       manifestId: MANIFEST_ID,
     })
-    expect(calls).toEqual(['list', 'preview', 'create', 'issue', 'close', 'cancel'])
+    await operator.discardManifest({ manifestId: MANIFEST_ID })
+    expect(calls).toEqual(['list', 'preview', 'create', 'issue', 'close', 'cancel', 'discard'])
   })
 })
 
@@ -288,6 +342,9 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   }
   if (request.url.endsWith('/issue') || request.url.endsWith('/close')) {
     return Promise.resolve(Response.json({ data: ISSUANCE_SUMMARY }, { status: 202 }))
+  }
+  if (request.url.endsWith('/discard')) {
+    return Promise.resolve(Response.json({ data: DISCARDED_MANIFEST_DETAIL }))
   }
   if (request.url.endsWith('/cancel')) {
     return Promise.resolve(
@@ -323,6 +380,10 @@ function createStubClient(calls: string[]): ManifestClient {
       calls.push('create')
       return Promise.resolve(MANIFEST_DETAIL)
     },
+    discardManifest: () => {
+      calls.push('discard')
+      return Promise.resolve(DISCARDED_MANIFEST_DETAIL)
+    },
     getManifest: () => {
       calls.push('detail')
       return Promise.resolve(MANIFEST_DETAIL)
@@ -350,6 +411,7 @@ type ManifestClient = {
     input: ActionInput & { readonly closureCityCode: string; readonly closureState: string },
   ): Promise<unknown>
   createManifest(input: typeof CREATE_MANIFEST_BODY): Promise<unknown>
+  discardManifest(input: Readonly<{ manifestId: string }>): Promise<unknown>
   getManifest(input: Readonly<{ manifestId: string }>): Promise<unknown>
   issueManifest(input: ActionInput): Promise<unknown>
   listManifests(

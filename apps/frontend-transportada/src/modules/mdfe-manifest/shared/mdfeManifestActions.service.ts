@@ -16,6 +16,7 @@ const STATE_PATTERN = /^[A-Z]{2}$/
 export type MdfeManifestActionAvailability = Readonly<{
   canCancel: boolean
   canClose: boolean
+  canDiscard: boolean
   canIssue: boolean
 }>
 
@@ -34,11 +35,15 @@ export type MdfeManifestDraft = Readonly<{
 
 const ISSUABLE_STATUSES: readonly MdfeManifestStatus[] = ['draft', 'rejected']
 
+/** ADR-0017: só antes de a SEFAZ decidir — depois disso o caminho é o cancelamento, não o descarte. */
+const DISCARDABLE_STATUSES: readonly MdfeManifestStatus[] = ['draft', 'rejected']
+
 export function resolveManifestActions(status: string): MdfeManifestActionAvailability {
   const isAuthorized = status === 'authorized'
   return {
     canCancel: isAuthorized,
     canClose: isAuthorized,
+    canDiscard: DISCARDABLE_STATUSES.some((discardable) => discardable === status),
     canIssue: ISSUABLE_STATUSES.some((issuable) => issuable === status),
   }
 }

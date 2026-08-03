@@ -4,7 +4,10 @@
 import type {
   FleetDriver,
   FleetDriverPage,
+  FleetDriverVehicleAssignment,
+  FleetDriverVehicleLink,
   FleetVehicle,
+  FleetVehicleLookup,
   FleetVehiclePage,
 } from '../../src/fleet/application/fleet.port'
 
@@ -16,6 +19,9 @@ export const COMPANY_ID = '00000000-0000-4000-8000-000000000901'
 export const VEHICLE_ID = '00000000-0000-4000-8000-000000000911'
 export const DRIVER_ID = '00000000-0000-4000-8000-000000000912'
 export const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000902'
+export const DRIVER_OWNED_VEHICLE_ID = '00000000-0000-4000-8000-000000000913'
+export const LINK_ID = '00000000-0000-4000-8000-000000000914'
+export const OWNED_LINK_ID = '00000000-0000-4000-8000-000000000915'
 
 export const CREATE_VEHICLE_BODY = {
   bodyType: '00',
@@ -55,11 +61,14 @@ export const UPDATE_VEHICLE_BODY = {
 
 export const CREATE_DRIVER_BODY = {
   licenseNumber: '12345678901',
+  linkedTaxId: '',
   membershipId: null,
   name: 'Jose da Silva',
   phone: '11988887777',
   taxId: '12345678901',
 } as const
+
+export const LINKED_COMPANY_TAX_ID = '12345678000195'
 
 export const UPDATE_DRIVER_BODY = {
   ...CREATE_DRIVER_BODY,
@@ -84,6 +93,43 @@ export const DRIVER: FleetDriver = {
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
+}
+
+export const DRIVER_OWNED_VEHICLE: FleetVehicle = {
+  ...VEHICLE,
+  id: DRIVER_OWNED_VEHICLE_ID,
+  owner: {
+    name: 'Jose da Silva Transportes',
+    rntrc: '12345678',
+    state: 'SP',
+    taxId: LINKED_COMPANY_TAX_ID,
+    taxRegime: '1',
+  },
+  ownership: 'aggregate',
+  plate: 'QRS4E56',
+}
+
+export const DRIVER_VEHICLE_LINKS: readonly FleetDriverVehicleLink[] = [
+  { assignedAt: '2026-07-28T12:00:00.000Z', id: LINK_ID, vehicle: VEHICLE },
+  { assignedAt: '2026-07-29T12:00:00.000Z', id: OWNED_LINK_ID, vehicle: DRIVER_OWNED_VEHICLE },
+]
+
+export const DRIVER_VEHICLE_ASSIGNMENTS: readonly FleetDriverVehicleAssignment[] = [
+  { ...DRIVER_VEHICLE_LINKS[0]!, ownedByDriver: false },
+  { ...DRIVER_VEHICLE_LINKS[1]!, ownedByDriver: true },
+]
+
+export const VEHICLE_LOOKUP: FleetVehicleLookup = {
+  brand: 'VOLVO',
+  capacityKilograms: '27000',
+  model: 'FH 540',
+  modelYear: '2021',
+  ownerName: 'Transportes Ada',
+  ownerTaxId: '12345678000195',
+  plate: 'ABC1D23',
+  renavam: '12345678901',
+  state: 'SP',
+  tareWeightKilograms: '8000',
 }
 
 export const VEHICLE_PAGE: FleetVehiclePage = { items: [VEHICLE], nextCursor: null }

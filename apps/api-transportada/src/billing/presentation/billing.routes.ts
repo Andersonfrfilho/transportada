@@ -3,17 +3,23 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { formatFiscalMoney, isDecimalString } from '../../shared/decimal.service.js'
 import {
   API_BILLING_ELIGIBLE_CTES_PATH,
+  API_BILLING_INVOICE_PREVIEW_PATH,
   API_BILLING_INVOICES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type { BillingEligibleListInput as ParsedBillingEligibleListInput } from './billing.schema.js'
+import type { BillingInvoiceListInput as ParsedBillingInvoiceListInput } from './billing.schema.js'
 import {
   parseBillingEligibleList,
+  parseBillingInvoiceList,
+  parseBillingInvoicePreviewRequest,
   parseCancelBillingInvoiceRequest,
   parseCreateBillingInvoiceRequest,
   parseIdempotencyKey,
+  parseUpdateBillingInvoiceRequest,
   parseUuidPathIdentifier,
 } from './billing.schema.js'
 
@@ -27,11 +33,17 @@ type WithContext<TInput> = TInput & {
 
 type EligibleBillingCteListInput = ParsedBillingEligibleListInput
 
+type BillingInvoiceListInput = ParsedBillingInvoiceListInput
+
 type CreateBillingInvoiceInput = {
   readonly correlationId: string
   readonly cteIds: readonly string[]
   readonly dueDate: string
   readonly idempotencyKey: string
+}
+
+type PreviewBillingInvoiceInput = {
+  readonly cteIds: readonly string[]
 }
 
 type BillingInvoiceIdentifierInput = {
@@ -43,6 +55,14 @@ type CancelBillingInvoiceInput = BillingInvoiceIdentifierInput & {
   readonly reason: string
 }
 
+type UpdateBillingInvoiceInput = BillingInvoiceIdentifierInput & {
+  readonly correlationId: string
+  readonly discountAmount?: string | undefined
+  readonly idempotencyKey: string
+  readonly observations?: string | undefined
+  readonly surchargeAmount?: string | undefined
+}
+
 type BillingSummary = Readonly<Record<string, unknown>>
 
 type BillingDocumentPage = {
@@ -50,16 +70,29 @@ type BillingDocumentPage = {
   readonly nextCursor: string | null
 }
 
+type BillingPreview = {
+  readonly blocked: readonly BillingSummary[]
+  readonly groups: readonly BillingSummary[]
+}
+
 type BillingEligiblePage = BillingDocumentPage
+
+type BillingInvoicePage = BillingDocumentPage
 
 type Dependencies = {
   readonly billingInvoices: {
     readonly cancel: (input: WithContext<CancelBillingInvoiceInput>) => Promise<BillingSummary>
     readonly create: (input: WithContext<CreateBillingInvoiceInput>) => Promise<BillingSummary>
+    readonly generateDocument: (
+      input: WithContext<BillingInvoiceIdentifierInput>,
+    ) => Promise<BillingSummary>
     readonly get: (input: WithContext<BillingInvoiceIdentifierInput>) => Promise<BillingSummary>
-    readonly listDocuments?: (
+    readonly list: (input: WithContext<BillingInvoiceListInput>) => Promise<BillingInvoicePage>
+    readonly listDocuments: (
       input: WithContext<BillingInvoiceIdentifierInput>,
     ) => Promise<BillingDocumentPage>
+    readonly preview: (input: WithContext<PreviewBillingInvoiceInput>) => Promise<BillingPreview>
+    readonly update: (input: WithContext<UpdateBillingInvoiceInput>) => Promise<BillingSummary>
   }
   readonly listEligibleBillingCtes: {
     readonly execute: (
@@ -110,6 +143,38 @@ export function createBillingRoutes(
       pathname: API_BILLING_INVOICES_PATH,
       policy: BILLING_CREATE_POLICY,
     }),
+    defineRoute<PreviewBillingInvoiceInput>({
+      async handle({ context, input }): Promise<Response> {
+        const preview = await dependencies.billingInvoices.preview({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializePreview(preview) }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ request }) => parseBillingInvoicePreviewRequest(request),
+      pathname: API_BILLING_INVOICE_PREVIEW_PATH,
+      policy: BILLING_CREATE_POLICY,
+    }),
+    defineRoute<BillingInvoiceListInput>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.billingInvoices.list({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: page.items.map(serializeInvoice),
+            page: { nextCursor: page.nextCursor },
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseBillingInvoiceList(new URL(request.url)),
+      pathname: API_BILLING_INVOICES_PATH,
+      policy: BILLING_READ_POLICY,
+    }),
     defineRoute<BillingInvoiceIdentifierInput>({
       async handle({ context, input }): Promise<Response> {
         const invoice = await dependencies.billingInvoices.get({
@@ -125,13 +190,47 @@ export function createBillingRoutes(
       pathname: `${API_BILLING_INVOICES_PATH}/:id`,
       policy: BILLING_READ_POLICY,
     }),
+    defineRoute<UpdateBillingInvoiceInput>({
+      async handle({ context, input }): Promise<Response> {
+        const invoice = await dependencies.billingInvoices.update({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeInvoice(invoice) }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ correlationId, pathParameters, request }) {
+        return {
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          invoiceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(await parseUpdateBillingInvoiceRequest(request)),
+        }
+      },
+      pathname: `${API_BILLING_INVOICES_PATH}/:id`,
+      policy: BILLING_CREATE_POLICY,
+    }),
     defineRoute<BillingInvoiceIdentifierInput>({
       async handle({ context, input }): Promise<Response> {
-        const page =
-          (await dependencies.billingInvoices.listDocuments?.({
-            context: context.scope,
-            ...input,
-          })) ?? emptyDocumentPage()
+        const document = await dependencies.billingInvoices.generateDocument({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeDocument(document) }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        invoiceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${API_BILLING_INVOICES_PATH}/:id/documents`,
+      policy: BILLING_CREATE_POLICY,
+    }),
+    defineRoute<BillingInvoiceIdentifierInput>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.billingInvoices.listDocuments({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({
           body: {
             data: page.items.map(serializeDocument),
@@ -179,12 +278,34 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 function serializeEligibleBillingCte(record: BillingSummary): object {
   return {
     batchId: record['batchId'],
+    batchName: record['batchName'],
     cteId: record['cteId'] ?? record['id'],
     cteNumber: record['cteNumber'],
     customerDocument: record['customerDocument'],
     customerName: record['customerName'],
     issuedAt: record['issuedAt'] ?? record['authorizedAt'],
-    totalAmount: record['totalAmount'],
+    nfeNumber: record['nfeNumber'] ?? null,
+    totalAmount: serializeMoney(record['totalAmount']),
+  }
+}
+
+function serializeMoney(value: unknown): unknown {
+  return isDecimalString(value) ? formatFiscalMoney(value) : value
+}
+
+function serializePreview(preview: BillingPreview): object {
+  return {
+    blocked: preview.blocked.map((record) => ({
+      cteId: record['cteId'],
+      reason: record['reason'],
+    })),
+    groups: preview.groups.map((group) => ({
+      cteCount: group['cteCount'],
+      cteIds: group['cteIds'],
+      customerDocument: group['customerDocument'],
+      customerName: group['customerName'],
+      totalAmount: serializeMoney(group['totalAmount']),
+    })),
   }
 }
 
@@ -197,15 +318,31 @@ function serializeInvoice(invoice: BillingSummary): object {
       document: getCustomerValue(invoice, 'document') ?? invoice['customerDocument'],
       name: getCustomerValue(invoice, 'name') ?? invoice['customerName'],
     },
+    discountAmount: serializeMoney(invoice['discountAmount']),
     dueDate: invoice['dueDate'],
     id: invoice['id'],
     invoiceNumber: parseInvoiceNumber(invoice['invoiceNumber']),
     issuedAt: invoice['issuedAt'] ?? invoice['issueDate'],
     itemCount: invoice['itemCount'],
+    items: serializeInvoiceItems(invoice['items']),
+    observations: invoice['observations'] ?? '',
     status: invoice['status'],
-    totalAmount: invoice['totalAmount'],
+    subtotalAmount: serializeMoney(invoice['subtotalAmount']),
+    surchargeAmount: serializeMoney(invoice['surchargeAmount']),
+    totalAmount: serializeMoney(invoice['totalAmount']),
     updatedAt: invoice['updatedAt'],
   }
+}
+
+/** O detalhe mostra quais CT-es a fatura cobre; nada do snapshot fiscal atravessa a fronteira. */
+function serializeInvoiceItems(value: unknown): readonly object[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.map((item: Record<string, unknown>) => ({
+    accessKey: item['accessKey'],
+    cteNumber: item['cteNumber'],
+    description: item['description'],
+    totalAmount: serializeMoney(item['totalAmount']),
+  }))
 }
 
 function getCustomerValue(invoice: BillingSummary, key: 'document' | 'name'): unknown {
@@ -232,8 +369,4 @@ function serializeDocument(document: BillingSummary): object {
     expiresAt: document['expiresAt'],
     sha256: document['sha256'],
   }
-}
-
-function emptyDocumentPage(): BillingDocumentPage {
-  return { items: [], nextCursor: null }
 }

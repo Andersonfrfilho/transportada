@@ -1,0 +1,70 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: var(--space-3);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+}
+
+.indicator {
+  position: relative;
+  width: var(--progress-value, 0%);
+  height: 100%;
+  background: var(--color-copper);
+  transition: width 0.28s ease-out;
+}
+
+/* A faixa em movimento é o que diz "ainda estou trabalhando" enquanto a largura não muda. */
+.indicator::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--color-fog) 24%, transparent) 0 var(--space-2),
+    transparent var(--space-2) var(--space-4)
+  );
+  background-size: var(--space-8) 100%;
+  animation: progressStripes 0.9s linear infinite;
+}
+
+.indicatorComplete {
+  background: var(--color-ready);
+}
+
+.indicatorComplete::after {
+  animation: none;
+  opacity: 0;
+}
+
+.value {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+@keyframes progressStripes {
+  to {
+    background-position-x: var(--space-8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transition: none;
+  }
+
+  .indicator::after {
+    animation: none;
+  }
+}

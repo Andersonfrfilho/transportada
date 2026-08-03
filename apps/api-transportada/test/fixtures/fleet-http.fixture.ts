@@ -12,8 +12,10 @@ import {
   CORRELATION_ID,
   DRIVER,
   DRIVER_PAGE,
+  DRIVER_VEHICLE_ASSIGNMENTS,
   FRONTEND_ORIGIN,
   VEHICLE,
+  VEHICLE_LOOKUP,
   VEHICLE_PAGE,
 } from './fleet-http-payload.fixture'
 
@@ -28,12 +30,24 @@ type RouteDependencies = {
   readonly listVehicles: { execute(input: ExecuteCall): Promise<typeof VEHICLE_PAGE> }
   readonly updateDriver: { execute(input: ExecuteCall): Promise<typeof DRIVER> }
   readonly updateVehicle: { execute(input: ExecuteCall): Promise<typeof VEHICLE> }
+  readonly driverVehicles: {
+    list(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
+    replace(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
+  }
+  readonly vehicleLookup: {
+    isAvailable(): boolean
+    lookup(input: ExecuteCall): Promise<typeof VEHICLE_LOOKUP | null>
+  }
 }
 
 type CreateFixtureParams = {
   readonly createDriverError?: Error
   readonly permissions?: CompanyContext['permissions']
+  readonly replaceDriverVehiclesError?: Error
   readonly updateVehicleError?: Error
+  readonly vehicleLookupAvailable?: boolean
+  readonly vehicleLookupError?: Error
+  readonly vehicleLookupResult?: typeof VEHICLE_LOOKUP | null
 }
 
 export const COMPANY_CONTEXT: CompanyContext = {
@@ -48,14 +62,20 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   readonly createVehicleCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listDriverCalls: ExecuteCall[]
+  readonly listDriverVehicleCalls: ExecuteCall[]
   readonly listVehicleCalls: ExecuteCall[]
+  readonly lookupVehicleCalls: ExecuteCall[]
+  readonly replaceDriverVehicleCalls: ExecuteCall[]
   readonly updateDriverCalls: ExecuteCall[]
   readonly updateVehicleCalls: ExecuteCall[]
 }> {
   const createDriverCalls: ExecuteCall[] = []
   const createVehicleCalls: ExecuteCall[] = []
   const listDriverCalls: ExecuteCall[] = []
+  const listDriverVehicleCalls: ExecuteCall[] = []
   const listVehicleCalls: ExecuteCall[] = []
+  const lookupVehicleCalls: ExecuteCall[] = []
+  const replaceDriverVehicleCalls: ExecuteCall[] = []
   const updateDriverCalls: ExecuteCall[] = []
   const updateVehicleCalls: ExecuteCall[] = []
 
@@ -71,6 +91,17 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
       async execute(input) {
         createVehicleCalls.push(structuredClone(input))
         return VEHICLE
+      },
+    },
+    driverVehicles: {
+      async list(input) {
+        listDriverVehicleCalls.push(structuredClone(input))
+        return DRIVER_VEHICLE_ASSIGNMENTS
+      },
+      async replace(input) {
+        replaceDriverVehicleCalls.push(structuredClone(input))
+        if (params.replaceDriverVehiclesError) throw params.replaceDriverVehiclesError
+        return DRIVER_VEHICLE_ASSIGNMENTS
       },
     },
     listDrivers: {
@@ -98,6 +129,16 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
         return { ...VEHICLE, version: '2' }
       },
     },
+    vehicleLookup: {
+      isAvailable: () => params.vehicleLookupAvailable ?? true,
+      async lookup(input) {
+        lookupVehicleCalls.push(structuredClone(input))
+        if (params.vehicleLookupError) throw params.vehicleLookupError
+        return params.vehicleLookupResult === undefined
+          ? VEHICLE_LOOKUP
+          : params.vehicleLookupResult
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -117,7 +158,10 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     createVehicleCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listDriverCalls,
+    listDriverVehicleCalls,
     listVehicleCalls,
+    lookupVehicleCalls,
+    replaceDriverVehicleCalls,
     updateDriverCalls,
     updateVehicleCalls,
   }

@@ -1,0 +1,126 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/* Sem isto o gatilho esticaria até a altura da linha do grid de filtros. */
+.root {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.rootCompact {
+  min-width: 4.5rem;
+}
+
+.trigger {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  text-align: left;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  transition: border-color 0.14s ease;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.trigger[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+}
+
+.trigger:disabled {
+  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.triggerCompact {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
+.value,
+.placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholder {
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  opacity: 0.7;
+  transition: transform 0.14s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+  opacity: 1;
+  color: var(--color-copper);
+}
+
+/* Em portal e ancorada na viewport: dentro de modal ou tabela rolável a lista era recortada. */
+.list {
+  position: fixed;
+  z-index: 60;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  min-width: var(--floating-layer-min-width, 0);
+  max-height: min(16rem, var(--floating-layer-max-height, 16rem));
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  background: var(--color-graphite);
+  box-shadow: 0 var(--space-2) var(--space-5)
+    color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+}
+
+.option {
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid transparent;
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.optionActive {
+  border-left-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 16%, transparent);
+}
+
+.optionSelected {
+  color: var(--color-copper);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .trigger {
+    transition: none;
+  }
+}

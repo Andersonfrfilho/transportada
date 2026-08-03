@@ -13,6 +13,7 @@ import {
   CTE_CANCEL_JUSTIFICATION,
   CTE_DOCUMENT_ID,
   CTE_DONE_BATCH,
+  CTE_DONE_BATCH_ID,
   CTE_FISCAL_DOCUMENT_ID,
   CTE_MANAGE,
   CTE_REFERENCE_ACCESS_KEY,
@@ -76,7 +77,47 @@ const SECONDARY_GROUP = {
 } as const
 const ADVANCED_MODEL = { connector: 'or', groups: [PRIMARY_GROUP, SECONDARY_GROUP] } as const
 
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readModule(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
 describe('CT-e batch table and items contract', () => {
+  test('collapses the batch filters and the columns menu behind icon triggers in the table bar', async () => {
+    const [table, filters, page] = await Promise.all([
+      readModule('src/modules/cte-batch/components/CteBatchTable.component.tsx'),
+      readModule('src/modules/cte-batch/components/CteBatchFilters.component.tsx'),
+      readModule('src/modules/cte-batch/pages/CteBatchWorkspace.page.tsx'),
+    ])
+
+    for (const source of [table, filters]) {
+      expect(source).toContain('useTranslation')
+      expect(source).not.toMatch(/<select[\s>]/)
+      expect(source).not.toMatch(/style=\{\{/)
+    }
+
+    expect(table).toContain('styles.tableToolbar')
+    expect(table).toContain('aria-expanded')
+    expect(table).toContain("t('filters.title')")
+    expect(table).toContain("t('columns.title')")
+
+    // Recolhido significa montado só quando aberto — nada de painel inline sempre visível.
+    for (const child of ['<CteBatchFilters', '<CteBatchColumnsMenu']) {
+      const occurrences = table.split(child).length - 1
+      expect(occurrences).toBe(1)
+      expect(table).toMatch(new RegExp(`\\?\\s*${child}`))
+    }
+
+    expect(page).not.toContain('<CteBatchFilters')
+    expect(page).not.toContain('CteBatchFilters.component')
+
+    // O painel de filtros deixa de ser uma seção própria e passa a ser corpo do painel da tabela.
+    expect(filters).toContain('styles.filterPanel')
+    expect(filters).not.toContain('cte-batch-filters-title')
+    expect(filters).not.toContain('styles.panel}')
+  })
+
   test('reads batch items from the authenticated no-store items endpoint without idempotency key', async () => {
     const requests: Request[] = []
     const { createCteBatchClient } = await loadFutureModule<CteBatchClientModule>(CLIENT_MODULE)
@@ -333,17 +374,16 @@ describe('CT-e batch table and items contract', () => {
       canDownloadItem,
       canRemoveItem,
       canReprocessItem,
-      canSubmitBatch,
       canTransmitBatch,
       describeItemDocuments,
       summarizeBatchItems,
     } = await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
 
-    expect(canSubmitBatch({ batch: CTE_BATCH, permissions: [CTE_SUBMIT] })).toBe(true)
-    expect(canSubmitBatch({ batch: CTE_BATCH, permissions: [] })).toBe(false)
-    expect(canSubmitBatch({ batch: CTE_DONE_BATCH, permissions: [CTE_SUBMIT] })).toBe(false)
-
-    expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_SUBMIT] })).toBe(true)
+    /** Transmitir é o único comando do operador: o rascunho vale tanto quanto o lote já fechado. */
+    expect(canTransmitBatch({ batch: CTE_BATCH, permissions: [CTE_SUBMIT] })).toBe(true)
+    expect(canTransmitBatch({ batch: CTE_BATCH, permissions: [] })).toBe(false)
+    /** Lote submetido está em voo: quem termina a transição é o worker, não um segundo comando. */
+    expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_SUBMIT] })).toBe(false)
     expect(canTransmitBatch({ batch: CTE_DONE_BATCH, permissions: [CTE_SUBMIT] })).toBe(false)
     expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_MANAGE] })).toBe(false)
 
@@ -401,6 +441,97 @@ describe('CT-e batch table and items contract', () => {
       rejectedCount: 0,
       totalAmount: '0.00',
     })
+  })
+
+  test('groups the selection by batch and only allows transmitting when every batch is ready', async () => {
+    const { canTransmitSelection, groupSelectionByBatch } =
+      await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
+
+    const itemFromDraftBatch = {
+      ...CTE_BATCH_AUTHORIZED_ITEM,
+      batchId: CTE_BATCH_ID,
+      batchName: CTE_BATCH.name,
+      createdAt: CTE_BATCH.createdAt,
+    }
+    const secondItemFromDraftBatch = {
+      ...CTE_BATCH_REJECTED_ITEM,
+      batchId: CTE_BATCH_ID,
+      batchName: CTE_BATCH.name,
+      createdAt: CTE_BATCH.createdAt,
+    }
+    const itemFromDoneBatch = {
+      ...CTE_BATCH_CANCELLED_ITEM,
+      batchId: CTE_DONE_BATCH_ID,
+      batchName: CTE_DONE_BATCH.name,
+      createdAt: CTE_DONE_BATCH.createdAt,
+      id: '00000000-0000-4000-8000-000000000510',
+    }
+    const items = [itemFromDraftBatch, secondItemFromDraftBatch, itemFromDoneBatch]
+
+    expect(
+      groupSelectionByBatch({
+        items,
+        selectedIds: [itemFromDraftBatch.id, secondItemFromDraftBatch.id],
+      }),
+    ).toEqual([
+      { batchId: CTE_BATCH_ID, itemIds: [itemFromDraftBatch.id, secondItemFromDraftBatch.id] },
+    ])
+
+    const singleBatchGroups = groupSelectionByBatch({
+      items,
+      selectedIds: [itemFromDraftBatch.id],
+    })
+    const crossBatchGroups = groupSelectionByBatch({
+      items,
+      selectedIds: [itemFromDraftBatch.id, itemFromDoneBatch.id],
+    })
+    expect(crossBatchGroups).toHaveLength(2)
+
+    const submittedStatuses = new Map([
+      [CTE_BATCH_ID, CTE_SUBMITTED_BATCH.status],
+      [CTE_DONE_BATCH_ID, CTE_DONE_BATCH.status],
+    ])
+    const draftStatuses = new Map([
+      [CTE_BATCH_ID, CTE_BATCH.status],
+      [CTE_DONE_BATCH_ID, CTE_DONE_BATCH.status],
+    ])
+
+    expect(
+      canTransmitSelection({
+        batchStatuses: submittedStatuses,
+        groups: singleBatchGroups,
+        permissions: [CTE_SUBMIT],
+      }),
+    ).toBe(false)
+    expect(
+      canTransmitSelection({
+        batchStatuses: draftStatuses,
+        groups: singleBatchGroups,
+        permissions: [CTE_MANAGE],
+      }),
+    ).toBe(false)
+    /** O rascunho sai do rascunho dentro da própria emissão — transmitir não exige escala. */
+    expect(
+      canTransmitSelection({
+        batchStatuses: draftStatuses,
+        groups: singleBatchGroups,
+        permissions: [CTE_SUBMIT],
+      }),
+    ).toBe(true)
+    expect(
+      canTransmitSelection({
+        batchStatuses: submittedStatuses,
+        groups: crossBatchGroups,
+        permissions: [CTE_SUBMIT],
+      }),
+    ).toBe(false)
+    expect(
+      canTransmitSelection({
+        batchStatuses: submittedStatuses,
+        groups: [],
+        permissions: [CTE_SUBMIT],
+      }),
+    ).toBe(false)
   })
 })
 
@@ -499,14 +630,19 @@ type CteBatchActionsModule = {
     readonly item: unknown
     readonly permissions: readonly string[]
   }) => boolean
-  readonly canSubmitBatch: (input: {
-    readonly batch: unknown
-    readonly permissions: readonly string[]
-  }) => boolean
   readonly canTransmitBatch: (input: {
     readonly batch: unknown
     readonly permissions: readonly string[]
   }) => boolean
+  readonly canTransmitSelection: (input: {
+    readonly batchStatuses: ReadonlyMap<string, string>
+    readonly groups: readonly { readonly batchId: string; readonly itemIds: readonly string[] }[]
+    readonly permissions: readonly string[]
+  }) => boolean
   readonly describeItemDocuments: (item: unknown) => readonly unknown[]
+  readonly groupSelectionByBatch: (input: {
+    readonly items: readonly unknown[]
+    readonly selectedIds: readonly string[]
+  }) => readonly { readonly batchId: string; readonly itemIds: readonly string[] }[]
   readonly summarizeBatchItems: (items: readonly unknown[]) => unknown
 }

@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type {
   FleetVehicleDetail,
@@ -46,25 +49,33 @@ function VehicleFilterBar({ filters }: Pick<VehiclePanelProps, 'filters'>) {
       </label>
       <label>
         <span>{t('filterRole')}</span>
-        <select
+        <Select
+          ariaLabel={t('filterRole')}
+          clearable
+          compact
+          options={[
+            { label: t('roleOption.traction'), value: 'traction' },
+            { label: t('roleOption.trailer'), value: 'trailer' },
+          ]}
+          placeholder={t('filterAny')}
           value={filters.value.roleEq ?? ''}
-          onChange={(event) => patch({ roleEq: event.target.value as FleetVehicleRole })}
-        >
-          <option value="">{t('filterAny')}</option>
-          <option value="traction">{t('roleOption.traction')}</option>
-          <option value="trailer">{t('roleOption.trailer')}</option>
-        </select>
+          onChange={(value) => patch({ roleEq: value as FleetVehicleRole })}
+        />
       </label>
       <label>
         <span>{t('filterStatus')}</span>
-        <select
+        <Select
+          ariaLabel={t('filterStatus')}
+          clearable
+          compact
+          options={[
+            { label: t('status.active'), value: 'active' },
+            { label: t('status.inactive'), value: 'inactive' },
+          ]}
+          placeholder={t('filterAny')}
           value={filters.value.statusEq ?? ''}
-          onChange={(event) => patch({ statusEq: event.target.value as FleetVehicleStatus })}
-        >
-          <option value="">{t('filterAny')}</option>
-          <option value="active">{t('status.active')}</option>
-          <option value="inactive">{t('status.inactive')}</option>
-        </select>
+          onChange={(value) => patch({ statusEq: value as FleetVehicleStatus })}
+        />
       </label>
     </div>
   )
@@ -79,6 +90,7 @@ export function VehiclePanel({ actions, canManageFleet, filters, view }: Vehicle
         <h2 id="fleet-vehicles-title">{t('vehiclesTitle')}</h2>
         {canManageFleet ? (
           <Button type="button" onClick={actions.onNew}>
+            <Icon name="add" />
             {t('newVehicle')}
           </Button>
         ) : null}

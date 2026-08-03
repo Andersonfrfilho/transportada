@@ -11,6 +11,8 @@ import {
   buildFleetDriverFilters,
   buildFleetVehicleFilters,
   buildLiveManifestFilters,
+  buildLiveManifestItemFilters,
+  buildManifestDiscardFilters,
   buildManifestDriverFilters,
   buildManifestFilters,
   buildManifestItemFilters,
@@ -75,6 +77,29 @@ describe('MDF-e manifest query tenant safety', () => {
 
     expect(query.sql).toContain('"mdfe_manifest_items"."company_id" = $')
     expect(query.sql).toContain('"mdfe_manifest_items"."manifest_id" = $')
+    expect(query.params).toEqual([COMPANY_ID, MANIFEST_ID])
+  })
+
+  // ADR-0017: o descarte perde a corrida em silêncio se o WHERE não repetir o estado do domínio
+  test('scopes the discard update by company, manifest and discardable status', () => {
+    const query = toSql(
+      buildManifestDiscardFilters({ companyId: COMPANY_ID, manifestId: MANIFEST_ID }),
+    )
+
+    expect(query.sql).toContain('"mdfe_manifests"."company_id" = $')
+    expect(query.sql).toContain('"mdfe_manifests"."id" = $')
+    expect(query.sql).toContain('"mdfe_manifests"."status" in ($')
+    expect(query.params).toEqual([COMPANY_ID, MANIFEST_ID, 'draft', 'rejected'])
+  })
+
+  test('releases only the items still held by the manifest', () => {
+    const query = toSql(
+      buildLiveManifestItemFilters({ companyId: COMPANY_ID, manifestId: MANIFEST_ID }),
+    )
+
+    expect(query.sql).toContain('"mdfe_manifest_items"."company_id" = $')
+    expect(query.sql).toContain('"mdfe_manifest_items"."manifest_id" = $')
+    expect(query.sql).toContain('"mdfe_manifest_items"."released_at" is null')
     expect(query.params).toEqual([COMPANY_ID, MANIFEST_ID])
   })
 

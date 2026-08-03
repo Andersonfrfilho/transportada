@@ -12,6 +12,7 @@ export type MdfeManifestStatus =
   | 'rejected'
   | 'closed'
   | 'cancelled'
+  | 'discarded'
 export type MdfeAttemptKind = 'issue' | 'close' | 'cancel'
 export type MdfeIssuanceStatus =
   | 'pending'
@@ -107,6 +108,7 @@ export const mdfeIssuanceAttempts = pgTable('mdfe_issuance_attempts', {
   fiscalNumber: bigint('fiscal_number', { mode: 'bigint' }),
   lastErrorCode: text('last_error_code'),
   lastErrorCause: text('last_error_cause'),
+  lastErrorMessage: text('last_error_message'),
   correlationId: text('correlation_id').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })

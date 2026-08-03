@@ -47,7 +47,12 @@ export type CteReceiverIeIndicator = (typeof CTE_RECEIVER_IE_INDICATORS)[number]
 export const CTE_PICKUP_INDICATORS = ['0', '1'] as const
 export type CtePickupIndicator = (typeof CTE_PICKUP_INDICATORS)[number]
 
-export const CTE_PREDOMINANT_PRODUCT_MODES = ['highest_value', 'highest_weight', 'fixed'] as const
+export const CTE_PREDOMINANT_PRODUCT_MODES = [
+  'highest_value',
+  'highest_weight',
+  'highest_quantity',
+  'fixed',
+] as const
 export type CtePredominantProductMode = (typeof CTE_PREDOMINANT_PRODUCT_MODES)[number]
 
 export const CTE_ICMS_CSTS = ['00', '20', '40', '41', '51', '60', '90'] as const

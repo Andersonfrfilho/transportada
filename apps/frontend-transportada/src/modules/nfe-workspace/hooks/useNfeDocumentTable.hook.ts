@@ -12,6 +12,7 @@ export type TextFilterField =
   | 'recipientName'
 
 export type SelectFilterField =
+  | 'cteIssued'
   | 'emitterCity'
   | 'emitterState'
   | 'recipientCity'
@@ -27,6 +28,7 @@ export type FilterMode = 'advanced' | 'simple'
 export type FieldType = 'amount' | 'date' | 'number' | 'select' | 'text'
 
 export type ConditionField =
+  | 'cteIssued'
   | 'emitterAddress'
   | 'emitterCity'
   | 'emitterName'
@@ -133,6 +135,7 @@ export const AMOUNT_OPERATOR_SYMBOL: Readonly<Record<AmountOperator, string>> = 
 
 export const CONDITION_FIELDS: readonly ConditionField[] = [
   'number',
+  'cteIssued',
   'series',
   'issuedAt',
   'emitterName',
@@ -148,6 +151,7 @@ export const CONDITION_FIELDS: readonly ConditionField[] = [
 ]
 
 export const CONDITION_FIELD_TYPE: Readonly<Record<ConditionField, FieldType>> = {
+  cteIssued: 'select',
   emitterAddress: 'text',
   emitterCity: 'select',
   emitterName: 'text',
@@ -215,7 +219,17 @@ const EMPTY_TEXT: Record<TextFilterField, string> = {
   recipientName: '',
 }
 
+/** The workspace opens on the notas still waiting for a CT-e, the only ones a batch can take. */
+export const CTE_ISSUED_PENDING = 'pending'
+
+export const CTE_ISSUED_DONE = 'issued'
+
+export const CTE_ISSUED_FILTER_VALUES: readonly string[] = [CTE_ISSUED_PENDING, CTE_ISSUED_DONE]
+
+const CTE_ALREADY_LINKED_REASON = 'CTE_BATCH_DOCUMENT_ALREADY_LINKED'
+
 const EMPTY_SELECT: Record<SelectFilterField, string> = {
+  cteIssued: CTE_ISSUED_PENDING,
   emitterCity: '',
   emitterState: '',
   recipientCity: '',
@@ -275,6 +289,7 @@ export type UseNfeDocumentTableResult = Readonly<{
   addGroup: () => void
   advancedFilter: AdvancedFilterModel
   allSelected: boolean
+  blockedCount: number
   cityOptions: Readonly<Record<'emitterCity' | 'recipientCity', readonly string[]>>
   clearAllFilters: () => void
   clearFilter: (key: FilterKey) => void
@@ -370,6 +385,7 @@ function matchesSelect(
   value: string,
 ): boolean {
   if (value.length === 0) return true
+  if (field === 'cteIssued') return cteIssuedValue(document) === value
   if (field === 'status') return document.status === value
   return document[field] === value
 }
@@ -408,10 +424,10 @@ function documentMatchesSearch(document: NfeDocumentListItem, term: string): boo
   return haystack.some((value) => (value ?? '').toLowerCase().includes(needle))
 }
 
-function hasAnyActiveFilter(filters: DocumentFilters): boolean {
+export function hasAnyActiveFilter(filters: DocumentFilters): boolean {
   const textActive = TEXT_FILTER_FIELDS.some((field) => filters.text[field].trim().length > 0)
   const selectActive = (Object.keys(filters.select) as SelectFilterField[]).some(
-    (field) => filters.select[field].length > 0,
+    (field) => filters.select[field] !== EMPTY_FILTERS.select[field],
   )
   const rangeActive =
     filters.numberFrom.trim().length > 0 ||
@@ -423,6 +439,7 @@ function hasAnyActiveFilter(filters: DocumentFilters): boolean {
 }
 
 function conditionFieldRaw(document: NfeDocumentListItem, field: ConditionField): string {
+  if (field === 'cteIssued') return cteIssuedValue(document)
   if (field === 'issuedAt') return document.issuedAt.slice(0, 10)
   return document[field] ?? ''
 }
@@ -543,6 +560,56 @@ export function reorderColumns(
   if (moved === undefined || swapped === undefined) return order
   next[index] = swapped
   next[target] = moved
+  return next
+}
+
+/** A nota only counts as issued when it is tied to a batch that was not cancelled. */
+export function isCteIssued(document: NfeDocumentListItem): boolean {
+  return document.cteBlockReason === CTE_ALREADY_LINKED_REASON
+}
+
+function cteIssuedValue(document: NfeDocumentListItem): string {
+  return isCteIssued(document) ? CTE_ISSUED_DONE : CTE_ISSUED_PENDING
+}
+
+/** The API already resolved the block, so the table never re-derives the fiscal rule. */
+export function isDocumentBlocked(document: NfeDocumentListItem): boolean {
+  return document.cteBlockReason !== null
+}
+
+export function countBlockedDocuments(documents: readonly NfeDocumentListItem[]): number {
+  return documents.filter(isDocumentBlocked).length
+}
+
+export function toggleDocumentSelection({
+  documentId,
+  documents,
+  selectedIds,
+}: {
+  readonly documentId: string
+  readonly documents: readonly NfeDocumentListItem[]
+  readonly selectedIds: ReadonlySet<string>
+}): ReadonlySet<string> {
+  const document = documents.find((candidate) => candidate.id === documentId)
+  if (document !== undefined && isDocumentBlocked(document)) return selectedIds
+  return toggleSetValue(selectedIds, documentId)
+}
+
+export function toggleAllDocumentSelection({
+  allSelected,
+  pageItems,
+  selectedIds,
+}: {
+  readonly allSelected: boolean
+  readonly pageItems: readonly NfeDocumentListItem[]
+  readonly selectedIds: ReadonlySet<string>
+}): ReadonlySet<string> {
+  const next = new Set(selectedIds)
+  for (const item of pageItems) {
+    if (isDocumentBlocked(item)) continue
+    if (allSelected) next.delete(item.id)
+    else next.add(item.id)
+  }
   return next
 }
 
@@ -765,10 +832,12 @@ export function useNfeDocumentTable({
   const rangeStart = totalFiltered === 0 ? 0 : pageStart + 1
   const rangeEnd = Math.min(pageStart + pageSize, totalFiltered)
 
-  const pageIds = useMemo(() => new Set(pageItems.map((item) => item.id)), [pageItems])
-  const selectedOnPage = pageItems.filter((item) => selectedIds.has(item.id)).length
-  const allSelected = pageItems.length > 0 && selectedOnPage === pageItems.length
+  const selectablePageItems = pageItems.filter((item) => !isDocumentBlocked(item))
+  const selectedOnPage = selectablePageItems.filter((item) => selectedIds.has(item.id)).length
+  const allSelected =
+    selectablePageItems.length > 0 && selectedOnPage === selectablePageItems.length
   const someSelected = selectedOnPage > 0 && !allSelected
+  const blockedCount = countBlockedDocuments(pageItems)
   const isDefaultSort =
     sort !== null &&
     sort.column === DEFAULT_SORT?.column &&
@@ -824,7 +893,8 @@ export function useNfeDocumentTable({
       if (key === 'amount') return { ...current, amountValue: '' }
       if (key === 'dateRange') return { ...current, dateFrom: '', dateTo: '' }
       if (key in current.select) {
-        return { ...current, select: { ...current.select, [key]: '' } }
+        const field = key as SelectFilterField
+        return { ...current, select: { ...current.select, [field]: EMPTY_FILTERS.select[field] } }
       }
       return { ...current, text: { ...current.text, [key]: '' } }
     })
@@ -961,19 +1031,15 @@ export function useNfeDocumentTable({
   }
 
   function toggleRow(id: string): void {
-    setSelectedIds((current) => toggleSetValue(current, id))
+    setSelectedIds((current) =>
+      toggleDocumentSelection({ documentId: id, documents: pageItems, selectedIds: current }),
+    )
   }
 
   function toggleSelectAll(): void {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allSelected) {
-        for (const id of pageIds) next.delete(id)
-      } else {
-        for (const id of pageIds) next.add(id)
-      }
-      return next
-    })
+    setSelectedIds((current) =>
+      toggleAllDocumentSelection({ allSelected, pageItems, selectedIds: current }),
+    )
   }
 
   function clearSelection(): void {
@@ -1007,6 +1073,7 @@ export function useNfeDocumentTable({
     addGroup,
     advancedFilter,
     allSelected,
+    blockedCount,
     cityOptions,
     clearAllFilters,
     clearFilter,

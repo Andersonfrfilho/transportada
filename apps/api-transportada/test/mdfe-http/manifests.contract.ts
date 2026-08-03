@@ -8,6 +8,7 @@ import {
   COMPANY_CONTEXT,
   CORRELATION_ID,
   CREATE_MANIFEST_BODY,
+  DISCARDED_MANIFEST_DETAIL,
   DOCUMENT_ID,
   DRIVER_ID,
   MANIFEST_DETAIL,
@@ -236,5 +237,59 @@ describe('GET /mdfe-manifests/:id', () => {
 
     expect(response.status).toBe(404)
     expect((await responseApiError(response)).code).toBe('MDFE_MANIFEST_NOT_FOUND')
+  })
+})
+
+describe('POST /mdfe-manifests/:id/discard', () => {
+  test('discards the manifest and answers 200 with the released detail', async () => {
+    const fixture = await createMdfeHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${MANIFEST_PATH}/discard` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toEqual(DISCARDED_MANIFEST_DETAIL)
+    expect(fixture.discardCalls).toEqual([{ context: COMPANY_CONTEXT, manifestId: MANIFEST_ID }])
+  })
+
+  test('refuses a reader with no mdfe.manage', async () => {
+    const fixture = await createMdfeHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${MANIFEST_PATH}/discard` }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(fixture.discardCalls).toEqual([])
+  })
+
+  test('refuses an identifier that is not a manifest id', async () => {
+    const fixture = await createMdfeHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${MDFE_MANIFESTS_PATH}/not-a-uuid/discard` }),
+    )
+
+    expect(response.status).toBe(404)
+    expect((await responseApiError(response)).code).toBe('NOT_FOUND')
+    expect(fixture.discardCalls).toEqual([])
+  })
+
+  test('answers 409 when the manifest is already with the SEFAZ', async () => {
+    const fixture = await createMdfeHttpFixture({
+      discardError: new ApiError({
+        code: 'MDFE_MANIFEST_NOT_DISCARDABLE',
+        message: 'The manifest cannot be discarded in its current state.',
+        status: 409,
+      }),
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${MANIFEST_PATH}/discard` }),
+    )
+
+    expect(response.status).toBe(409)
+    expect((await responseApiError(response)).code).toBe('MDFE_MANIFEST_NOT_DISCARDABLE')
   })
 })

@@ -19,6 +19,9 @@ const OTHER_ORIGIN = 'https://attacker.example'
 const CORRELATION_ID = 'cors-contract'
 const CTE_BATCH_PATH = '/cte-batches/00000000-0000-4000-8000-000000000501'
 const CTE_BATCH_ITEM_PATH = `${CTE_BATCH_PATH}/items/00000000-0000-4000-8000-000000000507`
+const BILLING_INVOICE_PATH = '/billing/invoices/00000000-0000-4000-8000-000000000701'
+const FLEET_DRIVER_PATH = '/fleet/drivers/00000000-0000-4000-8000-000000000912'
+const FLEET_DRIVER_VEHICLES_PATH = `${FLEET_DRIVER_PATH}/vehicles`
 
 describe('trusted frontend origin configuration', () => {
   test.each(['https://spa.example.test', 'https://spa.example.test:5443', FRONTEND_ORIGIN])(
@@ -158,6 +161,88 @@ describe('API CORS contract', () => {
     )
     expect(fixture.authenticationCalls()).toBe(0)
   })
+
+  test('answers the PATCH preflight of a billing invoice edition', async () => {
+    const fixture = createFixture()
+    const response = await fixture.handle(
+      preflightRequest({
+        pathname: BILLING_INVOICE_PATH,
+        requestedHeaders: 'Authorization, Content-Type, Idempotency-Key',
+        requestedMethod: 'PATCH',
+      }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH')
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'Authorization, Content-Type, Idempotency-Key',
+    )
+    expect(fixture.authenticationCalls()).toBe(0)
+  })
+
+  test.each([
+    [`${BILLING_INVOICE_PATH}/documents`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
+    [`${BILLING_INVOICE_PATH}/cancel`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
+    ['/billing/invoices/preview', 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
+    [BILLING_INVOICE_PATH, 'PATCH', 'Authorization, Content-Type'],
+    [BILLING_INVOICE_PATH, 'DELETE', 'Authorization'],
+  ])(
+    'refuses a PATCH preflight outside the invoice edition boundary: %s %s %s',
+    async (pathname, requestedMethod, requestedHeaders) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({ pathname, requestedHeaders, requestedMethod }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-methods')).toBe(false)
+      expect(fixture.authenticationCalls()).toBe(0)
+    },
+  )
+
+  // Cadastro de frota escreve pelo navegador: sem o preflight liberado a tela nunca chega à rota
+  test.each([
+    ['/fleet/vehicles', 'POST', 'GET, POST'],
+    ['/fleet/vehicles/00000000-0000-4000-8000-000000000911', 'PATCH', 'GET, PATCH'],
+    ['/fleet/drivers', 'POST', 'GET, POST'],
+    [FLEET_DRIVER_PATH, 'PATCH', 'GET, PATCH'],
+    [FLEET_DRIVER_VEHICLES_PATH, 'PUT', 'GET, PUT'],
+  ])('answers the fleet write preflight: %s %s', async (pathname, requestedMethod, allowed) => {
+    const fixture = createFixture()
+    const response = await fixture.handle(
+      preflightRequest({
+        pathname,
+        requestedHeaders: 'Authorization, Content-Type, Idempotency-Key',
+        requestedMethod,
+      }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')).toBe(allowed)
+    expect(fixture.authenticationCalls()).toBe(0)
+  })
+
+  test.each([
+    [FLEET_DRIVER_VEHICLES_PATH, 'DELETE', 'Authorization'],
+    [FLEET_DRIVER_PATH, 'PUT', 'Authorization, Content-Type, Idempotency-Key'],
+  ])(
+    'refuses a fleet preflight outside the registered methods: %s %s',
+    async (pathname, requestedMethod, requestedHeaders) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({ pathname, requestedHeaders, requestedMethod }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-methods')).toBe(false)
+    },
+  )
 
   test('refuses a DELETE preflight on a CT-e item sub-resource', async () => {
     const fixture = createFixture()

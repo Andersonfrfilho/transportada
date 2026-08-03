@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { DRIVER_FORM_KEYS, FLEET_ERROR, VEHICLE_FORM_KEYS } from './fleet.constant'
+import {
+  DRIVER_FORM_KEYS,
+  FLEET_ERROR,
+  VEHICLE_FORM_KEYS,
+  VEHICLE_LOOKUP_FORM_KEYS,
+} from './fleet.constant'
 import type {
   FleetDriverBody,
   FleetDriverDetail,
@@ -7,6 +12,7 @@ import type {
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFormState,
+  FleetVehicleLookup,
 } from './fleet.types'
 
 const OWN_OWNERSHIP = 'own'
@@ -35,6 +41,7 @@ const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
 
 const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   licenseNumber: '',
+  linkedTaxId: '',
   membershipId: '',
   name: '',
   phone: '',
@@ -97,11 +104,25 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
 export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormState {
   return {
     licenseNumber: driver.licenseNumber,
+    linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId ?? '',
     name: driver.name,
     phone: driver.phone,
     taxId: driver.taxId,
   }
+}
+
+/** Campo vazio na consulta não apaga o que o operador já digitou. */
+export function applyVehicleLookup(
+  state: FleetVehicleFormState,
+  lookup: FleetVehicleLookup,
+): FleetVehicleFormState {
+  const filled: Record<string, string> = {}
+  for (const key of VEHICLE_LOOKUP_FORM_KEYS) {
+    const value = lookup[key]
+    if (value !== '') filled[key] = value
+  }
+  return { ...state, ...filled }
 }
 
 export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
@@ -132,6 +153,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
 export function toDriverBody(state: FleetDriverFormState): FleetDriverBody {
   return {
     licenseNumber: normalizeDigits(state.licenseNumber),
+    linkedTaxId: normalizeDigits(state.linkedTaxId),
     membershipId: state.membershipId === '' ? null : state.membershipId,
     name: state.name,
     phone: normalizeDigits(state.phone),

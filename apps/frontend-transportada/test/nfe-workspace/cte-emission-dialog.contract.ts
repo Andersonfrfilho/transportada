@@ -4,16 +4,36 @@ import { describe, expect, test } from 'bun:test'
 import {
   AUTOMATIC_PROFILE_ID,
   CTE_EMISSION_GROUPING_MODES,
+  CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
+  buildPreviewQueryKey,
   buildPreviewRequest,
   canConfirmEmission,
   defaultBatchName,
   groupBlocksByReason,
+  isEmissionFormLocked,
+  resolveBatchName,
+  resolveEmissionStatus,
+  selectEmissionMessageKey,
+  shouldRefreshPreviewAfterFailure,
   summarizePreview,
   toPercentageLabel,
   type CteEmissionPreview,
 } from '../../src/modules/nfe-workspace/shared/cteEmission.service'
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readModule(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
+function collectKeys(value: unknown, prefix: string): readonly string[] {
+  if (typeof value !== 'object' || value === null) return [prefix]
+  return Object.entries(value).flatMap(([key, nested]) =>
+    collectKeys(nested, prefix === '' ? key : `${prefix}.${key}`),
+  )
+}
 
 const DOCUMENT_ID = '00000000-0000-4000-8000-000000000502'
 const BLOCKED_ID = '00000000-0000-4000-8000-000000000504'
@@ -53,12 +73,14 @@ const PREVIEW: CteEmissionPreview = {
       senderTaxId: '61156864000191',
     },
   ],
+  suggestedName: 'CT-e 2026-07-30 #2',
   summary: { blockedCount: 3, documentCount: 4, projectedCount: 1, totalAmount: '43.13' },
 }
 
 const EMPTY_PREVIEW: CteEmissionPreview = {
   blocked: PREVIEW.blocked,
   projections: [],
+  suggestedName: PREVIEW.suggestedName,
   summary: { blockedCount: 3, documentCount: 3, projectedCount: 0, totalAmount: '0.00' },
 }
 
@@ -133,6 +155,28 @@ describe('CT-e emission dialog request contract', () => {
       'CT-e 2026-07-27 (3)',
     )
   })
+
+  test('prefers what the operator typed, then the suggestion from the api, then the local fallback', () => {
+    const fallbackName = 'CT-e 2026-07-30 (1)'
+    const suggestedName = 'CT-e 2026-07-30 #2'
+
+    expect(resolveBatchName({ customName: 'Lote do Spani', fallbackName, suggestedName })).toBe(
+      'Lote do Spani',
+    )
+    // Apagar o campo é escolha do operador — a sugestão não pode voltar por cima.
+    expect(resolveBatchName({ customName: '', fallbackName, suggestedName })).toBe('')
+    expect(resolveBatchName({ customName: null, fallbackName, suggestedName })).toBe(suggestedName)
+    expect(resolveBatchName({ customName: null, fallbackName, suggestedName: '' })).toBe(
+      fallbackName,
+    )
+  })
+
+  test('derives the batch name during render instead of syncing it with an effect', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+
+    expect(hook).toContain('resolveBatchName')
+    expect(hook).not.toContain('useEffect')
+  })
 })
 
 describe('CT-e emission dialog projection contract', () => {
@@ -150,7 +194,9 @@ describe('CT-e emission dialog projection contract', () => {
       documentNumbers: ['000000022'],
       fiscalAmount: '43.13',
       id: DOCUMENT_ID,
+      matchedBy: 'sender_tax_id',
       percentageLabel: '4.50',
+      profileId: PROFILE_ID,
       profileName: 'Perfil Zaragoza',
       resolvedBy: 'auto',
     })
@@ -213,5 +259,180 @@ describe('CT-e emission dialog confirmation contract', () => {
 
   test('allows confirmation of the projected notes even when part of the selection is blocked', () => {
     expect(canConfirmEmission({ preview: PREVIEW, status: 'ready' })).toBe(true)
+  })
+})
+
+describe('CT-e emission dialog failure contract', () => {
+  test('keeps the projection failure apart from the creation failure', () => {
+    const base = {
+      hasPreview: true,
+      isCreateError: false,
+      isCreating: false,
+      isPreviewError: false,
+      isPreviewFetching: false,
+    }
+
+    expect(resolveEmissionStatus(base)).toBe('ready')
+    expect(resolveEmissionStatus({ ...base, isPreviewError: true })).toBe('previewError')
+    expect(resolveEmissionStatus({ ...base, isCreateError: true })).toBe('createError')
+    expect(resolveEmissionStatus({ ...base, isCreating: true, isCreateError: true })).toBe(
+      'creating',
+    )
+    expect(resolveEmissionStatus({ ...base, hasPreview: false })).toBe('loading')
+    expect(resolveEmissionStatus({ ...base, isPreviewFetching: true })).toBe('loading')
+  })
+
+  test('names the message by what actually failed, never blaming the projection for a creation error', () => {
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'ready' })).toBeNull()
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'loading' })).toBeNull()
+    expect(
+      selectEmissionMessageKey({ errorCode: 'CTE_BATCH_REQUEST_FAILED', status: 'previewError' }),
+    ).toBe('cteEmission.errorPreview')
+    expect(
+      selectEmissionMessageKey({ errorCode: 'CTE_BATCH_NAME_TAKEN', status: 'createError' }),
+    ).toBe('cteEmission.errorNameTaken')
+    expect(
+      selectEmissionMessageKey({ errorCode: 'CTE_BATCH_REQUEST_FAILED', status: 'createError' }),
+    ).toBe('cteEmission.errorCreate')
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'createError' })).toBe(
+      'cteEmission.errorCreate',
+    )
+  })
+
+  test('says the note went into another CT-e instead of asking for a retry that never works', () => {
+    expect(
+      selectEmissionMessageKey({
+        errorCode: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+        status: 'createError',
+      }),
+    ).toBe('cteEmission.errorAlreadyLinked')
+    // Só a criação erra por vínculo; na projeção a nota já aparece na lista de bloqueadas.
+    expect(
+      selectEmissionMessageKey({
+        errorCode: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+        status: 'previewError',
+      }),
+    ).toBe('cteEmission.errorPreview')
+  })
+
+  test('lets the operator retry after a creation failure instead of locking the confirm button', () => {
+    expect(canConfirmEmission({ preview: PREVIEW, status: 'createError' })).toBe(true)
+    expect(canConfirmEmission({ preview: EMPTY_PREVIEW, status: 'createError' })).toBe(false)
+    expect(canConfirmEmission({ preview: PREVIEW, status: 'previewError' })).toBe(false)
+  })
+
+  test('renders the projection and the editable name independently of the failure message', async () => {
+    const component = await readModule(
+      'src/modules/nfe-workspace/components/CteEmissionDialog.component.tsx',
+    )
+
+    expect(component).toContain('selectEmissionMessageKey')
+    expect(component).toContain('{dialog.summary !== null && (')
+    expect(component).not.toContain("t('cteEmission.error')")
+    expect(component).not.toContain("dialog.status === 'error'")
+    // O nome continua editável depois da falha: só a criação em curso trava o formulário.
+    expect(isEmissionFormLocked('createError')).toBe(false)
+  })
+
+  test('keeps every failure string in both locales, with matching keys and no orphan message', async () => {
+    const [portuguese, english] = await Promise.all([
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json').then(
+        (raw) => JSON.parse(raw) as Record<string, unknown>,
+      ),
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json').then(
+        (raw) => JSON.parse(raw) as Record<string, unknown>,
+      ),
+    ])
+    const portugueseKeys = collectKeys(portuguese.cteEmission, '')
+    const englishKeys = collectKeys(english.cteEmission, '')
+
+    expect(portugueseKeys).toEqual(englishKeys)
+    for (const keys of [portugueseKeys, englishKeys]) {
+      expect(keys).toContain('errorPreview')
+      expect(keys).toContain('errorNameTaken')
+      expect(keys).toContain('errorCreate')
+      expect(keys).toContain('errorAlreadyLinked')
+      expect(keys).not.toContain('error')
+    }
+  })
+})
+
+describe('CT-e emission dialog projection freshness contract', () => {
+  const selection = {
+    companyId: '00000000-0000-4000-8000-000000000500',
+    documentIds: [DOCUMENT_ID, BLOCKED_ID],
+    emissionProfileId: AUTOMATIC_PROFILE_ID,
+    groupingMode: DEFAULT_GROUPING_MODE,
+  }
+
+  test('keys the projection by the selection that produced it', () => {
+    expect(buildPreviewQueryKey(selection)).toEqual([
+      CTE_EMISSION_PREVIEW_QUERY_KEY,
+      selection.companyId,
+      [DOCUMENT_ID, BLOCKED_ID],
+      AUTOMATIC_PROFILE_ID,
+      'per_invoice',
+    ])
+    for (const changed of [
+      { ...selection, companyId: '00000000-0000-4000-8000-000000000509' },
+      { ...selection, documentIds: [DOCUMENT_ID] },
+      { ...selection, emissionProfileId: PROFILE_ID },
+      { ...selection, groupingMode: 'sender_recipient' as const },
+    ]) {
+      expect(buildPreviewQueryKey(changed)).not.toEqual(buildPreviewQueryKey(selection))
+    }
+  })
+
+  test('reuses one cache entry for a selection that produces the same request', () => {
+    expect(
+      buildPreviewQueryKey({ ...selection, documentIds: [DOCUMENT_ID, BLOCKED_ID, DOCUMENT_ID] }),
+    ).toEqual(buildPreviewQueryKey(selection))
+  })
+
+  test('recalculates the projection when the api rejects a note already linked elsewhere', () => {
+    expect(shouldRefreshPreviewAfterFailure('CTE_BATCH_DOCUMENT_ALREADY_LINKED')).toBe(true)
+    // Nome repetido é escolha do operador: a projeção continua válida, refazê-la só cobraria a api.
+    expect(shouldRefreshPreviewAfterFailure('CTE_BATCH_NAME_TAKEN')).toBe(false)
+    expect(shouldRefreshPreviewAfterFailure('CTE_BATCH_REQUEST_FAILED')).toBe(false)
+    expect(shouldRefreshPreviewAfterFailure(null)).toBe(false)
+  })
+
+  test('drops every cached projection when a batch is created', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+
+    expect(hook).toContain('buildPreviewQueryKey')
+    expect(hook).toContain('shouldRefreshPreviewAfterFailure')
+    // Invalidar só a chave atual deixaria as outras seleções projetando notas já vinculadas.
+    expect(hook).toContain('invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })')
+    expect(hook).not.toContain("const CTE_EMISSION_PREVIEW_QUERY_KEY = 'cte-emission-preview'")
+  })
+})
+
+describe('CT-e emission form lock contract', () => {
+  test('locks the form only while the batch is being created', () => {
+    expect(isEmissionFormLocked('creating')).toBe(true)
+    for (const status of ['createError', 'idle', 'loading', 'previewError', 'ready'] as const) {
+      expect(isEmissionFormLocked(status)).toBe(false)
+    }
+  })
+
+  test('derives the lock once, instead of repeating the status check per field', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+
+    expect(hook).toContain('isEmissionFormLocked')
+    expect(hook).toContain('isFormLocked')
+  })
+
+  /** Editar durante a criação muda a projeção que o servidor já está gravando. */
+  test('freezes every editable control while the batch is being created', async () => {
+    const component = await readModule(
+      'src/modules/nfe-workspace/components/CteEmissionDialog.component.tsx',
+    )
+
+    // Nome, perfil, agrupamento e o atalho de perfis — e só eles: fechar é a saída do operador
+    // se a criação demorar, travá-lo o prenderia no diálogo.
+    const lockedControls = component.match(/disabled=\{dialog\.isFormLocked\}/g) ?? []
+    expect(lockedControls).toHaveLength(4)
+    expect(/<input(?:(?!\/>)[\s\S])*disabled=\{dialog\.isFormLocked\}/.test(component)).toBe(true)
   })
 })

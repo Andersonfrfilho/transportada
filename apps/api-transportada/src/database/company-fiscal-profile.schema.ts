@@ -16,6 +16,8 @@ import type { MdfeInsuranceResponsibility } from './mdfe.schema.js'
 export const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export type FiscalEnvironment = (typeof FISCAL_ENVIRONMENTS)[number]
 
+export const BILLING_OBSERVATIONS_MAX_LENGTH = 500
+
 export const TAX_REGIMES = ['1', '2', '3'] as const
 export type TaxRegime = (typeof TAX_REGIMES)[number]
 
@@ -56,6 +58,12 @@ export const companyFiscalProfiles = pgTable(
     mdfePaymentBankCode: text('mdfe_payment_bank_code').notNull().default(''),
     mdfePaymentBankBranch: text('mdfe_payment_bank_branch').notNull().default(''),
     mdfePaymentPixKey: text('mdfe_payment_pix_key').notNull().default(''),
+    billingBankName: text('billing_bank_name').notNull().default(''),
+    billingBankCode: text('billing_bank_code').notNull().default(''),
+    billingBankBranch: text('billing_bank_branch').notNull().default(''),
+    billingBankAccount: text('billing_bank_account').notNull().default(''),
+    billingPixKey: text('billing_pix_key').notNull().default(''),
+    billingObservations: text('billing_observations').notNull().default(''),
     cteRetryMaxAttempts: integer('cte_retry_max_attempts')
       .notNull()
       .default(CTE_RETRY_DEFAULT_MAX_ATTEMPTS),
@@ -69,6 +77,18 @@ export const companyFiscalProfiles = pgTable(
   },
   (table) => [
     unique('company_fiscal_profiles_cnpj_unique').on(table.cnpj),
+    check(
+      'company_fiscal_profiles_billing_bank_code_check',
+      sql`length(${table.billingBankCode}) = 0 or ${table.billingBankCode} ~ '^[0-9]{3}$'`,
+    ),
+    check(
+      'company_fiscal_profiles_billing_bank_branch_check',
+      sql`length(${table.billingBankBranch}) = 0 or ${table.billingBankBranch} ~ '^[0-9]{1,10}$'`,
+    ),
+    check(
+      'company_fiscal_profiles_billing_observations_check',
+      sql`length(${table.billingObservations}) <= ${sql.raw(String(BILLING_OBSERVATIONS_MAX_LENGTH))}`,
+    ),
     check('company_fiscal_profiles_cnpj_check', sql`${table.cnpj} ~ '^[0-9]{14}$'`),
     check(
       'company_fiscal_profiles_cte_retry_backoff_check',

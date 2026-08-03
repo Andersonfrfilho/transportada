@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 type FleetFieldProps = Readonly<{
   inputMode?: 'numeric' | 'text'
   label: string
@@ -49,13 +51,15 @@ export function FleetSelectField<TValue extends string>({
   return (
     <label>
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value as TValue)}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {t(`${optionLabelKey}.${option}`)}
-          </option>
-        ))}
-      </select>
+      <Select
+        ariaLabel={label}
+        options={options.map((option) => ({
+          label: t(`${optionLabelKey}.${option}`),
+          value: option,
+        }))}
+        value={value}
+        onChange={(next) => onChange(next as TValue)}
+      />
     </label>
   )
 }

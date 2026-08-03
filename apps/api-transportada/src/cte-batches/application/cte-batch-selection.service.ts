@@ -12,8 +12,8 @@ import { createFreightRuleSnapshot } from '../../freight-calculations/domain/fre
 import { ApiError } from '../../shared/api.error.js'
 import {
   CTE_BATCH_BLOCK_REASON,
-  checkDocumentEligibility,
   isFreightRuleInForce,
+  resolveDocumentBlock,
 } from '../domain/cte-batch-eligibility.policy.js'
 import type {
   CteBatchProjectionCandidate,
@@ -111,14 +111,12 @@ function resolveDocument({
   readonly params: CteBatchSelectionParams
 }): DocumentOutcome {
   const documentId = document.id
-  const eligibility = checkDocumentEligibility(document)
-  if (eligibility.reason !== undefined)
-    return { blocked: blockDocument(documentId, eligibility.reason) }
-  if (batchId !== null) {
-    return { blocked: { batchId, documentId, reason: CTE_BATCH_BLOCK_REASON.alreadyLinked } }
+  const decision = resolveDocumentBlock({ document, linkedBatchId: batchId })
+  if (decision.blocked !== undefined) {
+    return { blocked: { ...decision.blocked, documentId } }
   }
 
-  const parties = eligibility.chargeable
+  const parties = decision.chargeable
   let resolution: EmissionProfileResolution
   try {
     resolution =

@@ -5,6 +5,7 @@ import {
   BILLING_CREATE_REQUEST,
   BILLING_DOCUMENT_PAGE,
   BILLING_ELIGIBLE_FILTERS,
+  BILLING_ELIGIBLE_LIMIT,
   BILLING_ELIGIBLE_PAGE,
   BILLING_INVOICE_ID,
   BILLING_ISSUED_INVOICE,
@@ -32,8 +33,9 @@ describe('billing client and queries contract', () => {
 
     expect(
       await client.listEligibleCtes({
-        ...BILLING_ELIGIBLE_FILTERS,
         cursor: SYNTHETIC_CURSOR,
+        filters: BILLING_ELIGIBLE_FILTERS,
+        limit: BILLING_ELIGIBLE_LIMIT,
       }),
     ).toEqual(BILLING_ELIGIBLE_PAGE)
     expect(
@@ -68,7 +70,7 @@ describe('billing client and queries contract', () => {
     }
 
     expect(eligibleRequest.url).toBe(
-      `https://api.example.test/billing/eligible-ctes?batchId=${BILLING_ELIGIBLE_FILTERS.batchId}&cteNumber=${BILLING_ELIGIBLE_FILTERS.cteNumber}&customerDocument=${BILLING_ELIGIBLE_FILTERS.customerDocument}&issuedFrom=${BILLING_ELIGIBLE_FILTERS.issuedFrom}&issuedTo=${BILLING_ELIGIBLE_FILTERS.issuedTo}&minAmount=${BILLING_ELIGIBLE_FILTERS.minAmount}&maxAmount=${BILLING_ELIGIBLE_FILTERS.maxAmount}&limit=25&cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}`,
+      `https://api.example.test/billing/eligible-ctes?limit=${BILLING_ELIGIBLE_LIMIT}&cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&batchId=${BILLING_ELIGIBLE_FILTERS.batchId}&cteNumberIn=${BILLING_ELIGIBLE_FILTERS.cteNumberQuery}&customerDocument=${BILLING_ELIGIBLE_FILTERS.customerDocument}&issuedFrom=${BILLING_ELIGIBLE_FILTERS.issuedFrom}&issuedTo=${BILLING_ELIGIBLE_FILTERS.issuedTo}&maxAmount=${BILLING_ELIGIBLE_FILTERS.maxAmount}&minAmount=${BILLING_ELIGIBLE_FILTERS.minAmount}`,
     )
     expect(eligibleRequest.method).toBe('GET')
     expect(eligibleRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
@@ -102,6 +104,24 @@ describe('billing client and queries contract', () => {
     expect(await cancelRequest.json()).toEqual({
       reason: 'Cancelamento operacional por ajuste de cobranca',
     })
+  })
+
+  test('accepts an invoice list row without the item breakdown the API only sends in the detail', async () => {
+    const { createBillingResponseAdapters } = await loadFutureModule<BillingAdaptersModule>(
+      '../../src/modules/billing/shared/billingResponse.validation',
+    )
+    const adapters = createBillingResponseAdapters()
+    const listRow = Object.fromEntries(
+      Object.entries(BILLING_ISSUED_INVOICE).filter(([key]) => key !== 'items'),
+    )
+
+    const page = adapters.invoicePageFromApi({
+      data: [listRow],
+      page: { nextCursor: null },
+    }) as { readonly items: readonly { readonly itemCount: number; readonly items: unknown[] }[] }
+
+    expect(page.items[0]?.items).toEqual([])
+    expect(page.items[0]?.itemCount).toBe(BILLING_ISSUED_INVOICE.itemCount)
   })
 
   test('keeps eligibility, invoice and document dto boundaries strict and rejects sensitive fields', async () => {
@@ -174,15 +194,18 @@ type BillingClient = {
   getInvoice(input: { readonly invoiceId: string }): Promise<unknown>
   listDocuments(input: { readonly invoiceId: string }): Promise<unknown>
   listEligibleCtes(input: {
-    readonly batchId: string
-    readonly cteNumber: string
     readonly cursor: null | string
-    readonly customerDocument: string
-    readonly issuedFrom: string
-    readonly issuedTo: string
+    readonly filters: {
+      readonly batchId: string
+      readonly cteNumberQuery: string
+      readonly customerDocument: string
+      readonly customerName: string
+      readonly issuedFrom: string
+      readonly issuedTo: string
+      readonly maxAmount: string
+      readonly minAmount: string
+    }
     readonly limit: number
-    readonly maxAmount: string
-    readonly minAmount: string
   }): Promise<unknown>
 }
 
@@ -199,5 +222,6 @@ type BillingAdaptersModule = {
     readonly documentPageFromApi: (input: unknown) => unknown
     readonly eligiblePageFromApi: (input: unknown) => unknown
     readonly invoiceFromApi: (input: unknown) => unknown
+    readonly invoicePageFromApi: (input: unknown) => unknown
   }
 }

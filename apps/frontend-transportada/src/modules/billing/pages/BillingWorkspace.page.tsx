@@ -2,98 +2,116 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
+import { BillingEligibleTable } from '../components/BillingEligibleTable.component'
+import { BillingInvoiceTable } from '../components/BillingInvoiceTable.component'
+import { DueDateField } from '../components/DueDateField.component'
+import { useBillingEligibleTable } from '../hooks/useBillingEligibleTable.hook'
+import { useBillingInvoiceTable } from '../hooks/useBillingInvoiceTable.hook'
 import { useBillingWorkspace } from '../hooks/useBillingWorkspace.hook'
-import { createBillingDocumentDownloadController } from '../shared/billingDocumentDownload.service'
 import { createBillingDrafts } from '../shared/billingDraft.service'
-import type { BillingEligibleFilters } from '../shared/billingClient.service'
+import { navigateToBillingInvoice } from '../shared/billingInvoiceRoute.service'
 import { createBillingViewModel } from '../shared/billingViewModel.service'
-
-const FILTER_FIELDS: readonly (keyof Omit<BillingEligibleFilters, 'limit'>)[] = [
-  'batchId',
-  'cteNumber',
-  'customerDocument',
-  'issuedFrom',
-  'issuedTo',
-  'minAmount',
-  'maxAmount',
-]
-
-function sumSelectedAmount(
-  selectedIds: readonly string[],
-  items: readonly { cteId: string; totalAmount: string }[],
-): string {
-  const total = items
-    .filter((item) => selectedIds.includes(item.cteId))
-    .reduce((amount, item) => amount + BigInt(item.totalAmount.replace('.', '')), 0n)
-  return `${total / 100n}.${(total % 100n).toString().padStart(2, '0')}`
-}
 
 export function BillingWorkspacePage() {
   const { t } = useTranslation('billingWorkspace')
   const authQuery = useAuthMeQuery()
   const drafts = createBillingDrafts()
-  const [filters, setFilters] = useState<Partial<Omit<BillingEligibleFilters, 'limit'>>>({})
-  const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
   const [dueDate, setDueDate] = useState('')
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('')
-  const [cancelReason, setCancelReason] = useState('')
+  const [activeTab, setActiveTab] = useState<'create' | 'invoices'>('create')
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
+  const eligibleTable = useBillingEligibleTable({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
+  const invoiceTable = useBillingInvoiceTable({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
   const workspace = useBillingWorkspace({
     ...(companyId === undefined ? {} : { companyId }),
-    eligibleFilters: filters,
     permissions,
-    ...(selectedInvoiceId === '' ? {} : { selectedInvoiceId }),
   })
   const status =
-    authQuery.isError ||
-    workspace.eligibleQuery.isError ||
-    workspace.invoiceQuery.isError ||
-    workspace.documentsQuery.isError
+    authQuery.isError || eligibleTable.eligibleQuery.isError
       ? 'error'
       : authQuery.isLoading ||
-          (workspace.controller.canReadBilling &&
-            (workspace.eligibleQuery.isLoading ||
-              workspace.invoiceQuery.isLoading ||
-              workspace.documentsQuery.isLoading))
+          (workspace.controller.canReadBilling && eligibleTable.eligibleQuery.isLoading)
         ? 'loading'
         : 'success'
   const viewModel = createBillingViewModel({
     permissions,
     status,
-    ...(workspace.documentsQuery.data === undefined
+    ...(eligibleTable.eligibleQuery.data === undefined
       ? {}
-      : { documents: workspace.documentsQuery.data }),
-    ...(workspace.eligibleQuery.data === undefined
-      ? {}
-      : { eligible: workspace.eligibleQuery.data }),
-    ...(workspace.invoiceQuery.data === undefined ? {} : { invoice: workspace.invoiceQuery.data }),
+      : { eligible: eligibleTable.eligibleQuery.data }),
   })
-  const downloadController = createBillingDocumentDownloadController({
-    openUrl: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
-  })
-  const eligibleItems = workspace.eligibleQuery.data?.items ?? []
-  const totalSelectedAmount = sumSelectedAmount(selectedIds, eligibleItems)
-
-  function updateFilter(key: keyof Omit<BillingEligibleFilters, 'limit'>, value: string): void {
-    setFilters((current) => ({ ...current, [key]: value.trim() === '' ? undefined : value }))
-  }
 
   async function handleCreateInvoice(): Promise<void> {
-    const draft = drafts.createInvoiceDraft({ cteIds: selectedIds, dueDate })
+    const draft = drafts.createInvoiceDraft({ cteIds: eligibleTable.selectedIds, dueDate })
     const invoice = await workspace.createMutation.mutateAsync(draft)
-    setSelectedIds([])
-    setSelectedInvoiceId(invoice.id)
+    eligibleTable.clearSelection()
+    navigateToBillingInvoice({
+      invoiceId: invoice.id,
+      navigator: createBrowserWorkspaceNavigator(),
+    })
   }
 
-  async function handleCancelInvoice(): Promise<void> {
-    const draft = drafts.createCancelDraft({ invoiceId: selectedInvoiceId, reason: cancelReason })
-    const invoice = await workspace.cancelMutation.mutateAsync(draft)
-    setCancelReason('')
-    setSelectedInvoiceId(invoice.id)
-  }
+  const tabs: readonly TabsItem[] = [
+    {
+      id: 'create',
+      label: t('tabs.create'),
+      panel:
+        viewModel.status === 'forbidden' ? null : (
+          <div className="workspace-grid">
+            <section className="workspace-panel workspace-panel-full">
+              <BillingEligibleTable table={eligibleTable} />
+            </section>
+            <section className="workspace-panel workspace-panel-full">
+              <h2>{t('create.title')}</h2>
+              <p className="workspace-status-text">
+                {t('create.selectionSummary', {
+                  count: eligibleTable.selection.count,
+                  total: formatAmount(eligibleTable.selection.totalAmount),
+                })}
+              </p>
+              <DueDateField onChange={setDueDate} value={dueDate} />
+              <button
+                className="workspace-primary-action"
+                disabled={
+                  !viewModel.canCreateBilling ||
+                  eligibleTable.selection.count === 0 ||
+                  eligibleTable.selection.customerDocuments.length > 1 ||
+                  dueDate === ''
+                }
+                onClick={() => void handleCreateInvoice()}
+                type="button"
+              >
+                <Icon name="invoice" />
+                {t('create.submit')}
+              </button>
+            </section>
+          </div>
+        ),
+    },
+    {
+      id: 'invoices',
+      label: t('tabs.invoices'),
+      panel: (
+        <div className="workspace-grid">
+          <section className="workspace-panel workspace-panel-full">
+            <BillingInvoiceTable table={invoiceTable} />
+          </section>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <main className="workspace-shell">
@@ -109,7 +127,10 @@ export function BillingWorkspacePage() {
           <span>Estado atual</span>
           <strong>{viewModel.status}</strong>
           <p className="workspace-status-text">
-            {t('eligible.summary', { count: selectedIds.length, total: totalSelectedAmount })}
+            {t('create.selectionSummary', {
+              count: eligibleTable.selection.count,
+              total: formatAmount(eligibleTable.selection.totalAmount),
+            })}
           </p>
         </div>
       </header>
@@ -123,163 +144,12 @@ export function BillingWorkspacePage() {
       >
         {t(`status.${viewModel.status}`)}
       </p>
-      {viewModel.status === 'forbidden' ? null : (
-        <div className="workspace-grid">
-          <section className="workspace-panel">
-            <h2>{t('filters.title')}</h2>
-            <div className="workspace-filter-grid">
-              {FILTER_FIELDS.map((field) => (
-                <label key={field}>
-                  <span>{t(`filters.${field}`)}</span>
-                  <input
-                    onChange={(event) => updateFilter(field, event.target.value)}
-                    type="text"
-                    value={filters[field] ?? ''}
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="workspace-actions">
-              <button
-                className="workspace-secondary-action"
-                onClick={() => setFilters({})}
-                type="button"
-              >
-                {t('filters.clear')}
-              </button>
-            </div>
-          </section>
-          <section className="workspace-panel workspace-panel-full">
-            <h2>{t('eligible.title')}</h2>
-            <p>
-              {t('eligible.summary', { count: selectedIds.length, total: totalSelectedAmount })}
-            </p>
-            {eligibleItems.length === 0 ? (
-              <p>{t('eligible.empty')}</p>
-            ) : (
-              <div className="workspace-table-scroll">
-                <table className="workspace-table">
-                  <thead>
-                    <tr>
-                      <th>{t('eligible.select')}</th>
-                      <th>{t('eligible.cteNumber')}</th>
-                      <th>{t('eligible.customer')}</th>
-                      <th>{t('eligible.totalAmount')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eligibleItems.map((item) => (
-                      <tr key={item.cteId}>
-                        <td>
-                          <input
-                            checked={selectedIds.includes(item.cteId)}
-                            disabled={!viewModel.canCreateBilling}
-                            onChange={(event) =>
-                              setSelectedIds((current) =>
-                                event.target.checked
-                                  ? drafts.createSelectionDraft({
-                                      selectedIds: [...current, item.cteId],
-                                    }).selectedIds
-                                  : current.filter((id) => id !== item.cteId),
-                              )
-                            }
-                            type="checkbox"
-                          />
-                        </td>
-                        <td>{item.cteNumber}</td>
-                        <td>{item.customerName}</td>
-                        <td>{item.totalAmount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-          <section className="workspace-panel">
-            <h2>{t('create.title')}</h2>
-            <label>
-              <span>{t('create.dueDate')}</span>
-              <input
-                onChange={(event) => setDueDate(event.target.value)}
-                type="date"
-                value={dueDate}
-              />
-            </label>
-            <button
-              className="workspace-primary-action"
-              disabled={!viewModel.canCreateBilling || selectedIds.length === 0 || dueDate === ''}
-              onClick={() => void handleCreateInvoice()}
-              type="button"
-            >
-              {t('create.submit')}
-            </button>
-          </section>
-          <section className="workspace-panel">
-            <h2>{t('invoice.title')}</h2>
-            <label>
-              <span>{t('invoice.lookup')}</span>
-              <input
-                onChange={(event) => setSelectedInvoiceId(event.target.value)}
-                type="text"
-                value={selectedInvoiceId}
-              />
-            </label>
-            {workspace.invoiceQuery.data === undefined ? (
-              <p>{t('invoice.empty')}</p>
-            ) : (
-              <>
-                <p>{t('invoice.number', { value: workspace.invoiceQuery.data.invoiceNumber })}</p>
-                <p>{t('invoice.customer', { value: workspace.invoiceQuery.data.customer.name })}</p>
-                <p>{t('invoice.total', { value: workspace.invoiceQuery.data.totalAmount })}</p>
-                <p>{t('invoice.statusValue', { value: workspace.invoiceQuery.data.status })}</p>
-              </>
-            )}
-            <label>
-              <span>{t('cancel.reason')}</span>
-              <input
-                onChange={(event) => setCancelReason(event.target.value)}
-                type="text"
-                value={cancelReason}
-              />
-            </label>
-            <button
-              className="workspace-secondary-action"
-              disabled={
-                !viewModel.canCancelBilling ||
-                selectedInvoiceId === '' ||
-                cancelReason.trim().length < 3
-              }
-              onClick={() => void handleCancelInvoice()}
-              type="button"
-            >
-              {t('cancel.submit')}
-            </button>
-          </section>
-          <section className="workspace-panel">
-            <h2>{t('documents.title')}</h2>
-            {(workspace.documentsQuery.data?.items ?? []).length === 0 ? (
-              <p>{t('documents.empty')}</p>
-            ) : (
-              <ul className="workspace-list">
-                {workspace.documentsQuery.data?.items.map((document) => (
-                  <li key={document.documentId}>
-                    <strong>{document.documentType}</strong>
-                    <button
-                      className="workspace-secondary-action"
-                      disabled={!viewModel.canDownloadBillingDocument}
-                      onClick={() => downloadController.openDocument(document)}
-                      type="button"
-                    >
-                      {t('documents.download')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      )}
+      <Tabs
+        ariaLabel={t('title')}
+        items={tabs}
+        onChange={(id) => setActiveTab(id === 'invoices' ? 'invoices' : 'create')}
+        value={activeTab}
+      />
     </main>
   )
 }

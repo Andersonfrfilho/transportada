@@ -1,0 +1,373 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.counter {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.tableToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.iconAction {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  background: transparent;
+  cursor: pointer;
+}
+
+.iconActionActive {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  color: var(--color-asphalt);
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.filterCountPill {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  line-height: var(--space-4);
+  background: var(--color-copper);
+}
+
+.filterPanel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.fieldGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fieldGrid label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.fieldGrid input[type='text'],
+.builderCondition input[type='text'] {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.fieldGrid input[type='text'][aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldError {
+  color: var(--color-alert);
+  font-size: 0.78rem;
+}
+
+.builder {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.builderGroup {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 26%, transparent);
+}
+
+.builderGroupHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.builderConditions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.builderCondition {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+@media (min-width: 48rem) {
+  .builderCondition {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  }
+}
+
+.builderValues {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.builderValues input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.builderConnectorRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.builderConnectorChip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  background: none;
+  cursor: pointer;
+}
+
+.builderConnectorLine {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.builderAction {
+  justify-self: start;
+  padding: var(--space-1) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  background: none;
+  cursor: pointer;
+}
+
+.columnsMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.columnsPopover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 16rem;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+}
+
+.columnRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.checkOption {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.columnReorder {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.bulkSummary {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.warning {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+/* Sem position, o .srOnly absoluto resolve o bloco contêiner fora do scroller e estica a página. */
+.tableScroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.dataTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
+}
+
+.dataTable tbody tr[aria-selected='true'] {
+  outline: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.amountCell {
+  font-family: var(--font-utility);
+  text-align: right;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.emptyState {
+  margin: 0;
+  padding: var(--space-4) 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.creationBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.creationField {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}

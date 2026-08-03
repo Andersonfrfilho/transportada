@@ -3,6 +3,7 @@ import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
 } from './companySettings.constant'
+import { CERTIFICATE_PURPOSES } from './companySettings.types'
 import type {
   CompanyProfileLookup,
   CompanyProfileLookupResponse,
@@ -11,6 +12,7 @@ import type {
   SafeCertificate,
 } from './companySettings.types'
 
+const BILLING_KEYS = ['bankAccount', 'bankBranch', 'bankCode', 'bankName', 'observations', 'pixKey']
 const CERTIFICATE_KEYS = ['expiresAt', 'id', 'purpose', 'status', 'validFrom', 'version']
 const CTE_KEYS = ['environment', 'nextNumber', 'series', 'version']
 const CTE_RETRY_KEYS = ['backoffSeconds', 'maxAttempts']
@@ -96,7 +98,7 @@ export function isSafeCertificate(value: unknown): value is SafeCertificate {
   return (
     typeof value.id === 'string' &&
     UUID.test(value.id) &&
-    value.purpose === 'cte' &&
+    CERTIFICATE_PURPOSES.some((purpose) => purpose === value.purpose) &&
     (value.status === 'active' || value.status === 'retired') &&
     isIsoDate(value.validFrom) &&
     isIsoDate(value.expiresAt) &&
@@ -150,6 +152,11 @@ function isCteRetryPolicy(value: unknown): boolean {
   )
 }
 
+function isBillingDefaults(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys({ keys: BILLING_KEYS, value })) return false
+  return BILLING_KEYS.every((key) => typeof value[key] === 'string')
+}
+
 function isMdfeDefaults(value: unknown): boolean {
   if (!isRecord(value) || !hasExactKeys({ keys: MDFE_KEYS, value })) return false
   const responsibility = value.insuranceResponsibility
@@ -172,9 +179,10 @@ function isFiscalProfile(value: unknown): boolean {
 export function isSettingsResponse(value: unknown): value is CompanySettingsResponse {
   if (!isRecord(value) || !hasExactKeys({ keys: ['data'], value }) || !isRecord(value.data))
     return false
-  const { cte, cteRetry, mdfe, profile } = value.data
+  const { billing, cte, cteRetry, mdfe, profile } = value.data
   return (
-    hasExactKeys({ keys: ['cte', 'cteRetry', 'mdfe', 'profile'], value: value.data }) &&
+    hasExactKeys({ keys: ['billing', 'cte', 'cteRetry', 'mdfe', 'profile'], value: value.data }) &&
+    (billing === null || isBillingDefaults(billing)) &&
     (cte === null || isCteSettings(cte)) &&
     (cteRetry === null || isCteRetryPolicy(cteRetry)) &&
     (mdfe === null || isMdfeDefaults(mdfe)) &&

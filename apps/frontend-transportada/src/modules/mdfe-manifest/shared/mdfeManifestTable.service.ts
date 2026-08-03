@@ -60,6 +60,8 @@ export const EMPTY_MDFE_MANIFEST_FILTERS: MdfeManifestTableFilters = {
 
 const NUMERIC_COLUMNS: readonly MdfeManifestColumnKey[] = ['cargoValue', 'cargoWeight', 'cteCount']
 
+const REJECTION_SEPARATOR = ' · '
+
 function isColumnKey(value: unknown): value is MdfeManifestColumnKey {
   return MDFE_MANIFEST_COLUMN_KEYS.some((column) => column === value)
 }
@@ -98,6 +100,15 @@ function compareValues(
     return Number(readText(left, column)) - Number(readText(right, column))
   }
   return readText(left, column).localeCompare(readText(right, column), 'pt-BR')
+}
+
+/** O texto da SEFAZ não é traduzível: sai como veio, só prefixado pelo código da recusa. */
+export function formatManifestRejection(manifest: MdfeManifestSummary): null | string {
+  const rejection = manifest.lastRejection
+  if (rejection === null) return null
+  return rejection.message === null
+    ? rejection.code
+    : `${rejection.code}${REJECTION_SEPARATOR}${rejection.message}`
 }
 
 export function nextSortState(

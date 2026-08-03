@@ -4,16 +4,21 @@
 import type {
   FleetDriver,
   FleetDriverRepositoryPort,
+  FleetDriverVehicleRepositoryPort,
   FleetVehicle,
   FleetVehicleRepositoryPort,
 } from '../../src/fleet/application/fleet.port'
-import { COMPANY_ID, DRIVER, VEHICLE } from './fleet-http-payload.fixture'
+import { COMPANY_ID, DRIVER, DRIVER_VEHICLE_LINKS, VEHICLE } from './fleet-http-payload.fixture'
 
 export const FLEET_CONTEXT = { companyId: COMPANY_ID, userId: DRIVER.id } as const
 
 type VehicleRepositoryParams = {
   readonly current?: FleetVehicle | null
   readonly updated?: FleetVehicle | null
+}
+
+type DriverVehicleRepositoryParams = {
+  readonly existingVehicleIds?: readonly string[]
 }
 
 type DriverRepositoryParams = {
@@ -53,6 +58,37 @@ export function createVehicleRepositoryStub(params: VehicleRepositoryParams = {}
       },
     },
     updateCalls,
+  }
+}
+
+export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositoryParams = {}): {
+  readonly listCalls: unknown[]
+  readonly repository: FleetDriverVehicleRepositoryPort
+  readonly replaceCalls: unknown[]
+  readonly vehicleLookupCalls: unknown[]
+} {
+  const listCalls: unknown[] = []
+  const replaceCalls: unknown[] = []
+  const vehicleLookupCalls: unknown[] = []
+
+  return {
+    listCalls,
+    repository: {
+      async listByDriver(input) {
+        listCalls.push(structuredClone(input))
+        return DRIVER_VEHICLE_LINKS
+      },
+      async listExistingVehicleIds(input) {
+        vehicleLookupCalls.push(structuredClone(input))
+        return params.existingVehicleIds ?? input.vehicleIds
+      },
+      async replaceForDriver(input) {
+        replaceCalls.push(structuredClone(input))
+        return DRIVER_VEHICLE_LINKS
+      },
+    },
+    replaceCalls,
+    vehicleLookupCalls,
   }
 }
 

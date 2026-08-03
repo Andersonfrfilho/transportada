@@ -22,9 +22,22 @@ type CteIssuanceCall = {
   readonly reason?: string
 }
 
+type CteExportCall = {
+  readonly context: CompanyContext
+  readonly filters?: Readonly<Record<string, unknown>>
+  readonly itemIds?: readonly string[]
+}
+
+type CteExportResult = {
+  readonly documentCount: number
+  readonly fileName: string
+  readonly stream: ReadableStream<Uint8Array>
+}
+
 type CreateFixtureParams = {
   readonly authenticationError?: Error
   readonly cancelError?: Error
+  readonly exportError?: Error
   readonly getError?: Error
   readonly issueError?: Error
   readonly permissions?: CompanyContext['permissions']
@@ -32,6 +45,9 @@ type CreateFixtureParams = {
 }
 
 type CteIssuanceHttpRouteDependencies = {
+  readonly cteExport: {
+    readonly exportDocuments: (input: CteExportCall) => Promise<CteExportResult>
+  }
   readonly cteIssuance: {
     readonly cancel: (input: CteIssuanceCall) => Promise<typeof CANCEL_RESPONSE>
     readonly get: (input: CteIssuanceCall) => Promise<typeof ISSUANCE_SUMMARY>
@@ -98,6 +114,10 @@ export const ISSUANCE_SUMMARY = {
   updatedAt: '2026-07-23T12:05:00.000Z',
 } as const
 
+export const EXPORT_FILE_NAME = 'cte-xml-20260731-120000.zip'
+export const EXPORT_DOCUMENT_COUNT = 2
+export const EXPORT_ARCHIVE_BYTES = new Uint8Array([0x50, 0x4b, 0x05, 0x06, 0x00, 0x00])
+
 export const DOCUMENTS_PAGE = {
   items: [
     {
@@ -115,6 +135,7 @@ export const DOCUMENTS_PAGE = {
 export async function createCteIssuanceHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly cancelCalls: CteIssuanceCall[]
   readonly events: string[]
+  readonly exportCalls: CteExportCall[]
   readonly getCalls: CteIssuanceCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly issueCalls: CteIssuanceCall[]
@@ -123,11 +144,28 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
 }> {
   const cancelCalls: CteIssuanceCall[] = []
   const events: string[] = []
+  const exportCalls: CteExportCall[] = []
   const getCalls: CteIssuanceCall[] = []
   const issueCalls: CteIssuanceCall[] = []
   const listDocumentCalls: CteIssuanceCall[] = []
   const reprocessCalls: CteIssuanceCall[] = []
   const routes = await loadRoutes({
+    cteExport: {
+      async exportDocuments(input) {
+        exportCalls.push(structuredClone(input))
+        if (params.exportError) throw params.exportError
+        return {
+          documentCount: EXPORT_DOCUMENT_COUNT,
+          fileName: EXPORT_FILE_NAME,
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(EXPORT_ARCHIVE_BYTES)
+              controller.close()
+            },
+          }),
+        }
+      },
+    },
     cteIssuance: {
       async cancel(input) {
         cancelCalls.push(structuredClone(input))
@@ -172,6 +210,7 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   return {
     cancelCalls,
     events,
+    exportCalls,
     getCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     issueCalls,
@@ -228,6 +267,26 @@ export function cancelItemRequest(
     method: 'POST',
     origin: input.origin,
     pathname: `${CTE_BATCHES_PATH}/${BATCH_ID}/items/${BATCH_ITEM_ID}/cancel`,
+  })
+}
+
+/** Exportar é leitura: a rota não pode exigir `idempotency-key`. */
+export function exportItemsRequest(
+  input: {
+    readonly body?: unknown
+    readonly origin?: string
+  } = {},
+): Request {
+  const headers = new Headers({
+    authorization: 'Bearer token',
+    'content-type': 'application/json',
+  })
+  if (input.origin) headers.set('origin', input.origin)
+
+  return new Request(`http://api.test${CTE_BATCHES_PATH}/items/export`, {
+    body: JSON.stringify(input.body ?? {}),
+    headers,
+    method: 'POST',
   })
 }
 

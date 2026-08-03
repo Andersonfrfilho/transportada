@@ -99,6 +99,13 @@ function requestError(code: string): Error {
   return new Error(code)
 }
 
+function readErrorCode(payload: unknown): string {
+  if (isRecord(payload) && isRecord(payload.error) && typeof payload.error.code === 'string') {
+    return payload.error.code
+  }
+  return 'CTE_BATCH_REQUEST_FAILED'
+}
+
 async function requestJson(
   input: Readonly<{ fetch: ClientDependencies['fetch']; request: Request }>,
 ): Promise<unknown> {
@@ -108,12 +115,15 @@ async function requestJson(
   } catch {
     throw requestError('CTE_BATCH_REQUEST_FAILED')
   }
-  if (!response.ok) throw requestError('CTE_BATCH_REQUEST_FAILED')
+  const rawBody = await response.text()
+  let payload: unknown
   try {
-    return JSON.parse(await response.text()) as unknown
+    payload = JSON.parse(rawBody) as unknown
   } catch {
-    throw requestError('CTE_BATCH_RESPONSE_INVALID')
+    throw requestError(response.ok ? 'CTE_BATCH_RESPONSE_INVALID' : 'CTE_BATCH_REQUEST_FAILED')
   }
+  if (!response.ok) throw requestError(readErrorCode(payload))
+  return payload
 }
 
 async function authorizedRequest(

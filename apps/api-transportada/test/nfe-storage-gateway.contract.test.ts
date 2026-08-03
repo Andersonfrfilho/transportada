@@ -27,6 +27,7 @@ type StoredObjectEntry = {
 
 type FakeObjectStorageProvider = {
   readonly data: Map<string, StoredObjectEntry>
+  readonly signedDownloadInputs: Array<Record<string, unknown>>
   readonly putInputs: Array<{
     readonly bucket: string
     readonly key: string
@@ -59,6 +60,8 @@ type FakeObjectStorageProvider = {
     readonly bucket: string
     readonly key: string
     readonly expiresInSeconds: number
+    readonly disposition?: 'inline' | 'attachment'
+    readonly filename?: string
   }): Promise<URL>
   health(): Promise<{ readonly status: 'up' | 'down' }>
   close(): Promise<void>
@@ -71,10 +74,12 @@ function sha256(bytes: Uint8Array): string {
 function createFakeStorageProvider(): FakeObjectStorageProvider {
   const data = new Map<string, StoredObjectEntry>()
   const putInputs: FakeObjectStorageProvider['putInputs'] = []
+  const signedDownloadInputs: FakeObjectStorageProvider['signedDownloadInputs'] = []
 
   return {
     data,
     putInputs,
+    signedDownloadInputs,
     async put(input) {
       putInputs.push({
         bucket: input.bucket,
@@ -137,7 +142,8 @@ function createFakeStorageProvider(): FakeObjectStorageProvider {
       }
     },
     async delete() {},
-    async createSignedDownload() {
+    async createSignedDownload(input) {
+      signedDownloadInputs.push({ ...input })
       return new URL('https://example.test/download')
     },
     async health() {
@@ -158,7 +164,9 @@ describe('api nfe storage gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.1.1')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
+      '0.2.0-rc.0',
+    )
   })
 
   test('builds opaque tenant-safe keys for staging and final object flows', () => {
@@ -288,5 +296,40 @@ describe('api nfe storage gateway contract', () => {
       contentType: 'application/xml',
       sha256: sha256(XML_BYTES),
     } satisfies Partial<StoredObject>)
+  })
+
+  test('repassa disposição e nome de arquivo para a URL assinada', async () => {
+    const provider = createFakeStorageProvider()
+    const gateway = createNfeStorageGateway({
+      provider,
+      stagingBucket: BUCKET,
+      finalBucket: BUCKET,
+    })
+    const objectKey = buildNfeDocumentObjectKey({
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      objectId: 'signed-1',
+    })
+
+    await gateway.createSignedDownload({
+      bucket: BUCKET,
+      disposition: 'attachment',
+      expiresInSeconds: 300,
+      filename: 'documento.xml',
+      key: objectKey,
+    })
+    await gateway.createSignedDownload({ bucket: BUCKET, expiresInSeconds: 300, key: objectKey })
+
+    // A disposição entra na assinatura: quem emite a URL decide, o cliente não troca depois.
+    expect(provider.signedDownloadInputs).toEqual([
+      {
+        bucket: BUCKET,
+        disposition: 'attachment',
+        expiresInSeconds: 300,
+        filename: 'documento.xml',
+        key: objectKey,
+      },
+      { bucket: BUCKET, expiresInSeconds: 300, key: objectKey },
+    ])
   })
 })

@@ -106,10 +106,52 @@ injetado por dependência. Auth via `KeycloakAuthProvider`.
 Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, `--space-1..16`), tema
 escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em `*.module.css`.
 
+Todo container de tela usa `width: var(--layout-width)` — nenhum módulo declara largura própria, para
+o cabeçalho da aplicação e os painéis fecharem na mesma borda. Detalhes em `docs/frontend/layout.md`,
+contrato em `test/design-system/layout-width.contract.ts`.
+
+Todo campo (`input`, `textarea`, gatilho de select) tira altura, padding e corpo de texto dos tokens
+`--field-height`/`--field-padding`/`--field-font-size` (e suas variantes `*-compact`) — nenhum módulo
+inventa altura própria. Detalhes em `docs/frontend/fields.md`, contrato em
+`test/design-system/field-metrics.contract.ts`.
+
+Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
+`src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
+Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.
+
+Todo ícone vem de `@/components/ui/icon` — `<svg>` cru é **proibido** em `src/**/*.tsx` fora de
+`src/components/ui/` e o contrato `test/design-system/icon.contract.ts` falha se algum reaparecer.
+Tamanho por token (`--icon-size-sm`/`--icon-size-md`), cor por `currentColor`, botão só de ícone com
+`aria-label` obrigatório. Nomes disponíveis e como criar um novo em `docs/frontend/icons.md`.
+
+Todo campo de seleção usa `@/components/ui/select` — `<select>` nativo é **proibido** em
+`src/**/*.tsx` e o contrato `test/design-system/select.contract.ts` falha se algum reaparecer.
+Contrato de props, teclado e ARIA em `docs/frontend/selects.md`.
+
+Todo painel que abre sobre a tela (lista do select, calendários) é renderizado em portal no
+`document.body` e posicionado pelo hook `useFloatingLayer` — dentro de modal ou tabela rolável o
+`position: absolute` era recortado pelo `overflow` do ancestral. Contrato em
+`test/design-system/floating-layer.contract.ts`, regra na seção "Camada flutuante" de
+`docs/frontend/selects.md`.
+
 Tabelas com muitas informações seguem `docs/frontend/data-tables.md` (contrato obrigatório: ordenação,
 filtros multi-valor, filtro simples + avançado com grupos E/OU aninhados, reordenação/visibilidade de
-colunas persistida em `localStorage`, seleção em massa, teste de contrato). Referência viva: o módulo
-`nfe-workspace` (tabela "Notas") — hook `useNfeDocumentTable.hook.ts` + `AdvancedFilterBuilder.component.tsx`.
+colunas persistida em `localStorage`, seleção em massa, teste de contrato). Duas referências vivas: o
+módulo `nfe-workspace` (tabela "Notas") — hook `useNfeDocumentTable.hook.ts` +
+`AdvancedFilterBuilder.component.tsx` — e o módulo `cte-batch` (tabela de CT-es) — hook
+`useCteItemTable.hook.ts`, que acrescenta paginação por cursor, soma decimal da seleção entre páginas
+e status escondido por padrão (`CTE_ITEM_DEFAULT_HIDDEN_STATUSES`).
+
+Todo filtro ativo aparece como pílula removível vinda de `@/components/ui/filter-pills`
+(`components/ui/filter-pills.tsx`) — nenhum módulo desenha a sua. Os descritores ficam em
+`shared/<modulo>FilterPills.service.ts` (sem tradução, com `formatDay` injetado) e a remoção por campo
+em `clearFilterField` do hook; no modo simples o badge do filtro usa `pills.length`. Regra completa na
+§ 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
+
+Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
+varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra
+de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
+Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
 Envs: `VITE_API_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
 

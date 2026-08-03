@@ -126,6 +126,7 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
           onChange={(predominantProductName) => onChange({ predominantProductName })}
         />
         <ProfileField
+          isWide
           label={t('observations')}
           maxLength={500}
           value={state.observations}

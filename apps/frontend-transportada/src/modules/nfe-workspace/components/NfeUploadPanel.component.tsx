@@ -2,6 +2,8 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import styles from '../styles/nfeWorkspace.module.css'
 
 type NfeUploadPanelProps = Readonly<{
@@ -58,7 +60,7 @@ export function NfeUploadPanel(props: NfeUploadPanelProps) {
               fileInput.current?.click()
             }}
           >
-            <UploadIcon />
+            <Icon name="upload" />
             {t('upload.select')}
           </button>
         </label>
@@ -70,12 +72,12 @@ export function NfeUploadPanel(props: NfeUploadPanelProps) {
         >
           {props.uploadPending ? (
             <>
-              <SpinnerIcon />
+              <Icon name="spinner" />
               {t('upload.pending')}
             </>
           ) : (
             <>
-              <UploadIcon />
+              <Icon name="upload" />
               {t('upload.submit')}
             </>
           )}
@@ -127,26 +129,4 @@ function statusLabel(
   status: 'pending' | 'uploading' | 'uploaded' | 'failed',
 ): string {
   return translate(`upload.fileStatus.${status}`)
-}
-
-function UploadIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 3v12" />
-      <path d="m7 8 5-5 5 5" />
-      <path d="M5 15v4h14v-4" />
-    </svg>
-  )
-}
-
-function SpinnerIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className={`${styles.actionIcon} ${styles.spinnerIcon}`}
-      viewBox="0 0 24 24"
-    >
-      <path d="M12 3a9 9 0 1 0 9 9" />
-    </svg>
-  )
 }

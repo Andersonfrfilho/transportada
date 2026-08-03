@@ -92,6 +92,7 @@ export function assembleMdfeIssuancePayload(
     companyDefaults: source.companyDefaults,
     documents: source.documents,
     drivers: source.drivers,
+    emitterTaxId: source.emitter.cnpj,
     loadingCities: source.loadingCities,
     manifest: source.manifest,
     vehicle: source.vehicle,

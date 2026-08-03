@@ -1,10 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { SafeCertificate } from '../shared/companySettingsClient.service'
+import type { CertificatePurpose, SafeCertificate } from '../shared/companySettingsClient.service'
 
 export type CertificateUploadController = Readonly<{
   readonly hasSensitiveDraft: boolean
   selectCertificate: (file: File) => void
   setPassword: (password: string) => void
+  setPurpose: (purpose: CertificatePurpose) => void
   submit: () => Promise<SafeCertificate>
 }>
 
@@ -18,11 +19,13 @@ function clearFormData(formData: FormData): void {
   for (const key of [...formData.keys()]) formData.delete(key)
 }
 
-function buildCertificateFormData(input: Readonly<{ file: File; password: string }>): FormData {
+function buildCertificateFormData(
+  input: Readonly<{ file: File; password: string; purpose: CertificatePurpose }>,
+): FormData {
   const body = new FormData()
   body.set('certificate', input.file)
   body.set('password', input.password)
-  body.set('purpose', 'cte')
+  body.set('purpose', input.purpose)
   return body
 }
 
@@ -49,6 +52,7 @@ export function createCertificateUploadController(
 ): CertificateUploadController {
   let file: File | undefined
   let password = ''
+  let purpose: CertificatePurpose = 'cte'
   const clear = () => {
     file = undefined
     password = ''
@@ -64,6 +68,9 @@ export function createCertificateUploadController(
     setPassword: (value) => {
       password = value
     },
+    setPurpose: (value) => {
+      purpose = value
+    },
     async submit() {
       if (file === undefined || password === '') {
         clear()
@@ -71,7 +78,7 @@ export function createCertificateUploadController(
       }
       let body: FormData | undefined
       try {
-        body = buildCertificateFormData({ file, password })
+        body = buildCertificateFormData({ file, password, purpose })
         return await dependencies.replaceCertificate(body)
       } catch (error) {
         throw new Error(toSafeUploadErrorCode(error))

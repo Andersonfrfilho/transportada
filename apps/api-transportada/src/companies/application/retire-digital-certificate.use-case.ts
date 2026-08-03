@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { CertificatePurpose } from '../../database/digital-certificate.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type {
   DigitalCertificateMetadata,
@@ -8,7 +9,7 @@ import type {
 type RetireInput = Readonly<{
   context: CompanyContext
   correlationId: string
-  purpose: 'cte'
+  purpose: CertificatePurpose
 }>
 
 export type RetireDigitalCertificateUseCase = Readonly<{
@@ -46,7 +47,7 @@ export function createRetireDigitalCertificateUseCase(
 function certificateSnapshot(
   input: Readonly<{
     expiresAt: Date
-    purpose: 'cte'
+    purpose: CertificatePurpose
     status: 'active' | 'retired'
     validFrom: Date
     version: bigint

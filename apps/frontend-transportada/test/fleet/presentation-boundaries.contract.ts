@@ -3,13 +3,37 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   DRIVER_DRAFT_BODY,
+  LINKED_COMPANY_TAX_ID,
   loadFutureModule,
   MEMBERSHIP_ID,
   VEHICLE_DRAFT_BODY,
   VEHICLE_OWNER,
 } from './fleet.fixture'
 
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readApplicationFile(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
 describe('fleet presentation boundary contract', () => {
+  test('offers the linked company tax id in the driver form and names it in both locales', async () => {
+    const [form, ptLocale, enLocale] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/DriverForm.component.tsx'),
+      readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),
+      readApplicationFile('src/modules/fleet/locales/fleet.en.locale.json'),
+    ])
+
+    expect(form).toContain("t('driverLinkedTaxId')")
+    expect(form).toContain('maxLength={14}')
+    expect(form).toContain('linkedTaxId')
+    for (const locale of [ptLocale, enLocale]) {
+      const dictionary = JSON.parse(locale) as Record<string, unknown>
+      expect(typeof dictionary['driverLinkedTaxId']).toBe('string')
+      expect(typeof dictionary['driverLinkedTaxIdHint']).toBe('string')
+    }
+  })
+
   test('opens an own traction draft and refuses foreign fields', async () => {
     const { createDriverDraft, createVehicleDraft, toDriverBody, toVehicleBody } =
       await loadFutureModule<FleetFormModule>('../../src/modules/fleet/shared/fleetForm.service')
@@ -63,6 +87,20 @@ describe('fleet presentation boundary contract', () => {
     expect(toDriverBody({ ...state, membershipId: MEMBERSHIP_ID }).membershipId).toBe(MEMBERSHIP_ID)
   })
 
+  // O autônomo fatura pelo CNPJ próprio, mas o condutor do MDF-e continua sendo o CPF
+  test('sends the linked company tax id beside the mandatory cpf, without the mask', async () => {
+    const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
+      '../../src/modules/fleet/shared/fleetForm.service',
+    )
+    const state = createDriverDraft()
+
+    expect(toDriverBody({ ...state, linkedTaxId: '' }).linkedTaxId).toBe('')
+    expect(toDriverBody({ ...state, linkedTaxId: '12.345.678/0001-95' }).linkedTaxId).toBe(
+      LINKED_COMPANY_TAX_ID,
+    )
+    expect(toDriverBody({ ...state, taxId: '529.982.247-25' }).taxId).toBe('52998224725')
+  })
+
   test('normalizes plate, tax id and integer fields typed by the operator', async () => {
     const { normalizeDigits, normalizePlate, normalizeUnsignedInteger } =
       await loadFutureModule<FleetFormModule>('../../src/modules/fleet/shared/fleetForm.service')
@@ -83,7 +121,8 @@ type FleetVehicleFormState = Record<string, unknown> &
     wheelType: string
   }>
 
-type FleetDriverFormState = Record<string, unknown> & Readonly<{ membershipId: string }>
+type FleetDriverFormState = Record<string, unknown> &
+  Readonly<{ linkedTaxId: string; membershipId: string; taxId: string }>
 
 type FleetFormModule = {
   readonly createDriverDraft: (input?: Record<string, unknown>) => FleetDriverFormState
@@ -91,7 +130,11 @@ type FleetFormModule = {
   readonly normalizeDigits: (value: string) => string
   readonly normalizePlate: (value: string) => string
   readonly normalizeUnsignedInteger: (value: string) => string
-  readonly toDriverBody: (state: FleetDriverFormState) => Readonly<{ membershipId: null | string }>
+  readonly toDriverBody: (state: FleetDriverFormState) => Readonly<{
+    linkedTaxId: string
+    membershipId: null | string
+    taxId: string
+  }>
   readonly toVehicleBody: (state: FleetVehicleFormState) => Readonly<{
     owner: null | Record<string, unknown>
     wheelType: string

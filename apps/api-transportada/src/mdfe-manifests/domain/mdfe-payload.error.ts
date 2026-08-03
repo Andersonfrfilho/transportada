@@ -53,6 +53,36 @@ export class MdfePayloadMissingOwnerError extends ApiError {
   }
 }
 
+export class MdfePayloadMissingCargoNcmError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_PAYLOAD_MISSING_CARGO_NCM',
+      message: 'A lotação manifest requires the NCM of the predominant product.',
+      status: 422,
+    })
+  }
+}
+
+export class MdfePayloadMissingInsuranceEndorsementError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_PAYLOAD_MISSING_INSURANCE_ENDORSEMENT',
+      message: 'The road modal requires the insurance endorsement of the trip.',
+      status: 422,
+    })
+  }
+}
+
+export class MdfePayloadMissingInsuranceResponsibleError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_PAYLOAD_MISSING_INSURANCE_RESPONSIBLE',
+      message: 'The contractor answering for the cargo insurance requires a tax id.',
+      status: 422,
+    })
+  }
+}
+
 export class MdfePayloadMissingRntrcError extends ApiError {
   public constructor() {
     super({

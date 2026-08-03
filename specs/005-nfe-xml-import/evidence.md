@@ -2142,3 +2142,46 @@ Consequência: a linha está **marcada como processada**, então redelivery do m
 atual; é registro órfão de build antigo. Uma nova puxada de emergência gera novo `eventId` e
 funciona. Limpeza da linha órfã (marcar `failed`) é operação de dados — requer confirmação do
 usuário; não executada.
+
+## Observabilidade da puxada SEFAZ (2026-08-03)
+
+Motivo: as três puxadas de distribuição executadas localmente (26/07, 27/07, 29/07)
+terminaram `completed` com contadores zerados e cursor em `000000000000000`, sem nenhum
+registro de **por que** vieram vazias. Puxada sem nota, puxada barrada pela SEFAZ e puxada
+pulada por cooldown eram indistinguíveis no log — cegueira inaceitável antes de apontar
+para produção.
+
+Test-first em `test/nfe-distribution/observability.contract.ts` (suíte nova, importada pelo
+entrypoint `test/nfe-distribution.contract.test.ts`).
+
+- RED: `11 pass / 6 fail` — 5 casos novos + o `page_received` existente, que passou a exigir
+  `environment` no metadata.
+- GREEN: `17 pass / 0 fail / 52 expect()`.
+
+Eventos acrescentados em `nfe-distribution-consumer.service.ts`, todos carregando
+`companyId`, `importId` e `environment` (homologação vs produção deixa de ser adivinhação):
+
+| Evento | Nível | Responde |
+| --- | --- | --- |
+| `nfe_distribution_pull_started` | info | a consulta saiu, e a partir de qual `ultNsu` |
+| `nfe_distribution_sefaz_page_received` | info | o que a SEFAZ devolveu (`fetched`, `maxNsu`, `temMais`) |
+| `nfe_distribution_page_persisted` | info | quanto da página entrou (`accepted`/`duplicated`) |
+| `nfe_distribution_rate_limit_window_applied` | info | página vazia → janela anti-656 até `nextAllowedAt` |
+| `nfe_distribution_pull_skipped_cooldown` | warn | não consultou: cooldown aberto até `nextAllowedAt` |
+| `nfe_distribution_lease_unavailable` | warn | outro worker já detinha o lease |
+| `nfe_distribution_pull_failed` | error | `errorCode` (cStat), `providerMessage` (xMotivo), `errorName` |
+
+`describePullFailure` extrai `code`/`providerMessage`/`name` por leitura estrutural, sem
+importar a classe do pacote fiscal na camada de aplicação. O `rawResponse` do
+`FiscalError` — que carrega o XML da SEFAZ — **nunca** entra em log; o contrato assere
+`JSON.stringify(events)` sem o conteúdo bruto. `safeLogWarn` acrescentado ao
+`safe-logger.service.ts`, mesmo padrão dos outros dois (log não derruba o handler).
+
+O `catch` que loga e relança é exceção consciente ao §7 do code-standart: só nesse ponto o
+código da SEFAZ ainda é tipado — acima da pilha vira mensagem opaca.
+
+Gates (worker): `typecheck` limpo, `lint --max-warnings=0` limpo, suíte contract
+`233 pass / 0 fail / 516 expect()` (37 arquivos), `format:check` limpo no repo.
+
+⚠️ Não fecha a D13 — segue faltando a puxada real ponta a ponta. Fecha a lacuna de
+diagnóstico que tornaria essa puxada não-auditável.

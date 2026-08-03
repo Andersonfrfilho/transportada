@@ -4,6 +4,7 @@
 import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { z } from 'zod'
 
+import type { CertificatePurpose } from '../../database/digital-certificate.schema.js'
 import { DigitalCertificateUnavailableError } from '../domain/digital-certificate.error.js'
 import type {
   DigitalCertificateSecret,
@@ -32,7 +33,7 @@ const secretSchema = z
 type SecretScope = {
   readonly certificateId: string
   readonly companyId: string
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
 }
 
 export function createDigitalCertificateSecretService(input: {

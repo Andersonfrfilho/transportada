@@ -4,6 +4,14 @@
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 
 export type CompanySettings = {
+  readonly billing: {
+    readonly bankAccount: string
+    readonly bankBranch: string
+    readonly bankCode: string
+    readonly bankName: string
+    readonly observations: string
+    readonly pixKey: string
+  }
   readonly cte: {
     readonly environment: 'homologation' | 'production'
     readonly nextNumber: bigint
@@ -73,6 +81,14 @@ const CTE_RETRY_POLICY: CompanySettings['cteRetry'] = {
 }
 
 export const COMPANY_SETTINGS = {
+  billing: {
+    bankAccount: '12345-6',
+    bankBranch: '1234',
+    bankCode: '341',
+    bankName: 'Banco Contract',
+    observations: 'Pagamento somente em conta da empresa.',
+    pixKey: '',
+  },
   cte: {
     environment: 'homologation',
     nextNumber: 13_809n,
@@ -118,6 +134,7 @@ export const UPDATE_COMPANY_SETTINGS_INPUT = {
 } as const satisfies UpdateCompanySettingsInput
 
 export const EXPECTED_SETTINGS_RESULT = {
+  billing: COMPANY_SETTINGS.billing,
   cte: {
     environment: 'homologation',
     nextNumber: 13_809n,
@@ -164,4 +181,10 @@ export const EXPECTED_FINGERPRINT_FIELDS = [
   COMPANY_SETTINGS.mdfe.bankCode,
   COMPANY_SETTINGS.mdfe.bankBranch,
   COMPANY_SETTINGS.mdfe.pixKey,
+  COMPANY_SETTINGS.billing.bankName,
+  COMPANY_SETTINGS.billing.bankCode,
+  COMPANY_SETTINGS.billing.bankBranch,
+  COMPANY_SETTINGS.billing.bankAccount,
+  COMPANY_SETTINGS.billing.pixKey,
+  COMPANY_SETTINGS.billing.observations,
 ] as const

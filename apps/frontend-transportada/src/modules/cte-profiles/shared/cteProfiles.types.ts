@@ -2,7 +2,11 @@
 export type CteProfileStatus = 'active' | 'draft' | 'inactive'
 export type CteProfileGroupingMode = 'per_invoice' | 'sender_recipient'
 export type CteProfileMatchMode = 'manual' | 'sender_tax_id'
-export type CteProfilePredominantProductMode = 'fixed' | 'highest_value' | 'highest_weight'
+export type CteProfilePredominantProductMode =
+  | 'fixed'
+  | 'highest_quantity'
+  | 'highest_value'
+  | 'highest_weight'
 export type CteProfileComponentCalculation =
   | 'fixed_amount'
   | 'percentage_of_cargo'
@@ -15,6 +19,7 @@ export const CTE_PROFILE_PREDOMINANT_PRODUCT_MODE = [
   'fixed',
   'highest_value',
   'highest_weight',
+  'highest_quantity',
 ] as const
 export const CTE_PROFILE_COMPONENT_CALCULATION = [
   'fixed_amount',

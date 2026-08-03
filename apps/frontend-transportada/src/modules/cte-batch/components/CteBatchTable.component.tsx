@@ -1,28 +1,41 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
+import { Icon } from '@/components/ui/icon'
+import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
+import { SELECTION_SEPARATOR } from '@/modules/shared/filterPill.service'
 
+import type { CteBatchSubmissionController } from '../hooks/useCteBatchSubmission.hook'
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
-import { canCancelBatch, canSubmitBatch } from '../shared/cteBatchItemActions.service'
+import {
+  describeCteBatchFilterPills,
+  type CteBatchFilterPill,
+} from '../shared/cteBatchFilterPills.service'
 import type { CteBatchColumnKey } from '../shared/cteBatchTable.service'
 import styles from '../styles/cteBatch.module.css'
 import { CteBatchColumnsMenu } from './CteBatchColumnsMenu.component'
+import { CteBatchFilters } from './CteBatchFilters.component'
+import { CteBatchRowActions } from './CteBatchRowActions.component'
+import { CteBatchSelectionBar } from './CteBatchSelectionBar.component'
 
 const READY_STATUSES: readonly CteBatchStatus[] = ['done', 'submitted']
 const ALERT_STATUSES: readonly CteBatchStatus[] = ['cancelled', 'error']
 
 export type CteBatchTableActions = Readonly<{
+  onBill: (batches: readonly CteBatchSummary[]) => void
   onCancel: (batch: CteBatchSummary) => void
   onOpenItems: (batch: CteBatchSummary) => void
-  onSubmit: (batch: CteBatchSummary) => void
 }>
 
 type CteBatchTableProps = Readonly<{
   actions: CteBatchTableActions
   openBatchId?: string
   permissions: readonly string[]
+  submission: CteBatchSubmissionController
   table: CteBatchTableController
 }>
 
@@ -37,8 +50,39 @@ function formatMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
 }
 
-export function CteBatchTable({ actions, openBatchId, permissions, table }: CteBatchTableProps) {
+export function CteBatchTable({
+  actions,
+  openBatchId,
+  permissions,
+  submission,
+  table,
+}: CteBatchTableProps) {
   const { t } = useTranslation('cteBatch')
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
+
+  // No modo avançado quem conta é o construtor de condições: as pílulas descrevem só o filtro simples.
+  const descriptors =
+    table.filterMode === 'advanced'
+      ? []
+      : describeCteBatchFilterPills({ filters: table.filters, formatDay: formatCalendarDate })
+  const pills: readonly FilterPill[] = descriptors.map(toPill)
+  const activeCount = table.filterMode === 'advanced' ? table.activeFilterCount : pills.length
+
+  function toPill(descriptor: CteBatchFilterPill): FilterPill {
+    const label = t(descriptor.labelKey)
+    const value =
+      descriptor.valueKeys === undefined
+        ? descriptor.value
+        : descriptor.valueKeys.map((key) => t(key)).join(SELECTION_SEPARATOR)
+    return {
+      id: descriptor.field,
+      label,
+      onRemove: () => table.clearFilterField(descriptor.field),
+      removeLabel: t('filters.removeFilter', { field: label }),
+      value,
+    }
+  }
 
   function renderCell(batch: CteBatchSummary, column: CteBatchColumnKey) {
     if (column === 'status') {
@@ -49,6 +93,11 @@ export function CteBatchTable({ actions, openBatchId, permissions, table }: CteB
     if (column === 'itemCount') return batch.itemCount
     if (column === 'version') return batch.version
     return batch.name
+  }
+
+  function sortState(column: CteBatchColumnKey): 'ascending' | 'descending' | 'none' {
+    if (table.sort === null || table.sort.column !== column) return 'none'
+    return table.sort.direction === 'asc' ? 'ascending' : 'descending'
   }
 
   function sortIndicator(column: CteBatchColumnKey): string {
@@ -65,72 +114,84 @@ export function CteBatchTable({ actions, openBatchId, permissions, table }: CteB
     <section className={styles.panel} aria-labelledby="cte-batch-table-title">
       <div className={styles.panelHead}>
         <h2 id="cte-batch-table-title">{t('batchesTitle')}</h2>
-        <p className={styles.counter}>
-          {t('resultCounter', { shown: table.visibleBatches.length, total: table.totalCount })}
-        </p>
+        <div className={styles.tableToolbar}>
+          <p className={styles.counter}>
+            {t('resultCounter', { shown: table.visibleBatches.length, total: table.totalCount })}
+          </p>
+          <button
+            aria-expanded={isFilterOpen}
+            aria-label={t('filters.title')}
+            className={isFilterOpen ? styles.iconActionActive : styles.iconAction}
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            title={t('filters.title')}
+            type="button"
+          >
+            <Icon name="filter" />
+            {activeCount > 0 ? <span className={styles.filterCountPill}>{activeCount}</span> : null}
+          </button>
+          <span className={styles.columnsMenuWrap}>
+            <button
+              aria-expanded={isColumnsMenuOpen}
+              aria-label={t('columns.title')}
+              className={isColumnsMenuOpen ? styles.iconActionActive : styles.iconAction}
+              onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+              title={t('columns.title')}
+              type="button"
+            >
+              <Icon name="columns" />
+            </button>
+            {isColumnsMenuOpen ? <CteBatchColumnsMenu table={table} /> : null}
+          </span>
+          {activeCount > 0 || table.sort !== null ? (
+            <button
+              aria-label={t('filters.clear')}
+              className={styles.iconAction}
+              onClick={table.clearFilters}
+              title={t('filters.clear')}
+              type="button"
+            >
+              <Icon name="filter-clear" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      <CteBatchColumnsMenu table={table} />
+      {isFilterOpen ? <CteBatchFilters table={table} /> : null}
 
-      {table.selectedBatches.length > 0 ? (
-        <div className={styles.bulkBar}>
-          <p className={styles.counter}>
-            {t('selection.summary', { count: table.selectedBatches.length })}
-          </p>
-          <div className={styles.bulkActions}>
-            <Button
-              disabled={
-                !table.selectedBatches.some((batch) => canSubmitBatch({ batch, permissions }))
-              }
-              onClick={() =>
-                table.selectedBatches
-                  .filter((batch) => canSubmitBatch({ batch, permissions }))
-                  .forEach(actions.onSubmit)
-              }
-              size="sm"
-              type="button"
-            >
-              {t('actions.submit')}
-            </Button>
-            <Button
-              disabled={
-                !table.selectedBatches.some((batch) => canCancelBatch({ batch, permissions }))
-              }
-              onClick={() =>
-                table.selectedBatches
-                  .filter((batch) => canCancelBatch({ batch, permissions }))
-                  .forEach(actions.onCancel)
-              }
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {t('actions.cancel')}
-            </Button>
-            <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
-              {t('selection.clear')}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <FilterPills
+        clearAllLabel={t('filters.clear')}
+        onClearAll={table.clearFilters}
+        pills={pills}
+      />
+
+      <CteBatchSelectionBar
+        onBill={actions.onBill}
+        onCancel={actions.onCancel}
+        permissions={permissions}
+        submission={submission}
+        table={table}
+      />
 
       <div className={styles.tableScroll}>
         <table className={styles.dataTable}>
           <thead>
             <tr>
               <th scope="col">
-                <input
-                  aria-label={t('selection.selectAll')}
+                <Checkbox
+                  ariaLabel={t('selection.selectAll')}
                   checked={
                     table.visibleBatches.length > 0 &&
                     table.selectedBatches.length === table.visibleBatches.length
                   }
-                  onChange={table.toggleAllSelection}
-                  type="checkbox"
+                  indeterminate={
+                    table.selectedBatches.length > 0 &&
+                    table.selectedBatches.length < table.visibleBatches.length
+                  }
+                  onChange={() => table.toggleAllSelection()}
                 />
               </th>
               {table.visibleColumns.map((column) => (
-                <th key={column} scope="col">
+                <th aria-sort={sortState(column)} key={column} scope="col">
                   <button
                     className={styles.sortButton}
                     onClick={() => table.toggleSort(column)}
@@ -151,42 +212,24 @@ export function CteBatchTable({ actions, openBatchId, permissions, table }: CteB
             {table.visibleBatches.map((batch) => (
               <tr aria-selected={table.selectedIds.includes(batch.id)} key={batch.id}>
                 <td>
-                  <input
-                    aria-label={`${t('selection.select')} ${batch.name}`}
+                  <Checkbox
+                    ariaLabel={`${t('selection.select')} ${batch.name}`}
                     checked={table.selectedIds.includes(batch.id)}
                     onChange={() => table.toggleSelection(batch.id)}
-                    type="checkbox"
                   />
                 </td>
                 {table.visibleColumns.map((column) => (
                   <td key={column}>{renderCell(batch, column)}</td>
                 ))}
                 <td>
-                  <div className={styles.rowActions}>
-                    <Button
-                      onClick={() => actions.onOpenItems(batch)}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      {openBatchId === batch.id ? t('actions.closeItems') : t('actions.openItems')}
-                    </Button>
-                    {canSubmitBatch({ batch, permissions }) ? (
-                      <Button onClick={() => actions.onSubmit(batch)} size="sm" type="button">
-                        {t('actions.submit')}
-                      </Button>
-                    ) : null}
-                    {canCancelBatch({ batch, permissions }) ? (
-                      <Button
-                        onClick={() => actions.onCancel(batch)}
-                        size="sm"
-                        type="button"
-                        variant="secondary"
-                      >
-                        {t('actions.cancel')}
-                      </Button>
-                    ) : null}
-                  </div>
+                  <CteBatchRowActions
+                    batch={batch}
+                    isOpen={openBatchId === batch.id}
+                    onBill={actions.onBill}
+                    onCancel={actions.onCancel}
+                    onOpenItems={actions.onOpenItems}
+                    permissions={permissions}
+                  />
                 </td>
               </tr>
             ))}

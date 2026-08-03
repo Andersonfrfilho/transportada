@@ -1,5 +1,6 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 .cteProfilesShell {
-  width: min(100% - var(--space-8), 74rem);
+  width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-5) 0 var(--space-16);
 }
@@ -44,19 +45,18 @@
 .workspaceDeck {
   display: grid;
   gap: var(--space-5);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 64rem) {
-  .workspaceDeck {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    align-items: start;
-  }
+/* The shell caps at 74rem, so a side-by-side split would always clip the profile table. */
+.workspaceDeckEditing > .panel:last-child {
+  border-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
 }
 
 .panel {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
   padding: var(--space-5);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
@@ -67,7 +67,16 @@
   font-size: 1.1rem;
 }
 
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
 .tableScroll {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -85,6 +94,15 @@
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
 }
 
+.profileTable th {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .profileTable tbody tr:nth-child(even) {
   background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
 }
@@ -93,11 +111,22 @@
   outline: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
 }
 
+.numericCell {
+  font-variant-numeric: tabular-nums;
+}
+
+.actionsCell {
+  width: 1%;
+}
+
 .statusBadge {
+  display: inline-block;
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
   font-family: var(--font-utility);
   font-size: 0.72rem;
+  white-space: nowrap;
   text-transform: uppercase;
 }
 
@@ -106,21 +135,30 @@
   color: var(--color-ready);
 }
 
+.statusInactive {
+  border-color: color-mix(in srgb, var(--color-slate) 30%, transparent);
+  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+}
+
 .rowActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 .fieldGroup {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .fieldGroup legend {
-  padding-inline: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: 0;
   color: var(--color-copper);
   font-family: var(--font-utility);
   font-size: 0.72rem;
@@ -131,53 +169,63 @@
 .fieldGrid {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 40rem) {
-  .fieldGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  align-items: end;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }
 
 .fieldGrid label,
 .fieldGroup > label {
   display: grid;
   gap: var(--space-1);
-  font-size: 0.85rem;
+  align-content: start;
+  min-width: 0;
+  color: var(--color-slate);
+  font-size: 0.8rem;
 }
 
 .fieldGrid input,
-.fieldGrid select,
 .fieldGrid textarea,
 .fieldGroup > label input,
-.fieldGroup > label select,
 .fieldGroup > label textarea {
-  min-height: 2.75rem;
-  padding: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
   color: var(--color-fog);
-  font-family: inherit;
-  font-size: 0.9rem;
-  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
 }
 
-.checkboxField {
+.fieldGrid input:focus,
+.fieldGrid textarea:focus,
+.fieldGroup > label input:focus,
+.fieldGroup > label textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.fieldGrid .checkboxField,
+.fieldGroup > .checkboxField {
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  font-size: 0.85rem;
+  min-height: 3rem;
+  color: var(--color-slate);
+  font-size: 0.8rem;
 }
 
-.checkboxField input {
-  width: 1.15rem;
-  height: 1.15rem;
-  min-height: 0;
+.wideField {
+  grid-column: 1 / -1;
 }
 
 .repeatableRow {
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-3);
   border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
 }
@@ -185,6 +233,14 @@
 .hint {
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.emptyGroup {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 24%, transparent);
+  color: color-mix(in srgb, var(--color-slate) 85%, transparent);
   font-size: 0.8rem;
 }
 

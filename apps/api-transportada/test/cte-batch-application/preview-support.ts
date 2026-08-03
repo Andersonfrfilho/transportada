@@ -6,6 +6,10 @@ import { ApiError } from '../../src/shared/api.error.js'
 export const PREVIEW_COMPANY_ID = 'company-001'
 export const PREVIEW_CONTEXT = { companyId: PREVIEW_COMPANY_ID, userId: 'user-001' } as const
 
+/** Relógio fixo do preview: meio-dia UTC de 30/07/2026 é o mesmo dia em São Paulo. */
+export const PREVIEW_NOW = new Date('2026-07-30T12:00:00.000Z')
+export const PREVIEW_NAME_PREFIX = 'CT-e 2026-07-30 #'
+
 export const PROFILE_ID = '00000000-0000-4000-8000-0000000007a0'
 export const SECOND_PROFILE_ID = '00000000-0000-4000-8000-0000000007a2'
 export const REFERENCE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000701'
@@ -75,6 +79,7 @@ export type PreviewProjection = {
 export type PreviewResult = {
   readonly blocked: readonly PreviewBlock[]
   readonly projections: readonly PreviewProjection[]
+  readonly suggestedName: string
   readonly summary: {
     readonly blockedCount: number
     readonly documentCount: number
@@ -163,6 +168,8 @@ export class CteBatchPreviewReaderFixture {
   public readonly documents: Map<string, PreviewDocumentFixture>
   public readonly linkQueries: Array<Record<string, unknown>> = []
   public readonly links: Map<string, string>
+  public readonly nameQueries: Array<Record<string, unknown>> = []
+  public batchNames: readonly string[] = []
 
   public constructor(
     documents: readonly PreviewDocumentFixture[] = [REFERENCE_DOCUMENT, SECOND_DOCUMENT],
@@ -170,6 +177,13 @@ export class CteBatchPreviewReaderFixture {
   ) {
     this.documents = new Map(documents.map((document) => [document.id, document]))
     this.links = links
+  }
+
+  public async findBatchNamesStartingWith(
+    input: Record<string, unknown>,
+  ): Promise<readonly string[]> {
+    this.nameQueries.push(input)
+    return this.batchNames
   }
 
   public async findPreviewDocuments(
@@ -208,6 +222,7 @@ export class CteBatchPreviewProfileCatalogFixture {
 
 export async function createPreviewUseCaseForTest(
   options: {
+    readonly now?: Date
     readonly profiles?: CteBatchPreviewProfileCatalogFixture
     readonly reader?: CteBatchPreviewReaderFixture
   } = {},
@@ -228,14 +243,16 @@ export async function createPreviewUseCaseForTest(
     throw new Error(`T007 preview implementation is missing: ${String(error)}`)
   }
 
+  const now = options.now ?? PREVIEW_NOW
   const factory = moduleExports['createPreviewCteBatchUseCase']
   expect(typeof factory).toBe('function')
   const useCase = (
     factory as (dependencies: {
+      readonly clock: { readonly now: () => Date }
       readonly profiles: CteBatchPreviewProfileCatalogFixture
       readonly reader: CteBatchPreviewReaderFixture
     }) => { readonly execute: (input: Record<string, unknown>) => Promise<PreviewResult> }
-  )({ profiles, reader })
+  )({ clock: { now: () => now }, profiles, reader })
 
   return { execute: (input) => useCase.execute(input), profiles, reader }
 }

@@ -8,9 +8,16 @@ import type {
   FleetVehicleFormState,
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
-import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
+import {
+  applyVehicleLookup,
+  createVehicleDraft,
+  toVehicleBody,
+  toVehicleFormState,
+} from '../shared/fleetForm.service'
+import type { VehicleLookupController } from './useVehicleLookup.hook'
 
 type UseVehicleFormInput = Readonly<{
+  lookup: VehicleLookupController
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   vehicle?: FleetVehicleDetail
@@ -18,15 +25,17 @@ type UseVehicleFormInput = Readonly<{
 
 export type VehicleFormController = Readonly<{
   feedbackKey: null | string
+  isLookingUpPlate: boolean
   isSaving: boolean
+  lookupPlate: () => Promise<void>
   patch: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
   submit: () => Promise<void>
 }>
 
-function resolveFeedbackKey(error: unknown): string {
+function resolveFeedbackKey(error: unknown, fallbackKey: string): string {
   const code = error instanceof Error ? error.message : ''
-  return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? 'saveError'
+  return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? fallbackKey
 }
 
 export function useVehicleForm(input: UseVehicleFormInput): VehicleFormController {
@@ -35,11 +44,29 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const { onCreate, onUpdate, vehicle } = input
+  const [isLookingUpPlate, setIsLookingUpPlate] = useState(false)
+  const { lookup, onCreate, onUpdate, vehicle } = input
 
   function patch(values: Partial<FleetVehicleFormState>): void {
     setFeedbackKey(null)
     setState((previous) => ({ ...previous, ...values }))
+  }
+
+  async function lookupPlate(): Promise<void> {
+    setFeedbackKey(null)
+    setIsLookingUpPlate(true)
+    try {
+      const found = await lookup.lookup(state.plate)
+      if (found === null) {
+        setFeedbackKey('lookupNotFound')
+        return
+      }
+      setState((previous) => applyVehicleLookup(previous, found))
+    } catch (error) {
+      setFeedbackKey(resolveFeedbackKey(error, 'lookupFailed'))
+    } finally {
+      setIsLookingUpPlate(false)
+    }
   }
 
   async function submit(): Promise<void> {
@@ -56,11 +83,11 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
           }))
       setFeedbackKey('saved')
     } catch (error) {
-      setFeedbackKey(resolveFeedbackKey(error))
+      setFeedbackKey(resolveFeedbackKey(error, 'saveError'))
     } finally {
       setIsSaving(false)
     }
   }
 
-  return { feedbackKey, isSaving, patch, state, submit }
+  return { feedbackKey, isLookingUpPlate, isSaving, lookupPlate, patch, state, submit }
 }

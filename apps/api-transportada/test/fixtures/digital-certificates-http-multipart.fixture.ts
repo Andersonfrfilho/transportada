@@ -19,7 +19,7 @@ export function invalidMultipartParts(): readonly ReturnType<typeof validMultipa
     validMultipartParts().filter((part) => part.name !== 'password'),
     validMultipartParts().filter((part) => part.name !== 'purpose'),
     replaceMultipartPart({ name: 'certificate', value: new Uint8Array() }),
-    replaceMultipartPart({ name: 'purpose', value: 'mdfe' }),
+    replaceMultipartPart({ name: 'purpose', value: 'nfe' }),
   ]
 }
 

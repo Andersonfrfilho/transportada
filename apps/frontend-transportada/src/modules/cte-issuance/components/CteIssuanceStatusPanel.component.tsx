@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { CteIssuanceTimelineItem } from '../shared/cteIssuanceTimeline.service'
 import type { CteIssuanceViewModel } from '../shared/cteIssuanceViewModel.service'
@@ -61,6 +62,7 @@ export function CteIssuanceStatusPanel({
       <div className={styles.panelHead}>
         <h3 id="cte-issuance-status-title">{t('panel.title')}</h3>
         <Button onClick={onClose} size="sm" type="button" variant="ghost">
+          <Icon name="close" />
           {t('actions.close')}
         </Button>
       </div>
@@ -106,6 +108,7 @@ export function CteIssuanceStatusPanel({
                 type="button"
                 variant="secondary"
               >
+                <Icon name="download" />
                 {t('actions.download')}
               </Button>
             ) : null}
@@ -116,6 +119,7 @@ export function CteIssuanceStatusPanel({
                 size="sm"
                 type="button"
               >
+                <Icon name="refresh" />
                 {t('actions.reprocess')}
               </Button>
             ) : null}

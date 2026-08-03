@@ -4,6 +4,7 @@
 import './fiscal-schema/aggregator.contract.js'
 import './fiscal-schema/company-fiscal-profile.contract.js'
 import './fiscal-schema/company-distribution-settings.contract.js'
+import './fiscal-schema/company-logo.contract.js'
 import './fiscal-schema/digital-certificate.contract.js'
 import './fiscal-schema/fiscal-sequence.contract.js'
 import './fiscal-schema/audit-log.contract.js'

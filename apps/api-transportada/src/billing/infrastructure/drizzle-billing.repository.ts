@@ -2,23 +2,63 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm'
 
+import { BILLING_INVOICE_STATUSES } from '../../database/billing.schema.js'
 import {
   billingInvoiceEvents,
   billingInvoiceItems,
   billingInvoices,
   cteBatchItems,
+  cteBatches,
   cteFiscalDocuments,
   freightCalculations,
+  nfeDocuments,
   nfeParticipants,
 } from '../../database/database.schema.js'
 import { ApiError } from '../../shared/api.error.js'
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor,
+  type KeysetCursor,
+} from '../../shared/keyset-cursor.js'
+import {
+  buildEligibleCteFilters,
+  buildEligibleNfeDocumentJoin,
+  type EligibleCteFilterInput,
+} from './eligible-cte.query.js'
+import { buildNumberFilter } from './number-filter.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Queryable = Database | Transaction
 type InvoiceRecord = typeof billingInvoices.$inferSelect
+
+type InvoiceItemSummary = {
+  readonly accessKey: string
+  readonly cteNumber: string
+  readonly description: string
+  readonly totalAmount: string
+}
+
+export type BillingInvoiceListFilterInput = {
+  readonly companyId: string
+  readonly cursor: KeysetCursor | null
+  readonly filters?: {
+    readonly customerDocument?: string
+    readonly customerDocumentIn?: readonly string[]
+    readonly dueFrom?: string
+    readonly dueTo?: string
+    readonly invoiceNumber?: string
+    readonly invoiceNumberFrom?: string
+    readonly invoiceNumberIn?: readonly string[]
+    readonly invoiceNumberTo?: string
+    readonly issuedFrom?: string
+    readonly issuedTo?: string
+    readonly status?: string
+    readonly statusIn?: readonly string[]
+  }
+}
 
 class DrizzleBillingTransaction {
   public constructor(private readonly database: Queryable) {}
@@ -29,14 +69,22 @@ class DrizzleBillingTransaction {
     const filters = optionalRecord(input.filters)
     return this.queryEligibleCtes({
       batchId: optionalString(filters['batchId']),
+      batchIdIn: optionalStringArray(filters['batchIdIn']),
       companyId: requiredString(input.companyId),
       cteDocumentIds: null,
       cteNumber: optionalString(filters['cteNumber']),
+      cteNumberFrom: optionalString(filters['cteNumberFrom']),
+      cteNumberIn: optionalStringArray(filters['cteNumberIn']),
+      cteNumberTo: optionalString(filters['cteNumberTo']),
       customerDocument: optionalString(filters['customerDocument']),
+      customerName: optionalString(filters['customerName']),
       from: optionalString(filters['from']),
       limit: requiredPositiveInteger(input.limit),
       maxAmount: optionalString(filters['maxAmount']),
       minAmount: optionalString(filters['minAmount']),
+      nfeNumberFrom: optionalString(filters['nfeNumberFrom']),
+      nfeNumberIn: optionalStringArray(filters['nfeNumberIn']),
+      nfeNumberTo: optionalString(filters['nfeNumberTo']),
       to: optionalString(filters['to']),
     })
   }
@@ -48,16 +96,90 @@ class DrizzleBillingTransaction {
     if (cteDocumentIds.length === 0) return []
     return this.queryEligibleCtes({
       batchId: null,
+      batchIdIn: null,
       companyId: requiredString(input.companyId),
       cteDocumentIds,
       cteNumber: null,
+      cteNumberFrom: null,
+      cteNumberIn: null,
+      cteNumberTo: null,
       customerDocument: null,
+      customerName: null,
       from: null,
       limit: cteDocumentIds.length,
       maxAmount: null,
       minAmount: null,
+      nfeNumberFrom: null,
+      nfeNumberIn: null,
+      nfeNumberTo: null,
       to: null,
     })
+  }
+
+  public async findBillingPreviewByIds(
+    input: Record<string, unknown>,
+  ): Promise<readonly Record<string, unknown>[]> {
+    const cteDocumentIds = requiredStringArray(input.cteDocumentIds)
+    if (cteDocumentIds.length === 0) return []
+    const companyId = requiredString(input.companyId)
+    const rows = await this.database
+      .select({
+        batchId: cteBatchItems.batchId,
+        cteId: cteFiscalDocuments.id,
+        cteNumber: cteFiscalDocuments.fiscalNumber,
+        customerDocument: nfeParticipants.taxId,
+        customerName: nfeParticipants.legalName,
+        invoiceId: billingInvoiceItems.invoiceId,
+        status: cteFiscalDocuments.status,
+        totalAmount: freightCalculations.totalAmount,
+      })
+      .from(cteFiscalDocuments)
+      .innerJoin(
+        cteBatchItems,
+        and(
+          eq(cteBatchItems.companyId, cteFiscalDocuments.companyId),
+          eq(cteBatchItems.id, cteFiscalDocuments.batchItemId),
+        ),
+      )
+      .innerJoin(
+        freightCalculations,
+        and(
+          eq(freightCalculations.companyId, cteBatchItems.companyId),
+          eq(freightCalculations.id, cteBatchItems.freightCalculationId),
+        ),
+      )
+      .leftJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, cteBatchItems.companyId),
+          eq(nfeParticipants.documentId, cteBatchItems.nfeDocumentId),
+          eq(nfeParticipants.role, 'recipient'),
+        ),
+      )
+      .leftJoin(
+        billingInvoiceItems,
+        and(
+          eq(billingInvoiceItems.companyId, cteFiscalDocuments.companyId),
+          eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id),
+        ),
+      )
+      .where(
+        and(
+          eq(cteFiscalDocuments.companyId, companyId),
+          inArray(cteFiscalDocuments.id, cteDocumentIds),
+        ),
+      )
+
+    return rows.map((row) => ({
+      batchId: row.batchId,
+      cteId: row.cteId,
+      cteNumber: row.cteNumber.toString(),
+      customerDocument: row.customerDocument ?? '',
+      customerName: row.customerName ?? '',
+      invoiceId: row.invoiceId,
+      status: row.status,
+      totalAmount: row.totalAmount,
+    }))
   }
 
   public async findInvoiceByIdempotency(
@@ -144,7 +266,7 @@ class DrizzleBillingTransaction {
       })
       .returning()
     if (record === undefined) throw new Error('BILLING_INVOICE_CREATE_FAILED')
-    return mapInvoiceRecord(record, 0)
+    return mapInvoiceRecord(record, [])
   }
 
   public async createInvoiceItem(input: Record<string, unknown>): Promise<void> {
@@ -180,6 +302,65 @@ class DrizzleBillingTransaction {
       payload: optionalRecord(input.payload),
       reason: optionalString(input.reason),
     })
+  }
+
+  public async listInvoices(input: Record<string, unknown>): Promise<{
+    readonly items: readonly Record<string, unknown>[]
+    readonly nextCursor: string | null
+  }> {
+    const filters = optionalRecord(input.filters)
+    const limit = requiredPositiveInteger(input.limit)
+    const records = await this.database
+      .select()
+      .from(billingInvoices)
+      .where(
+        and(
+          ...buildInvoiceListFilters({
+            companyId: requiredString(input.companyId),
+            cursor: decodeKeysetCursor(optionalString(input.cursor)),
+            filters: {
+              ...withOptionalString('customerDocument', filters['customerDocument']),
+              ...withOptionalString('dueFrom', filters['dueFrom']),
+              ...withOptionalString('dueTo', filters['dueTo']),
+              ...withOptionalString('invoiceNumber', filters['invoiceNumber']),
+              ...withOptionalString('issuedFrom', filters['issuedFrom']),
+              ...withOptionalString('issuedTo', filters['issuedTo']),
+              ...withOptionalString('status', filters['status']),
+            },
+          }),
+        ),
+      )
+      .orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id))
+      .limit(limit + 1)
+    if (records.length === 0) return { items: [], nextCursor: null }
+
+    const page = records.slice(0, limit)
+    const last = page[page.length - 1]
+    const itemCounts = await this.countInvoiceItems({
+      companyId: requiredString(input.companyId),
+      invoiceIds: page.map((record) => record.id),
+    })
+
+    return {
+      items: page.map((record) => mapInvoiceListRecord(record, itemCounts.get(record.id) ?? 0)),
+      nextCursor:
+        records.length > page.length && last !== undefined
+          ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
+          : null,
+    }
+  }
+
+  /** Uma query só para a página inteira: a coluna "CT-es" da listagem não vale um N+1. */
+  private async countInvoiceItems(
+    input: Readonly<{ companyId: string; invoiceIds: readonly string[] }>,
+  ): Promise<ReadonlyMap<string, number>> {
+    if (input.invoiceIds.length === 0) return new Map()
+    const rows = await this.database
+      .select({ invoiceId: billingInvoiceItems.invoiceId, total: count() })
+      .from(billingInvoiceItems)
+      .where(and(...buildInvoiceItemCountFilters(input)))
+      .groupBy(billingInvoiceItems.invoiceId)
+    return new Map(rows.map((row) => [row.invoiceId, row.total]))
   }
 
   public async findInvoice(
@@ -222,24 +403,43 @@ class DrizzleBillingTransaction {
     return this.mapInvoice(record)
   }
 
-  private async queryEligibleCtes(input: {
-    readonly batchId: string | null
-    readonly companyId: string
-    readonly cteDocumentIds: readonly string[] | null
-    readonly cteNumber: string | null
-    readonly customerDocument: string | null
-    readonly from: string | null
-    readonly limit: number
-    readonly maxAmount: string | null
-    readonly minAmount: string | null
-    readonly to: string | null
-  }): Promise<readonly Record<string, unknown>[]> {
+  public async updateInvoiceDetails(
+    input: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const [record] = await this.database
+      .update(billingInvoices)
+      .set({
+        discountAmount: requiredString(input.discountAmount),
+        observations: requiredString(input.observations),
+        surchargeAmount: requiredString(input.surchargeAmount),
+        totalAmount: requiredString(input.totalAmount),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(billingInvoices.companyId, requiredString(input.companyId)),
+          eq(billingInvoices.id, requiredString(input.invoiceId)),
+          eq(
+            billingInvoices.status,
+            requiredString(input.expectedStatus) as (typeof BILLING_INVOICE_STATUSES)[number],
+          ),
+        ),
+      )
+      .returning()
+    if (record === undefined) throw invoiceInvalidStateError()
+    return this.mapInvoice(record)
+  }
+
+  private async queryEligibleCtes(
+    input: EligibleCteFilterInput & { readonly limit: number },
+  ): Promise<readonly Record<string, unknown>[]> {
     const rows = await this.database
       .select({
         accessKey: cteFiscalDocuments.accessKey,
         authorizedAt: cteFiscalDocuments.authorizedAt,
         batchId: cteBatchItems.batchId,
         batchItemId: cteBatchItems.id,
+        batchName: cteBatches.name,
         companyId: cteFiscalDocuments.companyId,
         cteNumber: cteFiscalDocuments.fiscalNumber,
         customerDocument: nfeParticipants.taxId,
@@ -248,6 +448,7 @@ class DrizzleBillingTransaction {
         freightCalculationId: freightCalculations.id,
         freightRuleVersion: freightCalculations.ruleVersion,
         id: cteFiscalDocuments.id,
+        nfeNumber: nfeDocuments.number,
         status: cteFiscalDocuments.status,
         totalAmount: freightCalculations.totalAmount,
       })
@@ -257,6 +458,13 @@ class DrizzleBillingTransaction {
         and(
           eq(cteBatchItems.companyId, cteFiscalDocuments.companyId),
           eq(cteBatchItems.id, cteFiscalDocuments.batchItemId),
+        ),
+      )
+      .innerJoin(
+        cteBatches,
+        and(
+          eq(cteBatches.companyId, cteBatchItems.companyId),
+          eq(cteBatches.id, cteBatchItems.batchId),
         ),
       )
       .innerJoin(
@@ -274,6 +482,7 @@ class DrizzleBillingTransaction {
           eq(nfeParticipants.role, 'recipient'),
         ),
       )
+      .leftJoin(nfeDocuments, buildEligibleNfeDocumentJoin())
       .leftJoin(
         billingInvoiceItems,
         and(
@@ -281,36 +490,7 @@ class DrizzleBillingTransaction {
           eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id),
         ),
       )
-      .where(
-        and(
-          eq(cteFiscalDocuments.companyId, input.companyId),
-          eq(cteFiscalDocuments.status, 'authorized'),
-          isNotNull(cteFiscalDocuments.authorizedAt),
-          isNotNull(nfeParticipants.taxId),
-          isNotNull(nfeParticipants.legalName),
-          isNull(billingInvoiceItems.id),
-          input.batchId === null ? undefined : eq(cteBatchItems.batchId, input.batchId),
-          input.cteDocumentIds === null
-            ? undefined
-            : inArray(cteFiscalDocuments.id, input.cteDocumentIds),
-          input.cteNumber === null
-            ? undefined
-            : eq(cteFiscalDocuments.fiscalNumber, BigInt(input.cteNumber)),
-          input.customerDocument === null
-            ? undefined
-            : eq(nfeParticipants.taxId, input.customerDocument),
-          input.from === null
-            ? undefined
-            : gte(cteFiscalDocuments.authorizedAt, new Date(input.from)),
-          input.to === null ? undefined : lte(cteFiscalDocuments.authorizedAt, new Date(input.to)),
-          input.minAmount === null
-            ? undefined
-            : gte(freightCalculations.totalAmount, input.minAmount),
-          input.maxAmount === null
-            ? undefined
-            : lte(freightCalculations.totalAmount, input.maxAmount),
-        ),
-      )
+      .where(and(...buildEligibleCteFilters(input)))
       .orderBy(asc(cteFiscalDocuments.authorizedAt), asc(cteFiscalDocuments.id))
       .limit(input.limit)
 
@@ -319,12 +499,14 @@ class DrizzleBillingTransaction {
       authorizedAt: row.authorizedAt?.toISOString() ?? '',
       batchId: row.batchId,
       batchItemId: row.batchItemId,
+      batchName: row.batchName,
       companyId: row.companyId,
       cteNumber: row.cteNumber.toString(),
       customerDocument: row.customerDocument ?? '',
       customerName: row.customerName ?? '',
       freightAmount: row.freightAmount,
       id: row.id,
+      nfeNumber: row.nfeNumber,
       snapshot: {
         freightCalculationId: row.freightCalculationId,
         freightRuleVersion: row.freightRuleVersion.toString(),
@@ -336,8 +518,14 @@ class DrizzleBillingTransaction {
   }
 
   private async mapInvoice(record: InvoiceRecord): Promise<Record<string, unknown>> {
-    const [countRow] = await this.database
-      .select({ count: sql<number>`count(*)::integer` })
+    const rows = await this.database
+      .select({
+        accessKey: billingInvoiceItems.cteAccessKey,
+        cteNumber: billingInvoiceItems.cteNumber,
+        description: billingInvoiceItems.description,
+        lineNumber: billingInvoiceItems.lineNumber,
+        totalAmount: billingInvoiceItems.totalAmount,
+      })
       .from(billingInvoiceItems)
       .where(
         and(
@@ -345,7 +533,16 @@ class DrizzleBillingTransaction {
           eq(billingInvoiceItems.invoiceId, record.id),
         ),
       )
-    return mapInvoiceRecord(record, countRow?.count ?? 0)
+      .orderBy(asc(billingInvoiceItems.lineNumber))
+    return mapInvoiceRecord(
+      record,
+      rows.map((row) => ({
+        accessKey: row.accessKey,
+        cteNumber: row.cteNumber.toString(),
+        description: row.description,
+        totalAmount: row.totalAmount,
+      })),
+    )
   }
 }
 
@@ -363,7 +560,79 @@ export class DrizzleBillingRepository extends DrizzleBillingTransaction {
   }
 }
 
-function mapInvoiceRecord(record: InvoiceRecord, itemCount: number): Record<string, unknown> {
+export function buildInvoiceListFilters(input: BillingInvoiceListFilterInput): SQL[] {
+  const conditions: SQL[] = [eq(billingInvoices.companyId, input.companyId)]
+  if (input.cursor !== null) conditions.push(invoiceKeysetCondition(input.cursor))
+
+  const filters = input.filters
+  if (filters === undefined) return conditions
+
+  if (filters.status !== undefined) {
+    conditions.push(
+      eq(billingInvoices.status, filters.status as (typeof BILLING_INVOICE_STATUSES)[number]),
+    )
+  }
+  if (filters.issuedFrom !== undefined) {
+    conditions.push(gte(billingInvoices.issueDate, new Date(filters.issuedFrom)))
+  }
+  if (filters.issuedTo !== undefined) {
+    conditions.push(lte(billingInvoices.issueDate, new Date(filters.issuedTo)))
+  }
+  if (filters.dueFrom !== undefined) {
+    conditions.push(gte(billingInvoices.dueDate, new Date(filters.dueFrom)))
+  }
+  if (filters.dueTo !== undefined) {
+    conditions.push(lte(billingInvoices.dueDate, new Date(filters.dueTo)))
+  }
+  if (filters.customerDocument !== undefined) {
+    conditions.push(eq(billingInvoices.customerDocument, filters.customerDocument))
+  }
+  if (filters.customerDocumentIn !== undefined) {
+    conditions.push(inArray(billingInvoices.customerDocument, filters.customerDocumentIn))
+  }
+  if (filters.statusIn !== undefined) {
+    conditions.push(
+      inArray(
+        billingInvoices.status,
+        filters.statusIn as readonly (typeof BILLING_INVOICE_STATUSES)[number][],
+      ),
+    )
+  }
+  if (filters.invoiceNumber !== undefined) {
+    conditions.push(eq(billingInvoices.invoiceNumber, BigInt(filters.invoiceNumber)))
+  }
+  const numberFilter = buildNumberFilter({
+    column: billingInvoices.invoiceNumber,
+    from: filters.invoiceNumberFrom ?? null,
+    list: filters.invoiceNumberIn ?? null,
+    to: filters.invoiceNumberTo ?? null,
+    toComparable: BigInt,
+  })
+  if (numberFilter !== undefined) conditions.push(numberFilter)
+
+  return conditions
+}
+
+function invoiceKeysetCondition(cursor: KeysetCursor): SQL {
+  return sql`(${lt(billingInvoices.createdAt, cursor.createdAt)} or (${eq(
+    billingInvoices.createdAt,
+    cursor.createdAt,
+  )} and ${lt(billingInvoices.id, cursor.id)}))`
+}
+
+export function buildInvoiceItemCountFilters(
+  input: Readonly<{ companyId: string; invoiceIds: readonly string[] }>,
+): SQL[] {
+  return [
+    eq(billingInvoiceItems.companyId, input.companyId),
+    inArray(billingInvoiceItems.invoiceId, [...input.invoiceIds]),
+  ]
+}
+
+export function mapInvoiceListRecord(
+  record: InvoiceRecord,
+  itemCount: number,
+): Record<string, unknown> {
   return {
     companyId: record.companyId,
     createdAt: record.createdAt.toISOString(),
@@ -376,6 +645,7 @@ function mapInvoiceRecord(record: InvoiceRecord, itemCount: number): Record<stri
     invoiceNumber: record.invoiceNumber.toString(),
     issueDate: record.issueDate.toISOString(),
     itemCount,
+    observations: record.observations,
     status: record.status,
     subtotalAmount: record.subtotalAmount,
     surchargeAmount: record.surchargeAmount,
@@ -384,8 +654,38 @@ function mapInvoiceRecord(record: InvoiceRecord, itemCount: number): Record<stri
   }
 }
 
-function requiredEventName(value: unknown): 'invoice_created' | 'invoice_cancelled' {
-  if (value === 'invoice_created' || value === 'invoice_cancelled') return value
+function mapInvoiceRecord(
+  record: InvoiceRecord,
+  items: readonly InvoiceItemSummary[],
+): Record<string, unknown> {
+  return {
+    companyId: record.companyId,
+    createdAt: record.createdAt.toISOString(),
+    currency: record.currency,
+    customerDocument: record.customerDocument,
+    customerName: record.customerName,
+    discountAmount: record.discountAmount,
+    dueDate: record.dueDate.toISOString(),
+    id: record.id,
+    invoiceNumber: record.invoiceNumber.toString(),
+    issueDate: record.issueDate.toISOString(),
+    itemCount: items.length,
+    items,
+    observations: record.observations,
+    status: record.status,
+    subtotalAmount: record.subtotalAmount,
+    surchargeAmount: record.surchargeAmount,
+    totalAmount: record.totalAmount,
+    updatedAt: record.updatedAt.toISOString(),
+  }
+}
+
+function requiredEventName(
+  value: unknown,
+): 'invoice_created' | 'invoice_updated' | 'invoice_cancelled' {
+  if (value === 'invoice_created' || value === 'invoice_updated' || value === 'invoice_cancelled') {
+    return value
+  }
   throw new Error('EXPECTED_BILLING_EVENT_NAME')
 }
 
@@ -416,6 +716,20 @@ function requiredString(value: unknown): string {
 
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function optionalStringArray(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null
+  if (value.some((item) => typeof item !== 'string')) throw new Error('EXPECTED_STRING_ARRAY')
+  return value as readonly string[]
+}
+
+function withOptionalString<TKey extends string>(
+  key: TKey,
+  value: unknown,
+): { readonly [P in TKey]?: string } {
+  const parsed = optionalString(value)
+  return parsed === null ? {} : ({ [key]: parsed } as { readonly [P in TKey]?: string })
 }
 
 function optionalRecord(value: unknown): Record<string, unknown> {

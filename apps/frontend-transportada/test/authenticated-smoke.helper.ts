@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { expect, type Page } from '@playwright/test'
 
+import { getApiBaseUrl, isAuthMeResponseUrl } from './smoke-api-url.helper'
+
 const FRONTEND_ORIGIN = 'http://localhost:53000'
 const KEYCLOAK_ORIGIN = 'http://localhost:58080'
 const KEYCLOAK_REALM = 'transportada-local'
@@ -48,16 +50,16 @@ export async function loginAsLocalUser(page: Page): Promise<void> {
   await page.locator('#username').fill('local-user')
   await page.locator('#password').fill(getLocalUserPassword())
 
+  const apiBaseUrl = getApiBaseUrl()
   const authMeResponse = page.waitForResponse(
     (response) =>
-      new URL(response.url()).origin === 'http://localhost:53001' &&
-      new URL(response.url()).pathname === '/auth/me' &&
-      response.status() === 200,
+      isAuthMeResponseUrl({ apiBaseUrl, url: response.url() }) && response.status() === 200,
   )
   await page.locator('#kc-login').click()
   await authMeResponse
 
-  await expect(page).toHaveURL(`${FRONTEND_ORIGIN}/auth/callback`)
+  // O provider troca a URL do callback pelo caminho de origem assim que a sessão é estabelecida
+  await expect(page).toHaveURL(`${FRONTEND_ORIGIN}/`)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 }
 

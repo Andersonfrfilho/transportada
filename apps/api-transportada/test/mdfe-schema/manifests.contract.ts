@@ -77,7 +77,7 @@ describe('mdfe manifest schema', () => {
         "in ('homologation', 'production')",
       ),
       mdfe_manifests_status_check: expect.stringContaining(
-        "in ('draft', 'issuing', 'authorized', 'rejected', 'closed', 'cancelled')",
+        "in ('draft', 'issuing', 'authorized', 'rejected', 'closed', 'cancelled', 'discarded')",
       ),
     })
     expect(checks.mdfe_manifests_cargo_type_check).toContain(

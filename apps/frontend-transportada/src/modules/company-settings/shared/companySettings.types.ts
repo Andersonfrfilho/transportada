@@ -1,5 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export type CompanySettingsUpdate = Readonly<{
+  billing: Readonly<{
+    bankAccount: string
+    bankBranch: string
+    bankCode: string
+    bankName: string
+    observations: string
+    pixKey: string
+  }>
   cte: Readonly<{
     environment: 'homologation' | 'production'
     nextNumber: string
@@ -40,10 +48,13 @@ export type CompanySettingsUpdate = Readonly<{
   }>
 }>
 
+export const CERTIFICATE_PURPOSES = ['cte', 'mdfe'] as const
+export type CertificatePurpose = (typeof CERTIFICATE_PURPOSES)[number]
+
 export type SafeCertificate = Readonly<{
   expiresAt: string
   id: string
-  purpose: 'cte'
+  purpose: CertificatePurpose
   status: 'active' | 'retired'
   validFrom: string
   version: string
@@ -51,6 +62,7 @@ export type SafeCertificate = Readonly<{
 
 export type CompanySettingsResponse = Readonly<{
   data: Readonly<{
+    billing: CompanySettingsUpdate['billing'] | null
     cte: (CompanySettingsUpdate['cte'] & Readonly<{ version: string }>) | null
     cteRetry: CompanySettingsUpdate['cteRetry'] | null
     mdfe: CompanySettingsUpdate['mdfe'] | null
@@ -82,4 +94,16 @@ export type CompanyProfileLookupResponse = Readonly<{
 export type DigitalCertificatesResponse = Readonly<{
   data: readonly SafeCertificate[]
   page: Readonly<{ nextCursor: string | null }>
+}>
+
+export type CompanyLogoImage = Readonly<{
+  dataUrl: string
+  mimeType: string
+}>
+
+export type CompanyLogoMetadata = Readonly<{
+  byteSize: number
+  mimeType: string
+  sha256: string
+  updatedAt: string
 }>

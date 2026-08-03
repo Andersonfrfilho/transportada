@@ -276,6 +276,7 @@ describe('NF-e distribution consumer contract', () => {
     expect(pageEvent).toBeDefined()
     expect(pageEvent?.metadata).toEqual({
       companyId: DISTRIBUTION_ENVELOPE.companyId,
+      environment: 'homologation',
       fetched: 0,
       importId: DISTRIBUTION_ENVELOPE.payload.importId,
       maxNsu: '000000000000000',

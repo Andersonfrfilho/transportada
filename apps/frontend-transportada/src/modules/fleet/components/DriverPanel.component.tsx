@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type {
   FleetDriverDetail,
@@ -45,14 +48,18 @@ function DriverFilterBar({ filters }: Pick<DriverPanelProps, 'filters'>) {
       </label>
       <label>
         <span>{t('filterStatus')}</span>
-        <select
+        <Select
+          ariaLabel={t('filterStatus')}
+          clearable
+          compact
+          options={[
+            { label: t('status.active'), value: 'active' },
+            { label: t('status.inactive'), value: 'inactive' },
+          ]}
+          placeholder={t('filterAny')}
           value={filters.value.statusEq ?? ''}
-          onChange={(event) => patch({ statusEq: event.target.value as FleetDriverStatus })}
-        >
-          <option value="">{t('filterAny')}</option>
-          <option value="active">{t('status.active')}</option>
-          <option value="inactive">{t('status.inactive')}</option>
-        </select>
+          onChange={(value) => patch({ statusEq: value as FleetDriverStatus })}
+        />
       </label>
     </div>
   )
@@ -67,6 +74,7 @@ export function DriverPanel({ actions, canManageFleet, filters, view }: DriverPa
         <h2 id="fleet-drivers-title">{t('driversTitle')}</h2>
         {canManageFleet ? (
           <Button type="button" onClick={actions.onNew}>
+            <Icon name="add" />
             {t('newDriver')}
           </Button>
         ) : null}

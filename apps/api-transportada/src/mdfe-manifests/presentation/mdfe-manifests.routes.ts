@@ -10,6 +10,7 @@ import {
 } from '../../shared/api.constant.js'
 import type {
   CreateMdfeManifestInput,
+  DiscardMdfeManifestInput,
   GetMdfeManifestInput,
   ListMdfeManifestsInput,
 } from '../application/mdfe-manifests.use-case.js'
@@ -40,6 +41,9 @@ type PreviewRouteInput = PreviewMdfeManifestInput & { readonly correlationId: st
 type Dependencies = {
   readonly createManifest: {
     execute(input: TenantInput<CreateMdfeManifestInput>): Promise<MdfeManifestDetail>
+  }
+  readonly discardManifest: {
+    execute(input: TenantInput<DiscardMdfeManifestInput>): Promise<MdfeManifestDetail>
   }
   readonly getManifest: {
     execute(input: TenantInput<GetMdfeManifestInput>): Promise<MdfeManifestDetail>
@@ -115,6 +119,21 @@ export function createMdfeManifestRoutes(
       pathname: MANIFEST_PATH,
       policy: MDFE_READ_POLICY,
     }),
+    defineRoute<Omit<DiscardMdfeManifestInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const manifest = await dependencies.discardManifest.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeDetail(manifest) }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        manifestId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${MANIFEST_PATH}/discard`,
+      policy: MDFE_MANAGE_POLICY,
+    }),
   ]
 }
 
@@ -156,6 +175,7 @@ function serializeManifest(manifest: MdfeManifest): object {
     freightValue: manifest.freightValue,
     id: manifest.id,
     insuranceEndorsement: manifest.insuranceEndorsement,
+    lastRejection: manifest.lastRejection === null ? null : { ...manifest.lastRejection },
     loadingPostalCode: manifest.loadingPostalCode,
     originState: manifest.originState,
     rntrc: manifest.rntrc,

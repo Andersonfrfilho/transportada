@@ -33,6 +33,7 @@ export type CteBatchItem = Readonly<{
   authorizationProtocol: null | string
   authorizedAt: null | string
   baseAmount: string
+  billingStatus: string
   charges: readonly CteBatchItemCharge[]
   documents: readonly CteBatchItemDocument[]
   fiscalAmount: string
@@ -44,6 +45,19 @@ export type CteBatchItem = Readonly<{
   position: string
   status: string
   totalAmount: string
+}>
+
+/** Linha da listagem que atravessa lotes: o lote deixa de ser contexto e passa a ser coluna. */
+export type CompanyCteItem = CteBatchItem &
+  Readonly<{
+    batchId: string
+    batchName: string
+    createdAt: string
+  }>
+
+export type CompanyCteItemPage = Readonly<{
+  items: readonly CompanyCteItem[]
+  nextCursor: null | string
 }>
 
 export type CteBatchItemDocumentLabel = Readonly<{

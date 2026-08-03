@@ -1,0 +1,1 @@
+ALTER TABLE "digital_certificates" DROP CONSTRAINT "digital_certificates_purpose_check", ADD CONSTRAINT "digital_certificates_purpose_check" CHECK ("purpose" in ('cte', 'mdfe'));

@@ -94,7 +94,7 @@ describe('cte emission profile schema', () => {
       ),
       cte_emission_profiles_pickup_indicator_check: expect.stringContaining("in ('0', '1')"),
       cte_emission_profiles_predominant_product_mode_check: expect.stringContaining(
-        "in ('highest_value', 'highest_weight', 'fixed')",
+        "in ('highest_value', 'highest_weight', 'highest_quantity', 'fixed')",
       ),
       cte_emission_profiles_receiver_ie_indicator_check:
         expect.stringContaining("in ('1', '2', '9')"),

@@ -7,17 +7,22 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createBillingClient,
   type BillingClient as Client,
-  type BillingEligibleFilters,
+  type BillingDocument,
   type BillingInvoiceCreate,
+  type BillingInvoiceEdit,
   type BillingInvoiceSummary,
 } from '../shared/billingClient.service'
+import { createBillingDocumentDownloadController } from '../shared/billingDocumentDownload.service'
+import {
+  BILLING_DOCUMENTS_QUERY_KEY,
+  BILLING_ELIGIBLE_LIST_QUERY_KEY,
+  BILLING_INVOICE_LIST_QUERY_KEY,
+  BILLING_INVOICE_QUERY_KEY,
+} from '../shared/billingQueryKey.constant'
 
 const BILLING_READ = 'billing.read'
 const BILLING_CREATE = 'billing.create'
 const BILLING_CANCEL = 'billing.cancel'
-const BILLING_ELIGIBLE_QUERY_KEY = 'billing-eligible'
-const BILLING_INVOICE_QUERY_KEY = 'billing-invoice'
-const BILLING_DOCUMENTS_QUERY_KEY = 'billing-documents'
 
 export type BillingClient = Client
 
@@ -29,7 +34,16 @@ export type BillingController = Readonly<{
     input: Readonly<{ invoiceId: string; reason: string }>,
   ) => Promise<BillingInvoiceSummary>
   createInvoice: (input: BillingInvoiceCreate) => Promise<BillingInvoiceSummary>
+  generateDocument: (input: Readonly<{ invoiceId: string }>) => Promise<BillingDocument>
+  updateInvoice: (input: BillingInvoiceEdit) => Promise<BillingInvoiceSummary>
 }>
+
+const documentDownload = createBillingDocumentDownloadController({
+  openUrl: (url) => {
+    if (typeof window === 'undefined') return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  },
+})
 
 function createIdempotencyKey(): string {
   return crypto.randomUUID()
@@ -56,10 +70,16 @@ export function createBillingController(
       canCreateBilling
         ? input.client.createInvoice({ ...request, idempotencyKey: createIdempotencyKey() })
         : forbidden(),
+    generateDocument: (request) =>
+      canCreateBilling ? input.client.generateDocument(request) : forbidden(),
+    updateInvoice: (request) =>
+      canCreateBilling
+        ? input.client.updateInvoice({ ...request, idempotencyKey: createIdempotencyKey() })
+        : forbidden(),
   }
 }
 
-function getBillingClient(): BillingClient {
+export function getBillingClient(): BillingClient {
   return createBillingClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),
@@ -70,9 +90,8 @@ function getBillingClient(): BillingClient {
 export function useBillingWorkspace(
   input: Readonly<{
     companyId?: string
-    eligibleFilters?: Omit<BillingEligibleFilters, 'limit'>
+    invoiceId?: string
     permissions: readonly string[]
-    selectedInvoiceId?: string
   }>,
 ) {
   const client = getBillingClient()
@@ -81,41 +100,20 @@ export function useBillingWorkspace(
     permissions: input.companyId === undefined ? [] : input.permissions,
   })
   const queryClient = useQueryClient()
-  const eligibleQueryKey = [
-    BILLING_ELIGIBLE_QUERY_KEY,
-    input.companyId,
-    input.eligibleFilters,
-  ] as const
-  const invoiceQueryKey = [
-    BILLING_INVOICE_QUERY_KEY,
-    input.companyId,
-    input.selectedInvoiceId,
-  ] as const
-  const documentsQueryKey = [
-    BILLING_DOCUMENTS_QUERY_KEY,
-    input.companyId,
-    input.selectedInvoiceId,
-  ] as const
+  /** A lista de elegiveis é da tabela: aqui só invalidamos o prefixo dela após emitir/cancelar. */
+  const eligibleQueryKey = [BILLING_ELIGIBLE_LIST_QUERY_KEY, input.companyId] as const
+  const invoiceQueryKey = [BILLING_INVOICE_QUERY_KEY, input.companyId, input.invoiceId] as const
+  const invoiceListQueryKey = [BILLING_INVOICE_LIST_QUERY_KEY, input.companyId] as const
+  const documentsQueryKey = [BILLING_DOCUMENTS_QUERY_KEY, input.companyId, input.invoiceId] as const
 
-  const eligibleQuery = useQuery({
-    enabled: controller.canReadBilling,
-    queryFn: () => client.listEligibleCtes({ cursor: null, limit: 25, ...input.eligibleFilters }),
-    queryKey: eligibleQueryKey,
-  })
   const invoiceQuery = useQuery({
-    enabled:
-      controller.canReadBilling &&
-      input.selectedInvoiceId !== undefined &&
-      input.selectedInvoiceId !== '',
-    queryFn: () => client.getInvoice({ invoiceId: input.selectedInvoiceId ?? '' }),
+    enabled: controller.canReadBilling && input.invoiceId !== undefined && input.invoiceId !== '',
+    queryFn: () => client.getInvoice({ invoiceId: input.invoiceId ?? '' }),
     queryKey: invoiceQueryKey,
   })
   const documentsQuery = useQuery({
-    enabled:
-      controller.canReadBilling &&
-      input.selectedInvoiceId !== undefined &&
-      input.selectedInvoiceId !== '',
-    queryFn: () => client.listDocuments({ invoiceId: input.selectedInvoiceId ?? '' }),
+    enabled: controller.canReadBilling && input.invoiceId !== undefined && input.invoiceId !== '',
+    queryFn: () => client.listDocuments({ invoiceId: input.invoiceId ?? '' }),
     queryKey: documentsQueryKey,
   })
   const createMutation = useMutation({
@@ -125,6 +123,23 @@ export function useBillingWorkspace(
         queryClient.invalidateQueries({ queryKey: eligibleQueryKey }),
         queryClient.invalidateQueries({ queryKey: invoiceQueryKey }),
       ])
+    },
+  })
+  const updateMutation = useMutation({
+    mutationFn: controller.updateInvoice,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: invoiceQueryKey }),
+        queryClient.invalidateQueries({ queryKey: invoiceListQueryKey }),
+      ])
+    },
+  })
+  /** O PDF novo só aparece na lista do detalhe depois de invalidar os documentos da fatura. */
+  const generateDocumentMutation = useMutation({
+    mutationFn: () => controller.generateDocument({ invoiceId: input.invoiceId ?? '' }),
+    onSuccess: async (document) => {
+      documentDownload.openDocument(document)
+      await queryClient.invalidateQueries({ queryKey: documentsQueryKey })
     },
   })
   const cancelMutation = useMutation({
@@ -143,7 +158,8 @@ export function useBillingWorkspace(
     controller,
     createMutation,
     documentsQuery,
-    eligibleQuery,
+    generateDocumentMutation,
     invoiceQuery,
+    updateMutation,
   }
 }

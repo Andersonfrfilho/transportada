@@ -15,8 +15,8 @@ import {
 import { formatScaledDecimal } from '../../shared/decimal.service.js'
 import type { MdfeCandidateDocument } from '../domain/mdfe-manifest-eligibility.policy.js'
 import {
-  CARGO_VALUE_SCALE,
   CARGO_WEIGHT_SCALE,
+  sumCargoValue,
   sumScaled,
 } from '../domain/mdfe-manifest-grouping.policy.js'
 import { buildCandidateDocumentFilters, buildLiveManifestFilters } from './mdfe-manifest.query.js'
@@ -123,13 +123,7 @@ function accumulate(
   const covered = documentIds.flatMap((documentId) => totals.get(documentId) ?? [])
 
   return {
-    cargoValue: formatScaledDecimal(
-      sumScaled(
-        covered.map((total) => total.value),
-        CARGO_VALUE_SCALE,
-      ),
-      CARGO_VALUE_SCALE,
-    ),
+    cargoValue: sumCargoValue(covered.map((total) => total.value)),
     cargoWeight: formatScaledDecimal(
       sumScaled(
         covered.map((total) => total.weight),

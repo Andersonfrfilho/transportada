@@ -96,6 +96,8 @@ export type BuildMdfePayloadParams = {
   readonly companyDefaults: MdfePayloadCompanyDefaults
   readonly documents: readonly MdfePayloadDocument[]
   readonly drivers: readonly MdfePayloadDriver[]
+  /** CNPJ do emitente — responde pelo seguro quando a apólice é da própria transportadora. */
+  readonly emitterTaxId: string
   readonly loadingCities: readonly MdfePayloadCity[]
   readonly manifest: MdfePayloadManifest
   readonly vehicle: MdfePayloadVehicle
@@ -177,6 +179,8 @@ export type MdfePayloadSeguro = {
   readonly apolice: string
   readonly averbacoes?: readonly string[]
   readonly responsavel: MdfeInsuranceResponsibility
+  readonly responsavelCnpj?: string
+  readonly responsavelCpf?: string
   readonly seguradora: MdfePayloadSeguradora
 }
 

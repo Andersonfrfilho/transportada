@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CertificatePurpose } from '../../src/database/digital-certificate.schema'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 
 export type CertificateCursor = {
@@ -12,7 +13,7 @@ export type CertificateMetadata = {
   readonly createdAt: Date
   readonly expiresAt: Date
   readonly id: string
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
   readonly status: 'active' | 'retired'
   readonly validFrom: Date
   readonly version: bigint
@@ -35,7 +36,13 @@ export type ReplaceCertificateCall = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly password: Uint8Array
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
+}
+
+export type RetireCertificateCall = {
+  readonly context: CompanyContext
+  readonly correlationId: string
+  readonly purpose: CertificatePurpose
 }
 
 export type ReplaceCertificateResult = {
@@ -51,10 +58,6 @@ export type RouteDependencies = {
     execute(input: ReplaceCertificateCall): Promise<ReplaceCertificateResult>
   }
   readonly retireCertificate: {
-    execute(input: {
-      readonly context: CompanyContext
-      readonly correlationId: string
-      readonly purpose: 'cte'
-    }): Promise<CertificateMetadata | null>
+    execute(input: RetireCertificateCall): Promise<CertificateMetadata | null>
   }
 }

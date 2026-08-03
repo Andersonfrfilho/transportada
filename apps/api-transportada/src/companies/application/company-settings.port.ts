@@ -18,6 +18,16 @@ export type CompanyMdfeDefaultsInput = {
   readonly pixKey: string
 }
 
+/** Defaults de empresa que fecham o PDF da fatura: onde pagar e o texto padrão de observações. */
+export type CompanyBillingDefaultsInput = {
+  readonly bankAccount: string
+  readonly bankBranch: string
+  readonly bankCode: string
+  readonly bankName: string
+  readonly observations: string
+  readonly pixKey: string
+}
+
 export type CompanyFiscalProfileInput = {
   readonly city: string
   readonly cityIbgeCode: string
@@ -39,6 +49,7 @@ export type CompanyFiscalProfileInput = {
 }
 
 export type CompanySettingsInput = {
+  readonly billing: CompanyBillingDefaultsInput
   readonly cte: {
     readonly environment: FiscalEnvironment
     readonly nextNumber: bigint
@@ -51,6 +62,7 @@ export type CompanySettingsInput = {
 }
 
 export type CompanySettingsResult = {
+  readonly billing: CompanyBillingDefaultsInput
   readonly cte: {
     readonly environment: FiscalEnvironment
     readonly nextNumber: bigint

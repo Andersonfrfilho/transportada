@@ -1,10 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select } from '@/components/ui/select'
+
 import styles from '../styles/cteProfiles.module.css'
 
 type ProfileFieldProps = Readonly<{
   inputMode?: 'decimal' | 'numeric' | 'text'
+  isWide?: boolean
   label: string
   maxLength?: number
   onChange: (value: string) => void
@@ -28,6 +32,7 @@ type ProfileCheckboxFieldProps = Readonly<{
 
 export function ProfileField({
   inputMode = 'text',
+  isWide = false,
   label,
   maxLength = 120,
   onChange,
@@ -35,7 +40,7 @@ export function ProfileField({
   value,
 }: ProfileFieldProps) {
   return (
-    <label>
+    <label className={isWide ? styles.wideField : undefined}>
       <span>{label}</span>
       <input
         inputMode={inputMode}
@@ -59,26 +64,23 @@ export function ProfileSelectField<TValue extends string>({
   return (
     <label>
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value as TValue)}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {t(`${optionLabelKey}.${option}`)}
-          </option>
-        ))}
-      </select>
+      <Select
+        ariaLabel={label}
+        options={options.map((option) => ({
+          label: t(`${optionLabelKey}.${option}`),
+          value: option,
+        }))}
+        value={value}
+        onChange={(next) => onChange(next as TValue)}
+      />
     </label>
   )
 }
 
 export function ProfileCheckboxField({ checked, label, onChange }: ProfileCheckboxFieldProps) {
   return (
-    <label className={styles.checkboxField}>
-      <input
-        checked={checked}
-        type="checkbox"
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span>{label}</span>
-    </label>
+    <span className={styles.checkboxField}>
+      <Checkbox checked={checked} label={label} onChange={onChange} />
+    </span>
   )
 }

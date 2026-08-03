@@ -2,54 +2,228 @@
   "title": "Workspace de faturamento",
   "status": {
     "cancelled": "Fatura cancelada com sucesso.",
-    "empty": "Nenhuma fatura ou CT-e elegivel encontrado.",
-    "error": "Nao foi possivel carregar o workspace de faturamento.",
-    "forbidden": "Seu acesso atual nao permite consultar este workspace.",
-    "issued": "Fatura emitida e pronta para conferencia.",
+    "empty": "Nenhuma fatura ou CT-e elegível encontrado.",
+    "error": "Não foi possível carregar o workspace de faturamento.",
+    "forbidden": "Seu acesso atual não permite consultar este workspace.",
+    "issued": "Fatura emitida e pronta para conferência.",
     "loading": "Carregando faturamento...",
-    "selectable": "CT-e elegiveis disponiveis para faturamento."
+    "selectable": "CT-e elegíveis disponíveis para faturamento."
   },
-  "filters": {
-    "title": "Filtros de elegibilidade",
-    "batchId": "Lote",
-    "cteNumber": "Numero do CT-e",
-    "customerDocument": "Documento do cliente",
-    "issuedFrom": "Emitido de",
-    "issuedTo": "Emitido ate",
-    "minAmount": "Valor minimo",
-    "maxAmount": "Valor maximo",
-    "clear": "Limpar filtros"
+  "dateRange": {
+    "clear": "Limpar período",
+    "nextMonth": "Próximo mês",
+    "placeholder": "Selecione o período",
+    "previousMonth": "Mês anterior"
+  },
+  "dueDate": {
+    "clear": "Limpar data",
+    "date": "Data de vencimento",
+    "datePlaceholder": "Selecione a data",
+    "label": "Vencimento",
+    "nextMonth": "Próximo mês",
+    "previousMonth": "Mês anterior",
+    "term": "Prazo de vencimento",
+    "termOption": "{{days}} dias",
+    "termPlaceholder": "Prazo"
   },
   "eligible": {
-    "title": "CT-e elegiveis",
-    "summary": "{{count}} selecionados, total {{total}}",
-    "empty": "Nenhum CT-e elegivel com os filtros atuais.",
-    "select": "Selecionar",
-    "cteNumber": "CT-e",
-    "customer": "Cliente",
-    "totalAmount": "Total"
+    "title": "CT-e elegíveis",
+    "loading": "Carregando CT-e elegíveis...",
+    "error": "Não foi possível carregar os CT-e elegíveis.",
+    "empty": "Nenhum CT-e elegível com os filtros atuais.",
+    "resultsCount": "{{count}} CT-e na página atual",
+    "selectAll": "Selecionar todos os CT-e da página",
+    "selectRow": "Selecionar CT-e",
+    "selectedCount": "{{count}} CT-e selecionado(s)",
+    "selectedTotal": "Total selecionado: {{value}}",
+    "multipleCustomers": "A seleção mistura {{count}} clientes. Uma fatura cobre um cliente só.",
+    "clearSelection": "Limpar seleção",
+    "clearFilters": "Limpar filtros",
+    "removeFilter": "Remover o filtro {{field}}",
+    "removeAdvanced": "Remover o filtro avançado",
+    "editAdvanced": "Editar o filtro avançado",
+    "advancedPill": "{{count}} condição(ões)",
+    "filtersToggle": "Filtros",
+    "columnsToggle": "Colunas",
+    "moveColumnUp": "Mover coluna para cima",
+    "moveColumnDown": "Mover coluna para baixo",
+    "previousPage": "Página anterior",
+    "nextPage": "Próxima página",
+    "sort": {
+      "none": "Sem ordenação",
+      "asc": "Ordenado crescente",
+      "desc": "Ordenado decrescente"
+    },
+    "columns": {
+      "cteNumber": "CT-e",
+      "nfeNumber": "Nota",
+      "customerName": "Cliente",
+      "customerDocument": "Documento do cliente",
+      "batchName": "Lote",
+      "issuedAt": "Autorizado em",
+      "totalAmount": "Total"
+    },
+    "filters": {
+      "advanced": "Filtro avançado",
+      "batchId": "Lote",
+      "cteNumberQuery": "Número do CT-e",
+      "nfeNumberQuery": "Número da nota",
+      "customerDocument": "Documento do cliente",
+      "customerName": "Cliente",
+      "issuedRange": "Autorizado entre",
+      "minAmount": "Valor mínimo",
+      "maxAmount": "Valor máximo",
+      "hints": {
+        "cteNumberQuery": "Ex.: 3, 7, 10-40",
+        "nfeNumberQuery": "Ex.: 3, 7, 10-40"
+      },
+      "errors": {
+        "invalid": "Use só números separados por vírgula, com no máximo uma faixa (ex.: 3, 7, 10-40).",
+        "multiple-ranges": "Uma faixa por vez. Deixe só um intervalo no campo.",
+        "range-inverted": "O início da faixa precisa ser menor ou igual ao fim.",
+        "too-many-values": "Máximo de 100 números por consulta."
+      }
+    },
+    "advanced": {
+      "title": "Grupo de condições",
+      "field": "Campo",
+      "operator": "Operador",
+      "value": "Valor",
+      "valueTo": "Valor final",
+      "addCondition": "Adicionar condição",
+      "addGroup": "Adicionar grupo",
+      "removeCondition": "Remover condição",
+      "removeGroup": "Remover grupo",
+      "connectorAnd": "E",
+      "connectorOr": "OU",
+      "operators": {
+        "between": "entre",
+        "contains": "contém",
+        "eq": "igual a",
+        "gt": "maior que",
+        "gte": "maior ou igual a",
+        "lt": "menor que",
+        "lte": "menor ou igual a",
+        "ne": "diferente de",
+        "notContains": "não contém"
+      }
+    }
   },
   "create": {
     "title": "Gerar fatura",
     "dueDate": "Vencimento",
+    "selectionSummary": "{{count}} CT-e selecionado(s), total {{total}}",
     "submit": "Gerar fatura"
   },
-  "invoice": {
+  "invoiceDetail": {
     "title": "Detalhe da fatura",
-    "lookup": "ID da fatura",
-    "empty": "Informe ou gere uma fatura para consultar o detalhe.",
-    "number": "Numero: {{value}}",
-    "customer": "Cliente: {{value}}",
-    "total": "Total: {{value}}",
-    "statusValue": "Status: {{value}}"
+    "close": "Voltar para faturas",
+    "pageKicker": "Fechamento financeiro",
+    "pageIntro": "Confira os CT-es da fatura, ajuste valores, gere o PDF e registre o cancelamento.",
+    "empty": "Não foi possível carregar esta fatura. Volte para a lista e abra novamente.",
+    "number": "Número",
+    "statusValue": "Status",
+    "customer": "Cliente",
+    "document": "Documento do cliente",
+    "issuedAt": "Emitida em",
+    "dueDate": "Vencimento",
+    "total": "Total",
+    "itemsTitle": "CT-es da fatura",
+    "itemsEmpty": "Nenhum CT-e vinculado a esta fatura.",
+    "itemsNumber": "CT-e",
+    "itemsDescription": "Descrição",
+    "itemsAccessKey": "Chave de acesso",
+    "itemsAmount": "Valor",
+    "editTitle": "Ajustes da fatura",
+    "editDiscount": "Desconto",
+    "editSurcharge": "Acréscimo",
+    "editTotalPreview": "Total após ajustes",
+    "editObservations": "Observações",
+    "editSubmit": "Salvar ajustes",
+    "editAmountHint": "Use valores com até duas casas decimais, sem sinal negativo.",
+    "editDiscountHint": "O desconto não pode ser maior que o subtotal da fatura.",
+    "editObservationsHint": "As observações devem ter no máximo 500 caracteres.",
+    "editCancelled": "Fatura cancelada não aceita ajustes.",
+    "editForbidden": "Seu acesso atual não permite ajustar faturas.",
+    "documentsTitle": "Documentos",
+    "documentsEmpty": "Nenhum documento disponível para esta fatura.",
+    "generateDocument": "Gerar PDF",
+    "generatingDocument": "Gerando PDF...",
+    "generateDocumentError": "Não foi possível gerar o PDF desta fatura.",
+    "download": "Baixar documento",
+    "cancelTitle": "Cancelamento",
+    "cancelReason": "Motivo do cancelamento",
+    "cancelReasonHint": "Descreva o motivo com pelo menos 3 caracteres para liberar o cancelamento.",
+    "cancelSubmit": "Cancelar fatura",
+    "cancelAlready": "Esta fatura já está cancelada.",
+    "cancelForbidden": "Seu acesso atual não permite cancelar faturas."
   },
-  "cancel": {
-    "reason": "Motivo do cancelamento",
-    "submit": "Cancelar fatura"
+  "tabs": {
+    "create": "Gerar fatura",
+    "invoices": "Faturas"
   },
-  "documents": {
-    "title": "Documentos",
-    "empty": "Nenhum documento disponivel para esta fatura.",
-    "download": "Baixar documento"
+  "invoices": {
+    "title": "Faturas emitidas",
+    "empty": "Nenhuma fatura encontrada com os filtros atuais.",
+    "loading": "Carregando faturas...",
+    "error": "Não foi possível carregar as faturas.",
+    "resultsCount": "{{count}} fatura(s) na página atual",
+    "clearFilters": "Limpar filtros",
+    "clearSelection": "Limpar seleção",
+    "selectedCount": "{{count}} fatura(s) selecionada(s)",
+    "selectAll": "Selecionar todas as faturas da página",
+    "selectRow": "Selecionar fatura",
+    "openDetail": "Abrir detalhe da fatura",
+    "filtersToggle": "Filtros",
+    "columnsToggle": "Colunas",
+    "moveColumnUp": "Mover coluna para cima",
+    "moveColumnDown": "Mover coluna para baixo",
+    "previousPage": "Página anterior",
+    "nextPage": "Próxima página",
+    "sort": {
+      "none": "Sem ordenação",
+      "asc": "Ordenado crescente",
+      "desc": "Ordenado decrescente"
+    },
+    "statusOptions": {
+      "all": "Todos os status",
+      "issued": "Emitida",
+      "cancelled": "Cancelada"
+    },
+    "columns": {
+      "invoiceNumber": "Número",
+      "status": "Status",
+      "customerName": "Cliente",
+      "customerDocument": "Documento",
+      "issuedAt": "Emitida em",
+      "dueDate": "Vencimento",
+      "itemCount": "CT-es",
+      "totalAmount": "Total",
+      "createdAt": "Criada em"
+    },
+    "filters": {
+      "customerDocument": "Documento do cliente",
+      "dueFrom": "Vencimento de",
+      "dueTo": "Vencimento até",
+      "invoiceNumber": "Número da fatura",
+      "issuedFrom": "Emitida de",
+      "issuedTo": "Emitida até",
+      "status": "Status",
+      "issuedRange": "Emissão",
+      "dueRange": "Vencimento"
+    },
+    "documentAction": {
+      "columnHeader": "PDF",
+      "generate": "Gerar PDF",
+      "generating": "Gerando...",
+      "errors": {
+        "conflict": "Já existe um PDF sendo gerado para esta fatura. Tente novamente em instantes.",
+        "fiscalProfileMissing": "Cadastre o perfil fiscal da empresa antes de gerar o PDF.",
+        "forbidden": "Você não tem permissão para gerar o PDF desta fatura.",
+        "notFound": "Fatura não encontrada.",
+        "unknown": "Não foi possível gerar o PDF da fatura."
+      }
+    },
+    "removeFilter": "Remover o filtro {{field}}"
   }
 }

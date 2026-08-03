@@ -38,10 +38,16 @@ export type MdfeManifestSummaryContract = Readonly<{
   freightValue: string
   id: string
   insuranceEndorsement: string
+  lastRejection: null | Readonly<{
+    attemptKind: 'cancel' | 'close' | 'issue'
+    code: string
+    message: null | string
+    occurredAt: string
+  }>
   loadingPostalCode: string
   originState: string
   rntrc: string
-  status: 'authorized' | 'cancelled' | 'closed' | 'draft' | 'issuing' | 'rejected'
+  status: 'authorized' | 'cancelled' | 'closed' | 'discarded' | 'draft' | 'issuing' | 'rejected'
   transporterType: '' | '1' | '2' | '3'
   tripStartedAt: null | string
   updatedAt: string
@@ -93,6 +99,7 @@ export const MANIFEST_SUMMARY = {
   freightValue: '2500.00',
   id: MANIFEST_ID,
   insuranceEndorsement: '123456',
+  lastRejection: null,
   loadingPostalCode: '14076400',
   originState: 'SP',
   rntrc: '12345678',
@@ -115,6 +122,19 @@ export const AUTHORIZED_MANIFEST_SUMMARY = {
   status: 'authorized',
   updatedAt: '2026-07-27T10:00:00.000Z',
   version: '3',
+} as const satisfies MdfeManifestSummaryContract
+
+export const REJECTED_MANIFEST_SUMMARY = {
+  ...MANIFEST_SUMMARY,
+  lastRejection: {
+    attemptKind: 'issue',
+    code: '726',
+    message: 'Rejeicao: Numero do MDF-e ja utilizado',
+    occurredAt: '2026-07-28T12:10:00.000Z',
+  },
+  status: 'rejected',
+  updatedAt: '2026-07-28T12:10:00.000Z',
+  version: '2',
 } as const satisfies MdfeManifestSummaryContract
 
 export const MANIFEST_DETAIL = {
@@ -146,6 +166,14 @@ export const MANIFEST_DETAIL = {
     },
   ],
   loadingCities: [{ cityCode: '3550308', cityName: 'Sao Paulo', position: 1 }],
+} as const satisfies MdfeManifestDetailContract
+
+/** ADR-0017: o descarte devolve o manifesto já no estado terminal, com os CT-es liberados. */
+export const DISCARDED_MANIFEST_DETAIL = {
+  ...MANIFEST_DETAIL,
+  status: 'discarded',
+  updatedAt: '2026-07-29T08:00:00.000Z',
+  version: '2',
 } as const satisfies MdfeManifestDetailContract
 
 export const MANIFEST_PAGE = {

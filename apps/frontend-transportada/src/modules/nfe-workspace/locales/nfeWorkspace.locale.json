@@ -60,6 +60,8 @@
     "toggle": "Filtros",
     "toggleClose": "Ocultar filtros",
     "all": "Todos",
+    "cteIssuedPending": "Sem CT-e emitido",
+    "cteIssuedIssued": "Com CT-e emitido",
     "distribution": "Distribuição",
     "none": "Nenhum",
     "sourceEq": "Origem",
@@ -125,6 +127,9 @@
     "selectRow": "Selecionar nota",
     "selectedCount": "{{count}} nota selecionada",
     "selectedCount_other": "{{count}} notas selecionadas",
+    "blockedRow": "Nota bloqueada para CT-e",
+    "blockedCount": "{{count}} bloqueada fora da seleção",
+    "blockedCount_other": "{{count}} bloqueadas fora da seleção",
     "downloadSelected": "Baixar XML das selecionadas",
     "emitCte": "Gerar CT-es ({{count}})",
     "clearSelection": "Limpar seleção",
@@ -191,8 +196,9 @@
       "rootConnectorLabel": "Alternar como os grupos se combinam (E / OU)",
       "groupConnectorLabel": "Alternar como as condições se combinam (E / OU)",
       "save": "Salvar filtro",
-      "savedPill": "Filtro avançado · {{count}} condição",
-      "savedPill_other": "Filtro avançado · {{count}} condições",
+      "savedLabel": "Filtro avançado",
+      "savedPill": "{{count}} condição",
+      "savedPill_other": "{{count}} condições",
       "editSaved": "Editar filtro avançado",
       "removeSaved": "Remover filtro avançado"
     },
@@ -212,6 +218,7 @@
       "status": "Status"
     },
     "fields": {
+      "cteIssued": "CT-e",
       "emitterAddress": "Endereço origem",
       "emitterCity": "Cidade origem",
       "emitterName": "Emitente",
@@ -243,6 +250,7 @@
     "batchName": "Nome do lote",
     "profile": "Perfil de emissão",
     "profileAutomatic": "Automático (pelo CNPJ do emitente)",
+    "manageProfiles": "Ajustar perfis de emissão",
     "grouping": "Agrupamento",
     "groupingMode": {
       "per_invoice": "Um CT-e por nota",
@@ -256,9 +264,10 @@
       "profile": "Perfil",
       "amount": "Valor do CT-e"
     },
-    "resolvedBy": {
-      "auto": "automático",
-      "manual": "manual"
+    "matchedBy": {
+      "manual": "escolhido no diálogo",
+      "recipient_tax_id": "casou pelo CNPJ do destinatário",
+      "sender_tax_id": "casou pelo CNPJ do remetente"
     },
     "componentsLabel": "Componentes",
     "total": "Total do lote",
@@ -279,6 +288,9 @@
       "CTE_PROFILE_RULE_NOT_IN_FORCE": "Sem regra de frete vigente",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Somente resumo, sem XML completo"
     },
-    "error": "Não foi possível calcular a projeção. Tente novamente."
+    "errorPreview": "Não foi possível calcular a projeção. Tente novamente.",
+    "errorNameTaken": "Já existe um lote com esse nome. Escolha outro nome para criar o lote.",
+    "errorCreate": "Não foi possível criar o lote. Tente novamente.",
+    "errorAlreadyLinked": "Uma ou mais notas já entraram em outro CT-e. A projeção foi recalculada — confira antes de criar o lote."
   }
 }

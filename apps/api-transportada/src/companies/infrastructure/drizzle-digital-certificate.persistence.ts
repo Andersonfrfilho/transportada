@@ -3,6 +3,7 @@
  */
 import { and, desc, eq } from 'drizzle-orm'
 
+import type { CertificatePurpose } from '../../database/digital-certificate.schema.js'
 import { digitalCertificates } from '../../database/database.schema.js'
 import type {
   DigitalCertificateMetadata,
@@ -13,7 +14,7 @@ import type {
 
 export async function retireActiveDigitalCertificate(input: {
   readonly companyId: string
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
   readonly transaction: DigitalCertificateTransaction
 }): Promise<DigitalCertificateMetadata | null> {
   const [record] = await input.transaction

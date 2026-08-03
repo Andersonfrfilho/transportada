@@ -19,6 +19,7 @@ type CteBatchCall = {
   readonly cursor?: string | null
   readonly documentIds?: readonly string[]
   readonly emissionProfileId?: string
+  readonly filters?: Readonly<Record<string, readonly string[] | string>>
   readonly groupingMode?: string
   readonly idempotencyKey?: string
   readonly itemId?: string
@@ -44,6 +45,9 @@ type CteBatchHttpRouteDependencies = {
   readonly listBatches: {
     readonly execute: (input: CteBatchCall) => Promise<CteBatchPage>
   }
+  readonly listCompanyItems: {
+    readonly execute: (input: CteBatchCall) => Promise<typeof COMPANY_ITEMS_PAGE>
+  }
   readonly listEvents: {
     readonly execute: (input: CteBatchCall) => Promise<typeof EVENTS_PAGE>
   }
@@ -58,6 +62,7 @@ type CteBatchHttpRouteDependencies = {
 type CreateFixtureParams = {
   readonly authenticationError?: Error
   readonly createError?: Error
+  readonly listCompanyItemsError?: Error
   readonly listItemsError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly removeItemError?: Error
@@ -144,6 +149,7 @@ export const ITEMS_RESULT = {
       authorizationProtocol: '135260000000123',
       authorizedAt: '2026-07-23T10:00:00.000Z',
       baseAmount: '958.4800',
+      billingStatus: 'invoiced',
       charges: [
         {
           amount: '43.1316',
@@ -177,6 +183,20 @@ export const ITEMS_RESULT = {
   ],
 } as const
 
+export const CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
+export const BATCH_NAME = 'Lote CT-e julho'
+export const COMPANY_ITEMS_PAGE = {
+  items: [
+    {
+      ...ITEMS_RESULT.items[0],
+      batchId: BATCH_ID,
+      batchName: BATCH_NAME,
+      createdAt: '2026-07-22T20:00:00.000Z',
+    },
+  ],
+  nextCursor: '2026-07-22T20:00:00.000Z::00000000-0000-4000-8000-000000000507',
+} as const
+
 export const EVENTS_PAGE = {
   items: [
     {
@@ -197,6 +217,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   readonly getCalls: CteBatchCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: CteBatchCall[]
+  readonly listCompanyItemCalls: CteBatchCall[]
   readonly listEventCalls: CteBatchCall[]
   readonly listItemCalls: CteBatchCall[]
   readonly previewCalls: CteBatchCall[]
@@ -208,6 +229,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   const events: string[] = []
   const getCalls: CteBatchCall[] = []
   const listCalls: CteBatchCall[] = []
+  const listCompanyItemCalls: CteBatchCall[] = []
   const listEventCalls: CteBatchCall[] = []
   const listItemCalls: CteBatchCall[] = []
   const previewCalls: CteBatchCall[] = []
@@ -243,6 +265,13 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
       async execute(input) {
         listCalls.push(structuredClone(input))
         return { items: [BATCH_SUMMARY], nextCursor: null }
+      },
+    },
+    listCompanyItems: {
+      async execute(input) {
+        listCompanyItemCalls.push(structuredClone(input))
+        if (params.listCompanyItemsError) throw params.listCompanyItemsError
+        return COMPANY_ITEMS_PAGE
       },
     },
     listEvents: {
@@ -286,6 +315,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
     getCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
+    listCompanyItemCalls,
     listEventCalls,
     listItemCalls,
     previewCalls,
@@ -381,6 +411,13 @@ export function getBatchRequest(): Request {
 
 export function getBatchItemsRequest(input: { readonly batchId?: string } = {}): Request {
   return new Request(`http://api.test${CTE_BATCHES_PATH}/${input.batchId ?? BATCH_ID}/items`, {
+    headers: { authorization: 'Bearer token' },
+    method: 'GET',
+  })
+}
+
+export function listCompanyItemsRequest(input: { readonly search?: string } = {}): Request {
+  return new Request(`http://api.test${CTE_BATCH_ITEMS_PATH}${input.search ?? ''}`, {
     headers: { authorization: 'Bearer token' },
     method: 'GET',
   })

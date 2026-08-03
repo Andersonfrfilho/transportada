@@ -1,0 +1,1 @@
+ALTER TABLE "mdfe_manifests" DROP CONSTRAINT "mdfe_manifests_status_check", ADD CONSTRAINT "mdfe_manifests_status_check" CHECK ("status" in ('draft', 'issuing', 'authorized', 'rejected', 'closed', 'cancelled', 'discarded'));

@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { MdfeManifestCreationController } from '../hooks/useMdfeManifestCreation.hook'
@@ -64,6 +68,7 @@ export function MdfeManifestCreationPanel({
       <div className={styles.panelHead}>
         <h2 id="mdfe-manifest-creation-title">{t('creation.title')}</h2>
         <Button onClick={creation.reset} size="sm" type="button" variant="ghost">
+          <Icon name="refresh" />
           {t('actions.resetCreation')}
         </Button>
       </div>
@@ -71,19 +76,14 @@ export function MdfeManifestCreationPanel({
       <div className={styles.fieldGrid}>
         <label>
           {t('creation.batch')}
-          <select
-            onChange={(event) =>
-              creation.selectBatch(event.target.value.length === 0 ? null : event.target.value)
-            }
+          <Select
+            ariaLabel={t('creation.batch')}
+            clearable
+            options={creation.batches.map((batch) => ({ label: batch.name, value: batch.id }))}
+            placeholder={t('creation.batchPlaceholder')}
             value={creation.selectedBatchId ?? ''}
-          >
-            <option value="">{t('creation.batchPlaceholder')}</option>
-            {creation.batches.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => creation.selectBatch(value.length === 0 ? null : value)}
+          />
         </label>
       </div>
 
@@ -98,11 +98,10 @@ export function MdfeManifestCreationPanel({
         <legend className={styles.hint}>{t('creation.candidates')}</legend>
         {creation.candidates.map((candidate) => (
           <label className={styles.candidateRow} key={candidate.fiscalDocumentId}>
-            <input
-              aria-label={`${t('creation.selectCandidate')} ${candidate.accessKey}`}
+            <Checkbox
+              ariaLabel={`${t('creation.selectCandidate')} ${candidate.accessKey}`}
               checked={creation.documentIds.includes(candidate.fiscalDocumentId)}
               onChange={() => creation.toggleCandidate(candidate.fiscalDocumentId)}
-              type="checkbox"
             />
             <span>
               {candidate.fiscalSeries ?? ''} {candidate.fiscalNumber ?? ''}
@@ -123,17 +122,17 @@ export function MdfeManifestCreationPanel({
       <div className={styles.fieldGrid}>
         <label>
           {t('creation.vehicle')}
-          <select
-            onChange={(event) => creation.setDraftField('vehicleId', event.target.value)}
+          <Select
+            ariaLabel={t('creation.vehicle')}
+            clearable
+            options={tractionVehicles.map((vehicle) => ({
+              label: `${vehicle.plate} · ${vehicle.state}`,
+              value: vehicle.id,
+            }))}
+            placeholder={t('creation.vehiclePlaceholder')}
             value={creation.draft.vehicleId}
-          >
-            <option value="">{t('creation.vehiclePlaceholder')}</option>
-            {tractionVehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.plate} · {vehicle.state}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => creation.setDraftField('vehicleId', value)}
+          />
         </label>
         <label>
           {t('creation.destinationState')}
@@ -161,68 +160,57 @@ export function MdfeManifestCreationPanel({
         </label>
         <label>
           {t('creation.cargoType')}
-          <select
-            onChange={(event) =>
-              creation.setDraftField('cargoType', event.target.value as '' | MdfeCargoType)
-            }
+          <Select
+            ariaLabel={t('creation.cargoType')}
+            clearable
+            options={MDFE_CARGO_TYPE.map((cargoType) => ({
+              label: t(`cargoType.${cargoType}`),
+              value: cargoType,
+            }))}
+            placeholder={t('filters.all')}
             value={creation.draft.cargoType}
-          >
-            <option value="" />
-            {MDFE_CARGO_TYPE.map((cargoType) => (
-              <option key={cargoType} value={cargoType}>
-                {t(`cargoType.${cargoType}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => creation.setDraftField('cargoType', value as '' | MdfeCargoType)}
+          />
         </label>
         <label>
           {t('creation.cargoUnit')}
-          <select
-            onChange={(event) =>
-              creation.setDraftField('cargoUnit', event.target.value as MdfeCargoUnit)
-            }
+          <Select
+            ariaLabel={t('creation.cargoUnit')}
+            options={MDFE_CARGO_UNIT.map((cargoUnit) => ({
+              label: t(`cargoUnit.${cargoUnit}`),
+              value: cargoUnit,
+            }))}
             value={creation.draft.cargoUnit}
-          >
-            {MDFE_CARGO_UNIT.map((cargoUnit) => (
-              <option key={cargoUnit} value={cargoUnit}>
-                {t(`cargoUnit.${cargoUnit}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => creation.setDraftField('cargoUnit', value as MdfeCargoUnit)}
+          />
         </label>
         <label>
           {t('creation.emitterType')}
-          <select
-            onChange={(event) =>
-              creation.setDraftField('emitterType', event.target.value as MdfeEmitterType)
-            }
+          <Select
+            ariaLabel={t('creation.emitterType')}
+            options={MDFE_EMITTER_TYPE.map((emitterType) => ({
+              label: t(`emitterType.${emitterType}`),
+              value: emitterType,
+            }))}
             value={creation.draft.emitterType}
-          >
-            {MDFE_EMITTER_TYPE.map((emitterType) => (
-              <option key={emitterType} value={emitterType}>
-                {t(`emitterType.${emitterType}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => creation.setDraftField('emitterType', value as MdfeEmitterType)}
+          />
         </label>
         <label>
           {t('creation.transporterType')}
-          <select
-            onChange={(event) =>
-              creation.setDraftField(
-                'transporterType',
-                event.target.value as '' | MdfeTransporterType,
-              )
-            }
+          <Select
+            ariaLabel={t('creation.transporterType')}
+            clearable
+            options={MDFE_TRANSPORTER_TYPE.map((transporterType) => ({
+              label: t(`transporterType.${transporterType}`),
+              value: transporterType,
+            }))}
+            placeholder={t('transporterType.none')}
             value={creation.draft.transporterType}
-          >
-            <option value="">{t('transporterType.none')}</option>
-            {MDFE_TRANSPORTER_TYPE.map((transporterType) => (
-              <option key={transporterType} value={transporterType}>
-                {t(`transporterType.${transporterType}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) =>
+              creation.setDraftField('transporterType', value as '' | MdfeTransporterType)
+            }
+          />
         </label>
         <label>
           {t('creation.tripStartedAt')}
@@ -248,14 +236,12 @@ export function MdfeManifestCreationPanel({
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('creation.drivers')}</legend>
         {activeDrivers.map((driver) => (
-          <label key={driver.id}>
-            <input
-              checked={creation.draft.driverIds.includes(driver.id)}
-              onChange={() => creation.toggleDriverSelection(driver.id)}
-              type="checkbox"
-            />
-            {driver.name}
-          </label>
+          <Checkbox
+            checked={creation.draft.driverIds.includes(driver.id)}
+            key={driver.id}
+            label={driver.name}
+            onChange={() => creation.toggleDriverSelection(driver.id)}
+          />
         ))}
         {activeDrivers.length === 0 ? (
           <p className={styles.hint}>{t('creation.driversEmpty')}</p>
@@ -300,6 +286,7 @@ export function MdfeManifestCreationPanel({
           type="button"
           variant="secondary"
         >
+          <Icon name="search" />
           {t('actions.preview')}
         </Button>
         <Button
@@ -308,6 +295,7 @@ export function MdfeManifestCreationPanel({
           size="sm"
           type="button"
         >
+          <Icon name="add" />
           {t('actions.create')}
         </Button>
       </div>

@@ -6,10 +6,21 @@
   "error": "Could not load the batches",
   "empty": "No batch found",
   "forbidden": "Your current access does not allow browsing CT-e batches",
+  "dateRange": {
+    "placeholder": "Select the period",
+    "clear": "Clear period",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
+  },
+  "tabs": {
+    "documents": "CT-es",
+    "batches": "Batches"
+  },
   "resultCounter": "{{shown}} of {{total}} batches",
   "batchesTitle": "Batches",
   "filters": {
     "title": "Filters",
+    "all": "All",
     "simple": "Simple",
     "advanced": "Advanced",
     "clear": "Clear filters",
@@ -18,8 +29,8 @@
     "status": "Status",
     "itemCountFrom": "CT-es (minimum)",
     "itemCountTo": "CT-es (maximum)",
-    "createdFrom": "Created from",
-    "createdTo": "Created until"
+    "createdRange": "Created period",
+    "removeFilter": "Remove the {{field}} filter"
   },
   "status": {
     "cancelled": "Cancelled",
@@ -55,8 +66,8 @@
     "clear": "Clear selection"
   },
   "actions": {
-    "submit": "Submit",
     "transmit": "Transmit",
+    "bill": "Generate invoice",
     "cancel": "Cancel batch",
     "reprocess": "Reprocess",
     "download": "Download XML",
@@ -92,8 +103,70 @@
     "failed": "Failed",
     "in_flight": "Transmitting",
     "pending": "Pending",
+    "reconciliation_required": "Reconciliation required",
     "rejected": "Rejected",
     "retry_scheduled": "Retry scheduled"
+  },
+  "itemBillingStatus": {
+    "invoiced": "Invoiced",
+    "pending": "Not invoiced"
+  },
+  "cteItems": {
+    "title": "Company CT-es",
+    "loading": "Loading CT-es",
+    "error": "Could not load the CT-es",
+    "empty": "No CT-e found with the current filters",
+    "columnsMenu": "Column organization",
+    "clearFilters": "Clear filters",
+    "selectAll": "Select the CT-es on this page",
+    "select": "Select CT-e",
+    "selectedCount": "{{count}} CT-e(s) selected",
+    "baseSelected": "Selected base",
+    "totalSelected": "Selected total",
+    "transmitSelection": "Transmit ({{count}} batch(es))",
+    "billSelection": "Generate invoice ({{count}} CT-e(s))",
+    "billBlocked": "{{count}} selected CT-e(s) cannot be invoiced yet.",
+    "exportSelection": "Download XML ({{count}} CT-e(s))",
+    "exportFiltered": "Download filtered XML ({{count}} filter(s))",
+    "export": {
+      "pending": "Preparing the ZIP",
+      "errors": {
+        "empty": "No authorized CT-e in the selected scope",
+        "forbidden": "Not allowed to export CT-e XML",
+        "limitExceeded": "Select at most 500 CT-es per export",
+        "unknown": "Could not export the XML files"
+      }
+    },
+    "pageCounter": "{{shown}} of up to {{size}} per page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "filters": {
+      "title": "CT-e filters",
+      "active": "{{count}} active filter(s)",
+      "batch": "Batch",
+      "allBatches": "All batches",
+      "status": "Status",
+      "issuedRange": "Issued period",
+      "cteNumberQuery": "CT-e number",
+      "invoiceNumberQuery": "Invoice number",
+      "numberQueryPlaceholder": "E.g.: 14093 or 14093,14095 or 14093-14150",
+      "billingStatus": "Billing"
+    },
+    "columns": {
+      "accessKey": "Access key",
+      "baseAmount": "Base",
+      "batchName": "Batch",
+      "billingStatus": "Billing",
+      "createdAt": "Created at",
+      "cteNumber": "CT-e number",
+      "fiscalAmount": "Freight",
+      "invoiceNumbers": "Invoices",
+      "issuedAt": "Issued at",
+      "lastErrorCode": "Rejection",
+      "status": "Status",
+      "totalAmount": "Total"
+    },
+    "removeFilter": "Remove the {{field}} filter"
   },
   "advanced": {
     "title": "Advanced conditions",
@@ -136,5 +209,76 @@
   },
   "removal": {
     "error": "The note could not be removed from the batch."
+  },
+  "billing": {
+    "title": "Generate invoice",
+    "subtitle": "One invoice per customer: CT-es from different customers become separate invoices.",
+    "close": "Close",
+    "loading": "Checking the selection...",
+    "previewError": "Could not check the selection ({{code}}).",
+    "empty": "No CT-e in the selection can be invoiced right now.",
+    "groups": "Invoices to generate",
+    "columns": {
+      "customer": "Customer",
+      "document": "Document",
+      "cteCount": "CT-es",
+      "totalAmount": "Amount"
+    },
+    "total": "Total",
+    "part": " (part {{part}} of {{partCount}})",
+    "truncated": "The batch has more CT-es than one round can take: generate these invoices and repeat the action for the rest.",
+    "blocked": "Blocked",
+    "blockedCount": "{{count}} CT-e(s)",
+    "blockReason": {
+      "already_invoiced": "Already invoiced",
+      "missing_customer": "Customer not identified",
+      "not_authorized": "Not authorized yet",
+      "not_found": "Not found"
+    },
+    "dueDate": "Due date",
+    "dueDateError": {
+      "required": "Enter the due date.",
+      "invalid": "Invalid due date."
+    },
+    "results": "Result",
+    "progress": {
+      "title": "Progress",
+      "label": "Invoice generation progress",
+      "value": "{{percent}}% — {{completed}} of {{total}} invoice(s)",
+      "summary": "{{successCount}} generated · {{errorCount}} failed"
+    },
+    "outcomeIssued": "{{customer}}: invoice {{number}} issued.",
+    "outcomeFailed": "{{customer}}: failed ({{code}}).",
+    "submitting": "Generating...",
+    "confirm": "Generate invoice",
+    "cancel": "Cancel",
+    "done": "Close"
+  },
+  "transmission": {
+    "bulkTransmit": "Transmit the selected batches",
+    "transmitting": "Transmitting...",
+    "progress": {
+      "title": "Transmission progress",
+      "label": "Batch transmission progress",
+      "value": "{{percent}}% — {{completed}} of {{total}} batch(es)",
+      "summary": "{{successCount}} transmitted · {{errorCount}} failed",
+      "failed": "{{name}} — {{reason}}"
+    },
+    "reasons": {
+      "unknown": "could not transmit ({{code}})",
+      "unconfirmed": "no response arrived: check the batch before retrying ({{code}})",
+      "requestFailed": "the API refused the transmission ({{code}})",
+      "responseInvalid": "the API response did not match the contract ({{code}})",
+      "invalidState": "the batch was no longer transmittable",
+      "notFound": "the batch no longer exists",
+      "duplicateRequest": "this transmission had already been requested",
+      "alreadyInFlight": "this batch is already being transmitted: wait for the result",
+      "emitterIncomplete": "the carrier fiscal data is incomplete in the settings",
+      "fiscalSequenceMissing": "the fiscal numbering for the series is not configured",
+      "freightRuleMissing": "the issuance profile has no freight rule version",
+      "forbidden": "your access does not allow transmitting",
+      "sessionExpired": "the session expired: sign in again and retry",
+      "serverError": "internal server error ({{code}})"
+    }
   }
 }

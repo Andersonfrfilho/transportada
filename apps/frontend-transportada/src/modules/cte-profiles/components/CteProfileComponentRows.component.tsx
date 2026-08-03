@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import { CTE_PROFILE_COMPONENT_CALCULATION } from '../shared/cteProfiles.types'
 import {
@@ -35,6 +36,7 @@ export function CteProfileComponentRows({ components, onChange }: CteProfileComp
   return (
     <fieldset className={styles.fieldGroup}>
       <legend>{t('componentsLegend')}</legend>
+      {components.length === 0 ? <p className={styles.emptyGroup}>{t('componentsEmpty')}</p> : null}
       {components.map((row, index) => (
         <div className={styles.repeatableRow} key={`component-${String(index)}`}>
           <div className={styles.fieldGrid}>
@@ -82,6 +84,7 @@ export function CteProfileComponentRows({ components, onChange }: CteProfileComp
           </div>
           <div className={styles.formActions}>
             <Button size="sm" type="button" variant="ghost" onClick={() => removeRow(index)}>
+              <Icon name="remove" />
               {t('removeComponent')}
             </Button>
           </div>
@@ -94,6 +97,7 @@ export function CteProfileComponentRows({ components, onChange }: CteProfileComp
           variant="secondary"
           onClick={() => onChange({ components: [...components, createEmptyComponentRow()] })}
         >
+          <Icon name="add" />
           {t('addComponent')}
         </Button>
       </div>

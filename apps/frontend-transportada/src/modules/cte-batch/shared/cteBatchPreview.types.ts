@@ -56,5 +56,6 @@ export type CteBatchPreviewSummary = Readonly<{
 export type CteBatchPreview = Readonly<{
   blocked: readonly CteBatchPreviewBlock[]
   projections: readonly CteBatchPreviewProjection[]
+  suggestedName: string
   summary: CteBatchPreviewSummary
 }>

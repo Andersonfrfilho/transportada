@@ -141,6 +141,28 @@ describe('nfe http listing and detail contract', () => {
     })
   })
 
+  test('exposes the CT-e block reason so the listing does not discover it only in the dialog', async () => {
+    const fixture = await createNfeHttpFixture({
+      documentList: {
+        items: [
+          DOCUMENT_SUMMARY,
+          {
+            ...DOCUMENT_SUMMARY,
+            cteBlockReason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+            id: '00000000-0000-4000-8000-000000000231',
+          },
+        ],
+        nextCursor: null,
+      },
+    })
+
+    const response = await fixture.handle(documentsListRequest({ query: '?limit=10' }))
+    const documents = (await documentListBody(response)).data
+
+    expect(documents[0]).toMatchObject({ cteBlockReason: null })
+    expect(documents[1]).toMatchObject({ cteBlockReason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED' })
+  })
+
   test('returns distribution pull status with cooldown state and no leaked identifiers', async () => {
     const fixture = await createNfeHttpFixture()
 

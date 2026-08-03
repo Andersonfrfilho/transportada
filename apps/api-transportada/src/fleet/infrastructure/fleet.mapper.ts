@@ -75,6 +75,7 @@ export function mapDriver(record: DriverRecord): FleetDriver {
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     licenseNumber: record.licenseNumber,
+    linkedTaxId: record.linkedTaxId,
     membershipId: record.membershipId,
     name: record.name,
     phone: record.phone,
@@ -90,6 +91,7 @@ export function toDriverColumns(
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
     licenseNumber: driver.licenseNumber,
+    linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
     name: driver.name,
     phone: driver.phone,

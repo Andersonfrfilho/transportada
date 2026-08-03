@@ -67,6 +67,14 @@ export function createContext(companyId: string, userId: string): CompanyContext
 
 export function createSettings(cnpj: string): CompanySettingsInput {
   return {
+    billing: {
+      bankAccount: '12345-6',
+      bankBranch: '1234',
+      bankCode: '341',
+      bankName: 'Banco Integration',
+      observations: 'Pagamento somente em conta da empresa.',
+      pixKey: '',
+    },
     cte: { environment: 'homologation', nextNumber: 13_809n, series: 1n },
     cteRetry: { backoffSeconds: [10, 60, 900], maxAttempts: 5 },
     expectedVersion: null,

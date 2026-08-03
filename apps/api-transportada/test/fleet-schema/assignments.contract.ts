@@ -43,7 +43,7 @@ describe('fleet driver vehicle assignment schema', () => {
     )
   })
 
-  test('exposes the composite tenant key and the history index', () => {
+  test('exposes the composite tenant key and both lookup indexes', () => {
     expect(uniqueColumnsByName(fleetDriverVehicleAssignments)).toMatchObject({
       fleet_driver_vehicle_assignments_company_id_id_unique: ['company_id', 'id'],
     })
@@ -53,30 +53,26 @@ describe('fleet driver vehicle assignment schema', () => {
         'driver_id',
         'assigned_at',
       ],
+      fleet_driver_vehicle_assignments_company_vehicle_idx: ['company_id', 'vehicle_id'],
     })
   })
 
-  // Uma viagem tem um veículo e um condutor ao mesmo tempo — o histórico fica nas linhas liberadas
-  test('allows a single live assignment per vehicle and per driver', () => {
-    const vehicleUnique = partialUnique('fleet_driver_vehicle_assignments_live_vehicle_unique')
-    const driverUnique = partialUnique('fleet_driver_vehicle_assignments_live_driver_unique')
+  // O motorista dirige o próprio veículo e os da transportadora, e o caminhão da casa roda com
+  // vários motoristas — o único exclusivo é o par vivo repetido
+  test('allows many vehicles per driver and many drivers per vehicle', () => {
+    const linkUnique = partialUnique('fleet_driver_vehicle_assignments_live_link_unique')
 
-    expect(vehicleUnique?.config.unique).toBeTrue()
+    expect(partialUnique('fleet_driver_vehicle_assignments_live_vehicle_unique')).toBeUndefined()
+    expect(partialUnique('fleet_driver_vehicle_assignments_live_driver_unique')).toBeUndefined()
+    expect(linkUnique?.config.unique).toBeTrue()
     expect(
-      vehicleUnique?.config.columns.map((column) => ('name' in column ? column.name : '')),
-    ).toEqual(['company_id', 'vehicle_id'])
-    expect(driverUnique?.config.unique).toBeTrue()
+      linkUnique?.config.columns.map((column) => ('name' in column ? column.name : '')),
+    ).toEqual(['company_id', 'driver_id', 'vehicle_id'])
     expect(
-      driverUnique?.config.columns.map((column) => ('name' in column ? column.name : '')),
-    ).toEqual(['company_id', 'driver_id'])
-
-    for (const liveUnique of [vehicleUnique, driverUnique]) {
-      expect(
-        liveUnique?.config.where === undefined
-          ? undefined
-          : dialect.sqlToQuery(liveUnique.config.where).sql,
-      ).toBe(`"fleet_driver_vehicle_assignments"."released_at" is null`)
-    }
+      linkUnique?.config.where === undefined
+        ? undefined
+        : dialect.sqlToQuery(linkUnique.config.where).sql,
+    ).toBe(`"fleet_driver_vehicle_assignments"."released_at" is null`)
   })
 
   test('refuses a release earlier than the assignment', () => {

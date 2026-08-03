@@ -6,6 +6,10 @@
   "error": "Não foi possível carregar a frota",
   "empty": "Nenhum veículo ou motorista cadastrado",
   "readOnly": "Você não tem permissão para gerenciar a frota",
+  "tabs": {
+    "vehicles": "Veículos",
+    "drivers": "Motoristas"
+  },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
   "newVehicle": "Novo veículo",
@@ -33,10 +37,12 @@
   "columnActions": "Ações",
   "columnDriverName": "Nome",
   "columnTaxId": "CPF",
+  "columnLinkedTaxId": "CNPJ vinculado",
   "columnLicense": "CNH",
   "columnAppAccess": "Acesso ao app",
   "appAccessOn": "Vinculado",
   "appAccessOff": "Sem vínculo",
+  "emptyValue": "—",
   "filterPlate": "Placa contém",
   "filterRole": "Função",
   "filterStatus": "Situação",
@@ -82,6 +88,11 @@
     "own": "Próprio da transportadora",
     "third_party": "Terceiro"
   },
+  "lookupPlate": "Buscar pela placa",
+  "lookupPlateHint": "Preenche os campos disponíveis com os dados do serviço de consulta veicular. Confira antes de salvar.",
+  "lookupNotFound": "Nenhum veículo encontrado para essa placa",
+  "lookupFailed": "Não foi possível consultar a placa agora",
+  "lookupUnavailable": "A consulta por placa não está configurada nesta instalação",
   "vehicleOwnerLegend": "Proprietário do veículo",
   "vehicleOwnerHint": "Obrigatório para veículos agregados ou de terceiros — vai no grupo de proprietário do MDF-e.",
   "ownerName": "Nome do proprietário",
@@ -97,8 +108,15 @@
   "driverIdentityLegend": "Identificação do motorista",
   "driverName": "Nome",
   "driverTaxId": "CPF",
+  "driverLinkedTaxId": "CNPJ vinculado",
+  "driverLinkedTaxIdHint": "CNPJ da empresa do motorista autônomo, usado no faturamento. O condutor do MDF-e continua sendo o CPF — deixe vazio se o motorista dirige apenas como pessoa física.",
   "driverLicense": "CNH",
   "driverPhone": "Telefone",
   "driverMembership": "Usuário vinculado",
-  "driverMembershipHint": "Identificador do usuário da empresa que fará login no aplicativo do motorista. Deixe vazio se ainda não houver acesso."
+  "driverMembershipHint": "Identificador do usuário da empresa que fará login no aplicativo do motorista. Deixe vazio se ainda não houver acesso.",
+  "driverVehiclesLegend": "Veículos vinculados",
+  "driverVehiclesHint": "Marque os veículos que este motorista dirige — tanto os próprios dele quanto os da transportadora. O vínculo é histórico: desmarcar encerra o período, não apaga o passado.",
+  "driverVehiclesEmpty": "Nenhum veículo ativo cadastrado para vincular",
+  "driverOwnedVehicle": "Do motorista",
+  "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa"
 }

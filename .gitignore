@@ -17,3 +17,7 @@ coverage/
 .railway/
 graphify-out/
 tmp/
+
+# XML fiscal real usado como insumo de pesquisa — CNPJ, IE e chave de acesso de terceiros
+specs/*/samples/
+.omc/

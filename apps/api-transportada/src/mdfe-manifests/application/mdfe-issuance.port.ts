@@ -100,7 +100,8 @@ export type MdfeIssuanceEmitter = {
   readonly taxRegime: string
 }
 
-export type MdfeIssuancePayloadSource = BuildMdfePayloadParams & {
+/** O CNPJ do emitente vem de `emitter` — repeti-lo na fonte abriria espaço para divergirem. */
+export type MdfeIssuancePayloadSource = Omit<BuildMdfePayloadParams, 'emitterTaxId'> & {
   readonly emitter: MdfeIssuanceEmitter
 }
 

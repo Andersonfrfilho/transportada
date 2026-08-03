@@ -1,5 +1,6 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 .cteBatchShell {
-  width: min(100% - var(--space-8), 82rem);
+  width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-5) 0 var(--space-16);
 }
@@ -94,17 +95,17 @@
 .fieldGrid label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.85rem;
 }
 
-.fieldGrid input,
-.fieldGrid select {
-  min-height: 2.75rem;
-  padding: var(--space-2);
+.fieldGrid input {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   color: var(--color-fog);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--field-font-size);
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
@@ -168,26 +169,12 @@
   gap: var(--space-2);
 }
 
-.columnsMenu {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
-}
-
-.columnsRow {
+/* Base 100% para o progresso descer para a própria linha da barra em lote, sem apertar as ações. */
+.bulkProgress {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 0 100%;
+  flex-direction: column;
   gap: var(--space-2);
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85rem;
-}
-
-.columnsRow label {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
 }
 
 /* Sem position, o .srOnly absoluto resolve o bloco contêiner fora do scroller e estica a página. */
@@ -292,17 +279,17 @@
 .conditionRow label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.8rem;
 }
 
-.conditionRow input,
-.conditionRow select {
-  min-height: 2.5rem;
-  padding: var(--space-2);
+.conditionRow input {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   color: var(--color-fog);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--field-font-size-compact);
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
@@ -339,6 +326,7 @@
 .cancellationForm label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
   font-size: 0.8rem;
 }
 
@@ -356,4 +344,270 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.tableToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.iconAction {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  background: transparent;
+  cursor: pointer;
+}
+
+.iconAction:disabled {
+  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  cursor: not-allowed;
+}
+
+.iconActionActive {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  color: var(--color-asphalt);
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.filterCountPill {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  line-height: var(--space-4);
+  background: var(--color-copper);
+}
+
+.columnsMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.columnsPopover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 16rem;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+}
+
+.columnRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.checkOption {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.columnReorder {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.filterPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.filterPanel input[type='date'],
+.filterPanel input[type='number'],
+.filterPanel input[type='search'],
+.filterPanel input[type='text'] {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
+.selectionTotals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.selectionTotals dt {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.selectionTotals dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.billingOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.billingDialog {
+  display: grid;
+  gap: var(--space-5);
+  width: min(52rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.billingHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.billingHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+.billingSubtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.billingField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  max-width: 16rem;
+}
+
+.billingField > span {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.billingField input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.billingField input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.billingSection {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.billingSection h3 {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.billingList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.billingOutcomeFailed {
+  color: var(--color-copper);
+}
+
+.billingOutcomeIssued {
+  color: var(--color-ready);
+}
+
+.billingPart {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.billingFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+@media (width <= 40rem) {
+  .billingOverlay {
+    padding: 0;
+  }
+
+  .billingDialog {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border: none;
+  }
 }

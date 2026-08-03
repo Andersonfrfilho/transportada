@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { getCteBatchClient } from '@/modules/cte-batch/hooks/useCteBatchWorkspace.hook'
@@ -8,12 +8,18 @@ import { useCteProfiles } from '@/modules/cte-profiles/hooks/useCteProfiles.hook
 
 import {
   AUTOMATIC_PROFILE_ID,
+  CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
+  buildPreviewQueryKey,
   buildPreviewRequest,
   canConfirmEmission,
   defaultBatchName,
   groupBlocksByReason,
+  isEmissionFormLocked,
+  resolveBatchName,
+  resolveEmissionStatus,
+  shouldRefreshPreviewAfterFailure,
   summarizePreview,
   type CteEmissionBlockGroup,
   type CteEmissionGroupingMode,
@@ -21,9 +27,13 @@ import {
   type CteEmissionStatus,
   type CteEmissionSummary,
 } from '../shared/cteEmission.service'
+import {
+  canReachCteProfiles,
+  createBrowserWorkspaceNavigator,
+  navigateToCteProfiles,
+} from '../shared/cteProfilesNavigation.service'
 
 const CTE_MANAGE_PERMISSION = 'cte.manage'
-const CTE_EMISSION_PREVIEW_QUERY_KEY = 'cte-emission-preview'
 
 export type CteEmissionProfileOption = Readonly<{ id: string; name: string }>
 
@@ -38,14 +48,17 @@ export type UseCteEmissionDialogResult = Readonly<{
   blockGroups: readonly CteEmissionBlockGroup[]
   canConfirm: boolean
   canEmit: boolean
+  canManageProfiles: boolean
   close: () => void
   confirm: () => void
   createdBatch: CteBatchSummary | null
   errorCode: null | string
   groupingMode: CteEmissionGroupingMode
+  isFormLocked: boolean
   isOpen: boolean
   name: string
   open: () => void
+  openProfileSettings: () => void
   preview: CteEmissionPreview | null
   profileId: string
   profileOptions: readonly CteEmissionProfileOption[]
@@ -67,12 +80,14 @@ export function useCteEmissionDialog(
   const [isOpen, setIsOpen] = useState(false)
   const [profileId, setProfileId] = useState(AUTOMATIC_PROFILE_ID)
   const [groupingMode, setGroupingMode] = useState<CteEmissionGroupingMode>(DEFAULT_GROUPING_MODE)
-  const [name, setName] = useState('')
+  const [customName, setCustomName] = useState<null | string>(null)
+  const [fallbackName, setFallbackName] = useState('')
   const [createdBatch, setCreatedBatch] = useState<CteBatchSummary | null>(null)
 
   const permissions = input.companyId === undefined ? [] : input.permissions
   const canEmit = permissions.includes(CTE_MANAGE_PERMISSION)
   const client = getCteBatchClient()
+  const queryClient = useQueryClient()
   const profiles = useCteProfiles({
     ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
     filters: { statusEq: 'active' },
@@ -80,21 +95,24 @@ export function useCteEmissionDialog(
   })
   const selection = { documentIds: input.documentIds, emissionProfileId: profileId, groupingMode }
 
+  function forgetPreviews(): void {
+    void queryClient.invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })
+  }
+
   const previewQuery = useQuery({
     enabled: isOpen && canEmit && input.documentIds.length > 0,
     queryFn: () => client.previewBatch(buildPreviewRequest(selection)),
-    queryKey: [
-      CTE_EMISSION_PREVIEW_QUERY_KEY,
-      input.companyId,
-      input.documentIds,
-      profileId,
-      groupingMode,
-    ] as const,
+    queryKey: buildPreviewQueryKey({ ...selection, companyId: input.companyId }),
   })
   const createMutation = useMutation({
     mutationFn: (documentIds: readonly string[]) =>
       client.createBatch(buildCreateRequest({ ...selection, documentIds, name })),
+    onError: (error) => {
+      if (shouldRefreshPreviewAfterFailure(readErrorCode(error))) forgetPreviews()
+    },
     onSuccess: (batch) => {
+      // O lote recém-criado prende as notas: qualquer projeção em cache passou a mentir.
+      forgetPreviews()
       setCreatedBatch(batch)
       setIsOpen(false)
       input.onEmitted()
@@ -103,17 +121,23 @@ export function useCteEmissionDialog(
 
   const preview = previewQuery.data ?? null
   const summary = preview === null ? null : summarizePreview(preview)
-  const status: CteEmissionStatus = createMutation.isPending
-    ? 'creating'
-    : previewQuery.isError || createMutation.isError
-      ? 'error'
-      : previewQuery.isFetching || preview === null
-        ? 'loading'
-        : 'ready'
+  const name = resolveBatchName({
+    customName,
+    fallbackName,
+    suggestedName: preview?.suggestedName ?? '',
+  })
+  const status: CteEmissionStatus = resolveEmissionStatus({
+    hasPreview: preview !== null,
+    isCreateError: createMutation.isError,
+    isCreating: createMutation.isPending,
+    isPreviewError: previewQuery.isError,
+    isPreviewFetching: previewQuery.isFetching,
+  })
 
   function open(): void {
     setCreatedBatch(null)
-    setName(
+    setCustomName(null)
+    setFallbackName(
       defaultBatchName({ count: input.documentIds.length, issuedAt: new Date().toISOString() }),
     )
     setIsOpen(true)
@@ -122,6 +146,11 @@ export function useCteEmissionDialog(
   function close(): void {
     setIsOpen(false)
     createMutation.reset()
+  }
+
+  function openProfileSettings(): void {
+    setIsOpen(false)
+    navigateToCteProfiles(createBrowserWorkspaceNavigator())
   }
 
   function confirm(): void {
@@ -133,14 +162,17 @@ export function useCteEmissionDialog(
     blockGroups: preview === null ? [] : groupBlocksByReason(preview.blocked),
     canConfirm: canConfirmEmission({ preview, status }),
     canEmit,
+    canManageProfiles: canReachCteProfiles(permissions),
     close,
     confirm,
     createdBatch,
     errorCode: readErrorCode(previewQuery.error ?? createMutation.error),
     groupingMode,
+    isFormLocked: isEmissionFormLocked(status),
     isOpen,
     name,
     open,
+    openProfileSettings,
     preview,
     profileId,
     profileOptions: (profiles.profilesQuery.data?.items ?? []).map((profile) => ({
@@ -149,7 +181,7 @@ export function useCteEmissionDialog(
     })),
     selectedCount: input.documentIds.length,
     setGroupingMode,
-    setName,
+    setName: setCustomName,
     setProfileId,
     status,
     summary,

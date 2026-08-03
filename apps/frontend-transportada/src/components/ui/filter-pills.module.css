@@ -1,0 +1,110 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.pill,
+.pillEditable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-size: 0.76rem;
+}
+
+.pill {
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.pillEditable {
+  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
+}
+
+.label {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.value {
+  color: inherit;
+}
+
+.edit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+}
+
+.edit:hover {
+  color: var(--color-copper);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-5);
+  height: var(--space-5);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+}
+
+.remove:hover {
+  color: var(--color-copper);
+}
+
+.remove:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.icon {
+  flex: 0 0 auto;
+}
+
+.clearAll {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  background: transparent;
+}
+
+.clearAll:hover {
+  border-color: var(--color-copper);
+  color: var(--color-copper);
+}
+
+/* Dedo não acerta alvo de 1rem: no toque o botão de remover cresce sem mexer no desktop. */
+@media (pointer: coarse) {
+  .remove {
+    width: calc(var(--space-10) + var(--space-1));
+    height: calc(var(--space-10) + var(--space-1));
+  }
+}

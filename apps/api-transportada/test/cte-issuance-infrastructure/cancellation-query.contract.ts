@@ -5,11 +5,11 @@ import { and } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
+import { resolveIssuedDocumentStatus } from '../../src/cte-issuance/domain/cte-fiscal-document-status.policy.js'
 import {
   buildCancellationRequestFilters,
   buildIssuedDocumentFilters,
   resolveIssuanceEventName,
-  resolveIssuedDocumentStatus,
 } from '../../src/cte-issuance/infrastructure/drizzle-cte-issuance.repository.js'
 
 const BATCH_ITEM_ID = '00000000-0000-4000-8000-000000000901'

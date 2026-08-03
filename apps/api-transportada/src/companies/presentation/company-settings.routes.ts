@@ -112,9 +112,17 @@ function settingsResponse(settings: CompanySettingsResult | null): Response {
 
 function serializeSettings(settings: CompanySettingsResult | null): object {
   if (settings === null) {
-    return { cte: null, cteRetry: null, mdfe: null, profile: null }
+    return { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null }
   }
   return {
+    billing: {
+      bankAccount: settings.billing.bankAccount,
+      bankBranch: settings.billing.bankBranch,
+      bankCode: settings.billing.bankCode,
+      bankName: settings.billing.bankName,
+      observations: settings.billing.observations,
+      pixKey: settings.billing.pixKey,
+    },
     cte: {
       environment: settings.cte.environment,
       nextNumber: settings.cte.nextNumber.toString(),

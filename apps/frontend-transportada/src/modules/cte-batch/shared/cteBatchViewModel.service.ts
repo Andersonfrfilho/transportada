@@ -9,7 +9,6 @@ export type CteBatchViewModel = Readonly<{
   batches?: CteBatchListPage['items']
   canManageBatches: boolean
   canSubmitBatches: boolean
-  canSubmitSelectedBatch?: boolean
   events?: CteBatchEventListPage['items']
   selectedBatch?: CteBatchSummary
   selectedBatchId?: string
@@ -56,13 +55,11 @@ export function createCteBatchViewModel(input: ViewModelInput): CteBatchViewMode
   }
 
   const selectedBatch = input.selectedBatch ?? batches[0]
-  const canSubmitSelectedBatch = canSubmitBatches && selectedBatch?.status === 'draft'
 
   return {
     ...(batches.length === 0 ? {} : { batches }),
     canManageBatches,
     canSubmitBatches,
-    canSubmitSelectedBatch,
     ...(events.length === 0 ? {} : { events }),
     ...(selectedBatch === undefined ? {} : { selectedBatch }),
     ...(selectedBatch === undefined ? {} : { selectedBatchId: selectedBatch.id }),

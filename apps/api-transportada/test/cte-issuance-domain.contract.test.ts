@@ -4,3 +4,4 @@
 import './cte-issuance-domain/cte-payload-builder.contract.js'
 import './cte-issuance-domain/cte-payload-receiver-ie.contract.js'
 import './cte-issuance-domain/cte-retry-policy.contract.js'
+import './cte-issuance-domain/predominant-product.contract.js'

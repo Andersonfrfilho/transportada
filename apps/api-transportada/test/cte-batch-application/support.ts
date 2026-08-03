@@ -201,6 +201,8 @@ export class CteBatchUnitOfWorkFixture {
     id: FREIGHT_RULE_VERSION_ID,
     version: FREIGHT_RULE_VERSION,
   }
+  /** Espelha o pool real: enquanto a transação corre, a conexão dela está ocupada. */
+  public isInsideTransaction = false
   public replayedCreate: Record<string, unknown> | null = null
   public replayedSubmission: Record<string, unknown> | null = null
   /** Simula um concorrente que tirou o lote de rascunho entre a leitura e a trava. */
@@ -210,7 +212,12 @@ export class CteBatchUnitOfWorkFixture {
     operation: (transaction: CteBatchUnitOfWorkFixture) => Promise<TResponse>,
   ): Promise<TResponse> {
     this.executedTransactions.push('cte-batch')
-    return operation(this)
+    this.isInsideTransaction = true
+    try {
+      return await operation(this)
+    } finally {
+      this.isInsideTransaction = false
+    }
   }
 
   public async findBatch(input: Record<string, unknown>): Promise<Record<string, unknown> | null> {

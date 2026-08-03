@@ -28,6 +28,49 @@ const EVENT = {
   payload: { itemCount: 1, status: 'draft' },
 } as const
 
+const CTE_ACCESS_KEY = '35260700000000000000570010000000010000000010'
+const NFE_ACCESS_KEY = '35260700000000000000550010000000020000000020'
+
+export const CTE_EXPORT_FILE_NAME = 'cte-xml-20260722-210000.zip'
+
+/** ZIP real de uma entrada, gerado com fflate e congelado aqui — o frontend não depende do pacote. */
+const SYNTHETIC_CTE_ARCHIVE_BASE64 =
+  'UEsDBBQAAAAAAACon1unYwHxGAAAABgAAAAwAAAAMzUyNjA3MDAwMDAwMDAwMDAwMDA1NzAwMTAwMDAwMDAwMTAwMDAwMDAwMTAueG1sPGN0ZVByb2M+c21va2U8L2N0ZVByb2M+UEsBAhQAFAAAAAAAAKifW6djAfEYAAAAGAAAADAAAAAAAAAAAAAAAAAAAAAAADM1MjYwNzAwMDAwMDAwMDAwMDAwNTcwMDEwMDAwMDAwMDEwMDAwMDAwMDEwLnhtbFBLBQYAAAAAAQABAF4AAABmAAAAAAA='
+
+export const SYNTHETIC_CTE_ARCHIVE_BYTES = Buffer.from(SYNTHETIC_CTE_ARCHIVE_BASE64, 'base64')
+
+export const CTE_ITEM_ID = '00000000-0000-4000-8000-000000000504'
+
+const CTE_ITEM = {
+  accessKey: CTE_ACCESS_KEY,
+  authorizationProtocol: '135260000000001',
+  authorizedAt: '2026-07-22T21:00:00.000Z',
+  baseAmount: '1234.5600',
+  batchId: BATCH_ID,
+  batchName: BASE_BATCH.name,
+  charges: [],
+  createdAt: '2026-07-22T20:00:00.000Z',
+  documents: [
+    {
+      accessKey: NFE_ACCESS_KEY,
+      id: '00000000-0000-4000-8000-000000000506',
+      number: '1',
+      position: '1',
+      series: '1',
+      totalAmount: '1234.5600',
+    },
+  ],
+  fiscalAmount: '55.5500',
+  fiscalDocumentId: '00000000-0000-4000-8000-000000000505',
+  fiscalNumber: '5000',
+  fiscalSeries: '1',
+  id: CTE_ITEM_ID,
+  lastErrorCode: null,
+  position: '1',
+  status: 'authorized',
+  totalAmount: '1290.1100',
+} as const
+
 type MockPermissions = readonly ('cte.manage' | 'cte.submit')[]
 
 type BatchStatus = 'cancelled' | 'done' | 'draft' | 'error' | 'in_flight' | 'submitted'
@@ -36,7 +79,9 @@ type MockState = {
   batchCreations: number
   batchStatus: BatchStatus
   cancellations: number
+  exportBodies: string[]
   failures: string[]
+  itemListRequests: number
   listRequests: number
   submissions: number
 }
@@ -153,6 +198,38 @@ async function registerCteBatchMocks(
   })
 }
 
+async function registerCteItemMocks(
+  input: Readonly<{ page: Page; state: MockState }>,
+): Promise<void> {
+  await input.page.route(/\/cte-batch-items(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    input.state.itemListRequests += 1
+    await fulfillJson(route, { data: [CTE_ITEM], page: { nextCursor: null } })
+  })
+  await input.page.route(/\/cte-batches\/items\/export$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    input.state.exportBodies.push(route.request().postData() ?? '')
+    // Sem expor o content-disposition o cliente cai no nome de fallback: o header é cross-origin.
+    await route.fulfill({
+      body: SYNTHETIC_CTE_ARCHIVE_BYTES,
+      contentType: 'application/zip',
+      headers: {
+        ...CORS_HEADERS,
+        'access-control-allow-origin': '*',
+        'access-control-expose-headers': 'Content-Disposition',
+        'content-disposition': `attachment; filename="${CTE_EXPORT_FILE_NAME}"`,
+      },
+      status: 200,
+    })
+  })
+}
+
 export async function mockCteBatchWorkspaceApi(
   input: Readonly<{
     initialStatus?: BatchStatus
@@ -163,7 +240,9 @@ export async function mockCteBatchWorkspaceApi(
   Readonly<{
     batchCreations: () => number
     cancellations: () => number
+    exportBodies: () => readonly string[]
     failures: () => readonly string[]
+    itemListRequests: () => number
     listRequests: () => number
     submissions: () => number
   }>
@@ -172,7 +251,9 @@ export async function mockCteBatchWorkspaceApi(
     batchCreations: 0,
     batchStatus: input.initialStatus ?? 'draft',
     cancellations: 0,
+    exportBodies: [],
     failures: [],
+    itemListRequests: 0,
     listRequests: 0,
     submissions: 0,
   }
@@ -188,11 +269,14 @@ export async function mockCteBatchWorkspaceApi(
       page: input.page,
       state,
     }),
+    registerCteItemMocks({ page: input.page, state }),
   ])
   return {
     batchCreations: () => state.batchCreations,
     cancellations: () => state.cancellations,
+    exportBodies: () => state.exportBodies,
     failures: () => state.failures,
+    itemListRequests: () => state.itemListRequests,
     listRequests: () => state.listRequests,
     submissions: () => state.submissions,
   }

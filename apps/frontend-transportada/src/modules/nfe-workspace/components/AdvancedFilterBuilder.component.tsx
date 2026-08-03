@@ -2,6 +2,10 @@
 import { Fragment, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { Icon } from '@/components/ui/icon'
+import { Select, type SelectOption } from '@/components/ui/select'
+
 import {
   CONDITION_FIELDS,
   CONDITION_FIELD_TYPE,
@@ -14,15 +18,14 @@ import {
   type GroupConnector,
 } from '../hooks/useNfeDocumentTable.hook'
 import styles from '../styles/nfeWorkspace.module.css'
-import { DateRangePicker } from './DateRangePicker.component'
-import { SelectMenu, type SelectMenuOption } from './SelectMenu.component'
 
 type SelectFieldOptions = Readonly<{
-  emitterCity: readonly SelectMenuOption[]
-  emitterState: readonly SelectMenuOption[]
-  recipientCity: readonly SelectMenuOption[]
-  recipientState: readonly SelectMenuOption[]
-  status: readonly SelectMenuOption[]
+  cteIssued: readonly SelectOption[]
+  emitterCity: readonly SelectOption[]
+  emitterState: readonly SelectOption[]
+  recipientCity: readonly SelectOption[]
+  recipientState: readonly SelectOption[]
+  status: readonly SelectOption[]
 }>
 
 type AdvancedFilterBuilderProps = Readonly<{
@@ -98,12 +101,13 @@ export function AdvancedFilterBuilder({
     or: t('documents.connector.or'),
   }
 
-  const fieldOptions: readonly SelectMenuOption[] = CONDITION_FIELDS.map((field) => ({
+  const fieldOptions: readonly SelectOption[] = CONDITION_FIELDS.map((field) => ({
     label: t(`documents.fields.${field}`),
     value: field,
   }))
 
-  function selectOptionsFor(field: ConditionField): readonly SelectMenuOption[] {
+  function selectOptionsFor(field: ConditionField): readonly SelectOption[] {
+    if (field === 'cteIssued') return selectFieldOptions.cteIssued
     if (field === 'status') return selectFieldOptions.status
     if (field === 'emitterCity') return selectFieldOptions.emitterCity
     if (field === 'emitterState') return selectFieldOptions.emitterState
@@ -116,7 +120,7 @@ export function AdvancedFilterBuilder({
     const type = CONDITION_FIELD_TYPE[condition.field]
     if (type === 'select') {
       return (
-        <SelectMenu
+        <Select
           ariaLabel={t('documents.builder.value')}
           clearable={false}
           onChange={(value) => onUpdateCondition(group.id, condition.id, { value })}
@@ -172,15 +176,13 @@ export function AdvancedFilterBuilder({
 
   function renderCondition(group: FilterGroup, condition: FilterCondition): JSX.Element {
     const type = CONDITION_FIELD_TYPE[condition.field]
-    const operatorOptions: readonly SelectMenuOption[] = OPERATORS_BY_TYPE[type].map(
-      (operator) => ({
-        label: t(`documents.operators.${operator}`),
-        value: operator,
-      }),
-    )
+    const operatorOptions: readonly SelectOption[] = OPERATORS_BY_TYPE[type].map((operator) => ({
+      label: t(`documents.operators.${operator}`),
+      value: operator,
+    }))
     return (
       <div className={styles.builderCondition} key={condition.id}>
-        <SelectMenu
+        <Select
           ariaLabel={t('documents.builder.field')}
           clearable={false}
           compact
@@ -191,7 +193,7 @@ export function AdvancedFilterBuilder({
           placeholder={t('documents.builder.field')}
           value={condition.field}
         />
-        <SelectMenu
+        <Select
           ariaLabel={t('documents.builder.operator')}
           clearable={false}
           compact
@@ -213,7 +215,7 @@ export function AdvancedFilterBuilder({
           title={t('documents.builder.removeCondition')}
           type="button"
         >
-          <RemoveIcon />
+          <Icon name="remove" />
         </button>
       </div>
     )
@@ -243,7 +245,7 @@ export function AdvancedFilterBuilder({
               title={t('documents.builder.removeGroup')}
               type="button"
             >
-              <RemoveIcon />
+              <Icon name="remove" />
             </button>
           </div>
           <div className={styles.builderConditions}>
@@ -265,7 +267,7 @@ export function AdvancedFilterBuilder({
             onClick={() => onAddCondition(group.id)}
             type="button"
           >
-            <PlusIcon />
+            <Icon name="add" />
             <span>{t('documents.builder.addCondition')}</span>
           </button>
         </div>
@@ -278,26 +280,9 @@ export function AdvancedFilterBuilder({
       <p className={styles.builderHint}>{t('documents.builder.hint')}</p>
       {model.groups.map((group, index) => renderGroup(group, index))}
       <button className={styles.builderAddGroup} onClick={onAddGroup} type="button">
-        <PlusIcon />
+        <Icon name="add" />
         <span>{t('documents.builder.addGroup')}</span>
       </button>
     </div>
-  )
-}
-
-function PlusIcon(): JSX.Element {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  )
-}
-
-function RemoveIcon(): JSX.Element {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M5 12h14" />
-    </svg>
   )
 }

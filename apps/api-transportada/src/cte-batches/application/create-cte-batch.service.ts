@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CteEmissionProfileDetail } from '../../cte-profiles/application/cte-emission-profile.port.js'
 import {
   type CteBatchProjectionCandidate,
   projectCteBatchCharges,
@@ -57,20 +58,24 @@ export async function createCteBatch(
     ].map((value) => TEXT_ENCODER.encode(value)),
     operation: FINGERPRINT_OPERATION,
   })
+  // O catálogo vem do seu próprio repositório, que abre transação na mesma instância de `db`:
+  // buscá-lo já dentro da transação do lote pediria uma segunda conexão do pool com a primeira
+  // ainda presa, e a criação travaria em `idle in transaction` quando o pool estivesse cheio.
+  const catalog = await dependencies.profiles.listProfiles({ companyId: input.context.companyId })
   const operation = (transaction: CteBatchUnitOfWorkPort) =>
-    runCreate({ dependencies, documentIds, fingerprint, input, transaction })
+    runCreate({ catalog, documentIds, fingerprint, input, transaction })
 
   return dependencies.unitOfWork.execute?.(operation) ?? operation(dependencies.unitOfWork)
 }
 
 async function runCreate({
-  dependencies,
+  catalog,
   documentIds,
   fingerprint,
   input,
   transaction,
 }: {
-  readonly dependencies: CreateCteBatchDependencies
+  readonly catalog: readonly CteEmissionProfileDetail[]
   readonly documentIds: readonly string[]
   readonly fingerprint: string
   readonly input: CreateCteBatchInput
@@ -84,8 +89,8 @@ async function runCreate({
   if (replay !== null) return resolveCreateReplay(replay, fingerprint)
 
   const candidates = await resolveCandidates({
+    catalog,
     companyId,
-    dependencies,
     documentIds,
     input,
     transaction,
@@ -137,19 +142,18 @@ async function runCreate({
  * apontando para a versão publicada da regra de frete que será persistida.
  */
 async function resolveCandidates({
+  catalog,
   companyId,
-  dependencies,
   documentIds,
   input,
   transaction,
 }: {
+  readonly catalog: readonly CteEmissionProfileDetail[]
   readonly companyId: string
-  readonly dependencies: CreateCteBatchDependencies
   readonly documentIds: readonly string[]
   readonly input: CreateCteBatchInput
   readonly transaction: CteBatchUnitOfWorkPort
 }): Promise<readonly CteBatchProjectionCandidate[]> {
-  const catalog = await dependencies.profiles.listProfiles({ companyId })
   const query = { companyId, documentIds }
   const documents = await transaction.findSelectionDocuments(query)
   const links = await transaction.findActiveBatchLinks(query)

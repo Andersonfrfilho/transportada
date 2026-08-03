@@ -6,6 +6,7 @@ import { COMPANY_SETTINGS, EXPECTED_SETTINGS_RESULT } from './company-settings-a
 export const VALID_IDEMPOTENCY_KEY = 'settings-http-0001'
 
 export const VALID_HTTP_SETTINGS_BODY = {
+  billing: { ...COMPANY_SETTINGS.billing },
   cte: {
     environment: COMPANY_SETTINGS.cte.environment,
     nextNumber: COMPANY_SETTINGS.cte.nextNumber.toString(),
@@ -21,6 +22,7 @@ export const VALID_HTTP_SETTINGS_BODY = {
 } as const
 
 export const EXPECTED_HTTP_SETTINGS_DATA = {
+  billing: { ...EXPECTED_SETTINGS_RESULT.billing },
   cte: {
     environment: EXPECTED_SETTINGS_RESULT.cte.environment,
     nextNumber: EXPECTED_SETTINGS_RESULT.cte.nextNumber.toString(),

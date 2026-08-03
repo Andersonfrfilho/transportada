@@ -21,12 +21,12 @@ import {
 const CFOP = /^[0-9]{4}$/
 const COUNTER = /^(?:0|[1-9][0-9]{0,3})$/
 const FIXED_AMOUNT = 'fixed_amount'
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
+const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})\.[0-9]{4}$/
 const OPERATION_NATURE_MAX_LENGTH = 60
 const RECEIVER_PICKUP_AT_DESTINATION = '0'
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const PREDOMINANT_PRODUCT_FIXED = 'fixed'
-const RATE_DECIMAL = /^(?:0|0\.[0-9]{6}|1|1\.000000)$/
+const RATE_DECIMAL = /^(?:0\.[0-9]{6}|1\.000000)$/
 const TAX_ID = /^(?:[0-9]{8}|[0-9]{14})$/
 
 const componentSchema = z

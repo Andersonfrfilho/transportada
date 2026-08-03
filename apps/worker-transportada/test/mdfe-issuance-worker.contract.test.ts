@@ -25,6 +25,8 @@ const EVENT_ID = '77777777-8888-4999-8aaa-bbbbbbbbbbbb'
 
 const SILENT_LOGGER = { error: () => {}, info: () => {}, warn: () => {} }
 
+const REJECTION_MESSAGE = 'Rejeicao: Numero do MDF-e ja utilizado'
+
 const STORED_XML = {
   bucket: 'fiscal',
   key: `tenants/${COMPANY_ID}/mdfe-documents/${MDFE_CLOSE_COMMAND.accessKey}/authorized.xml`,
@@ -213,13 +215,35 @@ describe('MDF-e issuance worker effect contract', () => {
 
   test('dead-letters a rejected transmission after writing the error code back', async () => {
     const fixture = createEffectFixture({
-      outcomes: { emit: { success: false, errorCode: '999', rawResponse: undefined } },
+      outcomes: {
+        emit: {
+          success: false,
+          errorCode: '999',
+          errorMessage: REJECTION_MESSAGE,
+          rawResponse: undefined,
+        },
+      },
     })
 
     const error = await refusal(() => fixture.effect.execute({ envelope: envelope() }))
 
     expect(error).toBeInstanceOf(MdfeIssuanceFatalError)
-    expect(fixture.writeBackCalls.at(-1)).toMatchObject({ errorCode: '999', event: 'rejected' })
+    expect(fixture.writeBackCalls.at(-1)).toMatchObject({
+      errorCode: '999',
+      errorMessage: REJECTION_MESSAGE,
+      event: 'rejected',
+    })
+  })
+
+  /** Sem a mensagem o operador só vê um número — a tela precisa do texto que a SEFAZ devolveu. */
+  test('writes the rejection back without a message when SEFAZ omits one', async () => {
+    const fixture = createEffectFixture({
+      outcomes: { emit: { success: false, errorCode: '999', rawResponse: undefined } },
+    })
+
+    await refusal(() => fixture.effect.execute({ envelope: envelope() }))
+
+    expect(fixture.writeBackCalls.at(-1)).not.toHaveProperty('errorMessage')
   })
 
   test('schedules a retry when the provider fails with an infrastructure error', async () => {
@@ -325,7 +349,14 @@ describe('MDF-e issuance worker effect contract', () => {
   /** Cancelamento recusado libera a intenção: sem isso o manifesto trava sem poder tentar de novo. */
   test('releases the cancellation intent when SEFAZ refuses the event', async () => {
     const fixture = createEffectFixture({
-      outcomes: { cancel: { success: false, errorCode: '573', rawResponse: undefined } },
+      outcomes: {
+        cancel: {
+          success: false,
+          errorCode: '573',
+          errorMessage: 'Rejeicao: Duplicidade de evento',
+          rawResponse: undefined,
+        },
+      },
     })
 
     const error = await refusal(() =>
@@ -340,6 +371,7 @@ describe('MDF-e issuance worker effect contract', () => {
     expect(error).toBeInstanceOf(MdfeIssuanceFatalError)
     expect(fixture.writeBackCalls.at(-1)).toMatchObject({
       errorCode: '573',
+      errorMessage: 'Rejeicao: Duplicidade de evento',
       event: 'cancellation_rejected',
     })
     expect(fixture.storedXml).toEqual([])

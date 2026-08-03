@@ -23,6 +23,9 @@ const REPROCESS_OPERATION = 'cte-issuance.reprocess'
 const CANCEL_OPERATION = 'cte-issuance.cancel'
 /** Mínimo exigido pela SEFAZ na xJust do evento 110111. */
 const CANCELLATION_JUSTIFICATION_MIN_LENGTH = 15
+/** Transmitir é o único comando do operador: o rascunho é fechado aqui, dentro da mesma transação. */
+const ISSUABLE_BATCH_STATUSES: readonly string[] = ['draft', 'submitted', 'error']
+const DRAFT_BATCH_STATUS = 'draft'
 
 type CteIssuanceStatus =
   | 'requested'
@@ -189,6 +192,7 @@ export type CteFiscalDocumentRecord = {
 export type CteDocumentDownloadPort = {
   readonly createDownloadUrl: (input: {
     readonly bucket: string
+    readonly fileName: string
     readonly key: string
   }) => Promise<{ readonly expiresAt: string; readonly url: string }>
 }
@@ -227,6 +231,13 @@ export type CteIssuanceUnitOfWorkPort = {
     readonly batchItemId?: string | undefined
     readonly companyId: string
   }) => Promise<Record<string, unknown> | null>
+  readonly submitDraftBatch: (input: {
+    readonly batchId: string
+    readonly companyId: string
+    readonly idempotencyKey: string
+    readonly requestFingerprint: string
+    readonly userId: string
+  }) => Promise<void>
   readonly listFiscalDocuments: (input: {
     readonly batchId: string
     readonly batchItemId: string
@@ -386,6 +397,7 @@ async function runListDocuments(
     documents.map(async (document) => {
       const download = await dependencies.documentDownload.createDownloadUrl({
         bucket: document.bucket,
+        fileName: `${document.accessKey}.xml`,
         key: document.objectKey,
       })
       return {
@@ -526,6 +538,18 @@ async function executeIssue(
     return replay.response as CteIssuanceResult
   }
 
+  const batchStatus = getRequiredString(batch, 'status')
+  if (!ISSUABLE_BATCH_STATUSES.includes(batchStatus)) throw createBatchInvalidState()
+  if (batchStatus === DRAFT_BATCH_STATUS) {
+    await transaction.submitDraftBatch({
+      batchId: input.batchId,
+      companyId,
+      idempotencyKey: input.idempotencyKey,
+      requestFingerprint: fingerprint,
+      userId: input.context.userId,
+    })
+  }
+
   const batchItem = await transaction.findBatchItem({ batchId: input.batchId, companyId })
   if (batchItem === null || batchItem['companyId'] !== companyId) throw createNotFound()
 
@@ -536,6 +560,8 @@ async function executeIssue(
     batchItemId,
     companyId,
   })
+  /** O lote fica em `submitted` até o worker pegá-lo: um segundo comando nessa janela duplicaria. */
+  if (currentIssuance?.context.status === 'requested') throw createIssuanceAlreadyInFlight()
   const fiscalSettings = await transaction.findFiscalSettings({ companyId })
   if (fiscalSettings === null) throw createFiscalSequenceMissing()
 
@@ -1054,6 +1080,22 @@ function getLookupAttemptId(
   const batchItemId = getRequiredString(batchItem, 'id')
   const attemptNumber = getRequiredNumber(issuance.context.attemptNumber)
   return `attempt-${batchItemId}-${attemptNumber}`
+}
+
+function createBatchInvalidState(): ApiError {
+  return new ApiError({
+    code: 'CTE_BATCH_INVALID_STATE',
+    message: 'CT-e batch state transition is not allowed',
+    status: 409,
+  })
+}
+
+function createIssuanceAlreadyInFlight(): ApiError {
+  return new ApiError({
+    code: 'CTE_ISSUANCE_ALREADY_IN_FLIGHT',
+    message: 'CT-e issuance is already in progress for this batch',
+    status: 409,
+  })
 }
 
 function createNotFound(): ApiError {

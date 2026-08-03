@@ -33,6 +33,16 @@ const environmentSchema = z.object({
   KEYCLOAK_JWKS_URI: z.string().refine(isTrustedIdentityUrl, {
     message: 'KEYCLOAK_JWKS_URI must be an HTTPS URL or an HTTP localhost URL',
   }),
+  FLEET_VEHICLE_LOOKUP_TOKEN: z.string().trim().default(''),
+  FLEET_VEHICLE_LOOKUP_URL: z
+    .string()
+    .trim()
+    // Variável declarada e vazia significa provedor não contratado — não pode derrubar o boot.
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'FLEET_VEHICLE_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 })
 
@@ -52,7 +62,18 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     },
     logLevel: parsed.LOG_LEVEL,
     port: parsed.APP_PORT,
+    vehicleLookup:
+      parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
+        ? null
+        : { token: parsed.FLEET_VEHICLE_LOOKUP_TOKEN, url: parsed.FLEET_VEHICLE_LOOKUP_URL },
   }
+}
+
+function isTrustedLookupUrl(value: string): boolean {
+  return (
+    /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[^\s]*)?$/.test(value) ||
+    /^http:\/\/localhost(?::\d{1,5})?(?:\/[^\s]*)?$/.test(value)
+  )
 }
 
 function isTrustedFrontendOrigin(value: string): boolean {

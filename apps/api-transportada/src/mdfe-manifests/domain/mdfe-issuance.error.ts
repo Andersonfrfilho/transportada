@@ -7,8 +7,11 @@ import { MDFE_TRANSITION_BLOCK, type MdfeTransitionBlock } from './mdfe-manifest
 const BLOCK_MESSAGE: Readonly<Record<MdfeTransitionBlock, string>> = {
   [MDFE_TRANSITION_BLOCK.alreadyCancelled]: 'The manifest is already cancelled.',
   [MDFE_TRANSITION_BLOCK.alreadyClosed]: 'The manifest is already closed and never cancels.',
+  [MDFE_TRANSITION_BLOCK.alreadyDiscarded]: 'The manifest is already discarded.',
   [MDFE_TRANSITION_BLOCK.inFlight]: 'The manifest already has a request in flight.',
   [MDFE_TRANSITION_BLOCK.notAuthorized]: 'The manifest is not authorized by SEFAZ.',
+  [MDFE_TRANSITION_BLOCK.notDiscardable]:
+    'The manifest reached the SEFAZ and cannot be discarded anymore.',
   [MDFE_TRANSITION_BLOCK.notIssuable]: 'The manifest cannot be transmitted in its current state.',
   [MDFE_TRANSITION_BLOCK.windowExpired]: 'The cancellation window of the manifest expired.',
 }

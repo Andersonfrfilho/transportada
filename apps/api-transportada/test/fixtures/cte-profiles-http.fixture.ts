@@ -25,6 +25,7 @@ type RouteDependencies = {
 
 type CreateFixtureParams = {
   readonly createError?: Error
+  readonly createResult?: typeof PROFILE_DETAIL
   readonly permissions?: CompanyContext['permissions']
   readonly updateError?: Error
 }
@@ -64,7 +65,7 @@ export async function createCteProfilesHttpFixture(params: CreateFixtureParams =
       async execute(input) {
         createCalls.push(structuredClone(input))
         if (params.createError) throw params.createError
-        return PROFILE_DETAIL
+        return params.createResult ?? PROFILE_DETAIL
       },
     },
     deactivateProfile: {

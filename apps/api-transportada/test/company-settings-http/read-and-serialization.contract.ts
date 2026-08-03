@@ -29,7 +29,7 @@ describe('GET /company-settings HTTP contract', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      data: { cte: null, cteRetry: null, mdfe: null, profile: null },
+      data: { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
     })
     expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8')
     expect(response.headers.get('cache-control')).toBe('no-store')

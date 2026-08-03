@@ -1,0 +1,1 @@
+ALTER TABLE "cte_emission_profiles" DROP CONSTRAINT "cte_emission_profiles_predominant_product_mode_check", ADD CONSTRAINT "cte_emission_profiles_predominant_product_mode_check" CHECK ("predominant_product_mode" in ('highest_value', 'highest_weight', 'highest_quantity', 'fixed'));

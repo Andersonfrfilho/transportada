@@ -17,12 +17,14 @@ import {
   freightRuleVersions,
 } from '../../database/database.schema.js'
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { ApiError } from '../../shared/api.error.js'
 import type {
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
 } from '../application/cte-batch-preview.port.js'
 import type { CteBatchItemLookup, CteBatchSelectionQuery } from '../application/cte-batch.port.js'
+import { createBatchNameTakenError } from '../domain/cte-batch.error.js'
 
 import { findActiveBatchLinks, findSelectionDocuments } from './cte-batch-selection.query.js'
 
@@ -35,23 +37,27 @@ type ItemRecord = typeof cteBatchItems.$inferSelect
 type CteBatchItemChargeCalculation = (typeof CTE_BATCH_ITEM_CHARGE_CALCULATIONS)[number]
 type CteBatchStatus = 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
 
+const NAME_CONSTRAINT = 'cte_batches_company_id_name_unique'
+
 class DrizzleCteBatchTransaction {
   public constructor(private readonly database: Queryable) {}
 
   public async createBatch(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const [record] = await this.database
-      .insert(cteBatches)
-      .values({
-        companyId: requiredString(input.companyId),
-        correlationId: requiredString(input.correlationId),
-        idempotencyFingerprint: requiredString(input.idempotencyFingerprint),
-        idempotencyKey: requiredString(input.idempotencyKey),
-        name: requiredString(input.name),
-        operatorUserId: requiredString(input.operatorUserId),
-        status: 'draft',
-        version: 1n,
-      })
-      .returning()
+    const [record] = await runGuarded(() =>
+      this.database
+        .insert(cteBatches)
+        .values({
+          companyId: requiredString(input.companyId),
+          correlationId: requiredString(input.correlationId),
+          idempotencyFingerprint: requiredString(input.idempotencyFingerprint),
+          idempotencyKey: requiredString(input.idempotencyKey),
+          name: requiredString(input.name),
+          operatorUserId: requiredString(input.operatorUserId),
+          status: 'draft',
+          version: 1n,
+        })
+        .returning(),
+    )
     if (record === undefined) throw new Error('CTE_BATCH_CREATE_FAILED')
     return mapBatch(record, 0)
   }
@@ -426,6 +432,15 @@ class DrizzleCteBatchTransaction {
       .from(cteBatchItems)
       .where(and(eq(cteBatchItems.companyId, companyId), eq(cteBatchItems.batchId, batchId)))
     return rows.length
+  }
+}
+
+async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (violatedUniqueConstraint(error) === NAME_CONSTRAINT) throw createBatchNameTakenError()
+    throw error
   }
 }
 

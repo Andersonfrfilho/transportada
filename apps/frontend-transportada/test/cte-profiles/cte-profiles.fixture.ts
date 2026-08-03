@@ -23,7 +23,7 @@ export type CteProfileSettingsContract = Readonly<{
   operationNature: string
   pickupDetails: string
   pickupIndicator: '0' | '1'
-  predominantProductMode: 'fixed' | 'highest_value' | 'highest_weight'
+  predominantProductMode: 'fixed' | 'highest_quantity' | 'highest_value' | 'highest_weight'
   predominantProductName: string
   priority: string
   receiverIeIndicator: '1' | '2' | '9'

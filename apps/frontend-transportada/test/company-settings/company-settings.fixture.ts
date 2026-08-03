@@ -6,6 +6,14 @@ export const SYNTHETIC_CURSOR =
 export const SYNTHETIC_IDEMPOTENCY_KEY = 'frontend-contract-key-0001'
 
 export type CompanySettingsUpdateContract = Readonly<{
+  billing: Readonly<{
+    bankAccount: string
+    bankBranch: string
+    bankCode: string
+    bankName: string
+    observations: string
+    pixKey: string
+  }>
   cte: Readonly<{
     environment: 'homologation' | 'production'
     nextNumber: string
@@ -55,11 +63,20 @@ export const SAFE_CERTIFICATE = {
   version: '1',
 } as const
 
+export const SAFE_MDFE_CERTIFICATE = {
+  expiresAt: '2030-01-01T00:00:00.000Z',
+  id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e92',
+  purpose: 'mdfe',
+  status: 'active',
+  validFrom: '2026-01-01T00:00:00.000Z',
+  version: '3',
+} as const
+
 export type DigitalCertificatesResponseContract = Readonly<{
   data: readonly Readonly<{
     expiresAt: string
     id: string
-    purpose: 'cte'
+    purpose: 'cte' | 'mdfe'
     status: 'active' | 'retired'
     validFrom: string
     version: string
@@ -67,8 +84,18 @@ export type DigitalCertificatesResponseContract = Readonly<{
   page: Readonly<{ nextCursor: string | null }>
 }>
 
+export const BILLING_DEFAULTS = {
+  bankAccount: '12345-6',
+  bankBranch: '1234',
+  bankCode: '341',
+  bankName: 'Banco Sintético',
+  observations: 'Pagamento somente em conta da empresa.',
+  pixKey: '',
+} as const
+
 export const COMPANY_SETTINGS_RESPONSE = {
   data: {
+    billing: BILLING_DEFAULTS,
     cte: {
       environment: 'production',
       nextNumber: '9007199254740991',
@@ -112,6 +139,7 @@ export const COMPANY_SETTINGS_RESPONSE = {
 } as const
 
 export const COMPANY_SETTINGS_UPDATE = {
+  billing: BILLING_DEFAULTS,
   cte: {
     environment: 'production',
     nextNumber: '9007199254740991',
@@ -157,8 +185,17 @@ export const DIGITAL_CERTIFICATES_RESPONSE = {
   page: { nextCursor: null },
 } as const satisfies DigitalCertificatesResponseContract
 
+export const DUAL_PURPOSE_CERTIFICATES_RESPONSE = {
+  data: [
+    { ...SAFE_CERTIFICATE, id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93', status: 'retired' },
+    SAFE_MDFE_CERTIFICATE,
+    SAFE_CERTIFICATE,
+  ],
+  page: { nextCursor: null },
+} as const satisfies DigitalCertificatesResponseContract
+
 export const EMPTY_COMPANY_SETTINGS_RESPONSE = {
-  data: { cte: null, cteRetry: null, mdfe: null, profile: null },
+  data: { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
 } as const
 
 export function syntheticCertificateFile(): File {

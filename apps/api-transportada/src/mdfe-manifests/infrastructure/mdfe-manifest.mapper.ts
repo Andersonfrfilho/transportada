@@ -12,6 +12,7 @@ import type {
   MdfeManifestDriverLine,
   MdfeManifestItem,
   MdfeManifestLoadingCity,
+  MdfeManifestRejection,
 } from '../application/mdfe-manifest.port.js'
 
 type DriverRecord = typeof mdfeManifestDrivers.$inferSelect
@@ -19,7 +20,12 @@ type ItemRecord = typeof mdfeManifestItems.$inferSelect
 type LoadingCityRecord = typeof mdfeManifestLoadingCities.$inferSelect
 type ManifestRecord = typeof mdfeManifests.$inferSelect
 
-export function mapManifest(record: ManifestRecord): MdfeManifest {
+export function mapManifest(input: {
+  readonly record: ManifestRecord
+  readonly rejection: MdfeManifestRejection | null
+}): MdfeManifest {
+  const { record } = input
+
   return {
     additionalInformation: record.additionalInformation,
     cargoProduct: record.cargoProduct,
@@ -41,6 +47,7 @@ export function mapManifest(record: ManifestRecord): MdfeManifest {
     freightValue: record.freightValue,
     id: record.id,
     insuranceEndorsement: record.insuranceEndorsement,
+    lastRejection: input.rejection,
     loadingPostalCode: record.loadingPostalCode,
     originState: record.originState,
     rntrc: record.rntrc,

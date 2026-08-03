@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import type { CompanySettingsInput } from '../application/company-settings.port.js'
+import { BILLING_OBSERVATIONS_MAX_LENGTH } from '../../database/company-fiscal-profile.schema.js'
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
@@ -20,6 +21,8 @@ const BANK_CODE = /^\d{3}$/
 const NUMERIC_TEXT = /^\d+$/
 const TAX_ID = /^(?:\d{11}|\d{14})$/
 const BANK_BRANCH_MAX_LENGTH = 10
+const BANK_ACCOUNT_MAX_LENGTH = 20
+const BANK_NAME_MAX_LENGTH = 60
 const INSURANCE_POLICY_MAX_LENGTH = 20
 const INSURER_NAME_MAX_LENGTH = 60
 const PIX_KEY_MAX_LENGTH = 77
@@ -78,8 +81,23 @@ const mdfeSchema = z
   })
   .strict()
 
+const billingSchema = z
+  .object({
+    bankAccount: optionalText(BANK_ACCOUNT_MAX_LENGTH),
+    bankBranch: z
+      .string()
+      .max(BANK_BRANCH_MAX_LENGTH)
+      .refine((value) => value === '' || NUMERIC_TEXT.test(value)),
+    bankCode: z.string().refine((value) => value === '' || BANK_CODE.test(value)),
+    bankName: optionalText(BANK_NAME_MAX_LENGTH),
+    observations: optionalText(BILLING_OBSERVATIONS_MAX_LENGTH),
+    pixKey: optionalText(PIX_KEY_MAX_LENGTH),
+  })
+  .strict()
+
 const settingsSchema = z
   .object({
+    billing: billingSchema,
     cte: z
       .object({
         environment: z.enum(['homologation', 'production']),

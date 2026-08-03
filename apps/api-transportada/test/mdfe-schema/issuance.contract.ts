@@ -44,6 +44,7 @@ describe('mdfe issuance attempt schema', () => {
       'reservation_id',
       'last_error_code',
       'last_error_cause',
+      'last_error_message',
       'correlation_id',
       'created_at',
       'updated_at',

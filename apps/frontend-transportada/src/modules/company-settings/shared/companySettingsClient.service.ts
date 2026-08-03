@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  COMPANY_LOGO_FIELD,
+  isCompanyLogoMetadata,
+  isCompanyLogoMimeType,
+} from './companyLogo.validation'
+import {
   isCertificatesResponse,
   isCompanyProfileLookupResponse,
   isRecord,
@@ -8,6 +13,9 @@ import {
   toSafeCertificate,
 } from './companySettingsResponse.validation'
 import type {
+  CertificatePurpose,
+  CompanyLogoImage,
+  CompanyLogoMetadata,
   CompanyProfileLookup,
   CompanySettingsResponse,
   CompanySettingsUpdate,
@@ -15,7 +23,11 @@ import type {
   SafeCertificate,
 } from './companySettings.types'
 
+export { CERTIFICATE_PURPOSES } from './companySettings.types'
 export type {
+  CertificatePurpose,
+  CompanyLogoImage,
+  CompanyLogoMetadata,
   CompanyProfileLookup,
   CompanyProfileLookupResponse,
   CompanySettingsResponse,
@@ -23,6 +35,9 @@ export type {
   DigitalCertificatesResponse,
   SafeCertificate,
 } from './companySettings.types'
+
+const COMPANY_LOGO_PATH = '/company-settings/logo'
+const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
   apiBaseUrl: string
@@ -42,13 +57,16 @@ class CompanySettingsRequestError extends Error {
 }
 
 export type CompanySettingsClient = Readonly<{
+  getLogo: () => Promise<CompanyLogoImage | null>
   getSettings: () => Promise<CompanySettingsResponse>
   listCertificates: (
     input: Readonly<{ cursor?: string; limit: number }>,
   ) => Promise<DigitalCertificatesResponse>
   lookupProfileByCnpj: (cnpj: string) => Promise<CompanyProfileLookup | null>
-  retireCertificate: () => Promise<void>
+  removeLogo: () => Promise<void>
+  retireCertificate: (purpose: CertificatePurpose) => Promise<void>
   replaceCertificate: (input: FormData) => Promise<SafeCertificate>
+  replaceLogo: (file: File) => Promise<CompanyLogoMetadata>
   updateSettings: (input: CompanySettingsUpdate) => Promise<CompanySettingsResponse>
 }>
 
@@ -105,6 +123,14 @@ function getRequest(
 
 function cleanUpdate(input: CompanySettingsUpdate): CompanySettingsUpdate {
   return {
+    billing: {
+      bankAccount: input.billing.bankAccount,
+      bankBranch: input.billing.bankBranch,
+      bankCode: input.billing.bankCode,
+      bankName: input.billing.bankName,
+      observations: input.billing.observations,
+      pixKey: input.billing.pixKey,
+    },
     cte: {
       environment: input.cte.environment,
       nextNumber: input.cte.nextNumber,
@@ -158,6 +184,85 @@ function multipartRequest(
     },
     method: 'POST',
   })
+}
+
+async function sendRequest(
+  input: Readonly<{ dependencies: ClientDependencies; request: Request }>,
+): Promise<Response> {
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(input.request)
+  } catch {
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
+  }
+  if (!response.ok && response.status !== 404)
+    throw requestError(readErrorCode(await response.text()))
+  return response
+}
+
+function logoRequest(
+  input: Readonly<{
+    accessToken: string
+    body?: FormData
+    dependencies: ClientDependencies
+    method: string
+  }>,
+): Request {
+  return new Request(`${input.dependencies.apiBaseUrl}${COMPANY_LOGO_PATH}`, {
+    ...(input.body === undefined ? {} : { body: input.body }),
+    cache: 'no-store',
+    headers: { authorization: `Bearer ${input.accessToken}` },
+    method: input.method,
+  })
+}
+
+function toDataUrl(input: Readonly<{ bytes: ArrayBuffer; mimeType: string }>): string {
+  const view = new Uint8Array(input.bytes)
+  let binary = ''
+  for (let offset = 0; offset < view.length; offset += DATA_URL_CHUNK) {
+    binary += String.fromCharCode(...view.subarray(offset, offset + DATA_URL_CHUNK))
+  }
+  return `data:${input.mimeType};base64,${btoa(binary)}`
+}
+
+async function readLogo(dependencies: ClientDependencies): Promise<CompanyLogoImage | null> {
+  const accessToken = await dependencies.getAccessToken()
+  const response = await sendRequest({
+    dependencies,
+    request: logoRequest({ accessToken, dependencies, method: 'GET' }),
+  })
+  if (response.status === 404) return null
+  const mimeType = response.headers.get('content-type') ?? ''
+  if (!isCompanyLogoMimeType(mimeType)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return { dataUrl: toDataUrl({ bytes: await response.arrayBuffer(), mimeType }), mimeType }
+}
+
+async function replaceLogo(
+  input: Readonly<{ dependencies: ClientDependencies; file: File }>,
+): Promise<CompanyLogoMetadata> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const body = new FormData()
+  body.set(COMPANY_LOGO_FIELD, input.file)
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: logoRequest({ accessToken, body, dependencies: input.dependencies, method: 'PUT' }),
+  })
+  if (
+    !isRecord(response) ||
+    Object.keys(response).length !== 1 ||
+    !isCompanyLogoMetadata(response.data)
+  )
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+async function removeLogo(dependencies: ClientDependencies): Promise<void> {
+  const accessToken = await dependencies.getAccessToken()
+  const response = await sendRequest({
+    dependencies,
+    request: logoRequest({ accessToken, dependencies, method: 'DELETE' }),
+  })
+  if (response.status === 404) throw requestError(readErrorCode(await response.text()))
 }
 
 async function readSettings(dependencies: ClientDependencies): Promise<CompanySettingsResponse> {
@@ -215,15 +320,21 @@ async function replaceCertificate(
   return toSafeCertificate(response.data)
 }
 
-async function retireCertificate(dependencies: ClientDependencies): Promise<void> {
+async function retireCertificate(
+  input: Readonly<{ dependencies: ClientDependencies; purpose: CertificatePurpose }>,
+): Promise<void> {
+  const { dependencies } = input
   const accessToken = await dependencies.getAccessToken()
   await requestJson({
     fetch: dependencies.fetch,
-    request: new Request(`${dependencies.apiBaseUrl}/digital-certificates`, {
-      cache: 'no-store',
-      headers: { authorization: `Bearer ${accessToken}` },
-      method: 'DELETE',
-    }),
+    request: new Request(
+      `${dependencies.apiBaseUrl}/digital-certificates?purpose=${input.purpose}`,
+      {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'DELETE',
+      },
+    ),
   })
 }
 
@@ -249,10 +360,13 @@ async function updateSettings(
 }
 
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
+  getLogo: () => readLogo(dependencies),
   getSettings: () => readSettings(dependencies),
   listCertificates: (request) => readCertificates({ dependencies, request }),
   lookupProfileByCnpj: (cnpj) => lookupProfileByCnpj({ cnpj, dependencies }),
-  retireCertificate: () => retireCertificate(dependencies),
+  removeLogo: () => removeLogo(dependencies),
+  retireCertificate: (purpose) => retireCertificate({ dependencies, purpose }),
   replaceCertificate: (body) => replaceCertificate({ body, dependencies }),
+  replaceLogo: (file) => replaceLogo({ dependencies, file }),
   updateSettings: (settings) => updateSettings({ dependencies, settings }),
 })

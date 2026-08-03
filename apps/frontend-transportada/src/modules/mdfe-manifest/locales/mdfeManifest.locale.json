@@ -6,10 +6,17 @@
   "error": "Não foi possível carregar os manifestos",
   "empty": "Nenhum manifesto encontrado",
   "forbidden": "Seu acesso atual não permite consultar os manifestos MDF-e",
+  "dateRange": {
+    "placeholder": "Selecione o período",
+    "clear": "Limpar período",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês"
+  },
   "resultCounter": "{{shown}} de {{total}} manifestos",
   "manifestsTitle": "Manifestos",
   "filters": {
     "title": "Filtros",
+    "all": "Todos",
     "simple": "Simples",
     "advanced": "Avançado",
     "clear": "Limpar filtros",
@@ -18,8 +25,8 @@
     "status": "Situação",
     "cteCountFrom": "CT-es (mínimo)",
     "cteCountTo": "CT-es (máximo)",
-    "createdFrom": "Criado de",
-    "createdTo": "Criado até"
+    "createdRange": "Período de criação",
+    "removeFilter": "Remover o filtro {{field}}"
   },
   "status": {
     "draft": "Rascunho",
@@ -27,7 +34,8 @@
     "authorized": "Autorizado",
     "rejected": "Rejeitado",
     "closed": "Encerrado",
-    "cancelled": "Cancelado"
+    "cancelled": "Cancelado",
+    "discarded": "Descartado"
   },
   "columns": {
     "title": "Colunas",
@@ -47,6 +55,9 @@
     "moveDown": "Mover coluna para a direita",
     "toggle": "Exibir coluna"
   },
+  "rejection": {
+    "label": "Motivo da recusa da SEFAZ:"
+  },
   "sort": {
     "asc": "ordenado crescente",
     "desc": "ordenado decrescente",
@@ -63,6 +74,7 @@
     "issue": "Transmitir",
     "close": "Encerrar",
     "cancel": "Cancelar",
+    "discard": "Descartar",
     "confirm": "Confirmar",
     "dismiss": "Desistir",
     "create": "Criar manifesto",
@@ -193,9 +205,15 @@
     "tooShort": "A justificativa precisa de pelo menos 15 caracteres.",
     "tooLong": "A justificativa não pode passar de 255 caracteres."
   },
+  "discard": {
+    "title": "Descartar manifesto {{fiscal}}",
+    "warning": "O descarte encerra o manifesto sem enviá-lo à SEFAZ e devolve os CT-es para novo manifesto. Não pode ser desfeito."
+  },
   "feedback": {
     "alreadyCancelled": "Este manifesto já foi cancelado.",
     "alreadyClosed": "Este manifesto já foi encerrado.",
+    "alreadyDiscarded": "Este manifesto já foi descartado.",
+    "notDiscardable": "Só manifesto em rascunho ou rejeitado pode ser descartado.",
     "documentAlreadyManifested": "Um dos CT-es já está em outro manifesto.",
     "documentNotAuthorized": "Só CT-e autorizado pode entrar no manifesto.",
     "inFlight": "Há uma transmissão em andamento para este manifesto.",

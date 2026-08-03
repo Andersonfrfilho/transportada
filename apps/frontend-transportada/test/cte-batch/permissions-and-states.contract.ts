@@ -27,9 +27,6 @@ describe('CT-e batch permissions and states contract', () => {
       await forbiddenController.createBatch(CTE_BATCH_CREATE).catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'CTE_BATCH_FORBIDDEN' }))
     expect(
-      await forbiddenController.submitBatch(CTE_BATCH.id).catch((caught: unknown) => caught),
-    ).toEqual(expect.objectContaining({ message: 'CTE_BATCH_FORBIDDEN' }))
-    expect(
       await forbiddenController
         .removeItem({ batchId: CTE_BATCH.id, itemId: CTE_BATCH_ITEM_ID })
         .catch((caught: unknown) => caught),
@@ -95,7 +92,6 @@ describe('CT-e batch permissions and states contract', () => {
     })
     expect(readyViewModel.status).toBe('draft')
     expect(readyViewModel.selectedBatchId).toBe(CTE_BATCH.id)
-    expect(readyViewModel.canSubmitSelectedBatch).toBe(true)
     expect(JSON.stringify(readyViewModel)).not.toContain('<cteProc')
 
     const processingViewModel = createCteBatchViewModel({
@@ -106,7 +102,6 @@ describe('CT-e batch permissions and states contract', () => {
       status: 'success',
     })
     expect(processingViewModel.status).toBe('processing')
-    expect(processingViewModel.canSubmitSelectedBatch).toBe(false)
   })
 })
 
@@ -132,10 +127,6 @@ function createMutationRecordingClient(): CteBatchClient & { readonly mutationCo
       mutationCount += 1
       return Promise.resolve(CTE_BATCH_WITHOUT_ITEM)
     },
-    submitBatch: () => {
-      mutationCount += 1
-      return Promise.resolve(undefined)
-    },
   }
 }
 
@@ -150,7 +141,6 @@ type CteBatchClient = {
     readonly limit: number
   }): Promise<unknown>
   removeItem(input: { readonly batchId: string; readonly itemId: string }): Promise<unknown>
-  submitBatch(batchId: string): Promise<unknown>
 }
 
 type CteBatchHookModule = {
@@ -165,7 +155,6 @@ type CteBatchHookModule = {
       readonly batchId: string
       readonly itemId: string
     }) => Promise<unknown>
-    readonly submitBatch: (batchId: string) => Promise<void>
   }
 }
 
@@ -179,7 +168,6 @@ type CteBatchViewModelModule = {
   }) => {
     readonly canManageBatches: boolean
     readonly canSubmitBatches: boolean
-    readonly canSubmitSelectedBatch?: boolean
     readonly selectedBatchId?: string
     readonly status:
       | 'draft'

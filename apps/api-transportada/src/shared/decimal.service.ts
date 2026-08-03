@@ -62,6 +62,23 @@ export function formatScaledDecimal(value: bigint, scale: bigint): string {
   return `${sign}${digits.slice(0, -Number(scale)) || '0'}.${digits.slice(-Number(scale))}`
 }
 
+export function isDecimalString(value: unknown): value is string {
+  return typeof value === 'string' && DECIMAL_PATTERN.test(value)
+}
+
+/** O driver do Postgres come as casas zeradas de `numeric`; a resposta HTTP sempre fecha em centavos. */
+export function formatFiscalMoney(value: string): string {
+  const [integerPart = '0', fractionalPart = ''] = value.split('.', 2)
+  return formatScaledDecimal(
+    rescaleHalfUp({
+      fromScale: BigInt(fractionalPart.length),
+      toScale: FISCAL_MONEY_SCALE,
+      value: BigInt(`${integerPart}${fractionalPart}`),
+    }),
+    FISCAL_MONEY_SCALE,
+  )
+}
+
 export function divideHalfUp(dividend: bigint, divisor: bigint): bigint {
   const half = divisor / HALF_UP_DIVISOR
   return dividend < 0n ? (dividend - half) / divisor : (dividend + half) / divisor

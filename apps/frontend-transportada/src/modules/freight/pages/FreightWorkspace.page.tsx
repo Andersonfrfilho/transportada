@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
+import { Select } from '@/components/ui/select'
+import { Icon } from '@/components/ui/icon'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { createFreightDrafts } from '../shared/freightDraft.service'
@@ -8,6 +10,15 @@ import { useFreightWorkspace } from '../hooks/useFreightWorkspace.hook'
 import type { FreightCalculationFilters, FreightRuleFilters } from '../shared/freightClient.service'
 
 const SYNTHETIC_DOCUMENT_ID = '00000000-0000-4000-8000-000000000304'
+const FREIGHT_RULE_STATUS_OPTIONS = [
+  { label: 'Ativa', value: 'active' },
+  { label: 'Rascunho', value: 'draft' },
+  { label: 'Inativa', value: 'inactive' },
+] as const
+const FREIGHT_CALCULATION_STATUS_OPTIONS = [
+  { label: 'Snapshot', value: 'snapshotted' },
+  { label: 'Rejeitado', value: 'rejected' },
+] as const
 const FREIGHT_RULE_ADVANCED_FILTERS: readonly (keyof FreightRuleFilters)[] = [
   'descriptionContains',
   'minimumAmountEq',
@@ -248,73 +259,76 @@ export function FreightWorkspacePage() {
               </label>
               <label>
                 Regra com status
-                <select
-                  onChange={(event) =>
-                    setRuleStatusEq(event.target.value as '' | 'active' | 'draft' | 'inactive')
-                  }
+                <Select
+                  ariaLabel="Regra com status"
+                  clearable
+                  compact
+                  options={FREIGHT_RULE_STATUS_OPTIONS}
+                  placeholder="Todos"
                   value={ruleStatusEq}
-                >
-                  <option value="">Todos</option>
-                  <option value="active">Ativa</option>
-                  <option value="draft">Rascunho</option>
-                  <option value="inactive">Inativa</option>
-                </select>
+                  onChange={(value) =>
+                    setRuleStatusEq(value as '' | 'active' | 'draft' | 'inactive')
+                  }
+                />
               </label>
               <label>
                 Regra com status diferente de
-                <select
-                  onChange={(event) =>
-                    setRuleStatusNe(event.target.value as '' | 'active' | 'draft' | 'inactive')
-                  }
+                <Select
+                  ariaLabel="Regra com status diferente de"
+                  clearable
+                  compact
+                  options={FREIGHT_RULE_STATUS_OPTIONS}
+                  placeholder="Nenhum"
                   value={ruleStatusNe}
-                >
-                  <option value="">Nenhum</option>
-                  <option value="active">Ativa</option>
-                  <option value="draft">Rascunho</option>
-                  <option value="inactive">Inativa</option>
-                </select>
+                  onChange={(value) =>
+                    setRuleStatusNe(value as '' | 'active' | 'draft' | 'inactive')
+                  }
+                />
               </label>
               <label>
                 Cálculo com status
-                <select
-                  onChange={(event) =>
-                    setCalculationStatusEq(event.target.value as '' | 'rejected' | 'snapshotted')
-                  }
+                <Select
+                  ariaLabel="Cálculo com status"
+                  clearable
+                  compact
+                  options={FREIGHT_CALCULATION_STATUS_OPTIONS}
+                  placeholder="Todos"
                   value={calculationStatusEq}
-                >
-                  <option value="">Todos</option>
-                  <option value="snapshotted">Snapshot</option>
-                  <option value="rejected">Rejeitado</option>
-                </select>
+                  onChange={(value) =>
+                    setCalculationStatusEq(value as '' | 'rejected' | 'snapshotted')
+                  }
+                />
               </label>
               <label>
                 Cálculo com status diferente de
-                <select
-                  onChange={(event) =>
-                    setCalculationStatusNe(event.target.value as '' | 'rejected' | 'snapshotted')
-                  }
+                <Select
+                  ariaLabel="Cálculo com status diferente de"
+                  clearable
+                  compact
+                  options={FREIGHT_CALCULATION_STATUS_OPTIONS}
+                  placeholder="Nenhum"
                   value={calculationStatusNe}
-                >
-                  <option value="">Nenhum</option>
-                  <option value="snapshotted">Snapshot</option>
-                  <option value="rejected">Rejeitado</option>
-                </select>
+                  onChange={(value) =>
+                    setCalculationStatusNe(value as '' | 'rejected' | 'snapshotted')
+                  }
+                />
               </label>
               <label>
                 Filtro avançado de regra
-                <select
-                  onChange={(event) =>
-                    setAdvancedRuleFilterKey(event.target.value as keyof FreightRuleFilters | '')
-                  }
+                <Select
+                  ariaLabel="Filtro avançado de regra"
+                  clearable
+                  compact
+                  options={FREIGHT_RULE_ADVANCED_FILTERS.map((filter) => ({
+                    label: filter,
+                    value: filter,
+                  }))}
+                  placeholder="Nenhum"
                   value={advancedRuleFilterKey}
-                >
-                  <option value="">Nenhum</option>
-                  {FREIGHT_RULE_ADVANCED_FILTERS.map((filter) => (
-                    <option key={filter} value={filter}>
-                      {filter}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) =>
+                    setAdvancedRuleFilterKey(value as keyof FreightRuleFilters | '')
+                  }
+                />
               </label>
               <label>
                 Valor do filtro de regra
@@ -326,21 +340,20 @@ export function FreightWorkspacePage() {
               </label>
               <label>
                 Filtro avançado de cálculo
-                <select
-                  onChange={(event) =>
-                    setAdvancedCalculationFilterKey(
-                      event.target.value as keyof FreightCalculationFilters | '',
-                    )
-                  }
+                <Select
+                  ariaLabel="Filtro avançado de cálculo"
+                  clearable
+                  compact
+                  options={FREIGHT_CALCULATION_ADVANCED_FILTERS.map((filter) => ({
+                    label: filter,
+                    value: filter,
+                  }))}
+                  placeholder="Nenhum"
                   value={advancedCalculationFilterKey}
-                >
-                  <option value="">Nenhum</option>
-                  {FREIGHT_CALCULATION_ADVANCED_FILTERS.map((filter) => (
-                    <option key={filter} value={filter}>
-                      {filter}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) =>
+                    setAdvancedCalculationFilterKey(value as keyof FreightCalculationFilters | '')
+                  }
+                />
               </label>
               <label>
                 Valor do filtro de cálculo
@@ -353,6 +366,7 @@ export function FreightWorkspacePage() {
             </div>
             <div className="workspace-actions">
               <button className="workspace-secondary-action" onClick={clearFilters} type="button">
+                <Icon name="filter-clear" />
                 Limpar filtros
               </button>
               {workspace.canManageRules && (
@@ -362,6 +376,7 @@ export function FreightWorkspacePage() {
                   onClick={handleCreateDefaultRule}
                   type="button"
                 >
+                  <Icon name="add" />
                   Criar regra padrao
                 </button>
               )}
@@ -372,6 +387,7 @@ export function FreightWorkspacePage() {
                   onClick={handleSimulateFreight}
                   type="button"
                 >
+                  <Icon name="refresh" />
                   Simular frete
                 </button>
               )}

@@ -5,13 +5,16 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
+import { BillingInvoiceDetailPage } from '@/modules/billing/pages/BillingInvoiceDetail.page'
 import { BillingWorkspacePage } from '@/modules/billing/pages/BillingWorkspace.page'
+import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoiceRoute.service'
 import { CteBatchWorkspacePage } from '@/modules/cte-batch/pages/CteBatchWorkspace.page'
 import { CompanySettingsPage } from '@/modules/company-settings/pages/CompanySettings.page'
 import { CteProfilesPage } from '@/modules/cte-profiles/pages/CteProfiles.page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Icon } from '@/components/ui/icon'
 import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
@@ -64,31 +67,6 @@ type NavigationGroup = Readonly<{
   items: readonly WorkspaceNavigationItem[]
 }>
 
-function WorkspaceIcon({ workspace }: Readonly<{ workspace: WorkspaceNavigationItem['key'] }>) {
-  const paths: Record<WorkspaceNavigationItem['key'], string> = {
-    billing:
-      'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M12 7v10 M15 9.5c-.7-1-1.7-1.5-3-1.5-1.7 0-3 1-0.8 3 1.7 0 3 .8 3 2.5s-1.3 3-3 3c-1.3 0-2.3-.5-3-1.5',
-    'company-settings': 'M12 3 5 6v5c0 4.5 2.8 8.4 7 10 4.2-1.6 7-5.5 7-10V6l-7-3Z M9 12l2 2 4-5',
-    'cte-batch': 'M7 4h10v3h3v13H4V7h3z M9 4h6 M8 11h8 M8 15h5',
-    'cte-profiles': 'M5 4h9l5 5v11H5z M14 4v5h5 M8 13h8 M8 17h5 M9 9h2',
-    fleet:
-      'M4 8h9v7H4z M13 10h4l3 3v2h-7z M8 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M17 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M12 5.5a2 2 0 1 0-4 0',
-    freight:
-      'M3 7h11v10H3z M14 10h4l3 3v4h-7z M7 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M17 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
-    'mdfe-manifest':
-      'M4 6h11v9H4z M15 9h3l2 3v3h-5z M8 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M7 9h5 M7 12h5',
-    nfe: 'M6 3h9l3 3v15H6z M15 3v4h4 M9 11h6 M9 15h6',
-    operations: 'M4 18V6 M4 18h16 M8 15v-3 M12 15V8 M16 15v-6',
-  }
-  return (
-    <svg aria-hidden="true" className="workspace-nav-icon" viewBox="0 0 24 24">
-      {paths[workspace].split(' M').map((path, index) => (
-        <path d={`${index === 0 ? '' : 'M'}${path}`} key={`${workspace}-${index}`} />
-      ))}
-    </svg>
-  )
-}
-
 const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/', key: 'nfe', label: 'NF-e' },
   { href: '/freight', key: 'freight', label: 'Frete' },
@@ -133,6 +111,8 @@ function persistWorkspacePreference(workspace: WorkspaceNavigationItem['key']): 
 }
 
 function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
+  /** O detalhe da fatura é uma tela do faturamento: o menu continua marcando a mesma entrada. */
+  if (parseBillingInvoiceRoute(window.location.pathname) !== null) return 'billing'
   if (window.location.pathname === '/billing') return 'billing'
   if (window.location.pathname === '/company-settings') return 'company-settings'
   if (window.location.pathname === '/cte-batches') return 'cte-batch'
@@ -159,10 +139,18 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   return 'nfe'
 }
 
-function resolvePage(workspace: WorkspaceNavigationItem['key']): ReactNode {
-  switch (workspace) {
-    case 'billing':
-      return <BillingWorkspacePage />
+function resolvePage(
+  input: Readonly<{ path: string; workspace: WorkspaceNavigationItem['key'] }>,
+): ReactNode {
+  switch (input.workspace) {
+    case 'billing': {
+      const invoiceId = parseBillingInvoiceRoute(input.path)
+      return invoiceId === null ? (
+        <BillingWorkspacePage />
+      ) : (
+        <BillingInvoiceDetailPage invoiceId={invoiceId} />
+      )
+    }
     case 'company-settings':
       return <CompanySettingsPage />
     case 'cte-batch':
@@ -185,6 +173,8 @@ function resolvePage(workspace: WorkspaceNavigationItem['key']): ReactNode {
 function ApplicationShell(): ReactNode {
   const authMeQuery = useAuthMeQuery()
   const [currentWorkspace, setCurrentWorkspace] = useState(resolveCurrentWorkspace)
+  /** O workspace sozinho não distingue a lista do detalhe: a rota completa é quem decide a tela. */
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
@@ -193,6 +183,12 @@ function ApplicationShell(): ReactNode {
     operations: currentWorkspace === 'operations',
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+
+  /** Reautenticar é navegação de página inteira: quem decide a hora é o usuário, não o token. */
+  useEffect(() => {
+    return getKeycloakAuthProvider().onSessionExpired(() => setSessionExpired(true))
+  }, [])
 
   useEffect(() => {
     function closeWithEscape(event: KeyboardEvent): void {
@@ -208,6 +204,7 @@ function ApplicationShell(): ReactNode {
   useEffect(() => {
     function syncLocation(): void {
       setCurrentWorkspace(resolveCurrentWorkspace())
+      setCurrentPath(window.location.pathname)
     }
     window.addEventListener('popstate', syncLocation)
     return () => window.removeEventListener('popstate', syncLocation)
@@ -217,6 +214,7 @@ function ApplicationShell(): ReactNode {
     window.history.pushState({}, '', item.href)
     persistWorkspacePreference(item.key)
     setCurrentWorkspace(item.key)
+    setCurrentPath(item.href)
     setPageTransitionPending(true)
     window.setTimeout(() => setPageTransitionPending(false), 180)
   }
@@ -272,7 +270,10 @@ function ApplicationShell(): ReactNode {
                   toggleGroup(group.key)
                 }}
               >
-                <WorkspaceIcon workspace={group.items[0]?.key ?? 'nfe'} />
+                <Icon
+                  className="workspace-nav-icon"
+                  name={`workspace-${group.items[0]?.key ?? 'nfe'}`}
+                />
                 <span>{group.label}</span>
                 <span aria-hidden="true">{openGroups[group.key] ? '−' : '+'}</span>
               </button>
@@ -298,7 +299,7 @@ function ApplicationShell(): ReactNode {
                         navigateTo(item)
                       }}
                     >
-                      <WorkspaceIcon workspace={item.key} />
+                      <Icon className="workspace-nav-icon" name={`workspace-${item.key}`} />
                       <span>{item.label}</span>
                     </a>
                   ))}
@@ -365,8 +366,27 @@ function ApplicationShell(): ReactNode {
             </CardContent>
           </Card>
         </header>
+        {sessionExpired ? (
+          <div className="application-session-banner" role="alert">
+            <span>Sua sessão expirou. Entre novamente para continuar de onde parou.</span>
+            <Button
+              onClick={() => {
+                void getKeycloakAuthProvider().restartAuthentication()
+              }}
+              size="sm"
+              type="button"
+            >
+              <Icon name="shield" />
+              Entrar novamente
+            </Button>
+          </div>
+        ) : null}
         <div className="application-page-transition" aria-busy={pageTransitionPending}>
-          {pageTransitionPending ? <PageTransitionSkeleton /> : resolvePage(currentWorkspace)}
+          {pageTransitionPending ? (
+            <PageTransitionSkeleton />
+          ) : (
+            resolvePage({ path: currentPath, workspace: currentWorkspace })
+          )}
         </div>
       </div>
     </div>

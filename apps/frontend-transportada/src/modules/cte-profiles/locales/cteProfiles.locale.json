@@ -48,6 +48,7 @@
   "validFrom": "Vigência a partir de",
   "validUntil": "Vigência até",
   "componentsLegend": "Componentes adicionais",
+  "componentsEmpty": "Nenhum componente adicional neste perfil.",
   "addComponent": "Adicionar componente",
   "removeComponent": "Remover componente",
   "componentLabel": "Descrição",
@@ -60,6 +61,7 @@
   "componentRate": "Percentual (%)",
   "componentAmount": "Valor (R$)",
   "matchersLegend": "CNPJs vinculados",
+  "matchersEmpty": "Nenhum CNPJ vinculado — o perfil vale como padrão da empresa.",
   "addMatcher": "Adicionar CNPJ",
   "removeMatcher": "Remover CNPJ",
   "matchRole": "Papel na nota",
@@ -126,7 +128,8 @@
   "predominantProductOption": {
     "fixed": "Fixo",
     "highest_value": "Item de maior valor",
-    "highest_weight": "Item de maior peso"
+    "highest_weight": "Item de maior peso",
+    "highest_quantity": "Item de maior quantidade"
   },
   "predominantProductName": "Nome do produto predominante",
   "observations": "Observações do CT-e",

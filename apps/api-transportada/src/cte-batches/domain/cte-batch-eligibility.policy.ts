@@ -49,6 +49,38 @@ export type DocumentEligibility =
   | { readonly chargeable: ChargeableParties; readonly reason?: undefined }
   | { readonly chargeable?: undefined; readonly reason: CteBatchBlockReason }
 
+export type DocumentBlock = {
+  readonly batchId: string | null
+  readonly reason: CteBatchBlockReason
+}
+
+export type DocumentBlockDecision =
+  | { readonly blocked: DocumentBlock; readonly chargeable?: undefined }
+  | { readonly blocked?: undefined; readonly chargeable: ChargeableParties }
+
+/**
+ * Single source of truth for the block reported by the batch preview and by the notes listing:
+ * eligibility answers first, so a linked document that is also ineligible reports why it is
+ * ineligible.
+ */
+export function resolveDocumentBlock({
+  document,
+  linkedBatchId,
+}: {
+  readonly document: EligibilityDocument
+  readonly linkedBatchId: string | null
+}): DocumentBlockDecision {
+  const eligibility = checkDocumentEligibility(document)
+  if (eligibility.reason !== undefined) {
+    return { blocked: { batchId: null, reason: eligibility.reason } }
+  }
+  if (linkedBatchId !== null) {
+    return { blocked: { batchId: linkedBatchId, reason: CTE_BATCH_BLOCK_REASON.alreadyLinked } }
+  }
+
+  return { chargeable: eligibility.chargeable }
+}
+
 /** RF09: a CT-e needs an authorized full NF-e with both parties, municipality and cargo weight. */
 export function checkDocumentEligibility(document: EligibilityDocument): DocumentEligibility {
   if (document.status !== 'authorized') return { reason: CTE_BATCH_BLOCK_REASON.notAuthorized }

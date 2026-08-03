@@ -307,6 +307,53 @@ describe('API HTTP contracts', () => {
     expect(JSON.stringify(fixture.logs)).not.toContain('secret.token.value')
   })
 
+  test('logs the shape of an unexpected database failure without leaking its message', async () => {
+    const recognizableValue = 'batch-name-9f2c'
+    const fixture = createFixture({
+      authentication: {
+        async authenticate() {
+          const driverError = Object.assign(
+            new Error(
+              `duplicate key value violates unique constraint, Key (name)=(${recognizableValue}) already exists`,
+            ),
+            {
+              constraint: 'cte_batches_company_id_name_unique',
+              errno: '23505',
+              name: 'PostgresError',
+            },
+          )
+          const queryError = new Error('Failed query: insert into "cte_batches"', {
+            cause: driverError,
+          })
+          queryError.name = 'DrizzleQueryError'
+          throw queryError
+        },
+      },
+    })
+
+    const response = await fixture.handle(
+      new Request('http://localhost/private', {
+        headers: { authorization: 'Bearer contract.token.value' },
+      }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(500)
+    expect(fixture.logs).toContainEqual(
+      expect.objectContaining({
+        constraint: 'cte_batches_company_id_name_unique',
+        correlationId: GENERATED_CORRELATION_ID,
+        errorName: 'DrizzleQueryError',
+        sqlState: '23505',
+      }),
+    )
+    const serializedLogs = JSON.stringify(fixture.logs)
+    expect(serializedLogs).not.toContain(recognizableValue)
+    expect(serializedLogs).not.toContain('duplicate key value')
+    expect(serializedLogs).not.toContain('Failed query')
+    expect(serializedLogs).not.toContain('contract.token.value')
+  })
+
   test('never logs an unmatched pathname that resembles a token', async () => {
     const tokenLikePathname = '/header.payload.signature'
     const fixture = createFixture({

@@ -6,10 +6,21 @@
   "error": "Não foi possível carregar os lotes",
   "empty": "Nenhum lote encontrado",
   "forbidden": "Seu acesso atual não permite consultar os lotes de CT-e",
+  "dateRange": {
+    "placeholder": "Selecione o período",
+    "clear": "Limpar período",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês"
+  },
+  "tabs": {
+    "documents": "CT-es",
+    "batches": "Lotes"
+  },
   "resultCounter": "{{shown}} de {{total}} lotes",
   "batchesTitle": "Lotes",
   "filters": {
     "title": "Filtros",
+    "all": "Todos",
     "simple": "Simples",
     "advanced": "Avançado",
     "clear": "Limpar filtros",
@@ -18,8 +29,8 @@
     "status": "Situação",
     "itemCountFrom": "CT-es (mínimo)",
     "itemCountTo": "CT-es (máximo)",
-    "createdFrom": "Criado de",
-    "createdTo": "Criado até"
+    "createdRange": "Período de criação",
+    "removeFilter": "Remover o filtro {{field}}"
   },
   "status": {
     "cancelled": "Cancelado",
@@ -55,8 +66,8 @@
     "clear": "Limpar seleção"
   },
   "actions": {
-    "submit": "Submeter",
     "transmit": "Transmitir",
+    "bill": "Gerar fatura",
     "cancel": "Cancelar lote",
     "reprocess": "Reprocessar",
     "download": "Baixar XML",
@@ -92,8 +103,70 @@
     "failed": "Falhou",
     "in_flight": "Transmitindo",
     "pending": "Pendente",
+    "reconciliation_required": "Conciliação pendente",
     "rejected": "Rejeitado",
     "retry_scheduled": "Nova tentativa agendada"
+  },
+  "itemBillingStatus": {
+    "invoiced": "Faturado",
+    "pending": "Não faturado"
+  },
+  "cteItems": {
+    "title": "CT-es da empresa",
+    "loading": "Carregando CT-es",
+    "error": "Não foi possível carregar os CT-es",
+    "empty": "Nenhum CT-e encontrado com os filtros atuais",
+    "columnsMenu": "Organização das colunas",
+    "clearFilters": "Limpar filtros",
+    "selectAll": "Selecionar os CT-es desta página",
+    "select": "Selecionar CT-e",
+    "selectedCount": "{{count}} CT-e(s) selecionado(s)",
+    "baseSelected": "Base selecionada",
+    "totalSelected": "Total selecionado",
+    "transmitSelection": "Transmitir ({{count}} lote(s))",
+    "billSelection": "Gerar fatura ({{count}} CT-e(s))",
+    "billBlocked": "{{count}} CT-e(s) selecionado(s) ainda não podem ser faturados.",
+    "exportSelection": "Baixar XML ({{count}} CT-e(s))",
+    "exportFiltered": "Baixar XML do filtro ({{count}} filtro(s))",
+    "export": {
+      "pending": "Preparando o ZIP",
+      "errors": {
+        "empty": "Nenhum CT-e autorizado no recorte selecionado",
+        "forbidden": "Sem permissão para exportar XML de CT-e",
+        "limitExceeded": "Selecione no máximo 500 CT-es por exportação",
+        "unknown": "Não foi possível exportar os XMLs"
+      }
+    },
+    "pageCounter": "{{shown}} de até {{size}} por página",
+    "previousPage": "Página anterior",
+    "nextPage": "Próxima página",
+    "filters": {
+      "title": "Filtros de CT-e",
+      "active": "{{count}} filtro(s) ativo(s)",
+      "batch": "Lote",
+      "allBatches": "Todos os lotes",
+      "status": "Situação",
+      "issuedRange": "Período de emissão",
+      "cteNumberQuery": "Número do CT-e",
+      "invoiceNumberQuery": "Número da nota",
+      "numberQueryPlaceholder": "Ex.: 14093 ou 14093,14095 ou 14093-14150",
+      "billingStatus": "Faturamento"
+    },
+    "columns": {
+      "accessKey": "Chave de acesso",
+      "baseAmount": "Base",
+      "batchName": "Lote",
+      "billingStatus": "Faturamento",
+      "createdAt": "Criado em",
+      "cteNumber": "Número do CT-e",
+      "fiscalAmount": "Frete",
+      "invoiceNumbers": "Notas",
+      "issuedAt": "Emitido em",
+      "lastErrorCode": "Rejeição",
+      "status": "Situação",
+      "totalAmount": "Total"
+    },
+    "removeFilter": "Remover o filtro {{field}}"
   },
   "advanced": {
     "title": "Condições avançadas",
@@ -136,5 +209,76 @@
   },
   "removal": {
     "error": "Não foi possível remover a nota do lote."
+  },
+  "billing": {
+    "title": "Gerar fatura",
+    "subtitle": "Uma fatura por tomador: CT-es de clientes diferentes viram faturas separadas.",
+    "close": "Fechar",
+    "loading": "Conferindo a seleção...",
+    "previewError": "Não foi possível conferir a seleção ({{code}}).",
+    "empty": "Nenhum CT-e da seleção pode ser faturado agora.",
+    "groups": "Faturas a gerar",
+    "columns": {
+      "customer": "Tomador",
+      "document": "Documento",
+      "cteCount": "CT-es",
+      "totalAmount": "Valor"
+    },
+    "total": "Total",
+    "part": " (parte {{part}} de {{partCount}})",
+    "truncated": "O lote tem mais CT-es do que cabe em uma rodada: gere estas faturas e repita a ação para o restante.",
+    "blocked": "Bloqueados",
+    "blockedCount": "{{count}} CT-e(s)",
+    "blockReason": {
+      "already_invoiced": "Já faturado",
+      "missing_customer": "Sem tomador identificado",
+      "not_authorized": "Ainda não autorizado",
+      "not_found": "Não encontrado"
+    },
+    "dueDate": "Vencimento",
+    "dueDateError": {
+      "required": "Informe a data de vencimento.",
+      "invalid": "Data de vencimento inválida."
+    },
+    "results": "Resultado",
+    "progress": {
+      "title": "Progresso",
+      "label": "Progresso da geração de faturas",
+      "value": "{{percent}}% — {{completed}} de {{total}} fatura(s)",
+      "summary": "{{successCount}} gerada(s) · {{errorCount}} com erro"
+    },
+    "outcomeIssued": "{{customer}}: fatura {{number}} emitida.",
+    "outcomeFailed": "{{customer}}: falhou ({{code}}).",
+    "submitting": "Gerando...",
+    "confirm": "Gerar fatura",
+    "cancel": "Cancelar",
+    "done": "Fechar"
+  },
+  "transmission": {
+    "bulkTransmit": "Transmitir os lotes selecionados",
+    "transmitting": "Transmitindo...",
+    "progress": {
+      "title": "Progresso da transmissão",
+      "label": "Progresso da transmissão dos lotes",
+      "value": "{{percent}}% — {{completed}} de {{total}} lote(s)",
+      "summary": "{{successCount}} transmitido(s) · {{errorCount}} com erro",
+      "failed": "{{name}} — {{reason}}"
+    },
+    "reasons": {
+      "unknown": "não foi possível transmitir ({{code}})",
+      "unconfirmed": "a resposta não chegou: confira a situação do lote antes de repetir ({{code}})",
+      "requestFailed": "a API recusou a transmissão ({{code}})",
+      "responseInvalid": "a resposta da API veio fora do contrato ({{code}})",
+      "invalidState": "o lote já não estava em situação de ser transmitido",
+      "notFound": "o lote não existe mais",
+      "duplicateRequest": "esta transmissão já havia sido comandada",
+      "alreadyInFlight": "este lote já está sendo transmitido: aguarde o resultado",
+      "emitterIncomplete": "faltam dados fiscais da transportadora nas configurações",
+      "fiscalSequenceMissing": "falta a numeração fiscal configurada para a série",
+      "freightRuleMissing": "falta a versão da regra de frete no perfil de emissão",
+      "forbidden": "seu acesso atual não permite transmitir",
+      "sessionExpired": "a sessão expirou: entre de novo e repita",
+      "serverError": "erro interno do servidor ({{code}})"
+    }
   }
 }

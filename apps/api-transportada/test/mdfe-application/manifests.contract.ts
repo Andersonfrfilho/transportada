@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { MdfeManifestStatus } from '../../src/database/mdfe.schema.js'
 import type { MdfeCandidateDocument } from '../../src/mdfe-manifests/domain/mdfe-manifest-eligibility.policy.js'
 import {
   createMdfeManifestsUseCase,
@@ -89,8 +90,12 @@ const DRIVERS: readonly MdfeManifestDriver[] = [
 const DETAIL = { id: MANIFEST_ID } as unknown as MdfeManifestDetail
 const PAGE: MdfeManifestPage = { items: [], nextCursor: null }
 
+const storedManifest = (status: MdfeManifestStatus): MdfeManifestDetail =>
+  ({ id: MANIFEST_ID, status }) as unknown as MdfeManifestDetail
+
 type FixtureParams = {
   readonly candidates?: readonly MdfeCandidateDocument[]
+  readonly discarded?: MdfeManifestDetail | null
   readonly drivers?: readonly MdfeManifestDriver[]
   readonly settings?: MdfeFiscalSettings | null
   readonly stored?: MdfeManifestDetail | null
@@ -99,6 +104,7 @@ type FixtureParams = {
 
 const createFixture = (params: FixtureParams = {}) => {
   const createCalls: CreateMdfeManifestRecord[] = []
+  const discardCalls: object[] = []
   const findByIdCalls: object[] = []
   const listCalls: object[] = []
   const listDriverCalls: object[] = []
@@ -108,6 +114,10 @@ const createFixture = (params: FixtureParams = {}) => {
     async create(input) {
       createCalls.push(input)
       return DETAIL
+    },
+    async discard(input) {
+      discardCalls.push(input)
+      return params.discarded === undefined ? storedManifest('discarded') : params.discarded
     },
     async findById(input) {
       findByIdCalls.push(input)
@@ -137,6 +147,7 @@ const createFixture = (params: FixtureParams = {}) => {
 
   return {
     createCalls,
+    discardCalls,
     findByIdCalls,
     listCalls,
     listDriverCalls,
@@ -472,5 +483,62 @@ describe('read MDF-e manifests', () => {
 
     expect(error.code).toBe('MDFE_MANIFEST_NOT_FOUND')
     expect(error.status).toBe(404)
+  })
+})
+
+// ADR-0017: descartar é o único jeito de tirar o CT-e de um manifesto que a SEFAZ recusou
+describe('discard MDF-e manifest', () => {
+  test('discards a rejected manifest and hands the CT-e back', async () => {
+    const fixture = createFixture({ stored: storedManifest('rejected') })
+
+    const detail = await fixture.useCase.discard({ context: CONTEXT, manifestId: MANIFEST_ID })
+
+    expect(detail.status).toBe('discarded')
+    expect(fixture.discardCalls).toEqual([{ companyId: COMPANY_ID, manifestId: MANIFEST_ID }])
+  })
+
+  test('answers a repeated discard without touching the manifest again', async () => {
+    const fixture = createFixture({ stored: storedManifest('discarded') })
+
+    const detail = await fixture.useCase.discard({ context: CONTEXT, manifestId: MANIFEST_ID })
+
+    expect(detail.status).toBe('discarded')
+    expect(fixture.discardCalls).toEqual([])
+  })
+
+  test('refuses to discard what the SEFAZ already authorized', async () => {
+    const fixture = createFixture({ stored: storedManifest('authorized') })
+
+    const error = await refusal(() =>
+      fixture.useCase.discard({ context: CONTEXT, manifestId: MANIFEST_ID }),
+    )
+
+    expect(error.code).toBe('MDFE_MANIFEST_NOT_DISCARDABLE')
+    expect(error.status).toBe(409)
+    expect(fixture.discardCalls).toEqual([])
+  })
+
+  test('reports a manifest of another company as not found', async () => {
+    const fixture = createFixture({ stored: null })
+
+    const error = await refusal(() =>
+      fixture.useCase.discard({ context: CONTEXT, manifestId: MANIFEST_ID }),
+    )
+
+    expect(error.code).toBe('MDFE_MANIFEST_NOT_FOUND')
+    expect(error.status).toBe(404)
+    expect(fixture.discardCalls).toEqual([])
+  })
+
+  /** A transmissão pode entrar entre a leitura e o update — quem perde a corrida ouve `in flight`. */
+  test('refuses the discard that lost the race to a transmission', async () => {
+    const fixture = createFixture({ discarded: null, stored: storedManifest('draft') })
+
+    const error = await refusal(() =>
+      fixture.useCase.discard({ context: CONTEXT, manifestId: MANIFEST_ID }),
+    )
+
+    expect(error.code).toBe('MDFE_MANIFEST_IN_FLIGHT')
+    expect(error.status).toBe(409)
   })
 })

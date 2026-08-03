@@ -1,8 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { buildBatchNamePrefix, suggestBatchName } from '../domain/cte-batch-name.service.js'
 import { projectCteBatchCharges, sumFiscalAmounts } from '../domain/cte-batch-projection.service.js'
 import type {
+  CteBatchClockPort,
   CteBatchPreviewResult,
   CteBatchPreviewReaderPort,
   CteEmissionProfileCatalogPort,
@@ -14,6 +16,7 @@ import {
 } from './cte-batch-selection.service.js'
 
 type Dependencies = {
+  readonly clock: CteBatchClockPort
   readonly profiles: CteEmissionProfileCatalogPort
   readonly reader: CteBatchPreviewReaderPort
 }
@@ -29,16 +32,18 @@ export function createPreviewCteBatchUseCase(dependencies: Dependencies): Previe
 }
 
 async function previewCteBatch(
-  { profiles, reader }: Dependencies,
+  { clock, profiles, reader }: Dependencies,
   input: PreviewCteBatchInput,
 ): Promise<CteBatchPreviewResult> {
   const companyId = input.context.companyId
   const duplicated = splitDuplicatedDocumentIds(input.documentIds)
   const query = { companyId, documentIds: duplicated.documentIds }
-  const [documents, links, catalog] = await Promise.all([
+  const prefix = buildBatchNamePrefix({ now: clock.now() })
+  const [documents, links, catalog, names] = await Promise.all([
     reader.findPreviewDocuments(query),
     reader.findActiveBatchLinks(query),
     profiles.listProfiles({ companyId }),
+    reader.findBatchNamesStartingWith({ companyId, prefix }),
   ])
 
   const selection = selectCteBatchCandidates({
@@ -55,6 +60,7 @@ async function previewCteBatch(
   return {
     blocked,
     projections,
+    suggestedName: suggestBatchName({ names, prefix }),
     summary: {
       blockedCount: blocked.length,
       documentCount: input.documentIds.length,

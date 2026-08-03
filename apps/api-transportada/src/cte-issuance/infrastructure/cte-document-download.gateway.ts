@@ -10,6 +10,8 @@ type SignedDownloadGateway = {
     readonly bucket: string
     readonly key: string
     readonly expiresInSeconds: number
+    readonly disposition?: 'inline' | 'attachment'
+    readonly filename?: string
   }) => Promise<URL>
 }
 
@@ -25,7 +27,9 @@ export function createCteDocumentDownloadGateway(input: {
     async createDownloadUrl(location) {
       const url = await input.storage.createSignedDownload({
         bucket: location.bucket,
+        disposition: 'attachment',
         expiresInSeconds,
+        filename: location.fileName,
         key: location.key,
       })
       return {

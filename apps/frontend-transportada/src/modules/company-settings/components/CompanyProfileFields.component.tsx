@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import styles from '../styles/companySettings.module.css'
 
@@ -93,7 +95,7 @@ function ProfileTextField(
           aria-label={t(props.lookupPending ? 'lookupLoading' : 'lookupAction')}
           title={t(props.lookupPending ? 'lookupLoading' : 'lookupAction')}
         >
-          <SearchIcon />
+          <Icon name="search" />
         </button>
       </div>
       {props.lookupStatus !== 'idle' && (
@@ -102,24 +104,6 @@ function ProfileTextField(
         </span>
       )}
     </label>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className={styles.actionIcon}
-      fill="none"
-      focusable="false"
-      height="20"
-      viewBox="0 0 24 24"
-      width="20"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4.35-4.35" />
-    </svg>
   )
 }
 

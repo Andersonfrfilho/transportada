@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   PREVIEW_COMPANY_ID,
   PREVIEW_CONTEXT,
+  PREVIEW_NAME_PREFIX,
   PROFILE_ID,
   RECIPIENT_TAX_ID,
   REFERENCE_DOCUMENT,
@@ -81,7 +82,11 @@ describe('CT-e batch preview projection', () => {
     const readerKeys = Object.getOwnPropertyNames(
       Object.getPrototypeOf(preview.reader) as object,
     ).filter((name) => name !== 'constructor')
-    expect(readerKeys.toSorted()).toEqual(['findActiveBatchLinks', 'findPreviewDocuments'])
+    expect(readerKeys.toSorted()).toEqual([
+      'findActiveBatchLinks',
+      'findBatchNamesStartingWith',
+      'findPreviewDocuments',
+    ])
   })
 
   test('groups notes by sender and recipient when the profile asks for it', async () => {
@@ -211,5 +216,40 @@ describe('CT-e batch preview projection', () => {
     expect(projection?.adjustments).toEqual([{ amount: '36.8684', type: 'minimum_amount' }])
     expect(projection?.calculatedAmount).toBe('80.0000')
     expect(projection?.fiscalAmount).toBe('80.00')
+  })
+
+  test('suggests the next batch name of the day without touching the rest of the envelope', async () => {
+    const preview = await createPreviewUseCaseForTest()
+    preview.reader.batchNames = [`${PREVIEW_NAME_PREFIX}1`, `${PREVIEW_NAME_PREFIX}3`, 'rascunho']
+
+    const result = await preview.execute({
+      context: PREVIEW_CONTEXT,
+      documentIds: [REFERENCE_DOCUMENT_ID],
+    })
+
+    expect(result.suggestedName).toBe(`${PREVIEW_NAME_PREFIX}4`)
+    expect(result.blocked).toEqual([])
+    expect(result.projections).toHaveLength(1)
+    expect(result.summary).toEqual({
+      blockedCount: 0,
+      documentCount: 1,
+      projectedCount: 1,
+      totalAmount: '43.13',
+    })
+    // A consulta é do tenant autenticado — nome de lote de outra empresa nunca entra na sequência.
+    expect(preview.reader.nameQueries).toEqual([
+      { companyId: PREVIEW_COMPANY_ID, prefix: PREVIEW_NAME_PREFIX },
+    ])
+  })
+
+  test('suggests the first name of the day when the company has no batch yet', async () => {
+    const preview = await createPreviewUseCaseForTest()
+
+    const result = await preview.execute({
+      context: PREVIEW_CONTEXT,
+      documentIds: [REFERENCE_DOCUMENT_ID],
+    })
+
+    expect(result.suggestedName).toBe(`${PREVIEW_NAME_PREFIX}1`)
   })
 })

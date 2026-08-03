@@ -43,13 +43,20 @@ describe('company settings permissions and states contract', () => {
         '../../src/modules/company-settings/shared/companySettingsViewModel.service',
       )
 
-    expect(createCompanySettingsViewModel({ status: 'loading' })).toEqual({ status: 'loading' })
+    expect(createCompanySettingsViewModel({ status: 'loading' })).toEqual({
+      activeCertificates: {},
+      status: 'loading',
+    })
     expect(
       createCompanySettingsViewModel({ data: EMPTY_COMPANY_SETTINGS_RESPONSE, status: 'success' }),
     ).toEqual({
+      activeCertificates: {},
       status: 'empty',
     })
-    expect(createCompanySettingsViewModel({ status: 'error' })).toEqual({ status: 'error' })
+    expect(createCompanySettingsViewModel({ status: 'error' })).toEqual({
+      activeCertificates: {},
+      status: 'error',
+    })
 
     const viewModel = createCompanySettingsViewModel({
       certificates: DIGITAL_CERTIFICATES_RESPONSE,
@@ -59,7 +66,7 @@ describe('company settings permissions and states contract', () => {
     expect(viewModel.status).toBe('success')
     expect(viewModel.environment).toBe('production')
     expect(viewModel.canIssueInProduction).toBe(false)
-    expect(Object.keys(viewModel.activeCertificate ?? {})).toEqual([
+    expect(Object.keys(viewModel.activeCertificates.cte ?? {})).toEqual([
       'id',
       'status',
       'purpose',
@@ -120,7 +127,7 @@ type CompanySettingsViewModelModule = {
 }
 
 type CompanySettingsViewModel = {
-  readonly activeCertificate?: Record<string, unknown>
+  readonly activeCertificates: Readonly<Record<string, Record<string, unknown> | undefined>>
   readonly canIssueInProduction?: boolean
   readonly environment?: string
   readonly status: 'empty' | 'error' | 'loading' | 'success'

@@ -3,6 +3,7 @@
  */
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
+import type { CertificatePurpose } from '../../database/digital-certificate.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { CertificateValidationGateway } from './certificate-validation.port.js'
 import type {
@@ -18,7 +19,7 @@ export type ReplaceDigitalCertificateInput = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly password: Uint8Array
-  readonly purpose: 'cte'
+  readonly purpose: CertificatePurpose
 }
 
 export type ReplaceDigitalCertificateDependencies = {

@@ -14,6 +14,7 @@ import {
 } from '../../database/mdfe.schema.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { MdfeManifestFilters } from '../application/mdfe-manifest.port.js'
+import { MDFE_DISCARDABLE_STATUSES } from '../domain/mdfe-manifest-state.policy.js'
 
 type CompanyScope = { readonly companyId: string }
 type ManifestScope = CompanyScope & { readonly manifestId: string }
@@ -46,6 +47,28 @@ export function buildManifestFilters({ companyId, manifestId }: ManifestScope): 
 
 export function buildManifestItemFilters({ companyId, manifestId }: ManifestScope): readonly SQL[] {
   return [eq(mdfeManifestItems.companyId, companyId), eq(mdfeManifestItems.manifestId, manifestId)]
+}
+
+/** ADR-0017: o `WHERE` do descarte repete o estado do domínio para perder a corrida sem estragar. */
+export function buildManifestDiscardFilters({
+  companyId,
+  manifestId,
+}: ManifestScope): readonly SQL[] {
+  return [
+    ...buildManifestFilters({ companyId, manifestId }),
+    inArray(mdfeManifests.status, [...MDFE_DISCARDABLE_STATUSES]),
+  ]
+}
+
+/** Só a linha ainda presa importa — recarimbar uma já liberada apagaria a data real da saída. */
+export function buildLiveManifestItemFilters({
+  companyId,
+  manifestId,
+}: ManifestScope): readonly SQL[] {
+  return [
+    ...buildManifestItemFilters({ companyId, manifestId }),
+    isNull(mdfeManifestItems.releasedAt),
+  ]
 }
 
 export function buildManifestDriverFilters({

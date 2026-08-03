@@ -9,6 +9,7 @@ import {
   type MdfeTransporterType,
 } from '../../database/mdfe.schema.js'
 import { selectManifestableDocuments } from '../domain/mdfe-manifest-eligibility.policy.js'
+import { MdfeManifestTransitionBlockedError } from '../domain/mdfe-issuance.error.js'
 import {
   distinctStates,
   groupLoadingCities,
@@ -16,6 +17,10 @@ import {
   resolveSingleState,
   sumTotals,
 } from '../domain/mdfe-manifest-grouping.policy.js'
+import {
+  MDFE_TRANSITION_BLOCK,
+  checkManifestDiscard,
+} from '../domain/mdfe-manifest-state.policy.js'
 import {
   MdfeFiscalSettingsMissingError,
   MdfeManifestDestinationStateRequiredError,
@@ -60,6 +65,11 @@ export type CreateMdfeManifestInput = {
   readonly manifest: CreateMdfeManifestFields
 }
 
+export type DiscardMdfeManifestInput = {
+  readonly context: MdfeManifestCompanyContext
+  readonly manifestId: string
+}
+
 export type GetMdfeManifestInput = {
   readonly context: MdfeManifestCompanyContext
   readonly manifestId: string
@@ -74,6 +84,7 @@ export type ListMdfeManifestsInput = {
 
 export type MdfeManifestsUseCase = {
   create(input: CreateMdfeManifestInput): Promise<MdfeManifestDetail>
+  discard(input: DiscardMdfeManifestInput): Promise<MdfeManifestDetail>
   get(input: GetMdfeManifestInput): Promise<MdfeManifestDetail>
   list(input: ListMdfeManifestsInput): Promise<MdfeManifestPage>
 }
@@ -151,6 +162,23 @@ export function createMdfeManifestsUseCase(dependencies: {
           vehicleId: vehicle.id,
         },
       })
+    },
+
+    /** ADR-0017: repetir o descarte responde o mesmo estado — o operador pode reclicar sem medo. */
+    async discard({ context, manifestId }) {
+      const companyId = context.companyId
+      const manifest = await repository.findById({ companyId, manifestId })
+      if (manifest === null) throw new MdfeManifestNotFoundError()
+      if (manifest.status === 'discarded') return manifest
+
+      const transition = checkManifestDiscard(manifest.status)
+      if (!transition.allowed) throw new MdfeManifestTransitionBlockedError(transition.reason)
+
+      const discarded = await repository.discard({ companyId, manifestId })
+      if (discarded === null) {
+        throw new MdfeManifestTransitionBlockedError(MDFE_TRANSITION_BLOCK.inFlight)
+      }
+      return discarded
     },
 
     async get({ context, manifestId }) {

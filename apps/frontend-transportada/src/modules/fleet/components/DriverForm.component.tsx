@@ -3,30 +3,45 @@ import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
 
 import { useDriverForm } from '../hooks/useDriverForm.hook'
 import type {
   FleetDriverBody,
   FleetDriverDetail,
+  FleetDriverVehicleLink,
   FleetDriverVersionInput,
+  FleetReplaceDriverVehiclesInput,
+  FleetVehicleDetail,
 } from '../shared/fleet.types'
+import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
 import { FleetField } from './FleetField.component'
+
+type DriverVehiclesInput = Readonly<{
+  links: readonly FleetDriverVehicleLink[]
+  options: readonly FleetVehicleDetail[]
+  replace: (input: FleetReplaceDriverVehiclesInput) => Promise<unknown>
+}>
 
 type DriverFormProps = Readonly<{
   driver?: FleetDriverDetail
   onCancel: () => void
   onCreate: (body: FleetDriverBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  vehicles: DriverVehiclesInput
 }>
 
-export function DriverForm({ driver, onCancel, onCreate, onUpdate }: DriverFormProps) {
+export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: DriverFormProps) {
   const { t } = useTranslation('fleet')
   const form = useDriverForm({
     onCreate,
     onUpdate,
+    vehicles: { links: vehicles.links, replace: vehicles.replace },
     ...(driver === undefined ? {} : { driver }),
   })
+  const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -53,6 +68,13 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate }: DriverFormP
           />
           <FleetField
             inputMode="numeric"
+            label={t('driverLinkedTaxId')}
+            maxLength={14}
+            value={form.state.linkedTaxId}
+            onChange={(linkedTaxId) => form.patch({ linkedTaxId })}
+          />
+          <FleetField
+            inputMode="numeric"
             label={t('driverLicense')}
             maxLength={11}
             value={form.state.licenseNumber}
@@ -72,7 +94,34 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate }: DriverFormP
             onChange={(membershipId) => form.patch({ membershipId })}
           />
         </div>
+        <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
         <p className={styles.hint}>{t('driverMembershipHint')}</p>
+      </fieldset>
+      <fieldset className={styles.fieldGroup}>
+        <legend>{t('driverVehiclesLegend')}</legend>
+        <p className={styles.hint}>{t('driverVehiclesHint')}</p>
+        {vehicles.options.length === 0 ? (
+          <p className={styles.hint}>{t('driverVehiclesEmpty')}</p>
+        ) : (
+          <ul className={styles.vehicleLinkList}>
+            {vehicles.options.map((vehicle) => (
+              <li key={vehicle.id}>
+                <Checkbox
+                  checked={form.selectedVehicleIds.includes(vehicle.id)}
+                  label={
+                    <>
+                      <strong>{vehicle.plate}</strong> {t(`roleOption.${vehicle.role}`)}
+                      {ownedVehicleIds.includes(vehicle.id) ? (
+                        <span className={styles.ownedBadge}>{t('driverOwnedVehicle')}</span>
+                      ) : null}
+                    </>
+                  }
+                  onChange={() => form.toggleVehicle(vehicle.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </fieldset>
       {form.feedbackKey === null ? null : (
         <p className={styles.feedback} role="status">
@@ -81,9 +130,11 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate }: DriverFormP
       )}
       <div className={styles.formActions}>
         <Button type="button" variant="ghost" onClick={onCancel}>
+          <Icon name="close" />
           {t('cancel')}
         </Button>
         <Button disabled={form.isSaving} type="submit">
+          <Icon name="save" />
           {t('save')}
         </Button>
       </div>

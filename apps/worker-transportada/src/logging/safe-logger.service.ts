@@ -17,6 +17,14 @@ export function safeLogInfo({ logger, message, metadata }: SafeLogParams): void 
   }
 }
 
+export function safeLogWarn({ logger, message, metadata }: SafeLogParams): void {
+  try {
+    logger.warn(message, metadata)
+  } catch {
+    // Observability must not break message handling or graceful shutdown.
+  }
+}
+
 export function safeLogError({ logger, message, metadata }: SafeLogParams): void {
   try {
     logger.error(message, metadata)

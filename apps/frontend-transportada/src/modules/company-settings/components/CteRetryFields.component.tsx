@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
@@ -53,7 +55,12 @@ function BackoffStepField(
         />
       </label>
       {props.canRemove && (
-        <button className={styles.environmentOption} type="button" onClick={props.onRemove}>
+        <button
+          className={`${styles.environmentOption} ${styles.retryStepAction}`}
+          type="button"
+          onClick={props.onRemove}
+        >
+          <Icon name="remove" />
           {t('cteRetryRemoveStep', { position: props.index + 1 })}
         </button>
       )}
@@ -110,10 +117,11 @@ export function CteRetryFields({ cteRetry, disabled, onChange }: CteRetryFieldsP
       </div>
       {steps.length < CTE_RETRY_BACKOFF_STEPS_LIMIT && (
         <button
-          className={styles.environmentOption}
+          className={`${styles.environmentOption} ${styles.retryStepAction}`}
           type="button"
           onClick={() => onChange({ ...cteRetry, backoffSeconds: [...steps, lastStep] })}
         >
+          <Icon name="add" />
           {t('cteRetryAddStep')}
         </button>
       )}

@@ -33,7 +33,7 @@ export type MdfeOutboxClaimedEntry = {
   readonly eventVersion: 1
   readonly manifestId: string
   readonly occurredAt: string
-  readonly payload: MdfeProcessingEnvelopeV1['payload']
+  readonly status: string
 }
 
 function isMdfeOutboxEventType(value: string): value is MdfeOutboxEventType {
@@ -74,7 +74,7 @@ export class DrizzleMdfeOutboxRepository {
           eventVersion: mdfeIssuanceOutbox.eventVersion,
           manifestId: mdfeIssuanceOutbox.manifestId,
           occurredAt: mdfeIssuanceOutbox.createdAt,
-          payload: mdfeIssuanceOutbox.payload,
+          status: mdfeIssuanceOutbox.status,
         })
         .from(mdfeIssuanceOutbox)
         .where(
@@ -129,7 +129,7 @@ export class DrizzleMdfeOutboxRepository {
           eventVersion: 1 as const,
           manifestId: row.manifestId,
           occurredAt: row.occurredAt.toISOString(),
-          payload: row.payload as MdfeProcessingEnvelopeV1['payload'],
+          status: row.status,
         }
       })
     })

@@ -2,6 +2,8 @@
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
+import { Icon } from '@/components/ui/icon'
+
 import type { NfeImportSummary } from '../shared/nfeWorkspaceClient.service'
 import { formatNfeImportMoment } from '../shared/nfeImportMoment.service'
 import styles from '../styles/nfeWorkspace.module.css'
@@ -127,6 +129,7 @@ export function NfeImportQueue({
                     title={eligible ? undefined : t('imports.reprocessDisabledHint')}
                     type="button"
                   >
+                    <Icon name="refresh" />
                     {pending ? t('imports.reprocessPending') : t('imports.reprocess')}
                   </button>
                   {!eligible && (
@@ -155,6 +158,7 @@ export function NfeImportQueue({
           onClick={onLoadMore}
           type="button"
         >
+          <Icon name="chevron-down" />
           {loadingMore ? t('common.loadingMore') : t('common.loadMore')}
         </button>
       )}

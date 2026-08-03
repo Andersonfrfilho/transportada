@@ -19,12 +19,14 @@ import type {
   ListCertificatesCall,
   ListCertificatesResult,
   ReplaceCertificateCall,
+  RetireCertificateCall,
   RouteDependencies,
 } from './digital-certificates-http.types'
 
 export {
   DIGITAL_CERTIFICATES_PATH,
   FRONTEND_ORIGIN,
+  certificateDeleteRequest,
   certificateGetRequest,
   certificatePostRequest,
   multipartBytes,
@@ -51,11 +53,13 @@ export async function createDigitalCertificatesHttpFixture(
   readonly listCalls: ListCertificatesCall[]
   readonly logs: Array<Record<string, unknown>>
   readonly replaceCalls: ReplaceCertificateCall[]
+  readonly retireCalls: RetireCertificateCall[]
 }> {
   const events: string[] = []
   const listCalls: ListCertificatesCall[] = []
   const logs: Array<Record<string, unknown>> = []
   const replaceCalls: ReplaceCertificateCall[] = []
+  const retireCalls: RetireCertificateCall[] = []
   const routes = await loadRoutes({
     listCertificates: listSpy({
       calls: listCalls,
@@ -63,7 +67,12 @@ export async function createDigitalCertificatesHttpFixture(
       result: params.listResult,
     }),
     replaceCertificate: replaceSpy({ calls: replaceCalls, error: params.replaceError }),
-    retireCertificate: { execute: async () => null },
+    retireCertificate: {
+      async execute(call) {
+        retireCalls.push(call)
+        return null
+      },
+    },
   })
   const router = createTestRouter({
     authenticationError: params.authenticationError,
@@ -78,6 +87,7 @@ export async function createDigitalCertificatesHttpFixture(
     listCalls,
     logs,
     replaceCalls,
+    retireCalls,
   }
 }
 

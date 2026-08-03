@@ -7,6 +7,9 @@ import { buildMdfePayload } from '../../src/mdfe-manifests/domain/mdfe-payload.b
 import {
   MdfePayloadEmptySelectionError,
   MdfePayloadMissingDriverError,
+  MdfePayloadMissingCargoNcmError,
+  MdfePayloadMissingInsuranceEndorsementError,
+  MdfePayloadMissingInsuranceResponsibleError,
   MdfePayloadMissingLoadingCityError,
   MdfePayloadMissingOwnerError,
   MdfePayloadMissingRntrcError,
@@ -51,6 +54,7 @@ const params = (overrides: Partial<BuildMdfePayloadParams> = {}): BuildMdfePaylo
     { name: 'Ana Souza', taxId: '12345678901' },
     { name: 'Bruno Lima', taxId: '98765432100' },
   ],
+  emitterTaxId: '61156864000191',
   loadingCities: [
     { code: '4106902', name: 'Curitiba' },
     { code: '4205407', name: 'Florianopolis' },
@@ -119,7 +123,6 @@ describe('MDF-e payload builder', () => {
       produtoPredominante: { descricao: 'Bebidas', ncm: '22021000', tipoCarga: '05' },
       rntrc: '12345678',
       tipoEmitente: '1',
-      tipoTransportador: '1',
       totais: { cUnid: '01', qCarga: 1000, vCarga: 2200 },
       ufFim: 'MG',
       ufInicio: 'PR',
@@ -213,6 +216,53 @@ describe('MDF-e payload builder', () => {
     )
 
     expect(payload.produtoPredominante).toEqual({ descricao: 'Bebidas', tipoCarga: '05' })
+  })
+
+  // SEFAZ 301: carga lotação exige o NCM do produto predominante
+  test('refuses a lotação manifest whose predominant product has no NCM', () => {
+    expect(() =>
+      buildMdfePayload(
+        params({
+          manifest: {
+            ...params().manifest,
+            cargoProductNcm: '',
+            dischargePostalCode: '14420000',
+            loadingPostalCode: '12091000',
+          },
+        }),
+      ),
+    ).toThrow(MdfePayloadMissingCargoNcmError)
+  })
+
+  test('lets a manifest without lotação travel with no NCM', () => {
+    const payload = buildMdfePayload(
+      params({ manifest: { ...params().manifest, cargoProductNcm: '' } }),
+    )
+
+    expect(payload.produtoPredominante).toEqual({ descricao: 'Bebidas', tipoCarga: '05' })
+  })
+
+  // SEFAZ 745: tpTransp não pode ser informado sem prop no veículo de tração
+  test('omits the transporter type when the traction vehicle has no owner', () => {
+    expect(buildMdfePayload(params()).tipoTransportador).toBeUndefined()
+  })
+
+  test('carries the transporter type when the traction vehicle declares an owner', () => {
+    const payload = buildMdfePayload(
+      params({
+        vehicle: {
+          ...params().vehicle,
+          ownerName: 'Transportes Parceiros Ltda',
+          ownerRntrc: '87654321',
+          ownerState: 'SC',
+          ownerTaxId: '12345678000195',
+          ownerTaxRegime: '0',
+          ownership: 'third_party',
+        },
+      }),
+    )
+
+    expect(payload.tipoTransportador).toBe('1')
   })
 
   test('describes a third-party vehicle with its owner', () => {
@@ -320,8 +370,71 @@ describe('MDF-e payload builder', () => {
       apolice: '1234567890',
       averbacoes: ['12345678901234'],
       responsavel: '1',
+      responsavelCnpj: '61156864000191',
       seguradora: { cnpj: '11222333000181', nome: 'Seguradora Ada' },
     })
+  })
+
+  // SEFAZ 699: no modal rodoviário o seguro exige documento do responsável e averbação
+  test('answers for the insurance with the contractor document when the contractor is responsible', () => {
+    const payload = buildMdfePayload(
+      params({
+        companyDefaults: {
+          ...params().companyDefaults,
+          insurance: {
+            insurerName: 'Seguradora Ada',
+            insurerTaxId: '11222333000181',
+            policy: '1234567890',
+            responsibility: '2',
+          },
+        },
+        manifest: {
+          ...params().manifest,
+          contractorTaxId: '52998224725',
+          insuranceEndorsement: '12345678901234',
+        },
+      }),
+    )
+
+    expect(payload.seguro?.responsavelCpf).toBe('52998224725')
+    expect(payload.seguro?.responsavelCnpj).toBeUndefined()
+  })
+
+  test('refuses an insured manifest with no endorsement', () => {
+    expect(() =>
+      buildMdfePayload(
+        params({
+          companyDefaults: {
+            ...params().companyDefaults,
+            insurance: {
+              insurerName: 'Seguradora Ada',
+              insurerTaxId: '11222333000181',
+              policy: '1234567890',
+              responsibility: '1',
+            },
+          },
+        }),
+      ),
+    ).toThrow(MdfePayloadMissingInsuranceEndorsementError)
+  })
+
+  test('refuses to hand the insurance to a contractor with no tax id', () => {
+    expect(() =>
+      buildMdfePayload(
+        params({
+          companyDefaults: {
+            ...params().companyDefaults,
+            insurance: {
+              insurerName: 'Seguradora Ada',
+              insurerTaxId: '11222333000181',
+              policy: '1234567890',
+              responsibility: '2',
+            },
+          },
+          manifest: { ...params().manifest, insuranceEndorsement: '12345678901234' },
+        }),
+      ),
+    ).toThrow(MdfePayloadMissingInsuranceResponsibleError)
   })
 
   test('carries the contratante and the payment the SVRS demands (rejeições 578 e 302)', () => {

@@ -2,9 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, lt, ne, or, sum } from 'drizzle-orm'
 
-import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
+import {
+  nfeAddresses,
+  nfeDocuments,
+  nfeParticipants,
+  nfeVolumes,
+} from '../../database/nfe.schema.js'
+import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -45,6 +52,44 @@ const EMPTY_PARTICIPANT: ParticipantDetail = {
   taxId: null,
 }
 
+const CANCELLED_BATCH_STATUS = 'cancelled'
+
+type DocumentScope = {
+  readonly companyId: string
+  readonly documentIds: readonly string[]
+}
+
+type DocumentBlockContext = {
+  readonly batchIdByDocumentId: ReadonlyMap<string, string>
+  readonly grossWeightByDocumentId: ReadonlyMap<string, string>
+}
+
+const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
+  batchIdByDocumentId: new Map(),
+  grossWeightByDocumentId: new Map(),
+}
+
+export function buildDocumentGrossWeightFilters({
+  companyId,
+  documentIds,
+}: DocumentScope): readonly SQL[] {
+  return [
+    eq(nfeVolumes.companyId, companyId),
+    inArray(nfeVolumes.documentId, [...documentIds]),
+  ] as const as readonly SQL[]
+}
+
+export function buildDocumentBatchLinkFilters({
+  companyId,
+  documentIds,
+}: DocumentScope): readonly SQL[] {
+  return [
+    eq(cteBatchItemDocuments.companyId, companyId),
+    inArray(cteBatchItemDocuments.nfeDocumentId, [...documentIds]),
+    ne(cteBatches.status, CANCELLED_BATCH_STATUS),
+  ] as const as readonly SQL[]
+}
+
 export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   public constructor(
     private readonly database: Database,
@@ -75,12 +120,18 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
       .limit(input.limit + 1)
     const pageRows = rows.slice(0, input.limit)
     const last = pageRows.at(-1)
-    const participantsByDocument = await this.loadParticipants(
-      input.context.companyId,
-      pageRows.map((record) => record.id),
-    )
+    const scope: DocumentScope = {
+      companyId: input.context.companyId,
+      documentIds: pageRows.map((record) => record.id),
+    }
+    const [participantsByDocument, blockContext] = await Promise.all([
+      this.loadParticipants(scope.companyId, scope.documentIds),
+      this.loadBlockContext(scope),
+    ])
     return {
-      items: pageRows.map((record) => mapSummary(record, participantsByDocument.get(record.id))),
+      items: pageRows.map((record) =>
+        mapSummary(record, participantsByDocument.get(record.id), blockContext),
+      ),
       nextCursor:
         rows.length > input.limit && last !== undefined
           ? `${last.issuedAt.toISOString()}::${last.id}`
@@ -94,10 +145,15 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   }): Promise<NfeDocumentDetail> {
     const document = await this.findDocument(input.context.companyId, input.documentId)
     if (document === null) throw notFound()
-    const participantsByDocument = await this.loadParticipants(input.context.companyId, [
-      document.id,
+    const scope: DocumentScope = {
+      companyId: input.context.companyId,
+      documentIds: [document.id],
+    }
+    const [participantsByDocument, blockContext] = await Promise.all([
+      this.loadParticipants(scope.companyId, scope.documentIds),
+      this.loadBlockContext(scope),
     ])
-    return mapSummary(document, participantsByDocument.get(document.id))
+    return mapSummary(document, participantsByDocument.get(document.id), blockContext)
   }
 
   public async getEligibility(input: {
@@ -165,6 +221,41 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
     return row ?? null
   }
 
+  private async loadBlockContext(scope: DocumentScope): Promise<DocumentBlockContext> {
+    if (scope.documentIds.length === 0) return EMPTY_BLOCK_CONTEXT
+    const [weightRows, linkRows] = await Promise.all([
+      this.database
+        .select({ documentId: nfeVolumes.documentId, grossWeight: sum(nfeVolumes.grossWeight) })
+        .from(nfeVolumes)
+        .where(and(...buildDocumentGrossWeightFilters(scope)))
+        .groupBy(nfeVolumes.documentId),
+      this.database
+        .selectDistinctOn([cteBatchItemDocuments.nfeDocumentId], {
+          batchId: cteBatchItemDocuments.batchId,
+          documentId: cteBatchItemDocuments.nfeDocumentId,
+        })
+        .from(cteBatchItemDocuments)
+        .innerJoin(
+          cteBatches,
+          and(
+            eq(cteBatches.companyId, cteBatchItemDocuments.companyId),
+            eq(cteBatches.id, cteBatchItemDocuments.batchId),
+          ),
+        )
+        .where(and(...buildDocumentBatchLinkFilters(scope)))
+        .orderBy(cteBatchItemDocuments.nfeDocumentId),
+    ])
+
+    return {
+      batchIdByDocumentId: new Map(linkRows.map((row) => [row.documentId, row.batchId])),
+      grossWeightByDocumentId: new Map(
+        weightRows.flatMap((row) =>
+          row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]],
+        ),
+      ),
+    }
+  }
+
   private async loadParticipants(
     companyId: string,
     documentIds: readonly string[],
@@ -227,11 +318,28 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
 function mapSummary(
   document: DocumentRecord,
   participants: DocumentParticipants | undefined,
+  blockContext: DocumentBlockContext,
 ): NfeDocumentSummary {
   const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
   const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
+  const decision = resolveDocumentBlock({
+    document: {
+      grossWeight: blockContext.grossWeightByDocumentId.get(document.id) ?? null,
+      recipientCity: recipient.city,
+      recipientState: recipient.state,
+      recipientTaxId: recipient.taxId,
+      senderCity: emitter.city,
+      senderState: emitter.state,
+      senderTaxId: emitter.taxId,
+      status: document.status,
+      totalAmount: document.totalValue,
+      variant: 'complete',
+    },
+    linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
+  })
   return {
     accessKey: document.accessKey,
+    cteBlockReason: decision.blocked?.reason ?? null,
     emitterAddress: emitter.address,
     emitterCity: emitter.city,
     emitterCityCode: emitter.cityCode,

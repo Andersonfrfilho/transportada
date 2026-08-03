@@ -2,19 +2,29 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Checkbox } from '@/components/ui/checkbox'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
+import { Icon } from '@/components/ui/icon'
+import { Select, type SelectOption } from '@/components/ui/select'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
+import {
+  describeNfeDocumentFilterPills,
+  type NfeDocumentFilterPill,
+} from '../shared/nfeDocumentFilterPills.service'
 import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 import {
   AMOUNT_OPERATORS,
   AMOUNT_OPERATOR_SYMBOL,
+  CTE_ISSUED_FILTER_VALUES,
   PAGE_SIZE_OPTIONS,
+  isDocumentBlocked,
   useNfeDocumentTable,
   type AmountOperator,
   type ColumnKey,
   type DocumentStatus,
-  type FilterKey,
   type FilterMode,
   type SortColumn,
   type SortDirection,
@@ -29,8 +39,6 @@ import styles from '../styles/nfeWorkspace.module.css'
 import { AdvancedFilterBuilder } from './AdvancedFilterBuilder.component'
 import { CopyButton } from './CopyButton.component'
 import { CteEmissionDialog } from './CteEmissionDialog.component'
-import { DateRangePicker } from './DateRangePicker.component'
-import { SelectMenu, type SelectMenuOption } from './SelectMenu.component'
 
 type NfeDocumentTableProps = Readonly<{
   readonly documents: readonly NfeDocumentListItem[]
@@ -114,7 +122,11 @@ function formatLocation(city: string | null, state: string | null): string {
   return [city, state].filter((part) => part !== null && part.length > 0).join(' / ')
 }
 
-function toOptions(values: readonly string[]): readonly SelectMenuOption[] {
+function cteIssuedLabelKey(value: string): string {
+  return value === 'issued' ? 'filters.cteIssuedIssued' : 'filters.cteIssuedPending'
+}
+
+function toOptions(values: readonly string[]): readonly SelectOption[] {
   return values.map((value) => ({ label: value, value }))
 }
 
@@ -152,111 +164,65 @@ export function NfeDocumentTable({
   const visibleColumns = table.columnOrder.filter((column) => table.isColumnVisible(column))
   const columnSpan = visibleColumns.length + 2
 
-  const operatorOptions: readonly SelectMenuOption[] = AMOUNT_OPERATORS.map((operator) => ({
+  const operatorOptions: readonly SelectOption[] = AMOUNT_OPERATORS.map((operator) => ({
     label: AMOUNT_OPERATOR_SYMBOL[operator],
     value: operator,
   }))
-  const statusOptions: readonly SelectMenuOption[] = STATUS_VALUES.map((status) => ({
+  const statusOptions: readonly SelectOption[] = STATUS_VALUES.map((status) => ({
     label: statusLabels[status],
     value: status,
   }))
+  const cteIssuedOptions: readonly SelectOption[] = CTE_ISSUED_FILTER_VALUES.map((value) => ({
+    label: t(cteIssuedLabelKey(value)),
+    value,
+  }))
   const selectFieldOptions = {
+    cteIssued: cteIssuedOptions,
     emitterCity: toOptions(table.cityOptions.emitterCity),
     emitterState: toOptions(table.stateOptions.emitterState),
     recipientCity: toOptions(table.cityOptions.recipientCity),
     recipientState: toOptions(table.stateOptions.recipientState),
     status: statusOptions,
   } as const
-  const pageSizeOptions: readonly SelectMenuOption[] = PAGE_SIZE_OPTIONS.map((size) => ({
+  const pageSizeOptions: readonly SelectOption[] = PAGE_SIZE_OPTIONS.map((size) => ({
     label: t('documents.perPage', { count: size }),
     value: String(size),
   }))
 
-  const pills = table.mode === 'advanced' ? [] : buildPills()
-  const showAdvancedPill = table.mode === 'simple' && table.savedConditionCount > 0
-  const filterCount =
+  const descriptors =
     table.mode === 'advanced'
-      ? table.activeConditionCount
-      : pills.length + (showAdvancedPill ? 1 : 0)
+      ? []
+      : describeNfeDocumentFilterPills({ filters: table.filters, formatDay })
+  const showAdvancedPill = table.mode === 'simple' && table.savedConditionCount > 0
+  const pills: readonly FilterPill[] = [
+    ...(showAdvancedPill ? [savedAdvancedPill()] : []),
+    ...descriptors.map(toPill),
+  ]
+  const filterCount = table.mode === 'advanced' ? table.activeConditionCount : pills.length
 
-  function buildPills(): readonly { key: FilterKey; label: string }[] {
-    const entries: { key: FilterKey; label: string }[] = []
-    const { amountOperator, amountValue, dateFrom, dateTo, numberFrom, numberTo, select, text } =
-      table.filters
+  function toPill(descriptor: NfeDocumentFilterPill): FilterPill {
+    const label = t(descriptor.labelKey)
+    const value = descriptor.valueKey === undefined ? descriptor.value : t(descriptor.valueKey)
+    return {
+      id: descriptor.key,
+      label,
+      onRemove: () => table.clearFilter(descriptor.key),
+      removeLabel: t('documents.removeFilter', { field: label }),
+      value,
+    }
+  }
 
-    if (text.emitterName.trim().length > 0) {
-      entries.push({
-        key: 'emitterName',
-        label: `${t('documents.fields.emitterName')}: ${text.emitterName}`,
-      })
+  /** O filtro avançado salvo não é campo simples: sua pílula reabre o construtor em vez de editar em linha. */
+  function savedAdvancedPill(): FilterPill {
+    return {
+      editLabel: t('documents.builder.editSaved'),
+      id: 'advanced-filter',
+      label: t('documents.builder.savedLabel'),
+      onEdit: table.editSavedAdvancedFilter,
+      onRemove: table.clearSavedAdvancedFilter,
+      removeLabel: t('documents.builder.removeSaved'),
+      value: t('documents.builder.savedPill', { count: table.savedConditionCount }),
     }
-    if (text.emitterAddress.trim().length > 0) {
-      entries.push({
-        key: 'emitterAddress',
-        label: `${t('documents.fields.emitterAddress')}: ${text.emitterAddress}`,
-      })
-    }
-    if (text.recipientName.trim().length > 0) {
-      entries.push({
-        key: 'recipientName',
-        label: `${t('documents.fields.recipientName')}: ${text.recipientName}`,
-      })
-    }
-    if (text.recipientAddress.trim().length > 0) {
-      entries.push({
-        key: 'recipientAddress',
-        label: `${t('documents.fields.recipientAddress')}: ${text.recipientAddress}`,
-      })
-    }
-    if (select.emitterCity.length > 0) {
-      entries.push({
-        key: 'emitterCity',
-        label: `${t('documents.fields.emitterCity')}: ${select.emitterCity}`,
-      })
-    }
-    if (select.emitterState.length > 0) {
-      entries.push({
-        key: 'emitterState',
-        label: `${t('documents.fields.emitterState')}: ${select.emitterState}`,
-      })
-    }
-    if (select.recipientCity.length > 0) {
-      entries.push({
-        key: 'recipientCity',
-        label: `${t('documents.fields.recipientCity')}: ${select.recipientCity}`,
-      })
-    }
-    if (select.recipientState.length > 0) {
-      entries.push({
-        key: 'recipientState',
-        label: `${t('documents.fields.recipientState')}: ${select.recipientState}`,
-      })
-    }
-    if (select.status.length > 0) {
-      entries.push({
-        key: 'status',
-        label: `${t('documents.fields.status')}: ${statusLabels[select.status as DocumentStatus]}`,
-      })
-    }
-    if (numberFrom.trim().length > 0 || numberTo.trim().length > 0) {
-      entries.push({
-        key: 'numberRange',
-        label: `${t('documents.fields.number')}: ${numberFrom.length > 0 ? numberFrom : '…'}–${numberTo.length > 0 ? numberTo : '…'}`,
-      })
-    }
-    if (amountValue.trim().length > 0) {
-      entries.push({
-        key: 'amount',
-        label: `${t('documents.fields.totalAmount')} ${AMOUNT_OPERATOR_SYMBOL[amountOperator]} ${amountValue}`,
-      })
-    }
-    if (dateFrom.length > 0 || dateTo.length > 0) {
-      entries.push({
-        key: 'dateRange',
-        label: `${t('documents.fields.issuedAt')}: ${formatDay(dateFrom)} – ${formatDay(dateTo)}`,
-      })
-    }
-    return entries
   }
 
   function handleBulkDownload(): void {
@@ -313,8 +279,20 @@ export function NfeDocumentTable({
         <span className={`${styles.badge} ${DOCUMENT_STATUS_TONE[document.status] ?? ''}`}>
           {statusLabels[document.status]}
         </span>
+        {document.cteBlockReason !== null && (
+          <span
+            className={`${styles.badge} ${styles.badgeMuted}`}
+            title={t('documents.blockedRow')}
+          >
+            {blockReasonLabel(document.cteBlockReason)}
+          </span>
+        )}
       </td>
     )
+  }
+
+  function blockReasonLabel(reason: string): string {
+    return t(`cteEmission.blockReason.${reason}`, { defaultValue: reason })
   }
 
   function renderLocationCell(address: string | null, city: string | null, state: string | null) {
@@ -341,7 +319,7 @@ export function NfeDocumentTable({
 
       <div className={styles.tableToolbar}>
         <div className={styles.tableSearch}>
-          <SearchIcon />
+          <Icon name="search" />
           <input
             aria-label={t('documents.search')}
             className={styles.tableSearchInput}
@@ -359,7 +337,7 @@ export function NfeDocumentTable({
           title={isFilterOpen ? t('filters.toggleClose') : t('filters.toggle')}
           type="button"
         >
-          <FilterIcon />
+          <Icon name="filter" />
           {filterCount > 0 && <span className={styles.filterCountPill}>{filterCount}</span>}
         </button>
         <div className={styles.columnsMenuWrap}>
@@ -371,20 +349,19 @@ export function NfeDocumentTable({
             title={t('documents.columnsMenu')}
             type="button"
           >
-            <ColumnsIcon />
+            <Icon name="columns" />
           </button>
           {isColumnsMenuOpen && (
             <div className={styles.columnsMenu} role="menu">
               {table.columnOrder.map((column, index) => (
                 <div className={styles.columnRow} key={column}>
-                  <label className={styles.checkOption}>
-                    <input
+                  <span className={styles.checkOption}>
+                    <Checkbox
                       checked={table.isColumnVisible(column)}
+                      label={t(`documents.columns.${column}`)}
                       onChange={() => table.toggleColumn(column)}
-                      type="checkbox"
                     />
-                    <span>{t(`documents.columns.${column}`)}</span>
-                  </label>
+                  </span>
                   <div className={styles.columnReorder}>
                     <button
                       aria-label={t('documents.columnsReorder.moveUp')}
@@ -394,7 +371,7 @@ export function NfeDocumentTable({
                       title={t('documents.columnsReorder.moveUp')}
                       type="button"
                     >
-                      <MoveUpIcon />
+                      <Icon name="arrow-up" />
                     </button>
                     <button
                       aria-label={t('documents.columnsReorder.moveDown')}
@@ -404,7 +381,7 @@ export function NfeDocumentTable({
                       title={t('documents.columnsReorder.moveDown')}
                       type="button"
                     >
-                      <MoveDownIcon />
+                      <Icon name="arrow-down" />
                     </button>
                   </div>
                 </div>
@@ -420,7 +397,7 @@ export function NfeDocumentTable({
             title={t('documents.clearAll')}
             type="button"
           >
-            <ClearFiltersIcon />
+            <Icon name="filter-clear" />
           </button>
         )}
       </div>
@@ -463,11 +440,24 @@ export function NfeDocumentTable({
                 onClick={table.saveAdvancedFilter}
                 type="button"
               >
+                <Icon name="save" />
                 {t('documents.builder.save')}
               </button>
             </div>
           ) : (
             <div className={styles.filterGrid}>
+              <div className={styles.filterField}>
+                <span className={styles.filterFieldLabel}>{t('documents.fields.cteIssued')}</span>
+                <Select
+                  ariaLabel={t('documents.fields.cteIssued')}
+                  clearable
+                  onChange={(value) => table.setSelectFilter('cteIssued', value)}
+                  options={cteIssuedOptions}
+                  placeholder={t('filters.all')}
+                  value={table.filters.select.cteIssued}
+                />
+              </div>
+
               <div className={styles.filterField}>
                 <span className={styles.filterFieldLabel}>{t('documents.fields.number')}</span>
                 <div className={styles.rangeInputs}>
@@ -507,7 +497,7 @@ export function NfeDocumentTable({
               <div className={styles.filterField}>
                 <span className={styles.filterFieldLabel}>{t('documents.fields.totalAmount')}</span>
                 <div className={styles.amountRow}>
-                  <SelectMenu
+                  <Select
                     ariaLabel={t('documents.operator')}
                     clearable={false}
                     compact
@@ -553,8 +543,9 @@ export function NfeDocumentTable({
 
               <div className={styles.filterField}>
                 <span className={styles.filterFieldLabel}>{t('documents.fields.emitterCity')}</span>
-                <SelectMenu
+                <Select
                   ariaLabel={t('documents.fields.emitterCity')}
+                  clearable
                   onChange={(value) => table.setSelectFilter('emitterCity', value)}
                   options={toOptions(table.cityOptions.emitterCity)}
                   placeholder={t('filters.all')}
@@ -566,8 +557,9 @@ export function NfeDocumentTable({
                 <span className={styles.filterFieldLabel}>
                   {t('documents.fields.emitterState')}
                 </span>
-                <SelectMenu
+                <Select
                   ariaLabel={t('documents.fields.emitterState')}
+                  clearable
                   onChange={(value) => table.setSelectFilter('emitterState', value)}
                   options={toOptions(table.stateOptions.emitterState)}
                   placeholder={t('filters.all')}
@@ -605,8 +597,9 @@ export function NfeDocumentTable({
                 <span className={styles.filterFieldLabel}>
                   {t('documents.fields.recipientCity')}
                 </span>
-                <SelectMenu
+                <Select
                   ariaLabel={t('documents.fields.recipientCity')}
+                  clearable
                   onChange={(value) => table.setSelectFilter('recipientCity', value)}
                   options={toOptions(table.cityOptions.recipientCity)}
                   placeholder={t('filters.all')}
@@ -618,8 +611,9 @@ export function NfeDocumentTable({
                 <span className={styles.filterFieldLabel}>
                   {t('documents.fields.recipientState')}
                 </span>
-                <SelectMenu
+                <Select
                   ariaLabel={t('documents.fields.recipientState')}
+                  clearable
                   onChange={(value) => table.setSelectFilter('recipientState', value)}
                   options={toOptions(table.stateOptions.recipientState)}
                   placeholder={t('filters.all')}
@@ -629,8 +623,9 @@ export function NfeDocumentTable({
 
               <div className={styles.filterField}>
                 <span className={styles.filterFieldLabel}>{t('documents.fields.status')}</span>
-                <SelectMenu
+                <Select
                   ariaLabel={t('documents.fields.status')}
+                  clearable
                   onChange={(value) => table.setSelectFilter('status', value)}
                   options={statusOptions}
                   placeholder={t('filters.all')}
@@ -642,48 +637,20 @@ export function NfeDocumentTable({
         </div>
       )}
 
-      {(pills.length > 0 || showAdvancedPill) && (
-        <div className={styles.filterPills}>
-          {showAdvancedPill && (
-            <span className={styles.filterPillAdvanced} key="advanced-filter">
-              <button
-                className={styles.filterPillEdit}
-                onClick={table.editSavedAdvancedFilter}
-                title={t('documents.builder.editSaved')}
-                type="button"
-              >
-                {t('documents.builder.savedPill', { count: table.savedConditionCount })}
-              </button>
-              <button
-                aria-label={t('documents.builder.removeSaved')}
-                className={styles.filterPillRemove}
-                onClick={table.clearSavedAdvancedFilter}
-                title={t('documents.builder.removeSaved')}
-                type="button"
-              >
-                <CloseIcon />
-              </button>
-            </span>
-          )}
-          {pills.map((pill) => (
-            <span className={styles.filterPill} key={pill.key}>
-              <span className={styles.filterPillLabel}>{pill.label}</span>
-              <button
-                aria-label={t('documents.removeFilter', { field: pill.label })}
-                className={styles.filterPillRemove}
-                onClick={() => table.clearFilter(pill.key)}
-                type="button"
-              >
-                <CloseIcon />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      <FilterPills
+        clearAllLabel={t('documents.clearAll')}
+        onClearAll={table.clearAllFilters}
+        pills={pills}
+      />
 
       {table.selectedCount > 0 && (
         <div className={styles.selectionBar} role="status">
           <span>{t('documents.selectedCount', { count: table.selectedCount })}</span>
+          {table.blockedCount > 0 && (
+            <span className={styles.selectionBlocked}>
+              {t('documents.blockedCount', { count: table.blockedCount })}
+            </span>
+          )}
           <div className={styles.selectionActions}>
             {cteEmission.canEmit && (
               <button
@@ -692,6 +659,7 @@ export function NfeDocumentTable({
                 title={t('documents.emitCte', { count: table.selectedCount })}
                 type="button"
               >
+                <Icon name="send" />
                 {t('documents.emitCte', { count: table.selectedCount })}
               </button>
             )}
@@ -702,7 +670,7 @@ export function NfeDocumentTable({
               title={t('documents.downloadSelected')}
               type="button"
             >
-              <DownloadIcon />
+              <Icon name="download" />
             </button>
             <button
               aria-label={t('documents.clearSelection')}
@@ -711,7 +679,7 @@ export function NfeDocumentTable({
               title={t('documents.clearSelection')}
               type="button"
             >
-              <CloseIcon />
+              <Icon name="close" />
             </button>
           </div>
         </div>
@@ -732,14 +700,11 @@ export function NfeDocumentTable({
               <thead>
                 <tr>
                   <th className={styles.selectCell} scope="col">
-                    <input
-                      aria-label={t('documents.selectAll')}
+                    <Checkbox
+                      ariaLabel={t('documents.selectAll')}
                       checked={table.allSelected}
-                      onChange={table.toggleSelectAll}
-                      ref={(element) => {
-                        if (element) element.indeterminate = table.someSelected
-                      }}
-                      type="checkbox"
+                      indeterminate={table.someSelected}
+                      onChange={() => table.toggleSelectAll()}
                     />
                   </th>
                   {visibleColumns.map((column) =>
@@ -784,14 +749,22 @@ export function NfeDocumentTable({
                 {table.pageItems.map((document) => {
                   const downloading = downloadingDocumentId === document.id
                   const selected = table.selectedIds.has(document.id)
+                  const blocked = isDocumentBlocked(document)
                   return (
                     <tr className={selected ? styles.rowSelected : undefined} key={document.id}>
-                      <td className={styles.selectCell}>
-                        <input
-                          aria-label={t('documents.selectRow')}
+                      <td
+                        className={styles.selectCell}
+                        title={
+                          document.cteBlockReason === null
+                            ? undefined
+                            : blockReasonLabel(document.cteBlockReason)
+                        }
+                      >
+                        <Checkbox
+                          ariaLabel={blocked ? t('documents.blockedRow') : t('documents.selectRow')}
                           checked={selected}
+                          disabled={blocked}
                           onChange={() => table.toggleRow(document.id)}
-                          type="checkbox"
                         />
                       </td>
                       {visibleColumns.map((column) => (
@@ -810,7 +783,7 @@ export function NfeDocumentTable({
                           }
                           type="button"
                         >
-                          <DownloadIcon />
+                          <Icon name="download" />
                         </button>
                         {downloading === false && downloadErrorId === document.id && (
                           <span className={styles.cardError} role="alert">
@@ -835,7 +808,7 @@ export function NfeDocumentTable({
               {loading && ` · ${t('documents.loadingAll')}`}
             </span>
             <div className={styles.pager}>
-              <SelectMenu
+              <Select
                 align="end"
                 ariaLabel={t('documents.pageSize')}
                 clearable={false}
@@ -853,7 +826,7 @@ export function NfeDocumentTable({
                 title={t('documents.firstPage')}
                 type="button"
               >
-                <FirstPageIcon />
+                <Icon name="page-first" />
               </button>
               <button
                 aria-label={t('documents.previousPage')}
@@ -863,7 +836,7 @@ export function NfeDocumentTable({
                 title={t('documents.previousPage')}
                 type="button"
               >
-                <PreviousPageIcon />
+                <Icon name="page-previous" />
               </button>
               <span className={styles.pageIndicator}>
                 {t('documents.pageIndicator', {
@@ -879,7 +852,7 @@ export function NfeDocumentTable({
                 title={t('documents.nextPage')}
                 type="button"
               >
-                <NextPageIcon />
+                <Icon name="page-next" />
               </button>
               <button
                 aria-label={t('documents.lastPage')}
@@ -889,7 +862,7 @@ export function NfeDocumentTable({
                 title={t('documents.lastPage')}
                 type="button"
               >
-                <LastPageIcon />
+                <Icon name="page-last" />
               </button>
             </div>
           </div>
@@ -947,130 +920,8 @@ function SortableHeader({ active, align, direction, label, onSort }: SortableHea
         type="button"
       >
         <span>{label}</span>
-        <SortIcon direction={active ? direction : null} />
+        <Icon name="sort" />
       </button>
     </th>
-  )
-}
-
-function SortIcon({ direction }: Readonly<{ direction: SortDirection | null }>) {
-  return (
-    <svg aria-hidden="true" className={styles.sortIcon} viewBox="0 0 24 24">
-      <path className={sortArrowClass(direction === 'asc')} d="m8 10 4-4 4 4" />
-      <path className={sortArrowClass(direction === 'desc')} d="m8 14 4 4 4-4" />
-    </svg>
-  )
-}
-
-function sortArrowClass(isActive: boolean): string {
-  const base = styles.sortArrow ?? ''
-  return isActive ? `${base} ${styles.sortActiveArrow ?? ''}` : base
-}
-
-function DownloadIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 3v12" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M5 19h14" />
-    </svg>
-  )
-}
-
-function FilterIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M4 5h16" />
-      <path d="M7 10h10" />
-      <path d="M10 15h4" />
-    </svg>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  )
-}
-
-function ColumnsIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <rect height="16" rx="1" width="5" x="4" y="4" />
-      <rect height="16" rx="1" width="5" x="15" y="4" />
-    </svg>
-  )
-}
-
-function MoveUpIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 19V6" />
-      <path d="m6 11 6-6 6 6" />
-    </svg>
-  )
-}
-
-function MoveDownIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M12 5v13" />
-      <path d="m6 13 6 6 6-6" />
-    </svg>
-  )
-}
-
-function ClearFiltersIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M4 5h16" />
-      <path d="M7 5v4l3 3v7l4 2v-9l3-3V5" />
-    </svg>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M6 6l12 12" />
-      <path d="M18 6 6 18" />
-    </svg>
-  )
-}
-
-function FirstPageIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M18 6l-6 6 6 6" />
-      <path d="M11 6l-6 6 6 6" />
-    </svg>
-  )
-}
-
-function PreviousPageIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M15 6l-6 6 6 6" />
-    </svg>
-  )
-}
-
-function NextPageIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  )
-}
-
-function LastPageIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="M6 6l6 6-6 6" />
-      <path d="M13 6l6 6-6 6" />
-    </svg>
   )
 }

@@ -147,6 +147,7 @@ export const fleetDrivers = pgTable(
     membershipId: uuid('membership_id'),
     name: text().notNull(),
     taxId: text('tax_id').notNull(),
+    linkedTaxId: text('linked_tax_id').notNull().default(''),
     licenseNumber: text('license_number').notNull().default(''),
     phone: text().notNull().default(''),
     status: text().$type<FleetDriverStatus>().notNull().default('active'),
@@ -176,6 +177,11 @@ export const fleetDrivers = pgTable(
       .where(sql`${table.membershipId} is not null`),
     index('fleet_drivers_company_status_name_idx').on(table.companyId, table.status, table.name),
     check('fleet_drivers_tax_id_check', sql`${table.taxId} ~ '^[0-9]{11}$'`),
+    // O condutor do MDF-e é sempre pessoa física — o CNPJ do autônomo acompanha o CPF, nunca o substitui
+    check(
+      'fleet_drivers_linked_tax_id_check',
+      sql`length(${table.linkedTaxId}) = 0 or ${table.linkedTaxId} ~ '^[0-9]{14}$'`,
+    ),
     check(
       'fleet_drivers_name_check',
       sql`length(${table.name}) > 0 and length(${table.name}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))}`,
@@ -231,16 +237,17 @@ export const fleetDriverVehicleAssignments = pgTable(
       .onDelete('cascade')
       .onUpdate('cascade'),
     unique('fleet_driver_vehicle_assignments_company_id_id_unique').on(table.companyId, table.id),
-    uniqueIndex('fleet_driver_vehicle_assignments_live_vehicle_unique')
-      .on(table.companyId, table.vehicleId)
-      .where(sql`${table.releasedAt} is null`),
-    uniqueIndex('fleet_driver_vehicle_assignments_live_driver_unique')
-      .on(table.companyId, table.driverId)
+    uniqueIndex('fleet_driver_vehicle_assignments_live_link_unique')
+      .on(table.companyId, table.driverId, table.vehicleId)
       .where(sql`${table.releasedAt} is null`),
     index('fleet_driver_vehicle_assignments_company_driver_assigned_at_idx').on(
       table.companyId,
       table.driverId,
       table.assignedAt,
+    ),
+    index('fleet_driver_vehicle_assignments_company_vehicle_idx').on(
+      table.companyId,
+      table.vehicleId,
     ),
     check(
       'fleet_driver_vehicle_assignments_period_check',

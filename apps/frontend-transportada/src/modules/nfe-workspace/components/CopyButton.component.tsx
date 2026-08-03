@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+
 import styles from '../styles/nfeWorkspace.module.css'
 
 type CopyButtonVariant = 'boxed' | 'inline'
@@ -37,7 +39,7 @@ export function CopyButton({ label, value, variant = 'boxed' }: CopyButtonProps)
       title={feedbackLabel}
       type="button"
     >
-      {copied ? <CheckIcon /> : <CopyIcon />}
+      <Icon name={copied ? 'check' : 'copy'} />
     </button>
   )
 }
@@ -45,21 +47,4 @@ export function CopyButton({ label, value, variant = 'boxed' }: CopyButtonProps)
 function resolveCopyClass(variant: CopyButtonVariant, copied: boolean): string {
   if (variant === 'inline') return (copied ? styles.copyInlineDone : styles.copyInline) ?? ''
   return (copied ? styles.copyButtonDone : styles.copyButton) ?? ''
-}
-
-function CopyIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <rect height="13" rx="2" width="13" x="9" y="9" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg aria-hidden="true" className={styles.actionIcon} viewBox="0 0 24 24">
-      <path d="m5 13 4 4L19 7" />
-    </svg>
-  )
 }

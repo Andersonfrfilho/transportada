@@ -89,7 +89,7 @@ const PAYLOAD_SOURCE: MdfeIssuancePayloadSource = {
   manifest: {
     additionalInformation: '',
     cargoProduct: 'Carga geral',
-    cargoProductNcm: '',
+    cargoProductNcm: '22021000',
     cargoType: '05',
     cargoUnit: '01',
     cargoValue: '1000.00',

@@ -136,6 +136,11 @@ export const cteBatchItems = pgTable(
       table.batchId,
       table.createdAt,
     ),
+    index('cte_batch_items_company_created_at_id_idx').on(
+      table.companyId,
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
     foreignKey({
       columns: [table.companyId, table.batchId],
       foreignColumns: [cteBatches.companyId, cteBatches.id],

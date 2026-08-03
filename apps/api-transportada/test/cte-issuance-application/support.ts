@@ -9,6 +9,7 @@ import type { CteIssuanceCreatedAttempt } from '../../src/cte-issuance/applicati
 import type { CteIssuancePayloadSource } from '../../src/cte-issuance/application/cte-issuance-payload.port.js'
 import { mapCteIssuanceAttempt } from '../../src/cte-issuance/infrastructure/cte-issuance-attempt.mapper.js'
 import type { CteRetryPolicy } from '../../src/cte-issuance/domain/cte-retry.policy.js'
+import { GROUPED_INVOICES } from '../cte-issuance-domain/grouped.support.js'
 import { GOLDEN_CHARGE, GOLDEN_INVOICE, GOLDEN_PROFILE } from '../cte-issuance-domain/support.js'
 
 export type CteIssuanceFiscalSettings = {
@@ -150,6 +151,11 @@ export const PAYLOAD_SOURCE: CteIssuancePayloadSource = {
   emitter: PAYLOAD_EMITTER,
   invoices: [GOLDEN_INVOICE],
   profile: GOLDEN_PROFILE,
+}
+
+export const GROUPED_PAYLOAD_SOURCE: CteIssuancePayloadSource = {
+  ...PAYLOAD_SOURCE,
+  invoices: GROUPED_INVOICES,
 }
 
 export const SIGNED_URL_EXPIRES_AT = '2026-07-27T20:15:00.000Z'
@@ -317,6 +323,7 @@ export class CteIssuanceUnitOfWorkFixture {
   public readonly fiscalDocumentQueries: Array<Record<string, unknown>> = []
   public readonly downloadRequests: Array<Record<string, unknown>> = []
   public readonly cancellationRequests: Array<Record<string, unknown>> = []
+  public readonly draftSubmissions: Array<Record<string, unknown>> = []
 
   public fiscalDocuments: readonly Record<string, unknown>[] = [{ ...FISCAL_DOCUMENT_RECORD }]
 
@@ -528,6 +535,11 @@ export class CteIssuanceUnitOfWorkFixture {
 
   public async savePayload(input: Record<string, unknown>): Promise<void> {
     this.savedPayloads.push(input)
+  }
+
+  public async submitDraftBatch(input: Record<string, unknown>): Promise<void> {
+    this.draftSubmissions.push(input)
+    this.batch = { ...(this.batch ?? {}), status: 'submitted' }
   }
 
   public async requestCancellation(input: Record<string, unknown>): Promise<void> {

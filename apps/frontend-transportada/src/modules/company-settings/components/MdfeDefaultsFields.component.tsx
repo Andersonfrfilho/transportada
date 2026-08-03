@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Select } from '@/components/ui/select'
+
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import styles from '../styles/companySettings.module.css'
 
@@ -37,19 +39,17 @@ export function MdfeDefaultsFields({ disabled, mdfe, onChange }: MdfeDefaultsFie
       <div className={styles.fieldGrid}>
         <label>
           <span>{t('mdfeInsuranceResponsibility')}</span>
-          <select
+          <Select
+            ariaLabel={t('mdfeInsuranceResponsibility')}
+            options={RESPONSIBILITY_OPTIONS.map((option) => ({
+              label: t(option === '' ? 'mdfeResponsibilityNone' : `mdfeResponsibility${option}`),
+              value: option,
+            }))}
             value={mdfe.insuranceResponsibility}
-            onChange={(event) => {
-              const value = event.target.value
+            onChange={(value) => {
               if (isResponsibility(value)) onChange({ ...mdfe, insuranceResponsibility: value })
             }}
-          >
-            {RESPONSIBILITY_OPTIONS.map((option) => (
-              <option key={`mdfe-responsibility-${option}`} value={option}>
-                {t(option === '' ? 'mdfeResponsibilityNone' : `mdfeResponsibility${option}`)}
-              </option>
-            ))}
-          </select>
+          />
         </label>
         <label>
           <span>{t('mdfeInsurerName')}</span>

@@ -117,6 +117,17 @@ describe('MDF-e document eligibility', () => {
     ])
   })
 
+  // ADR-0017: descartar carimba released_at, o vínculo morre e o CT-e volta a ser manifestável
+  test('lets a CT-e released by a discarded manifest be manifested again', () => {
+    const result = selection(
+      [candidate({ fiscalDocumentId: 'doc-1', liveManifestId: null })],
+      ['doc-1'],
+    )
+
+    expect(result.blocked).toEqual([])
+    expect(result.manifestable.map((document) => document.fiscalDocumentId)).toEqual(['doc-1'])
+  })
+
   test('blocks a CT-e of another company even when the repository leaks it', () => {
     const result = selection(
       [candidate({ companyId: OTHER_COMPANY_ID, fiscalDocumentId: 'doc-1' })],

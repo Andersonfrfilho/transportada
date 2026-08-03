@@ -7,7 +7,7 @@ import type {
   NfeDistribuicaoResult,
 } from '@adatechnology/fiscal-provider'
 
-import { safeLogInfo } from '../../logging/safe-logger.service.js'
+import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 
@@ -105,6 +105,43 @@ type NfeDistributionConsumer = {
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
 const LEASE_OWNER = 'distribution-consumer'
+const UNKNOWN_ERROR_CODE = 'UNKNOWN'
+const UNKNOWN_ERROR_NAME = 'UnknownError'
+
+type PullFailureDescription = {
+  readonly errorCode: string
+  readonly errorName: string
+  readonly providerMessage: string
+}
+
+// `rawResponse` do erro fiscal carrega o XML da SEFAZ — nunca entra em log
+function describePullFailure(error: unknown): PullFailureDescription {
+  if (typeof error !== 'object' || error === null) {
+    return {
+      errorCode: UNKNOWN_ERROR_CODE,
+      errorName: UNKNOWN_ERROR_NAME,
+      providerMessage: '',
+    }
+  }
+
+  const candidate = error as {
+    readonly code?: unknown
+    readonly message?: unknown
+    readonly name?: unknown
+    readonly providerMessage?: unknown
+  }
+
+  return {
+    errorCode: typeof candidate.code === 'string' ? candidate.code : UNKNOWN_ERROR_CODE,
+    errorName: typeof candidate.name === 'string' ? candidate.name : UNKNOWN_ERROR_NAME,
+    providerMessage:
+      typeof candidate.providerMessage === 'string'
+        ? candidate.providerMessage
+        : typeof candidate.message === 'string'
+          ? candidate.message
+          : '',
+  }
+}
 
 export function createNfeDistributionConsumer(input: {
   readonly clock: NfeDistributionClock
@@ -135,10 +172,31 @@ export function createNfeDistributionConsumer(input: {
         owner: LEASE_OWNER,
       })
       if (cursor === null) {
+        safeLogWarn({
+          logger: input.logger,
+          message: 'nfe_distribution_lease_unavailable',
+          metadata: {
+            companyId: params.envelope.companyId,
+            environment: config.environment,
+            importId: params.envelope.payload.importId,
+          },
+        })
         throw new Error('NF-e distribution lease is already held by another worker')
       }
 
       if (cursor.nextAllowedAt !== null && cursor.nextAllowedAt.getTime() > now.getTime()) {
+        safeLogWarn({
+          logger: input.logger,
+          message: 'nfe_distribution_pull_skipped_cooldown',
+          metadata: {
+            companyId: params.envelope.companyId,
+            environment: config.environment,
+            importId: params.envelope.payload.importId,
+            nextAllowedAt: cursor.nextAllowedAt.toISOString(),
+            ultNsu: cursor.ultNsu,
+          },
+        })
+
         try {
           await input.repository.finalizeImport({
             companyId: params.envelope.companyId,
@@ -173,6 +231,17 @@ export function createNfeDistributionConsumer(input: {
       let ultNsu = cursor.ultNsu
       let status: 'completed' | 'rate-limited' = 'completed'
 
+      safeLogInfo({
+        logger: input.logger,
+        message: 'nfe_distribution_pull_started',
+        metadata: {
+          companyId: params.envelope.companyId,
+          environment: config.environment,
+          importId: params.envelope.payload.importId,
+          ultNsu,
+        },
+      })
+
       try {
         while (true) {
           const page = await gateway.consultarDFe({
@@ -186,6 +255,7 @@ export function createNfeDistributionConsumer(input: {
             message: 'nfe_distribution_sefaz_page_received',
             metadata: {
               companyId: params.envelope.companyId,
+              environment: config.environment,
               fetched: page.itens.length,
               importId: params.envelope.payload.importId,
               maxNsu: page.maxNSU,
@@ -196,13 +266,27 @@ export function createNfeDistributionConsumer(input: {
 
           if (page.itens.length === 0) {
             status = 'rate-limited'
+            const nextAllowedAt = new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS)
             await input.cursorRepository.saveCursor({
               companyId: params.envelope.companyId,
               environment: config.environment,
               maxNsu: page.maxNSU,
-              nextAllowedAt: new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS),
+              nextAllowedAt,
               owner: LEASE_OWNER,
               ultNsu,
+            })
+
+            safeLogInfo({
+              logger: input.logger,
+              message: 'nfe_distribution_rate_limit_window_applied',
+              metadata: {
+                companyId: params.envelope.companyId,
+                environment: config.environment,
+                importId: params.envelope.payload.importId,
+                maxNsu: page.maxNSU,
+                nextAllowedAt: nextAllowedAt.toISOString(),
+                ultNsu,
+              },
             })
             break
           }
@@ -218,6 +302,19 @@ export function createNfeDistributionConsumer(input: {
           duplicatedCount += persistence.duplicatedCount
           persistedCount += persistence.acceptedCount
           ultNsu = page.ultNSU
+
+          safeLogInfo({
+            logger: input.logger,
+            message: 'nfe_distribution_page_persisted',
+            metadata: {
+              accepted: persistence.acceptedCount,
+              companyId: params.envelope.companyId,
+              duplicated: persistence.duplicatedCount,
+              environment: config.environment,
+              importId: params.envelope.payload.importId,
+              ultNsu,
+            },
+          })
 
           await input.cursorRepository.saveCursor({
             companyId: params.envelope.companyId,
@@ -243,6 +340,21 @@ export function createNfeDistributionConsumer(input: {
           status: 'completed',
         })
 
+        safeLogInfo({
+          logger: input.logger,
+          message: 'nfe_distribution_pull_finished',
+          metadata: {
+            companyId: params.envelope.companyId,
+            duplicated: duplicatedCount,
+            environment: config.environment,
+            fetched: fetchedCount,
+            importId: params.envelope.payload.importId,
+            persisted: persistedCount,
+            status,
+            ultNsu,
+          },
+        })
+
         return {
           duplicatedCount,
           fetchedCount,
@@ -250,6 +362,20 @@ export function createNfeDistributionConsumer(input: {
           status,
           ultNsu,
         }
+      } catch (error: unknown) {
+        // Só aqui o código da SEFAZ ainda é tipado; acima da pilha vira mensagem opaca
+        safeLogError({
+          logger: input.logger,
+          message: 'nfe_distribution_pull_failed',
+          metadata: {
+            companyId: params.envelope.companyId,
+            environment: config.environment,
+            importId: params.envelope.payload.importId,
+            ultNsu,
+            ...describePullFailure(error),
+          },
+        })
+        throw error
       } finally {
         await input.cursorRepository.releaseLease({
           companyId: params.envelope.companyId,

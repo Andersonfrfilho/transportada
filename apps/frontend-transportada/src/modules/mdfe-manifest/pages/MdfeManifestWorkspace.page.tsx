@@ -48,7 +48,8 @@ export function MdfeManifestWorkspacePage() {
     resolveFeedbackKey(workspace.previewManifestMutation.error) ??
     resolveFeedbackKey(workspace.issueManifestMutation.error) ??
     resolveFeedbackKey(workspace.closeManifestMutation.error) ??
-    resolveFeedbackKey(workspace.cancelManifestMutation.error)
+    resolveFeedbackKey(workspace.cancelManifestMutation.error) ??
+    resolveFeedbackKey(workspace.discardManifestMutation.error)
 
   function handlePreview(): void {
     workspace.previewManifestMutation.mutate(
@@ -76,6 +77,9 @@ export function MdfeManifestWorkspacePage() {
     const action = { idempotencyKey: crypto.randomUUID(), manifestId: pending.manifest.id }
     const settled = { onSuccess: form.dismiss }
     if (pending.kind === 'issue') workspace.issueManifestMutation.mutate(action, settled)
+    if (pending.kind === 'discard') {
+      workspace.discardManifestMutation.mutate({ manifestId: pending.manifest.id }, settled)
+    }
     if (pending.kind === 'close') {
       workspace.closeManifestMutation.mutate(
         { ...action, closureCityCode: form.closureCityCode, closureState: form.closureState },
@@ -100,6 +104,10 @@ export function MdfeManifestWorkspacePage() {
 
   function openCancel(manifest: MdfeManifestSummary): void {
     form.openAction('cancel', manifest)
+  }
+
+  function openDiscard(manifest: MdfeManifestSummary): void {
+    form.openAction('discard', manifest)
   }
 
   return (
@@ -153,10 +161,16 @@ export function MdfeManifestWorkspacePage() {
           ) : null}
 
           <MdfeManifestTable
-            actions={{ onCancel: openCancel, onClose: openClose, onIssue: openIssue }}
+            actions={{
+              onCancel: openCancel,
+              onClose: openClose,
+              onDiscard: openDiscard,
+              onIssue: openIssue,
+            }}
             permissions={{
               canCancel: workspace.controller.canCancelManifests,
               canClose: workspace.controller.canCloseManifests,
+              canDiscard: workspace.controller.canManageManifests,
               canIssue: workspace.controller.canIssueManifests,
             }}
             table={table}
@@ -167,7 +181,8 @@ export function MdfeManifestWorkspacePage() {
             isPending={
               workspace.issueManifestMutation.isPending ||
               workspace.closeManifestMutation.isPending ||
-              workspace.cancelManifestMutation.isPending
+              workspace.cancelManifestMutation.isPending ||
+              workspace.discardManifestMutation.isPending
             }
             onConfirm={handleConfirmAction}
           />

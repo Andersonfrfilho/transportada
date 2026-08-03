@@ -6,6 +6,9 @@ export const SYNTHETIC_CURSOR = '2026-07-28T12:00:00.000Z::00000000-0000-4000-80
 export const VEHICLE_ID = '00000000-0000-4000-8000-000000000911'
 export const DRIVER_ID = '00000000-0000-4000-8000-000000000912'
 export const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000902'
+export const DRIVER_OWNED_VEHICLE_ID = '00000000-0000-4000-8000-000000000913'
+export const LINK_ID = '00000000-0000-4000-8000-000000000921'
+export const OWNED_LINK_ID = '00000000-0000-4000-8000-000000000922'
 
 export type FleetVehicleOwnerContract = Readonly<{
   name: string
@@ -40,6 +43,7 @@ export type FleetVehicleDetailContract = FleetVehicleBodyContract &
 
 export type FleetDriverBodyContract = Readonly<{
   licenseNumber: string
+  linkedTaxId: string
   membershipId: null | string
   name: string
   phone: string
@@ -54,6 +58,13 @@ export type FleetDriverDetailContract = FleetDriverBodyContract &
     updatedAt: string
     version: string
   }>
+
+export type FleetDriverVehicleContract = Readonly<{
+  assignedAt: string
+  id: string
+  ownedByDriver: boolean
+  vehicle: FleetVehicleDetailContract
+}>
 
 export type FleetVehiclePageContract = Readonly<{
   items: readonly FleetVehicleDetailContract[]
@@ -97,8 +108,11 @@ export const AGGREGATE_VEHICLE_BODY = {
   wheelType: '',
 } as const satisfies FleetVehicleBodyContract
 
+export const LINKED_COMPANY_TAX_ID = '12345678000195'
+
 export const DRIVER_BODY = {
   licenseNumber: '12345678901',
+  linkedTaxId: '',
   membershipId: null,
   name: 'Jose da Silva',
   phone: '11988887777',
@@ -123,6 +137,56 @@ export const DRIVER_DETAIL = {
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
 } as const satisfies FleetDriverDetailContract
+
+export const DRIVER_OWNED_VEHICLE = {
+  ...AGGREGATE_VEHICLE_BODY,
+  createdAt: '2026-07-28T12:00:00.000Z',
+  id: DRIVER_OWNED_VEHICLE_ID,
+  status: 'active',
+  updatedAt: '2026-07-28T12:00:00.000Z',
+  version: '1',
+} as const satisfies FleetVehicleDetailContract
+
+export const DRIVER_VEHICLE_LINKS = [
+  {
+    assignedAt: '2026-07-28T12:00:00.000Z',
+    id: LINK_ID,
+    ownedByDriver: false,
+    vehicle: VEHICLE_DETAIL,
+  },
+  {
+    assignedAt: '2026-07-29T12:00:00.000Z',
+    id: OWNED_LINK_ID,
+    ownedByDriver: true,
+    vehicle: DRIVER_OWNED_VEHICLE,
+  },
+] as const satisfies readonly FleetDriverVehicleContract[]
+
+export type FleetVehicleLookupContract = Readonly<{
+  brand: string
+  capacityKilograms: string
+  model: string
+  modelYear: string
+  ownerName: string
+  ownerTaxId: string
+  plate: string
+  renavam: string
+  state: string
+  tareWeightKilograms: string
+}>
+
+export const VEHICLE_LOOKUP = {
+  brand: 'Marca Sintetica',
+  capacityKilograms: '27000',
+  model: 'Modelo Sintetico',
+  modelYear: '2020',
+  ownerName: 'Agregado Transportes Ltda',
+  ownerTaxId: '12345678000195',
+  plate: 'ABC1D23',
+  renavam: '12345678901',
+  state: 'SP',
+  tareWeightKilograms: '8000',
+} as const satisfies FleetVehicleLookupContract
 
 export const VEHICLE_PAGE = {
   items: [VEHICLE_DETAIL],
@@ -160,6 +224,7 @@ export const VEHICLE_DRAFT_BODY = {
 
 export const DRIVER_DRAFT_BODY = {
   licenseNumber: '',
+  linkedTaxId: '',
   membershipId: null,
   name: '',
   phone: '',

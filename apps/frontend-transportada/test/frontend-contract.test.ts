@@ -55,6 +55,76 @@ describe('frontend foundation contract', () => {
     expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_API_SERVER')
   })
 
+  test('matches the /auth/me response by the configured API base url, proxied or direct', async () => {
+    const { isAuthMeResponseUrl } = await import('./smoke-api-url.helper')
+
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53001',
+        url: 'http://localhost:53001/auth/me',
+      }),
+    ).toBe(true)
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53000/api',
+        url: 'http://localhost:53000/api/auth/me',
+      }),
+    ).toBe(true)
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53000/api/',
+        url: 'http://localhost:53000/api/auth/me',
+      }),
+    ).toBe(true)
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53000/api',
+        url: 'http://localhost:53001/auth/me',
+      }),
+    ).toBe(false)
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53001',
+        url: 'http://localhost:53001/auth/me/extra',
+      }),
+    ).toBe(false)
+    expect(
+      isAuthMeResponseUrl({
+        apiBaseUrl: 'http://localhost:53001',
+        url: 'http://localhost:53001/auth/session',
+      }),
+    ).toBe(false)
+  })
+
+  // A origem fixa no helper matava o login real assim que VITE_API_URL passou a apontar para o proxy
+  test('keeps the authenticated smoke login free of a hardcoded API origin', async () => {
+    const smokeHelper = await readApplicationFile('test/authenticated-smoke.helper.ts')
+    const apiUrlHelper = await readApplicationFile('test/smoke-api-url.helper.ts')
+
+    expect(smokeHelper).toContain('isAuthMeResponseUrl')
+    expect(smokeHelper).toContain('getApiBaseUrl')
+    expect(smokeHelper).not.toContain('http://localhost:53001')
+    expect(apiUrlHelper).toContain('process.env.VITE_API_URL')
+  })
+
+  test('proxies the API in preview with the same rule the dev server uses', async () => {
+    const viteConfiguration = await readApplicationFile('vite.config.ts')
+
+    expect(viteConfiguration).toContain('preview:')
+    expect(viteConfiguration).toContain('proxy: API_PROXY')
+    expect(viteConfiguration.match(/proxy: API_PROXY/g)).toHaveLength(2)
+  })
+
+  test('exposes a smoke run that exercises the real Keycloak login', async () => {
+    const packageManifest: unknown = JSON.parse(await readApplicationFile('package.json'))
+    const scripts = (packageManifest as { readonly scripts: Record<string, string> }).scripts
+
+    expect(scripts['smoke']).toContain('VITE_SMOKE_AUTH_BYPASS=true')
+    expect(scripts['smoke:auth']).toBeDefined()
+    expect(scripts['smoke:auth']).not.toContain('VITE_SMOKE_AUTH_BYPASS')
+    expect(scripts['smoke:auth']).toContain('playwright test')
+  })
+
   test('uses Keycloak Authorization Code with PKCE and never persists tokens', async () => {
     const packageManifest = await readApplicationFile('package.json')
     const authProvider = await readApplicationFile(
