@@ -2,8 +2,9 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main, develop]
+  # O deploy chama este workflow como gate; por isso `push` não dispara CI direto — seria a mesma
+  # suíte rodando duas vezes no mesmo commit.
+  workflow_call:
 
 permissions:
   contents: read

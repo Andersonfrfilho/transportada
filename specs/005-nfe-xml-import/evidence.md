@@ -2161,15 +2161,15 @@ entrypoint `test/nfe-distribution.contract.test.ts`).
 Eventos acrescentados em `nfe-distribution-consumer.service.ts`, todos carregando
 `companyId`, `importId` e `environment` (homologação vs produção deixa de ser adivinhação):
 
-| Evento | Nível | Responde |
-| --- | --- | --- |
-| `nfe_distribution_pull_started` | info | a consulta saiu, e a partir de qual `ultNsu` |
-| `nfe_distribution_sefaz_page_received` | info | o que a SEFAZ devolveu (`fetched`, `maxNsu`, `temMais`) |
-| `nfe_distribution_page_persisted` | info | quanto da página entrou (`accepted`/`duplicated`) |
-| `nfe_distribution_rate_limit_window_applied` | info | página vazia → janela anti-656 até `nextAllowedAt` |
-| `nfe_distribution_pull_skipped_cooldown` | warn | não consultou: cooldown aberto até `nextAllowedAt` |
-| `nfe_distribution_lease_unavailable` | warn | outro worker já detinha o lease |
-| `nfe_distribution_pull_failed` | error | `errorCode` (cStat), `providerMessage` (xMotivo), `errorName` |
+| Evento                                       | Nível | Responde                                                      |
+| -------------------------------------------- | ----- | ------------------------------------------------------------- |
+| `nfe_distribution_pull_started`              | info  | a consulta saiu, e a partir de qual `ultNsu`                  |
+| `nfe_distribution_sefaz_page_received`       | info  | o que a SEFAZ devolveu (`fetched`, `maxNsu`, `temMais`)       |
+| `nfe_distribution_page_persisted`            | info  | quanto da página entrou (`accepted`/`duplicated`)             |
+| `nfe_distribution_rate_limit_window_applied` | info  | página vazia → janela anti-656 até `nextAllowedAt`            |
+| `nfe_distribution_pull_skipped_cooldown`     | warn  | não consultou: cooldown aberto até `nextAllowedAt`            |
+| `nfe_distribution_lease_unavailable`         | warn  | outro worker já detinha o lease                               |
+| `nfe_distribution_pull_failed`               | error | `errorCode` (cStat), `providerMessage` (xMotivo), `errorName` |
 
 `describePullFailure` extrai `code`/`providerMessage`/`name` por leitura estrutural, sem
 importar a classe do pacote fiscal na camada de aplicação. O `rawResponse` do

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/api-transportada/Dockerfile"
+  },
+  "deploy": {
+    "healthcheckPath": "/health/live",
+    "healthcheckTimeout": 120,
+    "preDeployCommand": "bun src/database/database-migration.service.ts",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

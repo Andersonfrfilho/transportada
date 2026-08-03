@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente alvo do deploy manual
+        required: true
+        type: choice
+        options: [staging, production]
+      deploy_identity:
+        description: Forçar o deploy do Keycloak (derruba o login por alguns segundos)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RAILWAY_CLI_VERSION: 4.58.0
+  RAILWAY_PROJECT_ID: 62de4c69-216a-4335-93a0-4942c6a95c54
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+    steps:
+      - id: resolve
+        run: |
+          if [ -n "${{ inputs.environment }}" ]; then
+            resolved="${{ inputs.environment }}"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            resolved=production
+          else
+            resolved=staging
+          fi
+          echo "environment=$resolved" >>"$GITHUB_OUTPUT"
+          echo "Ambiente alvo: $resolved"
+
+  gate:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: [target, gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ needs.target.outputs.environment }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install Railway CLI
+        run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Deploy identity
+        run: |
+          if [ "${{ inputs.deploy_identity }}" = "true" ]; then
+            reason="pedido manual"
+          elif ! .github/scripts/railway-deploy.sh has-succeeded keycloak; then
+            reason="primeiro deploy do ambiente"
+          elif git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null \
+            | grep -q '^deploy/keycloak/'; then
+            reason="mudança em deploy/keycloak"
+          else
+            echo "Keycloak inalterado: deploy pulado para não derrubar o login."
+            exit 0
+          fi
+          echo "Deploy do Keycloak ($reason)."
+          .github/scripts/railway-deploy.sh deploy keycloak
+      # A API roda as migrations no preDeployCommand; worker e cron só sobem depois que ela conclui.
+      - name: Deploy API
+        run: .github/scripts/railway-deploy.sh deploy api
+      - name: Deploy worker
+        run: .github/scripts/railway-deploy.sh deploy worker
+      - name: Deploy cron
+        run: .github/scripts/railway-deploy.sh deploy cron
+      - name: Deploy frontend
+        run: .github/scripts/railway-deploy.sh deploy frontend

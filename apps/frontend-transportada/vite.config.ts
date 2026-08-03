@@ -7,6 +7,13 @@ import { defineConfig } from 'vite'
 const PWA_ICON_PATH = '/icons/icon-192.png'
 const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
+const API_PROXY = {
+  '/api': {
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/api/, ''),
+    target: 'http://localhost:53001',
+  },
+}
 
 export default defineConfig({
   envDir: resolve(import.meta.dirname, '../..'),
@@ -49,12 +56,10 @@ export default defineConfig({
     alias: { '@': resolve(import.meta.dirname, './src') },
   },
   server: {
-    proxy: {
-      '/api': {
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-        target: 'http://localhost:53001',
-      },
-    },
+    proxy: API_PROXY,
+  },
+  // O smoke autenticado roda sobre `vite preview`, que não herda o proxy do servidor de dev
+  preview: {
+    proxy: API_PROXY,
   },
 })
