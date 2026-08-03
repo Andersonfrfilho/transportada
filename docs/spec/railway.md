@@ -47,21 +47,35 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 
 ## Build e configuração como código
 
-Cada serviço aponta para o seu arquivo pelo `RAILWAY_CONFIG_PATH`:
+O Dockerfile de cada serviço é escolhido pela variável de build
+`RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 
-| Serviço    | Config                         | Dockerfile                              |
-| ---------- | ------------------------------ | --------------------------------------- |
-| `api`      | `deploy/api/railway.json`      | `apps/api-transportada/Dockerfile`      |
-| `worker`   | `deploy/worker/railway.json`   | `apps/worker-transportada/Dockerfile`   |
-| `cron`     | `deploy/cron/railway.json`     | `apps/cron-transportada/Dockerfile`     |
-| `frontend` | `deploy/frontend/railway.json` | `apps/frontend-transportada/Dockerfile` |
-| `keycloak` | `deploy/keycloak/railway.json` | `deploy/keycloak/Dockerfile`            |
+| Serviço    | `RAILWAY_DOCKERFILE_PATH`               | Config                         |
+| ---------- | --------------------------------------- | ------------------------------ |
+| `api`      | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`      |
+| `worker`   | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`   |
+| `cron`     | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`     |
+| `frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
+| `keycloak` | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
+
+> ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
+> variável de ambiente.** Não existe `RAILWAY_CONFIG_PATH`: definir essa
+> variável não tem efeito nenhum e o build cai no builder padrão (Railpack),
+> ignorando `dockerfilePath`, `preDeployCommand`, `healthcheckPath` e
+> `cronSchedule`. O caminho precisa ser preenchido no campo _Config-as-code_ da
+> aba _Settings_ do serviço, no dashboard, **um por serviço e por ambiente**.
+> Enquanto isso não for feito, só `RAILWAY_DOCKERFILE_PATH` está ativo e o
+> conteúdo dos `railway.json` é inerte.
 
 O contexto de build é a raiz do monorepo — os workspaces Bun exigem o
 `package.json` de todas as apps antes do `bun install --frozen-lockfile`.
 
 - **api**: `preDeployCommand` roda `bun src/database/database-migration.service.ts`
-  antes de trocar o tráfego. É o único ponto onde migration é aplicada.
+  antes de trocar o tráfego. É o único ponto onde migration é aplicada — e só
+  passa a valer depois do config-as-code ligado. Antes disso, a migration é
+  aplicada manualmente:
+  `railway ssh --service api --environment <env> bun src/database/database-migration.service.ts`
+  (de dentro do contêiner, porque `*.railway.internal` não é acessível de fora).
 - **cron**: `cronSchedule` `0 * * * *` com `restartPolicyType: NEVER` — processo
   de ciclo único, não serviço em loop.
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
@@ -124,18 +138,21 @@ auto-deploy nativo dispararia sem passar pelo gate.
 
 Passos que exigem o dashboard ou uma decisão humana:
 
-1. **`RAILWAY_TOKEN`**: criar um project token por ambiente no dashboard e
+1. **Config-as-code por serviço**: preencher o caminho do `railway.json` na aba
+   _Settings_ de cada um dos dez pares serviço/ambiente. É o que liga
+   `preDeployCommand` (migration da API), healthcheck e `cronSchedule`.
+2. **`RAILWAY_TOKEN`**: criar um project token por ambiente no dashboard e
    guardar como secret do GitHub Environment correspondente (`staging` e
    `production`). Sem isso o deploy não autentica.
-2. **Required reviewers** no GitHub Environment `production`.
-3. **Backup da keyring de production** fora do Railway.
-4. **Domínios e volume de production**: a instância do serviço só existe depois
+3. **Required reviewers** no GitHub Environment `production`.
+4. **Backup da keyring de production** fora do Railway.
+5. **Domínios e volume de production**: a instância do serviço só existe depois
    do primeiro deploy, então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
    `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`
    de production só podem ser preenchidos depois — e o frontend precisa de
    **rebuild** em seguida. O volume do RabbitMQ de production também fica para
    depois do primeiro deploy.
-5. **Emissão fiscal real** em production continua atrás da configuração por
+6. **Emissão fiscal real** em production continua atrás da configuração por
    empresa; o ambiente estar de pé não habilita CT-e real.
 
 ## Domínios de staging

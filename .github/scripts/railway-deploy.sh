@@ -17,7 +17,6 @@ latest_status() {
   railway deployment list \
     --service "$service" \
     --environment "$TARGET_ENVIRONMENT" \
-    --project "$RAILWAY_PROJECT_ID" \
     --json 2>/dev/null \
     | python3 -c 'import json,sys
 try:
@@ -32,7 +31,6 @@ has_succeeded() {
   railway deployment list \
     --service "$service" \
     --environment "$TARGET_ENVIRONMENT" \
-    --project "$RAILWAY_PROJECT_ID" \
     --json 2>/dev/null \
     | python3 -c 'import json,sys
 try:
@@ -81,6 +79,9 @@ deploy() {
 [ $# -eq 2 ] || usage
 : "${TARGET_ENVIRONMENT:?TARGET_ENVIRONMENT é obrigatório}"
 : "${RAILWAY_PROJECT_ID:?RAILWAY_PROJECT_ID é obrigatório}"
+
+# `railway deployment list` não aceita `--project`: resolve pelo projeto vinculado ao diretório.
+railway link --project "$RAILWAY_PROJECT_ID" --environment "$TARGET_ENVIRONMENT" >/dev/null
 
 case "$1" in
   deploy) deploy "$2" ;;
