@@ -30,6 +30,7 @@ COPY apps/api-transportada/package.json apps/api-transportada/package.json
 # As migrations e o runner ficam na imagem: o release do Railway roda `db:migrate` antes do start.
 COPY apps/api-transportada/drizzle apps/api-transportada/drizzle
 COPY apps/api-transportada/src/database apps/api-transportada/src/database
+COPY apps/api-transportada/src/config apps/api-transportada/src/config
 
 USER transportada
 WORKDIR /app/apps/api-transportada
