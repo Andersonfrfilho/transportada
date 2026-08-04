@@ -28,6 +28,8 @@ describe('authentication contract', () => {
       APP_PORT: '0',
       DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
       FRONTEND_ORIGIN: 'http://localhost:53000',
+      KEYCLOAK_ADMIN_CLIENT_ID: 'transportada-admin-cli',
+      KEYCLOAK_ADMIN_CLIENT_SECRET: 'test-keycloak-admin-client-secret',
       KEYCLOAK_AUDIENCE: 'transportada-api',
       KEYCLOAK_ISSUER: ISSUER,
       KEYCLOAK_JWKS_URI: `${ISSUER}/protocol/openid-connect/certs`,
@@ -36,6 +38,10 @@ describe('authentication contract', () => {
     })
 
     expect(environment.keycloak).toEqual({
+      admin: {
+        clientId: 'transportada-admin-cli',
+        clientSecret: 'test-keycloak-admin-client-secret',
+      },
       audience: 'transportada-api',
       issuer: ISSUER,
       jwksUri: `${ISSUER}/protocol/openid-connect/certs`,
