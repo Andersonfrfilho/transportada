@@ -51,7 +51,9 @@ export class DrizzleBootstrapRepository implements BootstrapRepositoryPort {
     subject,
   }: CreateFirstAdminInput): Promise<BootstrapPersistedAdmin | undefined> {
     return this.database.transaction(async (transaction) => {
-      await transaction.execute(sql`select pg_advisory_xact_lock(${ENVIRONMENT_PROVISIONING_LOCK_ID})`)
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(${ENVIRONMENT_PROVISIONING_LOCK_ID})`,
+      )
 
       if (await this.hasActiveCompanyAdmin(transaction, companyId)) {
         return undefined
