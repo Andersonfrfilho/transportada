@@ -78,6 +78,25 @@ export function runEnvironmentProvisioningConfigurationContract(): void {
       ).toThrow(EnvironmentProvisioningConfigurationError)
     })
 
+    test('the environment company alone is complete configuration: the administrator comes from first access', () => {
+      const companyOnly = {
+        adminSubject: undefined,
+        companyId: COMPANY_ID,
+        connectionString: CONNECTION_STRING,
+        issuer: ISSUER,
+      }
+
+      expect(
+        readEnvironmentProvisioningConfiguration(sourceWithout('PROVISION_ADMIN_SUBJECT')),
+      ).toEqual(companyOnly)
+      expect(
+        readEnvironmentProvisioningConfiguration({
+          ...COMPLETE_SOURCE,
+          PROVISION_ADMIN_SUBJECT: '   ',
+        }),
+      ).toEqual(companyOnly)
+    })
+
     test('refuses a company identifier that is absent or not a uuid', () => {
       expect(() =>
         readEnvironmentProvisioningConfiguration(sourceWithout('PROVISION_COMPANY_ID')),
@@ -90,15 +109,9 @@ export function runEnvironmentProvisioningConfigurationContract(): void {
       ).toThrow(EnvironmentProvisioningConfigurationError)
     })
 
-    test('refuses an administrator subject that is absent or blank', () => {
+    test('refuses an administrator subject declared alone: there is no company to bind it to', () => {
       expect(() =>
-        readEnvironmentProvisioningConfiguration(sourceWithout('PROVISION_ADMIN_SUBJECT')),
-      ).toThrow(EnvironmentProvisioningConfigurationError)
-      expect(() =>
-        readEnvironmentProvisioningConfiguration({
-          ...COMPLETE_SOURCE,
-          PROVISION_ADMIN_SUBJECT: '   ',
-        }),
+        readEnvironmentProvisioningConfiguration(sourceWithout('PROVISION_COMPANY_ID')),
       ).toThrow(EnvironmentProvisioningConfigurationError)
     })
 
@@ -135,21 +148,18 @@ export function runEnvironmentProvisioningConfigurationContract(): void {
       ).toBe(false)
     })
 
-    test('an environment declared by halves is provisioning, and refusal is the outcome', () => {
+    test('either variable declared puts the environment in provisioning, never in skipping', () => {
       expect(isEnvironmentProvisioningConfigured({ PROVISION_COMPANY_ID: COMPANY_ID })).toBe(true)
       expect(isEnvironmentProvisioningConfigured({ PROVISION_ADMIN_SUBJECT: ADMIN_SUBJECT })).toBe(
         true,
       )
-      expect(() =>
-        readEnvironmentProvisioningConfiguration(sourceWithout('PROVISION_ADMIN_SUBJECT')),
-      ).toThrow(EnvironmentProvisioningConfigurationError)
     })
 
-    test('refuses an incomplete configuration before opening the database', async () => {
+    test('refuses an invalid configuration before opening the database', async () => {
       await expect(
         runEnvironmentProvisioning({
-          adminSubject: '',
-          companyId: COMPANY_ID,
+          adminSubject: ADMIN_SUBJECT,
+          companyId: 'primeira-empresa',
           connectionString: CONNECTION_STRING,
           issuer: ISSUER,
         }),

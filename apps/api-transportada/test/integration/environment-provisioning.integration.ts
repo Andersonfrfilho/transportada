@@ -15,6 +15,10 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema'
 import { EnvironmentProvisioningConflictError } from '../../src/database/environment-provisioning.error'
+import type {
+  EnvironmentProvisioningAdminState,
+  EnvironmentProvisioningState,
+} from '../../src/database/environment-provisioning.repository'
 import { runEnvironmentProvisioning } from '../../src/database/environment-provisioning.service'
 
 const COMPANY_ID = '00000000-0000-4000-8000-0000000000b1'
@@ -36,6 +40,23 @@ function provisioningInput(connectionString: string) {
   }
 }
 
+function companyOnlyInput(connectionString: string) {
+  return {
+    adminSubject: undefined,
+    companyId: COMPANY_ID,
+    connectionString,
+    issuer: ISSUER,
+  }
+}
+
+function provisionedAdmin(state: EnvironmentProvisioningState): EnvironmentProvisioningAdminState {
+  if (state.admin === undefined) {
+    throw new Error('Expected the provisioning to have created the administrator')
+  }
+
+  return state.admin
+}
+
 describe('environment provisioning', () => {
   testWithPostgres(
     'creates the environment company and the first company-admin, and repeating creates nothing',
@@ -45,6 +66,7 @@ describe('environment provisioning', () => {
 
         try {
           const first = await runEnvironmentProvisioning(provisioningInput(connectionString))
+          const admin = provisionedAdmin(first)
 
           expect(first.companyId).toBe(COMPANY_ID)
           expect([...first.created].sort()).toEqual([
@@ -65,8 +87,8 @@ describe('environment provisioning', () => {
             await provider.db
               .select({ id: identityUsers.id, status: identityUsers.status })
               .from(identityUsers)
-              .where(eq(identityUsers.id, first.adminUserId)),
-          ).toEqual([{ id: first.adminUserId, status: 'active' }])
+              .where(eq(identityUsers.id, admin.userId)),
+          ).toEqual([{ id: admin.userId, status: 'active' }])
           expect(
             await provider.db
               .select({ subject: externalIdentities.subject, userId: externalIdentities.userId })
@@ -77,7 +99,7 @@ describe('environment provisioning', () => {
                   eq(externalIdentities.subject, ADMIN_SUBJECT),
                 ),
               ),
-          ).toEqual([{ subject: ADMIN_SUBJECT, userId: first.adminUserId }])
+          ).toEqual([{ subject: ADMIN_SUBJECT, userId: admin.userId }])
           expect(
             await provider.db
               .select({
@@ -86,18 +108,85 @@ describe('environment provisioning', () => {
                 userId: userCompanyMemberships.userId,
               })
               .from(userCompanyMemberships)
-              .where(eq(userCompanyMemberships.id, first.adminMembershipId)),
-          ).toEqual([{ companyId: COMPANY_ID, status: 'active', userId: first.adminUserId }])
+              .where(eq(userCompanyMemberships.id, admin.membershipId)),
+          ).toEqual([{ companyId: COMPANY_ID, status: 'active', userId: admin.userId }])
           expect(
             await provider.db
               .select({ role: membershipRoles.role })
               .from(membershipRoles)
-              .where(eq(membershipRoles.membershipId, first.adminMembershipId)),
+              .where(eq(membershipRoles.membershipId, admin.membershipId)),
           ).toEqual([{ role: 'company-admin' }])
 
           const second = await runEnvironmentProvisioning(provisioningInput(connectionString))
 
           expect(second).toEqual({ ...first, created: [] })
+        } finally {
+          await provider.close()
+        }
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'creates the environment company alone and leaves the administrator to the first access',
+    async () => {
+      await withDisposableDatabase('company-only', async (connectionString) => {
+        const provider = createDrizzleProvider({ connection: connectionString })
+
+        try {
+          const first = await runEnvironmentProvisioning(companyOnlyInput(connectionString))
+
+          expect(first).toEqual({ admin: undefined, companyId: COMPANY_ID, created: ['company'] })
+          expect(
+            await provider.db
+              .select({ id: companies.id, status: companies.status })
+              .from(companies),
+          ).toEqual([{ id: COMPANY_ID, status: 'active' }])
+          expect(await provider.db.select({ id: identityUsers.id }).from(identityUsers)).toEqual([])
+          expect(
+            await provider.db.select({ id: externalIdentities.id }).from(externalIdentities),
+          ).toEqual([])
+          expect(
+            await provider.db
+              .select({ id: userCompanyMemberships.id })
+              .from(userCompanyMemberships),
+          ).toEqual([])
+
+          const second = await runEnvironmentProvisioning(companyOnlyInput(connectionString))
+
+          expect(second).toEqual({ admin: undefined, companyId: COMPANY_ID, created: [] })
+        } finally {
+          await provider.close()
+        }
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'promotes an environment provisioned by company alone once the administrator is declared',
+    async () => {
+      await withDisposableDatabase('company-then-admin', async (connectionString) => {
+        const provider = createDrizzleProvider({ connection: connectionString })
+
+        try {
+          await runEnvironmentProvisioning(companyOnlyInput(connectionString))
+          const promoted = await runEnvironmentProvisioning(provisioningInput(connectionString))
+
+          expect([...promoted.created].sort()).toEqual([
+            'company-admin-role',
+            'external-identity',
+            'identity-user',
+            'membership',
+          ])
+          expect(await provider.db.select({ id: companies.id }).from(companies)).toHaveLength(1)
+          expect(
+            await provider.db
+              .select({ role: membershipRoles.role })
+              .from(membershipRoles)
+              .where(eq(membershipRoles.membershipId, provisionedAdmin(promoted).membershipId)),
+          ).toEqual([{ role: 'company-admin' }])
         } finally {
           await provider.close()
         }
@@ -153,9 +242,10 @@ describe('environment provisioning', () => {
           await provider.db.insert(companies).values({ id: unrelatedCompanyId, status: 'disabled' })
 
           const first = await runEnvironmentProvisioning(provisioningInput(connectionString))
+          const admin = provisionedAdmin(first)
           await provider.db
             .insert(membershipRoles)
-            .values({ membershipId: first.adminMembershipId, role: 'fiscal' })
+            .values({ membershipId: admin.membershipId, role: 'fiscal' })
 
           const second = await runEnvironmentProvisioning(provisioningInput(connectionString))
 
@@ -164,7 +254,7 @@ describe('environment provisioning', () => {
             await provider.db
               .select({ role: membershipRoles.role })
               .from(membershipRoles)
-              .where(eq(membershipRoles.membershipId, first.adminMembershipId))
+              .where(eq(membershipRoles.membershipId, admin.membershipId))
               .orderBy(asc(membershipRoles.role)),
           ).toEqual([{ role: 'company-admin' }, { role: 'fiscal' }])
           expect(
@@ -189,10 +279,11 @@ describe('environment provisioning', () => {
 
         try {
           const first = await runEnvironmentProvisioning(provisioningInput(connectionString))
+          const admin = provisionedAdmin(first)
           await provider.db
             .update(userCompanyMemberships)
             .set({ status: 'disabled' })
-            .where(eq(userCompanyMemberships.id, first.adminMembershipId))
+            .where(eq(userCompanyMemberships.id, admin.membershipId))
 
           await expect(
             runEnvironmentProvisioning(provisioningInput(connectionString)),
@@ -202,7 +293,7 @@ describe('environment provisioning', () => {
             await provider.db
               .select({ status: userCompanyMemberships.status })
               .from(userCompanyMemberships)
-              .where(eq(userCompanyMemberships.id, first.adminMembershipId)),
+              .where(eq(userCompanyMemberships.id, admin.membershipId)),
           ).toEqual([{ status: 'disabled' }])
         } finally {
           await provider.close()
@@ -229,7 +320,7 @@ describe('environment provisioning', () => {
 
           const result = await runEnvironmentProvisioning(provisioningInput(connectionString))
 
-          expect(result.adminUserId).toBe(existingUserId)
+          expect(provisionedAdmin(result).userId).toBe(existingUserId)
           expect([...result.created].sort()).toEqual([
             'company',
             'company-admin-role',

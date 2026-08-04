@@ -21,14 +21,18 @@ type ProvisioningDatabase = ReturnType<typeof createDrizzleProvider>['db']
 type ProvisioningTransaction = Parameters<Parameters<ProvisioningDatabase['transaction']>[0]>[0]
 
 type EnsureExpectedStateParams = {
-  readonly adminSubject: string
+  readonly adminSubject: string | undefined
   readonly companyId: string
   readonly issuer: string
 }
 
+export type EnvironmentProvisioningAdminState = {
+  readonly membershipId: string
+  readonly userId: string
+}
+
 export type EnvironmentProvisioningState = {
-  readonly adminMembershipId: string
-  readonly adminUserId: string
+  readonly admin: EnvironmentProvisioningAdminState | undefined
   readonly companyId: string
   readonly created: readonly ProvisionedArtifact[]
 }
@@ -47,11 +51,18 @@ export class EnvironmentProvisioningRepository {
     issuer,
   }: EnsureExpectedStateParams): Promise<EnvironmentProvisioningState> {
     await this.ensureCompany(companyId)
-    const adminUserId = await this.ensureAdminIdentity({ adminSubject, issuer })
-    const adminMembershipId = await this.ensureAdminMembership({ adminUserId, companyId })
-    await this.ensureAdminRole(adminMembershipId)
 
-    return { adminMembershipId, adminUserId, companyId, created: [...this.created] }
+    // Sem administrador declarado o ambiente para na empresa: quem administra nasce no
+    // primeiro acesso (ADR-0022).
+    if (adminSubject === undefined) {
+      return { admin: undefined, companyId, created: [...this.created] }
+    }
+
+    const userId = await this.ensureAdminIdentity({ adminSubject, issuer })
+    const membershipId = await this.ensureAdminMembership({ adminUserId: userId, companyId })
+    await this.ensureAdminRole(membershipId)
+
+    return { admin: { membershipId, userId }, companyId, created: [...this.created] }
   }
 
   private async ensureCompany(companyId: string): Promise<void> {

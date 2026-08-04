@@ -18,7 +18,7 @@ import {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export type EnvironmentProvisioningConfiguration = {
-  readonly adminSubject: string
+  readonly adminSubject: string | undefined
   readonly companyId: string
   readonly connectionString: string
   readonly issuer: string
@@ -27,12 +27,16 @@ export type EnvironmentProvisioningConfiguration = {
 /**
  * A empresa e o primeiro administrador do ambiente vêm da configuração do deploy —
  * nunca de payload de requisição (ADR-0021: a empresa é o ambiente).
+ *
+ * A empresa sozinha é configuração completa: o administrador nasce no primeiro acesso
+ * (ADR-0022). O administrador sozinho continua sendo erro — não há empresa a que vinculá-lo.
  */
 export function readEnvironmentProvisioningConfiguration(
   source: Readonly<Record<string, string | undefined>>,
 ): EnvironmentProvisioningConfiguration {
+  const adminSubject = (source.PROVISION_ADMIN_SUBJECT ?? '').trim()
   const configuration: EnvironmentProvisioningConfiguration = {
-    adminSubject: (source.PROVISION_ADMIN_SUBJECT ?? '').trim(),
+    adminSubject: adminSubject.length > 0 ? adminSubject : undefined,
     companyId: (source.PROVISION_COMPANY_ID ?? '').trim(),
     connectionString: (source.DATABASE_URL ?? '').trim(),
     issuer: (source.KEYCLOAK_ISSUER ?? '').trim(),
@@ -90,9 +94,6 @@ function assertConfiguration(configuration: EnvironmentProvisioningConfiguration
   }
   if (!UUID_PATTERN.test(configuration.companyId)) {
     throw new EnvironmentProvisioningConfigurationError('PROVISION_COMPANY_ID_INVALID')
-  }
-  if (configuration.adminSubject.trim().length === 0) {
-    throw new EnvironmentProvisioningConfigurationError('PROVISION_ADMIN_SUBJECT_INVALID')
   }
 }
 
