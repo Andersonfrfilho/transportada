@@ -7,10 +7,17 @@ import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const environmentSchema = z.object({
   APP_ENV: z.string().trim().min(1).default('local'),
   APP_PORT: z.coerce.number().int().min(0).max(65_535).default(53_001),
+  // Não declarar é a forma de manter a rota de arranque morta; declarar em branco é engano de
+  // configuração e derruba o boot. Nunca `.trim()`: espaço faz parte do segredo comparado.
+  BOOTSTRAP_TOKEN: z
+    .string()
+    .refine((value) => value.trim() !== '', { message: 'BOOTSTRAP_TOKEN must not be blank' })
+    .optional(),
   DATABASE_URL: z
     .string()
     .url()
@@ -26,6 +33,8 @@ const environmentSchema = z.object({
   FRONTEND_ORIGIN: z.string().refine(isTrustedFrontendOrigin, {
     message: 'FRONTEND_ORIGIN must be a canonical HTTPS origin or HTTP localhost origin',
   }),
+  KEYCLOAK_ADMIN_CLIENT_ID: z.string().trim().min(1),
+  KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().trim().min(1),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
   KEYCLOAK_ISSUER: z.string().refine(isTrustedIdentityUrl, {
     message: 'KEYCLOAK_ISSUER must be an HTTPS URL or an HTTP localhost URL',
@@ -33,6 +42,15 @@ const environmentSchema = z.object({
   KEYCLOAK_JWKS_URI: z.string().refine(isTrustedIdentityUrl, {
     message: 'KEYCLOAK_JWKS_URI must be an HTTPS URL or an HTTP localhost URL',
   }),
+  // Ausente mantém a rota de arranque morta (ADR-0022) — a empresa do ambiente é opcional aqui.
+  PROVISION_COMPANY_ID: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || UUID_PATTERN.test(value), {
+      message: 'PROVISION_COMPANY_ID must be a valid UUID',
+    })
+    .optional(),
   FLEET_VEHICLE_LOOKUP_TOKEN: z.string().trim().default(''),
   FLEET_VEHICLE_LOOKUP_URL: z
     .string()
@@ -52,10 +70,16 @@ export function parseEnvironment(environment: Record<string, string | undefined>
 
   return {
     appEnv: parsed.APP_ENV,
+    bootstrapToken: parsed.BOOTSTRAP_TOKEN,
+    companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     keycloak: {
+      admin: {
+        clientId: parsed.KEYCLOAK_ADMIN_CLIENT_ID,
+        clientSecret: parsed.KEYCLOAK_ADMIN_CLIENT_SECRET,
+      },
       audience: parsed.KEYCLOAK_AUDIENCE,
       issuer: parsed.KEYCLOAK_ISSUER,
       jwksUri: parsed.KEYCLOAK_JWKS_URI,

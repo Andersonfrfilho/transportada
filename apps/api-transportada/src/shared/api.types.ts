@@ -9,10 +9,18 @@ import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
 export type ApiEnvironment = {
   readonly appEnv: string
+  /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
+  readonly bootstrapToken: string | undefined
+  /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
+  readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   readonly frontendOrigin: string
   readonly keycloak: {
+    readonly admin: {
+      readonly clientId: string
+      readonly clientSecret: string
+    }
     readonly audience: string
     readonly issuer: string
     readonly jwksUri: string

@@ -56,10 +56,16 @@ const tenantContext = new TenantContextService({
 const server = startApiServer({
   config: {
     appEnv: 'test',
+    bootstrapToken: undefined,
+    companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     frontendOrigin: 'http://localhost:53000',
     keycloak: {
+      admin: {
+        clientId: 'transportada-admin-cli',
+        clientSecret: 'test-keycloak-admin-client-secret',
+      },
       audience: 'transportada-api',
       issuer: 'http://localhost:58080/realms/transportada-local',
       jwksUri: 'http://localhost:58080/realms/transportada-local/protocol/openid-connect/certs',

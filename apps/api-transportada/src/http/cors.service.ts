@@ -7,6 +7,7 @@ import {
   API_AUTH_ME_PATH,
   API_AUDIT_EVENTS_PATH,
   API_BILLING_ELIGIBLE_CTES_PATH,
+  API_BOOTSTRAP_FIRST_ADMIN_PATH,
   API_BILLING_INVOICE_PREVIEW_PATH,
   API_BILLING_INVOICES_PATH,
   API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH,
@@ -72,6 +73,7 @@ export function handleCorsPreflight({
 }
 
 function allowedHeaders(pathname: string): string {
+  if (pathname === API_BOOTSTRAP_FIRST_ADMIN_PATH) return 'Authorization, Content-Type'
   if (isCteBatchItemPath(pathname)) return 'Authorization'
 
   return requiresResourceHeaders(pathname)
@@ -105,6 +107,7 @@ function isBillingInvoiceResourcePath(pathname: string): boolean {
 }
 
 function allowedMethods(pathname: string): string {
+  if (pathname === API_BOOTSTRAP_FIRST_ADMIN_PATH) return 'POST'
   if (isCteBatchItemPath(pathname)) return 'DELETE'
   if (isBillingInvoiceResourcePath(pathname)) return 'GET, PATCH'
   if (isFleetDriverVehiclesPath(pathname)) return 'GET, PUT'
@@ -167,9 +170,36 @@ function isAllowedPreflight({
 }: IsAllowedPreflightParams): boolean {
   return (
     isAuthMePreflight({ frontendOrigin, pathname, request }) ||
+    isBootstrapPreflight({ frontendOrigin, pathname, request }) ||
     isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
     isDigitalCertificatesPreflight({ frontendOrigin, pathname, request }) ||
     isWorkspaceResourcePreflight({ frontendOrigin, pathname, request })
+  )
+}
+
+/** Rota anônima do ADR-0022 — sem `Idempotency-Key`, o arranque não é um POST repetível. */
+function isBootstrapPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  return (
+    pathname === API_BOOTSTRAP_FIRST_ADMIN_PATH &&
+    request.headers.get('origin') === frontendOrigin &&
+    request.headers.get('access-control-request-method') === 'POST' &&
+    hasOnlyBootstrapHeaders(request.headers.get('access-control-request-headers'))
+  )
+}
+
+function hasOnlyBootstrapHeaders(value: string | null): boolean {
+  if (value === null) return false
+
+  const requestedHeaders = value.split(',').map((header) => header.trim().toLowerCase())
+  const expectedHeaders = new Set(['authorization', 'content-type'])
+  return (
+    requestedHeaders.length === expectedHeaders.size &&
+    new Set(requestedHeaders).size === requestedHeaders.length &&
+    requestedHeaders.every((header) => expectedHeaders.has(header))
   )
 }
 

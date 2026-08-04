@@ -53,6 +53,29 @@ type RegisteredRouterRoute = {
   readonly policy?: RouteAuthorizationPolicy
 }
 
+export type AnonymousRouteParserParams = {
+  readonly correlationId: string
+  readonly request: Request
+}
+
+type AnonymousRouteHandlerParams<TInput> = {
+  readonly correlationId: string
+  readonly input: TInput
+}
+
+type AnonymousRouterRoute<TInput> = {
+  readonly handle: (params: AnonymousRouteHandlerParams<TInput>) => Promise<Response>
+  readonly method: string
+  readonly parse: (params: AnonymousRouteParserParams) => TInput | Promise<TInput>
+  readonly pathname: string
+}
+
+export type RegisteredAnonymousRoute = {
+  readonly execute: (params: AnonymousRouteParserParams) => Promise<Response>
+  readonly method: string
+  readonly pathname: string
+}
+
 type RouterRequest = {
   readonly correlationId: string
   readonly method: string
@@ -70,6 +93,7 @@ export type HttpRouter = {
 }
 
 type CreateRouterParams = {
+  readonly anonymousRoutes?: readonly RegisteredAnonymousRoute[]
   readonly authentication: AuthenticationPort
   readonly authorization: RouteAuthorizationPort
   readonly healthService: HealthService
@@ -78,6 +102,7 @@ type CreateRouterParams = {
 }
 
 export function createRouter({
+  anonymousRoutes = [],
   authentication,
   authorization,
   healthService,
@@ -88,6 +113,14 @@ export function createRouter({
     async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
         return handleHealthRequest({ healthService, method, pathname })
+      }
+
+      const anonymousRoute = anonymousRoutes.find((candidate) => candidate.pathname === pathname)
+      if (anonymousRoute !== undefined) {
+        if (anonymousRoute.method !== method) {
+          throw new ApiError(HTTP_ERROR.notFound)
+        }
+        return anonymousRoute.execute({ correlationId, request })
       }
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
@@ -126,6 +159,19 @@ export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRoute
     method: route.method,
     pathname: route.pathname,
     ...(route.policy ? { policy: route.policy } : {}),
+  })
+}
+
+export function defineAnonymousRoute<TInput>(
+  route: AnonymousRouterRoute<TInput>,
+): RegisteredAnonymousRoute {
+  return Object.freeze({
+    async execute({ correlationId, request }: AnonymousRouteParserParams): Promise<Response> {
+      const input = await route.parse({ correlationId, request })
+      return route.handle({ correlationId, input })
+    },
+    method: route.method,
+    pathname: route.pathname,
   })
 }
 

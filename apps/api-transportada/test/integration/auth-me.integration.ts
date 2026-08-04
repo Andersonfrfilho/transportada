@@ -78,10 +78,16 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         server = startApiServer({
           config: {
             appEnv: 'test',
+            bootstrapToken: undefined,
+            companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
             frontendOrigin: 'http://localhost:53000',
             keycloak: {
+              admin: {
+                clientId: 'transportada-admin-cli',
+                clientSecret: 'test-keycloak-admin-client-secret',
+              },
               audience: 'transportada-api',
               issuer: 'https://identity.example.test/realms/transportada',
               jwksUri: 'https://identity.example.test/realms/transportada/certs',

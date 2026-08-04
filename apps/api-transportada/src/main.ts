@@ -79,10 +79,14 @@ import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
 import { TenantContextService } from './identity/application/tenant-context.service'
 import { AuthorizationService } from './identity/application/authorization.service'
+import { createBootstrapFirstAdminUseCase } from './identity/application/bootstrap-first-admin.use-case'
 import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
+import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
-import { createRouter } from './http/router.service'
+import { createKeycloakAdminGateway } from './identity/infrastructure/keycloak-admin.gateway'
+import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
+import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
@@ -127,6 +131,7 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new DrizzleMembershipRepository(database.db),
   })
   const router = createRouter({
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db }),
     authentication,
     authorization: new AuthorizationService(),
     healthService,
@@ -164,6 +169,33 @@ function createApiLogger(
     pretty: config.appEnv !== 'production',
     projectName: 'transportada-api',
     version: '0.1.0',
+  })
+}
+
+type CreateAnonymousRoutesParams = {
+  readonly config: ApiEnvironment
+  readonly database: CompanySettingsDatabase
+}
+
+/** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
+function createAnonymousRoutes({
+  config,
+  database,
+}: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
+  if (config.companyId === undefined) return []
+
+  return createBootstrapRoutes({
+    bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
+      companyId: config.companyId,
+      identityGateway: createKeycloakAdminGateway({
+        clientId: config.keycloak.admin.clientId,
+        clientSecret: config.keycloak.admin.clientSecret,
+        issuer: config.keycloak.issuer,
+      }),
+      issuer: config.keycloak.issuer,
+      repository: new DrizzleBootstrapRepository(database),
+      token: config.bootstrapToken,
+    }),
   })
 }
 
