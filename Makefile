@@ -22,11 +22,12 @@ KEYCLOAK_LOCAL_USER_PASSWORD := $(shell sed -n 's/^KEYCLOAK_LOCAL_USER_PASSWORD=
 ENCRYPTION_ACTIVE_KEY_ID := $(shell sed -n 's/^ENCRYPTION_ACTIVE_KEY_ID=//p' $(ENV_FILE) 2>/dev/null)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
 RABBITMQ_URL := $(shell sed -n 's/^RABBITMQ_URL=//p' $(ENV_FILE) 2>/dev/null)
+OBJECT_STORAGE_BUCKET_NAME := $(or $(shell sed -n 's/^OBJECT_STORAGE_BUCKET=//p' $(ENV_FILE) 2>/dev/null),$(shell sed -n 's/^STORAGE_BUCKET=//p' $(ENV_FILE) 2>/dev/null))
 COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
 E2E_ENV_FILE ?= .env.test
 
-.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration test-worker-integration
+.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -88,8 +89,15 @@ identity-bootstrap: postgres-up realm-contract ## 🪪 Migra e cria a identidade
 		APP_ENV="$(APP_ENV)" PROJECT_NAME="$(PROJECT_NAME)" \
 		bun run --cwd apps/api-transportada db:seed:local
 
+storage-bootstrap: ## 🪣 Garante o bucket do object storage no MinIO já em pé
+	@test -n "$(OBJECT_STORAGE_BUCKET_NAME)"
+	@$(COMPOSE) exec -T minio sh -c 'mc alias set bootstrap http://127.0.0.1:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" > /dev/null && mc mb --ignore-existing "bootstrap/$(OBJECT_STORAGE_BUCKET_NAME)" > /dev/null'
+
 up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 	@$(COMPOSE) up -d --remove-orphans --wait $(SERVICES)
+	@if $(COMPOSE) ps --status running --services | grep -qx minio; then \
+		ENV_FILE="$(ENV_FILE)" $(MAKE) --no-print-directory storage-bootstrap; \
+	fi
 
 down: config ## 🛑 Encerra a infraestrutura local
 	@$(COMPOSE) down

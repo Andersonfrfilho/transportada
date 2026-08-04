@@ -35,7 +35,7 @@ Não existe `packages/` aqui. Bibliotecas reutilizáveis vão para
 ```bash
 make bootstrap      # .env a partir do .env.example + bun install --frozen-lockfile
 make config         # valida .env, schema de env, Bun 1.3.14, docker compose — pré-requisito
-make up / down / ps # infra Docker
+make up / down / ps # infra Docker (`up` cria o bucket do MinIO — idempotente)
 make dev            # identity-bootstrap + up + API, worker e frontend em paralelo
 make check          # format:check + lint + typecheck + test + build (gate completo)
 make migration-test # migration + rollback em Postgres descartável
