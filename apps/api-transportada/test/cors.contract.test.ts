@@ -456,6 +456,8 @@ function environmentWith(frontendOrigin: string | undefined): Record<string, str
     APP_PORT: '0',
     DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
     FRONTEND_ORIGIN: frontendOrigin,
+    KEYCLOAK_ADMIN_CLIENT_ID: 'transportada-admin-cli',
+    KEYCLOAK_ADMIN_CLIENT_SECRET: 'test-keycloak-admin-client-secret',
     KEYCLOAK_AUDIENCE: 'transportada-api',
     KEYCLOAK_ISSUER: 'https://identity.example.test/realms/transportada',
     KEYCLOAK_JWKS_URI: 'https://identity.example.test/realms/transportada/certs',
