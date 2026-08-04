@@ -26,16 +26,27 @@ Verificação padrão de toda task de API: `bun run --cwd apps/api-transportada 
       Dependências: nenhuma. Sucesso: nenhum documento anunciando SaaS multiempresa, isolamento
       mantido como invariante.
 
-- [ ] T000a Contrato **falhando** do provisionamento: um comando idempotente garante a empresa única
+- [x] T000a Contrato **falhando** do provisionamento: um comando idempotente garante a empresa única
       do ambiente (a partir da configuração, nunca de payload) e o primeiro `company-admin`; rodar
       duas vezes não duplica nem sobrescreve; recusa rodar sem a configuração completa.
       Dependências: T000. Sucesso: vermelho.
 
-- [ ] T000b Implementar o comando na imagem da API, reaproveitando os use-cases existentes — nada de
-      `INSERT` bruto. A senha do primeiro admin **não** é definida pelo comando: ele cria o usuário
-      desabilitado e emite o primeiro código de ativação, o mesmo caminho da feature (R2).
-      Dependências: T000a + T010. Sucesso: T000a verde e staging com admin ativável sem `railway ssh`
-      de SQL.
+- [x] T000b Implementar o comando na imagem da API, ligado ao `preDeployCommand`. O comando **não**
+      toca em senha: ele vincula o sujeito Keycloak declarado na configuração
+      (`PROVISION_ADMIN_SUBJECT`) à empresa do ambiente (`PROVISION_COMPANY_ID`) como
+      `company-admin`. Dependências: T000a. Sucesso: T000a verde e ambiente com admin sem
+      `railway ssh` de SQL.
+
+  > ⚠️ **Desvio registrado.** A redação original fazia T000b criar o usuário no Keycloak e emitir o
+  > primeiro código de ativação, o que a prendia em T010 (fim da fase C) e deixaria todo ambiente sem
+  > admin até lá. O vínculo por sujeito existente entrega o provisionamento agora sem antecipar nada
+  > da feature; o que dependia de T010 virou T000c.
+
+- [ ] T000c O comando deixa de exigir um sujeito já criado à mão: cria o usuário desabilitado no
+      Keycloak pelo gateway da fase C e emite o primeiro código de ativação, o mesmo caminho da
+      feature (R2). `PROVISION_ADMIN_SUBJECT` passa a ser opcional, substituído pelo contato do
+      primeiro admin. Dependências: T000b + T010. Sucesso: ambiente novo com admin ativável sem
+      nenhum passo manual no console do Keycloak.
 
 ## Fase A — Pacote `@adatechnology/keycloak-admin`
 

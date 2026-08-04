@@ -93,8 +93,28 @@ no boot com estratégia "ignora o que já existe" — reimportar não sobrescrev
 configuração feita à mão. As URLs saem de `${KEYCLOAK_FRONTEND_ORIGIN}` e o
 `unmanagedAttributePolicy: ENABLED` é o que mantém o claim `company_id` vivo.
 
-Nenhum usuário vem semeado: criar o primeiro usuário e atribuir `company_id` é
-passo manual por ambiente, no admin console.
+Criar o usuário no admin console e atribuir `company_id` continua sendo passo
+manual por ambiente. O que **deixou** de ser manual é o lado da aplicação: o
+`preDeployCommand` da API roda `environment-provisioning.service.ts` depois da
+migration e garante, de forma idempotente, a empresa única do ambiente e o
+primeiro `company-admin` — sem `railway ssh` de SQL.
+
+Duas variáveis governam o comando:
+
+- `PROVISION_COMPANY_ID` — UUID da empresa do ambiente (ADR-0021: a empresa é o
+  ambiente, não vem de payload).
+- `PROVISION_ADMIN_SUBJECT` — o `sub` do usuário Keycloak que será o primeiro
+  administrador, copiado do admin console.
+
+As duas vazias significam "ambiente ainda não provisionado": o passo imprime
+`{"provisioning":"skipped"}` e o deploy segue. Declarar só uma delas falha o
+deploy — meia configuração é erro, não silêncio. Rodar de novo com a mesma
+configuração não duplica nem sobrescreve nada; se o vínculo do admin tiver sido
+desabilitado à mão, o comando recusa em vez de reativar.
+
+Quando a fase C da feature 026 entregar o gateway do Keycloak (T000c), o
+`PROVISION_ADMIN_SUBJECT` sai de cena: o próprio comando cria o usuário
+desabilitado e emite o primeiro código de ativação.
 
 ## Variáveis
 

@@ -83,7 +83,7 @@ function isTrustedFrontendOrigin(value: string): boolean {
   )
 }
 
-function isTrustedIdentityUrl(value: string): boolean {
+export function isTrustedIdentityUrl(value: string): boolean {
   return (
     /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$/.test(value) ||
     /^http:\/\/localhost(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$/.test(value)
