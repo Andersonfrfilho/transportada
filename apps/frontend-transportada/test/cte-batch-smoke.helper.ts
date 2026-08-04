@@ -48,6 +48,7 @@ const CTE_ITEM = {
   baseAmount: '1234.5600',
   batchId: BATCH_ID,
   batchName: BASE_BATCH.name,
+  billingStatus: 'pending',
   charges: [],
   createdAt: '2026-07-22T20:00:00.000Z',
   documents: [
@@ -164,14 +165,25 @@ async function registerCteBatchMocks(
       page: { nextCursor: null },
     })
   })
-  await input.page.route(/\/cte-batches\/[^/]+\/submit$/, async (route) => {
+  // A transmissão em lote passa pelo cliente de emissão: `POST /cte-batches/:id/issue`, não `/submit`.
+  await input.page.route(/\/cte-batches\/[^/]+\/issue$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
       return
     }
     input.state.submissions += 1
     input.state.batchStatus = 'submitted'
-    await fulfillJson(route, { data: batchWithStatus('submitted') }, 202)
+    await fulfillJson(
+      route,
+      {
+        data: {
+          batchId: BATCH_ID,
+          requestedAt: '2026-07-22T21:00:00.000Z',
+          status: 'requested',
+        },
+      },
+      202,
+    )
   })
   await input.page.route(/\/cte-batches\/[^/]+\/cancel$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

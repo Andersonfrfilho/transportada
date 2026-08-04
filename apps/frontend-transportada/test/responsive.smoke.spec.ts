@@ -225,7 +225,8 @@ test('admin submits a CT-e batch on mobile without horizontal overflow', async (
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await expect(page.getByRole('cell', { exact: true, name: 'Rascunho' })).toBeVisible()
-  await page.getByRole('button', { name: 'Submeter' }).click()
+  await page.getByLabel('Selecionar lote Lote CT-e julho').check()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
   await expect.poll(api.submissions).toBe(1)
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
@@ -249,13 +250,13 @@ test('admin acompanha a transmissão em lote pela barra de progresso no desktop'
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await page.getByLabel('Selecionar lote Lote CT-e julho').check()
-  await page.getByRole('button', { name: 'Transmitir lotes selecionados' }).click()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
 
   await expect.poll(api.submissions).toBe(1)
-  const progress = page.getByRole('progressbar', { name: 'Progresso da transmissão de lotes' })
+  const progress = page.getByRole('progressbar', { name: 'Progresso da transmissão dos lotes' })
   await expect(progress).toHaveAttribute('aria-valuenow', '100')
   await expect(page.getByText('100% — 1 de 1 lote(s)')).toBeVisible()
-  await expect(page.getByText('1 enviado(s) · 0 com erro')).toBeVisible()
+  await expect(page.getByText('1 transmitido(s) · 0 com erro')).toBeVisible()
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
@@ -325,7 +326,8 @@ test('submitter handles an existing CT-e draft on tablet without management cont
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await expect(page.getByRole('button', { name: 'Cancelar lote' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Submeter' }).click()
+  await page.getByLabel('Selecionar lote Lote CT-e julho').check()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
   await expect.poll(api.submissions).toBe(1)
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
@@ -406,7 +408,7 @@ test('operator creates a billing invoice on mobile without horizontal overflow',
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
-  await expect(page.getByText('CT-e elegiveis disponiveis para faturamento.')).toBeVisible()
+  await expect(page.getByText('CT-e elegíveis disponíveis para faturamento.')).toBeVisible()
   await page.locator('input[type="checkbox"]').first().check()
   await chooseOption(page, { name: 'Prazo de vencimento', option: '30 dias' })
   await page.getByRole('button', { exact: true, name: 'Gerar fatura' }).click()
@@ -414,7 +416,7 @@ test('operator creates a billing invoice on mobile without horizontal overflow',
 
   // Emitir troca de aba sozinho: o detalhe da fatura recém-criada já abre em "Faturas".
   const detail = invoiceDetailPanel(page)
-  await expect(detail.getByText('Numero')).toBeVisible()
+  await expect(detail.getByText('Número')).toBeVisible()
   await expect(detail.getByText('17', { exact: true })).toBeVisible()
   await expect(detail.getByText('Transportes Sul Ltda')).toBeVisible()
   await expect(detail.getByText('Emitida', { exact: true })).toBeVisible()
@@ -439,8 +441,8 @@ test('reader sees an empty billing workspace on tablet without horizontal overfl
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
-  await expect(page.getByText('Nenhuma fatura ou CT-e elegivel encontrado.')).toBeVisible()
-  await expect(page.getByText('Nenhum CT-e elegivel com os filtros atuais.')).toBeVisible()
+  await expect(page.getByText('Nenhuma fatura ou CT-e elegível encontrado.')).toBeVisible()
+  await expect(page.getByText('Nenhum CT-e elegível com os filtros atuais.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Gerar fatura' })).toBeDisabled()
   await assertNoHorizontalOverflow(page)
   expect(api.createRequests()).toBe(0)
@@ -534,7 +536,7 @@ test('user without billing permissions sees a closed workspace boundary on deskt
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
   await expect(page.getByRole('alert')).toContainText(
-    'Seu acesso atual nao permite consultar este workspace.',
+    'Seu acesso atual não permite consultar este workspace.',
   )
   await expect(page.getByRole('button', { name: 'Gerar fatura' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Cancelar fatura' })).toHaveCount(0)

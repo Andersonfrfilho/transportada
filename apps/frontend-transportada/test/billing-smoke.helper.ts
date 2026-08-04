@@ -20,6 +20,7 @@ const ELIGIBLE_ITEMS = [
     customerDocument: '12345678000199',
     customerName: 'Transportes Sul Ltda',
     issuedAt: '2026-07-23T10:00:00.000Z',
+    nfeNumber: '654321',
     totalAmount: '150.25',
   },
   {
@@ -30,6 +31,8 @@ const ELIGIBLE_ITEMS = [
     customerDocument: '12345678000199',
     customerName: 'Transportes Sul Ltda',
     issuedAt: '2026-07-23T10:05:00.000Z',
+    // CT-e sem nota vinculada: o contrato aceita `null`, e a lista precisa provar isso.
+    nfeNumber: null,
     totalAmount: '200.25',
   },
 ] as const
