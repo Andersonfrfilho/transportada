@@ -90,8 +90,17 @@ deploy() {
 : "${TARGET_ENVIRONMENT:?TARGET_ENVIRONMENT é obrigatório}"
 : "${RAILWAY_PROJECT_ID:?RAILWAY_PROJECT_ID é obrigatório}"
 
-# `railway deployment list` não aceita `--project`: resolve pelo projeto vinculado ao diretório.
-railway link --project "$RAILWAY_PROJECT_ID" --environment "$TARGET_ENVIRONMENT" >/dev/null
+# `railway deployment list` não aceita `--project` e project tokens não têm permissão
+# para `railway link`. Escrevemos o vínculo manualmente no config global.
+readonly ENV_ID="$(railway environment list --json \
+  | python3 -c "import json,sys; envs=json.load(sys.stdin)['environments']; print(next(e['id'] for e in envs if e['name']=='$TARGET_ENVIRONMENT'))")"
+mkdir -p ~/.railway
+jq -n \
+  --arg project "$RAILWAY_PROJECT_ID" \
+  --arg environment "$ENV_ID" \
+  --arg environmentName "$TARGET_ENVIRONMENT" \
+  '{"projects": {($ENV.PWD): {"projectPath": $ENV.PWD, "project": $project, "environment": $environment, "environmentName": $environmentName}}}' \
+  > ~/.railway/config.json
 
 case "$1" in
   deploy) deploy "$2" ;;
