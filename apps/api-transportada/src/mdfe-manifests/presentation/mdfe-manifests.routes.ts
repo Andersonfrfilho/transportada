@@ -99,7 +99,11 @@ export function createMdfeManifestRoutes(
       },
       method: 'POST',
       async parse({ correlationId, request }) {
-        return { correlationId, manifest: await parseCreateManifestRequest(request) }
+        // criação direta nunca nasce de uma viagem — tripId fica null (spec 027, T009)
+        return {
+          correlationId,
+          manifest: { ...(await parseCreateManifestRequest(request)), tripId: null },
+        }
       },
       pathname: API_MDFE_MANIFESTS_PATH,
       policy: MDFE_MANAGE_POLICY,
@@ -181,6 +185,7 @@ function serializeManifest(manifest: MdfeManifest): object {
     rntrc: manifest.rntrc,
     status: manifest.status,
     transporterType: manifest.transporterType,
+    tripId: manifest.tripId,
     tripStartedAt: manifest.tripStartedAt,
     updatedAt: manifest.updatedAt,
     vehicleId: manifest.vehicleId,

@@ -28,6 +28,12 @@ Decisões de modelagem em `docs/adr/0016-fleet-drivers-and-mdfe-manifest.md`.
 - O app de campo em si: `trip_events`, upload de foto e as rotas `trip.*` ficam para a feature do
   app. Esta feature entrega o papel `driver`, o vínculo motorista↔usuário e o manifesto como
   agregado de viagem — o desenho, não a construção.
+
+  > **Emenda (ADR-0023, spec 027 — viagens não fiscais):** a premissa "o manifesto é a viagem"
+  > acima foi revertida. `trips` passa a ser entidade própria, desacoplada de `mdfe_manifests`
+  > (`mdfe_manifests.trip_id` é FK opcional, não o inverso) — existem viagens sem MDF-e e viagens
+  > organizadas antes de todo CT-e da carga estar emitido. Ver `docs/adr/0023-trip-decoupled-from-mdfe-manifest.md`
+  > e `specs/027-viagens-nao-fiscais/spec.md`.
 - Consulta de MDF-e não encerrados (`MDFeConsNaoEnc`) e inclusão de DF-e em manifesto já
   autorizado (evento 110114).
 - Reboque/carreta no XML — o cadastro suporta `role = trailer`, mas o `<veicReboque>` só entra

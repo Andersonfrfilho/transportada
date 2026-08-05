@@ -97,6 +97,8 @@ export const MDFE_TABLES = [
   'mdfe_issuance_payloads',
 ] as const
 
+export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents'] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
@@ -142,6 +144,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...OPERATIONS_TABLES,
     ...FLEET_TABLES,
     ...MDFE_TABLES,
+    ...TRIP_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

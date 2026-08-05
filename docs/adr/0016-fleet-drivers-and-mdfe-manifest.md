@@ -73,6 +73,10 @@ emite `<prop>` — emitir com o CNPJ do emitente é rejeição.
 
 ### 5. O manifesto é a viagem
 
+> **Emendado pelo ADR-0023.** A viagem passou a ser `trips`, entidade própria; `mdfe_manifests`
+> referencia uma viagem em vez de ser uma. O restante desta seção é histórico — mantido para
+> registrar o raciocínio original, não a regra vigente.
+
 `mdfe_manifests` já nasce com `vehicle_id`, condutor principal, UF de início e fim. Esse é
 deliberadamente o mesmo agregado que o app de campo vai chamar de "viagem": quando os eventos
 chegarem, entram em `trip_events` (append-only, `manifest_id` + `driver_id` + tipo + payload +

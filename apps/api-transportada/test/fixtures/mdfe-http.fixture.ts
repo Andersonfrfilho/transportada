@@ -113,6 +113,7 @@ export const MANIFEST = {
   rntrc: '12345678',
   status: 'draft',
   transporterType: '1',
+  tripId: null,
   tripStartedAt: null,
   updatedAt: '2026-07-27T12:00:00.000Z',
   vehicleId: VEHICLE_ID,

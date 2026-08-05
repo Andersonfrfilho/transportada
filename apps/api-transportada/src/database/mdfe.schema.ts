@@ -23,6 +23,7 @@ import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
+import { trips } from './trip.schema.js'
 
 export const MDFE_MANIFEST_STATUSES = [
   'draft',
@@ -145,6 +146,9 @@ export const mdfeManifests = pgTable(
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
     vehicleId: uuid('vehicle_id').notNull(),
+    // ADR-0023: nullable durante a expansão — o backfill (spec 027 T002) preenche todo manifesto
+    // pré-existente antes da contração (spec 027 T003) tornar a coluna not null.
+    tripId: uuid('trip_id'),
     status: text().$type<MdfeManifestStatus>().notNull().default('draft'),
     fiscalEnvironment: text('fiscal_environment').$type<MdfeFiscalEnvironment>().notNull(),
     emitterType: text('emitter_type').$type<MdfeEmitterType>().notNull().default('1'),
@@ -188,6 +192,13 @@ export const mdfeManifests = pgTable(
       columns: [table.companyId, table.vehicleId],
       foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
       name: 'mdfe_manifests_company_vehicle_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'mdfe_manifests_company_trip_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

@@ -72,6 +72,7 @@ import {
   cteEmissionProfileMatchers,
   cteEmissionProfiles,
 } from './cte-emission-profile.schema.js'
+import { tripDocuments, tripDrivers, trips } from './trip.schema.js'
 
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
@@ -88,6 +89,7 @@ export * from './view-preferences.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
+export * from './trip.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -149,6 +151,9 @@ export const databaseSchema = {
   billingInvoiceItems,
   billingInvoices,
   storedObjects,
+  tripDocuments,
+  tripDrivers,
+  trips,
   userCompanyMemberships,
   viewPreferences,
 }

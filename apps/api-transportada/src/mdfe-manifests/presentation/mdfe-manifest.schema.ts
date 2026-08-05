@@ -14,8 +14,10 @@ import { MDFE_MANIFEST_STATUSES } from '../../database/mdfe.schema.js'
 import type { MdfeManifestFilters } from '../application/mdfe-manifest.port.js'
 import {
   createManifestSchema,
+  createTripManifestSchema,
   previewManifestSchema,
   type CreateManifestBody,
+  type CreateTripManifestBody,
   type PreviewManifestBody,
 } from './mdfe-manifest-request.schema.js'
 
@@ -35,6 +37,12 @@ export async function parsePreviewManifestRequest(request: Request): Promise<Pre
 
 export async function parseCreateManifestRequest(request: Request): Promise<CreateManifestBody> {
   return parseBody(createManifestSchema, request)
+}
+
+export async function parseCreateTripManifestRequest(
+  request: Request,
+): Promise<CreateTripManifestBody> {
+  return parseBody(createTripManifestSchema, request)
 }
 
 export function parseManifestList(url: URL): ManifestListing {

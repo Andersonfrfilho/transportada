@@ -98,6 +98,7 @@ export type MdfeManifest = {
   readonly rntrc: string
   readonly status: MdfeManifestStatus
   readonly transporterType: MdfeTransporterType | ''
+  readonly tripId: string | null
   readonly tripStartedAt: string | null
   readonly updatedAt: string
   readonly vehicleId: string
@@ -141,6 +142,7 @@ export type CreateMdfeManifestHeader = {
   readonly originState: string
   readonly rntrc: string
   readonly transporterType: MdfeTransporterType | ''
+  readonly tripId: string | null
   readonly tripStartedAt: string | null
   readonly vehicleId: string
 }

@@ -55,6 +55,7 @@ export type CreateMdfeManifestFields = {
   readonly insuranceEndorsement: string
   readonly loadingPostalCode: string
   readonly transporterType: MdfeTransporterType | ''
+  readonly tripId: string | null
   readonly tripStartedAt: string | null
   readonly vehicleId: string
 }
@@ -158,6 +159,7 @@ export function createMdfeManifestsUseCase(dependencies: {
           originState: resolveOriginState(documents),
           rntrc: settings.rntrc,
           transporterType: manifest.transporterType,
+          tripId: manifest.tripId,
           tripStartedAt: manifest.tripStartedAt,
           vehicleId: vehicle.id,
         },

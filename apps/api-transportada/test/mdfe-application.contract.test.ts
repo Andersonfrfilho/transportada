@@ -4,3 +4,4 @@
 import './mdfe-application/preview.contract.js'
 import './mdfe-application/manifests.contract.js'
 import './mdfe-application/issuance.contract.js'
+import './mdfe-application/trip-manifest.contract.js'

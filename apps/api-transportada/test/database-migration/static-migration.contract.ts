@@ -7,6 +7,7 @@ import {
   DESTRUCTIVE_MIGRATION_PATTERN,
   FISCAL_TABLES,
   IDENTITY_TABLES,
+  TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
 } from './support.js'
@@ -89,6 +90,8 @@ describe('Drizzle migrations', () => {
       '20260801043234_company_logos',
       '20260802205604_fleet_driver_linked_tax_id',
       '20260803000529_fleet_driver_vehicle_link',
+      '20260805020005_trip_planning_expansion',
+      '20260805030010_trip_backfill_existing_manifests',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -237,6 +240,93 @@ describe('Drizzle migrations', () => {
       'DROP INDEX "fleet_driver_vehicle_assignments_live_vehicle_unique"',
     )
     expect(rollbackSql).toContain('fleet_driver_vehicle_assignments_live_driver_unique')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the trip planning expansion as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_planning_expansion'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    for (const table of TRIP_TABLES) {
+      expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    }
+    // ADR-0023: expansão primeiro — trip_id nasce nullable, a contração (T003) vem depois do backfill.
+    expect(migrationSql).toContain('ALTER TABLE "mdfe_manifests" ADD COLUMN "trip_id" uuid;')
+    expect(migrationSql).not.toMatch(/ADD COLUMN "trip_id" uuid NOT NULL/i)
+    expect(migrationSql).toContain('mdfe_manifests_company_trip_fk')
+    expect(migrationSql).toContain('trip_documents_entity_xor_check')
+    expect(migrationSql).toContain('trip_documents_delivered_locks_release_check')
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "trip_documents_live_nfe_document_unique"',
+    )
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "trip_documents_live_freight_calculation_unique"',
+    )
+
+    const documentsPosition = rollbackSql.indexOf('DROP TABLE "trip_documents"')
+    const driversPosition = rollbackSql.indexOf('DROP TABLE "trip_drivers"')
+    const tripsPosition = rollbackSql.indexOf('DROP TABLE "trips"')
+    const manifestColumnPosition = rollbackSql.indexOf(
+      'ALTER TABLE "mdfe_manifests" DROP COLUMN "trip_id"',
+    )
+    expect(documentsPosition).toBeGreaterThan(-1)
+    expect(driversPosition).toBeGreaterThan(documentsPosition)
+    expect(tripsPosition).toBeGreaterThan(driversPosition)
+    expect(manifestColumnPosition).toBeGreaterThan(-1)
+    expect(manifestColumnPosition).toBeLessThan(documentsPosition)
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the trip backfill as a data-only migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_trip_backfill_existing_manifests'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    // Backfill puro — nenhuma alteração de schema, só DML. A tabela temporária usa
+    // "ON COMMIT DROP" (não um DROP TABLE de verdade), por isso o padrão exige um objeto alvo.
+    expect(migrationSql).not.toMatch(/\b(create table|create type|create sequence)\b/i)
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).toContain('FROM "mdfe_manifests" "m"')
+    expect(migrationSql).toContain('WHERE "m"."trip_id" IS NULL')
+    expect(migrationSql).toContain('INSERT INTO "trips"')
+    expect(migrationSql).toContain('INSERT INTO "trip_drivers"')
+    expect(migrationSql).toContain('UPDATE "mdfe_manifests" "m"')
+    expect(migrationSql).toContain('SET "trip_id" = "map"."trip_id"')
+
+    expect(rollbackSql).toContain('UPDATE "mdfe_manifests"')
+    expect(rollbackSql).toContain('SET "trip_id" = NULL')
+    expect(rollbackSql).toContain('DELETE FROM "trip_drivers"')
+    expect(rollbackSql).toContain('DELETE FROM "trips"')
+    // T005-T011 tornaram a aplicação uma segunda fonte de trips: o rollback aborta em vez de
+    // apagar viagem de operador e levar junto os trip_documents dela.
+    expect(rollbackSql).toContain('Refusing to roll back the trip backfill')
+    expect(rollbackSql).toContain('JOIN "mdfe_manifests" "m" ON "m"."trip_id" = "t"."id"')
+    expect(rollbackSql).toContain('FROM "trip_documents"')
+    expect(rollbackSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
+      rollbackSql.indexOf('DELETE FROM "trips"'),
+    )
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

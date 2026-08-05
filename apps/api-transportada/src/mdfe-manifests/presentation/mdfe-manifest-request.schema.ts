@@ -55,3 +55,11 @@ export const createManifestSchema = z
   .strict()
 
 export type CreateManifestBody = z.infer<typeof createManifestSchema>
+
+/** Nasce de uma viagem: motoristas e veículo vêm da viagem, não do corpo da requisição (spec 027, T009). */
+export const createTripManifestSchema = createManifestSchema.omit({
+  driverIds: true,
+  vehicleId: true,
+})
+
+export type CreateTripManifestBody = z.infer<typeof createTripManifestSchema>

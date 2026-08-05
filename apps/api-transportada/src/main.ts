@@ -59,6 +59,7 @@ import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/driz
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
 import { createMdfeManifestsUseCase } from './mdfe-manifests/application/mdfe-manifests.use-case'
 import { createPreviewMdfeManifestUseCase } from './mdfe-manifests/application/preview-mdfe-manifest.use-case'
@@ -66,6 +67,9 @@ import { DrizzleMdfeIssuanceRepository } from './mdfe-manifests/infrastructure/d
 import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-manifest.repository'
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
+import { createTripUseCase } from './trips/application/trip.use-case'
+import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
+import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -229,6 +233,7 @@ function createApplicationRoutes({
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository(database)
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
+  const tripRepository = new DrizzleTripRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
   const billingRepository = new DrizzleBillingRepository(database)
@@ -286,6 +291,11 @@ function createApplicationRoutes({
   const mdfeIssuance = createMdfeIssuanceUseCase({
     now: () => new Date(),
     repository: mdfeIssuanceRepository,
+  })
+  const trips = createTripUseCase({ repository: tripRepository })
+  const createTripMdfeManifest = createTripMdfeManifestUseCase({
+    manifests: mdfeManifests,
+    trips,
   })
   const cteEmissionProfileCatalog = new DrizzleCteEmissionProfileCatalogRepository(
     cteEmissionProfileRepository,
@@ -404,6 +414,16 @@ function createApplicationRoutes({
         close: (input) => mdfeIssuance.close(input),
         issue: (input) => mdfeIssuance.issue(input),
       },
+    }),
+    ...createTripRoutes({
+      closeTrip: { execute: (input) => trips.close(input) },
+      createTrip: { execute: (input) => trips.create(input) },
+      createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
+      deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      getTrip: { execute: (input) => trips.get(input) },
+      linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      listTrips: { execute: (input) => trips.list(input) },
+      releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
     }),
     ...createCteEmissionProfileRoutes({
       activateProfile: { execute: (input) => cteEmissionProfiles.activate(input) },

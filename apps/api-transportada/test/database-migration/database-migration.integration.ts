@@ -7,6 +7,7 @@ import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
   FISCAL_TABLES,
   FLEET_TABLES,
@@ -19,6 +20,7 @@ import {
   BILLING_TABLES,
   OPERATIONS_TABLES,
   MDFE_TABLES,
+  TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
   readBusinessTables,
@@ -53,6 +55,7 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...TRIP_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -61,6 +64,7 @@ describe('Drizzle migration integration', () => {
         await assertFiscalConstraints(database, identityFixture)
         const fleetFixture = await assertFleetConstraints(database, identityFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
+        await assertTripConstraints(database, identityFixture, fleetFixture)
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -87,6 +91,7 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...TRIP_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
