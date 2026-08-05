@@ -58,8 +58,18 @@ describe('trip crew policy', () => {
     const crew = resolveTripCrew({ driverIds: ['driver-2', 'driver-1'], drivers })
 
     expect(crew).toEqual([
-      { driverId: 'driver-2', driverName: 'Motorista Reserva', driverTaxId: '98765432100', position: 1 },
-      { driverId: 'driver-1', driverName: 'Motorista Titular', driverTaxId: '12345678901', position: 2 },
+      {
+        driverId: 'driver-2',
+        driverName: 'Motorista Reserva',
+        driverTaxId: '98765432100',
+        position: 1,
+      },
+      {
+        driverId: 'driver-1',
+        driverName: 'Motorista Titular',
+        driverTaxId: '12345678901',
+        position: 2,
+      },
     ])
   })
 

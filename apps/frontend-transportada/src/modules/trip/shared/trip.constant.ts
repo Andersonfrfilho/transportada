@@ -34,7 +34,14 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
 }
 
-export const TRIP_KEYS = ['companyId', 'createdAt', 'id', 'status', 'updatedAt', 'vehicleId'] as const
+export const TRIP_KEYS = [
+  'companyId',
+  'createdAt',
+  'id',
+  'status',
+  'updatedAt',
+  'vehicleId',
+] as const
 
 export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 

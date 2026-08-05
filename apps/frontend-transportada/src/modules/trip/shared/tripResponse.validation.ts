@@ -77,9 +77,7 @@ function isDocument(value: unknown): value is TripDocument {
 
 function isDocumentDetail(value: unknown): value is TripDocumentDetail {
   if (!hasExactKeys(value, TRIP_DOCUMENT_DETAIL_KEYS)) return false
-  return (
-    isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
-  )
+  return isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
 }
 
 function isDetail(value: unknown): value is TripDetail {

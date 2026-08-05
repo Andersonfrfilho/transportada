@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { FleetDriverStatus, FleetVehicleRole, FleetVehicleStatus } from '../../database/fleet.schema.js'
+import type {
+  FleetDriverStatus,
+  FleetVehicleRole,
+  FleetVehicleStatus,
+} from '../../database/fleet.schema.js'
 import {
   TripDocumentReferenceInvalidError,
   TripDriverDuplicatedError,

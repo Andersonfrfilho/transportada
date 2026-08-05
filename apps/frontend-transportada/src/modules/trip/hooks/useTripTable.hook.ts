@@ -67,7 +67,8 @@ export function useTripTable(input: UseTripTableInput) {
     goToNextPage: () => setPage((current) => nextTripPage(current, nextCursor)),
     goToPreviousPage: () => setPage((current) => previousTripPage(current)),
     hasNextPage: nextCursor !== null,
-    openTrip: (tripId: string) => navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId }),
+    openTrip: (tripId: string) =>
+      navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId }),
     pageSize: TRIP_PAGE_SIZE,
     setDateRange: (from: string, to: string) => {
       setFilters((current) => {
@@ -90,7 +91,9 @@ export function useTripTable(input: UseTripTableInput) {
     },
     setTextFilter: (field: 'driverIdEq' | 'vehicleIdEq', value: string) => {
       setFilters((current) =>
-        value === '' ? clearTripFilterField({ field, filters: current }) : { ...current, [field]: value },
+        value === ''
+          ? clearTripFilterField({ field, filters: current })
+          : { ...current, [field]: value },
       )
       restartPagination()
     },

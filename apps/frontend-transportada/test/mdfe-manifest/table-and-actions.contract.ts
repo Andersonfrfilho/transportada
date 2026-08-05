@@ -419,9 +419,10 @@ describe('mdfe manifest creation form contract', () => {
 
     expect(form.isManifestFromTrip({ documentIds: [], draft })).toBe(false)
     expect(form.isManifestFromTrip({ documentIds: [], draft, tripId: 'trip-1' })).toBe(true)
-    expect(
-      form.validateManifestForm({ documentIds: [CTE_FISCAL_DOCUMENT_ID], draft }),
-    ).toEqual(['vehicleRequired', 'driverRequired'])
+    expect(form.validateManifestForm({ documentIds: [CTE_FISCAL_DOCUMENT_ID], draft })).toEqual([
+      'vehicleRequired',
+      'driverRequired',
+    ])
     expect(
       form.validateManifestForm({
         documentIds: [CTE_FISCAL_DOCUMENT_ID],

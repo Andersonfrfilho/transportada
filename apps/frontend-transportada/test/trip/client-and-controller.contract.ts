@@ -35,7 +35,11 @@ describe('trip client contract', () => {
     expect(await client.createTrip(CREATE_TRIP_BODY)).toEqual(TRIP_DETAIL)
     expect(await client.getTrip({ tripId: TRIP_ID })).toEqual(TRIP_DETAIL)
     expect(
-      await client.linkTripDocument({ freightCalculationId: null, nfeDocumentId: NFE_DOCUMENT_ID, tripId: TRIP_ID }),
+      await client.linkTripDocument({
+        freightCalculationId: null,
+        nfeDocumentId: NFE_DOCUMENT_ID,
+        tripId: TRIP_ID,
+      }),
     ).toEqual(TRIP_DOCUMENT)
     expect(await client.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
@@ -106,7 +110,10 @@ describe('trip client contract', () => {
       apiUrl: API_URL,
       fetch: () =>
         Promise.resolve(
-          Response.json({ error: { code: 'TRIP_VEHICLE_NOT_AVAILABLE', message: 'busy' } }, { status: 409 }),
+          Response.json(
+            { error: { code: 'TRIP_VEHICLE_NOT_AVAILABLE', message: 'busy' } },
+            { status: 409 },
+          ),
         ),
       getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
     })
@@ -124,9 +131,12 @@ describe('trip client contract', () => {
 
     expect(adapters.tripDetailFromApi(TRIP_DETAIL)).toEqual(TRIP_DETAIL)
     expect(adapters.tripDocumentFromApi(TRIP_DOCUMENT)).toEqual(TRIP_DOCUMENT)
-    expect(adapters.tripListFromApi({ data: TRIP_PAGE.items, page: { nextCursor: TRIP_PAGE.nextCursor } })).toEqual(
-      TRIP_PAGE,
-    )
+    expect(
+      adapters.tripListFromApi({
+        data: TRIP_PAGE.items,
+        page: { nextCursor: TRIP_PAGE.nextCursor },
+      }),
+    ).toEqual(TRIP_PAGE)
 
     expect(() => adapters.tripDetailFromApi({ ...TRIP_DETAIL, status: 'suspended' })).toThrow(
       'TRIP_RESPONSE_INVALID',
@@ -179,7 +189,11 @@ describe('trip controller contract', () => {
     expect(controller.canManageTrips).toBe(true)
     await controller.createTrip(CREATE_TRIP_BODY)
     await controller.closeTrip({ tripId: TRIP_ID })
-    await controller.linkTripDocument({ freightCalculationId: null, nfeDocumentId: NFE_DOCUMENT_ID, tripId: TRIP_ID })
+    await controller.linkTripDocument({
+      freightCalculationId: null,
+      nfeDocumentId: NFE_DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
     await controller.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
     await controller.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
     expect(client.mutationCount).toBe(5)
@@ -219,7 +233,10 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`) {
     return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }))
   }
-  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}` && request.method === 'DELETE') {
+  if (
+    request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}` &&
+    request.method === 'DELETE'
+  ) {
     return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }))
   }
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}`) {

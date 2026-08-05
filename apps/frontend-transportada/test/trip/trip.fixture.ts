@@ -83,7 +83,9 @@ export const TRIP_DOCUMENT_DETAIL = {
 export const TRIP_DETAIL = {
   ...TRIP,
   documents: [TRIP_DOCUMENT_DETAIL],
-  drivers: [{ driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 }],
+  drivers: [
+    { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
+  ],
 } as const satisfies TripDetailContract
 
 export const TRIP_PAGE = {

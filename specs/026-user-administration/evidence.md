@@ -232,7 +232,7 @@ grava em `audit_logs`. Decisão tomada e aqui registrada, não esquecimento:
   `tasks.md` não é satisfazível pelo schema atual sem migration nova — fora do escopo de uma task
   só, pela disciplina "uma task por vez".
 - Correlação existe por outro canal: `correlationId` chega em `execute({ administrator,
-  correlationId })` e, por construção do `request-handler.service.ts`, todo log estruturado da
+correlationId })` e, por construção do `request-handler.service.ts`, todo log estruturado da
   requisição carrega o mesmo id — dá para reconstruir quem/quando pelo log, mesmo sem linha em
   `audit_logs`.
 - Registro do evento (ator = `sub` criado, horário = `createdAt` da própria linha de
@@ -653,17 +653,17 @@ error: Cannot find module '../../src/modules/identity/shared/bootstrapClient.ser
 
 ### O que foi implementado
 
-| Arquivo                                                                    | Responsabilidade                                                        |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `src/modules/identity/shared/bootstrap.types.ts`                          | `BootstrapAdministratorInput`, `BootstrapFirstAdminResult`/`Response`   |
-| `src/modules/identity/shared/bootstrap.validation.ts`                     | type guards locais (`isRecord` duplicado — sem import cruzado de módulo) |
-| `src/modules/identity/shared/bootstrapClient.service.ts`                  | client DI (`{apiBaseUrl, fetch}`), mesmo padrão de `companySettingsClient` |
-| `src/modules/identity/hooks/useBootstrapFirstAdmin.hook.ts`               | estado do formulário, `patch`/`submit`, sem teste unitário direto (padrão do repo p/ hooks) |
-| `src/modules/identity/pages/FirstAccess.page.tsx`                         | formulário dos 6 campos, `fieldset disabled` durante submit, feedback `role="alert"` |
-| `src/modules/identity/styles/identity.module.css`                        | tokens de cor/campo/espaçamento — nenhum valor hardcoded                |
-| `src/modules/identity/locales/identity.locale.json` + `.en.locale.json`  | pt-BR acentuado (passa `locale-accents.contract.ts`) + inglês            |
-| `src/modules/shared/i18n/i18n.service.ts`                                 | registro do namespace `identity` nas duas línguas                        |
-| `src/main.tsx`                                                             | `bootstrapApplication()` desvia para `FirstAccessPage` em `/primeiro-acesso` antes do Keycloak |
+| Arquivo                                                                 | Responsabilidade                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/modules/identity/shared/bootstrap.types.ts`                        | `BootstrapAdministratorInput`, `BootstrapFirstAdminResult`/`Response`                          |
+| `src/modules/identity/shared/bootstrap.validation.ts`                   | type guards locais (`isRecord` duplicado — sem import cruzado de módulo)                       |
+| `src/modules/identity/shared/bootstrapClient.service.ts`                | client DI (`{apiBaseUrl, fetch}`), mesmo padrão de `companySettingsClient`                     |
+| `src/modules/identity/hooks/useBootstrapFirstAdmin.hook.ts`             | estado do formulário, `patch`/`submit`, sem teste unitário direto (padrão do repo p/ hooks)    |
+| `src/modules/identity/pages/FirstAccess.page.tsx`                       | formulário dos 6 campos, `fieldset disabled` durante submit, feedback `role="alert"`           |
+| `src/modules/identity/styles/identity.module.css`                       | tokens de cor/campo/espaçamento — nenhum valor hardcoded                                       |
+| `src/modules/identity/locales/identity.locale.json` + `.en.locale.json` | pt-BR acentuado (passa `locale-accents.contract.ts`) + inglês                                  |
+| `src/modules/shared/i18n/i18n.service.ts`                               | registro do namespace `identity` nas duas línguas                                              |
+| `src/main.tsx`                                                          | `bootstrapApplication()` desvia para `FirstAccessPage` em `/primeiro-acesso` antes do Keycloak |
 
 A rota é anônima por natureza (mesma anonimidade do backend `POST /bootstrap/first-admin`): o desvio
 em `main.tsx` acontece **antes** de `initializeKeycloakAuth()`, então a tela nunca depende de sessão.

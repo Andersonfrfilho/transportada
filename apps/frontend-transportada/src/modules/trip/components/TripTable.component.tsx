@@ -12,7 +12,9 @@ import styles from '../styles/trip.module.css'
 type TripTableProps = Readonly<{ table: TripTableController }>
 
 function statusClassName(status: TripStatus): string {
-  return status === 'closed' ? `${styles.statusBadge} ${styles.statusReady}` : `${styles.statusBadge}`
+  return status === 'closed'
+    ? `${styles.statusBadge} ${styles.statusReady}`
+    : `${styles.statusBadge}`
 }
 
 function formatMoment(value: string): string {
@@ -78,7 +80,12 @@ export function TripTable({ table }: TripTableProps) {
                   <td key={column}>{renderCell(trip, column)}</td>
                 ))}
                 <td>
-                  <Button onClick={() => table.openTrip(trip.id)} size="sm" type="button" variant="secondary">
+                  <Button
+                    onClick={() => table.openTrip(trip.id)}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
                     <Icon name="eye" />
                     {t('actions.view')}
                   </Button>

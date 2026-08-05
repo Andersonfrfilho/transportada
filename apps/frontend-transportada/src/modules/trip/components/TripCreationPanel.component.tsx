@@ -81,7 +81,9 @@ export function TripCreationPanel({
             onChange={() => creation.toggleDriver(driver.id)}
           />
         ))}
-        {activeDrivers.length === 0 ? <p className={styles.hint}>{t('creation.driversEmpty')}</p> : null}
+        {activeDrivers.length === 0 ? (
+          <p className={styles.hint}>{t('creation.driversEmpty')}</p>
+        ) : null}
       </fieldset>
 
       {issues.map((issue) => (
@@ -91,7 +93,12 @@ export function TripCreationPanel({
       ))}
 
       <div className={styles.actionActions}>
-        <Button disabled={issues.length > 0 || isCreatePending} onClick={onCreate} size="sm" type="button">
+        <Button
+          disabled={issues.length > 0 || isCreatePending}
+          onClick={onCreate}
+          size="sm"
+          type="button"
+        >
           <Icon name="add" />
           {t('actions.create')}
         </Button>

@@ -46,9 +46,7 @@ const DRIVERS: readonly MdfeManifestDriver[] = [
   { id: SECOND_DRIVER_ID, name: 'Bruno Lima', status: 'active', taxId: '98765432100' },
 ]
 
-const candidate = (
-  overrides: Partial<MdfeCandidateDocument> = {},
-): MdfeCandidateDocument => ({
+const candidate = (overrides: Partial<MdfeCandidateDocument> = {}): MdfeCandidateDocument => ({
   accessKey: SAO_PAULO_KEY,
   cargoValue: '1000.00',
   cargoWeight: '500.0000',

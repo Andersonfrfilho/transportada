@@ -17,7 +17,9 @@ export function parseTripRoute(pathname: string): null | string {
   return decodeURIComponent(remainder)
 }
 
-export function navigateToTrip(input: Readonly<{ navigator: WorkspaceNavigator; tripId: string }>): void {
+export function navigateToTrip(
+  input: Readonly<{ navigator: WorkspaceNavigator; tripId: string }>,
+): void {
   input.navigator.pushPath(buildTripRoute(input.tripId))
   input.navigator.rememberWorkspace(TRIP_WORKSPACE)
   input.navigator.dispatchPopState()

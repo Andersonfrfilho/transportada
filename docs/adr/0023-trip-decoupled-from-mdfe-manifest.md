@@ -75,8 +75,8 @@ manifesto inválido — cada item ainda é validado individualmente na criação
 Viagem "não fiscal" fecha (`status = closed`) sem nunca ter `mdfe_manifests.trip_id` apontando pra
 ela. Isso não é um estado de erro nem pendência — é o caso de uso que motivou esta emenda.
 
-`[NEEDS CLARIFICATION: quais são os estados de `trips.status` e as transições entre eles —
-paralelo a `mdfe_manifests` (`draft/issuing/authorized/...`) ou mais simples (`open/closed`), já
+`[NEEDS CLARIFICATION: quais são os estados de `trips.status`e as transições entre eles —
+paralelo a`mdfe_manifests` (`draft/issuing/authorized/...`) ou mais simples (`open/closed`), já
 que a viagem em si não fala com a SEFAZ?]`
 
 ### 5. Migração dos manifestos existentes

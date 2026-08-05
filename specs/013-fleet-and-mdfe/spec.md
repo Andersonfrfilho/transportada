@@ -34,6 +34,7 @@ Decisões de modelagem em `docs/adr/0016-fleet-drivers-and-mdfe-manifest.md`.
   > (`mdfe_manifests.trip_id` é FK opcional, não o inverso) — existem viagens sem MDF-e e viagens
   > organizadas antes de todo CT-e da carga estar emitido. Ver `docs/adr/0023-trip-decoupled-from-mdfe-manifest.md`
   > e `specs/027-viagens-nao-fiscais/spec.md`.
+
 - Consulta de MDF-e não encerrados (`MDFeConsNaoEnc`) e inclusão de DF-e em manifesto já
   autorizado (evento 110114).
 - Reboque/carreta no XML — o cadastro suporta `role = trailer`, mas o `<veicReboque>` só entra

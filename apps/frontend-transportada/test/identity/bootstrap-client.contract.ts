@@ -60,9 +60,18 @@ describe('identity bootstrap client contract', () => {
   })
 
   test.each([
-    ['a 404 refusal', new Response(JSON.stringify({ error: { code: 'ALREADY_PROVISIONED' } }), { status: 404 })],
-    ['a 404 refusal for a different reason', new Response(JSON.stringify({ error: { code: 'TOKEN_MISMATCH' } }), { status: 404 })],
-    ['a 400 invalid body', new Response(JSON.stringify({ error: { code: 'INVALID_REQUEST' } }), { status: 400 })],
+    [
+      'a 404 refusal',
+      new Response(JSON.stringify({ error: { code: 'ALREADY_PROVISIONED' } }), { status: 404 }),
+    ],
+    [
+      'a 404 refusal for a different reason',
+      new Response(JSON.stringify({ error: { code: 'TOKEN_MISMATCH' } }), { status: 404 }),
+    ],
+    [
+      'a 400 invalid body',
+      new Response(JSON.stringify({ error: { code: 'INVALID_REQUEST' } }), { status: 400 }),
+    ],
   ])('collapses %s into the same generic unavailable error', async (_name, response) => {
     const { createBootstrapClient } = await loadFutureModule<ClientModule>(
       '../../src/modules/identity/shared/bootstrapClient.service',
@@ -74,7 +83,10 @@ describe('identity bootstrap client contract', () => {
 
     let caught: unknown
     try {
-      await client.createFirstAdmin({ administrator: BOOTSTRAP_ADMINISTRATOR_INPUT, token: 'wrong' })
+      await client.createFirstAdmin({
+        administrator: BOOTSTRAP_ADMINISTRATOR_INPUT,
+        token: 'wrong',
+      })
     } catch (error) {
       caught = error
     }

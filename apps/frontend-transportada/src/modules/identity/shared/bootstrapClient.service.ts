@@ -1,9 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isBootstrapFirstAdminResponse } from './bootstrap.validation'
-import type {
-  BootstrapAdministratorInput,
-  BootstrapFirstAdminResult,
-} from './bootstrap.types'
+import type { BootstrapAdministratorInput, BootstrapFirstAdminResult } from './bootstrap.types'
 
 const BOOTSTRAP_FIRST_ADMIN_PATH = '/bootstrap/first-admin'
 

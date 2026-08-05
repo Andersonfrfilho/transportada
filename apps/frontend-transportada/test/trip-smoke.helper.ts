@@ -52,7 +52,9 @@ function tripDetail(mode: DocumentsMode) {
   return {
     ...BASE_TRIP,
     documents,
-    drivers: [{ driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 }],
+    drivers: [
+      { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
+    ],
   }
 }
 
@@ -114,7 +116,9 @@ async function registerIdentityMock(
   })
 }
 
-async function registerEmptyListMock(input: Readonly<{ page: Page; pattern: RegExp }>): Promise<void> {
+async function registerEmptyListMock(
+  input: Readonly<{ page: Page; pattern: RegExp }>,
+): Promise<void> {
   await input.page.route(input.pattern, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)

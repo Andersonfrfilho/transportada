@@ -472,6 +472,7 @@ mais 0 arquivos novos de teste no total — o arquivo já existia sendo criado n
 listado em `test/trip-http.contract.test.ts`).
 
 ## T009b — `GET /trips` (lista paginada/filtrável) e `GET /trips/:id` (detalhe com status fiscal
+
 derivado)
 
 Fecha o gap sinalizado em T008: `plan.md` § Contratos/API/eventos ganhou os dois endpoints de
@@ -481,7 +482,7 @@ seguindo precedente já existente no repositório em vez de inventar convenção
 1. **Paginação por cursor (keyset), não `sortBy`/`sortDirection`/`filters[]`.** Confirmado por
    busca no repositório: esse trio de query params citado em `apis.md` não tem nenhuma
    implementação real em nenhum módulo. O padrão real é o de `mdfe-manifests` (`GET
-   /mdfe-manifests`): cursor opaco `<ISO-8601>::<uuid>` via `encodeKeysetCursor`/
+/mdfe-manifests`): cursor opaco `<ISO-8601>::<uuid>` via `encodeKeysetCursor`/
    `decodeKeysetCursor` (`src/shared/keyset-cursor.support.ts`), ordenação fixa
    `desc(createdAt), desc(id)`, filtros como chaves de query flat (`statusEq`, `vehicleIdEq`,
    `driverIdEq`, `createdFrom`, `createdUntil`). Replicado identicamente em `trip.port.ts`
@@ -698,6 +699,7 @@ autorizado, navega direto para a tela de manifestos MDF-e (`/mdfe-manifests`), q
 criação do manifesto (T009).
 
 Novos arquivos:
+
 - `src/modules/trip/shared/tripMdfeGate.service.ts` — `selectPendingCteDocuments`/`canIssueMdfe`,
   função pura sobre `TripDocumentDetail.cteAuthorized`.
 - `src/modules/trip/shared/tripNavigation.service.ts` — `navigateToMdfeManifests`/

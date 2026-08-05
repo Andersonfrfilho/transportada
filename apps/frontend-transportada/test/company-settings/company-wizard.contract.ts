@@ -71,7 +71,11 @@ describe('company settings wizard contract', () => {
       '../../src/modules/company-settings/shared/companySettingsProfile.service',
     )
     const profile = { ...COMPANY_SETTINGS_RESPONSE.data.profile, legalName: 'Rascunho Anterior' }
-    const lookup = { ...COMPANY_SETTINGS_RESPONSE.data.profile, legalName: '', tradeName: 'Nome Novo' }
+    const lookup = {
+      ...COMPANY_SETTINGS_RESPONSE.data.profile,
+      legalName: '',
+      tradeName: 'Nome Novo',
+    }
 
     const merged = mergeProfileLookup(profile, lookup) as Record<string, string>
 

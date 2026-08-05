@@ -51,7 +51,9 @@ export function CompanyWizard({ wizard }: CompanyWizardProps) {
           />
           {wizard.feedbackKey === null ? null : (
             <p
-              className={wizard.feedbackKey === 'saved' ? wizardStyles.feedback : wizardStyles.feedbackError}
+              className={
+                wizard.feedbackKey === 'saved' ? wizardStyles.feedback : wizardStyles.feedbackError
+              }
               role={wizard.feedbackKey === 'saved' ? 'status' : 'alert'}
             >
               {t(wizard.feedbackKey)}

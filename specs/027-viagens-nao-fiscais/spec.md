@@ -135,7 +135,7 @@ Decisões já tomadas com o usuário (não são mais `NEEDS CLARIFICATION`):
 - **Nota cancelada/rejeitada (NF-e/CT-e) depois de vinculada à viagem**: não bloqueia e não
   desvincula automaticamente — o domínio (`trip.use-case.ts`) não tem regra nenhuma para esse caso,
   ele só reage se o operador decidir desvincular manualmente (permitido enquanto `delivered_at is
-  null`, como já é a regra geral). O aviso na tela é puramente de leitura: ao listar as notas da
+null`, como já é a regra geral). O aviso na tela é puramente de leitura: ao listar as notas da
   viagem, o backend/frontend consulta o status atual do documento fiscal vinculado
   (`nfe_documents.status` / `cte_fiscal_documents.status`) e sinaliza como aviso não bloqueante se
   estiver `cancelled`/`rejected` — sem persistir esse status em `trip_documents`. **Isso vale

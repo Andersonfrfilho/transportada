@@ -772,7 +772,9 @@ test('sem settings.manage o diálogo não oferece o caminho para os perfis', asy
   await auditAuthenticationStorage(page)
 })
 
-test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem navegar', async ({ page }) => {
+test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem navegar', async ({
+  page,
+}) => {
   await page.setViewportSize(VIEWPORTS.desktop)
   await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
   const api = await mockTripWorkspaceApi({

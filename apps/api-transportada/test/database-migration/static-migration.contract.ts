@@ -303,9 +303,7 @@ describe('Drizzle migrations', () => {
     expect(migrationSql).toContain('mdfe_manifests_company_trip_fk')
     expect(migrationSql).toContain('trip_documents_entity_xor_check')
     expect(migrationSql).toContain('trip_documents_delivered_locks_release_check')
-    expect(migrationSql).toContain(
-      'CREATE UNIQUE INDEX "trip_documents_live_nfe_document_unique"',
-    )
+    expect(migrationSql).toContain('CREATE UNIQUE INDEX "trip_documents_live_nfe_document_unique"')
     expect(migrationSql).toContain(
       'CREATE UNIQUE INDEX "trip_documents_live_freight_calculation_unique"',
     )
@@ -331,9 +329,7 @@ describe('Drizzle migrations', () => {
 
   test('versions the trip backfill as a data-only migration with a guarded rollback', async () => {
     const directories = await listMigrationDirectories()
-    const directory = directories.find((name) =>
-      name.endsWith('_trip_backfill_existing_manifests'),
-    )
+    const directory = directories.find((name) => name.endsWith('_trip_backfill_existing_manifests'))
     expect(directory).toBeString()
 
     const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')

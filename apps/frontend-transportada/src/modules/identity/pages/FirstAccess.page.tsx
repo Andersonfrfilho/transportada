@@ -66,9 +66,7 @@ export function FirstAccessPage() {
                   required
                   type={definition.type}
                   value={wizard.state[definition.field]}
-                  onChange={(event) =>
-                    wizard.patch({ [definition.field]: event.target.value })
-                  }
+                  onChange={(event) => wizard.patch({ [definition.field]: event.target.value })}
                 />
               </label>
             ))}

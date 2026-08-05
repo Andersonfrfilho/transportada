@@ -32,7 +32,9 @@ type TripDetailProps = Readonly<{
 }>
 
 function statusClassName(status: TripStatus): string {
-  return status === 'closed' ? `${styles.statusBadge} ${styles.statusReady}` : `${styles.statusBadge}`
+  return status === 'closed'
+    ? `${styles.statusBadge} ${styles.statusReady}`
+    : `${styles.statusBadge}`
 }
 
 export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
@@ -141,7 +143,9 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
                     <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
                   ) : null}
                 </td>
-                <td>{document.deliveredAt === null ? t('detail.pending') : document.deliveredAt}</td>
+                <td>
+                  {document.deliveredAt === null ? t('detail.pending') : document.deliveredAt}
+                </td>
                 <td>
                   <div className={styles.rowActions}>
                     {canManage && !isClosed && document.deliveredAt === null ? (
@@ -185,7 +189,9 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         </table>
       </div>
 
-      {trip.documents.length === 0 ? <p className={styles.hint}>{t('detail.documentsEmpty')}</p> : null}
+      {trip.documents.length === 0 ? (
+        <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
+      ) : null}
 
       {canManage && !isClosed ? (
         <div className={styles.actionForm}>

@@ -151,13 +151,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   'workspace-nfe': ['M6 3h9l3 3v15H6z', 'M15 3v4h4', 'M9 11h6', 'M9 15h6'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
-  'workspace-trip': [
-    'M4 17l4-10h8l4 10',
-    'M4 17h16v3H4z',
-    'M8 20v-3',
-    'M16 20v-3',
-    'M9 12h6',
-  ],
+  'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
 }
 
 /** O tipo gerado para CSS Module devolve `string | undefined`; `cn` já lida com a ausência. */

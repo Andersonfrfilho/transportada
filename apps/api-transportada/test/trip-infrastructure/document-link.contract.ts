@@ -15,13 +15,11 @@ const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const TRIP_ID = '44444444-4444-4444-8444-444444444444'
 const NFE_DOCUMENT_ID = '44444444-4444-4444-8444-444444444445'
 
-const postgresError = (input: {
-  readonly constraint: string
-  readonly sqlState: string
-}): Error => Object.assign(new Error('database rejected the write'), {
-  code: input.sqlState,
-  constraint: input.constraint,
-})
+const postgresError = (input: { readonly constraint: string; readonly sqlState: string }): Error =>
+  Object.assign(new Error('database rejected the write'), {
+    code: input.sqlState,
+    constraint: input.constraint,
+  })
 
 function createRepository(error: Error): DrizzleTripRepository {
   const database = {

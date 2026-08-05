@@ -24,10 +24,19 @@ export function describeTripFilterPills(
   const { filters, formatDay } = input
 
   if (filters.statusEq !== undefined) {
-    pills.push({ field: 'statusEq', labelKey: labelKey('statusEq'), value: filters.statusEq, valueKey: `status.${filters.statusEq}` })
+    pills.push({
+      field: 'statusEq',
+      labelKey: labelKey('statusEq'),
+      value: filters.statusEq,
+      valueKey: `status.${filters.statusEq}`,
+    })
   }
   if (filters.vehicleIdEq !== undefined && filters.vehicleIdEq !== '') {
-    pills.push({ field: 'vehicleIdEq', labelKey: labelKey('vehicleIdEq'), value: filters.vehicleIdEq })
+    pills.push({
+      field: 'vehicleIdEq',
+      labelKey: labelKey('vehicleIdEq'),
+      value: filters.vehicleIdEq,
+    })
   }
   if (filters.driverIdEq !== undefined && filters.driverIdEq !== '') {
     pills.push({ field: 'driverIdEq', labelKey: labelKey('driverIdEq'), value: filters.driverIdEq })

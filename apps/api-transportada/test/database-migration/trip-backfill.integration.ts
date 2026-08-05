@@ -43,9 +43,13 @@ describe('Trip backfill migration', () => {
         try {
           await Promise.all(
             preBackfillDirectories.map((directory) =>
-              cp(join(migrationsDirectory.pathname, directory), join(preBackfillFolder, directory), {
-                recursive: true,
-              }),
+              cp(
+                join(migrationsDirectory.pathname, directory),
+                join(preBackfillFolder, directory),
+                {
+                  recursive: true,
+                },
+              ),
             ),
           )
 

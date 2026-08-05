@@ -116,7 +116,9 @@ describe('trip documents http contract', () => {
   test('releases a linked document', async () => {
     const fixture = await createTripHttpFixture()
 
-    const response = await fixture.handle(jsonRequest({ method: 'DELETE', path: tripDocumentPath() }))
+    const response = await fixture.handle(
+      jsonRequest({ method: 'DELETE', path: tripDocumentPath() }),
+    )
 
     expect(response.status).toBe(200)
     expect(await responseData(response)).toMatchObject({ releasedAt: expect.any(String) })
@@ -131,7 +133,9 @@ describe('trip documents http contract', () => {
       releaseTripDocumentError: new TripDocumentAlreadyDeliveredError(),
     })
 
-    const response = await fixture.handle(jsonRequest({ method: 'DELETE', path: tripDocumentPath() }))
+    const response = await fixture.handle(
+      jsonRequest({ method: 'DELETE', path: tripDocumentPath() }),
+    )
 
     expect(response.status).toBe(422)
     expect((await responseApiError(response)).code).toBe('TRIP_DOCUMENT_ALREADY_DELIVERED')

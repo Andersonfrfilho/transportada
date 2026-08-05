@@ -18,7 +18,10 @@ type TripFiltersProps = Readonly<{ table: TripTableController }>
 export function TripFilters({ table }: TripFiltersProps) {
   const { t } = useTranslation('trip')
 
-  const descriptors = describeTripFilterPills({ filters: table.filters, formatDay: formatCalendarDate })
+  const descriptors = describeTripFilterPills({
+    filters: table.filters,
+    formatDay: formatCalendarDate,
+  })
   const pills: readonly FilterPill[] = descriptors.map(toPill)
 
   function toPill(descriptor: TripFilterPill): FilterPill {
@@ -80,7 +83,11 @@ export function TripFilters({ table }: TripFiltersProps) {
         </label>
       </div>
 
-      <FilterPills clearAllLabel={t('filters.clear')} onClearAll={table.clearFilters} pills={pills} />
+      <FilterPills
+        clearAllLabel={t('filters.clear')}
+        onClearAll={table.clearFilters}
+        pills={pills}
+      />
 
       <div className={styles.toolbar}>
         <p className={styles.counter}>{t('filters.active', { count: table.activeFilterCount })}</p>
