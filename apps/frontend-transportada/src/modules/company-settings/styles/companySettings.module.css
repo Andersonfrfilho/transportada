@@ -125,6 +125,15 @@
   gap: var(--space-4);
 }
 
+.skeletonLegend {
+  margin-bottom: var(--space-4);
+}
+
+.skeletonSignalRow {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .primaryColumn,
 .secondaryColumn {
   display: grid;

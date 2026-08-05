@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -37,6 +38,56 @@ function statusClassName(status: TripStatus): string {
     : `${styles.statusBadge}`
 }
 
+// Mesma forma do painel real (cabeçalho + situação, motoristas, tabela de notas) — reaproveitado
+// pelo gate de página e pelo gate interno para não trocar de forma entre os dois esqueletos.
+export function TripDetailSkeleton() {
+  const { t } = useTranslation('trip')
+
+  return (
+    <SkeletonGroup className={styles.panel} label={t('loading')}>
+      <div className={styles.panelHead}>
+        <Skeleton variant="text" width="10rem" />
+        <Skeleton height="1.4rem" width="5rem" />
+      </div>
+      <Skeleton variant="text" width="14rem" />
+      <div className={styles.driverChecklist}>
+        <Skeleton height="1.25rem" width="7rem" />
+        <Skeleton height="1.25rem" width="6rem" />
+      </div>
+      <div className={styles.tableScroll}>
+        <table className={styles.dataTable}>
+          <thead>
+            <tr>
+              <th scope="col">{t('detail.documentColumn')}</th>
+              <th scope="col">{t('detail.fiscalStatusColumn')}</th>
+              <th scope="col">{t('detail.deliveredColumn')}</th>
+              <th scope="col">{t('actions.title')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 3 }, (_, index) => (
+              <tr key={index}>
+                <td>
+                  <Skeleton variant="text" width="70%" />
+                </td>
+                <td>
+                  <Skeleton variant="text" width="55%" />
+                </td>
+                <td>
+                  <Skeleton variant="text" width="40%" />
+                </td>
+                <td>
+                  <Skeleton height="var(--field-height-compact)" width="5rem" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SkeletonGroup>
+  )
+}
+
 export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
   const trip = workspace.trip
@@ -49,7 +100,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
       </p>
     )
   }
-  if (workspace.status === 'loading') return <p className={styles.hint}>{t('loading')}</p>
+  if (workspace.status === 'loading') return <TripDetailSkeleton />
   if (workspace.status === 'error' || trip === undefined) {
     return (
       <p className={styles.hint} role="alert">

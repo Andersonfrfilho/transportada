@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { CteIssuanceStatusPanel } from '@/modules/cte-issuance/components/CteIssuanceStatusPanel.component'
 
 import type { CteBatchItemsController } from '../hooks/useCteBatchItems.hook'
@@ -19,6 +20,19 @@ import { CTE_BATCH_ITEM_STATUS, type CteBatchItem } from '../shared/cteBatchItem
 import styles from '../styles/cteBatch.module.css'
 
 const JUSTIFICATION_MAX_LENGTH = 255
+const ITEM_SKELETON_ROW_COUNT = 4
+const ITEM_SKELETON_COLUMN_WIDTHS: readonly string[] = [
+  '2rem',
+  '5rem',
+  '9rem',
+  '4rem',
+  '5rem',
+  '5rem',
+  '12rem',
+  '6rem',
+  '4rem',
+  '8rem',
+]
 
 const ALERT_ITEM_STATUSES: readonly string[] = [
   CTE_BATCH_ITEM_STATUS.CANCELLED,
@@ -48,6 +62,35 @@ function itemStatusLabel(status: string, translate: (key: string) => string): st
 export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchItemsPanelProps) {
   const { t } = useTranslation('cteBatch')
   const { cancellationItem, justificationError, summary, trackedItem } = controller
+
+  function renderItemColumnHeaders() {
+    return (
+      <tr>
+        <th scope="col">{t('items.position')}</th>
+        <th scope="col">{t('items.status')}</th>
+        <th scope="col">{t('items.documents')}</th>
+        <th scope="col">{t('items.fiscal')}</th>
+        <th scope="col">{t('items.baseAmount')}</th>
+        <th scope="col">{t('items.fiscalAmount')}</th>
+        <th scope="col">{t('items.accessKey')}</th>
+        <th scope="col">{t('items.protocol')}</th>
+        <th scope="col">{t('items.lastError')}</th>
+        <th scope="col">{t('items.actions')}</th>
+      </tr>
+    )
+  }
+
+  function renderItemSkeletonRow(rowIndex: number) {
+    return (
+      <tr key={rowIndex}>
+        {ITEM_SKELETON_COLUMN_WIDTHS.map((width, columnIndex) => (
+          <td key={columnIndex}>
+            <Skeleton variant="text" width={width} />
+          </td>
+        ))}
+      </tr>
+    )
+  }
 
   function renderItemRow(item: CteBatchItem) {
     return (
@@ -168,32 +211,30 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
         })}
       </p>
 
-      {controller.itemsQuery.isLoading ? <p className={styles.hint}>{t('items.loading')}</p> : null}
+      {controller.itemsQuery.isLoading ? (
+        <SkeletonGroup className={styles.tableScroll} label={t('items.loading')}>
+          <table className={styles.dataTable}>
+            <thead>{renderItemColumnHeaders()}</thead>
+            <tbody>
+              {Array.from({ length: ITEM_SKELETON_ROW_COUNT }, (_, rowIndex) =>
+                renderItemSkeletonRow(rowIndex),
+              )}
+            </tbody>
+          </table>
+        </SkeletonGroup>
+      ) : null}
       {controller.itemsQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('items.error')}
         </p>
       ) : null}
 
-      {controller.items.length === 0 ? (
+      {controller.itemsQuery.isLoading ? null : controller.items.length === 0 ? (
         <p className={styles.hint}>{t('items.empty')}</p>
       ) : (
         <div className={styles.tableScroll}>
           <table className={styles.dataTable}>
-            <thead>
-              <tr>
-                <th scope="col">{t('items.position')}</th>
-                <th scope="col">{t('items.status')}</th>
-                <th scope="col">{t('items.documents')}</th>
-                <th scope="col">{t('items.fiscal')}</th>
-                <th scope="col">{t('items.baseAmount')}</th>
-                <th scope="col">{t('items.fiscalAmount')}</th>
-                <th scope="col">{t('items.accessKey')}</th>
-                <th scope="col">{t('items.protocol')}</th>
-                <th scope="col">{t('items.lastError')}</th>
-                <th scope="col">{t('items.actions')}</th>
-              </tr>
-            </thead>
+            <thead>{renderItemColumnHeaders()}</thead>
             <tbody>{controller.items.map(renderItemRow)}</tbody>
           </table>
         </div>

@@ -154,6 +154,12 @@ Todo filtro ativo aparece como pílula removível vinda de `@/components/ui/filt
 em `clearFilterField` do hook; no modo simples o badge do filtro usa `pills.length`. Regra completa na
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
 
+Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
+renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
+antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
+trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
+contrato em `test/design-system/skeleton.contract.ts`.
+
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
 varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).

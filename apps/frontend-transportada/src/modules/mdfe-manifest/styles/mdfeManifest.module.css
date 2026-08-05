@@ -104,6 +104,13 @@
   font-size: 0.85rem;
 }
 
+.skeletonField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
 .fieldGrid input,
 .fieldGrid textarea {
   min-height: var(--field-height);

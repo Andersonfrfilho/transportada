@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { CteProfileForm } from '../components/CteProfileForm.component'
@@ -11,6 +12,58 @@ import { CteProfileList } from '../components/CteProfileList.component'
 import { useCteProfiles } from '../hooks/useCteProfiles.hook'
 import type { CteProfileDetail } from '../shared/cteProfiles.types'
 import styles from '../styles/cteProfiles.module.css'
+
+const PROFILE_TABLE_SKELETON_ROW_COUNT = 4
+
+function ProfileTableSkeleton() {
+  const { t } = useTranslation('cteProfiles')
+  return (
+    <SkeletonGroup className={styles.tableScroll} label={t('loading')}>
+      <table className={styles.profileTable}>
+        <thead>
+          <tr>
+            <th scope="col">{t('columnName')}</th>
+            <th scope="col">{t('columnStatus')}</th>
+            <th className={styles.numericCell} scope="col">
+              {t('columnPriority')}
+            </th>
+            <th className={styles.numericCell} scope="col">
+              {t('columnPercentage')}
+            </th>
+            <th scope="col">{t('columnGrouping')}</th>
+            <th className={styles.actionsCell} scope="col">
+              {t('columnActions')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: PROFILE_TABLE_SKELETON_ROW_COUNT }, (_, index) => (
+            <tr key={index}>
+              <td>
+                <Skeleton variant="text" width="70%" />
+              </td>
+              <td>
+                <Skeleton height="var(--field-height-compact)" width="5rem" />
+              </td>
+              <td className={styles.numericCell}>
+                <Skeleton variant="text" width="2rem" />
+              </td>
+              <td className={styles.numericCell}>
+                <Skeleton variant="text" width="3rem" />
+              </td>
+              <td>
+                <Skeleton variant="text" width="60%" />
+              </td>
+              <td className={styles.actionsCell}>
+                <Skeleton height="var(--field-height-compact)" width="6rem" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SkeletonGroup>
+  )
+}
 
 type ListPanelProps = Readonly<{
   onEdit: (profile?: CteProfileDetail) => void
@@ -33,7 +86,7 @@ function ListPanel({ onEdit, workspace }: ListPanelProps) {
         ) : null}
       </div>
       {viewModel.status === 'forbidden' ? <p className={styles.hint}>{t('readOnly')}</p> : null}
-      {viewModel.status === 'loading' ? <p className={styles.hint}>{t('loading')}</p> : null}
+      {viewModel.status === 'loading' ? <ProfileTableSkeleton /> : null}
       {viewModel.status === 'error' ? <p className={styles.hint}>{t('error')}</p> : null}
       {viewModel.status === 'empty' ? <p className={styles.hint}>{t('empty')}</p> : null}
       {viewModel.status === 'ready' && viewModel.profiles !== undefined ? (

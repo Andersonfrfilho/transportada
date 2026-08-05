@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
@@ -106,6 +107,21 @@ const NFE_IMPORT_ADVANCED_FILTERS: readonly (keyof NfeImportFilters)[] = [
   'createdUntil',
   'updatedFrom',
   'updatedUntil',
+]
+
+const DOCUMENT_TABLE_SKELETON_ROW_COUNT = 5
+
+// Larguras relativas aproximam a coluna real (número/série curtos, emitente/destinatário longos).
+const DOCUMENT_TABLE_SKELETON_COLUMN_WIDTHS: readonly string[] = [
+  '55%',
+  '45%',
+  '65%',
+  '80%',
+  '70%',
+  '80%',
+  '70%',
+  '60%',
+  '55%',
 ]
 
 function advancedFilter(
@@ -284,176 +300,218 @@ export function NfeWorkspacePage() {
     <main className={styles.workspaceShell}>
       <NfeWorkspaceHeader status={viewModel.status} />
 
-      <StatusMessage status={viewModel.status} />
-
-      <Tabs
-        ariaLabel={t('statusLabel')}
-        items={[
-          {
-            badge: String(documentCount),
-            id: 'documents',
-            label: t('tabs.documents'),
-            panel: (
-              <NfeDocumentTable
-                {...(companyId === undefined ? {} : { companyId })}
-                documents={viewModel.documents ?? []}
-                downloadErrorId={downloadErrorId}
-                downloadingDocumentId={downloadingDocumentId}
-                loading={workspace.isLoadingAllDocuments}
-                onDownloadXml={(document) => {
-                  void handleDownloadXml(document)
-                }}
-                permissions={permissions}
-              />
-            ),
-          },
-          {
-            badge: String(importCount),
-            id: 'imports',
-            label: t('tabs.imports'),
-            panel: (
-              <>
-                <div className={styles.toolbar} role="group" aria-label={t('mechanism.section')}>
-                  {NFE_IMPORT_MECHANISM_ORDER.map((option) => (
-                    <button
-                      aria-pressed={mechanism === option}
-                      className={
-                        mechanism === option ? styles.toolbarButtonActive : styles.toolbarButton
-                      }
-                      key={option}
-                      onClick={() => setMechanism(option)}
-                      type="button"
-                    >
-                      {t(`mechanism.${option}`)}
-                    </button>
-                  ))}
-                </div>
-
-                {mechanismView.showsUpload && (
-                  <NfeUploadPanel
-                    canImport={workspace.canImport}
-                    fileInputKey={`nfe-file-input-${fileInputVersion}`}
-                    onFileSelection={handleFileSelection}
-                    onUploadSubmit={handleUploadSubmit}
-                    selectedFiles={selectedFiles}
-                    uploadFileStatuses={uploadFileStatuses}
-                    uploadFailed={workspace.uploadMutation.isError}
-                    uploadPending={workspace.uploadMutation.isPending}
-                    uploadSucceeded={workspace.uploadMutation.isSuccess}
+      {viewModel.status === 'loading' ? (
+        <SkeletonGroup
+          className={styles.tableSkeletonGroup ?? ''}
+          label={t('statusMessage.loading')}
+        >
+          <div className={styles.tabBar}>
+            <Skeleton height="1.5rem" width="6rem" />
+            <Skeleton height="1.5rem" width="6rem" />
+          </div>
+          <div className={styles.tableSkeletonTable}>
+            <div className={styles.tableSkeletonRow}>
+              {DOCUMENT_TABLE_SKELETON_COLUMN_WIDTHS.map((width, columnIndex) => (
+                <Skeleton
+                  height="0.7rem"
+                  key={`header-${columnIndex}`}
+                  variant="text"
+                  width={width}
+                />
+              ))}
+            </div>
+            {Array.from({ length: DOCUMENT_TABLE_SKELETON_ROW_COUNT }, (_, rowIndex) => (
+              <div className={styles.tableSkeletonRow} key={`row-${rowIndex}`}>
+                {DOCUMENT_TABLE_SKELETON_COLUMN_WIDTHS.map((width, columnIndex) => (
+                  <Skeleton
+                    height="0.85rem"
+                    key={`cell-${rowIndex}-${columnIndex}`}
+                    variant="text"
+                    width={width}
                   />
-                )}
+                ))}
+              </div>
+            ))}
+          </div>
+        </SkeletonGroup>
+      ) : (
+        <>
+          <StatusMessage status={viewModel.status} />
 
-                {mechanismView.showsDistribution && (
-                  <NfeDistributionControl
-                    canImport={workspace.canImport}
-                    onCooldownEnd={() => {
-                      void workspace.distributionStatusQuery.refetch()
+          <Tabs
+            ariaLabel={t('statusLabel')}
+            items={[
+              {
+                badge: String(documentCount),
+                id: 'documents',
+                label: t('tabs.documents'),
+                panel: (
+                  <NfeDocumentTable
+                    {...(companyId === undefined ? {} : { companyId })}
+                    documents={viewModel.documents ?? []}
+                    downloadErrorId={downloadErrorId}
+                    downloadingDocumentId={downloadingDocumentId}
+                    loading={workspace.isLoadingAllDocuments}
+                    onDownloadXml={(document) => {
+                      void handleDownloadXml(document)
                     }}
-                    onRequest={handleDistributionRequest}
-                    pending={workspace.distributionMutation.isPending}
-                    pullControl={pullControl}
+                    permissions={permissions}
                   />
-                )}
+                ),
+              },
+              {
+                badge: String(importCount),
+                id: 'imports',
+                label: t('tabs.imports'),
+                panel: (
+                  <>
+                    <div
+                      className={styles.toolbar}
+                      role="group"
+                      aria-label={t('mechanism.section')}
+                    >
+                      {NFE_IMPORT_MECHANISM_ORDER.map((option) => (
+                        <button
+                          aria-pressed={mechanism === option}
+                          className={
+                            mechanism === option ? styles.toolbarButtonActive : styles.toolbarButton
+                          }
+                          key={option}
+                          onClick={() => setMechanism(option)}
+                          type="button"
+                        >
+                          {t(`mechanism.${option}`)}
+                        </button>
+                      ))}
+                    </div>
 
-                <NfeImportQueue
-                  canImport={workspace.canImport}
-                  filterActions={
-                    <div className={styles.filterZone}>
-                      <button
-                        aria-expanded={isFiltersOpen}
-                        className={styles.ghostAction}
-                        onClick={() => setIsFiltersOpen((open) => !open)}
-                        type="button"
-                      >
-                        <Icon name="filter" />
-                        {isFiltersOpen ? t('filters.toggleClose') : t('filters.toggle')}
-                      </button>
-                      {isFiltersOpen && (
-                        <div className={styles.filterPanel}>
-                          <label className={styles.fileField}>
-                            <span>{t('filters.statusEq')}</span>
-                            <Select
-                              ariaLabel={t('filters.statusEq')}
-                              clearable
-                              compact
-                              options={NFE_IMPORT_STATUS_ORDER.map((status) => ({
-                                label: t(`status.${status}`),
-                                value: status,
-                              }))}
-                              placeholder={t('filters.all')}
-                              value={statusEq}
-                              onChange={(value) => setStatusEq(value as NfeImportStatusFilter)}
-                            />
-                          </label>
-                          <label className={styles.fileField}>
-                            <span>{t('filters.statusNe')}</span>
-                            <Select
-                              ariaLabel={t('filters.statusNe')}
-                              clearable
-                              compact
-                              options={NFE_IMPORT_STATUS_ORDER.map((status) => ({
-                                label: t(`status.${status}`),
-                                value: status,
-                              }))}
-                              placeholder={t('filters.none')}
-                              value={statusNe}
-                              onChange={(value) => setStatusNe(value as NfeImportStatusFilter)}
-                            />
-                          </label>
-                          <label className={styles.fileField}>
-                            <span>{t('filters.advancedKey')}</span>
-                            <Select
-                              ariaLabel={t('filters.advancedKey')}
-                              clearable
-                              compact
-                              options={NFE_IMPORT_ADVANCED_FILTERS.map((filter) => ({
-                                label: filter,
-                                value: filter,
-                              }))}
-                              placeholder={t('filters.none')}
-                              value={advancedFilterKey}
-                              onChange={(value) =>
-                                setAdvancedFilterKey(value as keyof NfeImportFilters | '')
-                              }
-                            />
-                          </label>
-                          <label className={styles.fileField}>
-                            <span>{t('filters.advancedValue')}</span>
-                            <input
-                              onChange={(event) => setAdvancedFilterValue(event.target.value)}
-                              type="text"
-                              value={advancedFilterValue}
-                            />
-                          </label>
+                    {mechanismView.showsUpload && (
+                      <NfeUploadPanel
+                        canImport={workspace.canImport}
+                        fileInputKey={`nfe-file-input-${fileInputVersion}`}
+                        onFileSelection={handleFileSelection}
+                        onUploadSubmit={handleUploadSubmit}
+                        selectedFiles={selectedFiles}
+                        uploadFileStatuses={uploadFileStatuses}
+                        uploadFailed={workspace.uploadMutation.isError}
+                        uploadPending={workspace.uploadMutation.isPending}
+                        uploadSucceeded={workspace.uploadMutation.isSuccess}
+                      />
+                    )}
+
+                    {mechanismView.showsDistribution && (
+                      <NfeDistributionControl
+                        canImport={workspace.canImport}
+                        onCooldownEnd={() => {
+                          void workspace.distributionStatusQuery.refetch()
+                        }}
+                        onRequest={handleDistributionRequest}
+                        pending={workspace.distributionMutation.isPending}
+                        pullControl={pullControl}
+                      />
+                    )}
+
+                    <NfeImportQueue
+                      canImport={workspace.canImport}
+                      filterActions={
+                        <div className={styles.filterZone}>
                           <button
+                            aria-expanded={isFiltersOpen}
                             className={styles.ghostAction}
-                            onClick={clearFilters}
+                            onClick={() => setIsFiltersOpen((open) => !open)}
                             type="button"
                           >
-                            <Icon name="filter-clear" />
-                            {t('filters.clear')}
+                            <Icon name="filter" />
+                            {isFiltersOpen ? t('filters.toggleClose') : t('filters.toggle')}
                           </button>
+                          {isFiltersOpen && (
+                            <div className={styles.filterPanel}>
+                              <label className={styles.fileField}>
+                                <span>{t('filters.statusEq')}</span>
+                                <Select
+                                  ariaLabel={t('filters.statusEq')}
+                                  clearable
+                                  compact
+                                  options={NFE_IMPORT_STATUS_ORDER.map((status) => ({
+                                    label: t(`status.${status}`),
+                                    value: status,
+                                  }))}
+                                  placeholder={t('filters.all')}
+                                  value={statusEq}
+                                  onChange={(value) => setStatusEq(value as NfeImportStatusFilter)}
+                                />
+                              </label>
+                              <label className={styles.fileField}>
+                                <span>{t('filters.statusNe')}</span>
+                                <Select
+                                  ariaLabel={t('filters.statusNe')}
+                                  clearable
+                                  compact
+                                  options={NFE_IMPORT_STATUS_ORDER.map((status) => ({
+                                    label: t(`status.${status}`),
+                                    value: status,
+                                  }))}
+                                  placeholder={t('filters.none')}
+                                  value={statusNe}
+                                  onChange={(value) => setStatusNe(value as NfeImportStatusFilter)}
+                                />
+                              </label>
+                              <label className={styles.fileField}>
+                                <span>{t('filters.advancedKey')}</span>
+                                <Select
+                                  ariaLabel={t('filters.advancedKey')}
+                                  clearable
+                                  compact
+                                  options={NFE_IMPORT_ADVANCED_FILTERS.map((filter) => ({
+                                    label: filter,
+                                    value: filter,
+                                  }))}
+                                  placeholder={t('filters.none')}
+                                  value={advancedFilterKey}
+                                  onChange={(value) =>
+                                    setAdvancedFilterKey(value as keyof NfeImportFilters | '')
+                                  }
+                                />
+                              </label>
+                              <label className={styles.fileField}>
+                                <span>{t('filters.advancedValue')}</span>
+                                <input
+                                  onChange={(event) => setAdvancedFilterValue(event.target.value)}
+                                  type="text"
+                                  value={advancedFilterValue}
+                                />
+                              </label>
+                              <button
+                                className={styles.ghostAction}
+                                onClick={clearFilters}
+                                type="button"
+                              >
+                                <Icon name="filter-clear" />
+                                {t('filters.clear')}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  }
-                  hasMore={workspace.hasMoreImports}
-                  imports={viewModel.imports ?? []}
-                  loadingMore={workspace.isFetchingMoreImports}
-                  onLoadMore={workspace.fetchMoreImports}
-                  onReprocess={handleReprocess}
-                  reprocessError={workspace.reprocessMutation.isError}
-                  reprocessPending={workspace.reprocessMutation.isPending}
-                  reprocessSuccess={workspace.reprocessMutation.isSuccess}
-                  reprocessTargetId={reprocessTargetId}
-                />
-              </>
-            ),
-          },
-        ]}
-        onChange={(id) => setActiveTab(id === 'imports' ? 'imports' : 'documents')}
-        value={activeTab}
-      />
+                      }
+                      hasMore={workspace.hasMoreImports}
+                      imports={viewModel.imports ?? []}
+                      loadingMore={workspace.isFetchingMoreImports}
+                      onLoadMore={workspace.fetchMoreImports}
+                      onReprocess={handleReprocess}
+                      reprocessError={workspace.reprocessMutation.isError}
+                      reprocessPending={workspace.reprocessMutation.isPending}
+                      reprocessSuccess={workspace.reprocessMutation.isSuccess}
+                      reprocessTargetId={reprocessTargetId}
+                    />
+                  </>
+                ),
+              },
+            ]}
+            onChange={(id) => setActiveTab(id === 'imports' ? 'imports' : 'documents')}
+            value={activeTab}
+          />
+        </>
+      )}
     </main>
   )
 }

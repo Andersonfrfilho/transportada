@@ -7,6 +7,7 @@ import { CertificateUploadForm } from '../components/CertificateUploadForm.compo
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
+import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
   EMPTY_BILLING_DEFAULTS,
@@ -83,7 +84,6 @@ function SettingsStatus({ status }: Pick<CompanySettingsViewModel, 'status'>) {
   const { t } = useTranslation('companySettings')
   return (
     <>
-      {status === 'loading' && <p role="status">{t('loading')}</p>}
       {status === 'error' && <p role="alert">{t('error')}</p>}
       {status === 'empty' && <p role="status">{t('empty')}</p>}
     </>
@@ -152,6 +152,7 @@ function SaveStatus({
 
 function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
+  if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
   const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
   return (
     <section className={styles.workspaceDeck}>
@@ -186,9 +187,7 @@ function SettingsBody(props: SettingsBodyProps) {
             />
           </>
         )}
-        {!props.canManageSettings &&
-          props.viewModel.status !== 'loading' &&
-          props.viewModel.status !== 'error' && (
+        {!props.canManageSettings && props.viewModel.status !== 'error' && (
             <p className={styles.permissionBoundary}>{t('readOnly')}</p>
           )}
       </div>

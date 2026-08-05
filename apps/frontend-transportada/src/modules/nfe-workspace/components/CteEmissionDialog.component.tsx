@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
@@ -150,7 +151,40 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
 
         {!dialog.canEmit && <p className={styles.emptyState}>{t('cteEmission.forbidden')}</p>}
         {dialog.status === 'loading' && (
-          <p className={styles.emptyState}>{t('cteEmission.loading')}</p>
+          <SkeletonGroup className={styles.tableWrap} label={t('cteEmission.loading')}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('cteEmission.columns.documents')}</th>
+                  <th scope="col">{t('cteEmission.columns.baseAmount')}</th>
+                  <th scope="col">{t('cteEmission.columns.percentage')}</th>
+                  <th scope="col">{t('cteEmission.columns.profile')}</th>
+                  <th scope="col">{t('cteEmission.columns.amount')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }, (_, index) => (
+                  <tr key={index}>
+                    <td>
+                      <Skeleton variant="text" width="70%" />
+                    </td>
+                    <td>
+                      <Skeleton variant="text" width="60%" />
+                    </td>
+                    <td>
+                      <Skeleton variant="text" width="40%" />
+                    </td>
+                    <td>
+                      <Skeleton variant="text" width="80%" />
+                    </td>
+                    <td>
+                      <Skeleton variant="text" width="60%" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </SkeletonGroup>
         )}
         {messageKey !== null && <p className={styles.emptyState}>{t(messageKey)}</p>}
 

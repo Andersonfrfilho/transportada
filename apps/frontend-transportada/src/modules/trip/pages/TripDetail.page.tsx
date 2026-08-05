@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
-import { TripDetail } from '../components/TripDetail.component'
+import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { navigateToTrips } from '../shared/tripRoute.service'
@@ -34,7 +34,11 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
         <p className={styles.kicker}>{t('kicker')}</p>
         <h1>{t('detail.title')}</h1>
       </header>
-      {authQuery.isLoading ? <p className={styles.hint}>{t('loading')}</p> : null}
+      {authQuery.isLoading ? (
+        <div className={styles.deck}>
+          <TripDetailSkeleton />
+        </div>
+      ) : null}
       {authQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('error')}

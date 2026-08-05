@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import type { SelectOption } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { SELECTION_SEPARATOR } from '@/modules/shared/filterPill.service'
@@ -29,6 +30,7 @@ const EMPTY_CELL = '—'
 const READY_STATUSES: readonly string[] = ['authorized']
 const ALERT_STATUSES: readonly string[] = ['cancelled', 'failed', 'rejected']
 const AMOUNT_COLUMNS: readonly CteItemColumnKey[] = ['baseAmount', 'fiscalAmount', 'totalAmount']
+const ITEM_TABLE_SKELETON_ROW_COUNT = 4
 
 type CteItemTableProps = Readonly<{
   batchOptions: readonly SelectOption[]
@@ -125,6 +127,47 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
     return table.sort.direction === 'asc' ? t('sort.asc') : t('sort.desc')
   }
 
+  function renderColumnHeaders() {
+    return (
+      <tr>
+        <th scope="col">
+          <Checkbox
+            ariaLabel={t('cteItems.selectAll')}
+            checked={isPageSelected}
+            indeterminate={!isPageSelected && table.selectedIds.length > 0}
+            onChange={() => table.toggleAllSelection()}
+          />
+        </th>
+        {table.visibleColumns.map((column) => (
+          <th aria-sort={sortState(column)} key={column} scope="col">
+            <button className={styles.sortButton} onClick={() => table.toggleSort(column)} type="button">
+              {t(`cteItems.columns.${column}`)}
+              <span className={styles.sortIndicator} aria-hidden="true">
+                {sortIndicator(column)}
+              </span>
+              <span className={styles.srOnly}>{sortLabel(column)}</span>
+            </button>
+          </th>
+        ))}
+      </tr>
+    )
+  }
+
+  function renderSkeletonRow(rowIndex: number) {
+    return (
+      <tr key={rowIndex}>
+        <td>
+          <Skeleton height="var(--icon-size-md)" variant="block" width="var(--icon-size-md)" />
+        </td>
+        {table.visibleColumns.map((column) => (
+          <td key={column}>
+            <Skeleton variant="text" width={AMOUNT_COLUMNS.includes(column) ? '4rem' : '70%'} />
+          </td>
+        ))}
+      </tr>
+    )
+  }
+
   return (
     <section className={styles.panel} aria-labelledby="cte-item-table-title">
       <div className={styles.panelHead}>
@@ -179,62 +222,49 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
       <CteItemSelectionBar table={table} />
       <CteBillingDialog dialog={billingDialog} />
 
-      {table.itemsQuery.isLoading ? <p className={styles.hint}>{t('cteItems.loading')}</p> : null}
+      {table.itemsQuery.isLoading ? (
+        <SkeletonGroup className={styles.tableScroll} label={t('cteItems.loading')}>
+          <table className={styles.dataTable}>
+            <thead>{renderColumnHeaders()}</thead>
+            <tbody>
+              {Array.from({ length: ITEM_TABLE_SKELETON_ROW_COUNT }, (_, rowIndex) =>
+                renderSkeletonRow(rowIndex),
+              )}
+            </tbody>
+          </table>
+        </SkeletonGroup>
+      ) : null}
       {table.itemsQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('cteItems.error')}
         </p>
       ) : null}
 
-      <div className={styles.tableScroll}>
-        <table className={styles.dataTable}>
-          <thead>
-            <tr>
-              <th scope="col">
-                <Checkbox
-                  ariaLabel={t('cteItems.selectAll')}
-                  checked={isPageSelected}
-                  indeterminate={!isPageSelected && table.selectedIds.length > 0}
-                  onChange={() => table.toggleAllSelection()}
-                />
-              </th>
-              {table.visibleColumns.map((column) => (
-                <th aria-sort={sortState(column)} key={column} scope="col">
-                  <button
-                    className={styles.sortButton}
-                    onClick={() => table.toggleSort(column)}
-                    type="button"
-                  >
-                    {t(`cteItems.columns.${column}`)}
-                    <span className={styles.sortIndicator} aria-hidden="true">
-                      {sortIndicator(column)}
-                    </span>
-                    <span className={styles.srOnly}>{sortLabel(column)}</span>
-                  </button>
-                </th>
+      {table.itemsQuery.isLoading ? null : (
+        <div className={styles.tableScroll}>
+          <table className={styles.dataTable}>
+            <thead>{renderColumnHeaders()}</thead>
+            <tbody>
+              {table.visibleItems.map((item) => (
+                <tr aria-selected={table.selectedIds.includes(item.id)} key={item.id}>
+                  <td>
+                    <Checkbox
+                      ariaLabel={t('cteItems.select')}
+                      checked={table.selectedIds.includes(item.id)}
+                      onChange={() => table.toggleSelection(item.id)}
+                    />
+                  </td>
+                  {table.visibleColumns.map((column) => (
+                    <td key={column}>{renderCell(item, column)}</td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table.visibleItems.map((item) => (
-              <tr aria-selected={table.selectedIds.includes(item.id)} key={item.id}>
-                <td>
-                  <Checkbox
-                    ariaLabel={t('cteItems.select')}
-                    checked={table.selectedIds.includes(item.id)}
-                    onChange={() => table.toggleSelection(item.id)}
-                  />
-                </td>
-                {table.visibleColumns.map((column) => (
-                  <td key={column}>{renderCell(item, column)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {table.visibleItems.length === 0 && !table.itemsQuery.isLoading ? (
+      {!table.itemsQuery.isLoading && table.visibleItems.length === 0 ? (
         <p className={styles.hint}>{t('cteItems.empty')}</p>
       ) : null}
 
