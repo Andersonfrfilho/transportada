@@ -4,6 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
+import { profileFieldId } from '../shared/companySettingsFormValidation.service'
+import {
+  formatDigitGroups,
+  stripStateRegistrationMask,
+} from '../shared/companySettingsMask.service'
 import styles from '../styles/companySettings.module.css'
 
 type Profile = CompanySettingsUpdate['profile']
@@ -36,6 +41,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
 
 type CompanyProfileFieldsProps = Readonly<{
   disabled: boolean
+  invalidFields?: ReadonlySet<TextField>
   lookupPending: boolean
   lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: Readonly<{ field: TextField; value: string }>) => void
@@ -48,6 +54,7 @@ function ProfileTextField(
   props: Readonly<{
     disabled: boolean
     definition: FieldDefinition
+    invalid: boolean
     lookupPending?: boolean | undefined
     lookupStatus?: CompanyProfileFieldsProps['lookupStatus'] | undefined
     onChange: CompanyProfileFieldsProps['onChange']
@@ -57,28 +64,46 @@ function ProfileTextField(
 ) {
   const { t } = useTranslation('companySettings')
   const { field, inputMode, maximum, required } = props.definition
-  const normalizeValue = (value: string) =>
-    inputMode === 'numeric' ? value.replace(/\D/g, '').slice(0, maximum) : value
+  const normalizeValue = (value: string) => {
+    if (inputMode === 'numeric') return value.replace(/\D/g, '').slice(0, maximum)
+    if (field === 'stateRegistration') return stripStateRegistrationMask(value).slice(0, maximum)
+    return value
+  }
   const formatDisplayValue = (value: string) => {
     if (field === 'cnpj') return formatCnpj(value)
     if (field === 'postalCode') return formatPostalCode(value)
+    if (field === 'stateRegistration') return formatDigitGroups(value)
     return value
   }
+  const errorId = `${profileFieldId(field)}-error`
+  // O maxLength conta o texto exibido, e a máscara de IE acrescenta um ponto a cada três dígitos.
+  const displayMaxLength =
+    field === 'stateRegistration' ? formatDigitGroups('0'.repeat(maximum)).length : maximum
   const input = (
     <input
+      aria-describedby={props.invalid ? errorId : undefined}
+      aria-invalid={props.invalid}
+      id={profileFieldId(field)}
       inputMode={inputMode ?? 'text'}
-      maxLength={inputMode === 'numeric' ? undefined : maximum}
+      maxLength={inputMode === 'numeric' ? undefined : displayMaxLength}
       required={required}
       type={inputMode === 'email' ? 'email' : 'text'}
       value={formatDisplayValue(props.value)}
       onChange={(event) => props.onChange({ field, value: normalizeValue(event.target.value) })}
     />
   )
+  // O anúncio dos erros é do resumo no topo: uma live region por vez, não uma por campo inválido.
+  const errorMessage = props.invalid ? (
+    <span className={styles.fieldError} id={errorId}>
+      {t('validationRequiredField', { field: t(field) })}
+    </span>
+  ) : null
   if (field !== 'cnpj') {
     return (
       <label>
         <span>{t(field)}</span>
         {input}
+        {errorMessage}
       </label>
     )
   }
@@ -98,6 +123,7 @@ function ProfileTextField(
           <Icon name="search" />
         </button>
       </div>
+      {errorMessage}
       {props.lookupStatus !== 'idle' && (
         <span className={styles.fieldHint}>
           {t(props.lookupStatus === 'error' ? 'lookupError' : 'lookupSuccess')}
@@ -160,6 +186,7 @@ function TaxRegimeField(
 
 export function CompanyProfileFields({
   disabled,
+  invalidFields,
   lookupPending,
   lookupStatus,
   onChange,
@@ -176,6 +203,7 @@ export function CompanyProfileFields({
           <ProfileTextField
             disabled={disabled}
             definition={definition}
+            invalid={invalidFields?.has(definition.field) ?? false}
             key={definition.field}
             lookupPending={definition.field === 'cnpj' ? lookupPending : undefined}
             lookupStatus={definition.field === 'cnpj' ? lookupStatus : undefined}

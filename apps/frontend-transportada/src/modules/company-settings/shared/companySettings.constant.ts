@@ -1,10 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { CertificatePurpose } from './companySettings.types'
+import type { CertificatePurpose, CompanySettingsUpdate } from './companySettings.types'
+import type { PixKeyType } from './pixKeyType.service'
 
 export const CERTIFICATE_PURPOSE_LABEL_KEYS = {
   cte: 'certificatePurposeCte',
   mdfe: 'certificatePurposeMdfe',
 } as const satisfies Record<CertificatePurpose, string>
+
+export const PIX_KEY_TYPE_LABEL_KEYS = {
+  cpf: 'pixKeyTypeCpf',
+  cnpj: 'pixKeyTypeCnpj',
+  email: 'pixKeyTypeEmail',
+  phone: 'pixKeyTypePhone',
+  evp: 'pixKeyTypeEvp',
+} as const satisfies Record<PixKeyType, string>
 
 export const CTE_RETRY_DEFAULT_MAX_ATTEMPTS = 3
 export const CTE_RETRY_DEFAULT_BACKOFF_SECONDS: readonly number[] = [5, 30, 300]
@@ -34,3 +43,35 @@ export const EMPTY_MDFE_DEFAULTS = {
   insurerTaxId: '',
   pixKey: '',
 } as const
+
+export function createDefaultCompanySettings(): CompanySettingsUpdate {
+  return {
+    billing: { ...EMPTY_BILLING_DEFAULTS },
+    cte: { environment: 'homologation', nextNumber: '1', series: '1' },
+    cteRetry: {
+      backoffSeconds: [...CTE_RETRY_DEFAULT_BACKOFF_SECONDS],
+      maxAttempts: CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
+    },
+    expectedVersion: null,
+    mdfe: { ...EMPTY_MDFE_DEFAULTS },
+    profile: {
+      city: '',
+      cityIbgeCode: '',
+      cnpj: '',
+      complement: '',
+      district: '',
+      email: '',
+      legalName: '',
+      municipalRegistration: '',
+      number: '',
+      phone: '',
+      postalCode: '',
+      rntrc: '',
+      state: '',
+      stateRegistration: '',
+      street: '',
+      taxRegime: '3',
+      tradeName: '',
+    },
+  }
+}

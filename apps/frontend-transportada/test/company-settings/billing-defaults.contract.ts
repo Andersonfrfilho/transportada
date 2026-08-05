@@ -85,7 +85,7 @@ describe('company settings billing defaults contract', () => {
     for (const key of BILLING_LABEL_KEYS) expect(fields).toContain(`'${key}'`)
     expect(fields).not.toMatch(/#[0-9a-f]{3,8}\b/i)
     expect(settingsForm).toContain('<BillingDefaultsFields')
-    expect(settingsForm).toContain('EMPTY_BILLING_DEFAULTS')
+    expect(settingsForm).toContain('createDefaultCompanySettings')
     for (const field of Object.keys(BILLING_DEFAULTS)) {
       expect(client).toContain(`input.billing.${field}`)
     }

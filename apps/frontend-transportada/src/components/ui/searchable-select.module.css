@@ -1,0 +1,63 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.panel {
+  position: fixed;
+  z-index: 60;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  min-width: var(--floating-layer-min-width, 16rem);
+  max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  background: var(--color-graphite);
+  box-shadow: 0 var(--space-2) var(--space-5)
+    color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+}
+
+.searchField {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.searchIcon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  border: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: transparent;
+}
+
+.searchInput:focus {
+  outline: none;
+}
+
+.optionList {
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  font-size: 0.85rem;
+}

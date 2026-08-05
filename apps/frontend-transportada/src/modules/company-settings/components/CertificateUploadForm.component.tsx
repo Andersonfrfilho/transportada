@@ -55,6 +55,7 @@ type CertificateInputsProps = Readonly<{
   disabled: boolean
   fileName: string | null
   fileInput: RefObject<HTMLInputElement | null>
+  passwordInvalid: boolean
   passwordVisible: boolean
   onPickFile: () => void
   onSelectFileName: (value: string) => void
@@ -132,8 +133,9 @@ function CertificateInputs(props: CertificateInputsProps) {
       </label>
       <label>
         <span>{t('certificatePassword')}</span>
-        <div className={styles.passwordRevealField}>
+        <div aria-invalid={props.passwordInvalid} className={styles.passwordRevealField}>
           <input
+            aria-invalid={props.passwordInvalid}
             autoComplete="new-password"
             className={styles.passwordInput}
             disabled={props.disabled}
@@ -174,6 +176,8 @@ export function CertificateUploadForm({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [purpose, setPurpose] = useState<CertificatePurpose>('cte')
   const certificate = certificates[purpose]
+  const passwordInvalid =
+    status.key === 'certificateErrorMissingFields' || status.key === 'certificateErrorInvalid'
   const controllerRef = useRef<CertificateUploadController | null>(null)
   controllerRef.current ??= createCertificateUploadController({
     clearFileInput: () => {
@@ -234,6 +238,7 @@ export function CertificateUploadForm({
         disabled={disabled}
         fileName={fileName}
         fileInput={fileInput}
+        passwordInvalid={passwordInvalid}
         passwordVisible={passwordVisible}
         onPickFile={() => fileInput.current?.click()}
         onSelectFileName={setFileName}
@@ -242,7 +247,7 @@ export function CertificateUploadForm({
       />
       <button className={styles.primaryAction} disabled={disabled} type="button" onClick={submit}>
         <Icon name="shield" />
-        {t('replaceCertificate')}
+        {t(certificate === undefined ? 'registerCertificate' : 'replaceCertificate')}
       </button>
       {status.key === 'success' && (
         <div className={styles.certificateSavedRecord} role="status">
