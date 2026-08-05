@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# Push novo no mesmo PR cancela o run anterior. Chamado como gate de deploy, cada run fica no seu
+# próprio grupo — assim o gate nunca é cancelado nem enfileirado atrás de outro deploy.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -25,10 +31,11 @@ jobs:
       - run: bun run test
       - run: bun run build
 
+  # Sem `needs: quality`. Os dois jobs partem do mesmo commit e não trocam artefato, então rodam
+  # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: quality
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
