@@ -165,7 +165,11 @@ describe('/company-settings/logo security and CORS contract', () => {
     async (method) => {
       const fixture = await createCompanySettingsHttpFixture()
       const response = await fixture.handle(
-        preflightRequest({ headers: 'Authorization', method, pathname: COMPANY_SETTINGS_LOGO_PATH }),
+        preflightRequest({
+          headers: 'Authorization',
+          method,
+          pathname: COMPANY_SETTINGS_LOGO_PATH,
+        }),
       )
 
       expect(response.status).toBe(204)
