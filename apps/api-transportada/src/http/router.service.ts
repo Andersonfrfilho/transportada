@@ -44,12 +44,19 @@ type RouterRoute<TInput> = {
   readonly parse: (params: RouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
   readonly policy?: RouteAuthorizationPolicy
+  /**
+   * Convites/administração de usuários precisam distinguir id malformado (400, erro do cliente)
+   * de usuário de outra empresa (404, sem confirmar que existe) — 'raw' devolve o segmento decodificado
+   * como está e deixa o `parse` da rota validar o formato, ao invés do 404 padrão de segmento não-UUID.
+   */
+  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
 }
 
 type RegisteredRouterRoute = {
   readonly execute: (params: RouteParserParams) => Promise<Response>
   readonly method: string
   readonly pathname: string
+  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
   readonly policy?: RouteAuthorizationPolicy
 }
 
@@ -158,6 +165,7 @@ export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRoute
     },
     method: route.method,
     pathname: route.pathname,
+    ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
     ...(route.policy ? { policy: route.policy } : {}),
   })
 }
@@ -222,7 +230,11 @@ function matchDynamicRoute({
     return undefined
   }
 
-  const pathParameters = collectPathParameters({ parameters, requestSegments })
+  const pathParameters = collectPathParameters({
+    format: candidate.pathParameterFormat ?? 'canonicalUuid',
+    parameters,
+    requestSegments,
+  })
   if (pathParameters === undefined) return undefined
 
   return { pathParameters, route: candidate }
@@ -258,6 +270,7 @@ function staticSegmentsMatch({
 }
 
 function collectPathParameters(input: {
+  readonly format: 'canonicalUuid' | 'raw'
   readonly parameters: readonly PathParameterSegment[]
   readonly requestSegments: readonly string[]
 }): RouterPathParameters | undefined {
@@ -266,7 +279,8 @@ function collectPathParameters(input: {
     const identifier = input.requestSegments[parameter.index]
     if (identifier === undefined) return undefined
     const decodedIdentifier = decodeIdentifier(identifier)
-    if (decodedIdentifier === undefined || !isCanonicalUuid(decodedIdentifier)) return undefined
+    if (decodedIdentifier === undefined) return undefined
+    if (input.format === 'canonicalUuid' && !isCanonicalUuid(decodedIdentifier)) return undefined
     entries.push([parameter.name, decodedIdentifier])
   }
   return Object.freeze(Object.fromEntries(entries))

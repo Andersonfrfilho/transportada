@@ -58,6 +58,46 @@ export function createKeycloakAdminGateway(
   }
 }
 
+export type CreateIdentityUserInput = {
+  readonly email: string
+  readonly enabled: boolean
+  readonly username: string
+}
+
+export type CreateIdentityUserResult = {
+  readonly subject: string
+}
+
+export type IdentityAccessGatewayPort = {
+  createUser(input: CreateIdentityUserInput): Promise<CreateIdentityUserResult>
+  setEnabled(input: { readonly enabled: boolean; readonly userId: string }): Promise<void>
+  setPassword(input: {
+    readonly password: string
+    readonly temporary: boolean
+    readonly userId: string
+  }): Promise<void>
+}
+
+export function createIdentityAccessGateway(
+  config: KeycloakAdminGatewayConfig,
+  dependencies: KeycloakAdminGatewayDependencies = defaultDependencies,
+): IdentityAccessGatewayPort {
+  const client = dependencies.createClient(toKeycloakAdminConfig(config))
+
+  return {
+    async createUser({ email, enabled, username }): Promise<CreateIdentityUserResult> {
+      const created = await client.createUser({ email, emailVerified: false, enabled, username })
+      return { subject: created.id }
+    },
+    async setEnabled({ enabled, userId }): Promise<void> {
+      await client.setEnabled({ enabled, userId })
+    },
+    async setPassword({ password, temporary, userId }): Promise<void> {
+      await client.setPassword({ password, temporary, userId })
+    },
+  }
+}
+
 function toKeycloakAdminConfig({
   clientId,
   clientSecret,

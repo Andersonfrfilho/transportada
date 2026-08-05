@@ -84,12 +84,26 @@ import { AuthenticationService } from './identity/application/authentication.ser
 import { TenantContextService } from './identity/application/tenant-context.service'
 import { AuthorizationService } from './identity/application/authorization.service'
 import { createBootstrapFirstAdminUseCase } from './identity/application/bootstrap-first-admin.use-case'
+import { createActivateInvitationUseCase } from './identity/application/activate-invitation.use-case'
+import { createInviteCompanyUserUseCase } from './identity/application/invite-company-user.use-case'
+import { createListCompanyUsersUseCase } from './identity/application/list-company-users.use-case'
+import { createResendCompanyUserCodeUseCase } from './identity/application/resend-company-user-code.use-case'
+import { createChangeCompanyUserStatusUseCase } from './identity/application/change-company-user-status.use-case'
+import { createReplaceCompanyUserRolesUseCase } from './identity/application/replace-company-user-roles.use-case'
+import { createRemoveCompanyUserMembershipUseCase } from './identity/application/remove-company-user-membership.use-case'
 import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
 import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
+import { DrizzleCompanyUserRepository } from './identity/infrastructure/drizzle-company-user.repository'
+import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
-import { createKeycloakAdminGateway } from './identity/infrastructure/keycloak-admin.gateway'
+import {
+  createIdentityAccessGateway,
+  createKeycloakAdminGateway,
+} from './identity/infrastructure/keycloak-admin.gateway'
 import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
+import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
+import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
@@ -144,6 +158,7 @@ export function bootstrap(): Bun.Server<undefined> {
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+      keycloak: config.keycloak,
       vehicleLookup: config.vehicleLookup,
     }),
     tenantContext,
@@ -188,19 +203,32 @@ function createAnonymousRoutes({
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   if (config.companyId === undefined) return []
 
-  return createBootstrapRoutes({
-    bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
-      companyId: config.companyId,
-      identityGateway: createKeycloakAdminGateway({
-        clientId: config.keycloak.admin.clientId,
-        clientSecret: config.keycloak.admin.clientSecret,
+  return [
+    ...createBootstrapRoutes({
+      bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
+        companyId: config.companyId,
+        identityGateway: createKeycloakAdminGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
         issuer: config.keycloak.issuer,
+        repository: new DrizzleBootstrapRepository(database),
+        token: config.bootstrapToken,
       }),
-      issuer: config.keycloak.issuer,
-      repository: new DrizzleBootstrapRepository(database),
-      token: config.bootstrapToken,
     }),
-  })
+    ...createUserActivationRoutes({
+      activateInvitation: createActivateInvitationUseCase({
+        identityProvider: createIdentityAccessGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
+        invitations: new DrizzleInvitationRepository(database),
+        now: () => new Date(),
+      }),
+    }),
+  ]
 }
 
 type CreateApplicationRoutesParams = {
@@ -208,6 +236,7 @@ type CreateApplicationRoutesParams = {
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
+  readonly keycloak: ApiEnvironment['keycloak']
   readonly vehicleLookup: ApiEnvironment['vehicleLookup']
 }
 
@@ -216,6 +245,7 @@ function createApplicationRoutes({
   envelopeKeyRing,
   environment,
   idempotencyHmacKey,
+  keycloak,
   vehicleLookup,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
@@ -354,6 +384,35 @@ function createApplicationRoutes({
     secretService: createDigitalCertificateSecretService({
       envelopeProvider: createSecretEnvelopeProvider(envelopeKeyRing),
     }),
+  })
+  const companyUserRepository = new DrizzleCompanyUserRepository(database)
+  const invitationRepository = new DrizzleInvitationRepository(database)
+  const identityAccessGateway = createIdentityAccessGateway({
+    clientId: keycloak.admin.clientId,
+    clientSecret: keycloak.admin.clientSecret,
+    issuer: keycloak.issuer,
+  })
+  const inviteCompanyUser = createInviteCompanyUserUseCase({
+    identityGateway: identityAccessGateway,
+    invitations: invitationRepository,
+    issuer: keycloak.issuer,
+    now: () => new Date(),
+    repository: companyUserRepository,
+  })
+  const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
+  const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
+    invitations: invitationRepository,
+    now: () => new Date(),
+    repository: companyUserRepository,
+  })
+  const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
+    repository: companyUserRepository,
+  })
+  const replaceCompanyUserRoles = createReplaceCompanyUserRolesUseCase({
+    repository: companyUserRepository,
+  })
+  const removeCompanyUserMembership = createRemoveCompanyUserMembershipUseCase({
+    repository: companyUserRepository,
   })
   return [
     ...createCompanySettingsRoutes({
@@ -557,6 +616,14 @@ function createApplicationRoutes({
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),
       savePreferences: createSaveViewPreferencesUseCase({ repository: viewPreferencesRepository }),
+    }),
+    ...createUserAdministrationRoutes({
+      changeStatus: changeCompanyUserStatus,
+      invite: inviteCompanyUser,
+      list: listCompanyUsers,
+      removeMembership: removeCompanyUserMembership,
+      replaceRoles: replaceCompanyUserRoles,
+      resendCode: resendCompanyUserCode,
     }),
   ]
 }

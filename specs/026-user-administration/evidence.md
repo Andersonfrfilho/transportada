@@ -1137,4 +1137,68 @@ $ bun run --cwd apps/api-transportada typecheck → só os TS2305/TS2353/TS2307 
                                                   dos módulos que T000e, T009 e T010 ainda criam
 ```
 
+---
+
+## T010 — use-cases, rotas e gateway de convite/ativação conectados na composition root
+
+### Implementação
+
+Seis use-cases em `src/identity/application/`: `invite-company-user`, `list-company-users`,
+`resend-company-user-code`, `change-company-user-status`, `replace-company-user-roles`,
+`remove-company-user-membership` — todos dependendo só de `CompanyUserRepositoryPort` (e de
+`InvitationRepositoryPort`/`IdentityAccessGatewayPort` quando precisam de convite ou Keycloak).
+Mais `activate-invitation`, já existente de T009, na fronteira anônima.
+
+`createUserAdministrationRoutes` (seis rotas sob `users.manage`) e `createUserActivationRoutes`
+(rota anônima) em `src/identity/presentation/`. `createIdentityAccessGateway`
+(`src/identity/infrastructure/keycloak-admin.gateway.ts`) é o único ponto de contato com
+`@adatechnology/keycloak-admin` — nenhum outro arquivo importa o pacote diretamente.
+
+`main.ts` (composition root): `createApplicationRoutes` ganhou `keycloak: config.keycloak` e monta
+`DrizzleCompanyUserRepository` + `DrizzleInvitationRepository` + `createIdentityAccessGateway` uma
+vez, injetando nos seis use-cases; `createAnonymousRoutes` ganhou a rota de ativação ao lado da de
+bootstrap, ambas atrás do guard `config.companyId !== undefined` do ADR-0022.
+
+### Gates
+
+```
+$ bun run --cwd apps/api-transportada typecheck
+→ 0 erros
+
+$ bun test ./test/user-invitation-schema.contract.test.ts ./test/user-invitation-domain.contract.test.ts \
+           ./test/user-administration-http.contract.test.ts ./test/user-activation.contract.test.ts
+→ 69 pass, 0 fail
+
+$ bun run --cwd apps/api-transportada test
+→ 1647 pass, 3 skip, 0 fail, 7128 expect() calls, 77 files
+```
+
+T008 e T009 saíram do vermelho: `users.manage` tem seis rotas consumidoras
+(`GET/POST /company-users`, `POST .../invitation`, `PATCH .../status`, `PUT .../roles`,
+`DELETE /company-users/:id`) e a ativação anônima passou a existir de fato.
+
+Duas correções fora do escopo direto de T010, necessárias para `make check` fechar:
+
+- `apps/api-transportada/package.json`: o `script test` estava sem os quatro entrypoints de
+  T006/T008/T009/T010 (`user-invitation-schema`, `user-invitation-domain`,
+  `user-administration-http`, `user-activation`) — os contratos passavam isolados mas nunca rodavam
+  no gate do projeto. Adicionados.
+- `apps/api-transportada/test/database-migration/static-migration.contract.ts`: faltava
+  `20260805165955_identity_user_profiles` na lista travada de migrations — a migration (aditiva,
+  `identity_user_profiles` com FK para `identity_users`) já existia em disco de trabalho anterior
+  mas nunca tinha sido registrada no contrato estático.
+
+Uma terceira correção, de uma feature diferente (T000h, fase de bootstrap), estava impedindo
+`make check` de fechar no repositório inteiro: `main.tsx` e `i18n.service.ts` nunca chegaram a
+referenciar `FirstAccessPage`/`identityLocale` apesar do commit `13d6a1f` já ter adicionado a
+página, os hooks e os contratos que exigem essa ligação — regressão pré-existente, sem relação com
+T010, corrigida à parte (`main.tsx` passa a desviar para `/primeiro-acesso` antes de
+`initializeKeycloakAuth()`; `i18n.service.ts` registra `identity`/`identityEnglishLocale`).
+
+```
+$ make check
+→ format:check, lint, typecheck, test (api 1647 pass · worker 233 pass · cron 24 pass ·
+  frontend 707 pass) e build das quatro apps — verde de ponta a ponta
+```
+
 Nenhum erro novo veio da dependência.

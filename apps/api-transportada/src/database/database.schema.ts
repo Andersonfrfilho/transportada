@@ -73,6 +73,7 @@ import {
   cteEmissionProfiles,
 } from './cte-emission-profile.schema.js'
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
+import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { tripDocuments, tripDrivers, trips } from './trip.schema.js'
 
 export * from './fiscal.schema.js'
@@ -91,6 +92,7 @@ export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
 export * from './user-invitation.schema.js'
+export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
 
 export const databaseSchema = {
@@ -109,6 +111,7 @@ export const databaseSchema = {
   freightCalculations,
   freightRules,
   freightRuleVersions,
+  identityUserProfiles,
   identityUsers,
   idempotencyRecords,
   mdfeFiscalDocuments,

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 
 import type { CompanyRole } from '../../database/identity.schema.js'
 import type { UserInvitationStatus } from '../../database/user-invitation.schema.js'
@@ -64,6 +64,17 @@ type AssertCompanyKeepsAdministratorParams = {
 const REJECTED = { outcome: 'rejected' } as const
 
 const COMPANY_ADMIN_ROLE: CompanyRole = 'company-admin'
+
+const INVITATION_CODE_BYTES = 8
+
+/** Único gerador do código em claro: convite e reenvio compartilham para nunca divergir do hash. */
+export function generateInvitationCode(): string {
+  return randomBytes(INVITATION_CODE_BYTES).toString('hex')
+}
+
+export function hashInvitationCode(code: string): string {
+  return new Bun.CryptoHasher('sha256').update(code).digest('hex').toLowerCase()
+}
 
 const matchesCodeHash = (storedHash: string, attemptedHash: string): boolean => {
   const stored = Buffer.from(storedHash, 'hex')

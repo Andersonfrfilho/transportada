@@ -251,9 +251,21 @@ o convite (fases B–D). Staging pode ser resetado à vontade durante o percurso
       chega ao provedor, ordem senha → habilitar → concluir, tentativas). ⚠️ A parte HTTP também
       depende de `defineAnonymousRoute`/`anonymousRoutes` no router, que é entrega de T000e._
 
-- [ ] T010 Implementar use-cases, rotas e o gateway que encapsula `@adatechnology/keycloak-admin`
+- [x] T010 Implementar use-cases, rotas e o gateway que encapsula `@adatechnology/keycloak-admin`
       (nada de importar internals do pacote fora do gateway). Dependências: T009. Sucesso: T008 e
       T009 verdes; `users.manage` deixa de ser permissão sem consumidor.
+
+  _Feito: os seis use-cases de `src/identity/application/` (`invite-company-user`,
+  `list-company-users`, `resend-company-user-code`, `change-company-user-status`,
+  `replace-company-user-roles`, `remove-company-user-membership`) mais `activate-invitation`,
+  ligados a `createUserAdministrationRoutes`/`createUserActivationRoutes` e conectados na
+  composition root (`main.ts`) usando `createIdentityAccessGateway` (`keycloak-admin.gateway.ts`)
+  como único ponto de contato com `@adatechnology/keycloak-admin`. `DrizzleCompanyUserRepository` e
+  `DrizzleInvitationRepository` fecham a infraestrutura. T008 e T009 verdes:
+  `user-administration-http.contract.test.ts` e `user-activation.contract.test.ts` — 69 pass, 0
+  fail. `users.manage` agora tem seis rotas consumidoras. Suíte completa da API:
+  `bun run --cwd apps/api-transportada test` — 1647 pass, 3 skip, 0 fail. `make check` verde de
+  ponta a ponta (format, lint, typecheck, test, build) nas quatro apps do monorepo._
 
 - [ ] T011 Trilha de auditoria de toda ação sensível (convite, ativação, enable/disable, troca de
       perfil, remoção) com ator, alvo, IP e horário — e teste de que nem código, nem senha, nem

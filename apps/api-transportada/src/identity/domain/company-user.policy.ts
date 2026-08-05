@@ -1,0 +1,93 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
+import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+
+export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
+export type CompanyUserStatus = (typeof COMPANY_USER_STATUSES)[number]
+
+export type CompanyUserView = {
+  readonly contact: { readonly channel: ContactChannel; readonly masked: string }
+  readonly id: string
+  readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
+  readonly name: string
+  readonly roles: readonly CompanyRole[]
+  readonly status: CompanyUserStatus
+}
+
+type CompanyUserViewSource = {
+  readonly contactAddress: string
+  readonly contactChannel: ContactChannel
+  readonly membershipStatus: MembershipStatus
+  readonly name: string
+  readonly pendingInvitation: { readonly expiresAt: Date } | undefined
+  readonly roles: readonly CompanyRole[]
+  readonly userId: string
+}
+
+type DeriveCompanyUserStatusParams = {
+  readonly hasPendingInvitation: boolean
+  readonly membershipStatus: MembershipStatus
+}
+
+type MaskContactAddressParams = {
+  readonly channel: ContactChannel
+  readonly value: string
+}
+
+/**
+ * `invited` é derivado, não persistido: existe convite pendente ou não existe — o vínculo em si
+ * já nasce `active` (§ user-invitation.schema.ts) mesmo antes da pessoa trocar o código por senha.
+ */
+export function deriveCompanyUserStatus({
+  hasPendingInvitation,
+  membershipStatus,
+}: DeriveCompanyUserStatusParams): CompanyUserStatus {
+  if (hasPendingInvitation) return 'invited'
+  return membershipStatus === 'active' ? 'active' : 'suspended'
+}
+
+/** O endereço em claro nunca sai da API — só a versão mascarada chega à listagem. */
+export function maskContactAddress({ channel, value }: MaskContactAddressParams): string {
+  if (channel === 'email') return maskEmailAddress(value)
+
+  const visibleSuffixLength = 2
+  return `${value.slice(0, 1)}***${value.slice(-visibleSuffixLength)}`
+}
+
+/** Ponto único de conversão do registro cru do repositório para o corpo que a API devolve. */
+export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserView {
+  const status = deriveCompanyUserStatus({
+    hasPendingInvitation: source.pendingInvitation !== undefined,
+    membershipStatus: source.membershipStatus,
+  })
+
+  return {
+    contact: {
+      channel: source.contactChannel,
+      masked: maskContactAddress({ channel: source.contactChannel, value: source.contactAddress }),
+    },
+    id: source.userId,
+    name: source.name,
+    roles: source.roles,
+    status,
+    ...(source.pendingInvitation === undefined
+      ? {}
+      : {
+          invitation: {
+            expiresAt: source.pendingInvitation.expiresAt.toISOString(),
+            status: 'pending' as const,
+          },
+        }),
+  }
+}
+
+function maskEmailAddress(email: string): string {
+  const [local, domain] = email.split('@')
+  if (local === undefined || domain === undefined) return email
+
+  const separatorIndex = domain.indexOf('.')
+  const domainSuffix = separatorIndex === -1 ? '' : domain.slice(separatorIndex)
+  return `${local.slice(0, 1)}***@${domain.slice(0, 1)}***${domainSuffix}`
+}
