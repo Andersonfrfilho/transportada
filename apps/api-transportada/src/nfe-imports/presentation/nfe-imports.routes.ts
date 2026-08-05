@@ -9,6 +9,8 @@ import {
   API_NFE_IMPORTS_XML_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { ScheduledDistributionStatus } from '../../companies/application/get-scheduled-distribution-status.use-case.js'
+import { serializeScheduledDistributionStatus } from '../../companies/presentation/scheduled-distribution.serializer.js'
 import type {
   NfeDistributionStatus,
   NfeImportDetail,
@@ -142,6 +144,9 @@ type Dependencies = {
       readonly importId: string
     }): Promise<NfeImportDetail>
   }
+  readonly getScheduledDistribution: {
+    execute(input: { readonly companyId: string }): Promise<ScheduledDistributionStatus>
+  }
   readonly listImports: {
     execute(input: {
       readonly context: CompanyContext
@@ -214,10 +219,12 @@ export function createNfeImportRoutes(
     }),
     defineRoute<Record<string, never>>({
       async handle({ context }): Promise<Response> {
+        const [cursor, scheduled] = await Promise.all([
+          dependencies.getDistributionStatus.execute({ context: context.scope }),
+          dependencies.getScheduledDistribution.execute({ companyId: context.scope.companyId }),
+        ])
         return jsonResponse({
-          body: {
-            data: await dependencies.getDistributionStatus.execute({ context: context.scope }),
-          },
+          body: { data: { ...cursor, scheduled: serializeScheduledDistributionStatus(scheduled) } },
           status: 200,
         })
       },

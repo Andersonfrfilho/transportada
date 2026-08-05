@@ -13,6 +13,7 @@ import {
 import type { DisableScheduledDistributionResult } from '../application/enable-scheduled-distribution.port.js'
 import type { EnableScheduledDistributionResult } from '../application/enable-scheduled-distribution.port.js'
 import type { ScheduledDistributionStatus } from '../application/get-scheduled-distribution-status.use-case.js'
+import { serializeScheduledDistributionStatus } from './scheduled-distribution.serializer.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 
@@ -68,27 +69,8 @@ export function createScheduledDistributionRoutes(
 }
 
 function statusResponse(status: ScheduledDistributionStatus): Response {
-  return new Response(JSON.stringify({ data: serializeStatus(status) }), {
+  return new Response(JSON.stringify({ data: serializeScheduledDistributionStatus(status) }), {
     headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
     status: 200,
   })
-}
-
-function serializeStatus(status: ScheduledDistributionStatus): object {
-  return {
-    certificateExpiresAt: status.certificateExpiresAt ?? null,
-    eligible: status.eligible,
-    enabled: status.enabled,
-    ineligibilityReason: status.ineligibilityReason ?? null,
-    lastAutomationImport:
-      status.lastAutomationImport === undefined
-        ? null
-        : {
-            finishedAt: status.lastAutomationImport.finishedAt ?? null,
-            receivedCount: status.lastAutomationImport.receivedCount,
-            startedAt: status.lastAutomationImport.startedAt,
-            status: status.lastAutomationImport.status,
-          },
-    nextAllowedAt: status.nextAllowedAt ?? null,
-  }
 }

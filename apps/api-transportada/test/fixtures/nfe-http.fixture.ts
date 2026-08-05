@@ -9,10 +9,12 @@ import type { AuthenticatedIdentity } from '../../src/identity/domain/authentica
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
 import { ApiError } from '../../src/shared/api.error'
 import { HTTP_ERROR } from '../../src/shared/api.constant'
+import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import { COMPANY_CONTEXT, READ_ONLY_CONTEXT } from './nfe-import-application.fixture'
 import {
   DISTRIBUTION_RESPONSE,
   DISTRIBUTION_STATUS,
+  SCHEDULED_DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
   DOCUMENT_SUMMARY,
@@ -71,6 +73,7 @@ type CreateFixtureParams = {
   readonly reprocessError?: Error
   readonly requestDistributionError?: Error
   readonly requestUploadError?: Error
+  readonly scheduledDistributionStatus?: ScheduledDistributionStatus
 }
 
 export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Promise<{
@@ -140,6 +143,11 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         importGetCalls.push(structuredClone(input))
         if (params.getImportError) throw params.getImportError
         return params.importDetail ?? IMPORT_DETAIL
+      },
+    },
+    getScheduledDistribution: {
+      async execute() {
+        return params.scheduledDistributionStatus ?? SCHEDULED_DISTRIBUTION_STATUS
       },
     },
     listDocuments: {

@@ -1,7 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import {
+  COMPANY_ID,
   FAILED_IMPORT,
   IMPORT_ID,
   IMPORT_ITEM,
@@ -44,6 +46,21 @@ export const DISTRIBUTION_STATUS: NfeDistributionStatus = {
   nextAllowedAt: null,
   pullInProgress: false,
   ultNsu: '000000000000120',
+}
+
+export const SCHEDULED_DISTRIBUTION_STATUS: ScheduledDistributionStatus = {
+  certificateExpiresAt: '2027-01-31T23:59:59.000Z',
+  companyId: COMPANY_ID,
+  eligible: true,
+  enabled: true,
+  ineligibilityReason: undefined,
+  lastAutomationImport: {
+    finishedAt: '2026-07-22T13:41:00.000Z',
+    receivedCount: 12,
+    startedAt: '2026-07-22T13:40:00.000Z',
+    status: 'completed',
+  },
+  nextAllowedAt: undefined,
 }
 
 export const REPROCESS_RESPONSE: NfeImportSummary = {

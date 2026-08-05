@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 import type {
   NfeDistributionStatus,
@@ -120,6 +121,9 @@ export type NfeHttpRouteDependencies = {
   }
   readonly getImport: {
     execute(input: GetImportCall): Promise<NfeImportDetail>
+  }
+  readonly getScheduledDistribution: {
+    execute(input: { readonly companyId: string }): Promise<ScheduledDistributionStatus>
   }
   readonly listDocuments: {
     execute(input: ListDocumentsCall): Promise<{

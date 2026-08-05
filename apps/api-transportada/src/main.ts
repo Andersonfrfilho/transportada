@@ -295,6 +295,10 @@ function createApplicationRoutes({
     clock: { now: () => new Date() },
     reader: new DrizzleNfeDistributionStatusRepository(database),
   })
+  const getScheduledDistribution = createGetScheduledDistributionStatusUseCase({
+    clock: { now: () => new Date() },
+    port: new DrizzleScheduledDistributionStatusRepository(database),
+  })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
@@ -439,10 +443,7 @@ function createApplicationRoutes({
       enable: createEnableScheduledDistributionUseCase({
         unitOfWork: scheduledDistributionRepository,
       }),
-      getStatus: createGetScheduledDistributionStatusUseCase({
-        clock: { now: () => new Date() },
-        port: new DrizzleScheduledDistributionStatusRepository(database),
-      }),
+      getStatus: getScheduledDistribution,
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
@@ -603,6 +604,7 @@ function createApplicationRoutes({
     ...createNfeImportRoutes({
       getDistributionStatus,
       getImport,
+      getScheduledDistribution,
       listImports,
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
       requestDistribution: {
