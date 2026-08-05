@@ -34,13 +34,15 @@ export function CompanySettingsForm({
   onSave,
 }: CompanySettingsFormProps) {
   const { t } = useTranslation('companySettings')
-  const [settings, setSettings] = useState<CompanySettingsUpdate>(
+  const [initialSettings] = useState<CompanySettingsUpdate>(
     initialValue ?? createDefaultCompanySettings,
   )
+  const [settings, setSettings] = useState<CompanySettingsUpdate>(initialSettings)
   const [lookupPending, setLookupPending] = useState(false)
   const [lookupStatus, setLookupStatus] = useState<'error' | 'idle' | 'success'>('idle')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const errors = submitAttempted ? validateCompanySettings(settings) : []
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(initialSettings)
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitAttempted(true)
@@ -118,7 +120,7 @@ export function CompanySettingsForm({
         disabled={disabled}
         onChange={(billing) => setSettings({ ...settings, billing })}
       />
-      <button className={styles.primaryAction} disabled={disabled} type="submit">
+      <button className={styles.primaryAction} disabled={disabled || !isDirty} type="submit">
         <Icon name="save" />
         {t('save')}
       </button>
