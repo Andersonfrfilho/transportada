@@ -20,6 +20,7 @@ costuma ter mais de um CNPJ — e defesa em profundidade, não o modelo comercia
 ```
 apps/api-transportada/       Bun.serve + Drizzle + Zod (sem framework HTTP)
 apps/worker-transportada/    consumidor RabbitMQ + outbox relay
+apps/cron-transportada/      processo one-shot agendado (busca automática de NF-e)
 apps/frontend-transportada/  React 19 + Vite 7 (PWA)
 docs/spec/                   constitution, architecture, domain-model, fiscal-integration
 docs/adr/                    NNNN-titulo.md (0001..0010)
@@ -73,6 +74,12 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `context.companyId` e filtra por ele. Testes de isolamento em `test/*-schema/tenant-safety.contract.ts`
 são obrigatórios em qualquer mudança de query.
 
+**Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
+(`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
+`ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba
+Remota e a tela de configurações não contarem histórias diferentes. A paridade é contrato
+(`test/companies/scheduled-distribution-parity.contract.ts`).
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.
@@ -96,6 +103,25 @@ RabbitMQ e banco.
 ⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker
 (`src/database/processing.schema.ts`, `cte-issuance-execution.schema.ts`). Mudou tabela na API? confira
 a cópia do worker — migrations só rodam na API.
+
+## cron-transportada
+
+Processo **one-shot**: um CronJob sobe `src/main.ts` a cada janela, ele roda um ciclo e sai —
+não há loop nem agendador embutido. Sai com código 1 só quando alguma empresa falhou; não pegar o
+advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`max: 1`) para o lock de
+sessão valer por todas as transações do ciclo.
+
+`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `nfe-distribution-pull/job-registry.ts`
+mapeia o nome para a função. Hoje há um job só: `nfe.distribution.pull` — seleciona as empresas
+elegíveis e enfileira uma importação `source: 'distribution'`, `triggeredBy: 'automation'` na
+`processing_outbox`, reusando o relay e o consumidor de distribuição que já existiam.
+
+⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
+`api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
+vocabulário de razões, duas apps que não importam código uma da outra. Mudou a regra de um lado?
+mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda a paridade do corpo
+servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
+vocabulário no cron.
 
 ## frontend-transportada
 

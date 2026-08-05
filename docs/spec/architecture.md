@@ -3,7 +3,7 @@
 ## Decisão
 
 O TransportAdA é um monorepo de aplicações separáveis. O repositório facilita o
-desenvolvimento conjunto, mas web, API e worker possuem composition root,
+desenvolvimento conjunto, mas web, API, worker e cron possuem composition root,
 dependências, scripts, artefato e ciclo de deploy próprios. Nenhuma aplicação
 importa código-fonte de outra.
 
@@ -16,6 +16,8 @@ flowchart LR
   O --> Q[(RabbitMQ)]
   Q --> K[Worker Bun]
   K --> P
+  C[Cron Bun one-shot] --> P
+  C --> O
   A --> S[(S3 compatível)]
   K --> S
   K --> F[Ada fiscal gateway]
@@ -23,6 +25,10 @@ flowchart LR
   A --> E[SSE ou polling]
   E --> W
 ```
+
+O cron não fala com o broker nem com o SEFAZ: ele grava a mesma linha de
+importação que a API gravaria e deixa o outbox e o worker seguirem o caminho de
+sempre. Um trilho a menos para divergir.
 
 ## Tecnologias
 
@@ -32,6 +38,7 @@ flowchart LR
 | Monorepo          | Bun workspaces                   | Raiz apenas orquestra apps independentes         |
 | API               | `Bun.serve` + Zod + OpenAPI      | uWebSockets é interno ao Bun; sem addon V8       |
 | Worker            | Bun + consumidor RabbitMQ        | Manual ack, prefetch, retry, DLX e DLQ           |
+| Cron              | Bun one-shot + advisory lock     | Um ciclo por execução; sem agendador embutido    |
 | Web               | React + Vite + `shadcn/ui`       | SPA/PWA; sem SSR no MVP                          |
 | Estado remoto web | TanStack Query                   | Sem fetch manual em `useEffect`                  |
 | UI                | tokens, i18n e `shadcn/ui`       | mobile-first; sem textos/cores soltos            |
@@ -56,6 +63,7 @@ transportada/
 ├── apps/
 │   ├── api-transportada/
 │   ├── worker-transportada/
+│   ├── cron-transportada/
 │   └── frontend-transportada/
 ├── docs/
 ├── specs/
@@ -77,6 +85,23 @@ Código exclusivo de uma aplicação permanece nela. Uma abstração só vira
 biblioteca Ada quando há consumo entre aplicações ou reuso comprovado. Código
 compartilhado usa pacote publicado e versionado; `workspace:*`, `file:` e
 imports relativos entre repositórios não entram em manifests commitados.
+
+### Regra duplicada por cópia: elegibilidade da busca automática
+
+A regra que decide se uma empresa pode ter notas buscadas automaticamente vive
+duas vezes: `api-transportada/src/companies/domain/distribution-eligibility.policy.ts`
+responde "por que está bloqueado" para a tela, e
+`cron-transportada/src/nfe-distribution-pull/domain/distribution-eligibility.policy.ts`
+decide o descarte no ciclo. É cópia deliberada — a alternativa seria publicar um
+pacote Ada por uma policy de trinta linhas, ou fazer o cron chamar a API, o que
+acopla o agendado ao HTTP para nada.
+
+O preço é o de sempre: mudar de um lado e esquecer o outro faz a tela prometer
+uma busca que o cron descarta. Dois contratos seguram isso — a paridade do corpo
+servido pelas duas rotas da API
+(`test/companies/scheduled-distribution-parity.contract.ts`) e o vocabulário de
+razões no cron (`test/nfe-distribution-pull/eligibility-reasons.contract.ts`).
+Quando houver um terceiro consumidor, a cópia deixa de se pagar e vira pacote.
 
 ## Dados e concorrência
 

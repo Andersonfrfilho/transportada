@@ -38,5 +38,5 @@ foram resolvidos com o usuário (ver `spec.md` § Decisões).
       próxima janela e atalho para configurações quando desligado.
 - [ ] T011 Deploy em staging + ligar o opt-in pela UI + aguardar uma janela do cron; anexar em
       `evidence.md` o log de enfileiramento e a primeira nota recebida.
-- [ ] T012 Atualizar `CLAUDE.md` (rotas novas) e `docs/spec/architecture.md` se a duplicação da
+- [x] T012 Atualizar `CLAUDE.md` (rotas novas) e `docs/spec/architecture.md` se a duplicação da
       policy exigir nota — regra §14 do code-standart.
