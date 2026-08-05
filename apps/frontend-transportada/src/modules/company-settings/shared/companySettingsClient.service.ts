@@ -12,6 +12,10 @@ import {
   isSettingsResponse,
   toSafeCertificate,
 } from './companySettingsResponse.validation'
+import {
+  isScheduledDistributionResponse,
+  type ScheduledDistributionStatus,
+} from './scheduledDistribution.validation'
 import type {
   CertificatePurpose,
   CompanyLogoImage,
@@ -37,6 +41,7 @@ export type {
 } from './companySettings.types'
 
 const COMPANY_LOGO_PATH = '/company-settings/logo'
+const COMPANY_SCHEDULED_DISTRIBUTION_PATH = '/company-settings/scheduled-distribution'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -56,8 +61,13 @@ class CompanySettingsRequestError extends Error {
   }
 }
 
+export type { ScheduledDistributionStatus } from './scheduledDistribution.validation'
+
 export type CompanySettingsClient = Readonly<{
+  disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
+  enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getLogo: () => Promise<CompanyLogoImage | null>
+  getScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getSettings: () => Promise<CompanySettingsResponse>
   listCertificates: (
     input: Readonly<{ cursor?: string; limit: number }>,
@@ -359,8 +369,29 @@ async function updateSettings(
   return response
 }
 
+async function requestScheduledDistribution(
+  input: Readonly<{ dependencies: ClientDependencies; method: string }>,
+): Promise<ScheduledDistributionStatus> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(`${input.dependencies.apiBaseUrl}${COMPANY_SCHEDULED_DISTRIBUTION_PATH}`, {
+      cache: 'no-store',
+      headers: { authorization: `Bearer ${accessToken}` },
+      method: input.method,
+    }),
+  })
+  if (!isScheduledDistributionResponse(response))
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
+  disableScheduledDistribution: () =>
+    requestScheduledDistribution({ dependencies, method: 'DELETE' }),
+  enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),
   getLogo: () => readLogo(dependencies),
+  getScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'GET' }),
   getSettings: () => readSettings(dependencies),
   listCertificates: (request) => readCertificates({ dependencies, request }),
   lookupProfileByCnpj: (cnpj) => lookupProfileByCnpj({ cnpj, dependencies }),

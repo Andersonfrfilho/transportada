@@ -599,6 +599,13 @@
   color: var(--color-ready);
 }
 
+.scheduledDistributionState {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-fog);
+}
+
 .certificateSavedRecord {
   display: grid;
   gap: var(--space-1);
