@@ -49,6 +49,11 @@ export class ScheduledDistributionProvisioningFixture
         throw new Error('distribution settings persistence unavailable')
       this.distributionSettings.set(companyId, { enabled: true })
     },
+    disableScheduledDistribution: async ({ companyId }) => {
+      if (this.failOn === 'settings')
+        throw new Error('distribution settings persistence unavailable')
+      this.distributionSettings.set(companyId, { enabled: false })
+    },
   }
 
   async execute<TResult>(

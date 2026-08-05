@@ -13,6 +13,12 @@ import { createListDigitalCertificatesUseCase } from './companies/application/li
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
+import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
+import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
+import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
+import { createScheduledDistributionRoutes } from './companies/presentation/scheduled-distribution.routes.js'
 import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
@@ -251,6 +257,7 @@ function createApplicationRoutes({
   typeof createCompanySettingsRoutes
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
+  const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -423,6 +430,18 @@ function createApplicationRoutes({
       updateSettings: createUpdateCompanySettingsUseCase({
         fingerprintService,
         unitOfWork: settingsRepository,
+      }),
+    }),
+    ...createScheduledDistributionRoutes({
+      disable: createDisableScheduledDistributionUseCase({
+        unitOfWork: scheduledDistributionRepository,
+      }),
+      enable: createEnableScheduledDistributionUseCase({
+        unitOfWork: scheduledDistributionRepository,
+      }),
+      getStatus: createGetScheduledDistributionStatusUseCase({
+        clock: { now: () => new Date() },
+        port: new DrizzleScheduledDistributionStatusRepository(database),
       }),
     }),
     ...createCompanyLogoRoutes({

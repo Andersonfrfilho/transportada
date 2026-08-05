@@ -8,7 +8,14 @@ export type EnableScheduledDistributionResult = {
   readonly systemActorUserId: string
 }
 
+export type DisableScheduledDistributionResult = {
+  readonly companyId: string
+  readonly scheduledDistributionEnabled: false
+}
+
 export type ScheduledDistributionProvisioningTransactionPort = {
+  /** Preserva membership e cursor: religar não pode reprocessar NSU já consumido. */
+  disableScheduledDistribution(input: { readonly companyId: string }): Promise<void>
   enableScheduledDistribution(input: { readonly companyId: string }): Promise<void>
   ensureCompanyMembership(input: { readonly companyId: string }): Promise<void>
   ensureSystemActor(): Promise<void>
