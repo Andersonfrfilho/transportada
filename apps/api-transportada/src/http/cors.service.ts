@@ -175,6 +175,7 @@ function isAllowedPreflight({
     isBootstrapPreflight({ frontendOrigin, pathname, request }) ||
     isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
     isCompanyLogoPreflight({ frontendOrigin, pathname, request }) ||
+    isMultipartUploadPreflight({ frontendOrigin, pathname, request }) ||
     isDigitalCertificatesPreflight({ frontendOrigin, pathname, request }) ||
     isWorkspaceResourcePreflight({ frontendOrigin, pathname, request })
   )
@@ -195,10 +196,19 @@ function isBootstrapPreflight({
 }
 
 function hasOnlyBootstrapHeaders(value: string | null): boolean {
+  return hasExactHeaders({ expected: ['authorization', 'content-type'], value })
+}
+
+type HasExactHeadersParams = {
+  readonly expected: readonly string[]
+  readonly value: string | null
+}
+
+function hasExactHeaders({ expected, value }: HasExactHeadersParams): boolean {
   if (value === null) return false
 
   const requestedHeaders = value.split(',').map((header) => header.trim().toLowerCase())
-  const expectedHeaders = new Set(['authorization', 'content-type'])
+  const expectedHeaders = new Set(expected)
   return (
     requestedHeaders.length === expectedHeaders.size &&
     new Set(requestedHeaders).size === requestedHeaders.length &&
@@ -255,6 +265,26 @@ function isCompanyLogoPreflight({
       requestedMethod === 'PUT' ||
       requestedMethod === 'DELETE') &&
     hasOnlyAuthorizationHeader(request.headers.get('access-control-request-headers'))
+  )
+}
+
+/**
+ * `multipart/form-data` é content-type safelisted: o navegador não lista `Content-Type` no
+ * preflight de um upload, só `Authorization` e a chave de idempotência.
+ */
+function isMultipartUploadPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  return (
+    (pathname === API_DIGITAL_CERTIFICATES_PATH || pathname === API_NFE_IMPORTS_XML_PATH) &&
+    request.headers.get('origin') === frontendOrigin &&
+    request.headers.get('access-control-request-method') === 'POST' &&
+    hasExactHeaders({
+      expected: ['authorization', 'idempotency-key'],
+      value: request.headers.get('access-control-request-headers'),
+    })
   )
 }
 

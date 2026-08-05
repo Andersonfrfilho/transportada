@@ -183,6 +183,52 @@ describe('API CORS contract', () => {
   })
 
   test.each([
+    ['/digital-certificates', 'GET, POST, DELETE'],
+    ['/nfe-imports/xml', 'POST'],
+  ])(
+    'answers the multipart upload preflight without Content-Type: %s',
+    async (pathname, allowedMethods) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          pathname,
+          requestedHeaders: 'Authorization, Idempotency-Key',
+          requestedMethod: 'POST',
+        }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe(allowedMethods)
+      expect(response.headers.get('access-control-allow-headers')).toContain('Idempotency-Key')
+      expect(fixture.authenticationCalls()).toBe(0)
+    },
+  )
+
+  test.each([
+    ['/digital-certificates', 'POST', 'Idempotency-Key'],
+    ['/digital-certificates', 'POST', 'Authorization, Idempotency-Key, X-Company-Id'],
+    ['/digital-certificates', 'PATCH', 'Authorization, Idempotency-Key'],
+    ['/nfe-imports/xml', 'POST', 'Authorization'],
+    ['/nfe-imports/xml', 'PUT', 'Authorization, Idempotency-Key'],
+    ['/company-settings', 'POST', 'Authorization, Idempotency-Key'],
+  ])(
+    'refuses a multipart-shaped preflight outside the upload boundary: %s %s %s',
+    async (pathname, requestedMethod, requestedHeaders) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({ pathname, requestedHeaders, requestedMethod }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      expect(fixture.authenticationCalls()).toBe(0)
+    },
+  )
+
+  test.each([
     [`${BILLING_INVOICE_PATH}/documents`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
     [`${BILLING_INVOICE_PATH}/cancel`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
     ['/billing/invoices/preview', 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
