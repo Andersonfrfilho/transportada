@@ -44,6 +44,7 @@ export async function runCronRuntime(
         eligibleCount: result.eligibleCount,
         enqueuedCount: result.enqueuedCount,
         failedCount: result.failedCount,
+        ineligibleCounts: result.ineligibleCounts,
         skippedCount: result.skippedCount,
       })
       return result.failedCount > 0 ? EXIT_FAILURE : EXIT_SUCCESS

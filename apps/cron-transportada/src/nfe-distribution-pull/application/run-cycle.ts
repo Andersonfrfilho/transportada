@@ -10,12 +10,17 @@ import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
 import type { CronLogger } from '../../config/cron.types.js'
 import type { AdvisoryLockPort } from './advisory-lock.port.js'
 import type { EnqueueDistributionUseCase } from './enqueue-distribution.use-case.js'
-import type { SelectEligibleCompaniesUseCase } from './select-eligible-companies.use-case.js'
+import {
+  createEmptyIneligibleCounts,
+  type DistributionIneligibleCounts,
+  type SelectEligibleCompaniesUseCase,
+} from './select-eligible-companies.use-case.js'
 
 export type DistributionPullCycleResult = {
   readonly acquiredLock: boolean
   readonly eligibleCount: number
   readonly enqueuedCount: number
+  readonly ineligibleCounts: DistributionIneligibleCounts
   readonly skippedCount: number
   readonly failedCount: number
 }
@@ -37,6 +42,7 @@ const SKIPPED_RESULT: DistributionPullCycleResult = {
   eligibleCount: 0,
   enqueuedCount: 0,
   failedCount: 0,
+  ineligibleCounts: createEmptyIneligibleCounts(),
   skippedCount: 0,
 }
 
@@ -60,7 +66,7 @@ export async function runDistributionPullCycle(
 async function enqueueEligibleCompanies(
   dependencies: DistributionPullCycleDependencies,
 ): Promise<DistributionPullCycleResult> {
-  const eligible = await dependencies.selectEligibleUseCase.execute({
+  const { eligible, ineligibleCounts } = await dependencies.selectEligibleUseCase.execute({
     environment: dependencies.environment,
     now: dependencies.now,
   })
@@ -93,6 +99,7 @@ async function enqueueEligibleCompanies(
     eligibleCount: eligible.length,
     enqueuedCount,
     failedCount,
+    ineligibleCounts,
     skippedCount,
   }
 }

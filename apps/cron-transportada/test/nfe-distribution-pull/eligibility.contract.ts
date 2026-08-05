@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { CronLogger } from '../../src/config/cron.types.js'
 import type {
   DistributionCandidate,
   DistributionCandidateCertificate,
@@ -41,11 +42,16 @@ function createSource(
   }
 }
 
+const SILENT_LOGGER: CronLogger = { error: () => {}, info: () => {}, warn: () => {} }
+
 async function selectEligibleIds(
   candidates: readonly DistributionCandidate[],
 ): Promise<readonly string[]> {
-  const useCase = createSelectEligibleCompaniesUseCase({ source: createSource(candidates) })
-  const eligible = await useCase.execute({ environment: 'homologation', now: NOW })
+  const useCase = createSelectEligibleCompaniesUseCase({
+    logger: SILENT_LOGGER,
+    source: createSource(candidates),
+  })
+  const { eligible } = await useCase.execute({ environment: 'homologation', now: NOW })
   return eligible.map((company) => company.companyId)
 }
 
@@ -56,11 +62,11 @@ describe('scheduled distribution eligibility', () => {
 
   test('carries the requested environment on every eligible company', async () => {
     const useCase = createSelectEligibleCompaniesUseCase({
+      logger: SILENT_LOGGER,
       source: createSource([eligibleCandidate(COMPANY_A)]),
     })
-    expect(await useCase.execute({ environment: 'production', now: NOW })).toEqual([
-      { companyId: COMPANY_A, environment: 'production' },
-    ])
+    const { eligible } = await useCase.execute({ environment: 'production', now: NOW })
+    expect(eligible).toEqual([{ companyId: COMPANY_A, environment: 'production' }])
   })
 
   test('skips a company still inside the anti-656 cooldown window', async () => {
