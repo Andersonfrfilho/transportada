@@ -12,11 +12,11 @@ genérico do tamanho errado ainda pisca, só que mais devagar.
 
 ## Props de `Skeleton`
 
-| Prop      | Tipo                             | Papel                                                      |
-| --------- | -------------------------------- | ----------------------------------------------------------- |
-| `variant` | `'text' \| 'block' \| 'circle'`  | `text` para linha de texto, `circle` para avatar/ícone, `block` para retângulo genérico (padrão). |
-| `width`   | `string`                         | Qualquer valor CSS válido (`'100%'`, `'8rem'`, `var(--space-16)`) — dimensione pelo que a barra substitui, não por um valor arbitrário. |
-| `height`  | `string`                         | Idem. Combine com `--field-height`/`--field-height-compact` quando o esqueleto está no lugar de um campo. |
+| Prop      | Tipo                            | Papel                                                                                                                                   |
+| --------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `variant` | `'text' \| 'block' \| 'circle'` | `text` para linha de texto, `circle` para avatar/ícone, `block` para retângulo genérico (padrão).                                       |
+| `width`   | `string`                        | Qualquer valor CSS válido (`'100%'`, `'8rem'`, `var(--space-16)`) — dimensione pelo que a barra substitui, não por um valor arbitrário. |
+| `height`  | `string`                        | Idem. Combine com `--field-height`/`--field-height-compact` quando o esqueleto está no lugar de um campo.                               |
 
 `SkeletonGroup` embrulha a composição inteira com `role="status"` e `aria-label` (reuse a chave de
 locale já existente, ex. `t('loading')`) — é o único ponto que anuncia "carregando" para leitor de
@@ -37,19 +37,21 @@ tela; as barras individuais ficam `aria-hidden` para não duplicar o anúncio.
 ## Exemplo
 
 ```tsx
-{query.isLoading ? (
-  <SkeletonGroup className={styles.tableBody} label={t('loading')}>
-    {Array.from({ length: 4 }, (_, index) => (
-      <div className={styles.skeletonRow} key={index}>
-        <Skeleton variant="text" width="60%" />
-        <Skeleton variant="text" width="30%" />
-        <Skeleton height="var(--field-height-compact)" width="20%" />
-      </div>
-    ))}
-  </SkeletonGroup>
-) : (
-  <RealTable items={query.data} />
-)}
+{
+  query.isLoading ? (
+    <SkeletonGroup className={styles.tableBody} label={t('loading')}>
+      {Array.from({ length: 4 }, (_, index) => (
+        <div className={styles.skeletonRow} key={index}>
+          <Skeleton variant="text" width="60%" />
+          <Skeleton variant="text" width="30%" />
+          <Skeleton height="var(--field-height-compact)" width="20%" />
+        </div>
+      ))}
+    </SkeletonGroup>
+  ) : (
+    <RealTable items={query.data} />
+  )
+}
 ```
 
 `<input type="checkbox">`, `<select>` e `<svg>` cru são proibidos em `src/**/*.tsx` pelos seus

@@ -22,7 +22,7 @@ describe('design system skeleton contract', () => {
     expect(component).toContain('export function Skeleton(')
     expect(component).toContain('export function SkeletonGroup(')
     expect(component).toContain('variant')
-    expect(component).toContain("aria-hidden=\"true\"")
+    expect(component).toContain('aria-hidden="true"')
     expect(component).toContain('role="status"')
   })
 

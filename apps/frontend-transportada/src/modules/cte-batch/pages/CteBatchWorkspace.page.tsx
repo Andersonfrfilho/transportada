@@ -89,7 +89,11 @@ export function CteBatchWorkspacePage() {
             <thead>
               <tr>
                 <th scope="col">
-                  <Skeleton height="var(--icon-size-md)" variant="block" width="var(--icon-size-md)" />
+                  <Skeleton
+                    height="var(--icon-size-md)"
+                    variant="block"
+                    width="var(--icon-size-md)"
+                  />
                 </th>
                 {table.visibleColumns.map((column) => (
                   <th key={column} scope="col">
@@ -103,7 +107,11 @@ export function CteBatchWorkspacePage() {
               {Array.from({ length: BATCH_TABLE_SKELETON_ROW_COUNT }, (_, rowIndex) => (
                 <tr key={rowIndex}>
                   <td>
-                    <Skeleton height="var(--icon-size-md)" variant="block" width="var(--icon-size-md)" />
+                    <Skeleton
+                      height="var(--icon-size-md)"
+                      variant="block"
+                      width="var(--icon-size-md)"
+                    />
                   </td>
                   {table.visibleColumns.map((column) => (
                     <td key={column}>

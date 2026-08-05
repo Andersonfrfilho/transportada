@@ -188,8 +188,8 @@ function SettingsBody(props: SettingsBodyProps) {
           </>
         )}
         {!props.canManageSettings && props.viewModel.status !== 'error' && (
-            <p className={styles.permissionBoundary}>{t('readOnly')}</p>
-          )}
+          <p className={styles.permissionBoundary}>{t('readOnly')}</p>
+        )}
       </div>
       <aside className={styles.secondaryColumn}>
         <section className={styles.signalPanel}>

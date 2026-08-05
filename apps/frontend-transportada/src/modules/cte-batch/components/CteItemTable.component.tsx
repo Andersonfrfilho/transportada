@@ -140,7 +140,11 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
         </th>
         {table.visibleColumns.map((column) => (
           <th aria-sort={sortState(column)} key={column} scope="col">
-            <button className={styles.sortButton} onClick={() => table.toggleSort(column)} type="button">
+            <button
+              className={styles.sortButton}
+              onClick={() => table.toggleSort(column)}
+              type="button"
+            >
               {t(`cteItems.columns.${column}`)}
               <span className={styles.sortIndicator} aria-hidden="true">
                 {sortIndicator(column)}
