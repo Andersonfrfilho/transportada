@@ -152,3 +152,14 @@ export const MANIFEST_CREATE_BODY_KEYS = [
   'tripStartedAt',
   'vehicleId',
 ] as const
+
+/** `POST /trips/:id/mdfe-manifests` deriva veículo e motoristas da viagem e recusa os dois no corpo. */
+export const TRIP_MANIFEST_CREATE_BODY_KEYS = MANIFEST_CREATE_BODY_KEYS.filter(
+  (key) => key !== 'driverIds' && key !== 'vehicleId',
+)
+
+export const TRIPS_PATH = '/trips'
+
+export function buildTripManifestPath(tripId: string): string {
+  return `${TRIPS_PATH}/${encodeURIComponent(tripId)}${MDFE_MANIFESTS_PATH}`
+}

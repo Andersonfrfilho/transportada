@@ -25,8 +25,12 @@ import {
 } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
 import { MdfeManifestWorkspacePage } from '@/modules/mdfe-manifest/pages/MdfeManifestWorkspace.page'
+import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
+import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
+import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
+import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
 const queryClient = new QueryClient({
@@ -58,6 +62,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'mdfe-manifest'
     | 'nfe'
     | 'operations'
+    | 'trip'
   label: string
 }>
 
@@ -71,6 +76,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/', key: 'nfe', label: 'NF-e' },
   { href: '/freight', key: 'freight', label: 'Frete' },
   { href: '/cte-batches', key: 'cte-batch', label: 'CT-e' },
+  { href: '/trips', key: 'trip', label: 'Viagens' },
   { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
   { href: '/billing', key: 'billing', label: 'Faturamento' },
   { href: '/operations', key: 'operations', label: 'Operações' },
@@ -84,7 +90,7 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'fiscal',
     label: 'Fiscal',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['nfe', 'freight', 'cte-batch', 'mdfe-manifest', 'billing'].includes(key),
+      ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing'].includes(key),
     ),
   },
   {
@@ -116,6 +122,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/billing') return 'billing'
   if (window.location.pathname === '/company-settings') return 'company-settings'
   if (window.location.pathname === '/cte-batches') return 'cte-batch'
+  if (parseTripRoute(window.location.pathname) !== null) return 'trip'
+  if (window.location.pathname === '/trips') return 'trip'
   if (window.location.pathname === '/cte-profiles') return 'cte-profiles'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
@@ -131,7 +139,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'operations' ||
-    storedWorkspace === 'freight'
+    storedWorkspace === 'freight' ||
+    storedWorkspace === 'trip'
   ) {
     return storedWorkspace
   }
@@ -140,7 +149,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
 }
 
 function resolvePage(
-  input: Readonly<{ path: string; workspace: WorkspaceNavigationItem['key'] }>,
+  input: Readonly<{ path: string; search: string; workspace: WorkspaceNavigationItem['key'] }>,
 ): ReactNode {
   switch (input.workspace) {
     case 'billing': {
@@ -160,7 +169,13 @@ function resolvePage(
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':
-      return <MdfeManifestWorkspacePage />
+      return (
+        <MdfeManifestWorkspacePage originTripId={parseMdfeManifestTripParameter(input.search)} />
+      )
+    case 'trip': {
+      const tripId = parseTripRoute(input.path)
+      return tripId === null ? <TripWorkspacePage /> : <TripDetailPage tripId={tripId} />
+    }
     case 'operations':
       return <OperationsDashboardPage />
     case 'freight':
@@ -175,11 +190,15 @@ function ApplicationShell(): ReactNode {
   const [currentWorkspace, setCurrentWorkspace] = useState(resolveCurrentWorkspace)
   /** O workspace sozinho não distingue a lista do detalhe: a rota completa é quem decide a tela. */
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
+  /** A viagem de origem do MDF-e viaja na query string, fora do `pathname` que decide o workspace. */
+  const [currentSearch, setCurrentSearch] = useState(() => window.location.search)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
     administration: ['company-settings', 'cte-profiles', 'fleet'].includes(currentWorkspace),
-    fiscal: ['nfe', 'freight', 'cte-batch', 'mdfe-manifest', 'billing'].includes(currentWorkspace),
+    fiscal: ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing'].includes(
+      currentWorkspace,
+    ),
     operations: currentWorkspace === 'operations',
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
@@ -205,6 +224,7 @@ function ApplicationShell(): ReactNode {
     function syncLocation(): void {
       setCurrentWorkspace(resolveCurrentWorkspace())
       setCurrentPath(window.location.pathname)
+      setCurrentSearch(window.location.search)
     }
     window.addEventListener('popstate', syncLocation)
     return () => window.removeEventListener('popstate', syncLocation)
@@ -215,6 +235,7 @@ function ApplicationShell(): ReactNode {
     persistWorkspacePreference(item.key)
     setCurrentWorkspace(item.key)
     setCurrentPath(item.href)
+    setCurrentSearch('')
     setPageTransitionPending(true)
     window.setTimeout(() => setPageTransitionPending(false), 180)
   }
@@ -385,7 +406,7 @@ function ApplicationShell(): ReactNode {
           {pageTransitionPending ? (
             <PageTransitionSkeleton />
           ) : (
-            resolvePage({ path: currentPath, workspace: currentWorkspace })
+            resolvePage({ path: currentPath, search: currentSearch, workspace: currentWorkspace })
           )}
         </div>
       </div>

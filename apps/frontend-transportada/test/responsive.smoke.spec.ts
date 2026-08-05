@@ -19,6 +19,7 @@ import {
 } from './cte-batch-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
+import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
 
 const VIEWPORTS = {
   desktop: { height: 900, width: 1280 },
@@ -767,6 +768,68 @@ test('sem settings.manage o diálogo não oferece o caminho para os perfis', asy
   await expect(dialog.locator('tbody tr').first()).toContainText('Perfil de emissao smoke')
   await expect(dialog.getByRole('button', { name: 'Ajustar perfis de emissão' })).toHaveCount(0)
 
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem navegar', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'has-pending',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
+  const dialog = page.getByRole('dialog', { name: 'CT-e pendente' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Sem assinatura')).toBeVisible()
+
+  expect(api.manifestCreations()).toBe(0)
+  expect(new URL(page.url()).pathname).not.toBe('/mdfe-manifests')
+
+  await dialog.locator('footer').getByRole('button', { name: 'Fechar' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o modal', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Manifestos MDF-e' })).toBeVisible()
+
+  // spec 027: a viagem viaja na query string para o manifesto nascer com `trip_id` preenchido
+  const manifestUrl = new URL(page.url())
+  expect(manifestUrl.pathname).toBe('/mdfe-manifests')
+  expect(manifestUrl.searchParams.get('tripId')).toBe(TRIP_SMOKE_TRIP_ID)
+  await expect(page.getByText('Emissão a partir de uma viagem')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Veículo' })).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })

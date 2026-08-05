@@ -146,7 +146,8 @@
     "previewDischarge": "Municípios de descarregamento: {{cities}}",
     "previewBlocked": "{{count}} CT-e(s) bloqueado(s) pela SEFAZ ou por já estarem manifestados",
     "readOnly": "Seu acesso atual não permite criar manifestos.",
-    "pending": "Enviando manifesto…"
+    "pending": "Enviando manifesto…",
+    "fromTrip": "Emissão a partir de uma viagem: veículo e motoristas vêm dela"
   },
   "cargoType": {
     "01": "Granel sólido",

@@ -27,7 +27,12 @@ function resolveFeedbackKey(error: unknown): null | string {
   return MDFE_MANIFEST_FEEDBACK_KEY_BY_ERROR[error.message] ?? 'requestFailed'
 }
 
-export function MdfeManifestWorkspacePage() {
+type MdfeManifestWorkspacePageProps = Readonly<{
+  /** Viagem que originou a emissão: troca a rota de criação para `POST /trips/:id/mdfe-manifests`. */
+  originTripId?: null | string
+}>
+
+export function MdfeManifestWorkspacePage({ originTripId = null }: MdfeManifestWorkspacePageProps) {
   const { t } = useTranslation('mdfeManifest')
   const authQuery = useAuthMeQuery()
   const [preview, setPreview] = useState<MdfeManifestDraft | null>(null)
@@ -38,7 +43,7 @@ export function MdfeManifestWorkspacePage() {
 
   const workspace = useMdfeManifests(tenant)
   const table = useMdfeManifestTable({ manifests: workspace.manifests })
-  const creation = useMdfeManifestCreation(tenant)
+  const creation = useMdfeManifestCreation({ ...tenant, originTripId })
   const fleet = useFleet(tenant)
   const form = useMdfeManifestActionForm()
 
@@ -63,7 +68,8 @@ export function MdfeManifestWorkspacePage() {
       documentIds: creation.documentIds,
       draft: creation.draft,
     })
-    workspace.createManifestMutation.mutate(body, {
+    const input = originTripId === null ? body : { ...body, tripId: originTripId }
+    workspace.createManifestMutation.mutate(input, {
       onSuccess: () => {
         creation.reset()
         setPreview(null)

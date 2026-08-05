@@ -146,7 +146,8 @@
     "previewDischarge": "Discharge cities: {{cities}}",
     "previewBlocked": "{{count}} CT-e(s) blocked by SEFAZ or already manifested",
     "readOnly": "Your current access does not allow creating manifests.",
-    "pending": "Sending manifest…"
+    "pending": "Sending manifest…",
+    "fromTrip": "Issued from a trip: vehicle and drivers come from it"
   },
   "cargoType": {
     "01": "Solid bulk",

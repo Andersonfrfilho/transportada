@@ -1,0 +1,120 @@
+{
+  "kicker": "Non-fiscal operation",
+  "title": "Trips",
+  "intro": "Organize trips without a CT-e: link a vehicle, drivers, and the fiscal notes carried.",
+  "loading": "Loading trips",
+  "error": "Could not load trips",
+  "empty": "No trip found",
+  "forbidden": "Your current access does not allow you to view trips",
+  "dateRange": {
+    "placeholder": "Select the period",
+    "clear": "Clear period",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
+  },
+  "resultCounter": "{{shown}} trip(s) on this page",
+  "tripsTitle": "Trips",
+  "filters": {
+    "title": "Filters",
+    "all": "All",
+    "clear": "Clear filters",
+    "active": "{{count}} active filter(s)",
+    "status": "Status",
+    "vehicleId": "Vehicle",
+    "driverId": "Driver",
+    "createdRange": "Created range",
+    "removeFilter": "Remove the {{field}} filter"
+  },
+  "status": {
+    "open": "Open",
+    "closed": "Closed"
+  },
+  "columns": {
+    "vehicleId": "Vehicle",
+    "status": "Status",
+    "createdAt": "Created at",
+    "updatedAt": "Updated at"
+  },
+  "sort": {
+    "asc": "sorted ascending",
+    "desc": "sorted descending",
+    "none": "not sorted"
+  },
+  "actions": {
+    "title": "Actions",
+    "view": "View",
+    "create": "Create trip",
+    "resetCreation": "Clear draft",
+    "deliver": "Mark delivered",
+    "release": "Unlink",
+    "linkDocument": "Link",
+    "close": "Close trip",
+    "backToList": "Back to trips",
+    "issueMdfe": "Issue MDF-e"
+  },
+  "mdfeGate": {
+    "title": "Pending CT-e",
+    "subtitle": "These documents do not have an authorized CT-e yet — issue each one before issuing the trip's MDF-e.",
+    "documentColumn": "Document",
+    "fiscalStatusColumn": "Fiscal status",
+    "goToCteEmission": "Go issue CT-e",
+    "close": "Close"
+  },
+  "pagination": {
+    "previous": "Previous page",
+    "next": "Next page"
+  },
+  "creation": {
+    "title": "New trip",
+    "vehicle": "Vehicle",
+    "vehiclePlaceholder": "Select the vehicle",
+    "drivers": "Drivers",
+    "driversEmpty": "Register an active driver in the fleet before creating the trip.",
+    "readOnly": "Your current access does not allow you to create trips.",
+    "pending": "Creating trip…"
+  },
+  "formIssue": {
+    "vehicleRequired": "Select the trip vehicle.",
+    "driverRequired": "Select at least one driver."
+  },
+  "detail": {
+    "title": "Trip detail",
+    "vehicle": "Vehicle: {{vehicleId}}",
+    "drivers": "Drivers",
+    "documentColumn": "Document",
+    "fiscalStatusColumn": "Fiscal status",
+    "deliveredColumn": "Delivery",
+    "pending": "Pending",
+    "documentsEmpty": "No document linked to this trip",
+    "linkDocumentTitle": "Link document",
+    "linkMode": "Reference type",
+    "linkModeNfe": "Fiscal note (NF-e)",
+    "linkModeFreight": "Freight calculation",
+    "linkValue": "Identifier",
+    "fiscalWarning": "Invalid fiscal document — check its status before proceeding"
+  },
+  "feedback": {
+    "closed": "This trip is already closed.",
+    "documentAlreadyDelivered": "This document was already marked as delivered.",
+    "documentAlreadyLinked": "This document is already linked to a trip.",
+    "documentNotFound": "Document not found on this trip.",
+    "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
+    "driverDuplicated": "This driver is already on the trip.",
+    "driverNotAvailable": "Driver not available for the trip.",
+    "driverNotFound": "Driver not found.",
+    "readOnly": "Your current access does not allow this action.",
+    "notFound": "Trip not found.",
+    "requestFailed": "Could not reach the API.",
+    "responseInvalid": "The API responded in an unexpected format.",
+    "vehicleNotAvailable": "Vehicle not available for the trip.",
+    "vehicleNotFound": "Vehicle not found."
+  },
+  "fiscalStatus": {
+    "authorized": "Authorized",
+    "cancelled": "Cancelled",
+    "denied": "Denied",
+    "rejected": "Rejected",
+    "snapshotted": "Snapshotted",
+    "unsigned": "Unsigned"
+  }
+}

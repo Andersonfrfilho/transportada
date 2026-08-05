@@ -27,6 +27,8 @@ export type MdfeManifestCreationController = ReturnType<typeof useMdfeManifestCr
 
 type CreationInput = Readonly<{
   companyId?: string
+  /** Viagem que originou a emissão (`/mdfe-manifests?tripId=…`), quando houver. */
+  originTripId?: null | string
   permissions: readonly string[]
 }>
 
@@ -72,6 +74,7 @@ export function useMdfeManifestCreation(input: CreationInput) {
     draft,
     isLoadingBatches: batchesQuery.isPending && canReadBatches,
     isLoadingCandidates: selectedBatchId !== null && itemsQuery.isPending,
+    originTripId: input.originTripId ?? null,
     reset: () => {
       setSelectedBatchId(null)
       setSelectedDocumentIds([])

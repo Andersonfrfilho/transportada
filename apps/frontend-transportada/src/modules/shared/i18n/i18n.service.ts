@@ -22,6 +22,8 @@ import nfeWorkspaceLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.loc
 import nfeWorkspaceEnglishLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
+import tripLocale from '@/modules/trip/locales/trip.locale.json'
+import tripEnglishLocale from '@/modules/trip/locales/trip.en.locale.json'
 
 void i18n.use(initReactI18next).init({
   fallbackLng: 'pt-BR',
@@ -39,6 +41,7 @@ void i18n.use(initReactI18next).init({
       nfeWorkspace: nfeWorkspaceEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       translation: foundationEnglishLocale,
+      trip: tripEnglishLocale,
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
@@ -51,6 +54,7 @@ void i18n.use(initReactI18next).init({
       nfeWorkspace: nfeWorkspaceLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       translation: foundationLocale,
+      trip: tripLocale,
     },
   },
 })

@@ -20,7 +20,7 @@ import {
   type MdfeTransporterType,
 } from '../shared/mdfeManifest.types'
 import type { MdfeManifestDraft } from '../shared/mdfeManifestActions.service'
-import { validateManifestForm } from '../shared/mdfeManifestForm.service'
+import { isManifestFromTrip, validateManifestForm } from '../shared/mdfeManifestForm.service'
 import styles from '../styles/mdfeManifest.module.css'
 import { MdfeManifestLotacaoFields } from './MdfeManifestLotacaoFields.component'
 
@@ -48,7 +48,13 @@ export function MdfeManifestCreationPanel({
   vehicles,
 }: MdfeManifestCreationPanelProps) {
   const { t } = useTranslation('mdfeManifest')
-  const issues = validateManifestForm({ documentIds: creation.documentIds, draft: creation.draft })
+  const formInput = {
+    documentIds: creation.documentIds,
+    draft: creation.draft,
+    tripId: creation.originTripId,
+  }
+  const issues = validateManifestForm(formInput)
+  const fromTrip = isManifestFromTrip(formInput)
   const activeDrivers = drivers.filter((driver) => driver.status === 'active')
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
@@ -72,6 +78,8 @@ export function MdfeManifestCreationPanel({
           {t('actions.resetCreation')}
         </Button>
       </div>
+
+      {fromTrip ? <p className={styles.hint}>{t('creation.fromTrip')}</p> : null}
 
       <div className={styles.fieldGrid}>
         <label>
@@ -120,20 +128,22 @@ export function MdfeManifestCreationPanel({
       </p>
 
       <div className={styles.fieldGrid}>
-        <label>
-          {t('creation.vehicle')}
-          <Select
-            ariaLabel={t('creation.vehicle')}
-            clearable
-            options={tractionVehicles.map((vehicle) => ({
-              label: `${vehicle.plate} · ${vehicle.state}`,
-              value: vehicle.id,
-            }))}
-            placeholder={t('creation.vehiclePlaceholder')}
-            value={creation.draft.vehicleId}
-            onChange={(value) => creation.setDraftField('vehicleId', value)}
-          />
-        </label>
+        {fromTrip ? null : (
+          <label>
+            {t('creation.vehicle')}
+            <Select
+              ariaLabel={t('creation.vehicle')}
+              clearable
+              options={tractionVehicles.map((vehicle) => ({
+                label: `${vehicle.plate} · ${vehicle.state}`,
+                value: vehicle.id,
+              }))}
+              placeholder={t('creation.vehiclePlaceholder')}
+              value={creation.draft.vehicleId}
+              onChange={(value) => creation.setDraftField('vehicleId', value)}
+            />
+          </label>
+        )}
         <label>
           {t('creation.destinationState')}
           <input
@@ -233,20 +243,22 @@ export function MdfeManifestCreationPanel({
 
       <MdfeManifestLotacaoFields draft={creation.draft} onChange={creation.setDraftField} />
 
-      <fieldset className={styles.driverChecklist}>
-        <legend className={styles.hint}>{t('creation.drivers')}</legend>
-        {activeDrivers.map((driver) => (
-          <Checkbox
-            checked={creation.draft.driverIds.includes(driver.id)}
-            key={driver.id}
-            label={driver.name}
-            onChange={() => creation.toggleDriverSelection(driver.id)}
-          />
-        ))}
-        {activeDrivers.length === 0 ? (
-          <p className={styles.hint}>{t('creation.driversEmpty')}</p>
-        ) : null}
-      </fieldset>
+      {fromTrip ? null : (
+        <fieldset className={styles.driverChecklist}>
+          <legend className={styles.hint}>{t('creation.drivers')}</legend>
+          {activeDrivers.map((driver) => (
+            <Checkbox
+              checked={creation.draft.driverIds.includes(driver.id)}
+              key={driver.id}
+              label={driver.name}
+              onChange={() => creation.toggleDriverSelection(driver.id)}
+            />
+          ))}
+          {activeDrivers.length === 0 ? (
+            <p className={styles.hint}>{t('creation.driversEmpty')}</p>
+          ) : null}
+        </fieldset>
+      )}
 
       {issues.map((issue) => (
         <p className={styles.alert} key={issue}>

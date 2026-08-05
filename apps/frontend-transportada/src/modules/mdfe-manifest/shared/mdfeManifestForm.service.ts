@@ -37,6 +37,8 @@ export type MdfeManifestFormIssue =
 type FormInput = Readonly<{
   documentIds: readonly string[]
   draft: MdfeManifestFormDraft
+  /** Nasceu de uma viagem: veículo e motoristas vêm dela, então a tela não os pede. */
+  tripId?: null | string
 }>
 
 export const EMPTY_MDFE_MANIFEST_FORM: MdfeManifestFormDraft = {
@@ -70,11 +72,16 @@ function toAmount(value: string): string {
   return `${parts[1] ?? '0'}.${(parts[2] ?? '').padEnd(AMOUNT_FRACTION_DIGITS, '0')}`
 }
 
+export function isManifestFromTrip(input: FormInput): boolean {
+  return (input.tripId ?? '') !== ''
+}
+
 export function validateManifestForm(input: FormInput): readonly MdfeManifestFormIssue[] {
   const issues: MdfeManifestFormIssue[] = []
+  const fromTrip = isManifestFromTrip(input)
   if (input.documentIds.length === 0) issues.push('documentsRequired')
-  if (input.draft.vehicleId.trim().length === 0) issues.push('vehicleRequired')
-  if (input.draft.driverIds.length === 0) issues.push('driverRequired')
+  if (!fromTrip && input.draft.vehicleId.trim().length === 0) issues.push('vehicleRequired')
+  if (!fromTrip && input.draft.driverIds.length === 0) issues.push('driverRequired')
   if (input.draft.destinationState.trim().length === 0) issues.push('destinationRequired')
   if (input.draft.cargoProduct.trim().length === 0) issues.push('cargoProductRequired')
   return issues

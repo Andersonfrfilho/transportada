@@ -18,7 +18,7 @@ import type {
   MdfeCancelInput,
   MdfeCloseInput,
   MdfeIssuanceSummary,
-  MdfeManifestCreateBody,
+  MdfeManifestCreateInput,
   MdfeManifestDetail,
   MdfeManifestFilters,
   MdfeManifestListInput,
@@ -40,7 +40,7 @@ export type MdfeManifestController = Readonly<{
   canReadManifests: boolean
   cancelManifest: (input: MdfeCancelInput) => Promise<MdfeIssuanceSummary>
   closeManifest: (input: MdfeCloseInput) => Promise<MdfeIssuanceSummary>
-  createManifest: (input: MdfeManifestCreateBody) => Promise<MdfeManifestDetail>
+  createManifest: (input: MdfeManifestCreateInput) => Promise<MdfeManifestDetail>
   discardManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   getManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   issueManifest: (input: MdfeActionInput) => Promise<MdfeIssuanceSummary>
