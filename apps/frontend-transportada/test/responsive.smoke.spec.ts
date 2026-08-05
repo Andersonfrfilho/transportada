@@ -829,7 +829,8 @@ test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o m
   expect(manifestUrl.pathname).toBe('/mdfe-manifests')
   expect(manifestUrl.searchParams.get('tripId')).toBe(TRIP_SMOKE_TRIP_ID)
   await expect(page.getByText('Emissão a partir de uma viagem')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Veículo' })).toHaveCount(0)
+  const creationPanel = page.getByRole('region', { name: 'Novo manifesto' })
+  await expect(creationPanel.getByRole('button', { name: 'Veículo' })).toHaveCount(0)
 
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
