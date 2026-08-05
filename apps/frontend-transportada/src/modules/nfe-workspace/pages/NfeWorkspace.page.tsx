@@ -9,6 +9,8 @@ import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { NfeDistributionControl } from '../components/NfeDistributionControl.component'
+import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
+import { canReachCompanySettings } from '../shared/companySettingsNavigation.service'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
@@ -400,15 +402,22 @@ export function NfeWorkspacePage() {
                     )}
 
                     {mechanismView.showsDistribution && (
-                      <NfeDistributionControl
-                        canImport={workspace.canImport}
-                        onCooldownEnd={() => {
-                          void workspace.distributionStatusQuery.refetch()
-                        }}
-                        onRequest={handleDistributionRequest}
-                        pending={workspace.distributionMutation.isPending}
-                        pullControl={pullControl}
-                      />
+                      <>
+                        <NfeScheduledDistribution
+                          canReachSettings={canReachCompanySettings(permissions)}
+                          loading={workspace.distributionStatusQuery.isLoading}
+                          scheduled={workspace.distributionStatusQuery.data?.scheduled}
+                        />
+                        <NfeDistributionControl
+                          canImport={workspace.canImport}
+                          onCooldownEnd={() => {
+                            void workspace.distributionStatusQuery.refetch()
+                          }}
+                          onRequest={handleDistributionRequest}
+                          pending={workspace.distributionMutation.isPending}
+                          pullControl={pullControl}
+                        />
+                      </>
                     )}
 
                     <NfeImportQueue

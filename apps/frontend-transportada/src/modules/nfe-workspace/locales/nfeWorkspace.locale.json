@@ -53,6 +53,19 @@
     "cooldown": "Aguarde o intervalo do SEFAZ. Nova tentativa liberada em {{countdown}}.",
     "unavailable": "Puxada indisponível no momento."
   },
+  "scheduled": {
+    "title": "Busca automática de notas",
+    "on": "Busca automática ligada.",
+    "off": "Busca automática desligada.",
+    "ready": "Tudo pronto: o próximo ciclo vai buscar notas.",
+    "blocked": "Nada será buscado enquanto isto não for resolvido: {{reason}}",
+    "nextWindow": "Próxima janela permitida pela SEFAZ: {{moment}}.",
+    "lastRun": "Última busca automática em {{moment}} — {{received}} nota(s) recebida(s).",
+    "lastRunFailed": "A última busca automática, em {{moment}}, falhou. Nenhuma nota foi recebida no ciclo.",
+    "neverRan": "Nenhuma busca automática executada até agora.",
+    "settingsHint": "Ligar e desligar a busca automática é feito nas configurações da empresa.",
+    "settingsShortcut": "Abrir configurações da empresa"
+  },
   "filters": {
     "advancedKey": "Filtro avançado",
     "advancedValue": "Valor do filtro avançado",

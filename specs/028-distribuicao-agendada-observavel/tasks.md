@@ -34,7 +34,7 @@ foram resolvidos com o usuário (ver `spec.md` § Decisões).
       configurações para o mesmo estado.
 - [x] T009 [P] Frontend: painel de status + toggle em `company-settings` — client, hook, componente,
       esqueleto e `*.locale.json` acentuado. Razões traduzidas em pt-BR.
-- [ ] T010 [P] Frontend: aba Remota do `nfe-workspace` — estado, última execução, notas trazidas,
+- [x] T010 [P] Frontend: aba Remota do `nfe-workspace` — estado, última execução, notas trazidas,
       próxima janela e atalho para configurações quando desligado.
 - [ ] T011 Deploy em staging + ligar o opt-in pela UI + aguardar uma janela do cron; anexar em
       `evidence.md` o log de enfileiramento e a primeira nota recebida.
