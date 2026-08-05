@@ -7,6 +7,7 @@ import {
   DESTRUCTIVE_MIGRATION_PATTERN,
   FISCAL_TABLES,
   IDENTITY_TABLES,
+  INVITATION_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -90,6 +91,7 @@ describe('Drizzle migrations', () => {
       '20260801043234_company_logos',
       '20260802205604_fleet_driver_linked_tax_id',
       '20260803000529_fleet_driver_vehicle_link',
+      '20260804143209_user_invitations',
       '20260805020005_trip_planning_expansion',
       '20260805030010_trip_backfill_existing_manifests',
     ])
@@ -240,6 +242,40 @@ describe('Drizzle migrations', () => {
       'DROP INDEX "fleet_driver_vehicle_assignments_live_vehicle_unique"',
     )
     expect(rollbackSql).toContain('fleet_driver_vehicle_assignments_live_driver_unique')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the user invitations as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_user_invitations'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    for (const table of INVITATION_TABLES) {
+      expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    }
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "user_invitations_company_id_user_id_pending_unique"',
+    )
+    expect(migrationSql).toContain(`WHERE "status" = 'pending'`)
+    expect(migrationSql).toContain('user_invitations_membership_fk')
+    expect(migrationSql).toContain('user_invitations_code_hash_check')
+    // O código em claro nunca chega ao banco: a migration só conhece o hash.
+    expect(migrationSql).not.toMatch(/"code"\s+text/i)
+
+    const rolesPosition = rollbackSql.indexOf('DROP TABLE IF EXISTS "user_invitation_roles"')
+    const invitationsPosition = rollbackSql.indexOf('DROP TABLE IF EXISTS "user_invitations"')
+    expect(rolesPosition).toBeGreaterThan(-1)
+    expect(invitationsPosition).toBeGreaterThan(rolesPosition)
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

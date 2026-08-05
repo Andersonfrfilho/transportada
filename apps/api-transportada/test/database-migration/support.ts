@@ -99,6 +99,8 @@ export const MDFE_TABLES = [
 
 export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents'] as const
 
+export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
@@ -134,6 +136,7 @@ export async function expectQueryToFail(
 export async function readBusinessTables(database: SQL): Promise<readonly string[]> {
   const expectedTables = [
     ...IDENTITY_TABLES,
+    ...INVITATION_TABLES,
     ...FISCAL_TABLES,
     ...FREIGHT_TABLES,
     ...NFE_TABLES,

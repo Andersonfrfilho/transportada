@@ -6,6 +6,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
+import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
@@ -13,6 +14,7 @@ import {
   FLEET_TABLES,
   FREIGHT_TABLES,
   IDENTITY_TABLES,
+  INVITATION_TABLES,
   NFE_TABLES,
   CTE_BATCH_TABLES,
   CTE_ISSUANCE_TABLES,
@@ -45,6 +47,7 @@ describe('Drizzle migration integration', () => {
         expect(await readBusinessTables(database)).toEqual(
           [
             ...IDENTITY_TABLES,
+            ...INVITATION_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,
@@ -61,6 +64,7 @@ describe('Drizzle migration integration', () => {
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
 
         const identityFixture = await assertIdentityConstraints(database)
+        await assertInvitationConstraints(database, identityFixture)
         await assertFiscalConstraints(database, identityFixture)
         const fleetFixture = await assertFleetConstraints(database, identityFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
@@ -81,6 +85,7 @@ describe('Drizzle migration integration', () => {
         expect(await readBusinessTables(database)).toEqual(
           [
             ...IDENTITY_TABLES,
+            ...INVITATION_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,

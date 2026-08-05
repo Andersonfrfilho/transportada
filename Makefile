@@ -18,6 +18,7 @@ KEYCLOAK_JWKS_URI := $(shell sed -n 's/^KEYCLOAK_JWKS_URI=//p' $(ENV_FILE) 2>/de
 KEYCLOAK_AUDIENCE := $(shell sed -n 's/^KEYCLOAK_AUDIENCE=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_ADMIN_USERNAME := $(shell sed -n 's/^KEYCLOAK_ADMIN_USERNAME=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_ADMIN_PASSWORD := $(shell sed -n 's/^KEYCLOAK_ADMIN_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
+KEYCLOAK_ADMIN_CLIENT_SECRET := $(shell sed -n 's/^KEYCLOAK_ADMIN_CLIENT_SECRET=//p' $(ENV_FILE) 2>/dev/null)
 KEYCLOAK_LOCAL_USER_PASSWORD := $(shell sed -n 's/^KEYCLOAK_LOCAL_USER_PASSWORD=//p' $(ENV_FILE) 2>/dev/null)
 ENCRYPTION_ACTIVE_KEY_ID := $(shell sed -n 's/^ENCRYPTION_ACTIVE_KEY_ID=//p' $(ENV_FILE) 2>/dev/null)
 DATABASE_URL := $(shell sed -n 's/^DATABASE_URL=//p' $(ENV_FILE) 2>/dev/null)
@@ -58,6 +59,7 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@test -n "$(KEYCLOAK_AUDIENCE)"
 	@test -n "$(KEYCLOAK_ADMIN_USERNAME)"
 	@test -n "$(KEYCLOAK_ADMIN_PASSWORD)"
+	@test -n "$(KEYCLOAK_ADMIN_CLIENT_SECRET)"
 	@test -n "$(KEYCLOAK_LOCAL_USER_PASSWORD)"
 	@test -n "$(ENCRYPTION_ACTIVE_KEY_ID)"
 	@grep -q '^ENCRYPTION_KEYRING_JSON=.' "$(ENV_FILE)"
@@ -78,6 +80,7 @@ postgres-up: ## 🐘 Sobe somente o PostgreSQL local para migrations
 		KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) \
 		KEYCLOAK_ADMIN_USERNAME=not-used \
 		KEYCLOAK_ADMIN_PASSWORD=not-used \
+		KEYCLOAK_ADMIN_CLIENT_SECRET=not-used \
 		KEYCLOAK_LOCAL_USER_PASSWORD=not-used \
 		$(COMPOSE_BASE) up -d --wait postgres
 
