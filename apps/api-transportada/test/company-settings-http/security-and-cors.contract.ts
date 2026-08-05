@@ -159,18 +159,57 @@ describe('/company-settings security and CORS contract', () => {
   })
 })
 
+describe('/company-settings/logo security and CORS contract', () => {
+  test.each(['GET', 'PUT', 'DELETE'])(
+    'allows exact %s preflight so the browser can reach the logo',
+    async (method) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({ headers: 'Authorization', method, pathname: COMPANY_SETTINGS_LOGO_PATH }),
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
+      expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+
+  test.each([
+    ['https://attacker.example', 'PUT', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization, X-Company-Id'],
+    [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
+  ])('rejects unsafe logo preflight before authentication', async (origin, method, headers) => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const response = await fixture.handle(
+      preflightRequest({ headers, method, origin, pathname: COMPANY_SETTINGS_LOGO_PATH }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(fixture.events).toEqual([])
+  })
+})
+
+const COMPANY_SETTINGS_LOGO_PATH = `${COMPANY_SETTINGS_PATH}/logo`
+
 type PreflightRequestParams = {
   readonly headers: string
   readonly method: string
   readonly origin?: string
+  readonly pathname?: string
 }
 
 function preflightRequest({
   headers,
   method,
   origin = FRONTEND_ORIGIN,
+  pathname = COMPANY_SETTINGS_PATH,
 }: PreflightRequestParams): Request {
-  return new Request(`http://localhost${COMPANY_SETTINGS_PATH}`, {
+  return new Request(`http://localhost${pathname}`, {
     headers: {
       origin,
       'access-control-request-headers': headers,

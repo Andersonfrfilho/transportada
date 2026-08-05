@@ -11,6 +11,7 @@ import {
   API_BILLING_INVOICE_PREVIEW_PATH,
   API_BILLING_INVOICES_PATH,
   API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH,
+  API_COMPANY_SETTINGS_LOGO_PATH,
   API_COMPANY_SETTINGS_PATH,
   API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
@@ -108,6 +109,7 @@ function isBillingInvoiceResourcePath(pathname: string): boolean {
 
 function allowedMethods(pathname: string): string {
   if (pathname === API_BOOTSTRAP_FIRST_ADMIN_PATH) return 'POST'
+  if (pathname === API_COMPANY_SETTINGS_LOGO_PATH) return 'GET, PUT, DELETE'
   if (isCteBatchItemPath(pathname)) return 'DELETE'
   if (isBillingInvoiceResourcePath(pathname)) return 'GET, PATCH'
   if (isFleetDriverVehiclesPath(pathname)) return 'GET, PUT'
@@ -172,6 +174,7 @@ function isAllowedPreflight({
     isAuthMePreflight({ frontendOrigin, pathname, request }) ||
     isBootstrapPreflight({ frontendOrigin, pathname, request }) ||
     isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
+    isCompanyLogoPreflight({ frontendOrigin, pathname, request }) ||
     isDigitalCertificatesPreflight({ frontendOrigin, pathname, request }) ||
     isWorkspaceResourcePreflight({ frontendOrigin, pathname, request })
   )
@@ -232,6 +235,26 @@ function isWorkspaceResourcePreflight({
       method: requestedMethod,
       value: request.headers.get('access-control-request-headers'),
     })
+  )
+}
+
+/**
+ * O logo sobe como `multipart/form-data`, que é content-type safelisted no CORS: o navegador
+ * pede só `Authorization` no preflight, então a tripla de headers de recurso não se aplica aqui.
+ */
+function isCompanyLogoPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  const requestedMethod = request.headers.get('access-control-request-method')
+  return (
+    pathname === API_COMPANY_SETTINGS_LOGO_PATH &&
+    request.headers.get('origin') === frontendOrigin &&
+    (requestedMethod === HTTP_GET_METHOD ||
+      requestedMethod === 'PUT' ||
+      requestedMethod === 'DELETE') &&
+    hasOnlyAuthorizationHeader(request.headers.get('access-control-request-headers'))
   )
 }
 
