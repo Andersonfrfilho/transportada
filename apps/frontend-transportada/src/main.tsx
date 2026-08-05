@@ -18,6 +18,7 @@ import { Icon } from '@/components/ui/icon'
 import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
+import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import {
   getKeycloakAuthProvider,
@@ -428,6 +429,15 @@ function PageTransitionSkeleton(): ReactNode {
 }
 
 async function bootstrapApplication(): Promise<void> {
+  if (window.location.pathname === '/primeiro-acesso') {
+    createRoot(applicationRootElement).render(
+      <StrictMode>
+        <FirstAccessPage />
+      </StrictMode>,
+    )
+    return
+  }
+
   await initializeKeycloakAuth()
 
   createRoot(applicationRootElement).render(

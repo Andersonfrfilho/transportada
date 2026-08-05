@@ -16,6 +16,8 @@ import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
 import foundationEnglishLocale from '@/modules/foundation/locales/foundation.en.locale.json'
+import identityLocale from '@/modules/identity/locales/identity.locale.json'
+import identityEnglishLocale from '@/modules/identity/locales/identity.en.locale.json'
 import mdfeManifestLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.locale.json'
 import mdfeManifestEnglishLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.en.locale.json'
 import nfeWorkspaceLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.locale.json'
@@ -37,6 +39,7 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
       fleet: fleetEnglishLocale,
+      identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
       nfeWorkspace: nfeWorkspaceEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
@@ -50,6 +53,7 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
       fleet: fleetLocale,
+      identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,
       nfeWorkspace: nfeWorkspaceLocale,
       operationsWorkspace: operationsWorkspaceLocale,
