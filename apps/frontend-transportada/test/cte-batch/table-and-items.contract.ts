@@ -382,8 +382,8 @@ describe('CT-e batch table and items contract', () => {
     /** Transmitir é o único comando do operador: o rascunho vale tanto quanto o lote já fechado. */
     expect(canTransmitBatch({ batch: CTE_BATCH, permissions: [CTE_SUBMIT] })).toBe(true)
     expect(canTransmitBatch({ batch: CTE_BATCH, permissions: [] })).toBe(false)
-    /** Lote submetido está em voo: quem termina a transição é o worker, não um segundo comando. */
-    expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_SUBMIT] })).toBe(false)
+    /** Submetido segue transmissível: é onde para o lote que ficou com um item por emitir. */
+    expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_SUBMIT] })).toBe(true)
     expect(canTransmitBatch({ batch: CTE_DONE_BATCH, permissions: [CTE_SUBMIT] })).toBe(false)
     expect(canTransmitBatch({ batch: CTE_SUBMITTED_BATCH, permissions: [CTE_MANAGE] })).toBe(false)
 
@@ -443,7 +443,7 @@ describe('CT-e batch table and items contract', () => {
     })
   })
 
-  test('groups the selection by batch and only allows transmitting when every batch is ready', async () => {
+  test('groups the selection by batch and allows transmitting what is still open', async () => {
     const { canTransmitSelection, groupSelectionByBatch } =
       await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
 
@@ -487,8 +487,8 @@ describe('CT-e batch table and items contract', () => {
     })
     expect(crossBatchGroups).toHaveLength(2)
 
-    const submittedStatuses = new Map([
-      [CTE_BATCH_ID, CTE_SUBMITTED_BATCH.status],
+    const settledStatuses = new Map([
+      [CTE_BATCH_ID, CTE_DONE_BATCH.status],
       [CTE_DONE_BATCH_ID, CTE_DONE_BATCH.status],
     ])
     const draftStatuses = new Map([
@@ -498,7 +498,7 @@ describe('CT-e batch table and items contract', () => {
 
     expect(
       canTransmitSelection({
-        batchStatuses: submittedStatuses,
+        batchStatuses: settledStatuses,
         groups: singleBatchGroups,
         permissions: [CTE_SUBMIT],
       }),
@@ -518,16 +518,24 @@ describe('CT-e batch table and items contract', () => {
         permissions: [CTE_SUBMIT],
       }),
     ).toBe(true)
+    /** O lote concluído da seleção mista só sai da conta: ele não pode travar o rascunho. */
     expect(
       canTransmitSelection({
-        batchStatuses: submittedStatuses,
+        batchStatuses: draftStatuses,
+        groups: crossBatchGroups,
+        permissions: [CTE_SUBMIT],
+      }),
+    ).toBe(true)
+    expect(
+      canTransmitSelection({
+        batchStatuses: settledStatuses,
         groups: crossBatchGroups,
         permissions: [CTE_SUBMIT],
       }),
     ).toBe(false)
     expect(
       canTransmitSelection({
-        batchStatuses: submittedStatuses,
+        batchStatuses: settledStatuses,
         groups: [],
         permissions: [CTE_SUBMIT],
       }),

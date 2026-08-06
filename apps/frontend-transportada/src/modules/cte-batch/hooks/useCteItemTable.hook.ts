@@ -14,7 +14,11 @@ import {
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
 import { canBillSelection, collectBillableCtes } from '../shared/cteBatchBilling.service'
 import type { BillableCte } from '../shared/cteBatchBilling.service'
-import { canTransmitSelection, groupSelectionByBatch } from '../shared/cteBatchItemActions.service'
+import {
+  canTransmitSelection,
+  groupSelectionByBatch,
+  selectTransmittableGroups,
+} from '../shared/cteBatchItemActions.service'
 import type { CteItemBatchGroup } from '../shared/cteBatchItemActions.service'
 import { submitCteBatches } from '../shared/cteBatchSubmissionQueue.service'
 import { CTE_BATCHES_QUERY_KEY } from './useCteBatchWorkspace.hook'
@@ -107,7 +111,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     id,
   }))
   const selectedGroups = groupSelectionByBatch({ items: knownSelectedItems, selectedIds })
-  const transmitGroups = selectedGroups
+  const transmitGroups = selectTransmittableGroups({ batchStatuses, groups: selectedGroups })
   const canTransmit = canTransmitSelection({
     batchStatuses,
     groups: transmitGroups,

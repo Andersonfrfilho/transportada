@@ -17,8 +17,8 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const WORKSPACE_HOOK_PATH = 'src/modules/cte-batch/hooks/useCteBatchWorkspace.hook.ts'
 const ITEMS_QUERY_PATH = 'src/modules/cte-batch/queries/cteBatchItems.query.ts'
 
-const TRANSIT_STATUSES: readonly CteBatchStatus[] = ['in_flight', 'submitted']
-const COMMANDABLE_STATUSES: readonly CteBatchStatus[] = ['draft', 'error']
+const SETTLED_STATUSES: readonly CteBatchStatus[] = ['cancelled', 'done']
+const COMMANDABLE_STATUSES: readonly CteBatchStatus[] = ['draft', 'error', 'in_flight', 'submitted']
 
 type StatusPage = Readonly<{ items: readonly Readonly<{ status: string }>[] }>
 
@@ -42,11 +42,12 @@ function readApplicationFile(filePath: string): Promise<string> {
 
 describe('CT-e transmission progress contract', () => {
   /**
-   * Transmitir já fecha o rascunho e cria a tentativa: oferecer o botão de novo enquanto o worker
-   * não respondeu convida a uma segunda emissão do mesmo item.
+   * Lote concluído ou cancelado não volta atrás. Em voo e submetido continuam oferecendo o botão:
+   * é onde para o lote que perdeu um item na emissão, e retransmitir é o conserto — quem impede a
+   * segunda emissão do item já autorizado é o backend, por item.
    */
-  test('stops offering transmission for a batch already in transit', () => {
-    for (const status of TRANSIT_STATUSES) {
+  test('stops offering transmission for a batch already settled', () => {
+    for (const status of SETTLED_STATUSES) {
       expect(canTransmitBatch({ batch: batchWithStatus(status), permissions: [CTE_SUBMIT] })).toBe(
         false,
       )
@@ -58,10 +59,10 @@ describe('CT-e transmission progress contract', () => {
     }
   })
 
-  test('stops offering transmission for a selection whose batch is in transit', () => {
+  test('stops offering transmission for a selection whose batch is settled', () => {
     const groups = [{ batchId: CTE_BATCH.id, itemIds: ['item-1'] }] as const
 
-    for (const status of TRANSIT_STATUSES) {
+    for (const status of SETTLED_STATUSES) {
       expect(
         canTransmitSelection({
           batchStatuses: new Map([[CTE_BATCH.id, status]]),
