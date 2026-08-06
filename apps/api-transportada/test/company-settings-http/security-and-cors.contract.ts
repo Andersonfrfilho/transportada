@@ -108,9 +108,7 @@ describe('/company-settings security and CORS contract', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
     expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH')
-    expect(response.headers.get('access-control-allow-headers')).toBe(
-      'Authorization, Content-Type, Idempotency-Key',
-    )
+    expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
     expect(response.headers.has('access-control-allow-credentials')).toBe(false)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(fixture.events).toEqual([])
@@ -121,8 +119,7 @@ describe('/company-settings security and CORS contract', () => {
     [FRONTEND_ORIGIN, 'POST', 'Authorization'],
     [FRONTEND_ORIGIN, 'PATCH', 'Authorization, X-Company-Id'],
     [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
-    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
-    [FRONTEND_ORIGIN, 'PATCH', 'Authorization, Authorization, Content-Type'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization'],
   ])('rejects unsafe preflight before authentication', async (origin, method, headers) => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(preflightRequest({ headers, method, origin }))
@@ -175,7 +172,7 @@ describe('/company-settings/logo security and CORS contract', () => {
       expect(response.status).toBe(204)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
-      expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+      expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
       expect(response.headers.has('access-control-allow-credentials')).toBe(false)
       expect(fixture.events).toEqual([])
     },
@@ -220,7 +217,7 @@ describe('/company-settings/scheduled-distribution security and CORS contract', 
       expect(response.status).toBe(204)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
-      expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+      expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
       expect(response.headers.has('access-control-allow-credentials')).toBe(false)
       expect(fixture.events).toEqual([])
     },
@@ -254,6 +251,13 @@ describe('/company-settings/scheduled-distribution security and CORS contract', 
 
 const COMPANY_SETTINGS_LOGO_PATH = `${COMPANY_SETTINGS_PATH}/logo`
 const COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH = `${COMPANY_SETTINGS_PATH}/scheduled-distribution`
+
+/** Método sem corpo só precisa do Bearer; os demais carregam JSON e chave de idempotência. */
+function allowedHeaders(method: string): string {
+  return method === 'GET' || method === 'DELETE'
+    ? 'Authorization'
+    : 'Authorization, Content-Type, Idempotency-Key'
+}
 
 type PreflightRequestParams = {
   readonly headers: string

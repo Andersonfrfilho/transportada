@@ -117,8 +117,8 @@ async function executeRequest({
   const response =
     handleCorsPreflight({
       frontendOrigin: dependencies.frontendOrigin,
-      pathname: metadata.pathname,
       request,
+      resolveAllowedMethods: () => dependencies.router.allowedMethods(metadata.pathname),
     }) ??
     (await dependencies.router.handle({
       correlationId,

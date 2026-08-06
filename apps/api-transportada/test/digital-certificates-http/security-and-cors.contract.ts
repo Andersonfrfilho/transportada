@@ -61,9 +61,7 @@ describe('/digital-certificates security and CORS contract', () => {
       expect(response.status).toBe(204)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE')
-      expect(response.headers.get('access-control-allow-headers')).toBe(
-        'Authorization, Content-Type, Idempotency-Key',
-      )
+      expect(response.headers.get('access-control-allow-headers')).toBe(headers)
       expect(response.headers.has('access-control-allow-credentials')).toBe(false)
       expect(response.headers.get('cache-control')).toBe('no-store')
       expect(fixture.events).toEqual([])
@@ -135,8 +133,8 @@ function unsafePreflights(): readonly (readonly [string, string, string])[] {
     ['https://attacker.example', 'POST', 'Authorization, Content-Type, Idempotency-Key'],
     [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
     [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
-    [FRONTEND_ORIGIN, 'POST', 'Authorization, Content-Type'],
+    [FRONTEND_ORIGIN, 'DELETE', 'Authorization, Content-Type'],
     [FRONTEND_ORIGIN, 'POST', 'Authorization, Content-Type, X-Company-Id'],
-    [FRONTEND_ORIGIN, 'POST', 'Authorization, Authorization, Content-Type, Idempotency-Key'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization'],
   ]
 }

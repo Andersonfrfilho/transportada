@@ -7,6 +7,7 @@ import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
+import type { CompanyLogoUseCase } from '../../src/companies/application/company-logo.use-case'
 import type {
   CompanySettingsInput,
   CompanySettingsResult,
@@ -156,10 +157,44 @@ function createUpdateSettingsSpy(input: {
 }
 
 async function loadRoutes(input: RouteDependencies): Promise<readonly RegisteredRoute[]> {
-  const module = (await import('../../src/companies/presentation/company-settings.routes.js')) as {
+  const settings = (await import(
+    '../../src/companies/presentation/company-settings.routes.js'
+  )) as {
     createCompanySettingsRoutes(dependencies: RouteDependencies): readonly RegisteredRoute[]
   }
-  return module.createCompanySettingsRoutes(input)
+  const logo = (await import('../../src/companies/presentation/company-logo.routes.js')) as {
+    createCompanyLogoRoutes(dependencies: {
+      readonly companyLogo: CompanyLogoUseCase
+    }): readonly RegisteredRoute[]
+  }
+  const scheduled = (await import(
+    '../../src/companies/presentation/scheduled-distribution.routes.js'
+  )) as {
+    createScheduledDistributionRoutes(
+      dependencies: ScheduledDistributionDependencies,
+    ): readonly RegisteredRoute[]
+  }
+  return [
+    ...settings.createCompanySettingsRoutes(input),
+    // Sub-recursos de /company-settings: entram só para o preflight enxergá-los — o CORS
+    // agora deriva da tabela de rotas, então rota ausente do roteador não tem preflight.
+    ...logo.createCompanyLogoRoutes({
+      companyLogo: { find: rejectUnused, remove: rejectUnused, replace: rejectUnused },
+    }),
+    ...scheduled.createScheduledDistributionRoutes({
+      disable: { execute: rejectUnused },
+      enable: { execute: rejectUnused },
+      getStatus: { execute: rejectUnused },
+    }),
+  ]
+}
+
+type ScheduledDistributionDependencies = Readonly<
+  Record<'disable' | 'enable' | 'getStatus', { execute(input: unknown): Promise<never> }>
+>
+
+function rejectUnused(): Promise<never> {
+  return Promise.reject(new Error('route not exercised by the company settings fixture'))
 }
 
 function authenticatedContext(

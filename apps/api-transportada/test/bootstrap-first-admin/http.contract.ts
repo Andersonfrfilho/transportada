@@ -169,7 +169,9 @@ describe('bootstrap first admin route', () => {
 
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-methods')).toBe('POST')
-    expect(response.headers.get('access-control-allow-headers')).toBe('Authorization, Content-Type')
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'Authorization, Content-Type, Idempotency-Key',
+    )
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
   })
 
