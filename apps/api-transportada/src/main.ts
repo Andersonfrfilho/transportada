@@ -227,6 +227,7 @@ function createAnonymousRoutes({
     }),
     ...createUserActivationRoutes({
       activateInvitation: createActivateInvitationUseCase({
+        identities: new DrizzleCompanyUserRepository(database),
         identityProvider: createIdentityAccessGateway({
           clientId: config.keycloak.admin.clientId,
           clientSecret: config.keycloak.admin.clientSecret,
@@ -422,12 +423,14 @@ function createApplicationRoutes({
     repository: companyUserRepository,
   })
   const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
+    identityGateway: identityAccessGateway,
     repository: companyUserRepository,
   })
   const replaceCompanyUserRoles = createReplaceCompanyUserRolesUseCase({
     repository: companyUserRepository,
   })
   const removeCompanyUserMembership = createRemoveCompanyUserMembershipUseCase({
+    identityGateway: identityAccessGateway,
     repository: companyUserRepository,
   })
   return [

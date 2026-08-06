@@ -271,6 +271,52 @@ o convite (fases B–D). Staging pode ser resetado à vontade durante o percurso
       perfil, remoção) com ator, alvo, IP e horário — e teste de que nem código, nem senha, nem
       contato em claro entram na trilha. Dependências: T010. Sucesso: verde.
 
+## Fase C2 — Perfil, sincronização com o Keycloak e foto
+
+> 🤖 Modelo: `sonnet` (T022 e T028 são 🧠 — validar o desenho com `opus` antes)
+>
+> Escopo acrescentado depois da Fase C, a pedido do usuário: hoje suspender, remover e editar não
+> chegam ao Keycloak, não existe rota de edição de perfil e não existe foto. Requisitos R6, R7 e R8.
+
+- [x] T021 Contrato **falhando** da sincronização: suspender chama `setEnabled(false)`, reativar
+      chama `setEnabled(true)`, remover vínculo desabilita no Keycloak, e o convite grava
+      `firstName`, `lastName` e o atributo `company_id`. Falha do gateway reprova a operação e o
+      banco não muda. Dependências: T011. Sucesso: vermelho.
+
+- [x] T022 🧠 Estender `IdentityAccessGatewayPort` e `keycloak-admin.gateway.ts` com `updateUser`,
+      `updateAttributes`, `deleteUser`, `setTemporaryPassword` e busca por `username` — o pacote
+      `@adatechnology/keycloak-admin` já expõe todos. Propagar nos use-cases de status e remoção.
+      Dependências: T021. Sucesso: T021 verde + gates da API verdes.
+      **Divergência:** o pacote não expõe busca por `username`, só `findUserByEmail`. A colisão de
+      `username` continua detectável — o Admin API responde `USER_ALREADY_EXISTS` na escrita — e é
+      por ali que o 409 da T024 vai sair, sem uma consulta prévia que não resolveria a corrida.
+
+- [ ] T023 Contrato **falhando** da edição de perfil: `PATCH /company-users/:id` sob `users.manage`
+      altera nome, `username`, e-mail, canal e endereço de contato; `username` duplicado devolve 409
+      com erro de domínio próprio; admin da empresa A não altera usuário da empresa B.
+      Dependências: T022. Sucesso: vermelho.
+
+- [ ] T024 Implementar o `PATCH`: schema Zod, use-case, repositório sobre `identity_user_profiles` +
+      `identity_users`, e o empurrão para o Keycloak na mesma operação. Migration aditiva para o
+      `username` da aplicação, se o contrato de colunas exigir. Dependências: T023. Sucesso: T023
+      verde + `make migration-test` verde.
+
+- [ ] T025 Contrato **falhando** da senha temporária: o convite aceita a via `temporary_password`,
+      cria o usuário **habilitado**, chama `setTemporaryPassword`, não cria convite pendente e não
+      devolve nem loga a senha em lugar nenhum. Dependências: T024. Sucesso: vermelho.
+
+- [ ] T026 Implementar a segunda via de ativação no convite, com as duas vias mutuamente exclusivas
+      por usuário. Dependências: T025. Sucesso: T025 verde + gates da API verdes.
+
+- [ ] T027 Contrato **falhando** da foto: `POST` e `GET` de foto sob autenticação, tipo restrito a
+      `image/jpeg`/`image/png`/`image/webp`, teto de bytes, chave sem dado pessoal, bucket privado e
+      substituição da anterior. Dependências: T026. Sucesso: vermelho.
+
+- [ ] T028 🧠 Implementar a foto: gateway de storage para avatar (reusando o `ObjectStorageProvider`
+      já configurado), coluna/migration da referência, rotas de upload e leitura, e o atributo
+      `picture` no Keycloak apontando para a rota da API. Dependências: T027. Sucesso: T027 verde +
+      `make migration-test` verde.
+
 ## Fase D — Entrega do código pelo canal configurado
 
 > 🤖 Modelo: `sonnet`
@@ -297,15 +343,17 @@ o convite (fases B–D). Staging pode ser resetado à vontade durante o percurso
 > 🤖 Modelo: `sonnet`
 
 - [ ] T016 Contrato **falhando** do frontend: a seção aparece só com `users.manage`; a lista mostra
-      contato **mascarado**; as ações de convidar, reenviar, ativar/desativar, trocar perfil e
-      remover existem; o próprio vínculo do admin logado não é removível. Dependências: T011.
+      contato **mascarado**; as ações de criar, reenviar, ativar/desativar, trocar perfil, **editar
+      dados**, **trocar a foto** e remover existem; a criação deixa escolher entre senha temporária e
+      código por canal; o próprio vínculo do admin logado não é removível. Dependências: T028.
       Sucesso: vermelho.
 
 - [ ] T017 Implementar a seção em `modules/company-settings/` — componentes declarativos, estado em
       `*.hook.ts`, TanStack Query em `*.query.ts` / `*.mutation.ts`, client HTTP do módulo, textos
       acentuados nos dois `*.locale.json`, ícones de `@/components/ui/icon`, campos pelos tokens,
-      seletor de canal pelo `@/components/ui/select`. Dependências: T016. Sucesso: T016 verde +
-      gates do frontend verdes.
+      seletor de canal e de via de ativação pelo `@/components/ui/select`, esqueletos de
+      `@/components/ui/skeleton` em todo carregamento. A senha temporária **nunca** é exibida de
+      volta depois de submetida. Dependências: T016. Sucesso: T016 verde + gates do frontend verdes.
 
 - [ ] T018 Se a lista de usuários crescer para tabela densa, aplicar o contrato de
       `docs/frontend/data-tables.md` (ordenação, filtro multi-valor, pílulas, colunas persistidas) ou

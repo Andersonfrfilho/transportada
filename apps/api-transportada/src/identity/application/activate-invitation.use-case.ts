@@ -8,6 +8,8 @@ import {
   shouldRegisterFailedAttempt,
   type InvitationSnapshot,
 } from '../domain/invitation.policy.js'
+import type { CompanyUserRepositoryPort } from './company-user.port.js'
+import { resolveIdentitySubject } from './company-user-identity.service.js'
 
 type ActivateInvitationIdentityProviderPort = {
   setEnabled(input: { readonly enabled: boolean; readonly userId: string }): Promise<void>
@@ -29,6 +31,8 @@ type ActivateInvitationRepositoryPort = {
 }
 
 type ActivateInvitationDependencies = {
+  /** O Admin API só conhece o `subject` do provedor; o `identity_users.id` não existe lá. */
+  readonly identities: Pick<CompanyUserRepositoryPort, 'findIdentitySubject'>
   readonly identityProvider: ActivateInvitationIdentityProviderPort
   readonly invitations: ActivateInvitationRepositoryPort
   readonly now: () => Date
@@ -44,6 +48,7 @@ export type ActivateInvitationUseCase = {
 }
 
 export function createActivateInvitationUseCase({
+  identities,
   identityProvider,
   invitations,
   now,
@@ -65,8 +70,13 @@ export function createActivateInvitationUseCase({
         decideInvitationActivation({ attemptedCodeHash: codeHash, invitation, now: currentTime }),
       )
 
-      await identityProvider.setPassword({ password, temporary: false, userId: decision.userId })
-      await identityProvider.setEnabled({ enabled: true, userId: decision.userId })
+      const subject = await resolveIdentitySubject({
+        repository: identities,
+        userId: decision.userId,
+      })
+
+      await identityProvider.setPassword({ password, temporary: false, userId: subject })
+      await identityProvider.setEnabled({ enabled: true, userId: subject })
       await invitations.markAccepted({
         acceptedAt: decision.acceptedAt,
         companyId: decision.companyId,

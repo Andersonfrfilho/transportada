@@ -1202,3 +1202,56 @@ $ make check
 ```
 
 Nenhum erro novo veio da dependência.
+
+## T021 · T022 — sincronização com o Keycloak
+
+R6 partia de um estado em que **nada** do ciclo de vida do usuário chegava ao provedor de
+identidade: suspender e remover mexiam só no banco, o convite criava um usuário sem nome e sem
+`company_id`, e a ativação endereçava o Admin API pelo `identity_users.id` — um identificador que
+não existe do lado do Keycloak.
+
+### T021 — contrato vermelho
+
+`apps/api-transportada/test/user-administration-application/keycloak-sync.contract.ts`, com dublês
+em `test/fixtures/keycloak-sync.fixture.ts` (nenhuma senha real trafega, e o dublê de
+`setPassword` guarda só `temporary` e `userId`). Dez casos, cobrindo convite, ativação, mudança de
+situação e remoção de vínculo.
+
+### T022 — implementação
+
+- `IdentityAccessGatewayPort` e `keycloak-admin.gateway.ts` ganharam `updateUser`,
+  `updateAttributes`, `deleteUser`, `setTemporaryPassword` e `findUserByEmail`, e o `createUser`
+  passou a repassar `attributes`, `firstName` e `lastName` — **antes ele descartava os três em
+  silêncio**, o que o contrato de dublê sozinho não pegaria: o use-case entregava os dados e o
+  gateway de produção os jogava fora. Daí o segundo contrato,
+  `test/user-administration-application/identity-gateway.contract.ts`, que troca o cliente do
+  Admin API por um dublê e afirma o repasse na fronteira real.
+- Campo não informado é **omitido** da chamada em vez de ir como `undefined`: o Admin API
+  sobrescreve o que recebe, e mandar `undefined` apagaria o que já está gravado.
+- `resolveIdentitySubject` (`company-user-identity.service.ts`) é o ponto único de tradução do id da
+  aplicação para o `subject`, apoiado em `findIdentitySubject` do repositório.
+- A ordem das escritas é deliberada, e o comentário no use-case diz por quê: **desabilitar chama o
+  provedor antes do banco; habilitar chama o banco antes do provedor**. Sem transação distribuída,
+  é assim que qualquer falha no meio deixa o usuário sem acesso, nunca com acesso indevido.
+- `shouldDisableIdentity` guarda o multiempresa: quem mantém vínculo ativo em outra empresa não é
+  desabilitado no realm, porque o `enabled` é global e o vínculo é por empresa.
+
+**Divergência com a spec:** o pacote `@adatechnology/keycloak-admin` não expõe busca por
+`username`, só `findUserByEmail`. A colisão de `username` continua detectável pelo
+`USER_ALREADY_EXISTS` que o Admin API devolve na escrita — e é de lá que o 409 da T024 vai sair.
+Uma consulta prévia não resolveria a corrida de qualquer forma.
+
+```
+$ bun test ./test/user-administration-application.contract.test.ts   # antes da implementação
+→ 11 pass, 4 fail
+
+$ bun test ./test/user-administration-application.contract.test.ts   # depois
+→ 15 pass, 0 fail
+
+$ bun run --cwd apps/api-transportada test
+→ 1780 pass, 3 skip, 0 fail, 7559 expect() calls, 80 files
+
+$ bun run --cwd apps/api-transportada typecheck   # tsc --noEmit
+$ bun run --cwd apps/api-transportada lint        # eslint --max-warnings=0
+→ sem saída, verde
+```

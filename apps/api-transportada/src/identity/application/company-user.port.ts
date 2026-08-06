@@ -47,6 +47,11 @@ export type CompanyUserRepositoryPort = {
     readonly companyId: string
     readonly userId: string
   }) => Promise<CompanyUserRecord | undefined>
+  /** O `subject` do provedor de identidade; é ele que o Admin API entende, não o id da aplicação. */
+  readonly findIdentitySubject: (input: { readonly userId: string }) => Promise<string | undefined>
+  readonly listActiveMembershipCompanyIds: (input: {
+    readonly userId: string
+  }) => Promise<readonly string[]>
   readonly listAdministratorUserIds: (input: {
     readonly companyId: string
   }) => Promise<readonly string[]>

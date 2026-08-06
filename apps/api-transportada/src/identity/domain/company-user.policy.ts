@@ -48,6 +48,35 @@ export function deriveCompanyUserStatus({
   return membershipStatus === 'active' ? 'active' : 'suspended'
 }
 
+/**
+ * O Keycloak separa nome e sobrenome; a aplicação guarda um campo só. O primeiro termo vira
+ * `firstName` e o resto `lastName`, que fica ausente quando a pessoa informou um nome só.
+ */
+export function splitPersonName(name: string): {
+  readonly firstName: string
+  readonly lastName?: string
+} {
+  const terms = name.trim().split(/\s+/u)
+  const [firstName, ...remaining] = terms
+  if (firstName === undefined) return { firstName: name }
+
+  return remaining.length === 0 ? { firstName } : { firstName, lastName: remaining.join(' ') }
+}
+
+/**
+ * `enabled` é global no realm e o vínculo é por empresa: só desabilita quem não sobra ativo em
+ * nenhuma outra. Uma transportadora com mais de um CNPJ compartilha as mesmas pessoas.
+ */
+export function shouldDisableIdentity({
+  activeMembershipCompanyIds,
+  leavingCompanyId,
+}: {
+  readonly activeMembershipCompanyIds: readonly string[]
+  readonly leavingCompanyId: string
+}): boolean {
+  return activeMembershipCompanyIds.every((companyId) => companyId === leavingCompanyId)
+}
+
 /** O endereço em claro nunca sai da API — só a versão mascarada chega à listagem. */
 export function maskContactAddress({ channel, value }: MaskContactAddressParams): string {
   if (channel === 'email') return maskEmailAddress(value)

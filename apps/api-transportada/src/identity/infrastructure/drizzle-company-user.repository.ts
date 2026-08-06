@@ -99,6 +99,34 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     return toRecord(row, roles, pendingInvitations)
   }
 
+  /** O Admin API do Keycloak só entende o `subject`; o id interno não existe do lado de lá. */
+  public async findIdentitySubject(input: {
+    readonly userId: string
+  }): Promise<string | undefined> {
+    const [row] = await this.database
+      .select({ subject: externalIdentities.subject })
+      .from(externalIdentities)
+      .where(eq(externalIdentities.userId, input.userId))
+      .limit(1)
+    return row?.subject
+  }
+
+  /** Desabilitar no provedor é global: só pode acontecer quando não sobra vínculo ativo nenhum. */
+  public async listActiveMembershipCompanyIds(input: {
+    readonly userId: string
+  }): Promise<readonly string[]> {
+    const rows = await this.database
+      .select({ companyId: userCompanyMemberships.companyId })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.userId, input.userId),
+          eq(userCompanyMemberships.status, 'active'),
+        ),
+      )
+    return rows.map((row) => row.companyId)
+  }
+
   public async listAdministratorUserIds(input: {
     readonly companyId: string
   }): Promise<readonly string[]> {

@@ -80,6 +80,10 @@ consuma o mesmo fluxo sem uma segunda implementação.
 | Por onde o código sai                | Trio de notificação (`notification-contracts` + provider por canal)                 | Já modela `email`/`sms`/`whatsapp`; construir outro seria duplicar        |
 | Onde o canal se escolhe              | Seção nova na página de configurações da empresa                                    | Pedido explícito do usuário; é onde já vivem certificado, logo e defaults |
 | Quem administra                      | `company-admin`, via `users.manage`, sempre no escopo do token                      | A permissão já existe e já pertence ao papel certo                        |
+| Vias de ativação                     | **Duas**: senha temporária definida pelo admin **ou** código por canal              | Escolha do usuário; a senha temporária entrega acesso sem depender do worker de notificação |
+| Onde a foto do usuário mora          | Bucket privado (MinIO/S3) + rota autenticada da API; Keycloak guarda só a referência | `security.md` §7 proíbe bucket público para dado pessoal; atributo de IdP não guarda binário |
+| Como o usuário loga                  | `username` escolhido pelo admin, editável e sincronizado com o Keycloak             | Escolha do usuário; o UUID sintético do convite não é decorável e o contato pode ser telefone |
+| Quem é a fonte da verdade do perfil  | O banco da aplicação; toda escrita empurra para o Keycloak na mesma operação        | O Keycloak não conhece empresa nem perfis do produto; divergência silenciosa é o pior estado |
 
 ## Arranque do ambiente — decidido
 
@@ -122,6 +126,8 @@ capacidade do produto, não modelo comercial.
 - Trocar o código válido por definição de senha habilita o usuário no Keycloak e conclui a
   ativação. **A senha nunca transita pela API da aplicação nem é gravada por ela** — a definição
   acontece contra o Keycloak.
+- Toda chamada ao Admin API endereça o usuário pelo **`subject` do Keycloak**, guardado em
+  `external_identities`. O `identity_users.id` da aplicação é outro identificador e não serve.
 - Reenvio de código invalida o anterior.
 - O mesmo par de endpoints atende web e o mobile futuro: o fluxo é código + canal, nunca link.
 
@@ -147,6 +153,42 @@ capacidade do produto, não modelo comercial.
 - Contrato de tenant safety obrigatório em `test/*-schema/` para cada query nova, provando que um
   admin da empresa A não enxerga nem altera usuário da empresa B.
 
+### R6 — Perfil editável e sincronizado com o Keycloak
+
+- O admin altera nome, `username`, e-mail, canal e endereço de contato de qualquer usuário da
+  empresa. O banco é a fonte da verdade; a mesma operação empurra `username`, `email`, `firstName`,
+  `lastName` e os atributos para o Keycloak.
+- Toda mudança de situação propaga: suspender chama `setEnabled(false)`, reativar chama
+  `setEnabled(true)`, remover o vínculo desabilita o usuário no Keycloak.
+- O convite passa a gravar no Keycloak o mesmo que o provisionamento do primeiro admin já grava:
+  `firstName`, `lastName` e o atributo `company_id`.
+- **Falha no Keycloak reprova a operação** — a resposta é erro, nunca "salvou aqui, sincroniza
+  depois". Como não há transação distribuída entre banco e provedor de identidade, a ordem das
+  chamadas é escolhida para que qualquer falha parcial deixe o estado **mais restritivo**:
+  desabilitar chama o Keycloak **antes** do banco; habilitar chama o banco **antes** do Keycloak.
+  Nos dois casos, uma falha no meio deixa o usuário sem acesso — nunca com acesso indevido.
+- Usuário com vínculo ativo em **outra** empresa não é desabilitado no Keycloak ao ser suspenso ou
+  removido de uma: o `enabled` é global no realm, o vínculo é por empresa.
+- `username` é único no realm; colisão vira erro de domínio próprio, com 409.
+
+### R7 — Foto do usuário
+
+- Upload por rota autenticada sob `users.manage`; o próprio usuário pode trocar a sua.
+- O binário vai para o bucket privado, sob `tenants/<companyId>/users/<userId>/photo/<objectId>`.
+  Nome de arquivo **nunca** carrega dado pessoal (`security.md` §7).
+- Leitura só por rota autenticada da API, que resolve o objeto e devolve o conteúdo; o Keycloak
+  guarda apenas a referência no atributo `picture`.
+- Tipo e tamanho validados na fronteira: `image/jpeg`, `image/png` ou `image/webp`, com teto
+  explícito de bytes. Trocar a foto substitui a anterior.
+
+### R8 — Ativação por senha temporária
+
+- Além do código por canal (R2), o admin pode definir uma senha temporária no ato do convite.
+- A senha vai direto ao Keycloak por `setTemporaryPassword`, que força a troca no primeiro login.
+  **A aplicação não grava, não loga e não devolve a senha em resposta nenhuma.**
+- Usuário criado por essa via nasce habilitado e sem convite pendente; as duas vias nunca coexistem
+  para o mesmo usuário no mesmo momento.
+
 ## Fora de escopo
 
 - Criar perfis novos ou permissão por usuário — `COMPANY_ROLES` está fechado.
@@ -166,4 +208,10 @@ capacidade do produto, não modelo comercial.
    por contrato.
 5. A tentativa de remover o último `company-admin` é recusada com erro de domínio próprio.
 6. Nenhuma senha, código, token ou contato em claro aparece em log, evidência ou trilha de auditoria.
-7. `make check` verde.
+7. Um admin cria um usuário com senha temporária, o usuário entra com ela e o Keycloak exige a troca
+   no primeiro login — sem worker de notificação envolvido.
+8. Alterar nome, `username`, e-mail ou contato reflete no Keycloak na mesma operação; com o Keycloak
+   fora do ar a operação falha e o banco não muda.
+9. Suspender, reativar e remover vínculo refletem o `enabled` do usuário no Keycloak.
+10. A foto sobe, é servida por rota autenticada e não é acessível por URL pública do bucket.
+11. `make check` verde.

@@ -18,6 +18,21 @@ export class CompanyUserNotFoundError extends ApiError {
   }
 }
 
+/**
+ * Vínculo na aplicação sem identidade externa correspondente é estado inconsistente: falha alto,
+ * porque continuar significaria mudar o banco sem que o provedor de identidade acompanhe.
+ */
+export class IdentitySubjectNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'IDENTITY_SUBJECT_NOT_FOUND',
+      message: 'Identity provider subject was not found for the user.',
+      status: 409,
+    })
+    this.name = 'IdentitySubjectNotFoundError'
+  }
+}
+
 export class SelfMembershipRemovalError extends ApiError {
   public constructor() {
     super({

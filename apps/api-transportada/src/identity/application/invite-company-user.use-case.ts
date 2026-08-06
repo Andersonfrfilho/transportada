@@ -3,7 +3,11 @@
  */
 import type { CompanyRole } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
-import { toCompanyUserView, type CompanyUserView } from '../domain/company-user.policy.js'
+import {
+  splitPersonName,
+  toCompanyUserView,
+  type CompanyUserView,
+} from '../domain/company-user.policy.js'
 import {
   generateInvitationCode,
   hashInvitationCode,
@@ -14,8 +18,11 @@ import type { InvitationRepositoryPort } from './invitation.port.js'
 
 type InviteIdentityGatewayPort = {
   createUser(input: {
+    readonly attributes?: Readonly<Record<string, string | readonly string[]>>
     readonly email: string
     readonly enabled: boolean
+    readonly firstName?: string
+    readonly lastName?: string
     readonly username: string
   }): Promise<{ readonly subject: string }>
 }
@@ -54,9 +61,12 @@ export function createInviteCompanyUserUseCase({
   return {
     async execute({ channel, context, contact, name, roles }) {
       const userId = crypto.randomUUID()
+      /** `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. */
       const { subject } = await identityGateway.createUser({
+        attributes: { company_id: context.companyId },
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,
+        ...splitPersonName(name),
         username: userId,
       })
 

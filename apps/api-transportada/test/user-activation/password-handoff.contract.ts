@@ -22,6 +22,7 @@ type Dependencies = Record<string, unknown>
 const COMPANY_ID = '00000000-0000-4000-8000-0000000009b1'
 const INVITATION_ID = '00000000-0000-4000-8000-0000000009b2'
 const USER_ID = '00000000-0000-4000-8000-0000000009b3'
+const SUBJECT = 'c0ffee00-0000-4000-8000-0000000009b3'
 const NOW = new Date('2026-08-04T12:00:00.000Z')
 
 const CODE_HASH = new Bun.CryptoHasher('sha256').update(ACTIVATION_CODE).digest('hex').toLowerCase()
@@ -59,6 +60,8 @@ function createDoubles(params: DoubleParams) {
   return {
     calls,
     dependencies: {
+      /** Fora do registro de chamadas de propósito: traduzir o id em `subject` não é efeito. */
+      identities: { findIdentitySubject: async () => SUBJECT },
       identityProvider: {
         async setEnabled(input: unknown) {
           record('setEnabled', input)
@@ -141,8 +144,9 @@ describe('ativação — ordem dos efeitos', () => {
     await run()
 
     expect(names(calls)).toEqual(['findByCodeHash', 'setPassword', 'setEnabled', 'markAccepted'])
-    expect(calls[1]?.payload).toMatchObject({ userId: USER_ID })
-    expect(calls[2]?.payload).toEqual({ enabled: true, userId: USER_ID })
+    /** O provedor é endereçado pelo `subject`: o `identity_users.id` não existe do lado de lá. */
+    expect(calls[1]?.payload).toMatchObject({ userId: SUBJECT })
+    expect(calls[2]?.payload).toEqual({ enabled: true, userId: SUBJECT })
     expect(calls[3]?.payload).toEqual({
       acceptedAt: NOW,
       companyId: COMPANY_ID,

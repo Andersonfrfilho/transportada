@@ -58,9 +58,14 @@ export function createKeycloakAdminGateway(
   }
 }
 
+export type IdentityUserAttributes = Readonly<Record<string, string | readonly string[]>>
+
 export type CreateIdentityUserInput = {
+  readonly attributes?: IdentityUserAttributes
   readonly email: string
   readonly enabled: boolean
+  readonly firstName?: string
+  readonly lastName?: string
   readonly username: string
 }
 
@@ -68,12 +73,38 @@ export type CreateIdentityUserResult = {
   readonly subject: string
 }
 
+export type IdentityUserProfilePatch = Readonly<
+  Partial<{
+    email: string
+    emailVerified: boolean
+    firstName: string
+    lastName: string
+    username: string
+  }>
+>
+
+export type FindIdentityUserResult = {
+  readonly subject: string
+  readonly username: string | undefined
+}
+
 export type IdentityAccessGatewayPort = {
   createUser(input: CreateIdentityUserInput): Promise<CreateIdentityUserResult>
+  deleteUser(input: { readonly userId: string }): Promise<void>
+  findUserByEmail(input: { readonly email: string }): Promise<FindIdentityUserResult | undefined>
   setEnabled(input: { readonly enabled: boolean; readonly userId: string }): Promise<void>
   setPassword(input: {
     readonly password: string
     readonly temporary: boolean
+    readonly userId: string
+  }): Promise<void>
+  setTemporaryPassword(input: { readonly password: string; readonly userId: string }): Promise<void>
+  updateAttributes(input: {
+    readonly attributes: IdentityUserAttributes
+    readonly userId: string
+  }): Promise<void>
+  updateUser(input: {
+    readonly user: IdentityUserProfilePatch
     readonly userId: string
   }): Promise<void>
 }
@@ -85,9 +116,26 @@ export function createIdentityAccessGateway(
   const client = dependencies.createClient(toKeycloakAdminConfig(config))
 
   return {
-    async createUser({ email, enabled, username }): Promise<CreateIdentityUserResult> {
-      const created = await client.createUser({ email, emailVerified: false, enabled, username })
+    async createUser(input): Promise<CreateIdentityUserResult> {
+      const created = await client.createUser({
+        ...omitUndefined({
+          attributes: input.attributes,
+          firstName: input.firstName,
+          lastName: input.lastName,
+        }),
+        email: input.email,
+        emailVerified: false,
+        enabled: input.enabled,
+        username: input.username,
+      })
       return { subject: created.id }
+    },
+    async deleteUser({ userId }): Promise<void> {
+      await client.deleteUser({ userId })
+    },
+    async findUserByEmail({ email }): Promise<FindIdentityUserResult | undefined> {
+      const found = await client.findUserByEmail({ email })
+      return found === undefined ? undefined : { subject: found.id, username: found.username }
     },
     async setEnabled({ enabled, userId }): Promise<void> {
       await client.setEnabled({ enabled, userId })
@@ -95,7 +143,23 @@ export function createIdentityAccessGateway(
     async setPassword({ password, temporary, userId }): Promise<void> {
       await client.setPassword({ password, temporary, userId })
     },
+    async setTemporaryPassword({ password, userId }): Promise<void> {
+      await client.setTemporaryPassword({ password, userId })
+    },
+    async updateAttributes({ attributes, userId }): Promise<void> {
+      await client.updateAttributes({ attributes, userId })
+    },
+    async updateUser({ user, userId }): Promise<void> {
+      await client.updateUser({ user, userId })
+    },
   }
+}
+
+/** O Admin API sobrescreve o campo enviado: mandar `undefined` apagaria o que já está lá. */
+function omitUndefined<TValue extends Record<string, unknown>>(value: TValue): Partial<TValue> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as Partial<TValue>
 }
 
 function toKeycloakAdminConfig({
