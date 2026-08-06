@@ -263,9 +263,50 @@ No modelo de instalação dedicada (ADR-0021) isso é uma linha por hora, e é o
 
 ## T011 — validação em staging
 
-_Pendente._ Todo o código da feature está em staging: T013 provou que o `meta` chega inteiro e T014
-que a empresa é contada e nomeada (`not_opted_in`). O que falta não é código — é ligar a busca
-automática pela tela de configurações e ter um certificado ativo e dentro da validade na empresa;
-sem ele a policy responde `certificate_missing` e o ciclo descarta antes de chegar ao SEFAZ. Com o
-opt-in ligado, a evidência é o `cron_cycle_completed` da janela seguinte com `eligibleCount: 1` e
-`enqueuedCount: 1`, mais a primeira nota recebida na aba Remota.
+Opt-in ligado pela tela de configurações em 05/08 22:2x (-03). O primeiro ciclo depois disso passou
+a empresa pela policy inteira e enfileirou:
+
+```
+$ railway logs --service cron --environment staging
+[nfe.distribution.pull] cron_distribution_candidates_evaluated
+  meta={"environment":"homologation","evaluatedCount":1}
+[nfe.distribution.pull] cron_cycle_completed timestamp="2026-08-06T01:25:42.511Z"
+  meta={"acquiredLock":true,"cronJob":"nfe.distribution.pull","eligibleCount":1,"enqueuedCount":1,
+    "failedCount":0,"skippedCount":0,
+    "ineligibleCounts":{"company_disabled":0,"not_opted_in":0,"missing_synthetic_membership":0,
+      "certificate_missing":0,"certificate_not_yet_valid":0,"certificate_expired":0,
+      "cooldown_active":0}}
+```
+
+`eligibleCount: 1` / `enqueuedCount: 1` e as sete razões zeradas — nenhum descarte. Comparado ao
+T014, a mesma empresa que saía em `not_opted_in` agora atravessa.
+
+O outro lado da cadeia, um segundo depois, no worker — a mensagem que o relay entregou:
+
+```
+$ railway logs --service worker --environment staging
+nfe_distribution_consumer_received  meta={"companyId":"1d314e12-…","importId":"f8e7ce57-…"}
+nfe_distribution_pull_started       meta={"environment":"homologation","ultNsu":"000000000000000"}
+nfe_distribution_sefaz_page_received
+  meta={"fetched":0,"maxNsu":"000000000000000","temMais":false,"ultNsu":"000000000000000"}
+nfe_distribution_rate_limit_window_applied  meta={"nextAllowedAt":"2026-08-06T02:25:45.298Z"}
+nfe_distribution_pull_finished
+  meta={"status":"rate-limited","fetched":0,"persisted":0,"duplicated":0}
+```
+
+Cron → `processing_outbox` → relay → RabbitMQ → consumidor → SEFAZ, sem intervenção manual em
+nenhum ponto. **`fetched: 0`**: o ambiente é homologação e o NSU do CNPJ de teste está em zero com
+`temMais: false` — a SEFAZ não tem nota para devolver. Nota recebida de verdade é evidência que só
+production produz; o que staging podia provar, provou. O cooldown de uma hora foi gravado
+(`nextAllowedAt` 02:25:45Z), e é ele que a tela mostra até a janela virar.
+
+⚠️ O ciclo rodou às 01:25 UTC, não às 02:00 — o Railway executa o CronJob uma vez no deploy, além
+do `cronSchedule`. Não é um desvio de cadência; é um ciclo extra, e ele obedeceu ao mesmo lock e ao
+mesmo cooldown.
+
+**Descoberta desta validação:** com o opt-in ligado e nenhum ciclo ainda, a tela não sabia dizer
+quando a próxima busca aconteceria — o único horário que ela tinha era o `nextAllowedAt`, nulo até
+a primeira consulta à SEFAZ. `nextScheduledRunAt` fechou o buraco (commit `3e31d68`): a cadência
+vem por `SCHEDULED_DISTRIBUTION_CRON`, um contrato lê o `deploy/cron/railway.json` para as duas
+pontas não divergirem, e expressão que a política não sabe resolver derruba o boot em vez de servir
+data inventada.
