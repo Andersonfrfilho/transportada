@@ -16,7 +16,7 @@ Um projeto Railway `transportada` com dois ambientes isolados:
 
 | Ambiente     | Branch    | Ambiente fiscal do cron |
 | ------------ | --------- | ----------------------- |
-| `staging`    | `develop` | `homologation`          |
+| `staging`    | `staging` | `homologation`          |
 | `production` | `main`    | `production`            |
 
 Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem a sua
@@ -149,8 +149,10 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 
 `.github/workflows/deploy.yml`:
 
-1. `push` em `develop` → staging; `push` em `main` → production;
-   `workflow_dispatch` escolhe o ambiente.
+1. `push` em `staging` → staging; `push` em `main` → production;
+   `workflow_dispatch` escolhe o ambiente. Branch sem ambiente não dispara o
+   workflow, e se disparar por engano o job `target` falha em vez de assumir
+   staging — `develop` é branch de trabalho, não de publicação.
 2. O job `gate` chama `.github/workflows/ci.yml` inteiro (format, lint,
    typecheck, test, build, migration-test, integração e smoke). Nenhum deploy
    começa antes dele passar. Por isso `ci.yml` não dispara mais em `push`:
@@ -204,11 +206,11 @@ Passos que exigem o dashboard ou uma decisão humana:
 
 ## Promoção
 
-1. PR → CI.
-2. Merge em `develop` → staging automático.
+1. PR de feature → `develop` → CI.
+2. Merge de `develop` em `staging` → staging automático.
 3. Migration compatível → smoke/E2E em homologação.
 4. Tag/versão + aprovação humana no GitHub Environment.
-5. Merge em `main` → production.
+5. Merge de `staging` em `main` → production.
 6. Health, migration e smoke pós-deploy.
 
 Schema evolui por expand/contract. Worker antigo e novo só convivem quando

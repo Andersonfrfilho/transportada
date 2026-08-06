@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, staging]
   workflow_dispatch:
     inputs:
       environment:
@@ -40,8 +40,12 @@ jobs:
             resolved="${{ inputs.environment }}"
           elif [ "${{ github.ref_name }}" = "main" ]; then
             resolved=production
-          else
+          elif [ "${{ github.ref_name }}" = "staging" ]; then
             resolved=staging
+          else
+            # Sem fallback: branch sem ambiente falha em vez de publicar em staging por engano.
+            echo "Branch '${{ github.ref_name }}' não tem ambiente. Use workflow_dispatch." >&2
+            exit 1
           fi
           echo "environment=$resolved" >>"$GITHUB_OUTPUT"
           echo "Ambiente alvo: $resolved"

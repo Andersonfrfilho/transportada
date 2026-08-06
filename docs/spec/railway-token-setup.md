@@ -63,8 +63,8 @@ Esperado: uma linha `RAILWAY_TOKEN`.
 ### 4. Re-disparar o deploy e acompanhar
 
 ```bash
-gh workflow run Deploy --ref develop
-gh run list --branch develop --limit 1
+gh workflow run Deploy --ref staging
+gh run list --branch staging --limit 1
 gh run view <run-id> --json jobs -q '.jobs[] | (.conclusion + "  " + .name)'
 ```
 
