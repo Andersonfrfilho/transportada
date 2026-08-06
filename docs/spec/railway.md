@@ -129,7 +129,8 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 > tela mostra, e a API não observa o serviço de cron para descobrir isso sozinha.
 > Só o campo de minuto pode ser fixado (`0 * * * *`, `*/15 * * * *`); qualquer outra
 > forma derruba o boot em vez de servir data inventada. Mudou a cadência do cron?
-> mude a variável junto.
+> mude a variável junto. No painel da Railway o valor vai **sem aspas** — elas só
+> existem no `.env.example` porque o CI faz `. ./.env` e `*` solto vira glob.
 
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de
