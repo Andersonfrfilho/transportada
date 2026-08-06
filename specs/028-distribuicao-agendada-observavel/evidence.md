@@ -240,6 +240,19 @@ $ bun run --cwd apps/cron-transportada test
  46 pass  0 fail   (era 43 — três testes novos de escopo)
 ```
 
+O primeiro ciclo em staging depois do deploy (`9e6c3a8`, 06/08 00:43) já conta a empresa que sempre
+esteve lá:
+
+```
+cron_distribution_candidates_evaluated  meta={"environment":"homologation","evaluatedCount":1}
+cron_company_not_eligible  meta={"companyId":"1d314e12-…","reason":"not_opted_in"}
+cron_cycle_completed  meta={"acquiredLock":true,"eligibleCount":0,"enqueuedCount":0,
+  "ineligibleCounts":{…,"not_opted_in":1,…},"skippedCount":0}
+```
+
+`evaluatedCount: 1` no lugar de `0`, e a razão nomeada em vez de sete zeros. O ciclo passou a
+responder por que a empresa não recebeu nota — que é o que a feature 028 se propôs a fazer.
+
 `test/nfe-distribution-pull/candidate-scope.contract.ts` prende os dois lados: o mapeamento (linha
 sem configuração vira `not_opted_in`, não some) e o `FROM` da consulta, porque a diferença aqui não
 estava na regra, estava em de onde a regra recebia as linhas.
@@ -250,9 +263,9 @@ No modelo de instalação dedicada (ADR-0021) isso é uma linha por hora, e é o
 
 ## T011 — validação em staging
 
-_Pendente._ T013 já está em staging e o log da janela das 00:16 provou que o `meta` chega inteiro.
-Falta o que não é código: ligar a busca automática pela tela de configurações e ter um certificado
-ativo e dentro da validade na empresa — sem ele a policy responde `certificate_missing` e o ciclo
-descarta a empresa antes de chegar ao SEFAZ. Com o opt-in ligado, a evidência é o
-`cron_cycle_completed` da janela seguinte com `eligibleCount: 1` e `enqueuedCount: 1`, mais a
-primeira nota recebida na aba Remota.
+_Pendente._ Todo o código da feature está em staging: T013 provou que o `meta` chega inteiro e T014
+que a empresa é contada e nomeada (`not_opted_in`). O que falta não é código — é ligar a busca
+automática pela tela de configurações e ter um certificado ativo e dentro da validade na empresa;
+sem ele a policy responde `certificate_missing` e o ciclo descarta antes de chegar ao SEFAZ. Com o
+opt-in ligado, a evidência é o `cron_cycle_completed` da janela seguinte com `eligibleCount: 1` e
+`enqueuedCount: 1`, mais a primeira nota recebida na aba Remota.
