@@ -86,4 +86,4 @@ jobs:
       - name: Deploy cron
         run: .github/scripts/railway-deploy.sh deploy cron
       - name: Deploy frontend
-        run: .github/scripts/railway-deploy.sh deploy frontend
+        run: .github/scripts/railway-deploy.sh deploy transportada-frontend
