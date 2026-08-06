@@ -3,6 +3,7 @@
  */
 import './cte-issuance-application/issue.contract.js'
 import './cte-issuance-application/issue-from-draft.contract.js'
+import './cte-issuance-application/issue-batch-items.contract.js'
 import './cte-issuance-application/reprocess.contract.js'
 import './cte-issuance-application/cancel.contract.js'
 import './cte-issuance-application/lookup.contract.js'

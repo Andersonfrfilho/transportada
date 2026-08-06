@@ -160,6 +160,13 @@ export class DrizzleCteIssuanceRepository implements CteIssuanceUnitOfWorkPort {
     return findBatchItemRecord(this.database, input)
   }
 
+  public async listIssuableBatchItems(input: {
+    readonly batchId: string
+    readonly companyId: string
+  }) {
+    return listBatchItemRecords(this.database, input)
+  }
+
   public async listFiscalDocuments(input: {
     readonly batchId: string
     readonly batchItemId: string
@@ -396,6 +403,13 @@ class CteIssuanceTransaction implements CteIssuanceUnitOfWorkPort {
 
   public async findBatchItem(input: BatchItemQuery) {
     return findBatchItemRecord(this.transaction, input)
+  }
+
+  public async listIssuableBatchItems(input: {
+    readonly batchId: string
+    readonly companyId: string
+  }) {
+    return listBatchItemRecords(this.transaction, input)
   }
 
   public async listFiscalDocuments(input: {
@@ -940,6 +954,24 @@ async function findBatchItemRecord(
         id: record.id,
         status: 'unknown',
       }
+}
+
+/** Ordenado por `position`: a numeração fiscal reservada segue a ordem que o usuário montou o lote. */
+async function listBatchItemRecords(
+  queryable: Queryable,
+  input: { readonly batchId: string; readonly companyId: string },
+): Promise<readonly Record<string, unknown>[]> {
+  const records = await queryable
+    .select()
+    .from(cteBatchItems)
+    .where(and(...buildBatchItemFilters(input)))
+    .orderBy(cteBatchItems.position)
+  return records.map((record) => ({
+    batchId: record.batchId,
+    companyId: record.companyId,
+    id: record.id,
+    status: 'unknown',
+  }))
 }
 
 async function listCteFiscalDocuments(
