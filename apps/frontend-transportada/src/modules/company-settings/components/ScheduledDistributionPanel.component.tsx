@@ -76,6 +76,9 @@ function ScheduledDistributionFacts({ status }: Readonly<{ status: ScheduledDist
   return (
     <>
       <EligibilityLine status={status} />
+      <p className={styles.fieldHint}>
+        {t('scheduledDistributionNextRun', { moment: formatMoment(status.nextScheduledRunAt) })}
+      </p>
       {status.nextAllowedAt !== null && (
         <p className={styles.fieldHint}>
           {t('scheduledDistributionNextWindow', { moment: formatMoment(status.nextAllowedAt) })}

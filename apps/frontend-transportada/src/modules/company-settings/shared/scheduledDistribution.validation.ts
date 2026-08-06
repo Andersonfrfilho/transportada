@@ -8,6 +8,7 @@ const STATUS_KEYS = [
   'ineligibilityReason',
   'lastAutomationImport',
   'nextAllowedAt',
+  'nextScheduledRunAt',
 ]
 const AUTOMATION_IMPORT_KEYS = ['finishedAt', 'receivedCount', 'startedAt', 'status']
 
@@ -25,6 +26,7 @@ export type ScheduledDistributionStatus = Readonly<{
   ineligibilityReason: string | null
   lastAutomationImport: ScheduledDistributionRun | null
   nextAllowedAt: string | null
+  nextScheduledRunAt: string
 }>
 
 export type ScheduledDistributionResponse = Readonly<{ data: ScheduledDistributionStatus }>
@@ -70,7 +72,9 @@ export function isScheduledDistributionStatus(
     typeof value.enabled === 'boolean' &&
     (value.ineligibilityReason === null || typeof value.ineligibilityReason === 'string') &&
     (value.lastAutomationImport === null || isAutomationRun(value.lastAutomationImport)) &&
-    isNullableIsoDate(value.nextAllowedAt)
+    isNullableIsoDate(value.nextAllowedAt) &&
+    typeof value.nextScheduledRunAt === 'string' &&
+    isNullableIsoDate(value.nextScheduledRunAt)
   )
 }
 

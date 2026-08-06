@@ -3,8 +3,10 @@
  */
 import { z } from 'zod'
 
+import { isSupportedScheduleExpression } from '../companies/domain/scheduled-distribution-window.policy'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
+import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from './scheduled-distribution.constant'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -62,6 +64,15 @@ const environmentSchema = z.object({
     })
     .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  // Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo. Expressão que a
+  // política não sabe resolver derruba o boot: melhor não subir do que servir data inventada.
+  SCHEDULED_DISTRIBUTION_CRON: z
+    .string()
+    .trim()
+    .default(DEFAULT_SCHEDULED_DISTRIBUTION_CRON)
+    .refine(isSupportedScheduleExpression, {
+      message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
+    }),
 })
 
 export function parseEnvironment(environment: Record<string, string | undefined>): ApiEnvironment {
@@ -86,6 +97,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     },
     logLevel: parsed.LOG_LEVEL,
     port: parsed.APP_PORT,
+    scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     vehicleLookup:
       parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
         ? null

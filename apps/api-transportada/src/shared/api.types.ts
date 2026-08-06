@@ -27,6 +27,8 @@ export type ApiEnvironment = {
   }
   readonly logLevel: LogLevel
   readonly port: number
+  /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
+  readonly scheduledDistributionCron: string
   /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
   readonly vehicleLookup: {
     readonly token: string

@@ -18,6 +18,7 @@ import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/d
 import { HealthService } from '../../src/health/health.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
 import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
@@ -94,6 +95,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             },
             logLevel: 'error',
             port: 0,
+            scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
             vehicleLookup: null,
           },
           logger,

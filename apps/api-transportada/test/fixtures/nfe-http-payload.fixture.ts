@@ -61,6 +61,7 @@ export const SCHEDULED_DISTRIBUTION_STATUS: ScheduledDistributionStatus = {
     status: 'completed',
   },
   nextAllowedAt: undefined,
+  nextScheduledRunAt: '2026-07-22T14:00:00.000Z',
 }
 
 export const REPROCESS_RESPONSE: NfeImportSummary = {

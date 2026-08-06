@@ -103,6 +103,9 @@ export function NfeScheduledDistribution(props: NfeScheduledDistributionProps) {
         <p>{t(scheduled.enabled ? 'scheduled.on' : 'scheduled.off')}</p>
       </div>
       <EligibilityLine scheduled={scheduled} />
+      <p className={styles.distributionMeta}>
+        {t('scheduled.nextRun', { moment: formatMoment(scheduled.nextScheduledRunAt) })}
+      </p>
       {scheduled.nextAllowedAt !== null && (
         <p className={styles.distributionMeta}>
           {t('scheduled.nextWindow', { moment: formatMoment(scheduled.nextAllowedAt) })}

@@ -53,6 +53,7 @@
     "off": "Automatic retrieval is off.",
     "ready": "All set: the next cycle will fetch notes.",
     "blocked": "Nothing will be fetched until this is resolved: {{reason}}",
+    "nextRun": "Next automatic cycle: {{moment}}.",
     "nextWindow": "Next window allowed by SEFAZ: {{moment}}.",
     "lastRun": "Last automatic run at {{moment}} — {{received}} note(s) received.",
     "lastRunFailed": "The last automatic run, at {{moment}}, failed. No note was received in that cycle.",

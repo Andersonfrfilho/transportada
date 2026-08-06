@@ -18,6 +18,7 @@ const SCHEDULED_LABEL_KEYS = [
   'scheduled.ready',
   'scheduled.blocked',
   'scheduled.nextWindow',
+  'scheduled.nextRun',
   'scheduled.lastRun',
   'scheduled.lastRunFailed',
   'scheduled.neverRan',
@@ -37,6 +38,7 @@ type ScheduledDistributionContract = Readonly<{
     status: string
   }> | null
   nextAllowedAt: string | null
+  nextScheduledRunAt: string
 }>
 
 type NfeWorkspaceClientModule = {
@@ -76,6 +78,7 @@ const SCHEDULED_ENABLED = {
     status: 'completed',
   },
   nextAllowedAt: null,
+  nextScheduledRunAt: '2026-08-01T05:00:00.000Z',
 } as const satisfies ScheduledDistributionContract
 
 function statusPayload(scheduled: unknown): Record<string, unknown> {
@@ -182,6 +185,7 @@ describe('nfe scheduled distribution presentation contract', () => {
     ])
 
     expect(page).toContain('<NfeScheduledDistribution')
+    expect(card).toContain('nextScheduledRunAt')
     expect(card).toContain('resolveIneligibilityLabelKey')
     expect(card).toContain("ns: 'companySettings'")
     expect(card).toContain('navigateToCompanySettings')

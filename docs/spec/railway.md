@@ -124,6 +124,13 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 `VITE_*`, `CRON_JOB`, `FISCAL_ENVIRONMENT`, `CADENCE_MINUTES`, `PAGE_SIZE`,
 `OBJECT_STORAGE_BUCKET`/`ENDPOINT`/`REGION`/`FORCE_PATH_STYLE`.
 
+> ⏱ `SCHEDULED_DISTRIBUTION_CRON`, na `api`, tem de espelhar o `deploy.cronSchedule`
+> de `deploy/cron/railway.json` — é dela que sai o "próximo ciclo automático" que a
+> tela mostra, e a API não observa o serviço de cron para descobrir isso sozinha.
+> Só o campo de minuto pode ser fixado (`0 * * * *`, `*/15 * * * *`); qualquer outra
+> forma derruba o boot em vez de servir data inventada. Mudou a cadência do cron?
+> mude a variável junto.
+
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de
 `${{rabbitmq.*}}`.

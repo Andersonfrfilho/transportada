@@ -18,6 +18,7 @@ export type SerializedScheduledDistributionStatus = {
     readonly status: string
   } | null
   readonly nextAllowedAt: string | null
+  readonly nextScheduledRunAt: string
 }
 
 export function serializeScheduledDistributionStatus(
@@ -38,5 +39,6 @@ export function serializeScheduledDistributionStatus(
             status: status.lastAutomationImport.status,
           },
     nextAllowedAt: status.nextAllowedAt ?? null,
+    nextScheduledRunAt: status.nextScheduledRunAt,
   }
 }

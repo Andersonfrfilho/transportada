@@ -23,6 +23,7 @@ const PANEL_LABEL_KEYS = [
   'scheduledDistributionReady',
   'scheduledDistributionBlocked',
   'scheduledDistributionNextWindow',
+  'scheduledDistributionNextRun',
   'scheduledDistributionLastRun',
   'scheduledDistributionLastRunFailed',
   'scheduledDistributionNeverRan',
@@ -54,6 +55,7 @@ type ScheduledDistributionStatusContract = Readonly<{
     status: string
   }> | null
   nextAllowedAt: string | null
+  nextScheduledRunAt: string
 }>
 
 type CompanySettingsClientModule = {
@@ -85,6 +87,7 @@ const ENABLED_STATUS = {
     status: 'completed',
   },
   nextAllowedAt: null,
+  nextScheduledRunAt: '2026-08-01T05:00:00.000Z',
 } as const satisfies ScheduledDistributionStatusContract
 
 const DISABLED_STATUS = {
@@ -94,6 +97,7 @@ const DISABLED_STATUS = {
   ineligibilityReason: 'not_opted_in',
   lastAutomationImport: null,
   nextAllowedAt: null,
+  nextScheduledRunAt: '2026-08-01T05:00:00.000Z',
 } as const satisfies ScheduledDistributionStatusContract
 
 function readModule(filePath: string): Promise<string> {
@@ -199,6 +203,15 @@ describe('scheduled distribution presentation contract', () => {
       expect(portuguese[key]).toBeString()
       expect(english[key]).toBeString()
     }
+  })
+
+  test('o painel anuncia o próximo ciclo do cron, e não só a janela da SEFAZ', async () => {
+    const component = await readModule(
+      'src/modules/company-settings/components/ScheduledDistributionPanel.component.tsx',
+    )
+
+    expect(component).toContain('nextScheduledRunAt')
+    expect(component).toContain('scheduledDistributionNextRun')
   })
 
   test('o painel entra na tela de configurações com esqueleto e sem cor solta', async () => {

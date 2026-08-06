@@ -8,6 +8,7 @@ import type {
   ScheduledDistributionStatusPort,
 } from '../../src/companies/application/scheduled-distribution-status.port.js'
 import { createGetScheduledDistributionStatusUseCase } from '../../src/companies/application/get-scheduled-distribution-status.use-case.js'
+import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-0000000000c1'
 const NOW = new Date('2026-08-05T21:00:00.000Z')
@@ -36,7 +37,11 @@ function createUseCase(
   const port: ScheduledDistributionStatusPort = {
     loadStatusFacts: () => Promise.resolve(statusFacts),
   }
-  return createGetScheduledDistributionStatusUseCase({ clock: { now: () => NOW }, port })
+  return createGetScheduledDistributionStatusUseCase({
+    clock: { now: () => NOW },
+    port,
+    scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
+  })
 }
 
 describe('scheduled distribution status use case', () => {
@@ -51,6 +56,7 @@ describe('scheduled distribution status use case', () => {
       ineligibilityReason: undefined,
       lastAutomationImport: undefined,
       nextAllowedAt: undefined,
+      nextScheduledRunAt: '2026-08-05T22:00:00.000Z',
     })
   })
 

@@ -30,6 +30,7 @@ const STATUS: ScheduledDistributionStatus = {
     status: 'completed',
   },
   nextAllowedAt: '2026-07-24T12:45:00.000Z',
+  nextScheduledRunAt: '2026-07-24T13:00:00.000Z',
 }
 
 describe('scheduled distribution route parity contract', () => {
@@ -60,6 +61,7 @@ describe('scheduled distribution route parity contract', () => {
       ineligibilityReason: 'not_opted_in',
       lastAutomationImport: undefined,
       nextAllowedAt: undefined,
+      nextScheduledRunAt: '2026-07-24T13:00:00.000Z',
     }
 
     const settingsBody = await readJson(await callSettingsStatusRoute(empty))

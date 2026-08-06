@@ -166,6 +166,7 @@ export function bootstrap(): Bun.Server<undefined> {
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
+      scheduledDistributionCron: config.scheduledDistributionCron,
       vehicleLookup: config.vehicleLookup,
     }),
     tenantContext,
@@ -244,6 +245,7 @@ type CreateApplicationRoutesParams = {
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
+  readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
   readonly vehicleLookup: ApiEnvironment['vehicleLookup']
 }
 
@@ -253,6 +255,7 @@ function createApplicationRoutes({
   environment,
   idempotencyHmacKey,
   keycloak,
+  scheduledDistributionCron,
   vehicleLookup,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
@@ -299,6 +302,7 @@ function createApplicationRoutes({
   const getScheduledDistribution = createGetScheduledDistributionStatusUseCase({
     clock: { now: () => new Date() },
     port: new DrizzleScheduledDistributionStatusRepository(database),
+    scheduledDistributionCron,
   })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })

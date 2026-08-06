@@ -9,6 +9,7 @@ import {
   evaluateDistributionEligibility,
   type DistributionIneligibilityReason,
 } from '../domain/distribution-eligibility.policy.js'
+import { resolveNextScheduledRunAt } from '../domain/scheduled-distribution-window.policy.js'
 import type {
   ScheduledDistributionImportFacts,
   ScheduledDistributionStatusPort,
@@ -29,6 +30,8 @@ export type ScheduledDistributionStatus = {
   readonly ineligibilityReason: DistributionIneligibilityReason | undefined
   readonly lastAutomationImport: ScheduledDistributionImportStatus | undefined
   readonly nextAllowedAt: string | undefined
+  /** Quando o cron roda de novo — independente do cooldown da SEFAZ e do opt-in da empresa. */
+  readonly nextScheduledRunAt: string
 }
 
 type Clock = { readonly now: () => Date }
@@ -36,11 +39,13 @@ type Clock = { readonly now: () => Date }
 export function createGetScheduledDistributionStatusUseCase(dependencies: {
   readonly clock: Clock
   readonly port: ScheduledDistributionStatusPort
+  readonly scheduledDistributionCron: string
 }): {
   readonly execute: (input: { readonly companyId: string }) => Promise<ScheduledDistributionStatus>
 } {
   return {
     execute: async ({ companyId }) => {
+      const now = dependencies.clock.now()
       const facts = await dependencies.port.loadStatusFacts({ companyId })
       const eligibility = evaluateDistributionEligibility({
         facts: {
@@ -50,7 +55,7 @@ export function createGetScheduledDistributionStatusUseCase(dependencies: {
           nextAllowedAt: facts.nextAllowedAt,
           scheduledDistributionEnabled: facts.scheduledDistributionEnabled,
         },
-        now: dependencies.clock.now(),
+        now,
       })
 
       return {
@@ -61,6 +66,10 @@ export function createGetScheduledDistributionStatusUseCase(dependencies: {
         ineligibilityReason: eligibility.eligible ? undefined : eligibility.reason,
         lastAutomationImport: toImportStatus(facts.lastAutomationImport),
         nextAllowedAt: facts.nextAllowedAt?.toISOString(),
+        nextScheduledRunAt: resolveNextScheduledRunAt({
+          cronExpression: dependencies.scheduledDistributionCron,
+          from: now,
+        }).toISOString(),
       }
     },
   }

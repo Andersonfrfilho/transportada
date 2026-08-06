@@ -103,6 +103,7 @@
   "scheduledDistributionDisable": "Turn automatic retrieval off",
   "scheduledDistributionReady": "All set: the next cycle will fetch notes.",
   "scheduledDistributionBlocked": "Nothing will be fetched until this is resolved: {{reason}}",
+  "scheduledDistributionNextRun": "Next automatic cycle: {{moment}}.",
   "scheduledDistributionNextWindow": "Next window allowed by SEFAZ: {{moment}}.",
   "scheduledDistributionLastRun": "Last automatic run at {{moment}} — {{received}} note(s) received.",
   "scheduledDistributionLastRunFailed": "The last automatic run, at {{moment}}, failed. No note was received in that cycle.",

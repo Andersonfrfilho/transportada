@@ -52,6 +52,7 @@ export type ScheduledDistributionStatusContract = Readonly<{
     status: string
   }> | null
   nextAllowedAt: string | null
+  nextScheduledRunAt: string
 }>
 
 export type NfeDistributionStatusContract = Readonly<{
@@ -164,6 +165,7 @@ export const SCHEDULED_DISTRIBUTION_STATUS = {
     status: 'completed',
   },
   nextAllowedAt: null,
+  nextScheduledRunAt: '2026-07-22T14:00:00.000Z',
 } as const satisfies ScheduledDistributionStatusContract
 
 export const DISTRIBUTION_STATUS = {

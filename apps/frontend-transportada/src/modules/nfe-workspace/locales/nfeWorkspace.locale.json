@@ -59,6 +59,7 @@
     "off": "Busca automática desligada.",
     "ready": "Tudo pronto: o próximo ciclo vai buscar notas.",
     "blocked": "Nada será buscado enquanto isto não for resolvido: {{reason}}",
+    "nextRun": "Próximo ciclo automático: {{moment}}.",
     "nextWindow": "Próxima janela permitida pela SEFAZ: {{moment}}.",
     "lastRun": "Última busca automática em {{moment}} — {{received}} nota(s) recebida(s).",
     "lastRunFailed": "A última busca automática, em {{moment}}, falhou. Nenhuma nota foi recebida no ciclo.",
