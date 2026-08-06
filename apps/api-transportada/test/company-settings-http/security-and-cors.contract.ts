@@ -198,7 +198,62 @@ describe('/company-settings/logo security and CORS contract', () => {
   })
 })
 
+/**
+ * O interruptor da busca automática é GET/PUT/DELETE sem corpo, então o navegador pede só o
+ * `Authorization` no preflight. Sem a rota liberada aqui o preflight responde 403 e o navegador
+ * bloqueia a chamada antes de ela existir — a tela mostra "não foi possível carregar" e o log da
+ * API não registra nenhum GET, porque nenhum GET chegou a ser enviado.
+ */
+describe('/company-settings/scheduled-distribution security and CORS contract', () => {
+  test.each(['GET', 'PUT', 'DELETE'])(
+    'allows exact %s preflight so the browser can reach the opt-in',
+    async (method) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          headers: 'Authorization',
+          method,
+          pathname: COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
+      expect(response.headers.get('access-control-allow-headers')).toBe('Authorization')
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+
+  test.each([
+    ['https://attacker.example', 'PUT', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
+    [FRONTEND_ORIGIN, 'POST', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization, X-Company-Id'],
+    [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
+  ])(
+    'rejects unsafe scheduled distribution preflight before authentication',
+    async (origin, method, headers) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          headers,
+          method,
+          origin,
+          pathname: COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+})
+
 const COMPANY_SETTINGS_LOGO_PATH = `${COMPANY_SETTINGS_PATH}/logo`
+const COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH = `${COMPANY_SETTINGS_PATH}/scheduled-distribution`
 
 type PreflightRequestParams = {
   readonly headers: string

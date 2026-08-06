@@ -13,6 +13,7 @@ import {
   API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH,
   API_COMPANY_SETTINGS_LOGO_PATH,
   API_COMPANY_SETTINGS_PATH,
+  API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH,
   API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
   API_FLEET_CAPABILITIES_PATH,
@@ -110,6 +111,7 @@ function isBillingInvoiceResourcePath(pathname: string): boolean {
 function allowedMethods(pathname: string): string {
   if (pathname === API_BOOTSTRAP_FIRST_ADMIN_PATH) return 'POST'
   if (pathname === API_COMPANY_SETTINGS_LOGO_PATH) return 'GET, PUT, DELETE'
+  if (pathname === API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH) return 'GET, PUT, DELETE'
   if (isCteBatchItemPath(pathname)) return 'DELETE'
   if (isBillingInvoiceResourcePath(pathname)) return 'GET, PATCH'
   if (isFleetDriverVehiclesPath(pathname)) return 'GET, PUT'
@@ -175,6 +177,7 @@ function isAllowedPreflight({
     isBootstrapPreflight({ frontendOrigin, pathname, request }) ||
     isCompanySettingsPreflight({ frontendOrigin, pathname, request }) ||
     isCompanyLogoPreflight({ frontendOrigin, pathname, request }) ||
+    isScheduledDistributionPreflight({ frontendOrigin, pathname, request }) ||
     isMultipartUploadPreflight({ frontendOrigin, pathname, request }) ||
     isDigitalCertificatesPreflight({ frontendOrigin, pathname, request }) ||
     isWorkspaceResourcePreflight({ frontendOrigin, pathname, request })
@@ -245,6 +248,23 @@ function isWorkspaceResourcePreflight({
       method: requestedMethod,
       value: request.headers.get('access-control-request-headers'),
     })
+  )
+}
+
+/** Ler, ligar e desligar o opt-in não têm corpo: o navegador pede só o `Authorization`. */
+function isScheduledDistributionPreflight({
+  frontendOrigin,
+  pathname,
+  request,
+}: IsAllowedPreflightParams): boolean {
+  const requestedMethod = request.headers.get('access-control-request-method')
+  return (
+    pathname === API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH &&
+    request.headers.get('origin') === frontendOrigin &&
+    (requestedMethod === HTTP_GET_METHOD ||
+      requestedMethod === 'PUT' ||
+      requestedMethod === 'DELETE') &&
+    hasOnlyAuthorizationHeader(request.headers.get('access-control-request-headers'))
   )
 }
 
