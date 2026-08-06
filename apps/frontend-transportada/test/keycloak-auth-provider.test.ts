@@ -123,13 +123,15 @@ describe('KeycloakAuthProvider', () => {
     expect(client.login).toHaveBeenCalledTimes(1)
   })
 
-  test('clears token and redirects to the application origin on logout', async () => {
+  // Descartar o token antes do logout apaga o `id_token_hint`, e sem ele o Keycloak devolve o
+  // usuário com a sessão SSO viva — o clique desloga e a tela volta logada.
+  test('keeps the token until the logout redirect, so the id_token_hint survives', async () => {
     const client = createClient()
     const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
 
     await provider.logout()
 
-    expect(client.clearToken).toHaveBeenCalledTimes(1)
+    expect(client.clearToken).not.toHaveBeenCalled()
     expect(client.logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost' })
   })
 })
