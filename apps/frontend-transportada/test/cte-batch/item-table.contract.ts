@@ -588,6 +588,15 @@ describe('CT-e item table contract', () => {
       )
     }
 
+    /** API antiga durante o deploy não manda o campo — recusar apagaria a tabela inteira. */
+    const withoutChange = Object.fromEntries(
+      Object.entries(AUTHORIZED_ROW).filter(([key]) => key !== 'fiscalNumberChange'),
+    )
+    const olderApi = pageFromApi({ data: [withoutChange], page: { nextCursor: null } }) as {
+      readonly items: readonly { readonly fiscalNumberChange: unknown }[]
+    }
+    expect(olderApi.items[0]?.fiscalNumberChange).toBeNull()
+
     const [table, locale] = await Promise.all([
       readModule('src/modules/cte-batch/components/CteItemTable.component.tsx'),
       readModule('src/modules/cte-batch/locales/cteBatch.locale.json'),

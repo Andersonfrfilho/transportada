@@ -64,6 +64,7 @@ const CTE_ITEM = {
   fiscalAmount: '55.5500',
   fiscalDocumentId: '00000000-0000-4000-8000-000000000505',
   fiscalNumber: '5000',
+  fiscalNumberChange: null,
   fiscalSeries: '1',
   id: CTE_ITEM_ID,
   lastErrorCode: null,

@@ -108,9 +108,12 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   }
 }
 
-/** Motivo desconhecido é resposta que não sabemos explicar ao usuário: melhor recusar. */
+/**
+ * Ausente é API anterior ao campo, e recusar apagaria a tabela na janela de deploy; motivo
+ * desconhecido é resposta que não sabemos explicar ao usuário, e essa recusamos.
+ */
 function fiscalNumberChangeFromApi(input: unknown): CteFiscalNumberChange | null {
-  if (input === null) return null
+  if (input === null || input === undefined) return null
   if (!isRecord(input)) throw validationError()
   rejectExtraKeys(input, FISCAL_NUMBER_CHANGE_KEYS)
   if (
