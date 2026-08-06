@@ -632,6 +632,19 @@ async function collectPendingBatchItems(input: {
   return pending
 }
 
+/**
+ * O comando chega com uma chave só, mas `cte_issuance_attempts` é única por (empresa, chave) e o
+ * lote gera uma tentativa por item: repetir a chave do comando derruba o segundo item com 23505.
+ * O replay do comando continua chaveado pela chave crua, em `idempotency_records`, e é ela que
+ * volta no `CteIssuanceResult`: quem chamou recebe de volta a chave que mandou.
+ */
+function buildAttemptIdempotencyKey(input: {
+  readonly batchItemId: string
+  readonly idempotencyKey: string
+}): string {
+  return `${input.idempotencyKey}:${input.batchItemId}`
+}
+
 async function requestItemIssuance(options: {
   readonly batchItemId: string
   readonly currentIssuance: CteIssuanceIssuanceRecord | null
@@ -664,7 +677,10 @@ async function requestItemIssuance(options: {
     fiscalEnvironment: fiscalSettings.environment,
     fiscalSeries: reservation.fiscalSeries,
     fiscalNumber: reservation.fiscalNumber,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     status: currentIssuance?.context.status === 'retry_scheduled' ? 'retry_scheduled' : 'requested',
     issueRequestedAt,
   })
@@ -797,7 +813,10 @@ async function executeReprocess(
     fiscalEnvironment: getRequiredFiscalEnvironment(currentIssuance.context.fiscalEnvironment),
     fiscalSeries: reservation.fiscalSeries,
     fiscalNumber: reservation.fiscalNumber,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     status: 'requested',
     issueRequestedAt,
   })
@@ -928,7 +947,10 @@ async function executeCancel(
     fiscalEnvironment: getRequiredFiscalEnvironment(currentIssuance.context.fiscalEnvironment),
     fiscalSeries: getRequiredString(currentIssuance.context, 'fiscalSeries'),
     fiscalNumber: getRequiredString(currentIssuance.context, 'fiscalNumber'),
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     reservationId: getRequiredString(currentIssuance, 'reservationId'),
     status: 'requested',
     issueRequestedAt,

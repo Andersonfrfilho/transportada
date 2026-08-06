@@ -62,6 +62,25 @@ describe('CT-e issuance application batch fan-out contract', () => {
     expect(unitOfWork.executedTransactions).toEqual(['cte-issuance'])
   })
 
+  /**
+   * O comando traz uma chave só, mas `cte_issuance_attempts` é única por (empresa, chave):
+   * repetir a chave do comando no segundo item derruba a transmissão do lote com 23505.
+   */
+  test('derives a distinct attempt idempotency key per item', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.batchItems = [buildBatchItem(BATCH_ITEM_ID), buildBatchItem(SIBLING_BATCH_ITEM_ID)]
+    const useCase = (await createCteIssuanceUseCaseForTest(
+      unitOfWork,
+    )) as CteIssuanceUseCaseContract
+
+    await useCase.issue(createIssueInput())
+
+    expect(unitOfWork.attempts.map((attempt) => attempt['idempotencyKey'])).toEqual([
+      `${IDEMPOTENCY_KEY}:${BATCH_ITEM_ID}`,
+      `${IDEMPOTENCY_KEY}:${SIBLING_BATCH_ITEM_ID}`,
+    ])
+  })
+
   test('closes the draft once, not once per item', async () => {
     const unitOfWork = new CteIssuanceUnitOfWorkFixture()
     unitOfWork.batch = { companyId: COMPANY_CONTEXT.companyId, id: BATCH_ID, status: 'draft' }
