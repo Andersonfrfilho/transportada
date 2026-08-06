@@ -44,3 +44,7 @@ foram resolvidos com o usuário (ver `spec.md` § Decisões).
       `src/logging/log-format.policy.ts` de api, worker e cron, consumida nos quatro pontos que
       montam logger. Descoberta ao validar T011: `pretty` descarta o `meta`, e staging usa
       `APP_ENV=staging`, então `ineligibleCounts` e a razão por empresa não chegavam ao log.
+- [x] T014 A varredura do cron parte de `companies` —
+      `drizzle-distribution-candidate.source.ts` partia de `company_distribution_settings`, cuja
+      linha só nasce ao mexer no interruptor, então empresa que nunca optou não era contada nem
+      reportada. Contrato em `test/nfe-distribution-pull/candidate-scope.contract.ts`.

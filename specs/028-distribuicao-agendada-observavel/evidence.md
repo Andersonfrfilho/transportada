@@ -130,10 +130,10 @@ $ bun run lint        # eslint --max-warnings=0 nas quatro apps — limpo
 $ bun run format:check
 All matched files use Prettier code style!
 
-$ bun run test        # já com os contratos de T013
+$ bun run test        # já com os contratos de T013 e T014
  1695 pass  3 skip  0 fail   (api,      1698 testes / 78 arquivos)
   236 pass         0 fail   (worker,    236 testes / 38 arquivos)
-   43 pass         0 fail   (cron,       43 testes /  3 arquivos)
+   46 pass         0 fail   (cron,       46 testes /  3 arquivos)
   725 pass         0 fail   (frontend,  725 testes / 16 arquivos)
 
 $ bun run build       # quatro artefatos gerados
@@ -207,9 +207,52 @@ Verificado com o logger real, ambiente `staging`:
 }
 ```
 
+## T014 — a varredura do cron não enxergava quem nunca optou
+
+O primeiro ciclo com `meta` visível em staging entregou isto:
+
+```
+cron_distribution_candidates_evaluated  meta={"environment":"homologation","evaluatedCount":0}
+cron_cycle_completed  meta={"acquiredLock":true,"eligibleCount":0,"enqueuedCount":0,
+  "ineligibleCounts":{"company_disabled":0,"not_opted_in":0,"missing_synthetic_membership":0,
+  "certificate_missing":0,"certificate_not_yet_valid":0,"certificate_expired":0,
+  "cooldown_active":0},"skippedCount":0}
+```
+
+Sete zeros. Lê-se como "nada bloqueado" — e a causa estava no `FROM`:
+
+| Consulta                                                       | Partia de                       | Empresa sem linha de configuração |
+| -------------------------------------------------------------- | ------------------------------- | --------------------------------- |
+| `drizzle-scheduled-distribution-status.repository.ts` (a tela) | `companies`                     | aparece, desligada                |
+| `drizzle-distribution-candidate.source.ts` (o cron)            | `company_distribution_settings` | invisível                         |
+
+A linha em `company_distribution_settings` só nasce no `upsert` de ligar ou desligar. Antes disso a
+empresa não existia para o ciclo: `evaluatedCount: 0` não distinguia "banco vazio" de "ninguém tocou
+no interruptor", e `not_opted_in` só podia disparar para quem ligou e depois desligou — justamente a
+minoria. A razão mais comum do vocabulário era a única incapaz de aparecer.
+
+A varredura passou a partir de `companies` com as configurações em `leftJoin`, e
+`scheduledDistributionEnabled` sem linha coalesce para `false` — que é o mesmo `?? false` que a tela
+já fazia. As duas passam a responder a mesma coisa sobre a mesma empresa.
+
+```
+$ bun run --cwd apps/cron-transportada test
+ 46 pass  0 fail   (era 43 — três testes novos de escopo)
+```
+
+`test/nfe-distribution-pull/candidate-scope.contract.ts` prende os dois lados: o mapeamento (linha
+sem configuração vira `not_opted_in`, não some) e o `FROM` da consulta, porque a diferença aqui não
+estava na regra, estava em de onde a regra recebia as linhas.
+
+Preço aceito: o ciclo agora emite `cron_company_not_eligible` por empresa não elegível a cada janela.
+No modelo de instalação dedicada (ADR-0021) isso é uma linha por hora, e é o log que responde
+"por que esta empresa não recebeu nota".
+
 ## T011 — validação em staging
 
-_Pendente._ Depende do deploy de T013 (sem ele o log da janela não carrega evidência nenhuma), de
-uma janela do cron (`0 * * * *`) com o opt-in ligado e de um certificado ativo e dentro da validade
-na empresa de staging — sem ele a policy responde `certificate_missing` e o ciclo descarta a empresa
-antes de chegar ao SEFAZ.
+_Pendente._ T013 já está em staging e o log da janela das 00:16 provou que o `meta` chega inteiro.
+Falta o que não é código: ligar a busca automática pela tela de configurações e ter um certificado
+ativo e dentro da validade na empresa — sem ele a policy responde `certificate_missing` e o ciclo
+descarta a empresa antes de chegar ao SEFAZ. Com o opt-in ligado, a evidência é o
+`cron_cycle_completed` da janela seguinte com `eligibleCount: 1` e `enqueuedCount: 1`, mais a
+primeira nota recebida na aba Remota.

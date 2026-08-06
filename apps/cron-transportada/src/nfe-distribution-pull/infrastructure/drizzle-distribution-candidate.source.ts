@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Reads the raw candidate set for a distribution cycle: every company that has
- * opted in (company_distribution_settings), joined to its status, its synthetic
- * automation membership, its active certificate and the anti-656 cooldown cursor
- * for the target environment. Eligibility itself is decided by the pure domain
- * policy — this adapter only assembles the facts and logs how many were seen.
+ * Reads the raw candidate set for a distribution cycle: every company, joined to
+ * its opt-in, its synthetic automation membership, its active certificate and the
+ * anti-656 cooldown cursor for the target environment. Eligibility itself is
+ * decided by the pure domain policy — this adapter only assembles the facts and
+ * logs how many were seen.
  */
 import { and, eq } from 'drizzle-orm'
 
@@ -41,8 +41,11 @@ export function createDrizzleDistributionCandidateSource(dependencies: {
           certificateExpiresAt: digitalCertificates.expiresAt,
           nextAllowedAt: nfeDistributionCursors.nextAllowedAt,
         })
-        .from(companyDistributionSettings)
-        .innerJoin(companies, eq(companies.id, companyDistributionSettings.companyId))
+        .from(companies)
+        .leftJoin(
+          companyDistributionSettings,
+          eq(companyDistributionSettings.companyId, companies.id),
+        )
         .leftJoin(
           userCompanyMemberships,
           and(
@@ -71,15 +74,15 @@ export function createDrizzleDistributionCandidateSource(dependencies: {
         evaluatedCount: rows.length,
       })
 
-      return rows.map(toCandidate)
+      return rows.map(toDistributionCandidate)
     },
   }
 }
 
-function toCandidate(row: {
+export function toDistributionCandidate(row: {
   readonly companyId: string
   readonly companyStatus: 'active' | 'disabled'
-  readonly scheduledDistributionEnabled: boolean
+  readonly scheduledDistributionEnabled: boolean | null
   readonly membershipId: string | null
   readonly certificateStatus: 'active' | 'retired' | null
   readonly certificateValidFrom: Date | null
@@ -89,7 +92,7 @@ function toCandidate(row: {
   return {
     companyId: row.companyId,
     companyStatus: row.companyStatus,
-    scheduledDistributionEnabled: row.scheduledDistributionEnabled,
+    scheduledDistributionEnabled: row.scheduledDistributionEnabled ?? false,
     hasSyntheticMembership: row.membershipId !== null,
     certificate:
       row.certificateStatus !== null &&
