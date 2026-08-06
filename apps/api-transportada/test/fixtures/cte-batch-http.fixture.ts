@@ -173,6 +173,11 @@ export const ITEMS_RESULT = {
       fiscalAmount: '43.13',
       fiscalDocumentId: FISCAL_DOCUMENT_ID,
       fiscalNumber: '17',
+      fiscalNumberChange: {
+        previousNumber: '14',
+        reason: 'sefaz_duplicate_number',
+        rejectionCode: '539',
+      },
       fiscalSeries: '1',
       id: '00000000-0000-4000-8000-000000000507',
       lastErrorCode: null,

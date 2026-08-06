@@ -22,12 +22,27 @@ export const cteIssuancePayloads = pgTable('cte_issuance_payloads', {
   providerConfig: jsonb('provider_config').notNull(),
 })
 
+/** Cópia da tabela mantida pela API: aqui o worker só avança a numeração quando a SEFAZ recusa. */
+export const fiscalSequences = pgTable('fiscal_sequences', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  environment: text().$type<CteFiscalEnvironment>().notNull(),
+  model: text().notNull(),
+  series: bigint({ mode: 'bigint' }).notNull(),
+  nextNumber: bigint('next_number', { mode: 'bigint' }).notNull(),
+  lastReservedNumber: bigint('last_reserved_number', { mode: 'bigint' }),
+  version: bigint({ mode: 'bigint' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+})
+
 export const cteIssuanceAttempts = pgTable('cte_issuance_attempts', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),
   batchId: uuid('batch_id').notNull(),
   batchItemId: uuid('batch_item_id').notNull(),
   status: text().$type<CteIssuanceItemStatus>().notNull(),
+  fiscalSeries: text('fiscal_series').notNull(),
+  fiscalNumber: bigint('fiscal_number', { mode: 'bigint' }).notNull(),
   lastErrorCode: text('last_error_code'),
   lastErrorCause: text('last_error_cause'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),

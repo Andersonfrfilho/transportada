@@ -276,7 +276,7 @@ describe('CT-e issuance schema', () => {
     ])
     expect(checkSqlByName(cteIssuanceEvents)).toMatchObject({
       cte_issuance_events_name_check:
-        "\"cte_issuance_events\".\"event_name\" in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')",
+        "\"cte_issuance_events\".\"event_name\" in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled', 'fiscal_number_advanced')",
     })
 
     expect(columnNames(cteRetrySchedules)).toContainAllValues([

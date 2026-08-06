@@ -37,6 +37,7 @@ const AUTHORIZED_ROW = {
   fiscalAmount: '47.63',
   fiscalDocumentId: FIRST_FISCAL_DOCUMENT_ID,
   fiscalNumber: '000000011',
+  fiscalNumberChange: null,
   fiscalSeries: '001',
   id: AUTHORIZED_ITEM_ID,
   lastErrorCode: null,

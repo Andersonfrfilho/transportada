@@ -332,6 +332,7 @@ function serializeItem(item: CteBatchSummary): object {
     fiscalAmount: item['fiscalAmount'],
     fiscalDocumentId: item['fiscalDocumentId'],
     fiscalNumber: item['fiscalNumber'],
+    fiscalNumberChange: item['fiscalNumberChange'],
     fiscalSeries: item['fiscalSeries'],
     id: item['id'],
     lastErrorCode: item['lastErrorCode'],

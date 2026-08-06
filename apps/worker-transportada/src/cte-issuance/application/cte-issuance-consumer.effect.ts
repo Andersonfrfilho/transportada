@@ -14,6 +14,8 @@ import type {
 } from '../infrastructure/cte-fiscal-gateway.js'
 import { createCteFiscalGateway } from '../infrastructure/cte-fiscal-gateway.js'
 
+import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
+
 import type { CteCancellationExecutionInput } from './cte-cancellation-input-resolver.service.js'
 import type { CteIssuanceExecutionInput } from './cte-issuance-execution-input-resolver.service.js'
 import {
@@ -24,6 +26,8 @@ import {
 type CteIssuanceWorkerEffect = {
   execute(params: { readonly envelope: CteProcessingEnvelopeV1 }): Promise<void>
 }
+
+const FISCAL_NUMBER_BURNED_CAUSE = 'fiscal_number_burned'
 
 export type CteIssuanceWriteBackKey = {
   readonly attemptId: string
@@ -93,10 +97,33 @@ export type CteSettledAttemptGuard = {
   isSettled(input: { readonly attemptId: string; readonly companyId: string }): Promise<boolean>
 }
 
+export type CteFiscalNumberProbeResult =
+  | { readonly nextNumber: number; readonly outcome: 'advanced' }
+  | { readonly outcome: 'exhausted' }
+
+/**
+ * Avança a numeração da série quando a SEFAZ acusa que o número já pertence a outro documento.
+ * Reserva o próximo número, regrava o payload da tentativa e registra o motivo na trilha do item,
+ * tudo na mesma transação — numeração fiscal não pode mudar sem deixar dito por quê.
+ */
+export type CteFiscalNumberProbe = {
+  advance(input: {
+    readonly attemptId: string
+    readonly batchItemId: string
+    readonly burnedNumber: number
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+    readonly occurredAt: Date
+    readonly rejectionCode: string
+    readonly series: string
+  }): Promise<CteFiscalNumberProbeResult>
+}
+
 export function createCteIssuanceWorkerEffect(input: {
   readonly authorizedDocumentStorage?: CteAuthorizedDocumentStorage
   readonly cancellationDocumentStorage?: CteCancellationDocumentStorage
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
+  readonly fiscalNumberProbe?: CteFiscalNumberProbe
   readonly logger: WorkerLogger
   readonly resolveCancellationInput?: (params: {
     readonly envelope: CteProcessingEnvelopeV1
@@ -144,6 +171,20 @@ export function createCteIssuanceWorkerEffect(input: {
 
     if (outcome.status === 'rejected') {
       const errorCode = outcome.rejection?.code ?? 'FISCAL_REJECTED'
+      const advanced = await advanceBurnedFiscalNumber({
+        config: executionInput.config,
+        errorCode,
+        key: createKey(),
+        logger: input.logger,
+        ...(input.fiscalNumberProbe === undefined ? {} : { probe: input.fiscalNumberProbe }),
+      })
+
+      if (advanced) {
+        const cause = `${FISCAL_NUMBER_BURNED_CAUSE}:${errorCode}`
+        await input.writeBack?.recordRetryScheduled({ ...createKey(), cause })
+        throw new CteIssuanceRecoverableError(cause)
+      }
+
       await input.writeBack?.recordRejected({ ...createKey(), errorCode })
       throw new CteIssuanceFatalError(errorCode)
     }
@@ -318,6 +359,47 @@ export function createCteIssuanceWorkerEffect(input: {
       await executeIssuance(envelope)
     },
   }
+}
+
+/**
+ * Só a duplicidade de numeração melhora com número novo; rejeição de conteúdo sondada seria
+ * numeração queimada à toa. O teto de sondas mora no probe, que é quem conhece o histórico do item.
+ */
+async function advanceBurnedFiscalNumber(input: {
+  readonly config: CteIssuanceExecutionInput['config']
+  readonly errorCode: string
+  readonly key: CteIssuanceWriteBackKey
+  readonly logger: WorkerLogger
+  readonly probe?: CteFiscalNumberProbe
+}): Promise<boolean> {
+  if (input.probe === undefined || !isFiscalNumberRejection(input.errorCode)) return false
+
+  const result = await input.probe.advance({
+    attemptId: input.key.attemptId,
+    batchItemId: input.key.batchItemId,
+    burnedNumber: input.config.numeroCte,
+    companyId: input.key.companyId,
+    environment: input.config.environment,
+    occurredAt: input.key.occurredAt,
+    rejectionCode: input.errorCode,
+    series: input.config.serie,
+  })
+
+  safeLogInfo({
+    logger: input.logger,
+    message: 'cte_issuance_fiscal_number_probe',
+    metadata: {
+      attemptId: input.key.attemptId,
+      batchItemId: input.key.batchItemId,
+      burnedNumber: input.config.numeroCte,
+      companyId: input.key.companyId,
+      outcome: result.outcome,
+      rejectionCode: input.errorCode,
+      series: input.config.serie,
+    },
+  })
+
+  return result.outcome === 'advanced'
 }
 
 function createWriteBackKey(envelope: CteProcessingEnvelopeV1): CteIssuanceWriteBackKey {

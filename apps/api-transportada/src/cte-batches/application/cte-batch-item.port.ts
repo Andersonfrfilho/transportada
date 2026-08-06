@@ -28,6 +28,16 @@ export type CteBatchItemDocument = {
   readonly totalAmount: string | null
 }
 
+/**
+ * Numeração que a emissão trocou sozinha. Hoje só a duplicidade acusada pela SEFAZ produz isso: o
+ * número anterior pertence a outro documento autorizado, então o item recomeça com número novo.
+ */
+export type CteFiscalNumberChange = {
+  readonly previousNumber: string
+  readonly reason: 'sefaz_duplicate_number'
+  readonly rejectionCode: string
+}
+
 export type CteBatchItem = {
   readonly accessKey: string | null
   readonly authorizationProtocol: string | null
@@ -39,6 +49,7 @@ export type CteBatchItem = {
   readonly fiscalAmount: string
   readonly fiscalDocumentId: string | null
   readonly fiscalNumber: string | null
+  readonly fiscalNumberChange: CteFiscalNumberChange | null
   readonly fiscalSeries: string | null
   readonly id: string
   readonly lastErrorCode: string | null

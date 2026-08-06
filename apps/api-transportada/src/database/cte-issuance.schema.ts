@@ -43,6 +43,7 @@ export const CTE_ISSUANCE_EVENTS = [
   'retry_scheduled',
   'reconciliation_required',
   'cancelled',
+  'fiscal_number_advanced',
 ] as const
 export const CTE_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export const CTE_ISSUANCE_OUTBOX_EVENT_TYPES = [
@@ -278,7 +279,7 @@ export const cteIssuanceEvents = pgTable(
     ),
     check(
       'cte_issuance_events_name_check',
-      sql`${table.eventName} in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')`,
+      sql`${table.eventName} in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled', 'fiscal_number_advanced')`,
     ),
   ],
 )

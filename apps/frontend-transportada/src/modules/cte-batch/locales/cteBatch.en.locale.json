@@ -137,6 +137,9 @@
         "unknown": "Could not export the XML files"
       }
     },
+    "fiscalNumberChange": {
+      "sefaz_duplicate_number": "Number changed automatically: number {{previousNumber}} already belonged to another authorized CT-e (SEFAZ rejection {{rejectionCode}})."
+    },
     "pageCounter": "{{shown}} of up to {{size}} per page",
     "previousPage": "Previous page",
     "nextPage": "Next page",

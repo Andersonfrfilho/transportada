@@ -99,7 +99,7 @@ export const readFiscalMigrationSql = async (): Promise<string> => {
   const migrationDirectories = await readdir(migrationsDirectory, { withFileTypes: true })
   const migrationSqlFiles = await Promise.all(
     migrationDirectories
-      .filter((entry) => entry.isDirectory())
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
       .map((entry) =>
         Bun.file(join(migrationsDirectory.pathname, entry.name, 'migration.sql')).text(),
       ),

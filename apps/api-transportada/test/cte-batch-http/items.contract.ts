@@ -38,6 +38,23 @@ describe('CT-e batch HTTP item listing contract', () => {
     expect(body.data[0]?.['fiscalDocumentId']).toBe(FISCAL_DOCUMENT_ID)
   })
 
+  /**
+   * Quando a SEFAZ acusa duplicidade de numeração o worker avança o número do CT-e sozinho. A tela
+   * precisa dizer que o número mudou e por quê — número novo sem explicação parece erro do sistema.
+   */
+  test('exposes why the fiscal number of an item was advanced', async () => {
+    const fixture = await createCteBatchHttpFixture()
+
+    const response = await fixture.handle(getBatchItemsRequest())
+    const body = (await response.json()) as { readonly data: readonly Record<string, unknown>[] }
+
+    expect(body.data[0]?.['fiscalNumberChange']).toEqual({
+      previousNumber: '14',
+      reason: 'sefaz_duplicate_number',
+      rejectionCode: '539',
+    })
+  })
+
   test('rejects a non-uuid batch identifier before application work', async () => {
     const fixture = await createCteBatchHttpFixture()
 

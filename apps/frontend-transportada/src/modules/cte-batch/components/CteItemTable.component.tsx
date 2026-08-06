@@ -100,7 +100,28 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
     }
   }
 
+  /** Número trocado sem explicação parece erro do sistema: a marca conta de onde ele veio. */
+  function renderCteNumber(item: CompanyCteItem) {
+    const change = item.fiscalNumberChange
+    if (change === null) return item.fiscalNumber ?? EMPTY_CELL
+
+    const hint = t(`cteItems.fiscalNumberChange.${change.reason}`, {
+      previousNumber: change.previousNumber,
+      rejectionCode: change.rejectionCode,
+    })
+
+    return (
+      <span className={styles.numberChange}>
+        {item.fiscalNumber ?? EMPTY_CELL}
+        <span aria-label={hint} className={styles.numberChangeMark} role="img" title={hint}>
+          <Icon name="alert" size="sm" />
+        </span>
+      </span>
+    )
+  }
+
   function renderCell(item: CompanyCteItem, column: CteItemColumnKey) {
+    if (column === 'cteNumber') return renderCteNumber(item)
     if (column === 'status') {
       return <span className={statusClassName(item.status)}>{t(`itemStatus.${item.status}`)}</span>
     }

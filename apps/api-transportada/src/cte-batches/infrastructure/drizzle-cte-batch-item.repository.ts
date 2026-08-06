@@ -12,7 +12,11 @@ import {
   cteBatchItems,
   cteBatches,
 } from '../../database/cte-batch.schema.js'
-import { cteFiscalDocuments, cteIssuanceAttempts } from '../../database/cte-issuance.schema.js'
+import {
+  cteFiscalDocuments,
+  cteIssuanceAttempts,
+  cteIssuanceEvents,
+} from '../../database/cte-issuance.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
 import {
   type CteFiscalDocumentState,
@@ -35,6 +39,7 @@ import {
   type CteBatchItemDocument,
   type CteBatchItemQuery,
   type CteBatchItemReaderPort,
+  type CteFiscalNumberChange,
 } from '../application/cte-batch-item.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -63,6 +68,7 @@ type ItemRelations = {
   readonly attempts: Map<string, AttemptState>
   readonly charges: Map<string, CteBatchItemCharge[]>
   readonly documents: Map<string, CteBatchItemDocument[]>
+  readonly fiscalNumberChanges: Map<string, CteFiscalNumberChange>
 }
 
 export type CompanyCteItemFilterInput = {
@@ -70,6 +76,10 @@ export type CompanyCteItemFilterInput = {
   readonly cursor: KeysetCursor | null
   readonly filters?: CompanyCteItemFilters | undefined
 }
+
+/** Escrito pelo worker quando a SEFAZ acusa duplicidade — o nome é cópia, as apps não se importam. */
+const FISCAL_NUMBER_ADVANCED_EVENT = 'fiscal_number_advanced'
+const FISCAL_NUMBER_DUPLICATE_REASON = 'sefaz_duplicate_number'
 
 const AUTHORIZED_DOCUMENT_STATUS = 'authorized'
 const CANCELLED_DOCUMENT_STATUS = 'cancelled'
@@ -177,13 +187,14 @@ export class DrizzleCteBatchItemRepository implements CteBatchItemReaderPort {
     companyId: string,
     itemIds: readonly string[],
   ): Promise<ItemRelations> {
-    const [attempts, charges, documents] = await Promise.all([
+    const [attempts, charges, documents, fiscalNumberChanges] = await Promise.all([
       loadLatestAttempts(this.database, companyId, itemIds),
       loadCharges(this.database, companyId, itemIds),
       loadDocuments(this.database, companyId, itemIds),
+      loadFiscalNumberChanges(this.database, companyId, itemIds),
     ])
 
-    return { attempts, charges, documents }
+    return { attempts, charges, documents, fiscalNumberChanges }
   }
 }
 
@@ -384,6 +395,7 @@ function toBatchItem(record: ItemRecord, relations: ItemRelations): CteBatchItem
     fiscalAmount: requiredSnapshotAmount(snapshot, 'fiscalAmount'),
     fiscalDocumentId: record.fiscalDocumentId,
     fiscalNumber: attempt?.fiscalNumber ?? null,
+    fiscalNumberChange: relations.fiscalNumberChanges.get(record.id) ?? null,
     fiscalSeries: attempt?.fiscalSeries ?? null,
     id: record.id,
     lastErrorCode: attempt?.lastErrorCode ?? null,
@@ -456,6 +468,55 @@ async function loadLatestAttempts(
       },
     ]),
   )
+}
+
+/**
+ * O item pode ter avançado a numeração mais de uma vez; o que interessa ao usuário é o número que
+ * ele viu primeiro, então vale o evento mais antigo — o número corrente já vem da tentativa.
+ */
+async function loadFiscalNumberChanges(
+  database: Database,
+  companyId: string,
+  itemIds: readonly string[],
+): Promise<Map<string, CteFiscalNumberChange>> {
+  const rows = await database
+    .selectDistinctOn([cteIssuanceEvents.batchItemId], {
+      batchItemId: cteIssuanceEvents.batchItemId,
+      payload: cteIssuanceEvents.payload,
+    })
+    .from(cteIssuanceEvents)
+    .where(
+      and(
+        eq(cteIssuanceEvents.companyId, companyId),
+        eq(cteIssuanceEvents.eventName, FISCAL_NUMBER_ADVANCED_EVENT),
+        inArray(cteIssuanceEvents.batchItemId, [...itemIds]),
+      ),
+    )
+    .orderBy(cteIssuanceEvents.batchItemId, cteIssuanceEvents.occurredAt)
+
+  const changes = new Map<string, CteFiscalNumberChange>()
+  for (const row of rows) {
+    const change = toFiscalNumberChange(row.payload)
+    if (change !== null) changes.set(row.batchItemId, change)
+  }
+
+  return changes
+}
+
+function toFiscalNumberChange(payload: unknown): CteFiscalNumberChange | null {
+  if (typeof payload !== 'object' || payload === null) return null
+
+  const record = payload as Record<string, unknown>
+  const burnedNumber = record['burnedNumber']
+  const rejectionCode = record['rejectionCode']
+  if (record['reason'] !== FISCAL_NUMBER_DUPLICATE_REASON) return null
+  if (typeof burnedNumber !== 'number' || typeof rejectionCode !== 'string') return null
+
+  return {
+    previousNumber: burnedNumber.toString(),
+    reason: FISCAL_NUMBER_DUPLICATE_REASON,
+    rejectionCode,
+  }
 }
 
 async function loadCharges(

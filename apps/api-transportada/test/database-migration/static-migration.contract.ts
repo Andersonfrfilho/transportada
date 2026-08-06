@@ -96,6 +96,7 @@ describe('Drizzle migrations', () => {
       '20260805030010_trip_backfill_existing_manifests',
       '20260805165955_identity_user_profiles',
       '20260806143116_identity_user_profile_username',
+      '20260806161903_cte_fiscal_number_advanced_event',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

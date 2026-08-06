@@ -61,6 +61,11 @@ const AUTHORIZED_ROW = {
   fiscalAmount: '47.63',
   fiscalDocumentId: '00000000-0000-4000-8000-000000000604',
   fiscalNumber: '000000011',
+  fiscalNumberChange: {
+    previousNumber: '2',
+    reason: 'sefaz_duplicate_number',
+    rejectionCode: '539',
+  },
   fiscalSeries: '001',
   id: AUTHORIZED_ITEM_ID,
   lastErrorCode: null,
@@ -82,6 +87,7 @@ const REJECTED_ROW = {
   fiscalAmount: '43.13',
   fiscalDocumentId: null,
   fiscalNumber: null,
+  fiscalNumberChange: null,
   fiscalSeries: null,
   id: REJECTED_ITEM_ID,
   lastErrorCode: '539',
@@ -552,6 +558,42 @@ describe('CT-e item table contract', () => {
     expect(() => pageFromApi({ data: [withoutBatch], page: { nextCursor: null } })).toThrow(
       'CTE_BATCH_INVALID_ITEMS_RESPONSE',
     )
+  })
+
+  /**
+   * Numeração trocada sem explicação parece erro do sistema. A tela marca o CT-e cujo número o
+   * worker avançou depois da duplicidade acusada pela SEFAZ, e diz de qual número ele veio.
+   */
+  test('carries the reason the fiscal number of a CT-e was advanced', async () => {
+    const { createCompanyCteItemPageAdapter } =
+      await loadFutureModule<CteItemPageAdapterModule>(ITEM_VALIDATION_MODULE)
+    const pageFromApi = createCompanyCteItemPageAdapter()
+
+    const page = pageFromApi({ data: [AUTHORIZED_ROW], page: { nextCursor: null } }) as {
+      readonly items: readonly { readonly fiscalNumberChange: unknown }[]
+    }
+    expect(page.items[0]?.fiscalNumberChange).toEqual({
+      previousNumber: '2',
+      reason: 'sefaz_duplicate_number',
+      rejectionCode: '539',
+    })
+
+    for (const invalid of [
+      { ...AUTHORIZED_ROW, fiscalNumberChange: { previousNumber: '2', reason: 'whatever' } },
+      { ...AUTHORIZED_ROW, fiscalNumberChange: { previousNumber: 2, rejectionCode: '539' } },
+      { ...AUTHORIZED_ROW, fiscalNumberChange: 'advanced' },
+    ]) {
+      expect(() => pageFromApi({ data: [invalid], page: { nextCursor: null } })).toThrow(
+        'CTE_BATCH_INVALID_ITEMS_RESPONSE',
+      )
+    }
+
+    const [table, locale] = await Promise.all([
+      readModule('src/modules/cte-batch/components/CteItemTable.component.tsx'),
+      readModule('src/modules/cte-batch/locales/cteBatch.locale.json'),
+    ])
+    expect(table).toContain('fiscalNumberChange')
+    expect(locale).toContain('fiscalNumberChange')
   })
 
   test('registers the CT-e table as a living reference of the data table rule', async () => {

@@ -137,6 +137,9 @@
         "unknown": "Não foi possível exportar os XMLs"
       }
     },
+    "fiscalNumberChange": {
+      "sefaz_duplicate_number": "Número alterado automaticamente: o número {{previousNumber}} já pertencia a outro CT-e autorizado (rejeição {{rejectionCode}} da SEFAZ)."
+    },
     "pageCounter": "{{shown}} de até {{size}} por página",
     "previousPage": "Página anterior",
     "nextPage": "Próxima página",
