@@ -9,6 +9,7 @@ import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 import { parseWorkerCryptographicConfiguration } from './config/cryptographic-configuration.schema.js'
 import { parseWorkerEnvironment } from './config/environment.schema.js'
 import { WorkerHealthService } from './health/health.service.js'
+import { shouldPrettyPrintLogs } from './logging/log-format.policy.js'
 import { safeLogInfo } from './logging/safe-logger.service.js'
 import {
   buildNfeDistributionRabbitMqTopology,
@@ -257,7 +258,7 @@ export async function startWorkerRuntime(
 
   const logger = loggerFactory({
     logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
+    pretty: shouldPrettyPrintLogs(config.appEnv),
     projectName: 'transportada-worker',
     version: '0.1.0',
   })

@@ -6,6 +6,7 @@ import { createLogger } from '@adatechnology/logger'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseEnvironment } from './config/environment.schema'
+import { shouldPrettyPrintLogs } from './logging/log-format.policy'
 import { createGetCompanySettingsUseCase } from './companies/application/get-company-settings.use-case'
 import { createIdempotencyFingerprintService } from './companies/application/idempotency-fingerprint.service'
 import { createUpdateCompanySettingsUseCase } from './companies/application/update-company-settings.use-case'
@@ -191,7 +192,7 @@ function createApiLogger(
 ): ReturnType<typeof createLogger> {
   return createLogger({
     logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
+    pretty: shouldPrettyPrintLogs(config.appEnv),
     projectName: 'transportada-api',
     version: '0.1.0',
   })

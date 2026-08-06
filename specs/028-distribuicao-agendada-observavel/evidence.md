@@ -130,11 +130,11 @@ $ bun run lint        # eslint --max-warnings=0 nas quatro apps — limpo
 $ bun run format:check
 All matched files use Prettier code style!
 
-$ bun run test
- 1692 pass  0 fail   (api,      1695 testes / 77 arquivos)
-  233 pass  0 fail   (worker,    233 testes / 37 arquivos)
-   40 pass  0 fail   (cron,       40 testes /  2 arquivos)
-  725 pass  0 fail   (frontend,  725 testes / 16 arquivos)
+$ bun run test        # já com os contratos de T013
+ 1695 pass  3 skip  0 fail   (api,      1698 testes / 78 arquivos)
+  236 pass         0 fail   (worker,    236 testes / 38 arquivos)
+   43 pass         0 fail   (cron,       43 testes /  3 arquivos)
+  725 pass         0 fail   (frontend,  725 testes / 16 arquivos)
 
 $ bun run build       # quatro artefatos gerados
 ```
@@ -155,7 +155,61 @@ A policy duplicada por cópia ganhou seção própria em `architecture.md`: por 
 HTTP da API), qual é o preço, quais contratos seguram a divergência, e quando ela deixa de valer a
 pena — no terceiro consumidor.
 
+## T013 — o log estruturado não chegava a staging
+
+Achado ao ir buscar a evidência de T011. O ciclo das 23:18 em staging imprimiu isto e nada mais:
+
+```
+[c33d43ab][7554af27][cron-transportada:0.1.0][nfe.distribution.pull] cron_distribution_candidates_evaluated
+[c33d43ab][7554af27][cron-transportada:0.1.0][nfe.distribution.pull] cron_cycle_completed
+```
+
+Sem `evaluatedCount`, sem `ineligibleCounts`, sem a razão de nenhuma empresa — ou seja, sem
+exatamente aquilo que T005 entregou. O modo `pretty` do `@adatechnology/logger` renderiza só a
+mensagem e **descarta o `meta`**; as quatro apps pediam `pretty: appEnv !== 'production'` e o
+staging roda com `APP_ENV=staging`. Tudo o que não fosse produção perdia o contexto.
+
+Os contract tests de T005 passavam porque afirmam sobre os **argumentos** entregues ao logger, não
+sobre a saída renderizada. O contrato novo fecha o outro lado:
+
+```
+$ bun run --cwd apps/cron-transportada test
+ 43 pass  0 fail   (era 40 — três testes novos de formato)
+
+$ bun run --cwd apps/api-transportada test
+ 1695 pass  3 skip  0 fail
+
+$ bun run --cwd apps/worker-transportada test
+ 236 pass  0 fail
+```
+
+`shouldPrettyPrintLogs(appEnv)` mora em `src/logging/log-format.policy.ts` de cada app — cópia, como
+a policy de elegibilidade, porque as apps não importam código-fonte uma da outra. É consumida nos
+quatro pontos que montam logger: `api/src/main.ts`, `worker/src/main.ts`,
+`worker/src/nfe-imports/nfe-address-city-code-backfill.main.ts` e
+`cron/src/logging/cycle-logger.service.ts`. Só `local` continua legível para humano; qualquer outro
+ambiente — inclusive um nome que ninguém previu — emite JSON.
+
+Verificado com o logger real, ambiente `staging`:
+
+```json
+{
+  "timestamp": "…",
+  "level": "INFO",
+  "requestId": "…",
+  "traceId": "probe-trace",
+  "message": "[…][cron-transportada:0.1.0][nfe.distribution.pull] cron_cycle_completed",
+  "meta": {
+    "acquiredLock": true,
+    "eligibleCount": 0,
+    "ineligibleCounts": { "certificate_missing": 1, "not_opted_in": 2 }
+  }
+}
+```
+
 ## T011 — validação em staging
 
-_Pendente._ O deploy de `8984d46` foi disparado em `develop`; a validação depende de uma janela do
-cron (`0 * * * *`) com o opt-in ligado e um certificado ativo na empresa de staging.
+_Pendente._ Depende do deploy de T013 (sem ele o log da janela não carrega evidência nenhuma), de
+uma janela do cron (`0 * * * *`) com o opt-in ligado e de um certificado ativo e dentro da validade
+na empresa de staging — sem ele a policy responde `certificate_missing` e o ciclo descarta a empresa
+antes de chegar ao SEFAZ.

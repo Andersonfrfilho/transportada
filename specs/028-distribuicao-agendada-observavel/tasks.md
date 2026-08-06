@@ -40,3 +40,7 @@ foram resolvidos com o usuário (ver `spec.md` § Decisões).
       `evidence.md` o log de enfileiramento e a primeira nota recebida.
 - [x] T012 Atualizar `CLAUDE.md` (rotas novas) e `docs/spec/architecture.md` se a duplicação da
       policy exigir nota — regra §14 do code-standart.
+- [x] T013 Log estruturado sobrevive fora do ambiente local — `shouldPrettyPrintLogs` em
+      `src/logging/log-format.policy.ts` de api, worker e cron, consumida nos quatro pontos que
+      montam logger. Descoberta ao validar T011: `pretty` descarta o `meta`, e staging usa
+      `APP_ENV=staging`, então `ineligibleCounts` e a razão por empresa não chegavam ao log.

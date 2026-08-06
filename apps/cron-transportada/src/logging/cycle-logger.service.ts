@@ -5,6 +5,7 @@ import { createContext, createLogger, runWithContext, type Context } from '@adat
 
 import { CRON_PROJECT_NAME, CRON_VERSION } from '../config/cron.constant.js'
 import type { CronEnvironment, CronLogger } from '../config/cron.types.js'
+import { shouldPrettyPrintLogs } from './log-format.policy.js'
 
 type CycleLoggerParams = {
   readonly environment: CronEnvironment
@@ -24,7 +25,7 @@ export function createCycleContext({ environment, traceId }: CycleLoggerParams):
 export function createCronLogger(environment: CronEnvironment): CronLogger {
   return createLogger({
     logLevel: environment.logLevel,
-    pretty: environment.appEnv !== 'production',
+    pretty: shouldPrettyPrintLogs(environment.appEnv),
     projectName: CRON_PROJECT_NAME,
     version: CRON_VERSION,
   })
