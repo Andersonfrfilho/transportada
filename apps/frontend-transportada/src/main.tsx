@@ -11,7 +11,6 @@ import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoic
 import { CteBatchWorkspacePage } from '@/modules/cte-batch/pages/CteBatchWorkspace.page'
 import { CompanySettingsPage } from '@/modules/company-settings/pages/CompanySettings.page'
 import { CteProfilesPage } from '@/modules/cte-profiles/pages/CteProfiles.page'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
@@ -272,9 +271,7 @@ function ApplicationShell(): ReactNode {
           >
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
           </Button>
-          <Badge variant="secondary">Transport stack</Badge>
           <strong>TransportAdA</strong>
-          <span>PWA operacional modular</span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
           {NAVIGATION_GROUPS.map((group) => (
