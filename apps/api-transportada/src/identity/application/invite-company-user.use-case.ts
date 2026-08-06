@@ -78,6 +78,7 @@ export function createInviteCompanyUserUseCase({
         name,
         subject,
         userId,
+        username: userId,
       })
 
       const plan = planInvitationResend({ invitation: undefined, now: now() })
@@ -98,6 +99,7 @@ export function createInviteCompanyUserUseCase({
         pendingInvitation: { expiresAt: plan.expiresAt },
         roles,
         userId,
+        username: userId,
       })
     },
   }

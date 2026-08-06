@@ -30,6 +30,23 @@ export const changeCompanyUserStatusSchema = z
   .strict()
 export type ChangeCompanyUserStatusBody = z.infer<typeof changeCompanyUserStatusSchema>
 
+/** Login do Keycloak: minúsculo, sem espaço e sem acento — o que o realm aceita sem normalizar. */
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
+
+export const updateCompanyUserProfileSchema = z
+  .object({
+    channel: z.enum(CONTACT_CHANNELS).optional(),
+    contact: z.string().trim().min(1).optional(),
+    email: z.string().email().optional(),
+    name: z.string().trim().min(1).optional(),
+    username: z.string().trim().toLowerCase().regex(USERNAME_PATTERN).optional(),
+  })
+  .strict()
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: 'At least one field must be provided.',
+  })
+export type UpdateCompanyUserProfileBody = z.infer<typeof updateCompanyUserProfileSchema>
+
 export const replaceCompanyUserRolesSchema = z
   .object({ roles: z.array(z.enum(COMPANY_ROLES)).min(1) })
   .strict()
@@ -45,6 +62,12 @@ export async function parseChangeCompanyUserStatusRequest(
   request: Request,
 ): Promise<ChangeCompanyUserStatusBody> {
   return parseBody(changeCompanyUserStatusSchema, request)
+}
+
+export async function parseUpdateCompanyUserProfileRequest(
+  request: Request,
+): Promise<UpdateCompanyUserProfileBody> {
+  return parseBody(updateCompanyUserProfileSchema, request)
 }
 
 export async function parseReplaceCompanyUserRolesRequest(

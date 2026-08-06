@@ -14,6 +14,7 @@ export type CompanyUserView = {
   readonly name: string
   readonly roles: readonly CompanyRole[]
   readonly status: CompanyUserStatus
+  readonly username: string
 }
 
 type CompanyUserViewSource = {
@@ -24,6 +25,7 @@ type CompanyUserViewSource = {
   readonly pendingInvitation: { readonly expiresAt: Date } | undefined
   readonly roles: readonly CompanyRole[]
   readonly userId: string
+  readonly username: string
 }
 
 type DeriveCompanyUserStatusParams = {
@@ -101,6 +103,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
     name: source.name,
     roles: source.roles,
     status,
+    username: source.username,
     ...(source.pendingInvitation === undefined
       ? {}
       : {

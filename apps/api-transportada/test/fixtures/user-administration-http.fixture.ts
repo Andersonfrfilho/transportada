@@ -15,7 +15,7 @@ type RegisteredRoute = ReturnType<typeof defineRoute>
 type ExecuteCall = Record<string, unknown>
 
 /** Recusas de domínio que a rota precisa devolver com código estável e sem contar o motivo real. */
-export type RefusalKind = 'cross-tenant' | 'last-admin' | 'self-removal'
+export type RefusalKind = 'cross-tenant' | 'duplicate-username' | 'last-admin' | 'self-removal'
 
 type RouteDependencies = {
   readonly changeStatus: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -24,6 +24,7 @@ type RouteDependencies = {
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
+  readonly updateProfile: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
 }
 
 type CreateFixtureParams = {
@@ -49,6 +50,17 @@ export const INVITE_BODY = {
 
 export const REPLACE_ROLES_BODY = { roles: ['fiscal', 'company-admin'] } as const
 
+/** Contato e login sintéticos: nenhum dado de pessoa real entra em fixture, log ou evidência. */
+export const UPDATED_CONTACT = '+550000000000'
+
+export const UPDATE_PROFILE_BODY = {
+  channel: 'whatsapp',
+  contact: UPDATED_CONTACT,
+  email: 'pessoa.editada@example.test',
+  name: 'Pessoa Editada',
+  username: 'pessoa.editada',
+} as const
+
 export const CHANGE_STATUS_BODY = { status: 'suspended' } as const
 
 export const COMPANY_USER = {
@@ -58,9 +70,17 @@ export const COMPANY_USER = {
   name: 'Pessoa Convidada',
   roles: ['fiscal'],
   status: 'invited',
+  username: TARGET_USER_ID,
 }
 
 export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
+
+export const UPDATED_COMPANY_USER = {
+  ...COMPANY_USER,
+  contact: { channel: 'whatsapp', masked: '+55*******00' },
+  name: UPDATE_PROFILE_BODY.name,
+  username: UPDATE_PROFILE_BODY.username,
+}
 
 export const INVITATION_DELIVERY = {
   expiresAt: '2026-08-06T12:00:00.000Z',
@@ -87,6 +107,7 @@ export async function createUserAdministrationHttpFixture(
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
+  readonly updateProfileCalls: ExecuteCall[]
 }> {
   const changeStatusCalls: ExecuteCall[] = []
   const inviteCalls: ExecuteCall[] = []
@@ -94,6 +115,7 @@ export async function createUserAdministrationHttpFixture(
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
+  const updateProfileCalls: ExecuteCall[] = []
 
   const refuse = async (): Promise<never> => {
     throw await refusalError(params.refusal ?? 'cross-tenant')
@@ -140,6 +162,13 @@ export async function createUserAdministrationHttpFixture(
         return INVITATION_DELIVERY
       },
     },
+    updateProfile: {
+      async execute(input) {
+        updateProfileCalls.push(structuredClone(input))
+        if (params.refusal) return refuse()
+        return UPDATED_COMPANY_USER
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -162,6 +191,7 @@ export async function createUserAdministrationHttpFixture(
     removeMembershipCalls,
     replaceRolesCalls,
     resendCodeCalls,
+    updateProfileCalls,
   }
 }
 
@@ -204,8 +234,10 @@ async function refusalError(kind: RefusalKind): Promise<Error> {
 
   const module = (await import('../../src/identity/domain/company-user.error.js')) as {
     CompanyUserNotFoundError: new () => Error
+    DuplicateUsernameError: new () => Error
     SelfMembershipRemovalError: new () => Error
   }
+  if (kind === 'duplicate-username') return new module.DuplicateUsernameError()
   return kind === 'cross-tenant'
     ? new module.CompanyUserNotFoundError()
     : new module.SelfMembershipRemovalError()

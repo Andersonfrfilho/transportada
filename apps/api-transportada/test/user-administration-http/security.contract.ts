@@ -14,6 +14,7 @@ import {
   REPLACE_ROLES_BODY,
   responseApiError,
   TARGET_USER_ID,
+  UPDATE_PROFILE_BODY,
   WITHOUT_USERS_MANAGE_PERMISSIONS,
 } from '../fixtures/user-administration-http.fixture'
 
@@ -26,11 +27,12 @@ const administrationRequests = (userPath: string): readonly Request[] => [
   jsonRequest({ method: 'POST', path: `${userPath}/invitation` }),
   jsonRequest({ body: CHANGE_STATUS_BODY, method: 'PATCH', path: `${userPath}/status` }),
   jsonRequest({ body: REPLACE_ROLES_BODY, method: 'PUT', path: `${userPath}/roles` }),
+  jsonRequest({ body: UPDATE_PROFILE_BODY, method: 'PATCH', path: userPath }),
   jsonRequest({ method: 'DELETE', path: userPath }),
 ]
 
 describe('segurança das rotas de administração de usuários — permissão', () => {
-  test('recusa as seis rotas a quem administra a empresa sem users.manage', async () => {
+  test('recusa as sete rotas a quem administra a empresa sem users.manage', async () => {
     const fixture = await createUserAdministrationHttpFixture({
       permissions: WITHOUT_USERS_MANAGE_PERMISSIONS,
     })
@@ -40,7 +42,7 @@ describe('segurança das rotas de administração de usuários — permissão', 
       responses.push(await fixture.handle(request))
     }
 
-    expect(responses).toHaveLength(6)
+    expect(responses).toHaveLength(7)
     for (const response of responses) expect(response.status).toBe(403)
     expect((await responseApiError(responses[0]!)).code).toBe('FORBIDDEN')
     expect(fixture.changeStatusCalls).toEqual([])
@@ -49,9 +51,10 @@ describe('segurança das rotas de administração de usuários — permissão', 
     expect(fixture.removeMembershipCalls).toEqual([])
     expect(fixture.replaceRolesCalls).toEqual([])
     expect(fixture.resendCodeCalls).toEqual([])
+    expect(fixture.updateProfileCalls).toEqual([])
   })
 
-  test('atende as seis rotas a quem tem users.manage', async () => {
+  test('atende as sete rotas a quem tem users.manage', async () => {
     const fixture = await createUserAdministrationHttpFixture()
 
     const responses = []
@@ -76,9 +79,10 @@ describe('segurança das rotas de administração de usuários — escopo do tok
       ...fixture.removeMembershipCalls,
       ...fixture.replaceRolesCalls,
       ...fixture.resendCodeCalls,
+      ...fixture.updateProfileCalls,
     ]
 
-    expect(calls).toHaveLength(6)
+    expect(calls).toHaveLength(7)
     for (const call of calls) {
       expect(call['context']).toMatchObject({ companyId: COMPANY_CONTEXT.companyId })
     }

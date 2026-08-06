@@ -13,8 +13,11 @@ import {
   INVITE_CONTACT,
   jsonRequest,
   REPLACE_ROLES_BODY,
+  responseApiError,
   responseData,
   TARGET_USER_ID,
+  UPDATE_PROFILE_BODY,
+  UPDATED_CONTACT,
 } from '../fixtures/user-administration-http.fixture'
 
 const USER_PATH = `${COMPANY_USERS_PATH}/${TARGET_USER_ID}`
@@ -149,6 +152,112 @@ describe('rotas de administração de usuários — situação e perfis', () => 
       roles: [...REPLACE_ROLES_BODY.roles],
       userId: TARGET_USER_ID,
     })
+  })
+})
+
+describe('rotas de administração de usuários — edição de perfil', () => {
+  test('altera nome, username, e-mail, canal e endereço de contato de uma vez', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: UPDATE_PROFILE_BODY, method: 'PATCH', path: USER_PATH }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toMatchObject({
+      name: UPDATE_PROFILE_BODY.name,
+      username: UPDATE_PROFILE_BODY.username,
+    })
+    expect(fixture.updateProfileCalls[0]).toMatchObject({
+      channel: UPDATE_PROFILE_BODY.channel,
+      contact: UPDATE_PROFILE_BODY.contact,
+      email: UPDATE_PROFILE_BODY.email,
+      name: UPDATE_PROFILE_BODY.name,
+      userId: TARGET_USER_ID,
+      username: UPDATE_PROFILE_BODY.username,
+    })
+  })
+
+  test('aceita alterar um campo só, sem exigir o perfil inteiro', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { username: UPDATE_PROFILE_BODY.username },
+        method: 'PATCH',
+        path: USER_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(Object.keys(fixture.updateProfileCalls[0] ?? {}).sort()).toEqual([
+      'context',
+      'userId',
+      'username',
+    ])
+  })
+
+  /** O endereço de contato é dado pessoal: entra na requisição, nunca volta em claro na resposta. */
+  test('devolve o contato mascarado, nunca o endereço que acabou de receber', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: UPDATE_PROFILE_BODY, method: 'PATCH', path: USER_PATH }),
+    )
+
+    expect(await response.text()).not.toContain(UPDATED_CONTACT)
+  })
+
+  test('recusa a edição que tenta escolher a empresa ou o vínculo pelo corpo', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const responses = [
+      await fixture.handle(
+        jsonRequest({
+          body: { ...UPDATE_PROFILE_BODY, companyId: '00000000-0000-4000-8000-0000000009ff' },
+          method: 'PATCH',
+          path: USER_PATH,
+        }),
+      ),
+      await fixture.handle(
+        jsonRequest({
+          body: { ...UPDATE_PROFILE_BODY, roles: ['company-admin'] },
+          method: 'PATCH',
+          path: USER_PATH,
+        }),
+      ),
+    ]
+
+    for (const response of responses) expect(response.status).toBe(400)
+    expect(fixture.updateProfileCalls).toEqual([])
+  })
+
+  test('recusa corpo vazio, nome em branco e canal fora do contrato', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const responses = [
+      await fixture.handle(jsonRequest({ body: {}, method: 'PATCH', path: USER_PATH })),
+      await fixture.handle(
+        jsonRequest({ body: { name: '   ' }, method: 'PATCH', path: USER_PATH }),
+      ),
+      await fixture.handle(
+        jsonRequest({ body: { channel: 'pombo-correio' }, method: 'PATCH', path: USER_PATH }),
+      ),
+    ]
+
+    for (const response of responses) expect(response.status).toBe(400)
+    expect(fixture.updateProfileCalls).toEqual([])
+  })
+
+  test('recusa com 409 o username já usado por outra pessoa', async () => {
+    const fixture = await createUserAdministrationHttpFixture({ refusal: 'duplicate-username' })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: UPDATE_PROFILE_BODY, method: 'PATCH', path: USER_PATH }),
+    )
+
+    expect(response.status).toBe(409)
+    expect((await responseApiError(response)).code).toBe('USERNAME_ALREADY_TAKEN')
   })
 })
 

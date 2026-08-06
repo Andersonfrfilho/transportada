@@ -1255,3 +1255,57 @@ $ bun run --cwd apps/api-transportada typecheck   # tsc --noEmit
 $ bun run --cwd apps/api-transportada lint        # eslint --max-warnings=0
 → sem saída, verde
 ```
+
+## T023 · T024 — edição de perfil com push para o Keycloak
+
+### T023 — contrato vermelho
+
+`test/user-administration-http/routes.contract.ts` ganhou a suíte do `PATCH /company-users/:id`:
+altera os cinco campos de uma vez; aceita um campo só e manda **só ele** ao use-case; devolve o
+contato mascarado (o endereço cru não aparece na resposta); recusa `companyId` e `roles` no corpo,
+corpo vazio, nome em branco e canal fora do contrato; devolve `409 USERNAME_ALREADY_TAKEN` na
+colisão de login. `security.contract.ts` passou a listar **sete** rotas de administração — a nova
+entra na varredura de token ausente, permissão errada e escopo errado como as outras seis.
+
+`DuplicateUsernameError` entrou em `company-user.error.ts` junto com o contrato: é o vocabulário de
+domínio que o teste nomeia, não a implementação. Sem a classe o `tsc` reprovaria e o vermelho seria
+estrutural em vez de comportamental.
+
+```
+$ bun test ./test/user-administration-http.contract.test.ts   # antes da implementação
+→ 16 pass, 8 fail, 24 tests
+```
+
+### T024 — implementação
+
+- **Migration aditiva** `20260806143116_identity_user_profile_username`: a coluna entra anulável,
+  recebe `user_id::text` (que é o `username` com que o convite cria a pessoa no Keycloak) e só então
+  vira `NOT NULL`. `ADD COLUMN ... NOT NULL` de uma vez, que foi o que o drizzle-kit gerou, quebra em
+  tabela populada. `UNIQUE` no realm inteiro, não por empresa — é assim que o Keycloak trata login.
+- **O 409 sai do índice único do banco**, atingido antes do provedor: `violatedUniqueConstraint`
+  (`postgres-error.support.ts`) reconhece a constraint e o repositório converte em
+  `DuplicateUsernameError`. Determinístico e sem consulta prévia, que não resolveria a corrida.
+- **Ordem das escritas: banco primeiro, Keycloak depois.** Sem transação distribuída, é a ordem que
+  deixa a falha no meio do caminho segura — o painel mostra um login que ainda não autentica, em vez
+  de um login que autentica e ninguém vê. Repetir o mesmo `PATCH` converge.
+- `email` só existe no provedor: a aplicação não tem coluna de e-mail, e `contact_address` é o
+  endereço do canal de entrega, mantido independente.
+- Nome que encurta não deixa sobrenome órfão no provedor: `toIdentityName` manda `lastName: ''`
+  quando `splitPersonName` não devolve sobrenome.
+- `USERNAME_PATTERN` no schema Zod restringe o login ao que o realm aceita sem normalizar
+  (minúsculo, sem espaço e sem acento).
+
+```
+$ bun test ./test/user-administration-http.contract.test.ts   # depois
+→ 24 pass, 0 fail, 95 expect() calls
+
+$ bun run --cwd apps/api-transportada test
+→ 1786 pass, 3 skip, 0 fail, 7579 expect() calls, 80 files
+
+$ make migration-test
+→ 18 pass, 0 fail, 379 expect() calls   # aplica, restringe, reverte e reaplica
+
+$ bun run --cwd apps/api-transportada typecheck   # tsc --noEmit
+$ bun run lint                                    # eslint --max-warnings=0 nas quatro apps
+→ sem saída, verde
+```

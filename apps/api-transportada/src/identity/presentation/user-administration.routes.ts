@@ -27,12 +27,17 @@ import type {
   ResendCompanyUserCodeInput,
   ResendCompanyUserCodeUseCase,
 } from '../application/resend-company-user-code.use-case.js'
+import type {
+  UpdateCompanyUserProfileInput,
+  UpdateCompanyUserProfileUseCase,
+} from '../application/update-company-user-profile.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
   parseCompanyUserListQuery,
   parseInviteCompanyUserRequest,
   parseReplaceCompanyUserRolesRequest,
+  parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
 
@@ -49,6 +54,7 @@ type Dependencies = {
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
   readonly resendCode: ResendCompanyUserCodeUseCase
+  readonly updateProfile: UpdateCompanyUserProfileUseCase
 }
 
 export function createUserAdministrationRoutes(
@@ -125,6 +131,30 @@ export function createUserAdministrationRoutes(
         return { roles: body.roles, userId: parseUuidPathIdentifier(pathParameters.id ?? '') }
       },
       pathname: USER_ROLES_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<UpdateCompanyUserProfileInput, 'context'>>({
+      async handle({ context, input }) {
+        const companyUser = await dependencies.updateProfile.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeCompanyUser(companyUser) }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ pathParameters, request }) {
+        const body = await parseUpdateCompanyUserProfileRequest(request)
+        return {
+          userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(body.channel === undefined ? {} : { channel: body.channel }),
+          ...(body.contact === undefined ? {} : { contact: body.contact }),
+          ...(body.email === undefined ? {} : { email: body.email }),
+          ...(body.name === undefined ? {} : { name: body.name }),
+          ...(body.username === undefined ? {} : { username: body.username }),
+        }
+      },
+      pathname: USER_PATH,
       pathParameterFormat: 'raw',
       policy: USERS_MANAGE_POLICY,
     }),

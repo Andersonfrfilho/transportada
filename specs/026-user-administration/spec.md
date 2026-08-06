@@ -72,18 +72,18 @@ consuma o mesmo fluxo sem uma segunda implementação.
 
 ## Decisões tomadas
 
-| Decisão                              | Escolha                                                                             | Por quê                                                                   |
-| ------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Onde mora o cliente de administração | Pacote novo `@adatechnology/keycloak-admin`, agnóstico, ao lado de `keycloak-jwt`   | Escolha do usuário; o de NestJS não roda em Bun sem framework             |
-| Como o pacote autentica              | _Client credentials_ com service account do realm, escopo `realm-management` mínimo | Regra de M2M do ecossistema; nunca password grant                         |
-| Como o usuário é ativado             | **Código** de uso único, com validade, entregue por canal                           | O mobile futuro não abre link de e-mail; código funciona nos três canais  |
-| Por onde o código sai                | Trio de notificação (`notification-contracts` + provider por canal)                 | Já modela `email`/`sms`/`whatsapp`; construir outro seria duplicar        |
-| Onde o canal se escolhe              | Seção nova na página de configurações da empresa                                    | Pedido explícito do usuário; é onde já vivem certificado, logo e defaults |
-| Quem administra                      | `company-admin`, via `users.manage`, sempre no escopo do token                      | A permissão já existe e já pertence ao papel certo                        |
-| Vias de ativação                     | **Duas**: senha temporária definida pelo admin **ou** código por canal              | Escolha do usuário; a senha temporária entrega acesso sem depender do worker de notificação |
-| Onde a foto do usuário mora          | Bucket privado (MinIO/S3) + rota autenticada da API; Keycloak guarda só a referência | `security.md` §7 proíbe bucket público para dado pessoal; atributo de IdP não guarda binário |
-| Como o usuário loga                  | `username` escolhido pelo admin, editável e sincronizado com o Keycloak             | Escolha do usuário; o UUID sintético do convite não é decorável e o contato pode ser telefone |
-| Quem é a fonte da verdade do perfil  | O banco da aplicação; toda escrita empurra para o Keycloak na mesma operação        | O Keycloak não conhece empresa nem perfis do produto; divergência silenciosa é o pior estado |
+| Decisão                              | Escolha                                                                              | Por quê                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Onde mora o cliente de administração | Pacote novo `@adatechnology/keycloak-admin`, agnóstico, ao lado de `keycloak-jwt`    | Escolha do usuário; o de NestJS não roda em Bun sem framework                                 |
+| Como o pacote autentica              | _Client credentials_ com service account do realm, escopo `realm-management` mínimo  | Regra de M2M do ecossistema; nunca password grant                                             |
+| Como o usuário é ativado             | **Código** de uso único, com validade, entregue por canal                            | O mobile futuro não abre link de e-mail; código funciona nos três canais                      |
+| Por onde o código sai                | Trio de notificação (`notification-contracts` + provider por canal)                  | Já modela `email`/`sms`/`whatsapp`; construir outro seria duplicar                            |
+| Onde o canal se escolhe              | Seção nova na página de configurações da empresa                                     | Pedido explícito do usuário; é onde já vivem certificado, logo e defaults                     |
+| Quem administra                      | `company-admin`, via `users.manage`, sempre no escopo do token                       | A permissão já existe e já pertence ao papel certo                                            |
+| Vias de ativação                     | **Duas**: senha temporária definida pelo admin **ou** código por canal               | Escolha do usuário; a senha temporária entrega acesso sem depender do worker de notificação   |
+| Onde a foto do usuário mora          | Bucket privado (MinIO/S3) + rota autenticada da API; Keycloak guarda só a referência | `security.md` §7 proíbe bucket público para dado pessoal; atributo de IdP não guarda binário  |
+| Como o usuário loga                  | `username` escolhido pelo admin, editável e sincronizado com o Keycloak              | Escolha do usuário; o UUID sintético do convite não é decorável e o contato pode ser telefone |
+| Quem é a fonte da verdade do perfil  | O banco da aplicação; toda escrita empurra para o Keycloak na mesma operação         | O Keycloak não conhece empresa nem perfis do produto; divergência silenciosa é o pior estado  |
 
 ## Arranque do ambiente — decidido
 

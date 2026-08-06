@@ -13,6 +13,8 @@ import {
   userInvitations,
 } from '../../database/database.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
+import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import { DuplicateUsernameError } from '../domain/company-user.error.js'
 import { buildCompanyAdministratorFilters } from './drizzle-invitation.repository.js'
 import type {
   CompanyUserPage,
@@ -20,6 +22,7 @@ import type {
   CompanyUserRepositoryPort,
   CreateInvitedUserInput,
   ListCompanyUsersInput,
+  UpdateCompanyUserProfileInput,
 } from '../application/company-user.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -32,6 +35,7 @@ type MembershipRow = {
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly userId: string
+  readonly username: string
 }
 
 const MEMBERSHIP_COLUMNS = {
@@ -42,7 +46,10 @@ const MEMBERSHIP_COLUMNS = {
   membershipStatus: userCompanyMemberships.status,
   name: identityUserProfiles.name,
   userId: userCompanyMemberships.userId,
+  username: identityUserProfiles.username,
 } as const
+
+const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   public constructor(private readonly database: Database) {}
@@ -67,6 +74,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         contactChannel: input.contactChannel,
         name: input.name,
         userId: input.userId,
+        username: input.username,
       })
     })
   }
@@ -242,6 +250,28 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       )
   }
 
+  /** O `username` é único no realm inteiro: a colisão vem do índice, não de uma leitura prévia. */
+  public async updateProfile(input: UpdateCompanyUserProfileInput): Promise<void> {
+    const changes = {
+      ...(input.contactAddress === undefined ? {} : { contactAddress: input.contactAddress }),
+      ...(input.contactChannel === undefined ? {} : { contactChannel: input.contactChannel }),
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.username === undefined ? {} : { username: input.username }),
+    }
+    if (Object.keys(changes).length === 0) return
+
+    try {
+      await this.database
+        .update(identityUserProfiles)
+        .set({ ...changes, updatedAt: new Date() })
+        .where(eq(identityUserProfiles.userId, input.userId))
+    } catch (error) {
+      if (violatedUniqueConstraint(error) === USERNAME_CONSTRAINT)
+        throw new DuplicateUsernameError()
+      throw error
+    }
+  }
+
   private async fetchPendingInvitations(input: {
     readonly companyId: string
     readonly userIds: readonly string[]
@@ -317,5 +347,6 @@ function toRecord(
     pendingInvitation: expiresAt === undefined ? undefined : { expiresAt },
     roles: rolesByUser.get(row.userId) ?? [],
     userId: row.userId,
+    username: row.username,
   }
 }

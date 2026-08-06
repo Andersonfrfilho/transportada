@@ -291,12 +291,12 @@ o convite (fases B–D). Staging pode ser resetado à vontade durante o percurso
       `username` continua detectável — o Admin API responde `USER_ALREADY_EXISTS` na escrita — e é
       por ali que o 409 da T024 vai sair, sem uma consulta prévia que não resolveria a corrida.
 
-- [ ] T023 Contrato **falhando** da edição de perfil: `PATCH /company-users/:id` sob `users.manage`
+- [x] T023 Contrato **falhando** da edição de perfil: `PATCH /company-users/:id` sob `users.manage`
       altera nome, `username`, e-mail, canal e endereço de contato; `username` duplicado devolve 409
       com erro de domínio próprio; admin da empresa A não altera usuário da empresa B.
       Dependências: T022. Sucesso: vermelho.
 
-- [ ] T024 Implementar o `PATCH`: schema Zod, use-case, repositório sobre `identity_user_profiles` +
+- [x] T024 Implementar o `PATCH`: schema Zod, use-case, repositório sobre `identity_user_profiles` +
       `identity_users`, e o empurrão para o Keycloak na mesma operação. Migration aditiva para o
       `username` da aplicação, se o contrato de colunas exigir. Dependências: T023. Sucesso: T023
       verde + `make migration-test` verde.

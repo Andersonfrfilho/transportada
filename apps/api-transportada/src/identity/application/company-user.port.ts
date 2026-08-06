@@ -18,6 +18,7 @@ export type CompanyUserRecord = {
   readonly pendingInvitation: PendingInvitationSummary
   readonly roles: readonly CompanyRole[]
   readonly userId: string
+  readonly username: string
 }
 
 export type CompanyUserPage = {
@@ -33,6 +34,15 @@ export type CreateInvitedUserInput = {
   readonly name: string
   readonly subject: string
   readonly userId: string
+  readonly username: string
+}
+
+export type UpdateCompanyUserProfileInput = {
+  readonly contactAddress?: string
+  readonly contactChannel?: ContactChannel
+  readonly name?: string
+  readonly userId: string
+  readonly username?: string
 }
 
 export type ListCompanyUsersInput = {
@@ -70,4 +80,6 @@ export type CompanyUserRepositoryPort = {
     readonly status: MembershipStatus
     readonly userId: string
   }) => Promise<void>
+  /** Lança `DuplicateUsernameError` quando o login já pertence a outra pessoa do realm. */
+  readonly updateProfile: (input: UpdateCompanyUserProfileInput) => Promise<void>
 }

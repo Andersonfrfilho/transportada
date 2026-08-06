@@ -158,6 +158,7 @@ export function createCompanyUserRepositoryFake(
         pendingInvitation: undefined,
         roles,
         userId,
+        username: userId,
       }
     },
     async findIdentitySubject() {

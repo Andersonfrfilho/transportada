@@ -19,6 +19,21 @@ export class CompanyUserNotFoundError extends ApiError {
 }
 
 /**
+ * O `username` é o login: precisa ser único no provedor de identidade. A mensagem não diz de quem
+ * é o login já usado — isso enumeraria usuários de outras empresas para quem só administra a sua.
+ */
+export class DuplicateUsernameError extends ApiError {
+  public constructor() {
+    super({
+      code: 'USERNAME_ALREADY_TAKEN',
+      message: 'Username is already taken.',
+      status: 409,
+    })
+    this.name = 'DuplicateUsernameError'
+  }
+}
+
+/**
  * Vínculo na aplicação sem identidade externa correspondente é estado inconsistente: falha alto,
  * porque continuar significaria mudar o banco sem que o provedor de identidade acompanhe.
  */

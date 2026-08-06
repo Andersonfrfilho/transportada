@@ -98,6 +98,7 @@ import { createResendCompanyUserCodeUseCase } from './identity/application/resen
 import { createChangeCompanyUserStatusUseCase } from './identity/application/change-company-user-status.use-case'
 import { createReplaceCompanyUserRolesUseCase } from './identity/application/replace-company-user-roles.use-case'
 import { createRemoveCompanyUserMembershipUseCase } from './identity/application/remove-company-user-membership.use-case'
+import { createUpdateCompanyUserProfileUseCase } from './identity/application/update-company-user-profile.use-case'
 import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
 import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
@@ -433,6 +434,10 @@ function createApplicationRoutes({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
   })
+  const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
+    identityGateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -653,6 +658,7 @@ function createApplicationRoutes({
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,
+      updateProfile: updateCompanyUserProfile,
     }),
   ]
 }

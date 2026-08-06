@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
-import { check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { check, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
 
 import { identityUsers } from './identity.schema.js'
 
@@ -23,6 +23,8 @@ export const identityUserProfiles = pgTable(
       .primaryKey()
       .references(() => identityUsers.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
     name: text().notNull(),
+    /** O login que a pessoa digita. Nasce igual ao `user_id` e o administrador pode trocar. */
+    username: text().notNull(),
     contactChannel: text('contact_channel').$type<ContactChannel>().notNull(),
     contactAddress: text('contact_address').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -38,5 +40,7 @@ export const identityUserProfiles = pgTable(
       'identity_user_profiles_contact_address_not_blank_check',
       sql`length(trim(${table.contactAddress})) > 0`,
     ),
+    /** Unicidade no realm inteiro, como no Keycloak: o login não é por empresa. */
+    unique('identity_user_profiles_username_key').on(table.username),
   ],
 )
