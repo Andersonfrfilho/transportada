@@ -4,7 +4,14 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { listPendingMigrations } from '../../src/database/migration-status.policy.js'
+import {
+  DrizzleMigrationStatusRepository,
+  type MigrationDatabase,
+} from '../../src/database/drizzle-migration-status.repository.js'
+import {
+  listPendingMigrations,
+  resolveMigrationsDirectory,
+} from '../../src/database/migration-status.policy.js'
 import { HealthService } from '../../src/health/health.service.js'
 import type { DatabaseHealthPort, MigrationStatusPort } from '../../src/shared/api.types.js'
 
@@ -74,6 +81,36 @@ describe('Prontidão de migrations', () => {
     expect(readiness.status).toBe('ok')
   })
 
+  // Em dev o módulo roda de `src/database/`; na imagem ele vira `dist/main.js`, um nível acima.
+  // Um caminho fixo acerta um layout e erra o outro — foi assim que a API não subiu em staging.
+  test('a pasta de migrations é encontrada nos dois layouts, fonte e bundle', () => {
+    const shipped = '/app/apps/api-transportada/drizzle/'
+
+    const fromBundle = resolveMigrationsDirectory({
+      candidates: ['/app/apps/drizzle/', shipped],
+      exists: (path) => path === shipped,
+    })
+    const fromSource = resolveMigrationsDirectory({
+      candidates: [shipped, '/app/apps/drizzle/'],
+      exists: (path) => path === shipped,
+    })
+
+    expect(fromBundle).toBe(shipped)
+    expect(fromSource).toBe(shipped)
+  })
+
+  test('pasta de migrations inexistente degrada a readiness em vez de derrubar o boot', async () => {
+    const repository = new DrizzleMigrationStatusRepository({
+      database: unreachableDatabase(),
+      migrationsFolder: '/nao/existe/drizzle/',
+    })
+    const health = createHealthService({ migrationStatus: repository })
+
+    const readiness = await health.ready()
+
+    expect(readiness.dependencies.migrations).toBe('down')
+  })
+
   // O deploy declarava o preDeployCommand em `deploy/api/railway.json` e a Railway nunca o leu:
   // sem esta asserção o pipeline volta a passar verde com o banco atrasado.
   test('o deploy da API reprova quando a readiness acusa migration pendente', () => {
@@ -86,6 +123,11 @@ describe('Prontidão de migrations', () => {
     expect(script).toContain('assert_migrations_applied')
   })
 })
+
+/** A leitura da pasta falha antes de qualquer consulta — o banco nunca é tocado nesse caminho. */
+function unreachableDatabase(): MigrationDatabase {
+  return {} as unknown as MigrationDatabase
+}
 
 function pendingMigrations(total: number): MigrationStatusPort {
   return {

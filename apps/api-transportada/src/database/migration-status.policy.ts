@@ -16,3 +16,16 @@ export function listPendingMigrations({
 
   return shippedNames.filter((name) => !applied.has(name))
 }
+
+type ResolveMigrationsDirectoryParams = {
+  readonly candidates: readonly string[]
+  readonly exists: (path: string) => boolean
+}
+
+/** O bundle roda de `dist/` e o fonte de `src/database/`: o caminho certo depende de quem chamou. */
+export function resolveMigrationsDirectory({
+  candidates,
+  exists,
+}: ResolveMigrationsDirectoryParams): string | undefined {
+  return candidates.find(exists)
+}
