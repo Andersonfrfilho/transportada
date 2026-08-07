@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { DacteXmlInvalidError } from '../../src/cte-issuance/domain/dacte.error.js'
 import { DACTE_HOMOLOGATION_LEGEND } from '../../src/cte-issuance/domain/dacte-layout.policy.js'
 import { createDactePdfGateway } from '../../src/cte-issuance/infrastructure/dacte-pdf.gateway.js'
+import { PNG_BYTES } from '../fixtures/company-logo.fixture.js'
 import { buildSyntheticCteXml } from '../fixtures/cte-xml.fixture.js'
 
 const PDF_HEADER = '%PDF-'
@@ -65,6 +66,29 @@ describe('createDactePdfGateway', () => {
     expect(countImageObjects(document.bytes)).toBeGreaterThanOrEqual(2)
   })
 
+  test('draws the company logo when the company has one', async () => {
+    const gateway = createDactePdfGateway({ compress: false })
+    const xml = buildSyntheticCteXml()
+
+    const withLogo = await gateway.render({ logo: { bytes: PNG_BYTES }, xml })
+    const withoutLogo = await gateway.render({ xml })
+
+    // PNG com canal alfa entra como imagem mais máscara: o que o contrato guarda é que a marca desenha.
+    expect(countImageObjects(withLogo.bytes)).toBeGreaterThan(countImageObjects(withoutLogo.bytes))
+  })
+
+  test('keeps the paper intact when the stored logo cannot be decoded', async () => {
+    const gateway = createDactePdfGateway({ compress: false })
+
+    const document = await gateway.render({
+      logo: { bytes: Buffer.from('not an image') },
+      xml: buildSyntheticCteXml(),
+    })
+
+    expect(document.bytes.toString('latin1')).toStartWith(PDF_HEADER)
+    expect(document.bytes.toString('latin1')).toInclude(PDF_TRAILER)
+  })
+
   test('warns on the paper that a homologation document has no fiscal value', async () => {
     const gateway = createDactePdfGateway({ compress: false })
 
@@ -85,17 +109,6 @@ describe('createDactePdfGateway', () => {
     )
 
     expect(drawn).not.toContain(DACTE_HOMOLOGATION_LEGEND)
-  })
-
-  test('keeps rendering the fiscal document when the logo cannot be decoded', async () => {
-    const gateway = createDactePdfGateway({
-      compress: false,
-      logo: { bytes: Buffer.from('not an image') },
-    })
-
-    const document = await gateway.render({ xml: buildSyntheticCteXml() })
-
-    expect(document.bytes.toString('latin1').startsWith(PDF_HEADER)).toBe(true)
   })
 
   test('refuses a document that is not an authorized CT-e', async () => {

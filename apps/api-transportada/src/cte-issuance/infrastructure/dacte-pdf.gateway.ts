@@ -35,7 +35,8 @@ const HEADER_HEIGHT = 80
 
 export type DactePdfLogo = { readonly bytes: Buffer }
 
-export type DactePdfRenderInput = { readonly xml: string }
+/** O logo é da empresa e o gateway é único no processo: a marca entra por render, não por construção. */
+export type DactePdfRenderInput = { readonly logo?: DactePdfLogo | null; readonly xml: string }
 
 export type DactePdfDocument = { readonly bytes: Buffer; readonly pageCount: number }
 
@@ -46,7 +47,6 @@ export type DactePdfGateway = {
 export type CreateDactePdfGatewayOptions = {
   readonly barcodes?: DacteBarcodeGateway
   readonly compress?: boolean
-  readonly logo?: DactePdfLogo | null
 }
 
 type Cursor = { y: number }
@@ -74,7 +74,7 @@ export function createDactePdfGateway(options?: CreateDactePdfGatewayOptions): D
         cursor,
         document,
         layout,
-        logo: options?.logo ?? null,
+        logo: input.logo ?? null,
         qrCodeImage,
       })
       for (const section of layout.sections) drawSection({ cursor, document, section })

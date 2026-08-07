@@ -9,6 +9,7 @@ import type { DactePdfGateway } from '../infrastructure/dacte-pdf.gateway.js'
 
 import {
   buildDacteFileName,
+  type DacteLogoPort,
   type DacteRenderRequest,
   type DacteRenderResult,
   type DacteSourcePort,
@@ -17,6 +18,7 @@ import {
 } from './render-dacte.port.js'
 
 export type RenderDacteDependencies = {
+  readonly logos: DacteLogoPort
   readonly renderer: DactePdfGateway
   readonly source: DacteSourcePort
   readonly xmlReader: DacteXmlReaderPort
@@ -39,11 +41,14 @@ export function createRenderDacteUseCase(
       if (lookup.kind === 'missing') throw new DacteDocumentNotFoundError()
       if (lookup.kind === 'not-authorized') throw new DacteDocumentNotAuthorizedError()
 
-      const xml = await dependencies.xmlReader.readXml({
-        bucket: lookup.document.bucket,
-        objectKey: lookup.document.objectKey,
-      })
-      const pdf = await dependencies.renderer.render({ xml })
+      const [xml, logo] = await Promise.all([
+        dependencies.xmlReader.readXml({
+          bucket: lookup.document.bucket,
+          objectKey: lookup.document.objectKey,
+        }),
+        dependencies.logos.findLogo({ companyId: input.context.companyId }),
+      ])
+      const pdf = await dependencies.renderer.render({ logo, xml })
 
       return { bytes: pdf.bytes, fileName: buildDacteFileName(lookup.document.accessKey) }
     },

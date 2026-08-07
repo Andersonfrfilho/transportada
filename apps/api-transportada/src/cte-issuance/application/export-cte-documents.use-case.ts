@@ -17,11 +17,13 @@ import {
   type CteExportSelectionQuery,
   type ExportCteDocumentsUseCase,
 } from './export-cte-documents.port.js'
+import type { DacteLogo, DacteLogoPort } from './render-dacte.port.js'
 
 export type ExportCteDocumentsDependencies = {
   readonly archive: CteArchivePort
   readonly clock: () => Date
   readonly dacte: CteDacteRendererPort
+  readonly logos: DacteLogoPort
   readonly selection: CteExportSelectionPort
 }
 
@@ -45,8 +47,13 @@ export function createExportCteDocumentsUseCase(
       if (documents.length === 0) throw new CteExportEmptyError()
 
       const format = input.format ?? CTE_EXPORT_DEFAULT_FORMAT
+      // Exportação só de XML não desenha papel nenhum: nem vale a consulta da marca.
+      const logo =
+        format === 'xml'
+          ? null
+          : await dependencies.logos.findLogo({ companyId: input.context.companyId })
       const entries = documents.flatMap((document) =>
-        buildEntries({ dacte: dependencies.dacte, document, format }),
+        buildEntries({ dacte: dependencies.dacte, document, format, logo }),
       )
 
       return {
@@ -72,6 +79,7 @@ function buildEntries(input: {
   readonly dacte: CteDacteRendererPort
   readonly document: CteExportDocument
   readonly format: CteExportFormat
+  readonly logo: DacteLogo | null
 }): readonly CteArchiveEntry[] {
   const xml = input.format === 'pdf' ? [] : [toXmlEntry(input.document)]
   const pdf = input.format === 'xml' ? [] : [toDacteEntry({ ...input })]
@@ -90,6 +98,7 @@ function toXmlEntry(document: CteExportDocument): CteArchiveEntry {
 function toDacteEntry(input: {
   readonly dacte: CteDacteRendererPort
   readonly document: CteExportDocument
+  readonly logo: DacteLogo | null
 }): CteArchiveEntry {
   return {
     name: `${input.document.accessKey}.pdf`,
@@ -98,6 +107,7 @@ function toDacteEntry(input: {
       load: () =>
         input.dacte.renderDacte({
           bucket: input.document.bucket,
+          logo: input.logo,
           objectKey: input.document.objectKey,
         }),
     },

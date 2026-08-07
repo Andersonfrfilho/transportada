@@ -6,11 +6,16 @@ import { describe, expect, test } from 'bun:test'
 import {
   CTE_EXPORT_MAX_DOCUMENTS,
   type CteArchiveEntry,
+  type CteDacteRenderRequest,
   type CteExportDocument,
   type CteExportRequest,
   type CteExportSelectionQuery,
 } from '../../src/cte-issuance/application/export-cte-documents.port.js'
 import { createExportCteDocumentsUseCase } from '../../src/cte-issuance/application/export-cte-documents.use-case.js'
+import type {
+  DacteLogo,
+  DacteLogoQuery,
+} from '../../src/cte-issuance/application/render-dacte.port.js'
 
 import { COMPANY_CONTEXT, captureApiError } from './support.js'
 
@@ -20,6 +25,7 @@ const EXPORT_BUCKET = 'fiscal-documents-test'
 const FOREIGN_COMPANY_ID = '00000000-0000-4000-8000-0000000007ff'
 const BATCH_ID = '00000000-0000-4000-8000-0000000007a1'
 const ITEM_ID = '00000000-0000-4000-8000-0000000007a2'
+const LOGO: DacteLogo = { bytes: Buffer.from('synthetic-logo') }
 
 /** Chave sintética: 44 dígitos derivados de um sequencial, nunca uma chave fiscal real. */
 function syntheticAccessKey(sequence: number): string {
@@ -38,9 +44,10 @@ function syntheticDocuments(total: number): readonly CteExportDocument[] {
   return Array.from({ length: total }, (_value, index) => syntheticDocument(index + 1))
 }
 
-function createFixture(documents: readonly CteExportDocument[]) {
+function createFixture(documents: readonly CteExportDocument[], logo: DacteLogo | null = LOGO) {
   const archiveCalls: (readonly CteArchiveEntry[])[] = []
-  const renderCalls: { readonly bucket: string; readonly objectKey: string }[] = []
+  const logoCalls: DacteLogoQuery[] = []
+  const renderCalls: CteDacteRenderRequest[] = []
   const selectionCalls: CteExportSelectionQuery[] = []
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -56,9 +63,15 @@ function createFixture(documents: readonly CteExportDocument[]) {
     },
     clock: () => EXPORTED_AT,
     dacte: {
-      async renderDacte(location) {
-        renderCalls.push(location)
+      async renderDacte(request) {
+        renderCalls.push(request)
         return RENDERED_PDF
+      },
+    },
+    logos: {
+      async findLogo(query) {
+        logoCalls.push(query)
+        return logo
       },
     },
     selection: {
@@ -69,7 +82,7 @@ function createFixture(documents: readonly CteExportDocument[]) {
     },
   })
 
-  return { archiveCalls, renderCalls, selectionCalls, stream, useCase }
+  return { archiveCalls, logoCalls, renderCalls, selectionCalls, stream, useCase }
 }
 
 function entryNames(entries: readonly CteArchiveEntry[] | undefined): readonly string[] {
@@ -162,8 +175,37 @@ describe('CT-e XML export contract', () => {
 
     expect(bytes).toEqual(RENDERED_PDF)
     expect(fixture.renderCalls).toEqual([
-      { bucket: documents[0]!.bucket, objectKey: documents[0]!.objectKey },
+      { bucket: documents[0]!.bucket, logo: LOGO, objectKey: documents[0]!.objectKey },
     ])
+  })
+
+  test('busca a marca uma vez só e a repete em todos os DACTEs do ZIP', async () => {
+    const documents = syntheticDocuments(3)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    for (const entry of fixture.archiveCalls[0] ?? []) await loadEntry(entry)
+
+    expect(fixture.logoCalls).toEqual([{ companyId: COMPANY_CONTEXT.companyId }])
+    expect(fixture.renderCalls.map((call) => call.logo)).toEqual([LOGO, LOGO, LOGO])
+  })
+
+  test('não consulta a marca quando a exportação é só de XML', async () => {
+    const fixture = createFixture(syntheticDocuments(2))
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'xml' })
+
+    expect(fixture.logoCalls).toHaveLength(0)
+  })
+
+  test('gera o DACTE sem marca quando a empresa nunca subiu uma', async () => {
+    const documents = syntheticDocuments(1)
+    const fixture = createFixture(documents, null)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    await loadEntry(fixture.archiveCalls[0]?.[0])
+
+    expect(fixture.renderCalls[0]?.logo).toBeNull()
   })
 
   test('formato both leva o XML e o DACTE do mesmo CT-e lado a lado', async () => {

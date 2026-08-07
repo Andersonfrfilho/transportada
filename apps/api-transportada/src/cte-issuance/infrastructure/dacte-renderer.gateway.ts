@@ -1,8 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CteDacteRendererPort } from '../application/export-cte-documents.port.js'
-import type { DacteXmlLocation, DacteXmlReaderPort } from '../application/render-dacte.port.js'
+import type {
+  CteDacteRenderRequest,
+  CteDacteRendererPort,
+} from '../application/export-cte-documents.port.js'
+import type { DacteXmlReaderPort } from '../application/render-dacte.port.js'
 
 import type { DactePdfGateway } from './dacte-pdf.gateway.js'
 
@@ -12,9 +15,12 @@ export function createDacteRendererGateway(input: {
   readonly xmlReader: DacteXmlReaderPort
 }): CteDacteRendererPort {
   return {
-    async renderDacte(location: DacteXmlLocation): Promise<Uint8Array> {
-      const xml = await input.xmlReader.readXml(location)
-      const pdf = await input.pdf.render({ xml })
+    async renderDacte(request: CteDacteRenderRequest): Promise<Uint8Array> {
+      const xml = await input.xmlReader.readXml({
+        bucket: request.bucket,
+        objectKey: request.objectKey,
+      })
+      const pdf = await input.pdf.render({ logo: request.logo, xml })
 
       return pdf.bytes
     },

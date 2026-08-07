@@ -47,6 +47,17 @@ export type DacteXmlReaderPort = {
   readXml(location: DacteXmlLocation): Promise<string>
 }
 
+/** Empresa sem marca cadastrada é o caso normal: o cabeçalho do DACTE simplesmente não a desenha. */
+export type DacteLogo = { readonly bytes: Buffer }
+
+export type DacteLogoQuery = {
+  readonly companyId: string
+}
+
+export type DacteLogoPort = {
+  findLogo(query: DacteLogoQuery): Promise<DacteLogo | null>
+}
+
 export type DacteRenderResult = {
   readonly bytes: Uint8Array
   readonly fileName: string

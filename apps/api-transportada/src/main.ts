@@ -55,6 +55,7 @@ import { createExportCteDocumentsUseCase } from './cte-issuance/application/expo
 import { createRenderDacteUseCase } from './cte-issuance/application/render-dacte.use-case.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
 import { createDactePdfGateway } from './cte-issuance/infrastructure/dacte-pdf.gateway.js'
+import { createDacteLogoGateway } from './cte-issuance/infrastructure/dacte-logo.gateway.js'
 import { createDacteRendererGateway } from './cte-issuance/infrastructure/dacte-renderer.gateway.js'
 import { createDacteSource } from './cte-issuance/infrastructure/dacte-source.query.js'
 import { createDacteXmlReaderGateway } from './cte-issuance/infrastructure/dacte-xml-reader.gateway.js'
@@ -397,13 +398,16 @@ function createApplicationRoutes({
   })
   const dactePdfGateway = createDactePdfGateway()
   const dacteXmlReader = createDacteXmlReaderGateway({ storage: storageGateway })
+  const dacteLogoGateway = createDacteLogoGateway({ logos: companyLogoRepository })
   const exportCteDocuments = createExportCteDocumentsUseCase({
     archive: createCteArchiveGateway({ storage: storageGateway }),
     clock: () => new Date(),
     dacte: createDacteRendererGateway({ pdf: dactePdfGateway, xmlReader: dacteXmlReader }),
+    logos: dacteLogoGateway,
     selection: createCteExportSelection(database),
   })
   const renderDacte = createRenderDacteUseCase({
+    logos: dacteLogoGateway,
     renderer: dactePdfGateway,
     source: createDacteSource(database),
     xmlReader: dacteXmlReader,

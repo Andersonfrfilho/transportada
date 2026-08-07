@@ -4,6 +4,8 @@
 import { describe, expect, test } from 'bun:test'
 
 import type {
+  DacteLogo,
+  DacteLogoQuery,
   DacteSourceLookup,
   DacteSourceQuery,
   DacteXmlLocation,
@@ -27,20 +29,33 @@ const AUTHORIZED_LOOKUP: DacteSourceLookup = {
   document: { accessKey: ACCESS_KEY, bucket: BUCKET, objectKey: OBJECT_KEY },
   kind: 'authorized',
 }
+const LOGO: DacteLogo = { bytes: Buffer.from('synthetic-logo') }
 
 function createUseCase(
   lookup: DacteSourceLookup,
   xml: string = buildSyntheticCteXml(),
+  logo: DacteLogo | null = LOGO,
 ): {
+  readonly logoCalls: DacteLogoQuery[]
   readonly readCalls: DacteXmlLocation[]
+  readonly renderCalls: (DacteLogo | null | undefined)[]
   readonly renderDacte: ReturnType<typeof createRenderDacteUseCase>['renderDacte']
   readonly sourceCalls: DacteSourceQuery[]
 } {
+  const logoCalls: DacteLogoQuery[] = []
   const readCalls: DacteXmlLocation[] = []
+  const renderCalls: (DacteLogo | null | undefined)[] = []
   const sourceCalls: DacteSourceQuery[] = []
   const useCase = createRenderDacteUseCase({
+    logos: {
+      async findLogo(query) {
+        logoCalls.push(query)
+        return logo
+      },
+    },
     renderer: {
-      async render() {
+      async render(input) {
+        renderCalls.push(input.logo)
         return { bytes: Buffer.from('%PDF-1.3 synthetic'), pageCount: 1 }
       },
     },
@@ -58,7 +73,7 @@ function createUseCase(
     },
   })
 
-  return { readCalls, renderDacte: useCase.renderDacte, sourceCalls }
+  return { logoCalls, readCalls, renderCalls, renderDacte: useCase.renderDacte, sourceCalls }
 }
 
 describe('renderDacte use case', () => {
@@ -100,6 +115,32 @@ describe('renderDacte use case', () => {
     })
 
     expect(useCase.readCalls).toEqual([{ bucket: BUCKET, objectKey: OBJECT_KEY }])
+  })
+
+  test('leva a marca da empresa autenticada para o cabeçalho do papel', async () => {
+    const useCase = createUseCase(AUTHORIZED_LOOKUP)
+
+    await useCase.renderDacte({
+      batchId: BATCH_ID,
+      batchItemId: BATCH_ITEM_ID,
+      context: { companyId: COMPANY_ID },
+    })
+
+    expect(useCase.logoCalls).toEqual([{ companyId: COMPANY_ID }])
+    expect(useCase.renderCalls).toEqual([LOGO])
+  })
+
+  test('desenha o DACTE sem marca quando a empresa nunca subiu uma', async () => {
+    const useCase = createUseCase(AUTHORIZED_LOOKUP, buildSyntheticCteXml(), null)
+
+    const result = await useCase.renderDacte({
+      batchId: BATCH_ID,
+      batchItemId: BATCH_ITEM_ID,
+      context: { companyId: COMPANY_ID },
+    })
+
+    expect(useCase.renderCalls).toEqual([null])
+    expect(result.fileName).toBe(`dacte-${ACCESS_KEY}.pdf`)
   })
 
   test('recusa item que não pertence ao lote da empresa', async () => {

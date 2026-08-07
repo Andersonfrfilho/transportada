@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyCteItemFilters } from '../../cte-batches/application/cte-batch-item.port.js'
-import type { DacteXmlLocation } from './render-dacte.port.js'
+import type { DacteLogo, DacteXmlLocation } from './render-dacte.port.js'
 
 /** Teto por requisição: o ZIP é montado em stream, mas a seleção ainda vira uma consulta só. */
 export const CTE_EXPORT_MAX_DOCUMENTS = 500
@@ -57,8 +57,13 @@ export type CteArchiveEntry = {
   readonly source: CteArchiveSource
 }
 
+/** A marca é a mesma para toda a seleção: buscá-la uma vez evita uma consulta por documento do ZIP. */
+export type CteDacteRenderRequest = DacteXmlLocation & {
+  readonly logo: DacteLogo | null
+}
+
 export type CteDacteRendererPort = {
-  renderDacte(location: DacteXmlLocation): Promise<Uint8Array>
+  renderDacte(request: CteDacteRenderRequest): Promise<Uint8Array>
 }
 
 export type CteArchivePort = {
