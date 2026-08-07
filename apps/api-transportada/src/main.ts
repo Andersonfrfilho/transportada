@@ -52,7 +52,11 @@ import { createBillingRoutes } from './billing/presentation/billing.routes'
 import { toBillingInvoiceListFilters } from './billing/presentation/billing.schema.js'
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
 import { createExportCteDocumentsUseCase } from './cte-issuance/application/export-cte-documents.use-case.js'
+import { createRenderDacteUseCase } from './cte-issuance/application/render-dacte.use-case.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
+import { createDactePdfGateway } from './cte-issuance/infrastructure/dacte-pdf.gateway.js'
+import { createDacteSource } from './cte-issuance/infrastructure/dacte-source.query.js'
+import { createDacteXmlReaderGateway } from './cte-issuance/infrastructure/dacte-xml-reader.gateway.js'
 import { createCteDocumentDownloadGateway } from './cte-issuance/infrastructure/cte-document-download.gateway.js'
 import { createCteExportSelection } from './cte-issuance/infrastructure/cte-export-selection.query.js'
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
@@ -395,6 +399,11 @@ function createApplicationRoutes({
     clock: () => new Date(),
     selection: createCteExportSelection(database),
   })
+  const renderDacte = createRenderDacteUseCase({
+    renderer: createDactePdfGateway(),
+    source: createDacteSource(database),
+    xmlReader: createDacteXmlReaderGateway({ storage: storageGateway }),
+  })
   const operations = createOperationsUseCase({
     clock: { now: () => new Date().toISOString() },
     repository: operationsRepository,
@@ -600,6 +609,9 @@ function createApplicationRoutes({
       },
     }),
     ...createCteIssuanceRoutes({
+      cteDacte: {
+        renderDacte: (input) => renderDacte.renderDacte(input),
+      },
       cteExport: {
         exportDocuments: (input) => exportCteDocuments.exportDocuments(input),
       },

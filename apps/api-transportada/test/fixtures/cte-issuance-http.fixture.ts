@@ -35,9 +35,21 @@ type CteExportResult = {
   readonly stream: ReadableStream<Uint8Array>
 }
 
+type CteDacteCall = {
+  readonly batchId: string
+  readonly batchItemId: string
+  readonly context: CompanyContext
+}
+
+type CteDacteResult = {
+  readonly bytes: Uint8Array
+  readonly fileName: string
+}
+
 type CreateFixtureParams = {
   readonly authenticationError?: Error
   readonly cancelError?: Error
+  readonly dacteError?: Error
   readonly exportError?: Error
   readonly getError?: Error
   readonly issueError?: Error
@@ -46,6 +58,9 @@ type CreateFixtureParams = {
 }
 
 type CteIssuanceHttpRouteDependencies = {
+  readonly cteDacte: {
+    readonly renderDacte: (input: CteDacteCall) => Promise<CteDacteResult>
+  }
   readonly cteExport: {
     readonly exportDocuments: (input: CteExportCall) => Promise<CteExportResult>
   }
@@ -115,6 +130,10 @@ export const ISSUANCE_SUMMARY = {
   updatedAt: '2026-07-23T12:05:00.000Z',
 } as const
 
+export const DACTE_ACCESS_KEY = '35260761156864000191570010000000011000000010'
+export const DACTE_FILE_NAME = `dacte-${DACTE_ACCESS_KEY}.pdf`
+export const DACTE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x33])
+
 export const EXPORT_FILE_NAME = 'cte-xml-20260731-120000.zip'
 export const EXPORT_DOCUMENT_COUNT = 2
 export const EXPORT_ARCHIVE_BYTES = new Uint8Array([0x50, 0x4b, 0x05, 0x06, 0x00, 0x00])
@@ -135,6 +154,7 @@ export const DOCUMENTS_PAGE = {
 
 export async function createCteIssuanceHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly cancelCalls: CteIssuanceCall[]
+  readonly dacteCalls: CteDacteCall[]
   readonly events: string[]
   readonly exportCalls: CteExportCall[]
   readonly getCalls: CteIssuanceCall[]
@@ -144,6 +164,7 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   readonly reprocessCalls: CteIssuanceCall[]
 }> {
   const cancelCalls: CteIssuanceCall[] = []
+  const dacteCalls: CteDacteCall[] = []
   const events: string[] = []
   const exportCalls: CteExportCall[] = []
   const getCalls: CteIssuanceCall[] = []
@@ -151,6 +172,13 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
   const listDocumentCalls: CteIssuanceCall[] = []
   const reprocessCalls: CteIssuanceCall[] = []
   const routes = await loadRoutes({
+    cteDacte: {
+      async renderDacte(input) {
+        dacteCalls.push(structuredClone(input))
+        if (params.dacteError) throw params.dacteError
+        return { bytes: DACTE_PDF_BYTES, fileName: DACTE_FILE_NAME }
+      },
+    },
     cteExport: {
       async exportDocuments(input) {
         exportCalls.push(structuredClone(input))
@@ -210,6 +238,7 @@ export async function createCteIssuanceHttpFixture(params: CreateFixtureParams =
 
   return {
     cancelCalls,
+    dacteCalls,
     events,
     exportCalls,
     getCalls,
@@ -289,6 +318,18 @@ export function exportItemsRequest(
     headers,
     method: 'POST',
   })
+}
+
+/** Baixar o DACTE é leitura: a rota não pode exigir `idempotency-key`. */
+export function downloadDacteRequest(
+  input: {
+    readonly batchId?: string
+    readonly batchItemId?: string
+  } = {},
+): Request {
+  const batchId = input.batchId ?? BATCH_ID
+  const batchItemId = input.batchItemId ?? BATCH_ITEM_ID
+  return authenticatedRequest(`${CTE_BATCHES_PATH}/${batchId}/items/${batchItemId}/dacte`)
 }
 
 export function getIssuanceRequest(): Request {
