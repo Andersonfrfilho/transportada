@@ -33,7 +33,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
   { field: 'cnpj', inputMode: 'numeric', maximum: 14, required: true },
   { field: 'stateRegistration', maximum: 20 },
   { field: 'municipalRegistration', maximum: 20 },
-  { field: 'rntrc', inputMode: 'numeric', maximum: 8, required: true },
+  { field: 'rntrc', inputMode: 'numeric', maximum: 9, required: true },
   { field: 'street', maximum: 200, required: true },
   { field: 'number', maximum: 20, required: true },
   { field: 'complement', maximum: 100 },

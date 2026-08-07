@@ -107,6 +107,17 @@ describe('PATCH /company-settings HTTP contract', () => {
     expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
     expect(fixture.updateCalls).toHaveLength(0)
   })
+
+  // O cadastro guarda o registro como o certificado da ANTT o imprime; o XML é que leva oito.
+  test('grava o RNTRC com o zero da folha da ANTT em vez de encurtá-lo', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const body = settingsBodyWith({ path: 'profile.rntrc', value: '058151044' })
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]?.settings.profile.rntrc).toBe('058151044')
+  })
 })
 
 describe('PATCH /company-settings CT-e retry policy contract', () => {

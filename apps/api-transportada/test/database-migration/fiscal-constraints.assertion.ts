@@ -39,6 +39,26 @@ export async function assertFiscalConstraints(
     'company_fiscal_profiles_cnpj_unique',
   )
 
+  // O perfil aceita o registro como o certificado da ANTT o imprime; nove dígitos sem o zero, não.
+  await expectQueryToFail(
+    database`
+      insert into company_fiscal_profiles (
+        company_id, legal_name, trade_name, cnpj, state_registration,
+        municipal_registration, tax_regime, rntrc, street, number, complement,
+        district, city, state, postal_code, city_ibge_code, phone, email
+      ) values (
+        ${otherCompanyId}, 'Outra Transportadora', '', '98765432000188', '',
+        '', '3', '581510441', 'Rua Dois', '2', '', 'Centro', 'Curitiba', 'PR',
+        '80000001', '4106902', '', ''
+      )
+    `,
+    '23514',
+    'company_fiscal_profiles_rntrc_check',
+  )
+  await database`
+    update company_fiscal_profiles set rntrc = '058151044' where company_id = ${fixture.companyId}
+  `
+
   await assertCertificateConstraints(database, fixture, otherCompanyId)
 
   const sequenceId = crypto.randomUUID()

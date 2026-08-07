@@ -283,6 +283,21 @@ describe('create MDF-e manifest', () => {
     ])
   })
 
+  // O cadastro guarda 058151044 como o certificado da ANTT imprime; a tabela do manifesto leva oito.
+  test('encurta o RNTRC da folha da ANTT ao gravar o manifesto', async () => {
+    const fixture = createFixture({
+      settings: { environment: 'homologation', rntrc: '058151044' },
+    })
+
+    await fixture.useCase.create({
+      context: CONTEXT,
+      correlationId: 'correlation-1',
+      manifest: fields({ destinationState: 'SP' }),
+    })
+
+    expect(fixture.createCalls[0]?.manifest.rntrc).toBe('58151044')
+  })
+
   test('refuses to manifest a selection with any blocked CT-e', async () => {
     const fixture = createFixture({
       candidates: [candidate({ fiscalDocumentId: 'doc-1', liveManifestId: 'manifest-9' })],

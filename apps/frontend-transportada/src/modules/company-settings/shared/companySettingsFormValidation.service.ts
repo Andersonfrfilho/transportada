@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { normalizeRntrc } from '@/modules/shared/rntrc.service'
+
 import { PROFILE_DIGIT_LENGTHS } from './companySettings.constant'
 import type { CompanySettingsUpdate } from './companySettings.types'
 
@@ -56,7 +58,8 @@ function digitLengthError(
   input: Readonly<{ field: DigitProfileField; profile: Profile }>,
 ): CompanySettingsFieldError | undefined {
   const expectedLength = PROFILE_DIGIT_LENGTHS[input.field]
-  const value = input.profile[input.field].replace(/\D/g, '')
+  const raw = input.profile[input.field]
+  const value = input.field === 'rntrc' ? normalizeRntrc(raw) : raw.replace(/\D/g, '')
   // Campo vazio já é acusado como obrigatório: dois erros para o mesmo campo só confundem.
   if (value === '' || value.length === expectedLength) return undefined
   return {

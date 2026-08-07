@@ -128,6 +128,24 @@ describe('CT-e issuance payload assembly contract', () => {
     expect(providerConfig).not.toHaveProperty('nomeFantasia')
   })
 
+  // O cadastro guarda 058151044 como o certificado da ANTT imprime; o <RNTRC> do XML tem oito posições.
+  test('encurta o RNTRC da folha da ANTT ao montar o payload fiscal', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = {
+      ...PAYLOAD_SOURCE,
+      emitter: { ...PAYLOAD_EMITTER, rntrc: '058151044' },
+    }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const saved = unitOfWork.savedPayloads[0]
+    const providerConfig = saved?.['providerConfig'] as Record<string, unknown>
+
+    expect(providerConfig['rntrc']).toBe('58151044')
+    expect(saved?.['payload']).toMatchObject({ modal: { modal: '01', rntrc: '58151044' } })
+  })
+
   test('keeps certificate material out of the persisted payload', async () => {
     const unitOfWork = new CteIssuanceUnitOfWorkFixture()
     const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)

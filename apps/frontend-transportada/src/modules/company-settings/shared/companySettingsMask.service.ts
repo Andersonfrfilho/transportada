@@ -61,6 +61,7 @@ export function normalizeCompanySettingsMasks(
     },
     profile: {
       ...settings.profile,
+      rntrc: stripNonDigits(settings.profile.rntrc),
       stateRegistration: stripStateRegistrationMask(settings.profile.stateRegistration),
     },
   }

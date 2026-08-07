@@ -77,6 +77,24 @@ describe('fleet presentation boundary contract', () => {
     expect(toVehicleBody({ ...state, ownership: 'third_party' }).owner).toEqual(VEHICLE_OWNER)
   })
 
+  // A tela manda o registro como o certificado da ANTT o imprime; encurtar é assunto do fiscal.
+  test('envia o RNTRC do proprietário com o zero da folha da ANTT', async () => {
+    const { createVehicleDraft, toVehicleBody } = await loadFutureModule<FleetFormModule>(
+      '../../src/modules/fleet/shared/fleetForm.service',
+    )
+    const state = {
+      ...createVehicleDraft(),
+      ownerName: VEHICLE_OWNER.name,
+      ownerRntrc: '058.151.044',
+      ownerState: VEHICLE_OWNER.state,
+      ownerTaxId: VEHICLE_OWNER.taxId,
+      ownerTaxRegime: VEHICLE_OWNER.taxRegime,
+      ownership: 'third_party' as const,
+    }
+
+    expect(toVehicleBody(state).owner?.rntrc).toBe('058151044')
+  })
+
   test('links the driver to a company membership only when one is chosen', async () => {
     const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
       '../../src/modules/fleet/shared/fleetForm.service',

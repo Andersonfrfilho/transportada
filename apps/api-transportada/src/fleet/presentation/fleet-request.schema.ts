@@ -12,6 +12,7 @@ import {
   MDFE_OWNER_TAX_REGIMES,
   MDFE_WHEEL_TYPES,
 } from '../../database/fleet.schema.js'
+import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 
 const CNPJ = /^[0-9]{14}$/
 const CPF = /^[0-9]{11}$/
@@ -22,7 +23,6 @@ const PHONE = /^[0-9]{10,11}$/
 const PLATE = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RENAVAM = /^[0-9]{9,11}$/
-const RNTRC = /^[0-9]{8}$/
 const STATE = /^[A-Z]{2}$/
 const TRACTION_ROLE = 'traction'
 const UNSIGNED_BIGINT = /^(?:0|[1-9][0-9]{0,18})$/
@@ -32,7 +32,7 @@ const optionalDigits = (pattern: RegExp) => z.literal('').or(z.string().regex(pa
 const ownerSchema = z
   .object({
     name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
-    rntrc: z.string().regex(RNTRC),
+    rntrc: z.string().regex(RNTRC_INPUT),
     state: z.string().regex(STATE),
     taxId: z.string().regex(OWNER_TAX_ID),
     taxRegime: z.enum(MDFE_OWNER_TAX_REGIMES),

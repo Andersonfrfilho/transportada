@@ -8,6 +8,7 @@ import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
   FISCAL_TABLES,
@@ -69,6 +70,10 @@ describe('Drizzle migration integration', () => {
         const fleetFixture = await assertFleetConstraints(database, identityFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
         await assertTripConstraints(database, identityFixture, fleetFixture)
+        await assertRntrcRollbackRefusesNinePositions({
+          database,
+          directories: migrationDirectories,
+        })
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories

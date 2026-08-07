@@ -15,6 +15,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -129,7 +130,7 @@ export const fleetVehicles = pgTable(
     ),
     check(
       'fleet_vehicles_owner_rntrc_check',
-      sql`length(${table.ownerRntrc}) = 0 or ${table.ownerRntrc} ~ '^[0-9]{8}$'`,
+      sql`length(${table.ownerRntrc}) = 0 or ${table.ownerRntrc} ~ ${sql.raw(`'${RNTRC_INPUT_PATTERN}'`)}`,
     ),
     check(
       'fleet_vehicles_owner_tax_regime_check',

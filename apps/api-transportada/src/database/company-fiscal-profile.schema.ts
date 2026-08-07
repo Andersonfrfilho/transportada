@@ -10,6 +10,7 @@ import {
   CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
 } from '../cte-issuance/domain/cte-retry.policy.js'
+import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import { companies } from './identity.schema.js'
 import type { MdfeInsuranceResponsibility } from './mdfe.schema.js'
 
@@ -109,6 +110,10 @@ export const companyFiscalProfiles = pgTable(
     check(
       'company_fiscal_profiles_mdfe_insurer_tax_id_check',
       sql`length(${table.mdfeInsurerTaxId}) = 0 or ${table.mdfeInsurerTaxId} ~ '^[0-9]{11}$|^[0-9]{14}$'`,
+    ),
+    check(
+      'company_fiscal_profiles_rntrc_check',
+      sql`length(${table.rntrc}) = 0 or ${table.rntrc} ~ ${sql.raw(`'${RNTRC_INPUT_PATTERN}'`)}`,
     ),
     check('company_fiscal_profiles_tax_regime_check', sql`${table.taxRegime} in ('1', '2', '3')`),
     check('company_fiscal_profiles_version_check', sql`${table.version} > 0`),

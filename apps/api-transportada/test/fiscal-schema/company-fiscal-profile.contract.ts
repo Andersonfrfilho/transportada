@@ -124,6 +124,7 @@ describe('tenant fiscal schema', () => {
       company_fiscal_profiles_environment_check: `"company_fiscal_profiles"."environment" in ('homologation', 'production')`,
       company_fiscal_profiles_mdfe_insurance_responsibility_check: `length("company_fiscal_profiles"."mdfe_insurance_responsibility") = 0 or "company_fiscal_profiles"."mdfe_insurance_responsibility" in ('1', '2')`,
       company_fiscal_profiles_mdfe_insurer_tax_id_check: `length("company_fiscal_profiles"."mdfe_insurer_tax_id") = 0 or "company_fiscal_profiles"."mdfe_insurer_tax_id" ~ '^[0-9]{11}$|^[0-9]{14}$'`,
+      company_fiscal_profiles_rntrc_check: `length("company_fiscal_profiles"."rntrc") = 0 or "company_fiscal_profiles"."rntrc" ~ '^0?[0-9]{8}$'`,
       company_fiscal_profiles_tax_regime_check: `"company_fiscal_profiles"."tax_regime" in ('1', '2', '3')`,
       company_fiscal_profiles_version_check: `"company_fiscal_profiles"."version" > 0`,
     })

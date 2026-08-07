@@ -16,6 +16,7 @@ import {
   validateCompanySettings,
 } from '@/modules/company-settings/shared/companySettingsFormValidation.service'
 import { createDefaultCompanySettings } from '@/modules/company-settings/shared/companySettings.constant'
+import { normalizeRntrc } from '@/modules/shared/rntrc.service'
 import {
   detectPixKeyType,
   normalizePixKey,
@@ -204,13 +205,41 @@ describe('company settings form validation contract', () => {
   })
 })
 
+// O certificado da ANTT traz 058151044 e o CT-e autorizado leva 58151044: o zero é da folha, não do registro.
+describe('rntrc normalization contract', () => {
+  test.each([
+    ['drops the ANTT leading zero', '058151044', '58151044'],
+    ['leaves the eight-digit registration untouched', '58151044', '58151044'],
+    ['keeps a leading zero that belongs to the registration', '05815104', '05815104'],
+    ['keeps every digit of a short registration', '5815104', '5815104'],
+    ['drops both zeros when the sheet pads to ten', '0058151044', '58151044'],
+    ['leaves an over-long registration for the validation to report', '581510441', '581510441'],
+    ['strips separators typed from the certificate', '058.151.044', '58151044'],
+    ['leaves an empty field empty', '', ''],
+  ])('%s', (_name, value, expected) => {
+    expect(normalizeRntrc(value)).toBe(expected)
+  })
+
+  test('salva o registro como o certificado o imprime, com o zero na frente', () => {
+    const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '058.151.044' } })
+
+    expect(normalizeCompanySettingsMasks(settings).profile.rntrc).toBe('058151044')
+  })
+
+  test('accepts the certificate value as valid instead of demanding the user drop the zero', () => {
+    const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '058151044' } })
+
+    expect(validateCompanySettings(settings)).toEqual([])
+  })
+})
+
 // O corte silencioso do nono dígito gravou 05815104 no lugar de 058151044 e foi parar no XML do CT-e.
 describe('company settings digit length contract', () => {
   test.each([
     ['cityIbgeCode', '31062009', 7],
     ['cnpj', '123456780001999', 14],
     ['postalCode', '301100001', 8],
-    ['rntrc', '058151044', 8],
+    ['rntrc', '581510441', 8],
   ])('reports %s when it carries one digit too many', (field, value, expectedLength) => {
     const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, [field]: value } })
 
@@ -252,7 +281,7 @@ describe('company settings digit length contract', () => {
 
   test('names the expected length in the message so the user sees what is wrong', () => {
     const [error] = validateCompanySettings(
-      buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '058151044' } }),
+      buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '581510441' } }),
     )
     const translate = (key: string, values: Readonly<Record<string, number | string>>) =>
       Object.keys(values).length === 0 ? key : `${key}:${JSON.stringify(values)}`

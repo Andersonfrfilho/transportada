@@ -3,6 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
+import { normalizeRntrc } from '../../shared/rntrc.service.js'
 import { buildCtePayload } from '../domain/cte-payload.builder.js'
 
 import {
@@ -85,7 +86,7 @@ function composeProviderConfig(
     numero: emitter.number,
     numeroCte: toFiscalNumber(attempt.fiscalNumber),
     razaoSocial: emitter.legalName,
-    rntrc: emitter.rntrc,
+    rntrc: normalizeRntrc(emitter.rntrc),
     serie: attempt.fiscalSeries,
     ...(emitter.phone === '' ? {} : { telefone: emitter.phone }),
     uf: emitter.state,
@@ -99,7 +100,8 @@ export function assembleCteIssuancePayload(
   assertCompleteEmitter(source.emitter)
 
   const payload = buildCtePayload({
-    carrier: { rntrc: source.emitter.rntrc },
+    // O <RNTRC> do modal rodoviário tem oito posições: o zero da folha da ANTT fica no cadastro.
+    carrier: { rntrc: normalizeRntrc(source.emitter.rntrc) },
     charge: source.charge,
     invoices: source.invoices,
     ...(issuedAt === undefined ? {} : { issuedAt }),

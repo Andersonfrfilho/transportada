@@ -63,6 +63,30 @@ export async function assertFleetConstraints(
     'fleet_vehicles_owner_check',
   )
 
+  // O cadastro aceita o registro como o certificado da ANTT o imprime; nove dígitos sem o zero, não.
+  await database`
+    insert into fleet_vehicles (
+      company_id, plate, role, wheel_type, state, ownership,
+      owner_tax_id, owner_name, owner_state, owner_rntrc, owner_tax_regime
+    ) values (
+      ${companyId}, 'RNT1A11', 'traction', '03', 'SP', 'third_party',
+      '12345678000195', 'Transportes Parceiros', 'SC', '058151044', '0'
+    )
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (
+        company_id, plate, role, wheel_type, state, ownership,
+        owner_tax_id, owner_name, owner_state, owner_rntrc, owner_tax_regime
+      ) values (
+        ${companyId}, 'RNT2A22', 'traction', '03', 'SP', 'third_party',
+        '12345678000195', 'Transportes Parceiros', 'SC', '581510441', '0'
+      )
+    `,
+    '23514',
+    'fleet_vehicles_owner_rntrc_check',
+  )
+
   await database`
     insert into fleet_drivers (id, company_id, membership_id, name, tax_id)
     values (${driverId}, ${companyId}, ${membershipId}, 'Motorista Titular', '12345678901')

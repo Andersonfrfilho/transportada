@@ -1,0 +1,2 @@
+ALTER TABLE "company_fiscal_profiles" ADD CONSTRAINT "company_fiscal_profiles_rntrc_check" CHECK (length("rntrc") = 0 or "rntrc" ~ '^0?[0-9]{8}$');--> statement-breakpoint
+ALTER TABLE "fleet_vehicles" DROP CONSTRAINT "fleet_vehicles_owner_rntrc_check", ADD CONSTRAINT "fleet_vehicles_owner_rntrc_check" CHECK (length("owner_rntrc") = 0 or "owner_rntrc" ~ '^0?[0-9]{8}$');

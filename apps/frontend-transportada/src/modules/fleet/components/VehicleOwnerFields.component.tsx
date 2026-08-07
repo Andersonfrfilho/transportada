@@ -33,7 +33,7 @@ export function VehicleOwnerFields({ onChange, state }: VehicleOwnerFieldsProps)
         <FleetField
           inputMode="numeric"
           label={t('ownerRntrc')}
-          maxLength={8}
+          maxLength={9}
           value={state.ownerRntrc}
           onChange={(ownerRntrc) => onChange({ ownerRntrc })}
         />

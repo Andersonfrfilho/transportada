@@ -99,6 +99,7 @@ describe('Drizzle migrations', () => {
       '20260806161903_cte_fiscal_number_advanced_event',
       '20260807022114_cte_issuance_diagnostics',
       '20260807113744_nfe_party_trade_name_and_phone',
+      '20260807223440_rntrc_registry_leading_zero',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -363,6 +364,38 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toContain('FROM "trip_documents"')
     expect(rollbackSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
       rollbackSql.indexOf('DELETE FROM "trips"'),
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  // Alargar o cadastro é aditivo; estreitá-lo de volta não é, e o rollback precisa recusar.
+  test('versions the RNTRC registry widening with a rollback that refuses to shorten cadastre', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_rntrc_registry_leading_zero'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).toContain(
+      `ADD CONSTRAINT "company_fiscal_profiles_rntrc_check" CHECK (length("rntrc") = 0 or "rntrc" ~ '^0?[0-9]{8}$')`,
+    )
+    expect(migrationSql).toContain(
+      `ADD CONSTRAINT "fleet_vehicles_owner_rntrc_check" CHECK (length("owner_rntrc") = 0 or "owner_rntrc" ~ '^0?[0-9]{8}$')`,
+    )
+
+    expect(rollbackSql).toContain('Refusing to roll back the RNTRC registry')
+    expect(rollbackSql).toContain(`"owner_rntrc" ~ '^[0-9]{8}$'`)
+    expect(rollbackSql).toContain('DROP CONSTRAINT "company_fiscal_profiles_rntrc_check"')
+    expect(rollbackSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
+      rollbackSql.indexOf('ALTER TABLE "fleet_vehicles"'),
     )
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
