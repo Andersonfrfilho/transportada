@@ -4,7 +4,10 @@
 import { z } from 'zod'
 
 import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
-import type { CteFiscalProviderConfig } from '../infrastructure/cte-fiscal-gateway.js'
+import type {
+  CteFiscalProviderConfig,
+  CteResponsavelTecnico,
+} from '../infrastructure/cte-fiscal-gateway.js'
 import type { CteActiveCertificate } from '../infrastructure/drizzle-cte-certificate.repository.js'
 import type { CteIssuancePersistedPayload } from '../infrastructure/drizzle-cte-issuance-payload.repository.js'
 
@@ -30,6 +33,8 @@ const providerConfigSchema = z.object({
   telefone: z.string().min(1).optional(),
   uf: z.string().length(2),
 })
+
+export type CteTechnicalResponsible = CteResponsavelTecnico
 
 export type CteIssuanceExecutionInput = {
   readonly config: CteFiscalProviderConfig
@@ -61,6 +66,8 @@ export function createCteIssuanceExecutionInputResolver(input: {
       readonly password: string
     }>
   }
+  /** Ausente quando a instalação não declarou o responsável técnico: o grupo simplesmente não sai. */
+  readonly technicalResponsible?: CteTechnicalResponsible
 }): (params: { readonly envelope: CteProcessingEnvelopeV1 }) => Promise<CteIssuanceExecutionInput> {
   return async ({ envelope }) => {
     const companyId = envelope.companyId
@@ -93,6 +100,9 @@ export function createCteIssuanceExecutionInputResolver(input: {
         certificadoBase64: secret.certificateBase64,
         certificadoSenha: secret.password,
         ...(complemento === undefined ? {} : { complemento }),
+        ...(input.technicalResponsible === undefined
+          ? {}
+          : { responsavelTecnico: input.technicalResponsible }),
         ...(telefone === undefined ? {} : { telefone }),
       },
       cteData: persisted.payload,

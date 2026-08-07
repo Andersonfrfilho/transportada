@@ -434,6 +434,9 @@ export async function startWorkerRuntime(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
           ),
           secretService: digitalCertificateSecretService,
+          ...(config.cteTechnicalResponsible === undefined
+            ? {}
+            : { technicalResponsible: config.cteTechnicalResponsible }),
         }),
         writeBack: cteIssuanceWriteBack,
       }),

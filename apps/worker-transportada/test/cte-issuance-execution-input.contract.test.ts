@@ -4,7 +4,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createCteIssuanceWorkerEffect } from '../src/cte-issuance/application/cte-issuance-consumer.effect.js'
-import { createCteIssuanceExecutionInputResolver } from '../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
+import {
+  createCteIssuanceExecutionInputResolver,
+  type CteTechnicalResponsible,
+} from '../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import { CteIssuanceFatalError } from '../src/cte-issuance/application/cte-issuance-worker-message-handler.service.js'
 import type { CteProcessingEnvelopeV1 } from '../src/messaging/cte-processing-envelope.schema.js'
 
@@ -52,6 +55,13 @@ const PROVIDER_CONFIG = {
   uf: 'SP',
 } as const
 
+const TECHNICAL_RESPONSIBLE: CteTechnicalResponsible = {
+  cnpj: '11222333000181',
+  email: 'contato@exemplo.com.br',
+  fone: '1933334444',
+  xContato: 'Equipe de Suporte',
+}
+
 const CTE_DATA = {
   valorTotalPrestacao: 43.13,
   valorTotalReceber: 43.13,
@@ -77,6 +87,7 @@ function createResolver(input: {
   readonly calls: unknown[]
   readonly certificate?: { readonly id: string; readonly secretEnvelope: unknown } | null
   readonly persisted?: { readonly payload: unknown; readonly providerConfig: unknown } | null
+  readonly technicalResponsible?: CteTechnicalResponsible
 }) {
   return createCteIssuanceExecutionInputResolver({
     certificateRepository: {
@@ -94,6 +105,9 @@ function createResolver(input: {
       },
     },
     secretService: createSecretService(input.calls),
+    ...(input.technicalResponsible === undefined
+      ? {}
+      : { technicalResponsible: input.technicalResponsible }),
   })
 }
 
@@ -190,6 +204,30 @@ describe('CT-e issuance execution input contract', () => {
     expect(executionInput.config).not.toHaveProperty('telefone')
   })
 
+  // infRespTec identifica quem escreveu o emissor, não a transportadora: o dado é do produto e
+  // vem da configuração da instalação, nunca do perfil fiscal que a empresa preencheu.
+  test('carries the technical responsible of the issuing software into the config', async () => {
+    const resolver = createResolver({ calls: [], technicalResponsible: TECHNICAL_RESPONSIBLE })
+
+    const executionInput = await resolver({ envelope: ENVELOPE })
+
+    expect(executionInput.config.responsavelTecnico).toEqual({
+      cnpj: '11222333000181',
+      email: 'contato@exemplo.com.br',
+      fone: '1933334444',
+      xContato: 'Equipe de Suporte',
+    })
+    expect(JSON.stringify(PROVIDER_CONFIG)).not.toContain('11222333000181')
+  })
+
+  test('emits without infRespTec when the installation did not configure it', async () => {
+    const resolver = createResolver({ calls: [] })
+
+    const executionInput = await resolver({ envelope: ENVELOPE })
+
+    expect(executionInput.config).not.toHaveProperty('responsavelTecnico')
+  })
+
   test('rejects a persisted provider config that lost required fiscal fields', async () => {
     const withoutSeries: Record<string, unknown> = { ...PROVIDER_CONFIG }
     delete withoutSeries.serie
@@ -204,7 +242,7 @@ describe('CT-e issuance execution input contract', () => {
   test('hands the complete config to the fiscal provider without fabricated empty fields', async () => {
     const calls: unknown[] = []
     const logs: Array<Record<string, unknown>> = []
-    const resolver = createResolver({ calls })
+    const resolver = createResolver({ calls, technicalResponsible: TECHNICAL_RESPONSIBLE })
     const effect = createCteIssuanceWorkerEffect({
       createProvider({ config }) {
         calls.push({ event: 'createProvider', config })
@@ -243,6 +281,7 @@ describe('CT-e issuance execution input contract', () => {
       municipio: 'Limeira',
       numeroCte: 100000001,
       razaoSocial: 'Transportadora Exemplo LTDA',
+      responsavelTecnico: TECHNICAL_RESPONSIBLE,
       rntrc: '12345678',
       serie: '7',
     })

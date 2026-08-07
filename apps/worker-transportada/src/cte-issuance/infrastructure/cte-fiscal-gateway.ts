@@ -7,6 +7,17 @@ import { describeCteUnknownError } from '../domain/cte-unknown-error.policy.js'
 type FiscalEnvironment = 'homologation' | 'production'
 type FiscalProviderEnvironment = 'homologacao' | 'producao'
 
+/**
+ * infRespTec (NT 2018.005) — identifica quem desenvolveu o sistema emissor, não o transportador
+ * que assina o CT-e. É dado da instalação, e por isso não vem do perfil fiscal da empresa.
+ */
+export type CteResponsavelTecnico = {
+  readonly cnpj: string
+  readonly email: string
+  readonly fone: string
+  readonly xContato: string
+}
+
 export type CteFiscalProviderConfig = {
   readonly bairro: string
   readonly cep: string
@@ -23,6 +34,7 @@ export type CteFiscalProviderConfig = {
   readonly numero: string
   readonly numeroCte: number
   readonly razaoSocial: string
+  readonly responsavelTecnico?: CteResponsavelTecnico
   readonly rntrc: string
   readonly serie: string
   readonly telefone?: string
@@ -47,6 +59,7 @@ export type CteProviderConfig = {
   numero: string
   numeroCte: number
   razaoSocial: string
+  responsavelTecnico?: CteResponsavelTecnico
   rntrc: string
   serie: string
   telefone?: string
@@ -168,6 +181,9 @@ function toProviderConfig(input: CteFiscalProviderConfig): CteProviderConfig {
     numero: input.numero,
     numeroCte: input.numeroCte,
     razaoSocial: input.razaoSocial,
+    ...(input.responsavelTecnico === undefined
+      ? {}
+      : { responsavelTecnico: input.responsavelTecnico }),
     rntrc: input.rntrc,
     serie: input.serie,
     ...(input.telefone === undefined ? {} : { telefone: input.telefone }),

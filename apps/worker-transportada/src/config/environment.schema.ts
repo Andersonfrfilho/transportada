@@ -3,7 +3,17 @@
  */
 import { z } from 'zod'
 
-import type { WorkerEnvironment } from '../shared/worker.types.js'
+import type {
+  CteTechnicalResponsibleEnvironment,
+  WorkerEnvironment,
+} from '../shared/worker.types.js'
+
+const TECHNICAL_RESPONSIBLE_KEYS = [
+  'CTE_TECHNICAL_RESPONSIBLE_CNPJ',
+  'CTE_TECHNICAL_RESPONSIBLE_CONTACT',
+  'CTE_TECHNICAL_RESPONSIBLE_EMAIL',
+  'CTE_TECHNICAL_RESPONSIBLE_PHONE',
+] as const
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
@@ -11,6 +21,11 @@ const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 const workerEnvironmentSchema = z
   .object({
     APP_ENV: z.string().trim().min(1).default('local'),
+    // infRespTec: as quatro juntas ou nenhuma — grupo incompleto é rejeição na SEFAZ.
+    CTE_TECHNICAL_RESPONSIBLE_CNPJ: z.string().trim().min(1).optional(),
+    CTE_TECHNICAL_RESPONSIBLE_CONTACT: z.string().trim().min(1).optional(),
+    CTE_TECHNICAL_RESPONSIBLE_EMAIL: z.string().trim().email().optional(),
+    CTE_TECHNICAL_RESPONSIBLE_PHONE: z.string().trim().min(1).optional(),
     DATABASE_URL: protocolUrl(POSTGRESQL_PROTOCOLS),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
       .enum(['true', 'false'])
@@ -29,6 +44,17 @@ const workerEnvironmentSchema = z
     WORKER_PREFETCH: z.coerce.number().int().min(1).max(100).default(1),
   })
   .superRefine((environment, context) => {
+    const declared = TECHNICAL_RESPONSIBLE_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declared > 0 && declared < TECHNICAL_RESPONSIBLE_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The technical responsible requires every field or none',
+        path: [...TECHNICAL_RESPONSIBLE_KEYS],
+      })
+    }
+
     if (environment.APP_ENV === 'production' && environment.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED) {
       context.addIssue({
         code: 'custom',
@@ -54,8 +80,13 @@ export function parseWorkerEnvironment(
     throw new WorkerConfigurationError()
   }
 
+  const technicalResponsible = toTechnicalResponsible(result.data)
+
   return {
     appEnv: result.data.APP_ENV,
+    ...(technicalResponsible === undefined
+      ? {}
+      : { cteTechnicalResponsible: technicalResponsible }),
     databaseUrl: result.data.DATABASE_URL,
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
@@ -65,6 +96,21 @@ export function parseWorkerEnvironment(
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
   }
+}
+
+function toTechnicalResponsible(
+  data: Readonly<{
+    [TKey in (typeof TECHNICAL_RESPONSIBLE_KEYS)[number]]?: string | undefined
+  }>,
+): CteTechnicalResponsibleEnvironment | undefined {
+  const cnpj = data.CTE_TECHNICAL_RESPONSIBLE_CNPJ
+  const xContato = data.CTE_TECHNICAL_RESPONSIBLE_CONTACT
+  const email = data.CTE_TECHNICAL_RESPONSIBLE_EMAIL
+  const fone = data.CTE_TECHNICAL_RESPONSIBLE_PHONE
+  if (cnpj === undefined || xContato === undefined || email === undefined || fone === undefined) {
+    return undefined
+  }
+  return { cnpj, email, fone, xContato }
 }
 
 function protocolUrl<const TProtocols extends readonly string[]>(

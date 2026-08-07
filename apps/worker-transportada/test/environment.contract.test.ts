@@ -26,7 +26,7 @@ describe('worker environment contract', () => {
       readonly dependencies?: Readonly<Record<string, string>>
     }
 
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.3')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.4')
     expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
       '0.2.0-rc.0',
     )
@@ -44,6 +44,36 @@ describe('worker environment contract', () => {
       queuePrefix: 'transportada_local',
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,
     })
+  })
+
+  // O responsável técnico é da instalação, não da empresa: sem as quatro variáveis o CT-e sai como
+  // sempre saiu, e com três de quatro o worker recusa subir em vez de emitir um grupo incompleto.
+  test('reads the technical responsible of the issuing software from the installation', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      CTE_TECHNICAL_RESPONSIBLE_CNPJ: '11222333000181',
+      CTE_TECHNICAL_RESPONSIBLE_CONTACT: 'Equipe de Suporte',
+      CTE_TECHNICAL_RESPONSIBLE_EMAIL: 'contato@exemplo.com.br',
+      CTE_TECHNICAL_RESPONSIBLE_PHONE: '1933334444',
+    })
+
+    expect(parsed.cteTechnicalResponsible).toEqual({
+      cnpj: '11222333000181',
+      email: 'contato@exemplo.com.br',
+      fone: '1933334444',
+      xContato: 'Equipe de Suporte',
+    })
+  })
+
+  test('rejects a partially declared technical responsible', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        CTE_TECHNICAL_RESPONSIBLE_CNPJ: '11222333000181',
+        CTE_TECHNICAL_RESPONSIBLE_CONTACT: 'Equipe de Suporte',
+        CTE_TECHNICAL_RESPONSIBLE_EMAIL: 'contato@exemplo.com.br',
+      }),
+    ).toThrow(WorkerConfigurationError)
   })
 
   test('forbids the foundation synthetic consumer in production', () => {
