@@ -17,6 +17,7 @@ import {
   parseScaledDecimal,
   rescaleHalfUp,
 } from '../../shared/decimal.service.js'
+import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
 
 import { composeCargoQuantities, resolvePredominantProduct } from './cte-cargo.service.js'
 import {
@@ -152,8 +153,15 @@ function composePickupDetails(profile: CtePayloadProfile): { readonly xDetRetira
   return { xDetRetira: profile.pickupDetails }
 }
 
+// A previsão de entrega é o próprio dia da emissão, resolvido no fuso fiscal: às 22h de Brasília
+// o instante já é o dia seguinte em UTC, e dPrev anunciaria uma entrega para amanhã.
+function composeDeliveryForecast(issuedAt: string | undefined): { readonly dPrev?: string } {
+  if (issuedAt === undefined) return {}
+  return { dPrev: formatFiscalDay(new Date(issuedAt)) }
+}
+
 export function buildCtePayload(params: BuildCtePayloadParams): CteData {
-  const { carrier, charge, invoices, profile } = params
+  const { carrier, charge, invoices, issuedAt, profile } = params
   if (profile.modal !== ROAD_MODAL) throw new CtePayloadUnsupportedModalError(profile.modal)
 
   const reference = assertConsistentParties(invoices)
@@ -163,6 +171,7 @@ export function buildCtePayload(params: BuildCtePayloadParams): CteData {
     0n,
   )
   const isInterstate = reference.sender.state !== reference.recipient.state
+  const deliveryForecast = composeDeliveryForecast(issuedAt)
 
   return {
     carga: {
@@ -178,7 +187,11 @@ export function buildCtePayload(params: BuildCtePayloadParams): CteData {
       xNome: component.label,
     })),
     destinatario: toParticipante(reference.recipient),
-    documentos: invoices.map((invoice) => ({ chave: invoice.accessKey, tipo: 'nfe' as const })),
+    documentos: invoices.map((invoice) => ({
+      chave: invoice.accessKey,
+      ...deliveryForecast,
+      tipo: 'nfe' as const,
+    })),
     icms: composeIcms({ profile, totalScaled }),
     indIEToma: resolveReceiverIeIndicator({ invoice: reference, profile }),
     ...(profile.observations === null || profile.observations.length === 0

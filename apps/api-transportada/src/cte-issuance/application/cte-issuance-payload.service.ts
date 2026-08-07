@@ -44,6 +44,8 @@ export type CteIssuanceAttemptTarget = {
 
 export type AssembleCteIssuancePayloadParams = {
   readonly attempt: CteIssuanceAttemptTarget
+  /** Instante ISO em que a emissão foi pedida — vira a previsão de entrega dos documentos */
+  readonly issuedAt?: string
   readonly source: CteIssuancePayloadSource
 }
 
@@ -79,6 +81,7 @@ function composeProviderConfig(
     logradouro: emitter.street,
     model: 'cte',
     municipio: emitter.city,
+    ...(emitter.tradeName === '' ? {} : { nomeFantasia: emitter.tradeName }),
     numero: emitter.number,
     numeroCte: toFiscalNumber(attempt.fiscalNumber),
     razaoSocial: emitter.legalName,
@@ -92,13 +95,14 @@ function composeProviderConfig(
 export function assembleCteIssuancePayload(
   params: AssembleCteIssuancePayloadParams,
 ): CteIssuancePayloadRecord {
-  const { attempt, source } = params
+  const { attempt, issuedAt, source } = params
   assertCompleteEmitter(source.emitter)
 
   const payload = buildCtePayload({
     carrier: { rntrc: source.emitter.rntrc },
     charge: source.charge,
     invoices: source.invoices,
+    ...(issuedAt === undefined ? {} : { issuedAt }),
     profile: source.profile,
   })
   const providerConfig = composeProviderConfig({ attempt, emitter: source.emitter })

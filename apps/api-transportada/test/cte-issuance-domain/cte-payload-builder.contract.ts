@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CteData, CteDocumentoNfe } from '@adatechnology/fiscal-provider'
 import { describe, expect, test } from 'bun:test'
 
 import { buildCtePayload } from '../../src/cte-issuance/domain/cte-payload.builder.js'
@@ -27,6 +28,13 @@ import {
 } from './support.js'
 
 const SECOND_ACCESS_KEY = '35260705868574001090550020008526741408978631'
+
+// `documentos` é união de tipos: só o ramo 'nfe' carrega dPrev.
+function readDeliveryForecasts(payload: CteData): readonly (string | undefined)[] {
+  return payload.documentos
+    .filter((documento): documento is CteDocumentoNfe => documento.tipo === 'nfe')
+    .map((documento) => documento.dPrev)
+}
 
 describe('buildCtePayload — golden CT-e 3526…8240', () => {
   test('reproduz identificação, natureza e municípios da CT-e de referência', () => {
@@ -488,6 +496,32 @@ describe('buildCtePayload — retira', () => {
 
     expect(payload.retira).toBe('1')
     expect(payload.xDetRetira).toBeUndefined()
+  })
+})
+
+describe('buildCtePayload — previsão de entrega', () => {
+  test('declara dPrev de cada documento no dia da emissão', () => {
+    const payload = buildCtePayload(
+      buildGoldenParams({
+        invoices: GROUPED_INVOICES,
+        issuedAt: '2026-08-07T14:20:00.000-03:00',
+      }),
+    )
+
+    expect(readDeliveryForecasts(payload)).toEqual(['2026-08-07', '2026-08-07', '2026-08-07'])
+  })
+
+  // Emissão às 22h de Brasília já é o dia seguinte em UTC: dPrev tem de seguir o fuso fiscal
+  test('resolve o dia da previsão pelo fuso fiscal, não por UTC', () => {
+    const payload = buildCtePayload(buildGoldenParams({ issuedAt: '2026-08-08T01:30:00.000Z' }))
+
+    expect(readDeliveryForecasts(payload)).toEqual(['2026-08-07'])
+  })
+
+  test('omite dPrev quando a data de emissão não é informada', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(readDeliveryForecasts(payload)).toEqual([undefined])
   })
 })
 

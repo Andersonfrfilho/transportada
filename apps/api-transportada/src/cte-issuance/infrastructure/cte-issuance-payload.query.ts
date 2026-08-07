@@ -214,6 +214,7 @@ async function loadEmitter(
       stateRegistration: companyFiscalProfiles.stateRegistration,
       street: companyFiscalProfiles.street,
       taxRegime: companyFiscalProfiles.taxRegime,
+      tradeName: companyFiscalProfiles.tradeName,
     })
     .from(companyFiscalProfiles)
     .where(and(...buildEmitterFilters({ companyId })))

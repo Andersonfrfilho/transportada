@@ -31,6 +31,7 @@ export type CteFiscalProviderConfig = {
   readonly inscricaoEstadual: string
   readonly logradouro: string
   readonly municipio: string
+  readonly nomeFantasia?: string
   readonly numero: string
   readonly numeroCte: number
   readonly razaoSocial: string
@@ -56,6 +57,7 @@ export type CteProviderConfig = {
   inscricaoEstadual: string
   logradouro: string
   municipio: string
+  nomeFantasia?: string
   numero: string
   numeroCte: number
   razaoSocial: string
@@ -178,6 +180,7 @@ function toProviderConfig(input: CteFiscalProviderConfig): CteProviderConfig {
     inscricaoEstadual: input.inscricaoEstadual,
     logradouro: input.logradouro,
     municipio: input.municipio,
+    ...(input.nomeFantasia === undefined ? {} : { nomeFantasia: input.nomeFantasia }),
     numero: input.numero,
     numeroCte: input.numeroCte,
     razaoSocial: input.razaoSocial,

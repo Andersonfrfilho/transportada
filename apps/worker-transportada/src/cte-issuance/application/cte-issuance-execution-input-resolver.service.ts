@@ -25,6 +25,7 @@ const providerConfigSchema = z.object({
   inscricaoEstadual: z.string(),
   logradouro: z.string(),
   municipio: z.string().min(1),
+  nomeFantasia: z.string().min(1).optional(),
   numero: z.string(),
   numeroCte: z.number().int().positive(),
   razaoSocial: z.string().min(1),
@@ -92,7 +93,7 @@ export function createCteIssuanceExecutionInputResolver(input: {
       purpose: 'cte',
     })
 
-    const { complemento, telefone, ...requiredConfig } = providerConfig
+    const { complemento, nomeFantasia, telefone, ...requiredConfig } = providerConfig
 
     return {
       config: {
@@ -100,6 +101,7 @@ export function createCteIssuanceExecutionInputResolver(input: {
         certificadoBase64: secret.certificateBase64,
         certificadoSenha: secret.password,
         ...(complemento === undefined ? {} : { complemento }),
+        ...(nomeFantasia === undefined ? {} : { nomeFantasia }),
         ...(input.technicalResponsible === undefined
           ? {}
           : { responsavelTecnico: input.technicalResponsible }),

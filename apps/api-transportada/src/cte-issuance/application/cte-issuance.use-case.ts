@@ -1041,6 +1041,7 @@ async function persistIssuancePayload(input: {
         fiscalNumber: issuance.fiscalNumber,
         fiscalSeries: issuance.fiscalSeries,
       },
+      ...(issuance.issueRequestedAt === undefined ? {} : { issuedAt: issuance.issueRequestedAt }),
       source,
     }),
   )

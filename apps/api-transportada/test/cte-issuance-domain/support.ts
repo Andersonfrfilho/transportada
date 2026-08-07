@@ -107,6 +107,7 @@ type GoldenOverrides = {
   readonly carrier?: CtePayloadCarrier
   readonly charge?: CtePayloadCharge
   readonly invoices?: readonly CtePayloadInvoice[]
+  readonly issuedAt?: string
   readonly profile?: CtePayloadProfile
 }
 
@@ -115,6 +116,7 @@ export function buildGoldenParams(overrides: GoldenOverrides = {}): BuildCtePayl
     carrier: overrides.carrier ?? GOLDEN_CARRIER,
     charge: overrides.charge ?? GOLDEN_CHARGE,
     invoices: overrides.invoices ?? [GOLDEN_INVOICE],
+    ...(overrides.issuedAt === undefined ? {} : { issuedAt: overrides.issuedAt }),
     profile: overrides.profile ?? GOLDEN_PROFILE,
   }
 }

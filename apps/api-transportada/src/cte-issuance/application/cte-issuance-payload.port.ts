@@ -26,6 +26,7 @@ export type CteIssuanceEmitter = {
   readonly stateRegistration: string
   readonly street: string
   readonly taxRegime: string
+  readonly tradeName: string
 }
 
 export type CteIssuancePayloadSource = {
@@ -47,6 +48,7 @@ export type CteIssuanceProviderConfig = {
   readonly logradouro: string
   readonly model: 'cte'
   readonly municipio: string
+  readonly nomeFantasia?: string
   readonly numero: string
   readonly numeroCte: number
   readonly razaoSocial: string

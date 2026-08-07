@@ -16,7 +16,7 @@ describe('NF-e distribution gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.5')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.6')
 
     const calls: string[] = []
     const gatewayFactory = await createNfeDistributionGatewayFixture({

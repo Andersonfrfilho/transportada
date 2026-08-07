@@ -148,6 +148,7 @@ export const PAYLOAD_EMITTER = {
   stateRegistration: '688292870119',
   street: 'AVENIDA DO PORTO',
   taxRegime: '1',
+  tradeName: 'TRANSPORTADA',
 } as const
 
 export const PAYLOAD_SOURCE: CteIssuancePayloadSource = {

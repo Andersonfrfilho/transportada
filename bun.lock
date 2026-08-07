@@ -13,7 +13,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
-        "@adatechnology/fiscal-provider": "0.3.0-rc.5",
+        "@adatechnology/fiscal-provider": "0.3.0-rc.6",
         "@adatechnology/keycloak-admin": "1.0.0-rc.0",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.0.1",
@@ -93,7 +93,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
-        "@adatechnology/fiscal-provider": "0.3.0-rc.5",
+        "@adatechnology/fiscal-provider": "0.3.0-rc.6",
         "@adatechnology/logger": "0.0.1",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
@@ -116,7 +116,7 @@
   "packages": {
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 
-    "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.3.0-rc.5", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-/vT6cjes4eguVsz8qzXSobhOHSGj9vzR0fz1wG9iTQddfYe9biEpYiQTQkTNq1s75FdRUWK21i3HIFdGfkyQVg=="],
+    "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.3.0-rc.6", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-eTME7E8wQYe6t86psj2hH3hTSxzNUl/OZXi/hhQ5ZO42TrHKyfLKj3bj5lFNwODNWifWXBWbpe8EqXO2khd0sQ=="],
 
     "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.0", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-JdpsvO0DKagdl8r3WQfS0CRMrDRlemPD5R4f0hg0NHMb/8pRQEDqCAUmdCovglrpITdZUHqs5fkzA/6UgbjHjw=="],
 

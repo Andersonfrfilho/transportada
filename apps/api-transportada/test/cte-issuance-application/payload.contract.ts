@@ -27,6 +27,7 @@ import {
 } from './support.js'
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
+const FISCAL_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const FORBIDDEN_SECRET_MARKERS = ['certificado', 'certificate', 'senha', 'password', 'privatekey']
 
 const ISSUE_INPUT = {
@@ -94,6 +95,7 @@ describe('CT-e issuance payload assembly contract', () => {
       logradouro: PAYLOAD_EMITTER.street,
       model: 'cte',
       municipio: PAYLOAD_EMITTER.city,
+      nomeFantasia: PAYLOAD_EMITTER.tradeName,
       numero: PAYLOAD_EMITTER.number,
       numeroCte: Number(ISSUE_COMMAND_RESULT.fiscalNumber),
       razaoSocial: PAYLOAD_EMITTER.legalName,
@@ -110,7 +112,7 @@ describe('CT-e issuance payload assembly contract', () => {
     const unitOfWork = new CteIssuanceUnitOfWorkFixture()
     unitOfWork.payloadSource = {
       ...PAYLOAD_SOURCE,
-      emitter: { ...PAYLOAD_EMITTER, complement: '', phone: '' },
+      emitter: { ...PAYLOAD_EMITTER, complement: '', phone: '', tradeName: '' },
     }
     const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
 
@@ -123,6 +125,7 @@ describe('CT-e issuance payload assembly contract', () => {
 
     expect(providerConfig).not.toHaveProperty('telefone')
     expect(providerConfig).not.toHaveProperty('complemento')
+    expect(providerConfig).not.toHaveProperty('nomeFantasia')
   })
 
   test('keeps certificate material out of the persisted payload', async () => {
@@ -160,10 +163,23 @@ describe('CT-e issuance payload assembly contract', () => {
 
     const payload = unitOfWork.savedPayloads[0]?.['payload'] as Record<string, unknown>
 
+    // dPrev sai do instante da emissão, então o dia é o do relógio: aqui só a forma importa.
     expect(payload['documentos']).toEqual([
-      { chave: GROUPED_ACCESS_KEYS[0], tipo: 'nfe' },
-      { chave: GROUPED_ACCESS_KEYS[1], tipo: 'nfe' },
-      { chave: GROUPED_ACCESS_KEYS[2], tipo: 'nfe' },
+      {
+        chave: GROUPED_ACCESS_KEYS[0],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
+      {
+        chave: GROUPED_ACCESS_KEYS[1],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
+      {
+        chave: GROUPED_ACCESS_KEYS[2],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
     ])
     expect(payload['carga']).toMatchObject({ vCarga: 430.5 })
     expect(payload['remetente']).toMatchObject({ cnpj: GROUPED_SENDER.taxId })

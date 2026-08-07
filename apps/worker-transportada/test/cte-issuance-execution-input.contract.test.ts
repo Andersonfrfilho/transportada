@@ -185,13 +185,19 @@ describe('CT-e issuance execution input contract', () => {
       calls: [],
       persisted: {
         payload: CTE_DATA,
-        providerConfig: { ...PROVIDER_CONFIG, complemento: 'SALA 12', telefone: '1933334444' },
+        providerConfig: {
+          ...PROVIDER_CONFIG,
+          complemento: 'SALA 12',
+          nomeFantasia: 'ADA TRANSPORTES',
+          telefone: '1933334444',
+        },
       },
     })
 
     const executionInput = await resolver({ envelope: ENVELOPE })
 
     expect(executionInput.config.complemento).toBe('SALA 12')
+    expect(executionInput.config.nomeFantasia).toBe('ADA TRANSPORTES')
     expect(executionInput.config.telefone).toBe('1933334444')
   })
 
@@ -201,6 +207,7 @@ describe('CT-e issuance execution input contract', () => {
     const executionInput = await resolver({ envelope: ENVELOPE })
 
     expect(executionInput.config).not.toHaveProperty('complemento')
+    expect(executionInput.config).not.toHaveProperty('nomeFantasia')
     expect(executionInput.config).not.toHaveProperty('telefone')
   })
 
