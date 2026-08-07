@@ -87,6 +87,7 @@ describe('CT-e issuance payload assembly contract', () => {
       cep: PAYLOAD_EMITTER.postalCode,
       cnpj: PAYLOAD_EMITTER.cnpj,
       codigoMunicipio: PAYLOAD_EMITTER.cityIbgeCode,
+      complemento: PAYLOAD_EMITTER.complement,
       crt: PAYLOAD_EMITTER.taxRegime,
       environment: ISSUE_COMMAND_RESULT.fiscalEnvironment,
       inscricaoEstadual: PAYLOAD_EMITTER.stateRegistration,
@@ -98,9 +99,30 @@ describe('CT-e issuance payload assembly contract', () => {
       razaoSocial: PAYLOAD_EMITTER.legalName,
       rntrc: PAYLOAD_EMITTER.rntrc,
       serie: ISSUE_COMMAND_RESULT.fiscalSeries,
+      telefone: PAYLOAD_EMITTER.phone,
       uf: PAYLOAD_EMITTER.state,
     })
     expect(Object.values(providerConfig).filter((value) => value === '')).toEqual([])
+  })
+
+  // Telefone e complemento são opcionais no cadastro: mandar string vazia gera tag vazia no XML.
+  test('omits the optional emitter fields the company left blank', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = {
+      ...PAYLOAD_SOURCE,
+      emitter: { ...PAYLOAD_EMITTER, complement: '', phone: '' },
+    }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const providerConfig = unitOfWork.savedPayloads[0]?.['providerConfig'] as Record<
+      string,
+      unknown
+    >
+
+    expect(providerConfig).not.toHaveProperty('telefone')
+    expect(providerConfig).not.toHaveProperty('complemento')
   })
 
   test('keeps certificate material out of the persisted payload', async () => {

@@ -164,6 +164,32 @@ describe('CT-e issuance execution input contract', () => {
     await expect(resolver({ envelope: ENVELOPE })).rejects.toBeInstanceOf(CteIssuanceFatalError)
   })
 
+  // O schema do resolver descarta chave desconhecida: campo novo do emitente só chega à SEFAZ
+  // se estiver declarado aqui também.
+  test('carries the optional emitter fields the API persisted', async () => {
+    const resolver = createResolver({
+      calls: [],
+      persisted: {
+        payload: CTE_DATA,
+        providerConfig: { ...PROVIDER_CONFIG, complemento: 'SALA 12', telefone: '1933334444' },
+      },
+    })
+
+    const executionInput = await resolver({ envelope: ENVELOPE })
+
+    expect(executionInput.config.complemento).toBe('SALA 12')
+    expect(executionInput.config.telefone).toBe('1933334444')
+  })
+
+  test('emits without the optional emitter fields when the company left them blank', async () => {
+    const resolver = createResolver({ calls: [] })
+
+    const executionInput = await resolver({ envelope: ENVELOPE })
+
+    expect(executionInput.config).not.toHaveProperty('complemento')
+    expect(executionInput.config).not.toHaveProperty('telefone')
+  })
+
   test('rejects a persisted provider config that lost required fiscal fields', async () => {
     const withoutSeries: Record<string, unknown> = { ...PROVIDER_CONFIG }
     delete withoutSeries.serie

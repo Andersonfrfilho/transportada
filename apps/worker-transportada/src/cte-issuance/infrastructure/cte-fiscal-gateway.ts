@@ -14,6 +14,7 @@ export type CteFiscalProviderConfig = {
   readonly certificadoSenha: string
   readonly cnpj: string
   readonly codigoMunicipio: string
+  readonly complemento?: string
   readonly crt: string
   readonly environment: FiscalEnvironment
   readonly inscricaoEstadual: string
@@ -24,6 +25,7 @@ export type CteFiscalProviderConfig = {
   readonly razaoSocial: string
   readonly rntrc: string
   readonly serie: string
+  readonly telefone?: string
   readonly uf: string
 }
 
@@ -37,6 +39,7 @@ export type CteProviderConfig = {
   bairro: string
   cep: string
   codigoMunicipio: string
+  complemento?: string
   crt: string
   inscricaoEstadual: string
   logradouro: string
@@ -46,6 +49,7 @@ export type CteProviderConfig = {
   razaoSocial: string
   rntrc: string
   serie: string
+  telefone?: string
 }
 
 type CteData = {
@@ -156,6 +160,7 @@ function toProviderConfig(input: CteFiscalProviderConfig): CteProviderConfig {
     certificadoSenha: input.certificadoSenha,
     cnpj: input.cnpj,
     codigoMunicipio: input.codigoMunicipio,
+    ...(input.complemento === undefined ? {} : { complemento: input.complemento }),
     crt: input.crt,
     inscricaoEstadual: input.inscricaoEstadual,
     logradouro: input.logradouro,
@@ -165,6 +170,7 @@ function toProviderConfig(input: CteFiscalProviderConfig): CteProviderConfig {
     razaoSocial: input.razaoSocial,
     rntrc: input.rntrc,
     serie: input.serie,
+    ...(input.telefone === undefined ? {} : { telefone: input.telefone }),
     uf: input.uf,
   }
 }

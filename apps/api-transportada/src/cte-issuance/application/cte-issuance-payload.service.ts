@@ -71,6 +71,8 @@ function composeProviderConfig(
     cep: emitter.postalCode,
     cnpj: emitter.cnpj,
     codigoMunicipio: emitter.cityIbgeCode,
+    // Campo opcional do cadastro: string vazia viraria uma tag vazia no XML do emitente.
+    ...(emitter.complement === '' ? {} : { complemento: emitter.complement }),
     crt: emitter.taxRegime,
     environment: attempt.fiscalEnvironment,
     inscricaoEstadual: emitter.stateRegistration,
@@ -82,6 +84,7 @@ function composeProviderConfig(
     razaoSocial: emitter.legalName,
     rntrc: emitter.rntrc,
     serie: attempt.fiscalSeries,
+    ...(emitter.phone === '' ? {} : { telefone: emitter.phone }),
     uf: emitter.state,
   }
 }

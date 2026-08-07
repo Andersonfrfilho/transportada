@@ -15,6 +15,8 @@ const providerConfigSchema = z.object({
   cep: z.string(),
   cnpj: z.string().min(1),
   codigoMunicipio: z.string().min(1),
+  // Opcionais: payload gravado antes destes campos existirem precisa continuar emitindo.
+  complemento: z.string().min(1).optional(),
   crt: z.string().min(1),
   environment: z.enum(['homologation', 'production']),
   inscricaoEstadual: z.string(),
@@ -25,6 +27,7 @@ const providerConfigSchema = z.object({
   razaoSocial: z.string().min(1),
   rntrc: z.string(),
   serie: z.string().min(1),
+  telefone: z.string().min(1).optional(),
   uf: z.string().length(2),
 })
 
@@ -82,11 +85,15 @@ export function createCteIssuanceExecutionInputResolver(input: {
       purpose: 'cte',
     })
 
+    const { complemento, telefone, ...requiredConfig } = providerConfig
+
     return {
       config: {
-        ...providerConfig,
+        ...requiredConfig,
         certificadoBase64: secret.certificateBase64,
         certificadoSenha: secret.password,
+        ...(complemento === undefined ? {} : { complemento }),
+        ...(telefone === undefined ? {} : { telefone }),
       },
       cteData: persisted.payload,
       documentId: envelope.payload.batchItemId,

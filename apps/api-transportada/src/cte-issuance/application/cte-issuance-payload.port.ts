@@ -15,9 +15,11 @@ export type CteIssuanceEmitter = {
   readonly city: string
   readonly cityIbgeCode: string
   readonly cnpj: string
+  readonly complement: string
   readonly district: string
   readonly legalName: string
   readonly number: string
+  readonly phone: string
   readonly postalCode: string
   readonly rntrc: string
   readonly state: string
@@ -38,6 +40,7 @@ export type CteIssuanceProviderConfig = {
   readonly cep: string
   readonly cnpj: string
   readonly codigoMunicipio: string
+  readonly complemento?: string
   readonly crt: string
   readonly environment: CteIssuanceFiscalEnvironment
   readonly inscricaoEstadual: string
@@ -49,6 +52,7 @@ export type CteIssuanceProviderConfig = {
   readonly razaoSocial: string
   readonly rntrc: string
   readonly serie: string
+  readonly telefone?: string
   readonly uf: string
 }
 
