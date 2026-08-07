@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { parseEnvironment } from '../src/config/environment.schema'
 import { HealthService } from '../src/health/health.service'
+import { appliedMigrations } from './fixtures/health.fixture'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
@@ -499,6 +500,7 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
   const tenantContext = new TenantContextService({ repository: membershipFixture })
   const handle = createRequestHandler({

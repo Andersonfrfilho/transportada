@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
 import { COMPANY_CONTEXT, COMPANY_ID } from './company-settings-application.fixture'
@@ -36,5 +37,6 @@ export function healthService(): HealthService {
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
 }

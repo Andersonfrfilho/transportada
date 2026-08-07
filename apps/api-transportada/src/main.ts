@@ -86,6 +86,7 @@ import {
 } from './freight/infrastructure/drizzle-freight.repository'
 import { createFreightRoutes } from './freight/presentation/freight.routes'
 import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
+import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
 import { TenantContextService } from './identity/application/tenant-context.service'
@@ -152,7 +153,11 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,
   })
-  const healthService = new HealthService({ database, identityReadiness: identityGateway })
+  const healthService = new HealthService({
+    database,
+    identityReadiness: identityGateway,
+    migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
+  })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })

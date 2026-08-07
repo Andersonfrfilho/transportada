@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
@@ -280,6 +281,7 @@ function createTestRouter(input: {
           return true
         },
       },
+      migrationStatus: appliedMigrations(),
     }),
     routes: input.routes,
     tenantContext: {

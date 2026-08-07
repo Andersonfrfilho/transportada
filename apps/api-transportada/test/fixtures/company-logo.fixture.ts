@@ -10,6 +10,7 @@ import type {
   SaveCompanyLogoInput,
 } from '../../src/companies/application/company-logo.port'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
@@ -195,5 +196,6 @@ function healthService(): HealthService {
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
 }

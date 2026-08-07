@@ -16,6 +16,7 @@ import type { AuthenticationPort } from '../../src/identity/application/identity
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/drizzle-membership.repository'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from '../fixtures/health.fixture'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
 import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
@@ -72,6 +73,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
               return true
             },
           },
+          migrationStatus: appliedMigrations(),
         })
         const tenantContext = new TenantContextService({
           repository: new DrizzleMembershipRepository(database.db),

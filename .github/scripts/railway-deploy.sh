@@ -10,7 +10,7 @@ readonly TERMINAL_FAILURE_STATUSES='FAILED CRASHED REMOVED SKIPPED'
 readonly STABLE_CONFIRMATIONS=3
 
 usage() {
-  echo "uso: $0 <deploy|has-succeeded> <serviço>" >&2
+  echo "uso: $0 <deploy|has-succeeded|assert-migrations> <serviço>" >&2
   exit 2
 }
 
@@ -75,6 +75,39 @@ wait_for_deployment() {
   return 1
 }
 
+# O `preDeployCommand` fica declarado em `deploy/api/railway.json`, e a Railway só o lê quando o
+# ponteiro "Config as code" do serviço aponta para esse arquivo. Sem esta asserção o pipeline passa
+# verde com o banco atrasado — foi assim que seis migrations ficaram sem aplicar em staging.
+assert_migrations_applied() {
+  local service="$1"
+  local url status body
+
+  url="$(railway domain --service "$service" --environment "$TARGET_ENVIRONMENT" --json 2>/dev/null \
+    | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin)["domains"][0])
+except Exception:
+    print("")')"
+  if [ -z "$url" ]; then
+    echo "::error::$service não tem domínio público: readiness das migrations não pôde ser checada"
+    return 1
+  fi
+
+  body="$(curl --silent --show-error --max-time 30 "$url/health/ready" || true)"
+  status="$(printf '%s' "$body" | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin)["dependencies"].get("migrations", "ausente"))
+except Exception:
+    print("ilegivel")')"
+
+  if [ "$status" != up ]; then
+    echo "::error::$service subiu com migrations pendentes (readiness: $status)."
+    echo "::error::Confira o ponteiro Config as code do serviço para deploy/$service/railway.json."
+    return 1
+  fi
+  echo "$service: migrations aplicadas"
+}
+
 deploy() {
   local service="$1"
   railway up \
@@ -105,5 +138,6 @@ jq -n \
 case "$1" in
   deploy) deploy "$2" ;;
   has-succeeded) has_succeeded "$2" ;;
+  assert-migrations) assert_migrations_applied "$2" ;;
   *) usage ;;
 esac

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineAnonymousRoute } from '../../src/http/router.service'
 import type {
@@ -210,5 +211,6 @@ function healthService(): HealthService {
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
 }

@@ -86,7 +86,7 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      dependencies: { database: 'up', identity: 'up' },
+      dependencies: { database: 'up', identity: 'up', migrations: 'up' },
       service: 'api',
       status: 'ok',
       timestamp: NOW.toISOString(),
@@ -117,7 +117,7 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
-      dependencies: { database: 'down', identity: 'up' },
+      dependencies: { database: 'down', identity: 'up', migrations: 'up' },
       service: 'api',
       status: 'degraded',
       timestamp: NOW.toISOString(),
@@ -140,7 +140,7 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
-      dependencies: { database: 'up', identity: 'down' },
+      dependencies: { database: 'up', identity: 'down', migrations: 'up' },
       service: 'api',
       status: 'degraded',
       timestamp: NOW.toISOString(),
@@ -175,7 +175,7 @@ describe('API HTTP contracts', () => {
 
     expect(response.status).toBe(503)
     expect(await response.json()).toMatchObject({
-      dependencies: { database: 'down', identity: 'down' },
+      dependencies: { database: 'down', identity: 'down', migrations: 'up' },
       status: 'degraded',
     })
     expect(databaseChecks).toBe(1)
@@ -204,12 +204,12 @@ describe('API HTTP contracts', () => {
 
     expect(degraded.status).toBe(503)
     expect(await degraded.json()).toMatchObject({
-      dependencies: { database: 'up', identity: 'down' },
+      dependencies: { database: 'up', identity: 'down', migrations: 'up' },
       status: 'degraded',
     })
     expect(recovered.status).toBe(200)
     expect(await recovered.json()).toMatchObject({
-      dependencies: { database: 'up', identity: 'up' },
+      dependencies: { database: 'up', identity: 'up', migrations: 'up' },
       status: 'ok',
     })
     expect(identityChecks).toBe(2)
@@ -469,6 +469,11 @@ function createFixture({
   const healthService = new HealthService({
     database,
     identityReadiness,
+    migrationStatus: {
+      async countPending() {
+        return 0
+      },
+    },
     now: () => NOW,
   })
   const tenantContext = new TenantContextService({

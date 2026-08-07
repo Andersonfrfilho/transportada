@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from '../fixtures/health.fixture'
 import type { AuthenticationPort } from '../../src/identity/application/identity.port'
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { startApiServer } from '../../src/server/server.service'
@@ -34,6 +35,7 @@ const healthService = new HealthService({
       return true
     },
   },
+  migrationStatus: appliedMigrations(),
 })
 const authentication: AuthenticationPort = {
   async authenticate() {

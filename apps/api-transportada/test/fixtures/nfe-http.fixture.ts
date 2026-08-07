@@ -3,6 +3,7 @@
  */
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
@@ -282,6 +283,7 @@ function createTestRouter(input: {
           return true
         },
       },
+      migrationStatus: appliedMigrations(),
     }),
     routes: input.routes,
     tenantContext: {

@@ -41,6 +41,11 @@ export type DatabaseHealthPort = {
   close(): Promise<void>
 }
 
+/** Quantas migrations da imagem ainda não constam no journal do banco. */
+export type MigrationStatusPort = {
+  countPending(): Promise<number>
+}
+
 export type ApiLogger = {
   error(message: string, metadata?: Record<string, unknown>): void
   info(message: string, metadata?: Record<string, unknown>): void
@@ -71,6 +76,8 @@ export type ReadinessHealthResponse = HealthResponseBase & {
   readonly dependencies: {
     readonly database: DependencyStatus
     readonly identity: DependencyStatus
+    /** `down` enquanto a imagem carregar migration que o banco ainda não aplicou. */
+    readonly migrations: DependencyStatus
   }
   readonly status: HealthStatus
 }

@@ -4,6 +4,7 @@
 import { expect } from 'bun:test'
 
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRouter, defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
@@ -171,6 +172,7 @@ function healthService(): HealthService {
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
     now: () => ROUTER_NOW,
   })
 }
