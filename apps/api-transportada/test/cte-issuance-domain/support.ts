@@ -23,6 +23,7 @@ export const GOLDEN_OBSERVATIONS = 'EMPRESA OPTANTE PELO SIMPLES NACIONAL'
 export const GOLDEN_SENDER: CtePayloadParty = {
   city: 'Taubate',
   cityCode: '3554102',
+  complement: null,
   district: 'JARDIM BARONESA',
   email: null,
   legalName: 'COMERCIAL ZARAGOZA IMP EXP LTDA',
@@ -39,6 +40,7 @@ export const GOLDEN_SENDER: CtePayloadParty = {
 export const GOLDEN_RECIPIENT: CtePayloadParty = {
   city: 'Itirapua',
   cityCode: '3523701',
+  complement: null,
   district: 'CENTRO',
   email: 's.docarmomercado@hotmail.com',
   legalName: 'S. DO CARMO ALVES E SILVA',

@@ -366,6 +366,7 @@ export async function writeDocumentChildren(input: {
         role: entry.role,
         stateRegistration: entry.party.stateRegistration ?? null,
         taxId: entry.party.taxId ?? null,
+        tradeName: entry.party.tradeName ?? null,
       })),
     )
 
@@ -382,6 +383,7 @@ export async function writeDocumentChildren(input: {
               district: entry.party.address.district ?? null,
               number: entry.party.address.number ?? null,
               participantId: entry.id,
+              phone: entry.party.address.phone ?? null,
               postalCode: entry.party.address.postalCode ?? null,
               state: entry.party.address.state ?? null,
               street: entry.party.address.street ?? null,

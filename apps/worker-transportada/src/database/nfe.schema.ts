@@ -168,6 +168,7 @@ export const nfeParticipants = pgTable('nfe_participants', {
   role: text().notNull(),
   taxId: text('tax_id'),
   legalName: text('legal_name'),
+  tradeName: text('trade_name'),
   stateRegistration: text('state_registration'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -185,6 +186,7 @@ export const nfeAddresses = pgTable('nfe_addresses', {
   state: text(),
   postalCode: text('postal_code'),
   countryCode: text('country_code'),
+  phone: text(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

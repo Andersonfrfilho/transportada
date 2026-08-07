@@ -15,6 +15,7 @@ export const GROUPED_ACCESS_KEYS = [
 export const GROUPED_SENDER: CtePayloadParty = {
   city: 'Cidade Alfa',
   cityCode: '3500001',
+  complement: null,
   district: 'DISTRITO ALFA',
   email: null,
   legalName: 'REMETENTE ALFA LTDA',
@@ -31,6 +32,7 @@ export const GROUPED_SENDER: CtePayloadParty = {
 export const GROUPED_RECIPIENT: CtePayloadParty = {
   city: 'Cidade Bravo',
   cityCode: '3500002',
+  complement: null,
   district: 'DISTRITO BRAVO',
   email: null,
   legalName: 'DESTINATARIO BRAVO LTDA',

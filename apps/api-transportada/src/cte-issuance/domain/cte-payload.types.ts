@@ -14,6 +14,7 @@ import type {
 export type CtePayloadParty = {
   readonly city: string
   readonly cityCode: string
+  readonly complement: null | string
   readonly district: string
   readonly email: null | string
   readonly legalName: string

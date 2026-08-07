@@ -172,6 +172,21 @@ describe('CT-e payload source for an item grouped by sender and recipient', () =
     expect(source?.invoices[0]?.recipient.legalName).toBe('DESTINATARIO BRAVO LTDA')
   })
 
+  // O XML da NF-e traz estes campos e o CT-e de referência os repete: descartá-los na leitura
+  // empobrece o documento fiscal sem que nada falhe.
+  test('carries the trade name, the phone and the address complement of the parties', async () => {
+    const { source } = await loadGroupedSource()
+    const sender = source?.invoices[0]?.sender
+    const recipient = source?.invoices[0]?.recipient
+
+    expect(sender?.tradeName).toBe('ALFA DISTRIBUICAO')
+    expect(sender?.phone).toBe('1133334444')
+    expect(sender?.complement).toBe('GALPAO B')
+    expect(recipient?.tradeName).toBeNull()
+    expect(recipient?.phone).toBe('3144445555')
+    expect(recipient?.complement).toBeNull()
+  })
+
   test('reads the charge and the profile from the item snapshot, once for the whole group', async () => {
     const { source } = await loadGroupedSource()
 

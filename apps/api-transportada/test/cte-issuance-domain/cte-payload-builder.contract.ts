@@ -193,6 +193,27 @@ describe('buildCtePayload — CFOP e partes', () => {
     expect(payload.remetente.ie).toBeUndefined()
   })
 
+  // O complemento distingue sala/andar no mesmo número: sem ele a entrega chega ao prédio errado.
+  test('declara o complemento do endereço quando a nota traz um', () => {
+    const invoice: CtePayloadInvoice = {
+      ...GOLDEN_INVOICE,
+      recipient: { ...GOLDEN_RECIPIENT, complement: 'SALA 3' },
+      sender: { ...GOLDEN_SENDER, complement: 'GALPAO B' },
+    }
+
+    const payload = buildCtePayload(buildGoldenParams({ invoices: [invoice] }))
+
+    expect(payload.remetente.xCpl).toBe('GALPAO B')
+    expect(payload.destinatario.xCpl).toBe('SALA 3')
+  })
+
+  test('omite o complemento quando a nota não traz', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.remetente).not.toHaveProperty('xCpl')
+    expect(payload.destinatario).not.toHaveProperty('xCpl')
+  })
+
   test('rejeita seleção vazia', () => {
     expectApiErrorCode(
       () => buildCtePayload(buildGoldenParams({ invoices: [] })),

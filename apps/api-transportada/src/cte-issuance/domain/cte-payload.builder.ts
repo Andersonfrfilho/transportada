@@ -77,6 +77,7 @@ function toParticipante(party: CtePayloadParty): CteParticipante {
     ...(party.postalCode === null ? {} : { cep: party.postalCode }),
     ...(party.phone === null ? {} : { fone: party.phone }),
     ...(party.email === null ? {} : { email: party.email }),
+    ...(party.complement === null ? {} : { xCpl: party.complement }),
     cMun: party.cityCode,
     nro: party.number,
     uf: party.state,

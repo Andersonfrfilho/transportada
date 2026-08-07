@@ -84,7 +84,10 @@ export const GROUPED_DOCUMENTS = [
 const SENDER = {
   city: 'CIDADE ALFA',
   cityCode: '3500000',
+  complement: 'GALPAO B',
   district: 'DISTRITO ALFA',
+  phone: '1133334444',
+  tradeName: 'ALFA DISTRIBUICAO',
   legalName: 'REMETENTE ALFA LTDA',
   number: '100',
   postalCode: '01000000',
@@ -98,7 +101,10 @@ const SENDER = {
 const RECIPIENT = {
   city: 'CIDADE BRAVO',
   cityCode: '3600000',
+  complement: null,
   district: 'DISTRITO BRAVO',
+  phone: '3144445555',
+  tradeName: null,
   legalName: 'DESTINATARIO BRAVO LTDA',
   number: '200',
   postalCode: '02000000',
