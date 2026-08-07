@@ -7,6 +7,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -522,5 +523,58 @@ export const cteProcessedMessages = pgTable(
       table.consumerName,
       table.eventId,
     ),
+  ],
+)
+
+export const CTE_DIAGNOSTICS_PHASES = ['request', 'response', 'error'] as const
+export type CteDiagnosticsPhase = (typeof CTE_DIAGNOSTICS_PHASES)[number]
+
+/**
+ * Registro temporário do que saiu para o provedor fiscal e do que voltou. Existe porque o código
+ * de rejeição sozinho não diz qual campo a SEFAZ condenou, e porque erro fora da rejeição chegava
+ * a morrer sem rastro nenhum. Só a empresa tem chave estrangeira: lote, item e tentativa ficam
+ * indexados sem `restrict` para a linha poder ser expurgada em `expires_at` sem travar nada.
+ */
+export const cteIssuanceDiagnostics = pgTable(
+  'cte_issuance_diagnostics',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    batchId: uuid('batch_id').notNull(),
+    batchItemId: uuid('batch_item_id').notNull(),
+    attemptId: uuid('attempt_id').notNull(),
+    attemptKind: text('attempt_kind').notNull(),
+    eventId: uuid('event_id').notNull(),
+    correlationId: text('correlation_id'),
+    phase: text().$type<CteDiagnosticsPhase>().notNull(),
+    request: jsonb(),
+    response: jsonb(),
+    error: jsonb(),
+    durationMs: integer('duration_ms'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_issuance_diagnostics_company_id_companies_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('cte_issuance_diagnostics_company_id_id_unique').on(table.companyId, table.id),
+    index('cte_issuance_diagnostics_company_item_occurred_at_idx').on(
+      table.companyId,
+      table.batchItemId,
+      table.occurredAt,
+    ),
+    index('cte_issuance_diagnostics_company_attempt_idx').on(table.companyId, table.attemptId),
+    index('cte_issuance_diagnostics_expires_at_idx').on(table.expiresAt),
+    check(
+      'cte_issuance_diagnostics_phase_check',
+      sql`${table.phase} in ('request', 'response', 'error')`,
+    ),
+    check('cte_issuance_diagnostics_duration_check', sql`${table.durationMs} >= 0`),
   ],
 )

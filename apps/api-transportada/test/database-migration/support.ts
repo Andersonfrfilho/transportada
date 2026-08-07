@@ -58,6 +58,7 @@ export const CTE_BATCH_TABLES = [
 export const CTE_ISSUANCE_TABLES = [
   'cte_fiscal_documents',
   'cte_issuance_attempts',
+  'cte_issuance_diagnostics',
   'cte_issuance_events',
   'cte_retry_schedules',
   'cte_issuance_outbox',

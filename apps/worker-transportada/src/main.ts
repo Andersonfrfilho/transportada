@@ -38,6 +38,7 @@ import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
 import { DrizzleCteFiscalNumberProbeRepository } from './cte-issuance/infrastructure/drizzle-cte-fiscal-number-probe.repository.js'
+import { DrizzleCteIssuanceDiagnosticsRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-diagnostics.repository.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
 import { buildMdfeIssuanceRabbitMqTopology } from './messaging/mdfe-rabbitmq-topology.js'
 import { createAdatechnologyMdfeFiscalProvider } from './mdfe-issuance/infrastructure/adatechnology-mdfe-fiscal-provider.factory.js'
@@ -403,6 +404,9 @@ export async function startWorkerRuntime(
         authorizedDocumentStorage: cteFiscalDocumentStorage,
         cancellationDocumentStorage: cteFiscalDocumentStorage,
         createProvider: createAdatechnologyCteFiscalProvider,
+        diagnostics: new DrizzleCteIssuanceDiagnosticsRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
         fiscalNumberProbe: new DrizzleCteFiscalNumberProbeRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),

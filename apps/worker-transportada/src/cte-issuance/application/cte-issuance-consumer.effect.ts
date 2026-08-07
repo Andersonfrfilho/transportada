@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
+import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
   CTE_PROCESSING_EVENT_TYPE,
@@ -15,6 +15,20 @@ import type {
 import { createCteFiscalGateway } from '../infrastructure/cte-fiscal-gateway.js'
 
 import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
+import type {
+  CteIssuanceDiagnostics,
+  CteIssuanceDiagnosticsPhase,
+  CteIssuanceDiagnosticsRecord,
+} from '../domain/cte-issuance-diagnostics.policy.js'
+import {
+  buildCteDiagnosticsRequest,
+  buildCteDiagnosticsResponse,
+  resolveCteDiagnosticsExpiry,
+} from '../domain/cte-issuance-diagnostics.policy.js'
+import {
+  type CteUnknownErrorDescription,
+  describeCteUnknownError,
+} from '../domain/cte-unknown-error.policy.js'
 
 import type { CteCancellationExecutionInput } from './cte-cancellation-input-resolver.service.js'
 import type { CteIssuanceExecutionInput } from './cte-issuance-execution-input-resolver.service.js'
@@ -123,6 +137,7 @@ export function createCteIssuanceWorkerEffect(input: {
   readonly authorizedDocumentStorage?: CteAuthorizedDocumentStorage
   readonly cancellationDocumentStorage?: CteCancellationDocumentStorage
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
+  readonly diagnostics?: CteIssuanceDiagnostics
   readonly fiscalNumberProbe?: CteFiscalNumberProbe
   readonly logger: WorkerLogger
   readonly resolveCancellationInput?: (params: {
@@ -141,7 +156,74 @@ export function createCteIssuanceWorkerEffect(input: {
           createProvider: input.createProvider,
         })
 
+  /**
+   * Diagnóstico é registro auxiliar com validade: nunca pode derrubar a emissão. Falhar aqui vira
+   * aviso no log — o inverso já custou três CT-es presos em "Transmitindo" sem uma linha de rastro.
+   */
+  async function recordDiagnostics(params: {
+    readonly durationMs?: number
+    readonly envelope: CteProcessingEnvelopeV1
+    readonly error?: CteUnknownErrorDescription
+    readonly phase: CteIssuanceDiagnosticsPhase
+    readonly request?: unknown
+    readonly response?: unknown
+  }): Promise<void> {
+    if (input.diagnostics === undefined) return
+
+    const occurredAt = new Date()
+    const record: CteIssuanceDiagnosticsRecord = {
+      attemptId: params.envelope.payload.attemptId,
+      attemptKind: params.envelope.payload.attemptKind,
+      batchId: params.envelope.payload.batchId,
+      batchItemId: params.envelope.payload.batchItemId,
+      companyId: params.envelope.companyId,
+      correlationId: params.envelope.correlationId,
+      durationMs: params.durationMs,
+      error: params.error,
+      eventId: params.envelope.eventId,
+      expiresAt: resolveCteDiagnosticsExpiry({ occurredAt }),
+      occurredAt,
+      phase: params.phase,
+      request: params.request,
+      response: params.response,
+    }
+
+    try {
+      await input.diagnostics.record(record)
+    } catch (error) {
+      safeLogWarn({
+        logger: input.logger,
+        message: 'cte_issuance_diagnostics_record_failed',
+        metadata: {
+          attemptId: record.attemptId,
+          batchItemId: record.batchItemId,
+          companyId: record.companyId,
+          eventId: record.eventId,
+          phase: record.phase,
+          ...describeCteUnknownError(error),
+        },
+      })
+    }
+  }
+
   async function executeIssuance(envelope: CteProcessingEnvelopeV1): Promise<void> {
+    try {
+      await issueDocument(envelope)
+    } catch (error) {
+      if (error instanceof CteIssuanceFatalError || error instanceof CteIssuanceRecoverableError) {
+        throw error
+      }
+
+      await recordDiagnostics({
+        envelope,
+        error: describeCteUnknownError(error),
+        phase: 'error',
+      })
+      throw error
+    }
+  }
+
+  async function issueDocument(envelope: CteProcessingEnvelopeV1): Promise<void> {
     const executionInput =
       input.resolveExecutionInput === undefined
         ? null
@@ -160,13 +242,25 @@ export function createCteIssuanceWorkerEffect(input: {
     const createKey = (): CteIssuanceWriteBackKey => createWriteBackKey(envelope)
     await input.writeBack?.recordInFlight(createKey())
 
-    const outcome = await gateway.issue({
-      config: executionInput.config,
-      command: {
-        tenantId: executionInput.tenantId,
-        documentId: executionInput.documentId,
-        cteData: executionInput.cteData,
-      },
+    const command = {
+      tenantId: executionInput.tenantId,
+      documentId: executionInput.documentId,
+      cteData: executionInput.cteData,
+    }
+    await recordDiagnostics({
+      envelope,
+      phase: 'request',
+      request: buildCteDiagnosticsRequest({ command, config: executionInput.config }),
+    })
+
+    const startedAt = Date.now()
+    const outcome = await gateway.issue({ config: executionInput.config, command })
+
+    await recordDiagnostics({
+      durationMs: Date.now() - startedAt,
+      envelope,
+      phase: 'response',
+      response: buildCteDiagnosticsResponse(outcome),
     })
 
     if (outcome.status === 'rejected') {

@@ -94,7 +94,7 @@ describe('CT-e cancellation fiscal gateway contract', () => {
         protocolo: AUTHORIZATION_PROTOCOL,
       },
     ])
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       eventXml: CANCELLATION_XML,
       protocol: CANCELLATION_PROTOCOL,
       status: 'ok',
@@ -125,7 +125,8 @@ describe('CT-e cancellation fiscal gateway contract', () => {
       config: CANCELLATION_INPUT.config,
     })
 
-    expect(outcome).toEqual({ rejection: { code: '573' }, status: 'rejected' })
+    expect(outcome).toMatchObject({ rejection: { code: '573' }, status: 'rejected' })
+    expect(outcome.raw).toBeDefined()
   })
 
   test('maps a transport failure to a retryable error outcome', async () => {
@@ -152,7 +153,7 @@ describe('CT-e cancellation fiscal gateway contract', () => {
       config: CANCELLATION_INPUT.config,
     })
 
-    expect(outcome).toEqual({ cause: 'FiscalTimeoutError', status: 'error' })
+    expect(outcome).toMatchObject({ cause: 'FiscalTimeoutError', status: 'error' })
   })
 })
 

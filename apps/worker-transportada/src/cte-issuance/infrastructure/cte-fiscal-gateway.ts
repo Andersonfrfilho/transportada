@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+import { describeCteUnknownError } from '../domain/cte-unknown-error.policy.js'
+
 type FiscalEnvironment = 'homologation' | 'production'
 type FiscalProviderEnvironment = 'homologacao' | 'producao'
 
@@ -50,7 +52,7 @@ type CteData = {
   readonly valorTotalReceber?: number
 }
 
-type CteProviderEmitResult = {
+export type CteProviderEmitResult = {
   success: boolean
   protocolo?: string
   chaveAcesso?: string
@@ -97,6 +99,8 @@ export type CteIssueOutcome = {
   accessKey?: string
   authorizedXml?: string
   protocol?: string
+  /** Resposta do provedor como ela chegou — é o único lugar onde a SEFAZ diz o motivo por extenso. */
+  raw?: unknown
   rejection?: {
     code: string
   }
@@ -107,6 +111,7 @@ export type CteCancelOutcome = {
   status: 'ok' | 'rejected' | 'error'
   eventXml?: string
   protocol?: string
+  raw?: unknown
   rejection?: {
     code: string
   }
@@ -172,11 +177,13 @@ function mapIssueOutcome(result: CteProviderEmitResult): CteIssueOutcome {
       ...(result.chaveAcesso === undefined ? {} : { accessKey: result.chaveAcesso }),
       ...(result.xmlAutorizado === undefined ? {} : { authorizedXml: result.xmlAutorizado }),
       ...(protocol === undefined ? {} : { protocol }),
+      raw: result.rawResponse,
     }
   }
 
   return {
     status: 'rejected',
+    raw: result.rawResponse,
     rejection: {
       code: result.errorCode ?? 'FISCAL_REJECTED',
     },
@@ -185,14 +192,18 @@ function mapIssueOutcome(result: CteProviderEmitResult): CteIssueOutcome {
 
 function classifyIssueError(error: unknown): {
   status: 'rejected' | 'error'
+  raw: unknown
   rejection?: {
     code: string
   }
   cause?: string
 } {
+  const raw = describeCteUnknownError(error)
+
   if (error instanceof Error && error.name === 'FiscalRejectionError') {
     return {
       status: 'rejected',
+      raw,
       rejection: {
         code: 'FISCAL_REJECTION',
       },
@@ -203,12 +214,14 @@ function classifyIssueError(error: unknown): {
     return {
       status: 'error',
       cause: 'FiscalTimeoutError',
+      raw,
     }
   }
 
   return {
     status: 'error',
     cause: error instanceof Error ? error.name : 'UnknownError',
+    raw,
   }
 }
 
@@ -218,11 +231,13 @@ function mapCancelOutcome(result: CteProviderCancelResult): CteCancelOutcome {
       status: 'ok',
       ...(result.xmlEvento === undefined ? {} : { eventXml: result.xmlEvento }),
       ...(result.protocolo === undefined ? {} : { protocol: result.protocolo }),
+      raw: result.rawResponse,
     }
   }
 
   return {
     status: 'rejected',
+    raw: result.rawResponse,
     rejection: {
       code: result.errorCode ?? 'FISCAL_REJECTED',
     },

@@ -37,7 +37,7 @@ export type CteUnknownErrorDescription = {
  */
 export function describeCteUnknownError(error: unknown): CteUnknownErrorDescription {
   const errorName = resolveName(error)
-  const errorMessage = truncate(redact(resolveMessage(error)), MESSAGE_MAX_LENGTH)
+  const errorMessage = truncate(redactCteSecrets(resolveMessage(error)), MESSAGE_MAX_LENGTH)
   const stack = error instanceof Error ? error.stack : undefined
 
   return {
@@ -48,7 +48,8 @@ export function describeCteUnknownError(error: unknown): CteUnknownErrorDescript
     errorCauses: describeCauseChain(error),
     errorMessage,
     errorName,
-    errorStack: stack === undefined ? undefined : truncate(redact(stack), STACK_MAX_LENGTH),
+    errorStack:
+      stack === undefined ? undefined : truncate(redactCteSecrets(stack), STACK_MAX_LENGTH),
   }
 }
 
@@ -58,7 +59,10 @@ function describeCauseChain(error: unknown): readonly string[] {
 
   while (current !== undefined && current !== null && chain.length < CAUSE_CHAIN_MAX_DEPTH) {
     chain.push(
-      truncate(redact(`${resolveName(current)}: ${resolveMessage(current)}`), CAUSE_MAX_LENGTH),
+      truncate(
+        redactCteSecrets(`${resolveName(current)}: ${resolveMessage(current)}`),
+        CAUSE_MAX_LENGTH,
+      ),
     )
     current = current instanceof Error ? current.cause : undefined
   }
@@ -66,7 +70,8 @@ function describeCauseChain(error: unknown): readonly string[] {
   return chain
 }
 
-function redact(text: string): string {
+/** O diagnóstico persiste resposta crua do provedor: passa pela mesma máscara que o log usa. */
+export function redactCteSecrets(text: string): string {
   return SECRET_PATTERNS.reduce(
     (redacted, [pattern, replacement]) => redacted.replace(pattern, replacement),
     text,
