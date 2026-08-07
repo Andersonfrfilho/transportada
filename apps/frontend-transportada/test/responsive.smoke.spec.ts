@@ -256,7 +256,8 @@ test('admin acompanha a transmissão em lote pela barra de progresso no desktop'
   await expect.poll(api.submissions).toBe(1)
   const queueing = page.getByRole('progressbar', { name: 'Progresso do enfileiramento dos lotes' })
   await expect(queueing).toHaveAttribute('aria-valuenow', '100')
-  await expect(page.getByText('100% — 1 de 1 lote(s)')).toBeVisible()
+  // `exact` porque a legenda da SEFAZ começa com o mesmo texto e por substring casaria com as duas.
+  await expect(page.getByText('100% — 1 de 1 lote(s)', { exact: true })).toBeVisible()
   await expect(page.getByText('1 na fila · 0 com erro')).toBeVisible()
   // Enfileirar não é transmitir: a barra da SEFAZ só fecha quando a resposta chega.
   const awaiting = page.getByRole('progressbar', { name: 'Progresso da transmissão para a SEFAZ' })

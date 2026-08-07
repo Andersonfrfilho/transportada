@@ -178,6 +178,23 @@ describe('CT-e transmission progress contract', () => {
     ).toEqual({ isComplete: false, percent: 50, settled: 1, total: 2, transmitting: 1 })
   })
 
+  /**
+   * Entre o POST e a primeira releitura a lista ainda devolve o lote em "Rascunho". Ler ausência de
+   * transmissão como conclusão fazia a barra piscar 100% no instante seguinte ao clique — só um
+   * estado terminal encerra o lote; qualquer outro é notícia velha.
+   */
+  test('treats the stale pre-submission status as still in transit', async () => {
+    const { resolveCteBatchTransmissionSummary } =
+      await loadFutureModule<CteBatchProgressModule>(PROGRESS_MODULE)
+
+    expect(
+      resolveCteBatchTransmissionSummary({
+        batchIds: ['batch-1'],
+        batches: [{ id: 'batch-1', status: 'draft' }],
+      }),
+    ).toEqual({ isComplete: false, percent: 0, settled: 0, total: 1, transmitting: 1 })
+  })
+
   test('completes only when every batch left the transmission statuses', async () => {
     const { resolveCteBatchTransmissionSummary } =
       await loadFutureModule<CteBatchProgressModule>(PROGRESS_MODULE)

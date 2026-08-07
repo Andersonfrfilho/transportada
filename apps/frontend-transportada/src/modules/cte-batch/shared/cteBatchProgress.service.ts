@@ -8,6 +8,9 @@ export const CTE_BATCH_PROGRESS_INTERVAL_MS = 3000
 
 /** Estados que ainda mudam sozinhos: quem os move é o worker, não um novo comando do operador. */
 const TRANSMITTING_BATCH_STATUSES: readonly string[] = ['in_flight', 'submitted']
+
+/** Onde um lote transmitido para de andar. Fora daqui, a leitura ainda deve alguma coisa. */
+const SETTLED_BATCH_STATUSES: readonly string[] = ['cancelled', 'done', 'error']
 const TRANSMITTING_ITEM_STATUSES: readonly string[] = [
   CTE_BATCH_ITEM_STATUS.IN_FLIGHT,
   CTE_BATCH_ITEM_STATUS.PENDING,
@@ -55,6 +58,9 @@ export type CteBatchTransmissionSummary = Readonly<{
  * A fila de submissão mede o que a API aceitou, não o que a SEFAZ respondeu — dizer "transmitido"
  * ali marcava 100% com o item ainda em voo. Aqui o progresso vem do estado relido de cada lote, e
  * lote ausente da página conta como em trânsito: dado que não chegou não vira conclusão.
+ *
+ * Só estado terminal encerra. Entre o POST e a primeira releitura a lista ainda devolve
+ * "Rascunho", e ler essa ausência de transmissão como conclusão piscava 100% logo após o clique.
  */
 export function resolveCteBatchTransmissionSummary(
   input: Readonly<{
@@ -65,7 +71,7 @@ export function resolveCteBatchTransmissionSummary(
   const statusById = new Map(input.batches.map((batch) => [batch.id, batch.status]))
   const settled = input.batchIds.filter((batchId) => {
     const status = statusById.get(batchId)
-    return status !== undefined && !isCteBatchTransmitting(status)
+    return status !== undefined && SETTLED_BATCH_STATUSES.includes(status)
   }).length
   const total = input.batchIds.length
 
