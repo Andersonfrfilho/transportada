@@ -13,6 +13,7 @@ import {
   CTE_ITEM_STATUS_VALUES,
 } from '../shared/cteBatchItemTable.service'
 import styles from '../styles/cteBatch.module.css'
+import { CteExportFormatPicker } from './CteExportFormatPicker.component'
 
 const NUMBER_QUERY_FIELDS = ['cteNumberQuery', 'invoiceNumberQuery'] as const
 
@@ -108,6 +109,11 @@ export function CteItemFilters({ batchOptions, table }: CteItemFiltersProps) {
         <p className={styles.counter}>
           {t('cteItems.filters.active', { count: table.activeFilterCount })}
         </p>
+        <CteExportFormatPicker
+          disabled={table.isExporting}
+          onChange={table.setExportFormat}
+          value={table.exportFormat}
+        />
         <Button
           disabled={!table.canExportFiltered || table.isExporting}
           onClick={() => table.exportFiltered()}

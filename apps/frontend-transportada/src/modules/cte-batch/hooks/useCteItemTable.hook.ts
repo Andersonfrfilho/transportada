@@ -51,6 +51,7 @@ import {
   clearCteItemFilterField,
   type CteItemPillField,
 } from '../shared/cteItemFilterPills.service'
+import { useCteDacteDownload } from './useCteDacteDownload.hook'
 import { useCteItemExport } from './useCteItemExport.hook'
 
 const CTE_SUBMIT_PERMISSION = 'cte.submit'
@@ -129,6 +130,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     selectedCount: selection.count,
     selectedIds,
   })
+  const dacteControls = useCteDacteDownload({ permissions: input.permissions })
 
   const transmitMutation = useMutation({
     /** A recusa de um lote não pode esconder os outros nem sumir da tela: cada um vira um resultado. */
@@ -171,6 +173,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
   }
 
   return {
+    ...dacteControls,
     ...exportControls,
     activeFilterCount: countActiveCteItemFilters(filters),
     billingRequest,

@@ -8,6 +8,7 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import type { CteItemTableController } from '../hooks/useCteItemTable.hook'
 import { resolveCteBatchSubmissionReasonKey } from '../shared/cteBatchSubmissionQueue.service'
 import styles from '../styles/cteBatch.module.css'
+import { CteExportFormatPicker } from './CteExportFormatPicker.component'
 
 type CteItemSelectionBarProps = Readonly<{
   table: CteItemTableController
@@ -47,6 +48,11 @@ export function CteItemSelectionBar({ table }: CteItemSelectionBarProps) {
           <Icon name="invoice" />
           {t('cteItems.billSelection', { count: table.billingSelection.billable.length })}
         </Button>
+        <CteExportFormatPicker
+          disabled={table.isExporting}
+          onChange={table.setExportFormat}
+          value={table.exportFormat}
+        />
         <Button
           disabled={!table.canExportSelection || table.isExporting}
           onClick={() => table.exportSelection()}

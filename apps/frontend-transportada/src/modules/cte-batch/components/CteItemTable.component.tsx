@@ -174,7 +174,28 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
             </button>
           </th>
         ))}
+        <th scope="col">
+          <span className={styles.srOnly}>{t('cteItems.downloadDacte')}</span>
+        </th>
       </tr>
+    )
+  }
+
+  /** O DACTE nasce do XML autorizado: linha sem autorização não tem papel a baixar. */
+  function renderDacteAction(item: CompanyCteItem) {
+    if (!table.canDownloadDacte(item)) return null
+
+    return (
+      <button
+        aria-label={t('cteItems.downloadDacte')}
+        className={styles.iconAction}
+        disabled={table.downloadingDacteId === item.id}
+        onClick={() => table.downloadDacte(item)}
+        title={t('cteItems.downloadDacte')}
+        type="button"
+      >
+        <Icon name="download" />
+      </button>
     )
   }
 
@@ -189,6 +210,9 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
             <Skeleton variant="text" width={AMOUNT_COLUMNS.includes(column) ? '4rem' : '70%'} />
           </td>
         ))}
+        <td>
+          <Skeleton height="var(--icon-size-md)" variant="block" width="var(--icon-size-md)" />
+        </td>
       </tr>
     )
   }
@@ -282,11 +306,18 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
                   {table.visibleColumns.map((column) => (
                     <td key={column}>{renderCell(item, column)}</td>
                   ))}
+                  <td>{renderDacteAction(item)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {table.dacteErrorKey === null ? null : (
+        <p className={styles.hint} role="alert">
+          {t(table.dacteErrorKey)}
+        </p>
       )}
 
       {!table.itemsQuery.isLoading && table.visibleItems.length === 0 ? (

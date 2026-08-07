@@ -75,7 +75,7 @@
     "cancel": "Cancelar lote",
     "reprocess": "Reprocessar",
     "download": "Baixar XML",
-    "exportSelection": "Baixar XML ({{count}} lote(s))",
+    "exportSelection": "Baixar ({{count}} lote(s))",
     "openItems": "Ver CT-es",
     "closeItems": "Fechar CT-es",
     "track": "Acompanhar",
@@ -132,12 +132,21 @@
     "transmitSelection": "Transmitir ({{count}} lote(s))",
     "billSelection": "Gerar fatura ({{count}} CT-e(s))",
     "billBlocked": "{{count}} CT-e(s) selecionado(s) ainda não podem ser faturados.",
-    "exportSelection": "Baixar XML ({{count}} CT-e(s))",
-    "exportFiltered": "Baixar XML do filtro ({{count}} filtro(s))",
+    "exportSelection": "Baixar ({{count}} CT-e(s))",
+    "exportFiltered": "Baixar do filtro ({{count}} filtro(s))",
+    "downloadDacte": "Baixar DACTE em PDF",
     "export": {
       "pending": "Preparando o ZIP",
+      "format": {
+        "label": "Formato do arquivo",
+        "xml": "XML",
+        "pdf": "PDF (DACTE)",
+        "both": "XML e PDF"
+      },
       "errors": {
         "batchLimitExceeded": "Selecione no máximo 100 lotes por exportação",
+        "dacteNotAuthorized": "O DACTE só existe depois que o CT-e é autorizado",
+        "dacteNotFound": "XML autorizado não encontrado para gerar o DACTE",
         "empty": "Nenhum CT-e autorizado no recorte selecionado",
         "forbidden": "Sem permissão para exportar XML de CT-e",
         "limitExceeded": "Selecione no máximo 500 CT-es por exportação",

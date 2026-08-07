@@ -18,6 +18,7 @@ import {
   resolveCteBatchSubmissionReasonKey,
 } from '../shared/cteBatchSubmissionQueue.service'
 import styles from '../styles/cteBatch.module.css'
+import { CteExportFormatPicker } from './CteExportFormatPicker.component'
 
 type CteBatchSelectionBarProps = Readonly<{
   onBill: (batches: readonly CteBatchSummary[]) => void
@@ -106,6 +107,11 @@ export function CteBatchSelectionBar({
           <Icon name="alert" />
           {t('actions.cancel')}
         </Button>
+        <CteExportFormatPicker
+          disabled={exportControl.isExporting}
+          onChange={exportControl.setExportFormat}
+          value={exportControl.exportFormat}
+        />
         <Button
           disabled={!exportControl.canExportSelection || exportControl.isExporting}
           onClick={() => exportControl.exportSelection()}
