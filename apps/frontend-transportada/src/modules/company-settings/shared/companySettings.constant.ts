@@ -15,6 +15,14 @@ export const PIX_KEY_TYPE_LABEL_KEYS = {
   evp: 'pixKeyTypeEvp',
 } as const satisfies Record<PixKeyType, string>
 
+/** Campos de tamanho exato pela legislação — a API os valida com regex de comprimento fixo. */
+export const PROFILE_DIGIT_LENGTHS = {
+  cityIbgeCode: 7,
+  cnpj: 14,
+  postalCode: 8,
+  rntrc: 8,
+} as const
+
 export const CTE_RETRY_DEFAULT_MAX_ATTEMPTS = 3
 export const CTE_RETRY_DEFAULT_BACKOFF_SECONDS: readonly number[] = [5, 30, 300]
 export const CTE_RETRY_MAX_ATTEMPTS_LIMIT = 10

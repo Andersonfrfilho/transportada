@@ -4,11 +4,17 @@ import { describe, expect, test } from 'bun:test'
 import {
   digitsWithOptionalCheckDigit,
   formatBankAccountNumber,
+  formatCnpj,
   formatDigitGroups,
+  formatPostalCode,
   normalizeCompanySettingsMasks,
+  stripNonDigits,
   stripStateRegistrationMask,
 } from '@/modules/company-settings/shared/companySettingsMask.service'
-import { validateCompanySettings } from '@/modules/company-settings/shared/companySettingsFormValidation.service'
+import {
+  describeCompanySettingsFieldError,
+  validateCompanySettings,
+} from '@/modules/company-settings/shared/companySettingsFormValidation.service'
 import { createDefaultCompanySettings } from '@/modules/company-settings/shared/companySettings.constant'
 import {
   detectPixKeyType,
@@ -160,7 +166,7 @@ describe('company settings form validation contract', () => {
     const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, [field]: '' } })
 
     expect(validateCompanySettings(settings)).toEqual([
-      { field: field as never, fieldId: `field-profile-${field}` },
+      { field: field as never, fieldId: `field-profile-${field}`, reason: 'required' },
     ])
   })
 
@@ -181,7 +187,7 @@ describe('company settings form validation contract', () => {
     const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, city: '   ' } })
 
     expect(validateCompanySettings(settings)).toEqual([
-      { field: 'city', fieldId: 'field-profile-city' },
+      { field: 'city', fieldId: 'field-profile-city', reason: 'required' },
     ])
   })
 
@@ -195,5 +201,96 @@ describe('company settings form validation contract', () => {
       'cnpj',
       'rntrc',
     ])
+  })
+})
+
+// O corte silencioso do nono dígito gravou 05815104 no lugar de 058151044 e foi parar no XML do CT-e.
+describe('company settings digit length contract', () => {
+  test.each([
+    ['cityIbgeCode', '31062009', 7],
+    ['cnpj', '123456780001999', 14],
+    ['postalCode', '301100001', 8],
+    ['rntrc', '058151044', 8],
+  ])('reports %s when it carries one digit too many', (field, value, expectedLength) => {
+    const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, [field]: value } })
+
+    expect(validateCompanySettings(settings)).toEqual([
+      {
+        expectedLength,
+        field: field as never,
+        fieldId: `field-profile-${field}`,
+        reason: 'digitLength',
+      },
+    ])
+  })
+
+  test.each([
+    ['cityIbgeCode', '310620', 7],
+    ['cnpj', '1234567800019', 14],
+    ['postalCode', '3011000', 8],
+    ['rntrc', '5815104', 8],
+  ])('reports %s when it carries one digit too few', (field, value, expectedLength) => {
+    const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, [field]: value } })
+
+    expect(validateCompanySettings(settings)).toEqual([
+      {
+        expectedLength,
+        field: field as never,
+        fieldId: `field-profile-${field}`,
+        reason: 'digitLength',
+      },
+    ])
+  })
+
+  test('reports the empty required field as missing, never as the wrong length', () => {
+    const settings = buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '' } })
+
+    expect(validateCompanySettings(settings)).toEqual([
+      { field: 'rntrc', fieldId: 'field-profile-rntrc', reason: 'required' },
+    ])
+  })
+
+  test('names the expected length in the message so the user sees what is wrong', () => {
+    const [error] = validateCompanySettings(
+      buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '058151044' } }),
+    )
+    const translate = (key: string, values: Readonly<Record<string, number | string>>) =>
+      Object.keys(values).length === 0 ? key : `${key}:${JSON.stringify(values)}`
+
+    expect(describeCompanySettingsFieldError({ error: error as never, translate })).toBe(
+      'validationDigitLength:{"field":"rntrc","length":8}',
+    )
+  })
+
+  test('names the field in the message when it is only missing', () => {
+    const [error] = validateCompanySettings(
+      buildSettings({ profile: { ...COMPLETE_PROFILE, rntrc: '' } }),
+    )
+    const translate = (key: string, values: Readonly<Record<string, number | string>>) =>
+      Object.keys(values).length === 0 ? key : `${key}:${JSON.stringify(values)}`
+
+    expect(describeCompanySettingsFieldError({ error: error as never, translate })).toBe(
+      'validationRequiredField:{"field":"rntrc"}',
+    )
+  })
+
+  test('keeps every digit the user typed instead of cutting the excess', () => {
+    expect(stripNonDigits('05 815-104/4')).toBe('058151044')
+  })
+
+  test.each([
+    ['shows the extra cnpj digit raw instead of hiding it', '123456780001999', '123456780001999'],
+    ['masks the cnpj that fits', '12345678000199', '12.345.678/0001-99'],
+    ['masks the partial cnpj while it is typed', '123456', '12.345.6'],
+  ])('%s', (_name, value, expected) => {
+    expect(formatCnpj(value)).toBe(expected)
+  })
+
+  test.each([
+    ['shows the extra postal code digit raw instead of hiding it', '301100001', '301100001'],
+    ['masks the postal code that fits', '30110000', '30110-000'],
+    ['masks the partial postal code while it is typed', '30110', '30110'],
+  ])('%s', (_name, value, expected) => {
+    expect(formatPostalCode(value)).toBe(expected)
   })
 })

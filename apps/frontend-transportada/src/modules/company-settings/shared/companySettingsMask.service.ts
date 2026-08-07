@@ -1,6 +1,29 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { PROFILE_DIGIT_LENGTHS } from './companySettings.constant'
 import type { CompanySettingsUpdate } from './companySettings.types'
 import { normalizePixKey } from './pixKeyType.service'
+
+/** Nenhum corte por tamanho: dígito excedente precisa continuar visível para a validação acusar. */
+export function stripNonDigits(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+/** Acima do tamanho legal a máscara sairia do lugar e esconderia o excesso — melhor exibir cru. */
+export function formatCnpj(value: string): string {
+  const digits = stripNonDigits(value)
+  if (digits.length > PROFILE_DIGIT_LENGTHS.cnpj) return digits
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+}
+
+export function formatPostalCode(value: string): string {
+  const digits = stripNonDigits(value)
+  if (digits.length > PROFILE_DIGIT_LENGTHS.postalCode) return digits
+  return digits.replace(/^(\d{5})(\d)/, '$1-$2')
+}
 
 /** Agrupa dígitos da direita para a esquerda em blocos de 3 — máscara de IE sem formato fixo por UF. */
 export function formatDigitGroups(value: string): string {

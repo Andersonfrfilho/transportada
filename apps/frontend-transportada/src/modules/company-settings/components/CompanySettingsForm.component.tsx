@@ -49,7 +49,6 @@ export function CompanySettingsForm({
     if (validateCompanySettings(settings).length > 0) return
     onSave(normalizeCompanySettingsMasks(settings))
   }
-  const invalidFields = new Set(errors.map((error) => error.field))
   const updateProfile = (
     input: Readonly<{
       field: Exclude<keyof CompanySettingsUpdate['profile'], 'taxRegime'>
@@ -90,7 +89,7 @@ export function CompanySettingsForm({
       <CompanySettingsErrorSummary errors={errors} />
       <CompanyProfileFields
         disabled={disabled}
-        invalidFields={invalidFields}
+        errors={errors}
         lookupPending={lookupPending}
         lookupStatus={lookupStatus}
         onChange={updateProfile}

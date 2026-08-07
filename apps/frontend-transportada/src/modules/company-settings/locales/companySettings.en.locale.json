@@ -75,6 +75,7 @@
   "pixKeyTypeEvp": "Random key",
   "validationSummaryTitle": "Fix the fields below before saving:",
   "validationRequiredField": "{{field}} is required.",
+  "validationDigitLength": "{{field}} must have exactly {{length}} digits.",
   "save": "Save settings",
   "saved": "Settings saved.",
   "saveError": "Settings could not be saved. Review the data and try again.",

@@ -4,9 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
-import { profileFieldId } from '../shared/companySettingsFormValidation.service'
 import {
+  describeCompanySettingsFieldError,
+  profileFieldId,
+  type CompanySettingsFieldError,
+} from '../shared/companySettingsFormValidation.service'
+import {
+  formatCnpj,
   formatDigitGroups,
+  formatPostalCode,
+  stripNonDigits,
   stripStateRegistrationMask,
 } from '../shared/companySettingsMask.service'
 import styles from '../styles/companySettings.module.css'
@@ -41,7 +48,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
 
 type CompanyProfileFieldsProps = Readonly<{
   disabled: boolean
-  invalidFields?: ReadonlySet<TextField>
+  errors?: readonly CompanySettingsFieldError[]
   lookupPending: boolean
   lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: Readonly<{ field: TextField; value: string }>) => void
@@ -54,7 +61,7 @@ function ProfileTextField(
   props: Readonly<{
     disabled: boolean
     definition: FieldDefinition
-    invalid: boolean
+    error: CompanySettingsFieldError | undefined
     lookupPending?: boolean | undefined
     lookupStatus?: CompanyProfileFieldsProps['lookupStatus'] | undefined
     onChange: CompanyProfileFieldsProps['onChange']
@@ -64,8 +71,10 @@ function ProfileTextField(
 ) {
   const { t } = useTranslation('companySettings')
   const { field, inputMode, maximum, required } = props.definition
+  const invalid = props.error !== undefined
+  // Cortar o excedente aqui gravava um documento fiscal errado sem o usuário ver: a validação acusa.
   const normalizeValue = (value: string) => {
-    if (inputMode === 'numeric') return value.replace(/\D/g, '').slice(0, maximum)
+    if (inputMode === 'numeric') return stripNonDigits(value)
     if (field === 'stateRegistration') return stripStateRegistrationMask(value).slice(0, maximum)
     return value
   }
@@ -81,8 +90,8 @@ function ProfileTextField(
     field === 'stateRegistration' ? formatDigitGroups('0'.repeat(maximum)).length : maximum
   const input = (
     <input
-      aria-describedby={props.invalid ? errorId : undefined}
-      aria-invalid={props.invalid}
+      aria-describedby={invalid ? errorId : undefined}
+      aria-invalid={invalid}
       id={profileFieldId(field)}
       inputMode={inputMode ?? 'text'}
       maxLength={inputMode === 'numeric' ? undefined : displayMaxLength}
@@ -93,11 +102,12 @@ function ProfileTextField(
     />
   )
   // O anúncio dos erros é do resumo no topo: uma live region por vez, não uma por campo inválido.
-  const errorMessage = props.invalid ? (
-    <span className={styles.fieldError} id={errorId}>
-      {t('validationRequiredField', { field: t(field) })}
-    </span>
-  ) : null
+  const errorMessage =
+    props.error === undefined ? null : (
+      <span className={styles.fieldError} id={errorId}>
+        {describeCompanySettingsFieldError({ error: props.error, translate: t })}
+      </span>
+    )
   if (field !== 'cnpj') {
     return (
       <label>
@@ -131,20 +141,6 @@ function ProfileTextField(
       )}
     </label>
   )
-}
-
-function formatCnpj(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 14)
-  return digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2')
-}
-
-function formatPostalCode(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-  return digits.replace(/^(\d{5})(\d)/, '$1-$2')
 }
 
 function TaxRegimeField(
@@ -186,7 +182,7 @@ function TaxRegimeField(
 
 export function CompanyProfileFields({
   disabled,
-  invalidFields,
+  errors,
   lookupPending,
   lookupStatus,
   onChange,
@@ -195,6 +191,7 @@ export function CompanyProfileFields({
   profile,
 }: CompanyProfileFieldsProps) {
   const { t } = useTranslation('companySettings')
+  const errorByField = new Map((errors ?? []).map((error) => [error.field, error]))
   return (
     <fieldset className={styles.fieldGroup} disabled={disabled}>
       <legend>{t('profileLegend')}</legend>
@@ -203,7 +200,7 @@ export function CompanyProfileFields({
           <ProfileTextField
             disabled={disabled}
             definition={definition}
-            invalid={invalidFields?.has(definition.field) ?? false}
+            error={errorByField.get(definition.field)}
             key={definition.field}
             lookupPending={definition.field === 'cnpj' ? lookupPending : undefined}
             lookupStatus={definition.field === 'cnpj' ? lookupStatus : undefined}

@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import type { CompanySettingsFieldError } from '../shared/companySettingsFormValidation.service'
+import {
+  describeCompanySettingsFieldError,
+  type CompanySettingsFieldError,
+} from '../shared/companySettingsFormValidation.service'
 import styles from '../styles/companySettings.module.css'
 
 type CompanySettingsErrorSummaryProps = Readonly<{
@@ -30,7 +33,7 @@ export function CompanySettingsErrorSummary({ errors }: CompanySettingsErrorSumm
               onClick={() => focusField(error.fieldId)}
               type="button"
             >
-              {t('validationRequiredField', { field: t(error.field) })}
+              {describeCompanySettingsFieldError({ error, translate: t })}
             </button>
           </li>
         ))}
