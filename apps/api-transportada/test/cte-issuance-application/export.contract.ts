@@ -15,6 +15,7 @@ import { createExportCteDocumentsUseCase } from '../../src/cte-issuance/applicat
 import { COMPANY_CONTEXT, captureApiError } from './support.js'
 
 const EXPORTED_AT = new Date('2026-07-31T12:00:00.000Z')
+const RENDERED_PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46])
 const EXPORT_BUCKET = 'fiscal-documents-test'
 const FOREIGN_COMPANY_ID = '00000000-0000-4000-8000-0000000007ff'
 const BATCH_ID = '00000000-0000-4000-8000-0000000007a1'
@@ -39,6 +40,7 @@ function syntheticDocuments(total: number): readonly CteExportDocument[] {
 
 function createFixture(documents: readonly CteExportDocument[]) {
   const archiveCalls: (readonly CteArchiveEntry[])[] = []
+  const renderCalls: { readonly bucket: string; readonly objectKey: string }[] = []
   const selectionCalls: CteExportSelectionQuery[] = []
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -53,6 +55,12 @@ function createFixture(documents: readonly CteExportDocument[]) {
       },
     },
     clock: () => EXPORTED_AT,
+    dacte: {
+      async renderDacte(location) {
+        renderCalls.push(location)
+        return RENDERED_PDF
+      },
+    },
     selection: {
       async listAuthorizedDocuments(query) {
         selectionCalls.push(query)
@@ -61,7 +69,16 @@ function createFixture(documents: readonly CteExportDocument[]) {
     },
   })
 
-  return { archiveCalls, selectionCalls, stream, useCase }
+  return { archiveCalls, renderCalls, selectionCalls, stream, useCase }
+}
+
+function entryNames(entries: readonly CteArchiveEntry[] | undefined): readonly string[] {
+  return (entries ?? []).map((entry) => entry.name)
+}
+
+async function loadEntry(entry: CteArchiveEntry | undefined): Promise<Uint8Array> {
+  if (entry?.source.kind !== 'lazy') throw new Error('entrada não é gerada sob demanda')
+  return entry.source.load()
 }
 
 describe('CT-e XML export contract', () => {
@@ -110,7 +127,7 @@ describe('CT-e XML export contract', () => {
     expect(fixture.selectionCalls[0]?.itemIds).toEqual([ITEM_ID])
   })
 
-  test('nomeia cada entrada do arquivo com a chave de acesso', async () => {
+  test('sem formato declarado leva só o XML, direto do storage', async () => {
     const documents = syntheticDocuments(2)
     const fixture = createFixture(documents)
 
@@ -118,11 +135,79 @@ describe('CT-e XML export contract', () => {
 
     expect(fixture.archiveCalls[0]).toEqual(
       documents.map((document) => ({
-        bucket: document.bucket,
         name: `${document.accessKey}.xml`,
-        objectKey: document.objectKey,
+        source: { bucket: document.bucket, kind: 'object', objectKey: document.objectKey },
       })),
     )
+  })
+
+  test('formato pdf nomeia as entradas pela chave e não renderiza antes da hora', async () => {
+    const documents = syntheticDocuments(2)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+
+    expect(entryNames(fixture.archiveCalls[0])).toEqual(
+      documents.map((document) => `${document.accessKey}.pdf`),
+    )
+    expect(fixture.renderCalls).toHaveLength(0)
+  })
+
+  test('o DACTE nasce do XML autorizado, só quando o arquivo pede a entrada', async () => {
+    const documents = syntheticDocuments(1)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    const bytes = await loadEntry(fixture.archiveCalls[0]?.[0])
+
+    expect(bytes).toEqual(RENDERED_PDF)
+    expect(fixture.renderCalls).toEqual([
+      { bucket: documents[0]!.bucket, objectKey: documents[0]!.objectKey },
+    ])
+  })
+
+  test('formato both leva o XML e o DACTE do mesmo CT-e lado a lado', async () => {
+    const documents = syntheticDocuments(2)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'both' })
+
+    expect(entryNames(fixture.archiveCalls[0])).toEqual([
+      `${documents[0]!.accessKey}.xml`,
+      `${documents[0]!.accessKey}.pdf`,
+      `${documents[1]!.accessKey}.xml`,
+      `${documents[1]!.accessKey}.pdf`,
+    ])
+  })
+
+  test('a contagem é de CT-es, não de arquivos dentro do ZIP', async () => {
+    const fixture = createFixture(syntheticDocuments(3))
+
+    const result = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'both',
+    })
+
+    expect(result.documentCount).toBe(3)
+    expect(fixture.archiveCalls[0]).toHaveLength(6)
+  })
+
+  test('o nome do download diz o que veio dentro', async () => {
+    const fixture = createFixture(syntheticDocuments(1))
+
+    const xml = await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT })
+    const pdf = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'pdf',
+    })
+    const both = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'both',
+    })
+
+    expect(xml.fileName).toBe('cte-xml-20260731-120000.zip')
+    expect(pdf.fileName).toBe('cte-dacte-20260731-120000.zip')
+    expect(both.fileName).toBe('cte-documentos-20260731-120000.zip')
   })
 
   test('devolve o fluxo do arquivo, a contagem e um nome de download com extensão zip', async () => {

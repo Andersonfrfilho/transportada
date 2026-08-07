@@ -10,8 +10,10 @@ import {
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import {
+  CTE_EXPORT_FORMATS,
   CTE_EXPORT_MAX_DOCUMENTS,
   type CteExportFilters,
+  type CteExportFormat,
 } from '../application/export-cte-documents.port.js'
 
 const OPTIONAL_TEXT = z.string().optional()
@@ -37,12 +39,14 @@ const exportFiltersSchema = z
 const exportRequestSchema = z
   .object({
     filters: exportFiltersSchema.optional(),
+    format: z.enum(CTE_EXPORT_FORMATS).optional(),
     itemIds: z.array(z.uuid()).min(1).max(CTE_EXPORT_MAX_DOCUMENTS).optional(),
   })
   .strict()
 
 export type CteExportRequestBody = {
   readonly filters?: CteExportFilters
+  readonly format?: CteExportFormat
   readonly itemIds?: readonly string[]
 }
 
@@ -53,10 +57,11 @@ export async function parseCteExportRequest(request: Request): Promise<CteExport
     result.data.filters === undefined
       ? undefined
       : parseCteBatchItemFilters(toFilterReader(result.data.filters))
-  const itemIds = result.data.itemIds
+  const { format, itemIds } = result.data
 
   return {
     ...(filters === undefined ? {} : { filters }),
+    ...(format === undefined ? {} : { format }),
     ...(itemIds === undefined ? {} : { itemIds }),
   }
 }

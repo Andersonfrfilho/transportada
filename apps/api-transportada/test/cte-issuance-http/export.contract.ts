@@ -88,6 +88,17 @@ describe('CT-e XML export HTTP contract', () => {
     expect(fixture.exportCalls[0]?.itemIds).toEqual([ITEM_ID, OTHER_ITEM_ID])
   })
 
+  test('repassa o formato pedido e deixa a aplicação decidir o padrão', async () => {
+    const fixture = await createCteIssuanceHttpFixture()
+
+    const response = await fixture.handle(exportItemsRequest({ body: { format: 'both' } }))
+    await fixture.handle(exportItemsRequest())
+
+    expect(response.status).toBe(200)
+    expect(fixture.exportCalls[0]?.format).toBe('both')
+    expect(fixture.exportCalls[1]?.format).toBeUndefined()
+  })
+
   test('deriva a empresa do contexto autenticado e ignora companyId do corpo', async () => {
     const fixture = await createCteIssuanceHttpFixture()
 
@@ -116,6 +127,7 @@ describe('CT-e XML export HTTP contract', () => {
       { filters: { batchIdIn: ['not-a-uuid'] } },
       { filters: { batchIdIn: [BATCH_ID, BATCH_ID] } },
       { filters: { batchIdIn: [] } },
+      { format: 'docx' },
     ]
 
     for (const body of rejectedBodies) {

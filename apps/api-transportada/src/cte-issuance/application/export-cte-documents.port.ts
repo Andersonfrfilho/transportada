@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyCteItemFilters } from '../../cte-batches/application/cte-batch-item.port.js'
+import type { DacteXmlLocation } from './render-dacte.port.js'
 
 /** Teto por requisição: o ZIP é montado em stream, mas a seleção ainda vira uma consulta só. */
 export const CTE_EXPORT_MAX_DOCUMENTS = 500
@@ -10,12 +11,19 @@ export const CTE_EXPORT_CONTENT_TYPE = 'application/zip'
 
 export type CteExportFilters = CompanyCteItemFilters
 
+export const CTE_EXPORT_FORMATS = ['xml', 'pdf', 'both'] as const
+export type CteExportFormat = (typeof CTE_EXPORT_FORMATS)[number]
+
+/** XML é o padrão histórico da rota: quem não declara formato continua recebendo o que recebia. */
+export const CTE_EXPORT_DEFAULT_FORMAT: CteExportFormat = 'xml'
+
 /** A aplicação só precisa da empresa: permissão é decisão da camada de rota. */
 export type CteExportRequest = {
   readonly context: {
     readonly companyId: string
   }
   readonly filters?: CteExportFilters
+  readonly format?: CteExportFormat
   readonly itemIds?: readonly string[]
 }
 
@@ -36,10 +44,21 @@ export type CteExportSelectionPort = {
   listAuthorizedDocuments(query: CteExportSelectionQuery): Promise<readonly CteExportDocument[]>
 }
 
+/**
+ * `lazy` existe para o DACTE: renderizar a seleção inteira antes de abrir o ZIP materializaria
+ * centenas de PDFs em memória. O arquivo pede um documento por vez, na hora de gravá-lo.
+ */
+export type CteArchiveSource =
+  | { readonly bucket: string; readonly kind: 'object'; readonly objectKey: string }
+  | { readonly kind: 'lazy'; readonly load: () => Promise<Uint8Array> }
+
 export type CteArchiveEntry = {
-  readonly bucket: string
   readonly name: string
-  readonly objectKey: string
+  readonly source: CteArchiveSource
+}
+
+export type CteDacteRendererPort = {
+  renderDacte(location: DacteXmlLocation): Promise<Uint8Array>
 }
 
 export type CteArchivePort = {

@@ -26,6 +26,7 @@ type CteIssuanceCall = {
 type CteExportCall = {
   readonly context: CompanyContext
   readonly filters?: Readonly<Record<string, unknown>>
+  readonly format?: string
   readonly itemIds?: readonly string[]
 }
 
