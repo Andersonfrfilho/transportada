@@ -26,7 +26,7 @@ describe('worker environment contract', () => {
       readonly dependencies?: Readonly<Record<string, string>>
     }
 
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.4')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.5')
     expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
       '0.2.0-rc.0',
     )
