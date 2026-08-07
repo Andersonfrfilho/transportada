@@ -25,6 +25,7 @@ const ITEM_SKELETON_COLUMN_WIDTHS: readonly string[] = [
   '2rem',
   '5rem',
   '9rem',
+  '3rem',
   '4rem',
   '5rem',
   '5rem',
@@ -69,7 +70,8 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
         <th scope="col">{t('items.position')}</th>
         <th scope="col">{t('items.status')}</th>
         <th scope="col">{t('items.documents')}</th>
-        <th scope="col">{t('items.fiscal')}</th>
+        <th scope="col">{t('items.fiscalSeries')}</th>
+        <th scope="col">{t('items.fiscalNumber')}</th>
         <th scope="col">{t('items.baseAmount')}</th>
         <th scope="col">{t('items.fiscalAmount')}</th>
         <th scope="col">{t('items.accessKey')}</th>
@@ -110,11 +112,8 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
             ))}
           </div>
         </td>
-        <td>
-          {item.fiscalSeries === null || item.fiscalNumber === null
-            ? '—'
-            : `${item.fiscalSeries}/${item.fiscalNumber}`}
-        </td>
+        <td>{item.fiscalSeries ?? '—'}</td>
+        <td>{item.fiscalNumber ?? '—'}</td>
         <td>{item.baseAmount}</td>
         <td>{item.fiscalAmount}</td>
         <td>{item.accessKey ?? '—'}</td>
