@@ -16,10 +16,10 @@ import {
   type NfeWorkspaceClient as WorkspaceClient,
   type RequestUploadInput,
 } from '../shared/nfeWorkspaceClient.service'
+import { NFE_DOCUMENTS_QUERY_KEY } from '../shared/nfeWorkspace.constant'
 
 const IMPORT_PERMISSION = 'invoices.import'
 const READ_PERMISSION = 'invoices.read'
-const DOCUMENTS_QUERY_KEY = 'nfe-documents'
 const IMPORTS_QUERY_KEY = 'nfe-imports'
 const DISTRIBUTION_STATUS_QUERY_KEY = 'nfe-distribution-status'
 const MAX_UPLOAD_BATCH_BYTES = 768 * 1024
@@ -127,7 +127,7 @@ export function useNfeWorkspace(
   const queryClient = useQueryClient()
   const [distributionTriggeredAt, setDistributionTriggeredAt] = useState<null | number>(null)
   const importsQueryKey = [IMPORTS_QUERY_KEY, input.companyId, input.importFilters] as const
-  const documentsQueryKey = [DOCUMENTS_QUERY_KEY, input.companyId] as const
+  const documentsQueryKey = [NFE_DOCUMENTS_QUERY_KEY, input.companyId] as const
   const distributionStatusQueryKey = [DISTRIBUTION_STATUS_QUERY_KEY, input.companyId] as const
   const importsQuery = useInfiniteQuery({
     enabled: controller.canRead,
