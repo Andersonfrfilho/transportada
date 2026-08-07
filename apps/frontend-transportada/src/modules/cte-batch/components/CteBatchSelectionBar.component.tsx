@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { ProgressBar } from '@/components/ui/progress'
 
+import { useCteBatchExport } from '../hooks/useCteBatchExport.hook'
 import type { CteBatchSubmissionController } from '../hooks/useCteBatchSubmission.hook'
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import { collectBillableBatches } from '../shared/cteBatchBilling.service'
@@ -34,6 +35,11 @@ export function CteBatchSelectionBar({
   table,
 }: CteBatchSelectionBarProps) {
   const { t } = useTranslation('cteBatch')
+  // Antes do retorno vazio: hook não pode ficar atrás de condicional.
+  const exportControl = useCteBatchExport({
+    permissions,
+    selectedBatchIds: table.selectedBatches.map((batch) => batch.id),
+  })
 
   if (table.selectedBatches.length === 0) return null
 
@@ -100,11 +106,28 @@ export function CteBatchSelectionBar({
           <Icon name="alert" />
           {t('actions.cancel')}
         </Button>
+        <Button
+          disabled={!exportControl.canExportSelection || exportControl.isExporting}
+          onClick={() => exportControl.exportSelection()}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="export" />
+          {exportControl.isExporting
+            ? t('cteItems.export.pending')
+            : t('actions.exportSelection', { count: table.selectedBatches.length })}
+        </Button>
         <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
           <Icon name="close" />
           {t('selection.clear')}
         </Button>
       </div>
+      {exportControl.exportErrorKey === null ? null : (
+        <p className={styles.hint} role="alert">
+          {t(exportControl.exportErrorKey)}
+        </p>
+      )}
       {hasProgress ? (
         <div className={styles.bulkProgress}>
           <ProgressBar

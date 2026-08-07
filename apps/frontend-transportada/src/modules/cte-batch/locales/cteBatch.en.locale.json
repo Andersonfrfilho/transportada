@@ -75,6 +75,7 @@
     "cancel": "Cancel batch",
     "reprocess": "Reprocess",
     "download": "Download XML",
+    "exportSelection": "Download XML ({{count}} batch(es))",
     "openItems": "View CT-es",
     "closeItems": "Close CT-es",
     "track": "Track",
@@ -136,6 +137,7 @@
     "export": {
       "pending": "Preparing the ZIP",
       "errors": {
+        "batchLimitExceeded": "Select at most 100 batches per export",
         "empty": "No authorized CT-e in the selected scope",
         "forbidden": "Not allowed to export CT-e XML",
         "limitExceeded": "Select at most 500 CT-es per export",

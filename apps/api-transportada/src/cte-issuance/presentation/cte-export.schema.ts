@@ -20,6 +20,7 @@ const OPTIONAL_TEXT_LIST = z.array(z.string()).optional()
 const exportFiltersSchema = z
   .object({
     batchId: OPTIONAL_TEXT,
+    batchIdIn: OPTIONAL_TEXT_LIST,
     cteNumberGte: OPTIONAL_TEXT,
     cteNumberIn: OPTIONAL_TEXT_LIST,
     cteNumberLte: OPTIONAL_TEXT,

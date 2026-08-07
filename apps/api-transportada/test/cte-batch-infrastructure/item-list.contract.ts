@@ -9,6 +9,7 @@ import { buildCompanyItemFilters } from '../../src/cte-batches/infrastructure/dr
 
 const BATCH_ID = '00000000-0000-4000-8000-000000000501'
 const COMPANY_ID = '00000000-0000-4000-8000-000000000502'
+const OTHER_BATCH_ID = '00000000-0000-4000-8000-000000000503'
 const ITEM_ID = '00000000-0000-4000-8000-000000000507'
 const CURSOR_AT = new Date('2026-07-22T20:00:00.000Z')
 const CURSOR_AT_PARAM = CURSOR_AT.toISOString()
@@ -114,6 +115,17 @@ describe('CT-e item listing query shape', () => {
 
     expect(query.sql).toContain('"cte_batch_items"."batch_id" = $')
     expect(query.params).toEqual([COMPANY_ID, BATCH_ID])
+  })
+
+  test('filters a set of batches without losing the company scope', () => {
+    const query = listFilters({
+      companyId: COMPANY_ID,
+      cursor: null,
+      filters: { batchIdIn: [BATCH_ID, OTHER_BATCH_ID] },
+    })
+
+    expect(query.sql).toContain('"cte_batch_items"."batch_id" in (')
+    expect(query.params).toEqual([COMPANY_ID, BATCH_ID, OTHER_BATCH_ID])
   })
 
   test('ranges the CT-e number over the fiscal document, falling back to the attempt', () => {

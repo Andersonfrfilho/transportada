@@ -75,6 +75,7 @@
     "cancel": "Cancelar lote",
     "reprocess": "Reprocessar",
     "download": "Baixar XML",
+    "exportSelection": "Baixar XML ({{count}} lote(s))",
     "openItems": "Ver CT-es",
     "closeItems": "Fechar CT-es",
     "track": "Acompanhar",
@@ -136,6 +137,7 @@
     "export": {
       "pending": "Preparando o ZIP",
       "errors": {
+        "batchLimitExceeded": "Selecione no máximo 100 lotes por exportação",
         "empty": "Nenhum CT-e autorizado no recorte selecionado",
         "forbidden": "Sem permissão para exportar XML de CT-e",
         "limitExceeded": "Selecione no máximo 500 CT-es por exportação",

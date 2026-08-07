@@ -10,10 +10,14 @@ import {
 /** Mesmo teto de `CTE_EXPORT_MAX_DOCUMENTS` na API — acima dele a requisição volta 422. */
 export const CTE_EXPORT_MAX_ITEMS = 500
 
+/** Mesmo teto de `MAX_BATCH_ID_LIST` na API — a lista de lotes vira um `in (...)`, não uma varredura. */
+export const CTE_EXPORT_MAX_BATCHES = 100
+
 /** O ZIP só existe para CT-e autorizado; os chips da listagem não decidem o recorte exportável. */
 const CTE_EXPORT_STATUSES: readonly string[] = ['authorized']
 
 export const CTE_EXPORT_ERROR = {
+  BATCH_LIMIT_EXCEEDED: 'CTE_EXPORT_BATCH_LIMIT_EXCEEDED',
   EMPTY_SELECTION: 'CTE_EXPORT_EMPTY_SELECTION',
   LIMIT_EXCEEDED: 'CTE_EXPORT_LIMIT_EXCEEDED',
 } as const
@@ -21,6 +25,7 @@ export const CTE_EXPORT_ERROR = {
 export const CTE_EXPORT_UNKNOWN_MESSAGE_KEY = 'cteItems.export.errors.unknown'
 
 const CTE_EXPORT_MESSAGE_KEYS: Readonly<Record<string, string>> = {
+  CTE_EXPORT_BATCH_LIMIT_EXCEEDED: 'cteItems.export.errors.batchLimitExceeded',
   CTE_EXPORT_EMPTY: 'cteItems.export.errors.empty',
   CTE_EXPORT_EMPTY_SELECTION: 'cteItems.export.errors.empty',
   CTE_EXPORT_LIMIT_EXCEEDED: 'cteItems.export.errors.limitExceeded',
@@ -31,6 +36,7 @@ export type CteExportScope = 'filters' | 'selection'
 
 export type CteExportFilterPayload = Readonly<{
   batchId?: string
+  batchIdIn?: readonly string[]
   cteNumberGte?: string
   cteNumberIn?: readonly string[]
   cteNumberLte?: string
@@ -113,6 +119,27 @@ export function buildCteExportRequest(
     throw new Error(CTE_EXPORT_ERROR.LIMIT_EXCEEDED)
   }
   return { itemIds: [...input.selectedIds] }
+}
+
+/**
+ * A seleção de lotes exporta pelo filtro de lotes, não por item: a tela dos lotes não conhece os
+ * identificadores dos CT-es, e recortar por `batchIdIn` deixa o corte de autorizados na API.
+ */
+export function buildCteBatchExportRequest(
+  input: Readonly<{ selectedBatchIds: readonly string[] }>,
+): CteExportRequestBody {
+  if (input.selectedBatchIds.length === 0) throw new Error(CTE_EXPORT_ERROR.EMPTY_SELECTION)
+  if (input.selectedBatchIds.length > CTE_EXPORT_MAX_BATCHES) {
+    throw new Error(CTE_EXPORT_ERROR.BATCH_LIMIT_EXCEEDED)
+  }
+  return { filters: { batchIdIn: [...input.selectedBatchIds], statusIn: CTE_EXPORT_STATUSES } }
+}
+
+export function canExportCteBatchSelection(
+  input: Readonly<{ permissions: readonly string[]; selectedCount: number }>,
+): boolean {
+  if (!canExportCteXml(input)) return false
+  return input.selectedCount > 0 && input.selectedCount <= CTE_EXPORT_MAX_BATCHES
 }
 
 export function canExportCteXml(input: Readonly<{ permissions: readonly string[] }>): boolean {

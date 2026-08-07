@@ -2,7 +2,7 @@
 import { useMutation } from '@tanstack/react-query'
 
 import { getCteBatchItemClient } from '../queries/cteBatchItems.query'
-import type { CteItemExportFile } from '../shared/cteBatchItemClient.service'
+import { saveCteArchive } from '../shared/cteArchiveDownload.service'
 import {
   buildCteExportRequest,
   canExportCteSelection,
@@ -19,19 +19,6 @@ type UseCteItemExportInput = Readonly<{
   selectedIds: readonly string[]
 }>
 
-/** O ZIP chega como blob: sem âncora temporária o navegador abriria binário na aba. */
-function saveArchive(file: CteItemExportFile): void {
-  if (typeof document === 'undefined') return
-  const objectUrl = URL.createObjectURL(file.blob)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = file.fileName
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  URL.revokeObjectURL(objectUrl)
-}
-
 export function useCteItemExport(input: UseCteItemExportInput) {
   const exportMutation = useMutation({
     mutationFn: async (scope: CteExportScope) => {
@@ -40,7 +27,7 @@ export function useCteItemExport(input: UseCteItemExportInput) {
         scope,
         selectedIds: input.selectedIds,
       })
-      saveArchive(await getCteBatchItemClient().exportCompanyItems(body))
+      saveCteArchive(await getCteBatchItemClient().exportCompanyItems(body))
     },
   })
 

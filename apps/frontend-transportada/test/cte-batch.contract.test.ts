@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './cte-batch/batch-billing.contract.js'
+import './cte-batch/batch-export.contract.js'
 import './cte-batch/batch-submission-progress.contract.js'
 import './cte-batch/client-and-queries.contract.js'
 import './cte-batch/filter-date-range.contract.js'

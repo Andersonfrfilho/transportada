@@ -72,6 +72,7 @@ export type CompanyCteItem = CteBatchItem & {
 
 export type CompanyCteItemFilters = {
   readonly batchId?: string
+  readonly batchIdIn?: readonly string[]
   readonly billingStatusIn?: readonly string[]
   readonly cteNumberGte?: string
   readonly cteNumberIn?: readonly string[]

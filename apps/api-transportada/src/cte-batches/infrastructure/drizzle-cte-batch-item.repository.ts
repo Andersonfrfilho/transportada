@@ -212,6 +212,9 @@ export function buildCompanyItemFilters(input: CompanyCteItemFilterInput): SQL[]
   if (filters.batchId !== undefined) {
     conditions.push(eq(cteBatchItems.batchId, filters.batchId))
   }
+  if (filters.batchIdIn !== undefined) {
+    conditions.push(inArray(cteBatchItems.batchId, [...filters.batchIdIn]))
+  }
   if (filters.issuedFrom !== undefined) {
     conditions.push(gte(cteBatchItems.createdAt, new Date(filters.issuedFrom)))
   }

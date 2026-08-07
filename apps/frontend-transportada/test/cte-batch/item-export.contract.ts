@@ -12,6 +12,7 @@ const API_URL = 'https://api.transportada.test'
 /** Espelha a allowlist de `exportFiltersSchema` na API — chave fora dela devolve 400. */
 const ALLOWED_FILTER_KEYS: readonly string[] = [
   'batchId',
+  'batchIdIn',
   'cteNumberGte',
   'cteNumberIn',
   'cteNumberLte',
