@@ -80,6 +80,7 @@ describe('buildCtePayload — golden CT-e 3526…8240', () => {
     expect(payload.valorTotalReceber).toBe(43.13)
     expect(payload.componentesValor).toEqual([{ vComp: 43.13, xNome: GOLDEN_CHARGE_LABEL }])
     expect(payload.carga.vCarga).toBe(958.48)
+    expect(payload.carga.vCargaAverb).toBe(958.48)
     expect(payload.carga.proPred).toBe(GOLDEN_PREDOMINANT_PRODUCT)
     expect(payload.carga.quantidades).toEqual([
       { cUnid: '03', qCarga: 8, tpMed: 'UN' },
@@ -137,6 +138,28 @@ describe('buildCtePayload — golden CT-e 3526…8240', () => {
     expect(payload.modal).toEqual({ modal: '01', rntrc: '58151044' })
     expect(payload.informacoesAdicionais).toBe(GOLDEN_OBSERVATIONS)
     expect(payload.icms).toEqual({ cst: '90' })
+  })
+})
+
+// Os 166 CT-es reais autorizados trazem vCargaAverb igual ao valor das notas — é o valor que a
+// seguradora averba. Sem ele a carga viaja sem cobertura declarada no documento fiscal.
+describe('buildCtePayload — averbação da carga', () => {
+  test('declara o valor de averbação igual ao valor da carga', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.carga.vCargaAverb).toBe(payload.carga.vCarga)
+  })
+
+  test('averba a soma das notas quando o CT-e agrupa mais de uma', () => {
+    const payload = buildCtePayload(buildGoldenParams({ invoices: GROUPED_INVOICES }))
+
+    expect(payload.carga.vCargaAverb).toBe(430.5)
+  })
+
+  test('averba o valor das notas, não o valor da prestação', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.carga.vCargaAverb).not.toBe(payload.valorTotalPrestacao)
   })
 })
 

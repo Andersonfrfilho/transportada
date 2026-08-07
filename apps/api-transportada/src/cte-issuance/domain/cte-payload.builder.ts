@@ -168,6 +168,8 @@ export function buildCtePayload(params: BuildCtePayloadParams): CteData {
       proPred: resolvePredominantProduct({ invoices, profile }),
       quantidades: composeCargoQuantities(invoices),
       vCarga: toMoney(cargoScaled),
+      // O valor averbado é o da mercadoria, não o da prestação: é o que a seguradora cobre.
+      vCargaAverb: toMoney(cargoScaled),
     },
     cfop: isInterstate ? profile.cfopInterstate : profile.cfopInternal,
     componentesValor: charge.components.map((component) => ({
