@@ -3,12 +3,15 @@
  */
 import type { RabbitMqDisposition } from '@adatechnology/rabbitmq-provider'
 
+import { safeLogError } from '../../logging/safe-logger.service.js'
 import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
   calculateCteRetryNextAttemptAt,
   isCteRetryExhausted,
   type CteRetryPolicy,
 } from '../domain/cte-retry.policy.js'
+import { describeCteUnknownError } from '../domain/cte-unknown-error.policy.js'
 
 type CteIssuanceWorkerClock = {
   now(): Date
@@ -29,6 +32,9 @@ type CteIssuanceWorkerRepository = {
   hasProcessed(params: CteIssuanceMessageKey): Promise<boolean>
   markDeadLettered(params: CteIssuanceMessageKey & { readonly reason: string }): Promise<void>
   markProcessed(params: CteIssuanceMessageKey): Promise<void>
+  markReconciliationRequired(
+    params: CteIssuanceMessageKey & { readonly reason: string },
+  ): Promise<void>
   scheduleRetry(
     params: CteIssuanceMessageKey & { readonly attempt: number; readonly nextAttemptAt: Date },
   ): Promise<void>
@@ -49,17 +55,20 @@ export type CteRetryPolicyResolver = {
 export class CteIssuanceWorkerMessageHandler {
   readonly #clock: CteIssuanceWorkerClock
   readonly #effect: CteIssuanceWorkerEffect
+  readonly #logger: WorkerLogger
   readonly #retryPolicyResolver: CteRetryPolicyResolver
   readonly #repository: CteIssuanceWorkerRepository
 
   constructor(params: {
     readonly clock: CteIssuanceWorkerClock
     readonly effect: CteIssuanceWorkerEffect
+    readonly logger: WorkerLogger
     readonly retryPolicyResolver: CteRetryPolicyResolver
     readonly repository: CteIssuanceWorkerRepository
   }) {
     this.#clock = params.clock
     this.#effect = params.effect
+    this.#logger = params.logger
     this.#retryPolicyResolver = params.retryPolicyResolver
     this.#repository = params.repository
   }
@@ -93,8 +102,59 @@ export class CteIssuanceWorkerMessageHandler {
         return { type: 'dead-letter' }
       }
 
-      throw error
+      return this.#handleUnknownError({
+        attempt: params.attempt,
+        envelope: params.envelope,
+        error,
+        messageKey,
+      })
     }
+  }
+
+  /**
+   * Relançar deixava a tentativa em `in_flight` para sempre e a mensagem em reentrega infinita —
+   * foi assim que três CT-es ficaram "Transmitindo" enquanto a SEFAZ recebia a mesma emissão.
+   * O item volta para conciliação: pode ter sido autorizado sem a resposta chegar até nós.
+   */
+  async #handleUnknownError(params: {
+    readonly attempt: number
+    readonly envelope: CteProcessingEnvelopeV1
+    readonly error: unknown
+    readonly messageKey: CteIssuanceMessageKey
+  }): Promise<RabbitMqDisposition> {
+    const description = describeCteUnknownError(params.error)
+
+    safeLogError({
+      logger: this.#logger,
+      message: 'cte_issuance_worker_unexpected_error',
+      metadata: {
+        attemptFingerprint: params.envelope.payload.attemptFingerprint,
+        attemptId: params.envelope.payload.attemptId,
+        attemptKind: params.envelope.payload.attemptKind,
+        batchId: params.envelope.payload.batchId,
+        batchItemId: params.envelope.payload.batchItemId,
+        cause: description.cause,
+        companyId: params.envelope.companyId,
+        correlationId: params.envelope.correlationId,
+        deliveryAttempt: params.attempt,
+        envelopeType: params.envelope.type,
+        envelopeVersion: params.envelope.version,
+        errorCauses: description.errorCauses,
+        errorMessage: description.errorMessage,
+        errorName: description.errorName,
+        errorStack: description.errorStack,
+        eventId: params.envelope.eventId,
+        occurredAt: params.envelope.occurredAt,
+        payloadStatus: params.envelope.payload.status,
+      },
+    })
+
+    await this.#repository.markReconciliationRequired({
+      ...params.messageKey,
+      reason: description.cause,
+    })
+
+    return { type: 'dead-letter' }
   }
 
   async #handleRecoverableError(params: {

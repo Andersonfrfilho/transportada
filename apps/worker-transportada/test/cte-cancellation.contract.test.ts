@@ -370,6 +370,7 @@ async function startConsumerFixture(input: {
       hasProcessed: async () => false,
       markDeadLettered: async () => {},
       markProcessed: async () => {},
+      markReconciliationRequired: async () => {},
       scheduleRetry: async () => {},
     },
     retryPolicyResolver: {

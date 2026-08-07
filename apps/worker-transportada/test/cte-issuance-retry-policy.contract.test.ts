@@ -104,6 +104,7 @@ function createScenario(
 
   const handler = new CteIssuanceWorkerMessageHandler({
     clock: { now: () => now },
+    logger: { error: () => {}, info: () => {}, warn: () => {} },
     effect: {
       async execute() {
         throw new CteIssuanceRecoverableError('sefaz timeout')
@@ -123,6 +124,7 @@ function createScenario(
         deadLetters.push(input.reason)
       },
       async markProcessed(): Promise<void> {},
+      async markReconciliationRequired(): Promise<void> {},
       async scheduleRetry(input: {
         readonly attempt: number
         readonly nextAttemptAt: Date

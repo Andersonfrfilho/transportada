@@ -39,6 +39,14 @@ const NON_SETTLED_STATUSES: readonly CteIssuanceItemStatus[] = CTE_ISSUANCE_ITEM
   (status) => !isSettledCteIssuanceStatus(status),
 )
 
+type CteIssuanceSettlementInput = {
+  readonly attemptId: string
+  readonly batchItemId: string
+  readonly cause: string
+  readonly companyId: string
+  readonly occurredAt: Date
+}
+
 type AttemptTransition = {
   readonly key: CteIssuanceWriteBackKey
   readonly eventPayload: Record<string, unknown>
@@ -193,17 +201,22 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
     })
   }
 
-  async recordFailed(input: {
-    readonly attemptId: string
-    readonly batchItemId: string
-    readonly cause: string
-    readonly companyId: string
-    readonly occurredAt: Date
-  }): Promise<void> {
+  async recordFailed(input: CteIssuanceSettlementInput): Promise<void> {
+    await this.#settleWithCause({ ...input, status: 'failed' })
+  }
+
+  /** Erro sem desfecho conhecido: a emissão pode ter chegado à SEFAZ, então o item vai a conciliação. */
+  async recordReconciliationRequired(input: CteIssuanceSettlementInput): Promise<void> {
+    await this.#settleWithCause({ ...input, status: 'reconciliation_required' })
+  }
+
+  async #settleWithCause(
+    input: CteIssuanceSettlementInput & { readonly status: CteIssuanceItemStatus },
+  ): Promise<void> {
     await this.#database.transaction(async (transaction) => {
       const [updated] = await transaction
         .update(cteIssuanceAttempts)
-        .set({ lastErrorCause: input.cause, status: 'failed', updatedAt: input.occurredAt })
+        .set({ lastErrorCause: input.cause, status: input.status, updatedAt: input.occurredAt })
         .where(
           and(
             eq(cteIssuanceAttempts.companyId, input.companyId),
@@ -227,7 +240,7 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
 
       await insertIssuanceEvent(transaction, {
         key,
-        eventName: 'failed',
+        eventName: input.status,
         payload: { cause: input.cause },
       })
       await synchronizeBatchStatus(transaction, key)

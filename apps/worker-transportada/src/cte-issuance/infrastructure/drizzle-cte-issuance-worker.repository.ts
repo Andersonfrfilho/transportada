@@ -24,14 +24,17 @@ type DrizzleCteIssuanceWorkerRepositoryInput = {
   readonly nextAttemptAt: Date
 }
 
+type CteIssuanceFailureWriteBackInput = {
+  readonly attemptId: string
+  readonly batchItemId: string
+  readonly cause: string
+  readonly companyId: string
+  readonly occurredAt: Date
+}
+
 type CteIssuanceFailureWriteBack = {
-  recordFailed(input: {
-    readonly attemptId: string
-    readonly batchItemId: string
-    readonly cause: string
-    readonly companyId: string
-    readonly occurredAt: Date
-  }): Promise<void>
+  recordFailed(input: CteIssuanceFailureWriteBackInput): Promise<void>
+  recordReconciliationRequired(input: CteIssuanceFailureWriteBackInput): Promise<void>
 }
 
 export class DrizzleCteIssuanceWorkerRepository {
@@ -85,24 +88,47 @@ export class DrizzleCteIssuanceWorkerRepository {
   async markDeadLettered(
     params: CteIssuanceMessageKey & { readonly reason: string },
   ): Promise<void> {
-    if (await this.hasProcessed(params)) {
+    await this.#settle({
+      key: params,
+      reason: params.reason,
+      write: async (input) => this.#writeBack?.recordFailed(input),
+    })
+  }
+
+  /** O erro desconhecido pode ter acontecido depois da transmissão: só a SEFAZ sabe o desfecho. */
+  async markReconciliationRequired(
+    params: CteIssuanceMessageKey & { readonly reason: string },
+  ): Promise<void> {
+    await this.#settle({
+      key: params,
+      reason: params.reason,
+      write: async (input) => this.#writeBack?.recordReconciliationRequired(input),
+    })
+  }
+
+  async #settle(input: {
+    readonly key: CteIssuanceMessageKey
+    readonly reason: string
+    readonly write: (params: CteIssuanceFailureWriteBackInput) => Promise<void>
+  }): Promise<void> {
+    if (await this.hasProcessed(input.key)) {
       return
     }
 
     const occurredAt = new Date()
 
-    await this.#writeBack?.recordFailed({
-      attemptId: params.attemptId,
-      batchItemId: params.batchItemId,
-      cause: params.reason,
-      companyId: params.companyId,
+    await input.write({
+      attemptId: input.key.attemptId,
+      batchItemId: input.key.batchItemId,
+      cause: input.reason,
+      companyId: input.key.companyId,
       occurredAt,
     })
 
     await this.#insertMarker({
-      key: params,
+      key: input.key,
       processedAt: occurredAt,
-      result: { reason: params.reason },
+      result: { reason: input.reason },
     })
   }
 
