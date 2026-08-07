@@ -254,10 +254,17 @@ test('admin acompanha a transmissão em lote pela barra de progresso no desktop'
   await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
 
   await expect.poll(api.submissions).toBe(1)
-  const progress = page.getByRole('progressbar', { name: 'Progresso da transmissão dos lotes' })
-  await expect(progress).toHaveAttribute('aria-valuenow', '100')
+  const queueing = page.getByRole('progressbar', { name: 'Progresso do enfileiramento dos lotes' })
+  await expect(queueing).toHaveAttribute('aria-valuenow', '100')
   await expect(page.getByText('100% — 1 de 1 lote(s)')).toBeVisible()
-  await expect(page.getByText('1 transmitido(s) · 0 com erro')).toBeVisible()
+  await expect(page.getByText('1 na fila · 0 com erro')).toBeVisible()
+  // Enfileirar não é transmitir: a barra da SEFAZ só fecha quando a resposta chega.
+  const awaiting = page.getByRole('progressbar', { name: 'Progresso da transmissão para a SEFAZ' })
+  await expect(awaiting).toHaveAttribute('aria-valuenow', '0')
+  await expect(page.getByText('0% — 0 de 1 lote(s) com resposta da SEFAZ')).toBeVisible()
+  await expect(
+    page.getByText('1 lote(s) ainda transmitindo — a tela atualiza sozinha.'),
+  ).toBeVisible()
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
@@ -372,7 +379,7 @@ test('operador baixa o ZIP de XML por seleção e por filtro no desktop', async 
 
   const [selectionDownload] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Baixar XML (1 CT-e(s))' }).click(),
+    page.getByRole('button', { name: 'Baixar (1 CT-e(s))' }).click(),
   ])
   expect(selectionDownload.suggestedFilename()).toBe(CTE_EXPORT_FILE_NAME)
   const selectionPath = await selectionDownload.path()
@@ -383,14 +390,15 @@ test('operador baixa o ZIP de XML por seleção e por filtro no desktop', async 
   await page.getByRole('textbox', { name: 'Número do CT-e' }).fill('5000')
   const [filteredDownload] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Baixar XML do filtro (1 filtro(s))' }).click(),
+    page.getByRole('button', { name: 'Baixar do filtro (1 filtro(s))' }).click(),
   ])
   expect(filteredDownload.suggestedFilename()).toBe(CTE_EXPORT_FILE_NAME)
 
   // O recorte sai como filtro no corpo, sem companyId: a empresa é a do contexto autenticado.
+  // O formato viaja explícito desde que a tela passou a oferecer XML, PDF ou os dois.
   expect(api.exportBodies().map((body) => JSON.parse(body) as unknown)).toEqual([
-    { itemIds: [CTE_ITEM_ID] },
-    { filters: { cteNumberIn: ['5000'], statusIn: ['authorized'] } },
+    { format: 'xml', itemIds: [CTE_ITEM_ID] },
+    { filters: { cteNumberIn: ['5000'], statusIn: ['authorized'] }, format: 'xml' },
   ])
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
