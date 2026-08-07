@@ -10,6 +10,7 @@ import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import { collectBillableBatches } from '../shared/cteBatchBilling.service'
 import type { CteBatchSummary } from '../shared/cteBatchClient.service'
 import { canCancelBatch, canTransmitBatch } from '../shared/cteBatchItemActions.service'
+import { resolveCteBatchTransmissionSummary } from '../shared/cteBatchProgress.service'
 import {
   CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE,
   type CteBatchSubmissionOutcome,
@@ -45,6 +46,10 @@ export function CteBatchSelectionBar({
   const billable = collectBillableBatches({ batches: table.selectedBatches, permissions })
   const failed = submission.outcomes.filter((outcome) => outcome.errorCode !== undefined)
   const hasProgress = submission.isSubmitting || submission.outcomes.length > 0
+  const transmission = resolveCteBatchTransmissionSummary({
+    batchIds: submission.submittedBatchIds,
+    batches: table.batches,
+  })
 
   function renderFailure(outcome: CteBatchSubmissionOutcome) {
     const code = outcome.errorCode ?? CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE
@@ -118,6 +123,25 @@ export function CteBatchSelectionBar({
               successCount: submission.progress.successCount,
             })}
           </p>
+          {transmission.total === 0 ? null : (
+            <>
+              <ProgressBar
+                completed={transmission.settled}
+                label={t('transmission.awaiting.label')}
+                total={transmission.total}
+                valueText={t('transmission.awaiting.value', {
+                  percent: transmission.percent,
+                  settled: transmission.settled,
+                  total: transmission.total,
+                })}
+              />
+              <p className={styles.summaryLine} role="status">
+                {transmission.isComplete
+                  ? t('transmission.awaiting.complete')
+                  : t('transmission.awaiting.pending', { count: transmission.transmitting })}
+              </p>
+            </>
+          )}
           {failed.length === 0 ? null : (
             <ul aria-live="polite" className={styles.billingList}>
               {failed.map(renderFailure)}

@@ -89,6 +89,8 @@ export function useCteBatchTable(input: Readonly<{ batches: readonly CteBatchSum
   return {
     activeFilterCount,
     advancedFilter,
+    /** A lista relida inteira, antes de filtro: é nela que se lê o estado real da transmissão. */
+    batches: input.batches,
     addConditionGroup: () =>
       setAdvancedFilter((current) => ({
         ...current,

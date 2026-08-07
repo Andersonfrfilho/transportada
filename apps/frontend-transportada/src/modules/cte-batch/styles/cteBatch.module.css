@@ -320,6 +320,17 @@
   font-size: 0.7rem;
 }
 
+.refreshCountdown {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
 .summaryLine {
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 92%, white 8%);

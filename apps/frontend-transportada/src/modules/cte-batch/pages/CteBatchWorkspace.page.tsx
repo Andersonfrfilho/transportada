@@ -14,6 +14,7 @@ import { CteBatchItemsPanel } from '../components/CteBatchItemsPanel.component'
 import { CteBatchTable } from '../components/CteBatchTable.component'
 import { CteBillingDialog } from '../components/CteBillingDialog.component'
 import { CteItemTable } from '../components/CteItemTable.component'
+import { RefreshCountdown } from '../components/RefreshCountdown.component'
 import { useCteBatchItems } from '../hooks/useCteBatchItems.hook'
 import { useCteBatchSubmission } from '../hooks/useCteBatchSubmission.hook'
 import { useCteBatchTable } from '../hooks/useCteBatchTable.hook'
@@ -21,6 +22,7 @@ import { useCteBatchWorkspace } from '../hooks/useCteBatchWorkspace.hook'
 import { useCteBillingDialog } from '../hooks/useCteBillingDialog.hook'
 import { useCteItemTable } from '../hooks/useCteItemTable.hook'
 import type { CteBatchSummary } from '../shared/cteBatchClient.service'
+import { resolveCteBatchProgressInterval } from '../shared/cteBatchProgress.service'
 import styles from '../styles/cteBatch.module.css'
 
 const AUTH_SKELETON_FIELD_WIDTHS: readonly string[] = ['70%', '45%', '85%', '55%']
@@ -152,6 +154,12 @@ export function CteBatchWorkspacePage() {
               {t('error')}
             </p>
           ) : null}
+          {workspace.batchesQuery.isLoading ? null : (
+            <RefreshCountdown
+              intervalMs={resolveCteBatchProgressInterval(workspace.batchesQuery.data)}
+              updatedAt={workspace.batchesQuery.dataUpdatedAt}
+            />
+          )}
           {workspace.batchesQuery.isLoading ? null : (
             <CteBatchTable
               actions={{

@@ -4,6 +4,10 @@
   "intro": "Acompanhe os lotes gerados a partir das notas, transmita para a SEFAZ e trate rejeições item a item.",
   "loading": "Carregando lotes",
   "error": "Não foi possível carregar os lotes",
+  "refresh": {
+    "countdown": "Atualizando em {{seconds}}s",
+    "now": "Atualizando…"
+  },
   "empty": "Nenhum lote encontrado",
   "forbidden": "Seu acesso atual não permite consultar os lotes de CT-e",
   "dateRange": {
@@ -261,11 +265,17 @@
     "bulkTransmit": "Transmitir os lotes selecionados",
     "transmitting": "Transmitindo...",
     "progress": {
-      "title": "Progresso da transmissão",
-      "label": "Progresso da transmissão dos lotes",
+      "title": "Fila de transmissão",
+      "label": "Progresso do enfileiramento dos lotes",
       "value": "{{percent}}% — {{completed}} de {{total}} lote(s)",
-      "summary": "{{successCount}} transmitido(s) · {{errorCount}} com erro",
+      "summary": "{{successCount}} na fila · {{errorCount}} com erro",
       "failed": "{{name}} — {{reason}}"
+    },
+    "awaiting": {
+      "label": "Progresso da transmissão para a SEFAZ",
+      "value": "{{percent}}% — {{settled}} de {{total}} lote(s) com resposta da SEFAZ",
+      "pending": "{{count}} lote(s) ainda transmitindo — a tela atualiza sozinha.",
+      "complete": "Todos os lotes da fila receberam resposta da SEFAZ."
     },
     "reasons": {
       "unknown": "não foi possível transmitir ({{code}})",

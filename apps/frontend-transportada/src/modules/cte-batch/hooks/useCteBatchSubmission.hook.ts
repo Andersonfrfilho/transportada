@@ -50,6 +50,10 @@ export function useCteBatchSubmission(input: UseCteBatchSubmissionInput) {
     outcomes,
     progress: resolveCteBatchSubmissionProgress({ completed, outcomes, total }),
     submit,
+    /** Lote recusado no enfileiramento nunca chega à SEFAZ — só o aceito entra na conta da transmissão. */
+    submittedBatchIds: outcomes
+      .filter((outcome) => outcome.errorCode === undefined)
+      .map((outcome) => outcome.batchId),
     total,
   }
 }

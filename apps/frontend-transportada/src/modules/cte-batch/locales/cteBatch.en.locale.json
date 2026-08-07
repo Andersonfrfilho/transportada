@@ -4,6 +4,10 @@
   "intro": "Track the batches generated from invoices, transmit them to SEFAZ and handle rejections item by item.",
   "loading": "Loading batches",
   "error": "Could not load the batches",
+  "refresh": {
+    "countdown": "Refreshing in {{seconds}}s",
+    "now": "Refreshing…"
+  },
   "empty": "No batch found",
   "forbidden": "Your current access does not allow browsing CT-e batches",
   "dateRange": {
@@ -261,11 +265,17 @@
     "bulkTransmit": "Transmit the selected batches",
     "transmitting": "Transmitting...",
     "progress": {
-      "title": "Transmission progress",
-      "label": "Batch transmission progress",
+      "title": "Queueing progress",
+      "label": "Batch queueing progress",
       "value": "{{percent}}% — {{completed}} of {{total}} batch(es)",
-      "summary": "{{successCount}} transmitted · {{errorCount}} failed",
+      "summary": "{{successCount}} queued · {{errorCount}} failed",
       "failed": "{{name}} — {{reason}}"
+    },
+    "awaiting": {
+      "label": "SEFAZ transmission progress",
+      "value": "{{percent}}% — {{settled}} of {{total}} batch(es) answered by SEFAZ",
+      "pending": "{{count}} batch(es) still transmitting — this screen refreshes itself.",
+      "complete": "Every queued batch was answered by SEFAZ."
     },
     "reasons": {
       "unknown": "could not transmit ({{code}})",
