@@ -9,12 +9,12 @@
 # `step` que o runbook manda ler nunca é escrito.
 set -Eeuo pipefail
 
-readonly OBJECT_PREFIX='db-backups'
-readonly MANIFEST_KEY="${OBJECT_PREFIX}/manifest.jsonl"
+readonly OBJECT_ROOT='db-backups'
 readonly STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
 readonly REQUIRED_VARIABLES=(
   APP_DATABASE_URL
   KEYCLOAK_DATABASE_URL
+  BACKUP_ENVIRONMENT
   BACKUP_ENCRYPTION_KEY
   BACKUP_S3_ENDPOINT
   BACKUP_S3_BUCKET
@@ -26,6 +26,10 @@ readonly REQUIRED_VARIABLES=(
 CURRENT_STEP=boot
 RETENTION=daily
 WORK_DIRECTORY=''
+# Só depois da validação: o bucket de ops serve os dois ambientes, e um prefixo montado sobre
+# `BACKUP_ENVIRONMENT` vazio juntaria staging e production no mesmo manifesto.
+OBJECT_PREFIX=''
+MANIFEST_KEY=''
 
 log() {
   printf '{"level":"%s","event":"%s","at":"%s","service":"backup"%s}\n' \
@@ -182,6 +186,8 @@ push_heartbeat() {
 run_cycle() {
   CURRENT_STEP=validate
   require_variables
+  OBJECT_PREFIX="${OBJECT_ROOT}/${BACKUP_ENVIRONMENT}"
+  MANIFEST_KEY="${OBJECT_PREFIX}/manifest.jsonl"
   RETENTION="$(retention_for_today)"
   WORK_DIRECTORY="$(mktemp -d)"
   : >"${WORK_DIRECTORY}/lines.jsonl"

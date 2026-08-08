@@ -84,6 +84,20 @@ describe('contrato do teste mensal de restore', () => {
     expect(content).not.toContain('aws s3 ls')
   })
 
+  /**
+   * O bucket guarda os dois ambientes. Sem o ambiente no caminho o job lê o manifesto errado, e
+   * ler o de staging para dizer que production restaura é pior do que não testar. Vazio colapsa
+   * o caminho para `db-backups//manifest.jsonl`, que existe em ambiente nenhum: falha fechada.
+   */
+  test('o manifesto lido é o do ambiente declarado, e sem ele o job para', async () => {
+    const content = await readWorkflow()
+    const guard = (await readSteps())[0]?.run ?? ''
+
+    expect(content).toContain('BACKUP_ENVIRONMENT: ${{ vars.BACKUP_ENVIRONMENT }}')
+    expect(content).toContain('db-backups/${BACKUP_ENVIRONMENT}/manifest.jsonl')
+    expect(guard).toContain('BACKUP_ENVIRONMENT')
+  })
+
   test('o ciclo restaurado é o dos dois bancos, não só o da aplicação', async () => {
     const content = await readWorkflow()
 

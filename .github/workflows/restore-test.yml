@@ -36,6 +36,7 @@ jobs:
       BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
       BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
       BACKUP_S3_REGION: ${{ vars.BACKUP_S3_REGION }}
+      BACKUP_ENVIRONMENT: ${{ vars.BACKUP_ENVIRONMENT }}
       RESTORE_HEARTBEAT_URL: ${{ secrets.RESTORE_HEARTBEAT_URL }}
       RESTORE_TARGET_URL: postgresql://postgres:postgres@localhost:5432
     steps:
@@ -51,6 +52,13 @@ jobs:
             echo "::error::alvo '$host' não é o contêiner efêmero — este job nunca escreve em banco real."
             exit 1
           fi
+          # O bucket de ops guarda os dois ambientes. Sem esta variável o caminho colapsa para
+          # `db-backups//manifest.jsonl` e o job diria "verde" sobre um manifesto que não é de
+          # ninguém — ou, pior, sobre o de staging.
+          if [ -z "${BACKUP_ENVIRONMENT:-}" ]; then
+            echo "::error::BACKUP_ENVIRONMENT vazio — o job não adivinha de qual ambiente é o backup."
+            exit 1
+          fi
 
       # O ciclo sai da última linha do manifesto, não do objeto mais novo do bucket: um ciclo que
       # morreu entre o upload da aplicação e o do Keycloak deixa `.enc` órfão e nenhuma linha, e
@@ -64,7 +72,7 @@ jobs:
             aws s3 cp "s3://${BACKUP_S3_BUCKET}/$1" "$2" \
               --endpoint-url "$BACKUP_S3_ENDPOINT" --region "$BACKUP_S3_REGION" --quiet
           }
-          fetch db-backups/manifest.jsonl manifest.jsonl
+          fetch "db-backups/${BACKUP_ENVIRONMENT}/manifest.jsonl" manifest.jsonl
           stamp="$(tail -n 1 manifest.jsonl | jq -r .stamp)"
           grep -F "\"stamp\":\"${stamp}\"" manifest.jsonl > cycle.jsonl
           lines="$(wc -l < cycle.jsonl | tr -d ' ')"

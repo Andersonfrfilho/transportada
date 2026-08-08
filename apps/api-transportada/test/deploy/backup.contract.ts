@@ -78,6 +78,27 @@ describe('contrato do serviço backup', () => {
     }
   })
 
+  /**
+   * O bucket de ops serve os dois ambientes. Sem o ambiente no caminho, staging e production
+   * dividem `db-backups/daily/` e a mesma `manifest.jsonl` — e o teste mensal, que restaura a
+   * última linha do manifesto, restauraria staging jurando que provou production.
+   */
+  test('cada ambiente escreve no seu prefixo, e no seu manifesto', async () => {
+    const script = await readScript()
+
+    const required = script.slice(
+      positionOf(script, 'REQUIRED_VARIABLES=('),
+      positionOf(script, 'CURRENT_STEP=boot'),
+    )
+
+    expect(required).toContain('BACKUP_ENVIRONMENT')
+    expect(script).toMatch(/OBJECT_PREFIX="\$\{OBJECT_ROOT\}\/\$\{BACKUP_ENVIRONMENT\}"/)
+    expect(script).toMatch(/MANIFEST_KEY="\$\{OBJECT_PREFIX\}\/manifest\.jsonl"/)
+    expect(positionOf(script, 'OBJECT_PREFIX="${OBJECT_ROOT}')).toBeGreaterThan(
+      positionOf(script, 'require_variables\n'),
+    )
+  })
+
   test('domingo é semanal, e cada prefixo tem a sua janela de retenção', async () => {
     const script = await readScript()
 

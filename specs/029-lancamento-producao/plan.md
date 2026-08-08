@@ -73,16 +73,16 @@ do monorepo e não participam do `bun install`.
 Nenhuma rota HTTP nova, nenhum envelope de fila novo, nenhum contrato de frontend alterado. Os
 contratos desta feature são de infraestrutura:
 
-| Contrato                | Forma                                                                             |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| App → Vector            | `POST http://vector.railway.internal:9000`, NDJSON, sem TLS (WireGuard já cifra)  |
-| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa    |
-| Vector → OpenObserve    | `POST $OPENOBSERVE_URL/api/<org>/<stream>/_multi` sobre HTTPS pública, Basic auth |
-| App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger  |
-| backup → bucket ops     | `db-backups/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256`    |
-| backup → manifesto      | `db-backups/manifest.jsonl`, uma linha JSON por execução                          |
-| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso        |
-| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                             |
+| Contrato                | Forma                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| App → Vector            | `POST http://vector.railway.internal:9000`, NDJSON, sem TLS (WireGuard já cifra)          |
+| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa            |
+| Vector → OpenObserve    | `POST $OPENOBSERVE_URL/api/<org>/<stream>/_multi` sobre HTTPS pública, Basic auth         |
+| App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger          |
+| backup → bucket ops     | `db-backups/<ambiente>/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256` |
+| backup → manifesto      | `db-backups/<ambiente>/manifest.jsonl`, uma linha JSON por execução                       |
+| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso                |
+| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                                     |
 
 Os três primeiros saem do ambiente e entram no projeto de ops pelo domínio público dele (D2):
 private networking não atravessa projeto. Todos autenticados por token; nenhuma porta nova é
@@ -92,20 +92,23 @@ Linha do manifesto:
 
 ```json
 {
-  "at": "2026-08-08T06:03:11Z",
-  "tier": "daily",
-  "db": "app",
-  "bytes": 18422144,
+  "stamp": "2026-08-08T173759Z",
+  "database": "app",
+  "object": "db-backups/staging/daily/backup-2026-08-08T173759Z-app.dump.enc",
+  "retention": "daily",
+  "sizeBytes": 808368,
   "sha256": "…",
-  "tables": 48,
+  "tableCount": 71,
   "lastMigration": "20260807223440_rntrc_registry_leading_zero"
 }
 ```
 
 `lastMigration` sai de `drizzle.__drizzle_migrations` — o journal fica no schema `drizzle`, não no
-público, e é por isso que ele não aparece em `database.schema.ts`. `tables` sai de
-`information_schema.tables` no schema público (70 hoje). São os dois campos que o teste de restore
-compara — o resto é diagnóstico.
+público, e é por isso que ele não aparece em `database.schema.ts`. `tableCount` sai de
+`information_schema.tables` fora dos schemas de catálogo (71 na staging hoje; no Keycloak, 90 e
+`lastMigration` vazio, porque lá quem versiona é o Liquibase). São os dois campos que o teste de
+restore compara — o resto é diagnóstico. `object` é o que dispensa adivinhar o caminho do arquivo
+na hora do restore.
 
 ## Dados, migration e rollback
 
@@ -129,14 +132,14 @@ migration-test` já prova migration + rollback em Postgres descartável a cada C
   `test/*-schema/tenant-safety.contract.ts` continuam valendo sem alteração.
 - **Segredos novos**, todos por Environment e nunca iguais entre ambientes:
 
-| Onde                    | Variável                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Railway (3 apps)        | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL`                                |
-| Railway (vector)        | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`                                                  |
-| Railway (backup)        | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL` |
-| Railway (ops)           | credenciais de admin do GlitchTip, do OpenObserve e do Uptime Kuma — nunca as default do template           |
-| GitHub Env `production` | `RAILWAY_TOKEN`                                                                                             |
-| GitHub repo             | `BACKUP_S3_*` (leitura), `BACKUP_ENCRYPTION_KEY` — só para o teste de restore                               |
+| Onde                    | Variável                                                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Railway (3 apps)        | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL`                                                      |
+| Railway (vector)        | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`                                                                        |
+| Railway (backup)        | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENVIRONMENT`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL` |
+| Railway (ops)           | credenciais de admin do GlitchTip, do OpenObserve e do Uptime Kuma — nunca as default do template                                 |
+| GitHub Env `production` | `RAILWAY_TOKEN`                                                                                                                   |
+| GitHub repo             | `BACKUP_S3_*` e `BACKUP_ENVIRONMENT` (leitura), `BACKUP_ENCRYPTION_KEY` — só para o teste de restore                              |
 
 - `BACKUP_ENCRYPTION_KEY` é o segredo mais perigoso do conjunto: com ele e o bucket alguém lê o
   banco inteiro. Fica fora do Railway num gerenciador de senhas, e o secret do GitHub que o teste
