@@ -51,33 +51,33 @@ export function startApiServer({
 type CreateShutdownHandlerParams = {
   readonly database: DatabaseHealthPort
   /** Última chance de esvaziar a fila do rastreio antes do processo sumir. */
-  readonly drainErrorTracker?: () => Promise<void>
+  readonly drainObservability?: () => Promise<void>
   readonly logger: ApiLogger
   readonly server: StoppableServer
 }
 
 export function createShutdownHandler({
   database,
-  drainErrorTracker = () => Promise.resolve(),
+  drainObservability = () => Promise.resolve(),
   logger,
   server,
 }: CreateShutdownHandlerParams): (signal: NodeJS.Signals) => Promise<void> {
   let shutdownPromise: Promise<void> | undefined
 
   return (signal: NodeJS.Signals): Promise<void> => {
-    shutdownPromise ??= shutdown({ database, drainErrorTracker, logger, server, signal })
+    shutdownPromise ??= shutdown({ database, drainObservability, logger, server, signal })
     return shutdownPromise
   }
 }
 
-type ShutdownParams = Omit<CreateShutdownHandlerParams, 'drainErrorTracker'> & {
-  readonly drainErrorTracker: () => Promise<void>
+type ShutdownParams = Omit<CreateShutdownHandlerParams, 'drainObservability'> & {
+  readonly drainObservability: () => Promise<void>
   readonly signal: NodeJS.Signals
 }
 
 async function shutdown({
   database,
-  drainErrorTracker,
+  drainObservability,
   logger,
   server,
   signal,
@@ -91,7 +91,7 @@ async function shutdown({
     await server.stop()
   } finally {
     await database.close()
-    await drainErrorTracker()
+    await drainObservability()
   }
   safeLogInfo({
     logger,

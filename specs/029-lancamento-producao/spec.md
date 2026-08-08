@@ -5,10 +5,10 @@
 O ambiente `production` do Railway **nunca subiu**. O que existe hoje, verificado por
 `railway status` em 07/08/2026:
 
-| Ambiente     | Serviços                                                                              |
-| ------------ | ------------------------------------------------------------------------------------- |
+| Ambiente     | Serviços                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
 | `staging`    | `Postgres`, `Postgres-q0RQ`, `api`, `cron`, `keycloak`, `rabbitmq`, `transportada-frontend`, `worker` |
-| `production` | `Postgres-FDoz`, `Postgres-Hqfu` — **só os dois bancos**                              |
+| `production` | `Postgres-FDoz`, `Postgres-Hqfu` — **só os dois bancos**                                              |
 
 Faltam seis serviços de aplicação: `api`, `worker`, `cron`, `transportada-frontend`, `keycloak`
 e `rabbitmq`. Os dois Postgres estão na imagem `ghcr.io/railwayapp-templates/postgres-ssl:18`,
@@ -74,13 +74,13 @@ o bucket ou o banco não é um incidente que se resolve reprocessando.
 
 Cinco fases, em ordem, cada uma com evidência antes da seguinte:
 
-| Fase | O quê                                             | Por que antes                                            |
-| ---- | ------------------------------------------------- | -------------------------------------------------------- |
-| A    | Redação de PII, destino de log, rastreio de erro  | O primeiro deploy já loga; log sem redação não se desfaz |
-| B    | Backup dos dois bancos e do bucket, restore provado contra staging | Provar o pipeline enquanto errar é barato               |
-| C    | Required reviewers, proteção de `main`, tokens    | O portão precisa existir antes de haver o que publicar   |
-| D    | Subir os seis serviços de production              | —                                                         |
-| E    | Ligar backup e alerta em production, prova de vida | Fechar a janela sem cópia no mesmo dia                    |
+| Fase | O quê                                                              | Por que antes                                            |
+| ---- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| A    | Redação de PII, destino de log, rastreio de erro                   | O primeiro deploy já loga; log sem redação não se desfaz |
+| B    | Backup dos dois bancos e do bucket, restore provado contra staging | Provar o pipeline enquanto errar é barato                |
+| C    | Required reviewers, proteção de `main`, tokens                     | O portão precisa existir antes de haver o que publicar   |
+| D    | Subir os seis serviços de production                               | —                                                        |
+| E    | Ligar backup e alerta em production, prova de vida                 | Fechar a janela sem cópia no mesmo dia                   |
 
 ### D2 — Software livre auto-hospedado no Railway, nenhum free tier
 
@@ -90,15 +90,15 @@ validade — no dia em que o limite estoura ou o plano muda, o alerta e o log so
 somem exatamente no mês movimentado, que é quando fazem falta. Toda ferramenta desta feature é
 **open source**, roda no **Railway que já se paga**, e o dado fica em bucket nosso.
 
-| Necessidade             | Ferramenta                              | Licença  | Onde roda                       |
-| ----------------------- | --------------------------------------- | -------- | ------------------------------- |
-| Coleta e roteamento     | Vector                                  | MPL-2.0  | serviço `vector`, no ambiente   |
-| Arquivo de log          | sink S3 do Vector → bucket `transportada-logs` | —  | bucket Railway (projeto ops)    |
-| Busca de log            | OpenObserve                             | AGPL-3.0 | projeto `transportada-ops`      |
-| Rastreamento de erro    | GlitchTip                               | MIT      | projeto `transportada-ops`      |
-| Alerta e uptime         | Uptime Kuma                             | MIT      | projeto `transportada-ops`      |
-| Backup                  | `pg_dump` + `openssl` + `aws` CLI       | PostgreSQL / Apache-2.0 | serviço `backup`, no ambiente |
-| Destino do backup       | bucket `transportada-backups`           | —        | bucket Railway (projeto ops)    |
+| Necessidade          | Ferramenta                                     | Licença                 | Onde roda                     |
+| -------------------- | ---------------------------------------------- | ----------------------- | ----------------------------- |
+| Coleta e roteamento  | Vector                                         | MPL-2.0                 | serviço `vector`, no ambiente |
+| Arquivo de log       | sink S3 do Vector → bucket `transportada-logs` | —                       | bucket Railway (projeto ops)  |
+| Busca de log         | OpenObserve                                    | AGPL-3.0                | projeto `transportada-ops`    |
+| Rastreamento de erro | GlitchTip                                      | MIT                     | projeto `transportada-ops`    |
+| Alerta e uptime      | Uptime Kuma                                    | MIT                     | projeto `transportada-ops`    |
+| Backup               | `pg_dump` + `openssl` + `aws` CLI              | PostgreSQL / Apache-2.0 | serviço `backup`, no ambiente |
+| Destino do backup    | bucket `transportada-backups`                  | —                       | bucket Railway (projeto ops)  |
 
 **GlitchTip fala o protocolo do Sentry.** Aceita os SDKs `@sentry/*` sem reinstrumentar nada: só o
 DSN muda. É por isso que a D4 continua valendo palavra por palavra — o SDK, o `sendDefaultPii:
@@ -303,20 +303,20 @@ preenchidos, e o primeiro `company-admin` entra pelo frontend de production e en
 
 ## Casos extremos e falhas
 
-| Situação                                              | Comportamento esperado                                                     |
-| ----------------------------------------------------- | -------------------------------------------------------------------------- |
-| `SENTRY_DSN` vazio                                    | SDK não inicializa; app sobe normal. É o modo de local, CI e teste          |
-| `LOG_SINK_URL` vazio ou Vector fora do ar             | Log só em stdout; nenhum erro, nenhuma exceção, nenhum bloqueio             |
-| GlitchTip fora do ar                                  | SDK descarta o evento; a app não bloqueia nem falha por causa disso         |
-| Stack de ops inteiro fora do ar                       | Log em stdout e retenção do painel do Railway seguem; nenhum alerta chega — risco aceito na D2 |
-| `pg_dump` falha                                       | Sai com código diferente de zero, **não** pinga o heartbeat → alerta        |
-| Upload ao bucket de backup falha após um dump válido  | Mesma coisa: sem ping, alerta. O dump parcial não fica no destino           |
-| `pg_restore --list` acusa dump corrompido             | O ciclo aborta antes de subir; o backup anterior continua sendo o mais novo |
-| Teste de restore divergindo do manifesto              | Job falha e abre alerta — é exatamente o que ele existe para pegar          |
-| Config-as-code não preenchido antes do deploy da API  | Migration não roda; `assert-migrations` derruba o job antes do worker subir |
-| Migration de production falha no meio                 | `preDeployCommand` falha, o tráfego não troca, rollback é o `.sql` ao lado  |
-| Keyring de production perdida                         | Certificados A1 irrecuperáveis; o procedimento manda recadastrar por empresa |
-| Redator recebe estrutura cíclica ou muito profunda    | Corta na profundidade máxima e emite `[TRUNCATED]`; nunca lança             |
+| Situação                                             | Comportamento esperado                                                                         |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN` vazio                                   | SDK não inicializa; app sobe normal. É o modo de local, CI e teste                             |
+| `LOG_SINK_URL` vazio ou Vector fora do ar            | Log só em stdout; nenhum erro, nenhuma exceção, nenhum bloqueio                                |
+| GlitchTip fora do ar                                 | SDK descarta o evento; a app não bloqueia nem falha por causa disso                            |
+| Stack de ops inteiro fora do ar                      | Log em stdout e retenção do painel do Railway seguem; nenhum alerta chega — risco aceito na D2 |
+| `pg_dump` falha                                      | Sai com código diferente de zero, **não** pinga o heartbeat → alerta                           |
+| Upload ao bucket de backup falha após um dump válido | Mesma coisa: sem ping, alerta. O dump parcial não fica no destino                              |
+| `pg_restore --list` acusa dump corrompido            | O ciclo aborta antes de subir; o backup anterior continua sendo o mais novo                    |
+| Teste de restore divergindo do manifesto             | Job falha e abre alerta — é exatamente o que ele existe para pegar                             |
+| Config-as-code não preenchido antes do deploy da API | Migration não roda; `assert-migrations` derruba o job antes do worker subir                    |
+| Migration de production falha no meio                | `preDeployCommand` falha, o tráfego não troca, rollback é o `.sql` ao lado                     |
+| Keyring de production perdida                        | Certificados A1 irrecuperáveis; o procedimento manda recadastrar por empresa                   |
+| Redator recebe estrutura cíclica ou muito profunda   | Corta na profundidade máxima e emite `[TRUNCATED]`; nunca lança                                |
 
 ## Critérios de aceite
 

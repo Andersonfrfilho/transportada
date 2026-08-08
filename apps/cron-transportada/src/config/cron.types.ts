@@ -13,6 +13,8 @@ export type CronEnvironment = {
   readonly fiscalEnvironment: CronFiscalEnvironment
   readonly logLevel: LogLevel
   readonly pageSize: number
+  /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
+  readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined
   readonly sentryEnvironment: string
 }

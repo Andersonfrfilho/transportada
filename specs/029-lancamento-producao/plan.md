@@ -73,16 +73,16 @@ do monorepo e não participam do `bun install`.
 Nenhuma rota HTTP nova, nenhum envelope de fila novo, nenhum contrato de frontend alterado. Os
 contratos desta feature são de infraestrutura:
 
-| Contrato                | Forma                                                                 |
-| ----------------------- | --------------------------------------------------------------------- |
+| Contrato                | Forma                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
 | App → Vector            | `POST http://vector.railway.internal:9000`, NDJSON, sem TLS (WireGuard já cifra) |
-| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa |
+| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa   |
 | Vector → OpenObserve    | `POST $OPENOBSERVE_URL/api/<org>/<stream>/_json` sobre HTTPS pública, Basic auth |
 | App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger |
-| backup → bucket ops     | `db-backups/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256` |
-| backup → manifesto      | `db-backups/manifest.jsonl`, uma linha JSON por execução               |
-| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso |
-| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                  |
+| backup → bucket ops     | `db-backups/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256`   |
+| backup → manifesto      | `db-backups/manifest.jsonl`, uma linha JSON por execução                         |
+| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso       |
+| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                            |
 
 Os três primeiros saem do ambiente e entram no projeto de ops pelo domínio público dele (D2):
 private networking não atravessa projeto. Todos autenticados por token; nenhuma porta nova é
@@ -91,8 +91,15 @@ aberta no lado de production.
 Linha do manifesto:
 
 ```json
-{"at":"2026-08-08T06:03:11Z","tier":"daily","db":"app","bytes":18422144,
- "sha256":"…","tables":48,"lastMigration":"20260807223440_rntrc_registry_leading_zero"}
+{
+  "at": "2026-08-08T06:03:11Z",
+  "tier": "daily",
+  "db": "app",
+  "bytes": 18422144,
+  "sha256": "…",
+  "tables": 48,
+  "lastMigration": "20260807223440_rntrc_registry_leading_zero"
+}
 ```
 
 `lastMigration` sai de `drizzle.__drizzle_migrations` — o journal fica no schema `drizzle`, não no
@@ -114,7 +121,7 @@ de reversão é o que importa:
   aplicação é o redeploy dele. O rollback de **schema** é o `rollback.sql` ao lado de cada
   migration, aplicado à mão, na ordem inversa — nunca automático (AGENTS.md).
 - As 9 migrations pendentes rodam contra banco vazio, que é o caso mais fácil. `make
-  migration-test` já prova migration + rollback em Postgres descartável a cada CI.
+migration-test` já prova migration + rollback em Postgres descartável a cada CI.
 
 ## Segurança e tenant
 
@@ -122,14 +129,14 @@ de reversão é o que importa:
   `test/*-schema/tenant-safety.contract.ts` continuam valendo sem alteração.
 - **Segredos novos**, todos por Environment e nunca iguais entre ambientes:
 
-| Onde              | Variável                                                        |
-| ----------------- | ---------------------------------------------------------------- |
-| Railway (3 apps)  | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL` |
-| Railway (vector)  | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`        |
-| Railway (backup)  | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL` |
-| Railway (ops)     | credenciais de admin do GlitchTip, do OpenObserve e do Uptime Kuma — nunca as default do template |
-| GitHub Env `production` | `RAILWAY_TOKEN`                                            |
-| GitHub repo       | `BACKUP_S3_*` (leitura), `BACKUP_ENCRYPTION_KEY` — só para o teste de restore |
+| Onde                    | Variável                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Railway (3 apps)        | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL`                                |
+| Railway (vector)        | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`                                                  |
+| Railway (backup)        | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL` |
+| Railway (ops)           | credenciais de admin do GlitchTip, do OpenObserve e do Uptime Kuma — nunca as default do template           |
+| GitHub Env `production` | `RAILWAY_TOKEN`                                                                                             |
+| GitHub repo             | `BACKUP_S3_*` (leitura), `BACKUP_ENCRYPTION_KEY` — só para o teste de restore                               |
 
 - `BACKUP_ENCRYPTION_KEY` é o segredo mais perigoso do conjunto: com ele e o bucket alguém lê o
   banco inteiro. Fica fora do Railway num gerenciador de senhas, e o secret do GitHub que o teste
@@ -163,14 +170,14 @@ de reversão é o que importa:
 
 Esta feature **é** a observabilidade, então o que se descreve aqui é como ela se prova:
 
-| Sinal                            | Onde aparece         | Como se sabe que funciona                       |
-| -------------------------------- | -------------------- | ------------------------------------------------ |
-| Log estruturado das 3 apps       | stdout + OpenObserve + arquivo NDJSON | Busca por `correlationId` acha a linha  |
-| Exceção não tratada              | GlitchTip            | Erro provocado em staging vira issue             |
-| API fora do ar                   | Uptime Kuma          | `/health/ready` derrubado a propósito uma vez    |
-| Frontend fora do ar              | Uptime Kuma          | idem                                              |
-| Backup não rodou                 | Push monitor         | Janela pulada a propósito uma vez                |
-| Teste de restore falhou          | Push monitor + job   | Manifesto adulterado a propósito uma vez         |
+| Sinal                      | Onde aparece                          | Como se sabe que funciona                     |
+| -------------------------- | ------------------------------------- | --------------------------------------------- |
+| Log estruturado das 3 apps | stdout + OpenObserve + arquivo NDJSON | Busca por `correlationId` acha a linha        |
+| Exceção não tratada        | GlitchTip                             | Erro provocado em staging vira issue          |
+| API fora do ar             | Uptime Kuma                           | `/health/ready` derrubado a propósito uma vez |
+| Frontend fora do ar        | Uptime Kuma                           | idem                                          |
+| Backup não rodou           | Push monitor                          | Janela pulada a propósito uma vez             |
+| Teste de restore falhou    | Push monitor + job                    | Manifesto adulterado a propósito uma vez      |
 
 Cada monitor é provocado uma vez, de propósito, e a notificação é anexada ao `evidence.md`. Alerta
 que nunca disparou não é alerta configurado — é alerta que se supõe configurado.
@@ -207,19 +214,19 @@ app (CLAUDE.md). Vale para os três.
 
 ## Riscos
 
-| Risco                                                                 | Mitigação                                                                 |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Config-as-code esquecido em algum dos serviços de production           | `assert-migrations` derruba o deploy da API; a conferência é task própria |
-| `@adatechnology/logger@0.1.0` atrasa e vira caminho crítico            | Fase A é a primeira justamente por isso; nada depende dela além do log    |
-| Redator apaga demais e o log perde utilidade                           | Teste negativo do critério 2; o corpus define o que precisa sobreviver    |
-| Redator apaga de menos e PII vaza                                      | Duas camadas (chave + forma), e a de forma pega o que a denylist esqueceu |
-| Incidente ruidoso enche o GlitchTip e come disco do banco de ops       | `tracesSampleRate: 0`, agrupamento por issue e retenção curta configurada no projeto; o volume é nosso, não uma cota de terceiro |
-| Manter três ferramentas auto-hospedadas vira trabalho de operação      | Todas com template Railway e imagem oficial; atualização é bump de tag, e nenhuma delas está no caminho de request da app |
-| Stack de ops cai e ninguém percebe                                     | Checagem mensal do próprio vigia, junto do teste de restore; risco residual explícito na D2 |
-| Backup roda mas ninguém nota que parou                                 | Push monitor com alerta — a falha silenciosa é o modo de falha real       |
-| `BACKUP_ENCRYPTION_KEY` perdida                                        | Cópia em gerenciador de senhas + gate no critério 11; sem ela o bucket é lixo cifrado |
-| Keyring de production perdida                                          | Mesmo gate; e o runbook diz explicitamente que a saída é recadastrar certificado |
-| 82 commits promovidos de uma vez                                       | O gate é a `ci.yml` inteira, já verde em staging, e o banco de production nasce vazio |
-| Vector cai e alguém acha que a app caiu junto                          | Envio assíncrono e descarte silencioso; stdout permanece autoritativo     |
-| Espelho do bucket e arquivo de log crescem sem teto                    | Medidos na T018; ciclo de vida por prefixo e a decisão de custo volta ao responsável |
-| Perda da conta Railway leva ambiente e backup juntos                   | Cópia manual fora da plataforma no runbook de emergência, cobrada no critério 11 |
+| Risco                                                             | Mitigação                                                                                                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Config-as-code esquecido em algum dos serviços de production      | `assert-migrations` derruba o deploy da API; a conferência é task própria                                                        |
+| `@adatechnology/logger@0.1.0` atrasa e vira caminho crítico       | Fase A é a primeira justamente por isso; nada depende dela além do log                                                           |
+| Redator apaga demais e o log perde utilidade                      | Teste negativo do critério 2; o corpus define o que precisa sobreviver                                                           |
+| Redator apaga de menos e PII vaza                                 | Duas camadas (chave + forma), e a de forma pega o que a denylist esqueceu                                                        |
+| Incidente ruidoso enche o GlitchTip e come disco do banco de ops  | `tracesSampleRate: 0`, agrupamento por issue e retenção curta configurada no projeto; o volume é nosso, não uma cota de terceiro |
+| Manter três ferramentas auto-hospedadas vira trabalho de operação | Todas com template Railway e imagem oficial; atualização é bump de tag, e nenhuma delas está no caminho de request da app        |
+| Stack de ops cai e ninguém percebe                                | Checagem mensal do próprio vigia, junto do teste de restore; risco residual explícito na D2                                      |
+| Backup roda mas ninguém nota que parou                            | Push monitor com alerta — a falha silenciosa é o modo de falha real                                                              |
+| `BACKUP_ENCRYPTION_KEY` perdida                                   | Cópia em gerenciador de senhas + gate no critério 11; sem ela o bucket é lixo cifrado                                            |
+| Keyring de production perdida                                     | Mesmo gate; e o runbook diz explicitamente que a saída é recadastrar certificado                                                 |
+| 82 commits promovidos de uma vez                                  | O gate é a `ci.yml` inteira, já verde em staging, e o banco de production nasce vazio                                            |
+| Vector cai e alguém acha que a app caiu junto                     | Envio assíncrono e descarte silencioso; stdout permanece autoritativo                                                            |
+| Espelho do bucket e arquivo de log crescem sem teto               | Medidos na T018; ciclo de vida por prefixo e a decisão de custo volta ao responsável                                             |
+| Perda da conta Railway leva ambiente e backup juntos              | Cópia manual fora da plataforma no runbook de emergência, cobrada no critério 11                                                 |

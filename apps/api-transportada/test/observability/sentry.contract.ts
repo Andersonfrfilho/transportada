@@ -1,7 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
-import { parseEnvironment } from '../../src/config/environment.schema.js'
 import { createErrorResponse } from '../../src/http/response.service.js'
 import {
   createErrorTracker,
@@ -10,7 +9,6 @@ import {
 } from '../../src/observability/sentry.service.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { HTTP_ERROR } from '../../src/shared/api.constant.js'
-import { API_ENVIRONMENT } from '../fixtures/cryptographic-environment.fixture.js'
 
 const CPF = '52998224725'
 const CNPJ = '12.345.678/0001-95'
@@ -261,35 +259,5 @@ describe('contrato do rastreio de erro da API — funil de 500', () => {
     })
 
     expect(response.status).toBe(500)
-  })
-})
-
-describe('contrato do rastreio de erro da API — variáveis de ambiente', () => {
-  test('sem SENTRY_DSN o rastreio nasce desligado e o ambiente cai no APP_ENV', () => {
-    const config = parseEnvironment(API_ENVIRONMENT)
-
-    expect(config.sentryDsn).toBeUndefined()
-    expect(config.sentryEnvironment).toBe(config.appEnv)
-  })
-
-  test('SENTRY_DSN em branco é ausência de configuração, não defeito', () => {
-    const config = parseEnvironment({ ...API_ENVIRONMENT, SENTRY_DSN: '   ' })
-
-    expect(config.sentryDsn).toBeUndefined()
-  })
-
-  test('SENTRY_DSN torto derruba o boot em vez de rastrear no vazio', () => {
-    expect(() => parseEnvironment({ ...API_ENVIRONMENT, SENTRY_DSN: 'nao-e-url' })).toThrow()
-  })
-
-  test('SENTRY_ENVIRONMENT sobrepõe o APP_ENV quando declarado', () => {
-    const config = parseEnvironment({
-      ...API_ENVIRONMENT,
-      SENTRY_DSN: DSN,
-      SENTRY_ENVIRONMENT: 'staging',
-    })
-
-    expect(config.sentryDsn).toBe(DSN)
-    expect(config.sentryEnvironment).toBe('staging')
   })
 })

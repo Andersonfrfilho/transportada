@@ -114,12 +114,19 @@ type RuntimeConsumer = {
   cancel(): Promise<void>
 }
 
+/** Quem loga enxerga o `WorkerLogger` estreito; só o runtime precisa drenar o transporte HTTP. */
+type RuntimeLogger = WorkerLogger & {
+  flush(): Promise<void>
+  stop(): void
+}
+
 type RuntimeLoggerFactory = (input: {
   readonly logLevel: ReturnType<typeof parseWorkerEnvironment>['logLevel']
   readonly pretty: boolean
   readonly projectName: string
+  readonly sinkUrl?: string
   readonly version: string
-}) => WorkerLogger
+}) => RuntimeLogger
 
 type RuntimeDatabaseFactory = (input: { readonly connection: string }) => RuntimeDatabasePort
 
@@ -265,6 +272,7 @@ export async function startWorkerRuntime(
     logLevel: config.logLevel,
     pretty: shouldPrettyPrintLogs(config.appEnv),
     projectName: WORKER_PROJECT_NAME,
+    ...(config.logSinkUrl === undefined ? {} : { sinkUrl: config.logSinkUrl }),
     version: WORKER_VERSION,
   })
   const errorTracker = createErrorTracker({
@@ -591,8 +599,15 @@ export async function startWorkerRuntime(
         cteRelayLoop,
         mdfeRelayLoop,
         storageGateway,
-        // Último a fechar: o desligamento gracioso é a chance final de drenar o rastreio.
+        // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
+        // processo pela rede. Depois deles não há mais para onde mandar nada.
         { close: (): Promise<void> => errorTracker.flush() },
+        {
+          async close(): Promise<void> {
+            await logger.flush()
+            logger.stop()
+          },
+        },
       ],
       consumers: [
         syntheticConsumer,

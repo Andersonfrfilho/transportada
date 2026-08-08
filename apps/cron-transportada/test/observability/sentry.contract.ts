@@ -50,15 +50,11 @@ function createRecordingClient(): RecordingClient {
 /** Um evento com PII em todo lugar que o SDK sabe preencher, mais os identificadores opacos. */
 function createHostileEvent(): Record<string, unknown> {
   return {
-    breadcrumbs: [
-      { category: 'http', data: { telefone: PHONE }, message: `consulta de ${EMAIL}` },
-    ],
+    breadcrumbs: [{ category: 'http', data: { telefone: PHONE }, message: `consulta de ${EMAIL}` }],
     contexts: { fiscal: { chaveAcesso: ACCESS_KEY, correlationId: CORRELATION_ID } },
     event_id: 'f0e1d2c3b4a5968778695a4b3c2d1e0f',
     exception: {
-      values: [
-        { type: 'CronCycleError', value: `emitente ${CNPJ} recusado, contato ${EMAIL}` },
-      ],
+      values: [{ type: 'CronCycleError', value: `emitente ${CNPJ} recusado, contato ${EMAIL}` }],
     },
     extra: { accessKey: ACCESS_KEY, companyId: COMPANY_ID, cpf: CPF },
     level: 'error',

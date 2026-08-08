@@ -64,6 +64,9 @@ export async function runCronRuntime(
     throw error
   } finally {
     await errorTracker.flush()
+    // O processo é one-shot: o que ficou na fila do transporte HTTP some junto com ele.
+    await logger.flush()
+    logger.stop()
     await provider.close()
   }
 }

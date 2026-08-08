@@ -73,7 +73,9 @@ describe('NF-e worker runtime contract', () => {
         createLogger() {
           return {
             error() {},
+            async flush() {},
             info() {},
+            stop() {},
             warn() {},
           }
         },
@@ -182,7 +184,9 @@ describe('NF-e worker runtime contract', () => {
         createLogger() {
           return {
             error() {},
+            async flush() {},
             info() {},
+            stop() {},
             warn() {},
           }
         },

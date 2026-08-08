@@ -70,8 +70,7 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       Custo medido no próprio contrato: 10.000 redações de um `meta` típico (6 campos, um objeto
       aninhado, uma string com CPF e e-mail) abaixo do teto de 2s.
 
-- [x] T003 — `src/http-transport.ts` (`HttpTransport`) + wiring no `Logger.write` (`src/logger.ts`)
-      + `logger.flush()`/`logger.stop()` novos. Export de `HttpTransport`/`HttpTransportConfig`
+- [x] T003 — `src/http-transport.ts` (`HttpTransport`) + wiring no `Logger.write` (`src/logger.ts`) + `logger.flush()`/`logger.stop()` novos. Export de `HttpTransport`/`HttpTransportConfig`
       no `index.ts`.
 
       Teste do transporte primeiro (`src/http-transport.test.ts`, servidor Bun.serve fake),
@@ -115,6 +114,7 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       Commit `4e2bc1f` (T001+T002) e o desta task em `adatechnology-packages`, isolados do
       trabalho não relacionado em `notification-module`/`fiscal-provider` presente no working
       tree.
+
 - [x] T004 — Changeset `.changeset/redactor-logger-http-sink.md` (`minor`) commitado isolado
       (`41492a0`, só esse arquivo — `notification-module`/`fiscal-provider` alheios ficaram de
       fora), rebase sobre `origin/main` (só um commit `chore(release): version packages` do bot à
@@ -152,6 +152,7 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       **Pendência aberta:** trocar `0.1.0-rc.0` por `^0.1.0` nas três apps quando
       `adatechnology-packages` sair do modo pre-release e `0.1.0` publicar na tag `latest`.
+
 - [x] T005 — `src/observability/sentry.service.ts` nas três apps (`@sentry/bun@10.69.0`),
       `createErrorTracker` com `SentryClientPort` injetável — o contract test nunca fala com a rede.
       Sem DSN (ausente ou em branco) `init` não é chamado: `enabled: false`, captura e dreno viram
@@ -207,7 +208,45 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       worker  typecheck ok · lint ok · 285 pass · 0 fail
       api     typecheck ok · lint ok · 1897 pass · 3 skip · 0 fail  (81 arquivos)
       ```
-- [ ] T006 —
+
+- [x] T006 — `LOG_SINK_URL` nas três apps e as três variáveis declaradas no `.env.example`.
+
+      Teste antes: `test/observability/environment.contract.ts` na API (novo arquivo, 8 casos,
+      importado pelo entrypoint `test/observability.contract.test.ts`) e os casos equivalentes
+      dentro do `test/environment.contract.test.ts` que cron e worker já tinham — é onde os casos
+      de `SENTRY_DSN` moram, e separar teria duplicado a fixture de ambiente inteira. Vermelho
+      confirmado em cada app antes da implementação (cron 9 pass/2 fail, worker 9 pass/2 fail,
+      api 18 pass/2 fail).
+
+      `optionalUrl` (que a T005 criou para `SENTRY_DSN`) passou a servir também o `LOG_SINK_URL`
+      — validador único por app, não dois iguais. Na API ele recebe o nome da variável para a
+      mensagem continuar específica.
+
+      Um defeito que só o `.env.example` revelou: `SENTRY_ENVIRONMENT` era
+      `z.string().trim().min(1).optional()`, então a variável **declarada e vazia** derrubava o
+      boot — exatamente a forma como o `.env.example` precisa escrevê-la. Um caso novo por app
+      (`SENTRY_ENVIRONMENT declarado e vazio cai no APP_ENV`) foi para o vermelho, e a correção é
+      o helper `optionalText()`: vazio é ausência, e ausência cai no `APP_ENV`.
+
+      O `sinkUrl` chega ao `createLogger` das três apps por spread condicional
+      (`exactOptionalPropertyTypes`), e o `flush()`/`stop()` do logger entrou no desligamento:
+      no `finally` do ciclo do cron (processo one-shot — o que ficou na fila some com ele), no
+      último `closeable` do worker e no `drainObservability` da API. Só os tipos de **runtime**
+      do logger foram alargados; `CronLogger`/`WorkerLogger`/`ApiLogger`, que todo consumidor
+      implementa, seguem estreitos — `flush` não é contrato de quem loga.
+
+      O contrato do `.env.example` ganhou uma asserção: as três chaves de observabilidade
+      existem e são vazias. Variável que só existe no schema não é descoberta por quem preenche
+      o ambiente.
+
+      Gates das três apps:
+
+      ```text
+      cron    typecheck ok · lint ok · format ok ·   62 pass · 0 fail
+      worker  typecheck ok · lint ok · format ok ·  289 pass · 0 fail
+      api     typecheck ok · lint ok · format ok · 1902 pass · 3 skip · 0 fail
+      ```
+
 - [ ] T007 —
 - [ ] T008 —
 - [ ] T009 —

@@ -11,6 +11,27 @@ import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from './scheduled-distribution.co
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/** Vazio é o padrão e significa desligado; preenchido e torto derruba o boot. */
+function optionalUrl(name: string): z.ZodType<string | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || URL.canParse(value), {
+      message: `${name} must be a valid URL`,
+    })
+    .optional()
+}
+
+/** Declarada e vazia é ausência: o `.env.example` escreve o padrão desligado sem derrubar o boot. */
+function optionalText(): z.ZodType<string | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional()
+}
+
 const environmentSchema = z.object({
   APP_ENV: z.string().trim().min(1).default('local'),
   APP_PORT: z.coerce.number().int().min(0).max(65_535).default(53_001),
@@ -73,16 +94,9 @@ const environmentSchema = z.object({
     .refine(isSupportedScheduleExpression, {
       message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
     }),
-  // Vazio é o padrão e significa rastreio de erro desligado; preenchido e torto derruba o boot.
-  SENTRY_DSN: z
-    .string()
-    .trim()
-    .transform((value) => (value === '' ? undefined : value))
-    .refine((value) => value === undefined || URL.canParse(value), {
-      message: 'SENTRY_DSN must be a valid URL',
-    })
-    .optional(),
-  SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),
+  LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
+  SENTRY_DSN: optionalUrl('SENTRY_DSN'),
+  SENTRY_ENVIRONMENT: optionalText(),
 })
 
 export function parseEnvironment(environment: Record<string, string | undefined>): ApiEnvironment {
@@ -108,6 +122,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     logLevel: parsed.LOG_LEVEL,
     port: parsed.APP_PORT,
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
+    logSinkUrl: parsed.LOG_SINK_URL,
     sentryDsn: parsed.SENTRY_DSN,
     sentryEnvironment: parsed.SENTRY_ENVIRONMENT ?? parsed.APP_ENV,
     vehicleLookup:

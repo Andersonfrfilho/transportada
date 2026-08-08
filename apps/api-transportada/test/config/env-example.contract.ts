@@ -59,7 +59,22 @@ function readSourcedValues(stdout: string): ReadonlyMap<string, string> {
   )
 }
 
+/**
+ * Desligado é o padrão, e o padrão precisa estar escrito: variável de observabilidade que só existe
+ * no schema não é descoberta por quem for preencher o ambiente.
+ */
+const OBSERVABILITY_KEYS = ['LOG_SINK_URL', 'SENTRY_DSN', 'SENTRY_ENVIRONMENT'] as const
+
 describe('contrato do .env.example', () => {
+  test('as variáveis de observabilidade são declaradas, e vazias', async () => {
+    const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
+
+    for (const key of OBSERVABILITY_KEYS) {
+      const declaration = declarations.find((candidate) => candidate.key === key)
+      expect(`${key}=${declaration?.value}`).toBe(`${key}=`)
+    }
+  })
+
   test('todo valor sobrevive ao `. ./.env` que o CI executa', async () => {
     const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
     expect(declarations.length).toBeGreaterThan(0)

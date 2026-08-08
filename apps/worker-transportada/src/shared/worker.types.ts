@@ -22,6 +22,8 @@ export type WorkerEnvironment = {
   readonly prefetch: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string
+  /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
+  readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined
   readonly sentryEnvironment: string
 }

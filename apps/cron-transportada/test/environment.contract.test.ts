@@ -25,13 +25,42 @@ describe('cron environment contract', () => {
       fiscalEnvironment: 'homologation',
       logLevel: 'info',
       pageSize: 50,
+      logSinkUrl: undefined,
       sentryDsn: undefined,
       sentryEnvironment: 'local',
     })
   })
 
+  test('sem LOG_SINK_URL o transporte HTTP do log nasce desligado', () => {
+    expect(
+      parseCronEnvironment({ ...validEnvironment, LOG_SINK_URL: '  ' }).logSinkUrl,
+    ).toBeUndefined()
+  })
+
+  test('LOG_SINK_URL torto falha o boot em vez de engolir log em silêncio', () => {
+    expect(() => parseCronEnvironment({ ...validEnvironment, LOG_SINK_URL: 'nao-e-url' })).toThrow(
+      CronConfigurationError,
+    )
+  })
+
+  test('LOG_SINK_URL válido chega inteiro na configuração', () => {
+    const sinkUrl = 'https://vector.exemplo/logs'
+
+    expect(parseCronEnvironment({ ...validEnvironment, LOG_SINK_URL: sinkUrl }).logSinkUrl).toBe(
+      sinkUrl,
+    )
+  })
+
+  test('SENTRY_ENVIRONMENT declarado e vazio cai no APP_ENV, sem derrubar o boot', () => {
+    const config = parseCronEnvironment({ ...validEnvironment, SENTRY_ENVIRONMENT: '   ' })
+
+    expect(config.sentryEnvironment).toBe(config.appEnv)
+  })
+
   test('sem SENTRY_DSN o rastreio de erro nasce desligado', () => {
-    expect(parseCronEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn).toBeUndefined()
+    expect(
+      parseCronEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn,
+    ).toBeUndefined()
   })
 
   test('SENTRY_DSN preenchido e torto falha o boot em vez de sumir', () => {

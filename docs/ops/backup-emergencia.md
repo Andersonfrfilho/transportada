@@ -18,21 +18,21 @@ feature 029 entregar o serviço `backup` quanto depois, quando ele existir e est
 
 Tenha à mão, e confira que **tem** antes de precisar:
 
-| Item                        | Onde está                                                     |
-| --------------------------- | -------------------------------------------------------------- |
-| `railway` CLI autenticado   | `railway whoami`                                                |
-| `pg_dump` **18**            | `psql --version` — o servidor é `postgres-ssl:18`; cliente antigo falha |
-| `openssl`                   | qualquer versão recente                                         |
-| `aws` CLI                   | para falar com os buckets do Railway                            |
-| `BACKUP_ENCRYPTION_KEY`     | gerenciador de senhas — **sem ela o dump é lixo cifrado**       |
-| `ENCRYPTION_KEYRING_JSON`   | gerenciador de senhas — sem ela o certificado A1 é irrecuperável |
+| Item                      | Onde está                                                               |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `railway` CLI autenticado | `railway whoami`                                                        |
+| `pg_dump` **18**          | `psql --version` — o servidor é `postgres-ssl:18`; cliente antigo falha |
+| `openssl`                 | qualquer versão recente                                                 |
+| `aws` CLI                 | para falar com os buckets do Railway                                    |
+| `BACKUP_ENCRYPTION_KEY`   | gerenciador de senhas — **sem ela o dump é lixo cifrado**               |
+| `ENCRYPTION_KEYRING_JSON` | gerenciador de senhas — sem ela o certificado A1 é irrecuperável        |
 
 Os dois bancos de production, para não confundir na hora errada:
 
-| Serviço          | O que guarda                       |
-| ---------------- | ---------------------------------- |
-| `Postgres-Hqfu`  | banco da aplicação                 |
-| `Postgres-FDoz`  | banco do Keycloak (identidade)     |
+| Serviço         | O que guarda                   |
+| --------------- | ------------------------------ |
+| `Postgres-Hqfu` | banco da aplicação             |
+| `Postgres-FDoz` | banco do Keycloak (identidade) |
 
 Em staging são `Postgres` e `Postgres-q0RQ`. **Os dois entram no backup.** Restaurar só o da
 aplicação devolve o dado e deixa todo mundo sem conseguir entrar.
@@ -128,13 +128,13 @@ Tem de imprimir `[]`. Banco de production com proxy aberto e esquecido é o inci
 O `pg_dump` leva o dado. Não leva nada disto, e sem estes itens o dado restaurado não volta a
 funcionar:
 
-| Item                                        | Consequência de perder                                                  |
-| ------------------------------------------- | ------------------------------------------------------------------------ |
-| `ENCRYPTION_KEYRING_JSON`                   | Todo certificado A1 vira envelope indecifrável (ADR-0004)                |
-| `IDEMPOTENCY_HMAC_KEY`                      | Chaves de idempotência antigas param de casar                            |
-| XML fiscal no bucket                        | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe  |
-| Configuração do realm feita à mão           | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
-| Variáveis de ambiente do Railway            | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis            |
+| Item                              | Consequência de perder                                                    |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `ENCRYPTION_KEYRING_JSON`         | Todo certificado A1 vira envelope indecifrável (ADR-0004)                 |
+| `IDEMPOTENCY_HMAC_KEY`            | Chaves de idempotência antigas param de casar                             |
+| XML fiscal no bucket              | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe   |
+| Configuração do realm feita à mão | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
+| Variáveis de ambiente do Railway  | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis             |
 
 Por isso o backup do banco sozinho **não** é o backup do produto. As duas linhas seguintes fazem
 parte do mesmo procedimento.

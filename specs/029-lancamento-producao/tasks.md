@@ -33,7 +33,7 @@ terem evidência em `evidence.md`.
       `extra`, `contexts`, `breadcrumbs` e `request` pelo **mesmo** redator. Contract test de
       redação ponta a ponta e de no-op sem `SENTRY_DSN`, um por app, adicionados à lista explícita
       do `package.json` de cada uma.
-- [ ] T006 [P] Env schema das três apps — `SENTRY_DSN?`, `SENTRY_ENVIRONMENT?`, `LOG_SINK_URL?` —
+- [x] T006 [P] Env schema das três apps — `SENTRY_DSN?`, `SENTRY_ENVIRONMENT?`, `LOG_SINK_URL?` —
       e `.env.example` atualizado. Vazio é o padrão e significa desligado.
       ⚠️ `SENTRY_DSN`/`SENTRY_ENVIRONMENT` já entraram na T005 (a fiação do `main.ts` não existe
       sem eles) — sobra `LOG_SINK_URL` e o `.env.example`.

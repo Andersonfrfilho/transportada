@@ -28,8 +28,9 @@ const cronEnvironmentSchema = z.object({
   FISCAL_ENVIRONMENT: z.enum(CRON_FISCAL_ENVIRONMENTS),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   PAGE_SIZE: z.coerce.number().int().min(1).max(CRON_MAX_PAGE_SIZE).default(CRON_DEFAULT_PAGE_SIZE),
-  SENTRY_DSN: optionalDsn(),
-  SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),
+  LOG_SINK_URL: optionalUrl(),
+  SENTRY_DSN: optionalUrl(),
+  SENTRY_ENVIRONMENT: optionalText(),
 })
 
 export class CronConfigurationError extends Error {
@@ -56,19 +57,20 @@ export function parseCronEnvironment(
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     logLevel: result.data.LOG_LEVEL,
     pageSize: result.data.PAGE_SIZE,
+    logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
   }
 }
 
 /** Vazio é o padrão e significa desligado; preenchido e torto falha o boot. */
-function optionalDsn(): z.ZodType<string | undefined, string | undefined> {
+function optionalUrl(): z.ZodType<string | undefined, string | undefined> {
   return z
     .string()
     .trim()
     .transform((value) => (value === '' ? undefined : value))
     .refine((value) => value === undefined || URL.canParse(value), {
-      message: 'Invalid Sentry DSN',
+      message: 'Invalid URL',
     })
     .optional()
 }
@@ -82,4 +84,13 @@ function protocolUrl<const TProtocols extends readonly string[]>(
     .refine((value) => protocols.includes(new URL(value).protocol), {
       message: 'Unsupported connection protocol',
     })
+}
+
+/** Declarada e vazia é ausência: o `.env.example` escreve o padrão desligado sem derrubar o boot. */
+function optionalText(): z.ZodType<string | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .optional()
 }

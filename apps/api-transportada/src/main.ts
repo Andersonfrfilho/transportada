@@ -202,7 +202,11 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const shutdown = createShutdownHandler({
     database,
-    drainErrorTracker: () => errorTracker.flush(),
+    drainObservability: async (): Promise<void> => {
+      await errorTracker.flush()
+      await logger.flush()
+      logger.stop()
+    },
     logger,
     server,
   })
@@ -218,12 +222,13 @@ export function bootstrap(): Bun.Server<undefined> {
 }
 
 function createApiLogger(
-  config: Pick<ApiEnvironment, 'appEnv' | 'logLevel'>,
+  config: Pick<ApiEnvironment, 'appEnv' | 'logLevel' | 'logSinkUrl'>,
 ): ReturnType<typeof createLogger> {
   return createLogger({
     logLevel: config.logLevel,
     pretty: shouldPrettyPrintLogs(config.appEnv),
     projectName: API_PROJECT_NAME,
+    ...(config.logSinkUrl === undefined ? {} : { sinkUrl: config.logSinkUrl }),
     version: API_VERSION,
   })
 }

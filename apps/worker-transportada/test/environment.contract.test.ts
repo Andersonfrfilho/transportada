@@ -39,6 +39,7 @@ describe('worker environment contract', () => {
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       logLevel: 'info',
+      logSinkUrl: undefined,
       port: 53_002,
       prefetch: 1,
       queuePrefix: 'transportada_local',
@@ -58,6 +59,32 @@ describe('worker environment contract', () => {
     expect(() => parseWorkerEnvironment({ ...validEnvironment, SENTRY_DSN: 'nao-e-url' })).toThrow(
       WorkerConfigurationError,
     )
+  })
+
+  test('sem LOG_SINK_URL o transporte HTTP do log nasce desligado', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, LOG_SINK_URL: '  ' }).logSinkUrl,
+    ).toBeUndefined()
+  })
+
+  test('LOG_SINK_URL torto falha o boot em vez de engolir log em silêncio', () => {
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, LOG_SINK_URL: 'nao-e-url' }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
+  test('LOG_SINK_URL válido chega inteiro na configuração', () => {
+    const sinkUrl = 'https://vector.exemplo/logs'
+
+    expect(parseWorkerEnvironment({ ...validEnvironment, LOG_SINK_URL: sinkUrl }).logSinkUrl).toBe(
+      sinkUrl,
+    )
+  })
+
+  test('SENTRY_ENVIRONMENT declarado e vazio cai no APP_ENV, sem derrubar o boot', () => {
+    const config = parseWorkerEnvironment({ ...validEnvironment, SENTRY_ENVIRONMENT: '   ' })
+
+    expect(config.sentryEnvironment).toBe(config.appEnv)
   })
 
   // O responsável técnico é da instalação, não da empresa: sem as quatro variáveis o CT-e sai como
