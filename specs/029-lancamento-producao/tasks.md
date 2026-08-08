@@ -58,7 +58,7 @@ terem evidência em `evidence.md`.
       validação, AES-256-CBC PBKDF2, upload com `.sha256`, linha no `manifest.jsonl`, retenção
       30/90 e push do heartbeat só no sucesso. Testado localmente contra o `docker compose` do
       repositório, sem bucket remoto no caminho.
-- [ ] T011 [P] `.github/workflows/bucket-mirror.yml` — `aws s3 sync` diário do bucket fiscal para
+- [x] T011 [P] `.github/workflows/bucket-mirror.yml` — `aws s3 sync` diário do bucket fiscal para
       `transportada-fiscal-mirror`, **sem `--delete`** (D6). Credencial de leitura na origem,
       escrita só no espelho.
 - [ ] T012 [P] `.github/workflows/restore-test.yml` — mensal, service container `postgres:18`,

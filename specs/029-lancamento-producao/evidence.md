@@ -389,7 +389,66 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1922 pass · 3 skip · 0 fail.
 
-- [ ] T011 —
+- [x] T011 — Espelho do bucket fiscal: `.github/workflows/bucket-mirror.yml`.
+
+      Contrato antes: `apps/api-transportada/test/deploy/bucket-mirror.contract.ts` (6 casos) entrou
+      no entrypoint `test/deploy.contract.test.ts` e foi visto vermelho — `20 pass / 6 fail`, os 20
+      sendo `vector` e `backup`. Depois do workflow: `26 pass / 0 fail`.
+
+      **O workflow rodou de verdade**, não uma cópia à mão: os três blocos `run:` foram extraídos do
+      arquivo versionado com `Bun.YAML.parse` e executados contra o MinIO local, origem
+      (`t011-source`, 3 objetos) e espelho (`t011-mirror`, 1 já espelhado + 1 órfão de propósito).
+
+      ```text
+      === ciclo 1 ===
+      origem: 3 · espelho: 2 · a copiar: 2
+      objetos espelhados: 2
+      ::warning::1 objetos existem no espelho e não na origem — XML autorizado é imutável, investigar.
+
+      === ciclo 2 ===
+      origem: 3 · espelho: 4 · a copiar: 0
+      objetos espelhados: 0
+      ```
+
+      O segundo ciclo copiou zero: a comparação por chave é o que torna o job idempotente, e é o que
+      mantém o custo de egress preso ao que mudou, não ao tamanho do bucket.
+
+      Espelho depois dos dois ciclos — o órfão continua lá, que é o comportamento pedido pela D6:
+
+      ```text
+      2026/07/orfao.xml     52   ← só existe no espelho, preservado
+      2026/08/cte-1.xml     56
+      2026/08/nfe-1.xml     56
+      2026/08/nfe-2.xml     56
+      ```
+
+      Conteúdo conferido byte a byte nos dois objetos copiados — a cópia atravessa o runner por pipe,
+      então o hash é a prova de que ela não corrompe:
+
+      ```text
+      f51eb8c9…52d4  espelho 2026/08/nfe-2.xml
+      f51eb8c9…52d4  origem  2026/08/nfe-2.xml
+      d57211b2…aa7a  espelho 2026/08/cte-1.xml
+      d57211b2…aa7a  origem  2026/08/cte-1.xml
+      ```
+
+      Um defeito pego no caminho: o `wc -l` do macOS acolchoa o número com espaços e o resumo saía
+      `origem:        3`. Corrigido com `tr -d ' '` nas quatro contagens.
+
+      Decisão que diverge do plano, e por quê:
+
+      - **Comparação explícita no lugar de `aws s3 sync`.** Origem e espelho vivem em projetos
+        Railway diferentes, com credencial própria: um `sync` entre os dois só existiria com uma
+        credencial única, que teria de escrever na origem — exatamente o que este espelho não pode
+        ter. Cada lado roda no seu subshell exportando só a sua credencial, e `--delete` deixa de ser
+        um argumento que alguém pode passar para virar uma operação que o job não sabe fazer.
+
+      Limite do que foi provado localmente: o MinIO local tem um usuário só, então a **separação de
+      escopo** das credenciais (leitura na origem, escrita no espelho) é estrutural no workflow mas
+      só passa a ser imposta pelo storage quando os buckets e as chaves da T007 existirem.
+
+      Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1928 pass · 3 skip · 0 fail.
+
 - [ ] T012 —
 - [ ] T013 — **RTO medido:** _(preencher)_
 - [ ] T014 —
