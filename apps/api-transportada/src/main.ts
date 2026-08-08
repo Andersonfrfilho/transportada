@@ -149,10 +149,21 @@ import {
   type NfeStorageGateway,
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
+import { createErrorTracker } from './observability/sentry.service'
+
+const API_PROJECT_NAME = 'transportada-api'
+const API_VERSION = '0.1.0'
 
 export function bootstrap(): Bun.Server<undefined> {
   const config = parseEnvironment(process.env)
   const logger = createApiLogger(config)
+  const errorTracker = createErrorTracker({
+    configuration: {
+      dsn: config.sentryDsn,
+      environment: config.sentryEnvironment,
+      release: `${API_PROJECT_NAME}@${API_VERSION}`,
+    },
+  })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDrizzleProvider({ connection: config.databaseUrl })
   const authentication = new AuthenticationService({
@@ -184,11 +195,17 @@ export function bootstrap(): Bun.Server<undefined> {
     tenantContext,
   })
   const server = startApiServer({
+    captureError: (error: unknown) => errorTracker.captureException(error),
     config,
     logger,
     router,
   })
-  const shutdown = createShutdownHandler({ database, logger, server })
+  const shutdown = createShutdownHandler({
+    database,
+    drainErrorTracker: () => errorTracker.flush(),
+    logger,
+    server,
+  })
 
   registerShutdownSignals({ logger, shutdown })
   logger.info('api_started', {
@@ -206,8 +223,8 @@ function createApiLogger(
   return createLogger({
     logLevel: config.logLevel,
     pretty: shouldPrettyPrintLogs(config.appEnv),
-    projectName: 'transportada-api',
-    version: '0.1.0',
+    projectName: API_PROJECT_NAME,
+    version: API_VERSION,
   })
 }
 

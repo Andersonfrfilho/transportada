@@ -81,6 +81,7 @@ import {
 import { createNfeXmlImporter } from './nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import { DrizzleNfeImportConsumerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 import { DrizzleNfeImportWorkerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.js'
+import { createErrorTracker } from './observability/sentry.service.js'
 import { registerWorkerShutdownSignals } from './runtime/shutdown-signals.service.js'
 import { WorkerShutdown } from './runtime/worker-shutdown.service.js'
 import { startHealthServer } from './server/health-server.service.js'
@@ -93,6 +94,8 @@ import {
 import type { WorkerLogger } from './shared/worker.types.js'
 
 const NFE_DISTRIBUTION_LEASE_MS = 30_000
+const WORKER_PROJECT_NAME = 'transportada-worker'
+const WORKER_VERSION = '0.1.0'
 
 type RuntimeDatabasePort = {
   readonly close: () => Promise<void>
@@ -261,8 +264,15 @@ export async function startWorkerRuntime(
   const logger = loggerFactory({
     logLevel: config.logLevel,
     pretty: shouldPrettyPrintLogs(config.appEnv),
-    projectName: 'transportada-worker',
-    version: '0.1.0',
+    projectName: WORKER_PROJECT_NAME,
+    version: WORKER_VERSION,
+  })
+  const errorTracker = createErrorTracker({
+    configuration: {
+      dsn: config.sentryDsn,
+      environment: config.sentryEnvironment,
+      release: `${WORKER_PROJECT_NAME}@${WORKER_VERSION}`,
+    },
   })
   const digitalCertificateSecretService = createDigitalCertificateSecretService({
     envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
@@ -576,7 +586,14 @@ export async function startWorkerRuntime(
     })
     mdfeRelayLoop.start()
     const shutdown = new WorkerShutdown({
-      closeables: [relayLoop, cteRelayLoop, mdfeRelayLoop, storageGateway],
+      closeables: [
+        relayLoop,
+        cteRelayLoop,
+        mdfeRelayLoop,
+        storageGateway,
+        // Último a fechar: o desligamento gracioso é a chance final de drenar o rastreio.
+        { close: (): Promise<void> => errorTracker.flush() },
+      ],
       consumers: [
         syntheticConsumer,
         importConsumer,
@@ -623,6 +640,9 @@ export async function startWorkerRuntime(
     await mdfeIssuancePublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
+    // Worker que não sobe não tem consumidor para reportar a falha por ele.
+    errorTracker.captureException(error)
+    await errorTracker.flush()
     throw error
   }
 }

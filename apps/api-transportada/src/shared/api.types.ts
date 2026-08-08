@@ -29,6 +29,9 @@ export type ApiEnvironment = {
   readonly port: number
   /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
   readonly scheduledDistributionCron: string
+  /** DSN do rastreio de erro; ausente desliga o rastreio em vez de derrubar o boot. */
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string
   /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
   readonly vehicleLookup: {
     readonly token: string

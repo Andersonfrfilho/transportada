@@ -43,7 +43,21 @@ describe('worker environment contract', () => {
       prefetch: 1,
       queuePrefix: 'transportada_local',
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,
+      sentryDsn: undefined,
+      sentryEnvironment: 'local',
     })
+  })
+
+  test('sem SENTRY_DSN o rastreio de erro nasce desligado', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn,
+    ).toBeUndefined()
+  })
+
+  test('SENTRY_DSN preenchido e torto falha o boot em vez de sumir', () => {
+    expect(() => parseWorkerEnvironment({ ...validEnvironment, SENTRY_DSN: 'nao-e-url' })).toThrow(
+      WorkerConfigurationError,
+    )
   })
 
   // O responsável técnico é da instalação, não da empresa: sem as quatro variáveis o CT-e sai como

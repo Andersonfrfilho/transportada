@@ -28,13 +28,15 @@ terem evidência em `evidence.md`.
       sair em nenhum dos dois destinos.
 - [x] T004 Publicar `@adatechnology/logger@0.1.0` por changeset no GitHub Actions do repositório de
       packages, e subir a dependência nas três apps. Evidência: versão instalada no lockfile.
-- [ ] T005 🧠 Rastreio de erro nas três apps — `src/observability/sentry.service.ts` + fiação no `main.ts` —
+- [x] T005 🧠 Rastreio de erro nas três apps — `src/observability/sentry.service.ts` + fiação no `main.ts` —
       `@sentry/bun` 10.x, `sendDefaultPii: false`, `tracesSampleRate: 0`, `beforeSend` passando
       `extra`, `contexts`, `breadcrumbs` e `request` pelo **mesmo** redator. Contract test de
       redação ponta a ponta e de no-op sem `SENTRY_DSN`, um por app, adicionados à lista explícita
       do `package.json` de cada uma.
 - [ ] T006 [P] Env schema das três apps — `SENTRY_DSN?`, `SENTRY_ENVIRONMENT?`, `LOG_SINK_URL?` —
       e `.env.example` atualizado. Vazio é o padrão e significa desligado.
+      ⚠️ `SENTRY_DSN`/`SENTRY_ENVIRONMENT` já entraram na T005 (a fiação do `main.ts` não existe
+      sem eles) — sobra `LOG_SINK_URL` e o `.env.example`.
 - [ ] T007 Projeto Railway `transportada-ops` — GlitchTip (template
       `glitchtip-sentry-alternative`), OpenObserve e Uptime Kuma (template oficial), mais os
       buckets `transportada-logs`, `transportada-backups` e `transportada-fiscal-mirror`. Senha

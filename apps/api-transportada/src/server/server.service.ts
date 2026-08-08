@@ -18,17 +18,20 @@ import type {
 } from '../shared/api.types'
 
 type StartApiServerParams = {
+  readonly captureError?: (error: unknown) => void
   readonly config: ApiEnvironment
   readonly logger: ApiLogger
   readonly router: HttpRouter
 }
 
 export function startApiServer({
+  captureError,
   config,
   logger,
   router,
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
+    ...(captureError === undefined ? {} : { captureError }),
     frontendOrigin: config.frontendOrigin,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,
@@ -47,28 +50,38 @@ export function startApiServer({
 
 type CreateShutdownHandlerParams = {
   readonly database: DatabaseHealthPort
+  /** Última chance de esvaziar a fila do rastreio antes do processo sumir. */
+  readonly drainErrorTracker?: () => Promise<void>
   readonly logger: ApiLogger
   readonly server: StoppableServer
 }
 
 export function createShutdownHandler({
   database,
+  drainErrorTracker = () => Promise.resolve(),
   logger,
   server,
 }: CreateShutdownHandlerParams): (signal: NodeJS.Signals) => Promise<void> {
   let shutdownPromise: Promise<void> | undefined
 
   return (signal: NodeJS.Signals): Promise<void> => {
-    shutdownPromise ??= shutdown({ database, logger, server, signal })
+    shutdownPromise ??= shutdown({ database, drainErrorTracker, logger, server, signal })
     return shutdownPromise
   }
 }
 
-type ShutdownParams = CreateShutdownHandlerParams & {
+type ShutdownParams = Omit<CreateShutdownHandlerParams, 'drainErrorTracker'> & {
+  readonly drainErrorTracker: () => Promise<void>
   readonly signal: NodeJS.Signals
 }
 
-async function shutdown({ database, logger, server, signal }: ShutdownParams): Promise<void> {
+async function shutdown({
+  database,
+  drainErrorTracker,
+  logger,
+  server,
+  signal,
+}: ShutdownParams): Promise<void> {
   safeLogInfo({
     logger,
     message: 'api_shutdown_started',
@@ -78,6 +91,7 @@ async function shutdown({ database, logger, server, signal }: ShutdownParams): P
     await server.stop()
   } finally {
     await database.close()
+    await drainErrorTracker()
   }
   safeLogInfo({
     logger,

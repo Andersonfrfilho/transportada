@@ -73,6 +73,16 @@ const environmentSchema = z.object({
     .refine(isSupportedScheduleExpression, {
       message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
     }),
+  // Vazio é o padrão e significa rastreio de erro desligado; preenchido e torto derruba o boot.
+  SENTRY_DSN: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || URL.canParse(value), {
+      message: 'SENTRY_DSN must be a valid URL',
+    })
+    .optional(),
+  SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),
 })
 
 export function parseEnvironment(environment: Record<string, string | undefined>): ApiEnvironment {
@@ -98,6 +108,8 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     logLevel: parsed.LOG_LEVEL,
     port: parsed.APP_PORT,
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
+    sentryDsn: parsed.SENTRY_DSN,
+    sentryEnvironment: parsed.SENTRY_ENVIRONMENT ?? parsed.APP_ENV,
     vehicleLookup:
       parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
         ? null

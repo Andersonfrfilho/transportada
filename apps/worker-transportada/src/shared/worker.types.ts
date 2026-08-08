@@ -22,6 +22,8 @@ export type WorkerEnvironment = {
   readonly prefetch: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string
 }
 
 export type HealthDependencyPort = {

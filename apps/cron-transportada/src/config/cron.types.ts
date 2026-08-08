@@ -13,6 +13,8 @@ export type CronEnvironment = {
   readonly fiscalEnvironment: CronFiscalEnvironment
   readonly logLevel: LogLevel
   readonly pageSize: number
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string
 }
 
 export type CronLogger = {

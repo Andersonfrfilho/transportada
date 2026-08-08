@@ -152,7 +152,61 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       **Pendência aberta:** trocar `0.1.0-rc.0` por `^0.1.0` nas três apps quando
       `adatechnology-packages` sair do modo pre-release e `0.1.0` publicar na tag `latest`.
-- [ ] T005 —
+- [x] T005 — `src/observability/sentry.service.ts` nas três apps (`@sentry/bun@10.69.0`),
+      `createErrorTracker` com `SentryClientPort` injetável — o contract test nunca fala com a rede.
+      Sem DSN (ausente ou em branco) `init` não é chamado: `enabled: false`, captura e dreno viram
+      no-op. Com DSN: `sendDefaultPii: false`, `tracesSampleRate: 0`, `beforeSend` mandando o
+      **evento inteiro** ao `redactMeta` da T002 — não só `extra`/`contexts`/`breadcrumbs`/`request`,
+      porque `message` e `exception.values[].value` vazam tanto quanto.
+
+      Dois furos concretos que a denylist padrão do redator não pega sozinha, achados lendo o
+      `isDeniedKey` publicado e fechados por `extraKeys: ['cookies', 'ip_address']`:
+      `'cookies'.endsWith('cookie')` é **false** (o `s` quebra o casamento por sufixo), e
+      `ip_address` normaliza para `ipaddress`, que não está entre as 25 chaves padrão. Os dois são
+      campos que o próprio SDK preenche.
+
+      ```text
+      $ bun test ./test/observability.contract.test.ts   # apps/cron-transportada
+      10 pass · 0 fail · 27 expect() calls  [165ms]
+      $ bun test ./test/observability.contract.test.ts   # apps/worker-transportada
+      10 pass · 0 fail · 27 expect() calls  [118ms]
+      $ bun test ./test/observability.contract.test.ts   # apps/api-transportada
+      17 pass · 0 fail · 38 expect() calls  [151ms]
+      ```
+
+      O teste de redação monta um evento hostil com PII em todo lugar que o SDK sabe preencher
+      (CPF na `message`, CNPJ+e-mail no `exception.values[].value`, telefone no `breadcrumbs`,
+      chave de acesso no `contexts` e no `extra`, cookie de sessão e `Authorization` no `request`,
+      `ip_address` no `user`) e afirma sobre o JSON do que sai: nenhuma das oito formas sobrevive,
+      e `companyId`, `correlationId`, `event_id` e o `type` da exceção **sobrevivem** — sem eles o
+      issue chega irrastreável. Os lookarounds de dígito do redator (`(?<!\d)…(?!\d)`) são o motivo
+      de o hex de 32 do `event_id` e os UUIDs passarem intactos.
+
+      `flush` não é opcional e virou contrato: o cron é one-shot (`process.exit` logo após o
+      ciclo) e worker/API saem no SIGTERM — sem drenar, o último evento morre na fila do SDK.
+      Cron dreno no `finally` do ciclo; worker como último `closeable` do desligamento gracioso;
+      API no `createShutdownHandler`, depois do `database.close()`.
+
+      **Escopo ampliado com motivo:** a API converte toda falha em resposta em
+      `request-handler.service.ts`, então as integrações padrão do SDK (exceção não capturada)
+      nunca veriam um 500 — a evidência exigida pela T009 ("provocar uma exceção … o issue no
+      GlitchTip") seria inalcançável sem isso. `captureError` foi passado por
+      `response.service` → `request-handler.service` → `server.service` → `main.ts`, e só o erro
+      desconhecido chega ao rastreio: `ApiError` de domínio é resposta esperada, não incidente.
+      Os três testes do funil de 500 cobrem exatamente isso.
+
+      **Antecipação da T006 com motivo:** `SENTRY_DSN`/`SENTRY_ENVIRONMENT` entraram nos três
+      schemas de env aqui, porque a fiação no `main.ts` não existe sem eles. Vazio é o padrão e
+      significa desligado; preenchido e torto derruba o boot (`URL.canParse`). `SENTRY_ENVIRONMENT`
+      ausente cai no `APP_ENV`. Sobra para a T006: `LOG_SINK_URL` e o `.env.example`.
+
+      Gates das três apps depois da mudança:
+
+      ```text
+      cron    typecheck ok · lint ok · 58 pass · 0 fail
+      worker  typecheck ok · lint ok · 285 pass · 0 fail
+      api     typecheck ok · lint ok · 1897 pass · 3 skip · 0 fail  (81 arquivos)
+      ```
 - [ ] T006 —
 - [ ] T007 —
 - [ ] T008 —

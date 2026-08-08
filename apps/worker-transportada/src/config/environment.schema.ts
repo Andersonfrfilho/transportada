@@ -40,6 +40,8 @@ const workerEnvironmentSchema = z
       .max(128)
       .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
     RABBITMQ_URL: protocolUrl(RABBITMQ_PROTOCOLS),
+    SENTRY_DSN: optionalDsn(),
+    SENTRY_ENVIRONMENT: z.string().trim().min(1).optional(),
     WORKER_PORT: z.coerce.number().int().min(0).max(65_535).default(53_002),
     WORKER_PREFETCH: z.coerce.number().int().min(1).max(100).default(1),
   })
@@ -95,7 +97,21 @@ export function parseWorkerEnvironment(
     prefetch: result.data.WORKER_PREFETCH,
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
+    sentryDsn: result.data.SENTRY_DSN,
+    sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
   }
+}
+
+/** Vazio é o padrão e significa desligado; preenchido e torto falha o boot. */
+function optionalDsn(): z.ZodType<string | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || URL.canParse(value), {
+      message: 'Invalid Sentry DSN',
+    })
+    .optional()
 }
 
 function toTechnicalResponsible(

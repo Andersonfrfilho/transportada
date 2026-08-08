@@ -25,7 +25,19 @@ describe('cron environment contract', () => {
       fiscalEnvironment: 'homologation',
       logLevel: 'info',
       pageSize: 50,
+      sentryDsn: undefined,
+      sentryEnvironment: 'local',
     })
+  })
+
+  test('sem SENTRY_DSN o rastreio de erro nasce desligado', () => {
+    expect(parseCronEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn).toBeUndefined()
+  })
+
+  test('SENTRY_DSN preenchido e torto falha o boot em vez de sumir', () => {
+    expect(() => parseCronEnvironment({ ...validEnvironment, SENTRY_DSN: 'nao-e-url' })).toThrow(
+      CronConfigurationError,
+    )
   })
 
   test('defaults the page size when the variable is absent', () => {
