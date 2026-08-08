@@ -117,6 +117,7 @@ terem evidência em `evidence.md`.
       seja editável está provado pelo `transportada-staging.up.railway.app` de hoje — é
       `serviceDomain`, sem `-frontend` e sem hash, então alguém escolheu. Descobrir se é CLI ou
       dashboard **antes** de criar os serviços, não depois.
+
 - [ ] T020 🧠 Preencher **config-as-code** na aba _Settings_ de cada serviço de production. Sem
       isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9). Fecha a pendência 1.
       Evidência: print do campo preenchido nos seis.

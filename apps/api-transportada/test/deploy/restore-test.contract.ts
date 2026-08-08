@@ -57,6 +57,22 @@ describe('contrato do teste mensal de restore', () => {
   })
 
   /**
+   * O contexto `job` só existe dentro de `steps`. No `env` do job os contextos são `github`,
+   * `needs`, `strategy`, `matrix`, `vars`, `secrets` e `inputs` — usar `job` ali invalida o arquivo
+   * inteiro, e o GitHub responde com um run sem job nenhum, que é ruído difícil de ler. Só o
+   * servidor pega isso: localmente o YAML continua parseando.
+   */
+  test('o contexto `job` fica nos steps, nunca no `env` do job', async () => {
+    const jobEnv = ((await parseWorkflow()).jobs[JOB_NAME]?.env ?? {}) as Readonly<
+      Record<string, string>
+    >
+
+    for (const [name, value] of Object.entries(jobEnv)) {
+      expect(`${name}=${value}`).not.toContain('job.')
+    }
+  })
+
+  /**
    * Um ciclo que morreu entre o upload da aplicação e o do Keycloak deixa `.enc` órfão no bucket e
    * nenhuma linha no manifesto. Escolher pelo objeto mais novo restauraria justamente esse.
    */

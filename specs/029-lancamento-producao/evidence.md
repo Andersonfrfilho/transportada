@@ -631,6 +631,30 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
         `job.services.postgres.id`), não o do runner. Cliente mais velho que o dump recusa o arquivo,
         e o runner não acompanha a versão do servidor — casar as duas no mesmo contêiner tira essa
         variável do caminho.
+
+      **Defeito achado depois de fechar a task, no primeiro push para a `origin`.** O
+      `job.services.postgres.id` estava no `env` do **job**, e o contexto `job` só existe dentro de
+      `steps` — no `env` do job os contextos são `github`, `needs`, `strategy`, `matrix`, `vars`,
+      `secrets` e `inputs`. Isso invalida o arquivo inteiro: o GitHub criou um run atribuído ao push
+      mesmo o gatilho sendo só `schedule`, com `conclusion: failure`, **zero job** e o nome exibido
+      como `.github/workflows/restore-test.yml` em vez de `Teste mensal de restore` — ele não
+      conseguiu ler nem o `name:`.
+
+      ```text
+      $ gh run list --branch staging
+      failure  push  .github/workflows/restore-test.yml  completed
+      $ gh api …/runs/31263876628/jobs --jq '.jobs[]'
+      (vazio)
+      ```
+
+      Nada local pegava isso, e é o ponto: o ensaio dos blocos `run:` roda o **corpo** dos passos, o
+      `Bun.YAML.parse` só exige YAML válido, e disponibilidade de contexto é regra do servidor. Só
+      existir na `origin` revelou. O `env` desceu para o único passo que usa a variável, e o contrato
+      ganhou um caso que falha se `job.` reaparecer no `env` do job — visto vermelho antes
+      (`36 pass / 1 fail`, "Received: POSTGRES_CONTAINER=${{ job.services.postgres.id }}") e verde
+      depois (`37 pass / 0 fail`).
+
+      Os outros dois workflows foram varridos pelo mesmo padrão e não têm nenhuma ocorrência.
       - **Ensaio local sem `postgres:18`.** O `docker pull postgres:18` pede autenticação no Docker
         Hub neste ambiente; o ensaio trocou o prefixo `docker exec <contêiner>` pelos binários do
         host (18.4) contra o Postgres 17.10 do compose, mantendo o resto do bloco intacto. A versão

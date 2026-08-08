@@ -38,7 +38,6 @@ jobs:
       BACKUP_S3_REGION: ${{ vars.BACKUP_S3_REGION }}
       RESTORE_HEARTBEAT_URL: ${{ secrets.RESTORE_HEARTBEAT_URL }}
       RESTORE_TARGET_URL: postgresql://postgres:postgres@localhost:5432
-      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       # A guarda vem antes do download: alvo errado descoberto depois do `pg_restore` é tarde. Hoje a
       # URL é literal e é localhost — a checagem existe justamente para a edição de amanhã não
@@ -80,7 +79,11 @@ jobs:
           echo "ciclo escolhido: ${stamp}"
 
       # Restaurar prova que o arquivo abre; comparar com o manifesto prova que ele é o banco.
+      # O contexto `job` só existe aqui dentro: no `env` do job ele invalida o arquivo inteiro, e o
+      # GitHub responde com um run sem step nenhum, que não diz o que houve.
       - name: Conferir o hash, decifrar e restaurar os dois bancos
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
           query() {
