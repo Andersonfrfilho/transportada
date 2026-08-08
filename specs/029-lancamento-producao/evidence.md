@@ -758,7 +758,115 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1938 pass · 3 skip · 0 fail.
 
-- [ ] T013 — **RTO medido:** _(preencher)_
+- [ ] T013 — **RTO medido: 14 s** (staging, ciclo `2026-08-08T173759Z`). Duas das três provas
+      fechadas; a terceira está bloqueada fora do repositório — detalhe no fim do bloco.
+
+      **1. Execução verde em staging.** Serviço `backup` criado no projeto `transportada`, ambiente
+      staging, apontado para `deploy/backup/railway.json` pelo ponteiro de config-as-code — que o
+      CLI não sabe escrever e sai pela API (`serviceInstanceUpdate`, campo `railwayConfigFile`). O
+      manifesto do deployment saiu com `cronSchedule "0 6 * * *"`, `restartPolicyType NEVER` e
+      `dockerfilePath deploy/backup/Dockerfile`. As URLs dos dois bancos entram por referência
+      (`${{Postgres.DATABASE_URL}}`, `${{Postgres-q0RQ.DATABASE_URL}}`): nenhuma senha atravessa o
+      terminal e o tráfego fica na rede privada, como manda a regra de segurança §5.
+
+      ```text
+      backup_dump_started    app
+      backup_dump_completed  app       db-backups/staging/daily/backup-2026-08-08T173759Z-app.dump.enc
+      backup_dump_started    keycloak
+      backup_dump_completed  keycloak  db-backups/staging/daily/backup-2026-08-08T173759Z-keycloak.dump.enc
+      backup_cycle_completed
+      backup_heartbeat_disabled (warn)
+      ```
+
+      `backup_heartbeat_disabled` é o caminho previsto para `BACKUP_HEARTBEAT_URL` ausente — avisa e
+      segue, em vez de derrubar um ciclo que já guardou o dado. Objetos e manifesto no bucket:
+
+      ```text
+      808368  db-backups/staging/daily/backup-2026-08-08T173759Z-app.dump.enc
+         105  …-app.dump.enc.sha256
+      227296  db-backups/staging/daily/backup-2026-08-08T173759Z-keycloak.dump.enc
+         110  …-keycloak.dump.enc.sha256
+         598  db-backups/staging/manifest.jsonl
+      ```
+
+      **Defeito achado antes de production existir, e corrigido nesta task.** O caminho do objeto não
+      levava o ambiente: staging e production dividiriam `db-backups/daily/` e a **mesma**
+      `manifest.jsonl`. Como o teste mensal restaura a última linha do manifesto, bastava um ciclo de
+      staging cair depois do de production para o job restaurar staging e declarar production
+      provado — que é pior do que não testar. `BACKUP_ENVIRONMENT` virou variável obrigatória, o
+      prefixo virou `db-backups/<ambiente>/` e cada ambiente ganhou o seu manifesto; no workflow
+      mensal a variável tem guarda própria, porque vazia o caminho colapsa para
+      `db-backups//manifest.jsonl`, que não é de ambiente nenhum. Contrato antes: `38 pass / 2 fail`;
+      depois: `40 pass / 0 fail`. Os cinco objetos gravados antes da correção foram apagados do
+      bucket — deixá-los criaria um `db-backups/manifest.jsonl` órfão fora do alcance da varredura de
+      retenção, que só olha dentro do prefixo do ambiente.
+
+      **`railway redeploy` não executa um serviço com `cronSchedule`.** O primeiro disparo saiu
+      `SUCCESS` com **zero linha** de log de deployment: o redeploy publica a versão e espera a
+      próxima janela. Quem executa agora é a mutation `deploymentInstanceExecutionCreate`, e foi ela
+      que produziu o ciclo acima. O `docs/ops/backup-emergencia.md` afirmava o contrário no Caminho A
+      — o runbook mandava, numa emergência, rodar um comando que não faz nada e ainda devolve
+      "sucesso". Corrigido com a receita que foi executada, incluindo a leitura de log por deployment
+      (`railway logs --service backup` devolve vazio; a mensagem vem no `--json`).
+
+      **2. Restore manual cronometrado** — R1 e R2 do runbook, do primeiro `aws s3 cp` à conferência
+      fechada, mais o `--clean --if-exists` da R3 ensaiado por cima dos bancos já povoados, que é o
+      único trecho da R3 que não depende de tocar em ambiente real:
+
+      ```text
+      17:44:14  inicio
+      17:44:24  download do ciclo 2026-08-08T173759Z
+      17:44:24  R1 sha256 + decifra + pg_restore --list
+      17:44:25  Postgres descartavel pronto
+      17:44:26  restore de keycloak
+      17:44:26  restore de app
+      app: tabelas 71 (manifesto 71) · lastMigration '20260807223440_rntrc_registry_leading_zero' (manifesto idem)
+      keycloak: tabelas 90 (manifesto 90) · lastMigration '' (manifesto '')
+      companies=1 nfe_documents=301 cte_fiscal_documents=16 stored_objects=618 migrations=50
+      17:44:28  R3 ensaiado (--clean --if-exists sobre banco povoado)
+      RTO total: 13.4 s
+      ```
+
+      O número é pequeno porque o dump da staging é pequeno (790 KiB); o que ele mede de útil é que o
+      roteiro fecha sem improviso, e que o RTO desta parte é ruído perto do tempo de **decidir**
+      restaurar. Dois defeitos do runbook apareceram justamente por executá-lo:
+
+      - **`-p 5433:5432` publica em `0.0.0.0`** um Postgres com senha `x` e uma cópia de production
+        dentro. Virou `-p 127.0.0.1:55433:5432` — loopback, e numa porta que outro projeto não
+        costuma já estar ocupando (5433 estava, neste laptop).
+      - **A credencial de bucket da Railway é por bucket.** Provado: a credencial do bucket de
+        backups recebe `AccessDenied` ao listar o de espelho. O `aws s3 sync` entre os dois buckets
+        que a seção do espelho fiscal mandava rodar não pode funcionar — só um par de credenciais
+        entra no comando. Trocado por sync em dois passos pelo disco, com o `rm -rf` no fim.
+
+      Nomes de bucket também estavam errados no runbook (`transportada-backups`,
+      `transportada-production`, `transportada-fiscal-mirror`); os reais são
+      `transportada-afr-fernandes-*`, e o nome S3 leva um sufixo aleatório que só
+      `railway bucket credentials` sabe. O runbook passou a tirar os dois de lá em vez de fixar.
+
+      **3. Restore mensal verde — bloqueado, e não por este repositório.** O `restore-test.yml` foi
+      disparado contra o bucket de verdade (run 31270477746) com os secrets e variáveis do repo já
+      configurados. Os três passos que provam o restore passaram:
+
+      ```text
+      success  Recusar qualquer alvo que não seja o Postgres efêmero
+      success  Baixar o backup apontado pela última linha do manifesto
+      success  Conferir o hash, decifrar e restaurar os dois bancos
+      failure  Avisar o monitor que o restore fechou
+
+      ciclo escolhido: 2026-08-08T173759Z
+      app: 71 tabelas · lastMigration '20260807223440_rntrc_registry_leading_zero' — confere com o manifesto
+      keycloak: 90 tabelas · lastMigration '' — confere com o manifesto
+      ::error::RESTORE_HEARTBEAT_URL vazio — sem push não existe monitor de restore.
+      ```
+
+      O único passo vermelho é o heartbeat, e ele está certo em ser vermelho: sem push monitor o job
+      seria verde sem ninguém do outro lado. O `RESTORE_HEARTBEAT_URL` só existe depois que o Uptime
+      Kuma tiver dono — ele continua parado no assistente de primeira execução
+      (`/setup-database`, HTTP 302), numa URL pública em que **o primeiro que abrir vira admin**.
+      Criar essa credencial é decisão do usuário, não desta task. A T013 fica aberta nesta terceira
+      prova; a T014 e a T025 dependem do mesmo passo.
+
 - [ ] T014 —
 
 ## Fase C — O portão humano

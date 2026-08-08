@@ -78,6 +78,9 @@ terem evidência em `evidence.md`.
 - [ ] T013 🧠 Ligar o backup em **staging** e provar o ciclo inteiro: uma execução verde, um
       restore mensal verde, e um restore manual cronometrado seguindo
       `docs/ops/backup-emergencia.md`. Evidência: tempo medido (RTO) em `evidence.md`.
+      Execução verde ✅ e restore manual cronometrado ✅ (RTO 14 s). O restore mensal roda verde até
+      o último passo e **para no heartbeat**: o Uptime Kuma continua sem dono, então não existe
+      `RESTORE_HEARTBEAT_URL`. Fecha junto com o assistente de primeira execução dele.
 - [ ] T014 Provocar a falha de propósito uma vez: pular a janela do backup e adulterar o manifesto.
       Evidência: as duas notificações do Uptime Kuma.
 
