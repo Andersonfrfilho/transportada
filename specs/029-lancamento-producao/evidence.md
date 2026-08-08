@@ -247,7 +247,119 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       api     typecheck ok · lint ok · format ok · 1902 pass · 3 skip · 0 fail
       ```
 
-- [ ] T007 —
+- [x] T007 — Projeto Railway `transportada-ops`.
+
+      Tudo pelo CLI (`railway 4.58.0`), rodando de um diretório de rascunho e **nunca** da raiz do
+      repositório: `railway init` grava o vínculo no diretório atual, e rodar na raiz trocaria o
+      vínculo do projeto `transportada` pelo de ops.
+
+      ```text
+      $ railway init --name transportada-ops --workspace "AdA Technology 🔬" --json
+      {"id":"c44c24a3-ee5f-49e6-84a1-cfd7ff6960db","name":"transportada-ops"}
+      ```
+
+      **Buckets** — região `sjc` (US West), a mesma costa em que o projeto principal roda. A
+      região não sai do `railway status`; saiu do manifesto do último deploy da API
+      (`meta.serviceManifest.deploy.multiRegionConfig.sfo.numReplicas=1` → `sfo`), e `sjc` é a
+      opção de bucket correspondente.
+
+      ```text
+      $ railway bucket create transportada-logs           --region sjc
+      $ railway bucket create transportada-backups        --region sjc
+      $ railway bucket create transportada-fiscal-mirror  --region sjc
+      transportada-logs          (transportada-logs-wa7x5ti)          ls OK (vazio)
+      transportada-backups       (transportada-backups-vlvrqj)        ls OK (vazio)
+      transportada-fiscal-mirror (transportada-fiscal-mirror-fgt-yf)  ls OK (vazio)
+      ```
+
+      O nome real tem sufixo — o `BACKUP_S3_BUCKET` e o `FISCAL_MIRROR_S3_BUCKET` recebem o nome
+      com sufixo, não o nome pedido. Endpoint `https://t3.storageapi.dev`, região `auto`,
+      `virtual-host`.
+
+      `ls` num bucket vazio prova pouco, então o de backups levou um ciclo inteiro de escrita:
+
+      ```text
+      escrita OK
+      prova de escrita          ← conteúdo lido de volta
+      remocao OK
+      ```
+
+      E o escopo da credencial, que é o que a task pede, foi provado pelo **negativo** — a
+      credencial do bucket de logs contra o bucket de backups:
+
+      ```text
+      An error occurred (AccessDenied) when calling the ListObjectsV2 operation: Access Denied.
+      ```
+
+      **Os três painéis**, cada um com volume próprio (`/data`, `/app/data`,
+      `/var/lib/postgresql/data`), pelo domínio público:
+
+      ```text
+      uptime-kuma-production-457d     HTTP 200 · .../setup-database · <title>Uptime Kuma</title>
+      glitchtip-web-production-3d80   HTTP 200 · /                  · <title>GlitchTip</title>
+      openobserve-production-0484     HTTP 200 · /web/              · <title>OpenObserve</title>
+      ```
+
+      **Desvio 1 — o template do GlitchTip.** O `tasks.md` nomeia `glitchtip-sentry-alternative`.
+      Esse template é de terceiro, **não verificado, 0 deploys, sem health score**. Existe o
+      oficial, publicado pelo próprio GlitchTip: `glitchtip`, verificado, 87 deploys, health 100.
+      Subir um template anônimo de 0 deploys para o serviço que vai guardar exceção de production
+      é pior em todos os eixos, e foi o oficial que subiu.
+
+      **Senha própria em cada painel (regra §2), gerada e nunca impressa.** `openssl rand` num
+      subshell, entregue ao Railway por `railway variable set --stdin` — o valor não passa pelo
+      terminal, pelo log nem pelo meu contexto. Quem precisar dele lê a variável no dashboard.
+
+      O OpenObserve recusou a primeira senha e **isso é evidência, não tropeço** — prova que a
+      senha não é a do template:
+
+      ```text
+      panicked at src/jobs/src/job/mod.rs:323:13:
+      ZO_ROOT_USER_PASSWORD is too weak: Password must be 8-128 characters and contain at least
+      one lowercase letter, one uppercase letter, one digit, and one special character.
+      ```
+
+      Com uma senha dentro da política, o painel sobe e autentica de verdade:
+
+      ```text
+      /api/organizations   HTTP 200  {"data":[{"identifier":"default","user_email":"…@live.com"…
+      /config              HTTP 200  {"version":"v0.92.0"…
+      /healthz             HTTP 200  {"status":"ok"}
+      senha errada         HTTP 401
+      ```
+
+      **Desvio 2 — configuração quebrada no template do GlitchTip.** O serviço nasceu com
+      `AWS_S3_ENDPOINT_URL = }}` (sobra de interpolação do template), `AWS_STORAGE_BUCKET_NAME`
+      vazio e `DEFAULT_FILE_STORAGE` apontando para o backend S3. Qualquer upload quebraria, e um
+      default quebrado é `A02 Security Misconfiguration`. As cinco variáveis foram removidas — o
+      GlitchTip volta ao storage de arquivo do Django, e nada no nosso uso sobe arquivo.
+
+      **Desvio 3 — `ALLOWED_HOSTS` curinga.** O boot avisava
+      `ALLOWED_HOSTS is the wildcard default`. Restringir ao domínio público **derrubou o
+      healthcheck**: o deploy ficou 8 minutos em `DEPLOYING` com a réplica `RUNNING`, porque a
+      sonda do Railway chega com `Host: healthcheck.railway.app` e o Django respondia
+      `DisallowedHost`. Com o host da sonda na lista, o deploy fecha e o aviso some:
+
+      ```text
+      ALLOWED_HOSTS = glitchtip-web-production-3d80.up.railway.app,glitchtip-web.railway.internal,
+                      healthcheck.railway.app,localhost
+      raiz    HTTP 200
+      health  HTTP 200
+      avisos de "ALLOWED_HOSTS is the wildcard" no deploy atual: 0
+      ```
+
+      **Primeira conta do GlitchTip sem abrir registro.** `ENABLE_USER_REGISTRATION=False` é o
+      certo num painel com domínio público, e ligar o registro "só um minutinho" seria abrir
+      cadastro aberto na internet. O superusuário foi criado por dentro do contêiner
+      (`railway ssh` → `manage.py createsuperuser --noinput`), com a senha definida depois via
+      `manage.py shell` lendo `os.environ` — `has_usable_password(): True`. O registro nunca foi
+      aberto.
+
+      **O que falta e é manual:** o Uptime Kuma está no `/setup-database`, o assistente de
+      primeira execução. Enquanto ele não for concluído, **qualquer um que chegar primeiro na URL
+      cria o admin** — é a janela que a §2 detesta, e é a tarefa a fazer agora, antes da T025. A
+      senha do admin é escolhida ali; o Uptime Kuma não tem variável de bootstrap.
+
 - [x] T008 — `deploy/vector/{Dockerfile,vector.yaml,railway.json}`.
 
       Teste antes: `test/deploy/vector.contract.ts` (8 casos, entrypoint

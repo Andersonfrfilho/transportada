@@ -37,12 +37,15 @@ terem evidência em `evidence.md`.
       e `.env.example` atualizado. Vazio é o padrão e significa desligado.
       ⚠️ `SENTRY_DSN`/`SENTRY_ENVIRONMENT` já entraram na T005 (a fiação do `main.ts` não existe
       sem eles) — sobra `LOG_SINK_URL` e o `.env.example`.
-- [ ] T007 Projeto Railway `transportada-ops` — GlitchTip (template
+- [x] T007 Projeto Railway `transportada-ops` — GlitchTip (template
       `glitchtip-sentry-alternative`), OpenObserve e Uptime Kuma (template oficial), mais os
       buckets `transportada-logs`, `transportada-backups` e `transportada-fiscal-mirror`. Senha
       forte própria em cada painel, **nunca** a do template (regra de segurança §2); credencial de
       bucket com escopo só do bucket que usa. Evidência: os três painéis abrindo pelo domínio
       público, e `aws s3 ls` contra cada bucket.
+      ⚠️ Subiu o template **oficial** `glitchtip` (verificado, 87 deploys) em vez do
+      `glitchtip-sentry-alternative` (de terceiro, 0 deploys). Falta concluir o assistente de
+      primeira execução do Uptime Kuma — passo de navegador, não tem variável de bootstrap.
 - [x] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
       HTTP na 9000 IPv6, dois sinks: arquivo S3 em `transportada-logs` (NDJSON gzip, particionado
       por dia) e OpenObserve por `OPENOBSERVE_URL`/`OPENOBSERVE_TOKEN`.
