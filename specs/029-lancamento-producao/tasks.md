@@ -61,7 +61,7 @@ terem evidência em `evidence.md`.
 - [x] T011 [P] `.github/workflows/bucket-mirror.yml` — `aws s3 sync` diário do bucket fiscal para
       `transportada-fiscal-mirror`, **sem `--delete`** (D6). Credencial de leitura na origem,
       escrita só no espelho.
-- [ ] T012 [P] `.github/workflows/restore-test.yml` — mensal, service container `postgres:18`,
+- [x] T012 [P] `.github/workflows/restore-test.yml` — mensal, service container `postgres:18`,
       baixa o dump mais recente, decifra, restaura e compara com o manifesto (hash, contagem de
       tabelas, `lastMigration`). Recusa alvo cujo host não seja `localhost`. Sem nenhum secret de
       escrita em production.

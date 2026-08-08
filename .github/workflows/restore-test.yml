@@ -1,0 +1,130 @@
+name: Teste mensal de restore
+
+# Backup que nunca voltou é arquivo, não backup. Uma vez por mês o ciclo mais recente é restaurado
+# num Postgres efêmero e conferido contra o manifesto. Divergiu, o job falha e o heartbeat não é
+# pingado — é a ausência do ping que abre o alerta, do mesmo jeito que no `deploy/backup`.
+on:
+  schedule:
+    - cron: '0 7 5 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-test
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      # Cliente mais velho que o servidor recusa o dump: o `pg_restore` que importa é o de dentro
+      # desta imagem, não o do runner. A senha fixa não é credencial — o contêiner nasce e morre com
+      # o job, sem porta publicada, e é o alvo descartável que a guarda do primeiro passo exige.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      BACKUP_S3_REGION: ${{ vars.BACKUP_S3_REGION }}
+      RESTORE_HEARTBEAT_URL: ${{ secrets.RESTORE_HEARTBEAT_URL }}
+      RESTORE_TARGET_URL: postgresql://postgres:postgres@localhost:5432
+      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+    steps:
+      # A guarda vem antes do download: alvo errado descoberto depois do `pg_restore` é tarde. Hoje a
+      # URL é literal e é localhost — a checagem existe justamente para a edição de amanhã não
+      # transformar um job de leitura num restore por cima de banco vivo.
+      - name: Recusar qualquer alvo que não seja o Postgres efêmero
+        run: |
+          set -euo pipefail
+          host="${RESTORE_TARGET_URL#*@}"
+          host="${host%%:*}"
+          if [ "$host" != localhost ]; then
+            echo "::error::alvo '$host' não é o contêiner efêmero — este job nunca escreve em banco real."
+            exit 1
+          fi
+
+      # O ciclo sai da última linha do manifesto, não do objeto mais novo do bucket: um ciclo que
+      # morreu entre o upload da aplicação e o do Keycloak deixa `.enc` órfão e nenhuma linha, e
+      # restaurar esse órfão diria "verde" sobre um backup pela metade.
+      - name: Baixar o backup apontado pela última linha do manifesto
+        run: |
+          set -euo pipefail
+          export AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
+          fetch() {
+            aws s3 cp "s3://${BACKUP_S3_BUCKET}/$1" "$2" \
+              --endpoint-url "$BACKUP_S3_ENDPOINT" --region "$BACKUP_S3_REGION" --quiet
+          }
+          fetch db-backups/manifest.jsonl manifest.jsonl
+          stamp="$(tail -n 1 manifest.jsonl | jq -r .stamp)"
+          grep -F "\"stamp\":\"${stamp}\"" manifest.jsonl > cycle.jsonl
+          lines="$(wc -l < cycle.jsonl | tr -d ' ')"
+          [ "$lines" -eq 2 ] || {
+            echo "::error::o ciclo ${stamp} tem ${lines} linha(s) no manifesto, e um ciclo completo tem 2."
+            exit 1
+          }
+          while IFS= read -r line <&3; do
+            key="$(jq -r .object <<< "$line")"
+            fetch "$key" "$(basename "$key")"
+          done 3< cycle.jsonl
+          echo "ciclo escolhido: ${stamp}"
+
+      # Restaurar prova que o arquivo abre; comparar com o manifesto prova que ele é o banco.
+      - name: Conferir o hash, decifrar e restaurar os dois bancos
+        run: |
+          set -euo pipefail
+          query() {
+            docker exec "$POSTGRES_CONTAINER" \
+              psql "${RESTORE_TARGET_URL}/$1" --tuples-only --no-align --quiet -c "$2"
+          }
+          while IFS= read -r line <&3; do
+            name="$(jq -r .database <<< "$line")"
+            file="$(basename "$(jq -r .object <<< "$line")")"
+            echo "$(jq -r .sha256 <<< "$line")  ${file}" | sha256sum -c -
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+              -pass env:BACKUP_ENCRYPTION_KEY -in "$file" -out "${file%.enc}"
+
+            database="restore_${name}"
+            query postgres "create database ${database}" > /dev/null
+            docker exec -i "$POSTGRES_CONTAINER" \
+              pg_restore --dbname "${RESTORE_TARGET_URL}/${database}" --no-owner < "${file%.enc}"
+
+            tables="$(query "$database" "select count(*) from information_schema.tables
+              where table_schema not in ('pg_catalog', 'information_schema') and table_type = 'BASE TABLE'")"
+            migration=''
+            if [ "$(query "$database" "select to_regclass('drizzle.__drizzle_migrations') is not null")" = t ]; then
+              migration="$(query "$database" "select coalesce(max(name), '') from drizzle.__drizzle_migrations")"
+            fi
+
+            expected_tables="$(jq -r .tableCount <<< "$line")"
+            expected_migration="$(jq -r .lastMigration <<< "$line")"
+            [ "$tables" = "$expected_tables" ] || {
+              echo "::error::${name}: restaurou ${tables} tabelas e o manifesto diz ${expected_tables}."
+              exit 1
+            }
+            [ "$migration" = "$expected_migration" ] || {
+              echo "::error::${name}: lastMigration '${migration}' e o manifesto diz '${expected_migration}'."
+              exit 1
+            }
+            echo "${name}: ${tables} tabelas · lastMigration '${migration}' — confere com o manifesto"
+          done 3< cycle.jsonl
+
+      - name: Avisar o monitor que o restore fechou
+        if: success()
+        run: |
+          set -euo pipefail
+          [ -n "$RESTORE_HEARTBEAT_URL" ] || {
+            echo "::error::RESTORE_HEARTBEAT_URL vazio — sem push não existe monitor de restore."
+            exit 1
+          }
+          curl --silent --show-error --fail --max-time 30 --output /dev/null "$RESTORE_HEARTBEAT_URL"

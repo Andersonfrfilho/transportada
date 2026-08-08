@@ -449,7 +449,74 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1928 pass · 3 skip · 0 fail.
 
-- [ ] T012 —
+- [x] T012 — Teste mensal de restore: `.github/workflows/restore-test.yml`.
+
+      Contrato antes: `apps/api-transportada/test/deploy/restore-test.contract.ts` (10 casos) entrou
+      no entrypoint `test/deploy.contract.test.ts` e foi visto vermelho — `26 pass / 10 fail`.
+      Depois do workflow: `36 pass / 0 fail`.
+
+      **O workflow rodou de verdade**, os quatro blocos `run:` extraídos do arquivo versionado com
+      `Bun.YAML.parse` e executados contra um ciclo de backup produzido na hora pelo
+      `deploy/backup/backup.sh` — mesmo script da T010, Postgres do `compose.yaml` e MinIO local.
+
+      ```text
+      === passo 0: guarda ===
+      === passo 1: baixar ===
+      ciclo escolhido: 2026-08-08T123333Z
+      === passo 2: restaurar ===
+      backup-2026-08-08T123333Z-app.dump.enc: OK
+      app: 70 tabelas · lastMigration '20260806161903_cte_fiscal_number_advanced_event' — confere com o manifesto
+      backup-2026-08-08T123333Z-keycloak.dump.enc: OK
+      keycloak: 2 tabelas · lastMigration '' — confere com o manifesto
+      === passo 3: heartbeat ===
+      heartbeat recebido: /restore
+      ```
+
+      O ciclo restaurado é o dos **dois** bancos. O `lastMigration` vazio do Keycloak não é um caso
+      não tratado: o banco dele não tem `drizzle.__drizzle_migrations`, o backup grava string vazia e
+      o restore compara vazio com vazio — mesma comparação para os dois, sem exceção no código.
+
+      **As três recusas foram provocadas**, porque um teste de restore que só sabe passar não é
+      teste:
+
+      ```text
+      ::error::alvo 'db.production.internal' não é o contêiner efêmero — este job nunca escreve em banco real.
+      codigo de saida=1
+
+      ::error::o ciclo 2026-08-08T123333Z tem 1 linha(s) no manifesto, e um ciclo completo tem 2.
+      codigo de saida=1
+
+      ::error::app: restaurou 70 tabelas e o manifesto diz 71.
+      codigo de saida=1
+      ```
+
+      A segunda é a que justifica escolher pela **última linha do manifesto** e não pelo objeto mais
+      novo do bucket: um ciclo que morreu entre o upload da aplicação e o do Keycloak deixa `.enc`
+      órfão sem linha, e restaurar esse órfão diria "verde" sobre um backup pela metade.
+
+      O que o ensaio **não** prova, e quem prova: o pulo do heartbeat quando o restore falha é do
+      `if: success()` do runner, não do script. Quem guarda isso é o contrato, que exige
+      `if: success()` no último passo e proíbe qualquer menção a `RESTORE_HEARTBEAT_URL` nos
+      anteriores.
+
+      Decisões e limites:
+
+      - **O cliente do Postgres é o do contêiner de serviço** (`docker exec` via
+        `job.services.postgres.id`), não o do runner. Cliente mais velho que o dump recusa o arquivo,
+        e o runner não acompanha a versão do servidor — casar as duas no mesmo contêiner tira essa
+        variável do caminho.
+      - **Ensaio local sem `postgres:18`.** O `docker pull postgres:18` pede autenticação no Docker
+        Hub neste ambiente; o ensaio trocou o prefixo `docker exec <contêiner>` pelos binários do
+        host (18.4) contra o Postgres 17.10 do compose, mantendo o resto do bloco intacto. A versão
+        casada continua garantida por construção no workflow e coberta pelo contrato.
+      - **Senha fixa no serviço de Postgres.** O contêiner nasce e morre com o job, sem porta
+        publicada, e é justamente o alvo descartável que a guarda do primeiro passo exige — não é
+        credencial de painel, que é o que a regra de segurança §2 trata.
+      - Nenhum secret de escrita em production entra no job: o contrato falha se `RAILWAY_TOKEN`,
+        `APP_DATABASE_URL` ou `KEYCLOAK_DATABASE_URL` aparecerem no arquivo.
+
+      Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1938 pass · 3 skip · 0 fail.
+
 - [ ] T013 — **RTO medido:** _(preencher)_
 - [ ] T014 —
 
