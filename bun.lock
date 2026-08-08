@@ -16,7 +16,7 @@
         "@adatechnology/fiscal-provider": "0.3.0-rc.6",
         "@adatechnology/keycloak-admin": "1.0.0-rc.0",
         "@adatechnology/keycloak-jwt": "0.1.1",
-        "@adatechnology/logger": "0.0.1",
+        "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/secret-envelope": "0.1.0",
         "bwip-js": "^4.11.2",
@@ -42,7 +42,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
-        "@adatechnology/logger": "0.0.1",
+        "@adatechnology/logger": "0.1.0-rc.0",
         "drizzle-orm": "1.0.0-rc.4",
         "zod": "4.4.3",
       },
@@ -94,7 +94,7 @@
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/fiscal-provider": "0.3.0-rc.6",
-        "@adatechnology/logger": "0.0.1",
+        "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
@@ -122,7 +122,7 @@
 
     "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.1", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg=="],
 
-    "@adatechnology/logger": ["@adatechnology/logger@0.0.1", "", {}, "sha512-8DREMp+klFwmzv3KbF7BUG4Dg4qyHYhSlNKo4/BPmya3NHIvINEk3B1U42Qn2MFL6SDYjRKhT68P6OlPwhmSYg=="],
+    "@adatechnology/logger": ["@adatechnology/logger@0.1.0-rc.0", "", {}, "sha512-OIA1YlWimL4oThdGpT975hXYZJXWEoEYskAHofPSD4KznOLX1lLIYHHkmLq+o9PNQW8K4y+lheQzrlI7AIT2cA=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
 

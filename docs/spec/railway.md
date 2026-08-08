@@ -180,7 +180,9 @@ Passos que exigem o dashboard ou uma decisão humana:
    guardar como secret do GitHub Environment correspondente (`staging` e
    `production`). Sem isso o deploy não autentica.
 3. **Required reviewers** no GitHub Environment `production`.
-4. **Backup da keyring de production** fora do Railway.
+4. **Backup da keyring de production** fora do Railway. Não existe backup automático de nenhum
+   ambiente ainda — enquanto a feature 029 não fechar, o procedimento manual de
+   `docs/ops/backup-emergencia.md` é o único backup que o produto tem.
 5. **Domínios e volume de production**: a instância do serviço só existe depois
    do primeiro deploy, então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
    `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`

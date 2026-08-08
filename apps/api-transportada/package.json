@@ -28,7 +28,7 @@
     "@adatechnology/fiscal-provider": "0.3.0-rc.6",
     "@adatechnology/keycloak-admin": "1.0.0-rc.0",
     "@adatechnology/keycloak-jwt": "0.1.1",
-    "@adatechnology/logger": "0.0.1",
+    "@adatechnology/logger": "0.1.0-rc.0",
     "@adatechnology/object-storage-provider": "0.2.0-rc.0",
     "@adatechnology/secret-envelope": "0.1.0",
     "bwip-js": "^4.11.2",
