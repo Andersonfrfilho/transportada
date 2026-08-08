@@ -1,8 +1,8 @@
 name: Teste mensal de restore
 
 # Backup que nunca voltou é arquivo, não backup. Uma vez por mês o ciclo mais recente é restaurado
-# num Postgres efêmero e conferido contra o manifesto. Divergiu, o job falha e o heartbeat não é
-# pingado — é a ausência do ping que abre o alerta, do mesmo jeito que no `deploy/backup`.
+# num Postgres efêmero e conferido contra o manifesto. Divergiu, o job falha e empurra o monitor
+# como vermelho; o mês em que ninguém rodou nada é pego pela janela do `heartbeat.interval`.
 on:
   schedule:
     - cron: '0 7 5 * *'
@@ -144,3 +144,17 @@ jobs:
           curl --silent --show-error --fail --max-time 30 --output /dev/null --request POST \
             --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
             "${RESTORE_HEARTBEAT_URL}?success=true"
+
+      # No backup a janela de 26 h já é o alerta: cadência diária, ciclo que quebrou vira notificação
+      # duas horas depois. Aqui a janela é de 32 dias, então esperar a ausência do ping significaria
+      # descobrir em setembro que o restore de agosto não fechou. Quem falha avisa que falhou.
+      - name: Avisar o monitor que o restore quebrou
+        if: failure()
+        run: |
+          set -uo pipefail
+          # O job já está vermelho. Insistir em falhar aqui só trocaria a causa que aparece no resumo
+          # do run pela última que aconteceu, e a causa boa é a de cima.
+          [ -n "${RESTORE_HEARTBEAT_URL:-}" ] && [ -n "${RESTORE_HEARTBEAT_TOKEN:-}" ] &&
+            curl --silent --show-error --max-time 30 --output /dev/null --request POST \
+              --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
+              "${RESTORE_HEARTBEAT_URL}?success=false" || true

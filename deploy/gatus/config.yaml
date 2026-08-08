@@ -44,6 +44,8 @@ external-endpoints:
         failure-threshold: 1
         send-on-resolved: true
 
+  # Mensal, a janela sozinha avisaria em setembro que o restore de agosto não fechou — por isso o
+  # workflow também empurra `success=false` quando quebra, e a janela sobra para o mês sem execução.
   - name: restore
     group: staging
     token: ${GATUS_RESTORE_STAGING_TOKEN}

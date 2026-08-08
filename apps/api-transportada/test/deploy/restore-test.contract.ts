@@ -156,13 +156,13 @@ describe('contrato do teste mensal de restore', () => {
   })
 
   /** Heartbeat que pinga mesmo com o passo anterior vermelho é o alerta que nunca dispara. */
-  test('o heartbeat é o último passo e só pinga no sucesso', async () => {
+  test('só os dois últimos passos falam com o monitor, e cada um no seu desfecho', async () => {
     const steps = await readSteps()
-    const last = steps.at(-1)
+    const [success, failure] = steps.slice(-2)
 
-    expect(last?.run).toContain('RESTORE_HEARTBEAT_URL')
-    expect(last?.if).toBe('success()')
-    for (const step of steps.slice(0, -1)) {
+    expect(success?.if).toBe('success()')
+    expect(failure?.if).toBe('failure()')
+    for (const step of steps.slice(0, -2)) {
       expect(step.run ?? '').not.toContain('RESTORE_HEARTBEAT_URL')
     }
   })
@@ -174,11 +174,36 @@ describe('contrato do teste mensal de restore', () => {
    */
   test('o push do restore é POST autenticado e falha fechado sem URL ou token', async () => {
     const steps = await readSteps()
-    const run = steps.at(-1)?.run ?? ''
+    const run = steps.at(-2)?.run ?? ''
 
     expect(run).toContain('RESTORE_HEARTBEAT_TOKEN')
     expect(run).toMatch(/--request POST/)
     expect(run).toMatch(/Authorization: Bearer \$\{?RESTORE_HEARTBEAT_TOKEN\}?/)
     expect(run).toContain('success=true')
+  })
+
+  /**
+   * No backup, cadência diária, a janela de 26 h transforma um ciclo que quebrou em alerta duas
+   * horas depois — a ausência do ping basta. Aqui não: o job é mensal e a janela é de 32 dias, então
+   * um restore que falhou hoje só viraria notificação depois da próxima execução mensal. Quem falha
+   * avisa que falhou, e a janela fica sendo o que ela sabe fazer — pegar o mês em que ninguém rodou.
+   */
+  test('o restore que quebra avisa o monitor na hora, com success=false', async () => {
+    const run = (await readSteps()).at(-1)?.run ?? ''
+
+    expect(run).toMatch(/--request POST/)
+    expect(run).toMatch(/Authorization: Bearer \$\{?RESTORE_HEARTBEAT_TOKEN\}?/)
+    expect(run).toContain('success=false')
+  })
+
+  /**
+   * O job já está vermelho quando este passo roda. Faltando configuração ou caindo o push, insistir
+   * em falhar só troca a causa que aparece no resumo do run pela última que aconteceu.
+   */
+  test('o aviso de falha não tem como piorar o desfecho do job', async () => {
+    const run = (await readSteps()).at(-1)?.run ?? ''
+
+    expect(run).not.toContain('exit 1')
+    expect(run).toContain('|| true')
   })
 })
