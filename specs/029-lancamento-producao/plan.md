@@ -18,7 +18,7 @@
   mensal do lançamento é multiplicado por cliente. Daí a restrição a software open source
   auto-hospedado no Railway — sem assinatura por cliente e sem cota de free tier para estourar.
 - O projeto `transportada-ops` **não existe ainda**: a fase A o cria. Ele hospeda GlitchTip,
-  OpenObserve, Uptime Kuma e os buckets de backup e de log, e serve os dois ambientes.
+  OpenObserve, Gatus e os buckets de backup e de log, e serve os dois ambientes.
 
 ## Arquitetura e arquivos afetados
 
@@ -81,7 +81,7 @@ contratos desta feature são de infraestrutura:
 | App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger          |
 | backup → bucket ops     | `db-backups/<ambiente>/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256` |
 | backup → manifesto      | `db-backups/<ambiente>/manifest.jsonl`, uma linha JSON por execução                       |
-| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso                |
+| backup → push monitor   | `POST $BACKUP_HEARTBEAT_URL?success=true` (external endpoint do Gatus, Bearer) no sucesso |
 | bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                                     |
 
 Os três primeiros saem do ambiente e entram no projeto de ops pelo domínio público dele (D2):
@@ -132,22 +132,24 @@ migration-test` já prova migration + rollback em Postgres descartável a cada C
   `test/*-schema/tenant-safety.contract.ts` continuam valendo sem alteração.
 - **Segredos novos**, todos por Environment e nunca iguais entre ambientes:
 
-| Onde                    | Variável                                                                                                                          |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Railway (3 apps)        | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL`                                                      |
-| Railway (vector)        | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`                                                                        |
-| Railway (backup)        | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENVIRONMENT`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL` |
-| Railway (ops)           | credenciais de admin do GlitchTip, do OpenObserve e do Uptime Kuma — nunca as default do template                                 |
-| GitHub Env `production` | `RAILWAY_TOKEN`                                                                                                                   |
-| GitHub repo             | `BACKUP_S3_*` e `BACKUP_ENVIRONMENT` (leitura), `BACKUP_ENCRYPTION_KEY` — só para o teste de restore                              |
+| Onde                    | Variável                                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Railway (3 apps)        | `SENTRY_DSN` (aponta para o GlitchTip), `SENTRY_ENVIRONMENT`, `LOG_SINK_URL`                                                                                |
+| Railway (vector)        | `LOG_ARCHIVE_S3_*`, `OPENOBSERVE_URL`, `OPENOBSERVE_TOKEN`                                                                                                  |
+| Railway (backup)        | `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`, `BACKUP_ENVIRONMENT`, `BACKUP_ENCRYPTION_KEY`, `BACKUP_S3_*`, `BACKUP_HEARTBEAT_URL`, `BACKUP_HEARTBEAT_TOKEN` |
+| Railway (ops)           | credenciais de admin do GlitchTip e do OpenObserve — nunca as default do template; o Gatus não tem senha local, entra por Keycloak                          |
+| GitHub Env `production` | `RAILWAY_TOKEN`                                                                                                                                             |
+| GitHub repo             | `BACKUP_S3_*` e `BACKUP_ENVIRONMENT` (leitura), `BACKUP_ENCRYPTION_KEY`, `RESTORE_HEARTBEAT_URL`, `RESTORE_HEARTBEAT_TOKEN` — só para o teste de restore    |
 
 - `BACKUP_ENCRYPTION_KEY` é o segredo mais perigoso do conjunto: com ele e o bucket alguém lê o
   banco inteiro. Fica fora do Railway num gerenciador de senhas, e o secret do GitHub que o teste
   de restore usa é o mesmo valor — não há como ser diferente, e é por isso que o workflow de
   restore não recebe nenhuma credencial de escrita em production.
-- **Auto-hospedar traz painéis, e painel é superfície.** GlitchTip, OpenObserve e Uptime Kuma
-  sobem com senha forte própria e nunca com a credencial do template. É a regra de segurança §2 —
-  painel operacional não sobe com credencial default nem com fallback vazio.
+- **Auto-hospedar traz painéis, e painel é superfície.** GlitchTip e OpenObserve sobem com senha
+  forte própria e nunca com a credencial do template. É a regra de segurança §2 — painel
+  operacional não sobe com credencial default nem com fallback vazio. O Gatus não tem senha
+  nenhuma: quem entra é quem o Keycloak diz que é (ADR-0025), e é para lá que os outros dois
+  caminham quando a integração de cada um for feita.
 - A credencial do bucket de backup dá escrita só no bucket de ops. Nenhum serviço de ops recebe
   credencial de escrita nos recursos de production; o `bucket-mirror` recebe **leitura** no bucket
   fiscal e escrita só no espelho.
@@ -177,8 +179,8 @@ Esta feature **é** a observabilidade, então o que se descreve aqui é como ela
 | -------------------------- | ------------------------------------- | --------------------------------------------- |
 | Log estruturado das 3 apps | stdout + OpenObserve + arquivo NDJSON | Busca por `correlationId` acha a linha        |
 | Exceção não tratada        | GlitchTip                             | Erro provocado em staging vira issue          |
-| API fora do ar             | Uptime Kuma                           | `/health/ready` derrubado a propósito uma vez |
-| Frontend fora do ar        | Uptime Kuma                           | idem                                          |
+| API fora do ar             | Gatus                                 | `/health/ready` derrubado a propósito uma vez |
+| Frontend fora do ar        | Gatus                                 | idem                                          |
 | Backup não rodou           | Push monitor                          | Janela pulada a propósito uma vez             |
 | Teste de restore falhou    | Push monitor + job                    | Manifesto adulterado a propósito uma vez      |
 

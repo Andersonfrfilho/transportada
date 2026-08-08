@@ -1,8 +1,8 @@
 # Tasks
 
-> 🤖 Modelo: `sonnet` para o grosso (script, workflow, fiação). 🧠 em T001, T002, T005, T013 e
-> T020 — redação de PII, `beforeSend`, prova do restore e config-as-code erram caro e erram em
-> silêncio. Validar com `opus`.
+> 🤖 Modelo: `sonnet` para o grosso (script, workflow, fiação). 🧠 em T001, T002, T005, T012a, T013
+> e T020 — redação de PII, `beforeSend`, escolha do stack de uptime, prova do restore e
+> config-as-code erram caro e erram em silêncio. Validar com `opus`.
 
 Nenhum `[NEEDS CLARIFICATION]` aberto: RPO e a restrição a software sempre gratuito ou open source
 foram resolvidos com o usuário (ver `spec.md` § D2 e D5).
@@ -38,7 +38,7 @@ terem evidência em `evidence.md`.
       ⚠️ `SENTRY_DSN`/`SENTRY_ENVIRONMENT` já entraram na T005 (a fiação do `main.ts` não existe
       sem eles) — sobra `LOG_SINK_URL` e o `.env.example`.
 - [x] T007 Projeto Railway `transportada-ops` — GlitchTip (template
-      `glitchtip-sentry-alternative`), OpenObserve e Uptime Kuma (template oficial), mais os
+      `glitchtip-sentry-alternative`), OpenObserve e o serviço de uptime, mais os
       buckets `transportada-logs`, `transportada-backups` e `transportada-fiscal-mirror`. Senha
       forte própria em cada painel, **nunca** a do template (regra de segurança §2); credencial de
       bucket com escopo só do bucket que usa. Evidência: os três painéis abrindo pelo domínio
@@ -46,6 +46,8 @@ terem evidência em `evidence.md`.
       ⚠️ Subiu o template **oficial** `glitchtip` (verificado, 87 deploys) em vez do
       `glitchtip-sentry-alternative` (de terceiro, 0 deploys). Falta concluir o assistente de
       primeira execução do Uptime Kuma — passo de navegador, não tem variável de bootstrap.
+      ⚠️ Esse assistente nunca foi concluído: o Uptime Kuma saiu do projeto na T012a e o uptime
+      passou a ser o Gatus, que sobe deste repositório e entra por Keycloak (ADR-0025).
       ⚠️ Os buckets viraram `transportada-afr-fernandes-*` (desvio 4): o projeto de ops é **um por
       cliente**, como o da aplicação. Nenhum código mudou — nome de bucket só existe em variável.
 - [x] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
@@ -75,14 +77,21 @@ terem evidência em `evidence.md`.
       baixa o dump mais recente, decifra, restaura e compara com o manifesto (hash, contagem de
       tabelas, `lastMigration`). Recusa alvo cujo host não seja `localhost`. Sem nenhum secret de
       escrita em production.
+- [ ] T012a 🧠 Trocar o Uptime Kuma pelo **Gatus** (ADR-0025): ele não tem login OIDC e o mantenedor
+      diz que não terá tão cedo, e monitor clicado num painel não nasce junto com a instalação nova.
+      `deploy/gatus/{Dockerfile,config.yaml,railway.json}` com login por Keycloak, monitores como
+      arquivo e os dois heartbeats virando `POST` autenticado no `backup.sh` e no `restore-test.yml`.
+      Evidência: contrato `test/deploy/gatus.contract.ts` verde, o serviço no ar pelo domínio
+      público, e o Uptime Kuma removido do projeto de ops.
 - [ ] T013 🧠 Ligar o backup em **staging** e provar o ciclo inteiro: uma execução verde, um
       restore mensal verde, e um restore manual cronometrado seguindo
       `docs/ops/backup-emergencia.md`. Evidência: tempo medido (RTO) em `evidence.md`.
       Execução verde ✅ e restore manual cronometrado ✅ (RTO 14 s). O restore mensal roda verde até
-      o último passo e **para no heartbeat**: o Uptime Kuma continua sem dono, então não existe
-      `RESTORE_HEARTBEAT_URL`. Fecha junto com o assistente de primeira execução dele.
+      o último passo e **para no heartbeat**, que não tem para onde apontar enquanto o monitor não
+      tiver dono. Fecha na T012a, com o Gatus no ar.
 - [ ] T014 Provocar a falha de propósito uma vez: pular a janela do backup e adulterar o manifesto.
-      Evidência: as duas notificações do Uptime Kuma.
+      Evidência: as duas notificações do Gatus — a primeira sai sozinha do `heartbeat.interval`
+      vencido, a segunda do job de restore que falha antes de pingar.
 
 ## Fase C — O portão humano
 
@@ -145,8 +154,9 @@ terem evidência em `evidence.md`.
 - [ ] T024 Ligar o serviço `backup` e o `vector` em production, com as variáveis do ambiente
       (nunca as de staging). Primeira execução verde antes do fim do dia do deploy — é o que fecha
       a janela sem cópia (D1).
-- [ ] T025 [P] Monitores no Uptime Kuma: HTTP em `/health/ready` da API e no frontend, push do
-      backup e push do restore. Provocar a queda de cada um uma vez e anexar a notificação.
+- [ ] T025 [P] Grupo `production` no `deploy/gatus/config.yaml`: HTTP em `/health/ready` da API e no
+      frontend, push do backup e push do restore. Provocar a queda de cada um uma vez e anexar a
+      notificação. É diff de pull request, não clique — o grupo `staging` da T012a é o molde.
 - [ ] T026 Login do primeiro `company-admin` pelo frontend de production, enxergando a empresa
       provisionada. Evidência com o CNPJ mascarado.
 - [ ] T027 [P] `docs/spec/railway.md`: serviços `vector` e `backup`, o projeto de ops

@@ -175,12 +175,17 @@ sweep_retention() {
   done
 }
 
+# O monitor é um external endpoint do Gatus (ADR-0025): `POST ...?success=true` com o token em
+# `Authorization: Bearer`. A URL diz qual monitor é, o token autoriza escrever nele — faltando um
+# dos dois não há ping, e o alerta que sobra é a janela vencida, não um ciclo dado como perdido.
 push_heartbeat() {
-  if [ -z "${BACKUP_HEARTBEAT_URL:-}" ]; then
+  if [ -z "${BACKUP_HEARTBEAT_URL:-}" ] || [ -z "${BACKUP_HEARTBEAT_TOKEN:-}" ]; then
     log warn backup_heartbeat_disabled
     return 0
   fi
-  curl --silent --show-error --fail --max-time 15 --output /dev/null "$BACKUP_HEARTBEAT_URL"
+  curl --silent --show-error --fail --max-time 15 --output /dev/null --request POST \
+    --header "Authorization: Bearer ${BACKUP_HEARTBEAT_TOKEN}" \
+    "${BACKUP_HEARTBEAT_URL}?success=true"
 }
 
 run_cycle() {

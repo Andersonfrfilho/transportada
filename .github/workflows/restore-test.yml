@@ -38,6 +38,7 @@ jobs:
       BACKUP_S3_REGION: ${{ vars.BACKUP_S3_REGION }}
       BACKUP_ENVIRONMENT: ${{ vars.BACKUP_ENVIRONMENT }}
       RESTORE_HEARTBEAT_URL: ${{ secrets.RESTORE_HEARTBEAT_URL }}
+      RESTORE_HEARTBEAT_TOKEN: ${{ secrets.RESTORE_HEARTBEAT_TOKEN }}
       RESTORE_TARGET_URL: postgresql://postgres:postgres@localhost:5432
     steps:
       # A guarda vem antes do download: alvo errado descoberto depois do `pg_restore` é tarde. Hoje a
@@ -134,8 +135,12 @@ jobs:
         if: success()
         run: |
           set -euo pipefail
-          [ -n "$RESTORE_HEARTBEAT_URL" ] || {
-            echo "::error::RESTORE_HEARTBEAT_URL vazio — sem push não existe monitor de restore."
+          # Ao contrário do backup, aqui a falta de configuração é falha declarada: um restore que
+          # não avisa ninguém não vale como teste. O push é o do Gatus (ADR-0025).
+          if [ -z "$RESTORE_HEARTBEAT_URL" ] || [ -z "$RESTORE_HEARTBEAT_TOKEN" ]; then
+            echo "::error::RESTORE_HEARTBEAT_URL ou RESTORE_HEARTBEAT_TOKEN vazio — sem push não existe monitor de restore."
             exit 1
-          }
-          curl --silent --show-error --fail --max-time 30 --output /dev/null "$RESTORE_HEARTBEAT_URL"
+          fi
+          curl --silent --show-error --fail --max-time 30 --output /dev/null --request POST \
+            --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
+            "${RESTORE_HEARTBEAT_URL}?success=true"

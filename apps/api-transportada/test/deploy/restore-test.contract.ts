@@ -149,6 +149,7 @@ describe('contrato do teste mensal de restore', () => {
       'BACKUP_S3_ACCESS_KEY_ID',
       'BACKUP_S3_SECRET_ACCESS_KEY',
       'RESTORE_HEARTBEAT_URL',
+      'RESTORE_HEARTBEAT_TOKEN',
     ]) {
       expect(`${name}=${content}`).toContain(`${name}: \${{ secrets.${name} }}`)
     }
@@ -164,5 +165,20 @@ describe('contrato do teste mensal de restore', () => {
     for (const step of steps.slice(0, -1)) {
       expect(step.run ?? '').not.toContain('RESTORE_HEARTBEAT_URL')
     }
+  })
+
+  /**
+   * `GET` na URL do Gatus é 404, e 404 com `--fail` é o job vermelho depois de o restore ter dado
+   * certo — indistinguível de um restore que quebrou. Aqui, ao contrário do backup, a ausência de
+   * URL ou de token é falha declarada: restore que não avisa ninguém não vale como teste.
+   */
+  test('o push do restore é POST autenticado e falha fechado sem URL ou token', async () => {
+    const steps = await readSteps()
+    const run = steps.at(-1)?.run ?? ''
+
+    expect(run).toContain('RESTORE_HEARTBEAT_TOKEN')
+    expect(run).toMatch(/--request POST/)
+    expect(run).toMatch(/Authorization: Bearer \$\{?RESTORE_HEARTBEAT_TOKEN\}?/)
+    expect(run).toContain('success=true')
   })
 })

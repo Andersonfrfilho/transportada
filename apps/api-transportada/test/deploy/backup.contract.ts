@@ -124,6 +124,24 @@ describe('contrato do serviço backup', () => {
   })
 
   /**
+   * O push do Gatus é `POST ...?success=true` com o token em `Authorization: Bearer` — um `GET`
+   * puro devolve 404 e o `--fail` derruba o ciclo depois de tudo ter dado certo. A URL identifica
+   * o monitor e o token autoriza escrever nele: faltando qualquer um dos dois não há ping, e o
+   * alerta que sobra é a janela vencida, não um backup dado como perdido.
+   */
+  test('o heartbeat é um push autenticado, e sem URL ou token o ciclo segue avisando', async () => {
+    const script = await readScript()
+    const heartbeat = script.slice(positionOf(script, 'push_heartbeat() {'))
+
+    expect(heartbeat).toContain('BACKUP_HEARTBEAT_URL')
+    expect(heartbeat).toContain('BACKUP_HEARTBEAT_TOKEN')
+    expect(heartbeat).toContain('backup_heartbeat_disabled')
+    expect(heartbeat).toMatch(/--request POST/)
+    expect(heartbeat).toMatch(/Authorization: Bearer \$\{?BACKUP_HEARTBEAT_TOKEN\}?/)
+    expect(heartbeat).toContain('success=true')
+  })
+
+  /**
    * Sem `-e` um `pg_dump` quebrado seguiria o roteiro até pingar o heartbeat de sucesso; sem `-E`
    * o trap de ERR não é herdado pelas funções e a falha não escreve o `step` que o runbook lê.
    */

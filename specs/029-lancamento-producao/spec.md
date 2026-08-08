@@ -96,7 +96,7 @@ somem exatamente no mês movimentado, que é quando fazem falta. Toda ferramenta
 | Arquivo de log       | sink S3 do Vector → bucket `transportada-logs` | —                       | bucket Railway (projeto ops)  |
 | Busca de log         | OpenObserve                                    | AGPL-3.0                | projeto `transportada-ops`    |
 | Rastreamento de erro | GlitchTip                                      | MIT                     | projeto `transportada-ops`    |
-| Alerta e uptime      | Uptime Kuma                                    | MIT                     | projeto `transportada-ops`    |
+| Alerta e uptime      | Gatus                                          | Apache-2.0              | projeto `transportada-ops`    |
 | Backup               | `pg_dump` + `openssl` + `aws` CLI              | PostgreSQL / Apache-2.0 | serviço `backup`, no ambiente |
 | Destino do backup    | bucket `transportada-backups`                  | —                       | bucket Railway (projeto ops)  |
 
@@ -106,13 +106,15 @@ false` e o `beforeSend` com o redator são os mesmos, apontando para o nosso hos
 A variável continua se chamando `SENTRY_DSN` porque é o nome que o SDK lê sozinho do ambiente;
 brigar com a convenção do SDK para renomear uma variável não compra nada.
 
-Railway tem template pronto de [GlitchTip](https://railway.com/deploy/glitchtip-sentry-alternative)
-e de [Uptime Kuma](https://docs.railway.com/guides/uptime-kuma) — os dois sobem em minutos.
+Railway tem template pronto de [GlitchTip](https://railway.com/deploy/glitchtip-sentry-alternative),
+que sobe em minutos. O **Gatus** não vem de template: sobe do `deploy/gatus/` deste repositório,
+porque quem é monitorado precisa ser diff de pull request, e não estado clicado num painel — a
+decisão e as alternativas descartadas estão em [ADR-0025](../../docs/adr/0025-gatus-over-uptime-kuma.md).
 
 > ⚠️ **O Railway não tem log drain.** A documentação é explícita: não existe configuração de
 > drain, e o caminho suportado é um serviço Vector recebendo os eventos por private networking e
 > encaminhando para o intake HTTP do agregador. Não adianta procurar o botão. Os _Monitors_ do
-> painel exigem plano Pro — por isso o alerta é o Uptime Kuma, não o Railway.
+> painel exigem plano Pro — por isso o alerta é o Gatus, não o Railway.
 
 **A observabilidade mora em outro projeto Railway.** `transportada-ops` é projeto separado, não
 um terceiro ambiente: quem vigia não pode morrer junto com o vigiado. Consequência prática — o
@@ -197,8 +199,9 @@ Cinco melhorias sobre o desenho do financiamento:
 3. **Manifesto verificável.** Cada backup grava, ao lado do `.dump.enc`, um `.sha256` e uma linha
    em `manifest.jsonl` com tamanho, contagem de tabelas e a última migration aplicada. É contra o
    manifesto que o teste de restore compara — sem ele, "restaurou" quer dizer só "não deu erro".
-4. **Falha faz barulho.** O ciclo termina pingando um _push monitor_ do Uptime Kuma. Sem ping na
-   janela, alerta. Cron que falha em silêncio é backup que não existe e ninguém sabe.
+4. **Falha faz barulho.** O ciclo termina empurrando um _external endpoint_ do Gatus, com o token
+   em `Authorization: Bearer`. Sem ping na janela declarada no `heartbeat.interval`, alerta. Cron
+   que falha em silêncio é backup que não existe e ninguém sabe.
 5. **A keyring entra no procedimento.** `ENCRYPTION_KEYRING_JSON` não está no dump e sem ela todo
    certificado A1 restaurado é ruído — ADR-0004: remover uma chave ainda referenciada torna o
    envelope indecifrável. A cópia fora do Railway vira gate, não lembrete.
@@ -278,7 +281,7 @@ do Environment `production`.
 
 **Given** a API de production fora do ar, ou o backup diário que não rodou
 **When** passa a janela de checagem
-**Then** chega alerta do Uptime Kuma, com o monitor identificando qual dos dois caiu.
+**Then** chega alerta do Gatus, com o monitor identificando qual dos dois caiu.
 
 ### P3 — Production nasce com a identidade e a empresa certas
 
@@ -343,7 +346,7 @@ preenchidos, e o primeiro `company-admin` entra pelo frontend de production e en
     `assert-migrations` confirma as 9 migrations aplicadas.
 11. `ENCRYPTION_KEYRING_JSON` de production está copiado fora do Railway, e o local está registrado
     em `docs/ops/backup-emergencia.md` — o local, nunca o valor.
-12. Monitores do Uptime Kuma cobrem `/health/ready` da API, o frontend, o push do backup e o push
+12. Monitores do Gatus cobrem `/health/ready` da API, o frontend, o push do backup e o push
     do teste de restore; a queda de cada um foi provocada uma vez e a notificação chegou.
 13. O primeiro `company-admin` de production entra pelo frontend e enxerga a empresa provisionada.
 14. `docs/spec/railway.md` não tem mais pendência aberta que esta feature fechou, e
@@ -354,4 +357,4 @@ preenchidos, e o primeiro `company-admin` entra pelo frontend de production e en
 Nenhuma aberta. As duas decisões de produto foram resolvidas com o usuário: RPO diário com
 retenção 30/90 dias, e ferramenta **sempre gratuita ou open source** rodando no Railway — o que
 descartou tanto o plano Pro do Railway quanto qualquer free tier de SaaS, e levou ao desenho
-Vector + OpenObserve + GlitchTip + Uptime Kuma + buckets Railway da D2.
+Vector + OpenObserve + GlitchTip + Gatus + buckets Railway da D2.
