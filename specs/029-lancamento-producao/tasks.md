@@ -99,9 +99,24 @@ terem evidência em `evidence.md`.
       `transportada-frontend` — com `RAILWAY_DOCKERFILE_PATH` e todas as variáveis não secretas.
       `SCHEDULED_DISTRIBUTION_CRON` da API espelhando o `cronSchedule` do cron, sem aspas.
       ⚠️ **Nome de serviço é nome de domínio.** O Railway gera `<serviço>-<ambiente>-<hash>` — o
-      nome do projeto nunca entra. Os três que o cliente enxerga (`transportada-frontend`, `api`,
-      `keycloak`) têm de nascer com o prefixo do produto e da instalação, `transportada-afr-…`,
-      porque renomear depois troca a URL que o cliente já usa. Os internos ficam curtos.
+      nome do projeto nunca entra, e o ambiente entra sempre. Os três que o cliente enxerga têm de
+      nascer com o nome certo, porque trocar depois troca a URL que o cliente já usa:
+
+      | Serviço      | production                        | staging                                   |
+      | ------------ | --------------------------------- | ----------------------------------------- |
+      | frontend     | `transportada-afr-fernandes`      | `staging-transportada-afr-fernandes`      |
+      | api          | `transportada-afr-fernandes-api`  | `staging-transportada-afr-fernandes-api`  |
+      | keycloak     | `transportada-afr-fernandes-auth` | `staging-transportada-afr-fernandes-auth` |
+
+      Production **não diz o ambiente** — é o normal, e o `-production-` do gerador tem de sair.
+      Staging diz, e diz como **prefixo**. Serviço interno (`worker`, `cron`, `rabbitmq`, bancos)
+      não tem domínio público e fica com nome curto.
+
+      ⚠️ Falta confirmar **como** se edita o subdomínio do `up.railway.app`: `railway domain <valor>`
+      trata o valor como domínio próprio (devolve registro DNS), não como subdomínio do Railway. Que
+      seja editável está provado pelo `transportada-staging.up.railway.app` de hoje — é
+      `serviceDomain`, sem `-frontend` e sem hash, então alguém escolheu. Descobrir se é CLI ou
+      dashboard **antes** de criar os serviços, não depois.
 - [ ] T020 🧠 Preencher **config-as-code** na aba _Settings_ de cada serviço de production. Sem
       isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9). Fecha a pendência 1.
       Evidência: print do campo preenchido nos seis.
@@ -134,3 +149,18 @@ terem evidência em `evidence.md`.
       medido na T018 e como ligar um monitor novo. Regra §14 do code-standart.
 - [ ] T028 `evidence.md` fechado: RTO medido, notificações de alerta, print do config-as-code,
       saída do `assert-migrations`, e a prova de ausência de PII nos três destinos.
+
+## Depois do go-live
+
+Fora do escopo desta spec — anotado aqui para não se perder.
+
+- [ ] Alinhar os domínios de **staging** à convenção da T019: `staging-transportada-afr-fernandes`,
+      `-api` e `-auth`. Hoje são `api-staging-5633`, `keycloak-staging-d714` e
+      `transportada-staging`, gerados pelo Railway. Não é cosmético: pede `FRONTEND_ORIGIN`,
+      `KEYCLOAK_ISSUER` e `KEYCLOAK_JWKS_URI` na api; `VITE_API_URL`, `VITE_APP_URL` e
+      `VITE_KEYCLOAK_URL` no frontend **com rebuild** (o `VITE_*` fica no bundle, restart não
+      troca); `KC_HOSTNAME` e `KEYCLOAK_FRONTEND_ORIGIN` no keycloak; e os `redirectUris` /
+      `webOrigins` do client no console admin — que **não** são versionados, o `realm/` só carrega
+      o realm local. Errar a última linha para o login de staging sem deixar rastro no repositório.
+      As `RAILWAY_SERVICE_*_URL` seguem sozinhas. Adiado para depois do go-live porque staging é o
+      campo de prova das T009, T013 e T014, e o cliente não acessa staging.
