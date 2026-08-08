@@ -108,6 +108,20 @@ describe('contrato do serviço vector', () => {
     }
   })
 
+  /**
+   * A 0.57.0 desligou a interpolação de `${VAR}` por padrão, e desligada ela não avisa: o literal
+   * `${LOG_ARCHIVE_S3_BUCKET}` segue como nome de bucket e o erro que chega é um `dispatch failure`
+   * que não fala de variável nenhuma. Toda a configuração acima depende do `${...}` — se o comando
+   * não ligar a interpolação, nada dela vale.
+   */
+  test('o comando liga a interpolação de variáveis que a configuração inteira pressupõe', async () => {
+    const dockerfile = await Bun.file(DOCKERFILE_PATH).text()
+    const configuration = await Bun.file(CONFIGURATION_PATH).text()
+
+    expect(configuration).toContain('${')
+    expect(dockerfile).toContain('--dangerously-allow-env-var-interpolation')
+  })
+
   test('a imagem é pinada por digest, não por tag móvel', async () => {
     const dockerfile = await Bun.file(DOCKERFILE_PATH).text()
     const fromLine = dockerfile.split('\n').find((line) => line.startsWith('FROM '))
