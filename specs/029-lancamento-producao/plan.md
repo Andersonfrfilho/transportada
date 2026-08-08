@@ -73,16 +73,16 @@ do monorepo e não participam do `bun install`.
 Nenhuma rota HTTP nova, nenhum envelope de fila novo, nenhum contrato de frontend alterado. Os
 contratos desta feature são de infraestrutura:
 
-| Contrato                | Forma                                                                            |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| App → Vector            | `POST http://vector.railway.internal:9000`, NDJSON, sem TLS (WireGuard já cifra) |
-| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa   |
-| Vector → OpenObserve    | `POST $OPENOBSERVE_URL/api/<org>/<stream>/_json` sobre HTTPS pública, Basic auth |
-| App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger |
-| backup → bucket ops     | `db-backups/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256`   |
-| backup → manifesto      | `db-backups/manifest.jsonl`, uma linha JSON por execução                         |
-| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso       |
-| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                            |
+| Contrato                | Forma                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| App → Vector            | `POST http://vector.railway.internal:9000`, NDJSON, sem TLS (WireGuard já cifra)  |
+| Vector → arquivo        | sink S3 em `transportada-logs`, NDJSON gzip, `logs/%Y/%m/%d/` — retenção longa    |
+| Vector → OpenObserve    | `POST $OPENOBSERVE_URL/api/<org>/<stream>/_multi` sobre HTTPS pública, Basic auth |
+| App → GlitchTip         | SDK `@sentry/bun` 10.x sobre HTTPS pública, `beforeSend` com o redator do logger  |
+| backup → bucket ops     | `db-backups/{daily,weekly}/backup-<stamp>-{app,keycloak}.dump.enc` + `.sha256`    |
+| backup → manifesto      | `db-backups/manifest.jsonl`, uma linha JSON por execução                          |
+| backup → push monitor   | `GET $BACKUP_HEARTBEAT_URL` (push do Uptime Kuma) só no caminho de sucesso        |
+| bucket fiscal → espelho | `aws s3 sync`, prefixo preservado, **sem** `--delete`                             |
 
 Os três primeiros saem do ambiente e entram no projeto de ops pelo domínio público dele (D2):
 private networking não atravessa projeto. Todos autenticados por token; nenhuma porta nova é

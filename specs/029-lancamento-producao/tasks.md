@@ -51,10 +51,15 @@ terem evidência em `evidence.md`.
 - [x] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
       HTTP na 9000 IPv6, dois sinks: arquivo S3 em `transportada-logs` (NDJSON gzip, particionado
       por dia) e OpenObserve por `OPENOBSERVE_URL`/`OPENOBSERVE_TOKEN`.
-- [ ] T009 Ligar em **staging**: criar o serviço `vector`, preencher as variáveis das três apps,
+- [x] T009 Ligar em **staging**: criar o serviço `vector`, preencher as variáveis das três apps,
       provocar uma exceção e um log com PII de mentira. Evidência: a linha achada no OpenObserve
       pelo `correlationId`, o mesmo evento no arquivo do bucket, o issue no GlitchTip, e a prova de
       que nenhum dos três tem PII.
+      ⚠️ A 0.57.0 do Vector desligou a interpolação de `${VAR}` por padrão, e desligada ela é
+      silenciosa — corrigido no `CMD` com `--dangerously-allow-env-var-interpolation` e guardado por
+      contrato (commit `3f9caa5`).
+      ⚠️ O ingest do OpenObserve é `_multi`, não `_json`: `_json` só aceita array e o sink manda
+      NDJSON. A linha do `plan.md` que dizia `_json` estava errada e foi corrigida.
 
 ## Fase B — Sobrevivência do dado
 

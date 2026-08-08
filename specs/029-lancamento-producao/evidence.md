@@ -428,7 +428,98 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Gates: `format:check` ok · `lint` ok · `typecheck` ok · api 1910 pass · 3 skip · 0 fail.
 
-- [ ] T009 —
+- [x] T009 — Observabilidade ligada em staging, ponta a ponta.
+
+      Serviço `vector` criado no projeto `transportada` / ambiente `staging`
+      (`41720d1d-2ccb-47f1-8954-1faa522fc2b5`), `LOG_SINK_URL=http://vector.railway.internal:9000`
+      nas três apps e um `SENTRY_DSN` por app (chaves públicas de escrita, nunca no repositório).
+
+      **Duas correções que a T008 não podia ter previsto, as duas achadas em produção do serviço:**
+
+      1. A 0.57.0 do Vector **desligou a interpolação de `${VAR}` por padrão**, e desligada ela é
+         silenciosa: o literal `${LOG_ARCHIVE_S3_BUCKET}` vira nome de bucket e o único sintoma é um
+         `dispatch failure` do smithy que não fala de variável nenhuma. Só o `VECTOR_LOG=debug`
+         mostrou a causa (`bucket: Some("${LOG_ARCHIVE_S3_BUCKET}")`). Antes de arrumar, um caso
+         novo no `vector.contract.ts` (37 pass / 1 fail); depois do
+         `--dangerously-allow-env-var-interpolation` no `CMD`, 38 pass / 0 fail e
+         `Healthcheck passed.` no serviço remoto. Commit isolado `3f9caa5`.
+
+      2. O `plan.md` documentava o ingest do OpenObserve como `.../_json`. **Está errado**: `_json`
+         só aceita um *array* JSON, e o sink do Vector envia NDJSON (`framing: newline_delimited`).
+         O OpenObserve respondia `400 Bad Request` e o Vector descartava o lote inteiro
+         (`Not retriable; dropping the request` · `component_events_dropped … count=3`). O endpoint
+         que aceita NDJSON é o `_multi` — provado por `curl` (`successful:2, failed:0`) antes de
+         trocar a variável. A linha do `plan.md` foi corrigida nesta task.
+
+      **A exceção provocada.** Um 4xx de domínio não serve: `createErrorResponse` devolve cedo para
+      `ApiError` e nem chama o `captureError` ("só o desconhecido interessa"). Foi preciso uma falha
+      de verdade — o `Postgres` de staging foi reiniciado e, durante a janela, um `POST
+      /user-activation` (rota anônima que consulta o banco) esperou o pool até estourar:
+
+      ```text
+      $ curl -m 90 -X POST …/user-activation -d '{"code":"…","password":"…"}'
+      status=500 time=4.08
+      {"error":{"code":"INTERNAL_ERROR","correlationId":"d3b925b5-2622-4f9e-9196-d1cf03a920d2", …}}
+      ```
+
+      O mesmo `correlationId` aparece nos três destinos:
+
+      ```text
+      # 1) OpenObserve — busca por meta_correlationid
+      {"level":"ERROR","message":"http_request_failed","meta_correlationid":"d3b925b5-…",
+       "meta_errorname":"DrizzleQueryError","meta_sqlstate":"ERR_POSTGRES_CONNECTION_TIMEOUT"}
+      {"level":"INFO","message":"http_request_completed","meta_correlationid":"d3b925b5-…",
+       "meta_pathname":"<unmatched>","meta_status":500}
+
+      # 2) arquivo do bucket — logs/2026/08/08/*.log.gz, NDJSON gzip
+      {"level":"ERROR","message":"http_request_failed","meta":{"correlationId":"d3b925b5-…",
+       "errorName":"DrizzleQueryError","sqlState":"ERR_POSTGRES_CONNECTION_TIMEOUT"}, …}
+
+      # 3) GlitchTip — org ada-technology, issue TRANSPORTADA-API-1
+      DrizzleQueryError: Failed query: select "accepted_at", "attempt_count", … (8 eventos)
+      tags: environment=staging · os.name=Alpine Linux · culprit drizzle-orm.pg-core.async:session
+      ```
+
+      O `correlationId` da resposta HTTP aparece 2× no payload do evento do GlitchTip — é o que
+      amarra o issue de volta ao log e ao arquivo.
+
+      **O log com PII de mentira.** Duas requisições carregando CPF `52998224725`, telefone
+      `11987654321` e e-mail `fulano.detal@exemplo.invalid` em *query string*, no Bearer e no corpo
+      JSON (correlationIds `8500729d-…` e `3e5a2d4f-…`). As duas linhas chegaram inteiras nos dois
+      destinos, e o que chegou não tem nada disso — `pathname` vira `<unmatched>`, a query string
+      não é logada, e o corpo nunca entra no log:
+
+      ```text
+      {"level":"INFO","message":"http_request_completed","meta":{"correlationId":"8500729d-…",
+       "durationMs":0.48,"method":"GET","pathname":"<unmatched>","status":401}, …}
+      ```
+
+      **A prova de que nenhum dos três tem PII** — busca por cada termo, nos três, sem exceção:
+
+      ```text
+      # OpenObserve — match_all() sobre a stream transportada_staging inteira, 15:00 → agora
+      52998224725                  -> hits=0
+      11987654321                  -> hits=0
+      fulano.detal@exemplo.invalid -> hits=0
+      irrelevante (a senha enviada)-> hits=0
+
+      # arquivo do bucket — 84 linhas de 5 objetos .log.gz, descomprimidas
+      52998224725: 0 · 11987654321: 0 · fulano: 0 · exemplo.invalid: 0 · irrelevante: 0
+
+      # GlitchTip — os 8 eventos do issue, JSON cru
+      irrelevante: 0 · t009-excecao: 0 · 52998224725: 0 · 11987654321: 0 · fulano: 0
+      ```
+
+      Vale registrar o que **não** vazou por desenho e não por sorte: o `DrizzleQueryError` carrega a
+      SQL, e a SQL da ativação tem a senha como parâmetro. Nem o log nem o GlitchTip trazem os
+      parâmetros — `describeErrorForLog` emite só `errorName` e `sqlState`, e o `beforeSend` do SDK
+      passou o resto pelo redator. A senha `irrelevante` não aparece em lugar nenhum dos três.
+
+      Curiosidade sem consequência: o próprio scrubber do GlitchTip marca a tag `release` como
+      `[EMAIL_REDACTED]` — `api-transportada@0.1.0` tem cara de e-mail para o regex dele.
+
+      Staging voltou inteiro depois do teste: `/health/ready` → `{"database":"up","identity":"up",
+      "migrations":"up","status":"ok"}`.
 
 ## Fase B — Sobrevivência do dado
 
