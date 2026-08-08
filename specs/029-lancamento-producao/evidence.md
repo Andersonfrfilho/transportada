@@ -522,8 +522,72 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
 ## Fase C — O portão humano
 
-- [ ] T015 —
-- [ ] T016 —
+- [x] T015 — GitHub Environment `production` e `staging`.
+
+      Os dois ambientes já existiam e **já tinham `RAILWAY_TOKEN`** — o que faltava era o portão.
+
+      ```text
+      $ gh api repos/Andersonfrfilho/transportada/environments/production/secrets --jq '.secrets[].name'
+      RAILWAY_TOKEN
+      $ gh api repos/Andersonfrfilho/transportada/environments/staging/secrets --jq '.secrets[].name'
+      RAILWAY_TOKEN
+      ```
+
+      **O revisor obrigatório não entrou, e não é erro de configuração — é o plano do GitHub.** O
+      repositório é privado num plano Free, e a API recusa a regra:
+
+      ```text
+      $ gh api --method PUT .../environments/production -f reviewers='[{"type":"User","id":…}]'
+      HTTP 422 — Failed to create the environment protection rule. Please ensure the billing plan
+      supports the required reviewers protection rule.
+      ```
+
+      Foi uma tentativa só, como combinado: sem insistir e sem contornar. **Enquanto o plano não
+      mudar, a aprovação humana da T021 é o merge do PR, não o botão do Environment** — quem
+      aprova é a pessoa que clica em "Merge", com a `main` protegida pela T016 no caminho.
+
+      O que o plano Free **aceitou** foi a política de branch por ambiente, que fecha o buraco mais
+      grosseiro: um deploy de `production` disparado de uma branch qualquer.
+
+      ```text
+      $ gh api .../environments/production/deployment-branch-policies --jq '[.branch_policies[].name]|join(",")'
+      main
+      $ gh api .../environments/staging/deployment-branch-policies --jq '[.branch_policies[].name]|join(",")'
+      staging
+      ```
+
+      Fecha as pendências 2 e 3 de `docs/spec/railway.md` no que depende de configuração; a
+      pendência do revisor fica registrada aqui e volta no dia em que o repositório virar público
+      ou o plano virar Team.
+
+- [x] T016 — Proteção de `main`.
+
+      ```text
+      $ gh api repos/Andersonfrfilho/transportada/branches/main/protection --jq '{…}'
+      {"pr_obrigatorio":true,"aprovacoes":0,"checks":["gate / quality","gate / integration"],
+       "strict":true,"admins":true,"force_push":false,"delecao":false,"linear":true}
+      ```
+
+      Ao contrário do revisor do Environment, a proteção clássica de branch **passou** no plano
+      Free: `PUT /branches/main/protection` respondeu 200 e o `GET` devolve o estado acima.
+
+      `aprovacoes: 0` é decisão, não descuido. Com `required_approving_review_count: 1` num
+      repositório de uma pessoa só, ninguém consegue aprovar o próprio PR e a `main` fica
+      **impossível de mergear** — o portão viraria um bloqueio. O que a D8 pede é o que está
+      valendo: PR obrigatório (`pr_obrigatorio: true` sem push direto), CI verde e atualizado
+      (`strict: true` sobre os dois jobs do `ci.yml`), sem force push, sem deleção, histórico
+      linear, e `enforce_admins: true` para que o dono também passe pelo caminho.
+
+      Os nomes dos checks (`gate / quality`, `gate / integration`) saíram dos check-runs reais do
+      último commit da `main`, não de leitura do YAML — nome de check errado numa proteção
+      `strict` trava tudo para sempre esperando um job que nunca reporta.
+
+      Ressalva honesta: `git push --dry-run origin staging:main` respondeu `ok main`. **Isso não
+      contradiz a proteção** — o `--dry-run` não envia o pack e por isso não aciona o
+      `pre-receive` do servidor, que é onde a regra é aplicada. A prova do bloqueio é o estado
+      lido pela API acima; a recusa aparece na primeira tentativa real, e não vale gastar um push
+      de verdade para vê-la.
+
 - [ ] T017 —
 
 ## Fase D — Subir production

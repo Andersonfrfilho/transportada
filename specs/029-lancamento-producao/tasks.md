@@ -73,10 +73,12 @@ terem evidência em `evidence.md`.
 
 ## Fase C — O portão humano
 
-- [ ] T015 [P] GitHub Environment `production`: revisor obrigatório + `RAILWAY_TOKEN` do ambiente
+- [x] T015 [P] GitHub Environment `production`: revisor obrigatório + `RAILWAY_TOKEN` do ambiente
       (project token criado no dashboard do Railway). `staging` ganha o seu token no mesmo passo.
       Fecha a pendência 2 e 3 de `docs/spec/railway.md`.
-- [ ] T016 [P] Proteção de `main`: PR obrigatório, CI verde, sem push direto (D8). Sem isso o
+      ⚠️ O revisor obrigatório não entrou: repositório privado em plano Free, a API recusa
+      (`422`). O portão humano é o merge do PR na `main` protegida (T016) até o plano mudar.
+- [x] T016 [P] Proteção de `main`: PR obrigatório, CI verde, sem push direto (D8). Sem isso o
       revisor do Environment é contornável.
 - [ ] T017 Gerar os segredos de production — `ENCRYPTION_KEYRING_JSON` (`production-v1`),
       `IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`,
