@@ -53,7 +53,7 @@ terem evidência em `evidence.md`.
 
 ## Fase B — Sobrevivência do dado
 
-- [ ] T010 `deploy/backup/{Dockerfile,backup.sh,railway.json}` — `postgres:18-alpine` (o servidor é
+- [x] T010 `deploy/backup/{Dockerfile,backup.sh,railway.json}` — `postgres:18-alpine` (o servidor é
       18), dump custom dos **dois** bancos por private networking, `pg_restore --list` como
       validação, AES-256-CBC PBKDF2, upload com `.sha256`, linha no `manifest.jsonl`, retenção
       30/90 e push do heartbeat só no sucesso. Testado localmente contra o `docker compose` do

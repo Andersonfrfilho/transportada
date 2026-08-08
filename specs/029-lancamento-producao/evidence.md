@@ -306,7 +306,89 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
 ## Fase B — Sobrevivência do dado
 
-- [ ] T010 —
+- [x] T010 — Serviço `backup`: `deploy/backup/{Dockerfile,backup.sh,railway.json}`.
+
+      Contrato antes: `apps/api-transportada/test/deploy/backup.contract.ts` (12 casos) entrou no
+      entrypoint `test/deploy.contract.test.ts` e foi visto vermelho — `8 pass / 12 fail`, os 8
+      sendo os do `vector`. Depois do script: `20 pass / 0 fail`.
+
+      **O ciclo rodou de verdade** contra o `compose.yaml` do repositório, sem bucket remoto no
+      caminho: Postgres local para os dois bancos (o do Keycloak simulado por um segundo banco no
+      mesmo servidor) e MinIO local como destino S3.
+
+      ```text
+      {"level":"info","event":"backup_dump_completed","database":"app","object":"db-backups/daily/backup-2026-08-08T121605Z-app.dump.enc"}
+      {"level":"info","event":"backup_dump_completed","database":"keycloak","object":"db-backups/daily/backup-2026-08-08T121605Z-keycloak.dump.enc"}
+      {"level":"info","event":"backup_cycle_completed","stamp":"2026-08-08T121605Z","retention":"daily"}
+      ```
+
+      Bucket depois do ciclo — quatro objetos e o manifesto, nenhum dump em claro:
+
+      ```text
+      db-backups/daily/backup-2026-08-08T121605Z-app.dump.enc
+      db-backups/daily/backup-2026-08-08T121605Z-app.dump.enc.sha256
+      db-backups/daily/backup-2026-08-08T121605Z-keycloak.dump.enc
+      db-backups/daily/backup-2026-08-08T121605Z-keycloak.dump.enc.sha256
+      db-backups/manifest.jsonl
+      ```
+
+      Manifesto (linha da aplicação):
+
+      ```json
+      {"stamp":"2026-08-08T121605Z","database":"app","object":"db-backups/daily/backup-2026-08-08T121605Z-app.dump.enc","retention":"daily","sizeBytes":746880,"sha256":"edee37e2…f5a12","tableCount":70,"lastMigration":"20260806161903_cte_fiscal_number_advanced_event"}
+      ```
+
+      **O backup foi restaurado**, que é o que separa arquivo de backup: baixado do bucket,
+      `sha256sum -c` ok, decifrado, `pg_restore` num banco descartável, e a comparação com o
+      manifesto bateu exata — `tableCount` 70 e o mesmo `lastMigration`.
+
+      ```text
+      backup-2026-08-08T121605Z-app.dump.enc: OK
+      $ psql t010_restore -tAc 'select count(*) … base tables'          → 70
+      $ psql t010_restore -tAc 'select max(name) from drizzle.__drizzle_migrations'
+        20260806161903_cte_fiscal_number_advanced_event
+      ```
+
+      **Falha provocada** (URL do Keycloak apontando para banco inexistente): saída 1,
+      `backup_cycle_failed` com o `step` que o runbook manda ler, e **nenhum ping** no heartbeat.
+
+      ```text
+      codigo de saida=1
+      {"level":"error","event":"backup_cycle_failed","step":"dump_keycloak","line":86}
+      --- hits --- nenhum ping
+      ```
+
+      Esse teste pegou um defeito real: com `set -euo pipefail` o ciclo morria **calado**, porque o
+      trap de `ERR` não é herdado pelas funções sem `-E`. O `step` que o `docs/ops/backup-emergencia.md`
+      manda ler saía vazio. Corrigido para `set -Eeuo pipefail`, e o contrato passou a exigir as
+      duas coisas juntas.
+
+      **Retenção provada** com objetos semeados: o diário de 2026-01-01 (>30 d) e o semanal de
+      2025-12-01 (>90 d) foram apagados; o semanal de 2026-06-01 (dentro de 90 d) ficou.
+
+      ```text
+      {"event":"backup_object_expired","key":"db-backups/daily/backup-2026-01-01T000000Z-app.dump.enc"}
+      {"event":"backup_object_expired","key":"db-backups/weekly/backup-2025-12-01T000000Z-app.dump.enc"}
+      ```
+
+      Decisões que divergem do plano, e por quê:
+
+      - **`curl --aws-sigv4` no lugar da AWS CLI.** Fala S3 nativamente desde a 7.75 e evita
+        arrastar Python para uma imagem que roda cinco minutos por dia. A credencial entra por
+        `--config -` (stdin), não por argv, para não aparecer num `ps` do contêiner.
+      - **O corte da retenção vem do Postgres.** A imagem é alpine e o `date` do busybox não faz
+        aritmética relativa; o banco que acabou de ser dumpado faz, e o resultado é idêntico em
+        macOS e em alpine — foi o que permitiu rodar o teste local sem adaptação.
+      - **Imagem pinada por digest** (`postgres:18-alpine@sha256:9a8afca5…`), como o
+        `deploy/keycloak/Dockerfile` já fazia.
+
+      Ficou explícito, para a T012: o job mensal escolhe o backup pela **última linha do
+      manifesto**, não pelo objeto mais recente do bucket — um ciclo que falhou depois do upload da
+      aplicação e antes do Keycloak deixa `.enc` órfão sem linha no manifesto, e é o manifesto que
+      diz o que é um backup completo.
+
+      Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1922 pass · 3 skip · 0 fail.
+
 - [ ] T011 —
 - [ ] T012 —
 - [ ] T013 — **RTO medido:** _(preencher)_
