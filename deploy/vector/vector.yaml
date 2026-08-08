@@ -1,0 +1,55 @@
+# Coleta dos logs estruturados das três apps.
+#
+# As apps mandam NDJSON já redigido pelo logger — o Vector não filtra PII, não é o lugar disso.
+# Ele só reparte: arquivo durável no bucket e busca no OpenObserve.
+
+sources:
+  # Private networking da Railway só resolve AAAA. Escutar em 0.0.0.0 é não receber nada.
+  apps:
+    type: http_server
+    address: '[::]:9000'
+    decoding:
+      codec: json
+    framing:
+      method: newline_delimited
+
+sinks:
+  # O destino durável. Um objeto gzip por janela, particionado por dia, para o `aws s3 ls` de uma
+  # data ser barato e a retenção do bucket poder ser por prefixo.
+  archive:
+    type: aws_s3
+    inputs: ['apps']
+    bucket: '${LOG_ARCHIVE_S3_BUCKET}'
+    region: '${LOG_ARCHIVE_S3_REGION}'
+    endpoint: '${LOG_ARCHIVE_S3_ENDPOINT}'
+    key_prefix: 'logs/%Y/%m/%d/'
+    compression: gzip
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    auth:
+      access_key_id: '${LOG_ARCHIVE_S3_ACCESS_KEY}'
+      secret_access_key: '${LOG_ARCHIVE_S3_SECRET_KEY}'
+    batch:
+      timeout_secs: 300
+
+  # A busca é conveniência; o arquivo é a obrigação. Painel fora do ar descarta o excedente em vez
+  # de encher o buffer e fazer contrapressão no caminho do bucket.
+  search:
+    type: http
+    inputs: ['apps']
+    uri: '${OPENOBSERVE_URL}'
+    method: post
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    # O OpenObserve entrega esse header pronto na tela de ingestão: base64 de `usuário:token`.
+    request:
+      headers:
+        Authorization: 'Basic ${OPENOBSERVE_TOKEN}'
+    buffer:
+      when_full: drop_newest
+    healthcheck:
+      enabled: false

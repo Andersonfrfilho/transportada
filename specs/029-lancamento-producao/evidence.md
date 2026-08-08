@@ -248,7 +248,60 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       ```
 
 - [ ] T007 —
-- [ ] T008 —
+- [x] T008 — `deploy/vector/{Dockerfile,vector.yaml,railway.json}`.
+
+      Teste antes: `test/deploy/vector.contract.ts` (8 casos, entrypoint
+      `test/deploy.contract.test.ts`, registrado no `package.json` da API). Mora na suíte da API
+      pelo mesmo motivo que o contrato do `.env.example` mora: é onde um teste de nível de
+      repositório já roda num gate. Vermelho de 0 pass/8 fail antes dos arquivos existirem.
+
+      O que o contrato prende, e por quê:
+
+      - `address: '[::]:9000'` — private networking da Railway só resolve AAAA. Escutar em IPv4 é
+        subir um serviço que nunca recebe nada, e o sintoma seria "log sumiu", não "serviço caiu".
+      - `decoding.codec: json` + `framing.newline_delimited` — é o NDJSON que o `HttpTransport`
+        do logger emite.
+      - Sink `archive` (`aws_s3`): gzip, NDJSON, `key_prefix: logs/%Y/%m/%d/`. Partição por dia
+        para o `aws s3 ls` de uma data ser barato e a retenção poder ser por prefixo.
+      - Sink `search` (`http` → OpenObserve) com `buffer.when_full: drop_newest` e
+        `healthcheck.enabled: false`. A busca é conveniência, o arquivo é a obrigação: painel
+        fora do ar não pode encher o buffer e fazer contrapressão no caminho do bucket.
+      - Nenhum sink órfão — todo destino consome a fonte `apps`.
+      - Nenhuma credencial literal: a varredura exige que todo `access_key_id`, `secret_access_key`,
+        `token`, `password`, `uri`, `bucket`, `endpoint` e `region` venha por `${...}`.
+      - Imagem pinada por digest, não por tag móvel (o plano dizia `latest-alpine`; o padrão do
+        `deploy/keycloak/Dockerfile` é digest, e é o que vale).
+
+      `OPENOBSERVE_TOKEN` guarda o header Basic já montado (base64 de `usuário:token`), que é como
+      o próprio OpenObserve entrega na tela de ingestão — uma variável em vez de duas, como o plano
+      previa.
+
+      Validação com o binário oficial (`vector 0.57.0`, baixado do GitHub releases; o Docker Hub
+      pediu autenticação):
+
+      ```text
+      $ vector validate --no-environment deploy/vector/vector.yaml
+      √ Loaded ["deploy/vector/vector.yaml"]
+      √ Transforms configuration
+      --------------------------------------
+                                   Validated
+      ```
+
+      E o intake provado de verdade, com a **mesma** source do arquivo real (derivada dele por
+      script, só trocando o sink por arquivo local e a porta, já ocupada nesta máquina):
+
+      ```text
+      $ curl -X POST http://[::1]:19000 --data-binary '<2 linhas NDJSON>'
+      intake HTTP 200
+      {"companyId":"c3d4","correlationId":"a1b2","level":"info","message":"cte_issued","path":"/","source_type":"http_server","timestamp":"..."}
+      {"correlationId":"a1b2","level":"error","message":"boom","path":"/","source_type":"http_server","timestamp":"..."}
+      ```
+
+      Duas linhas viraram dois eventos com os campos intactos — o `correlationId` que a T009 vai
+      usar para achar a linha no OpenObserve chega inteiro.
+
+      Gates: `format:check` ok · `lint` ok · `typecheck` ok · api 1910 pass · 3 skip · 0 fail.
+
 - [ ] T009 —
 
 ## Fase B — Sobrevivência do dado

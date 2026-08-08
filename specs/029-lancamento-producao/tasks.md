@@ -43,7 +43,7 @@ terem evidência em `evidence.md`.
       forte própria em cada painel, **nunca** a do template (regra de segurança §2); credencial de
       bucket com escopo só do bucket que usa. Evidência: os três painéis abrindo pelo domínio
       público, e `aws s3 ls` contra cada bucket.
-- [ ] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
+- [x] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
       HTTP na 9000 IPv6, dois sinks: arquivo S3 em `transportada-logs` (NDJSON gzip, particionado
       por dia) e OpenObserve por `OPENOBSERVE_URL`/`OPENOBSERVE_TOKEN`.
 - [ ] T009 Ligar em **staging**: criar o serviço `vector`, preencher as variáveis das três apps,
