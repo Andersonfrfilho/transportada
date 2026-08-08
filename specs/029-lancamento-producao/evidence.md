@@ -758,8 +758,82 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1938 pass · 3 skip · 0 fail.
 
-- [ ] T013 — **RTO medido: 14 s** (staging, ciclo `2026-08-08T173759Z`). Duas das três provas
-      fechadas; a terceira está bloqueada fora do repositório — detalhe no fim do bloco.
+- [x] T012a — **Uptime Kuma fora, Gatus no ar** ([ADR-0025](../../docs/adr/0025-gatus-over-uptime-kuma.md)).
+      O motivo da troca é de duas linhas: o Uptime Kuma não faz login OIDC — e o mantenedor diz que
+      não fará tão cedo —, então a única credencial possível seria uma senha local numa URL pública,
+      exatamente o que a regra de segurança §2 proíbe; e monitor criado por clique não nasce junto
+      com a instalação nova, que é o modelo de distribuição deste produto (ADR-0021).
+
+      `deploy/gatus/` com Dockerfile (`ghcr.io/twin/gatus:v5.36.0`, digest fixo, `COPY` do
+      `config.yaml` para `/config/`), `railway.json` apontando o Dockerfile e o `config.yaml` inteiro
+      em `${VAR}` — nenhum segredo no repositório. Contrato `test/deploy/gatus.contract.ts`:
+      **51 pass / 0 fail**, 184 expects.
+
+      **Serviço no ar.** O `railway add --repo` devolve `Unauthorized` mesmo com `railway whoami`
+      respondendo — o serviço saiu pela API GraphQL (`serviceCreate`), e o mesmo vale para o ponteiro
+      de config-as-code, o volume `/data` e o domínio na porta 8080. Detalhe que custou um deploy: a
+      **branch não é campo de `ServiceInstanceUpdateInput`**, ela vive em `serviceConnect`; e o
+      primeiro deploy saiu com builder `RAILPACK` e `dockerfilePath: null` porque o commit ainda não
+      estava na `origin` — a Railway constrói o que a `origin` tem, não o que o laptop tem. Depois do
+      push, `builder: DOCKERFILE`, sha `49f1fe61…`, `SUCCESS`.
+
+      **Login é o do Keycloak.** Client confidencial `gatus` no realm `transportada` de staging,
+      criado por script que lê a credencial de bootstrap pela API do Railway e grava o segredo num
+      arquivo `600` — o valor não passa por argv nem por terminal.
+
+      ```text
+      GET /oidc/login                  → 302  …/realms/transportada/protocol/openid-connect/auth?client_id=gatus…
+      GET /api/v1/endpoints/statuses   → 401  (sem sessão)
+      ```
+
+      **Push autenticado, e escopado por monitor.** Os dois heartbeats viraram `POST` com o token em
+      `Authorization: Bearer`:
+
+      ```text
+      POST …/endpoints/staging_backup/external?success=true   sem header        → 401
+      POST …/endpoints/staging_backup/external?success=true   token do backup   → 200
+      POST …/endpoints/staging_restore/external?success=true  token do backup   → 401
+      ```
+
+      A última linha é a que importa: o token de um monitor não escreve no outro. No `backup.sh` o
+      par URL+token é fail-open (falta um dos dois → `backup_heartbeat_disabled` e o ciclo segue,
+      porque o dado já está guardado e o alerta que sobra é a janela vencida); no `restore-test.yml` é
+      fail-closed (sem push o job seria verde sem ninguém do outro lado).
+
+      **Os quatro monitores verdes**, lidos pelo `badge.svg`, que é a única rota fora do OIDC e por
+      isso a forma de conferir estado sem logar:
+
+      ```text
+      staging_backup     #40cc11
+      staging_restore    #40cc11
+      staging_api        #40cc11
+      staging_frontend   #40cc11
+      ```
+
+      **Defeito achado aqui, e diagnosticado errado à primeira vista.** O primeiro push do backup
+      devolveu `401` e derrubou o ciclo. A leitura óbvia — token trocado — foi descartada comparando
+      os digests das três cópias (arquivo local, variável do serviço `backup`, variável do serviço
+      `gatus`): idênticos, sem imprimir valor nenhum. A causa real é de deploy: **o serviço `backup`
+      não tem origem em repositório** (`source: {repo: null, image: null}`, `commitHash: null`) — ele
+      sobe por `railway up` do diretório local, então o commit `49f1fe6` não chegou nele e o contêiner
+      seguia rodando o `backup.sh` antigo, que fazia `GET` anônimo. Depois do `railway up` +
+      `deploymentInstanceExecutionCreate`, ciclo limpo, sem `backup_cycle_failed` e sem
+      `backup_heartbeat_disabled`. Fica registrado porque a próxima pessoa vai tropeçar no mesmo:
+      **editar `deploy/backup/` e só commitar não muda o que está rodando.**
+
+      O serviço `Uptime Kuma` e o `uptime-kuma-volume` órfão foram apagados do projeto de ops — o
+      volume não sai junto com o serviço, e ele nunca chegou a ter dado: o assistente de primeira
+      execução jamais foi concluído.
+
+      Duas pendências anotadas, nenhuma bloqueante: o serviço `gatus` acompanha a branch `staging` e
+      precisa apontar para `main` quando a feature entrar; e o `GATUS_NTFY_TOPIC` é aleatório e existe
+      só como variável na Railway — para receber alerta no celular é preciso lê-lo de lá e assinar o
+      tópico no app do ntfy. Ele nunca foi impresso de propósito: tópico do ntfy é segredo, quem sabe
+      o nome publica.
+
+      Gates: `prettier --check` ok · `lint` ok · `typecheck` ok · api 1953 pass · 3 skip · 0 fail.
+
+- [x] T013 — **RTO medido: 14 s** (staging, ciclo `2026-08-08T173759Z`). As três provas fechadas.
 
       **1. Execução verde em staging.** Serviço `backup` criado no projeto `transportada`, ambiente
       staging, apontado para `deploy/backup/railway.json` pelo ponteiro de config-as-code — que o
@@ -844,28 +918,37 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       `transportada-afr-fernandes-*`, e o nome S3 leva um sufixo aleatório que só
       `railway bucket credentials` sabe. O runbook passou a tirar os dois de lá em vez de fixar.
 
-      **3. Restore mensal verde — bloqueado, e não por este repositório.** O `restore-test.yml` foi
-      disparado contra o bucket de verdade (run 31270477746) com os secrets e variáveis do repo já
-      configurados. Os três passos que provam o restore passaram:
+      **3. Restore mensal verde.** O `restore-test.yml` foi disparado contra o bucket de verdade duas
+      vezes. Na primeira (run 31270477746) os três passos que provam o restore passaram e o quarto
+      falhou:
+
+      ```text
+      failure  Avisar o monitor que o restore fechou
+      ::error::RESTORE_HEARTBEAT_URL vazio — sem push não existe monitor de restore.
+      ```
+
+      Vermelho correto: sem push monitor o job seria verde sem ninguém do outro lado. Faltava o
+      destino, e o destino era a T012a. Com o Gatus no ar e os dois secrets no repositório, a segunda
+      execução ([run 31279346681](https://github.com/Andersonfrfilho/transportada/actions/runs/31279346681))
+      fechou inteira:
 
       ```text
       success  Recusar qualquer alvo que não seja o Postgres efêmero
       success  Baixar o backup apontado pela última linha do manifesto
       success  Conferir o hash, decifrar e restaurar os dois bancos
-      failure  Avisar o monitor que o restore fechou
+      success  Avisar o monitor que o restore fechou
 
       ciclo escolhido: 2026-08-08T173759Z
       app: 71 tabelas · lastMigration '20260807223440_rntrc_registry_leading_zero' — confere com o manifesto
       keycloak: 90 tabelas · lastMigration '' — confere com o manifesto
-      ::error::RESTORE_HEARTBEAT_URL vazio — sem push não existe monitor de restore.
       ```
 
-      O único passo vermelho é o heartbeat, e ele está certo em ser vermelho: sem push monitor o job
-      seria verde sem ninguém do outro lado. O `RESTORE_HEARTBEAT_URL` só existe depois que o Uptime
-      Kuma tiver dono — ele continua parado no assistente de primeira execução
-      (`/setup-database`, HTTP 302), numa URL pública em que **o primeiro que abrir vira admin**.
-      Criar essa credencial é decisão do usuário, não desta task. A T013 fica aberta nesta terceira
-      prova; a T014 e a T025 dependem do mesmo passo.
+      O outro lado do push confirma: o badge de `staging_restore` no Gatus está `#40cc11`.
+
+      Uma sobra cosmética: o run aparece na lista como `.github/workflows/restore-test.yml` em vez de
+      `Teste mensal de restore`, embora o `name:` esteja no arquivo. É registro velho — o GitHub
+      guardou o nome de quando o arquivo não parseava (run 31263876628, no bloco da T012) e não
+      reescreve o registro depois. Não afeta execução: o run tem job, tem passo e tem verde.
 
 - [ ] T014 —
 

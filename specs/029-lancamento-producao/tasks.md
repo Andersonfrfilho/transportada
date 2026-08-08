@@ -77,18 +77,17 @@ terem evidência em `evidence.md`.
       baixa o dump mais recente, decifra, restaura e compara com o manifesto (hash, contagem de
       tabelas, `lastMigration`). Recusa alvo cujo host não seja `localhost`. Sem nenhum secret de
       escrita em production.
-- [ ] T012a 🧠 Trocar o Uptime Kuma pelo **Gatus** (ADR-0025): ele não tem login OIDC e o mantenedor
+- [x] T012a 🧠 Trocar o Uptime Kuma pelo **Gatus** (ADR-0025): ele não tem login OIDC e o mantenedor
       diz que não terá tão cedo, e monitor clicado num painel não nasce junto com a instalação nova.
       `deploy/gatus/{Dockerfile,config.yaml,railway.json}` com login por Keycloak, monitores como
       arquivo e os dois heartbeats virando `POST` autenticado no `backup.sh` e no `restore-test.yml`.
       Evidência: contrato `test/deploy/gatus.contract.ts` verde, o serviço no ar pelo domínio
       público, e o Uptime Kuma removido do projeto de ops.
-- [ ] T013 🧠 Ligar o backup em **staging** e provar o ciclo inteiro: uma execução verde, um
+- [x] T013 🧠 Ligar o backup em **staging** e provar o ciclo inteiro: uma execução verde, um
       restore mensal verde, e um restore manual cronometrado seguindo
       `docs/ops/backup-emergencia.md`. Evidência: tempo medido (RTO) em `evidence.md`.
-      Execução verde ✅ e restore manual cronometrado ✅ (RTO 14 s). O restore mensal roda verde até
-      o último passo e **para no heartbeat**, que não tem para onde apontar enquanto o monitor não
-      tiver dono. Fecha na T012a, com o Gatus no ar.
+      As três provas fechadas: execução verde ✅, restore manual cronometrado ✅ (RTO 14 s) e restore
+      mensal verde ✅ (run 31279346681), com o push chegando no monitor do Gatus.
 - [ ] T014 Provocar a falha de propósito uma vez: pular a janela do backup e adulterar o manifesto.
       Evidência: as duas notificações do Gatus — a primeira sai sozinha do `heartbeat.interval`
       vencido, a segunda do job de restore que falha antes de pingar.
