@@ -264,30 +264,44 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       opção de bucket correspondente.
 
       ```text
-      $ railway bucket create transportada-logs           --region sjc
-      $ railway bucket create transportada-backups        --region sjc
-      $ railway bucket create transportada-fiscal-mirror  --region sjc
-      transportada-logs          (transportada-logs-wa7x5ti)          ls OK (vazio)
-      transportada-backups       (transportada-backups-vlvrqj)        ls OK (vazio)
-      transportada-fiscal-mirror (transportada-fiscal-mirror-fgt-yf)  ls OK (vazio)
+      $ railway bucket create transportada-afr-fernandes-logs           --region sjc
+      $ railway bucket create transportada-afr-fernandes-backups        --region sjc
+      $ railway bucket create transportada-afr-fernandes-fiscal-mirror  --region sjc
+      transportada-afr-fernandes-logs           (…-logs-h3wyay)
+      transportada-afr-fernandes-backups        (…-backups-edanch)
+      transportada-afr-fernandes-fiscal-mirror  (…-fiscal-mirror-wush1)
       ```
 
-      O nome real tem sufixo — o `BACKUP_S3_BUCKET` e o `FISCAL_MIRROR_S3_BUCKET` recebem o nome
-      com sufixo, não o nome pedido. Endpoint `https://t3.storageapi.dev`, região `auto`,
-      `virtual-host`.
+      O nome real tem sufixo — o `BACKUP_S3_BUCKET`, o `LOG_ARCHIVE_S3_BUCKET` e o
+      `FISCAL_MIRROR_S3_BUCKET` recebem o nome com sufixo, não o nome pedido. Endpoint
+      `https://t3.storageapi.dev`, região `auto`, `virtual-host`.
 
-      `ls` num bucket vazio prova pouco, então o de backups levou um ciclo inteiro de escrita:
+      **Desvio 4 — os buckets nasceram `transportada-*` e foram recriados como
+      `transportada-afr-fernandes-*`.** TransportAdA é o produto e AFR Fernandes é a instalação;
+      pelo ADR-0021 cada transportadora é um deploy próprio, e o projeto de ops passou a ser um
+      por cliente também — logs, exceções e backup de duas transportadoras no mesmo painel e no
+      mesmo bucket seria misturar tenant e bucket, que é proibido.
+
+      `railway bucket rename` **não serve** para isso: ele troca só o rótulo do Railway. Depois de
+      renomear, `railway bucket credentials` ainda devolvia `bucketName: transportada-logs-wa7x5ti`
+      — o nome real é fixo na criação. Por isso foram apagados e recriados, com 0 objetos dentro.
+      Custo em código: nenhum. Nem `deploy/backup/backup.sh`, nem `deploy/vector/vector.yaml`, nem
+      `bucket-mirror.yml` trazem nome de bucket literal — todos leem de variável.
+
+      Recriar invalidou as duas provas anteriores, então as duas foram refeitas contra os buckets
+      novos. `ls` em bucket vazio prova pouco, então cada um levou um ciclo inteiro de escrita:
 
       ```text
-      escrita OK
-      prova de escrita          ← conteúdo lido de volta
-      remocao OK
+      OK  transportada-afr-fernandes-logs-h3wyay           escreveu, listou, apagou
+      OK  transportada-afr-fernandes-backups-edanch        escreveu, listou, apagou
+      OK  transportada-afr-fernandes-fiscal-mirror-wush1   escreveu, listou, apagou
       ```
 
       E o escopo da credencial, que é o que a task pede, foi provado pelo **negativo** — a
       credencial do bucket de logs contra o bucket de backups:
 
       ```text
+      credencial de logs -> bucket transportada-afr-fernandes-backups-edanch
       An error occurred (AccessDenied) when calling the ListObjectsV2 operation: Access Denied.
       ```
 

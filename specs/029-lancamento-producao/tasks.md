@@ -46,6 +46,8 @@ terem evidência em `evidence.md`.
       ⚠️ Subiu o template **oficial** `glitchtip` (verificado, 87 deploys) em vez do
       `glitchtip-sentry-alternative` (de terceiro, 0 deploys). Falta concluir o assistente de
       primeira execução do Uptime Kuma — passo de navegador, não tem variável de bootstrap.
+      ⚠️ Os buckets viraram `transportada-afr-fernandes-*` (desvio 4): o projeto de ops é **um por
+      cliente**, como o da aplicação. Nenhum código mudou — nome de bucket só existe em variável.
 - [x] T008 [P] Serviço `vector` — `deploy/vector/{Dockerfile,vector.yaml,railway.json}` — intake
       HTTP na 9000 IPv6, dois sinks: arquivo S3 em `transportada-logs` (NDJSON gzip, particionado
       por dia) e OpenObserve por `OPENOBSERVE_URL`/`OPENOBSERVE_TOKEN`.
@@ -96,6 +98,10 @@ terem evidência em `evidence.md`.
 - [ ] T019 Criar os seis serviços em production — `rabbitmq`, `keycloak`, `api`, `worker`, `cron`,
       `transportada-frontend` — com `RAILWAY_DOCKERFILE_PATH` e todas as variáveis não secretas.
       `SCHEDULED_DISTRIBUTION_CRON` da API espelhando o `cronSchedule` do cron, sem aspas.
+      ⚠️ **Nome de serviço é nome de domínio.** O Railway gera `<serviço>-<ambiente>-<hash>` — o
+      nome do projeto nunca entra. Os três que o cliente enxerga (`transportada-frontend`, `api`,
+      `keycloak`) têm de nascer com o prefixo do produto e da instalação, `transportada-afr-…`,
+      porque renomear depois troca a URL que o cliente já usa. Os internos ficam curtos.
 - [ ] T020 🧠 Preencher **config-as-code** na aba _Settings_ de cada serviço de production. Sem
       isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9). Fecha a pendência 1.
       Evidência: print do campo preenchido nos seis.
@@ -119,7 +125,10 @@ terem evidência em `evidence.md`.
       backup e push do restore. Provocar a queda de cada um uma vez e anexar a notificação.
 - [ ] T026 Login do primeiro `company-admin` pelo frontend de production, enxergando a empresa
       provisionada. Evidência com o CNPJ mascarado.
-- [ ] T027 [P] `docs/spec/railway.md`: serviços `vector` e `backup`, o projeto `transportada-ops`,
+- [ ] T027 [P] `docs/spec/railway.md`: serviços `vector` e `backup`, o projeto de ops
+      (`transportada-afr-fernandes-ops`) e a regra de que ele é **um por cliente**, como o da
+      aplicação — mais a convenção de nome: serviço que o cliente acessa carrega
+      `transportada-<cliente>` porque é ele que vira domínio; serviço interno fica curto.
       variáveis novas, e as pendências 1–5 marcadas como fechadas. `CLAUDE.md` mencionando os dois
       serviços de infraestrutura. `docs/ops/observabilidade.md` com o que vai para onde, o custo
       medido na T018 e como ligar um monitor novo. Regra §14 do code-standart.
