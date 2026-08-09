@@ -1067,7 +1067,122 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
 ## Fase D — Subir production
 
-- [ ] T018 — **Custo mensal projetado do stack de ops:** _(preencher)_
+- [x] T018 — **O banco de production está intocado, e o stack de ops custa US$ 9,53/mês.**
+
+      **1. O banco de production nunca recebeu um cliente.** O ambiente `production` do projeto
+      `transportada` tem exatamente duas instâncias de serviço e exatamente dois deploys na vida
+      inteira — o provisionamento dos dois Postgres, no mesmo minuto:
+
+      ```text
+      $ tcpProxies(environmentId: production, serviceId: <cada um dos dois Postgres>)
+      []   []
+
+      $ environment(production) { serviceInstances, deployments }
+      {"instancias":[{"svc":"Postgres-FDoz"},{"svc":"Postgres-Hqfu"}],
+       "deploys":[{"id":"2938d4b5","status":"SUCCESS","createdAt":"2026-08-03T20:55:29.349Z","svc":"Postgres-FDoz"},
+                  {"id":"eafb03fd","status":"SUCCESS","createdAt":"2026-08-03T20:55:23.861Z","svc":"Postgres-Hqfu"}]}
+      ```
+
+      Sem proxy TCP não existe caminho de fora; sem api, worker ou cron no ambiente não existe
+      caminho de dentro. E o tamanho fecha a conta: os dois volumes estão a **8 KB de distância um
+      do outro** (135,241728 MB e 135,24992 MB), que é a pegada do `initdb` mais ruído de WAL, contra
+      188,80 MB e 225,21 MB dos dois de staging, que trabalham.
+
+      **Ressalva honesta:** isto é a prova de que ninguém escreveu, não um `\dt` devolvendo vazio.
+      Rodar o `\dt` exigiria abrir um proxy público no banco de production só para olhar — o oposto
+      da regra "banco sem exposição pública". A prova direta chega de graça na T021: o
+      `preDeployCommand` roda as 9 migrations, e migration em banco sujo falha ou encontra linha.
+
+      **2. Bucket fiscal — 11,41 MB em staging, zero em production.**
+
+      | bucket | objetos | bytes |
+      |---|---:|---:|
+      | `transportada-staging` (fiscal) | 618 | 11 411 168 |
+      | `transportada-production` (fiscal) | 0 | 0 |
+      | `transportada-afr-fernandes-backups` | 17 | 4 151 368 |
+      | `transportada-afr-fernandes-logs` | 109 | 393 570 |
+      | `transportada-afr-fernandes-fiscal-mirror` | 0 | 0 |
+
+      Aberto por família de documento, o bucket fiscal de staging conta uma coisa que a soma
+      escondia:
+
+      ```text
+      {"prefixo":"nfe-documents","objetos":301,"bytes":5648574,"medio":18766}
+      {"prefixo":"nfe-imports",  "objetos":301,"bytes":5648574,"medio":18766}
+      {"prefixo":"cte-documents","objetos":16, "bytes":114020, "medio":7126}
+      ```
+
+      Mesma contagem e mesmo total de bytes não é coincidência — comparando os ETags,
+      `{"etagsDistintosEmImports":301,"etagsDistintosEmDocuments":301,"etagsPresentesNosDois":301}`.
+      **Todo XML de NF-e é guardado duas vezes**: uma em `nfe-imports/<id>/staging/`, outra em
+      `nfe-documents/<id>/original/`. São 36,7 KB por nota importada onde 18,4 KB bastariam, se a
+      cópia de `staging` tiver retenção. Não é problema de custo — nesta escala não é problema de
+      nada — mas é um fato que ninguém tinha medido, e fica registrado.
+
+      Projeção por documento: **36,7 KB por NF-e importada** e **7,1 KB por CT-e emitido**. A
+      1 000 NF-e + 1 000 CT-e por mês são ~44 MB/mês, e o primeiro GB-mês cobrável chega em ~2 anos.
+
+      **3. Volume diário de log — e o que o gera.** O bucket de logs por hora, medido pelo
+      `lastModified` dos objetos que o vector arquiva:
+
+      ```text
+      2026-08-08T16 → 1 objeto,    749 B      2026-08-09T01 → 12 objetos, 71 733 B
+      2026-08-08T17 → 1 objeto,    516 B      2026-08-09T02 → 12 objetos, 72 150 B
+      2026-08-08T19 → 1 objeto,    515 B      2026-08-09T03 → 12 objetos, 71 752 B
+      2026-08-08T20 → 1 objeto,    751 B      2026-08-09T04 → 12 objetos, 72 127 B
+      ```
+
+      São dois regimes, com quase **cem vezes** de diferença. Ocioso: ~1 objeto e ~600 B por hora —
+      o dia 08/08 inteiro deu 18 427 B. Com uma aba do frontend aberta numa tela de lote: 12 objetos
+      e ~72 KB por hora, cravados, por horas seguidas.
+
+      A causa está medida e é do frontend, não do log: `CTE_BATCH_PROGRESS_INTERVAL_MS = 3000` e
+      `resolveProgressInterval` mantêm o polling de 3 s enquanto **qualquer** item estiver
+      transmitindo. Um lote esquecido em `in_flight` faz a tela pedir `GET /cte-batches` para sempre
+      — num arquivo de 5 minutos contamos 87 `GET` + 87 `OPTIONS` de `/cte-batches` contra
+      2 de `/health/ready`.
+
+      Projeção: dia ocioso ~18 KB; dia com 8 h de aba aberta ~588 KB; aba aberta 24 h, ~1,73 MB —
+      52 MB/mês no pior caso, um ano inteiro sem alcançar o primeiro GB cobrável.
+
+      **4. Custo mensal.** Preço publicado (`docs.railway.com/pricing`): RAM
+      `$0,000231/GB/min`, CPU `$0,000463/vCPU/min`, volume `$0,15/GB/mês`, egresso `$0,05/GB`,
+      bucket `$0,015/GB-mês` com operação S3 e egresso ilimitados e grátis
+      (`docs.railway.com/storage-buckets/billing`).
+
+      A unidade do `usage` da API não vem documentada, então foi **conferida contra o mundo real**
+      antes de virar dólar: `DISK_USAGE_GB` do projeto `transportada` na janela de 6 h deu
+      301,914 → `/360` = **0,839 GB**, e a soma dos cinco volumes do projeto lida na mesma hora é
+      **837,1 MB**. Bate na terceira casa. É GB-minuto.
+
+      | projeto | RAM média | vCPU média | disco médio | RAM | CPU | disco | egresso | **total/mês** |
+      |---|---:|---:|---:|---:|---:|---:|---:|---:|
+      | `transportada-ops` | 0,917 GB | 0,013 | 0,601 GB | $9,147 | $0,267 | $0,090 | $0,028 | **$9,53** |
+      | `transportada` (só staging + os 2 Postgres de production ligados) | 1,544 GB | 0,032 | 0,839 GB | $15,408 | $0,631 | $0,126 | $0,006 | **$16,17** |
+      | `financiamento-imobiliario-bot` (outro produto, mesma workspace) | 1,643 GB | 0,008 | 1,238 GB | $16,397 | $0,168 | $0,186 | $0,030 | **$16,78** |
+
+      Buckets: 15 956 106 B = 0,016 GB somando os cinco. A Railway arredonda o GB-mês fracionário
+      para cima, então a cobrança é de **1 GB-mês = $0,015** — e continuará sendo por anos.
+
+      **O que a T018 pedia — o custo do projeto de ops — é $9,53/mês**, e 96% disso é RAM. Não há
+      nada a otimizar em disco (US$ 0,09) nem em CPU (US$ 0,27): o stack de observabilidade custa o
+      que custa por estar ligado, e o que o barateia é desligar serviço, não afiná-lo.
+
+      Contexto para a decisão de subir production: a workspace está no plano **HOBBY** ($5/mês com
+      $5 de uso incluso), gastando hoje ~$42,5/mês nos três projetos. Production vai acrescentar
+      seis serviços de aplicação ao projeto `transportada` — pela forma do staging, mais alguma
+      coisa entre $10 e $16/mês. **Isso é estimativa, não medição**, e a medição verdadeira só
+      existe depois da T022.
+
+      **5. Achado colateral: o espelho nunca rodou.** O bucket
+      `transportada-afr-fernandes-fiscal-mirror` está com 0 objetos porque
+      `.github/workflows/bucket-mirror.yml` só existe na `staging` — o GitHub responde
+      `HTTP 404: workflow bucket-mirror.yml not found on the default branch`, isto é, nunca chegou a
+      ser registrado. O `restore-test.yml` está registrado (rodou por `workflow_dispatch`), mas o
+      `schedule:` dele também não dispara enquanto não estiver na `main`. Os dois passam a funcionar
+      sozinhos no merge da T021 — não há nada a consertar, só a não confundir "0 objetos" com
+      "espelho quebrado".
+
 - [ ] T019 —
 - [ ] T020 —
 - [ ] T021 —

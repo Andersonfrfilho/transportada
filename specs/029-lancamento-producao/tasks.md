@@ -108,7 +108,7 @@ terem evidência em `evidence.md`.
 
 ## Fase D — Subir production
 
-- [ ] T018 Conferir que o banco da aplicação de production está vazio, e medir o tamanho atual do
+- [x] T018 Conferir que o banco da aplicação de production está vazio, e medir o tamanho atual do
       bucket fiscal de staging e o volume diário de log para projetar o custo mensal de storage e
       de compute do projeto de ops. Evidência: os números em `evidence.md`.
 - [ ] T019 Criar os seis serviços em production — `rabbitmq`, `keycloak`, `api`, `worker`, `cron`,
