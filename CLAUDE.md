@@ -80,6 +80,13 @@ são obrigatórios em qualquer mudança de query.
 Remota e a tela de configurações não contarem histórias diferentes. A paridade é contrato
 (`test/companies/scheduled-distribution-parity.contract.ts`).
 
+**Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
+Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
+e a emissão grava o valor resolvido em `cte_issuance_payloads.taker_tax_id`/`taker_legal_name`; o
+faturamento junta por `(company_id, attempt_id)` pelo seam `buildBillingTakerJoin()`. O relatório da
+fatura continua mostrando o `recipient` por linha — ali o destinatário é o destino da carga, não o
+cliente. ADR-0028.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.

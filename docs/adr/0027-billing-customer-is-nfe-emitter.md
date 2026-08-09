@@ -1,8 +1,15 @@
 # ADR 0027 — Cliente da fatura é o emitente da NF-e, não o destinatário
 
-- Status: aceito
+- Status: substituído por
+  [ADR 0028](0028-billing-customer-is-the-recorded-cte-taker.md)
 - Data: 2026-08-09
 - Decisores: mantenedor do projeto e revisão Opus
+
+> A limitação que esta ADR aceitou explicitamente — faturar sempre pelo remetente
+> mesmo quando o perfil cobra do destinatário — foi removida no mesmo dia: o
+> tomador passou a ser gravado na emissão e o faturamento lê o valor configurado.
+> A alternativa aqui rejeitada por falta de fonte de backfill tinha fonte: o
+> `payload` jsonb da própria emissão.
 
 ## Contexto
 

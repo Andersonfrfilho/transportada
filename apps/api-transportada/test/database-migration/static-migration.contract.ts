@@ -100,6 +100,7 @@ describe('Drizzle migrations', () => {
       '20260807022114_cte_issuance_diagnostics',
       '20260807113744_nfe_party_trade_name_and_phone',
       '20260807223440_rntrc_registry_leading_zero',
+      '20260809134710_cte_issuance_payload_taker',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

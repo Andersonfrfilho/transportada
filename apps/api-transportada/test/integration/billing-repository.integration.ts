@@ -15,6 +15,7 @@ import {
   cteBatches,
   cteFiscalDocuments,
   cteIssuanceAttempts,
+  cteIssuancePayloads,
   fiscalSequenceReservations,
   fiscalSequences,
   freightCalculations,
@@ -325,6 +326,7 @@ async function seedBillingGraph(
     fiscalReservation: crypto.randomUUID(),
     fiscalSequence: crypto.randomUUID(),
     import: crypto.randomUUID(),
+    issuancePayload: crypto.randomUUID(),
     membership: crypto.randomUUID(),
     nfeDocument: crypto.randomUUID(),
     nfeXmlObject: crypto.randomUUID(),
@@ -396,14 +398,15 @@ async function seedBillingGraph(
     xmlObjectId: ids.nfeXmlObject,
     xmlSha256: sha,
   })
-  // O emitente é o cliente da fatura; o destinatário existe para provar que não é ele que agrupa.
+  // Os dois papéis existem com documentos distintos: nenhum deles agrupa a fatura, quem agrupa é o
+  // tomador gravado na emissão — e com valores diferentes um engano volta como teste vermelho.
   await database.db.insert(nfeParticipants).values([
     {
       companyId: input.companyId,
       documentId: ids.nfeDocument,
-      legalName: `Cliente ${input.suffix} Ltda`,
+      legalName: `Remetente ${input.suffix} Ltda`,
       role: 'emitter',
-      taxId: input.customerDocument,
+      taxId: `8${input.customerDocument.slice(1)}`,
     },
     {
       companyId: input.companyId,
@@ -523,6 +526,20 @@ async function seedBillingGraph(
     status: 'authorized',
     xmlObjectId: ids.cteXmlObject,
     xmlSha256: sha,
+  })
+  // O tomador gravado na emissão é o cliente da fatura, e nenhum dos participantes da nota tem este
+  // documento: se o faturamento voltar a agrupar por papel, a listagem e os filtros mudam de valor.
+  await database.db.insert(cteIssuancePayloads).values({
+    attemptId: ids.attempt,
+    batchId: ids.batch,
+    batchItemId: ids.batchItem,
+    companyId: input.companyId,
+    id: ids.issuancePayload,
+    payload: { tomador: '0' },
+    payloadSha256: sha,
+    providerConfig: {},
+    takerLegalName: `Cliente ${input.suffix} Ltda`,
+    takerTaxId: input.customerDocument,
   })
 }
 

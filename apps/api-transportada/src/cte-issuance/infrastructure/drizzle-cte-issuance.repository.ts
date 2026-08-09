@@ -715,6 +715,8 @@ async function savePayload(database: Queryable, input: CteIssuancePayloadRecord)
       payload: input.payload,
       payloadSha256: input.payloadSha256,
       providerConfig: input.providerConfig,
+      takerLegalName: input.takerLegalName,
+      takerTaxId: input.takerTaxId,
     })
     .onConflictDoNothing({
       target: [cteIssuancePayloads.companyId, cteIssuancePayloads.attemptId],

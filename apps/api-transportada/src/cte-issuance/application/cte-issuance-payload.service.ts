@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto'
 
 import { normalizeRntrc } from '../../shared/rntrc.service.js'
-import { buildCtePayload } from '../domain/cte-payload.builder.js'
+import { buildCtePayload, resolveCtePayloadTaker } from '../domain/cte-payload.builder.js'
 
 import {
   CteIssuanceEmitterIncompleteError,
@@ -108,6 +108,7 @@ export function assembleCteIssuancePayload(
     profile: source.profile,
   })
   const providerConfig = composeProviderConfig({ attempt, emitter: source.emitter })
+  const taker = resolveCtePayloadTaker({ invoices: source.invoices, profile: source.profile })
 
   return {
     attemptId: attempt.attemptId,
@@ -115,9 +116,12 @@ export function assembleCteIssuancePayload(
     batchItemId: attempt.batchItemId,
     companyId: attempt.companyId,
     payload,
+    // O sha continua sobre payload + config: o tomador é derivado deles, não entrada nova.
     payloadSha256: createHash('sha256')
       .update(JSON.stringify({ payload, providerConfig }))
       .digest('hex'),
     providerConfig,
+    takerLegalName: taker.legalName,
+    takerTaxId: taker.taxId,
   }
 }

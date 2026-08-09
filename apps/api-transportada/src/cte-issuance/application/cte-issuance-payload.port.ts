@@ -66,6 +66,9 @@ export type CteIssuancePayloadRecord = {
   readonly payload: CteData
   readonly payloadSha256: string
   readonly providerConfig: CteIssuanceProviderConfig
+  /** Tomador do frete — o cliente que a fatura vai cobrar. */
+  readonly takerLegalName: string
+  readonly takerTaxId: string
 }
 
 export type CteIssuancePayloadSourceQuery = {

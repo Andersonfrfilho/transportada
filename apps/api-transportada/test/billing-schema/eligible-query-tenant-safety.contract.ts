@@ -6,8 +6,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
-  BILLING_CUSTOMER_PARTICIPANT_ROLE,
-  buildBillingCustomerJoin,
+  buildBillingTakerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
   type EligibleCteFilterInput,
@@ -125,22 +124,30 @@ describe('billing eligible CT-e query tenant safety', () => {
   })
 
   /**
-   * O cliente da fatura é quem paga o frete — o remetente da nota, não o destinatário da carga.
-   * Um embarcador que entrega em dez pontos é um cliente só, e agrupar pelo destinatário partia a
-   * seleção em dez "clientes" diferentes.
+   * O cliente da fatura é o tomador do frete, e quem é o tomador está configurado por perfil de
+   * emissão (`cte_emission_profiles.taker`): remetente em `0`, destinatário em `3`. Cravar o papel
+   * na consulta acertava uma operação e errava a outra — o valor gravado na emissão é a fonte.
    */
-  test('o cliente da fatura vem do emitente da nota, nunca do destinatário', () => {
-    const join = dialect.sqlToQuery(buildBillingCustomerJoin())
-    const params = join.params.map((value) => String(value))
+  test('o cliente da fatura vem do tomador gravado na emissão, não de um papel cravado', () => {
+    const join = dialect.sqlToQuery(buildBillingTakerJoin())
 
-    expect(BILLING_CUSTOMER_PARTICIPANT_ROLE).toBe('emitter')
-    expect(join.sql).toContain('"nfe_participants"."company_id" = "cte_batch_items"."company_id"')
     expect(join.sql).toContain(
-      '"nfe_participants"."document_id" = "cte_batch_items"."nfe_document_id"',
+      '"cte_issuance_payloads"."company_id" = "cte_fiscal_documents"."company_id"',
     )
-    expect(join.sql).toContain('"nfe_participants"."role" = $')
-    expect(params).toContain('emitter')
-    expect(params).not.toContain('recipient')
+    expect(join.sql).toContain(
+      '"cte_issuance_payloads"."attempt_id" = "cte_fiscal_documents"."attempt_id"',
+    )
+    expect(join.sql).not.toContain('nfe_participants')
+  })
+
+  /** Papel de participante da nota não decide mais cliente nenhum — nem emitente, nem destinatário. */
+  test('nenhum filtro do faturamento agrupa por papel da nota', () => {
+    const query = compile({ customerDocument: '12345678000190', customerName: 'Spani' })
+
+    expect(query.sql).toContain('"cte_issuance_payloads"."taker_tax_id"')
+    expect(query.sql).toContain('"cte_issuance_payloads"."taker_legal_name"')
+    expect(query.params).not.toContain('emitter')
+    expect(query.params).not.toContain('recipient')
   })
 
   test('os filtros que já existiam continuam presos à empresa', () => {

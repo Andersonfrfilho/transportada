@@ -27,7 +27,7 @@ import {
   CtePayloadUnsupportedIcmsError,
   CtePayloadUnsupportedModalError,
 } from './cte-payload.error.js'
-import { resolveReceiverIeIndicator } from './cte-receiver-ie.policy.js'
+import { resolveReceiverIeIndicator, resolveTakerParty } from './cte-receiver-ie.policy.js'
 import type {
   BuildCtePayloadParams,
   CtePayloadInvoice,
@@ -145,6 +145,22 @@ function assertConsistentParties(invoices: readonly CtePayloadInvoice[]): CtePay
   if (!isConsistent) throw new CtePayloadInconsistentPartiesError()
 
   return first
+}
+
+/**
+ * Quem paga o frete, pela mesma nota de referência e pela mesma regra que o payload usa — é o
+ * cliente da fatura, e sai daqui para não haver duas leituras do `taker` que possam divergir.
+ */
+export function resolveCtePayloadTaker(
+  params: Readonly<{
+    readonly invoices: readonly CtePayloadInvoice[]
+    readonly profile: CtePayloadProfile
+  }>,
+): CtePayloadParty {
+  return resolveTakerParty({
+    invoice: assertConsistentParties(params.invoices),
+    profile: params.profile,
+  })
 }
 
 function composePickupDetails(profile: CtePayloadProfile): { readonly xDetRetira?: string } {

@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { buildCtePayload } from '../../src/cte-issuance/domain/cte-payload.builder.js'
+import {
+  buildCtePayload,
+  resolveCtePayloadTaker,
+} from '../../src/cte-issuance/domain/cte-payload.builder.js'
 import type { CtePayloadParty } from '../../src/cte-issuance/domain/cte-payload.types.js'
 
 import {
@@ -116,5 +119,64 @@ describe('buildCtePayload — indIEToma derivado da inscrição estadual do toma
         'CTE_PAYLOAD_UNSUPPORTED_TAKER',
       )
     }
+  })
+})
+
+/**
+ * Quem paga o frete é o cliente da fatura, e quem é ele está no perfil de emissão — não num papel
+ * cravado no faturamento. Uma transportadora que cobra do remetente e outra que cobra do
+ * destinatário usam o mesmo código; muda o `taker` do perfil.
+ */
+describe('resolveCtePayloadTaker — o tomador vem do perfil de emissão', () => {
+  test('devolve o remetente quando o perfil cobra do remetente', () => {
+    const taker = resolveCtePayloadTaker({
+      invoices: [GOLDEN_INVOICE],
+      profile: { ...GOLDEN_PROFILE, taker: '0' },
+    })
+
+    expect(taker.legalName).toBe(GOLDEN_SENDER.legalName)
+    expect(taker.taxId).toBe(GOLDEN_SENDER.taxId)
+  })
+
+  test('devolve o destinatário quando o perfil cobra do destinatário', () => {
+    const taker = resolveCtePayloadTaker({
+      invoices: [GOLDEN_INVOICE],
+      profile: { ...GOLDEN_PROFILE, taker: '3' },
+    })
+
+    expect(taker.legalName).toBe(GOLDEN_RECIPIENT.legalName)
+    expect(taker.taxId).toBe(GOLDEN_RECIPIENT.taxId)
+  })
+
+  test('concorda com o tomador que o payload declara, para não haver duas leituras', () => {
+    for (const taker of ['0', '3'] as const) {
+      const profile = { ...GOLDEN_PROFILE, taker }
+      const payload = buildCtePayload(buildGoldenParams({ profile }))
+      const resolved = resolveCtePayloadTaker({ invoices: [GOLDEN_INVOICE], profile })
+      const declared = taker === '0' ? payload.remetente : payload.destinatario
+
+      expect(payload.tomador).toBe(taker)
+      expect(resolved.legalName).toBe(declared.xNome)
+    }
+  })
+
+  test('recusa o mesmo tomador não modelado que o payload recusa', () => {
+    for (const taker of ['1', '2'] as const) {
+      expectApiErrorCode(
+        () =>
+          resolveCtePayloadTaker({
+            invoices: [GOLDEN_INVOICE],
+            profile: { ...GOLDEN_PROFILE, taker },
+          }),
+        'CTE_PAYLOAD_UNSUPPORTED_TAKER',
+      )
+    }
+  })
+
+  test('recusa seleção vazia, que não tem nota de referência para dizer quem paga', () => {
+    expectApiErrorCode(
+      () => resolveCtePayloadTaker({ invoices: [], profile: GOLDEN_PROFILE }),
+      'CTE_PAYLOAD_EMPTY_SELECTION',
+    )
   })
 })

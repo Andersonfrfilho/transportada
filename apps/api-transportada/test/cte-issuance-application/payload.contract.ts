@@ -72,6 +72,22 @@ describe('CT-e issuance payload assembly contract', () => {
     })
   })
 
+  /**
+   * O tomador é gravado junto com o payload porque é ele que o faturamento cobra, e o perfil de
+   * emissão pode mudar depois — o CT-e já autorizado não troca de tomador junto com o perfil.
+   */
+  test('persists the taker resolved from the emission profile alongside the payload', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    expect(unitOfWork.savedPayloads[0]).toMatchObject({
+      takerLegalName: GOLDEN_SENDER.legalName,
+      takerTaxId: GOLDEN_SENDER.taxId,
+    })
+  })
+
   test('fills every provider config field from the company fiscal profile and the attempt', async () => {
     const unitOfWork = new CteIssuanceUnitOfWorkFixture()
     const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)

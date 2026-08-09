@@ -349,6 +349,13 @@ export const cteIssuancePayloads = pgTable(
     payload: jsonb().notNull(),
     providerConfig: jsonb('provider_config').notNull(),
     payloadSha256: text('payload_sha256').notNull(),
+    /**
+     * Tomador resolvido na emissão a partir de `cte_emission_profiles.taker` — remetente em `0`,
+     * destinatário em `3`. É o cliente da fatura, e fica gravado porque o perfil pode mudar depois
+     * da emissão e o CT-e já autorizado não muda de tomador junto.
+     */
+    takerTaxId: text('taker_tax_id'),
+    takerLegalName: text('taker_legal_name'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -193,6 +193,8 @@ describe('CT-e issuance schema', () => {
       'payload',
       'provider_config',
       'payload_sha256',
+      'taker_tax_id',
+      'taker_legal_name',
       'created_at',
     ])
     expect(requiredColumnNames(cteIssuancePayloads)).toContainAllValues([

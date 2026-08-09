@@ -7,9 +7,9 @@ import {
   billingInvoiceItems,
   cteBatchItems,
   cteFiscalDocuments,
+  cteIssuancePayloads,
   freightCalculations,
   nfeDocuments,
-  nfeParticipants,
 } from '../../database/database.schema.js'
 
 import { buildNumberFilter } from './number-filter.query.js'
@@ -53,20 +53,16 @@ function toPaddedFiscalNumber(value: string): string {
 }
 
 /**
- * Cliente da fatura é quem paga o frete, e o tomador do CT-e desta operação é o remetente da nota
- * (`toma3/toma = 0`): um embarcador que entrega em muitos pontos é um cliente só. O papel gravado
- * na importação para esse participante é `emitter` — `sender` é vocabulário dos matchers de perfil.
+ * Cliente da fatura é o tomador do frete, e quem é o tomador está configurado por perfil de emissão
+ * (`cte_emission_profiles.taker`): remetente em `0`, destinatário em `3`. A emissão grava o valor
+ * resolvido, então o faturamento lê o tomador daquele CT-e mesmo que o perfil mude depois.
  */
-export const BILLING_CUSTOMER_PARTICIPANT_ROLE = 'emitter'
-
-/** Mesmo recorte de empresa do join da nota — o papel sozinho cruzaria tenants. */
-export function buildBillingCustomerJoin(): SQL {
+export function buildBillingTakerJoin(): SQL {
   const condition = and(
-    eq(nfeParticipants.companyId, cteBatchItems.companyId),
-    eq(nfeParticipants.documentId, cteBatchItems.nfeDocumentId),
-    eq(nfeParticipants.role, BILLING_CUSTOMER_PARTICIPANT_ROLE),
+    eq(cteIssuancePayloads.companyId, cteFiscalDocuments.companyId),
+    eq(cteIssuancePayloads.attemptId, cteFiscalDocuments.attemptId),
   )
-  if (condition === undefined) throw new Error('billing customer join condition is empty')
+  if (condition === undefined) throw new Error('billing taker join condition is empty')
   return condition
 }
 
@@ -89,8 +85,8 @@ export function buildEligibleCteFilters(input: EligibleCteFilterInput): SQL[] {
     eq(cteFiscalDocuments.companyId, input.companyId),
     eq(cteFiscalDocuments.status, AUTHORIZED_DOCUMENT_STATUS),
     isNotNull(cteFiscalDocuments.authorizedAt),
-    isNotNull(nfeParticipants.taxId),
-    isNotNull(nfeParticipants.legalName),
+    isNotNull(cteIssuancePayloads.takerTaxId),
+    isNotNull(cteIssuancePayloads.takerLegalName),
     isNull(billingInvoiceItems.id),
     input.batchId === null ? undefined : eq(cteBatchItems.batchId, input.batchId),
     input.batchIdIn === null ? undefined : inArray(cteBatchItems.batchId, input.batchIdIn),
@@ -114,10 +110,12 @@ export function buildEligibleCteFilters(input: EligibleCteFilterInput): SQL[] {
       to: input.nfeNumberTo,
       toComparable: toPaddedFiscalNumber,
     }),
-    input.customerDocument === null ? undefined : eq(nfeParticipants.taxId, input.customerDocument),
+    input.customerDocument === null
+      ? undefined
+      : eq(cteIssuancePayloads.takerTaxId, input.customerDocument),
     input.customerName === null
       ? undefined
-      : ilike(nfeParticipants.legalName, `%${input.customerName}%`),
+      : ilike(cteIssuancePayloads.takerLegalName, `%${input.customerName}%`),
     input.from === null ? undefined : gte(cteFiscalDocuments.authorizedAt, new Date(input.from)),
     input.to === null ? undefined : lte(cteFiscalDocuments.authorizedAt, endOfDay(input.to)),
     input.minAmount === null ? undefined : gte(freightCalculations.totalAmount, input.minAmount),

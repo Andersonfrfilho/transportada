@@ -12,9 +12,9 @@ import {
   cteBatchItems,
   cteBatches,
   cteFiscalDocuments,
+  cteIssuancePayloads,
   freightCalculations,
   nfeDocuments,
-  nfeParticipants,
 } from '../../database/database.schema.js'
 import { ApiError } from '../../shared/api.error.js'
 import {
@@ -23,7 +23,7 @@ import {
   type KeysetCursor,
 } from '../../shared/keyset-cursor.js'
 import {
-  buildBillingCustomerJoin,
+  buildBillingTakerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
   type EligibleCteFilterInput,
@@ -128,8 +128,8 @@ class DrizzleBillingTransaction {
         batchId: cteBatchItems.batchId,
         cteId: cteFiscalDocuments.id,
         cteNumber: cteFiscalDocuments.fiscalNumber,
-        customerDocument: nfeParticipants.taxId,
-        customerName: nfeParticipants.legalName,
+        customerDocument: cteIssuancePayloads.takerTaxId,
+        customerName: cteIssuancePayloads.takerLegalName,
         invoiceId: billingInvoiceItems.invoiceId,
         status: cteFiscalDocuments.status,
         totalAmount: freightCalculations.totalAmount,
@@ -149,7 +149,7 @@ class DrizzleBillingTransaction {
           eq(freightCalculations.id, cteBatchItems.freightCalculationId),
         ),
       )
-      .leftJoin(nfeParticipants, buildBillingCustomerJoin())
+      .leftJoin(cteIssuancePayloads, buildBillingTakerJoin())
       .leftJoin(
         billingInvoiceItems,
         and(
@@ -436,8 +436,8 @@ class DrizzleBillingTransaction {
         batchName: cteBatches.name,
         companyId: cteFiscalDocuments.companyId,
         cteNumber: cteFiscalDocuments.fiscalNumber,
-        customerDocument: nfeParticipants.taxId,
-        customerName: nfeParticipants.legalName,
+        customerDocument: cteIssuancePayloads.takerTaxId,
+        customerName: cteIssuancePayloads.takerLegalName,
         freightAmount: freightCalculations.calculatedAmount,
         freightCalculationId: freightCalculations.id,
         freightRuleVersion: freightCalculations.ruleVersion,
@@ -468,7 +468,7 @@ class DrizzleBillingTransaction {
           eq(freightCalculations.id, cteBatchItems.freightCalculationId),
         ),
       )
-      .innerJoin(nfeParticipants, buildBillingCustomerJoin())
+      .innerJoin(cteIssuancePayloads, buildBillingTakerJoin())
       .leftJoin(nfeDocuments, buildEligibleNfeDocumentJoin())
       .leftJoin(
         billingInvoiceItems,
