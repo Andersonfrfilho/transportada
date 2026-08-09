@@ -24,9 +24,14 @@ security:
     client-secret: ${GATUS_OIDC_CLIENT_SECRET}
     scopes: ['openid']
 
+# O servidor é o da instalação (`deploy/ntfy/`), não o ntfy.sh público. Lá o POST estourava em
+# timeout e, porque o envio falhava, o Gatus nem marcava o alerta como disparado — a queda e a volta
+# se perdiam juntas. Dependência que não avisa quando para de aceitar você não serve de canal.
 alerting:
   ntfy:
+    url: ${GATUS_NTFY_URL}
     topic: ${GATUS_NTFY_TOPIC}
+    token: ${GATUS_NTFY_TOKEN}
     priority: 4
 
 # O que o backup e o teste de restore empurram. `heartbeat.interval` é o alerta: passou a janela sem

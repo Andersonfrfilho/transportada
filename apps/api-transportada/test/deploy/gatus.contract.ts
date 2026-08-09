@@ -32,6 +32,7 @@ type Endpoint = Readonly<{
 }>
 
 type GatusConfiguration = Readonly<{
+  alerting?: Readonly<{ ntfy?: Readonly<Record<string, unknown>> }>
   'external-endpoints'?: readonly ExternalEndpoint[]
   endpoints?: readonly Endpoint[]
   security?: Readonly<{ oidc?: Readonly<Record<string, unknown>> }>
@@ -173,6 +174,20 @@ describe('contrato do serviço gatus', () => {
     expect(dockerfile).toContain('COPY deploy/gatus/config.yaml')
     expect(railway.build?.builder).toBe('DOCKERFILE')
     expect(railway.build?.dockerfilePath).toBe('deploy/gatus/Dockerfile')
+  })
+
+  /**
+   * O ntfy.sh público engoliu os alertas em silêncio: o Gatus disparava, o POST estourava em
+   * timeout, e — como o envio falhou — o alerta nem ficava marcado como disparado, então o aviso de
+   * resolvido também nunca vinha. Servidor de terceiro é uma dependência que não avisa quando para
+   * de aceitar você. O nosso é `deploy/ntfy/`, e a URL vem do ambiente porque muda por instalação.
+   */
+  test('o alerta sai para o servidor da instalação, autenticado', async () => {
+    const configuration = await readConfiguration()
+    const ntfy = configuration.alerting?.ntfy
+
+    expect(String(ntfy?.url ?? '')).toMatch(/^\$\{[A-Z_]+\}$/)
+    expect(String(ntfy?.token ?? '')).toMatch(/^\$\{[A-Z_]+\}$/)
   })
 
   test('nenhum segredo literal: token, senha e URL de alerta vêm do ambiente', async () => {
