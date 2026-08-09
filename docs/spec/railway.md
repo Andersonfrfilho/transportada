@@ -188,13 +188,47 @@ Passos que exigem o dashboard ou uma decisão humana:
    `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Staging tem ciclo
    automático diário desde a feature 029; production ganha o dele junto com o primeiro deploy.
 5. **Domínios e volume de production**: a instância do serviço só existe depois
-   do primeiro deploy, então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
+   do primeiro deploy — comprovado, não suposto: `serviceDomainCreate` responde
+   `ServiceInstance not found`, e `serviceInstanceUpdate` no par sem instância
+   responde `true` sem criar nada. Então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
    `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`
    de production só podem ser preenchidos depois — e o frontend precisa de
    **rebuild** em seguida. O volume do RabbitMQ de production também fica para
    depois do primeiro deploy.
 6. **Emissão fiscal real** em production continua atrás da configuração por
    empresa; o ambiente estar de pé não habilita CT-e real.
+
+## Domínios de production
+
+O domínio é o endereço que o cliente digita, então é ele — não o nome do serviço —
+que carrega o nome do cliente. Production não diz o ambiente:
+
+- api: `https://transportada-afr-fernandes-api.up.railway.app`
+- transportada-frontend: `https://transportada-afr-fernandes.up.railway.app`
+- keycloak: `https://transportada-afr-fernandes-auth.up.railway.app`
+
+> ⚠️ **Nome de serviço e rótulo de domínio são campos independentes, e só o segundo
+> pode carregar o nome do cliente.** O serviço pertence ao projeto, não ao ambiente:
+> renomear `api` para `transportada-afr-fernandes-api` renomearia em staging junto e
+> quebraria `.github/scripts/railway-deploy.sh`, que endereça cada serviço pelo nome
+> nos dois ambientes. Serviço fica curto; o domínio é que se renomeia, com
+> `serviceDomainUpdate(input: {serviceDomainId, serviceId, environmentId, domain,
+targetPort})` e `domain` sendo o hostname inteiro. O CLI não serve: `railway domain
+<valor>` trata o valor como domínio próprio.
+
+> ⏳ Os três ainda **não existem**. `serviceDomainCreate` responde
+> `ServiceInstance not found` enquanto o serviço não tiver o primeiro deploy no
+> ambiente — a instância nasce com ele, e não há como antecipá-la: um
+> `serviceInstanceUpdate` no par serviço/ambiente sem instância responde `true` e não
+> cria nada. Por isso a primeira passada do deploy de production para em
+> `assert-migrations`, que exige domínio público na api para ler `/health/ready`:
+> deploya, cria e renomeia os três domínios, e roda de novo.
+
+Serviço interno não recebe domínio: `worker`, `cron`, `rabbitmq` e os bancos falam
+só por `*.railway.internal`. O `worker` de staging tinha um domínio gerado que
+ninguém pedia e ninguém monitorava — anônimo, da internet aberta, o `/health/ready`
+devolvia `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"}}` e
+entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDelete`.
 
 ## Domínios de staging
 

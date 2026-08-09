@@ -111,47 +111,60 @@ terem evidência em `evidence.md`.
 - [x] T018 Conferir que o banco da aplicação de production está vazio, e medir o tamanho atual do
       bucket fiscal de staging e o volume diário de log para projetar o custo mensal de storage e
       de compute do projeto de ops. Evidência: os números em `evidence.md`.
-- [ ] T019 Criar os seis serviços em production — `rabbitmq`, `keycloak`, `api`, `worker`, `cron`,
+- [x] T019 Criar os seis serviços em production — `rabbitmq`, `keycloak`, `api`, `worker`, `cron`,
       `transportada-frontend` — com `RAILWAY_DOCKERFILE_PATH` e todas as variáveis não secretas.
       `SCHEDULED_DISTRIBUTION_CRON` da API espelhando o `cronSchedule` do cron, sem aspas.
-      ⚠️ **Nome de serviço é nome de domínio.** O Railway gera `<serviço>-<ambiente>-<hash>` — o
-      nome do projeto nunca entra, e o ambiente entra sempre. Os três que o cliente enxerga têm de
-      nascer com o nome certo, porque trocar depois troca a URL que o cliente já usa:
 
-      | Serviço      | production                        | staging                                   |
-      | ------------ | --------------------------------- | ----------------------------------------- |
-      | frontend     | `transportada-afr-fernandes`      | `staging-transportada-afr-fernandes`      |
-      | api          | `transportada-afr-fernandes-api`  | `staging-transportada-afr-fernandes-api`  |
-      | keycloak     | `transportada-afr-fernandes-auth` | `staging-transportada-afr-fernandes-auth` |
+      ⚠️ **Correção: nome de serviço não é nome de domínio — são campos independentes, e só o
+      domínio pode carregar o nome do cliente.** O serviço pertence ao projeto, não ao ambiente:
+      renomear vale para staging e production ao mesmo tempo, e `railway-deploy.sh` endereça cada
+      serviço pelo nome nos dois. `api` virar `transportada-afr-fernandes-api` quebraria o pipeline
+      inteiro. Serviço fica curto; o rótulo do domínio é que se renomeia, com `serviceDomainUpdate`.
+      Os alvos de production estão em `docs/spec/railway.md` § _Domínios de production_, e o
+      contrato `test/deploy/service-naming.contract.ts` guarda a convenção: hostname público carrega
+      `transportada-afr-fernandes`, serviço interno não aparece com domínio nenhum.
 
-      Production **não diz o ambiente** — é o normal, e o `-production-` do gerador tem de sair.
-      Staging diz, e diz como **prefixo**. Serviço interno (`worker`, `cron`, `rabbitmq`, bancos)
-      não tem domínio público e fica com nome curto.
+      ⏳ **Os três domínios não puderam nascer aqui, e não é escolha.** `serviceDomainCreate`
+      responde `ServiceInstance not found`: a instância só existe depois do primeiro deploy no
+      ambiente, e não há atalho — `serviceInstanceUpdate` no par sem instância responde `true` e não
+      cria nada. Passa para a T021, com a consequência anotada lá.
 
-      ✅ **Como se edita, resolvido.** Não é a CLI — `railway domain <valor>` trata o valor como
-      domínio próprio. É a API: `serviceDomainUpdate(input: {serviceDomainId, serviceId,
-      environmentId, domain, targetPort})`, com `domain` sendo o hostname inteiro
-      (`<label>.up.railway.app`). O `serviceDomainId` vem de
-      `domains(projectId, environmentId, serviceId) { serviceDomains { id domain suffix } }`. Ou
-      seja: cria o serviço com o nome curto, gera o domínio, e **renomeia o domínio** — o nome do
-      serviço no painel e o rótulo do domínio são campos independentes.
+      ✅ Feito: as variáveis não secretas dos seis já estavam postas; faltavam
+      `SCHEDULED_DISTRIBUTION_CRON=0 * * * *` (espelhando `deploy/cron/railway.json`, sem aspas) e
+      `KEYCLOAK_ADMIN_CLIENT_ID=transportada-admin` na api — sem ela o boot falha, o schema exige.
+      Faltava também `KEYCLOAK_ADMIN_CLIENT_SECRET`, que a T017 não gerou e tem de ser **o mesmo
+      valor** na api e no keycloak (o realm importa `${KEYCLOAK_ADMIN_CLIENT_SECRET}` no client
+      `transportada-admin`): gerado, posto nos dois por stdin e copiado para o Chaveiro.
 
-      Só os três públicos precisam disso. `worker`, `cron`, `rabbitmq` e os bancos falam por
-      `*.railway.internal` e não recebem domínio nenhum.
+      ✅ Domínio público do `worker` de staging removido. Antes de apagar, confirmado ao vivo e
+      anônimo: `GET /health/ready` devolvia `{"dependencies":{"database":"up","rabbitmq":"up",
+      "storage":"up"},"service":"worker"}`. Depois do `serviceDomainDelete`, `404`; a api de staging
+      seguiu em `200`.
 
-      ⚠️ Corrigir de passagem, em staging: o `worker` tem domínio público
-      (`worker-staging-3ae1.up.railway.app`) que ninguém pede e ninguém monitora — o Gatus só olha
-      api e frontend. Anônimo, da internet aberta, ele responde
-      `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"},"service":"worker"}` e
-      entrega a topologia da infra a quem perguntar. `serviceDomainDelete(id)` e pronto; em
-      production ele nasce sem.
+      🔓 **Segredos de production queimados durante a task.** `railway variables --json` sem filtro
+      imprimiu valores no terminal: senha do `Postgres-Hqfu` e do `Postgres-FDoz`,
+      `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD` e o início do `ENCRYPTION_KEYRING_JSON`.
+      Regra de segurança §4 não abre exceção. Rotação na T019a, antes do primeiro deploy.
 
-- [ ] T020 🧠 Preencher **config-as-code** na aba _Settings_ de cada serviço de production. Sem
-      isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9). Fecha a pendência 1.
-      Evidência: print do campo preenchido nos seis.
+- [ ] T019a Rotacionar os segredos de production expostos na T019: `RABBITMQ_DEFAULT_PASS`,
+      `KC_BOOTSTRAP_ADMIN_PASSWORD`, `ENCRYPTION_KEYRING_JSON` (+ `IDEMPOTENCY_HMAC_KEY`, do mesmo
+      lote) e as senhas dos dois Postgres de production. É barato agora e só agora: o ambiente nunca
+      subiu, o banco está vazio e nada foi cifrado com a keyring. Os quatro primeiros são
+      `railway variable set --stdin` + cópia no Chaveiro; os dois bancos exigem `ALTER USER` dentro
+      do contêiner além da variável, porque a senha do template só vale no `initdb`. Reescrever a
+      evidência da T017 com os valores novos.
+- [ ] T020 🧠 Preencher **config-as-code** de cada serviço de production com o caminho do
+      `railway.json`. Sem isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9).
+      Fecha a pendência 1. ✅ Não precisa de dashboard: `serviceInstanceUpdate` aceita
+      `railwayConfigFile` no input — mas só depois que a instância existir (T021).
 - [ ] T021 Primeira passada do deploy: merge de `staging` em `main`, aprovar no Environment,
       acompanhar keycloak → api → worker → cron → frontend. `assert-migrations` tem de confirmar
       as 9 migrations.
+      ⚠️ **A primeira passada falha em `assert-migrations`, e é esperado.** O passo lê
+      `/health/ready` pelo domínio público da api, que não existe antes do deploy que o cria. Ordem:
+      deixar keycloak e api subirem → criar os três domínios (`serviceDomainCreate` + renomear com
+      `serviceDomainUpdate`) → preencher o config-as-code (T020) → rodar de novo por
+      `workflow_dispatch`, aí sim até o frontend.
 - [ ] T022 Segunda passada (D9): com os domínios existindo, preencher `FRONTEND_ORIGIN`,
       `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os
       `VITE_*`, criar o volume do RabbitMQ, e **rebuildar** o frontend — restart não troca o

@@ -1208,7 +1208,75 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       sozinhos no merge da T021 — não há nada a consertar, só a não confundir "0 objetos" com
       "espelho quebrado".
 
-- [ ] T019 —
+- [x] T019 — **Os seis serviços de production, e o que o Railway não deixa fazer antes do deploy.**
+
+      **1. Variáveis.** Os seis já tinham o grosso posto (`APP_ENV=production`, portas `8080`,
+      `QUEUE_PREFIX=transportada_production`, `FISCAL_ENVIRONMENT=production`,
+      `OBJECT_STORAGE_BUCKET=transportada-production-vosp8e` com `FORCE_PATH_STYLE=false`,
+      `RAILWAY_DOCKERFILE_PATH` nos cinco que constroem). O diff de chaves contra staging — só
+      nomes, nunca valores — apontou o que faltava:
+
+      | Serviço | Faltava | Destino |
+      | --- | --- | --- |
+      | api | `SCHEDULED_DISTRIBUTION_CRON`, `KEYCLOAK_ADMIN_CLIENT_ID` | **posto na T019** |
+      | api + keycloak | `KEYCLOAK_ADMIN_CLIENT_SECRET` | **posto na T019** |
+      | api, frontend, keycloak | `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI`, `VITE_*`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` | T022 (dependem do domínio) |
+      | api, worker, cron | `LOG_SINK_URL` | T024 (vector) |
+      | api | `PROVISION_COMPANY_ID`, `BOOTSTRAP_TOKEN` | T023 |
+
+      `SCHEDULED_DISTRIBUTION_CRON=0 * * * *`, espelhando o `deploy.cronSchedule` de
+      `deploy/cron/railway.json`, e sem aspas — lido de volta assim.
+      `KEYCLOAK_ADMIN_CLIENT_ID=transportada-admin`: o schema exige (`min(1)`), e sem ela a api não
+      sobe. `KEYCLOAK_ADMIN_CLIENT_SECRET` é lacuna da T017 — o realm importa
+      `${KEYCLOAK_ADMIN_CLIENT_SECRET}` no client `transportada-admin`, então api e keycloak
+      precisam do **mesmo** valor. Gerado com `openssl rand -base64 32`, posto nos dois por
+      `railway variable set --stdin` e copiado para o Chaveiro; conferido por leitura de volta:
+      `api==keycloak: sim | chaveiro==api: sim | tamanho: 44`. Nenhum valor passou por `argv`.
+
+      **2. A instância não nasce sem deploy — provado, não suposto.** `serviceDomainCreate` no
+      frontend de production respondeu `ServiceInstance not found`. Tentei o atalho:
+      `serviceInstanceUpdate(environmentId, serviceId, input)` respondeu `{"serviceInstanceUpdate":
+      true}` para os seis — e não criou nada. `serviceInstance(environmentId, serviceId)` continua
+      `ServiceInstance not found`, e `service(id){serviceInstances}` do `rabbitmq` lista só o de
+      staging. Um `true` que não faz nada é pior que um erro: dá para fechar a task achando que
+      criou. Os domínios passam para a T021.
+
+      **3. Consequência para a T021.** `railway-deploy.sh assert-migrations` lê `/health/ready` pelo
+      domínio público da api e falha explicitamente sem ele
+      (`$service não tem domínio público`). Como o domínio só pode nascer depois do deploy que cria
+      a instância, a primeira passada **vai** parar ali. Está anotado na T021 como ordem, não como
+      surpresa.
+
+      **4. Nome de serviço ≠ nome de domínio.** A tabela original da T019 mandava batizar os
+      serviços de production com o nome do cliente. Isso quebraria tudo: o serviço é do projeto, não
+      do ambiente (`docs/spec/railway.md` já dizia que renomear vale para os dois), e
+      `.github/workflows/deploy.yml` chama `railway-deploy.sh deploy api|worker|cron|
+      transportada-frontend|keycloak` nos dois ambientes. O nome do cliente vive no rótulo do
+      domínio, que é campo independente. `test/deploy/service-naming.contract.ts` guarda as três
+      coisas: o pipeline só deploya serviço declarado na tabela de build, o hostname de production
+      casa `transportada-afr-fernandes(-api|-auth)?.up.railway.app`, e nenhum serviço interno
+      aparece com domínio.
+
+      **5. O `worker` de staging saiu da internet.** Antes de apagar, confirmado ao vivo, anônimo,
+      sem credencial: `GET https://worker-staging-3ae1.up.railway.app/health/ready` →
+      `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"},"service":"worker",
+      "status":"ok"}`. Depois de `serviceDomainDelete(b25d4a11-…)`: `serviceDomains: []`, o mesmo
+      `GET` responde `404`, e a api de staging seguiu em `200` — ninguém dependia dele (o Gatus
+      monitora api e frontend).
+
+      **6. 🔓 Segredos de production queimados aqui, e a rotação que isso obriga.** Ao inventariar as
+      variáveis rodei `railway variables --json` sem filtro e os valores foram para o terminal:
+      senha do `Postgres-Hqfu` (que é o `DATABASE_URL` de api, worker e cron), senha do
+      `Postgres-FDoz` (`KC_DB_PASSWORD`), `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD` e o
+      começo do `ENCRYPTION_KEYRING_JSON`. Regra de segurança §4: segredo que apareceu em terminal é
+      segredo queimado, sem exceção. Do inventário em diante só nomes de chave saíram na tela, com
+      os valores em arquivos `600`. A rotação virou a **T019a**, antes do primeiro deploy — é o
+      momento mais barato que vai existir: o ambiente nunca subiu, o banco está vazio e nada foi
+      cifrado com a keyring.
+
+      Verificação: `bun test ./test/deploy.contract.test.ts` — 65 pass, 0 fail.
+
+- [ ] T019a —
 - [ ] T020 —
 - [ ] T021 —
 - [ ] T022 —
