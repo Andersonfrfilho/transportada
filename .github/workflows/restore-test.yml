@@ -24,7 +24,9 @@ jobs:
       # desta imagem, não o do runner. A senha fixa não é credencial — o contêiner nasce e morre com
       # o job, sem porta publicada, e é o alvo descartável que a guarda do primeiro passo exige.
       postgres:
-        image: postgres:18
+        # Digest, não tag: `postgres:18` é ponteiro móvel, e o teste de restauração perde o sentido
+        # se a imagem que restaurou ontem não for a que restaura hoje.
+        image: postgres:18@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
         env:
           POSTGRES_PASSWORD: postgres
         options: >-

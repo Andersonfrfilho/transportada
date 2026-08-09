@@ -240,3 +240,12 @@ Fora do escopo desta spec — anotado aqui para não se perder.
       o realm local. Errar a última linha para o login de staging sem deixar rastro no repositório.
       As `RAILWAY_SERVICE_*_URL` seguem sozinhas. Adiado para depois do go-live porque staging é o
       campo de prova das T009, T013 e T014, e o cliente não acessa staging.
+
+- [ ] Declarar `USER` não-root em `deploy/gatus/Dockerfile`, `deploy/vector/Dockerfile` e
+      `deploy/ntfy/Dockerfile`. Apontado como 🔴 High pela revisão automática do Datadog no PR #4, e
+      procede: as três imagens sobem como root, e a regra vale. Não foi feito junto do go-live
+      porque as três são imagens oficiais upstream e cada uma escreve no seu próprio diretório
+      (`/var/lib/vector`, o cache do ntfy, o storage do gatus) — trocar o usuário sem descobrir
+      antes quais caminhos precisam de dono derruba a observabilidade que acabou de ficar de pé, e
+      derruba justamente o que avisaria da queda. Fazer com a stack de ops em staging, um serviço
+      por vez, conferindo o healthcheck depois de cada um. As imagens já estão pinadas por digest.
