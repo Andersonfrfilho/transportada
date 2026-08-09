@@ -60,6 +60,8 @@ describe('authorization contract', () => {
         'cte.manage',
         'cte.submit',
         'cte.read',
+        'billing.create',
+        'billing.cancel',
         'billing.read',
         'settings.manage',
         'operations.read',

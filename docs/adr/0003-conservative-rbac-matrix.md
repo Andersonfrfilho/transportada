@@ -1,6 +1,6 @@
 # ADR 0003 — Matriz RBAC conservadora
 
-- Status: aceito
+- Status: aceito, item 2 emendado pelo ADR-0026 (faturamento do `company-admin`)
 - Data: 2026-07-19
 - Decisores: mantenedor do projeto e revisão Opus
 

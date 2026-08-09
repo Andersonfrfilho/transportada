@@ -39,6 +39,7 @@ export type CompanyPermission = Exclude<TransportadaPermission, 'companies.manag
 
 export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // Instalação dedicada: o company-admin é o dono do ambiente e precisa dar entrada em nota
+  // e faturar — só o finance tinha billing.create, e o finance nem enxerga a lista de CT-e
   'company-admin': Object.freeze([
     'users.manage',
     'invoices.import',
@@ -46,6 +47,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.manage',
     'cte.submit',
     'cte.read',
+    'billing.create',
+    'billing.cancel',
     'billing.read',
     'settings.manage',
     'operations.read',
