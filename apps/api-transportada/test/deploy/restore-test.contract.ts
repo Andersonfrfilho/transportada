@@ -44,14 +44,17 @@ describe('contrato do teste mensal de restore', () => {
   /**
    * Cliente mais novo que o servidor recusa a conexão, e cliente mais velho recusa o dump: casar as
    * duas versões no mesmo contêiner é o que faz o teste medir o restore, não a versão do runner.
+   *
+   * O digest vem junto porque a tag é ponteiro móvel: um teste de restauração que roda numa imagem
+   * diferente a cada mês não prova que o backup restaura, prova que restaurou naquela imagem.
    */
-  test('o alvo é um Postgres efêmero da versão do servidor, e o cliente é o dele', async () => {
+  test('o alvo é um Postgres efêmero da versão do servidor, pinado por digest', async () => {
     const workflow = await parseWorkflow()
     const job = workflow.jobs[JOB_NAME]
     const services = job?.services as Readonly<Record<string, Readonly<{ image: string }>>>
     const content = await readWorkflow()
 
-    expect(services?.postgres?.image).toBe('postgres:18')
+    expect(services?.postgres?.image).toMatch(/^postgres:18@sha256:[0-9a-f]{64}$/)
     expect(content).toContain('job.services.postgres.id')
     expect(job?.['timeout-minutes']).toBeGreaterThan(0)
   })
