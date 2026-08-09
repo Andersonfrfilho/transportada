@@ -128,11 +128,23 @@ terem evidência em `evidence.md`.
       Staging diz, e diz como **prefixo**. Serviço interno (`worker`, `cron`, `rabbitmq`, bancos)
       não tem domínio público e fica com nome curto.
 
-      ⚠️ Falta confirmar **como** se edita o subdomínio do `up.railway.app`: `railway domain <valor>`
-      trata o valor como domínio próprio (devolve registro DNS), não como subdomínio do Railway. Que
-      seja editável está provado pelo `transportada-staging.up.railway.app` de hoje — é
-      `serviceDomain`, sem `-frontend` e sem hash, então alguém escolheu. Descobrir se é CLI ou
-      dashboard **antes** de criar os serviços, não depois.
+      ✅ **Como se edita, resolvido.** Não é a CLI — `railway domain <valor>` trata o valor como
+      domínio próprio. É a API: `serviceDomainUpdate(input: {serviceDomainId, serviceId,
+      environmentId, domain, targetPort})`, com `domain` sendo o hostname inteiro
+      (`<label>.up.railway.app`). O `serviceDomainId` vem de
+      `domains(projectId, environmentId, serviceId) { serviceDomains { id domain suffix } }`. Ou
+      seja: cria o serviço com o nome curto, gera o domínio, e **renomeia o domínio** — o nome do
+      serviço no painel e o rótulo do domínio são campos independentes.
+
+      Só os três públicos precisam disso. `worker`, `cron`, `rabbitmq` e os bancos falam por
+      `*.railway.internal` e não recebem domínio nenhum.
+
+      ⚠️ Corrigir de passagem, em staging: o `worker` tem domínio público
+      (`worker-staging-3ae1.up.railway.app`) que ninguém pede e ninguém monitora — o Gatus só olha
+      api e frontend. Anônimo, da internet aberta, ele responde
+      `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"},"service":"worker"}` e
+      entrega a topologia da infra a quem perguntar. `serviceDomainDelete(id)` e pronto; em
+      production ele nasce sem.
 
 - [ ] T020 🧠 Preencher **config-as-code** na aba _Settings_ de cada serviço de production. Sem
       isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9). Fecha a pendência 1.
