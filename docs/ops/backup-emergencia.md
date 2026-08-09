@@ -219,19 +219,39 @@ Ela sai do Railway e vai para o gerenciador de senhas — nunca para o repositó
 terminal compartilhado, nunca para um canal de chat. Segredo que apareceu em log é segredo
 queimado (regra de segurança §4).
 
-**Local da cópia de production:** gerenciador de senhas do responsável pelo produto, entrada
-`TransportAdA — production` (campos `ENCRYPTION_KEYRING_JSON`, `ENCRYPTION_ACTIVE_KEY_ID`,
-`IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`). É a única cópia
-que sobrevive ao cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não
-serve, porque mora na mesma conta.
+**Local da cópia de production:** Chaveiro do macOS do responsável pelo produto, serviço
+`TransportAdA production`, um item por campo — `ENCRYPTION_KEYRING_JSON`,
+`ENCRYPTION_ACTIVE_KEY_ID`, `IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`,
+`KC_BOOTSTRAP_ADMIN_PASSWORD` e os seis `OBJECT_STORAGE_*`. É a única cópia que sobrevive ao
+cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não serve, porque mora
+na mesma conta.
+
+O Chaveiro só conta como segundo lugar porque a sincronia do iCloud está ligada
+(`com.apple.Dataclass.KeychainSync`, `Enabled = 1`): sem ela a cópia morre junto com o laptop, que
+é exatamente o cenário do qual ela deveria proteger. **Quem trocar de máquina confere isso antes de
+considerar a cópia existente.**
+
+Ler um campo na emergência, sem abrir o app:
+
+```bash
+security find-generic-password -s 'TransportAdA production' -a ENCRYPTION_KEYRING_JSON -w
+```
+
+Gravar de novo, depois de uma rotação, sem o valor passar por `argv` nem pelo histórico do shell —
+o `security` lê a senha do stdin e pede duas vezes:
+
+```bash
+printf '%s\n%s\n' "$VALOR" "$VALOR" |
+  security add-generic-password -s 'TransportAdA production' -a ENCRYPTION_KEYRING_JSON -U -w
+```
 
 O `ENCRYPTION_ACTIVE_KEY_ID` de production é `production-v1`, e vai junto por um motivo prático: a
 keyring é um objeto com uma chave por id, e sem saber qual está ativa a reposição é chute. Rotação
 acrescenta `production-v2` ao objeto **sem** remover a anterior (ADR-0004).
 
 Os valores nasceram fora do painel, num arquivo `600` no disco de quem gerou, só para a
-transferência — apague o arquivo depois de colar no gerenciador. Disco de laptop não é o segundo
-lugar: é o primeiro lugar a vazar.
+transferência, e o arquivo foi apagado com `rm -P` assim que os onze campos foram conferidos por
+leitura de volta. Disco de laptop não é o segundo lugar: é o primeiro lugar a vazar.
 
 ## Restauração de emergência
 

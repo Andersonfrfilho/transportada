@@ -181,12 +181,12 @@ Passos que exigem o dashboard ou uma decisão humana:
 3. ~~**Required reviewers**~~ no GitHub Environment `production`: **não é possível hoje** —
    repositório privado em plano Free, a API responde `422`. O portão humano é o merge do PR na
    `main` protegida, e volta a ser o revisor do Environment quando o plano mudar.
-4. **Backup da keyring de production** fora do Railway. Os segredos de production já nasceram fora
-   do painel, num arquivo `600`, e o destino da cópia está registrado em
-   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Falta o passo que
-   só uma pessoa faz: colar no gerenciador de senhas e apagar o arquivo de transferência. Staging
-   tem ciclo automático diário desde a feature 029; production ganha o dele junto com o primeiro
-   deploy.
+4. ~~**Backup da keyring de production** fora do Railway.~~ **Resolvida.** Os segredos nasceram fora
+   do painel, num arquivo `600`, e os onze campos estão no Chaveiro do macOS sob o serviço
+   `TransportAdA production` — gravados via stdin, conferidos por leitura de volta, e o arquivo de
+   transferência destruído com `rm -P`. Onde vive e como se lê está em
+   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Staging tem ciclo
+   automático diário desde a feature 029; production ganha o dele junto com o primeiro deploy.
 5. **Domínios e volume de production**: a instância do serviço só existe depois
    do primeiro deploy, então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
    `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`

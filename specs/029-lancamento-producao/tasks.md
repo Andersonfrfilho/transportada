@@ -101,7 +101,7 @@ terem evidência em `evidence.md`.
       (`422`). O portão humano é o merge do PR na `main` protegida (T016) até o plano mudar.
 - [x] T016 [P] Proteção de `main`: PR obrigatório, CI verde, sem push direto (D8). Sem isso o
       revisor do Environment é contornável.
-- [ ] T017 Gerar os segredos de production — `ENCRYPTION_KEYRING_JSON` (`production-v1`),
+- [x] T017 Gerar os segredos de production — `ENCRYPTION_KEYRING_JSON` (`production-v1`),
       `IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`,
       `OBJECT_STORAGE_*` — e **copiar a keyring fora do Railway**, registrando o local (nunca o
       valor) em `docs/ops/backup-emergencia.md`. Fecha a pendência 4.

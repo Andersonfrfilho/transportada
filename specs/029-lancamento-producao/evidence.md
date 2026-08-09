@@ -1020,7 +1020,7 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       lido pela API acima; a recusa aparece na primeira tentativa real, e não vale gastar um push
       de verdade para vê-la.
 
-- [ ] T017 — **Segredos de production gerados e conferidos pelo parser da própria API.** Nenhum
+- [x] T017 — **Segredos de production gerados e conferidos pelo parser da própria API.** Nenhum
       valor passou por terminal, log ou este arquivo: o script escreve num arquivo `600` e imprime
       só a forma.
 
@@ -1060,10 +1060,35 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       o runbook voltar a dizer "preencher" e falha se alguém colar ali uma chave de 32 bytes ou a
       keyring inteira. Vermelho antes (`Received: "_preencher na T017…"`), 62 pass depois.
 
-      ⏳ **Falta o único passo que não é meu:** colar os campos do arquivo de transferência no
-      gerenciador de senhas e apagar o arquivo. Enquanto isso não acontecer, a keyring de
-      production existe num lugar só — um disco de laptop —, e a pendência 4 de
-      `docs/spec/railway.md` continua aberta.
+      **A cópia foi feita por comando, não por cola-e-cola.** Não há `op` nem `bw` nesta máquina; o
+      gerenciador que existe é o Chaveiro do macOS, e ele tem CLI. O `security` lê a senha do
+      **stdin** — conferido antes de usar, com um item descartável que foi lido de volta e apagado
+      —, então o valor não passa por `argv`, não entra no histórico do shell e não aparece na tela:
+
+      ```text
+      $ zsh t017/para-o-chaveiro.sh
+      ok     ENCRYPTION_ACTIVE_KEY_ID (13 caracteres)
+      ok     ENCRYPTION_KEYRING_JSON (64 caracteres)
+      ok     IDEMPOTENCY_HMAC_KEY (44 caracteres)
+      ok     RABBITMQ_DEFAULT_PASS (32 caracteres)
+      ok     KC_BOOTSTRAP_ADMIN_PASSWORD (32 caracteres)
+      ok     OBJECT_STORAGE_ACCESS_KEY (54 caracteres)   … e os outros cinco
+      {"gravados":11,"falhas":0}
+      ```
+
+      `ok` não é "o comando não deu erro": cada campo é **lido de volta do Chaveiro e comparado**
+      com o valor de origem antes de contar. Onze de onze.
+
+      Só depois disso o arquivo de transferência foi destruído — `rm -P`, e
+      `~/.transportada/production/` ficou vazio. A leitura da keyring pelo Chaveiro continua
+      respondendo, então a cópia sobreviveu ao apagamento da origem.
+
+      **O Chaveiro só vale como segundo lugar porque sai do laptop:**
+      `com.apple.Dataclass.KeychainSync` está com `Enabled = 1` no `MobileMeAccounts.plist` — o
+      primeiro `grep` sugeriu `false`, mas era o `Enabled` do bloco seguinte; lido dentro das
+      chaves do bloco certo, é `1`. Se fosse local, a cópia morreria junto com a máquina, que é
+      exatamente o cenário do qual ela deveria proteger — e isso está escrito no runbook como
+      condição a reconferir em troca de máquina.
 
 ## Fase D — Subir production
 
