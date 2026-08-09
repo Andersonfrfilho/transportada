@@ -219,7 +219,19 @@ Ela sai do Railway e vai para o gerenciador de senhas — nunca para o repositó
 terminal compartilhado, nunca para um canal de chat. Segredo que apareceu em log é segredo
 queimado (regra de segurança §4).
 
-**Local da cópia de production:** _preencher na T017 da feature 029 — o local, jamais o valor._
+**Local da cópia de production:** gerenciador de senhas do responsável pelo produto, entrada
+`TransportAdA — production` (campos `ENCRYPTION_KEYRING_JSON`, `ENCRYPTION_ACTIVE_KEY_ID`,
+`IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`). É a única cópia
+que sobrevive ao cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não
+serve, porque mora na mesma conta.
+
+O `ENCRYPTION_ACTIVE_KEY_ID` de production é `production-v1`, e vai junto por um motivo prático: a
+keyring é um objeto com uma chave por id, e sem saber qual está ativa a reposição é chute. Rotação
+acrescenta `production-v2` ao objeto **sem** remover a anterior (ADR-0004).
+
+Os valores nasceram fora do painel, num arquivo `600` no disco de quem gerou, só para a
+transferência — apague o arquivo depois de colar no gerenciador. Disco de laptop não é o segundo
+lugar: é o primeiro lugar a vazar.
 
 ## Restauração de emergência
 

@@ -1,0 +1,49 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { describe, expect, test } from 'bun:test'
+
+const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
+const RUNBOOK_PATH = new URL('docs/ops/backup-emergencia.md', REPOSITORY_ROOT)
+
+/** Chave canônica de 32 bytes em base64 — a forma exata que a keyring e o HMAC têm. */
+const CANONICAL_KEY_PATTERN = /[A-Za-z0-9+/]{43}=/
+/** `{"production-v1": "..."}` — a keyring inteira, ainda que a chave viesse truncada. */
+const KEYRING_PATTERN = /"(?:production|staging)-v\d+"\s*:\s*"/
+
+async function readRunbook(): Promise<string> {
+  return Bun.file(RUNBOOK_PATH).text()
+}
+
+function locationLine(content: string): string {
+  const matched = /^\*\*Local da cópia de production:\*\*(.*)$/m.exec(content)
+  if (matched === null) {
+    throw new Error('O runbook não declara onde vive a cópia da keyring de production')
+  }
+  return (matched[1] ?? '').trim()
+}
+
+describe('contrato dos segredos de production', () => {
+  /**
+   * Perder a keyring não tem recuperação: o certificado A1 de cada empresa vira envelope
+   * indecifrável (ADR-0004). O que separa "temos backup" de "achamos que temos" é alguém conseguir
+   * dizer, sem procurar, onde a cópia está.
+   */
+  test('o runbook diz onde vive a cópia da keyring de production', async () => {
+    const declared = locationLine(await readRunbook())
+
+    expect(declared).not.toBeEmpty()
+    expect(declared).not.toMatch(/preencher|pendente|TODO|a definir/i)
+  })
+
+  /**
+   * E diz o local, jamais o valor. Documento é versionado, e keyring commitada é keyring pública —
+   * segredo que apareceu em repositório é segredo queimado (regra de segurança §4).
+   */
+  test('o runbook não carrega o valor de segredo nenhum', async () => {
+    const content = await readRunbook()
+
+    expect(content).not.toMatch(CANONICAL_KEY_PATTERN)
+    expect(content).not.toMatch(KEYRING_PATTERN)
+  })
+})

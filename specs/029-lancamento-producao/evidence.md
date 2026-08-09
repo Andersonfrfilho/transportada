@@ -1020,7 +1020,50 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       lido pela API acima; a recusa aparece na primeira tentativa real, e não vale gastar um push
       de verdade para vê-la.
 
-- [ ] T017 —
+- [ ] T017 — **Segredos de production gerados e conferidos pelo parser da própria API.** Nenhum
+      valor passou por terminal, log ou este arquivo: o script escreve num arquivo `600` e imprime
+      só a forma.
+
+      ```text
+      $ bun t017/mint.ts ~/.transportada/production/secrets.env
+      {"activeKeyId":"production-v1","keyRingSize":1,"envelopeKeyBytes":32,"hmacKeyBytes":32,
+       "rabbitmqPassLength":32,"keycloakAdminPassLength":32,
+       "objectStorage":{"bucket":"transportada-production-vosp8e","endpoint":"https://t3.storageapi.dev",
+                        "region":"auto","forcePathStyle":"false"}}
+      $ ls -l ~/.transportada/production/secrets.env
+      -rw-------  1 anderson.filho  staff  661
+      ```
+
+      A conferência não é regex de script: o `mint.ts` importa
+      `parseCryptographicConfiguration` de `src/config/` e passa os valores gerados por ele. Se a
+      chave não tivesse 32 bytes canônicos, se o `production-v1` não estivesse na keyring ou se o
+      HMAC repetisse uma chave de envelope, o comando teria falhado no lugar de escrever o arquivo
+      — é o mesmo caminho que a API roda no boot.
+
+      **`OBJECT_STORAGE_*` não se gera, se colhe.** O bucket de production é o nativo da Railway e
+      já existia (`transportada-production`, credencial de 03/08/2026); as chaves saíram de
+      `bucketS3Credentials` direto para o arquivo. O nome S3 real leva sufixo
+      (`transportada-production-vosp8e`) e `urlStyle: virtual-host` é o que obriga
+      `OBJECT_STORAGE_FORCE_PATH_STYLE=false`.
+
+      Nenhum segredo é o mesmo do outro ambiente — comparação por igualdade, sem imprimir valor:
+
+      ```text
+      {"stagingBucket":"transportada-staging-zjeaet","productionBucket":"transportada-production-vosp8e",
+       "mesmaAccessKey":false,"mesmoSecret":false}
+      {"stagingActiveKeyId":"staging-v1","keyringIgualAoStaging":false,"hmacIgualAoStaging":false}
+      ```
+
+      **Onde a cópia vive** está em `docs/ops/backup-emergencia.md` § _Copiar a keyring_ —
+      gerenciador de senhas do responsável, entrada `TransportAdA — production`, com o local e
+      jamais o valor. O contrato `test/deploy/secrets.contract.ts` guarda as duas metades: falha se
+      o runbook voltar a dizer "preencher" e falha se alguém colar ali uma chave de 32 bytes ou a
+      keyring inteira. Vermelho antes (`Received: "_preencher na T017…"`), 62 pass depois.
+
+      ⏳ **Falta o único passo que não é meu:** colar os campos do arquivo de transferência no
+      gerenciador de senhas e apagar o arquivo. Enquanto isso não acontecer, a keyring de
+      production existe num lugar só — um disco de laptop —, e a pendência 4 de
+      `docs/spec/railway.md` continua aberta.
 
 ## Fase D — Subir production
 
