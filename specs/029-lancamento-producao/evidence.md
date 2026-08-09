@@ -1276,7 +1276,65 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 
       Verificação: `bun test ./test/deploy.contract.test.ts` — 65 pass, 0 fail.
 
-- [ ] T019a —
+- [x] T019a — **Rotação dos segredos queimados na T019, antes do primeiro deploy.**
+
+      **1. Os quatro de variável.** `RABBITMQ_DEFAULT_PASS` (rabbitmq), `KC_BOOTSTRAP_ADMIN_PASSWORD`
+      (keycloak), `ENCRYPTION_KEYRING_JSON` e `IDEMPOTENCY_HMAC_KEY` (api **e** worker, iguais nos
+      dois). Gerados com `openssl rand`, gravados por `railway variable set --stdin --skip-deploys`,
+      conferidos por leitura de volta — nenhum valor passou por `argv` nem pela tela. O keyring novo
+      tem só `production-v2`, e `ENCRYPTION_ACTIVE_KEY_ID` acompanhou. Antes de publicar, passei o
+      trio pelo parser de verdade (`parseCryptographicConfiguration`), que respondeu
+      `activeKeyId: production-v2 · chaves no keyring: production-v2 · bytes da hmac: 32` — o schema
+      recusa chave que não seja base64 de exatamente 32 bytes e recusa HMAC igual a chave da keyring,
+      e é melhor descobrir isso aqui que no boot.
+
+      **2. `RABBITMQ_URL` é referência, não cópia.** O hash do valor resolvido no worker mudou
+      sozinho depois da troca (`cb443dd3a0f5` → `b0c9c06eac45`) e passou a conter a senha nova. Mesmo
+      para `DATABASE_URL` de api/worker/cron e `KC_DB_PASSWORD` do keycloak: um `POSTGRES_PASSWORD`
+      trocado propagou para os quatro consumidores sem eu tocar em nenhum.
+
+      **3. Os dois Postgres.** A variável do template só vale no `initdb`, e os dois já tinham
+      deployado em 03/08 — trocar a variável sozinha não mudaria nada e a senha vazada continuaria
+      valendo. O caminho foi `ALTER USER postgres WITH PASSWORD`, com o SQL entrando por stdin:
+
+      ```
+      railway ssh --service Postgres-Hqfu --environment production -- psql -v ON_ERROR_STOP=1 -f - < alter.sql
+      → ALTER ROLE
+      ```
+
+      `railway ssh` re-tokeniza os argumentos, então `psql -tAc "select 1"` chega quebrado
+      (`database "current_user" does not exist`) e `sh -c '…'` executa só o primeiro token. Stdin
+      resolve as duas coisas de uma vez, e de quebra a senha nunca aparece em `argv` remoto.
+
+      **Prova nos dois sentidos**, que é o que separa "rotacionei" de "acho que rotacionei":
+
+      | Momento | Comando | Resposta |
+      | --- | --- | --- |
+      | Depois do `ALTER`, contêiner ainda com a env antiga | `psql -f -` via ssh | `FATAL: password authentication failed for user "postgres"` |
+      | Depois do `redeploy`, env recarregada | `psql -f -` via ssh | `postgres@railway` |
+
+      Os dois bancos responderam igual. Antes disso, `select count(*) from information_schema.tables
+      where table_schema='public'` deu **0** nos dois — o que autoriza substituir a keyring inteira
+      em vez de acrescentar id (ADR-0004): não havia envelope para ficar indecifrável.
+
+      **4. O que não vazou, verificado.** Procurei o valor corrente de `OBJECT_STORAGE_ACCESS_KEY`,
+      `OBJECT_STORAGE_SECRET_KEY` e `KEYCLOAK_ADMIN_CLIENT_SECRET` por busca literal nos transcripts
+      da sessão: **0 ocorrências** — não precisam rotacionar. Na direção oposta, os quatro que eu
+      declarei queimados aparecem em **1** transcript cada (o vazamento era real, não suposição), e
+      nenhum dos seis valores novos aparece em transcript nenhum.
+
+      **5. Cofre e runbook.** Os sete itens foram gravados no Chaveiro (`security add-generic-password
+      -U -w`, valor por stdin) e conferidos por leitura de volta, incluindo dois novos:
+      `POSTGRES_PASSWORD_APP` e `POSTGRES_PASSWORD_KEYCLOAK` — os dois bancos expõem a mesma
+      `POSTGRES_PASSWORD` e sem sufixo o `-U` sobrescreveria um com o outro, o que só apareceria na
+      emergência. Chaveiro e Railway conferem nos sete. O teste novo em
+      `test/deploy/secrets.contract.ts` ficou **vermelho** antes da edição do runbook
+      (`Expected to contain: "\`KEYCLOAK_ADMIN_CLIENT_SECRET\`"`) e verde depois: 66 pass, 0 fail.
+
+      **6. Higiene.** Os arquivos `600` de transferência e todos os dumps de variável foram apagados
+      com `rm -P`; `~/.transportada/production/` já estava vazio. A fonte do valor corrente é o
+      Chaveiro, e o Railway é o desempate.
+
 - [ ] T020 —
 - [ ] T021 —
 - [ ] T022 —

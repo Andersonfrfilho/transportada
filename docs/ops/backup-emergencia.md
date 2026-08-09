@@ -222,9 +222,15 @@ queimado (regra de segurança §4).
 **Local da cópia de production:** Chaveiro do macOS do responsável pelo produto, serviço
 `TransportAdA production`, um item por campo — `ENCRYPTION_KEYRING_JSON`,
 `ENCRYPTION_ACTIVE_KEY_ID`, `IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`,
-`KC_BOOTSTRAP_ADMIN_PASSWORD` e os seis `OBJECT_STORAGE_*`. É a única cópia que sobrevive ao
-cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não serve, porque mora
-na mesma conta.
+`KC_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_ADMIN_CLIENT_SECRET`, `POSTGRES_PASSWORD_APP`,
+`POSTGRES_PASSWORD_KEYCLOAK` e os seis `OBJECT_STORAGE_*` — quatorze ao todo. É a única cópia que
+sobrevive ao cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não serve,
+porque mora na mesma conta.
+
+Os dois últimos nomes fogem do padrão de propósito: os dois Postgres de production expõem a mesma
+variável `POSTGRES_PASSWORD`, e sem sufixo eles colidiriam num item só — o `-U` do `security`
+sobrescreveria um com o outro, e a descoberta viria na emergência. `POSTGRES_PASSWORD_APP` é o
+`Postgres-Hqfu`; `POSTGRES_PASSWORD_KEYCLOAK` é o `Postgres-FDoz`.
 
 O Chaveiro só conta como segundo lugar porque a sincronia do iCloud está ligada
 (`com.apple.Dataclass.KeychainSync`, `Enabled = 1`): sem ela a cópia morre junto com o laptop, que
@@ -245,13 +251,21 @@ printf '%s\n%s\n' "$VALOR" "$VALOR" |
   security add-generic-password -s 'TransportAdA production' -a ENCRYPTION_KEYRING_JSON -U -w
 ```
 
-O `ENCRYPTION_ACTIVE_KEY_ID` de production é `production-v1`, e vai junto por um motivo prático: a
-keyring é um objeto com uma chave por id, e sem saber qual está ativa a reposição é chute. Rotação
-acrescenta `production-v2` ao objeto **sem** remover a anterior (ADR-0004).
+O `ENCRYPTION_ACTIVE_KEY_ID` vai junto por um motivo prático: a keyring é um objeto com uma chave
+por id, e sem saber qual está ativa a reposição é chute. Ele é hoje `production-v2` — a primeira
+keyring foi rotacionada em 09/08/2026, antes do primeiro deploy, porque a original apareceu num
+terminal (regra de segurança §4). **A cópia do Chaveiro é a fonte do valor corrente; o id acima
+envelhece a cada rotação e o Railway é o desempate.**
+
+Rotação normal **acrescenta** o id novo ao objeto sem remover o anterior (ADR-0004): a chave velha
+continua sendo a única capaz de abrir o que foi cifrado com ela. A rotação de 09/08/2026 pôde
+substituir o objeto inteiro por uma razão que não se repete — nada tinha sido cifrado ainda, os dois
+bancos de production estavam com zero tabelas em `public`. Fora desse caso, remover id em uso é
+transformar certificado A1 em envelope indecifrável.
 
 Os valores nasceram fora do painel, num arquivo `600` no disco de quem gerou, só para a
-transferência, e o arquivo foi apagado com `rm -P` assim que os onze campos foram conferidos por
-leitura de volta. Disco de laptop não é o segundo lugar: é o primeiro lugar a vazar.
+transferência, e o arquivo foi apagado com `rm -P` assim que os campos foram conferidos por leitura
+de volta. Disco de laptop não é o segundo lugar: é o primeiro lugar a vazar.
 
 ## Restauração de emergência
 

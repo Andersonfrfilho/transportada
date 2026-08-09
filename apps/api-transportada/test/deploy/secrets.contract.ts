@@ -11,6 +11,22 @@ const CANONICAL_KEY_PATTERN = /[A-Za-z0-9+/]{43}=/
 /** `{"production-v1": "..."}` — a keyring inteira, ainda que a chave viesse truncada. */
 const KEYRING_PATTERN = /"(?:production|staging)-v\d+"\s*:\s*"/
 
+/**
+ * Um item de Chaveiro por campo. Nome de conta é o nome da variável, com uma exceção: os dois
+ * Postgres de production usam a mesma `POSTGRES_PASSWORD`, e no cofre precisam de sufixo para não
+ * colidirem num item só.
+ */
+const KEYCHAIN_ACCOUNTS = [
+  'ENCRYPTION_KEYRING_JSON',
+  'ENCRYPTION_ACTIVE_KEY_ID',
+  'IDEMPOTENCY_HMAC_KEY',
+  'RABBITMQ_DEFAULT_PASS',
+  'KC_BOOTSTRAP_ADMIN_PASSWORD',
+  'KEYCLOAK_ADMIN_CLIENT_SECRET',
+  'POSTGRES_PASSWORD_APP',
+  'POSTGRES_PASSWORD_KEYCLOAK',
+] as const
+
 async function readRunbook(): Promise<string> {
   return Bun.file(RUNBOOK_PATH).text()
 }
@@ -45,5 +61,17 @@ describe('contrato dos segredos de production', () => {
 
     expect(content).not.toMatch(CANONICAL_KEY_PATTERN)
     expect(content).not.toMatch(KEYRING_PATTERN)
+  })
+
+  /**
+   * O cofre só serve se a emergência souber o que procurar nele. Campo que existe no Railway e não
+   * está nomeado aqui é campo que ninguém repõe — descobre-se com o ambiente no chão.
+   */
+  test('o runbook nomeia cada item do Chaveiro que a reposição precisa', async () => {
+    const content = await readRunbook()
+
+    for (const account of KEYCHAIN_ACCOUNTS) {
+      expect(content).toContain(`\`${account}\``)
+    }
   })
 })

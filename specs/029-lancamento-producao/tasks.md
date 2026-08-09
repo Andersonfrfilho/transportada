@@ -146,13 +146,35 @@ terem evidência em `evidence.md`.
       `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD` e o início do `ENCRYPTION_KEYRING_JSON`.
       Regra de segurança §4 não abre exceção. Rotação na T019a, antes do primeiro deploy.
 
-- [ ] T019a Rotacionar os segredos de production expostos na T019: `RABBITMQ_DEFAULT_PASS`,
+- [x] T019a Rotacionar os segredos de production expostos na T019: `RABBITMQ_DEFAULT_PASS`,
       `KC_BOOTSTRAP_ADMIN_PASSWORD`, `ENCRYPTION_KEYRING_JSON` (+ `IDEMPOTENCY_HMAC_KEY`, do mesmo
       lote) e as senhas dos dois Postgres de production. É barato agora e só agora: o ambiente nunca
       subiu, o banco está vazio e nada foi cifrado com a keyring. Os quatro primeiros são
       `railway variable set --stdin` + cópia no Chaveiro; os dois bancos exigem `ALTER USER` dentro
       do contêiner além da variável, porque a senha do template só vale no `initdb`. Reescrever a
       evidência da T017 com os valores novos.
+
+      ✅ Feito, e provado nos dois sentidos: a senha antiga dos dois Postgres passou a responder
+      `password authentication failed`, e a nova conecta. `railway ssh -- psql -f -` com o SQL vindo
+      por stdin é a via — o `railway ssh` re-tokeniza argumentos, então `psql -c "…"` chega quebrado,
+      e stdin ainda evita a senha em `argv`.
+
+      ⚠️ **Escopo maior que o previsto.** O `ENCRYPTION_ACTIVE_KEY_ID` foi de `production-v1` para
+      `production-v2` e a keyring passou a ter só a chave nova — substituir, não acrescentar, ao
+      contrário do que o ADR-0004 manda. Legítimo só aqui: os dois bancos tinham **zero** tabelas em
+      `public`, conferido, então não havia envelope para ficar indecifrável. Está escrito assim no
+      runbook, com a ressalva de que a próxima rotação não pode repetir o gesto.
+
+      ✅ **O que não precisou rotacionar, verificado em vez de suposto:** procurei o valor corrente
+      de `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY` e `KEYCLOAK_ADMIN_CLIENT_SECRET`
+      nos transcripts da sessão — zero ocorrências. Os quatro que eu disse ter vazado aparecem em um
+      transcript cada, e nenhum dos valores novos aparece em lugar nenhum.
+
+      ✅ O Chaveiro ganhou `POSTGRES_PASSWORD_APP` e `POSTGRES_PASSWORD_KEYCLOAK` (a variável tem o
+      mesmo nome nos dois bancos e colidiria num item só), e o runbook passou a nomear os quatorze
+      campos. `test/deploy/secrets.contract.ts` guarda a lista: campo que existe no Railway e não
+      está no runbook é campo que ninguém repõe na emergência.
+
 - [ ] T020 🧠 Preencher **config-as-code** de cada serviço de production com o caminho do
       `railway.json`. Sem isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9).
       Fecha a pendência 1. ✅ Não precisa de dashboard: `serviceInstanceUpdate` aceita
