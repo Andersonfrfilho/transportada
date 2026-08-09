@@ -17,7 +17,11 @@ const BACKUP_SCHEDULE_HOURS = 24
 const RESTORE_SCHEDULE_HOURS = 31 * 24
 
 type ExternalEndpoint = Readonly<{
-  alerts?: readonly Readonly<{ 'failure-threshold'?: number; type?: string }>[]
+  alerts?: readonly Readonly<{
+    'failure-threshold'?: number
+    'success-threshold'?: number
+    type?: string
+  }>[]
   group?: string
   heartbeat?: Readonly<{ interval?: string }>
   name?: string
@@ -148,6 +152,22 @@ describe('contrato do serviço gatus', () => {
     for (const endpoint of configuration['external-endpoints'] ?? []) {
       for (const alert of endpoint.alerts ?? []) {
         expect(alert['failure-threshold']).toBe(1)
+      }
+    }
+  })
+
+  /**
+   * O outro lado da mesma conta. O padrão do Gatus resolve o incidente depois de dois sucessos
+   * seguidos, e sucesso de heartbeat é o push do próximo ciclo: no backup diário o "voltou" chegaria
+   * dois dias depois, no restore mensal chegaria em dois meses. Um ciclo verde já é a prova de que
+   * voltou — o segundo só serve para desconfiar de coisa que oscila, e push não oscila.
+   */
+  test('heartbeat que voltou resolve no primeiro ciclo verde, não no segundo', async () => {
+    const configuration = await readConfiguration()
+
+    for (const endpoint of configuration['external-endpoints'] ?? []) {
+      for (const alert of endpoint.alerts ?? []) {
+        expect(alert['success-threshold']).toBe(1)
       }
     }
   })

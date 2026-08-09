@@ -36,7 +36,10 @@ alerting:
 
 # O que o backup e o teste de restore empurram. `heartbeat.interval` é o alerta: passou a janela sem
 # ping, o monitor cai sozinho. `failure-threshold: 1` porque o padrão de três falhas seguidas, num
-# ciclo diário, avisaria no terceiro dia sem backup.
+# ciclo diário, avisaria no terceiro dia sem backup — e `success-threshold: 1` pelo mesmo motivo do
+# outro lado: o padrão espera dois ciclos verdes, o que faria o "voltou" do backup chegar dois dias
+# depois e o do restore, dois meses. Repetição serve para desconfiar do que oscila, e push não
+# oscila: ou o ciclo fechou, ou não fechou.
 external-endpoints:
   - name: backup
     group: staging
@@ -47,6 +50,7 @@ external-endpoints:
       - type: ntfy
         description: staging ficou um dia sem ciclo de backup verde
         failure-threshold: 1
+        success-threshold: 1
         send-on-resolved: true
 
   # Mensal, a janela sozinha avisaria em setembro que o restore de agosto não fechou — por isso o
@@ -60,6 +64,7 @@ external-endpoints:
       - type: ntfy
         description: o teste mensal de restore de staging não fechou
         failure-threshold: 1
+        success-threshold: 1
         send-on-resolved: true
 
 # Vigiado de fora, pelo domínio público: o projeto de ops é outro projeto Railway justamente para
