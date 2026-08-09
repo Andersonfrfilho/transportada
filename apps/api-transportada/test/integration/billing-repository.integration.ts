@@ -396,13 +396,23 @@ async function seedBillingGraph(
     xmlObjectId: ids.nfeXmlObject,
     xmlSha256: sha,
   })
-  await database.db.insert(nfeParticipants).values({
-    companyId: input.companyId,
-    documentId: ids.nfeDocument,
-    legalName: `Cliente ${input.suffix} Ltda`,
-    role: 'recipient',
-    taxId: input.customerDocument,
-  })
+  // O emitente é o cliente da fatura; o destinatário existe para provar que não é ele que agrupa.
+  await database.db.insert(nfeParticipants).values([
+    {
+      companyId: input.companyId,
+      documentId: ids.nfeDocument,
+      legalName: `Cliente ${input.suffix} Ltda`,
+      role: 'emitter',
+      taxId: input.customerDocument,
+    },
+    {
+      companyId: input.companyId,
+      documentId: ids.nfeDocument,
+      legalName: `Entrega ${input.suffix} Ltda`,
+      role: 'recipient',
+      taxId: `9${input.customerDocument.slice(1)}`,
+    },
+  ])
   await database.db.insert(freightRules).values({
     companyId: input.companyId,
     createdByUserId: input.userId,

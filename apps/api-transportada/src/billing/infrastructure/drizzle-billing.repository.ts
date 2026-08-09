@@ -23,6 +23,7 @@ import {
   type KeysetCursor,
 } from '../../shared/keyset-cursor.js'
 import {
+  buildBillingCustomerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
   type EligibleCteFilterInput,
@@ -148,14 +149,7 @@ class DrizzleBillingTransaction {
           eq(freightCalculations.id, cteBatchItems.freightCalculationId),
         ),
       )
-      .leftJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.companyId, cteBatchItems.companyId),
-          eq(nfeParticipants.documentId, cteBatchItems.nfeDocumentId),
-          eq(nfeParticipants.role, 'recipient'),
-        ),
-      )
+      .leftJoin(nfeParticipants, buildBillingCustomerJoin())
       .leftJoin(
         billingInvoiceItems,
         and(
@@ -474,14 +468,7 @@ class DrizzleBillingTransaction {
           eq(freightCalculations.id, cteBatchItems.freightCalculationId),
         ),
       )
-      .innerJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.companyId, cteBatchItems.companyId),
-          eq(nfeParticipants.documentId, cteBatchItems.nfeDocumentId),
-          eq(nfeParticipants.role, 'recipient'),
-        ),
-      )
+      .innerJoin(nfeParticipants, buildBillingCustomerJoin())
       .leftJoin(nfeDocuments, buildEligibleNfeDocumentJoin())
       .leftJoin(
         billingInvoiceItems,

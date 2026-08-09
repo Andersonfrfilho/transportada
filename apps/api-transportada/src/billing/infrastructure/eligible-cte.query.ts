@@ -52,6 +52,24 @@ function toPaddedFiscalNumber(value: string): string {
   return value.padStart(FISCAL_NUMBER_WIDTH, '0')
 }
 
+/**
+ * Cliente da fatura é quem paga o frete, e o tomador do CT-e desta operação é o remetente da nota
+ * (`toma3/toma = 0`): um embarcador que entrega em muitos pontos é um cliente só. O papel gravado
+ * na importação para esse participante é `emitter` — `sender` é vocabulário dos matchers de perfil.
+ */
+export const BILLING_CUSTOMER_PARTICIPANT_ROLE = 'emitter'
+
+/** Mesmo recorte de empresa do join da nota — o papel sozinho cruzaria tenants. */
+export function buildBillingCustomerJoin(): SQL {
+  const condition = and(
+    eq(nfeParticipants.companyId, cteBatchItems.companyId),
+    eq(nfeParticipants.documentId, cteBatchItems.nfeDocumentId),
+    eq(nfeParticipants.role, BILLING_CUSTOMER_PARTICIPANT_ROLE),
+  )
+  if (condition === undefined) throw new Error('billing customer join condition is empty')
+  return condition
+}
+
 /** A nota entra por `company_id` além do id: sem isso o join atravessaria empresas. */
 export function buildEligibleNfeDocumentJoin(): SQL {
   const condition = and(

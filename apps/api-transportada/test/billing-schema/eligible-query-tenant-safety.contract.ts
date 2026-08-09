@@ -6,6 +6,8 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  BILLING_CUSTOMER_PARTICIPANT_ROLE,
+  buildBillingCustomerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
   type EligibleCteFilterInput,
@@ -120,6 +122,25 @@ describe('billing eligible CT-e query tenant safety', () => {
 
     expect(join.sql).toContain('"nfe_documents"."company_id" = "cte_batch_items"."company_id"')
     expect(join.sql).toContain('"nfe_documents"."id" = "cte_batch_items"."nfe_document_id"')
+  })
+
+  /**
+   * O cliente da fatura é quem paga o frete — o remetente da nota, não o destinatário da carga.
+   * Um embarcador que entrega em dez pontos é um cliente só, e agrupar pelo destinatário partia a
+   * seleção em dez "clientes" diferentes.
+   */
+  test('o cliente da fatura vem do emitente da nota, nunca do destinatário', () => {
+    const join = dialect.sqlToQuery(buildBillingCustomerJoin())
+    const params = join.params.map((value) => String(value))
+
+    expect(BILLING_CUSTOMER_PARTICIPANT_ROLE).toBe('emitter')
+    expect(join.sql).toContain('"nfe_participants"."company_id" = "cte_batch_items"."company_id"')
+    expect(join.sql).toContain(
+      '"nfe_participants"."document_id" = "cte_batch_items"."nfe_document_id"',
+    )
+    expect(join.sql).toContain('"nfe_participants"."role" = $')
+    expect(params).toContain('emitter')
+    expect(params).not.toContain('recipient')
   })
 
   test('os filtros que já existiam continuam presos à empresa', () => {
