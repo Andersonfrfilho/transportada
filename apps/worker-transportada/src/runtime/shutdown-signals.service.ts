@@ -3,11 +3,20 @@
  */
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../shared/worker.types.js'
-import type { WorkerShutdown } from './worker-shutdown.service.js'
 
+interface WorkerShutdownPort {
+  stop(): Promise<void>
+}
+
+/**
+ * O handler é registrado antes de o runtime existir, e por isso recebe uma promessa em vez do
+ * desligamento pronto: sinal que chega no meio do boot espera o runtime ficar de pé e só então
+ * drena. Registrar depois dos consumidores deixaria uma janela em que o processo já consome
+ * mensagem e ainda morre pela disposição padrão do sinal, sem drenar nada.
+ */
 export function registerWorkerShutdownSignals(params: {
   readonly logger: WorkerLogger
-  readonly shutdown: WorkerShutdown
+  readonly resolveShutdown: () => Promise<WorkerShutdownPort>
 }): void {
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(signal, () => {
@@ -16,8 +25,9 @@ export function registerWorkerShutdownSignals(params: {
         message: 'worker_shutdown_started',
         metadata: { signal },
       })
-      void params.shutdown
-        .stop()
+      void params
+        .resolveShutdown()
+        .then((shutdown) => shutdown.stop())
         .then(() => {
           safeLogInfo({
             logger: params.logger,

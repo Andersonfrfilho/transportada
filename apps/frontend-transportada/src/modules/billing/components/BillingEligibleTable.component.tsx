@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
@@ -23,6 +24,20 @@ type BillingEligibleTableProps = Readonly<{
 }>
 
 const MONEY_COLUMNS: readonly BillingEligibleColumnKey[] = ['totalAmount']
+const ELIGIBLE_SKELETON_ROW_COUNT = 5
+const ELIGIBLE_SKELETON_ROW_INDEXES = Array.from(
+  { length: ELIGIBLE_SKELETON_ROW_COUNT },
+  (_, index) => index,
+)
+const ELIGIBLE_COLUMN_SKELETON_WIDTH: Record<BillingEligibleColumnKey, string> = {
+  batchName: '6rem',
+  cteNumber: '3rem',
+  customerDocument: '7rem',
+  customerName: '9rem',
+  issuedAt: '6rem',
+  nfeNumber: '3rem',
+  totalAmount: '5rem',
+}
 
 function formatMoment(value: string): string {
   const moment = new Date(value)
@@ -207,70 +222,84 @@ export function BillingEligibleTable({ table }: BillingEligibleTableProps): JSX.
         </div>
       ) : null}
 
-      {table.eligibleQuery.isLoading ? (
-        <p className={styles.hint}>{t('eligible.loading')}</p>
-      ) : null}
       {table.eligibleQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('eligible.error')}
         </p>
       ) : null}
 
-      <div className={styles.tableScroll}>
-        <table className={styles.dataTable}>
-          <thead>
-            <tr>
-              <th scope="col">
-                <Checkbox
-                  ariaLabel={t('eligible.selectAll')}
-                  checked={isPageSelected}
-                  indeterminate={!isPageSelected && table.selectedIds.length > 0}
-                  onChange={() => table.toggleAllSelection()}
-                />
-              </th>
+      {table.eligibleQuery.isLoading ? (
+        <SkeletonGroup className={styles.tableSkeleton} label={t('eligible.loading')}>
+          {ELIGIBLE_SKELETON_ROW_INDEXES.map((index) => (
+            <div className={styles.skeletonRow} key={index}>
+              <Skeleton height="var(--space-5)" width="var(--space-5)" />
               {table.visibleColumns.map((column) => (
-                <th aria-sort={sortState(column)} key={column} scope="col">
-                  <button
-                    className={styles.sortButton}
-                    onClick={() => table.toggleSort(column)}
-                    type="button"
-                  >
-                    {t(`eligible.columns.${column}`)}
-                    <span aria-hidden="true" className={styles.sortIndicator}>
-                      {sortIndicator(column)}
-                    </span>
-                    <span className={styles.srOnly}>{sortLabel(column)}</span>
-                  </button>
-                </th>
+                <Skeleton
+                  key={column}
+                  variant="text"
+                  width={ELIGIBLE_COLUMN_SKELETON_WIDTH[column]}
+                />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table.visibleItems.map((item) => (
-              <tr aria-selected={table.selectedIds.includes(item.cteId)} key={item.cteId}>
-                <td>
+            </div>
+          ))}
+        </SkeletonGroup>
+      ) : (
+        <div className={styles.tableScroll}>
+          <table className={styles.dataTable}>
+            <thead>
+              <tr>
+                <th scope="col">
                   <Checkbox
-                    ariaLabel={t('eligible.selectRow')}
-                    checked={table.selectedIds.includes(item.cteId)}
-                    disabled={!table.canCreateInvoices}
-                    onChange={() => table.toggleSelection(item.cteId)}
+                    ariaLabel={t('eligible.selectAll')}
+                    checked={isPageSelected}
+                    indeterminate={!isPageSelected && table.selectedIds.length > 0}
+                    onChange={() => table.toggleAllSelection()}
                   />
-                </td>
+                </th>
                 {table.visibleColumns.map((column) => (
-                  <td
-                    className={MONEY_COLUMNS.includes(column) ? styles.amountCell : undefined}
-                    key={column}
-                  >
-                    {cellValue(item, column)}
-                  </td>
+                  <th aria-sort={sortState(column)} key={column} scope="col">
+                    <button
+                      className={styles.sortButton}
+                      onClick={() => table.toggleSort(column)}
+                      type="button"
+                    >
+                      {t(`eligible.columns.${column}`)}
+                      <span aria-hidden="true" className={styles.sortIndicator}>
+                        {sortIndicator(column)}
+                      </span>
+                      <span className={styles.srOnly}>{sortLabel(column)}</span>
+                    </button>
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {table.visibleItems.map((item) => (
+                <tr aria-selected={table.selectedIds.includes(item.cteId)} key={item.cteId}>
+                  <td>
+                    <Checkbox
+                      ariaLabel={t('eligible.selectRow')}
+                      checked={table.selectedIds.includes(item.cteId)}
+                      disabled={!table.canCreateInvoices}
+                      onChange={() => table.toggleSelection(item.cteId)}
+                    />
+                  </td>
+                  {table.visibleColumns.map((column) => (
+                    <td
+                      className={MONEY_COLUMNS.includes(column) ? styles.amountCell : undefined}
+                      key={column}
+                    >
+                      {cellValue(item, column)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {table.visibleItems.length === 0 && !table.eligibleQuery.isLoading ? (
+      {table.eligibleQuery.isLoading ? null : table.visibleItems.length === 0 ? (
         <p className={styles.emptyState}>{t('eligible.empty')}</p>
       ) : (
         <p className={styles.counter}>

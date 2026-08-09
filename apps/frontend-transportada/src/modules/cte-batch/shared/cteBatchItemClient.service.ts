@@ -6,8 +6,10 @@ import type { CteItemTableFilters } from './cteBatchItemTable.service'
 import { serializeCteItemQuery } from './cteBatchItemTable.service'
 
 const CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
+const CTE_BATCHES_PATH = '/cte-batches'
 const CTE_ITEM_EXPORT_PATH = '/cte-batches/items/export'
 const CTE_EXPORT_FALLBACK_FILE_NAME = 'cte-xml.zip'
+const DACTE_FALLBACK_FILE_NAME = 'dacte.pdf'
 const CONTENT_DISPOSITION_FILE_NAME = /filename="([^"]+)"/u
 
 const CTE_ITEM_ERROR = {
@@ -32,7 +34,13 @@ export type CteItemExportFile = Readonly<{
   fileName: string
 }>
 
+export type DownloadItemDacteInput = Readonly<{
+  batchId: string
+  itemId: string
+}>
+
 export type CteBatchItemClient = Readonly<{
+  downloadItemDacte: (input: DownloadItemDacteInput) => Promise<CteItemExportFile>
   exportCompanyItems: (body: CteExportRequestBody) => Promise<CteItemExportFile>
   listCompanyItems: (input: ListCompanyCteItemsInput) => Promise<CompanyCteItemPage>
 }>
@@ -43,6 +51,27 @@ export function createCteBatchItemClient(
   const pageFromApi = createCompanyCteItemPageAdapter()
 
   return {
+    async downloadItemDacte(input) {
+      const accessToken = await dependencies.getAccessToken()
+      const response = await requestArchive({
+        fetch: dependencies.fetch,
+        request: new Request(
+          `${dependencies.apiUrl}${CTE_BATCHES_PATH}/${input.batchId}/items/${input.itemId}/dacte`,
+          {
+            cache: 'no-store',
+            headers: { authorization: `Bearer ${accessToken}` },
+            method: 'GET',
+          },
+        ),
+      })
+      return {
+        blob: await response.blob(),
+        fileName: readFileName({
+          disposition: response.headers.get('content-disposition'),
+          fallback: DACTE_FALLBACK_FILE_NAME,
+        }),
+      }
+    },
     async exportCompanyItems(body) {
       const accessToken = await dependencies.getAccessToken()
       const response = await requestArchive({
@@ -59,7 +88,10 @@ export function createCteBatchItemClient(
       })
       return {
         blob: await response.blob(),
-        fileName: readFileName(response.headers.get('content-disposition')),
+        fileName: readFileName({
+          disposition: response.headers.get('content-disposition'),
+          fallback: CTE_EXPORT_FALLBACK_FILE_NAME,
+        }),
       }
     },
     async listCompanyItems(input) {
@@ -116,9 +148,10 @@ function readErrorCode(payload: unknown): string {
   return typeof code === 'string' && code.length > 0 ? code : CTE_ITEM_ERROR.REQUEST_FAILED
 }
 
-function readFileName(disposition: null | string): string {
-  const matched = disposition === null ? null : CONTENT_DISPOSITION_FILE_NAME.exec(disposition)
-  return matched?.[1] ?? CTE_EXPORT_FALLBACK_FILE_NAME
+function readFileName(input: Readonly<{ disposition: null | string; fallback: string }>): string {
+  const matched =
+    input.disposition === null ? null : CONTENT_DISPOSITION_FILE_NAME.exec(input.disposition)
+  return matched?.[1] ?? input.fallback
 }
 
 async function requestJson(

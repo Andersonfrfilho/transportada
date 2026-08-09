@@ -55,10 +55,13 @@ describe('authorization contract', () => {
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
         'users.manage',
+        'invoices.import',
         'invoices.read',
         'cte.manage',
         'cte.submit',
         'cte.read',
+        'billing.create',
+        'billing.cancel',
         'billing.read',
         'settings.manage',
         'operations.read',

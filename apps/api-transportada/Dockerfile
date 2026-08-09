@@ -22,12 +22,20 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 transportada \
   && adduser --system --uid 1001 --ingroup transportada transportada
 
+# O Bun instala por workspace: as dependências da app ficam no node_modules dela, não na raiz.
 COPY --from=production-dependencies /app/node_modules node_modules
+COPY --from=production-dependencies /app/apps/api-transportada/node_modules apps/api-transportada/node_modules
 COPY --from=build /app/apps/api-transportada/dist apps/api-transportada/dist
 COPY apps/api-transportada/package.json apps/api-transportada/package.json
 # As migrations e o runner ficam na imagem: o release do Railway roda `db:migrate` antes do start.
 COPY apps/api-transportada/drizzle apps/api-transportada/drizzle
 COPY apps/api-transportada/src/database apps/api-transportada/src/database
+COPY apps/api-transportada/src/config apps/api-transportada/src/config
+# Fechamento transitivo dos schemas Drizzle: company-fiscal-profile.schema.ts (cte-retry.policy),
+# environment-provisioning.repository.ts (authorization.policy) e erros base compartilhados.
+COPY apps/api-transportada/src/cte-issuance/domain apps/api-transportada/src/cte-issuance/domain
+COPY apps/api-transportada/src/identity/domain apps/api-transportada/src/identity/domain
+COPY apps/api-transportada/src/shared apps/api-transportada/src/shared
 
 USER transportada
 WORKDIR /app/apps/api-transportada

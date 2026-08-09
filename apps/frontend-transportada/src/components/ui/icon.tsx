@@ -29,6 +29,7 @@ export type IconName =
   | 'filter-clear'
   | 'image'
   | 'invoice'
+  | 'link'
   | 'logout'
   | 'menu'
   | 'page-first'
@@ -55,6 +56,7 @@ export type IconName =
   | 'workspace-mdfe-manifest'
   | 'workspace-nfe'
   | 'workspace-operations'
+  | 'workspace-trip'
 
 export type IconSize = 'md' | 'sm'
 
@@ -93,6 +95,11 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'filter-clear': ['M4 5h16l-6 7v6l-4 2v-8L4 5z', 'M15 15l5 5', 'M20 15l-5 5'],
   image: ['M4 5h16v14H4z', 'M4 16l4.5-4.5 3 3L15 11l5 5', 'M9.4 9.4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z'],
   invoice: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6', 'M9 12h6'],
+  link: [
+    'M9 15l6-6',
+    'M13 5.5 15 3.5a3.5 3.5 0 0 1 5 5L18 10.5',
+    'M11 18.5 9 20.5a3.5 3.5 0 0 1-5-5L6 13.5',
+  ],
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
   'page-first': ['M17 6l-6 6 6 6', 'M7 6v12'],
@@ -144,6 +151,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   'workspace-nfe': ['M6 3h9l3 3v15H6z', 'M15 3v4h4', 'M9 11h6', 'M9 15h6'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
+  'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
 }
 
 /** O tipo gerado para CSS Module devolve `string | undefined`; `cn` já lida com a ausência. */

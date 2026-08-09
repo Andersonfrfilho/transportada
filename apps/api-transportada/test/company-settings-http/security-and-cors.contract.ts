@@ -108,9 +108,7 @@ describe('/company-settings security and CORS contract', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
     expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH')
-    expect(response.headers.get('access-control-allow-headers')).toBe(
-      'Authorization, Content-Type, Idempotency-Key',
-    )
+    expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
     expect(response.headers.has('access-control-allow-credentials')).toBe(false)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(fixture.events).toEqual([])
@@ -121,8 +119,7 @@ describe('/company-settings security and CORS contract', () => {
     [FRONTEND_ORIGIN, 'POST', 'Authorization'],
     [FRONTEND_ORIGIN, 'PATCH', 'Authorization, X-Company-Id'],
     [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
-    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
-    [FRONTEND_ORIGIN, 'PATCH', 'Authorization, Authorization, Content-Type'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization'],
   ])('rejects unsafe preflight before authentication', async (origin, method, headers) => {
     const fixture = await createCompanySettingsHttpFixture()
     const response = await fixture.handle(preflightRequest({ headers, method, origin }))
@@ -159,18 +156,123 @@ describe('/company-settings security and CORS contract', () => {
   })
 })
 
+describe('/company-settings/logo security and CORS contract', () => {
+  test.each(['GET', 'PUT', 'DELETE'])(
+    'allows exact %s preflight so the browser can reach the logo',
+    async (method) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          headers: 'Authorization',
+          method,
+          pathname: COMPANY_SETTINGS_LOGO_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
+      expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+
+  test.each([
+    ['https://attacker.example', 'PUT', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization, X-Company-Id'],
+    [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
+  ])('rejects unsafe logo preflight before authentication', async (origin, method, headers) => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const response = await fixture.handle(
+      preflightRequest({ headers, method, origin, pathname: COMPANY_SETTINGS_LOGO_PATH }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(fixture.events).toEqual([])
+  })
+})
+
+/**
+ * O interruptor da busca automática é GET/PUT/DELETE sem corpo, então o navegador pede só o
+ * `Authorization` no preflight. Sem a rota liberada aqui o preflight responde 403 e o navegador
+ * bloqueia a chamada antes de ela existir — a tela mostra "não foi possível carregar" e o log da
+ * API não registra nenhum GET, porque nenhum GET chegou a ser enviado.
+ */
+describe('/company-settings/scheduled-distribution security and CORS contract', () => {
+  test.each(['GET', 'PUT', 'DELETE'])(
+    'allows exact %s preflight so the browser can reach the opt-in',
+    async (method) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          headers: 'Authorization',
+          method,
+          pathname: COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
+      expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+
+  test.each([
+    ['https://attacker.example', 'PUT', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PATCH', 'Authorization'],
+    [FRONTEND_ORIGIN, 'POST', 'Authorization'],
+    [FRONTEND_ORIGIN, 'PUT', 'Authorization, X-Company-Id'],
+    [FRONTEND_ORIGIN, 'GET', 'Content-Type'],
+  ])(
+    'rejects unsafe scheduled distribution preflight before authentication',
+    async (origin, method, headers) => {
+      const fixture = await createCompanySettingsHttpFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          headers,
+          method,
+          origin,
+          pathname: COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      expect(fixture.events).toEqual([])
+    },
+  )
+})
+
+const COMPANY_SETTINGS_LOGO_PATH = `${COMPANY_SETTINGS_PATH}/logo`
+const COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH = `${COMPANY_SETTINGS_PATH}/scheduled-distribution`
+
+/** Método sem corpo só precisa do Bearer; os demais carregam JSON e chave de idempotência. */
+function allowedHeaders(method: string): string {
+  return method === 'GET' || method === 'DELETE'
+    ? 'Authorization'
+    : 'Authorization, Content-Type, Idempotency-Key'
+}
+
 type PreflightRequestParams = {
   readonly headers: string
   readonly method: string
   readonly origin?: string
+  readonly pathname?: string
 }
 
 function preflightRequest({
   headers,
   method,
   origin = FRONTEND_ORIGIN,
+  pathname = COMPANY_SETTINGS_PATH,
 }: PreflightRequestParams): Request {
-  return new Request(`http://localhost${COMPANY_SETTINGS_PATH}`, {
+  return new Request(`http://localhost${pathname}`, {
     headers: {
       origin,
       'access-control-request-headers': headers,

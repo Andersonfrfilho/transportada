@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import { normalizeRntrc } from '../../shared/rntrc.service.js'
 
 import {
   MdfePayloadEmptySelectionError,
@@ -181,7 +182,8 @@ function buildOwner(vehicle: MdfePayloadVehicle): MdfePayloadOwner {
 
   return {
     nome: vehicle.ownerName,
-    rntrc: vehicle.ownerRntrc,
+    // O <RNTRC> do proprietário tem oito posições: o zero da folha da ANTT fica no cadastro.
+    rntrc: normalizeRntrc(vehicle.ownerRntrc),
     tipoProprietario: vehicle.ownerTaxRegime,
     ...(vehicle.ownerTaxId.length === CNPJ_LENGTH
       ? { cnpj: vehicle.ownerTaxId }

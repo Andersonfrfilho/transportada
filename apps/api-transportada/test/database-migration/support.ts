@@ -58,6 +58,7 @@ export const CTE_BATCH_TABLES = [
 export const CTE_ISSUANCE_TABLES = [
   'cte_fiscal_documents',
   'cte_issuance_attempts',
+  'cte_issuance_diagnostics',
   'cte_issuance_events',
   'cte_retry_schedules',
   'cte_issuance_outbox',
@@ -97,11 +98,15 @@ export const MDFE_TABLES = [
   'mdfe_issuance_payloads',
 ] as const
 
+export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents'] as const
+
+export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
   return entries
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
     .map((entry) => entry.name)
     .toSorted()
 }
@@ -132,6 +137,7 @@ export async function expectQueryToFail(
 export async function readBusinessTables(database: SQL): Promise<readonly string[]> {
   const expectedTables = [
     ...IDENTITY_TABLES,
+    ...INVITATION_TABLES,
     ...FISCAL_TABLES,
     ...FREIGHT_TABLES,
     ...NFE_TABLES,
@@ -142,6 +148,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...OPERATIONS_TABLES,
     ...FLEET_TABLES,
     ...MDFE_TABLES,
+    ...TRIP_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

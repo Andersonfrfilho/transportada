@@ -23,6 +23,8 @@ import {
 
 const API_URL = 'https://api.example.test'
 const MANIFESTS_PATH = `${API_URL}/mdfe-manifests`
+const TRIP_ID = '4d2d7a49-6f0e-4a54-9a63-6f0b2f4c3a11'
+const TRIP_MANIFESTS_PATH = `${API_URL}/trips/${TRIP_ID}/mdfe-manifests`
 const CLIENT_MODULE = '../../src/modules/mdfe-manifest/shared/mdfeManifestClient.service'
 const ADAPTERS_MODULE = '../../src/modules/mdfe-manifest/shared/mdfeManifestResponse.validation'
 
@@ -136,6 +138,28 @@ describe('mdfe manifest client contract', () => {
     expect(discardRequest.method).toBe('POST')
     expect(discardRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
     expect(discardRequest.headers.get('idempotency-key')).toBeNull()
+  })
+
+  // spec 027: manifesto nascido de viagem tem `trip_id` preenchido — a rota é quem carrega a viagem
+  test('creates from the trip route and lets the backend derive vehicle and drivers', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(await client.createManifest({ ...CREATE_MANIFEST_BODY, tripId: TRIP_ID })).toEqual(
+      MANIFEST_DETAIL,
+    )
+
+    const [createRequest] = requests
+    if (createRequest === undefined) throw new Error('MDFE_CONTRACT_REQUEST_MISSING')
+
+    expect(createRequest.url).toBe(TRIP_MANIFESTS_PATH)
+    expect(createRequest.method).toBe('POST')
+
+    const body = (await createRequest.json()) as Record<string, unknown>
+    expect(body).not.toHaveProperty('tripId')
+    expect(body).not.toHaveProperty('driverIds')
+    expect(body).not.toHaveProperty('vehicleId')
+    expect(body.documentIds).toEqual(CREATE_MANIFEST_BODY.documentIds)
   })
 
   test('never smuggles the tenant identifier into the request path or body', async () => {
@@ -351,7 +375,7 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
       Response.json({ data: { ...ISSUANCE_SUMMARY, attemptKind: 'cancel' } }, { status: 202 }),
     )
   }
-  if (request.url === MANIFESTS_PATH) {
+  if (request.url === MANIFESTS_PATH || request.url === TRIP_MANIFESTS_PATH) {
     return Promise.resolve(Response.json({ data: MANIFEST_DETAIL }, { status: 201 }))
   }
   if (request.url.startsWith(`${MANIFESTS_PATH}?`)) {
@@ -410,7 +434,9 @@ type ManifestClient = {
   closeManifest(
     input: ActionInput & { readonly closureCityCode: string; readonly closureState: string },
   ): Promise<unknown>
-  createManifest(input: typeof CREATE_MANIFEST_BODY): Promise<unknown>
+  createManifest(
+    input: typeof CREATE_MANIFEST_BODY & Readonly<{ tripId?: string }>,
+  ): Promise<unknown>
   discardManifest(input: Readonly<{ manifestId: string }>): Promise<unknown>
   getManifest(input: Readonly<{ manifestId: string }>): Promise<unknown>
   issueManifest(input: ActionInput): Promise<unknown>

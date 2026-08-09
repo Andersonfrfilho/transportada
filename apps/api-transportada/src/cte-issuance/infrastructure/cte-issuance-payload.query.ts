@@ -36,16 +36,19 @@ export type PayloadQueryable = Database | Transaction
 type PartyRow = {
   readonly city: string | null
   readonly cityCode: string | null
+  readonly complement: string | null
   readonly district: string | null
   readonly documentId: string
   readonly legalName: string | null
   readonly number: string | null
+  readonly phone: string | null
   readonly postalCode: string | null
   readonly role: string
   readonly state: string | null
   readonly stateRegistration: string | null
   readonly street: string | null
   readonly taxId: string | null
+  readonly tradeName: string | null
 }
 
 const SENDER_ROLE = 'emitter'
@@ -200,15 +203,18 @@ async function loadEmitter(
       city: companyFiscalProfiles.city,
       cityIbgeCode: companyFiscalProfiles.cityIbgeCode,
       cnpj: companyFiscalProfiles.cnpj,
+      complement: companyFiscalProfiles.complement,
       district: companyFiscalProfiles.district,
       legalName: companyFiscalProfiles.legalName,
       number: companyFiscalProfiles.number,
+      phone: companyFiscalProfiles.phone,
       postalCode: companyFiscalProfiles.postalCode,
       rntrc: companyFiscalProfiles.rntrc,
       state: companyFiscalProfiles.state,
       stateRegistration: companyFiscalProfiles.stateRegistration,
       street: companyFiscalProfiles.street,
       taxRegime: companyFiscalProfiles.taxRegime,
+      tradeName: companyFiscalProfiles.tradeName,
     })
     .from(companyFiscalProfiles)
     .where(and(...buildEmitterFilters({ companyId })))
@@ -303,16 +309,19 @@ async function loadParties(
     .select({
       city: nfeAddresses.city,
       cityCode: nfeAddresses.cityCode,
+      complement: nfeAddresses.complement,
       district: nfeAddresses.district,
       documentId: nfeParticipants.documentId,
       legalName: nfeParticipants.legalName,
       number: nfeAddresses.number,
+      phone: nfeAddresses.phone,
       postalCode: nfeAddresses.postalCode,
       role: nfeParticipants.role,
       state: nfeAddresses.state,
       stateRegistration: nfeParticipants.stateRegistration,
       street: nfeAddresses.street,
       taxId: nfeParticipants.taxId,
+      tradeName: nfeParticipants.tradeName,
     })
     .from(nfeParticipants)
     .leftJoin(nfeAddresses, and(...buildAddressJoinFilters()))
@@ -343,17 +352,19 @@ function toParty(row: PartyRow): CtePayloadParty {
   return {
     city: row.city ?? '',
     cityCode: row.cityCode ?? '',
+    complement: row.complement,
     district: row.district ?? '',
+    // A NF-e não expõe e-mail do participante; o CT-e sai sem <email> por falta de origem.
     email: null,
     legalName: row.legalName ?? '',
     number: row.number ?? '',
-    phone: null,
+    phone: row.phone,
     postalCode: row.postalCode,
     state: row.state ?? '',
     stateRegistration: row.stateRegistration,
     street: row.street ?? '',
     taxId: row.taxId ?? '',
-    tradeName: null,
+    tradeName: row.tradeName,
   }
 }
 

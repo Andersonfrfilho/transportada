@@ -5,6 +5,8 @@ const MAX_CAUSE_DEPTH = 3
 
 export const POSTGRES_UNIQUE_VIOLATION = '23505'
 
+export const POSTGRES_FOREIGN_KEY_VIOLATION = '23503'
+
 export type PostgresErrorDetails = {
   readonly constraint: string | undefined
   readonly sqlState: string | undefined
@@ -39,5 +41,11 @@ export function findPostgresError(input: {
 export function violatedUniqueConstraint(error: unknown): string | undefined {
   const details = findPostgresError({ error })
   if (details === null || details.sqlState !== POSTGRES_UNIQUE_VIOLATION) return undefined
+  return details.constraint
+}
+
+export function violatedForeignKeyConstraint(error: unknown): string | undefined {
+  const details = findPostgresError({ error })
+  if (details === null || details.sqlState !== POSTGRES_FOREIGN_KEY_VIOLATION) return undefined
   return details.constraint
 }

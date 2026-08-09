@@ -3,12 +3,14 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { serializeScheduledDistributionStatus } from '../../src/companies/presentation/scheduled-distribution.serializer'
 import {
   DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
   DOCUMENT_SUMMARY,
   IMPORT_DETAIL,
+  SCHEDULED_DISTRIBUTION_STATUS,
   serializeDocumentSummary,
   serializeImportDetail,
   serializeImportSummary,
@@ -171,7 +173,12 @@ describe('nfe http listing and detail contract', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(body).toEqual({ data: DISTRIBUTION_STATUS })
+    expect(body).toEqual({
+      data: {
+        ...DISTRIBUTION_STATUS,
+        scheduled: serializeScheduledDistributionStatus(SCHEDULED_DISTRIBUTION_STATUS),
+      },
+    })
     expect(fixture.distributionStatusCalls).toEqual([{ context: COMPANY_CONTEXT }])
   })
 

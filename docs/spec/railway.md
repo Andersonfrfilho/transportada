@@ -1,5 +1,10 @@
 # Railway: staging e production
 
+> A distribuição é **um deploy por transportadora** (ADR-0021). Este projeto do
+> Railway, com os seus dois ambientes, é a instalação de **um** cliente. Cliente
+> novo é projeto novo, com o mesmo pipeline e as mesmas variáveis — nunca um
+> segundo tenant dentro do mesmo banco, fila, bucket ou realm.
+
 - dashboard: `https://railway.com/project/62de4c69-216a-4335-93a0-4942c6a95c54`;
 - project ID: `62de4c69-216a-4335-93a0-4942c6a95c54`;
 - production ID: `4e24a47a-1514-4106-9d38-52420bd4cef6`;
@@ -11,14 +16,14 @@ Um projeto Railway `transportada` com dois ambientes isolados:
 
 | Ambiente     | Branch    | Ambiente fiscal do cron |
 | ------------ | --------- | ----------------------- |
-| `staging`    | `develop` | `homologation`          |
+| `staging`    | `staging` | `homologation`          |
 | `production` | `main`    | `production`            |
 
 Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem a sua
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -47,21 +52,35 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 
 ## Build e configuração como código
 
-Cada serviço aponta para o seu arquivo pelo `RAILWAY_CONFIG_PATH`:
+O Dockerfile de cada serviço é escolhido pela variável de build
+`RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 
-| Serviço    | Config                         | Dockerfile                              |
-| ---------- | ------------------------------ | --------------------------------------- |
-| `api`      | `deploy/api/railway.json`      | `apps/api-transportada/Dockerfile`      |
-| `worker`   | `deploy/worker/railway.json`   | `apps/worker-transportada/Dockerfile`   |
-| `cron`     | `deploy/cron/railway.json`     | `apps/cron-transportada/Dockerfile`     |
-| `frontend` | `deploy/frontend/railway.json` | `apps/frontend-transportada/Dockerfile` |
-| `keycloak` | `deploy/keycloak/railway.json` | `deploy/keycloak/Dockerfile`            |
+| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                         |
+| ----------------------- | --------------------------------------- | ------------------------------ |
+| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`      |
+| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`   |
+| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`     |
+| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
+| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
+
+> ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
+> variável de ambiente.** Não existe `RAILWAY_CONFIG_PATH`: definir essa
+> variável não tem efeito nenhum e o build cai no builder padrão (Railpack),
+> ignorando `dockerfilePath`, `preDeployCommand`, `healthcheckPath` e
+> `cronSchedule`. O caminho precisa ser preenchido no campo _Config-as-code_ da
+> aba _Settings_ do serviço, no dashboard, **um por serviço e por ambiente**.
+> Enquanto isso não for feito, só `RAILWAY_DOCKERFILE_PATH` está ativo e o
+> conteúdo dos `railway.json` é inerte.
 
 O contexto de build é a raiz do monorepo — os workspaces Bun exigem o
 `package.json` de todas as apps antes do `bun install --frozen-lockfile`.
 
 - **api**: `preDeployCommand` roda `bun src/database/database-migration.service.ts`
-  antes de trocar o tráfego. É o único ponto onde migration é aplicada.
+  antes de trocar o tráfego. É o único ponto onde migration é aplicada — e só
+  passa a valer depois do config-as-code ligado. Antes disso, a migration é
+  aplicada manualmente:
+  `railway ssh --service api --environment <env> bun src/database/database-migration.service.ts`
+  (de dentro do contêiner, porque `*.railway.internal` não é acessível de fora).
 - **cron**: `cronSchedule` `0 * * * *` com `restartPolicyType: NEVER` — processo
   de ciclo único, não serviço em loop.
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
@@ -74,8 +93,28 @@ no boot com estratégia "ignora o que já existe" — reimportar não sobrescrev
 configuração feita à mão. As URLs saem de `${KEYCLOAK_FRONTEND_ORIGIN}` e o
 `unmanagedAttributePolicy: ENABLED` é o que mantém o claim `company_id` vivo.
 
-Nenhum usuário vem semeado: criar o primeiro usuário e atribuir `company_id` é
-passo manual por ambiente, no admin console.
+Criar o usuário no admin console e atribuir `company_id` continua sendo passo
+manual por ambiente. O que **deixou** de ser manual é o lado da aplicação: o
+`preDeployCommand` da API roda `environment-provisioning.service.ts` depois da
+migration e garante, de forma idempotente, a empresa única do ambiente e o
+primeiro `company-admin` — sem `railway ssh` de SQL.
+
+Duas variáveis governam o comando:
+
+- `PROVISION_COMPANY_ID` — UUID da empresa do ambiente (ADR-0021: a empresa é o
+  ambiente, não vem de payload).
+- `PROVISION_ADMIN_SUBJECT` — o `sub` do usuário Keycloak que será o primeiro
+  administrador, copiado do admin console.
+
+As duas vazias significam "ambiente ainda não provisionado": o passo imprime
+`{"provisioning":"skipped"}` e o deploy segue. Declarar só uma delas falha o
+deploy — meia configuração é erro, não silêncio. Rodar de novo com a mesma
+configuração não duplica nem sobrescreve nada; se o vínculo do admin tiver sido
+desabilitado à mão, o comando recusa em vez de reativar.
+
+Quando a fase C da feature 026 entregar o gateway do Keycloak (T000c), o
+`PROVISION_ADMIN_SUBJECT` sai de cena: o próprio comando cria o usuário
+desabilitado e emite o primeiro código de ativação.
 
 ## Variáveis
 
@@ -84,6 +123,14 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 `KEYCLOAK_AUDIENCE`, `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI`,
 `VITE_*`, `CRON_JOB`, `FISCAL_ENVIRONMENT`, `CADENCE_MINUTES`, `PAGE_SIZE`,
 `OBJECT_STORAGE_BUCKET`/`ENDPOINT`/`REGION`/`FORCE_PATH_STYLE`.
+
+> ⏱ `SCHEDULED_DISTRIBUTION_CRON`, na `api`, tem de espelhar o `deploy.cronSchedule`
+> de `deploy/cron/railway.json` — é dela que sai o "próximo ciclo automático" que a
+> tela mostra, e a API não observa o serviço de cron para descobrir isso sozinha.
+> Só o campo de minuto pode ser fixado (`0 * * * *`, `*/15 * * * *`); qualquer outra
+> forma derruba o boot em vez de servir data inventada. Mudou a cadência do cron?
+> mude a variável junto. No painel da Railway o valor vai **sem aspas** — elas só
+> existem no `.env.example` porque o CI faz `. ./.env` e `*` solto vira glob.
 
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de
@@ -102,8 +149,10 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 
 `.github/workflows/deploy.yml`:
 
-1. `push` em `develop` → staging; `push` em `main` → production;
-   `workflow_dispatch` escolhe o ambiente.
+1. `push` em `staging` → staging; `push` em `main` → production;
+   `workflow_dispatch` escolhe o ambiente. Branch sem ambiente não dispara o
+   workflow, e se disparar por engano o job `target` falha em vez de assumir
+   staging — `develop` é branch de trabalho, não de publicação.
 2. O job `gate` chama `.github/workflows/ci.yml` inteiro (format, lint,
    typecheck, test, build, migration-test, integração e smoke). Nenhum deploy
    começa antes dele passar. Por isso `ci.yml` não dispara mais em `push`:
@@ -111,7 +160,7 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 3. O job `deploy` usa o GitHub Environment homônimo — é ali que production
    ganha _required reviewers_ e a aprovação humana acontece.
 4. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
-   cron → frontend.
+   cron → transportada-frontend.
 
 `railway up --ci` sai quando o build termina, não quando o release sobe; por
 isso `.github/scripts/railway-deploy.sh` faz polling do status do deployment e
@@ -124,33 +173,84 @@ auto-deploy nativo dispararia sem passar pelo gate.
 
 Passos que exigem o dashboard ou uma decisão humana:
 
-1. **`RAILWAY_TOKEN`**: criar um project token por ambiente no dashboard e
-   guardar como secret do GitHub Environment correspondente (`staging` e
-   `production`). Sem isso o deploy não autentica.
-2. **Required reviewers** no GitHub Environment `production`.
-3. **Backup da keyring de production** fora do Railway.
-4. **Domínios e volume de production**: a instância do serviço só existe depois
-   do primeiro deploy, então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
+1. **Config-as-code por serviço**: preencher o caminho do `railway.json` na aba
+   _Settings_ de cada um dos dez pares serviço/ambiente. É o que liga
+   `preDeployCommand` (migration da API), healthcheck e `cronSchedule`.
+2. ~~**`RAILWAY_TOKEN`**~~ resolvida: project token por ambiente, guardado como secret do GitHub
+   Environment homônimo (`staging` e `production`).
+3. ~~**Required reviewers**~~ no GitHub Environment `production`: **não é possível hoje** —
+   repositório privado em plano Free, a API responde `422`. O portão humano é o merge do PR na
+   `main` protegida, e volta a ser o revisor do Environment quando o plano mudar.
+4. ~~**Backup da keyring de production** fora do Railway.~~ **Resolvida.** Os segredos nasceram fora
+   do painel, num arquivo `600`, e os onze campos estão no Chaveiro do macOS sob o serviço
+   `TransportAdA production` — gravados via stdin, conferidos por leitura de volta, e o arquivo de
+   transferência destruído com `rm -P`. Onde vive e como se lê está em
+   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Staging tem ciclo
+   automático diário desde a feature 029; production ganha o dele junto com o primeiro deploy.
+5. **Domínios e volume de production**: a instância do serviço só existe depois
+   do primeiro deploy — comprovado, não suposto: `serviceDomainCreate` responde
+   `ServiceInstance not found`, e `serviceInstanceUpdate` no par sem instância
+   responde `true` sem criar nada. Então `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
    `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`
    de production só podem ser preenchidos depois — e o frontend precisa de
    **rebuild** em seguida. O volume do RabbitMQ de production também fica para
    depois do primeiro deploy.
-5. **Emissão fiscal real** em production continua atrás da configuração por
+6. **Emissão fiscal real** em production continua atrás da configuração por
    empresa; o ambiente estar de pé não habilita CT-e real.
+
+## Domínios de production
+
+O domínio é o endereço que o cliente digita, então é ele — não o nome do serviço —
+que carrega o nome do cliente. Production não diz o ambiente:
+
+- api: `https://transportada-afr-fernandes-api.up.railway.app`
+- transportada-frontend: `https://transportada-afr-fernandes.up.railway.app`
+- keycloak: `https://transportada-afr-fernandes-auth.up.railway.app`
+
+> ⚠️ **Nome de serviço e rótulo de domínio são campos independentes, e só o segundo
+> pode carregar o nome do cliente.** O serviço pertence ao projeto, não ao ambiente:
+> renomear `api` para `transportada-afr-fernandes-api` renomearia em staging junto e
+> quebraria `.github/scripts/railway-deploy.sh`, que endereça cada serviço pelo nome
+> nos dois ambientes. Serviço fica curto; o domínio é que se renomeia, com
+> `serviceDomainUpdate(input: {serviceDomainId, serviceId, environmentId, domain,
+targetPort})` e `domain` sendo o hostname inteiro. O CLI não serve: `railway domain
+<valor>` trata o valor como domínio próprio.
+
+> ⏳ Os três ainda **não existem**. `serviceDomainCreate` responde
+> `ServiceInstance not found` enquanto o serviço não tiver o primeiro deploy no
+> ambiente — a instância nasce com ele, e não há como antecipá-la: um
+> `serviceInstanceUpdate` no par serviço/ambiente sem instância responde `true` e não
+> cria nada. Por isso a primeira passada do deploy de production para em
+> `assert-migrations`, que exige domínio público na api para ler `/health/ready`:
+> deploya, cria e renomeia os três domínios, e roda de novo.
+
+Serviço interno não recebe domínio: `worker`, `cron`, `rabbitmq` e os bancos falam
+só por `*.railway.internal`. O `worker` de staging tinha um domínio gerado que
+ninguém pedia e ninguém monitorava — anônimo, da internet aberta, o `/health/ready`
+devolvia `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"}}` e
+entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDelete`.
 
 ## Domínios de staging
 
 - api: `https://api-staging-5633.up.railway.app`
-- frontend: `https://frontend-staging-a83a.up.railway.app`
+- transportada-frontend: `https://transportada-staging.up.railway.app`
 - keycloak: `https://keycloak-staging-d714.up.railway.app`
+
+> ⚠️ Renomear um serviço **não** renomeia o domínio gerado — ele fica com o nome
+> antigo até ser trocado à parte, e o nome do serviço é único no projeto, então a
+> troca vale para staging e production ao mesmo tempo. Trocar o domínio quebra, de
+> uma vez, o `FRONTEND_ORIGIN` da API (CORS), o `VITE_APP_URL` do frontend (que
+> monta o `redirect_uri`) e `redirectUris`/`webOrigins` do client `transportada-spa`
+> no Keycloak. Como o `--import-realm` ignora realm já existente, o client vivo só
+> muda pela admin API — atualizar `KEYCLOAK_FRONTEND_ORIGIN` sozinho não basta.
 
 ## Promoção
 
-1. PR → CI.
-2. Merge em `develop` → staging automático.
+1. PR de feature → `develop` → CI.
+2. Merge de `develop` em `staging` → staging automático.
 3. Migration compatível → smoke/E2E em homologação.
 4. Tag/versão + aprovação humana no GitHub Environment.
-5. Merge em `main` → production.
+5. Merge de `staging` em `main` → production.
 6. Health, migration e smoke pós-deploy.
 
 Schema evolui por expand/contract. Worker antigo e novo só convivem quando

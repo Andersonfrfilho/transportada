@@ -16,8 +16,10 @@ import type { AuthenticationPort } from '../../src/identity/application/identity
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/drizzle-membership.repository'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from '../fixtures/health.fixture'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
 import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
@@ -71,6 +73,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
               return true
             },
           },
+          migrationStatus: appliedMigrations(),
         })
         const tenantContext = new TenantContextService({
           repository: new DrizzleMembershipRepository(database.db),
@@ -78,16 +81,26 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         server = startApiServer({
           config: {
             appEnv: 'test',
+            bootstrapToken: undefined,
+            companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
             frontendOrigin: 'http://localhost:53000',
             keycloak: {
+              admin: {
+                clientId: 'transportada-admin-cli',
+                clientSecret: 'test-keycloak-admin-client-secret',
+              },
               audience: 'transportada-api',
               issuer: 'https://identity.example.test/realms/transportada',
               jwksUri: 'https://identity.example.test/realms/transportada/certs',
             },
             logLevel: 'error',
             port: 0,
+            scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
+            logSinkUrl: undefined,
+            sentryDsn: undefined,
+            sentryEnvironment: 'test',
             vehicleLookup: null,
           },
           logger,

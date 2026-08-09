@@ -15,6 +15,13 @@ const EXPECTED_ROLES = [
   'viewer',
   'driver',
 ]
+const ADMIN_CLIENT_ID = 'transportada-admin'
+const ADMIN_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_ADMIN_CLIENT_SECRET}'
+const REALM_MANAGEMENT_CLIENT = 'realm-management'
+const MANAGE_USERS_ROLE = 'manage-users'
+const LOCAL_REALM_PATH = 'realm/transportada-local-realm.json'
+const DEPLOY_REALM_PATH = 'deploy/keycloak/realm.json'
+const ENVIRONMENT_PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/
 
 type KeycloakRealm = {
   readonly clients: readonly KeycloakClient[]
@@ -28,12 +35,14 @@ type KeycloakRealm = {
 
 type KeycloakClient = {
   readonly attributes?: Readonly<Record<string, string>>
+  readonly clientAuthenticatorType?: string
   readonly clientId: string
   readonly directAccessGrantsEnabled: boolean
   readonly implicitFlowEnabled: boolean
-  readonly protocolMappers: readonly KeycloakProtocolMapper[]
+  readonly protocolMappers?: readonly KeycloakProtocolMapper[]
   readonly publicClient: boolean
   readonly redirectUris?: readonly string[]
+  readonly secret?: string
   readonly serviceAccountsEnabled: boolean
   readonly standardFlowEnabled: boolean
   readonly webOrigins?: readonly string[]
@@ -46,15 +55,18 @@ type KeycloakProtocolMapper = {
 }
 
 type KeycloakUser = {
-  readonly attributes: Readonly<Record<string, readonly string[]>>
-  readonly credentials: readonly KeycloakCredential[]
-  readonly email: string
-  readonly emailVerified: boolean
-  readonly firstName: string
-  readonly id: string
-  readonly lastName: string
+  readonly attributes?: Readonly<Record<string, readonly string[]>>
+  readonly clientRoles?: Readonly<Record<string, readonly string[]>>
+  readonly credentials?: readonly KeycloakCredential[]
+  readonly email?: string
+  readonly emailVerified?: boolean
+  readonly enabled?: boolean
+  readonly firstName?: string
+  readonly id?: string
+  readonly lastName?: string
   readonly realmRoles?: readonly string[]
-  readonly requiredActions: readonly string[]
+  readonly requiredActions?: readonly string[]
+  readonly serviceAccountClientId?: string
   readonly username: string
 }
 
@@ -69,7 +81,28 @@ async function readProjectFile(filePath: string): Promise<string> {
 }
 
 async function readRealm(): Promise<KeycloakRealm> {
-  return JSON.parse(await readProjectFile('realm/transportada-local-realm.json')) as KeycloakRealm
+  return JSON.parse(await readProjectFile(LOCAL_REALM_PATH)) as KeycloakRealm
+}
+
+async function readEveryRealm(): Promise<readonly KeycloakRealm[]> {
+  const files = await Promise.all([LOCAL_REALM_PATH, DEPLOY_REALM_PATH].map(readProjectFile))
+
+  return files.map((file) => JSON.parse(file) as KeycloakRealm)
+}
+
+/**
+ * Segredo literal em realm versionado é segredo queimado — o arquivo vai para o git.
+ */
+function collectSecretValues(value: unknown, key?: string): readonly string[] {
+  if (typeof value === 'string') return key === 'secret' ? [value] : []
+  if (Array.isArray(value)) return value.flatMap((item) => collectSecretValues(item, key))
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value).flatMap(([childKey, child]) =>
+      collectSecretValues(child, childKey),
+    )
+  }
+
+  return []
 }
 
 function findClient(realm: KeycloakRealm, clientId: string): KeycloakClient {
@@ -83,7 +116,7 @@ function findClient(realm: KeycloakRealm, clientId: string): KeycloakClient {
 }
 
 function findMapper(client: KeycloakClient, name: string): KeycloakProtocolMapper {
-  const mapper = client.protocolMappers.find((candidate) => candidate.name === name)
+  const mapper = client.protocolMappers?.find((candidate) => candidate.name === name)
 
   if (mapper === undefined) {
     throw new Error(`Expected the ${name} mapper on the ${client.clientId} client`)
@@ -210,7 +243,7 @@ describe('local Keycloak realm contract', () => {
       lastName: 'User',
       requiredActions: [],
     })
-    expect(localUser?.attributes.company_id).toEqual(['00000000-0000-4000-8000-000000000001'])
+    expect(localUser?.attributes?.company_id).toEqual(['00000000-0000-4000-8000-000000000001'])
     expect(localUser?.credentials).toEqual([
       {
         temporary: false,
@@ -242,5 +275,60 @@ describe('local Keycloak realm contract', () => {
     expect(makefile).toContain('PROJECT_NAME="$(PROJECT_NAME)"')
     expect(makefile.indexOf('db:migrate')).toBeLessThan(makefile.indexOf('db:seed:local'))
     expect(seedService).toContain('pg_advisory_xact_lock')
+  })
+})
+
+describe('Keycloak Admin API service account contract', () => {
+  test('both realms ship the same confidential client, usable only as a service account', async () => {
+    for (const realm of await readEveryRealm()) {
+      const adminClient = findClient(realm, ADMIN_CLIENT_ID)
+
+      expect(adminClient).toMatchObject({
+        directAccessGrantsEnabled: false,
+        implicitFlowEnabled: false,
+        publicClient: false,
+        serviceAccountsEnabled: true,
+        standardFlowEnabled: false,
+      })
+      expect(adminClient.clientAuthenticatorType).toBe('client-secret')
+      expect(adminClient.redirectUris ?? []).toEqual([])
+      expect(adminClient.webOrigins ?? []).toEqual([])
+    }
+  })
+
+  test('grants the service account manage-users from realm-management and nothing else', async () => {
+    for (const realm of await readEveryRealm()) {
+      const serviceAccount = realm.users.find(
+        (candidate) => candidate.serviceAccountClientId === ADMIN_CLIENT_ID,
+      )
+
+      expect(serviceAccount?.username).toBe(`service-account-${ADMIN_CLIENT_ID}`)
+      expect(serviceAccount?.enabled).toBe(true)
+      expect(serviceAccount?.clientRoles).toEqual({
+        [REALM_MANAGEMENT_CLIENT]: [MANAGE_USERS_ROLE],
+      })
+      expect(serviceAccount?.realmRoles ?? []).toEqual([])
+      expect(serviceAccount?.credentials ?? []).toEqual([])
+    }
+  })
+
+  test('keeps every client secret as an environment placeholder, never a literal', async () => {
+    for (const realm of await readEveryRealm()) {
+      const secrets = collectSecretValues(realm)
+
+      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER])
+      for (const secret of secrets) {
+        expect(secret).toMatch(ENVIRONMENT_PLACEHOLDER)
+      }
+    }
+  })
+
+  test('declares the service account credentials as environment variables only', async () => {
+    const environment = await readProjectFile('.env.example')
+
+    expect(environment).toContain(`KEYCLOAK_ADMIN_CLIENT_ID=${ADMIN_CLIENT_ID}`)
+    expect(environment).toContain(
+      'KEYCLOAK_ADMIN_CLIENT_SECRET=replace-with-local-admin-client-secret',
+    )
   })
 })

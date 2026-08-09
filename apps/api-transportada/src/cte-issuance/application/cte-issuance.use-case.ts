@@ -24,7 +24,8 @@ const CANCEL_OPERATION = 'cte-issuance.cancel'
 /** Mínimo exigido pela SEFAZ na xJust do evento 110111. */
 const CANCELLATION_JUSTIFICATION_MIN_LENGTH = 15
 /** Transmitir é o único comando do operador: o rascunho é fechado aqui, dentro da mesma transação. */
-const ISSUABLE_BATCH_STATUSES: readonly string[] = ['draft', 'submitted', 'error']
+/** `in_flight` entra porque o lote parcialmente emitido precisa reemitir só o item que ficou. */
+const ISSUABLE_BATCH_STATUSES: readonly string[] = ['draft', 'submitted', 'error', 'in_flight']
 const DRAFT_BATCH_STATUS = 'draft'
 
 type CteIssuanceStatus =
@@ -231,6 +232,11 @@ export type CteIssuanceUnitOfWorkPort = {
     readonly batchItemId?: string | undefined
     readonly companyId: string
   }) => Promise<Record<string, unknown> | null>
+  /** O lote inteiro, na ordem de `position`: transmitir é um comando sobre todos os itens. */
+  readonly listIssuableBatchItems: (input: {
+    readonly batchId: string
+    readonly companyId: string
+  }) => Promise<readonly Record<string, unknown>[]>
   readonly submitDraftBatch: (input: {
     readonly batchId: string
     readonly companyId: string
@@ -550,20 +556,105 @@ async function executeIssue(
     })
   }
 
-  const batchItem = await transaction.findBatchItem({ batchId: input.batchId, companyId })
-  if (batchItem === null || batchItem['companyId'] !== companyId) throw createNotFound()
+  const batchItems = await transaction.listIssuableBatchItems({ batchId: input.batchId, companyId })
+  const ownedItems = batchItems.filter((item) => item['companyId'] === companyId)
+  if (ownedItems.length === 0) throw createNotFound()
 
-  const batchItemId = getRequiredString(batchItem, 'id')
-
-  const currentIssuance = await transaction.findIssuance({
+  const pendingItems = await collectPendingBatchItems({
     batchId: input.batchId,
-    batchItemId,
     companyId,
+    items: ownedItems,
+    transaction,
   })
-  /** O lote fica em `submitted` até o worker pegá-lo: um segundo comando nessa janela duplicaria. */
-  if (currentIssuance?.context.status === 'requested') throw createIssuanceAlreadyInFlight()
+  /** Nenhum item pendente significa lote inteiro em voo ou já autorizado — nada a transmitir. */
+  if (pendingItems.length === 0) throw createIssuanceAlreadyInFlight()
+
   const fiscalSettings = await transaction.findFiscalSettings({ companyId })
   if (fiscalSettings === null) throw createFiscalSequenceMissing()
+
+  const issued: CteIssuanceResult[] = []
+  /** Sequencial de propósito: os itens dividem a mesma sequência fiscal, e em paralelo ela corre. */
+  for (const pending of pendingItems) {
+    issued.push(
+      await requestItemIssuance({
+        batchItemId: pending.batchItemId,
+        currentIssuance: pending.currentIssuance,
+        fingerprint,
+        fiscalSettings,
+        input,
+        transaction,
+      }),
+    )
+  }
+
+  const [issuance] = issued
+  if (issuance === undefined) throw createIssuanceAlreadyInFlight()
+  await transaction.saveIssuanceReplay({
+    companyId,
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: fingerprint,
+    response: issuance,
+    operation: ISSUE_OPERATION,
+  })
+  return issuance
+}
+
+/** Emissão resolvida ou em voo: repetir reservaria outro número fiscal para o mesmo frete. */
+const SETTLED_ISSUANCE_STATUSES: readonly string[] = ['requested', 'authorized', 'cancelled']
+
+type PendingBatchItem = {
+  readonly batchItemId: string
+  readonly currentIssuance: CteIssuanceIssuanceRecord | null
+}
+
+async function collectPendingBatchItems(input: {
+  readonly batchId: string
+  readonly companyId: string
+  readonly items: readonly Record<string, unknown>[]
+  readonly transaction: CteIssuanceUnitOfWorkPort
+}): Promise<readonly PendingBatchItem[]> {
+  const pending: PendingBatchItem[] = []
+  for (const item of input.items) {
+    const batchItemId = getRequiredString(item, 'id')
+    const currentIssuance = await input.transaction.findIssuance({
+      batchId: input.batchId,
+      batchItemId,
+      companyId: input.companyId,
+    })
+    if (
+      currentIssuance !== null &&
+      SETTLED_ISSUANCE_STATUSES.includes(currentIssuance.context.status)
+    ) {
+      continue
+    }
+    pending.push({ batchItemId, currentIssuance })
+  }
+  return pending
+}
+
+/**
+ * O comando chega com uma chave só, mas `cte_issuance_attempts` é única por (empresa, chave) e o
+ * lote gera uma tentativa por item: repetir a chave do comando derruba o segundo item com 23505.
+ * O replay do comando continua chaveado pela chave crua, em `idempotency_records`, e é ela que
+ * volta no `CteIssuanceResult`: quem chamou recebe de volta a chave que mandou.
+ */
+function buildAttemptIdempotencyKey(input: {
+  readonly batchItemId: string
+  readonly idempotencyKey: string
+}): string {
+  return `${input.idempotencyKey}:${input.batchItemId}`
+}
+
+async function requestItemIssuance(options: {
+  readonly batchItemId: string
+  readonly currentIssuance: CteIssuanceIssuanceRecord | null
+  readonly fingerprint: string
+  readonly fiscalSettings: CteIssuanceFiscalSettings
+  readonly input: CteIssuanceIssueInput
+  readonly transaction: CteIssuanceUnitOfWorkPort
+}): Promise<CteIssuanceResult> {
+  const { batchItemId, currentIssuance, fingerprint, fiscalSettings, input, transaction } = options
+  const companyId = input.context.companyId
 
   const reservation = await transaction.reserveFiscalNumber({
     batchItemId,
@@ -586,7 +677,10 @@ async function executeIssue(
     fiscalEnvironment: fiscalSettings.environment,
     fiscalSeries: reservation.fiscalSeries,
     fiscalNumber: reservation.fiscalNumber,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     status: currentIssuance?.context.status === 'retry_scheduled' ? 'retry_scheduled' : 'requested',
     issueRequestedAt,
   })
@@ -651,13 +745,6 @@ async function executeIssue(
     status: getRequiredStatus(issuance.context.status),
     issueId: attemptId,
     attemptFingerprint: fingerprint,
-  })
-  await transaction.saveIssuanceReplay({
-    companyId,
-    idempotencyKey: input.idempotencyKey,
-    requestFingerprint: fingerprint,
-    response: issuance,
-    operation: ISSUE_OPERATION,
   })
   return issuance
 }
@@ -726,7 +813,10 @@ async function executeReprocess(
     fiscalEnvironment: getRequiredFiscalEnvironment(currentIssuance.context.fiscalEnvironment),
     fiscalSeries: reservation.fiscalSeries,
     fiscalNumber: reservation.fiscalNumber,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     status: 'requested',
     issueRequestedAt,
   })
@@ -857,7 +947,10 @@ async function executeCancel(
     fiscalEnvironment: getRequiredFiscalEnvironment(currentIssuance.context.fiscalEnvironment),
     fiscalSeries: getRequiredString(currentIssuance.context, 'fiscalSeries'),
     fiscalNumber: getRequiredString(currentIssuance.context, 'fiscalNumber'),
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: buildAttemptIdempotencyKey({
+      batchItemId,
+      idempotencyKey: input.idempotencyKey,
+    }),
     reservationId: getRequiredString(currentIssuance, 'reservationId'),
     status: 'requested',
     issueRequestedAt,
@@ -948,6 +1041,7 @@ async function persistIssuancePayload(input: {
         fiscalNumber: issuance.fiscalNumber,
         fiscalSeries: issuance.fiscalSeries,
       },
+      ...(issuance.issueRequestedAt === undefined ? {} : { issuedAt: issuance.issueRequestedAt }),
       source,
     }),
   )

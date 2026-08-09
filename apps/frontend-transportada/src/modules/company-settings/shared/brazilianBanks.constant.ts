@@ -1,0 +1,42 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+export type BrazilianBank = Readonly<{ code: string; name: string }>
+
+/** Código Febraban (compensação) dos bancos mais usados por transportadoras para receber frete. */
+export const BRAZILIAN_BANKS: readonly BrazilianBank[] = [
+  { code: '001', name: 'Banco do Brasil' },
+  { code: '003', name: 'Banco da Amazônia' },
+  { code: '004', name: 'Banco do Nordeste do Brasil' },
+  { code: '021', name: 'Banestes' },
+  { code: '033', name: 'Santander' },
+  { code: '037', name: 'Banpará' },
+  { code: '041', name: 'Banrisul' },
+  { code: '070', name: 'BRB — Banco de Brasília' },
+  { code: '077', name: 'Banco Inter' },
+  { code: '085', name: 'Ailos — Cooperativa Central de Crédito' },
+  { code: '104', name: 'Caixa Econômica Federal' },
+  { code: '121', name: 'Banco Agibank' },
+  { code: '136', name: 'Unicred' },
+  { code: '197', name: 'Stone Pagamentos' },
+  { code: '208', name: 'Banco BTG Pactual' },
+  { code: '212', name: 'Banco Original' },
+  { code: '237', name: 'Bradesco' },
+  { code: '260', name: 'Nu Pagamentos (Nubank)' },
+  { code: '290', name: 'PagSeguro Internet (PagBank)' },
+  { code: '318', name: 'Banco BMG' },
+  { code: '323', name: 'Mercado Pago' },
+  { code: '336', name: 'Banco C6' },
+  { code: '341', name: 'Itaú Unibanco' },
+  { code: '348', name: 'Banco XP' },
+  { code: '380', name: 'PicPay' },
+  { code: '389', name: 'Banco Mercantil do Brasil' },
+  { code: '399', name: 'HSBC Bank Brasil' },
+  { code: '422', name: 'Banco Safra' },
+  { code: '623', name: 'Banco Pan' },
+  { code: '633', name: 'Banco Rendimento' },
+  { code: '655', name: 'Banco Votorantim (BV)' },
+  { code: '707', name: 'Banco Daycoval' },
+  { code: '741', name: 'Banco Ribeirão Preto' },
+  { code: '748', name: 'Sicredi' },
+  { code: '756', name: 'Sicoob' },
+]

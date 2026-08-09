@@ -8,6 +8,7 @@ import {
   type MdfeEmitterType,
   type MdfeTransporterType,
 } from '../../database/mdfe.schema.js'
+import { normalizeRntrc } from '../../shared/rntrc.service.js'
 import { selectManifestableDocuments } from '../domain/mdfe-manifest-eligibility.policy.js'
 import { MdfeManifestTransitionBlockedError } from '../domain/mdfe-issuance.error.js'
 import {
@@ -55,6 +56,7 @@ export type CreateMdfeManifestFields = {
   readonly insuranceEndorsement: string
   readonly loadingPostalCode: string
   readonly transporterType: MdfeTransporterType | ''
+  readonly tripId: string | null
   readonly tripStartedAt: string | null
   readonly vehicleId: string
 }
@@ -156,8 +158,10 @@ export function createMdfeManifestsUseCase(dependencies: {
           insuranceEndorsement: manifest.insuranceEndorsement,
           loadingPostalCode: manifest.loadingPostalCode,
           originState: resolveOriginState(documents),
-          rntrc: settings.rntrc,
+          // A tabela do manifesto guarda o valor fiscal de oito posições, não o da folha da ANTT.
+          rntrc: normalizeRntrc(settings.rntrc),
           transporterType: manifest.transporterType,
+          tripId: manifest.tripId,
           tripStartedAt: manifest.tripStartedAt,
           vehicleId: vehicle.id,
         },

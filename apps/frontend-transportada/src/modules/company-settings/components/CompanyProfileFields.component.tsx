@@ -4,6 +4,18 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
+import {
+  describeCompanySettingsFieldError,
+  profileFieldId,
+  type CompanySettingsFieldError,
+} from '../shared/companySettingsFormValidation.service'
+import {
+  formatCnpj,
+  formatDigitGroups,
+  formatPostalCode,
+  stripNonDigits,
+  stripStateRegistrationMask,
+} from '../shared/companySettingsMask.service'
 import styles from '../styles/companySettings.module.css'
 
 type Profile = CompanySettingsUpdate['profile']
@@ -21,7 +33,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
   { field: 'cnpj', inputMode: 'numeric', maximum: 14, required: true },
   { field: 'stateRegistration', maximum: 20 },
   { field: 'municipalRegistration', maximum: 20 },
-  { field: 'rntrc', inputMode: 'numeric', maximum: 8, required: true },
+  { field: 'rntrc', inputMode: 'numeric', maximum: 9, required: true },
   { field: 'street', maximum: 200, required: true },
   { field: 'number', maximum: 20, required: true },
   { field: 'complement', maximum: 100 },
@@ -36,6 +48,7 @@ const PROFILE_FIELDS: readonly FieldDefinition[] = [
 
 type CompanyProfileFieldsProps = Readonly<{
   disabled: boolean
+  errors?: readonly CompanySettingsFieldError[]
   lookupPending: boolean
   lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: Readonly<{ field: TextField; value: string }>) => void
@@ -48,6 +61,7 @@ function ProfileTextField(
   props: Readonly<{
     disabled: boolean
     definition: FieldDefinition
+    error: CompanySettingsFieldError | undefined
     lookupPending?: boolean | undefined
     lookupStatus?: CompanyProfileFieldsProps['lookupStatus'] | undefined
     onChange: CompanyProfileFieldsProps['onChange']
@@ -57,28 +71,49 @@ function ProfileTextField(
 ) {
   const { t } = useTranslation('companySettings')
   const { field, inputMode, maximum, required } = props.definition
-  const normalizeValue = (value: string) =>
-    inputMode === 'numeric' ? value.replace(/\D/g, '').slice(0, maximum) : value
+  const invalid = props.error !== undefined
+  // Cortar o excedente aqui gravava um documento fiscal errado sem o usuário ver: a validação acusa.
+  const normalizeValue = (value: string) => {
+    if (inputMode === 'numeric') return stripNonDigits(value)
+    if (field === 'stateRegistration') return stripStateRegistrationMask(value).slice(0, maximum)
+    return value
+  }
   const formatDisplayValue = (value: string) => {
     if (field === 'cnpj') return formatCnpj(value)
     if (field === 'postalCode') return formatPostalCode(value)
+    if (field === 'stateRegistration') return formatDigitGroups(value)
     return value
   }
+  const errorId = `${profileFieldId(field)}-error`
+  // O maxLength conta o texto exibido, e a máscara de IE acrescenta um ponto a cada três dígitos.
+  const displayMaxLength =
+    field === 'stateRegistration' ? formatDigitGroups('0'.repeat(maximum)).length : maximum
   const input = (
     <input
+      aria-describedby={invalid ? errorId : undefined}
+      aria-invalid={invalid}
+      id={profileFieldId(field)}
       inputMode={inputMode ?? 'text'}
-      maxLength={inputMode === 'numeric' ? undefined : maximum}
+      maxLength={inputMode === 'numeric' ? undefined : displayMaxLength}
       required={required}
       type={inputMode === 'email' ? 'email' : 'text'}
       value={formatDisplayValue(props.value)}
       onChange={(event) => props.onChange({ field, value: normalizeValue(event.target.value) })}
     />
   )
+  // O anúncio dos erros é do resumo no topo: uma live region por vez, não uma por campo inválido.
+  const errorMessage =
+    props.error === undefined ? null : (
+      <span className={styles.fieldError} id={errorId}>
+        {describeCompanySettingsFieldError({ error: props.error, translate: t })}
+      </span>
+    )
   if (field !== 'cnpj') {
     return (
       <label>
         <span>{t(field)}</span>
         {input}
+        {errorMessage}
       </label>
     )
   }
@@ -98,6 +133,7 @@ function ProfileTextField(
           <Icon name="search" />
         </button>
       </div>
+      {errorMessage}
       {props.lookupStatus !== 'idle' && (
         <span className={styles.fieldHint}>
           {t(props.lookupStatus === 'error' ? 'lookupError' : 'lookupSuccess')}
@@ -105,20 +141,6 @@ function ProfileTextField(
       )}
     </label>
   )
-}
-
-function formatCnpj(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 14)
-  return digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2')
-}
-
-function formatPostalCode(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-  return digits.replace(/^(\d{5})(\d)/, '$1-$2')
 }
 
 function TaxRegimeField(
@@ -160,6 +182,7 @@ function TaxRegimeField(
 
 export function CompanyProfileFields({
   disabled,
+  errors,
   lookupPending,
   lookupStatus,
   onChange,
@@ -168,6 +191,7 @@ export function CompanyProfileFields({
   profile,
 }: CompanyProfileFieldsProps) {
   const { t } = useTranslation('companySettings')
+  const errorByField = new Map((errors ?? []).map((error) => [error.field, error]))
   return (
     <fieldset className={styles.fieldGroup} disabled={disabled}>
       <legend>{t('profileLegend')}</legend>
@@ -176,6 +200,7 @@ export function CompanyProfileFields({
           <ProfileTextField
             disabled={disabled}
             definition={definition}
+            error={errorByField.get(definition.field)}
             key={definition.field}
             lookupPending={definition.field === 'cnpj' ? lookupPending : undefined}
             lookupStatus={definition.field === 'cnpj' ? lookupStatus : undefined}

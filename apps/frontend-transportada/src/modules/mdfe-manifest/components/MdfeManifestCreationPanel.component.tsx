@@ -6,6 +6,7 @@ import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { MdfeManifestCreationController } from '../hooks/useMdfeManifestCreation.hook'
@@ -20,9 +21,11 @@ import {
   type MdfeTransporterType,
 } from '../shared/mdfeManifest.types'
 import type { MdfeManifestDraft } from '../shared/mdfeManifestActions.service'
-import { validateManifestForm } from '../shared/mdfeManifestForm.service'
+import { isManifestFromTrip, validateManifestForm } from '../shared/mdfeManifestForm.service'
 import styles from '../styles/mdfeManifest.module.css'
 import { MdfeManifestLotacaoFields } from './MdfeManifestLotacaoFields.component'
+
+const MDFE_CANDIDATE_SKELETON_ROW_COUNT = 4
 
 type MdfeManifestCreationPanelProps = Readonly<{
   creation: MdfeManifestCreationController
@@ -48,7 +51,13 @@ export function MdfeManifestCreationPanel({
   vehicles,
 }: MdfeManifestCreationPanelProps) {
   const { t } = useTranslation('mdfeManifest')
-  const issues = validateManifestForm({ documentIds: creation.documentIds, draft: creation.draft })
+  const formInput = {
+    documentIds: creation.documentIds,
+    draft: creation.draft,
+    tripId: creation.originTripId,
+  }
+  const issues = validateManifestForm(formInput)
+  const fromTrip = isManifestFromTrip(formInput)
   const activeDrivers = drivers.filter((driver) => driver.status === 'active')
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
@@ -73,67 +82,86 @@ export function MdfeManifestCreationPanel({
         </Button>
       </div>
 
-      <div className={styles.fieldGrid}>
-        <label>
-          {t('creation.batch')}
-          <Select
-            ariaLabel={t('creation.batch')}
-            clearable
-            options={creation.batches.map((batch) => ({ label: batch.name, value: batch.id }))}
-            placeholder={t('creation.batchPlaceholder')}
-            value={creation.selectedBatchId ?? ''}
-            onChange={(value) => creation.selectBatch(value.length === 0 ? null : value)}
-          />
-        </label>
-      </div>
+      {fromTrip ? <p className={styles.hint}>{t('creation.fromTrip')}</p> : null}
 
       {creation.isLoadingBatches ? (
-        <p className={styles.hint}>{t('creation.loadingBatches')}</p>
-      ) : null}
-      {creation.isLoadingCandidates ? (
-        <p className={styles.hint}>{t('creation.loadingCandidates')}</p>
-      ) : null}
-
-      <fieldset className={styles.candidateList}>
-        <legend className={styles.hint}>{t('creation.candidates')}</legend>
-        {creation.candidates.map((candidate) => (
-          <label className={styles.candidateRow} key={candidate.fiscalDocumentId}>
-            <Checkbox
-              ariaLabel={`${t('creation.selectCandidate')} ${candidate.accessKey}`}
-              checked={creation.documentIds.includes(candidate.fiscalDocumentId)}
-              onChange={() => creation.toggleCandidate(candidate.fiscalDocumentId)}
+        <SkeletonGroup className={styles.fieldGrid} label={t('creation.loadingBatches')}>
+          <div className={styles.skeletonField}>
+            <Skeleton variant="text" width="40%" />
+            <Skeleton height="var(--field-height)" width="100%" />
+          </div>
+        </SkeletonGroup>
+      ) : (
+        <div className={styles.fieldGrid}>
+          <label>
+            {t('creation.batch')}
+            <Select
+              ariaLabel={t('creation.batch')}
+              clearable
+              options={creation.batches.map((batch) => ({ label: batch.name, value: batch.id }))}
+              placeholder={t('creation.batchPlaceholder')}
+              value={creation.selectedBatchId ?? ''}
+              onChange={(value) => creation.selectBatch(value.length === 0 ? null : value)}
             />
-            <span>
-              {candidate.fiscalSeries ?? ''} {candidate.fiscalNumber ?? ''}
-            </span>
-            <span className={styles.candidateKey}>{candidate.accessKey}</span>
-            <span>{candidate.totalAmount}</span>
           </label>
-        ))}
-        {creation.candidates.length === 0 && !creation.isLoadingCandidates ? (
-          <p className={styles.hint}>{t('creation.candidatesEmpty')}</p>
-        ) : null}
-      </fieldset>
+        </div>
+      )}
+
+      {creation.isLoadingCandidates ? (
+        <SkeletonGroup className={styles.candidateList} label={t('creation.loadingCandidates')}>
+          {Array.from({ length: MDFE_CANDIDATE_SKELETON_ROW_COUNT }, (_, index) => (
+            <div className={styles.candidateRow} key={index}>
+              <Skeleton height="var(--space-4)" variant="block" width="var(--space-4)" />
+              <Skeleton variant="text" width="20%" />
+              <Skeleton variant="text" width="45%" />
+              <Skeleton variant="text" width="15%" />
+            </div>
+          ))}
+        </SkeletonGroup>
+      ) : (
+        <fieldset className={styles.candidateList}>
+          <legend className={styles.hint}>{t('creation.candidates')}</legend>
+          {creation.candidates.map((candidate) => (
+            <label className={styles.candidateRow} key={candidate.fiscalDocumentId}>
+              <Checkbox
+                ariaLabel={`${t('creation.selectCandidate')} ${candidate.accessKey}`}
+                checked={creation.documentIds.includes(candidate.fiscalDocumentId)}
+                onChange={() => creation.toggleCandidate(candidate.fiscalDocumentId)}
+              />
+              <span>
+                {candidate.fiscalSeries ?? ''} {candidate.fiscalNumber ?? ''}
+              </span>
+              <span className={styles.candidateKey}>{candidate.accessKey}</span>
+              <span>{candidate.totalAmount}</span>
+            </label>
+          ))}
+          {creation.candidates.length === 0 ? (
+            <p className={styles.hint}>{t('creation.candidatesEmpty')}</p>
+          ) : null}
+        </fieldset>
+      )}
 
       <p className={styles.summaryLine}>
         {t('creation.selectedSummary', { count: creation.documentIds.length })}
       </p>
 
       <div className={styles.fieldGrid}>
-        <label>
-          {t('creation.vehicle')}
-          <Select
-            ariaLabel={t('creation.vehicle')}
-            clearable
-            options={tractionVehicles.map((vehicle) => ({
-              label: `${vehicle.plate} · ${vehicle.state}`,
-              value: vehicle.id,
-            }))}
-            placeholder={t('creation.vehiclePlaceholder')}
-            value={creation.draft.vehicleId}
-            onChange={(value) => creation.setDraftField('vehicleId', value)}
-          />
-        </label>
+        {fromTrip ? null : (
+          <label>
+            {t('creation.vehicle')}
+            <Select
+              ariaLabel={t('creation.vehicle')}
+              clearable
+              options={tractionVehicles.map((vehicle) => ({
+                label: `${vehicle.plate} · ${vehicle.state}`,
+                value: vehicle.id,
+              }))}
+              placeholder={t('creation.vehiclePlaceholder')}
+              value={creation.draft.vehicleId}
+              onChange={(value) => creation.setDraftField('vehicleId', value)}
+            />
+          </label>
+        )}
         <label>
           {t('creation.destinationState')}
           <input
@@ -233,20 +261,22 @@ export function MdfeManifestCreationPanel({
 
       <MdfeManifestLotacaoFields draft={creation.draft} onChange={creation.setDraftField} />
 
-      <fieldset className={styles.driverChecklist}>
-        <legend className={styles.hint}>{t('creation.drivers')}</legend>
-        {activeDrivers.map((driver) => (
-          <Checkbox
-            checked={creation.draft.driverIds.includes(driver.id)}
-            key={driver.id}
-            label={driver.name}
-            onChange={() => creation.toggleDriverSelection(driver.id)}
-          />
-        ))}
-        {activeDrivers.length === 0 ? (
-          <p className={styles.hint}>{t('creation.driversEmpty')}</p>
-        ) : null}
-      </fieldset>
+      {fromTrip ? null : (
+        <fieldset className={styles.driverChecklist}>
+          <legend className={styles.hint}>{t('creation.drivers')}</legend>
+          {activeDrivers.map((driver) => (
+            <Checkbox
+              checked={creation.draft.driverIds.includes(driver.id)}
+              key={driver.id}
+              label={driver.name}
+              onChange={() => creation.toggleDriverSelection(driver.id)}
+            />
+          ))}
+          {activeDrivers.length === 0 ? (
+            <p className={styles.hint}>{t('creation.driversEmpty')}</p>
+          ) : null}
+        </fieldset>
+      )}
 
       {issues.map((issue) => (
         <p className={styles.alert} key={issue}>

@@ -70,6 +70,7 @@ const fields = (overrides: Partial<CreateMdfeManifestFields> = {}): CreateMdfeMa
   driverIds: [FIRST_DRIVER_ID],
   emitterType: '1',
   transporterType: '1',
+  tripId: null,
   tripStartedAt: null,
   vehicleId: VEHICLE_ID,
   ...overrides,
@@ -252,6 +253,7 @@ describe('create MDF-e manifest', () => {
           originState: 'PR',
           rntrc: '12345678',
           transporterType: '1',
+          tripId: null,
           tripStartedAt: null,
           vehicleId: VEHICLE_ID,
         },
@@ -279,6 +281,21 @@ describe('create MDF-e manifest', () => {
     expect(fixture.listDriverCalls).toEqual([
       { companyId: COMPANY_ID, driverIds: [FIRST_DRIVER_ID] },
     ])
+  })
+
+  // O cadastro guarda 058151044 como o certificado da ANTT imprime; a tabela do manifesto leva oito.
+  test('encurta o RNTRC da folha da ANTT ao gravar o manifesto', async () => {
+    const fixture = createFixture({
+      settings: { environment: 'homologation', rntrc: '058151044' },
+    })
+
+    await fixture.useCase.create({
+      context: CONTEXT,
+      correlationId: 'correlation-1',
+      manifest: fields({ destinationState: 'SP' }),
+    })
+
+    expect(fixture.createCalls[0]?.manifest.rntrc).toBe('58151044')
   })
 
   test('refuses to manifest a selection with any blocked CT-e', async () => {

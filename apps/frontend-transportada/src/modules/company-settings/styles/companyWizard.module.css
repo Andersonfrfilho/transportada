@@ -1,0 +1,60 @@
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-5);
+  width: min(40rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+.description {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.feedback {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.feedbackError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.875rem;
+}
+
+@media (width <= 40rem) {
+  .overlay {
+    padding: 0;
+  }
+
+  .panel {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border: none;
+  }
+}

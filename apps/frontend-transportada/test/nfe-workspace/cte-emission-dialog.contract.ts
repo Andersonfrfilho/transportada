@@ -406,6 +406,25 @@ describe('CT-e emission dialog projection freshness contract', () => {
     expect(hook).toContain('invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })')
     expect(hook).not.toContain("const CTE_EMISSION_PREVIEW_QUERY_KEY = 'cte-emission-preview'")
   })
+
+  /**
+   * Criar o lote vincula as notas: o filtro "sem CT-e" da tabela passa a mentir na hora. Como só a
+   * projeção caía, a lista seguia servindo a página em cache e as notas emitidas continuavam ali
+   * até o operador recarregar a página.
+   */
+  test('drops the note list when a batch is created, not only the projection', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+    const workspaceHook = await readModule(
+      'src/modules/nfe-workspace/hooks/useNfeWorkspace.hook.ts',
+    )
+
+    expect(hook).toContain('NFE_DOCUMENTS_QUERY_KEY')
+    expect(hook).toContain('invalidateQueries({ queryKey: [NFE_DOCUMENTS_QUERY_KEY] })')
+    // Uma chave, uma declaração: cada cópia do literal é uma invalidação que erra o alvo.
+    expect(hook).not.toContain("'nfe-documents'")
+    expect(workspaceHook).not.toContain("= 'nfe-documents'")
+    expect(workspaceHook).toContain('NFE_DOCUMENTS_QUERY_KEY')
+  })
 })
 
 describe('CT-e emission form lock contract', () => {

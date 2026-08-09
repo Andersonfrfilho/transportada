@@ -47,6 +47,20 @@
     "cooldown": "Wait for the SEFAZ interval. Next attempt allowed in {{countdown}}.",
     "unavailable": "Pull unavailable right now."
   },
+  "scheduled": {
+    "title": "Automatic note retrieval",
+    "on": "Automatic retrieval is on.",
+    "off": "Automatic retrieval is off.",
+    "ready": "All set: the next cycle will fetch notes.",
+    "blocked": "Nothing will be fetched until this is resolved: {{reason}}",
+    "nextRun": "Next automatic cycle: {{moment}}.",
+    "nextWindow": "Next window allowed by SEFAZ: {{moment}}.",
+    "lastRun": "Last automatic run at {{moment}} — {{received}} note(s) received.",
+    "lastRunFailed": "The last automatic run, at {{moment}}, failed. No note was received in that cycle.",
+    "neverRan": "No automatic run so far.",
+    "settingsHint": "Automatic retrieval is turned on and off in the company settings.",
+    "settingsShortcut": "Open company settings"
+  },
   "tabs": {
     "documents": "Invoices",
     "imports": "Imports"

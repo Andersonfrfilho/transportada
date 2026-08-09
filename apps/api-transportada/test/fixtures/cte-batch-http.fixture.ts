@@ -3,6 +3,7 @@
  */
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
@@ -173,6 +174,11 @@ export const ITEMS_RESULT = {
       fiscalAmount: '43.13',
       fiscalDocumentId: FISCAL_DOCUMENT_ID,
       fiscalNumber: '17',
+      fiscalNumberChange: {
+        previousNumber: '14',
+        reason: 'sefaz_duplicate_number',
+        rejectionCode: '539',
+      },
       fiscalSeries: '1',
       id: '00000000-0000-4000-8000-000000000507',
       lastErrorCode: null,
@@ -518,6 +524,7 @@ function createTestRouter(input: {
           return true
         },
       },
+      migrationStatus: appliedMigrations(),
     }),
     routes: input.routes,
     tenantContext: {

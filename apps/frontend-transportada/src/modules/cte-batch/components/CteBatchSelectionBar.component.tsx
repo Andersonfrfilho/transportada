@@ -5,17 +5,20 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { ProgressBar } from '@/components/ui/progress'
 
+import { useCteBatchExport } from '../hooks/useCteBatchExport.hook'
 import type { CteBatchSubmissionController } from '../hooks/useCteBatchSubmission.hook'
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import { collectBillableBatches } from '../shared/cteBatchBilling.service'
 import type { CteBatchSummary } from '../shared/cteBatchClient.service'
 import { canCancelBatch, canTransmitBatch } from '../shared/cteBatchItemActions.service'
+import { resolveCteBatchTransmissionSummary } from '../shared/cteBatchProgress.service'
 import {
   CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE,
   type CteBatchSubmissionOutcome,
   resolveCteBatchSubmissionReasonKey,
 } from '../shared/cteBatchSubmissionQueue.service'
 import styles from '../styles/cteBatch.module.css'
+import { CteExportFormatPicker } from './CteExportFormatPicker.component'
 
 type CteBatchSelectionBarProps = Readonly<{
   onBill: (batches: readonly CteBatchSummary[]) => void
@@ -33,6 +36,11 @@ export function CteBatchSelectionBar({
   table,
 }: CteBatchSelectionBarProps) {
   const { t } = useTranslation('cteBatch')
+  // Antes do retorno vazio: hook não pode ficar atrás de condicional.
+  const exportControl = useCteBatchExport({
+    permissions,
+    selectedBatchIds: table.selectedBatches.map((batch) => batch.id),
+  })
 
   if (table.selectedBatches.length === 0) return null
 
@@ -45,6 +53,10 @@ export function CteBatchSelectionBar({
   const billable = collectBillableBatches({ batches: table.selectedBatches, permissions })
   const failed = submission.outcomes.filter((outcome) => outcome.errorCode !== undefined)
   const hasProgress = submission.isSubmitting || submission.outcomes.length > 0
+  const transmission = resolveCteBatchTransmissionSummary({
+    batchIds: submission.submittedBatchIds,
+    batches: table.batches,
+  })
 
   function renderFailure(outcome: CteBatchSubmissionOutcome) {
     const code = outcome.errorCode ?? CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE
@@ -95,11 +107,33 @@ export function CteBatchSelectionBar({
           <Icon name="alert" />
           {t('actions.cancel')}
         </Button>
+        <CteExportFormatPicker
+          disabled={exportControl.isExporting}
+          onChange={exportControl.setExportFormat}
+          value={exportControl.exportFormat}
+        />
+        <Button
+          disabled={!exportControl.canExportSelection || exportControl.isExporting}
+          onClick={() => exportControl.exportSelection()}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="export" />
+          {exportControl.isExporting
+            ? t('cteItems.export.pending')
+            : t('actions.exportSelection', { count: table.selectedBatches.length })}
+        </Button>
         <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
           <Icon name="close" />
           {t('selection.clear')}
         </Button>
       </div>
+      {exportControl.exportErrorKey === null ? null : (
+        <p className={styles.hint} role="alert">
+          {t(exportControl.exportErrorKey)}
+        </p>
+      )}
       {hasProgress ? (
         <div className={styles.bulkProgress}>
           <ProgressBar
@@ -118,6 +152,25 @@ export function CteBatchSelectionBar({
               successCount: submission.progress.successCount,
             })}
           </p>
+          {transmission.total === 0 ? null : (
+            <>
+              <ProgressBar
+                completed={transmission.settled}
+                label={t('transmission.awaiting.label')}
+                total={transmission.total}
+                valueText={t('transmission.awaiting.value', {
+                  percent: transmission.percent,
+                  settled: transmission.settled,
+                  total: transmission.total,
+                })}
+              />
+              <p className={styles.summaryLine} role="status">
+                {transmission.isComplete
+                  ? t('transmission.awaiting.complete')
+                  : t('transmission.awaiting.pending', { count: transmission.transmitting })}
+              </p>
+            </>
+          )}
           {failed.length === 0 ? null : (
             <ul aria-live="polite" className={styles.billingList}>
               {failed.map(renderFailure)}

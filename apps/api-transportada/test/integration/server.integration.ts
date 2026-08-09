@@ -5,10 +5,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from '../fixtures/health.fixture'
 import type { AuthenticationPort } from '../../src/identity/application/identity.port'
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
+import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
 import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
@@ -33,6 +35,7 @@ const healthService = new HealthService({
       return true
     },
   },
+  migrationStatus: appliedMigrations(),
 })
 const authentication: AuthenticationPort = {
   async authenticate() {
@@ -56,16 +59,26 @@ const tenantContext = new TenantContextService({
 const server = startApiServer({
   config: {
     appEnv: 'test',
+    bootstrapToken: undefined,
+    companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     frontendOrigin: 'http://localhost:53000',
     keycloak: {
+      admin: {
+        clientId: 'transportada-admin-cli',
+        clientSecret: 'test-keycloak-admin-client-secret',
+      },
       audience: 'transportada-api',
       issuer: 'http://localhost:58080/realms/transportada-local',
       jwksUri: 'http://localhost:58080/realms/transportada-local/protocol/openid-connect/certs',
     },
     logLevel: 'error',
     port: 0,
+    scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
+    logSinkUrl: undefined,
+    sentryDsn: undefined,
+    sentryEnvironment: 'test',
     vehicleLookup: null,
   },
   logger,

@@ -14,6 +14,7 @@ import type {
 export type CtePayloadParty = {
   readonly city: string
   readonly cityCode: string
+  readonly complement: null | string
   readonly district: string
   readonly email: null | string
   readonly legalName: string
@@ -87,5 +88,7 @@ export type BuildCtePayloadParams = {
   readonly carrier: CtePayloadCarrier
   readonly charge: CtePayloadCharge
   readonly invoices: readonly CtePayloadInvoice[]
+  /** Instante ISO da emissão — origem da previsão de entrega (dPrev) de cada documento */
+  readonly issuedAt?: string
   readonly profile: CtePayloadProfile
 }

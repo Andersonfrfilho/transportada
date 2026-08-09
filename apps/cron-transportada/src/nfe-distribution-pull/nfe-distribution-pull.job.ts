@@ -28,6 +28,7 @@ export function runNfeDistributionPullJob(
   dependencies: DistributionPullJobDependencies,
 ): Promise<DistributionPullCycleResult> {
   const selectEligibleUseCase = createSelectEligibleCompaniesUseCase({
+    logger: dependencies.logger,
     source: createDrizzleDistributionCandidateSource({
       db: dependencies.db,
       logger: dependencies.logger,

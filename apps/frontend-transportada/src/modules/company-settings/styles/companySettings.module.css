@@ -125,6 +125,15 @@
   gap: var(--space-4);
 }
 
+.skeletonLegend {
+  margin-bottom: var(--space-4);
+}
+
+.skeletonSignalRow {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .primaryColumn,
 .secondaryColumn {
   display: grid;
@@ -211,6 +220,58 @@
   font: inherit;
   font-size: var(--field-font-size);
   background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.fieldGrid input[aria-invalid='true'],
+.certificateForm input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+.errorSummary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
+.errorSummaryTitle {
+  margin: 0;
+  color: var(--color-fog);
+  font-weight: 700;
+}
+
+.errorSummaryList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.errorSummaryLink {
+  padding: 0;
+  border: 0;
+  color: var(--color-alert);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  background: none;
+  cursor: pointer;
+}
+
+.pixKeyTypeHint {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-slate);
+  font-size: 0.85rem;
 }
 
 .fieldWide {
@@ -346,6 +407,10 @@
 
 .passwordRevealAction:hover {
   color: var(--color-fog);
+}
+
+.passwordRevealField[aria-invalid='true'] .passwordRevealAction {
+  border-color: var(--color-alert);
 }
 
 .passwordRevealAction:disabled {
@@ -532,6 +597,13 @@
 
 .formStatusSuccess {
   color: var(--color-ready);
+}
+
+.scheduledDistributionState {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-fog);
 }
 
 .certificateSavedRecord {

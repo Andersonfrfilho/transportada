@@ -17,6 +17,7 @@ import { parseCorrelationId, parseRequestMetadata } from './request.schema'
 import { createErrorResponse, createServerErrorHandler } from './response.service'
 
 type CreateRequestHandlerParams = {
+  readonly captureError?: (error: unknown) => void
   readonly createCorrelationId?: () => string
   readonly frontendOrigin: string
   readonly logger: ApiLogger
@@ -25,6 +26,7 @@ type CreateRequestHandlerParams = {
 }
 
 export function createRequestHandler({
+  captureError = () => undefined,
   createCorrelationId = () => crypto.randomUUID(),
   frontendOrigin,
   logger,
@@ -32,6 +34,7 @@ export function createRequestHandler({
   router,
 }: CreateRequestHandlerParams) {
   const dependencies = {
+    captureError,
     createCorrelationId,
     frontendOrigin,
     logger,
@@ -72,7 +75,12 @@ async function handleRequest({
       server,
     })
   } catch (error: unknown) {
-    response = createErrorResponse({ correlationId, error, logger: dependencies.logger })
+    response = createErrorResponse({
+      captureError: dependencies.captureError,
+      correlationId,
+      error,
+      logger: dependencies.logger,
+    })
   }
 
   if (isNoStorePath(requestPathname)) {
@@ -117,8 +125,8 @@ async function executeRequest({
   const response =
     handleCorsPreflight({
       frontendOrigin: dependencies.frontendOrigin,
-      pathname: metadata.pathname,
       request,
+      resolveAllowedMethods: () => dependencies.router.allowedMethods(metadata.pathname),
     }) ??
     (await dependencies.router.handle({
       correlationId,

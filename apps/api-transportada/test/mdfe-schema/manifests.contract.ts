@@ -25,6 +25,7 @@ describe('mdfe manifest schema', () => {
       'id',
       'company_id',
       'vehicle_id',
+      'trip_id',
       'status',
       'fiscal_environment',
       'emitter_type',

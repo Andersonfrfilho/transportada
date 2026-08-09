@@ -1,16 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  buildTripManifestPath,
   MANIFEST_CREATE_BODY_KEYS,
   MDFE_MANIFEST_ERROR,
   MDFE_MANIFEST_PREVIEW_PATH,
   MDFE_MANIFESTS_PATH,
+  TRIP_MANIFEST_CREATE_BODY_KEYS,
 } from './mdfeManifest.constant'
 import type {
   MdfeActionInput,
   MdfeCancelInput,
   MdfeCloseInput,
   MdfeIssuanceSummary,
-  MdfeManifestCreateBody,
+  MdfeManifestCreateInput,
   MdfeManifestDetail,
   MdfeManifestListInput,
   MdfeManifestPage,
@@ -28,7 +30,7 @@ type ClientDependencies = Readonly<{
 export type MdfeManifestClient = Readonly<{
   cancelManifest: (input: MdfeCancelInput) => Promise<MdfeIssuanceSummary>
   closeManifest: (input: MdfeCloseInput) => Promise<MdfeIssuanceSummary>
-  createManifest: (input: MdfeManifestCreateBody) => Promise<MdfeManifestDetail>
+  createManifest: (input: MdfeManifestCreateInput) => Promise<MdfeManifestDetail>
   discardManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   getManifest: (input: Readonly<{ manifestId: string }>) => Promise<MdfeManifestDetail>
   issueManifest: (input: MdfeActionInput) => Promise<MdfeIssuanceSummary>
@@ -156,12 +158,16 @@ export function createMdfeManifestClient(dependencies: ClientDependencies): Mdfe
         step: 'close',
       })
     },
+    /** Viagem de origem troca a rota, não o corpo: `trip_id` nasce preenchido no manifesto. */
     async createManifest(input) {
+      const fromTrip = input.tripId !== undefined && input.tripId !== ''
       const response = await authorizedRequest({
-        body: JSON.stringify(pickKeys(input, MANIFEST_CREATE_BODY_KEYS)),
+        body: JSON.stringify(
+          pickKeys(input, fromTrip ? TRIP_MANIFEST_CREATE_BODY_KEYS : MANIFEST_CREATE_BODY_KEYS),
+        ),
         dependencies,
         method: 'POST',
-        path: MDFE_MANIFESTS_PATH,
+        path: fromTrip ? buildTripManifestPath(input.tripId ?? '') : MDFE_MANIFESTS_PATH,
       })
       return adapters.manifestDetailFromApi(readEnvelopeData(response))
     },

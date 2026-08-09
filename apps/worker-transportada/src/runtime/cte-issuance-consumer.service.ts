@@ -26,6 +26,9 @@ type CteIssuanceWorkerRepository = {
   hasProcessed(params: CteIssuanceMessageKey): Promise<boolean>
   markDeadLettered(params: CteIssuanceMessageKey & { readonly reason: string }): Promise<void>
   markProcessed(params: CteIssuanceMessageKey): Promise<void>
+  markReconciliationRequired(
+    params: CteIssuanceMessageKey & { readonly reason: string },
+  ): Promise<void>
   scheduleRetry(
     params: CteIssuanceMessageKey & { readonly attempt: number; readonly nextAttemptAt: Date },
   ): Promise<void>
@@ -46,6 +49,7 @@ export async function startCteIssuanceConsumer(params: {
   const handler = new CteIssuanceWorkerMessageHandler({
     clock: { now: () => new Date() },
     effect: params.effect,
+    logger: params.logger,
     repository: params.repository,
     retryPolicyResolver: params.retryPolicyResolver,
   })

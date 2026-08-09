@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { HealthService } from '../src/health/health.service'
+import { appliedMigrations } from './fixtures/health.fixture'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
@@ -232,6 +233,7 @@ function createFixture({
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
   const tenantContext = new TenantContextService({ repository: membership })
   const handle = createRequestHandler({

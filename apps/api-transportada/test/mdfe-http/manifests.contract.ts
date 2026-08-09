@@ -56,6 +56,7 @@ describe('POST /mdfe-manifests', () => {
           insuranceEndorsement: '12345678901234',
           loadingPostalCode: '80010000',
           transporterType: '1',
+          tripId: null,
           tripStartedAt: null,
           vehicleId: VEHICLE_ID,
         },

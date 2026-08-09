@@ -4,6 +4,10 @@
   "intro": "Acompanhe os lotes gerados a partir das notas, transmita para a SEFAZ e trate rejeições item a item.",
   "loading": "Carregando lotes",
   "error": "Não foi possível carregar os lotes",
+  "refresh": {
+    "countdown": "Atualizando em {{seconds}}s",
+    "now": "Atualizando…"
+  },
   "empty": "Nenhum lote encontrado",
   "forbidden": "Seu acesso atual não permite consultar os lotes de CT-e",
   "dateRange": {
@@ -71,6 +75,7 @@
     "cancel": "Cancelar lote",
     "reprocess": "Reprocessar",
     "download": "Baixar XML",
+    "exportSelection": "Baixar ({{count}} lote(s))",
     "openItems": "Ver CT-es",
     "closeItems": "Fechar CT-es",
     "track": "Acompanhar",
@@ -88,7 +93,8 @@
     "position": "#",
     "status": "Situação",
     "documents": "Notas vinculadas",
-    "fiscal": "Série/Número",
+    "fiscalSeries": "Série",
+    "fiscalNumber": "Número",
     "baseAmount": "Base",
     "fiscalAmount": "Frete",
     "accessKey": "Chave de acesso",
@@ -126,16 +132,29 @@
     "transmitSelection": "Transmitir ({{count}} lote(s))",
     "billSelection": "Gerar fatura ({{count}} CT-e(s))",
     "billBlocked": "{{count}} CT-e(s) selecionado(s) ainda não podem ser faturados.",
-    "exportSelection": "Baixar XML ({{count}} CT-e(s))",
-    "exportFiltered": "Baixar XML do filtro ({{count}} filtro(s))",
+    "exportSelection": "Baixar ({{count}} CT-e(s))",
+    "exportFiltered": "Baixar do filtro ({{count}} filtro(s))",
+    "downloadDacte": "Baixar DACTE em PDF",
     "export": {
       "pending": "Preparando o ZIP",
+      "format": {
+        "label": "Formato do arquivo",
+        "xml": "XML",
+        "pdf": "PDF (DACTE)",
+        "both": "XML e PDF"
+      },
       "errors": {
+        "batchLimitExceeded": "Selecione no máximo 100 lotes por exportação",
+        "dacteNotAuthorized": "O DACTE só existe depois que o CT-e é autorizado",
+        "dacteNotFound": "XML autorizado não encontrado para gerar o DACTE",
         "empty": "Nenhum CT-e autorizado no recorte selecionado",
         "forbidden": "Sem permissão para exportar XML de CT-e",
         "limitExceeded": "Selecione no máximo 500 CT-es por exportação",
         "unknown": "Não foi possível exportar os XMLs"
       }
+    },
+    "fiscalNumberChange": {
+      "sefaz_duplicate_number": "Número alterado automaticamente: o número {{previousNumber}} já pertencia a outro CT-e autorizado (rejeição {{rejectionCode}} da SEFAZ)."
     },
     "pageCounter": "{{shown}} de até {{size}} por página",
     "previousPage": "Página anterior",
@@ -258,11 +277,17 @@
     "bulkTransmit": "Transmitir os lotes selecionados",
     "transmitting": "Transmitindo...",
     "progress": {
-      "title": "Progresso da transmissão",
-      "label": "Progresso da transmissão dos lotes",
+      "title": "Fila de transmissão",
+      "label": "Progresso do enfileiramento dos lotes",
       "value": "{{percent}}% — {{completed}} de {{total}} lote(s)",
-      "summary": "{{successCount}} transmitido(s) · {{errorCount}} com erro",
+      "summary": "{{successCount}} na fila · {{errorCount}} com erro",
       "failed": "{{name}} — {{reason}}"
+    },
+    "awaiting": {
+      "label": "Progresso da transmissão para a SEFAZ",
+      "value": "{{percent}}% — {{settled}} de {{total}} lote(s) com resposta da SEFAZ",
+      "pending": "{{count}} lote(s) ainda transmitindo — a tela atualiza sozinha.",
+      "complete": "Todos os lotes da fila receberam resposta da SEFAZ."
     },
     "reasons": {
       "unknown": "não foi possível transmitir ({{code}})",

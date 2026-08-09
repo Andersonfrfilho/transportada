@@ -692,6 +692,14 @@ a {
   font-size: 1rem;
 }
 
+.workspace-skeleton-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+}
+
 /* Tabela não encolhe abaixo do min-content: sem este scroller a página inteira estica no mobile. */
 .workspace-table-scroll {
   position: relative;

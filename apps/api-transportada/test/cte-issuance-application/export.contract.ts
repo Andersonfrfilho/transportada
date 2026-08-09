@@ -6,19 +6,26 @@ import { describe, expect, test } from 'bun:test'
 import {
   CTE_EXPORT_MAX_DOCUMENTS,
   type CteArchiveEntry,
+  type CteDacteRenderRequest,
   type CteExportDocument,
   type CteExportRequest,
   type CteExportSelectionQuery,
 } from '../../src/cte-issuance/application/export-cte-documents.port.js'
 import { createExportCteDocumentsUseCase } from '../../src/cte-issuance/application/export-cte-documents.use-case.js'
+import type {
+  DacteLogo,
+  DacteLogoQuery,
+} from '../../src/cte-issuance/application/render-dacte.port.js'
 
 import { COMPANY_CONTEXT, captureApiError } from './support.js'
 
 const EXPORTED_AT = new Date('2026-07-31T12:00:00.000Z')
+const RENDERED_PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46])
 const EXPORT_BUCKET = 'fiscal-documents-test'
 const FOREIGN_COMPANY_ID = '00000000-0000-4000-8000-0000000007ff'
 const BATCH_ID = '00000000-0000-4000-8000-0000000007a1'
 const ITEM_ID = '00000000-0000-4000-8000-0000000007a2'
+const LOGO: DacteLogo = { bytes: Buffer.from('synthetic-logo') }
 
 /** Chave sintética: 44 dígitos derivados de um sequencial, nunca uma chave fiscal real. */
 function syntheticAccessKey(sequence: number): string {
@@ -37,8 +44,10 @@ function syntheticDocuments(total: number): readonly CteExportDocument[] {
   return Array.from({ length: total }, (_value, index) => syntheticDocument(index + 1))
 }
 
-function createFixture(documents: readonly CteExportDocument[]) {
+function createFixture(documents: readonly CteExportDocument[], logo: DacteLogo | null = LOGO) {
   const archiveCalls: (readonly CteArchiveEntry[])[] = []
+  const logoCalls: DacteLogoQuery[] = []
+  const renderCalls: CteDacteRenderRequest[] = []
   const selectionCalls: CteExportSelectionQuery[] = []
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -53,6 +62,18 @@ function createFixture(documents: readonly CteExportDocument[]) {
       },
     },
     clock: () => EXPORTED_AT,
+    dacte: {
+      async renderDacte(request) {
+        renderCalls.push(request)
+        return RENDERED_PDF
+      },
+    },
+    logos: {
+      async findLogo(query) {
+        logoCalls.push(query)
+        return logo
+      },
+    },
     selection: {
       async listAuthorizedDocuments(query) {
         selectionCalls.push(query)
@@ -61,7 +82,16 @@ function createFixture(documents: readonly CteExportDocument[]) {
     },
   })
 
-  return { archiveCalls, selectionCalls, stream, useCase }
+  return { archiveCalls, logoCalls, renderCalls, selectionCalls, stream, useCase }
+}
+
+function entryNames(entries: readonly CteArchiveEntry[] | undefined): readonly string[] {
+  return (entries ?? []).map((entry) => entry.name)
+}
+
+async function loadEntry(entry: CteArchiveEntry | undefined): Promise<Uint8Array> {
+  if (entry?.source.kind !== 'lazy') throw new Error('entrada não é gerada sob demanda')
+  return entry.source.load()
 }
 
 describe('CT-e XML export contract', () => {
@@ -110,7 +140,7 @@ describe('CT-e XML export contract', () => {
     expect(fixture.selectionCalls[0]?.itemIds).toEqual([ITEM_ID])
   })
 
-  test('nomeia cada entrada do arquivo com a chave de acesso', async () => {
+  test('sem formato declarado leva só o XML, direto do storage', async () => {
     const documents = syntheticDocuments(2)
     const fixture = createFixture(documents)
 
@@ -118,11 +148,108 @@ describe('CT-e XML export contract', () => {
 
     expect(fixture.archiveCalls[0]).toEqual(
       documents.map((document) => ({
-        bucket: document.bucket,
         name: `${document.accessKey}.xml`,
-        objectKey: document.objectKey,
+        source: { bucket: document.bucket, kind: 'object', objectKey: document.objectKey },
       })),
     )
+  })
+
+  test('formato pdf nomeia as entradas pela chave e não renderiza antes da hora', async () => {
+    const documents = syntheticDocuments(2)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+
+    expect(entryNames(fixture.archiveCalls[0])).toEqual(
+      documents.map((document) => `${document.accessKey}.pdf`),
+    )
+    expect(fixture.renderCalls).toHaveLength(0)
+  })
+
+  test('o DACTE nasce do XML autorizado, só quando o arquivo pede a entrada', async () => {
+    const documents = syntheticDocuments(1)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    const bytes = await loadEntry(fixture.archiveCalls[0]?.[0])
+
+    expect(bytes).toEqual(RENDERED_PDF)
+    expect(fixture.renderCalls).toEqual([
+      { bucket: documents[0]!.bucket, logo: LOGO, objectKey: documents[0]!.objectKey },
+    ])
+  })
+
+  test('busca a marca uma vez só e a repete em todos os DACTEs do ZIP', async () => {
+    const documents = syntheticDocuments(3)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    for (const entry of fixture.archiveCalls[0] ?? []) await loadEntry(entry)
+
+    expect(fixture.logoCalls).toEqual([{ companyId: COMPANY_CONTEXT.companyId }])
+    expect(fixture.renderCalls.map((call) => call.logo)).toEqual([LOGO, LOGO, LOGO])
+  })
+
+  test('não consulta a marca quando a exportação é só de XML', async () => {
+    const fixture = createFixture(syntheticDocuments(2))
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'xml' })
+
+    expect(fixture.logoCalls).toHaveLength(0)
+  })
+
+  test('gera o DACTE sem marca quando a empresa nunca subiu uma', async () => {
+    const documents = syntheticDocuments(1)
+    const fixture = createFixture(documents, null)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'pdf' })
+    await loadEntry(fixture.archiveCalls[0]?.[0])
+
+    expect(fixture.renderCalls[0]?.logo).toBeNull()
+  })
+
+  test('formato both leva o XML e o DACTE do mesmo CT-e lado a lado', async () => {
+    const documents = syntheticDocuments(2)
+    const fixture = createFixture(documents)
+
+    await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT, format: 'both' })
+
+    expect(entryNames(fixture.archiveCalls[0])).toEqual([
+      `${documents[0]!.accessKey}.xml`,
+      `${documents[0]!.accessKey}.pdf`,
+      `${documents[1]!.accessKey}.xml`,
+      `${documents[1]!.accessKey}.pdf`,
+    ])
+  })
+
+  test('a contagem é de CT-es, não de arquivos dentro do ZIP', async () => {
+    const fixture = createFixture(syntheticDocuments(3))
+
+    const result = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'both',
+    })
+
+    expect(result.documentCount).toBe(3)
+    expect(fixture.archiveCalls[0]).toHaveLength(6)
+  })
+
+  test('o nome do download diz o que veio dentro', async () => {
+    const fixture = createFixture(syntheticDocuments(1))
+
+    const xml = await fixture.useCase.exportDocuments({ context: COMPANY_CONTEXT })
+    const pdf = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'pdf',
+    })
+    const both = await fixture.useCase.exportDocuments({
+      context: COMPANY_CONTEXT,
+      format: 'both',
+    })
+
+    expect(xml.fileName).toBe('cte-xml-20260731-120000.zip')
+    expect(pdf.fileName).toBe('cte-dacte-20260731-120000.zip')
+    expect(both.fileName).toBe('cte-documentos-20260731-120000.zip')
   })
 
   test('devolve o fluxo do arquivo, a contagem e um nome de download com extensão zip', async () => {

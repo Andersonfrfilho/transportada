@@ -289,6 +289,25 @@ describe('MDF-e payload builder', () => {
     })
   })
 
+  // O cadastro guarda 058151044 como o certificado da ANTT imprime; o <RNTRC> do modal leva oito.
+  test('encurta o RNTRC do proprietário vindo da folha da ANTT', () => {
+    const payload = buildMdfePayload(
+      params({
+        vehicle: {
+          ...params().vehicle,
+          ownerName: 'Transportes Parceiros Ltda',
+          ownerRntrc: '058151044',
+          ownerState: 'SC',
+          ownerTaxId: '12345678000195',
+          ownerTaxRegime: '0',
+          ownership: 'third_party',
+        },
+      }),
+    )
+
+    expect(payload.veiculoTracao.proprietario?.rntrc).toBe('58151044')
+  })
+
   test('reads an owner CPF as CPF instead of CNPJ', () => {
     const payload = buildMdfePayload(
       params({

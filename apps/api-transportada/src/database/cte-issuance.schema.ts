@@ -7,6 +7,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -43,6 +44,7 @@ export const CTE_ISSUANCE_EVENTS = [
   'retry_scheduled',
   'reconciliation_required',
   'cancelled',
+  'fiscal_number_advanced',
 ] as const
 export const CTE_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export const CTE_ISSUANCE_OUTBOX_EVENT_TYPES = [
@@ -278,7 +280,7 @@ export const cteIssuanceEvents = pgTable(
     ),
     check(
       'cte_issuance_events_name_check',
-      sql`${table.eventName} in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled')`,
+      sql`${table.eventName} in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled', 'fiscal_number_advanced')`,
     ),
   ],
 )
@@ -347,6 +349,13 @@ export const cteIssuancePayloads = pgTable(
     payload: jsonb().notNull(),
     providerConfig: jsonb('provider_config').notNull(),
     payloadSha256: text('payload_sha256').notNull(),
+    /**
+     * Tomador resolvido na emissão a partir de `cte_emission_profiles.taker` — remetente em `0`,
+     * destinatário em `3`. É o cliente da fatura, e fica gravado porque o perfil pode mudar depois
+     * da emissão e o CT-e já autorizado não muda de tomador junto.
+     */
+    takerTaxId: text('taker_tax_id'),
+    takerLegalName: text('taker_legal_name'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -521,5 +530,58 @@ export const cteProcessedMessages = pgTable(
       table.consumerName,
       table.eventId,
     ),
+  ],
+)
+
+export const CTE_DIAGNOSTICS_PHASES = ['request', 'response', 'error'] as const
+export type CteDiagnosticsPhase = (typeof CTE_DIAGNOSTICS_PHASES)[number]
+
+/**
+ * Registro temporário do que saiu para o provedor fiscal e do que voltou. Existe porque o código
+ * de rejeição sozinho não diz qual campo a SEFAZ condenou, e porque erro fora da rejeição chegava
+ * a morrer sem rastro nenhum. Só a empresa tem chave estrangeira: lote, item e tentativa ficam
+ * indexados sem `restrict` para a linha poder ser expurgada em `expires_at` sem travar nada.
+ */
+export const cteIssuanceDiagnostics = pgTable(
+  'cte_issuance_diagnostics',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    batchId: uuid('batch_id').notNull(),
+    batchItemId: uuid('batch_item_id').notNull(),
+    attemptId: uuid('attempt_id').notNull(),
+    attemptKind: text('attempt_kind').notNull(),
+    eventId: uuid('event_id').notNull(),
+    correlationId: text('correlation_id'),
+    phase: text().$type<CteDiagnosticsPhase>().notNull(),
+    request: jsonb(),
+    response: jsonb(),
+    error: jsonb(),
+    durationMs: integer('duration_ms'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'cte_issuance_diagnostics_company_id_companies_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('cte_issuance_diagnostics_company_id_id_unique').on(table.companyId, table.id),
+    index('cte_issuance_diagnostics_company_item_occurred_at_idx').on(
+      table.companyId,
+      table.batchItemId,
+      table.occurredAt,
+    ),
+    index('cte_issuance_diagnostics_company_attempt_idx').on(table.companyId, table.attemptId),
+    index('cte_issuance_diagnostics_expires_at_idx').on(table.expiresAt),
+    check(
+      'cte_issuance_diagnostics_phase_check',
+      sql`${table.phase} in ('request', 'response', 'error')`,
+    ),
+    check('cte_issuance_diagnostics_duration_check', sql`${table.durationMs} >= 0`),
   ],
 )

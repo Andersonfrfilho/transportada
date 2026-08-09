@@ -27,6 +27,13 @@ export type CteBatchItemDocument = Readonly<{
   totalAmount: null | string
 }>
 
+/** Numeração que a emissão trocou sozinha depois de a SEFAZ acusar duplicidade do número. */
+export type CteFiscalNumberChange = Readonly<{
+  previousNumber: string
+  reason: 'sefaz_duplicate_number'
+  rejectionCode: string
+}>
+
 /** Espelha `CteBatchItem` da API — status é string aberta porque a SEFAZ acrescenta estados. */
 export type CteBatchItem = Readonly<{
   accessKey: null | string
@@ -39,6 +46,7 @@ export type CteBatchItem = Readonly<{
   fiscalAmount: string
   fiscalDocumentId: null | string
   fiscalNumber: null | string
+  fiscalNumberChange: CteFiscalNumberChange | null
   fiscalSeries: null | string
   id: string
   lastErrorCode: null | string

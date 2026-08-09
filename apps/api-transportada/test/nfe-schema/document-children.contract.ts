@@ -23,6 +23,7 @@ describe('normalized NF-e document children schema', () => {
       'role',
       'tax_id',
       'legal_name',
+      'trade_name',
       'state_registration',
       'created_at',
     ])
@@ -64,6 +65,7 @@ describe('normalized NF-e document children schema', () => {
       'state',
       'postal_code',
       'country_code',
+      'phone',
       'created_at',
     ])
     expectGeneratedUuidPrimaryKey(nfeAddresses)

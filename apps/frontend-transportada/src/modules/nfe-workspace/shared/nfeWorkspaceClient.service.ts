@@ -1,4 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  isScheduledDistributionStatus,
+  type ScheduledDistributionStatus,
+} from '@/modules/company-settings/shared/scheduledDistribution.validation'
+
+export type { ScheduledDistributionStatus }
+
 export type NfeImportSummary = Readonly<{
   correlationId: string
   createdAt: string
@@ -42,6 +49,7 @@ export type NfeDistributionStatus = Readonly<{
   maxNsu: string
   nextAllowedAt: null | string
   pullInProgress: boolean
+  scheduled: ScheduledDistributionStatus
   ultNsu: string
 }>
 
@@ -370,7 +378,8 @@ function mapDistributionStatus(value: unknown): NfeDistributionStatus {
     !isNullableString(data.lastPulledAt) ||
     !isNullableString(data.nextAllowedAt) ||
     !isString(data.maxNsu) ||
-    !isString(data.ultNsu)
+    !isString(data.ultNsu) ||
+    !isScheduledDistributionStatus(data.scheduled)
   ) {
     throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
   }
@@ -381,6 +390,7 @@ function mapDistributionStatus(value: unknown): NfeDistributionStatus {
     maxNsu: data.maxNsu,
     nextAllowedAt: data.nextAllowedAt,
     pullInProgress: data.pullInProgress,
+    scheduled: data.scheduled,
     ultNsu: data.ultNsu,
   }
 }

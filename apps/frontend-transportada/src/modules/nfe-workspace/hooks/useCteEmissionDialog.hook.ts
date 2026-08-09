@@ -27,6 +27,7 @@ import {
   type CteEmissionStatus,
   type CteEmissionSummary,
 } from '../shared/cteEmission.service'
+import { NFE_DOCUMENTS_QUERY_KEY } from '../shared/nfeWorkspace.constant'
 import {
   canReachCteProfiles,
   createBrowserWorkspaceNavigator,
@@ -99,6 +100,10 @@ export function useCteEmissionDialog(
     void queryClient.invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })
   }
 
+  function forgetNoteList(): void {
+    void queryClient.invalidateQueries({ queryKey: [NFE_DOCUMENTS_QUERY_KEY] })
+  }
+
   const previewQuery = useQuery({
     enabled: isOpen && canEmit && input.documentIds.length > 0,
     queryFn: () => client.previewBatch(buildPreviewRequest(selection)),
@@ -113,6 +118,8 @@ export function useCteEmissionDialog(
     onSuccess: (batch) => {
       // O lote recém-criado prende as notas: qualquer projeção em cache passou a mentir.
       forgetPreviews()
+      // A lista em cache ainda mostra as notas como "sem CT-e" — sem isso só um reload corrige.
+      forgetNoteList()
       setCreatedBatch(batch)
       setIsOpen(false)
       input.onEmitted()

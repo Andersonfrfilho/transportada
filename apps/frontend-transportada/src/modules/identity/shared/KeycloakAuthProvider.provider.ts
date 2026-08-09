@@ -233,8 +233,8 @@ export function createKeycloakAuthProvider(
         throw error
       }
     },
+    /** O token vive até o redirect: sem ele não há `id_token_hint` e a sessão SSO sobrevive. */
     async logout(): Promise<void> {
-      keycloak.clearToken()
       await keycloak.logout({ redirectUri: new URL(redirectUri).origin })
     },
     onSessionExpired(listener: () => void): () => void {

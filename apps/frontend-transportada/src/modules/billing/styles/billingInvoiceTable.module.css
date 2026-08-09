@@ -306,3 +306,17 @@
   padding: var(--space-4) 0;
   text-align: center;
 }
+
+.tableSkeleton {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.skeletonRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}

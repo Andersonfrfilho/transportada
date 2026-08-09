@@ -27,6 +27,7 @@ import {
 } from './support.js'
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
+const FISCAL_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const FORBIDDEN_SECRET_MARKERS = ['certificado', 'certificate', 'senha', 'password', 'privatekey']
 
 const ISSUE_INPUT = {
@@ -71,6 +72,22 @@ describe('CT-e issuance payload assembly contract', () => {
     })
   })
 
+  /**
+   * O tomador é gravado junto com o payload porque é ele que o faturamento cobra, e o perfil de
+   * emissão pode mudar depois — o CT-e já autorizado não troca de tomador junto com o perfil.
+   */
+  test('persists the taker resolved from the emission profile alongside the payload', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    expect(unitOfWork.savedPayloads[0]).toMatchObject({
+      takerLegalName: GOLDEN_SENDER.legalName,
+      takerTaxId: GOLDEN_SENDER.taxId,
+    })
+  })
+
   test('fills every provider config field from the company fiscal profile and the attempt', async () => {
     const unitOfWork = new CteIssuanceUnitOfWorkFixture()
     const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
@@ -87,20 +104,62 @@ describe('CT-e issuance payload assembly contract', () => {
       cep: PAYLOAD_EMITTER.postalCode,
       cnpj: PAYLOAD_EMITTER.cnpj,
       codigoMunicipio: PAYLOAD_EMITTER.cityIbgeCode,
+      complemento: PAYLOAD_EMITTER.complement,
       crt: PAYLOAD_EMITTER.taxRegime,
       environment: ISSUE_COMMAND_RESULT.fiscalEnvironment,
       inscricaoEstadual: PAYLOAD_EMITTER.stateRegistration,
       logradouro: PAYLOAD_EMITTER.street,
       model: 'cte',
       municipio: PAYLOAD_EMITTER.city,
+      nomeFantasia: PAYLOAD_EMITTER.tradeName,
       numero: PAYLOAD_EMITTER.number,
       numeroCte: Number(ISSUE_COMMAND_RESULT.fiscalNumber),
       razaoSocial: PAYLOAD_EMITTER.legalName,
       rntrc: PAYLOAD_EMITTER.rntrc,
       serie: ISSUE_COMMAND_RESULT.fiscalSeries,
+      telefone: PAYLOAD_EMITTER.phone,
       uf: PAYLOAD_EMITTER.state,
     })
     expect(Object.values(providerConfig).filter((value) => value === '')).toEqual([])
+  })
+
+  // Telefone e complemento são opcionais no cadastro: mandar string vazia gera tag vazia no XML.
+  test('omits the optional emitter fields the company left blank', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = {
+      ...PAYLOAD_SOURCE,
+      emitter: { ...PAYLOAD_EMITTER, complement: '', phone: '', tradeName: '' },
+    }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const providerConfig = unitOfWork.savedPayloads[0]?.['providerConfig'] as Record<
+      string,
+      unknown
+    >
+
+    expect(providerConfig).not.toHaveProperty('telefone')
+    expect(providerConfig).not.toHaveProperty('complemento')
+    expect(providerConfig).not.toHaveProperty('nomeFantasia')
+  })
+
+  // O cadastro guarda 058151044 como o certificado da ANTT imprime; o <RNTRC> do XML tem oito posições.
+  test('encurta o RNTRC da folha da ANTT ao montar o payload fiscal', async () => {
+    const unitOfWork = new CteIssuanceUnitOfWorkFixture()
+    unitOfWork.payloadSource = {
+      ...PAYLOAD_SOURCE,
+      emitter: { ...PAYLOAD_EMITTER, rntrc: '058151044' },
+    }
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+
+    await useCase.issue(ISSUE_INPUT)
+
+    const saved = unitOfWork.savedPayloads[0]
+    const providerConfig = saved?.['providerConfig'] as Record<string, unknown>
+
+    expect(providerConfig['rntrc']).toBe('58151044')
+    expect(saved?.['payload']).toMatchObject({ modal: { modal: '01', rntrc: '58151044' } })
   })
 
   test('keeps certificate material out of the persisted payload', async () => {
@@ -138,10 +197,23 @@ describe('CT-e issuance payload assembly contract', () => {
 
     const payload = unitOfWork.savedPayloads[0]?.['payload'] as Record<string, unknown>
 
+    // dPrev sai do instante da emissão, então o dia é o do relógio: aqui só a forma importa.
     expect(payload['documentos']).toEqual([
-      { chave: GROUPED_ACCESS_KEYS[0], tipo: 'nfe' },
-      { chave: GROUPED_ACCESS_KEYS[1], tipo: 'nfe' },
-      { chave: GROUPED_ACCESS_KEYS[2], tipo: 'nfe' },
+      {
+        chave: GROUPED_ACCESS_KEYS[0],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
+      {
+        chave: GROUPED_ACCESS_KEYS[1],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
+      {
+        chave: GROUPED_ACCESS_KEYS[2],
+        dPrev: expect.stringMatching(FISCAL_DAY_PATTERN),
+        tipo: 'nfe',
+      },
     ])
     expect(payload['carga']).toMatchObject({ vCarga: 430.5 })
     expect(payload['remetente']).toMatchObject({ cnpj: GROUPED_SENDER.taxId })

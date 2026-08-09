@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { parseEnvironment } from '../src/config/environment.schema'
 import { HealthService } from '../src/health/health.service'
+import { appliedMigrations } from './fixtures/health.fixture'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
@@ -13,15 +14,24 @@ import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
 import { CRYPTOGRAPHIC_ENVIRONMENT } from './fixtures/cryptographic-environment.fixture'
 import { createHttpRouterFixture } from './fixtures/http-router.fixture'
+import {
+  ANONYMOUS_ROUTE_TABLE,
+  concreteRoutePathname,
+  createAnonymousRouteTableFixture,
+  createRouteTableFixture,
+  ROUTE_TABLE,
+} from './fixtures/route-table.fixture'
 
 const FRONTEND_ORIGIN = 'http://localhost:53000'
 const OTHER_ORIGIN = 'https://attacker.example'
 const CORRELATION_ID = 'cors-contract'
-const CTE_BATCH_PATH = '/cte-batches/00000000-0000-4000-8000-000000000501'
-const CTE_BATCH_ITEM_PATH = `${CTE_BATCH_PATH}/items/00000000-0000-4000-8000-000000000507`
-const BILLING_INVOICE_PATH = '/billing/invoices/00000000-0000-4000-8000-000000000701'
-const FLEET_DRIVER_PATH = '/fleet/drivers/00000000-0000-4000-8000-000000000912'
-const FLEET_DRIVER_VEHICLES_PATH = `${FLEET_DRIVER_PATH}/vehicles`
+const BODYLESS_ALLOW_HEADERS = 'Authorization'
+const RESOURCE_ALLOW_HEADERS = 'Authorization, Content-Type, Idempotency-Key'
+const CTE_BATCH_ITEM_PATH = concreteRoutePathname('/cte-batches/:id/items/:itemId')
+const BILLING_INVOICE_PATH = concreteRoutePathname('/billing/invoices/:id')
+const FLEET_VEHICLE_PATH = concreteRoutePathname('/fleet/vehicles/:vehicleId')
+const FLEET_DRIVER_PATH = concreteRoutePathname('/fleet/drivers/:driverId')
+const FLEET_DRIVER_VEHICLES_PATH = concreteRoutePathname('/fleet/drivers/:driverId/vehicles')
 
 describe('trusted frontend origin configuration', () => {
   test.each(['https://spa.example.test', 'https://spa.example.test:5443', FRONTEND_ORIGIN])(
@@ -78,9 +88,7 @@ describe('API CORS contract', () => {
     ['/auth/me', FRONTEND_ORIGIN, 'POST', 'Authorization'],
     ['/auth/me', FRONTEND_ORIGIN, 'GET', 'Content-Type'],
     ['/auth/me', FRONTEND_ORIGIN, 'GET', 'Authorization, Content-Type'],
-    ['/auth/me', FRONTEND_ORIGIN, 'GET', 'Authorization,,'],
-    ['/auth/me', FRONTEND_ORIGIN, 'GET', ''],
-    [CTE_BATCH_PATH, FRONTEND_ORIGIN, 'DELETE', 'Authorization'],
+    [CTE_BATCH_ITEM_PATH, FRONTEND_ORIGIN, 'PUT', 'Authorization'],
     [CTE_BATCH_ITEM_PATH, FRONTEND_ORIGIN, 'DELETE', 'Authorization, Content-Type'],
     [CTE_BATCH_ITEM_PATH, OTHER_ORIGIN, 'DELETE', 'Authorization'],
   ])(
@@ -183,10 +191,53 @@ describe('API CORS contract', () => {
   })
 
   test.each([
+    ['/digital-certificates', 'GET, POST, DELETE'],
+    ['/nfe-imports/xml', 'POST'],
+  ])(
+    'answers the multipart upload preflight without Content-Type: %s',
+    async (pathname, allowedMethods) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({
+          pathname,
+          requestedHeaders: 'Authorization, Idempotency-Key',
+          requestedMethod: 'POST',
+        }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(204)
+      expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(response.headers.get('access-control-allow-methods')).toBe(allowedMethods)
+      expect(response.headers.get('access-control-allow-headers')).toContain('Idempotency-Key')
+      expect(fixture.authenticationCalls()).toBe(0)
+    },
+  )
+
+  test.each([
+    ['/digital-certificates', 'POST', 'Authorization, Idempotency-Key, X-Company-Id'],
+    ['/digital-certificates', 'PATCH', 'Authorization, Idempotency-Key'],
+    ['/nfe-imports/xml', 'PUT', 'Authorization, Idempotency-Key'],
+    ['/company-settings', 'POST', 'Authorization, Idempotency-Key'],
+  ])(
+    'refuses a multipart-shaped preflight outside the upload boundary: %s %s %s',
+    async (pathname, requestedMethod, requestedHeaders) => {
+      const fixture = createFixture()
+      const response = await fixture.handle(
+        preflightRequest({ pathname, requestedHeaders, requestedMethod }),
+        fixture.server,
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      expect(fixture.authenticationCalls()).toBe(0)
+    },
+  )
+
+  test.each([
     [`${BILLING_INVOICE_PATH}/documents`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
     [`${BILLING_INVOICE_PATH}/cancel`, 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
     ['/billing/invoices/preview', 'PATCH', 'Authorization, Content-Type, Idempotency-Key'],
-    [BILLING_INVOICE_PATH, 'PATCH', 'Authorization, Content-Type'],
     [BILLING_INVOICE_PATH, 'DELETE', 'Authorization'],
   ])(
     'refuses a PATCH preflight outside the invoice edition boundary: %s %s %s',
@@ -206,7 +257,7 @@ describe('API CORS contract', () => {
   // Cadastro de frota escreve pelo navegador: sem o preflight liberado a tela nunca chega à rota
   test.each([
     ['/fleet/vehicles', 'POST', 'GET, POST'],
-    ['/fleet/vehicles/00000000-0000-4000-8000-000000000911', 'PATCH', 'GET, PATCH'],
+    [FLEET_VEHICLE_PATH, 'PATCH', 'GET, PATCH'],
     ['/fleet/drivers', 'POST', 'GET, POST'],
     [FLEET_DRIVER_PATH, 'PATCH', 'GET, PATCH'],
     [FLEET_DRIVER_VEHICLES_PATH, 'PUT', 'GET, PUT'],
@@ -252,6 +303,29 @@ describe('API CORS contract', () => {
     )
 
     expect(response.status).toBe(403)
+  })
+
+  // O preflight sai da tabela de rotas: módulo novo entra aqui sozinho, sem lista paralela
+  test.each(
+    [...ROUTE_TABLE, ...ANONYMOUS_ROUTE_TABLE].map((entry) => [entry.method, entry.pathname]),
+  )('answers the preflight of every registered route: %s %s', async (method, pathname) => {
+    const fixture = createFixture()
+    const requestedHeaders =
+      method === 'GET' || method === 'DELETE' ? BODYLESS_ALLOW_HEADERS : RESOURCE_ALLOW_HEADERS
+    const response = await fixture.handle(
+      preflightRequest({
+        pathname: concreteRoutePathname(pathname),
+        requestedHeaders,
+        requestedMethod: method,
+      }),
+      fixture.server,
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')?.split(', ')).toContain(method)
+    expect(response.headers.get('access-control-allow-headers')).toBe(requestedHeaders)
+    expect(fixture.authenticationCalls()).toBe(0)
   })
 
   test('keeps a plain non-CORS OPTIONS request on the authenticated default path', async () => {
@@ -426,6 +500,7 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
         return true
       },
     },
+    migrationStatus: appliedMigrations(),
   })
   const tenantContext = new TenantContextService({ repository: membershipFixture })
   const handle = createRequestHandler({
@@ -434,8 +509,10 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
     logger,
     requestTimeoutSeconds: 10,
     router: createHttpRouterFixture({
+      anonymousRoutes: createAnonymousRouteTableFixture(),
       authentication: authenticationFixture,
       healthService,
+      routes: createRouteTableFixture(),
       tenantContext,
     }),
   })
@@ -456,6 +533,8 @@ function environmentWith(frontendOrigin: string | undefined): Record<string, str
     APP_PORT: '0',
     DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
     FRONTEND_ORIGIN: frontendOrigin,
+    KEYCLOAK_ADMIN_CLIENT_ID: 'transportada-admin-cli',
+    KEYCLOAK_ADMIN_CLIENT_SECRET: 'test-keycloak-admin-client-secret',
     KEYCLOAK_AUDIENCE: 'transportada-api',
     KEYCLOAK_ISSUER: 'https://identity.example.test/realms/transportada',
     KEYCLOAK_JWKS_URI: 'https://identity.example.test/realms/transportada/certs',

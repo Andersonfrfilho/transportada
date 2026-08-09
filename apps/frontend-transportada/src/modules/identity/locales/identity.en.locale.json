@@ -1,0 +1,13 @@
+{
+  "title": "First access",
+  "description": "Enter the administrator details and the bootstrap token provided at deployment to create the company's first access.",
+  "firstName": "First name",
+  "lastName": "Last name",
+  "email": "Email",
+  "username": "Username",
+  "password": "Password",
+  "token": "Bootstrap token",
+  "submit": "Create administrator",
+  "submitting": "Creating administrator...",
+  "unavailable": "First access could not be completed. Check the data and the token, then try again."
+}

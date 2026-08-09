@@ -19,6 +19,7 @@ import {
 } from './cte-batch-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
+import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
 
 const VIEWPORTS = {
   desktop: { height: 900, width: 1280 },
@@ -225,7 +226,8 @@ test('admin submits a CT-e batch on mobile without horizontal overflow', async (
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await expect(page.getByRole('cell', { exact: true, name: 'Rascunho' })).toBeVisible()
-  await page.getByRole('button', { name: 'Submeter' }).click()
+  await page.getByLabel('Selecionar lote Lote CT-e julho').check()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
   await expect.poll(api.submissions).toBe(1)
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
@@ -249,13 +251,21 @@ test('admin acompanha a transmissão em lote pela barra de progresso no desktop'
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await page.getByLabel('Selecionar lote Lote CT-e julho').check()
-  await page.getByRole('button', { name: 'Transmitir lotes selecionados' }).click()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
 
   await expect.poll(api.submissions).toBe(1)
-  const progress = page.getByRole('progressbar', { name: 'Progresso da transmissão de lotes' })
-  await expect(progress).toHaveAttribute('aria-valuenow', '100')
-  await expect(page.getByText('100% — 1 de 1 lote(s)')).toBeVisible()
-  await expect(page.getByText('1 enviado(s) · 0 com erro')).toBeVisible()
+  const queueing = page.getByRole('progressbar', { name: 'Progresso do enfileiramento dos lotes' })
+  await expect(queueing).toHaveAttribute('aria-valuenow', '100')
+  // `exact` porque a legenda da SEFAZ começa com o mesmo texto e por substring casaria com as duas.
+  await expect(page.getByText('100% — 1 de 1 lote(s)', { exact: true })).toBeVisible()
+  await expect(page.getByText('1 na fila · 0 com erro')).toBeVisible()
+  // Enfileirar não é transmitir: a barra da SEFAZ só fecha quando a resposta chega.
+  const awaiting = page.getByRole('progressbar', { name: 'Progresso da transmissão para a SEFAZ' })
+  await expect(awaiting).toHaveAttribute('aria-valuenow', '0')
+  await expect(page.getByText('0% — 0 de 1 lote(s) com resposta da SEFAZ')).toBeVisible()
+  await expect(
+    page.getByText('1 lote(s) ainda transmitindo — a tela atualiza sozinha.'),
+  ).toBeVisible()
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
@@ -325,7 +335,8 @@ test('submitter handles an existing CT-e draft on tablet without management cont
   await expect(page.getByRole('heading', { name: 'Lotes de CT-e' })).toBeVisible()
   await openBatchesTab(page)
   await expect(page.getByRole('button', { name: 'Cancelar lote' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Submeter' }).click()
+  await page.getByLabel('Selecionar lote Lote CT-e julho').check()
+  await page.getByRole('button', { name: 'Transmitir os lotes selecionados' }).click()
   await expect.poll(api.submissions).toBe(1)
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
@@ -369,7 +380,7 @@ test('operador baixa o ZIP de XML por seleção e por filtro no desktop', async 
 
   const [selectionDownload] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Baixar XML (1 CT-e(s))' }).click(),
+    page.getByRole('button', { name: 'Baixar (1 CT-e(s))' }).click(),
   ])
   expect(selectionDownload.suggestedFilename()).toBe(CTE_EXPORT_FILE_NAME)
   const selectionPath = await selectionDownload.path()
@@ -380,14 +391,15 @@ test('operador baixa o ZIP de XML por seleção e por filtro no desktop', async 
   await page.getByRole('textbox', { name: 'Número do CT-e' }).fill('5000')
   const [filteredDownload] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Baixar XML do filtro (1 filtro(s))' }).click(),
+    page.getByRole('button', { name: 'Baixar do filtro (1 filtro(s))' }).click(),
   ])
   expect(filteredDownload.suggestedFilename()).toBe(CTE_EXPORT_FILE_NAME)
 
   // O recorte sai como filtro no corpo, sem companyId: a empresa é a do contexto autenticado.
+  // O formato viaja explícito desde que a tela passou a oferecer XML, PDF ou os dois.
   expect(api.exportBodies().map((body) => JSON.parse(body) as unknown)).toEqual([
-    { itemIds: [CTE_ITEM_ID] },
-    { filters: { cteNumberIn: ['5000'], statusIn: ['authorized'] } },
+    { format: 'xml', itemIds: [CTE_ITEM_ID] },
+    { filters: { cteNumberIn: ['5000'], statusIn: ['authorized'] }, format: 'xml' },
   ])
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
@@ -406,7 +418,7 @@ test('operator creates a billing invoice on mobile without horizontal overflow',
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
-  await expect(page.getByText('CT-e elegiveis disponiveis para faturamento.')).toBeVisible()
+  await expect(page.getByText('CT-e elegíveis disponíveis para faturamento.')).toBeVisible()
   await page.locator('input[type="checkbox"]').first().check()
   await chooseOption(page, { name: 'Prazo de vencimento', option: '30 dias' })
   await page.getByRole('button', { exact: true, name: 'Gerar fatura' }).click()
@@ -414,7 +426,7 @@ test('operator creates a billing invoice on mobile without horizontal overflow',
 
   // Emitir troca de aba sozinho: o detalhe da fatura recém-criada já abre em "Faturas".
   const detail = invoiceDetailPanel(page)
-  await expect(detail.getByText('Numero')).toBeVisible()
+  await expect(detail.getByText('Número')).toBeVisible()
   await expect(detail.getByText('17', { exact: true })).toBeVisible()
   await expect(detail.getByText('Transportes Sul Ltda')).toBeVisible()
   await expect(detail.getByText('Emitida', { exact: true })).toBeVisible()
@@ -439,8 +451,8 @@ test('reader sees an empty billing workspace on tablet without horizontal overfl
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
-  await expect(page.getByText('Nenhuma fatura ou CT-e elegivel encontrado.')).toBeVisible()
-  await expect(page.getByText('Nenhum CT-e elegivel com os filtros atuais.')).toBeVisible()
+  await expect(page.getByText('Nenhuma fatura ou CT-e elegível encontrado.')).toBeVisible()
+  await expect(page.getByText('Nenhum CT-e elegível com os filtros atuais.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Gerar fatura' })).toBeDisabled()
   await assertNoHorizontalOverflow(page)
   expect(api.createRequests()).toBe(0)
@@ -534,7 +546,7 @@ test('user without billing permissions sees a closed workspace boundary on deskt
 
   await expect(page.getByRole('heading', { name: 'Workspace de faturamento' })).toBeVisible()
   await expect(page.getByRole('alert')).toContainText(
-    'Seu acesso atual nao permite consultar este workspace.',
+    'Seu acesso atual não permite consultar este workspace.',
   )
   await expect(page.getByRole('button', { name: 'Gerar fatura' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Cancelar fatura' })).toHaveCount(0)
@@ -765,6 +777,71 @@ test('sem settings.manage o diálogo não oferece o caminho para os perfis', asy
   await expect(dialog.locator('tbody tr').first()).toContainText('Perfil de emissao smoke')
   await expect(dialog.getByRole('button', { name: 'Ajustar perfis de emissão' })).toHaveCount(0)
 
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem navegar', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'has-pending',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
+  const dialog = page.getByRole('dialog', { name: 'CT-e pendente' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Sem assinatura')).toBeVisible()
+
+  expect(api.manifestCreations()).toBe(0)
+  expect(new URL(page.url()).pathname).not.toBe('/mdfe-manifests')
+
+  await dialog.locator('footer').getByRole('button', { name: 'Fechar' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o modal', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Manifestos MDF-e' })).toBeVisible()
+
+  // spec 027: a viagem viaja na query string para o manifesto nascer com `trip_id` preenchido
+  const manifestUrl = new URL(page.url())
+  expect(manifestUrl.pathname).toBe('/mdfe-manifests')
+  expect(manifestUrl.searchParams.get('tripId')).toBe(TRIP_SMOKE_TRIP_ID)
+  await expect(page.getByText('Emissão a partir de uma viagem')).toBeVisible()
+  const creationPanel = page.getByRole('region', { name: 'Novo manifesto' })
+  await expect(creationPanel.getByRole('button', { name: 'Veículo' })).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })

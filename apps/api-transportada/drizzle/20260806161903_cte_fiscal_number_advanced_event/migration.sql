@@ -1,0 +1,1 @@
+ALTER TABLE "cte_issuance_events" DROP CONSTRAINT "cte_issuance_events_name_check", ADD CONSTRAINT "cte_issuance_events_name_check" CHECK ("event_name" in ('issue_requested', 'cancel_requested', 'in_flight', 'authorized', 'rejected', 'failed', 'retry_scheduled', 'reconciliation_required', 'cancelled', 'fiscal_number_advanced'));

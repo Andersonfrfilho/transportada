@@ -159,6 +159,7 @@ export function parseCteBatchList(url: URL): {
 
 export type CteBatchItemListFilters = {
   readonly batchId?: string
+  readonly batchIdIn?: readonly string[]
   readonly billingStatusIn?: readonly string[]
   readonly cteNumberGte?: string
   readonly cteNumberIn?: readonly string[]
@@ -178,6 +179,7 @@ export function parseCteBatchItemList(url: URL): {
 } {
   const allowedKeys = new Set([
     'batchId',
+    'batchIdIn',
     'billingStatusIn',
     'cteNumberGte',
     'cteNumberIn',
@@ -215,6 +217,7 @@ export function parseCteBatchItemFilters(
 ): CteBatchItemListFilters | undefined {
   const filters = {
     batchId: parseOptionalUuid(read('batchId')),
+    batchIdIn: parseUuidList(read('batchIdIn')),
     billingStatusIn: parseBillingStatusList(read('billingStatusIn')),
     cteNumberGte: parsePositiveInteger(read('cteNumberGte')),
     cteNumberIn: parsePositiveIntegerList(read('cteNumberIn')),
@@ -357,6 +360,20 @@ function parsePositiveIntegerList(value: string | null): readonly string[] | und
     if (!/^(?:0|[1-9][0-9]{0,18})$/.test(entry)) throw invalidRequest()
   }
   return values
+}
+
+/** Teto igual ao da criação de lote: a lista vira um `in (...)`, não uma varredura sem limite. */
+const MAX_BATCH_ID_LIST = 100
+
+function parseUuidList(value: string | null): readonly string[] | undefined {
+  if (value === null) return undefined
+  const identifiers = value.split(',')
+  if (identifiers.length > MAX_BATCH_ID_LIST) throw invalidRequest()
+  if (new Set(identifiers).size !== identifiers.length) throw invalidRequest()
+  for (const identifier of identifiers) {
+    if (!UUID.safeParse(identifier).success) throw invalidRequest()
+  }
+  return identifiers
 }
 
 function parseOptionalUuid(value: string | null): string | undefined {

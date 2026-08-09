@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { bigint, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { bigint, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 import type {
   CteBatchProgressStatus,
@@ -22,12 +22,27 @@ export const cteIssuancePayloads = pgTable('cte_issuance_payloads', {
   providerConfig: jsonb('provider_config').notNull(),
 })
 
+/** Cópia da tabela mantida pela API: aqui o worker só avança a numeração quando a SEFAZ recusa. */
+export const fiscalSequences = pgTable('fiscal_sequences', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  environment: text().$type<CteFiscalEnvironment>().notNull(),
+  model: text().notNull(),
+  series: bigint({ mode: 'bigint' }).notNull(),
+  nextNumber: bigint('next_number', { mode: 'bigint' }).notNull(),
+  lastReservedNumber: bigint('last_reserved_number', { mode: 'bigint' }),
+  version: bigint({ mode: 'bigint' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+})
+
 export const cteIssuanceAttempts = pgTable('cte_issuance_attempts', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),
   batchId: uuid('batch_id').notNull(),
   batchItemId: uuid('batch_item_id').notNull(),
   status: text().$type<CteIssuanceItemStatus>().notNull(),
+  fiscalSeries: text('fiscal_series').notNull(),
+  fiscalNumber: bigint('fiscal_number', { mode: 'bigint' }).notNull(),
   lastErrorCode: text('last_error_code'),
   lastErrorCause: text('last_error_cause'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
@@ -97,4 +112,28 @@ export const digitalCertificates = pgTable('digital_certificates', {
   secretEnvelope: jsonb('secret_envelope'),
   validatedCnpj: text('validated_cnpj').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+export type CteDiagnosticsPhase = 'error' | 'request' | 'response'
+
+/**
+ * Cópia da tabela mantida pela API. Guarda o que saiu para o provedor fiscal e o que voltou —
+ * é o único lugar onde a resposta crua da SEFAZ sobrevive à tentativa. Linha expira em `expires_at`.
+ */
+export const cteIssuanceDiagnostics = pgTable('cte_issuance_diagnostics', {
+  id: uuid().primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  batchItemId: uuid('batch_item_id').notNull(),
+  attemptId: uuid('attempt_id').notNull(),
+  attemptKind: text('attempt_kind').notNull(),
+  eventId: uuid('event_id').notNull(),
+  correlationId: text('correlation_id'),
+  phase: text().$type<CteDiagnosticsPhase>().notNull(),
+  request: jsonb(),
+  response: jsonb(),
+  error: jsonb(),
+  durationMs: integer('duration_ms'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })

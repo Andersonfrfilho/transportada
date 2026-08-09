@@ -6,6 +6,7 @@ import { createLogger } from '@adatechnology/logger'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseEnvironment } from './config/environment.schema'
+import { shouldPrettyPrintLogs } from './logging/log-format.policy'
 import { createGetCompanySettingsUseCase } from './companies/application/get-company-settings.use-case'
 import { createIdempotencyFingerprintService } from './companies/application/idempotency-fingerprint.service'
 import { createUpdateCompanySettingsUseCase } from './companies/application/update-company-settings.use-case'
@@ -13,6 +14,12 @@ import { createListDigitalCertificatesUseCase } from './companies/application/li
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
+import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
+import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
+import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
+import { createScheduledDistributionRoutes } from './companies/presentation/scheduled-distribution.routes.js'
 import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
@@ -45,7 +52,13 @@ import { createBillingRoutes } from './billing/presentation/billing.routes'
 import { toBillingInvoiceListFilters } from './billing/presentation/billing.schema.js'
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
 import { createExportCteDocumentsUseCase } from './cte-issuance/application/export-cte-documents.use-case.js'
+import { createRenderDacteUseCase } from './cte-issuance/application/render-dacte.use-case.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
+import { createDactePdfGateway } from './cte-issuance/infrastructure/dacte-pdf.gateway.js'
+import { createDacteLogoGateway } from './cte-issuance/infrastructure/dacte-logo.gateway.js'
+import { createDacteRendererGateway } from './cte-issuance/infrastructure/dacte-renderer.gateway.js'
+import { createDacteSource } from './cte-issuance/infrastructure/dacte-source.query.js'
+import { createDacteXmlReaderGateway } from './cte-issuance/infrastructure/dacte-xml-reader.gateway.js'
 import { createCteDocumentDownloadGateway } from './cte-issuance/infrastructure/cte-document-download.gateway.js'
 import { createCteExportSelection } from './cte-issuance/infrastructure/cte-export-selection.query.js'
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
@@ -59,6 +72,7 @@ import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/driz
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
 import { createMdfeManifestsUseCase } from './mdfe-manifests/application/mdfe-manifests.use-case'
 import { createPreviewMdfeManifestUseCase } from './mdfe-manifests/application/preview-mdfe-manifest.use-case'
@@ -66,6 +80,9 @@ import { DrizzleMdfeIssuanceRepository } from './mdfe-manifests/infrastructure/d
 import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-manifest.repository'
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
+import { createTripUseCase } from './trips/application/trip.use-case'
+import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
+import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -75,14 +92,34 @@ import {
 } from './freight/infrastructure/drizzle-freight.repository'
 import { createFreightRoutes } from './freight/presentation/freight.routes'
 import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
+import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
 import { TenantContextService } from './identity/application/tenant-context.service'
 import { AuthorizationService } from './identity/application/authorization.service'
+import { createBootstrapFirstAdminUseCase } from './identity/application/bootstrap-first-admin.use-case'
+import { createActivateInvitationUseCase } from './identity/application/activate-invitation.use-case'
+import { createInviteCompanyUserUseCase } from './identity/application/invite-company-user.use-case'
+import { createListCompanyUsersUseCase } from './identity/application/list-company-users.use-case'
+import { createResendCompanyUserCodeUseCase } from './identity/application/resend-company-user-code.use-case'
+import { createChangeCompanyUserStatusUseCase } from './identity/application/change-company-user-status.use-case'
+import { createReplaceCompanyUserRolesUseCase } from './identity/application/replace-company-user-roles.use-case'
+import { createRemoveCompanyUserMembershipUseCase } from './identity/application/remove-company-user-membership.use-case'
+import { createUpdateCompanyUserProfileUseCase } from './identity/application/update-company-user-profile.use-case'
 import { DrizzleExternalIdentityRepository } from './identity/infrastructure/drizzle-external-identity.repository'
+import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
+import { DrizzleCompanyUserRepository } from './identity/infrastructure/drizzle-company-user.repository'
+import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
-import { createRouter } from './http/router.service'
+import {
+  createIdentityAccessGateway,
+  createKeycloakAdminGateway,
+} from './identity/infrastructure/keycloak-admin.gateway'
+import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
+import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
+import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
+import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
@@ -112,21 +149,37 @@ import {
   type NfeStorageGateway,
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
+import { createErrorTracker } from './observability/sentry.service'
+
+const API_PROJECT_NAME = 'transportada-api'
+const API_VERSION = '0.1.0'
 
 export function bootstrap(): Bun.Server<undefined> {
   const config = parseEnvironment(process.env)
   const logger = createApiLogger(config)
+  const errorTracker = createErrorTracker({
+    configuration: {
+      dsn: config.sentryDsn,
+      environment: config.sentryEnvironment,
+      release: `${API_PROJECT_NAME}@${API_VERSION}`,
+    },
+  })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDrizzleProvider({ connection: config.databaseUrl })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,
   })
-  const healthService = new HealthService({ database, identityReadiness: identityGateway })
+  const healthService = new HealthService({
+    database,
+    identityReadiness: identityGateway,
+    migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
+  })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
   const router = createRouter({
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db }),
     authentication,
     authorization: new AuthorizationService(),
     healthService,
@@ -135,16 +188,28 @@ export function bootstrap(): Bun.Server<undefined> {
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+      keycloak: config.keycloak,
+      scheduledDistributionCron: config.scheduledDistributionCron,
       vehicleLookup: config.vehicleLookup,
     }),
     tenantContext,
   })
   const server = startApiServer({
+    captureError: (error: unknown) => errorTracker.captureException(error),
     config,
     logger,
     router,
   })
-  const shutdown = createShutdownHandler({ database, logger, server })
+  const shutdown = createShutdownHandler({
+    database,
+    drainObservability: async (): Promise<void> => {
+      await errorTracker.flush()
+      await logger.flush()
+      logger.stop()
+    },
+    logger,
+    server,
+  })
 
   registerShutdownSignals({ logger, shutdown })
   logger.info('api_started', {
@@ -157,14 +222,56 @@ export function bootstrap(): Bun.Server<undefined> {
 }
 
 function createApiLogger(
-  config: Pick<ApiEnvironment, 'appEnv' | 'logLevel'>,
+  config: Pick<ApiEnvironment, 'appEnv' | 'logLevel' | 'logSinkUrl'>,
 ): ReturnType<typeof createLogger> {
   return createLogger({
     logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
-    projectName: 'transportada-api',
-    version: '0.1.0',
+    pretty: shouldPrettyPrintLogs(config.appEnv),
+    projectName: API_PROJECT_NAME,
+    ...(config.logSinkUrl === undefined ? {} : { sinkUrl: config.logSinkUrl }),
+    version: API_VERSION,
   })
+}
+
+type CreateAnonymousRoutesParams = {
+  readonly config: ApiEnvironment
+  readonly database: CompanySettingsDatabase
+}
+
+/** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
+function createAnonymousRoutes({
+  config,
+  database,
+}: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
+  if (config.companyId === undefined) return []
+
+  return [
+    ...createBootstrapRoutes({
+      bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
+        companyId: config.companyId,
+        identityGateway: createKeycloakAdminGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
+        issuer: config.keycloak.issuer,
+        repository: new DrizzleBootstrapRepository(database),
+        token: config.bootstrapToken,
+      }),
+    }),
+    ...createUserActivationRoutes({
+      activateInvitation: createActivateInvitationUseCase({
+        identities: new DrizzleCompanyUserRepository(database),
+        identityProvider: createIdentityAccessGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
+        invitations: new DrizzleInvitationRepository(database),
+        now: () => new Date(),
+      }),
+    }),
+  ]
 }
 
 type CreateApplicationRoutesParams = {
@@ -172,6 +279,8 @@ type CreateApplicationRoutesParams = {
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
+  readonly keycloak: ApiEnvironment['keycloak']
+  readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
   readonly vehicleLookup: ApiEnvironment['vehicleLookup']
 }
 
@@ -180,11 +289,14 @@ function createApplicationRoutes({
   envelopeKeyRing,
   environment,
   idempotencyHmacKey,
+  keycloak,
+  scheduledDistributionCron,
   vehicleLookup,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
+  const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -197,6 +309,7 @@ function createApplicationRoutes({
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository(database)
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
+  const tripRepository = new DrizzleTripRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
   const billingRepository = new DrizzleBillingRepository(database)
@@ -220,6 +333,11 @@ function createApplicationRoutes({
   const getDistributionStatus = createGetNfeDistributionStatusUseCase({
     clock: { now: () => new Date() },
     reader: new DrizzleNfeDistributionStatusRepository(database),
+  })
+  const getScheduledDistribution = createGetScheduledDistributionStatusUseCase({
+    clock: { now: () => new Date() },
+    port: new DrizzleScheduledDistributionStatusRepository(database),
+    scheduledDistributionCron,
   })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
@@ -254,6 +372,11 @@ function createApplicationRoutes({
   const mdfeIssuance = createMdfeIssuanceUseCase({
     now: () => new Date(),
     repository: mdfeIssuanceRepository,
+  })
+  const trips = createTripUseCase({ repository: tripRepository })
+  const createTripMdfeManifest = createTripMdfeManifestUseCase({
+    manifests: mdfeManifests,
+    trips,
   })
   const cteEmissionProfileCatalog = new DrizzleCteEmissionProfileCatalogRepository(
     cteEmissionProfileRepository,
@@ -295,10 +418,21 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: cteIssuanceRepository,
   })
+  const dactePdfGateway = createDactePdfGateway()
+  const dacteXmlReader = createDacteXmlReaderGateway({ storage: storageGateway })
+  const dacteLogoGateway = createDacteLogoGateway({ logos: companyLogoRepository })
   const exportCteDocuments = createExportCteDocumentsUseCase({
     archive: createCteArchiveGateway({ storage: storageGateway }),
     clock: () => new Date(),
+    dacte: createDacteRendererGateway({ pdf: dactePdfGateway, xmlReader: dacteXmlReader }),
+    logos: dacteLogoGateway,
     selection: createCteExportSelection(database),
+  })
+  const renderDacte = createRenderDacteUseCase({
+    logos: dacteLogoGateway,
+    renderer: dactePdfGateway,
+    source: createDacteSource(database),
+    xmlReader: dacteXmlReader,
   })
   const operations = createOperationsUseCase({
     clock: { now: () => new Date().toISOString() },
@@ -313,6 +447,41 @@ function createApplicationRoutes({
       envelopeProvider: createSecretEnvelopeProvider(envelopeKeyRing),
     }),
   })
+  const companyUserRepository = new DrizzleCompanyUserRepository(database)
+  const invitationRepository = new DrizzleInvitationRepository(database)
+  const identityAccessGateway = createIdentityAccessGateway({
+    clientId: keycloak.admin.clientId,
+    clientSecret: keycloak.admin.clientSecret,
+    issuer: keycloak.issuer,
+  })
+  const inviteCompanyUser = createInviteCompanyUserUseCase({
+    identityGateway: identityAccessGateway,
+    invitations: invitationRepository,
+    issuer: keycloak.issuer,
+    now: () => new Date(),
+    repository: companyUserRepository,
+  })
+  const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
+  const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
+    invitations: invitationRepository,
+    now: () => new Date(),
+    repository: companyUserRepository,
+  })
+  const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
+    identityGateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
+  const replaceCompanyUserRoles = createReplaceCompanyUserRolesUseCase({
+    repository: companyUserRepository,
+  })
+  const removeCompanyUserMembership = createRemoveCompanyUserMembershipUseCase({
+    identityGateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
+  const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
+    identityGateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -323,6 +492,15 @@ function createApplicationRoutes({
         fingerprintService,
         unitOfWork: settingsRepository,
       }),
+    }),
+    ...createScheduledDistributionRoutes({
+      disable: createDisableScheduledDistributionUseCase({
+        unitOfWork: scheduledDistributionRepository,
+      }),
+      enable: createEnableScheduledDistributionUseCase({
+        unitOfWork: scheduledDistributionRepository,
+      }),
+      getStatus: getScheduledDistribution,
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
@@ -372,6 +550,16 @@ function createApplicationRoutes({
         close: (input) => mdfeIssuance.close(input),
         issue: (input) => mdfeIssuance.issue(input),
       },
+    }),
+    ...createTripRoutes({
+      closeTrip: { execute: (input) => trips.close(input) },
+      createTrip: { execute: (input) => trips.create(input) },
+      createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
+      deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      getTrip: { execute: (input) => trips.get(input) },
+      linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      listTrips: { execute: (input) => trips.list(input) },
+      releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
     }),
     ...createCteEmissionProfileRoutes({
       activateProfile: { execute: (input) => cteEmissionProfiles.activate(input) },
@@ -451,6 +639,9 @@ function createApplicationRoutes({
       },
     }),
     ...createCteIssuanceRoutes({
+      cteDacte: {
+        renderDacte: (input) => renderDacte.renderDacte(input),
+      },
       cteExport: {
         exportDocuments: (input) => exportCteDocuments.exportDocuments(input),
       },
@@ -473,6 +664,7 @@ function createApplicationRoutes({
     ...createNfeImportRoutes({
       getDistributionStatus,
       getImport,
+      getScheduledDistribution,
       listImports,
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
       requestDistribution: {
@@ -505,6 +697,15 @@ function createApplicationRoutes({
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),
       savePreferences: createSaveViewPreferencesUseCase({ repository: viewPreferencesRepository }),
+    }),
+    ...createUserAdministrationRoutes({
+      changeStatus: changeCompanyUserStatus,
+      invite: inviteCompanyUser,
+      list: listCompanyUsers,
+      removeMembership: removeCompanyUserMembership,
+      replaceRoles: replaceCompanyUserRoles,
+      resendCode: resendCompanyUserCode,
+      updateProfile: updateCompanyUserProfile,
     }),
   ]
 }

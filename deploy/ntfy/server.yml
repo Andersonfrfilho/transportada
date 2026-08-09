@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Ada Technology. MIT License.
+#
+# O canal por onde o Gatus avisa. Era o ntfy.sh público até ele parar de aceitar conexões do
+# contêiner de ops — e o modo como parou é a razão de este arquivo existir: o POST estourava em
+# timeout, o Gatus não marcava o alerta como disparado, e nem a queda nem a volta chegavam. Um
+# monitor que depende de servidor de terceiro tem um ponto cego do tamanho desse terceiro.
+#
+# Identidade e segredo não moram aqui: `base-url`, `auth-users`, `auth-access` e `auth-tokens` vêm
+# de `NTFY_*` no ambiente, porque mudam por instalação. Este arquivo é a postura, e ela não muda.
+
+listen-http: ':8080'
+
+# Atrás do proxy da Railway, sem isto o servidor vê um IP só — o do proxy — e o limite por IP
+# passaria a valer para o mundo inteiro somado: o primeiro visitante consumiria a cota do alerta.
+behind-proxy: true
+
+# O `auth-file` guarda os tokens que o Gatus publica e o celular assina. Em disco efêmero, o
+# primeiro deploy depois de um alerta derrubaria a autenticação de todo mundo sem ninguém tocar
+# em nada. Os dois arquivos ficam no volume.
+auth-file: /var/lib/ntfy/auth.db
+cache-file: /var/lib/ntfy/cache.db
+
+# Celular sem rede no fim de semana ainda encontra o alerta de sexta ao voltar.
+cache-duration: 72h
+
+# Domínio público com acesso padrão aberto é mural: qualquer um que descubra o tópico lê o que
+# quebrou na instalação, e qualquer um publica alerta falso nele. `deny-all` é o que transforma o
+# tópico em endereço e o token em credencial. Cadastro fechado porque quem entra é quem o
+# `NTFY_AUTH_USERS` da instalação declara — não quem achou a URL.
+auth-default-access: deny-all
+enable-signup: false
+enable-login: true
+
+log-level: info

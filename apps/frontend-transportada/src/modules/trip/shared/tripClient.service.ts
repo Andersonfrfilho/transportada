@@ -1,0 +1,178 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { TRIP_ERROR, TRIPS_PATH } from './trip.constant'
+import type {
+  CreateTripBody,
+  LinkTripDocumentInput,
+  TripDetail,
+  TripDocument,
+  TripDocumentActionInput,
+  TripListInput,
+  TripPage,
+} from './trip.types'
+import { isRecord, isString } from './tripGuards.validation'
+import { createTripResponseAdapters } from './tripResponse.validation'
+
+type ClientDependencies = Readonly<{
+  apiUrl: string
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+  getAccessToken: () => Promise<string>
+}>
+
+export type TripClient = Readonly<{
+  closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
+  listTrips: (input: TripListInput) => Promise<TripPage>
+  releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+}>
+
+function requestError(code: string): Error {
+  return new Error(code)
+}
+
+function readErrorCode(payload: unknown): string {
+  if (isRecord(payload) && isRecord(payload.error) && isString(payload.error.code)) {
+    return payload.error.code
+  }
+  return TRIP_ERROR.REQUEST_FAILED
+}
+
+async function requestJson(
+  input: Readonly<{ fetch: ClientDependencies['fetch']; request: Request }>,
+): Promise<unknown> {
+  let response: Response
+  try {
+    response = await input.fetch(input.request)
+  } catch {
+    throw requestError(TRIP_ERROR.REQUEST_FAILED)
+  }
+  const rawBody = await response.text()
+  let payload: unknown
+  try {
+    payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
+  } catch {
+    throw requestError(response.ok ? TRIP_ERROR.RESPONSE_INVALID : TRIP_ERROR.REQUEST_FAILED)
+  }
+  if (!response.ok) throw requestError(readErrorCode(payload))
+  return payload
+}
+
+async function authorizedRequest(
+  input: Readonly<{
+    body?: string
+    dependencies: ClientDependencies
+    method: 'DELETE' | 'GET' | 'POST'
+    path: string
+  }>,
+): Promise<unknown> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
+  if (input.body !== undefined) headers['content-type'] = 'application/json'
+  const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
+  if (input.body !== undefined) requestInit.body = input.body
+
+  return requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
+  })
+}
+
+function readEnvelopeData(input: unknown): unknown {
+  if (!isRecord(input) || !('data' in input)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  return input.data
+}
+
+function buildSearch(
+  input: Readonly<{ cursor: null | string; limit: number }>,
+  filters: Readonly<Record<string, string | undefined>>,
+): string {
+  const search = new URLSearchParams()
+  if (input.cursor !== null) search.set('cursor', input.cursor)
+  search.set('limit', String(input.limit))
+  for (const key of Object.keys(filters).sort()) {
+    const value = filters[key]
+    if (value !== undefined && value.length > 0) search.set(key, value)
+  }
+  return search.toString()
+}
+
+export function createTripClient(dependencies: ClientDependencies): TripClient {
+  const adapters = createTripResponseAdapters()
+
+  function documentPath(input: TripDocumentActionInput): string {
+    return `${TRIPS_PATH}/${input.tripId}/documents/${input.documentId}`
+  }
+
+  return {
+    async closeTrip(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/close`,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async createTrip(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ driverIds: input.driverIds, vehicleId: input.vehicleId }),
+        dependencies,
+        method: 'POST',
+        path: TRIPS_PATH,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async deliverTripDocument(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/deliver`,
+      })
+      return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async getTrip(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}`,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async linkTripDocument(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          freightCalculationId: input.freightCalculationId,
+          nfeDocumentId: input.nfeDocumentId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents`,
+      })
+      return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async listTrips(input) {
+      const search = buildSearch(input, {
+        createdFrom: input.filters?.createdFrom,
+        createdUntil: input.filters?.createdUntil,
+        driverIdEq: input.filters?.driverIdEq,
+        statusEq: input.filters?.statusEq,
+        vehicleIdEq: input.filters?.vehicleIdEq,
+      })
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}?${search}`,
+      })
+      return adapters.tripListFromApi(response)
+    },
+    async releaseTripDocument(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'DELETE',
+        path: documentPath(input),
+      })
+      return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+  }
+}

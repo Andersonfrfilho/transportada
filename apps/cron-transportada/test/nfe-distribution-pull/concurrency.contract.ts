@@ -114,6 +114,7 @@ function buildCycleDependencies(input: {
     logger: SILENT_LOGGER,
     now: NOW,
     selectEligibleUseCase: createSelectEligibleCompaniesUseCase({
+      logger: SILENT_LOGGER,
       source: createSource(input.candidates),
     }),
   }

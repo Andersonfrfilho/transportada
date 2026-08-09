@@ -200,6 +200,12 @@ export type MdfeManifestCreateBody = Readonly<{
   vehicleId: string
 }>
 
+/**
+ * `tripId` não vai no corpo: ele escolhe a rota `POST /trips/:id/mdfe-manifests`, que deriva
+ * veículo e motoristas da viagem (spec 027 — todo manifesto nasce com `trip_id` preenchido).
+ */
+export type MdfeManifestCreateInput = MdfeManifestCreateBody & Readonly<{ tripId?: string }>
+
 export type MdfeManifestListInput = Readonly<{
   cursor: null | string
   filters?: MdfeManifestFilters

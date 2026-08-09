@@ -63,13 +63,23 @@ async function appendEntry(input: {
   readonly storage: ObjectStreamGateway
   readonly zip: Zip
 }): Promise<void> {
+  const { source } = input.entry
+  if (source.kind === 'lazy') {
+    // Gerar antes de `add` mantém o ZIP intacto se a renderização falhar: o arquivo nem é aberto.
+    const bytes = await source.load()
+    const file = new ZipPassThrough(input.entry.name)
+    input.zip.add(file)
+    file.push(bytes, true)
+    return
+  }
+
   const file = new ZipPassThrough(input.entry.name)
   input.zip.add(file)
-  const source = await input.storage.getObjectStream({
-    bucket: input.entry.bucket,
-    key: input.entry.objectKey,
+  const stream = await input.storage.getObjectStream({
+    bucket: source.bucket,
+    key: source.objectKey,
   })
-  const reader = source.getReader()
+  const reader = stream.getReader()
   try {
     for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
       file.push(chunk.value, false)

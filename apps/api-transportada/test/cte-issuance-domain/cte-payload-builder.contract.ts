@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CteData, CteDocumentoNfe } from '@adatechnology/fiscal-provider'
 import { describe, expect, test } from 'bun:test'
 
 import { buildCtePayload } from '../../src/cte-issuance/domain/cte-payload.builder.js'
@@ -27,6 +28,13 @@ import {
 } from './support.js'
 
 const SECOND_ACCESS_KEY = '35260705868574001090550020008526741408978631'
+
+// `documentos` é união de tipos: só o ramo 'nfe' carrega dPrev.
+function readDeliveryForecasts(payload: CteData): readonly (string | undefined)[] {
+  return payload.documentos
+    .filter((documento): documento is CteDocumentoNfe => documento.tipo === 'nfe')
+    .map((documento) => documento.dPrev)
+}
 
 describe('buildCtePayload — golden CT-e 3526…8240', () => {
   test('reproduz identificação, natureza e municípios da CT-e de referência', () => {
@@ -80,6 +88,7 @@ describe('buildCtePayload — golden CT-e 3526…8240', () => {
     expect(payload.valorTotalReceber).toBe(43.13)
     expect(payload.componentesValor).toEqual([{ vComp: 43.13, xNome: GOLDEN_CHARGE_LABEL }])
     expect(payload.carga.vCarga).toBe(958.48)
+    expect(payload.carga.vCargaAverb).toBe(958.48)
     expect(payload.carga.proPred).toBe(GOLDEN_PREDOMINANT_PRODUCT)
     expect(payload.carga.quantidades).toEqual([
       { cUnid: '03', qCarga: 8, tpMed: 'UN' },
@@ -140,6 +149,28 @@ describe('buildCtePayload — golden CT-e 3526…8240', () => {
   })
 })
 
+// Os 166 CT-es reais autorizados trazem vCargaAverb igual ao valor das notas — é o valor que a
+// seguradora averba. Sem ele a carga viaja sem cobertura declarada no documento fiscal.
+describe('buildCtePayload — averbação da carga', () => {
+  test('declara o valor de averbação igual ao valor da carga', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.carga.vCargaAverb).toBe(payload.carga.vCarga)
+  })
+
+  test('averba a soma das notas quando o CT-e agrupa mais de uma', () => {
+    const payload = buildCtePayload(buildGoldenParams({ invoices: GROUPED_INVOICES }))
+
+    expect(payload.carga.vCargaAverb).toBe(430.5)
+  })
+
+  test('averba o valor das notas, não o valor da prestação', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.carga.vCargaAverb).not.toBe(payload.valorTotalPrestacao)
+  })
+})
+
 describe('buildCtePayload — CFOP e partes', () => {
   test('usa o CFOP interestadual quando origem e destino têm UFs diferentes', () => {
     const invoice: CtePayloadInvoice = {
@@ -168,6 +199,27 @@ describe('buildCtePayload — CFOP e partes', () => {
     expect(payload.remetente.cpf).toBe('12345678909')
     expect(payload.remetente.cnpj).toBeUndefined()
     expect(payload.remetente.ie).toBeUndefined()
+  })
+
+  // O complemento distingue sala/andar no mesmo número: sem ele a entrega chega ao prédio errado.
+  test('declara o complemento do endereço quando a nota traz um', () => {
+    const invoice: CtePayloadInvoice = {
+      ...GOLDEN_INVOICE,
+      recipient: { ...GOLDEN_RECIPIENT, complement: 'SALA 3' },
+      sender: { ...GOLDEN_SENDER, complement: 'GALPAO B' },
+    }
+
+    const payload = buildCtePayload(buildGoldenParams({ invoices: [invoice] }))
+
+    expect(payload.remetente.xCpl).toBe('GALPAO B')
+    expect(payload.destinatario.xCpl).toBe('SALA 3')
+  })
+
+  test('omite o complemento quando a nota não traz', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(payload.remetente).not.toHaveProperty('xCpl')
+    expect(payload.destinatario).not.toHaveProperty('xCpl')
   })
 
   test('rejeita seleção vazia', () => {
@@ -444,6 +496,32 @@ describe('buildCtePayload — retira', () => {
 
     expect(payload.retira).toBe('1')
     expect(payload.xDetRetira).toBeUndefined()
+  })
+})
+
+describe('buildCtePayload — previsão de entrega', () => {
+  test('declara dPrev de cada documento no dia da emissão', () => {
+    const payload = buildCtePayload(
+      buildGoldenParams({
+        invoices: GROUPED_INVOICES,
+        issuedAt: '2026-08-07T14:20:00.000-03:00',
+      }),
+    )
+
+    expect(readDeliveryForecasts(payload)).toEqual(['2026-08-07', '2026-08-07', '2026-08-07'])
+  })
+
+  // Emissão às 22h de Brasília já é o dia seguinte em UTC: dPrev tem de seguir o fuso fiscal
+  test('resolve o dia da previsão pelo fuso fiscal, não por UTC', () => {
+    const payload = buildCtePayload(buildGoldenParams({ issuedAt: '2026-08-08T01:30:00.000Z' }))
+
+    expect(readDeliveryForecasts(payload)).toEqual(['2026-08-07'])
+  })
+
+  test('omite dPrev quando a data de emissão não é informada', () => {
+    const payload = buildCtePayload(buildGoldenParams())
+
+    expect(readDeliveryForecasts(payload)).toEqual([undefined])
   })
 })
 

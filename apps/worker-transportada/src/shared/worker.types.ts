@@ -3,8 +3,17 @@
  */
 import type { LogLevel } from '@adatechnology/logger'
 
+/** infRespTec — quem desenvolveu o sistema emissor, declarado por instalação. */
+export type CteTechnicalResponsibleEnvironment = {
+  readonly cnpj: string
+  readonly email: string
+  readonly fone: string
+  readonly xContato: string
+}
+
 export type WorkerEnvironment = {
   readonly appEnv: string
+  readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
@@ -13,6 +22,10 @@ export type WorkerEnvironment = {
   readonly prefetch: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string
+  /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
+  readonly logSinkUrl: string | undefined
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string
 }
 
 export type HealthDependencyPort = {

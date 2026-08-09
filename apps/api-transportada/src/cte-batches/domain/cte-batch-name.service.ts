@@ -1,22 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-const FISCAL_TIME_ZONE = 'America/Sao_Paulo'
+import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
+
 const NAME_PREFIX = 'CT-e'
 const SEQUENCE_SEPARATOR = '#'
 const FIRST_SEQUENCE = 1
 const PLAIN_SEQUENCE = /^[1-9][0-9]*$/
 
-// `en-CA` já formata como YYYY-MM-DD, então não há remontagem de partes de data à mão.
-const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-  day: '2-digit',
-  month: '2-digit',
-  timeZone: FISCAL_TIME_ZONE,
-  year: 'numeric',
-})
-
 export function buildBatchNamePrefix(input: Readonly<{ now: Date }>): string {
-  return `${NAME_PREFIX} ${dateFormatter.format(input.now)} ${SEQUENCE_SEPARATOR}`
+  return `${NAME_PREFIX} ${formatFiscalDay(input.now)} ${SEQUENCE_SEPARATOR}`
 }
 
 export function suggestBatchName(

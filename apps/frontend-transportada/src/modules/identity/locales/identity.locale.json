@@ -1,0 +1,13 @@
+{
+  "title": "Primeiro acesso",
+  "description": "Informe os dados do administrador e o token de arranque fornecido na implantação para criar o primeiro acesso da empresa.",
+  "firstName": "Nome",
+  "lastName": "Sobrenome",
+  "email": "E-mail",
+  "username": "Usuário",
+  "password": "Senha",
+  "token": "Token de arranque",
+  "submit": "Criar administrador",
+  "submitting": "Criando administrador...",
+  "unavailable": "Não foi possível concluir o primeiro acesso. Confira os dados e o token e tente novamente."
+}

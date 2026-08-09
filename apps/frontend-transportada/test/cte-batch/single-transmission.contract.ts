@@ -51,10 +51,11 @@ function readSection(locale: Record<string, unknown>, key: string): Record<strin
 describe('CT-e single transmission action contract', () => {
   /**
    * Fechar o rascunho virou efeito da própria emissão, no backend e na mesma transação: o operador
-   * comanda um passo só, e a seleção de rascunhos transmite sem escala. Lote já submetido está em
-   * voo — repetir o comando duplicaria o documento fiscal.
+   * comanda um passo só, e a seleção de rascunhos transmite sem escala. Lote submetido segue junto
+   * porque é onde para o lote que perdeu um item no meio da emissão; a trava contra duplicidade
+   * vive por item, no backend (`partial-transmission.contract.ts`). Encerrado e cancelado não voltam.
    */
-  test('accepts a draft selection and refuses one already in transit', async () => {
+  test('accepts a draft selection and refuses one already settled', async () => {
     const { canTransmitSelection } = await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
 
     expect(
@@ -70,18 +71,18 @@ describe('CT-e single transmission action contract', () => {
         groups: [DRAFT_GROUP, SUBMITTED_GROUP],
         permissions: [CTE_SUBMIT],
       }),
-    ).toBe(false)
+    ).toBe(true)
     expect(
       canTransmitSelection({
         batchStatuses: BATCH_STATUSES,
-        groups: [DRAFT_GROUP, DONE_GROUP],
+        groups: [DONE_GROUP],
         permissions: [CTE_SUBMIT],
       }),
     ).toBe(false)
     expect(
       canTransmitSelection({
         batchStatuses: BATCH_STATUSES,
-        groups: [DRAFT_GROUP, UNKNOWN_GROUP],
+        groups: [UNKNOWN_GROUP],
         permissions: [CTE_SUBMIT],
       }),
     ).toBe(false)

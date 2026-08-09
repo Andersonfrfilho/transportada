@@ -7,12 +7,15 @@ import { CertificateUploadForm } from '../components/CertificateUploadForm.compo
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
+import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
+import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
   EMPTY_BILLING_DEFAULTS,
   EMPTY_MDFE_DEFAULTS,
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
+import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import {
   CERTIFICATE_PURPOSES,
   type CertificatePurpose,
@@ -21,6 +24,7 @@ import {
   type CompanyProfileLookup,
   type CompanySettingsUpdate,
   type SafeCertificate,
+  type ScheduledDistributionStatus,
 } from '../shared/companySettingsClient.service'
 import {
   createCompanySettingsViewModel,
@@ -63,6 +67,14 @@ type LogoSection = Readonly<{
   pending: boolean
 }>
 
+type ScheduledDistributionSection = Readonly<{
+  loading: boolean
+  onToggle: (nextEnabled: boolean) => void
+  pending: boolean
+  status: ScheduledDistributionStatus | undefined
+  toggleErrorCode: string | undefined
+}>
+
 type SettingsBodyProps = Readonly<{
   canManageSettings: boolean
   certificates: ActiveCertificatesByPurpose
@@ -73,6 +85,7 @@ type SettingsBodyProps = Readonly<{
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
   onSave: (input: CompanySettingsUpdate) => void
+  scheduledDistribution: ScheduledDistributionSection
   settingsErrorCode: string | undefined
   settingsPending: boolean
   settingsState: 'error' | 'idle' | 'success'
@@ -83,7 +96,6 @@ function SettingsStatus({ status }: Pick<CompanySettingsViewModel, 'status'>) {
   const { t } = useTranslation('companySettings')
   return (
     <>
-      {status === 'loading' && <p role="status">{t('loading')}</p>}
       {status === 'error' && <p role="alert">{t('error')}</p>}
       {status === 'empty' && <p role="status">{t('empty')}</p>}
     </>
@@ -152,6 +164,7 @@ function SaveStatus({
 
 function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
+  if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
   const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
   return (
     <section className={styles.workspaceDeck}>
@@ -184,13 +197,18 @@ function SettingsBody(props: SettingsBodyProps) {
               onDelete={props.onCertificateDelete}
               onSubmit={props.onCertificateSubmit}
             />
+            <ScheduledDistributionPanel
+              disabled={props.scheduledDistribution.pending}
+              loading={props.scheduledDistribution.loading}
+              onToggle={props.scheduledDistribution.onToggle}
+              status={props.scheduledDistribution.status}
+              toggleErrorCode={props.scheduledDistribution.toggleErrorCode}
+            />
           </>
         )}
-        {!props.canManageSettings &&
-          props.viewModel.status !== 'loading' &&
-          props.viewModel.status !== 'error' && (
-            <p className={styles.permissionBoundary}>{t('readOnly')}</p>
-          )}
+        {!props.canManageSettings && props.viewModel.status !== 'error' && (
+          <p className={styles.permissionBoundary}>{t('readOnly')}</p>
+        )}
       </div>
       <aside className={styles.secondaryColumn}>
         <section className={styles.signalPanel}>
@@ -222,6 +240,10 @@ export function CompanySettingsPage() {
     query,
     settingsMutation,
   } = useCompanySettings({ ...(companyId === undefined ? {} : { companyId }), permissions })
+  const scheduledDistribution = useScheduledDistribution({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings,
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -254,6 +276,16 @@ export function CompanySettingsPage() {
         onCertificateDelete={(purpose) => certificateRetireMutation.mutateAsync(purpose)}
         onLookupProfile={(cnpj) => lookupMutation.mutateAsync(cnpj)}
         onSave={(input) => settingsMutation.mutate(input)}
+        scheduledDistribution={{
+          loading: scheduledDistribution.query.isLoading,
+          onToggle: (nextEnabled) => scheduledDistribution.toggleMutation.mutate(nextEnabled),
+          pending: scheduledDistribution.toggleMutation.isPending,
+          status: scheduledDistribution.query.data,
+          toggleErrorCode:
+            scheduledDistribution.toggleMutation.error instanceof Error
+              ? scheduledDistribution.toggleMutation.error.message
+              : undefined,
+        }}
         settingsErrorCode={
           settingsMutation.error instanceof Error ? settingsMutation.error.message : undefined
         }

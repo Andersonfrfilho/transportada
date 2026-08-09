@@ -15,6 +15,7 @@ import {
   CTE_EXPORT_CONTENT_TYPE,
   type CteExportResult,
 } from '../application/export-cte-documents.port.js'
+import { DACTE_CONTENT_TYPE, type DacteRenderResult } from '../application/render-dacte.port.js'
 import { type CteExportRequestBody, parseCteExportRequest } from './cte-export.schema.js'
 
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
@@ -58,6 +59,11 @@ type CteDocumentPage = {
 }
 
 type Dependencies = {
+  readonly cteDacte: {
+    readonly renderDacte: (
+      input: WithContext<BatchItemIdentifierInput>,
+    ) => Promise<DacteRenderResult>
+  }
   readonly cteExport: {
     readonly exportDocuments: (input: WithContext<CteExportRequestBody>) => Promise<CteExportResult>
   }
@@ -184,6 +190,23 @@ export function createCteIssuanceRoutes(
       method: 'GET',
       parse: ({ pathParameters }) => parseBatchItemPath(pathParameters),
       pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId/documents`,
+      policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<BatchItemIdentifierInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.cteDacte.renderDacte({ context: context.scope, ...input })
+        return new Response(result.bytes, {
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${result.fileName}"`,
+            'content-type': DACTE_CONTENT_TYPE,
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => parseBatchItemPath(pathParameters),
+      pathname: `${API_CTE_BATCHES_PATH}/:id/items/:itemId/dacte`,
       policy: CTE_SUBMIT_POLICY,
     }),
     defineRoute<CteExportRequestBody>({

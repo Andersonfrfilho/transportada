@@ -17,6 +17,7 @@ import {
   parseScaledDecimal,
   rescaleHalfUp,
 } from '../../shared/decimal.service.js'
+import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
 
 import { composeCargoQuantities, resolvePredominantProduct } from './cte-cargo.service.js'
 import {
@@ -26,7 +27,7 @@ import {
   CtePayloadUnsupportedIcmsError,
   CtePayloadUnsupportedModalError,
 } from './cte-payload.error.js'
-import { resolveReceiverIeIndicator } from './cte-receiver-ie.policy.js'
+import { resolveReceiverIeIndicator, resolveTakerParty } from './cte-receiver-ie.policy.js'
 import type {
   BuildCtePayloadParams,
   CtePayloadInvoice,
@@ -77,6 +78,7 @@ function toParticipante(party: CtePayloadParty): CteParticipante {
     ...(party.postalCode === null ? {} : { cep: party.postalCode }),
     ...(party.phone === null ? {} : { fone: party.phone }),
     ...(party.email === null ? {} : { email: party.email }),
+    ...(party.complement === null ? {} : { xCpl: party.complement }),
     cMun: party.cityCode,
     nro: party.number,
     uf: party.state,
@@ -145,14 +147,37 @@ function assertConsistentParties(invoices: readonly CtePayloadInvoice[]): CtePay
   return first
 }
 
+/**
+ * Quem paga o frete, pela mesma nota de referência e pela mesma regra que o payload usa — é o
+ * cliente da fatura, e sai daqui para não haver duas leituras do `taker` que possam divergir.
+ */
+export function resolveCtePayloadTaker(
+  params: Readonly<{
+    readonly invoices: readonly CtePayloadInvoice[]
+    readonly profile: CtePayloadProfile
+  }>,
+): CtePayloadParty {
+  return resolveTakerParty({
+    invoice: assertConsistentParties(params.invoices),
+    profile: params.profile,
+  })
+}
+
 function composePickupDetails(profile: CtePayloadProfile): { readonly xDetRetira?: string } {
   if (profile.pickupIndicator !== RECEIVER_PICKUP_AT_DESTINATION) return {}
   if (profile.pickupDetails.length === 0) return {}
   return { xDetRetira: profile.pickupDetails }
 }
 
+// A previsão de entrega é o próprio dia da emissão, resolvido no fuso fiscal: às 22h de Brasília
+// o instante já é o dia seguinte em UTC, e dPrev anunciaria uma entrega para amanhã.
+function composeDeliveryForecast(issuedAt: string | undefined): { readonly dPrev?: string } {
+  if (issuedAt === undefined) return {}
+  return { dPrev: formatFiscalDay(new Date(issuedAt)) }
+}
+
 export function buildCtePayload(params: BuildCtePayloadParams): CteData {
-  const { carrier, charge, invoices, profile } = params
+  const { carrier, charge, invoices, issuedAt, profile } = params
   if (profile.modal !== ROAD_MODAL) throw new CtePayloadUnsupportedModalError(profile.modal)
 
   const reference = assertConsistentParties(invoices)
@@ -162,12 +187,15 @@ export function buildCtePayload(params: BuildCtePayloadParams): CteData {
     0n,
   )
   const isInterstate = reference.sender.state !== reference.recipient.state
+  const deliveryForecast = composeDeliveryForecast(issuedAt)
 
   return {
     carga: {
       proPred: resolvePredominantProduct({ invoices, profile }),
       quantidades: composeCargoQuantities(invoices),
       vCarga: toMoney(cargoScaled),
+      // O valor averbado é o da mercadoria, não o da prestação: é o que a seguradora cobre.
+      vCargaAverb: toMoney(cargoScaled),
     },
     cfop: isInterstate ? profile.cfopInterstate : profile.cfopInternal,
     componentesValor: charge.components.map((component) => ({
@@ -175,7 +203,11 @@ export function buildCtePayload(params: BuildCtePayloadParams): CteData {
       xNome: component.label,
     })),
     destinatario: toParticipante(reference.recipient),
-    documentos: invoices.map((invoice) => ({ chave: invoice.accessKey, tipo: 'nfe' as const })),
+    documentos: invoices.map((invoice) => ({
+      chave: invoice.accessKey,
+      ...deliveryForecast,
+      tipo: 'nfe' as const,
+    })),
     icms: composeIcms({ profile, totalScaled }),
     indIEToma: resolveReceiverIeIndicator({ invoice: reference, profile }),
     ...(profile.observations === null || profile.observations.length === 0

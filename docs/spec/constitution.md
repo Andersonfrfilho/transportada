@@ -6,7 +6,10 @@ Versão 1.0.0 — 2026-07-18
 
 1. **Isolamento multiempresa é invariável.** Toda entidade de negócio contém
    `companyId`; o backend deriva o tenant da identidade autenticada; testes
-   negativos entre empresas são obrigatórios.
+   negativos entre empresas são obrigatórios. Vale mesmo com a distribuição
+   sendo um deploy por transportadora (ADR-0021): uma instalação hospeda os
+   vários CNPJs do mesmo cliente, e o isolamento é defesa em profundidade que
+   não se afrouxa por o ambiente ser dedicado.
 2. **Fiscal por contrato.** Toda operação fiscal passa por gateway interno que
    adapta a versão instalada de `@adatechnology/fiscal-provider`.
 3. **Consistência antes de velocidade.** Numeração, idempotência, snapshots e

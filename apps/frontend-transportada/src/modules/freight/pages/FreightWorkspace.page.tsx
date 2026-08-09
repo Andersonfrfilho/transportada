@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Select } from '@/components/ui/select'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { createFreightDrafts } from '../shared/freightDraft.service'
@@ -10,6 +11,7 @@ import { useFreightWorkspace } from '../hooks/useFreightWorkspace.hook'
 import type { FreightCalculationFilters, FreightRuleFilters } from '../shared/freightClient.service'
 
 const SYNTHETIC_DOCUMENT_ID = '00000000-0000-4000-8000-000000000304'
+const FREIGHT_RULES_SKELETON_ROW_COUNT = 4
 const FREIGHT_RULE_STATUS_OPTIONS = [
   { label: 'Ativa', value: 'active' },
   { label: 'Rascunho', value: 'draft' },
@@ -393,29 +395,53 @@ export function FreightWorkspacePage() {
               )}
             </div>
           </section>
-          {viewModel.simulation !== undefined && (
+          {workspace.simulateMutation.isPending ? (
             <section className="workspace-panel" aria-labelledby="freight-result-title">
               <h2 id="freight-result-title">Resultado da simulacao</h2>
-              <p>Total calculado: {viewModel.simulation.totalAmount}</p>
-              {viewModel.hasAdjustment ? (
-                <p>Ajuste aplicado: {viewModel.simulation.adjustments[0]?.description}</p>
-              ) : (
-                <p>Sem ajuste de minimo ou maximo.</p>
-              )}
+              <SkeletonGroup label="Calculando simulação">
+                <Skeleton variant="text" width="60%" />
+                <Skeleton variant="text" width="45%" />
+              </SkeletonGroup>
             </section>
+          ) : (
+            viewModel.simulation !== undefined && (
+              <section className="workspace-panel" aria-labelledby="freight-result-title">
+                <h2 id="freight-result-title">Resultado da simulacao</h2>
+                <p>Total calculado: {viewModel.simulation.totalAmount}</p>
+                {viewModel.hasAdjustment ? (
+                  <p>Ajuste aplicado: {viewModel.simulation.adjustments[0]?.description}</p>
+                ) : (
+                  <p>Sem ajuste de minimo ou maximo.</p>
+                )}
+              </section>
+            )
           )}
-          {viewModel.rules !== undefined && (
+          {workspace.rulesQuery.isLoading ? (
             <section className="workspace-panel" aria-labelledby="freight-rules-title">
               <h2 id="freight-rules-title">Regras carregadas</h2>
-              <ul className="workspace-list">
-                {viewModel.rules.map((rule) => (
-                  <li key={rule.id}>
-                    <strong>{rule.name}</strong>
-                    <p>{rule.status}</p>
-                  </li>
+              <SkeletonGroup className="workspace-list" label="Carregando regras">
+                {Array.from({ length: FREIGHT_RULES_SKELETON_ROW_COUNT }, (_, index) => (
+                  <div className="workspace-skeleton-row" key={index}>
+                    <Skeleton variant="text" width="55%" />
+                    <Skeleton variant="text" width="30%" />
+                  </div>
                 ))}
-              </ul>
+              </SkeletonGroup>
             </section>
+          ) : (
+            viewModel.rules !== undefined && (
+              <section className="workspace-panel" aria-labelledby="freight-rules-title">
+                <h2 id="freight-rules-title">Regras carregadas</h2>
+                <ul className="workspace-list">
+                  {viewModel.rules.map((rule) => (
+                    <li key={rule.id}>
+                      <strong>{rule.name}</strong>
+                      <p>{rule.status}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )
           )}
         </div>
       )}

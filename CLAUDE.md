@@ -5,15 +5,22 @@ Contexto operacional do monorepo **TransportAdA**. Para regras de processo compl
 
 ## Produto
 
-TMS multiempresa (SaaS) para transportadoras: importa NF-e → organiza em lotes → calcula frete →
-emite CT-e 4.00 em lote via `@adatechnology/fiscal-provider` → armazena XMLs fiscais → gera faturas.
-Genérico e parametrizável — nenhuma regra ou CNPJ de transportadora específica no código.
+TMS para transportadoras: importa NF-e → organiza em lotes → calcula frete → emite CT-e 4.00 em lote
+via `@adatechnology/fiscal-provider` → armazena XMLs fiscais → gera faturas. Genérico e
+parametrizável — nenhuma regra ou CNPJ de transportadora específica no código.
+
+**Distribuição é instalação dedicada: um deploy por transportadora** (ADR-0021). A empresa não é
+criada em tempo de execução — ela é o ambiente. Não existe `POST /companies` nem ator de plataforma;
+`companies.manage` segue reservada e sem consumidor. O isolamento multiempresa (`companyId`,
+membership, contratos negativos) **continua invariável**: é capacidade do produto — uma transportadora
+costuma ter mais de um CNPJ — e defesa em profundidade, não o modelo comercial.
 
 ## Estrutura
 
 ```
 apps/api-transportada/       Bun.serve + Drizzle + Zod (sem framework HTTP)
 apps/worker-transportada/    consumidor RabbitMQ + outbox relay
+apps/cron-transportada/      processo one-shot agendado (busca automática de NF-e)
 apps/frontend-transportada/  React 19 + Vite 7 (PWA)
 docs/spec/                   constitution, architecture, domain-model, fiscal-integration
 docs/adr/                    NNNN-titulo.md (0001..0010)
@@ -29,7 +36,7 @@ Não existe `packages/` aqui. Bibliotecas reutilizáveis vão para
 ```bash
 make bootstrap      # .env a partir do .env.example + bun install --frozen-lockfile
 make config         # valida .env, schema de env, Bun 1.3.14, docker compose — pré-requisito
-make up / down / ps # infra Docker
+make up / down / ps # infra Docker (`up` cria o bucket do MinIO — idempotente)
 make dev            # identity-bootstrap + up + API, worker e frontend em paralelo
 make check          # format:check + lint + typecheck + test + build (gate completo)
 make migration-test # migration + rollback em Postgres descartável
@@ -67,6 +74,19 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `context.companyId` e filtra por ele. Testes de isolamento em `test/*-schema/tenant-safety.contract.ts`
 são obrigatórios em qualquer mudança de query.
 
+**Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
+(`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
+`ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba
+Remota e a tela de configurações não contarem histórias diferentes. A paridade é contrato
+(`test/companies/scheduled-distribution-parity.contract.ts`).
+
+**Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
+Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
+e a emissão grava o valor resolvido em `cte_issuance_payloads.taker_tax_id`/`taker_legal_name`; o
+faturamento junta por `(company_id, attempt_id)` pelo seam `buildBillingTakerJoin()`. O relatório da
+fatura continua mostrando o `recipient` por linha — ali o destinatário é o destino da carga, não o
+cliente. ADR-0028.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.
@@ -90,6 +110,25 @@ RabbitMQ e banco.
 ⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker
 (`src/database/processing.schema.ts`, `cte-issuance-execution.schema.ts`). Mudou tabela na API? confira
 a cópia do worker — migrations só rodam na API.
+
+## cron-transportada
+
+Processo **one-shot**: um CronJob sobe `src/main.ts` a cada janela, ele roda um ciclo e sai —
+não há loop nem agendador embutido. Sai com código 1 só quando alguma empresa falhou; não pegar o
+advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`max: 1`) para o lock de
+sessão valer por todas as transações do ciclo.
+
+`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `nfe-distribution-pull/job-registry.ts`
+mapeia o nome para a função. Hoje há um job só: `nfe.distribution.pull` — seleciona as empresas
+elegíveis e enfileira uma importação `source: 'distribution'`, `triggeredBy: 'automation'` na
+`processing_outbox`, reusando o relay e o consumidor de distribuição que já existiam.
+
+⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
+`api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
+vocabulário de razões, duas apps que não importam código uma da outra. Mudou a regra de um lado?
+mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda a paridade do corpo
+servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
+vocabulário no cron.
 
 ## frontend-transportada
 
@@ -147,6 +186,12 @@ Todo filtro ativo aparece como pílula removível vinda de `@/components/ui/filt
 `shared/<modulo>FilterPills.service.ts` (sem tradução, com `formatDay` injetado) e a remoção por campo
 em `clearFilterField` do hook; no modo simples o badge do filtro usa `pills.length`. Regra completa na
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
+
+Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
+renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
+antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
+trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
+contrato em `test/design-system/skeleton.contract.ts`.
 
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
 varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra

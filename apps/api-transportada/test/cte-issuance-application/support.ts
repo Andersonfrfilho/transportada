@@ -120,6 +120,8 @@ export const BATCH_ID = 'cte-batch-001'
 export const BATCH_ITEM_ID = 'cte-batch-item-001'
 export const OTHER_BATCH_ID = 'cte-batch-002'
 export const OTHER_BATCH_ITEM_ID = 'cte-batch-item-002'
+/** Segundo item do MESMO lote: é ele que a emissão em lote não podia esquecer. */
+export const SIBLING_BATCH_ITEM_ID = 'cte-batch-item-003'
 export const IDEMPOTENCY_KEY = 'cte-issue-idempotency-001'
 export const REPROCESS_IDEMPOTENCY_KEY = 'cte-reprocess-idempotency-001'
 export const CANCEL_IDEMPOTENCY_KEY = 'cte-cancel-idempotency-001'
@@ -135,15 +137,18 @@ export const PAYLOAD_EMITTER = {
   city: 'Taubate',
   cityIbgeCode: '3554102',
   cnpj: '12345678000195',
+  complement: 'SALA 12',
   district: 'CENTRO',
   legalName: 'TRANSPORTADORA TRANSPORTADA LTDA',
   number: '100',
+  phone: '1233334444',
   postalCode: '12010000',
   rntrc: '58151044',
   state: 'SP',
   stateRegistration: '688292870119',
   street: 'AVENIDA DO PORTO',
   taxRegime: '1',
+  tradeName: 'TRANSPORTADA',
 } as const
 
 export const PAYLOAD_SOURCE: CteIssuancePayloadSource = {
@@ -345,6 +350,10 @@ export class CteIssuanceUnitOfWorkFixture {
     companyId: COMPANY_CONTEXT.companyId,
     status: 'approved',
   }
+  /** Nulo mantém o lote de um item só; preenchido descreve o lote inteiro, na ordem de `position`. */
+  public batchItems: readonly Record<string, unknown>[] | null = null
+  /** Emissão corrente por item — sem isso o fake responderia o mesmo estado para o lote todo. */
+  public readonly issuanceByItemId = new Map<string, CteIssuanceRecord | null>()
   public issueReplay: { readonly requestFingerprint: string; readonly response: unknown } | null =
     null
   public reprocessReplay: {
@@ -441,6 +450,14 @@ export class CteIssuanceUnitOfWorkFixture {
     return this.batchItem
   }
 
+  public async listIssuableBatchItems(
+    input: Record<string, unknown>,
+  ): Promise<readonly Record<string, unknown>[]> {
+    this.batchItemQueries.push(input)
+    if (this.batchItems !== null) return this.batchItems
+    return this.batchItem === null ? [] : [this.batchItem]
+  }
+
   public async listFiscalDocuments(
     input: Record<string, unknown>,
   ): Promise<readonly Record<string, unknown>[]> {
@@ -490,6 +507,10 @@ export class CteIssuanceUnitOfWorkFixture {
 
   public async findIssuance(input: Record<string, unknown>): Promise<CteIssuanceRecord | null> {
     this.lookupQueries.push(input)
+    const batchItemId = input['batchItemId']
+    if (typeof batchItemId === 'string' && this.issuanceByItemId.has(batchItemId)) {
+      return this.issuanceByItemId.get(batchItemId) ?? null
+    }
     if (input['includeRejected']) return this.rejectedIssuance
     if (input['includeRetry']) return this.retryIssuance
     if (input['includeFailed']) return this.failedIssuance

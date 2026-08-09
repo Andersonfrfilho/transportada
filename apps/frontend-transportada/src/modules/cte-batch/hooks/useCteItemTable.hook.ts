@@ -14,7 +14,11 @@ import {
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
 import { canBillSelection, collectBillableCtes } from '../shared/cteBatchBilling.service'
 import type { BillableCte } from '../shared/cteBatchBilling.service'
-import { canTransmitSelection, groupSelectionByBatch } from '../shared/cteBatchItemActions.service'
+import {
+  canTransmitSelection,
+  groupSelectionByBatch,
+  selectTransmittableGroups,
+} from '../shared/cteBatchItemActions.service'
 import type { CteItemBatchGroup } from '../shared/cteBatchItemActions.service'
 import { submitCteBatches } from '../shared/cteBatchSubmissionQueue.service'
 import { CTE_BATCHES_QUERY_KEY } from './useCteBatchWorkspace.hook'
@@ -47,6 +51,7 @@ import {
   clearCteItemFilterField,
   type CteItemPillField,
 } from '../shared/cteItemFilterPills.service'
+import { useCteDacteDownload } from './useCteDacteDownload.hook'
 import { useCteItemExport } from './useCteItemExport.hook'
 
 const CTE_SUBMIT_PERMISSION = 'cte.submit'
@@ -107,7 +112,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     id,
   }))
   const selectedGroups = groupSelectionByBatch({ items: knownSelectedItems, selectedIds })
-  const transmitGroups = selectedGroups
+  const transmitGroups = selectTransmittableGroups({ batchStatuses, groups: selectedGroups })
   const canTransmit = canTransmitSelection({
     batchStatuses,
     groups: transmitGroups,
@@ -125,6 +130,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     selectedCount: selection.count,
     selectedIds,
   })
+  const dacteControls = useCteDacteDownload({ permissions: input.permissions })
 
   const transmitMutation = useMutation({
     /** A recusa de um lote não pode esconder os outros nem sumir da tela: cada um vira um resultado. */
@@ -167,6 +173,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
   }
 
   return {
+    ...dacteControls,
     ...exportControls,
     activeFilterCount: countActiveCteItemFilters(filters),
     billingRequest,

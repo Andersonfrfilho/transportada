@@ -16,12 +16,16 @@ import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
 import foundationEnglishLocale from '@/modules/foundation/locales/foundation.en.locale.json'
+import identityLocale from '@/modules/identity/locales/identity.locale.json'
+import identityEnglishLocale from '@/modules/identity/locales/identity.en.locale.json'
 import mdfeManifestLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.locale.json'
 import mdfeManifestEnglishLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.en.locale.json'
 import nfeWorkspaceLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.locale.json'
 import nfeWorkspaceEnglishLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
+import tripLocale from '@/modules/trip/locales/trip.locale.json'
+import tripEnglishLocale from '@/modules/trip/locales/trip.en.locale.json'
 
 void i18n.use(initReactI18next).init({
   fallbackLng: 'pt-BR',
@@ -35,10 +39,12 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
       fleet: fleetEnglishLocale,
+      identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
       nfeWorkspace: nfeWorkspaceEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       translation: foundationEnglishLocale,
+      trip: tripEnglishLocale,
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
@@ -47,10 +53,12 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
       fleet: fleetLocale,
+      identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,
       nfeWorkspace: nfeWorkspaceLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       translation: foundationLocale,
+      trip: tripLocale,
     },
   },
 })

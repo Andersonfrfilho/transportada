@@ -83,6 +83,17 @@ export class MdfeManifestDriverDuplicatedError extends ApiError {
   }
 }
 
+/** Tripulação vazia: a rota direta barra pelo schema, a rota da viagem depende de `trip.drivers`. */
+export class MdfeManifestCrewRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_MANIFEST_CREW_REQUIRED',
+      message: 'A MDF-e travels with at least one driver.',
+      status: 422,
+    })
+  }
+}
+
 export class MdfeManifestDocumentsBlockedError extends ApiError {
   public constructor(blocked: readonly { readonly reason: string }[]) {
     super({

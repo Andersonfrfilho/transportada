@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
@@ -20,14 +21,67 @@ import {
   type MdfeManifestDraft,
 } from '../shared/mdfeManifestActions.service'
 import { buildManifestCreateBody } from '../shared/mdfeManifestForm.service'
+import type { MdfeManifestColumnKey } from '../shared/mdfeManifestTable.service'
 import styles from '../styles/mdfeManifest.module.css'
+
+const MANIFEST_TABLE_SKELETON_ROW_COUNT = 4
+const MANIFEST_CREATION_SKELETON_FIELD_COUNT = 3
+const MANIFEST_FILTERS_SKELETON_FIELD_COUNT = 4
 
 function resolveFeedbackKey(error: unknown): null | string {
   if (!(error instanceof Error)) return null
   return MDFE_MANIFEST_FEEDBACK_KEY_BY_ERROR[error.message] ?? 'requestFailed'
 }
 
-export function MdfeManifestWorkspacePage() {
+type ManifestTableSkeletonProps = Readonly<{ columns: readonly MdfeManifestColumnKey[] }>
+
+function ManifestTableSkeleton({ columns }: ManifestTableSkeletonProps) {
+  return (
+    <div className={styles.tableScroll}>
+      <table className={styles.dataTable}>
+        <thead>
+          <tr>
+            <th scope="col">
+              <Skeleton height="var(--space-4)" variant="block" width="var(--space-4)" />
+            </th>
+            {columns.map((column) => (
+              <th key={column} scope="col">
+                <Skeleton variant="text" width="70%" />
+              </th>
+            ))}
+            <th scope="col">
+              <Skeleton variant="text" width="60%" />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: MANIFEST_TABLE_SKELETON_ROW_COUNT }, (_, rowIndex) => (
+            <tr key={rowIndex}>
+              <td>
+                <Skeleton height="var(--space-4)" variant="block" width="var(--space-4)" />
+              </td>
+              {columns.map((column) => (
+                <td key={column}>
+                  <Skeleton variant="text" width="80%" />
+                </td>
+              ))}
+              <td>
+                <Skeleton height="var(--field-height-compact)" width="5rem" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+type MdfeManifestWorkspacePageProps = Readonly<{
+  /** Viagem que originou a emissão: troca a rota de criação para `POST /trips/:id/mdfe-manifests`. */
+  originTripId?: null | string
+}>
+
+export function MdfeManifestWorkspacePage({ originTripId = null }: MdfeManifestWorkspacePageProps) {
   const { t } = useTranslation('mdfeManifest')
   const authQuery = useAuthMeQuery()
   const [preview, setPreview] = useState<MdfeManifestDraft | null>(null)
@@ -38,7 +92,7 @@ export function MdfeManifestWorkspacePage() {
 
   const workspace = useMdfeManifests(tenant)
   const table = useMdfeManifestTable({ manifests: workspace.manifests })
-  const creation = useMdfeManifestCreation(tenant)
+  const creation = useMdfeManifestCreation({ ...tenant, originTripId })
   const fleet = useFleet(tenant)
   const form = useMdfeManifestActionForm()
 
@@ -63,7 +117,8 @@ export function MdfeManifestWorkspacePage() {
       documentIds: creation.documentIds,
       draft: creation.draft,
     })
-    workspace.createManifestMutation.mutate(body, {
+    const input = originTripId === null ? body : { ...body, tripId: originTripId }
+    workspace.createManifestMutation.mutate(input, {
       onSuccess: () => {
         creation.reset()
         setPreview(null)
@@ -118,7 +173,30 @@ export function MdfeManifestWorkspacePage() {
         <p className={styles.intro}>{t('intro')}</p>
       </header>
 
-      {authQuery.isLoading ? <p className={styles.hint}>{t('loading')}</p> : null}
+      {authQuery.isLoading ? (
+        <SkeletonGroup className={styles.deck} label={t('loading')}>
+          <div className={styles.panel}>
+            <Skeleton variant="text" width="12rem" />
+            <div className={styles.fieldGrid}>
+              {Array.from({ length: MANIFEST_CREATION_SKELETON_FIELD_COUNT }, (_, index) => (
+                <Skeleton height="var(--field-height)" key={index} width="100%" />
+              ))}
+            </div>
+          </div>
+          <div className={styles.panel}>
+            <Skeleton variant="text" width="10rem" />
+            <div className={styles.fieldGrid}>
+              {Array.from({ length: MANIFEST_FILTERS_SKELETON_FIELD_COUNT }, (_, index) => (
+                <Skeleton height="var(--field-height)" key={index} width="100%" />
+              ))}
+            </div>
+          </div>
+          <div className={styles.panel}>
+            <Skeleton variant="text" width="14rem" />
+            <ManifestTableSkeleton columns={table.visibleColumns} />
+          </div>
+        </SkeletonGroup>
+      ) : null}
       {authQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('error')}
@@ -153,28 +231,34 @@ export function MdfeManifestWorkspacePage() {
 
           <MdfeManifestFilters table={table} />
 
-          {workspace.status === 'loading' ? <p className={styles.hint}>{t('loading')}</p> : null}
           {workspace.status === 'error' ? (
             <p className={styles.hint} role="alert">
               {t('error')}
             </p>
           ) : null}
 
-          <MdfeManifestTable
-            actions={{
-              onCancel: openCancel,
-              onClose: openClose,
-              onDiscard: openDiscard,
-              onIssue: openIssue,
-            }}
-            permissions={{
-              canCancel: workspace.controller.canCancelManifests,
-              canClose: workspace.controller.canCloseManifests,
-              canDiscard: workspace.controller.canManageManifests,
-              canIssue: workspace.controller.canIssueManifests,
-            }}
-            table={table}
-          />
+          {workspace.status === 'loading' ? (
+            <SkeletonGroup className={styles.panel} label={t('loading')}>
+              <Skeleton variant="text" width="14rem" />
+              <ManifestTableSkeleton columns={table.visibleColumns} />
+            </SkeletonGroup>
+          ) : (
+            <MdfeManifestTable
+              actions={{
+                onCancel: openCancel,
+                onClose: openClose,
+                onDiscard: openDiscard,
+                onIssue: openIssue,
+              }}
+              permissions={{
+                canCancel: workspace.controller.canCancelManifests,
+                canClose: workspace.controller.canCloseManifests,
+                canDiscard: workspace.controller.canManageManifests,
+                canIssue: workspace.controller.canIssueManifests,
+              }}
+              table={table}
+            />
+          )}
 
           <MdfeManifestActionsPanel
             form={form}

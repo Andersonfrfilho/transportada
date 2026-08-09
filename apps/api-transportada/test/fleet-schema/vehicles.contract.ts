@@ -115,7 +115,8 @@ describe('fleet vehicle schema', () => {
     expect(checks.fleet_vehicles_owner_check).toContain("'own'")
     expect(checks.fleet_vehicles_owner_tax_id_check).toContain("~ '^[0-9]{11}$'")
     expect(checks.fleet_vehicles_owner_tax_id_check).toContain("~ '^[0-9]{14}$'")
-    expect(checks.fleet_vehicles_owner_rntrc_check).toContain("~ '^[0-9]{8}$'")
+    // O cadastro do proprietário guarda o registro como o certificado da ANTT o imprime.
+    expect(checks.fleet_vehicles_owner_rntrc_check).toContain("~ '^0?[0-9]{8}$'")
     expect(checks.fleet_vehicles_owner_tax_regime_check).toContain("in ('0', '1', '2')")
   })
 

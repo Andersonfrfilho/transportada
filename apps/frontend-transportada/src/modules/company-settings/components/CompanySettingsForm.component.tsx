@@ -9,14 +9,13 @@ import type {
   CompanySettingsUpdate,
 } from '../shared/companySettingsClient.service'
 import styles from '../styles/companySettings.module.css'
-import {
-  CTE_RETRY_DEFAULT_BACKOFF_SECONDS,
-  CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
-  EMPTY_BILLING_DEFAULTS,
-  EMPTY_MDFE_DEFAULTS,
-} from '../shared/companySettings.constant'
+import { createDefaultCompanySettings } from '../shared/companySettings.constant'
+import { validateCompanySettings } from '../shared/companySettingsFormValidation.service'
+import { normalizeCompanySettingsMasks } from '../shared/companySettingsMask.service'
+import { mergeProfileLookup } from '../shared/companySettingsProfile.service'
 import { BillingDefaultsFields } from './BillingDefaultsFields.component'
 import { CompanyProfileFields } from './CompanyProfileFields.component'
+import { CompanySettingsErrorSummary } from './CompanySettingsErrorSummary.component'
 import { CteRetryFields } from './CteRetryFields.component'
 import { CteSettingsFields } from './CteSettingsFields.component'
 import { MdfeDefaultsFields } from './MdfeDefaultsFields.component'
@@ -28,38 +27,6 @@ type CompanySettingsFormProps = Readonly<{
   onSave: (input: CompanySettingsUpdate) => void
 }>
 
-function fallbackSettings(): CompanySettingsUpdate {
-  return {
-    billing: { ...EMPTY_BILLING_DEFAULTS },
-    cte: { environment: 'homologation', nextNumber: '1', series: '1' },
-    cteRetry: {
-      backoffSeconds: [...CTE_RETRY_DEFAULT_BACKOFF_SECONDS],
-      maxAttempts: CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
-    },
-    expectedVersion: null,
-    mdfe: { ...EMPTY_MDFE_DEFAULTS },
-    profile: {
-      city: '',
-      cityIbgeCode: '',
-      cnpj: '',
-      complement: '',
-      district: '',
-      email: '',
-      legalName: '',
-      municipalRegistration: '',
-      number: '',
-      phone: '',
-      postalCode: '',
-      rntrc: '',
-      state: '',
-      stateRegistration: '',
-      street: '',
-      taxRegime: '3',
-      tradeName: '',
-    },
-  }
-}
-
 export function CompanySettingsForm({
   disabled,
   initialValue,
@@ -67,12 +34,20 @@ export function CompanySettingsForm({
   onSave,
 }: CompanySettingsFormProps) {
   const { t } = useTranslation('companySettings')
-  const [settings, setSettings] = useState<CompanySettingsUpdate>(initialValue ?? fallbackSettings)
+  const [initialSettings] = useState<CompanySettingsUpdate>(
+    initialValue ?? createDefaultCompanySettings,
+  )
+  const [settings, setSettings] = useState<CompanySettingsUpdate>(initialSettings)
   const [lookupPending, setLookupPending] = useState(false)
   const [lookupStatus, setLookupStatus] = useState<'error' | 'idle' | 'success'>('idle')
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+  const errors = submitAttempted ? validateCompanySettings(settings) : []
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(initialSettings)
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSave(settings)
+    setSubmitAttempted(true)
+    if (validateCompanySettings(settings).length > 0) return
+    onSave(normalizeCompanySettingsMasks(settings))
   }
   const updateProfile = (
     input: Readonly<{
@@ -89,23 +64,7 @@ export function CompanySettingsForm({
   const applyLookup = (profile: CompanyProfileLookup) => {
     setSettings((current) => ({
       ...current,
-      profile: {
-        ...current.profile,
-        city: profile.city || current.profile.city,
-        cityIbgeCode: profile.cityIbgeCode || current.profile.cityIbgeCode,
-        cnpj: profile.cnpj || current.profile.cnpj,
-        complement: profile.complement || current.profile.complement,
-        district: profile.district || current.profile.district,
-        email: profile.email || current.profile.email,
-        legalName: profile.legalName || current.profile.legalName,
-        number: profile.number || current.profile.number,
-        phone: profile.phone || current.profile.phone,
-        postalCode: profile.postalCode || current.profile.postalCode,
-        state: profile.state || current.profile.state,
-        stateRegistration: profile.stateRegistration || current.profile.stateRegistration,
-        street: profile.street || current.profile.street,
-        tradeName: profile.tradeName || current.profile.tradeName,
-      },
+      profile: mergeProfileLookup(current.profile, profile),
     }))
   }
   const lookupProfile = async () => {
@@ -127,8 +86,10 @@ export function CompanySettingsForm({
   }
   return (
     <form className={styles.settingsForm} onSubmit={onSubmit}>
+      <CompanySettingsErrorSummary errors={errors} />
       <CompanyProfileFields
         disabled={disabled}
+        errors={errors}
         lookupPending={lookupPending}
         lookupStatus={lookupStatus}
         onChange={updateProfile}
@@ -158,7 +119,7 @@ export function CompanySettingsForm({
         disabled={disabled}
         onChange={(billing) => setSettings({ ...settings, billing })}
       />
-      <button className={styles.primaryAction} disabled={disabled} type="submit">
+      <button className={styles.primaryAction} disabled={disabled || !isDirty} type="submit">
         <Icon name="save" />
         {t('save')}
       </button>

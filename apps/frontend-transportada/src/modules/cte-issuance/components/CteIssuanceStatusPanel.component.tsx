@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { CteIssuanceTimelineItem } from '../shared/cteIssuanceTimeline.service'
 import type { CteIssuanceViewModel } from '../shared/cteIssuanceViewModel.service'
@@ -72,7 +73,16 @@ export function CteIssuanceStatusPanel({
           {t('panel.forbidden')}
         </p>
       ) : null}
-      {viewModel.status === 'loading' ? <p className={styles.hint}>{t('panel.loading')}</p> : null}
+      {viewModel.status === 'loading' ? (
+        <SkeletonGroup className={styles.timeline} label={t('panel.loading')}>
+          {Array.from({ length: 3 }, (_, index) => (
+            <div className={styles.timelineItem} key={index}>
+              <Skeleton variant="text" width="40%" />
+              <Skeleton variant="text" width="85%" />
+            </div>
+          ))}
+        </SkeletonGroup>
+      ) : null}
       {viewModel.status === 'error' ? (
         <p className={styles.alert} role="alert">
           {t('panel.error')}

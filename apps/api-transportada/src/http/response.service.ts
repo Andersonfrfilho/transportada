@@ -8,12 +8,15 @@ import { describeErrorForLog } from '../logging/error-descriptor.service'
 import { safeLogError } from '../logging/safe-logger.service'
 
 type ErrorResponseParams = {
+  /** Só o desconhecido interessa: 4xx de domínio é resposta esperada, não incidente. */
+  readonly captureError?: (error: unknown) => void
   readonly correlationId: string
   readonly error: unknown
   readonly logger: ApiLogger
 }
 
 export function createErrorResponse({
+  captureError,
   correlationId,
   error,
   logger,
@@ -33,6 +36,7 @@ export function createErrorResponse({
     message: 'http_request_failed',
     metadata: { correlationId, ...describeErrorForLog(error) },
   })
+  captureError?.(error)
   return jsonResponse({
     body: {
       error: {

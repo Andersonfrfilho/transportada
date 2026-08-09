@@ -293,6 +293,7 @@ async function insertManifest(
       originState: input.manifest.originState,
       rntrc: input.manifest.rntrc,
       transporterType: input.manifest.transporterType,
+      tripId: input.manifest.tripId,
       tripStartedAt:
         input.manifest.tripStartedAt === null ? null : new Date(input.manifest.tripStartedAt),
       vehicleId: input.manifest.vehicleId,

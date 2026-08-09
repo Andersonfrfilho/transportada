@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { useOperationsDashboard } from '../hooks/useOperationsDashboard.hook'
@@ -12,6 +13,11 @@ import type {
 } from '../shared/operationsClient.service'
 import { createOperationsViewModel } from '../shared/operationsViewModel.service'
 import styles from '../styles/operationsWorkspace.module.css'
+
+// Larguras aproximam o rótulo real de cada filtro (módulo, status, correlation id, entidade).
+const DASHBOARD_FILTER_LABEL_WIDTHS: readonly string[] = ['40%', '35%', '55%', '50%', '45%']
+const DASHBOARD_SUMMARY_SKELETON_CARD_COUNT = 3
+const DASHBOARD_LIST_SKELETON_ITEM_COUNT = 4
 
 export function OperationsDashboardPage() {
   const { t } = useTranslation('operationsWorkspace')
@@ -101,6 +107,75 @@ export function OperationsDashboardPage() {
         <p className={styles.boundary} role="alert">
           {t('boundary.forbidden')}
         </p>
+      ) : viewModel.status === 'loading' ? (
+        <SkeletonGroup className={styles.dashboardSkeleton ?? ''} label={t('status.loading')}>
+          <section className={styles.filters}>
+            {DASHBOARD_FILTER_LABEL_WIDTHS.map((width, index) => (
+              <div className={styles.filterSkeletonField} key={index}>
+                <Skeleton variant="text" width={width} />
+                <Skeleton height="var(--field-height-compact)" />
+              </div>
+            ))}
+          </section>
+
+          <section className={styles.summaryGrid}>
+            {Array.from({ length: DASHBOARD_SUMMARY_SKELETON_CARD_COUNT }, (_, index) => (
+              <article className={styles.summaryCard} key={index}>
+                <Skeleton variant="text" width="45%" />
+                <Skeleton height="2.5rem" width="35%" />
+                <Skeleton variant="text" width="55%" />
+                <div className={styles.summarySkeletonStats}>
+                  <Skeleton variant="text" width="70%" />
+                  <Skeleton variant="text" width="70%" />
+                  <Skeleton variant="text" width="70%" />
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <div className={styles.board}>
+            <section className={styles.panel}>
+              <Skeleton className={styles.panelHeadingSkeleton ?? ''} variant="text" width="30%" />
+              <ul className={styles.list}>
+                {Array.from({ length: DASHBOARD_LIST_SKELETON_ITEM_COUNT }, (_, index) => (
+                  <li className={styles.listItem} key={index}>
+                    <Skeleton variant="text" width="55%" />
+                    <Skeleton variant="text" width="35%" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className={styles.panel}>
+              <Skeleton className={styles.panelHeadingSkeleton ?? ''} variant="text" width="30%" />
+              <ol className={styles.timeline}>
+                {Array.from({ length: DASHBOARD_LIST_SKELETON_ITEM_COUNT }, (_, index) => (
+                  <li key={index}>
+                    <Skeleton variant="text" width="50%" />
+                    <Skeleton variant="text" width="40%" />
+                    <Skeleton variant="text" width="30%" />
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className={styles.panel}>
+              <Skeleton className={styles.panelHeadingSkeleton ?? ''} variant="text" width="30%" />
+              {workspace.controller.canReadAudit ? (
+                <ul className={styles.list}>
+                  {Array.from({ length: DASHBOARD_LIST_SKELETON_ITEM_COUNT }, (_, index) => (
+                    <li className={styles.listItem} key={index}>
+                      <Skeleton variant="text" width="55%" />
+                      <Skeleton variant="text" width="35%" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.boundary}>{t('boundary.audit')}</p>
+              )}
+            </section>
+          </div>
+        </SkeletonGroup>
       ) : (
         <>
           <section className={styles.filters}>

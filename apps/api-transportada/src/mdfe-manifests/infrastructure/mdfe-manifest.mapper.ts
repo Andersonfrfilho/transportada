@@ -53,6 +53,7 @@ export function mapManifest(input: {
     rntrc: record.rntrc,
     status: record.status,
     transporterType: record.transporterType,
+    tripId: record.tripId,
     tripStartedAt: record.tripStartedAt === null ? null : record.tripStartedAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     vehicleId: record.vehicleId,

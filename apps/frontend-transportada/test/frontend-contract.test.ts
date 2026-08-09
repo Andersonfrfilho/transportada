@@ -55,6 +55,28 @@ describe('frontend foundation contract', () => {
     expect(playwrightConfiguration).toContain('reuseExistingServer: REUSE_EXISTING_API_SERVER')
   })
 
+  /**
+   * O comando do webServer compila antes de servir, e o padrão de 60s do Playwright cobre os dois.
+   * Num runner mais lento o `vite build` sozinho consumiu 12s e a espera estourou sem nenhum teste
+   * chegar a rodar — falha de orçamento, não do produto. A folga tem que ser explícita.
+   */
+  test('gives each smoke web server room to build before serving', async () => {
+    const playwrightConfiguration = await readApplicationFile('playwright.config.ts')
+    const declaredTimeouts = [
+      ...playwrightConfiguration.matchAll(/timeout: WEB_SERVER_TIMEOUT_MS/g),
+    ]
+
+    expect(playwrightConfiguration).toMatch(/const WEB_SERVER_TIMEOUT_MS = (\d[\d_]*)/)
+    expect(declaredTimeouts).toHaveLength(2)
+
+    const configuredTimeout = Number(
+      /const WEB_SERVER_TIMEOUT_MS = ([\d_]+)/
+        .exec(playwrightConfiguration)?.[1]
+        ?.replaceAll('_', ''),
+    )
+    expect(configuredTimeout).toBeGreaterThanOrEqual(180_000)
+  })
+
   test('matches the /auth/me response by the configured API base url, proxied or direct', async () => {
     const { isAuthMeResponseUrl } = await import('./smoke-api-url.helper')
 

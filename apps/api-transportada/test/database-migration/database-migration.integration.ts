@@ -6,12 +6,16 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
+import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
+import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
   FISCAL_TABLES,
   FLEET_TABLES,
   FREIGHT_TABLES,
   IDENTITY_TABLES,
+  INVITATION_TABLES,
   NFE_TABLES,
   CTE_BATCH_TABLES,
   CTE_ISSUANCE_TABLES,
@@ -19,6 +23,7 @@ import {
   BILLING_TABLES,
   OPERATIONS_TABLES,
   MDFE_TABLES,
+  TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
   readBusinessTables,
@@ -43,6 +48,7 @@ describe('Drizzle migration integration', () => {
         expect(await readBusinessTables(database)).toEqual(
           [
             ...IDENTITY_TABLES,
+            ...INVITATION_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,
@@ -53,14 +59,21 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...TRIP_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
 
         const identityFixture = await assertIdentityConstraints(database)
+        await assertInvitationConstraints(database, identityFixture)
         await assertFiscalConstraints(database, identityFixture)
         const fleetFixture = await assertFleetConstraints(database, identityFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
+        await assertTripConstraints(database, identityFixture, fleetFixture)
+        await assertRntrcRollbackRefusesNinePositions({
+          database,
+          directories: migrationDirectories,
+        })
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -77,6 +90,7 @@ describe('Drizzle migration integration', () => {
         expect(await readBusinessTables(database)).toEqual(
           [
             ...IDENTITY_TABLES,
+            ...INVITATION_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,
@@ -87,6 +101,7 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...TRIP_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { ProgressBar } from '@/components/ui/progress'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { DueDateField } from '@/modules/billing/components/DueDateField.component'
 import {
   groupBillingBlocksByReason,
@@ -28,6 +29,9 @@ function groupKey(group: CteBillingGroup, index: number): string {
 function outcomeKey(outcome: BillingGroupOutcome, index: number): string {
   return `${outcome.customerDocument}:${index}`
 }
+
+const GROUP_SKELETON_ROW_COUNT = 3
+const GROUP_SKELETON_COLUMN_WIDTHS: readonly string[] = ['10rem', '8rem', '3rem', '6rem']
 
 export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
   const { t } = useTranslation('cteBatch')
@@ -90,7 +94,34 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
           </button>
         </header>
 
-        {dialog.isLoading ? <p className={styles.hint}>{t('billing.loading')}</p> : null}
+        {dialog.isLoading ? (
+          <SkeletonGroup className={styles.billingSection} label={t('billing.loading')}>
+            <h3>{t('billing.groups')}</h3>
+            <div className={styles.tableScroll}>
+              <table className={styles.dataTable}>
+                <thead>
+                  <tr>
+                    <th scope="col">{t('billing.columns.customer')}</th>
+                    <th scope="col">{t('billing.columns.document')}</th>
+                    <th scope="col">{t('billing.columns.cteCount')}</th>
+                    <th scope="col">{t('billing.columns.totalAmount')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: GROUP_SKELETON_ROW_COUNT }, (_, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {GROUP_SKELETON_COLUMN_WIDTHS.map((width, columnIndex) => (
+                        <td key={columnIndex}>
+                          <Skeleton variant="text" width={width} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SkeletonGroup>
+        ) : null}
         {dialog.loadErrorCode === null ? null : (
           <p className={styles.hint} role="alert">
             {t('billing.previewError', { code: dialog.loadErrorCode })}

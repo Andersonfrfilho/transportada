@@ -16,10 +16,27 @@ function syntheticAccessKey(sequence: number): string {
 
 function syntheticEntry(sequence: number): CteArchiveEntry {
   return {
-    bucket: BUCKET,
     name: `${syntheticAccessKey(sequence)}.xml`,
-    objectKey: `cte/${syntheticAccessKey(sequence)}.xml`,
+    source: {
+      bucket: BUCKET,
+      kind: 'object',
+      objectKey: `cte/${syntheticAccessKey(sequence)}.xml`,
+    },
   }
+}
+
+function entryObjectKey(entry: CteArchiveEntry): string {
+  if (entry.source.kind !== 'object') throw new Error('entrada não vem do storage')
+  return entry.source.objectKey
+}
+
+/** PDF sintético: o gateway só empacota os bytes que a entrada devolve. */
+function syntheticPdf(sequence: number): string {
+  return `%PDF-1.3 sintetico ${sequence}`
+}
+
+function syntheticPdfBytes(sequence: number): Uint8Array {
+  return new TextEncoder().encode(syntheticPdf(sequence))
 }
 
 /** XML sintético, sem dado fiscal: o gateway só move bytes opacos do storage para o ZIP. */
@@ -87,13 +104,75 @@ describe('CT-e XML archive gateway contract', () => {
 
     await collect(await gateway.createArchive(entries))
 
-    expect(storage.openKeys).toEqual(entries.map((entry) => entry.objectKey))
+    expect(storage.openKeys).toEqual(entries.map(entryObjectKey))
     expect(storage.maxOpenStreams()).toBe(1)
+  })
+
+  test('entrada gerada sob demanda entra no ZIP com os bytes que ela devolve', async () => {
+    const storage = createStorageStub()
+    const gateway = createCteArchiveGateway({ storage })
+    const xmlEntry = syntheticEntry(1)
+    const pdfEntry: CteArchiveEntry = {
+      name: `${syntheticAccessKey(1)}.pdf`,
+      source: { kind: 'lazy', load: async () => syntheticPdfBytes(1) },
+    }
+
+    const archive = unzipSync(await collect(await gateway.createArchive([xmlEntry, pdfEntry])))
+
+    expect(Object.keys(archive).sort()).toEqual([pdfEntry.name, xmlEntry.name])
+    expect(new TextDecoder().decode(archive[pdfEntry.name])).toBe(syntheticPdf(1))
+  })
+
+  test('gera um documento por vez em vez de renderizar a seleção inteira', async () => {
+    const storage = createStorageStub()
+    const gateway = createCteArchiveGateway({ storage })
+    const loadOrder: number[] = []
+    let open = 0
+    let maxOpen = 0
+    const entries: readonly CteArchiveEntry[] = [1, 2, 3].map((sequence) => ({
+      name: `${syntheticAccessKey(sequence)}.pdf`,
+      source: {
+        kind: 'lazy',
+        load: async () => {
+          open += 1
+          maxOpen = Math.max(maxOpen, open)
+          loadOrder.push(sequence)
+          open -= 1
+          return syntheticPdfBytes(sequence)
+        },
+      },
+    }))
+
+    await collect(await gateway.createArchive(entries))
+
+    expect(loadOrder).toEqual([1, 2, 3])
+    expect(maxOpen).toBe(1)
+  })
+
+  test('falha ao gerar um documento interrompe o fluxo em vez de entregar ZIP truncado', async () => {
+    const storage = createStorageStub()
+    const gateway = createCteArchiveGateway({ storage })
+    const entries: readonly CteArchiveEntry[] = [
+      syntheticEntry(1),
+      {
+        name: `${syntheticAccessKey(2)}.pdf`,
+        source: {
+          kind: 'lazy',
+          load: async () => {
+            throw new Error('DACTE_RENDER_FAILED')
+          },
+        },
+      },
+    ]
+
+    const stream = await gateway.createArchive(entries)
+
+    await expect(collect(stream)).rejects.toThrow('DACTE_RENDER_FAILED')
   })
 
   test('falha do storage interrompe o fluxo em vez de entregar ZIP truncado', async () => {
     const entries = [syntheticEntry(1), syntheticEntry(2)]
-    const storage = createStorageStub({ failOnKey: entries[1]!.objectKey })
+    const storage = createStorageStub({ failOnKey: entryObjectKey(entries[1]!) })
     const gateway = createCteArchiveGateway({ storage })
 
     const stream = await gateway.createArchive(entries)

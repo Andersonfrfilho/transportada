@@ -3,7 +3,8 @@
  */
 import { createHash } from 'node:crypto'
 
-import { buildCtePayload } from '../domain/cte-payload.builder.js'
+import { normalizeRntrc } from '../../shared/rntrc.service.js'
+import { buildCtePayload, resolveCtePayloadTaker } from '../domain/cte-payload.builder.js'
 
 import {
   CteIssuanceEmitterIncompleteError,
@@ -44,6 +45,8 @@ export type CteIssuanceAttemptTarget = {
 
 export type AssembleCteIssuancePayloadParams = {
   readonly attempt: CteIssuanceAttemptTarget
+  /** Instante ISO em que a emissão foi pedida — vira a previsão de entrega dos documentos */
+  readonly issuedAt?: string
   readonly source: CteIssuancePayloadSource
 }
 
@@ -71,17 +74,21 @@ function composeProviderConfig(
     cep: emitter.postalCode,
     cnpj: emitter.cnpj,
     codigoMunicipio: emitter.cityIbgeCode,
+    // Campo opcional do cadastro: string vazia viraria uma tag vazia no XML do emitente.
+    ...(emitter.complement === '' ? {} : { complemento: emitter.complement }),
     crt: emitter.taxRegime,
     environment: attempt.fiscalEnvironment,
     inscricaoEstadual: emitter.stateRegistration,
     logradouro: emitter.street,
     model: 'cte',
     municipio: emitter.city,
+    ...(emitter.tradeName === '' ? {} : { nomeFantasia: emitter.tradeName }),
     numero: emitter.number,
     numeroCte: toFiscalNumber(attempt.fiscalNumber),
     razaoSocial: emitter.legalName,
-    rntrc: emitter.rntrc,
+    rntrc: normalizeRntrc(emitter.rntrc),
     serie: attempt.fiscalSeries,
+    ...(emitter.phone === '' ? {} : { telefone: emitter.phone }),
     uf: emitter.state,
   }
 }
@@ -89,16 +96,19 @@ function composeProviderConfig(
 export function assembleCteIssuancePayload(
   params: AssembleCteIssuancePayloadParams,
 ): CteIssuancePayloadRecord {
-  const { attempt, source } = params
+  const { attempt, issuedAt, source } = params
   assertCompleteEmitter(source.emitter)
 
   const payload = buildCtePayload({
-    carrier: { rntrc: source.emitter.rntrc },
+    // O <RNTRC> do modal rodoviário tem oito posições: o zero da folha da ANTT fica no cadastro.
+    carrier: { rntrc: normalizeRntrc(source.emitter.rntrc) },
     charge: source.charge,
     invoices: source.invoices,
+    ...(issuedAt === undefined ? {} : { issuedAt }),
     profile: source.profile,
   })
   const providerConfig = composeProviderConfig({ attempt, emitter: source.emitter })
+  const taker = resolveCtePayloadTaker({ invoices: source.invoices, profile: source.profile })
 
   return {
     attemptId: attempt.attemptId,
@@ -106,9 +116,12 @@ export function assembleCteIssuancePayload(
     batchItemId: attempt.batchItemId,
     companyId: attempt.companyId,
     payload,
+    // O sha continua sobre payload + config: o tomador é derivado deles, não entrada nova.
     payloadSha256: createHash('sha256')
       .update(JSON.stringify({ payload, providerConfig }))
       .digest('hex'),
     providerConfig,
+    takerLegalName: taker.legalName,
+    takerTaxId: taker.taxId,
   }
 }

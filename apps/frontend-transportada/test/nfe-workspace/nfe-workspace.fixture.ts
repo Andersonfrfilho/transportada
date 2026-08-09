@@ -40,6 +40,21 @@ export type NfeImportListPageContract = Readonly<{
   nextCursor: null | string
 }>
 
+export type ScheduledDistributionStatusContract = Readonly<{
+  certificateExpiresAt: string | null
+  eligible: boolean
+  enabled: boolean
+  ineligibilityReason: string | null
+  lastAutomationImport: Readonly<{
+    finishedAt: string | null
+    receivedCount: number
+    startedAt: string
+    status: string
+  }> | null
+  nextAllowedAt: string | null
+  nextScheduledRunAt: string
+}>
+
 export type NfeDistributionStatusContract = Readonly<{
   canPull: boolean
   environment: 'homologation' | 'production'
@@ -47,6 +62,7 @@ export type NfeDistributionStatusContract = Readonly<{
   maxNsu: string
   nextAllowedAt: null | string
   pullInProgress: boolean
+  scheduled: ScheduledDistributionStatusContract
   ultNsu: string
 }>
 
@@ -137,6 +153,21 @@ export const IMPORT_LIST_PAGE = {
   nextCursor: SYNTHETIC_CURSOR,
 } as const satisfies NfeImportListPageContract
 
+export const SCHEDULED_DISTRIBUTION_STATUS = {
+  certificateExpiresAt: '2030-01-01T00:00:00.000Z',
+  eligible: true,
+  enabled: true,
+  ineligibilityReason: null,
+  lastAutomationImport: {
+    finishedAt: '2026-07-22T04:31:00.000Z',
+    receivedCount: 7,
+    startedAt: '2026-07-22T04:30:00.000Z',
+    status: 'completed',
+  },
+  nextAllowedAt: null,
+  nextScheduledRunAt: '2026-07-22T14:00:00.000Z',
+} as const satisfies ScheduledDistributionStatusContract
+
 export const DISTRIBUTION_STATUS = {
   canPull: true,
   environment: 'homologation',
@@ -144,6 +175,7 @@ export const DISTRIBUTION_STATUS = {
   maxNsu: '000000000000120',
   nextAllowedAt: null,
   pullInProgress: false,
+  scheduled: SCHEDULED_DISTRIBUTION_STATUS,
   ultNsu: '000000000000120',
 } as const satisfies NfeDistributionStatusContract
 

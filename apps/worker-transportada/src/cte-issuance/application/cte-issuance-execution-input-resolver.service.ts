@@ -4,7 +4,10 @@
 import { z } from 'zod'
 
 import type { CteProcessingEnvelopeV1 } from '../../messaging/cte-processing-envelope.schema.js'
-import type { CteFiscalProviderConfig } from '../infrastructure/cte-fiscal-gateway.js'
+import type {
+  CteFiscalProviderConfig,
+  CteResponsavelTecnico,
+} from '../infrastructure/cte-fiscal-gateway.js'
 import type { CteActiveCertificate } from '../infrastructure/drizzle-cte-certificate.repository.js'
 import type { CteIssuancePersistedPayload } from '../infrastructure/drizzle-cte-issuance-payload.repository.js'
 
@@ -15,18 +18,24 @@ const providerConfigSchema = z.object({
   cep: z.string(),
   cnpj: z.string().min(1),
   codigoMunicipio: z.string().min(1),
+  // Opcionais: payload gravado antes destes campos existirem precisa continuar emitindo.
+  complemento: z.string().min(1).optional(),
   crt: z.string().min(1),
   environment: z.enum(['homologation', 'production']),
   inscricaoEstadual: z.string(),
   logradouro: z.string(),
   municipio: z.string().min(1),
+  nomeFantasia: z.string().min(1).optional(),
   numero: z.string(),
   numeroCte: z.number().int().positive(),
   razaoSocial: z.string().min(1),
   rntrc: z.string(),
   serie: z.string().min(1),
+  telefone: z.string().min(1).optional(),
   uf: z.string().length(2),
 })
+
+export type CteTechnicalResponsible = CteResponsavelTecnico
 
 export type CteIssuanceExecutionInput = {
   readonly config: CteFiscalProviderConfig
@@ -58,6 +67,8 @@ export function createCteIssuanceExecutionInputResolver(input: {
       readonly password: string
     }>
   }
+  /** Ausente quando a instalação não declarou o responsável técnico: o grupo simplesmente não sai. */
+  readonly technicalResponsible?: CteTechnicalResponsible
 }): (params: { readonly envelope: CteProcessingEnvelopeV1 }) => Promise<CteIssuanceExecutionInput> {
   return async ({ envelope }) => {
     const companyId = envelope.companyId
@@ -82,11 +93,19 @@ export function createCteIssuanceExecutionInputResolver(input: {
       purpose: 'cte',
     })
 
+    const { complemento, nomeFantasia, telefone, ...requiredConfig } = providerConfig
+
     return {
       config: {
-        ...providerConfig,
+        ...requiredConfig,
         certificadoBase64: secret.certificateBase64,
         certificadoSenha: secret.password,
+        ...(complemento === undefined ? {} : { complemento }),
+        ...(nomeFantasia === undefined ? {} : { nomeFantasia }),
+        ...(input.technicalResponsible === undefined
+          ? {}
+          : { responsavelTecnico: input.technicalResponsible }),
+        ...(telefone === undefined ? {} : { telefone }),
       },
       cteData: persisted.payload,
       documentId: envelope.payload.batchItemId,

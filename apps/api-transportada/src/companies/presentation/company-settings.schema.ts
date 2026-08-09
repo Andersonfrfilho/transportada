@@ -11,6 +11,7 @@ import {
 } from '../../cte-issuance/domain/cte-retry.policy.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 
 const DECIMAL_BIGINT = /^(?:[1-9][0-9]{0,18})$/
 const CNPJ = /^\d{14}$/
@@ -57,7 +58,7 @@ const profileSchema = z
     number: requiredText({ maximum: 20, minimum: 1 }),
     phone: optionalText(20),
     postalCode: z.string().regex(/^\d{8}$/),
-    rntrc: z.string().regex(/^\d{8}$/),
+    rntrc: z.string().regex(RNTRC_INPUT),
     state: z.string().regex(/^[A-Z]{2}$/),
     stateRegistration: optionalText(20),
     street: requiredText({ maximum: 200, minimum: 2 }),

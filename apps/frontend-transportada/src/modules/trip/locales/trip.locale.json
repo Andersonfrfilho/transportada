@@ -1,0 +1,120 @@
+{
+  "kicker": "Operação não fiscal",
+  "title": "Viagens",
+  "intro": "Organize viagens sem CT-e: vincule veículo, motoristas e as notas fiscais transportadas.",
+  "loading": "Carregando viagens",
+  "error": "Não foi possível carregar as viagens",
+  "empty": "Nenhuma viagem encontrada",
+  "forbidden": "Seu acesso atual não permite consultar as viagens",
+  "dateRange": {
+    "placeholder": "Selecione o período",
+    "clear": "Limpar período",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês"
+  },
+  "resultCounter": "{{shown}} viagem(ns) na página",
+  "tripsTitle": "Viagens",
+  "filters": {
+    "title": "Filtros",
+    "all": "Todas",
+    "clear": "Limpar filtros",
+    "active": "{{count}} filtro(s) ativo(s)",
+    "status": "Situação",
+    "vehicleId": "Veículo",
+    "driverId": "Motorista",
+    "createdRange": "Período de criação",
+    "removeFilter": "Remover o filtro {{field}}"
+  },
+  "status": {
+    "open": "Aberta",
+    "closed": "Encerrada"
+  },
+  "columns": {
+    "vehicleId": "Veículo",
+    "status": "Situação",
+    "createdAt": "Criada em",
+    "updatedAt": "Atualizada em"
+  },
+  "sort": {
+    "asc": "ordenado crescente",
+    "desc": "ordenado decrescente",
+    "none": "sem ordenação"
+  },
+  "actions": {
+    "title": "Ações",
+    "view": "Ver",
+    "create": "Criar viagem",
+    "resetCreation": "Limpar rascunho",
+    "deliver": "Marcar entregue",
+    "release": "Desvincular",
+    "linkDocument": "Vincular",
+    "close": "Encerrar viagem",
+    "backToList": "Voltar às viagens",
+    "issueMdfe": "Emitir MDF-e"
+  },
+  "mdfeGate": {
+    "title": "CT-e pendente",
+    "subtitle": "Estas notas ainda não têm CT-e autorizado — emita o CT-e de cada uma antes de emitir o MDF-e da viagem.",
+    "documentColumn": "Nota",
+    "fiscalStatusColumn": "Situação fiscal",
+    "goToCteEmission": "Ir emitir CT-e",
+    "close": "Fechar"
+  },
+  "pagination": {
+    "previous": "Página anterior",
+    "next": "Próxima página"
+  },
+  "creation": {
+    "title": "Nova viagem",
+    "vehicle": "Veículo",
+    "vehiclePlaceholder": "Selecione o veículo",
+    "drivers": "Motoristas",
+    "driversEmpty": "Cadastre um motorista ativo na frota antes de criar a viagem.",
+    "readOnly": "Seu acesso atual não permite criar viagens.",
+    "pending": "Criando viagem…"
+  },
+  "formIssue": {
+    "vehicleRequired": "Selecione o veículo da viagem.",
+    "driverRequired": "Selecione ao menos um motorista."
+  },
+  "detail": {
+    "title": "Detalhe da viagem",
+    "vehicle": "Veículo: {{vehicleId}}",
+    "drivers": "Motoristas",
+    "documentColumn": "Nota",
+    "fiscalStatusColumn": "Situação fiscal",
+    "deliveredColumn": "Entrega",
+    "pending": "Pendente",
+    "documentsEmpty": "Nenhuma nota vinculada a esta viagem",
+    "linkDocumentTitle": "Vincular nota",
+    "linkMode": "Tipo de referência",
+    "linkModeNfe": "Nota fiscal (NF-e)",
+    "linkModeFreight": "Cálculo de frete",
+    "linkValue": "Identificador",
+    "fiscalWarning": "Documento fiscal inválido — confira a situação antes de seguir"
+  },
+  "feedback": {
+    "closed": "Esta viagem já está encerrada.",
+    "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
+    "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
+    "documentNotFound": "Nota não encontrada nesta viagem.",
+    "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
+    "driverDuplicated": "Este motorista já está na viagem.",
+    "driverNotAvailable": "Motorista indisponível para a viagem.",
+    "driverNotFound": "Motorista não encontrado.",
+    "readOnly": "Seu acesso atual não permite esta ação.",
+    "notFound": "Viagem não encontrada.",
+    "requestFailed": "Não foi possível falar com a API.",
+    "responseInvalid": "A API respondeu em um formato inesperado.",
+    "vehicleNotAvailable": "Veículo indisponível para a viagem.",
+    "vehicleNotFound": "Veículo não encontrado."
+  },
+  "fiscalStatus": {
+    "authorized": "Autorizada",
+    "cancelled": "Cancelada",
+    "denied": "Denegada",
+    "rejected": "Rejeitada",
+    "snapshotted": "Congelada",
+    "unsigned": "Sem assinatura"
+  }
+}

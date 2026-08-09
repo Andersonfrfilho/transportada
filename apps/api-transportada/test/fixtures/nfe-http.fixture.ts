@@ -3,16 +3,19 @@
  */
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { HealthService } from '../../src/health/health.service'
+import { appliedMigrations } from './health.fixture'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
 import { ApiError } from '../../src/shared/api.error'
 import { HTTP_ERROR } from '../../src/shared/api.constant'
+import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import { COMPANY_CONTEXT, READ_ONLY_CONTEXT } from './nfe-import-application.fixture'
 import {
   DISTRIBUTION_RESPONSE,
   DISTRIBUTION_STATUS,
+  SCHEDULED_DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
   DOCUMENT_SUMMARY,
@@ -71,6 +74,7 @@ type CreateFixtureParams = {
   readonly reprocessError?: Error
   readonly requestDistributionError?: Error
   readonly requestUploadError?: Error
+  readonly scheduledDistributionStatus?: ScheduledDistributionStatus
 }
 
 export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Promise<{
@@ -140,6 +144,11 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         importGetCalls.push(structuredClone(input))
         if (params.getImportError) throw params.getImportError
         return params.importDetail ?? IMPORT_DETAIL
+      },
+    },
+    getScheduledDistribution: {
+      async execute() {
+        return params.scheduledDistributionStatus ?? SCHEDULED_DISTRIBUTION_STATUS
       },
     },
     listDocuments: {
@@ -274,6 +283,7 @@ function createTestRouter(input: {
           return true
         },
       },
+      migrationStatus: appliedMigrations(),
     }),
     routes: input.routes,
     tenantContext: {

@@ -9,16 +9,31 @@ import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
 export type ApiEnvironment = {
   readonly appEnv: string
+  /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
+  readonly bootstrapToken: string | undefined
+  /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
+  readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   readonly frontendOrigin: string
   readonly keycloak: {
+    readonly admin: {
+      readonly clientId: string
+      readonly clientSecret: string
+    }
     readonly audience: string
     readonly issuer: string
     readonly jwksUri: string
   }
   readonly logLevel: LogLevel
   readonly port: number
+  /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
+  readonly scheduledDistributionCron: string
+  /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
+  readonly logSinkUrl: string | undefined
+  /** DSN do rastreio de erro; ausente desliga o rastreio em vez de derrubar o boot. */
+  readonly sentryDsn: string | undefined
+  readonly sentryEnvironment: string
   /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
   readonly vehicleLookup: {
     readonly token: string
@@ -29,6 +44,11 @@ export type ApiEnvironment = {
 export type DatabaseHealthPort = {
   healthCheck(): Promise<{ readonly healthy: true }>
   close(): Promise<void>
+}
+
+/** Quantas migrations da imagem ainda não constam no journal do banco. */
+export type MigrationStatusPort = {
+  countPending(): Promise<number>
 }
 
 export type ApiLogger = {
@@ -61,6 +81,8 @@ export type ReadinessHealthResponse = HealthResponseBase & {
   readonly dependencies: {
     readonly database: DependencyStatus
     readonly identity: DependencyStatus
+    /** `down` enquanto a imagem carregar migration que o banco ainda não aplicou. */
+    readonly migrations: DependencyStatus
   }
   readonly status: HealthStatus
 }

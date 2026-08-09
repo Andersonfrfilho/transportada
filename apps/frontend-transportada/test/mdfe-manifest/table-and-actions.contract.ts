@@ -408,6 +408,30 @@ describe('mdfe manifest creation form contract', () => {
     ).toEqual([])
   })
 
+  // A rota da viagem deriva veículo e motoristas, então a tela para de exigi-los no formulário
+  test('stops requiring vehicle and driver when the manifest comes from a trip', async () => {
+    const form = await loadFutureModule<FormModule>(FORM_MODULE)
+    const draft = {
+      ...form.EMPTY_MDFE_MANIFEST_FORM,
+      cargoProduct: 'Bebidas',
+      destinationState: 'MG',
+    }
+
+    expect(form.isManifestFromTrip({ documentIds: [], draft })).toBe(false)
+    expect(form.isManifestFromTrip({ documentIds: [], draft, tripId: 'trip-1' })).toBe(true)
+    expect(form.validateManifestForm({ documentIds: [CTE_FISCAL_DOCUMENT_ID], draft })).toEqual([
+      'vehicleRequired',
+      'driverRequired',
+    ])
+    expect(
+      form.validateManifestForm({
+        documentIds: [CTE_FISCAL_DOCUMENT_ID],
+        draft,
+        tripId: 'trip-1',
+      }),
+    ).toEqual([])
+  })
+
   test('builds a create body that carries no tenant and normalizes the trip start', async () => {
     const form = await loadFutureModule<FormModule>(FORM_MODULE)
     const draft = {
@@ -652,8 +676,19 @@ type FormModule = {
     input: Readonly<{ documentIds: readonly string[]; draft: ManifestFormDraft }>,
   ) => Readonly<{ tripStartedAt: null | string }> & Record<string, unknown>
   readonly toggleDriver: (driverIds: readonly string[], driverId: string) => readonly string[]
+  readonly isManifestFromTrip: (
+    input: Readonly<{
+      documentIds: readonly string[]
+      draft: ManifestFormDraft
+      tripId?: null | string
+    }>,
+  ) => boolean
   readonly validateManifestForm: (
-    input: Readonly<{ documentIds: readonly string[]; draft: ManifestFormDraft }>,
+    input: Readonly<{
+      documentIds: readonly string[]
+      draft: ManifestFormDraft
+      tripId?: null | string
+    }>,
   ) => readonly ManifestFormIssue[]
 }
 

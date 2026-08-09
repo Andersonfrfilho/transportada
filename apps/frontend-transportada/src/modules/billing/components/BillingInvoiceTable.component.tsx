@@ -7,6 +7,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
@@ -34,6 +35,22 @@ const DATE_RANGE_FILTER_FIELDS: readonly BillingInvoiceDateRangeField[] = [
   'issuedRange',
   'dueRange',
 ]
+const INVOICE_SKELETON_ROW_COUNT = 5
+const INVOICE_SKELETON_ROW_INDEXES = Array.from(
+  { length: INVOICE_SKELETON_ROW_COUNT },
+  (_, index) => index,
+)
+const INVOICE_COLUMN_SKELETON_WIDTH: Record<BillingInvoiceColumnKey, string> = {
+  createdAt: '6rem',
+  customerDocument: '7rem',
+  customerName: '9rem',
+  dueDate: '6rem',
+  invoiceNumber: '3rem',
+  issuedAt: '6rem',
+  itemCount: '2rem',
+  status: '4rem',
+  totalAmount: '5rem',
+}
 
 type BillingInvoiceTableProps = Readonly<{
   table: BillingInvoiceTableController
@@ -278,9 +295,6 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
         </div>
       ) : null}
 
-      {table.invoicesQuery.isLoading ? (
-        <p className={styles.hint}>{t('invoices.loading')}</p>
-      ) : null}
       {table.invoicesQuery.isError ? (
         <p className={styles.hint} role="alert">
           {t('invoices.error')}
@@ -292,86 +306,104 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
         </p>
       )}
 
-      <div className={styles.tableScroll}>
-        <table className={styles.dataTable}>
-          <thead>
-            <tr>
-              <th scope="col">
-                <Checkbox
-                  ariaLabel={t('invoices.selectAll')}
-                  checked={isPageSelected}
-                  indeterminate={!isPageSelected && table.selectedIds.length > 0}
-                  onChange={() => table.toggleAllSelection()}
-                />
-              </th>
+      {table.invoicesQuery.isLoading ? (
+        <SkeletonGroup className={styles.tableSkeleton} label={t('invoices.loading')}>
+          {INVOICE_SKELETON_ROW_INDEXES.map((index) => (
+            <div className={styles.skeletonRow} key={index}>
+              <Skeleton height="var(--space-5)" width="var(--space-5)" />
               {table.visibleColumns.map((column) => (
-                <th aria-sort={sortState(column)} key={column} scope="col">
-                  <button
-                    className={styles.sortButton}
-                    onClick={() => table.toggleSort(column)}
-                    type="button"
-                  >
-                    {t(`invoices.columns.${column}`)}
-                    <span aria-hidden="true" className={styles.sortIndicator}>
-                      {sortIndicator(column)}
-                    </span>
-                    <span className={styles.srOnly}>{sortLabel(column)}</span>
-                  </button>
-                </th>
+                <Skeleton
+                  key={column}
+                  variant="text"
+                  width={INVOICE_COLUMN_SKELETON_WIDTH[column]}
+                />
               ))}
-              <th scope="col">{t('invoices.documentAction.columnHeader')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.visibleItems.map((item) => (
-              <tr
-                aria-selected={table.selectedIds.includes(item.id)}
-                className={styles.dataRow}
-                key={item.id}
-                onClick={() => table.openInvoice(item.id)}
-              >
-                <td onClick={stopRowPropagation}>
+              <Skeleton height="var(--field-height-compact)" width="6rem" />
+            </div>
+          ))}
+        </SkeletonGroup>
+      ) : (
+        <div className={styles.tableScroll}>
+          <table className={styles.dataTable}>
+            <thead>
+              <tr>
+                <th scope="col">
                   <Checkbox
-                    ariaLabel={t('invoices.selectRow')}
-                    checked={table.selectedIds.includes(item.id)}
-                    onChange={() => table.toggleSelection(item.id)}
+                    ariaLabel={t('invoices.selectAll')}
+                    checked={isPageSelected}
+                    indeterminate={!isPageSelected && table.selectedIds.length > 0}
+                    onChange={() => table.toggleAllSelection()}
                   />
-                </td>
-                {table.visibleColumns.map((column) => {
-                  if (column === 'status') {
-                    return (
-                      <td key={column}>
-                        <span className={statusClassName(item.status)}>
-                          {t(`invoices.statusOptions.${item.status}`)}
-                        </span>
-                      </td>
-                    )
-                  }
-                  if (column === 'invoiceNumber') {
-                    return (
-                      <td key={column}>
-                        <button
-                          aria-label={t('invoices.openDetail')}
-                          className={styles.openDetailAction}
-                          onClick={() => table.openInvoice(item.id)}
-                          title={t('invoices.openDetail')}
-                          type="button"
-                        >
-                          {cellValue(item, column)}
-                        </button>
-                      </td>
-                    )
-                  }
-                  return <td key={column}>{cellValue(item, column)}</td>
-                })}
-                <td onClick={stopRowPropagation}>{renderDocumentAction(item.id)}</td>
+                </th>
+                {table.visibleColumns.map((column) => (
+                  <th aria-sort={sortState(column)} key={column} scope="col">
+                    <button
+                      className={styles.sortButton}
+                      onClick={() => table.toggleSort(column)}
+                      type="button"
+                    >
+                      {t(`invoices.columns.${column}`)}
+                      <span aria-hidden="true" className={styles.sortIndicator}>
+                        {sortIndicator(column)}
+                      </span>
+                      <span className={styles.srOnly}>{sortLabel(column)}</span>
+                    </button>
+                  </th>
+                ))}
+                <th scope="col">{t('invoices.documentAction.columnHeader')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {table.visibleItems.map((item) => (
+                <tr
+                  aria-selected={table.selectedIds.includes(item.id)}
+                  className={styles.dataRow}
+                  key={item.id}
+                  onClick={() => table.openInvoice(item.id)}
+                >
+                  <td onClick={stopRowPropagation}>
+                    <Checkbox
+                      ariaLabel={t('invoices.selectRow')}
+                      checked={table.selectedIds.includes(item.id)}
+                      onChange={() => table.toggleSelection(item.id)}
+                    />
+                  </td>
+                  {table.visibleColumns.map((column) => {
+                    if (column === 'status') {
+                      return (
+                        <td key={column}>
+                          <span className={statusClassName(item.status)}>
+                            {t(`invoices.statusOptions.${item.status}`)}
+                          </span>
+                        </td>
+                      )
+                    }
+                    if (column === 'invoiceNumber') {
+                      return (
+                        <td key={column}>
+                          <button
+                            aria-label={t('invoices.openDetail')}
+                            className={styles.openDetailAction}
+                            onClick={() => table.openInvoice(item.id)}
+                            title={t('invoices.openDetail')}
+                            type="button"
+                          >
+                            {cellValue(item, column)}
+                          </button>
+                        </td>
+                      )
+                    }
+                    return <td key={column}>{cellValue(item, column)}</td>
+                  })}
+                  <td onClick={stopRowPropagation}>{renderDocumentAction(item.id)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {table.visibleItems.length === 0 && !table.invoicesQuery.isLoading ? (
+      {table.invoicesQuery.isLoading ? null : table.visibleItems.length === 0 ? (
         <p className={styles.hint}>{t('invoices.empty')}</p>
       ) : (
         <p className={styles.counter}>

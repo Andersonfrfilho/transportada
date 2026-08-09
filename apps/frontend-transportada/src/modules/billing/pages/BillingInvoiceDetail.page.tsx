@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
@@ -55,16 +56,24 @@ export function BillingInvoiceDetailPage({ invoiceId }: BillingInvoiceDetailPage
           <strong>{viewModel.status}</strong>
         </div>
       </header>
-      <p
-        className={
-          viewModel.status === 'error' || viewModel.status === 'forbidden'
-            ? 'workspace-boundary'
-            : 'workspace-status-text'
-        }
-        role={viewModel.status === 'error' || viewModel.status === 'forbidden' ? 'alert' : 'status'}
-      >
-        {t(`status.${viewModel.status}`)}
-      </p>
+      {viewModel.status === 'loading' ? (
+        <SkeletonGroup className="workspace-status-text" label={t('status.loading')}>
+          <Skeleton variant="text" width="18rem" />
+        </SkeletonGroup>
+      ) : (
+        <p
+          className={
+            viewModel.status === 'error' || viewModel.status === 'forbidden'
+              ? 'workspace-boundary'
+              : 'workspace-status-text'
+          }
+          role={
+            viewModel.status === 'error' || viewModel.status === 'forbidden' ? 'alert' : 'status'
+          }
+        >
+          {t(`status.${viewModel.status}`)}
+        </p>
+      )}
       {viewModel.status === 'forbidden' ? null : (
         <div className="workspace-grid">
           <section className="workspace-panel workspace-panel-full">

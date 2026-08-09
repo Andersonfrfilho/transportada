@@ -9,6 +9,7 @@ import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 import { parseWorkerCryptographicConfiguration } from './config/cryptographic-configuration.schema.js'
 import { parseWorkerEnvironment } from './config/environment.schema.js'
 import { WorkerHealthService } from './health/health.service.js'
+import { shouldPrettyPrintLogs } from './logging/log-format.policy.js'
 import { safeLogInfo } from './logging/safe-logger.service.js'
 import {
   buildNfeDistributionRabbitMqTopology,
@@ -36,6 +37,8 @@ import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastruct
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
+import { DrizzleCteFiscalNumberProbeRepository } from './cte-issuance/infrastructure/drizzle-cte-fiscal-number-probe.repository.js'
+import { DrizzleCteIssuanceDiagnosticsRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-diagnostics.repository.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
 import { buildMdfeIssuanceRabbitMqTopology } from './messaging/mdfe-rabbitmq-topology.js'
 import { createAdatechnologyMdfeFiscalProvider } from './mdfe-issuance/infrastructure/adatechnology-mdfe-fiscal-provider.factory.js'
@@ -78,6 +81,8 @@ import {
 import { createNfeXmlImporter } from './nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import { DrizzleNfeImportConsumerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 import { DrizzleNfeImportWorkerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.js'
+import { createErrorTracker } from './observability/sentry.service.js'
+import { createDeferredShutdown } from './runtime/deferred-shutdown.service.js'
 import { registerWorkerShutdownSignals } from './runtime/shutdown-signals.service.js'
 import { WorkerShutdown } from './runtime/worker-shutdown.service.js'
 import { startHealthServer } from './server/health-server.service.js'
@@ -90,6 +95,8 @@ import {
 import type { WorkerLogger } from './shared/worker.types.js'
 
 const NFE_DISTRIBUTION_LEASE_MS = 30_000
+const WORKER_PROJECT_NAME = 'transportada-worker'
+const WORKER_VERSION = '0.1.0'
 
 type RuntimeDatabasePort = {
   readonly close: () => Promise<void>
@@ -108,12 +115,19 @@ type RuntimeConsumer = {
   cancel(): Promise<void>
 }
 
+/** Quem loga enxerga o `WorkerLogger` estreito; só o runtime precisa drenar o transporte HTTP. */
+type RuntimeLogger = WorkerLogger & {
+  flush(): Promise<void>
+  stop(): void
+}
+
 type RuntimeLoggerFactory = (input: {
   readonly logLevel: ReturnType<typeof parseWorkerEnvironment>['logLevel']
   readonly pretty: boolean
   readonly projectName: string
+  readonly sinkUrl?: string
   readonly version: string
-}) => WorkerLogger
+}) => RuntimeLogger
 
 type RuntimeDatabaseFactory = (input: { readonly connection: string }) => RuntimeDatabasePort
 
@@ -257,9 +271,22 @@ export async function startWorkerRuntime(
 
   const logger = loggerFactory({
     logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
-    projectName: 'transportada-worker',
-    version: '0.1.0',
+    pretty: shouldPrettyPrintLogs(config.appEnv),
+    projectName: WORKER_PROJECT_NAME,
+    ...(config.logSinkUrl === undefined ? {} : { sinkUrl: config.logSinkUrl }),
+    version: WORKER_VERSION,
+  })
+  // Antes de qualquer consumidor: entre o primeiro `consume` e o fim do boot há `await` de sobra
+  // para o event loop entregar mensagem, e sinal que chegue nessa janela sem handler mata o
+  // processo sem drenar o que está em voo.
+  const runtimeShutdown = createDeferredShutdown()
+  registerWorkerShutdownSignals({ logger, resolveShutdown: () => runtimeShutdown.promise })
+  const errorTracker = createErrorTracker({
+    configuration: {
+      dsn: config.sentryDsn,
+      environment: config.sentryEnvironment,
+      release: `${WORKER_PROJECT_NAME}@${WORKER_VERSION}`,
+    },
   })
   const digitalCertificateSecretService = createDigitalCertificateSecretService({
     envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
@@ -401,6 +428,12 @@ export async function startWorkerRuntime(
         authorizedDocumentStorage: cteFiscalDocumentStorage,
         cancellationDocumentStorage: cteFiscalDocumentStorage,
         createProvider: createAdatechnologyCteFiscalProvider,
+        diagnostics: new DrizzleCteIssuanceDiagnosticsRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        fiscalNumberProbe: new DrizzleCteFiscalNumberProbeRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
         logger,
         settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
@@ -425,6 +458,9 @@ export async function startWorkerRuntime(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
           ),
           secretService: digitalCertificateSecretService,
+          ...(config.cteTechnicalResponsible === undefined
+            ? {}
+            : { technicalResponsible: config.cteTechnicalResponsible }),
         }),
         writeBack: cteIssuanceWriteBack,
       }),
@@ -564,7 +600,21 @@ export async function startWorkerRuntime(
     })
     mdfeRelayLoop.start()
     const shutdown = new WorkerShutdown({
-      closeables: [relayLoop, cteRelayLoop, mdfeRelayLoop, storageGateway],
+      closeables: [
+        relayLoop,
+        cteRelayLoop,
+        mdfeRelayLoop,
+        storageGateway,
+        // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
+        // processo pela rede. Depois deles não há mais para onde mandar nada.
+        { close: (): Promise<void> => errorTracker.flush() },
+        {
+          async close(): Promise<void> {
+            await logger.flush()
+            logger.stop()
+          },
+        },
+      ],
       consumers: [
         syntheticConsumer,
         importConsumer,
@@ -582,7 +632,7 @@ export async function startWorkerRuntime(
         mdfeIssuancePublisher,
       ]),
     })
-    registerWorkerShutdownSignals({ logger, shutdown })
+    runtimeShutdown.resolve(shutdown)
     safeLogInfo({
       logger,
       message: 'worker_started',
@@ -611,6 +661,11 @@ export async function startWorkerRuntime(
     await mdfeIssuancePublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
+    // Sinal que chegou no meio do boot está esperando o desligamento existir. Ele não vai existir.
+    runtimeShutdown.reject(error)
+    // Worker que não sobe não tem consumidor para reportar a falha por ele.
+    errorTracker.captureException(error)
+    await errorTracker.flush()
     throw error
   }
 }

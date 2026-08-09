@@ -27,9 +27,15 @@ const JUSTIFICATION_MAX_LENGTH = 255
 
 /**
  * Fechar o rascunho virou efeito da emissão, no backend: transmitir é o passo único do operador.
- * Submetido e em voo já são consequência do comando — repetir reservaria outro número fiscal.
+ * Submetido e em voo entram porque o lote que perdeu um item no meio da emissão fica num dos dois,
+ * e retransmitir é o conserto — a trava contra duplicidade vive por item, no backend.
  */
-const TRANSMITTABLE_STATUSES: readonly CteBatchStatus[] = ['draft', 'error']
+const TRANSMITTABLE_STATUSES: readonly CteBatchStatus[] = [
+  'draft',
+  'error',
+  'in_flight',
+  'submitted',
+]
 const CANCELLABLE_STATUSES: readonly CteBatchStatus[] = ['draft', 'submitted']
 const REMOVABLE_ITEM_BATCH_STATUSES: readonly CteBatchStatus[] = ['draft']
 const REPROCESSABLE_ITEM_STATUSES: readonly string[] = [
@@ -79,6 +85,19 @@ export function groupSelectionByBatch(
   }))
 }
 
+/** Um lote encerrado na seleção travava o botão inteiro sem dizer qual: agora ele só sai da conta. */
+export function selectTransmittableGroups(
+  input: Readonly<{
+    batchStatuses: ReadonlyMap<string, CteBatchStatus>
+    groups: readonly CteItemBatchGroup[]
+  }>,
+): readonly CteItemBatchGroup[] {
+  return input.groups.filter((group) => {
+    const status = input.batchStatuses.get(group.batchId)
+    return status !== undefined && TRANSMITTABLE_STATUSES.includes(status)
+  })
+}
+
 export function canTransmitSelection(
   input: Readonly<{
     batchStatuses: ReadonlyMap<string, CteBatchStatus>
@@ -86,12 +105,8 @@ export function canTransmitSelection(
     permissions: readonly string[]
   }>,
 ): boolean {
-  if (input.groups.length === 0) return false
   if (!allows(input.permissions, CTE_SUBMIT_PERMISSION)) return false
-  return input.groups.every((group) => {
-    const status = input.batchStatuses.get(group.batchId)
-    return status !== undefined && TRANSMITTABLE_STATUSES.includes(status)
-  })
+  return selectTransmittableGroups(input).length > 0
 }
 
 export function canCancelBatch(input: BatchActionInput): boolean {

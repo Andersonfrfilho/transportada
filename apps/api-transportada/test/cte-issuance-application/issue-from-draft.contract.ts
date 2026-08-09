@@ -130,21 +130,20 @@ describe('CT-e issuance from a draft batch contract', () => {
 
   /**
    * A trava de status vivia só no botão do frontend. Com um botão só, ela precisa existir aqui:
-   * emitir lote cancelado, concluído ou em voo duplicaria documento fiscal.
+   * emitir lote cancelado ou concluído duplicaria documento fiscal. `in_flight` ficou de fora
+   * de propósito — lote parcialmente emitido precisa reemitir o item que ficou, e a trava contra
+   * duplicidade passou a ser por item (`issue-batch-items.contract.ts`).
    */
-  test.each([['cancelled'], ['done'], ['in_flight']])(
-    'refuses to issue a batch in %s',
-    async (status) => {
-      const unitOfWork = buildUnitOfWork(status)
-      const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
+  test.each([['cancelled'], ['done']])('refuses to issue a batch in %s', async (status) => {
+    const unitOfWork = buildUnitOfWork(status)
+    const useCase = await createCteIssuanceUseCaseForTest(unitOfWork)
 
-      const error = await captureApiError(() => useCase.issue(ISSUE_INPUT))
+    const error = await captureApiError(() => useCase.issue(ISSUE_INPUT))
 
-      expect(error.status).toBe(409)
-      expect(error.code).toBe('CTE_BATCH_INVALID_STATE')
-      expect(unitOfWork.draftSubmissions).toEqual([])
-      expect(unitOfWork.reservations).toEqual([])
-      expect(unitOfWork.commandOutbox).toEqual([])
-    },
-  )
+    expect(error.status).toBe(409)
+    expect(error.code).toBe('CTE_BATCH_INVALID_STATE')
+    expect(unitOfWork.draftSubmissions).toEqual([])
+    expect(unitOfWork.reservations).toEqual([])
+    expect(unitOfWork.commandOutbox).toEqual([])
+  })
 })

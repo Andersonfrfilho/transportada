@@ -40,6 +40,7 @@ const BUCKET = bucket ?? ''
 
 type SeededObject = {
   readonly entry: CteArchiveEntry
+  readonly objectKey: string
   readonly payload: Uint8Array
 }
 
@@ -90,7 +91,11 @@ async function seedObject(input: {
     sha256: createHash('sha256').update(payload).digest('hex'),
   })
 
-  return { entry: { bucket: BUCKET, name: `${accessKey}.xml`, objectKey }, payload }
+  return {
+    entry: { name: `${accessKey}.xml`, source: { bucket: BUCKET, kind: 'object', objectKey } },
+    objectKey,
+    payload,
+  }
 }
 
 async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
@@ -118,7 +123,7 @@ async function withSeededObjects(
       prefix,
       seed: async (sequence, repetitions = 1) => {
         const seeded = await seedObject({ prefix, repetitions, sequence, storage })
-        seededKeys.push(seeded.entry.objectKey)
+        seededKeys.push(seeded.objectKey)
         return seeded
       },
       storage,
@@ -166,9 +171,12 @@ describe('cte archive gateway integration', () => {
       await withSeededObjects(async ({ prefix, seed, storage }) => {
         const present = await seed(1)
         const missing: CteArchiveEntry = {
-          bucket: BUCKET,
           name: `${syntheticAccessKey(9)}.xml`,
-          objectKey: `${prefix}/${syntheticAccessKey(9)}.xml`,
+          source: {
+            bucket: BUCKET,
+            kind: 'object',
+            objectKey: `${prefix}/${syntheticAccessKey(9)}.xml`,
+          },
         }
         const gateway = createCteArchiveGateway({ storage })
 

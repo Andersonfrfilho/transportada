@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
+import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
   CTE_PROCESSING_EVENT_TYPE,
@@ -14,6 +14,22 @@ import type {
 } from '../infrastructure/cte-fiscal-gateway.js'
 import { createCteFiscalGateway } from '../infrastructure/cte-fiscal-gateway.js'
 
+import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
+import type {
+  CteIssuanceDiagnostics,
+  CteIssuanceDiagnosticsPhase,
+  CteIssuanceDiagnosticsRecord,
+} from '../domain/cte-issuance-diagnostics.policy.js'
+import {
+  buildCteDiagnosticsRequest,
+  buildCteDiagnosticsResponse,
+  resolveCteDiagnosticsExpiry,
+} from '../domain/cte-issuance-diagnostics.policy.js'
+import {
+  type CteUnknownErrorDescription,
+  describeCteUnknownError,
+} from '../domain/cte-unknown-error.policy.js'
+
 import type { CteCancellationExecutionInput } from './cte-cancellation-input-resolver.service.js'
 import type { CteIssuanceExecutionInput } from './cte-issuance-execution-input-resolver.service.js'
 import {
@@ -24,6 +40,8 @@ import {
 type CteIssuanceWorkerEffect = {
   execute(params: { readonly envelope: CteProcessingEnvelopeV1 }): Promise<void>
 }
+
+const FISCAL_NUMBER_BURNED_CAUSE = 'fiscal_number_burned'
 
 export type CteIssuanceWriteBackKey = {
   readonly attemptId: string
@@ -93,10 +111,34 @@ export type CteSettledAttemptGuard = {
   isSettled(input: { readonly attemptId: string; readonly companyId: string }): Promise<boolean>
 }
 
+export type CteFiscalNumberProbeResult =
+  | { readonly nextNumber: number; readonly outcome: 'advanced' }
+  | { readonly outcome: 'exhausted' }
+
+/**
+ * Avança a numeração da série quando a SEFAZ acusa que o número já pertence a outro documento.
+ * Reserva o próximo número, regrava o payload da tentativa e registra o motivo na trilha do item,
+ * tudo na mesma transação — numeração fiscal não pode mudar sem deixar dito por quê.
+ */
+export type CteFiscalNumberProbe = {
+  advance(input: {
+    readonly attemptId: string
+    readonly batchItemId: string
+    readonly burnedNumber: number
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+    readonly occurredAt: Date
+    readonly rejectionCode: string
+    readonly series: string
+  }): Promise<CteFiscalNumberProbeResult>
+}
+
 export function createCteIssuanceWorkerEffect(input: {
   readonly authorizedDocumentStorage?: CteAuthorizedDocumentStorage
   readonly cancellationDocumentStorage?: CteCancellationDocumentStorage
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
+  readonly diagnostics?: CteIssuanceDiagnostics
+  readonly fiscalNumberProbe?: CteFiscalNumberProbe
   readonly logger: WorkerLogger
   readonly resolveCancellationInput?: (params: {
     readonly envelope: CteProcessingEnvelopeV1
@@ -114,7 +156,74 @@ export function createCteIssuanceWorkerEffect(input: {
           createProvider: input.createProvider,
         })
 
+  /**
+   * Diagnóstico é registro auxiliar com validade: nunca pode derrubar a emissão. Falhar aqui vira
+   * aviso no log — o inverso já custou três CT-es presos em "Transmitindo" sem uma linha de rastro.
+   */
+  async function recordDiagnostics(params: {
+    readonly durationMs?: number
+    readonly envelope: CteProcessingEnvelopeV1
+    readonly error?: CteUnknownErrorDescription
+    readonly phase: CteIssuanceDiagnosticsPhase
+    readonly request?: unknown
+    readonly response?: unknown
+  }): Promise<void> {
+    if (input.diagnostics === undefined) return
+
+    const occurredAt = new Date()
+    const record: CteIssuanceDiagnosticsRecord = {
+      attemptId: params.envelope.payload.attemptId,
+      attemptKind: params.envelope.payload.attemptKind,
+      batchId: params.envelope.payload.batchId,
+      batchItemId: params.envelope.payload.batchItemId,
+      companyId: params.envelope.companyId,
+      correlationId: params.envelope.correlationId,
+      durationMs: params.durationMs,
+      error: params.error,
+      eventId: params.envelope.eventId,
+      expiresAt: resolveCteDiagnosticsExpiry({ occurredAt }),
+      occurredAt,
+      phase: params.phase,
+      request: params.request,
+      response: params.response,
+    }
+
+    try {
+      await input.diagnostics.record(record)
+    } catch (error) {
+      safeLogWarn({
+        logger: input.logger,
+        message: 'cte_issuance_diagnostics_record_failed',
+        metadata: {
+          attemptId: record.attemptId,
+          batchItemId: record.batchItemId,
+          companyId: record.companyId,
+          eventId: record.eventId,
+          phase: record.phase,
+          ...describeCteUnknownError(error),
+        },
+      })
+    }
+  }
+
   async function executeIssuance(envelope: CteProcessingEnvelopeV1): Promise<void> {
+    try {
+      await issueDocument(envelope)
+    } catch (error) {
+      if (error instanceof CteIssuanceFatalError || error instanceof CteIssuanceRecoverableError) {
+        throw error
+      }
+
+      await recordDiagnostics({
+        envelope,
+        error: describeCteUnknownError(error),
+        phase: 'error',
+      })
+      throw error
+    }
+  }
+
+  async function issueDocument(envelope: CteProcessingEnvelopeV1): Promise<void> {
     const executionInput =
       input.resolveExecutionInput === undefined
         ? null
@@ -133,17 +242,43 @@ export function createCteIssuanceWorkerEffect(input: {
     const createKey = (): CteIssuanceWriteBackKey => createWriteBackKey(envelope)
     await input.writeBack?.recordInFlight(createKey())
 
-    const outcome = await gateway.issue({
-      config: executionInput.config,
-      command: {
-        tenantId: executionInput.tenantId,
-        documentId: executionInput.documentId,
-        cteData: executionInput.cteData,
-      },
+    const command = {
+      tenantId: executionInput.tenantId,
+      documentId: executionInput.documentId,
+      cteData: executionInput.cteData,
+    }
+    await recordDiagnostics({
+      envelope,
+      phase: 'request',
+      request: buildCteDiagnosticsRequest({ command, config: executionInput.config }),
+    })
+
+    const startedAt = Date.now()
+    const outcome = await gateway.issue({ config: executionInput.config, command })
+
+    await recordDiagnostics({
+      durationMs: Date.now() - startedAt,
+      envelope,
+      phase: 'response',
+      response: buildCteDiagnosticsResponse(outcome),
     })
 
     if (outcome.status === 'rejected') {
       const errorCode = outcome.rejection?.code ?? 'FISCAL_REJECTED'
+      const advanced = await advanceBurnedFiscalNumber({
+        config: executionInput.config,
+        errorCode,
+        key: createKey(),
+        logger: input.logger,
+        ...(input.fiscalNumberProbe === undefined ? {} : { probe: input.fiscalNumberProbe }),
+      })
+
+      if (advanced) {
+        const cause = `${FISCAL_NUMBER_BURNED_CAUSE}:${errorCode}`
+        await input.writeBack?.recordRetryScheduled({ ...createKey(), cause })
+        throw new CteIssuanceRecoverableError(cause)
+      }
+
       await input.writeBack?.recordRejected({ ...createKey(), errorCode })
       throw new CteIssuanceFatalError(errorCode)
     }
@@ -318,6 +453,47 @@ export function createCteIssuanceWorkerEffect(input: {
       await executeIssuance(envelope)
     },
   }
+}
+
+/**
+ * Só a duplicidade de numeração melhora com número novo; rejeição de conteúdo sondada seria
+ * numeração queimada à toa. O teto de sondas mora no probe, que é quem conhece o histórico do item.
+ */
+async function advanceBurnedFiscalNumber(input: {
+  readonly config: CteIssuanceExecutionInput['config']
+  readonly errorCode: string
+  readonly key: CteIssuanceWriteBackKey
+  readonly logger: WorkerLogger
+  readonly probe?: CteFiscalNumberProbe
+}): Promise<boolean> {
+  if (input.probe === undefined || !isFiscalNumberRejection(input.errorCode)) return false
+
+  const result = await input.probe.advance({
+    attemptId: input.key.attemptId,
+    batchItemId: input.key.batchItemId,
+    burnedNumber: input.config.numeroCte,
+    companyId: input.key.companyId,
+    environment: input.config.environment,
+    occurredAt: input.key.occurredAt,
+    rejectionCode: input.errorCode,
+    series: input.config.serie,
+  })
+
+  safeLogInfo({
+    logger: input.logger,
+    message: 'cte_issuance_fiscal_number_probe',
+    metadata: {
+      attemptId: input.key.attemptId,
+      batchItemId: input.key.batchItemId,
+      burnedNumber: input.config.numeroCte,
+      companyId: input.key.companyId,
+      outcome: result.outcome,
+      rejectionCode: input.errorCode,
+      series: input.config.serie,
+    },
+  })
+
+  return result.outcome === 'advanced'
 }
 
 function createWriteBackKey(envelope: CteProcessingEnvelopeV1): CteIssuanceWriteBackKey {

@@ -138,6 +138,28 @@ describe('fleet vehicles http contract', () => {
     ])
   })
 
+  // O cadastro do proprietário guarda 058151044 como o certificado da ANTT imprime.
+  test('grava o RNTRC do proprietário com o zero da folha da ANTT em vez de encurtá-lo', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          ...CREATE_VEHICLE_BODY,
+          owner: { ...THIRD_PARTY_OWNER_BODY, rntrc: '058151044' },
+          ownership: 'aggregate',
+        },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createVehicleCalls[0]).toMatchObject({
+      vehicle: { owner: { rntrc: '058151044' } },
+    })
+  })
+
   test('rejects a plate outside the Mercosul and legacy formats and any unknown field', async () => {
     const plateFixture = await createFleetHttpFixture()
     const plateResponse = await plateFixture.handle(

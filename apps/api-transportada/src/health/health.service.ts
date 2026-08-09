@@ -7,23 +7,32 @@ import type {
   DatabaseHealthPort,
   DependencyStatus,
   LivenessHealthResponse,
+  MigrationStatusPort,
   ReadinessHealthResponse,
 } from '../shared/api.types'
 
 type HealthServiceParams = {
   readonly database: DatabaseHealthPort
   readonly identityReadiness: IdentityReadinessPort
+  readonly migrationStatus: MigrationStatusPort
   readonly now?: () => Date
 }
 
 export class HealthService {
   private readonly database: DatabaseHealthPort
   private readonly identityReadiness: IdentityReadinessPort
+  private readonly migrationStatus: MigrationStatusPort
   private readonly now: () => Date
 
-  public constructor({ database, identityReadiness, now = () => new Date() }: HealthServiceParams) {
+  public constructor({
+    database,
+    identityReadiness,
+    migrationStatus,
+    now = () => new Date(),
+  }: HealthServiceParams) {
     this.database = database
     this.identityReadiness = identityReadiness
+    this.migrationStatus = migrationStatus
     this.now = now
   }
 
@@ -36,12 +45,17 @@ export class HealthService {
   }
 
   public async ready(): Promise<ReadinessHealthResponse> {
-    const [database, identity] = await Promise.all([this.checkDatabase(), this.checkIdentity()])
+    const [database, identity, migrations] = await Promise.all([
+      this.checkDatabase(),
+      this.checkIdentity(),
+      this.checkMigrations(),
+    ])
+    const dependencies = { database, identity, migrations }
 
     return {
-      dependencies: { database, identity },
+      dependencies,
       service: API_SERVICE_NAME,
-      status: database === 'up' && identity === 'up' ? 'ok' : 'degraded',
+      status: Object.values(dependencies).every((status) => status === 'up') ? 'ok' : 'degraded',
       timestamp: this.now().toISOString(),
     }
   }
@@ -50,6 +64,15 @@ export class HealthService {
     try {
       await this.database.healthCheck()
       return 'up'
+    } catch {
+      return 'down'
+    }
+  }
+
+  /** Não devolve os nomes: `/health/ready` é público e a lista descreve o esquema do banco. */
+  private async checkMigrations(): Promise<DependencyStatus> {
+    try {
+      return (await this.migrationStatus.countPending()) === 0 ? 'up' : 'down'
     } catch {
       return 'down'
     }

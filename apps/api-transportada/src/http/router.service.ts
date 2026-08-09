@@ -44,13 +44,43 @@ type RouterRoute<TInput> = {
   readonly parse: (params: RouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
   readonly policy?: RouteAuthorizationPolicy
+  /**
+   * Convites/administração de usuários precisam distinguir id malformado (400, erro do cliente)
+   * de usuário de outra empresa (404, sem confirmar que existe) — 'raw' devolve o segmento decodificado
+   * como está e deixa o `parse` da rota validar o formato, ao invés do 404 padrão de segmento não-UUID.
+   */
+  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
 }
 
-type RegisteredRouterRoute = {
+export type RegisteredRouterRoute = {
   readonly execute: (params: RouteParserParams) => Promise<Response>
   readonly method: string
   readonly pathname: string
+  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
   readonly policy?: RouteAuthorizationPolicy
+}
+
+export type AnonymousRouteParserParams = {
+  readonly correlationId: string
+  readonly request: Request
+}
+
+type AnonymousRouteHandlerParams<TInput> = {
+  readonly correlationId: string
+  readonly input: TInput
+}
+
+type AnonymousRouterRoute<TInput> = {
+  readonly handle: (params: AnonymousRouteHandlerParams<TInput>) => Promise<Response>
+  readonly method: string
+  readonly parse: (params: AnonymousRouteParserParams) => TInput | Promise<TInput>
+  readonly pathname: string
+}
+
+export type RegisteredAnonymousRoute = {
+  readonly execute: (params: AnonymousRouteParserParams) => Promise<Response>
+  readonly method: string
+  readonly pathname: string
 }
 
 type RouterRequest = {
@@ -66,10 +96,18 @@ type MatchedRouterRoute = {
 }
 
 export type HttpRouter = {
+  /**
+   * Métodos registrados para o caminho, na ordem canônica. É a fonte do preflight: rota nova
+   * ganha CORS por existir, sem lista paralela para alguém esquecer de atualizar.
+   */
+  allowedMethods(pathname: string): readonly string[]
   handle(request: RouterRequest): Promise<Response>
 }
 
+const METHOD_ORDER = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+
 type CreateRouterParams = {
+  readonly anonymousRoutes?: readonly RegisteredAnonymousRoute[]
   readonly authentication: AuthenticationPort
   readonly authorization: RouteAuthorizationPort
   readonly healthService: HealthService
@@ -78,6 +116,7 @@ type CreateRouterParams = {
 }
 
 export function createRouter({
+  anonymousRoutes = [],
   authentication,
   authorization,
   healthService,
@@ -85,9 +124,20 @@ export function createRouter({
   tenantContext,
 }: CreateRouterParams): HttpRouter {
   return Object.freeze({
+    allowedMethods(pathname: string): readonly string[] {
+      return collectAllowedMethods({ anonymousRoutes, pathname, routes })
+    },
     async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
         return handleHealthRequest({ healthService, method, pathname })
+      }
+
+      const anonymousRoute = anonymousRoutes.find((candidate) => candidate.pathname === pathname)
+      if (anonymousRoute !== undefined) {
+        if (anonymousRoute.method !== method) {
+          throw new ApiError(HTTP_ERROR.notFound)
+        }
+        return anonymousRoute.execute({ correlationId, request })
       }
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
@@ -125,8 +175,66 @@ export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRoute
     },
     method: route.method,
     pathname: route.pathname,
+    ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
     ...(route.policy ? { policy: route.policy } : {}),
   })
+}
+
+export function defineAnonymousRoute<TInput>(
+  route: AnonymousRouterRoute<TInput>,
+): RegisteredAnonymousRoute {
+  return Object.freeze({
+    async execute({ correlationId, request }: AnonymousRouteParserParams): Promise<Response> {
+      const input = await route.parse({ correlationId, request })
+      return route.handle({ correlationId, input })
+    },
+    method: route.method,
+    pathname: route.pathname,
+  })
+}
+
+type CollectAllowedMethodsParams = {
+  readonly anonymousRoutes: readonly RegisteredAnonymousRoute[]
+  readonly pathname: string
+  readonly routes: readonly RegisteredRouterRoute[]
+}
+
+function collectAllowedMethods({
+  anonymousRoutes,
+  pathname,
+  routes,
+}: CollectAllowedMethodsParams): readonly string[] {
+  if (isHealthPath(pathname) || pathname === API_AUTH_ME_PATH) {
+    return [HTTP_GET_METHOD]
+  }
+
+  const anonymousMethods = anonymousRoutes
+    .filter((candidate) => candidate.pathname === pathname)
+    .map((candidate) => candidate.method)
+  const authenticatedMethods = routes
+    .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
+    .map((candidate) => candidate.method)
+
+  return [...new Set([...anonymousMethods, ...authenticatedMethods])].sort(
+    (left, right) => methodRank(left) - methodRank(right),
+  )
+}
+
+function methodRank(method: string): number {
+  const rank = METHOD_ORDER.indexOf(method as (typeof METHOD_ORDER)[number])
+  return rank === -1 ? METHOD_ORDER.length : rank
+}
+
+type RouteMatchesPathnameParams = {
+  readonly candidate: RegisteredRouterRoute
+  readonly pathname: string
+}
+
+function routeMatchesPathname({ candidate, pathname }: RouteMatchesPathnameParams): boolean {
+  if (findParameterSegments(candidate.pathname.split('/')).length === 0) {
+    return candidate.pathname === pathname
+  }
+  return matchDynamicRoute({ candidate, pathname }) !== undefined
 }
 
 type MatchRouteParams = {
@@ -176,7 +284,11 @@ function matchDynamicRoute({
     return undefined
   }
 
-  const pathParameters = collectPathParameters({ parameters, requestSegments })
+  const pathParameters = collectPathParameters({
+    format: candidate.pathParameterFormat ?? 'canonicalUuid',
+    parameters,
+    requestSegments,
+  })
   if (pathParameters === undefined) return undefined
 
   return { pathParameters, route: candidate }
@@ -212,6 +324,7 @@ function staticSegmentsMatch({
 }
 
 function collectPathParameters(input: {
+  readonly format: 'canonicalUuid' | 'raw'
   readonly parameters: readonly PathParameterSegment[]
   readonly requestSegments: readonly string[]
 }): RouterPathParameters | undefined {
@@ -220,7 +333,8 @@ function collectPathParameters(input: {
     const identifier = input.requestSegments[parameter.index]
     if (identifier === undefined) return undefined
     const decodedIdentifier = decodeIdentifier(identifier)
-    if (decodedIdentifier === undefined || !isCanonicalUuid(decodedIdentifier)) return undefined
+    if (decodedIdentifier === undefined) return undefined
+    if (input.format === 'canonicalUuid' && !isCanonicalUuid(decodedIdentifier)) return undefined
     entries.push([parameter.name, decodedIdentifier])
   }
   return Object.freeze(Object.fromEntries(entries))

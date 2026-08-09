@@ -1,7 +1,9 @@
 # TransportAdA
 
-TMS multiempresa para importar NF-e, calcular frete, emitir CT-e em lote e
-gerar faturas. O projeto está em fase de especificação dirigida por contrato.
+TMS para transportadoras: importa NF-e, calcula frete, emite CT-e em lote e
+gera faturas. A distribuição é instalação dedicada — um deploy por
+transportadora (ADR-0021) —, com isolamento por `companyId` mantido dentro de
+cada instalação. O projeto está em fase de especificação dirigida por contrato.
 
 Repositório privado: `https://github.com/Andersonfrfilho/transportada`
 

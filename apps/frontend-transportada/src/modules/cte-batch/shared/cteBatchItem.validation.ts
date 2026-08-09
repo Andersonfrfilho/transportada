@@ -5,6 +5,7 @@ import type {
   CteBatchItem,
   CteBatchItemCharge,
   CteBatchItemDocument,
+  CteFiscalNumberChange,
 } from './cteBatchItem.types'
 
 const INVALID_ITEMS = 'CTE_BATCH_INVALID_ITEMS_RESPONSE'
@@ -20,6 +21,7 @@ const ITEM_KEYS = [
   'fiscalAmount',
   'fiscalDocumentId',
   'fiscalNumber',
+  'fiscalNumberChange',
   'fiscalSeries',
   'id',
   'lastErrorCode',
@@ -27,6 +29,10 @@ const ITEM_KEYS = [
   'status',
   'totalAmount',
 ] as const
+
+const FISCAL_NUMBER_CHANGE_KEYS = ['previousNumber', 'reason', 'rejectionCode'] as const
+
+const DUPLICATE_NUMBER_REASON = 'sefaz_duplicate_number'
 
 const CHARGE_KEYS = ['amount', 'baseAmount', 'calculationType', 'label', 'ordinal', 'rate'] as const
 
@@ -102,6 +108,28 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   }
 }
 
+/**
+ * Ausente é API anterior ao campo, e recusar apagaria a tabela na janela de deploy; motivo
+ * desconhecido é resposta que não sabemos explicar ao usuário, e essa recusamos.
+ */
+function fiscalNumberChangeFromApi(input: unknown): CteFiscalNumberChange | null {
+  if (input === null || input === undefined) return null
+  if (!isRecord(input)) throw validationError()
+  rejectExtraKeys(input, FISCAL_NUMBER_CHANGE_KEYS)
+  if (
+    !isString(input.previousNumber) ||
+    !isString(input.rejectionCode) ||
+    input.reason !== DUPLICATE_NUMBER_REASON
+  ) {
+    throw validationError()
+  }
+  return {
+    previousNumber: input.previousNumber,
+    reason: DUPLICATE_NUMBER_REASON,
+    rejectionCode: input.rejectionCode,
+  }
+}
+
 function itemFromApi(input: unknown): CteBatchItem {
   if (!isRecord(input)) throw validationError()
   rejectExtraKeys(input, ITEM_KEYS)
@@ -136,6 +164,7 @@ function itemFromApi(input: unknown): CteBatchItem {
     fiscalAmount: input.fiscalAmount,
     fiscalDocumentId: input.fiscalDocumentId,
     fiscalNumber: input.fiscalNumber,
+    fiscalNumberChange: fiscalNumberChangeFromApi(input.fiscalNumberChange),
     fiscalSeries: input.fiscalSeries,
     id: input.id,
     lastErrorCode: input.lastErrorCode,

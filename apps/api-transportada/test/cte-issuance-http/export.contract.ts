@@ -17,6 +17,7 @@ import {
 const BATCH_ID = '00000000-0000-4000-8000-000000000901'
 const ITEM_ID = '00000000-0000-4000-8000-000000000902'
 const OTHER_ITEM_ID = '00000000-0000-4000-8000-000000000903'
+const OTHER_BATCH_ID = '00000000-0000-4000-8000-000000000904'
 
 const LISTING_FILTERS = {
   batchId: BATCH_ID,
@@ -66,6 +67,16 @@ describe('CT-e XML export HTTP contract', () => {
     expect(fixture.exportCalls[0]?.filters).toEqual(LISTING_FILTERS)
   })
 
+  test('aceita a seleção de lotes inteiros pela lista de lotes', async () => {
+    const fixture = await createCteIssuanceHttpFixture()
+    const filters = { batchIdIn: [BATCH_ID, OTHER_BATCH_ID], statusIn: ['authorized'] } as const
+
+    const response = await fixture.handle(exportItemsRequest({ body: { filters } }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.exportCalls[0]?.filters).toEqual(filters)
+  })
+
   test('aceita a seleção explícita de itens', async () => {
     const fixture = await createCteIssuanceHttpFixture()
 
@@ -75,6 +86,17 @@ describe('CT-e XML export HTTP contract', () => {
 
     expect(response.status).toBe(200)
     expect(fixture.exportCalls[0]?.itemIds).toEqual([ITEM_ID, OTHER_ITEM_ID])
+  })
+
+  test('repassa o formato pedido e deixa a aplicação decidir o padrão', async () => {
+    const fixture = await createCteIssuanceHttpFixture()
+
+    const response = await fixture.handle(exportItemsRequest({ body: { format: 'both' } }))
+    await fixture.handle(exportItemsRequest())
+
+    expect(response.status).toBe(200)
+    expect(fixture.exportCalls[0]?.format).toBe('both')
+    expect(fixture.exportCalls[1]?.format).toBeUndefined()
   })
 
   test('deriva a empresa do contexto autenticado e ignora companyId do corpo', async () => {
@@ -102,6 +124,10 @@ describe('CT-e XML export HTTP contract', () => {
       },
       { itemIds: ['not-a-uuid'] },
       { itemIds: [] },
+      { filters: { batchIdIn: ['not-a-uuid'] } },
+      { filters: { batchIdIn: [BATCH_ID, BATCH_ID] } },
+      { filters: { batchIdIn: [] } },
+      { format: 'docx' },
     ]
 
     for (const body of rejectedBodies) {

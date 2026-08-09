@@ -1,0 +1,88 @@
+name: Espelho do bucket fiscal
+
+# Meia hora depois do ciclo de backup: o dump do banco e o espelho do bucket protegem a mesma
+# coisa em pedaços diferentes — o banco referencia `bucket`/`key`, e sem o objeto o documento
+# fiscal não existe.
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bucket-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FISCAL_SOURCE_S3_ACCESS_KEY_ID: ${{ secrets.FISCAL_SOURCE_S3_ACCESS_KEY_ID }}
+      FISCAL_SOURCE_S3_SECRET_ACCESS_KEY: ${{ secrets.FISCAL_SOURCE_S3_SECRET_ACCESS_KEY }}
+      FISCAL_SOURCE_S3_ENDPOINT: ${{ vars.FISCAL_SOURCE_S3_ENDPOINT }}
+      FISCAL_SOURCE_S3_BUCKET: ${{ vars.FISCAL_SOURCE_S3_BUCKET }}
+      FISCAL_SOURCE_S3_REGION: ${{ vars.FISCAL_SOURCE_S3_REGION }}
+      FISCAL_MIRROR_S3_ACCESS_KEY_ID: ${{ secrets.FISCAL_MIRROR_S3_ACCESS_KEY_ID }}
+      FISCAL_MIRROR_S3_SECRET_ACCESS_KEY: ${{ secrets.FISCAL_MIRROR_S3_SECRET_ACCESS_KEY }}
+      FISCAL_MIRROR_S3_ENDPOINT: ${{ vars.FISCAL_MIRROR_S3_ENDPOINT }}
+      FISCAL_MIRROR_S3_BUCKET: ${{ vars.FISCAL_MIRROR_S3_BUCKET }}
+      FISCAL_MIRROR_S3_REGION: ${{ vars.FISCAL_MIRROR_S3_REGION }}
+    steps:
+      # Origem e espelho vivem em projetos Railway diferentes, com credencial própria: um
+      # `aws s3 sync` entre os dois só existiria com uma credencial única, que teria de escrever na
+      # origem — exatamente o que este espelho não pode ter. Por isso a comparação é explícita e a
+      # cópia atravessa o runner, cada lado no seu subshell com a sua credencial.
+      - name: Listar o que a origem tem e o espelho não
+        run: |
+          set -euo pipefail
+          list_keys() {
+            aws s3 ls "s3://$1" --recursive --endpoint-url "$2" --region "$3" \
+              | awk 'NF > 3 { print substr($0, index($0, $4)) }' | LC_ALL=C sort
+          }
+          (
+            export AWS_ACCESS_KEY_ID="$FISCAL_SOURCE_S3_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$FISCAL_SOURCE_S3_SECRET_ACCESS_KEY"
+            list_keys "$FISCAL_SOURCE_S3_BUCKET" "$FISCAL_SOURCE_S3_ENDPOINT" "$FISCAL_SOURCE_S3_REGION"
+          ) > source-keys.txt
+          (
+            export AWS_ACCESS_KEY_ID="$FISCAL_MIRROR_S3_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$FISCAL_MIRROR_S3_SECRET_ACCESS_KEY"
+            list_keys "$FISCAL_MIRROR_S3_BUCKET" "$FISCAL_MIRROR_S3_ENDPOINT" "$FISCAL_MIRROR_S3_REGION"
+          ) > mirror-keys.txt
+          comm -23 source-keys.txt mirror-keys.txt > missing-keys.txt
+          count() { wc -l < "$1" | tr -d ' '; }
+          echo "origem: $(count source-keys.txt) · espelho: $(count mirror-keys.txt) · a copiar: $(count missing-keys.txt)"
+
+      - name: Copiar os objetos ausentes
+        run: |
+          set -euo pipefail
+          copied=0
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            (
+              export AWS_ACCESS_KEY_ID="$FISCAL_SOURCE_S3_ACCESS_KEY_ID"
+              export AWS_SECRET_ACCESS_KEY="$FISCAL_SOURCE_S3_SECRET_ACCESS_KEY"
+              aws s3 cp "s3://$FISCAL_SOURCE_S3_BUCKET/$key" - \
+                --endpoint-url "$FISCAL_SOURCE_S3_ENDPOINT" --region "$FISCAL_SOURCE_S3_REGION"
+            ) | (
+              export AWS_ACCESS_KEY_ID="$FISCAL_MIRROR_S3_ACCESS_KEY_ID"
+              export AWS_SECRET_ACCESS_KEY="$FISCAL_MIRROR_S3_SECRET_ACCESS_KEY"
+              aws s3 cp - "s3://$FISCAL_MIRROR_S3_BUCKET/$key" \
+                --endpoint-url "$FISCAL_MIRROR_S3_ENDPOINT" --region "$FISCAL_MIRROR_S3_REGION"
+            )
+            copied=$((copied + 1))
+          done < missing-keys.txt
+          echo "objetos espelhados: $copied"
+
+      # O espelho guarda o que a origem perdeu — e isso é o ponto. Mas some em silêncio: um espelho
+      # crescendo enquanto a origem encolhe é o sinal de que alguém apagou o que não devia.
+      - name: Avisar quando a origem encolheu
+        run: |
+          set -euo pipefail
+          orphans="$(comm -13 source-keys.txt mirror-keys.txt | wc -l | tr -d ' ')"
+          if [ "$orphans" -gt 0 ]; then
+            echo "::warning::$orphans objetos existem no espelho e não na origem — XML autorizado é imutável, investigar."
+          fi

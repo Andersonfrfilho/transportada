@@ -577,6 +577,25 @@
   font-weight: 700;
 }
 
+.tableSkeletonGroup {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tableSkeletonTable {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.tableSkeletonRow {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: center;
+}
+
 .filterZone {
   display: grid;
   gap: var(--space-3);

@@ -5,6 +5,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 
 import { parseWorkerEnvironment } from '../config/environment.schema.js'
+import { shouldPrettyPrintLogs } from '../logging/log-format.policy.js'
 import { safeLogInfo } from '../logging/safe-logger.service.js'
 import { createNfeStorageGatewayFromEnvironment } from '../storage/infrastructure/nfe-storage-gateway.js'
 import {
@@ -29,7 +30,7 @@ export async function runNfeAddressCityCodeBackfill(params: {
     environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? DEFAULT_STORAGE_BUCKET
   const logger = createLogger({
     logLevel: config.logLevel,
-    pretty: config.appEnv !== 'production',
+    pretty: shouldPrettyPrintLogs(config.appEnv),
     projectName: 'transportada-worker',
     version: '0.1.0',
   })

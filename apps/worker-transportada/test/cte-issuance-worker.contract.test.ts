@@ -43,6 +43,7 @@ describe('CT-e issuance worker contract', () => {
     let settled = false
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute() {
           calls.push('effect.execute')
@@ -85,6 +86,7 @@ describe('CT-e issuance worker contract', () => {
     const calls: string[] = []
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute() {
           calls.push('effect.execute')
@@ -106,6 +108,7 @@ describe('CT-e issuance worker contract', () => {
     const calls: string[] = []
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute() {
           calls.push('effect.execute')
@@ -129,6 +132,7 @@ describe('CT-e issuance worker contract', () => {
     const calls: string[] = []
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute() {
           calls.push('effect.execute')
@@ -156,6 +160,7 @@ describe('CT-e issuance worker contract', () => {
     }
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute(params) {
           calls.push(`effect.execute:${params.envelope.companyId}`)
@@ -183,6 +188,7 @@ describe('CT-e issuance worker contract', () => {
     const calls: string[] = []
     const handler = new CteIssuanceWorkerMessageHandler({
       clock: { now: () => now },
+      logger: silentLogger,
       effect: {
         async execute() {
           calls.push('effect.execute')
@@ -228,6 +234,15 @@ function createRepository(params: {
       readonly reason: string
     }): Promise<void> {
       params.calls.push(`markDeadLettered:${cteMessageKey(input)}:${input.reason}`)
+    },
+    async markReconciliationRequired(input: {
+      readonly attemptId: string
+      readonly batchItemId: string
+      readonly companyId: string
+      readonly eventId: string
+      readonly reason: string
+    }): Promise<void> {
+      params.calls.push(`markReconciliationRequired:${cteMessageKey(input)}:${input.reason}`)
     },
     async markProcessed(input: {
       readonly attemptId: string
@@ -289,4 +304,10 @@ function createDeferred(): { promise: Promise<void>; resolve: () => void } {
       resolvePromise()
     },
   }
+}
+
+const silentLogger = {
+  error() {},
+  info() {},
+  warn() {},
 }

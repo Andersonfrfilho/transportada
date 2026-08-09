@@ -23,6 +23,7 @@ export const GOLDEN_OBSERVATIONS = 'EMPRESA OPTANTE PELO SIMPLES NACIONAL'
 export const GOLDEN_SENDER: CtePayloadParty = {
   city: 'Taubate',
   cityCode: '3554102',
+  complement: null,
   district: 'JARDIM BARONESA',
   email: null,
   legalName: 'COMERCIAL ZARAGOZA IMP EXP LTDA',
@@ -39,6 +40,7 @@ export const GOLDEN_SENDER: CtePayloadParty = {
 export const GOLDEN_RECIPIENT: CtePayloadParty = {
   city: 'Itirapua',
   cityCode: '3523701',
+  complement: null,
   district: 'CENTRO',
   email: 's.docarmomercado@hotmail.com',
   legalName: 'S. DO CARMO ALVES E SILVA',
@@ -105,6 +107,7 @@ type GoldenOverrides = {
   readonly carrier?: CtePayloadCarrier
   readonly charge?: CtePayloadCharge
   readonly invoices?: readonly CtePayloadInvoice[]
+  readonly issuedAt?: string
   readonly profile?: CtePayloadProfile
 }
 
@@ -113,6 +116,7 @@ export function buildGoldenParams(overrides: GoldenOverrides = {}): BuildCtePayl
     carrier: overrides.carrier ?? GOLDEN_CARRIER,
     charge: overrides.charge ?? GOLDEN_CHARGE,
     invoices: overrides.invoices ?? [GOLDEN_INVOICE],
+    ...(overrides.issuedAt === undefined ? {} : { issuedAt: overrides.issuedAt }),
     profile: overrides.profile ?? GOLDEN_PROFILE,
   }
 }
