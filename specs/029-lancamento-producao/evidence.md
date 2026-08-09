@@ -1335,6 +1335,58 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       com `rm -P`; `~/.transportada/production/` já estava vazio. A fonte do valor corrente é o
       Chaveiro, e o Railway é o desempate.
 
+- [x] T019b — **O worker registrava o `SIGTERM` depois de já estar consumindo.**
+
+      Apareceu como CI vermelho no PR #4: `sigterm.integration.ts` falhou com `Expected: 0 /
+      Received: 143` — 128+15, o processo morto pela disposição padrão do sinal em vez de sair
+      sozinho depois de drenar. Não era regressão dos commits da 029: o **mesmo** `633488c` ficou
+      verde no `gate / integration` do deploy de staging e vermelho no CI do PR, e `origin/main` é
+      ancestral de `staging`, então o merge commit que o `pull_request` testa tem conteúdo idêntico.
+      Um verde e um vermelho no mesmo código é instabilidade, e instabilidade tem causa.
+
+      **A causa, lida no código.** `registerWorkerShutdownSignals` era a última linha do boot
+      (`main.ts:629`) e o consumidor sintético começava a consumir em `main.ts:351`, com quatro
+      `await` entre os dois (os outros consumidores, linhas 356, 379, 419, 490). Cada `await`
+      devolve o event loop, então a mensagem podia ser entregue e o `foundation_synthetic_effect_started`
+      podia sair enquanto o processo ainda não tinha handler nenhum. O teste usa exatamente esse log
+      como gatilho para mandar o sinal. Runner carregado alarga a janela — daí a intermitência.
+
+      **O que estava em jogo não era o CI.** Worker que morre nessa janela não drena o que está em
+      voo, e ele dá ack em mensagem de emissão fiscal. Um `redeploy` da Railway durante o boot cai
+      no mesmo lugar.
+
+      **Contrato antes.** `test/shutdown-signals.contract.test.ts`, dois testes, vermelhos primeiro:
+      o primeiro boota `startWorkerRuntime` com `startFoundationSyntheticConsumer` injetado que mede
+      `process.listenerCount('SIGTERM')` no instante em que é chamado (`Expected: > 0 / Received: 0`);
+      o segundo emite o sinal antes de o desligamento existir e exige que ele drene assim que existir
+      (`TypeError: undefined is not an object (evaluating 'params.shutdown.stop')`).
+
+      **A correção.** `registerWorkerShutdownSignals` passou a receber `resolveShutdown: () =>
+      Promise<…>` em vez do desligamento pronto, e o registro subiu para logo depois do logger
+      (`main.ts:283`) — antes da primeira conexão RabbitMQ (327) e antes do health server (352).
+      `runtime/deferred-shutdown.service.ts` é a ponte: sinal que chega no meio do boot espera o
+      runtime ficar de pé e só então drena. O boot que falha rejeita a promessa (`main.ts`, bloco
+      `catch`), e o deferred já nasce com um `catch` para a rejeição não derrubar o processo por cima
+      do erro que o próprio boot está propagando.
+
+      **Prova nos dois códigos, medida.** Um probe sobe o worker de verdade, espera o `/health/live`
+      responder 200 — o mesmo gatilho do teste de integração — e manda `SIGTERM` na hora:
+
+      | Código | 8 rodadas | Resultado |
+      | --- | --- | --- |
+      | Antes (`registerWorkerShutdownSignals` no fim do boot) | 8 | **7× `exit=143`**, 1× `exit=0` |
+      | Depois (registro em `main.ts:283`) | 8 | **8× `exit=0`** |
+
+      ⚠️ **Resíduo conhecido e inofensivo.** `SIGTERM` até ~300 ms depois do `bun src/main.ts` ainda
+      sai 143: é carga de módulo e leitura de env, antes da linha 283. Ali não há conexão, consumidor
+      nem mensagem em voo — não há o que drenar. Fechar isso exigiria registrar handler em escopo de
+      módulo, antes do grafo de imports, e o ganho seria nenhum.
+
+      **Gates:** worker 291 pass / 0 fail em 46 arquivos, já com os dois novos; integração do worker 33
+      pass / 0 fail com a infra local; `format:check`, `lint` e `typecheck` verdes. O CI do PR #4
+      fechou verde no rerun (`quality` e `integration`), antes desta correção — ela não foi o que
+      destravou o PR, foi o que tirou a causa.
+
 - [ ] T020 —
 - [ ] T021 —
 - [ ] T022 —

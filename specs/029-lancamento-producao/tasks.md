@@ -175,6 +175,17 @@ terem evidência em `evidence.md`.
       campos. `test/deploy/secrets.contract.ts` guarda a lista: campo que existe no Railway e não
       está no runbook é campo que ninguém repõe na emergência.
 
+- [x] T019b Registrar o handler de `SIGTERM`/`SIGINT` do worker **antes** do primeiro consumidor.
+      Hoje ele é a última linha do boot (`main.ts:629`), e o consumidor sintético começa a consumir
+      em `main.ts:351` — com quatro `await` entre os dois, o event loop entrega mensagem numa janela
+      em que o processo ainda não tem handler. SIGTERM ali mata pela disposição padrão (exit 143) e
+      o que estava em voo não é drenado. Aparece como `sigterm.integration.ts` instável no CI, mas o
+      que está em jogo é o worker perder ack de mensagem fiscal se a Railway reciclar durante o boot.
+
+      Contrato antes: bootar `startWorkerRuntime` com `startFoundationSyntheticConsumer` injetado que
+      mede `process.listenerCount('SIGTERM')` no instante em que é chamado, e exigir que já seja
+      maior que o de antes do boot.
+
 - [ ] T020 🧠 Preencher **config-as-code** de cada serviço de production com o caminho do
       `railway.json`. Sem isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9).
       Fecha a pendência 1. ✅ Não precisa de dashboard: `serviceInstanceUpdate` aceita

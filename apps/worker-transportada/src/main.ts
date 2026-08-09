@@ -82,6 +82,7 @@ import { createNfeXmlImporter } from './nfe-imports/infrastructure/nfe-xml-impor
 import { DrizzleNfeImportConsumerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 import { DrizzleNfeImportWorkerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.js'
 import { createErrorTracker } from './observability/sentry.service.js'
+import { createDeferredShutdown } from './runtime/deferred-shutdown.service.js'
 import { registerWorkerShutdownSignals } from './runtime/shutdown-signals.service.js'
 import { WorkerShutdown } from './runtime/worker-shutdown.service.js'
 import { startHealthServer } from './server/health-server.service.js'
@@ -275,6 +276,11 @@ export async function startWorkerRuntime(
     ...(config.logSinkUrl === undefined ? {} : { sinkUrl: config.logSinkUrl }),
     version: WORKER_VERSION,
   })
+  // Antes de qualquer consumidor: entre o primeiro `consume` e o fim do boot há `await` de sobra
+  // para o event loop entregar mensagem, e sinal que chegue nessa janela sem handler mata o
+  // processo sem drenar o que está em voo.
+  const runtimeShutdown = createDeferredShutdown()
+  registerWorkerShutdownSignals({ logger, resolveShutdown: () => runtimeShutdown.promise })
   const errorTracker = createErrorTracker({
     configuration: {
       dsn: config.sentryDsn,
@@ -626,7 +632,7 @@ export async function startWorkerRuntime(
         mdfeIssuancePublisher,
       ]),
     })
-    registerWorkerShutdownSignals({ logger, shutdown })
+    runtimeShutdown.resolve(shutdown)
     safeLogInfo({
       logger,
       message: 'worker_started',
@@ -655,6 +661,8 @@ export async function startWorkerRuntime(
     await mdfeIssuancePublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
+    // Sinal que chegou no meio do boot está esperando o desligamento existir. Ele não vai existir.
+    runtimeShutdown.reject(error)
     // Worker que não sobe não tem consumidor para reportar a falha por ele.
     errorTracker.captureException(error)
     await errorTracker.flush()
