@@ -26,7 +26,7 @@ type CertificateUploadFormProps = Readonly<{
   certificates: ActiveCertificatesByPurpose
   onDelete: (purpose: CertificatePurpose) => Promise<void>
   disabled: boolean
-  fiscalProfileSaved: boolean
+  hasFiscalProfileSaved: boolean
   onSubmit: (body: FormData) => Promise<SafeCertificate>
 }>
 
@@ -148,7 +148,7 @@ function CertificateInputs(props: CertificateInputsProps) {
 export function CertificateUploadForm({
   certificates,
   disabled,
-  fiscalProfileSaved,
+  hasFiscalProfileSaved,
   onDelete,
   onSubmit,
 }: CertificateUploadFormProps) {
@@ -166,7 +166,7 @@ export function CertificateUploadForm({
   // A rota valida o certificado contra o CNPJ do cadastro fiscal e responde 409 antes de olhar
   // para a senha: com o formulário aberto, toda tentativa vira "salve o cadastro antes" — também
   // a tentativa com a senha certa.
-  const awaitingFiscalProfile = !fiscalProfileSaved
+  const awaitingFiscalProfile = !hasFiscalProfileSaved
   const fieldsDisabled = disabled || awaitingFiscalProfile
   const passwordInvalid =
     status.key === 'certificateErrorMissingFields' || status.key === 'certificateErrorRejected'

@@ -80,7 +80,9 @@ describe('NF-e distribution observability contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           return { acceptedCount: 1, duplicatedCount: 0 }
         },
@@ -208,7 +210,9 @@ describe('NF-e distribution observability contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('A refused pull must not persist documents')
         },
@@ -263,7 +267,9 @@ describe('NF-e distribution observability contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('An empty page must not persist documents')
         },
@@ -307,7 +313,9 @@ describe('NF-e distribution observability contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('A skipped pull must not persist documents')
         },
@@ -336,8 +344,12 @@ describe('NF-e distribution observability contract', () => {
         async acquireLease() {
           return null
         },
-        async releaseLease() {},
-        async saveCursor() {},
+        async releaseLease() {
+          /* empty */
+        },
+        async saveCursor() {
+          /* empty */
+        },
       },
       gatewayFactory: {
         create() {
@@ -356,7 +368,9 @@ describe('NF-e distribution observability contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('A lost lease must not persist documents')
         },

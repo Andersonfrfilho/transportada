@@ -27,7 +27,7 @@ type ViewModelModule = {
   readonly createCompanySettingsViewModel: (input: {
     readonly data?: unknown
     readonly status: 'error' | 'loading' | 'success'
-  }) => Readonly<{ fiscalProfileSaved: boolean; status: string }>
+  }) => Readonly<{ hasFiscalProfileSaved: boolean; status: string }>
 }
 
 function readModule(filePath: string): Promise<string> {
@@ -122,10 +122,10 @@ describe('certificate upload recovery contract', () => {
       status: 'success',
     })
 
-    expect(saved.fiscalProfileSaved).toBe(true)
-    expect(empty.fiscalProfileSaved).toBe(false)
-    expect(createCompanySettingsViewModel({ status: 'loading' }).fiscalProfileSaved).toBe(false)
-    expect(createCompanySettingsViewModel({ status: 'error' }).fiscalProfileSaved).toBe(false)
+    expect(saved.hasFiscalProfileSaved).toBe(true)
+    expect(empty.hasFiscalProfileSaved).toBe(false)
+    expect(createCompanySettingsViewModel({ status: 'loading' }).hasFiscalProfileSaved).toBe(false)
+    expect(createCompanySettingsViewModel({ status: 'error' }).hasFiscalProfileSaved).toBe(false)
   })
 
   /** Não há render de React nos testes desta app: a ligação entre página e formulário é lida na fonte. */
@@ -135,8 +135,8 @@ describe('certificate upload recovery contract', () => {
       readForm(),
     ])
 
-    expect(page).toContain('fiscalProfileSaved={props.viewModel.fiscalProfileSaved}')
-    expect(form).toContain('fiscalProfileSaved')
+    expect(page).toContain('hasFiscalProfileSaved={props.viewModel.hasFiscalProfileSaved}')
+    expect(form).toContain('hasFiscalProfileSaved')
     expect(form).toContain('certificateRequiresProfile')
   })
 
