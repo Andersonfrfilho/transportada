@@ -95,6 +95,7 @@ export type NfeDistributionRepositoryPort = {
   }): Promise<{
     readonly acceptedCount: number
     readonly duplicatedCount: number
+    readonly skippedCount: number
   }>
 }
 

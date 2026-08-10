@@ -84,7 +84,7 @@ describe('NF-e distribution observability contract', () => {
           /* empty */
         },
         async persistPage() {
-          return { acceptedCount: 1, duplicatedCount: 0 }
+          return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
         },
       },
     })
@@ -118,6 +118,7 @@ describe('NF-e distribution observability contract', () => {
       duplicated: 0,
       environment: 'homologation',
       importId: IMPORT_ID,
+      skipped: 0,
       ultNsu: '000000000000001',
     })
 
@@ -128,6 +129,7 @@ describe('NF-e distribution observability contract', () => {
       fetched: 1,
       importId: IMPORT_ID,
       persisted: 1,
+      skipped: 0,
       status: 'completed',
       ultNsu: '000000000000001',
     })
