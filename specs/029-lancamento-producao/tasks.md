@@ -212,9 +212,16 @@ Not Found`, porque a instância do keycloak não existia. Resolvido na T020 — 
       do RabbitMQ. Roda **antes** da T021, não depois. Os `VITE_*` entram no bundle no build, então
       basta estarem postos antes do deploy — conferir no arquivo servido, não no build presumido.
       Fecha a pendência 5.
-- [ ] T023 Provisionar identidade: criar o primeiro usuário no admin console do Keycloak de
-      production, copiar o `sub` para `PROVISION_ADMIN_SUBJECT`, definir `PROVISION_COMPANY_ID` e
-      redeployar a API. As duas variáveis juntas ou nenhuma — meia configuração falha o deploy.
+- [x] T023 Armar o arranque de identidade: `PROVISION_COMPANY_ID` e `BOOTSTRAP_TOKEN` na API de
+      production, e um deploy para o `preDeployCommand` criar a empresa do ambiente.
+      ⚠️ **A redação original desta task é anterior à ADR-0022 e não vale mais.** Ela mandava criar o
+      usuário no admin console do Keycloak e copiar o `sub` para `PROVISION_ADMIN_SUBJECT`; a ADR-0022
+      rebaixou o console a ferramenta de contingência. Quem cria o administrador é
+      `POST /bootstrap/first-admin`, pela tela `/primeiro-acesso` do frontend, com a senha escolhida
+      pela própria pessoa — `PROVISION_ADMIN_SUBJECT` continua opcional e fica vazia. A empresa
+      sozinha é configuração completa; `BOOTSTRAP_TOKEN` ausente mantém a rota morta (fail-closed) e
+      ela se desliga de novo assim que existir um `company-admin` ativo. O primeiro acesso em si é a
+      T026 — esta task entrega o ambiente armado e a rota respondendo `404` a token errado.
 
 ## Fase E — Prova de vida
 

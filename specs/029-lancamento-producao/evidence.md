@@ -1553,7 +1553,72 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       `config/environment.schema.ts` — a api sobe sem elas, e no caso das duas primeiras a ausência
       é o que mantém a rota de arranque morta (ADR-0022). Não é lacuna: é o estado declarado.
 
-- [ ] T023 —
+- [x] T023 — **A empresa do ambiente existe, e a rota de arranque só responde a quem tem o token.**
+
+      **1. O bug que o deploy verde escondia.** As duas variáveis entraram, o deploy ficou `SUCCESS`,
+      e a empresa **não** nasceu. O `preDeployCommand` era `bun … db:migrate && bun … provisioning`,
+      e a Railway aceita **um comando só** — a tentativa de passar dois voltou
+      `deploy.preDeployCommand: Array must contain at most 1 element(s)` — que ela executa **como
+      argv, sem shell**. Logo `&&` e o segundo comando viram *argumentos* do primeiro: a migration
+      roda, o processo sai `0`, o provisionamento nunca acontece e o deploy fica verde. Reproduzido
+      localmente com `Bun.spawn` sobre o argv equivalente: `exitCode 0`, saída vazia,
+      `companiesTotalAfter: 0`. Uma sonda de leitura rodada **dentro** do contêiner de production
+      (`railway ssh`, rede interna — o banco não ganhou proxy público) confirmava `companiesTotal: 0`
+      enquanto staging tinha empresa ativa.
+
+      **2. O encadeamento saiu do shell e foi para o código.** `src/database/pre-deploy.service.ts`
+      é o entrypoint único: migra, e só então provisiona, com a ordem garantida por `await`.
+      Contratos em `test/database-migration/pre-deploy.contract.ts` — a ordem `['migrate',
+      'provision']`, o `{migrated: true, provisioning: 'skipped'}` do ambiente sem empresa declarada,
+      o relatório do que foi criado, e a migration que falha abortando **antes** de provisionar. O
+      contrato de prontidão passou a exigir um `preDeployCommand` sem `&&` e sem `;`.
+
+      **3. O segundo bug que o primeiro escondia.** Com o comando certo, o pre-deploy morreu em
+      `Cannot find module '../companies/domain/scheduled-distribution-window.policy'`: o estágio de
+      runtime do Dockerfile copia só algumas pastas de `src`, e `environment.schema.ts` passou a
+      importar uma que não estava na lista. Agora um contrato resolve o **fechamento transitivo** dos
+      imports relativos a partir do entrypoint e exige que cada arquivo caia sob alguma linha `COPY`
+      — ele ficou vermelho apontando exatamente esse arquivo antes do fix. Import novo fora da lista
+      falha no gate, não no contêiner.
+
+      **4. A empresa, lida do banco de production pela rede interna:**
+
+      ```
+      {"companyIdLen":36,"targetCompanyStatus":"active","companiesTotal":1,
+       "activeCompanyAdmins":0,"identityUsers":0}
+      ```
+
+      `companiesTotal: 1` e `active` é a T023 entregue. `activeCompanyAdmins: 0` é a T026 ainda por
+      fazer — e é justamente o que mantém a rota de arranque **viva**.
+
+      **5. A rota responde `404` opaco a token errado.** `POST /bootstrap/first-admin` pelo domínio
+      público, com o token que esta sessão tinha em mãos:
+
+      ```
+      status=404  {"error":{"code":"NOT_FOUND","message":"Resource not found"}}
+      ```
+
+      Não é rota inexistente: `BootstrapUnavailableError` mapeia `TOKEN_NOT_CONFIGURED`,
+      `TOKEN_MISMATCH`, `COMPANY_MISSING` e `ALREADY_PROVISIONED` todos para o mesmo `404`, de
+      propósito — quem não tem o token não descobre em que estado o arranque está. A comparação é
+      `timingSafeEqual` sobre digests sha256 de tamanho fixo. O token de production tem 64 caracteres
+      e **não** é o desta sessão (impressões digitais `1b7bd554` contra `1b318fb7`, 8 hex de um
+      sha256 — o valor nunca foi impresso, lido ou trafegado).
+
+      **6. E responde `400` a quem tem.** A prova ponta a ponta partiu de **dentro** do contêiner,
+      onde o `BOOTSTRAP_TOKEN` já vive, chamando o domínio público com corpo `{}`:
+
+      ```
+      status=400  {"error":{"code":"INVALID_REQUEST","message":"Invalid request"}}
+      ```
+
+      `400` só é alcançável depois de o token conferir, a empresa existir e não haver
+      `company-admin` ativo — as três checagens de `assertAvailable` passaram, e o corpo vazio
+      morreu no schema sem criar nada. É a medida que separa "armado" de "verde por engano".
+
+      **7. Como chegou em production.** PR #5 (`staging` → `main`), nove checks verdes, merge squash
+      em `c3fa237`; workflow Deploy `31348470731` `SUCCESS`. `PROVISION_ADMIN_SUBJECT` segue vazia,
+      como a ADR-0022 manda.
 
 ## Fase E — Prova de vida
 
