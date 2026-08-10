@@ -87,6 +87,7 @@ export type NfeDistributionRepositoryPort = {
   }): Promise<{
     readonly acceptedCount: number
     readonly duplicatedCount: number
+    readonly skippedCount: number
   }>
 }
 
@@ -263,6 +264,7 @@ export function createNfeDistributionConsumer(input: {
       let duplicatedCount = 0
       let fetchedCount = 0
       let persistedCount = 0
+      let skippedCount = 0
       let maxNsu = cursor.maxNsu
       let ultNsu = cursor.ultNsu
       let status: 'completed' | 'rate-limited' = 'completed'
@@ -326,6 +328,7 @@ export function createNfeDistributionConsumer(input: {
           })
           duplicatedCount += persistence.duplicatedCount
           persistedCount += persistence.acceptedCount
+          skippedCount += persistence.skippedCount
           maxNsu = page.maxNSU
           ultNsu = page.ultNSU
 
@@ -338,6 +341,7 @@ export function createNfeDistributionConsumer(input: {
               duplicated: persistence.duplicatedCount,
               environment: config.environment,
               importId: params.envelope.payload.importId,
+              skipped: persistence.skippedCount,
               ultNsu,
             },
           })
@@ -376,6 +380,7 @@ export function createNfeDistributionConsumer(input: {
             fetched: fetchedCount,
             importId: params.envelope.payload.importId,
             persisted: persistedCount,
+            skipped: skippedCount,
             status,
             ultNsu,
           },

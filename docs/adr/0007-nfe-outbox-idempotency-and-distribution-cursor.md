@@ -106,6 +106,23 @@ O pacote fiscal sinaliza o 656 de duas formas — rejeição tipada com `code` e
 na mensagem —, e as duas contam. O reconhecimento vive em
 `nfe-distribution/domain/sefaz-rate-limit.policy.ts` e nunca toca `rawResponse`, onde vai o XML.
 
+### Emenda (10/08/2026): o `schema` da SEFAZ é versionado, e um item ruim derrubava a página
+
+Com o 656 corrigido, a primeira página real revelou o que ele escondia: `NFE_XML_UNSUPPORTED_DOCUMENT`
+em todo ciclo, 14 ms depois de a página chegar. A classificação comparava o `schema` do `docZip` por
+igualdade exata contra `resNFe`, `resEvento` e `procEventoNFe`, mas a SEFAZ versiona o atributo
+(`resNFe_v1.01`, `procNFe_v4.00`) e o pacote fiscal o entrega cru. Nenhum item batia: todos caíam em
+`complete` e um resumo era mandado ao importador de NF-e completa. As fixtures usavam as strings sem
+versão — as que a documentação do pacote anuncia e que a SEFAZ nunca envia —, então a suíte ficava
+verde enquanto produção falhava na primeira página.
+
+Passam a valer duas regras. **A classificação normaliza o sufixo de versão** antes de comparar.
+E **item que o importador não sabe ler é pulado, não é falha da página**: sem isso, um único documento
+inesperado impede a gravação do cursor, o retry reconsulta o mesmo CNPJ e queima a janela de uma hora
+— o mesmo laço do 656, por outra porta. O item pulado conta em `skippedCount` e sai em
+`nfe_distribution_item_skipped` com NSU e schema, nunca com o XML. Qualquer outro erro continua
+derrubando a página, com retry e DLQ.
+
 ## Consequências
 
 - não existe exactly-once distribuído, mas os efeitos observáveis são

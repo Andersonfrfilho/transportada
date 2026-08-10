@@ -101,6 +101,7 @@ describe('NF-e distribution consumer contract', () => {
           return {
             acceptedCount,
             duplicatedCount: input.items.length - acceptedCount,
+            skippedCount: 0,
           }
         },
       },
@@ -349,7 +350,7 @@ describe('NF-e distribution consumer contract', () => {
         },
         async persistPage(input) {
           calls.push(`persist:${input.ultNsu}:${input.items.length}`)
-          return { acceptedCount: 1, duplicatedCount: 0 }
+          return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
         },
       },
     })

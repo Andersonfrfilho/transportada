@@ -403,6 +403,7 @@ export async function startWorkerRuntime(
             bucket: storageBucket,
             gateway: storageGateway,
           }),
+          logger,
           repository: new DrizzleNfeDistributionRepository(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
           ),
