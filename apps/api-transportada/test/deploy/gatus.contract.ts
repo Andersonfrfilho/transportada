@@ -9,8 +9,12 @@ const DOCKERFILE_PATH = new URL('Dockerfile', GATUS_DIRECTORY)
 const CONFIGURATION_PATH = new URL('config.yaml', GATUS_DIRECTORY)
 const RAILWAY_PATH = new URL('railway.json', GATUS_DIRECTORY)
 
-/** Production entra na configuração junto com o backup de lá; até a T018, só staging existe. */
-const ENVIRONMENT = 'staging'
+/**
+ * Os dois ambientes vivem na mesma configuração e o grupo é o que os separa. Ambiente que existe
+ * no Railway e não aparece aqui é ambiente caindo sem ninguém saber — por isso a lista é fechada
+ * e cada monitor é cobrado dos dois lados, não de um.
+ */
+const ENVIRONMENTS = ['staging', 'production'] as const
 /** `0 6 * * *` no `deploy/backup/railway.json`: a janela real é 24h, e a folga é o que sobra. */
 const BACKUP_SCHEDULE_HOURS = 24
 /** `0 7 5 * *` no `restore-test.yml`: entre 5 de janeiro e 5 de fevereiro cabem 31 dias. */
@@ -48,15 +52,34 @@ async function readConfiguration(): Promise<GatusConfiguration> {
 }
 
 /**
- * O grupo é o ambiente, então nome sozinho não identifica monitor: o `backup` de production vai
- * conviver com o de staging na mesma configuração assim que a T018 subir.
+ * O grupo é o ambiente, então nome sozinho não identifica monitor: o `backup` de production
+ * convive com o de staging na mesma configuração.
  */
-function externalEndpoint(configuration: GatusConfiguration, name: string): ExternalEndpoint {
+function externalEndpoint(
+  configuration: GatusConfiguration,
+  name: string,
+  environment: string,
+): ExternalEndpoint {
   const found = configuration['external-endpoints']?.find(
-    (entry) => entry.name === name && entry.group === ENVIRONMENT,
+    (entry) => entry.name === name && entry.group === environment,
   )
   if (found === undefined) {
-    throw new Error(`External endpoint ${ENVIRONMENT}_${name} is not declared`)
+    throw new Error(`External endpoint ${environment}_${name} is not declared`)
+  }
+  return found
+}
+
+/** Mesmo recorte para o que é vigiado por HTTP: o grupo separa, o nome sozinho não. */
+function httpEndpoint(
+  configuration: GatusConfiguration,
+  name: string,
+  environment: string,
+): Endpoint {
+  const found = configuration.endpoints?.find(
+    (entry) => entry.name === name && entry.group === environment,
+  )
+  if (found === undefined) {
+    throw new Error(`Endpoint ${environment}_${name} is not declared`)
   }
   return found
 }
@@ -105,10 +128,17 @@ describe('contrato do serviço gatus', () => {
   test('backup e restore têm heartbeat de push, agrupados por ambiente', async () => {
     const configuration = await readConfiguration()
 
-    for (const name of ['backup', 'restore']) {
-      const endpoint = externalEndpoint(configuration, name)
-      expect(endpoint.token ?? '').toMatch(/^\$\{[A-Z_]+\}$/)
+    const tokens = new Set<string>()
+    for (const environment of ENVIRONMENTS) {
+      for (const name of ['backup', 'restore']) {
+        const endpoint = externalEndpoint(configuration, name, environment)
+        expect(endpoint.token ?? '').toMatch(/^\$\{[A-Z_]+\}$/)
+        tokens.add(endpoint.token ?? '')
+      }
     }
+
+    // Token repetido entre ambientes é o push de staging fechando o monitor de production.
+    expect(tokens.size).toBe(ENVIRONMENTS.length * 2)
   })
 
   /**
@@ -117,13 +147,19 @@ describe('contrato do serviço gatus', () => {
    */
   test('a janela de cada heartbeat tem folga sobre o agendamento real', async () => {
     const configuration = await readConfiguration()
-    const backup = hoursOf(externalEndpoint(configuration, 'backup').heartbeat?.interval)
-    const restore = hoursOf(externalEndpoint(configuration, 'restore').heartbeat?.interval)
+    for (const environment of ENVIRONMENTS) {
+      const backup = hoursOf(
+        externalEndpoint(configuration, 'backup', environment).heartbeat?.interval,
+      )
+      const restore = hoursOf(
+        externalEndpoint(configuration, 'restore', environment).heartbeat?.interval,
+      )
 
-    expect(backup).toBeGreaterThan(BACKUP_SCHEDULE_HOURS)
-    expect(backup).toBeLessThan(BACKUP_SCHEDULE_HOURS * 2)
-    expect(restore).toBeGreaterThan(RESTORE_SCHEDULE_HOURS)
-    expect(restore).toBeLessThan(RESTORE_SCHEDULE_HOURS * 2)
+      expect(backup).toBeGreaterThan(BACKUP_SCHEDULE_HOURS)
+      expect(backup).toBeLessThan(BACKUP_SCHEDULE_HOURS * 2)
+      expect(restore).toBeGreaterThan(RESTORE_SCHEDULE_HOURS)
+      expect(restore).toBeLessThan(RESTORE_SCHEDULE_HOURS * 2)
+    }
   })
 
   /** Monitor sem alerta é gráfico bonito: fica vermelho sozinho e não acorda ninguém. */
@@ -134,9 +170,28 @@ describe('contrato do serviço gatus', () => {
       ...(configuration.endpoints ?? []),
     ]
 
-    expect(monitors.length).toBeGreaterThanOrEqual(4)
+    expect(monitors.length).toBeGreaterThanOrEqual(ENVIRONMENTS.length * 4)
     for (const monitor of monitors) {
       expect(monitor.alerts ?? []).not.toBeEmpty()
+    }
+  })
+
+  /**
+   * Ambiente sem grupo declarado é ambiente fora do painel. Production entrou por último e é
+   * justamente o que não pode faltar — o monitor que ninguém sente falta é o que nunca existiu.
+   */
+  test('nenhum monitor fica fora de um dos ambientes conhecidos', async () => {
+    const configuration = await readConfiguration()
+    const monitors = [
+      ...(configuration['external-endpoints'] ?? []),
+      ...(configuration.endpoints ?? []),
+    ]
+
+    for (const monitor of monitors) {
+      expect(ENVIRONMENTS).toContain(monitor.group ?? '')
+    }
+    for (const environment of ENVIRONMENTS) {
+      expect(monitors.filter((monitor) => monitor.group === environment)).toHaveLength(4)
     }
   })
 
@@ -176,8 +231,13 @@ describe('contrato do serviço gatus', () => {
     const configuration = await readConfiguration()
     const urls = (configuration.endpoints ?? []).map((entry) => entry.url ?? '')
 
-    expect(urls.some((url) => url.endsWith('/health/ready'))).toBeTrue()
-    expect(urls.length).toBeGreaterThanOrEqual(2)
+    for (const environment of ENVIRONMENTS) {
+      expect(httpEndpoint(configuration, 'api', environment).url ?? '').toEndWith('/health/ready')
+      expect(httpEndpoint(configuration, 'frontend', environment).url ?? '').not.toBeEmpty()
+    }
+
+    // Apontar production para o host de staging deixa os dois verdes com um serviço só de pé.
+    expect(new Set(urls).size).toBe(urls.length)
     // O host muda por instalação, então vem do ambiente; o que não muda é não ser texto claro.
     for (const url of urls) {
       expect(url).toMatch(/^(?:\$\{[A-Z_]+\}|https:\/\/)/)
