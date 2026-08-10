@@ -950,7 +950,53 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       guardou o nome de quando o arquivo não parseava (run 31263876628, no bloco da T012) e não
       reescreve o registro depois. Não afeta execução: o run tem job, tem passo e tem verde.
 
-- [ ] T014 —
+- [ ] T014 — drill executado; a quebra provocada achou **dois defeitos reais** no caminho do alerta.
+      Falta anexar as duas notificações (a de heartbeat só pode chegar em `2026-08-11T05:36Z`, pelo
+      motivo do item 3).
+
+      **1. A quebra foi de verdade, não simulada.** O manifesto vivo de staging teve **um dígito hex**
+      de um sha256 adulterado no bucket (`live.tampered.jsonl`), e o
+      [run 31283042117](https://github.com/Andersonfrfilho/transportada/actions/runs/31283042117)
+      leu esse manifesto e morreu onde devia:
+
+      ```text
+      backup-2026-08-09T060053Z-app.dump.enc: FAILED
+      sha256sum: WARNING: 1 computed checksum did NOT match
+      skipped  Avisar o monitor que o restore fechou
+      run      Avisar o monitor que o restore quebrou
+      ```
+
+      O manifesto íntegro voltou ao bucket em seguida e foi conferido por sha256
+      (`ae48d797…04d2cc`). A janela do backup segue pulada de propósito: o `cronSchedule` do serviço
+      `backup` em staging está estacionado em `0 6 1 1 *` e **volta para `0 6 * * *`** assim que o
+      alerta de heartbeat sair.
+
+      **2. O push vermelho sumiu — e esse era o defeito.** O log completo do Gatus (125 linhas) tem o
+      push verde das 03:28:07 e **não tem** o push vermelho das 03:19:03. A causa está no
+      `restore-test.yml`: só o passo de sucesso usava `--fail`. Sem ele, o `502` da borda da Railway
+      — que esta sessão recebeu duas vezes lendo o próprio domínio do Gatus — sai com código `0`, o
+      `|| true` engole o resto, e o alerta some sem rastro no run nem no monitor. Agora os dois pushes
+      usam `--fail --retry 3 --retry-all-errors`, e o de falha vira `::warning::` no run em vez de
+      silêncio — sem poder falhar, que trocaria a causa boa do run pela última. Contrato
+      `push recusado vira aviso no run, e não silêncio`, vermelho antes do fix pelos dois motivos.
+
+      **3. O Gatus só olha heartbeat no tique, contado do start dele.**
+      `monitorExternalEndpointHeartbeat` cria `time.NewTicker(interval)` e **não avalia antes do
+      laço**: a primeira avaliação é um intervalo inteiro depois de o processo subir, e todo redeploy
+      zera a contagem. Corroborado ao vivo — zero linhas de heartbeat em 32 min de uptime enquanto os
+      monitores HTTP logavam de 2 em 2 min. Consequência prática: a janela de 26 h do backup detecta
+      em até ~52 h, não em 2 h. O comentário do workflow e o do contrato que afirmavam "duas horas
+      depois" foram corrigidos — a afirmação era falsa.
+
+      **4. O canal de alerta derrubava 2 de 3 envios.** Com o Gatus apontado para a URL **pública** do
+      ntfy, o log mostra o alerta disparando e o POST estourando em `context deadline exceeded`
+      (10 s, o timeout do cliente do Gatus) em 2 dos 3 envios. E envio que falha não marca o alerta
+      como disparado: o Gatus tenta de novo só na avaliação seguinte — 26 h depois, no heartbeat. O
+      caminho de escrita do ntfy está são (duas publicações de teste, HTTP 200 em 0,73 s e 0,46 s), e
+      de dentro do projeto o endereço interno responde 200 em ~4 ms contra ~60 ms do público. Por
+      isso `GATUS_NTFY_URL` passou a ser `http://ntfy.railway.internal:8080`, tirando a borda pública
+      e a internet do caminho do alerta. Redeploy `SUCCESS` em `2026-08-10T03:36:20Z` — é dele que
+      conta o tique de 26 h do `staging_backup`.
 
 ## Fase C — O portão humano
 

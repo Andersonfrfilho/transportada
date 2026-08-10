@@ -143,20 +143,29 @@ jobs:
             echo "::error::RESTORE_HEARTBEAT_URL ou RESTORE_HEARTBEAT_TOKEN vazio — sem push não existe monitor de restore."
             exit 1
           fi
-          curl --silent --show-error --fail --max-time 30 --output /dev/null --request POST \
+          # `--retry` porque a borda do Railway recusa de vez em quando: um 502 sozinho transformaria
+          # restore bom em job vermelho e alerta falso.
+          curl --silent --show-error --fail --retry 3 --retry-all-errors --max-time 30 \
+            --output /dev/null --request POST \
             --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
             "${RESTORE_HEARTBEAT_URL}?success=true"
 
-      # No backup a janela de 26 h já é o alerta: cadência diária, ciclo que quebrou vira notificação
-      # duas horas depois. Aqui a janela é de 32 dias, então esperar a ausência do ping significaria
-      # descobrir em setembro que o restore de agosto não fechou. Quem falha avisa que falhou.
+      # A ausência do ping não serve de alerta aqui: a janela é de 32 dias, e o Gatus só avalia
+      # heartbeat no tique do intervalo contado a partir do start do processo dele — descobriríamos
+      # em setembro que o restore de agosto não fechou, quando descobríssemos. Quem falha avisa.
       - name: Avisar o monitor que o restore quebrou
         if: failure()
         run: |
           set -uo pipefail
-          # O job já está vermelho. Insistir em falhar aqui só trocaria a causa que aparece no resumo
-          # do run pela última que aconteceu, e a causa boa é a de cima.
-          [ -n "${RESTORE_HEARTBEAT_URL:-}" ] && [ -n "${RESTORE_HEARTBEAT_TOKEN:-}" ] &&
-            curl --silent --show-error --max-time 30 --output /dev/null --request POST \
-              --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
-              "${RESTORE_HEARTBEAT_URL}?success=false" || true
+          if [ -z "${RESTORE_HEARTBEAT_URL:-}" ] || [ -z "${RESTORE_HEARTBEAT_TOKEN:-}" ]; then
+            echo "::warning::sem URL ou token de heartbeat — o monitor não ficou sabendo desta falha."
+            exit 0
+          fi
+          # Sem `--fail` o 502 da borda sai com código 0 e o push some sem deixar rastro nenhum: o job
+          # fica vermelho, o monitor nunca sabe. O job já está vermelho, então aqui nada pode falhar —
+          # insistir em falhar só trocaria a causa que aparece no resumo do run, e a boa é a de cima.
+          curl --silent --show-error --fail --retry 3 --retry-all-errors --max-time 30 \
+            --output /dev/null --request POST \
+            --header "Authorization: Bearer ${RESTORE_HEARTBEAT_TOKEN}" \
+            "${RESTORE_HEARTBEAT_URL}?success=false" ||
+            echo "::warning::o monitor recusou o push desta falha — o alerta desta quebra não saiu."
