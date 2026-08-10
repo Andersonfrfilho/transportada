@@ -122,6 +122,24 @@ describe('Prontidão de migrations', () => {
     expect(script).toContain('/health/ready')
     expect(script).toContain('assert_migrations_applied')
   })
+
+  // A Railway executa cada entrada do `preDeployCommand` como argv, sem shell: `a && b` vira
+  // `a` recebendo `&&` e `b` como argumentos, roda só a migration, sai 0 e o deploy fica verde
+  // sem provisionar a empresa do ambiente. Uma entrada por comando é o que garante os dois.
+  test('o preDeployCommand da API declara migration e provisionamento como comandos separados', () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL('../../../../deploy/api/railway.json', import.meta.url), 'utf8'),
+    ) as { deploy: { preDeployCommand: readonly string[] } }
+    const commands = manifest.deploy.preDeployCommand
+
+    expect(commands).toEqual([
+      'bun src/database/database-migration.service.ts',
+      'bun src/database/environment-provisioning.service.ts',
+    ])
+    for (const command of commands) {
+      expect(command).not.toContain('&&')
+    }
+  })
 })
 
 /** A leitura da pasta falha antes de qualquer consulta — o banco nunca é tocado nesse caminho. */

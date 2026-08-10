@@ -7,7 +7,10 @@
   "deploy": {
     "healthcheckPath": "/health/live",
     "healthcheckTimeout": 120,
-    "preDeployCommand": "bun src/database/database-migration.service.ts && bun src/database/environment-provisioning.service.ts",
+    "preDeployCommand": [
+      "bun src/database/database-migration.service.ts",
+      "bun src/database/environment-provisioning.service.ts"
+    ],
     "restartPolicyType": "ON_FAILURE"
   }
 }

@@ -76,7 +76,10 @@ O contexto de build é a raiz do monorepo — os workspaces Bun exigem o
 `package.json` de todas as apps antes do `bun install --frozen-lockfile`.
 
 - **api**: `preDeployCommand` roda `bun src/database/database-migration.service.ts`
-  antes de trocar o tráfego. É o único ponto onde migration é aplicada — e só
+  antes de trocar o tráfego. **Cada entrada da lista é executada como argv, sem
+  shell** — `a && b` numa entrada só faz `a` receber `&&` e `b` como argumentos,
+  roda a migration, sai `0` e deixa o deploy verde sem provisionar a empresa.
+  Um comando por entrada. É o único ponto onde migration é aplicada — e só
   passa a valer depois do config-as-code ligado. Antes disso, a migration é
   aplicada manualmente:
   `railway ssh --service api --environment <env> bun src/database/database-migration.service.ts`
