@@ -63,6 +63,36 @@ Toda recusa responde `404` com corpo uniforme. `403` distinguiria "ambiente já 
 "Se desliga" é estado, não configuração: a condição de desligamento é a existência do primeiro
 `company-admin`. Não há flag para reabrir, e reabrir exige intervenção no banco — deliberadamente.
 
+#### Emenda (10/08/2026): a tela precisa saber que a porta fechou
+
+A rota se desligou como previsto, mas `/primeiro-acesso` continuou sendo servida. Depois do arranque
+de production, quem abrisse o endereço via um formulário completo que não tinha como concluir — e o
+404 uniforme, por construção, não dá ao cliente como distinguir "já provisionado" de "token errado",
+então a tela não podia nem reagir à recusa do `POST` sem expulsar quem apenas digitou o token errado.
+
+Passa a existir `GET /bootstrap/first-admin`, anônima: `204` enquanto o arranque está aberto, o mesmo
+`404` uniforme depois — indistinguível de uma rota que não existe. A tela fechada não renderiza o
+formulário e sai para o login.
+
+Isto **é** o oráculo que o parágrafo acima recusa, e a recusa continua valendo para o `POST`. O que
+mudou é o alcance do que se admite revelar:
+
+- a sondagem **não recebe token**. Aceitá-lo trocaria um oráculo sobre o estado da instalação por um
+  oráculo sobre o segredo — um lugar barato para adivinhar o arranque, que é bem pior;
+- ela não cria nada, não autentica ninguém e reusa a mesma leitura do guarda (`readAvailability`),
+  para a tela e a rota não contarem histórias diferentes;
+- ela responde `404` também quando `BOOTSTRAP_TOKEN` não está configurado, o que amarra a §5: tirar a
+  variável do ambiente some com a tela junto;
+- o que ela revela — "esta instalação ainda não foi provisionada" — já é observável de fora, já que
+  ninguém consegue logar numa instalação sem administrador;
+- quem impede a criação de um segundo administrador continua sendo o `POST`: token em `timingSafeEqual`,
+  `pg_advisory_xact_lock` com rechecagem dentro da transação, e a recusa uniforme. A sondagem é
+  conforto de tela, nunca controle de acesso — e qualquer `curl` a ignora, como deve ser.
+
+No cliente a sondagem **falha aberta**: erro de rede ou 5xx mantém o formulário de pé. Errar para o
+lado do formulário é reversível; errar para o lado do redirecionamento trancaria uma instalação nova
+fora do próprio arranque toda vez que a API oscilasse.
+
 ### 3. `PROVISION_ADMIN_SUBJECT` deixa de ser obrigatório, por expansão
 
 Hoje declarar só uma das duas variáveis de provisionamento falha o deploy. Passa a valer:

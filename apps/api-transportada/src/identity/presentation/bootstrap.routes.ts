@@ -39,6 +39,25 @@ export function createBootstrapRoutes(
       },
       pathname: API_BOOTSTRAP_FIRST_ADMIN_PATH,
     }),
+
+    /**
+     * Sondagem para a tela de primeiro acesso saber que a porta fechou. Não lê o cabeçalho de
+     * autorização — aceitar o token aqui trocaria um oráculo sobre o estado da instalação por um
+     * oráculo sobre o segredo. Fechada, responde o mesmo 404 de uma rota que não existe (ADR-0022).
+     */
+    defineAnonymousRoute<undefined>({
+      async handle(): Promise<Response> {
+        if (!(await dependencies.bootstrapFirstAdmin.checkAvailability())) {
+          throw new ApiError(HTTP_ERROR.notFound)
+        }
+        return new Response(null, { status: 204 })
+      },
+      method: 'GET',
+      async parse(): Promise<undefined> {
+        return undefined
+      },
+      pathname: API_BOOTSTRAP_FIRST_ADMIN_PATH,
+    }),
   ]
 }
 

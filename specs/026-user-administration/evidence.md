@@ -1309,3 +1309,64 @@ $ bun run --cwd apps/api-transportada typecheck   # tsc --noEmit
 $ bun run lint                                    # eslint --max-warnings=0 nas quatro apps
 → sem saída, verde
 ```
+
+## Adendo (10/08/2026) — a tela de primeiro acesso precisa saber que a porta fechou
+
+Fora do `tasks.md`: veio da observação em production de que `/primeiro-acesso` continuava servida
+depois do arranque, oferecendo um formulário que já não tinha como concluir. Emenda registrada na
+ADR-0022, §2.
+
+### O que entrou
+
+- **`GET /bootstrap/first-admin`**, anônima (`bootstrap.routes.ts`): `204` enquanto o arranque está
+  aberto, o mesmo `404` uniforme depois — byte a byte igual ao de uma rota que não existe.
+- `BootstrapFirstAdminUseCase.checkAvailability()` **não recebe entrada nenhuma**, de propósito: a
+  resposta é sobre o ambiente, nunca sobre quem perguntou. Reusa o `readAvailability` do guarda, para
+  a tela e o `POST` não contarem histórias diferentes, e devolve `false` sem tocar no banco quando
+  `BOOTSTRAP_TOKEN` não está configurado — tirar a variável some com a tela junto (ADR-0022 §5).
+- **Correção no roteador** (`http/router.service.ts`): a busca de rota anônima casava só por
+  `pathname`, então uma segunda rota no mesmo caminho ficava inalcançável. Passou a casar
+  `pathname` + `method`; método errado num caminho anônimo morre em `404` ali mesmo, sem custar
+  autenticação a ninguém.
+- **Frontend**: `bootstrapClient.checkAvailability()` (GET sem `authorization`, `cache: 'no-store'`),
+  hook `useBootstrapAvailability` e portão dentro de `FirstAccess.page.tsx` — fechada, a página
+  renderiza esqueleto e sai para o login em vez de mostrar o formulário.
+
+### A linha de segurança, explícita
+
+A sondagem **é** o oráculo de estado que a ADR-0022 §2 recusa, e a recusa continua valendo para o
+`POST`. Os limites são o que torna a troca aceitável, e cada um é asserção de contrato:
+
+- ela **não lê o cabeçalho de autorização** — aceitar o token trocaria um oráculo sobre o estado da
+  instalação por um oráculo sobre o segredo, que é bem pior (`never reads the authorization header,
+even when one is offered`);
+- ela não cria nada e não autentica ninguém: `executeCalls` e a trilha de eventos ficam vazios;
+- quem impede o segundo administrador continua sendo o `POST`: `timingSafeEqual`,
+  `pg_advisory_xact_lock` com rechecagem dentro da transação, `404` uniforme. Qualquer `curl`
+  ignora a página inteira — e deve mesmo;
+- no cliente a sondagem **falha aberta**: erro de rede ou 5xx mantém o formulário de pé. Errar para
+  o lado do formulário é reversível; errar para o lado do redirecionamento trancaria uma instalação
+  nova fora do próprio arranque toda vez que a API oscilasse.
+
+### Contratos antes da implementação
+
+`test/bootstrap-first-admin/guard.contract.ts` (a sondagem acompanha o guarda nas quatro condições),
+`test/bootstrap-first-admin/http.contract.ts` (204 aberto, 404 uniforme fechado, cego ao cabeçalho,
+sem escrita, sem token no log; `PUT`/`PATCH`/`DELETE` em 404 sem autenticar) e, no frontend,
+`test/identity/bootstrap-client.contract.ts` + `test/identity/first-access-page.contract.ts`.
+Vermelho provado nas duas apps antes do verde.
+
+```
+$ bun run --cwd apps/api-transportada test
+→ 1995 pass, 3 skip, 0 fail, 82 files
+
+$ bun run --cwd apps/frontend-transportada test
+→ 789 pass, 0 fail, 3933 expect() calls, 16 files
+
+$ bun run typecheck      # tsc --noEmit nas quatro apps
+$ bun run lint           # eslint --max-warnings=0 nas quatro apps
+$ bun run format:check   # prettier --check .
+→ verde
+```
+
+Nada foi commitado e nenhuma variável de ambiente ou serviço de production foi tocado.

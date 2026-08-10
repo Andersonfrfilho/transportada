@@ -2,8 +2,10 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 
+import { useBootstrapAvailability } from '../hooks/useBootstrapAvailability.hook'
 import { useBootstrapFirstAdmin } from '../hooks/useBootstrapFirstAdmin.hook'
 import type { BootstrapFormState } from '../hooks/useBootstrapFirstAdmin.hook'
 import { createBootstrapClient } from '../shared/bootstrapClient.service'
@@ -37,12 +39,37 @@ function goToLogin(): void {
   window.location.assign('/')
 }
 
+/** Referência estável: recriada a cada render, a sondagem redispararia o efeito sem parar. */
+function probeBootstrapAvailability(): Promise<boolean> {
+  return getBootstrapClient().checkAvailability()
+}
+
+function FirstAccessSkeleton({ label }: Readonly<{ label: string }>) {
+  return (
+    <div className={styles.firstAccessShell}>
+      <div className={styles.firstAccessPanel}>
+        <SkeletonGroup className={styles.fieldGrid} label={label}>
+          <Skeleton variant="text" width="40%" />
+          <Skeleton variant="text" width="90%" />
+          {ADMINISTRATOR_FIELDS.map((definition) => (
+            <Skeleton height="var(--field-height)" key={definition.field} />
+          ))}
+        </SkeletonGroup>
+      </div>
+    </div>
+  )
+}
+
 export function FirstAccessPage() {
   const { t } = useTranslation('identity')
+  const availability = useBootstrapAvailability({ checkAvailability: probeBootstrapAvailability })
   const wizard = useBootstrapFirstAdmin({
     createFirstAdmin: (input) => getBootstrapClient().createFirstAdmin(input),
     onSuccess: goToLogin,
   })
+
+  // Fechada, a tela não mostra formulário nenhum: o esqueleto cobre a saída para o login.
+  if (availability !== 'open') return <FirstAccessSkeleton label={t('loading')} />
 
   return (
     <div className={styles.firstAccessShell}>

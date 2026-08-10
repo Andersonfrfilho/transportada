@@ -141,14 +141,23 @@ describe('bootstrap first admin route', () => {
     expect(fixture.executeCalls).toEqual([])
   })
 
-  test('answers 404 for any method other than POST', async () => {
+  test('answers 404 for any method other than GET or POST', async () => {
     const fixture = await createBootstrapHttpFixture()
 
-    const response = await fixture.handle(firstAdminRequest({ method: 'GET', token: VALID_TOKEN }))
+    const responses = await Promise.all(
+      ['PUT', 'PATCH', 'DELETE'].map(async (method) =>
+        fixture.handle(firstAdminRequest({ method, token: VALID_TOKEN })),
+      ),
+    )
 
-    expect(response.status).toBe(404)
-    expect(await responseBody(response)).toEqual(UNIFORM_NOT_FOUND_BODY)
+    for (const response of responses) {
+      expect(response.status).toBe(404)
+      expect(await responseBody(response)).toEqual(UNIFORM_NOT_FOUND_BODY)
+    }
     expect(fixture.availabilityCalls).toEqual([])
+    expect(fixture.checkCalls).toEqual([])
+    // Método errado não é rota de outra gente: ninguém autentica para descobrir isso.
+    expect(fixture.events).toEqual([])
   })
 
   test('never echoes the password or the arranque token, in the response or in the logs', async () => {
@@ -168,7 +177,7 @@ describe('bootstrap first admin route', () => {
     const response = await fixture.handle(firstAdminPreflightRequest())
 
     expect(response.status).toBe(204)
-    expect(response.headers.get('access-control-allow-methods')).toBe('POST')
+    expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST')
     expect(response.headers.get('access-control-allow-headers')).toBe(
       'Authorization, Content-Type, Idempotency-Key',
     )
@@ -183,5 +192,70 @@ describe('bootstrap first admin route', () => {
     )
 
     expect(response.status).toBe(403)
+  })
+})
+
+/**
+ * A página de primeiro acesso continuava servida depois do arranque, e quem a abrisse via um
+ * formulário que já não tinha como concluir. A sondagem existe para a tela saber que a porta fechou
+ * — e só para isso. Ela não recebe token, não cria nada e, fechada, responde o mesmo 404 de uma
+ * rota que não existe. Quem impede a invasão continua sendo o POST. Emenda ao ADR-0022.
+ */
+describe('bootstrap availability probe', () => {
+  test('answers 204 while the first access is still open', async () => {
+    const fixture = await createBootstrapHttpFixture()
+
+    const response = await fixture.handle(firstAdminRequest({ method: 'GET' }))
+
+    expect(response.status).toBe(204)
+    expect(await response.text()).toBe('')
+    expect(fixture.checkCalls).toHaveLength(1)
+  })
+
+  test('answers the same uniform 404 once the environment is provisioned', async () => {
+    const fixture = await createBootstrapHttpFixture({ isAvailable: false })
+
+    const refused = await fixture.handle(firstAdminRequest({ method: 'GET' }))
+    const unmatched = await fixture.handle(
+      firstAdminRequest({ method: 'GET', pathname: '/bootstrap/rota-que-nao-existe' }),
+    )
+
+    const refusedBody = await refused.text()
+
+    expect(refused.status).toBe(404)
+    expect(JSON.parse(refusedBody)).toEqual(UNIFORM_NOT_FOUND_BODY)
+    expect(refused.status).toBe(unmatched.status)
+    expect(refusedBody).toBe(await unmatched.text())
+  })
+
+  /**
+   * Aceitar o token aqui trocaria um oráculo sobre o estado da instalação por um oráculo sobre o
+   * segredo, que é bem pior: daria ao atacante um lugar barato para adivinhar o arranque.
+   */
+  test('never reads the authorization header, even when one is offered', async () => {
+    const fixture = await createBootstrapHttpFixture()
+
+    const response = await fixture.handle(firstAdminRequest({ method: 'GET', token: VALID_TOKEN }))
+
+    expect(response.status).toBe(204)
+    expect(fixture.checkCalls).toEqual([[]])
+    expect(fixture.availabilityCalls).toEqual([])
+  })
+
+  test('never creates an administrator and never authenticates the caller', async () => {
+    const fixture = await createBootstrapHttpFixture()
+
+    await fixture.handle(firstAdminRequest({ method: 'GET', token: VALID_TOKEN }))
+
+    expect(fixture.executeCalls).toEqual([])
+    expect(fixture.events).toEqual([])
+  })
+
+  test('never echoes the arranque token in the logs', async () => {
+    const fixture = await createBootstrapHttpFixture()
+
+    await fixture.handle(firstAdminRequest({ method: 'GET', token: VALID_TOKEN }))
+
+    expect(JSON.stringify(fixture.logs)).not.toContain(VALID_TOKEN)
   })
 })

@@ -22,6 +22,22 @@ describe('first access page contract', () => {
     expect(page).toContain('role="alert"')
   })
 
+  /**
+   * Depois do arranque a página continuava servida, oferecendo um formulário que já não tinha como
+   * concluir. Quem fecha a porta é a API — aqui só se obedece à resposta dela.
+   */
+  test('gates the form behind the availability probe and leaves for the login once it closes', async () => {
+    const [page, hook] = await Promise.all([
+      readModule('src/modules/identity/pages/FirstAccess.page.tsx'),
+      readModule('src/modules/identity/hooks/useBootstrapAvailability.hook.ts'),
+    ])
+
+    expect(page).toContain('useBootstrapAvailability')
+    expect(page).toContain('Skeleton')
+    expect(hook).toContain('checkAvailability')
+    expect(hook).toContain("window.location.replace('/')")
+  })
+
   test('never duplicates fiscal profile validation on the first-access screen', async () => {
     const page = await readModule('src/modules/identity/pages/FirstAccess.page.tsx')
 

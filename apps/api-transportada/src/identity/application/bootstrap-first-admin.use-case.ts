@@ -26,6 +26,8 @@ type AssertAvailableInput = {
 
 export type BootstrapFirstAdminUseCase = {
   assertAvailable(input: AssertAvailableInput): Promise<void>
+  /** Sem entrada de propósito: a sondagem responde sobre o ambiente, nunca sobre quem perguntou. */
+  checkAvailability(): Promise<boolean>
   execute(input: BootstrapFirstAdminInput): Promise<BootstrapFirstAdminResult>
 }
 
@@ -48,6 +50,14 @@ export function createBootstrapFirstAdminUseCase({
       assertAvailability(await repository.readAvailability({ companyId }))
     },
 
+    async checkAvailability() {
+      if (!isConfiguredTokenValid(token)) {
+        return false
+      }
+
+      return isAvailable(await repository.readAvailability({ companyId }))
+    },
+
     async execute({ administrator }) {
       const created = await identityGateway.createAdministrator({ companyId, ...administrator })
       const persisted = await repository.createFirstAdmin({
@@ -64,6 +74,11 @@ export function createBootstrapFirstAdminUseCase({
   }
 }
 
+function isAvailable(availability: BootstrapAvailability): boolean {
+  return availability.companyExists && !availability.hasActiveCompanyAdmin
+}
+
+/** Mesma condição de `isAvailable`, aberta em razões: elas não saem na resposta, só no motivo. */
 function assertAvailability(availability: BootstrapAvailability): void {
   if (availability.hasActiveCompanyAdmin) {
     throw new BootstrapUnavailableError('ALREADY_PROVISIONED')
