@@ -187,8 +187,9 @@ describe('contrato do serviço gatus', () => {
       ...(configuration.endpoints ?? []),
     ]
 
+    const knownGroups: readonly string[] = ENVIRONMENTS
     for (const monitor of monitors) {
-      expect(ENVIRONMENTS).toContain(monitor.group ?? '')
+      expect(knownGroups).toContain(monitor.group ?? '')
     }
     for (const environment of ENVIRONMENTS) {
       expect(monitors.filter((monitor) => monitor.group === environment)).toHaveLength(4)
