@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { FiscalRejectionError } from '@adatechnology/fiscal-provider'
 import { describe, expect, test } from 'bun:test'
 
 import type { WorkerLogger } from '../../src/shared/worker.types.js'
@@ -232,6 +233,178 @@ describe('NF-e distribution consumer contract', () => {
       `release:${DISTRIBUTION_ENVELOPE.companyId}:homologation:distribution-consumer`,
     )
   })
+  /**
+   * A SEFAZ recusa por 656 exigindo uma hora de silêncio no CNPJ. Enquanto essa recusa saía como
+   * erro, o trilho de retry reentregava em segundos e cada tentativa rearmava o bloqueio — o CNPJ
+   * nunca chegava a passar a hora calada. A recusa é desfecho, não falha: grava a janela e encerra.
+   */
+  test.each([
+    [
+      'the provider throws the parsed rate limit',
+      () =>
+        new Error(
+          'SEFAZ NFeDistribuicaoDFe: rate limit atingido — aguarde 1 hora antes de consultar novamente o mesmo CNPJ (cStat 656)',
+        ),
+    ],
+    [
+      'the provider throws a typed 656 rejection',
+      () => new FiscalRejectionError('656', 'Rejeicao: Consumo Indevido', '<retDistDFeInt/>'),
+    ],
+  ])('opens the anti-656 window instead of failing when %s', async (_name, createError) => {
+    const calls: string[] = []
+    const cursorRepository = createCursorRepository(calls)
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-08-10T15:00:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            consultarDFe(input) {
+              calls.push(`consultarDFe:${input.ultNSU}`)
+              return Promise.reject(createError())
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport(input) {
+          calls.push(
+            `finalize:${input.status}:${input.receivedCount}:${input.importedCount}:${input.duplicatedCount}`,
+          )
+        },
+        async persistPage() {
+          throw new Error('A refused pull must not persist documents')
+        },
+      },
+    })
+
+    await expect(consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })).resolves.toEqual({
+      duplicatedCount: 0,
+      fetchedCount: 0,
+      persistedCount: 0,
+      status: 'rate-limited',
+      ultNsu: '000000000000000',
+    })
+
+    expect(calls).toEqual([
+      'lease:fbc033e7-63e0-4698-adc6-12778bedf4a7:homologation:distribution-consumer',
+      'consultarDFe:000000000000000',
+      'cursor:000000000000000:000000000000000:blocked',
+      'finalize:completed:0:0:0',
+      'release:fbc033e7-63e0-4698-adc6-12778bedf4a7:homologation:distribution-consumer',
+    ])
+  })
+
+  test('keeps the pages it already persisted when the 656 lands mid-run', async () => {
+    const calls: string[] = []
+    const cursorRepository = createCursorRepository(calls)
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-08-10T15:00:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            consultarDFe(input) {
+              calls.push(`consultarDFe:${input.ultNSU}`)
+              if (input.ultNSU === '000000000000000') {
+                return Promise.resolve({
+                  itens: [
+                    createDistributionItem({
+                      accessKey: '35190730290856000160550010000000011000000059',
+                      nsu: '000000000000001',
+                    }),
+                  ],
+                  maxNSU: '000000000000090',
+                  temMais: true,
+                  ultNSU: '000000000000001',
+                })
+              }
+
+              return Promise.reject(
+                new FiscalRejectionError('656', 'Rejeicao: Consumo Indevido', '<retDistDFeInt/>'),
+              )
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport(input) {
+          calls.push(
+            `finalize:${input.status}:${input.receivedCount}:${input.importedCount}:${input.duplicatedCount}`,
+          )
+        },
+        async persistPage(input) {
+          calls.push(`persist:${input.ultNsu}:${input.items.length}`)
+          return { acceptedCount: 1, duplicatedCount: 0 }
+        },
+      },
+    })
+
+    await expect(consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })).resolves.toEqual({
+      duplicatedCount: 0,
+      fetchedCount: 1,
+      persistedCount: 1,
+      status: 'rate-limited',
+      ultNsu: '000000000000001',
+    })
+
+    expect(calls).toContain('cursor:000000000000001:000000000000090:blocked')
+    expect(calls).toContain('finalize:completed:1:1:0')
+  })
+
+  test('still fails a SEFAZ rejection that is not the rate limit, keeping the retry rail', async () => {
+    const calls: string[] = []
+    const cursorRepository = createCursorRepository(calls)
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-08-10T15:00:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            consultarDFe() {
+              return Promise.reject(
+                new FiscalRejectionError('108', 'Servico Paralisado', '<retDistDFeInt/>'),
+              )
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport() {
+          throw new Error('A failed pull must not finalize the import')
+        },
+        async persistPage() {
+          throw new Error('A failed pull must not persist documents')
+        },
+      },
+    })
+
+    await expect(consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })).rejects.toThrow()
+
+    expect(calls).not.toContain('cursor:000000000000000:000000000000000:blocked')
+  })
+
   test('logs the SEFAZ distribution page response for observability', async () => {
     const events: LoggedEvent[] = []
     const calls: string[] = []

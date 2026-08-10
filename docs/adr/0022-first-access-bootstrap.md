@@ -71,8 +71,12 @@ de production, quem abrisse o endereço via um formulário completo que não tin
 então a tela não podia nem reagir à recusa do `POST` sem expulsar quem apenas digitou o token errado.
 
 Passa a existir `GET /bootstrap/first-admin`, anônima: `204` enquanto o arranque está aberto, o mesmo
-`404` uniforme depois — indistinguível de uma rota que não existe. A tela fechada não renderiza o
-formulário e sai para o login.
+`404` uniforme depois. A tela fechada não renderiza o formulário e sai para o login.
+
+O `404` é uniforme entre as recusas do arranque — token ausente, empresa inexistente, já provisionado
+respondem todos igual —, não entre o arranque e o resto da API: para quem chega sem token, caminho
+desconhecido cai na autenticação e volta `401`, então o `404` denuncia que este caminho existe. Isso
+não é novo nem foi introduzido aqui: o `POST` já respondia assim desde a decisão original.
 
 Isto **é** o oráculo que o parágrafo acima recusa, e a recusa continua valendo para o `POST`. O que
 mudou é o alcance do que se admite revelar:

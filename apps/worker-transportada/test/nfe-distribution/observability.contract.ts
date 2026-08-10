@@ -143,7 +143,7 @@ describe('NF-e distribution observability contract', () => {
           return {
             consultarDFe() {
               return Promise.reject(
-                new FiscalRejectionError('656', 'Rejeicao: Consumo Indevido', rawResponse),
+                new FiscalRejectionError('108', 'Rejeicao: Servico Paralisado', rawResponse),
               )
             },
           }
@@ -173,12 +173,71 @@ describe('NF-e distribution observability contract', () => {
     expect(failure?.metadata).toEqual({
       companyId: COMPANY_ID,
       environment: 'homologation',
+      errorCode: '108',
+      errorName: 'FiscalRejectionError',
+      importId: IMPORT_ID,
+      providerMessage: 'Rejeicao: Servico Paralisado',
+      ultNsu: EMPTY_NSU,
+    })
+    expect(JSON.stringify(events)).not.toContain('retDistDFeInt')
+  })
+
+  // O 656 não é falha: sai como aviso com o cStat visível, seguido da janela que ele acabou de abrir
+  test('logs the SEFAZ rate limit as the window it opens, not as a failed pull', async () => {
+    const events: LoggedEvent[] = []
+    const rawResponse = '<retDistDFeInt><xMotivo>Consumo Indevido</xMotivo></retDistDFeInt>'
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-08-10T15:00:00.000Z') },
+      cursorRepository: createCursorRepository([]),
+      gatewayFactory: {
+        create() {
+          return {
+            consultarDFe() {
+              return Promise.reject(
+                new FiscalRejectionError('656', 'Rejeicao: Consumo Indevido', rawResponse),
+              )
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: createSpyLogger(events),
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport() {},
+        async persistPage() {
+          throw new Error('A refused pull must not persist documents')
+        },
+      },
+    })
+
+    await consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })
+
+    const rateLimited = findEvent(events, 'nfe_distribution_rate_limited_by_sefaz')
+    expect(rateLimited?.level).toBe('warn')
+    expect(rateLimited?.metadata).toEqual({
+      companyId: COMPANY_ID,
+      environment: 'homologation',
       errorCode: '656',
       errorName: 'FiscalRejectionError',
       importId: IMPORT_ID,
       providerMessage: 'Rejeicao: Consumo Indevido',
       ultNsu: EMPTY_NSU,
     })
+
+    expect(findEvent(events, 'nfe_distribution_rate_limit_window_applied')?.metadata).toEqual({
+      companyId: COMPANY_ID,
+      environment: 'homologation',
+      importId: IMPORT_ID,
+      maxNsu: EMPTY_NSU,
+      nextAllowedAt: '2026-08-10T16:00:00.000Z',
+      ultNsu: EMPTY_NSU,
+    })
+    expect(findEvent(events, 'nfe_distribution_pull_failed')).toBeUndefined()
     expect(JSON.stringify(events)).not.toContain('retDistDFeInt')
   })
 

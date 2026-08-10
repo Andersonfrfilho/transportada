@@ -10,6 +10,7 @@ import type {
 import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
+import { isSefazDistributionRateLimit } from '../domain/sefaz-rate-limit.policy.js'
 
 type DistributionCursorRecord = {
   readonly companyId: string
@@ -143,6 +144,40 @@ function describePullFailure(error: unknown): PullFailureDescription {
   }
 }
 
+async function openRateLimitWindow(input: {
+  readonly clock: NfeDistributionClock
+  readonly companyId: string
+  readonly cursorRepository: NfeDistributionCursorRepositoryPort
+  readonly environment: NfeDistributionEnvironment
+  readonly importId: string
+  readonly logger: WorkerLogger
+  readonly maxNsu: string
+  readonly ultNsu: string
+}): Promise<void> {
+  const nextAllowedAt = new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS)
+  await input.cursorRepository.saveCursor({
+    companyId: input.companyId,
+    environment: input.environment,
+    maxNsu: input.maxNsu,
+    nextAllowedAt,
+    owner: LEASE_OWNER,
+    ultNsu: input.ultNsu,
+  })
+
+  safeLogInfo({
+    logger: input.logger,
+    message: 'nfe_distribution_rate_limit_window_applied',
+    metadata: {
+      companyId: input.companyId,
+      environment: input.environment,
+      importId: input.importId,
+      maxNsu: input.maxNsu,
+      nextAllowedAt: nextAllowedAt.toISOString(),
+      ultNsu: input.ultNsu,
+    },
+  })
+}
+
 export function createNfeDistributionConsumer(input: {
   readonly clock: NfeDistributionClock
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
@@ -228,6 +263,7 @@ export function createNfeDistributionConsumer(input: {
       let duplicatedCount = 0
       let fetchedCount = 0
       let persistedCount = 0
+      let maxNsu = cursor.maxNsu
       let ultNsu = cursor.ultNsu
       let status: 'completed' | 'rate-limited' = 'completed'
 
@@ -266,27 +302,16 @@ export function createNfeDistributionConsumer(input: {
 
           if (page.itens.length === 0) {
             status = 'rate-limited'
-            const nextAllowedAt = new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS)
-            await input.cursorRepository.saveCursor({
+            maxNsu = page.maxNSU
+            await openRateLimitWindow({
+              clock: input.clock,
               companyId: params.envelope.companyId,
+              cursorRepository: input.cursorRepository,
               environment: config.environment,
-              maxNsu: page.maxNSU,
-              nextAllowedAt,
-              owner: LEASE_OWNER,
-              ultNsu,
-            })
-
-            safeLogInfo({
+              importId: params.envelope.payload.importId,
               logger: input.logger,
-              message: 'nfe_distribution_rate_limit_window_applied',
-              metadata: {
-                companyId: params.envelope.companyId,
-                environment: config.environment,
-                importId: params.envelope.payload.importId,
-                maxNsu: page.maxNSU,
-                nextAllowedAt: nextAllowedAt.toISOString(),
-                ultNsu,
-              },
+              maxNsu,
+              ultNsu,
             })
             break
           }
@@ -301,6 +326,7 @@ export function createNfeDistributionConsumer(input: {
           })
           duplicatedCount += persistence.duplicatedCount
           persistedCount += persistence.acceptedCount
+          maxNsu = page.maxNSU
           ultNsu = page.ultNSU
 
           safeLogInfo({
@@ -319,7 +345,7 @@ export function createNfeDistributionConsumer(input: {
           await input.cursorRepository.saveCursor({
             companyId: params.envelope.companyId,
             environment: config.environment,
-            maxNsu: page.maxNSU,
+            maxNsu,
             nextAllowedAt: null,
             owner: LEASE_OWNER,
             ultNsu,
@@ -364,9 +390,25 @@ export function createNfeDistributionConsumer(input: {
         }
       } catch (error: unknown) {
         // Só aqui o código da SEFAZ ainda é tipado; acima da pilha vira mensagem opaca
-        safeLogError({
+        if (!isSefazDistributionRateLimit(error)) {
+          safeLogError({
+            logger: input.logger,
+            message: 'nfe_distribution_pull_failed',
+            metadata: {
+              companyId: params.envelope.companyId,
+              environment: config.environment,
+              importId: params.envelope.payload.importId,
+              ultNsu,
+              ...describePullFailure(error),
+            },
+          })
+          throw error
+        }
+
+        // Relançar reentregaria em segundos, e cada retry rearma a hora de bloqueio no CNPJ
+        safeLogWarn({
           logger: input.logger,
-          message: 'nfe_distribution_pull_failed',
+          message: 'nfe_distribution_rate_limited_by_sefaz',
           metadata: {
             companyId: params.envelope.companyId,
             environment: config.environment,
@@ -375,7 +417,35 @@ export function createNfeDistributionConsumer(input: {
             ...describePullFailure(error),
           },
         })
-        throw error
+
+        await openRateLimitWindow({
+          clock: input.clock,
+          companyId: params.envelope.companyId,
+          cursorRepository: input.cursorRepository,
+          environment: config.environment,
+          importId: params.envelope.payload.importId,
+          logger: input.logger,
+          maxNsu,
+          ultNsu,
+        })
+
+        await input.repository.finalizeImport({
+          companyId: params.envelope.companyId,
+          duplicatedCount,
+          importId: params.envelope.payload.importId,
+          importedCount: persistedCount,
+          processedCount: fetchedCount,
+          receivedCount: fetchedCount,
+          status: 'completed',
+        })
+
+        return {
+          duplicatedCount,
+          fetchedCount,
+          persistedCount,
+          status: 'rate-limited',
+          ultNsu,
+        }
       } finally {
         await input.cursorRepository.releaseLease({
           companyId: params.envelope.companyId,

@@ -1319,7 +1319,10 @@ ADR-0022, §2.
 ### O que entrou
 
 - **`GET /bootstrap/first-admin`**, anônima (`bootstrap.routes.ts`): `204` enquanto o arranque está
-  aberto, o mesmo `404` uniforme depois — byte a byte igual ao de uma rota que não existe.
+  aberto, o mesmo `404` uniforme depois. Uniforme entre as recusas do arranque, e o contrato compara
+  byte a byte com um caminho não casado — mas o chamador sem token distingue os dois, porque caminho
+  desconhecido cai na autenticação e volta `401`. O `POST` já se comportava assim; a sondagem não
+  acrescenta divulgação nenhuma além do estado.
 - `BootstrapFirstAdminUseCase.checkAvailability()` **não recebe entrada nenhuma**, de propósito: a
   resposta é sobre o ambiente, nunca sobre quem perguntou. Reusa o `readAvailability` do guarda, para
   a tela e o `POST` não contarem histórias diferentes, e devolve `false` sem tocar no banco quando
