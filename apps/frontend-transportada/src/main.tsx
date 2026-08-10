@@ -14,11 +14,12 @@ import { CteProfilesPage } from '@/modules/cte-profiles/pages/CteProfiles.page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton } from '@/components/ui/skeleton'
 import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
-import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
@@ -185,6 +186,12 @@ function resolvePage(
   }
 }
 
+/** O selo avisa se a emissão vale de verdade — o rótulo vem do ambiente da empresa, nunca de literal. */
+const FISCAL_ENVIRONMENT_LABELS: Readonly<Record<FiscalEnvironment, string>> = {
+  homologation: 'Homologação',
+  production: 'Produção',
+}
+
 function ApplicationShell(): ReactNode {
   const authMeQuery = useAuthMeQuery()
   const [currentWorkspace, setCurrentWorkspace] = useState(resolveCurrentWorkspace)
@@ -244,6 +251,7 @@ function ApplicationShell(): ReactNode {
     setOpenGroups((current) => ({ ...current, [key]: !current[key] }))
   }
   const userProfile = getKeycloakAuthProvider().getProfile()
+  const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
 
   return (
     <div
@@ -352,7 +360,15 @@ function ApplicationShell(): ReactNode {
             </CardHeader>
             <CardContent className="application-header-context">
               <span>TransportAdA</span>
-              <span>Homologação</span>
+              {authMeQuery.isLoading ? <Skeleton height="0.7rem" width="var(--space-16)" /> : null}
+              {fiscalEnvironment === null ? null : (
+                <span
+                  className="application-fiscal-environment"
+                  data-environment={fiscalEnvironment}
+                >
+                  {FISCAL_ENVIRONMENT_LABELS[fiscalEnvironment]}
+                </span>
+              )}
               <div className="application-user-area" aria-label="Sessão do usuário">
                 <span className="application-user-avatar" aria-hidden="true">
                   {userProfile.pictureUrl !== undefined ? (

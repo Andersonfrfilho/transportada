@@ -15,6 +15,8 @@ export type CompanySettingsViewModel = Readonly<{
   activeCertificates: ActiveCertificatesByPurpose
   canIssueInProduction?: false
   environment?: 'homologation' | 'production'
+  /** O certificado é validado contra o CNPJ do cadastro fiscal; sem cadastro a rota nem olha a senha. */
+  hasFiscalProfileSaved: boolean
   status: 'empty' | 'error' | 'loading' | 'success'
 }>
 
@@ -50,14 +52,21 @@ function resolveActiveCertificates(
 }
 
 export const createCompanySettingsViewModel: CompanySettingsViewModelFactory = (input) => {
-  if (input.status !== 'success') return { activeCertificates: {}, status: input.status }
+  if (input.status !== 'success')
+    return { activeCertificates: {}, hasFiscalProfileSaved: false, status: input.status }
   const settings = input.data?.data
   if (settings?.profile === null || settings?.cte === null || settings === undefined)
-    return { activeCertificates: {}, status: 'empty' }
+    return {
+      activeCertificates: {},
+      // `status: 'empty'` também cobre `cte` ausente, e o certificado não depende do CT-e.
+      hasFiscalProfileSaved: settings?.profile != null,
+      status: 'empty',
+    }
   return {
     activeCertificates: resolveActiveCertificates(input.certificates),
     canIssueInProduction: false,
     environment: settings.cte.environment,
+    hasFiscalProfileSaved: true,
     status: 'success',
   }
 }

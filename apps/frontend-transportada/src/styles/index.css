@@ -414,6 +414,19 @@ a {
   text-transform: uppercase;
 }
 
+.application-fiscal-environment {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-radius: var(--space-1);
+}
+
+/* Produção é o único estado em que a emissão vale de verdade — ele se destaca sozinho. */
+.application-fiscal-environment[data-environment='production'] {
+  border-color: color-mix(in srgb, var(--color-ready) 60%, transparent);
+  background: color-mix(in srgb, var(--color-ready) 14%, transparent);
+  color: var(--color-ready);
+}
+
 .application-user-area {
   display: inline-flex;
   align-items: center;
@@ -1010,6 +1023,11 @@ h2 {
 
   .application-header-context > span {
     display: none;
+  }
+
+  /* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
+  .application-header-context > .application-fiscal-environment {
+    display: inline-block;
   }
 
   .application-user-area {

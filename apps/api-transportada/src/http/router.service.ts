@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CompanyFiscalEnvironmentPort } from '../companies/application/company-fiscal-environment.port'
+import type { FiscalEnvironment } from '../database/database.schema'
 import type { HealthService } from '../health/health.service'
 import type { AuthenticationPort } from '../identity/application/identity.port'
 import type { TenantContextService } from '../identity/application/tenant-context.service'
@@ -110,6 +112,7 @@ type CreateRouterParams = {
   readonly anonymousRoutes?: readonly RegisteredAnonymousRoute[]
   readonly authentication: AuthenticationPort
   readonly authorization: RouteAuthorizationPort
+  readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly healthService: HealthService
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
@@ -119,6 +122,7 @@ export function createRouter({
   anonymousRoutes = [],
   authentication,
   authorization,
+  companyFiscalEnvironment,
   healthService,
   routes,
   tenantContext,
@@ -132,17 +136,20 @@ export function createRouter({
         return handleHealthRequest({ healthService, method, pathname })
       }
 
-      const anonymousRoute = anonymousRoutes.find((candidate) => candidate.pathname === pathname)
+      const anonymousRoute = anonymousRoutes.find(
+        (candidate) => candidate.pathname === pathname && candidate.method === method,
+      )
       if (anonymousRoute !== undefined) {
-        if (anonymousRoute.method !== method) {
-          throw new ApiError(HTTP_ERROR.notFound)
-        }
         return anonymousRoute.execute({ correlationId, request })
+      }
+      // Caminho anônimo com método errado morre aqui: descobrir isso não pode custar autenticação.
+      if (anonymousRoutes.some((candidate) => candidate.pathname === pathname)) {
+        throw new ApiError(HTTP_ERROR.notFound)
       }
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
-        return handleAuthMeRequest({ identity, method, tenantContext })
+        return handleAuthMeRequest({ companyFiscalEnvironment, identity, method, tenantContext })
       }
 
       const matchedRoute = matchRoute({ method, pathname, routes })
@@ -378,19 +385,29 @@ async function handleHealthRequest({
 }
 
 type HandleAuthMeRequestParams = {
+  readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly identity: AuthenticatedContext<CompanyContext>['identity']
   readonly method: string
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
 }
 
+type ToAuthMeResponseParams = {
+  readonly context: AuthenticatedContext<CompanyContext>
+  readonly fiscalEnvironment: FiscalEnvironment | null
+}
+
 async function handleAuthMeRequest({
+  companyFiscalEnvironment,
   identity,
   method,
   tenantContext,
 }: HandleAuthMeRequestParams): Promise<Response> {
   assertGetMethod(method)
   const context = await tenantContext.resolveCompany(identity)
-  return jsonResponse({ body: toAuthMeResponse(context), status: 200 })
+  const fiscalEnvironment = await companyFiscalEnvironment.readEnvironment({
+    companyId: context.scope.companyId,
+  })
+  return jsonResponse({ body: toAuthMeResponse({ context, fiscalEnvironment }), status: 200 })
 }
 
 function assertGetMethod(method: string): void {
@@ -399,10 +416,10 @@ function assertGetMethod(method: string): void {
   }
 }
 
-function toAuthMeResponse(context: AuthenticatedContext<CompanyContext>): AuthMeResponse {
+function toAuthMeResponse({ context, fiscalEnvironment }: ToAuthMeResponseParams): AuthMeResponse {
   return {
     data: {
-      company: { id: context.scope.companyId },
+      company: { fiscalEnvironment, id: context.scope.companyId },
       identity: { userId: context.identity.userId },
       permissions: [...context.scope.permissions],
       roles: [...context.scope.roles],

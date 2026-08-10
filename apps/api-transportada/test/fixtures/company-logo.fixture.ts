@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { createHash } from 'node:crypto'
 
 import type {
@@ -136,6 +137,7 @@ export async function createCompanyLogoHttpFixture({
         authorization.authorize(value, policy)
       },
     },
+    companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     healthService: healthService(),
     routes,
     tenantContext: {

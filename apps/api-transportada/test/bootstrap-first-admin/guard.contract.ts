@@ -170,6 +170,50 @@ describe('bootstrap first admin guard', () => {
   })
 })
 
+/**
+ * A sondagem responde à tela, não ao chamador: ela é a mesma leitura que o guarda faz, sem token e
+ * sem escrita. Se um dia divergir do `assertAvailable`, a página de primeiro acesso passa a mentir
+ * numa direção ou na outra — some com o arranque ainda aberto, ou convida para um formulário morto.
+ */
+describe('bootstrap availability probe', () => {
+  test('is open only when the token is configured, the company exists and has no administrator', async () => {
+    const { calls, useCase } = createUseCase()
+
+    await expect(useCase.checkAvailability()).resolves.toBe(true)
+
+    expect(calls.availability).toEqual([COMPANY_ID])
+    expect(calls.gateway).toEqual([])
+    expect(calls.persistence).toEqual([])
+  })
+
+  test('is closed once the environment has an active company-admin', async () => {
+    const { useCase } = createUseCase({
+      availability: { companyExists: true, hasActiveCompanyAdmin: true },
+    })
+
+    await expect(useCase.checkAvailability()).resolves.toBe(false)
+  })
+
+  test('is closed while the environment company does not exist', async () => {
+    const { useCase } = createUseCase({
+      availability: { companyExists: false, hasActiveCompanyAdmin: false },
+    })
+
+    await expect(useCase.checkAvailability()).resolves.toBe(false)
+  })
+
+  /** Tirar o `BOOTSTRAP_TOKEN` do ambiente é o que fecha a porta de vez — a tela some junto. */
+  test('is closed without ever reading the database when no arranque token is configured', async () => {
+    for (const token of [undefined, '', '   ']) {
+      const { calls, useCase } = createUseCase({ token })
+
+      await expect(useCase.checkAvailability()).resolves.toBe(false)
+
+      expect(calls.availability).toEqual([])
+    }
+  })
+})
+
 describe('bootstrap first admin execution', () => {
   test('creates the Keycloak administrator and persists the identity in a single repository call', async () => {
     const { calls, useCase } = createUseCase()

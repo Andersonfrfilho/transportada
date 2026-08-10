@@ -46,12 +46,22 @@ const COMPANY_PERMISSIONS = [
   'trip.report',
 ] as const
 
+const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
+
 type CompanyRole = (typeof COMPANY_ROLES)[number]
 type CompanyPermission = (typeof COMPANY_PERMISSIONS)[number]
+export type FiscalEnvironment = (typeof FISCAL_ENVIRONMENTS)[number]
 
 export type AuthMeResponse = {
   readonly data: {
-    readonly company: { readonly id: string }
+    /**
+     * `null` enquanto a empresa não tem cadastro fiscal, ausente enquanto a API for de um deploy
+     * anterior ao campo — em nenhum dos dois casos a tela inteira deve cair por causa de um selo.
+     */
+    readonly company: {
+      readonly fiscalEnvironment?: FiscalEnvironment | null
+      readonly id: string
+    }
     readonly identity: { readonly userId: string }
     readonly permissions: readonly CompanyPermission[]
     readonly roles: readonly CompanyRole[]
@@ -72,6 +82,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function isFiscalEnvironment(value: unknown): value is FiscalEnvironment | null | undefined {
+  return (
+    value === null ||
+    value === undefined ||
+    FISCAL_ENVIRONMENTS.includes(value as FiscalEnvironment)
+  )
+}
+
 function hasStringProperty(value: unknown, property: string): boolean {
   return isRecord(value) && typeof value[property] === 'string'
 }
@@ -85,6 +103,7 @@ export function isAuthMeResponse(value: unknown): value is AuthMeResponse {
   const { company, identity, permissions, roles } = data
   return (
     hasStringProperty(company, 'id') &&
+    isFiscalEnvironment(isRecord(company) ? company.fiscalEnvironment : undefined) &&
     hasStringProperty(identity, 'userId') &&
     isLiteralArray(permissions, COMPANY_PERMISSIONS) &&
     isLiteralArray(roles, COMPANY_ROLES)

@@ -17,11 +17,21 @@ type ClientModule = {
     apiBaseUrl: string
     fetch: (request: Request) => Promise<Response>
   }) => {
+    checkAvailability: () => Promise<boolean>
     createFirstAdmin: (input: {
       administrator: typeof BOOTSTRAP_ADMINISTRATOR_INPUT
       token: string
     }) => Promise<unknown>
   }
+}
+
+async function loadClient(
+  fetch: (request: Request) => Promise<Response>,
+): Promise<ReturnType<ClientModule['createBootstrapClient']>> {
+  const { createBootstrapClient } = await loadFutureModule<ClientModule>(
+    '../../src/modules/identity/shared/bootstrapClient.service',
+  )
+  return createBootstrapClient({ apiBaseUrl: 'https://transportada.test', fetch })
 }
 
 describe('identity bootstrap client contract', () => {
@@ -93,5 +103,48 @@ describe('identity bootstrap client contract', () => {
 
     expect(caught).toBeInstanceOf(Error)
     expect((caught as Error).message).toBe('BOOTSTRAP_UNAVAILABLE')
+  })
+})
+
+/**
+ * A sondagem existe para a tela de primeiro acesso sumir depois do arranque. Ela não é a proteção —
+ * quem impede a criação de um segundo administrador é o POST, com token e trava no banco. Por isso
+ * ela não manda token nenhum: o que ela pergunta é sobre o ambiente, não sobre quem pergunta.
+ */
+describe('identity bootstrap availability probe contract', () => {
+  test('asks with a plain GET that carries no credential at all', async () => {
+    const fetch = mock((request: Request): Promise<Response> => {
+      expect(request.url).toBe('https://transportada.test/bootstrap/first-admin')
+      expect(request.method).toBe('GET')
+      expect(request.headers.get('authorization')).toBeNull()
+      expect(request.cache).toBe('no-store')
+      return Promise.resolve(new Response(null, { status: 204 }))
+    })
+    const client = await loadClient(fetch)
+
+    expect(await client.checkAvailability()).toBeTrue()
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  test('reads the uniform 404 as a door already closed', async () => {
+    const client = await loadClient(() =>
+      Promise.resolve(Response.json({ error: { code: 'NOT_FOUND' } }, { status: 404 })),
+    )
+
+    expect(await client.checkAvailability()).toBeFalse()
+  })
+
+  /**
+   * Falha aberta de propósito: a sondagem é conforto de tela, e API fora do ar não pode deixar uma
+   * instalação nova sem como fazer o primeiro acesso. Errar para o lado do formulário é reversível;
+   * errar para o lado do redirecionamento tranca quem ainda precisa arrancar.
+   */
+  test.each([
+    ['the API is unreachable', () => Promise.reject(new Error('connection refused'))],
+    ['the API answers a server error', () => Promise.resolve(new Response(null, { status: 500 }))],
+  ])('keeps the form reachable when %s', async (_name, respond) => {
+    const client = await loadClient(respond)
+
+    expect(await client.checkAvailability()).toBeTrue()
   })
 })

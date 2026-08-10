@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
@@ -41,6 +42,7 @@ type AvailabilityCall = { readonly token: string | undefined }
 type RouteDependencies = {
   readonly bootstrapFirstAdmin: {
     assertAvailable(input: AvailabilityCall): Promise<void>
+    checkAvailability(): Promise<boolean>
     execute(input: BootstrapFirstAdminInput): Promise<BootstrapFirstAdminResult>
   }
 }
@@ -54,23 +56,31 @@ type LogEntry = {
 type CreateFixtureParams = {
   readonly availabilityError?: Error
   readonly executeError?: Error
+  readonly isAvailable?: boolean
   readonly result?: BootstrapFirstAdminResult
 }
 
 export async function createBootstrapHttpFixture({
   availabilityError,
   executeError,
+  isAvailable = true,
   result = EXPECTED_RESULT,
 }: CreateFixtureParams = {}) {
   const availabilityCalls: AvailabilityCall[] = []
   const events: string[] = []
   const executeCalls: BootstrapFirstAdminInput[] = []
   const logs: LogEntry[] = []
+  /** A sondagem não recebe nada: registrar os argumentos é como o contrato prova que ela é cega. */
+  const checkCalls: unknown[][] = []
   const anonymousRoutes = await loadRoutes({
     bootstrapFirstAdmin: {
       async assertAvailable(call) {
         availabilityCalls.push(call)
         if (availabilityError) throw availabilityError
+      },
+      async checkAvailability(...args: unknown[]) {
+        checkCalls.push(args)
+        return isAvailable
       },
       async execute(call) {
         executeCalls.push(structuredClone(call))
@@ -92,6 +102,7 @@ export async function createBootstrapHttpFixture({
         events.push('authorize')
       },
     },
+    companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     healthService: healthService(),
     routes: [],
     tenantContext: {
@@ -121,6 +132,7 @@ export async function createBootstrapHttpFixture({
 
   return {
     availabilityCalls,
+    checkCalls,
     events,
     executeCalls,
     handle: (request: Request) => handle(request, { timeout() {} }),

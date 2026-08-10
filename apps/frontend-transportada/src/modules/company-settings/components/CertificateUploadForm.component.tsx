@@ -9,6 +9,10 @@ import {
   createCertificateUploadController,
   type CertificateUploadController,
 } from '../hooks/useCertificateUpload.hook'
+import {
+  resolveCertificateUploadStatus,
+  type CertificateUploadStatus,
+} from '../shared/certificateUploadStatus.service'
 import { CERTIFICATE_PURPOSE_LABEL_KEYS } from '../shared/companySettings.constant'
 import {
   CERTIFICATE_PURPOSES,
@@ -22,31 +26,13 @@ type CertificateUploadFormProps = Readonly<{
   certificates: ActiveCertificatesByPurpose
   onDelete: (purpose: CertificatePurpose) => Promise<void>
   disabled: boolean
+  hasFiscalProfileSaved: boolean
   onSubmit: (body: FormData) => Promise<SafeCertificate>
 }>
 
-type CertificateStatusKey =
-  | 'certificateError'
-  | 'certificateErrorForbidden'
-  | 'certificateErrorCnpjMismatch'
-  | 'certificateErrorExpired'
-  | 'certificateErrorInvalid'
-  | 'certificateErrorMissingFields'
-  | 'certificateErrorNetwork'
-  | 'certificateErrorNotYetValid'
-  | 'certificateErrorProfileMissing'
-  | 'certificateErrorRequestFailed'
-  | 'certificateErrorServer'
-  | 'certificateErrorStorageUnavailable'
-  | 'certificateErrorUnsupported'
-  | 'deleted'
-  | 'success'
-
 type CertificateStatus =
-  | Readonly<{
-      key: Exclude<CertificateStatusKey, 'success'>
-      code?: string
-    }>
+  | CertificateUploadStatus
+  | Readonly<{ code?: undefined; key: 'deleted' }>
   | Readonly<{ key: 'success'; certificate: SafeCertificate }>
   | Readonly<{ key: 'idle' }>
 
@@ -162,6 +148,7 @@ function CertificateInputs(props: CertificateInputsProps) {
 export function CertificateUploadForm({
   certificates,
   disabled,
+  hasFiscalProfileSaved,
   onDelete,
   onSubmit,
 }: CertificateUploadFormProps) {
@@ -176,8 +163,13 @@ export function CertificateUploadForm({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [purpose, setPurpose] = useState<CertificatePurpose>('cte')
   const certificate = certificates[purpose]
+  // A rota valida o certificado contra o CNPJ do cadastro fiscal e responde 409 antes de olhar
+  // para a senha: com o formulário aberto, toda tentativa vira "salve o cadastro antes" — também
+  // a tentativa com a senha certa.
+  const awaitingFiscalProfile = !hasFiscalProfileSaved
+  const fieldsDisabled = disabled || awaitingFiscalProfile
   const passwordInvalid =
-    status.key === 'certificateErrorMissingFields' || status.key === 'certificateErrorInvalid'
+    status.key === 'certificateErrorMissingFields' || status.key === 'certificateErrorRejected'
   const controllerRef = useRef<CertificateUploadController | null>(null)
   controllerRef.current ??= createCertificateUploadController({
     clearFileInput: () => {
@@ -192,11 +184,12 @@ export function CertificateUploadForm({
   const submit = () => {
     void controller
       .submit()
-      .then((certificate) => {
-        setFileName(null)
-        setStatus({ certificate, key: 'success' })
-      })
-      .catch((error) => setStatus(resolveCertificateStatus(error)))
+      .then((certificate) => setStatus({ certificate, key: 'success' }))
+      .catch((error) => setStatus(resolveCertificateUploadStatus(error)))
+      // O controller apaga arquivo e senha no `finally` do submit: em desfecho nenhum o rascunho
+      // sobrevive. Continuar anunciando o nome do arquivo depois de um erro é a tela mentindo — e
+      // o clique seguinte responde "selecione o arquivo PFX" apontando para o arquivo escrito ali.
+      .finally(() => setFileName(null))
   }
   return (
     <section className={styles.certificateForm} aria-labelledby="certificate-title">
@@ -233,9 +226,14 @@ export function CertificateUploadForm({
           </p>
         </div>
       )}
+      {awaitingFiscalProfile && (
+        <p className={styles.fieldHint} role="status">
+          {t('certificateRequiresProfile')}
+        </p>
+      )}
       <CertificateInputs
         controller={controller}
-        disabled={disabled}
+        disabled={fieldsDisabled}
         fileName={fileName}
         fileInput={fileInput}
         passwordInvalid={passwordInvalid}
@@ -245,7 +243,12 @@ export function CertificateUploadForm({
         onTogglePasswordVisibility={() => setPasswordVisible((current) => !current)}
         passwordInput={passwordInput}
       />
-      <button className={styles.primaryAction} disabled={disabled} type="button" onClick={submit}>
+      <button
+        className={styles.primaryAction}
+        disabled={fieldsDisabled}
+        type="button"
+        onClick={submit}
+      >
         <Icon name="shield" />
         {t(certificate === undefined ? 'registerCertificate' : 'replaceCertificate')}
       </button>
@@ -298,7 +301,7 @@ export function CertificateUploadForm({
                         setConfirmDelete(false)
                         setStatus({ key: 'deleted' })
                       })
-                      .catch((error) => setStatus(resolveCertificateStatus(error)))
+                      .catch((error) => setStatus(resolveCertificateUploadStatus(error)))
                   }}
                 >
                   <Icon name="check" />
@@ -310,9 +313,12 @@ export function CertificateUploadForm({
         </div>
       )}
       {status.key !== 'idle' && status.key !== 'success' && (
-        <p className={styles.formStatusError} role="status">
-          {t(status.key, { code: status.code })}
-        </p>
+        <div className={styles.certificateStatusBlock} role="status">
+          <p className={styles.formStatusError}>{t(status.key, { code: status.code })}</p>
+          {status.key !== 'deleted' && (
+            <p className={styles.fieldHint}>{t('certificateDraftCleared')}</p>
+          )}
+        </div>
       )}
     </section>
   )
@@ -323,38 +329,4 @@ function formatCertificateDate(value: string): string {
     dateStyle: 'short',
     timeZone: 'UTC',
   }).format(new Date(value))
-}
-
-function resolveCertificateStatus(error: unknown): CertificateStatus {
-  const code = error instanceof Error ? error.message : ''
-  if (code === 'CERTIFICATE_UPLOAD_REQUIRED') return { key: 'certificateErrorMissingFields' }
-  if (code === 'DIGITAL_CERTIFICATE_CNPJ_MISMATCH') return { key: 'certificateErrorCnpjMismatch' }
-  if (code === 'DIGITAL_CERTIFICATE_PROFILE_MISSING')
-    return { key: 'certificateErrorProfileMissing' }
-  if (code === 'COMPANY_SETTINGS_REQUEST_FAILED')
-    return { key: 'certificateErrorRequestFailed', code }
-  if (code === 'COMPANY_SETTINGS_NETWORK_ERROR') return { key: 'certificateErrorNetwork' }
-  if (code === 'FORBIDDEN' || code === 'UNAUTHENTICATED')
-    return { key: 'certificateErrorForbidden', code }
-  if (code === 'INTERNAL_ERROR') return { key: 'certificateErrorServer', code }
-  if (
-    code === 'DIGITAL_CERTIFICATE_OPERATION_FAILED' ||
-    code === 'DIGITAL_CERTIFICATE_UNAVAILABLE'
-  ) {
-    return { key: 'certificateErrorStorageUnavailable', code }
-  }
-  if (code === 'CERTIFICATE_EXPIRED') return { key: 'certificateErrorExpired' }
-  if (code === 'CERTIFICATE_NOT_YET_VALID') return { key: 'certificateErrorNotYetValid' }
-  if (
-    code === 'CERTIFICATE_CNPJ_MISSING' ||
-    code === 'CERTIFICATE_NOT_ICP_BRASIL' ||
-    code === 'CERTIFICATE_PRIVATE_KEY_MISSING' ||
-    code === 'CERTIFICATE_SIGNATURE_UNAVAILABLE'
-  ) {
-    return { key: 'certificateErrorUnsupported', code }
-  }
-  if (code === 'CERTIFICATE_INVALID' || code === 'CERTIFICATE_VALIDATION_FAILED') {
-    return { key: 'certificateErrorInvalid', code }
-  }
-  return { key: 'certificateError', code: code || 'UNKNOWN_ERROR' }
 }

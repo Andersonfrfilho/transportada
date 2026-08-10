@@ -17,6 +17,7 @@ class BootstrapRequestError extends Error {
 }
 
 export type BootstrapClient = Readonly<{
+  checkAvailability: () => Promise<boolean>
   createFirstAdmin: (
     input: Readonly<{ administrator: BootstrapAdministratorInput; token: string }>,
   ) => Promise<BootstrapFirstAdminResult>
@@ -59,6 +60,28 @@ async function createFirstAdmin(
   return payload.data
 }
 
+const BOOTSTRAP_CLOSED_STATUS = 404
+
+/**
+ * Pergunta sem credencial: a resposta é sobre o ambiente, não sobre quem perguntou. Só o 404 —
+ * o mesmo de uma rota que não existe — fecha a tela; qualquer outra falha deixa o formulário de pé,
+ * porque API fora do ar não pode trancar uma instalação que ainda precisa do primeiro acesso.
+ */
+async function checkAvailability(dependencies: ClientDependencies): Promise<boolean> {
+  const request = new Request(`${dependencies.apiBaseUrl}${BOOTSTRAP_FIRST_ADMIN_PATH}`, {
+    cache: 'no-store',
+    method: 'GET',
+  })
+
+  try {
+    const response = await dependencies.fetch(request)
+    return response.status !== BOOTSTRAP_CLOSED_STATUS
+  } catch {
+    return true
+  }
+}
+
 export const createBootstrapClient: BootstrapClientFactory = (dependencies) => ({
+  checkAvailability: () => checkAvailability(dependencies),
   createFirstAdmin: (input) => createFirstAdmin({ ...input, dependencies }),
 })

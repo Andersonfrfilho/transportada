@@ -186,10 +186,11 @@ describe('contrato do teste mensal de restore', () => {
   })
 
   /**
-   * No backup, cadência diária, a janela de 26 h transforma um ciclo que quebrou em alerta duas
-   * horas depois — a ausência do ping basta. Aqui não: o job é mensal e a janela é de 32 dias, então
-   * um restore que falhou hoje só viraria notificação depois da próxima execução mensal. Quem falha
-   * avisa que falhou, e a janela fica sendo o que ela sabe fazer — pegar o mês em que ninguém rodou.
+   * A ausência do ping não serve de alerta aqui. O Gatus avalia heartbeat num tique de intervalo
+   * contado a partir do start do processo dele, não do último push: a janela de 32 dias só é olhada
+   * 32 dias depois de o Gatus subir, e cada redeploy zera essa contagem. Um restore que quebrou hoje
+   * viraria notificação em setembro, se virasse. Quem falha avisa que falhou; a janela fica sendo o
+   * que ela sabe fazer — pegar o mês em que ninguém rodou.
    */
   test('o restore que quebra avisa o monitor na hora, com success=false', async () => {
     const run = (await readSteps()).at(-1)?.run ?? ''
@@ -200,6 +201,22 @@ describe('contrato do teste mensal de restore', () => {
   })
 
   /**
+   * `curl` sem `--fail` sai com código 0 quando o edge devolve 502, e o `|| true` engole o resto: o
+   * push some sem rastro no log do run e sem chegar ao monitor. Foi assim que o primeiro push
+   * vermelho do drick se perdeu — o job ficou vermelho, o Gatus nunca soube, ninguém foi avisado.
+   * Uma tentativa só também não basta: a recusa do edge aqui é intermitente, não permanente.
+   */
+  test('push recusado vira aviso no run, e não silêncio', async () => {
+    const steps = await readSteps()
+
+    for (const step of steps.slice(-2)) {
+      expect(step.run ?? '').toContain('--fail')
+      expect(step.run ?? '').toContain('--retry')
+    }
+    expect(steps.at(-1)?.run ?? '').toContain('::warning::')
+  })
+
+  /**
    * O job já está vermelho quando este passo roda. Faltando configuração ou caindo o push, insistir
    * em falhar só troca a causa que aparece no resumo do run pela última que aconteceu.
    */
@@ -207,6 +224,7 @@ describe('contrato do teste mensal de restore', () => {
     const run = (await readSteps()).at(-1)?.run ?? ''
 
     expect(run).not.toContain('exit 1')
-    expect(run).toContain('|| true')
+    // O mesmo `||` que absorve o push recusado é o que impede este passo de trocar a causa do run.
+    expect(run).toMatch(/\|\|\s*\n?\s*echo "::warning::/)
   })
 })

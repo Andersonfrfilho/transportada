@@ -1,5 +1,6 @@
 {
   "title": "First access",
+  "loading": "Checking the first access",
   "description": "Enter the administrator details and the bootstrap token provided at deployment to create the company's first access.",
   "firstName": "First name",
   "lastName": "Last name",

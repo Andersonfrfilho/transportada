@@ -85,6 +85,27 @@ transação PostgreSQL aberta durante a chamada SEFAZ; ele:
 Se perder o lease, descarta o resultado não confirmado. Uma repetição segura
 pode consultar novamente o mesmo NSU; idempotência absorve a página.
 
+### Emenda (10/08/2026): o 656 chega como erro, e erro ia para o trilho de retry
+
+O item 14 dizia "ausência de documentos **ou bloqueio equivalente ao `cStat 656`**", mas só a
+primeira metade existia no código: `nextAllowedAt` era gravado no ramo em que a SEFAZ responde com
+sucesso e a página vem vazia. Quando a SEFAZ **recusa** com 656, o provider lança, e lançar deixava o
+consumer sem gravar cursor nenhum.
+
+Isso se sustentava sozinho em produção. O trilho de retry reentregava em segundos e cada tentativa
+era uma consulta nova ao mesmo CNPJ; o cron, vendo `cooldown_active: 0`, enfileirava outra importação
+por hora. A SEFAZ pede uma hora de silêncio, e as nossas próprias tentativas impediam essa hora de
+acontecer — `ultNSU` ficou em `000000000000000` do primeiro ciclo elegível em diante.
+
+Passa a valer: **a recusa por 656 é desfecho, não falha.** O consumer grava a janela, finaliza a
+importação com o que já tinha persistido e devolve `rate-limited`, o que faz o handler dar `ack`. Sem
+retry, sem DLQ — a mensagem cumpriu o que tinha para cumprir, e quem retoma é o cron depois da janela.
+Qualquer outro cStat continua lançando e mantém retry, backoff e DLQ como antes.
+
+O pacote fiscal sinaliza o 656 de duas formas — rejeição tipada com `code` e `Error` cru com o cStat
+na mensagem —, e as duas contam. O reconhecimento vive em
+`nfe-distribution/domain/sefaz-rate-limit.policy.ts` e nunca toca `rawResponse`, onde vai o XML.
+
 ## Consequências
 
 - não existe exactly-once distribuído, mas os efeitos observáveis são

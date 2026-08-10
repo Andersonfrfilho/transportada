@@ -2,7 +2,8 @@
 # Copyright (c) 2026 Ada Technology. MIT License.
 set -euo pipefail
 
-readonly POLL_INTERVAL_SECONDS=10
+# O intervalo é sobrescrevível para o contrato não gastar minuto de relógio esperando polling.
+readonly POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-10}"
 readonly POLL_ATTEMPTS=90
 readonly TERMINAL_FAILURE_STATUSES='FAILED CRASHED REMOVED SKIPPED'
 # `SUCCESS` marca o release publicado, não o processo vivo: um contêiner em crash-loop passa por
@@ -14,19 +15,23 @@ usage() {
   exit 2
 }
 
-# `railway up --ci` sai assim que o build termina: quem diz se o release subiu é o status.
-latest_status() {
+# `railway up --ci` sai assim que o build termina: quem diz se o release subiu é o status. E é o
+# status do deployment que *este* passo criou — o mais recente pode ser o de outro push ou o de um
+# redeploy pelo painel, e aprovar a build alheia é dar verde para código que ninguém mandou subir.
+deployment_status() {
   local service="$1"
+  local deployment_id="$2"
   railway deployment list \
     --service "$service" \
     --environment "$TARGET_ENVIRONMENT" \
     --json 2>/dev/null \
-    | python3 -c 'import json,sys
+    | DEPLOYMENT_ID="$deployment_id" python3 -c 'import json,os,sys
 try:
     deployments = json.load(sys.stdin)
 except Exception:
     deployments = []
-print(deployments[0]["status"] if deployments else "NONE")'
+wanted = os.environ["DEPLOYMENT_ID"]
+print(next((d["status"] for d in deployments if d.get("id") == wanted), "NONE"))'
 }
 
 has_succeeded() {
@@ -45,11 +50,12 @@ sys.exit(0 if any(d.get("status") == "SUCCESS" for d in deployments) else 1)'
 
 wait_for_deployment() {
   local service="$1"
+  local deployment_id="$2"
   local status
   local confirmations=0
 
   for _ in $(seq 1 "$POLL_ATTEMPTS"); do
-    status="$(latest_status "$service")"
+    status="$(deployment_status "$service" "$deployment_id")"
     case " $TERMINAL_FAILURE_STATUSES " in
       *" $status "*)
         echo "::error::$service terminou em $status no ambiente $TARGET_ENVIRONMENT"
@@ -108,15 +114,38 @@ except Exception:
   echo "$service: migrations aplicadas"
 }
 
+# A CLI sai 1 quando perde o streaming do log da build, com o deployment já criado e correndo — foi
+# assim que o deploy de 10/08/2026 subiu SUCCESS na Railway e mesmo assim pulou migrations, worker,
+# cron e frontend. O identificador anunciado na saída é a prova de que houve deployment; sem ele a
+# falha é falha de verdade e não há status para consultar.
 deploy() {
   local service="$1"
-  railway up \
+  local output
+  local exit_code=0
+  local deployment_id
+
+  output="$(railway up \
     --ci \
     --service "$service" \
     --environment "$TARGET_ENVIRONMENT" \
     --project "$RAILWAY_PROJECT_ID" \
-    --message "${GITHUB_SHA:-manual}"
-  wait_for_deployment "$service"
+    --message "${GITHUB_SHA:-manual}" 2>&1)" || exit_code=$?
+  printf '%s\n' "$output"
+
+  deployment_id="$(printf '%s' "$output" \
+    | grep --only-matching --extended-regexp '[?&]id=[0-9a-f-]{36}' \
+    | tail -1 \
+    | cut -d= -f2 || true)"
+
+  if [ -z "$deployment_id" ]; then
+    echo "::error::$service: railway up saiu $exit_code sem criar deployment"
+    return 1
+  fi
+  if [ "$exit_code" -ne 0 ]; then
+    echo "::warning::$service: railway up saiu $exit_code com $deployment_id criado; o status decide."
+  fi
+
+  wait_for_deployment "$service" "$deployment_id"
 }
 
 [ $# -eq 2 ] || usage

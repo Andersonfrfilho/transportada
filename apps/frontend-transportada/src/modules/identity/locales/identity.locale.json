@@ -1,5 +1,6 @@
 {
   "title": "Primeiro acesso",
+  "loading": "Verificando o primeiro acesso",
   "description": "Informe os dados do administrador e o token de arranque fornecido na implantação para criar o primeiro acesso da empresa.",
   "firstName": "Nome",
   "lastName": "Sobrenome",
