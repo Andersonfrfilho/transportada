@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
@@ -92,6 +93,7 @@ export async function createBootstrapHttpFixture({
         events.push('authorize')
       },
     },
+    companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     healthService: healthService(),
     routes: [],
     tenantContext: {

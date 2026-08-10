@@ -17,6 +17,7 @@ import { createCompanyLogoUseCase } from './companies/application/company-logo.u
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
 import { createScheduledDistributionRoutes } from './companies/presentation/scheduled-distribution.routes.js'
@@ -182,6 +183,7 @@ export function bootstrap(): Bun.Server<undefined> {
     anonymousRoutes: createAnonymousRoutes({ config, database: database.db }),
     authentication,
     authorization: new AuthorizationService(),
+    companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
     routes: createApplicationRoutes({
       database: database.db,

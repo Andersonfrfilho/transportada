@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
@@ -136,6 +137,7 @@ function createTestRouter(input: {
         authorization.authorize(value, policy)
       },
     },
+    companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     healthService: healthService(),
     routes: input.routes,
     tenantContext: {

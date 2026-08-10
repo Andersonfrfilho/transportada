@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
@@ -426,6 +427,7 @@ function createTestRouter(input: {
         authorization.authorize(value, policy)
       },
     },
+    companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     healthService: new HealthService({
       database: {
         async close() {},

@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { CompanyFiscalEnvironmentPort } from '../src/companies/application/company-fiscal-environment.port'
 import { HealthService } from '../src/health/health.service'
 import { appliedMigrations } from './fixtures/health.fixture'
 import { createRequestHandler } from '../src/http/request-handler.service'
@@ -34,7 +35,7 @@ describe('GET /auth/me contract', () => {
     const body = await response.json()
     expect(body).toEqual({
       data: {
-        company: { id: COMPANY_ID },
+        company: { fiscalEnvironment: 'production', id: COMPANY_ID },
         identity: { userId: USER_ID },
         permissions: [
           'invoices.import',
@@ -70,6 +71,57 @@ describe('GET /auth/me contract', () => {
     ]) {
       expect(serializedBody).not.toContain(forbidden)
     }
+  })
+
+  /**
+   * O ambiente fiscal é o aviso de que a emissão vale de verdade, e quem emite é o operador — não
+   * quem administra as configurações. Por isso ele sai no `/auth/me`, que toda sessão lê, e não na
+   * rota de configurações, que exige `settings.manage`.
+   */
+  test('reports the fiscal environment of the resolved company, not of the token claim', async () => {
+    const readCalls: string[] = []
+    const fixture = createFixture({
+      fiscalEnvironment: {
+        async readEnvironment({ companyId }) {
+          readCalls.push(companyId)
+          return 'homologation'
+        },
+      },
+    })
+
+    const response = await fixture.handle(
+      new Request('http://localhost/auth/me', {
+        headers: { authorization: 'Bearer header.payload.signature' },
+      }),
+      fixture.server,
+    )
+
+    expect(await response.json()).toMatchObject({
+      data: { company: { fiscalEnvironment: 'homologation', id: COMPANY_ID } },
+    })
+    expect(readCalls).toEqual([COMPANY_ID])
+  })
+
+  /** Empresa recém-criada não tem cadastro fiscal: a tela precisa saber disso para não inventar ambiente. */
+  test('reports a null fiscal environment while the company has no fiscal profile', async () => {
+    const fixture = createFixture({
+      fiscalEnvironment: {
+        async readEnvironment() {
+          return null
+        },
+      },
+    })
+
+    const response = await fixture.handle(
+      new Request('http://localhost/auth/me', {
+        headers: { authorization: 'Bearer header.payload.signature' },
+      }),
+      fixture.server,
+    )
+
+    expect(await response.json()).toMatchObject({
+      data: { company: { fiscalEnvironment: null, id: COMPANY_ID } },
+    })
   })
 
   test('returns 401 for absent or invalid authentication and 403 for missing company membership', async () => {
@@ -196,6 +248,7 @@ describe('GET /auth/me contract', () => {
 
 type CreateFixtureParams = {
   readonly authentication?: AuthenticationPort
+  readonly fiscalEnvironment?: CompanyFiscalEnvironmentPort
   readonly membership?: MembershipRepositoryPort
 }
 
@@ -203,6 +256,11 @@ function createFixture({
   authentication = {
     async authenticate() {
       return identity()
+    },
+  },
+  fiscalEnvironment = {
+    async readEnvironment() {
+      return 'production'
     },
   },
   membership = {
@@ -241,7 +299,12 @@ function createFixture({
     frontendOrigin: 'http://localhost:53000',
     logger,
     requestTimeoutSeconds: 10,
-    router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
+    router: createHttpRouterFixture({
+      authentication,
+      companyFiscalEnvironment: fiscalEnvironment,
+      healthService,
+      tenantContext,
+    }),
   })
   const server: RequestTimeoutPort = { timeout() {} }
 

@@ -129,7 +129,7 @@ describe('modular router contract', () => {
     expect(authMe.status).toBe(200)
     expect(await authMe.json()).toEqual({
       data: {
-        company: { id: ROUTER_COMPANY_ID },
+        company: { fiscalEnvironment: 'homologation', id: ROUTER_COMPANY_ID },
         identity: { userId: ROUTER_USER_ID },
         permissions: ['settings.manage'],
         roles: ['company-admin'],

@@ -4,7 +4,7 @@
 import type { LogLevel } from '@adatechnology/logger'
 
 import type { CryptographicConfiguration } from '../config/cryptographic-configuration.schema'
-import type { CompanyRole } from '../database/database.schema'
+import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
 export type ApiEnvironment = {
@@ -100,6 +100,8 @@ export type ErrorResponse = {
 export type AuthMeResponse = {
   readonly data: {
     readonly company: {
+      /** `null` enquanto não há cadastro fiscal: a tela mostra ambiente nenhum em vez de chutar. */
+      readonly fiscalEnvironment: FiscalEnvironment | null
       readonly id: string
     }
     readonly identity: {

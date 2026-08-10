@@ -21,6 +21,7 @@ import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
 import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
 import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
+import { DrizzleCompanyFiscalEnvironmentRepository } from '../../src/companies/infrastructure/drizzle-company-fiscal-environment.repository'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
 
 const databaseUrl = process.env.API_TEST_DATABASE_URL ?? process.env.DATABASE_URL
@@ -104,7 +105,12 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             vehicleLookup: null,
           },
           logger,
-          router: createHttpRouterFixture({ authentication, healthService, tenantContext }),
+          router: createHttpRouterFixture({
+            authentication,
+            companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
+            healthService,
+            tenantContext,
+          }),
         })
         const baseUrl = `http://127.0.0.1:${server.port}`
 
@@ -124,7 +130,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         expect(companyAResponse.status).toBe(200)
         expect(await companyAResponse.json()).toEqual({
           data: {
-            company: { id: companyA },
+            company: { fiscalEnvironment: null, id: companyA },
             identity: { userId: userA },
             permissions: [
               'invoices.read',
@@ -140,7 +146,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         expect(companyBResponse.status).toBe(200)
         expect(await companyBResponse.json()).toEqual({
           data: {
-            company: { id: companyB },
+            company: { fiscalEnvironment: null, id: companyB },
             identity: { userId: userB },
             permissions: [
               'invoices.import',
