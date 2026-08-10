@@ -186,22 +186,32 @@ terem evidência em `evidence.md`.
       mede `process.listenerCount('SIGTERM')` no instante em que é chamado, e exigir que já seja
       maior que o de antes do boot.
 
-- [ ] T020 🧠 Preencher **config-as-code** de cada serviço de production com o caminho do
-      `railway.json`. Sem isso o `preDeployCommand` não roda e a API sobe sem as 9 migrations (D9).
-      Fecha a pendência 1. ✅ Não precisa de dashboard: `serviceInstanceUpdate` aceita
-      `railwayConfigFile` no input — mas só depois que a instância existir (T021).
-- [ ] T021 Primeira passada do deploy: merge de `staging` em `main`, aprovar no Environment,
+- [x] T020 🧠 Criar as seis instâncias de production e preencher o **config-as-code** de cada uma
+      com o caminho do `railway.json`. Sem isso o `preDeployCommand` não roda e a API sobe sem as 9
+      migrations (D9). Fecha a pendência 1.
+      ⚠️ **Não é `serviceInstanceUpdate`** — ele responde `true` e não cria nada (T019 §2). E não é
+      `railway add`: nome de serviço é único no projeto, então criar um segundo `api` é recusado
+      pelo próprio Railway. O par que funciona é `environmentStageChanges(input: EnvironmentConfig,
+merge: true)` + `environmentPatchCommitStaged(skipDeploys: true)`. O `EnvironmentConfig`
+      aparece como `SCALAR` na introspecção, mas `railway environment config --json` imprime
+      exatamente esse documento — copiar a forma de staging, nunca adivinhar. `merge: true` é
+      obrigatório: sem ele o patch é o ambiente inteiro e apaga o que já estava lá.
+- [x] T021 Primeira passada do deploy: merge de `staging` em `main`, aprovar no Environment,
       acompanhar keycloak → api → worker → cron → frontend. `assert-migrations` tem de confirmar
       as 9 migrations.
-      ⚠️ **A primeira passada falha em `assert-migrations`, e é esperado.** O passo lê
-      `/health/ready` pelo domínio público da api, que não existe antes do deploy que o cria. Ordem:
-      deixar keycloak e api subirem → criar os três domínios (`serviceDomainCreate` + renomear com
-      `serviceDomainUpdate`) → preencher o config-as-code (T020) → rodar de novo por
-      `workflow_dispatch`, aí sim até o frontend.
-- [ ] T022 Segunda passada (D9): com os domínios existindo, preencher `FRONTEND_ORIGIN`,
-      `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os
-      `VITE_*`, criar o volume do RabbitMQ, e **rebuildar** o frontend — restart não troca o
-      bundle. Fecha a pendência 5.
+      ⚠️ **A previsão original desta task não se cumpriu.** Ela dizia que a primeira passada
+      falharia em `assert-migrations` por falta de domínio público. O que aconteceu foi outra coisa:
+      falhou no primeiro passo, `Deploy identity`, com `Failed to upload code with status code 404
+Not Found`, porque a instância do keycloak não existia. Resolvido na T020 — e como a instância
+      passou a nascer por API, os três domínios podem ser criados **antes** do deploy, o que elimina
+      a segunda passada. Ordem que vale: T020 (instâncias + config-as-code) → T022 (domínios +
+      variáveis) → uma passada só de deploy, verde até o frontend.
+- [x] T022 Com as instâncias existindo, criar os três domínios (`serviceDomainCreate` + renomear
+      com `serviceDomainUpdate`) e preencher `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`,
+      `KEYCLOAK_JWKS_URI`, `KC_HOSTNAME`, `KEYCLOAK_FRONTEND_ORIGIN` e os `VITE_*`; criar o volume
+      do RabbitMQ. Roda **antes** da T021, não depois. Os `VITE_*` entram no bundle no build, então
+      basta estarem postos antes do deploy — conferir no arquivo servido, não no build presumido.
+      Fecha a pendência 5.
 - [ ] T023 Provisionar identidade: criar o primeiro usuário no admin console do Keycloak de
       production, copiar o `sub` para `PROVISION_ADMIN_SUBJECT`, definir `PROVISION_COMPANY_ID` e
       redeployar a API. As duas variáveis juntas ou nenhuma — meia configuração falha o deploy.

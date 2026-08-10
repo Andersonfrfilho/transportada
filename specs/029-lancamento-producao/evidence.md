@@ -1387,9 +1387,172 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
       fechou verde no rerun (`quality` e `integration`), antes desta correção — ela não foi o que
       destravou o PR, foi o que tirou a causa.
 
-- [ ] T020 —
-- [ ] T021 —
-- [ ] T022 —
+- [x] T020 — **A instância de ambiente não nasce de `serviceInstanceUpdate`, nasce de um patch de
+      `EnvironmentConfig`.**
+
+      A T019 deixou anotado que `serviceInstanceUpdate` responde `true` e não cria nada, e que os
+      domínios teriam de esperar o primeiro deploy. As duas conclusões estavam certas sobre o
+      sintoma e erradas sobre o remédio: existe caminho de API, só não é esse.
+
+      **1. Criar serviço novo estava descartado, e agora com prova.** Criei um serviço-cobaia
+      (`zz-probe`) em production e tentei renomeá-lo:
+
+      ```
+      serviceUpdate(id: <cobaia>, input:{name:"api"})
+        → A service named "api" already exists in this project
+      ```
+
+      Serviço é do projeto e o nome é único nele. `railway add --service api` nunca poderia
+      funcionar — não porque duplicaria o namespace, mas porque o Railway recusa antes. O que
+      faltava em production nunca foi o serviço; era a **instância** dele no ambiente.
+
+      **2. O caminho que funciona.** É o par que o próprio `railway environment edit` usa por baixo:
+
+      ```
+      environmentStageChanges(environmentId, input: EnvironmentConfig, merge: true)
+      environmentPatchCommitStaged(environmentId, commitMessage, skipDeploys: true)
+      ```
+
+      O `EnvironmentConfig` é `SCALAR` na introspecção, e foi por isso que a T019 o tratou como
+      inalcançável. Ele não é opaco: `railway environment config --json` **imprime exatamente esse
+      documento**. Copiei a forma de staging em vez de adivinhar contra produção. O `merge: true` é
+      o que preserva o resto — sem ele o patch seria o ambiente inteiro, e os dois Postgres que já
+      estavam lá sairiam junto.
+
+      Ordem que usei: um serviço primeiro (`api`), conferir, e só então os cinco restantes num
+      patch só. `skipDeploys: true` porque a T021 é quem deploya, na ordem dela.
+
+      **3. `railway environment edit --service-config` não serve para isto.** Ele só edita entrada
+      que já existe, e o silêncio engana:
+
+      ```
+      railway environment edit -e production --service-config api      configFile ... --stage
+      railway environment edit -e production --service-config naoexiste configFile ... --stage
+        → ambos: {"committed":false,"message":"No changes to apply","staged":false}
+      ```
+
+      Serviço inexistente e serviço-sem-instância dão a mesma resposta de um no-op bem-sucedido.
+      Anotado porque é a mesma armadilha do `true` da T019, com outra roupa.
+
+      **4. Estado final, lido de volta com `railway environment config --json`.**
+
+      | Serviço | config-as-code | variáveis | extra |
+      | --- | --- | --- | --- |
+      | api | `deploy/api/railway.json` | 22 | domínio `transportada-afr-fernandes-api` |
+      | worker | `deploy/worker/railway.json` | 23 | — |
+      | cron | `deploy/cron/railway.json` | 8 | — |
+      | transportada-frontend | `deploy/frontend/railway.json` | 7 | domínio `transportada-afr-fernandes` |
+      | keycloak | — (espelha staging: `RAILWAY_DOCKERFILE_PATH`) | 17 | domínio `transportada-afr-fernandes-auth` |
+      | rabbitmq | — | 2 | imagem `rabbitmq:4-management-alpine` + volume |
+
+      O config-as-code é o que faz o `preDeployCommand` de `deploy/api/railway.json` rodar, e é o
+      que fecha a pendência 1. A cobaia foi apagada (`serviceDelete` → `true`), e `serviceInstances`
+      de production não a lista mais.
+
+- [x] T021 — **Primeira passada do deploy, verde de ponta a ponta.**
+
+      ⚠️ **A previsão desta task estava errada, e o texto dela foi reescrito.** Ela dizia que a
+      primeira passada falharia em `assert-migrations` por falta de domínio público. O run
+      `31317861369` (push de `fade3e6` em `main`) não chegou perto disso: morreu no **primeiro**
+      passo, `Deploy identity`, com `Failed to upload code with status code 404 Not Found` — a
+      instância do keycloak não existia, e sem instância não há para onde subir código. Corrigido
+      na T020; a ordem "deploy → domínio → config-as-code → segunda passada" deixou de ser
+      necessária, porque com a instância criada por API dá para criar o domínio **antes**.
+
+      **1. Hipótese concorrente descartada antes de agir.** O log do deploy trazia
+      `Unable to parse config file, regenerating` — o `railway-deploy.sh` escreve
+      `~/.railway/config.json` à mão porque project token não pode `railway link`. Parecia a causa.
+      Não é: o run de staging que **passou** (`31317398973`) imprime a mesma linha **39 vezes** e
+      sobe api, worker e cron sem falha. Ruído, não causa.
+
+      **2. A passada verde.** Run `31319537690`, `workflow_dispatch` em `main`, ambiente
+      `production`, com os domínios e as variáveis da T022 já postos:
+
+      ```
+      Deploy identity        keycloak: SUCCESS (2/3)
+      Deploy API             api: SUCCESS (2/3)
+      Conferir migrations    api: migrations aplicadas
+      Deploy worker          worker: SUCCESS (2/3)
+      Deploy cron            cron: SUCCESS (2/3)
+      Deploy frontend        transportada-frontend: SUCCESS (2/3)
+      ```
+
+      `assert-migrations` passou de primeira justamente porque o domínio da api já existia quando
+      ele foi ler `/health/ready`. Não foi sorte: foi a consequência de a T020 ter deixado de
+      depender do deploy.
+
+      **3. Prova de vida, não a cor do workflow.** O ambiente respondendo, anônimo:
+
+      ```
+      GET /health/live   → 200  {"service":"api","status":"ok"}
+      GET /health/ready  → 200  {"database":"up","identity":"up","migrations":"up"}
+      GET /  (frontend)  → 200
+      GET /realms/transportada/.well-known/openid-configuration → 200
+           issuer = https://transportada-afr-fernandes-auth.up.railway.app/realms/transportada
+      ```
+
+      O `issuer` devolvido pelo Keycloak é caractere a caractere o `KEYCLOAK_ISSUER` gravado na api
+      — é o que prova que as três URLs ficaram coerentes entre os serviços, e não só preenchidas.
+
+      **4. Os oito serviços do ambiente, por `latestDeployment`:** api, worker, cron,
+      transportada-frontend, keycloak, rabbitmq, Postgres-FDoz e Postgres-Hqfu — todos `SUCCESS`. O
+      `rabbitmq` subiu sozinho às 14:50, no instante em que a instância nasceu com a imagem; ele não
+      está na lista de deploy do workflow porque não constrói código.
+
+      **5. O worker conectou no RabbitMQ.** `worker_started` no log de production. Não é detalhe de
+      log: `main.ts:638` só é alcançado depois de os consumidores existirem (`main.ts:620-624`), e
+      consumidor não existe sem conexão. `RABBITMQ_URL` resolveu o `${{rabbitmq.*}}` que na T019
+      apontava para host vazio.
+
+- [x] T022 — **As oito variáveis de domínio, o volume do RabbitMQ, e o bundle conferido no ar.**
+
+      Feita **antes** da T021, não depois: com a instância criada por API (T020), os domínios podem
+      nascer antes do primeiro deploy, e aí a segunda passada que esta task previa deixa de existir.
+
+      **1. Os três domínios.** `serviceDomainCreate` dá nome sorteado
+      (`api-production-2789`, `keycloak-production-ab4d`, `transportada-frontend-production`);
+      `serviceDomainUpdate` renomeia para os nomes que `docs/spec/railway.md:206-208` já
+      documentava — `transportada-afr-fernandes-api`, `transportada-afr-fernandes-auth` e
+      `transportada-afr-fernandes`. É a regra da T019 §4 em ato: o nome do cliente vive no domínio,
+      nunca no serviço.
+
+      **2. As oito variáveis**, lidas de volta do ambiente depois do commit:
+
+      ```
+      api       FRONTEND_ORIGIN          = https://transportada-afr-fernandes.up.railway.app
+      api       KEYCLOAK_ISSUER          = …-auth.up.railway.app/realms/transportada
+      api       KEYCLOAK_JWKS_URI        = …/realms/transportada/protocol/openid-connect/certs
+      keycloak  KC_HOSTNAME              = https://transportada-afr-fernandes-auth.up.railway.app
+      keycloak  KEYCLOAK_FRONTEND_ORIGIN = https://transportada-afr-fernandes.up.railway.app
+      frontend  VITE_API_URL             = https://transportada-afr-fernandes-api.up.railway.app
+      frontend  VITE_APP_URL             = https://transportada-afr-fernandes.up.railway.app
+      frontend  VITE_KEYCLOAK_URL        = https://transportada-afr-fernandes-auth.up.railway.app
+      ```
+
+      **3. O volume do RabbitMQ.** `volumeCreate` em `/var/lib/rabbitmq`, região `sfo`, espelhando
+      staging. Production tinha 2 volumes (os dois Postgres) e passou a ter 3; o `volumeMounts` da
+      instância do rabbitmq aponta para ele. Fecha a pendência 5.
+
+      **4. O bundle servido, não o build presumido.** A task avisava que restart não troca o bundle.
+      Não precisou de rebuild extra porque as variáveis entraram **antes** do build da T021 — mas
+      isso é presunção até alguém baixar o arquivo. Baixado:
+
+      ```
+      GET /assets/index-Cw6Izwnb.js  → 956.466 bytes
+      transportada-afr-fernandes-api : 1 ocorrência
+      transportada-afr-fernandes-auth: 1 ocorrência
+      transportada-afr-fernandes.up  : 1 ocorrência
+      staging                        : 0 ocorrências
+      ```
+
+      Zero ocorrência de `staging` é a metade que importa: prova que o bundle não é o de staging
+      renomeado.
+
+      **5. O que continua faltando na api, e por quê.** `BOOTSTRAP_TOKEN` e `PROVISION_COMPANY_ID`
+      são T023, `SENTRY_DSN` e `LOG_SINK_URL` são T024. As quatro são `.optional()` em
+      `config/environment.schema.ts` — a api sobe sem elas, e no caso das duas primeiras a ausência
+      é o que mantém a rota de arranque morta (ADR-0022). Não é lacuna: é o estado declarado.
+
 - [ ] T023 —
 
 ## Fase E — Prova de vida

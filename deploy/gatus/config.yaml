@@ -67,6 +67,32 @@ external-endpoints:
         success-threshold: 1
         send-on-resolved: true
 
+  # Production repete a forma de staging e não repete o segredo. Um por monitor é o que impede o
+  # ciclo de um ambiente de fechar o monitor do outro e esconder a janela que ficou sem cópia.
+  - name: backup
+    group: production
+    token: ${GATUS_BACKUP_PRODUCTION_TOKEN}
+    heartbeat:
+      interval: 26h
+    alerts:
+      - type: ntfy
+        description: production ficou um dia sem ciclo de backup verde
+        failure-threshold: 1
+        success-threshold: 1
+        send-on-resolved: true
+
+  - name: restore
+    group: production
+    token: ${GATUS_RESTORE_PRODUCTION_TOKEN}
+    heartbeat:
+      interval: 768h
+    alerts:
+      - type: ntfy
+        description: o teste mensal de restore de production não fechou
+        failure-threshold: 1
+        success-threshold: 1
+        send-on-resolved: true
+
 # Vigiado de fora, pelo domínio público: o projeto de ops é outro projeto Railway justamente para
 # não morrer junto com o que ele observa.
 endpoints:
@@ -90,4 +116,26 @@ endpoints:
     alerts:
       - type: ntfy
         description: o frontend de staging parou de responder
+        send-on-resolved: true
+
+  - name: api
+    group: production
+    url: ${GATUS_PRODUCTION_API_URL}/health/ready
+    interval: 2m
+    conditions:
+      - '[STATUS] == 200'
+    alerts:
+      - type: ntfy
+        description: a API de production parou de responder no /health/ready
+        send-on-resolved: true
+
+  - name: frontend
+    group: production
+    url: ${GATUS_PRODUCTION_FRONTEND_URL}
+    interval: 2m
+    conditions:
+      - '[STATUS] == 200'
+    alerts:
+      - type: ntfy
+        description: o frontend de production parou de responder
         send-on-resolved: true

@@ -32,7 +32,9 @@ COPY apps/api-transportada/drizzle apps/api-transportada/drizzle
 COPY apps/api-transportada/src/database apps/api-transportada/src/database
 COPY apps/api-transportada/src/config apps/api-transportada/src/config
 # Fechamento transitivo dos schemas Drizzle: company-fiscal-profile.schema.ts (cte-retry.policy),
-# environment-provisioning.repository.ts (authorization.policy) e erros base compartilhados.
+# environment-provisioning.repository.ts (authorization.policy), environment.schema.ts
+# (scheduled-distribution-window.policy) e erros base compartilhados.
+COPY apps/api-transportada/src/companies/domain apps/api-transportada/src/companies/domain
 COPY apps/api-transportada/src/cte-issuance/domain apps/api-transportada/src/cte-issuance/domain
 COPY apps/api-transportada/src/identity/domain apps/api-transportada/src/identity/domain
 COPY apps/api-transportada/src/shared apps/api-transportada/src/shared

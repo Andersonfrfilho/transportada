@@ -122,6 +122,20 @@ describe('Prontidão de migrations', () => {
     expect(script).toContain('/health/ready')
     expect(script).toContain('assert_migrations_applied')
   })
+
+  // A Railway aceita um `preDeployCommand` só ("Array must contain at most 1 element(s)") e o
+  // executa como argv, sem shell: `a && b` vira `a` recebendo `&&` e `b` como argumentos, roda só
+  // a migration, sai 0 e deixa o deploy verde sem provisionar. Um entrypoint único é a saída.
+  test('o preDeployCommand da API é um comando só, sem encadeamento de shell', () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL('../../../../deploy/api/railway.json', import.meta.url), 'utf8'),
+    ) as { deploy: { preDeployCommand: string } }
+    const command = manifest.deploy.preDeployCommand
+
+    expect(command).toBe('bun src/database/pre-deploy.service.ts')
+    expect(command).not.toContain('&&')
+    expect(command).not.toContain(';')
+  })
 })
 
 /** A leitura da pasta falha antes de qualquer consulta — o banco nunca é tocado nesse caminho. */
