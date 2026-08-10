@@ -194,6 +194,7 @@ function SettingsBody(props: SettingsBodyProps) {
             <CertificateUploadForm
               certificates={props.certificates}
               disabled={props.certificatePending}
+              fiscalProfileSaved={props.viewModel.fiscalProfileSaved}
               onDelete={props.onCertificateDelete}
               onSubmit={props.onCertificateSubmit}
             />

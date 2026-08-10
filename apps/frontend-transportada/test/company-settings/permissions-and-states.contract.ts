@@ -45,16 +45,19 @@ describe('company settings permissions and states contract', () => {
 
     expect(createCompanySettingsViewModel({ status: 'loading' })).toEqual({
       activeCertificates: {},
+      fiscalProfileSaved: false,
       status: 'loading',
     })
     expect(
       createCompanySettingsViewModel({ data: EMPTY_COMPANY_SETTINGS_RESPONSE, status: 'success' }),
     ).toEqual({
       activeCertificates: {},
+      fiscalProfileSaved: false,
       status: 'empty',
     })
     expect(createCompanySettingsViewModel({ status: 'error' })).toEqual({
       activeCertificates: {},
+      fiscalProfileSaved: false,
       status: 'error',
     })
 
@@ -130,5 +133,6 @@ type CompanySettingsViewModel = {
   readonly activeCertificates: Readonly<Record<string, Record<string, unknown> | undefined>>
   readonly canIssueInProduction?: boolean
   readonly environment?: string
+  readonly fiscalProfileSaved: boolean
   readonly status: 'empty' | 'error' | 'loading' | 'success'
 }
