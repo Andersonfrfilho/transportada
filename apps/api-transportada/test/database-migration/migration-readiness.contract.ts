@@ -123,22 +123,18 @@ describe('Prontidão de migrations', () => {
     expect(script).toContain('assert_migrations_applied')
   })
 
-  // A Railway executa cada entrada do `preDeployCommand` como argv, sem shell: `a && b` vira
-  // `a` recebendo `&&` e `b` como argumentos, roda só a migration, sai 0 e o deploy fica verde
-  // sem provisionar a empresa do ambiente. Uma entrada por comando é o que garante os dois.
-  test('o preDeployCommand da API declara migration e provisionamento como comandos separados', () => {
+  // A Railway aceita um `preDeployCommand` só ("Array must contain at most 1 element(s)") e o
+  // executa como argv, sem shell: `a && b` vira `a` recebendo `&&` e `b` como argumentos, roda só
+  // a migration, sai 0 e deixa o deploy verde sem provisionar. Um entrypoint único é a saída.
+  test('o preDeployCommand da API é um comando só, sem encadeamento de shell', () => {
     const manifest = JSON.parse(
       readFileSync(new URL('../../../../deploy/api/railway.json', import.meta.url), 'utf8'),
-    ) as { deploy: { preDeployCommand: readonly string[] } }
-    const commands = manifest.deploy.preDeployCommand
+    ) as { deploy: { preDeployCommand: string } }
+    const command = manifest.deploy.preDeployCommand
 
-    expect(commands).toEqual([
-      'bun src/database/database-migration.service.ts',
-      'bun src/database/environment-provisioning.service.ts',
-    ])
-    for (const command of commands) {
-      expect(command).not.toContain('&&')
-    }
+    expect(command).toBe('bun src/database/pre-deploy.service.ts')
+    expect(command).not.toContain('&&')
+    expect(command).not.toContain(';')
   })
 })
 
