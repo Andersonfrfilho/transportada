@@ -130,7 +130,11 @@ describe('cte emission profiles api payload contract', () => {
     expect(Object.keys(englishOptions)).toEqual(Object.keys(portugueseOptions))
   })
 
-  test('lists the automatic option followed by every profile served by the api', async () => {
+  /**
+   * O nome do perfil não diz quanto ele cobra, e a mesma transportadora costuma ter mais de uma
+   * alíquota para o mesmo cliente: sem o percentual no rótulo o operador escolhe às cegas.
+   */
+  test('lists the automatic option followed by every profile served by the api, with its rate', async () => {
     const { buildProfileSelectOptions } = await loadFutureModule<EmissionServiceModule>(
       '../../src/modules/nfe-workspace/shared/cteEmission.service',
     )
@@ -142,11 +146,32 @@ describe('cte emission profiles api payload contract', () => {
     expect(
       buildProfileSelectOptions({
         automaticLabel: 'Automático (pelo CNPJ do emitente)',
-        profiles: page.items.map((profile) => ({ id: profile.id, name: profile.name })),
+        profiles: page.items.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+          percentage: profile.freightRule.percentage,
+        })),
       }),
     ).toEqual([
       { label: 'Automático (pelo CNPJ do emitente)', value: 'auto' },
-      { label: 'Perfil 4,5% - homologacao', value: PROFILE_ID },
+      { label: 'Perfil 4,5% - homologacao 4.50%', value: PROFILE_ID },
+    ])
+  })
+
+  /** Perfil sem alíquota conhecida fica com o nome cru — rótulo inventado seria pior que nenhum. */
+  test('keeps the bare name when the profile arrives without a rate', async () => {
+    const { buildProfileSelectOptions } = await loadFutureModule<EmissionServiceModule>(
+      '../../src/modules/nfe-workspace/shared/cteEmission.service',
+    )
+
+    expect(
+      buildProfileSelectOptions({
+        automaticLabel: 'Automático',
+        profiles: [{ id: PROFILE_ID, name: 'Spani' }],
+      }),
+    ).toEqual([
+      { label: 'Automático', value: 'auto' },
+      { label: 'Spani', value: PROFILE_ID },
     ])
   })
 
@@ -184,7 +209,7 @@ type EmissionServiceModule = {
   readonly buildProfileSelectOptions: (
     input: Readonly<{
       automaticLabel: string
-      profiles: readonly Readonly<{ id: string; name: string }>[]
+      profiles: readonly Readonly<{ id: string; name: string; percentage?: string }>[]
     }>,
   ) => readonly Readonly<{ label: string; value: string }>[]
 }
