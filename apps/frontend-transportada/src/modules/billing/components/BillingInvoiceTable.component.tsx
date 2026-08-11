@@ -12,6 +12,7 @@ import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import type { BillingInvoiceTableController } from '../hooks/useBillingInvoiceTable.hook'
+import { BillingBulkCancelDialog } from './BillingBulkCancelDialog.component'
 import type { BillingInvoiceSummary } from '../shared/billingClient.service'
 import { resolveBillingDocumentActionState } from '../shared/billingDocumentDownload.service'
 import {
@@ -287,6 +288,16 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
             {t('invoices.selectedCount', { count: table.selectedIds.length })}
           </p>
           <div className={styles.bulkActions}>
+            {table.bulkCancel.canCancel ? (
+              <button
+                disabled={table.bulkCancel.cancellable.length === 0}
+                onClick={table.bulkCancel.open}
+                type="button"
+              >
+                <Icon name="alert" />
+                {t('invoices.bulkCancel.action')}
+              </button>
+            ) : null}
             <button onClick={table.clearSelection} type="button">
               <Icon name="close" />
               {t('invoices.clearSelection')}
@@ -433,6 +444,8 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
           <Icon name="page-next" />
         </button>
       </div>
+
+      <BillingBulkCancelDialog dialog={table.bulkCancel} />
     </section>
   )
 }
