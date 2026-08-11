@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
+import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
@@ -211,7 +211,8 @@ export function NfeDocumentTable({
     ...(showAdvancedPill ? [savedAdvancedPill()] : []),
     ...descriptors.map(toPill),
   ]
-  const filterCount = table.mode === 'advanced' ? table.activeConditionCount : pills.length
+  const filterCount =
+    table.mode === 'advanced' ? table.activeConditionCount : countFilterPills(pills)
 
   function toPill(descriptor: NfeDocumentFilterPill): FilterPill {
     const label = t(descriptor.labelKey)
@@ -228,6 +229,7 @@ export function NfeDocumentTable({
   /** O filtro avançado salvo não é campo simples: sua pílula reabre o construtor em vez de editar em linha. */
   function savedAdvancedPill(): FilterPill {
     return {
+      count: table.savedConditionCount,
       editLabel: t('documents.builder.editSaved'),
       id: 'advanced-filter',
       label: t('documents.builder.savedLabel'),

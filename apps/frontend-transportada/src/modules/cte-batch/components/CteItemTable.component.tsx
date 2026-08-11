@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
-import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
+import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import type { SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -80,7 +80,7 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
     formatDay: formatCalendarDate,
   })
   const pills: readonly FilterPill[] = descriptors.map(toPill)
-  const activeCount = pills.length
+  const activeCount = countFilterPills(pills)
   const isPageSelected =
     table.visibleItems.length > 0 &&
     table.visibleItems.every((item) => table.selectedIds.includes(item.id))

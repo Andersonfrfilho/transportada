@@ -184,7 +184,8 @@ e status escondido por padrão (`CTE_ITEM_DEFAULT_HIDDEN_STATUSES`).
 Todo filtro ativo aparece como pílula removível vinda de `@/components/ui/filter-pills`
 (`components/ui/filter-pills.tsx`) — nenhum módulo desenha a sua. Os descritores ficam em
 `shared/<modulo>FilterPills.service.ts` (sem tradução, com `formatDay` injetado) e a remoção por campo
-em `clearFilterField` do hook; no modo simples o badge do filtro usa `pills.length`. Regra completa na
+em `clearFilterField` do hook; no modo simples o badge do filtro usa `countFilterPills(pills)`, e a
+pílula que resume vários filtros declara o próprio peso em `count`. Regra completa na
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
 
 Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)

@@ -42,8 +42,8 @@ válvula para combinações complexas.
   - O **root** combina os grupos entre si por outro conector **E / OU**,
     permitindo `(A E B) OU (C)`.
   - Grupos e condições têm mínimo de 1; adicionar/remover é explícito.
-- **Contagem de filtros ativos** — o badge do toggle usa `pills.length` no
-  modo simples e `activeConditionCount` no modo avançado.
+- **Contagem de filtros ativos** — o badge do toggle usa `countFilterPills(pills)`
+  no modo simples e `activeConditionCount` no modo avançado.
 
 ### Operadores por tipo de campo
 
@@ -184,7 +184,11 @@ removível por filtro ativo, logo abaixo do painel de filtros.
   nunca `[]` — seleção vazia esconderia a tabela inteira. Em tabela paginada,
   remover pílula reinicia a paginação.
 - **A contagem vem das pílulas.** No modo simples o badge do filtro usa
-  `pills.length`, não um contador paralelo; no modo avançado continua vindo do
+  `countFilterPills(pills)`, não um contador paralelo. Pílula que resume mais de
+  um filtro declara o próprio peso em `count` — é o caso da pílula do filtro
+  avançado salvo, que vale `savedConditionCount`: sem isso o badge dizia `1` ao
+  lado de uma pílula escrita "3 condições". Pílula de campo simples omite `count`
+  e vale 1; no modo avançado a contagem continua vindo do
   construtor de condições, e nesse modo não há pílula — condição E/OU aninhada
   não cabe em pílula. Onde a tela já tinha um botão "limpar tudo" na barra, ele
   só aparece quando `pills.length === 0`, para não duplicar o controle.

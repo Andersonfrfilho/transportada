@@ -11,9 +11,19 @@ export type FilterPill = Readonly<{
   onRemove: () => void
   removeLabel: string
   value: string
+  count?: number
   editLabel?: string
   onEdit?: () => void
 }>
+
+/**
+ * Uma pílula nem sempre vale um filtro: a do filtro avançado resume N condições numa forma só, e
+ * contá-la como 1 fazia o badge dizer 1 ao lado de uma pílula escrita "3 condições". O peso viaja na
+ * própria pílula para a contagem continuar saindo delas, sem um contador paralelo que descola.
+ */
+export function countFilterPills(pills: readonly FilterPill[]): number {
+  return pills.reduce((total, pill) => total + (pill.count ?? 1), 0)
+}
 
 type FilterPillsProps = Readonly<{
   clearAllLabel: string
