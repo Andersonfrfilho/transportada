@@ -7,6 +7,14 @@
   margin-bottom: var(--space-3);
 }
 
+/* Pílula e "limpar tudo" dividem a linha: a altura sai do mesmo cálculo nos dois, senão desalinham. */
+.pill,
+.pillEditable,
+.clearAll {
+  box-sizing: border-box;
+  min-height: calc(var(--space-5) + var(--space-2));
+}
+
 .pill,
 .pillEditable {
   display: inline-flex;
@@ -84,6 +92,8 @@
 }
 
 .clearAll {
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-slate);
   border-radius: 0;

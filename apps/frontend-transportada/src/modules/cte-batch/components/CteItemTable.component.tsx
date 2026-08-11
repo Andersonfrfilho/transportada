@@ -246,7 +246,8 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
             </button>
             {isColumnsMenuOpen ? <CteItemColumnsMenu table={table} /> : null}
           </span>
-          {activeCount > 0 || table.sort !== null ? (
+          {/* Com pílula na tela o "limpar tudo" já está lá embaixo: o ícone só cobre a ordenação. */}
+          {pills.length === 0 && table.sort !== null ? (
             <button
               aria-label={t('cteItems.clearFilters')}
               className={styles.iconAction}
