@@ -41,11 +41,25 @@ describe('contrato de gatilho do pipeline', () => {
     expect(branchesOf(block, 'push')).toEqual(['main'])
   })
 
-  /** O deploy de staging é a validação do PR: acontece antes do merge, sobre o código proposto. */
-  test('pull request mirando staging deploya staging', async () => {
+  /**
+   * O deploy de staging é a validação do PR: acontece antes do merge, sobre o código proposto. O PR
+   * mirando main entra pelo mesmo gatilho porque a proteção da main exige os contextos `gate /
+   * quality` e `gate / integration` — que só existem se este workflow rodar no commit do PR.
+   */
+  test('pull request mirando staging e main roda o workflow', async () => {
     const block = triggerBlock(await readWorkflow(DEPLOY_WORKFLOW_PATH))
 
-    expect(branchesOf(block, 'pull_request')).toEqual(['staging'])
+    expect(branchesOf(block, 'pull_request')).toEqual(['main', 'staging'])
+  })
+
+  /**
+   * No PR de release o workflow existe só para produzir o gate. Publicar ali republicaria em staging
+   * um código que já está em staging, e é a única coisa que separa "rodar o gate" de "deployar".
+   */
+  test('pull request mirando main roda o gate mas não publica', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toContain("github.base_ref == 'staging'")
   })
 
   /**
