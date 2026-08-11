@@ -12,6 +12,14 @@ import type { FreightCalculationFilters, FreightRuleFilters } from '../shared/fr
 
 const SYNTHETIC_DOCUMENT_ID = '00000000-0000-4000-8000-000000000304'
 const FREIGHT_RULES_SKELETON_ROW_COUNT = 4
+const FREIGHT_WORKSPACE_STATUS_LABEL = {
+  adjusted: 'Ajustado',
+  empty: 'Sem documentos',
+  error: 'Indisponível',
+  forbidden: 'Sem acesso',
+  loading: 'Carregando',
+  ready: 'Pronto',
+} as const
 const FREIGHT_RULE_STATUS_OPTIONS = [
   { label: 'Ativa', value: 'active' },
   { label: 'Rascunho', value: 'draft' },
@@ -222,17 +230,17 @@ export function FreightWorkspacePage() {
     <main className="workspace-shell">
       <header className="workspace-hero">
         <div>
-          <p className="workspace-kicker">Motor de precificacao</p>
+          <p className="workspace-kicker">Motor de precificação</p>
           <h1>Workspace de frete</h1>
           <p className="workspace-intro">
-            Parametrize regras, simule cenarios e acompanhe o calculo aplicado sobre documentos
-            elegiveis sem sair do modulo.
+            Parametrize regras, simule cenários e acompanhe o cálculo aplicado sobre documentos
+            elegíveis sem sair do módulo.
           </p>
         </div>
         <div className="workspace-status-card">
-          <span>Estado atual</span>
-          <strong>{viewModel.status}</strong>
-          <p className="workspace-status-text">Regras, simulacao e filtros em uma mesma leitura.</p>
+          <span>Status</span>
+          <strong>{FREIGHT_WORKSPACE_STATUS_LABEL[viewModel.status]}</strong>
+          <p className="workspace-status-text">Regras, simulação e filtros em uma mesma leitura.</p>
         </div>
       </header>
       {viewModel.status === 'forbidden' ? (

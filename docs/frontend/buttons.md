@@ -1,0 +1,57 @@
+# Botões
+
+## O botão do design system é o padrão
+
+Ação nova usa `@/components/ui/button`. Ele já traz altura, variante, foco e o alinhamento
+entre ícone e rótulo pelos tokens — nenhum módulo precisa reconstruir isso.
+
+```tsx
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+;<Button onClick={handleSave} size="sm" variant="secondary">
+  <Icon name="check" />
+  {t('actions.save')}
+</Button>
+```
+
+`<button>` cru continua permitido — há dezenas deles, estilizados por `*.module.css`, e migrar
+todos de uma vez não paga. O que não é permitido é cada um resolver o próprio layout.
+
+## Ícone e rótulo saem de uma regra só
+
+Um `<button>` que hospeda ícone é `inline-flex`, com os dois centrados no eixo e separados por
+`var(--space-2)`. A regra vive uma vez em `src/styles/index.css`:
+
+```css
+button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+```
+
+O seletor casa pelo `<svg>` que `@/components/ui/icon` renderiza. Isso só é seguro porque `<svg>`
+cru é proibido fora de `src/components/ui/` (ver `icons.md`): todo ícone da aplicação passa pelo
+mesmo componente, então todo botão com ícone é alcançado.
+
+O sintoma que essa regra apaga é o ícone colado no rótulo — foi assim que "Salvar ajustes",
+"Gerar PDF" e "Cancelar fatura" chegaram em produção.
+
+## O que o módulo não faz
+
+- **Não declara `display`** na classe de um botão com ícone. `.acao { display: block }` tem
+  especificidade maior que `button:has(svg)` e devolve o ícone colado, em silêncio.
+- **Não declara `gap` fora da escala.** Se o espaçamento precisa mudar naquele botão, é
+  `var(--space-1)` ou `var(--space-3)` — nunca `6px`. Quatro módulos com gap literal viram quatro
+  espaçamentos diferentes na mesma tela.
+- Espaçamento, altura e cor vêm dos tokens (`--space-*`, `--field-height*`, `--color-*`).
+
+Ambas as proibições são verificadas por `test/design-system/button.contract.ts`, que varre todo
+`src/**/*.tsx` atrás de botões com ícone e resolve a classe no `*.module.css` vizinho.
+
+## Ícone sem rótulo
+
+Botão só de ícone exige `aria-label` descritivo — o leitor de tela não tem o que anunciar sem ele.
+Quando o ícone acompanha um rótulo, ele é decorativo e o componente `Icon` já marca
+`aria-hidden`.

@@ -1,5 +1,16 @@
 {
   "title": "Workspace de faturamento",
+  "pageKicker": "Fechamento financeiro",
+  "pageIntro": "Selecione CT-es elegíveis, gere a fatura e acompanhe os documentos financeiros do lote.",
+  "statusLabel": {
+    "cancelled": "Cancelada",
+    "empty": "Sem faturas",
+    "error": "Indisponível",
+    "forbidden": "Sem acesso",
+    "issued": "Emitida",
+    "loading": "Carregando",
+    "selectable": "Pronta para faturar"
+  },
   "status": {
     "cancelled": "Fatura cancelada com sucesso.",
     "empty": "Nenhuma fatura ou CT-e elegível encontrado.",
@@ -170,6 +181,29 @@
     "resultsCount": "{{count}} fatura(s) na página atual",
     "clearFilters": "Limpar filtros",
     "clearSelection": "Limpar seleção",
+    "bulkCancel": {
+      "action": "Cancelar faturas",
+      "title": "Cancelar faturas selecionadas",
+      "subtitle": "O cancelamento é definitivo e vale para cada fatura da lista abaixo.",
+      "close": "Fechar",
+      "warning": "{{count}} fatura(s) será(ão) cancelada(s). A ação não pode ser desfeita.",
+      "invoiceLine": "Fatura {{number}} — {{customer}}",
+      "alreadyCancelled": "{{count}} fatura(s) da seleção já estavam canceladas e foram ignoradas.",
+      "reason": "Motivo do cancelamento",
+      "reasonError": {
+        "required": "Informe o motivo do cancelamento.",
+        "tooShort": "O motivo precisa de pelo menos 3 caracteres."
+      },
+      "progressLabel": "Cancelamento em andamento",
+      "progressValue": "{{completed}} de {{total}} ({{percent}}%)",
+      "progressSummary": "{{successCount}} cancelada(s), {{errorCount}} com falha",
+      "outcomeCancelled": "Fatura {{number}} cancelada.",
+      "outcomeFailed": "Fatura {{number}} não foi cancelada: {{code}}",
+      "confirm": "Confirmar cancelamento",
+      "submitting": "Cancelando...",
+      "dismiss": "Voltar",
+      "done": "Concluir"
+    },
     "selectedCount": "{{count}} fatura(s) selecionada(s)",
     "selectAll": "Selecionar todas as faturas da página",
     "selectRow": "Selecionar fatura",
