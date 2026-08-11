@@ -30,6 +30,8 @@ const AUTHORIZED_ROW = {
   baseAmount: '1058.4800',
   batchId: CTE_BATCH_ID,
   batchName: 'Lote CT-e julho',
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'pending',
   charges: [],
   createdAt: '2026-07-22T20:10:00.000Z',

@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { resolveProgressPercent } from '@/modules/shared/progress.service'
 
-import { CTE_BATCH_ITEM_STATUS } from './cteBatchItem.types'
+import { CTE_BATCH_ITEM_STATUS, type CompanyCteItemSummary } from './cteBatchItem.types'
 
 /** O worker fecha a emissão em segundos — sem releitura a tela envelhece em "Submetido" até o F5. */
 export const CTE_BATCH_PROGRESS_INTERVAL_MS = 3000
@@ -82,6 +82,47 @@ export function resolveCteBatchTransmissionSummary(
     total,
     transmitting: total - settled,
   }
+}
+
+export type CteItemTransmissionSummary = Readonly<{
+  isComplete: boolean
+  percent: number
+  settled: number
+  total: number
+  transmitting: number
+}>
+
+/**
+ * O que o operador acompanha é a nota, não o lote: com 167 CT-es num lote só, a barra por lote ia
+ * de 0% a 100% de uma vez e não dizia nada durante os minutos em que a emissão realmente andava.
+ */
+export function resolveCteItemTransmissionSummary(
+  summary: CompanyCteItemSummary | undefined,
+): CteItemTransmissionSummary {
+  const total = summary?.count ?? 0
+  const transmitting = TRANSMITTING_ITEM_STATUSES.reduce(
+    (pending, status) => pending + (summary?.statusCounts[status] ?? 0),
+    0,
+  )
+  const settled = total - transmitting
+
+  return {
+    isComplete: total > 0 && transmitting === 0,
+    percent: resolveProgressPercent({ completed: settled, total }),
+    settled,
+    total,
+    transmitting,
+  }
+}
+
+/** Mesmo desligamento do polling da listagem, agora lido da contagem por situação do recorte. */
+export function resolveCteItemSummaryInterval(
+  summary: CompanyCteItemSummary | undefined,
+): false | number {
+  if (summary === undefined) return false
+  return TRANSMITTING_ITEM_STATUSES.some((status) => (summary.statusCounts[status] ?? 0) > 0)
+    ? CTE_BATCH_PROGRESS_INTERVAL_MS
+    : false
 }
 
 /** Barra parada sem contador parece tela travada: o operador precisa ver a próxima releitura chegar. */

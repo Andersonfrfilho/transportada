@@ -262,9 +262,9 @@ test('admin acompanha a transmissão em lote pela barra de progresso no desktop'
   // Enfileirar não é transmitir: a barra da SEFAZ só fecha quando a resposta chega.
   const awaiting = page.getByRole('progressbar', { name: 'Progresso da transmissão para a SEFAZ' })
   await expect(awaiting).toHaveAttribute('aria-valuenow', '0')
-  await expect(page.getByText('0% — 0 de 1 lote(s) com resposta da SEFAZ')).toBeVisible()
+  await expect(page.getByText('0% — 0 de 1 CT-e(s) com resposta da SEFAZ')).toBeVisible()
   await expect(
-    page.getByText('1 lote(s) ainda transmitindo — a tela atualiza sozinha.'),
+    page.getByText('1 CT-e(s) ainda transmitindo — a tela atualiza sozinha.'),
   ).toBeVisible()
   await expect(page.getByRole('cell', { exact: true, name: 'Submetido' })).toBeVisible()
   await assertNoHorizontalOverflow(page)

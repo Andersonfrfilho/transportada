@@ -26,6 +26,7 @@ export type BillingBlockGroup = Readonly<{
 }>
 
 export type BillingGroupOutcome = Readonly<{
+  cteCount: number
   customerDocument: string
   errorCode?: string
   invoiceNumber?: number
@@ -39,10 +40,12 @@ export type BillingProgressEvent = Readonly<{
 }>
 
 export type BillingProgress = Readonly<{
+  completedCteCount: number
   errorCount: number
   isComplete: boolean
   percent: number
   successCount: number
+  totalCteCount: number
 }>
 
 type CreateInvoicePort = Readonly<{
@@ -91,9 +94,17 @@ async function submitBillingGroup(
       dueDate: input.dueDate,
       idempotencyKey: crypto.randomUUID(),
     })
-    return { customerDocument: input.group.customerDocument, invoiceNumber: invoice.invoiceNumber }
+    return {
+      cteCount: input.group.cteCount,
+      customerDocument: input.group.customerDocument,
+      invoiceNumber: invoice.invoiceNumber,
+    }
   } catch (caught: unknown) {
-    return { customerDocument: input.group.customerDocument, errorCode: readErrorCode(caught) }
+    return {
+      cteCount: input.group.cteCount,
+      customerDocument: input.group.customerDocument,
+      errorCode: readErrorCode(caught),
+    }
   }
 }
 
@@ -138,19 +149,30 @@ export async function submitBillingGroups(
   return outcomes
 }
 
+/**
+ * A barra mede CT-es, não requisições: grupos têm tamanhos muito diferentes (100 e 67 num lote de
+ * 167), e contar grupos faria o avanço saltar de 0% para 50% sem relação com o que já saiu.
+ */
 export function resolveBillingProgress(
   input: Readonly<{
     completed: number
     outcomes: readonly BillingGroupOutcome[]
     total: number
+    totalCteCount: number
   }>,
 ): BillingProgress {
   const errorCount = input.outcomes.filter((outcome) => outcome.errorCode !== undefined).length
+  const completedCteCount = input.outcomes.reduce((sum, outcome) => sum + outcome.cteCount, 0)
 
   return {
+    completedCteCount,
     errorCount,
     isComplete: input.total > 0 && input.completed >= input.total,
-    percent: resolveProgressPercent({ completed: input.completed, total: input.total }),
+    percent: resolveProgressPercent({
+      completed: completedCteCount,
+      total: input.totalCteCount,
+    }),
     successCount: input.outcomes.length - errorCount,
+    totalCteCount: input.totalCteCount,
   }
 }

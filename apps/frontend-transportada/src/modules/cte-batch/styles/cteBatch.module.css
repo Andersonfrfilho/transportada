@@ -494,6 +494,17 @@
   font-weight: 700;
 }
 
+.filterSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 25%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 30%, transparent);
+}
+
 .pagination {
   display: flex;
   flex-wrap: wrap;

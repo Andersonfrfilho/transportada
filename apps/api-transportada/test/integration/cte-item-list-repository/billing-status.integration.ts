@@ -64,6 +64,17 @@ describe('cte item billing status integration', () => {
 
         const invoiced = await readAll(primary.companyId, { billingStatusIn: ['invoiced'] })
         expect(invoiced.map((item) => item.id)).toEqual([invoicedItemId])
+        /**
+         * "Faturado" sozinho não permite conferir nada: quem olha a listagem precisa chegar à
+         * fatura, e o número com a data de emissão são o que identificam ela no relatório.
+         */
+        expect(invoiced[0]?.billingInvoiceNumber).toBe('1')
+        expect(invoiced[0]?.billingInvoicedAt).toBe('2026-07-20T12:00:00.000Z')
+        expect(
+          items
+            .filter((item) => item.id !== invoicedItemId)
+            .every((item) => item.billingInvoiceNumber === null && item.billingInvoicedAt === null),
+        ).toBe(true)
 
         const pending = await readAll(primary.companyId, { billingStatusIn: ['pending'] })
         expect(pending.some((item) => item.id === invoicedItemId)).toBe(false)

@@ -3,3 +3,4 @@
  */
 import './cte-item-list-repository/billing-status.integration'
 import './cte-item-list-repository/derived-status.integration'
+import './cte-item-list-repository/summary.integration'

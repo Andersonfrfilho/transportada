@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef, useState } from 'react'
 
+import { useCompanyCteItemSummaryQuery } from '../queries/cteBatchItems.query'
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
 import {
   applyConditionChanges,
@@ -40,7 +41,12 @@ function getColumnStorage(): null | Storage {
   return typeof window === 'undefined' ? null : window.localStorage
 }
 
-export function useCteBatchTable(input: Readonly<{ batches: readonly CteBatchSummary[] }>) {
+type UseCteBatchTableInput = Readonly<{
+  batches: readonly CteBatchSummary[]
+  companyId?: string
+}>
+
+export function useCteBatchTable(input: UseCteBatchTableInput) {
   const conditionSequence = useRef(0)
   const nextId = (): string => `cte-batch-condition-${(conditionSequence.current += 1)}`
 
@@ -68,6 +74,13 @@ export function useCteBatchTable(input: Readonly<{ batches: readonly CteBatchSum
     (column) => columnPreferences.visibility[column],
   )
   const selectedBatches = visibleBatches.filter((batch) => selectedIds.includes(batch.id))
+  /** O lote mostra quantas CT-es tem, nunca quanto elas somam — o dinheiro vem somado do banco. */
+  const selectionSummaryQuery = useCompanyCteItemSummaryQuery({
+    batchIdIn: selectedIds,
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    enabled: input.companyId !== undefined && selectedIds.length > 0,
+  })
+  const selectionSummary = selectedIds.length === 0 ? undefined : selectionSummaryQuery.data
 
   function persistColumns(preferences: CteBatchColumnPreferences): void {
     setColumnPreferences(preferences)
@@ -146,6 +159,8 @@ export function useCteBatchTable(input: Readonly<{ batches: readonly CteBatchSum
       })),
     selectedBatches,
     selectedIds,
+    selectionSummary,
+    isLoadingSelectionSummary: selectedIds.length > 0 && selectionSummaryQuery.isPending,
     setFilterMode,
     setGroupConnector: (groupId: string, connector: 'and' | 'or') =>
       updateGroup(groupId, (group) => ({ ...group, connector })),

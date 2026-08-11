@@ -46,33 +46,61 @@ describe('billing progress contract', () => {
     expect(resolveProgressPercent({ completed: -1, total: 3 })).toBe(0)
   })
 
-  test('reports success and failure counts alongside the percentage', async () => {
+  /**
+   * O que o operador acompanha é quantos CT-es saíram, não quantas requisições. Um lote de 167 vira
+   * dois grupos de tamanhos diferentes (100 e 67): contar grupos pularia de 0% para 50% e mentiria.
+   */
+  test('reports success and failure counts with the percentage measured in CT-e', async () => {
     const { resolveBillingProgress } =
       await loadFutureModule<BillingProgressModule>(SELECTION_MODULE)
 
     expect(
       resolveBillingProgress({
         completed: 1,
-        outcomes: [{ customerDocument: '10000000000001', invoiceNumber: 17 }],
-        total: 4,
+        outcomes: [{ cteCount: 100, customerDocument: '10000000000001', invoiceNumber: 17 }],
+        total: 2,
+        totalCteCount: 167,
       }),
-    ).toEqual({ errorCount: 0, isComplete: false, percent: 25, successCount: 1 })
+    ).toEqual({
+      completedCteCount: 100,
+      errorCount: 0,
+      isComplete: false,
+      percent: 60,
+      successCount: 1,
+      totalCteCount: 167,
+    })
     expect(
       resolveBillingProgress({
         completed: 2,
         outcomes: [
-          { customerDocument: '10000000000001', invoiceNumber: 17 },
-          { customerDocument: '10000000000002', errorCode: 'BILLING_CTE_NOT_ELIGIBLE' },
+          { cteCount: 100, customerDocument: '10000000000001', invoiceNumber: 17 },
+          {
+            cteCount: 67,
+            customerDocument: '10000000000002',
+            errorCode: 'BILLING_CTE_NOT_ELIGIBLE',
+          },
         ],
         total: 2,
+        totalCteCount: 167,
       }),
-    ).toEqual({ errorCount: 1, isComplete: true, percent: 100, successCount: 1 })
+    ).toEqual({
+      completedCteCount: 167,
+      errorCount: 1,
+      isComplete: true,
+      percent: 100,
+      successCount: 1,
+      totalCteCount: 167,
+    })
     /** Sem grupo nenhum não existe conclusão a comemorar. */
-    expect(resolveBillingProgress({ completed: 0, outcomes: [], total: 0 })).toEqual({
+    expect(
+      resolveBillingProgress({ completed: 0, outcomes: [], total: 0, totalCteCount: 0 }),
+    ).toEqual({
+      completedCteCount: 0,
       errorCount: 0,
       isComplete: false,
       percent: 0,
       successCount: 0,
+      totalCteCount: 0,
     })
   })
 
@@ -95,6 +123,9 @@ describe('billing progress contract', () => {
 
     expect(progress.map((event) => event.completed)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     expect(progress.every((event) => event.total === TEN_GROUPS.length)).toBeTrue()
+    expect(outcomes.map((outcome) => outcome.cteCount)).toEqual(
+      TEN_GROUPS.map((group) => group.cteCount),
+    )
     expect(outcomes.map((outcome) => outcome.customerDocument)).toEqual(
       TEN_GROUPS.map((group) => group.customerDocument),
     )
@@ -151,6 +182,7 @@ describe('billing progress contract', () => {
     expect(progress).toHaveLength(TEN_GROUPS.length)
     expect(outcomes).toHaveLength(TEN_GROUPS.length)
     expect(outcomes[2]).toEqual({
+      cteCount: TEN_GROUPS[2]?.cteCount ?? 0,
       customerDocument: TEN_GROUPS[2]?.customerDocument ?? '',
       errorCode: 'BILLING_CTE_NOT_ELIGIBLE',
     })
@@ -163,6 +195,7 @@ type ProgressModule = {
 }
 
 type BillingGroupOutcomeContract = Readonly<{
+  cteCount: number
   customerDocument: string
   errorCode?: string
   invoiceNumber?: number
@@ -175,12 +208,15 @@ type BillingProgressModule = {
       completed: number
       outcomes: readonly BillingGroupOutcomeContract[]
       total: number
+      totalCteCount: number
     }>,
   ) => Readonly<{
+    completedCteCount: number
     errorCount: number
     isComplete: boolean
     percent: number
     successCount: number
+    totalCteCount: number
   }>
   readonly submitBillingGroups: (
     input: Readonly<{

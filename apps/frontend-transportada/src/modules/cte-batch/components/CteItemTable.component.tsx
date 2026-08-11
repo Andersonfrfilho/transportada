@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
-import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
+import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import type { SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -23,6 +23,7 @@ import styles from '../styles/cteBatch.module.css'
 import { CteBillingDialog } from './CteBillingDialog.component'
 import { CteItemColumnsMenu } from './CteItemColumnsMenu.component'
 import { CteItemFilters } from './CteItemFilters.component'
+import { CteItemFilterSummary } from './CteItemFilterSummary.component'
 import { CteItemPagination } from './CteItemPagination.component'
 import { CteItemSelectionBar } from './CteItemSelectionBar.component'
 
@@ -80,7 +81,7 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
     formatDay: formatCalendarDate,
   })
   const pills: readonly FilterPill[] = descriptors.map(toPill)
-  const activeCount = pills.length
+  const activeCount = countFilterPills(pills)
   const isPageSelected =
     table.visibleItems.length > 0 &&
     table.visibleItems.every((item) => table.selectedIds.includes(item.id))
@@ -120,16 +121,35 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
     )
   }
 
+  /** "Faturado" sozinho não deixa conferir nada: o selo carrega o número da fatura e a data dela. */
+  function renderBillingStatus(item: CompanyCteItem) {
+    const invoiceNumber = item.billingInvoiceNumber
+    if (invoiceNumber === null) {
+      return (
+        <span className={styles.statusChip}>{t(`itemBillingStatus.${item.billingStatus}`)}</span>
+      )
+    }
+
+    const invoicedAt = item.billingInvoicedAt
+    return (
+      <span
+        className={`${styles.statusChip} ${styles.statusReady}`}
+        title={invoicedAt === null ? undefined : formatMoment(invoicedAt)}
+      >
+        {t('cteItems.invoicedTag', {
+          date: invoicedAt === null ? EMPTY_CELL : formatCalendarDate(invoicedAt.slice(0, 10)),
+          number: invoiceNumber,
+        })}
+      </span>
+    )
+  }
+
   function renderCell(item: CompanyCteItem, column: CteItemColumnKey) {
     if (column === 'cteNumber') return renderCteNumber(item)
     if (column === 'status') {
       return <span className={statusClassName(item.status)}>{t(`itemStatus.${item.status}`)}</span>
     }
-    if (column === 'billingStatus') {
-      return (
-        <span className={styles.statusChip}>{t(`itemBillingStatus.${item.billingStatus}`)}</span>
-      )
-    }
+    if (column === 'billingStatus') return renderBillingStatus(item)
     return AMOUNT_COLUMNS.includes(column) ? amountCell(item, column) : textCell(item, column)
   }
 
@@ -269,6 +289,7 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
         pills={pills}
       />
 
+      <CteItemFilterSummary table={table} />
       <CteItemSelectionBar table={table} />
       <CteBillingDialog dialog={billingDialog} />
 

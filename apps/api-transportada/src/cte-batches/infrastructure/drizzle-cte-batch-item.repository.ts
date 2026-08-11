@@ -2,10 +2,23 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
-import { billingInvoiceItems } from '../../database/billing.schema.js'
+import { billingInvoiceItems, billingInvoices } from '../../database/billing.schema.js'
 import {
   cteBatchItemCharges,
   cteBatchItemDocuments,
@@ -29,10 +42,13 @@ import {
 } from '../../shared/keyset-cursor.js'
 import {
   CTE_BATCH_ITEM_PENDING_STATUS,
+  CTE_ITEM_SUMMARY_BATCH_LIMIT,
   type CompanyCteItem,
   type CompanyCteItemFilters,
   type CompanyCteItemPage,
   type CompanyCteItemQuery,
+  type CompanyCteItemSummary,
+  type CompanyCteItemSummaryQuery,
   type CteBatchItem,
   type CteBatchItemBillingStatus,
   type CteBatchItemCharge,
@@ -55,6 +71,8 @@ type ItemRecord = {
   readonly accessKey: string | null
   readonly authorizationProtocol: string | null
   readonly authorizedAt: Date | null
+  readonly billingInvoiceNumber: string | null
+  readonly billingInvoicedAt: Date | null
   readonly calculationSnapshot: unknown
   readonly documentCancellationRequestedAt: Date | null
   readonly documentStatus: string | null
@@ -84,13 +102,23 @@ const FISCAL_NUMBER_DUPLICATE_REASON = 'sefaz_duplicate_number'
 const AUTHORIZED_DOCUMENT_STATUS = 'authorized'
 const CANCELLED_DOCUMENT_STATUS = 'cancelled'
 
+/** Recorte vazio devolve zero na mesma escala das somas — `null` viraria "sem valor" na tela. */
+const ZERO_AMOUNT = '0.0000'
+
 /** Número da NF-e é `text`: comparar com padding evita cast que estoura em valor não numérico. */
 const INVOICE_NUMBER_WIDTH = 20
+
+/** Escala que o parser de dinheiro do frontend aceita — soma sem arredondar volta com 8 casas. */
+const SUMMARY_AMOUNT_SCALE = 4
 
 const ITEM_PROJECTION = {
   accessKey: cteFiscalDocuments.accessKey,
   authorizationProtocol: cteFiscalDocuments.authorizationProtocol,
   authorizedAt: cteFiscalDocuments.authorizedAt,
+  billingInvoiceNumber: invoiceIdentityExpression<string>(
+    sql`${billingInvoices.invoiceNumber}::text`,
+  ),
+  billingInvoicedAt: invoiceIdentityExpression<Date>(sql`${billingInvoices.issueDate}`),
   calculationSnapshot: cteBatchItems.calculationSnapshot,
   documentCancellationRequestedAt: cteFiscalDocuments.cancellationRequestedAt,
   documentStatus: cteFiscalDocuments.status,
@@ -183,6 +211,62 @@ export class DrizzleCteBatchItemRepository implements CteBatchItemReaderPort {
     return records.map((record) => toBatchItem(record, relations))
   }
 
+  /**
+   * Três leituras sobre o mesmo recorte em vez de uma: somar dinheiro fora do banco exigiria
+   * aritmética decimal em TypeScript, e agrupar por status na mesma consulta dos totais devolveria
+   * a soma repetida por linha de status. Cada uma é um `scan` do mesmo filtro, em paralelo.
+   */
+  public async summarizeCompanyItems(
+    query: CompanyCteItemSummaryQuery,
+  ): Promise<CompanyCteItemSummary> {
+    const conditions = and(
+      ...buildCompanyItemFilters({
+        companyId: query.companyId,
+        cursor: null,
+        filters: query.filters,
+      }),
+    )
+    /** Agrupar pela expressão repetida falha: cada cópia gera seus próprios placeholders. */
+    const derivedStatuses = this.database
+      .select({ status: derivedStatusExpression().as('status') })
+      .from(cteBatchItems)
+      .leftJoin(cteFiscalDocuments, ISSUED_DOCUMENT_JOIN)
+      .where(conditions)
+      .as('derived_statuses')
+    const [totals, statuses, batches] = await Promise.all([
+      this.database
+        .select({
+          baseAmount: snapshotSumExpression('baseAmount'),
+          itemCount: count(),
+          totalAmount: snapshotSumExpression('calculatedAmount'),
+        })
+        .from(cteBatchItems)
+        .leftJoin(cteFiscalDocuments, ISSUED_DOCUMENT_JOIN)
+        .where(conditions),
+      this.database
+        .select({ itemCount: count(), status: derivedStatuses.status })
+        .from(derivedStatuses)
+        .groupBy(derivedStatuses.status),
+      this.database
+        .selectDistinct({ batchId: cteBatchItems.batchId })
+        .from(cteBatchItems)
+        .leftJoin(cteFiscalDocuments, ISSUED_DOCUMENT_JOIN)
+        .where(conditions)
+        .orderBy(cteBatchItems.batchId)
+        .limit(CTE_ITEM_SUMMARY_BATCH_LIMIT + 1),
+    ])
+    const row = totals[0]
+
+    return {
+      baseAmount: row?.baseAmount ?? ZERO_AMOUNT,
+      batchIds: batches.slice(0, CTE_ITEM_SUMMARY_BATCH_LIMIT).map((batch) => batch.batchId),
+      batchIdsTruncated: batches.length > CTE_ITEM_SUMMARY_BATCH_LIMIT,
+      count: row?.itemCount ?? 0,
+      statusCounts: Object.fromEntries(statuses.map((entry) => [entry.status, entry.itemCount])),
+      totalAmount: row?.totalAmount ?? ZERO_AMOUNT,
+    }
+  }
+
   private async loadRelations(
     companyId: string,
     itemIds: readonly string[],
@@ -265,6 +349,25 @@ export function resolveBatchItemStatus(input: {
   return input.attemptStatus ?? CTE_BATCH_ITEM_PENDING_STATUS
 }
 
+/** Soma do recorte inteiro, já na escala que o frontend sabe ler — sem item, `0` em vez de `null`. */
+function snapshotSumExpression(key: string): SQL<string> {
+  return sql<string>`round(coalesce(sum((${cteBatchItems.calculationSnapshot} ->> ${key})::numeric), 0), ${sql.raw(
+    String(SUMMARY_AMOUNT_SCALE),
+  )})::text`
+}
+
+/** Mesma precedência de `resolveBatchItemStatus`, agora como expressão para agrupar no banco. */
+function derivedStatusExpression(): SQL<string> {
+  return sql<string>`case when ${isNull(cteFiscalDocuments.status)} then coalesce(${latestAttemptExpression(
+    cteIssuanceAttempts.status,
+  )}, ${CTE_BATCH_ITEM_PENDING_STATUS}) when ${eq(
+    cteFiscalDocuments.status,
+    CANCELLED_DOCUMENT_STATUS,
+  )} or ${isNotNull(
+    cteFiscalDocuments.cancellationRequestedAt,
+  )} then ${CANCELLED_DOCUMENT_STATUS} else ${AUTHORIZED_DOCUMENT_STATUS} end`
+}
+
 function keysetCondition(cursor: KeysetCursor): SQL {
   return sql`(${lt(cteBatchItems.createdAt, cursor.createdAt)} or (${eq(
     cteBatchItems.createdAt,
@@ -288,6 +391,22 @@ function billingItemExistsExpression(): SQL {
     billingInvoiceItems.companyId,
     cteBatchItems.companyId,
   )} and ${eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id)})`
+}
+
+/**
+ * "Faturado" sozinho não permite conferir nada — a listagem precisa levar a quem olha até a fatura.
+ * Um CT-e só entra em uma fatura ativa por vez, então a subconsulta escalar devolve linha única.
+ */
+function invoiceIdentityExpression<TValue>(column: SQL): SQL<TValue | null> {
+  return sql<TValue | null>`(select ${column} from ${billingInvoiceItems} inner join ${
+    billingInvoices
+  } on ${eq(billingInvoices.companyId, billingInvoiceItems.companyId)} and ${eq(
+    billingInvoices.id,
+    billingInvoiceItems.invoiceId,
+  )} where ${eq(billingInvoiceItems.companyId, cteBatchItems.companyId)} and ${eq(
+    billingInvoiceItems.cteDocumentId,
+    cteFiscalDocuments.id,
+  )} limit 1)`
 }
 
 function billingStatusCondition(status: string): SQL {
@@ -392,6 +511,8 @@ function toBatchItem(record: ItemRecord, relations: ItemRelations): CteBatchItem
     authorizationProtocol: record.authorizationProtocol,
     authorizedAt: record.authorizedAt?.toISOString() ?? null,
     baseAmount: requiredSnapshotAmount(snapshot, 'baseAmount'),
+    billingInvoiceNumber: record.billingInvoiceNumber,
+    billingInvoicedAt: record.billingInvoicedAt?.toISOString() ?? null,
     billingStatus: toBillingStatus(record.invoiced),
     charges: relations.charges.get(record.id) ?? [],
     documents: relations.documents.get(record.id) ?? [],

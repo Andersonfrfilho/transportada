@@ -7,6 +7,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { CteIssuanceStatusPanel } from '@/modules/cte-issuance/components/CteIssuanceStatusPanel.component'
 
 import type { CteBatchItemsController } from '../hooks/useCteBatchItems.hook'
+import { canBillBatch } from '../shared/cteBatchBilling.service'
 import type { CteBatchSummary } from '../shared/cteBatchClient.service'
 import {
   canCancelItem,
@@ -44,6 +45,7 @@ const ALERT_ITEM_STATUSES: readonly string[] = [
 type CteBatchItemsPanelProps = Readonly<{
   batch: CteBatchSummary
   controller: CteBatchItemsController
+  onBill: () => void
   permissions: readonly string[]
 }>
 
@@ -60,7 +62,12 @@ function itemStatusLabel(status: string, translate: (key: string) => string): st
   return label === `itemStatus.${status}` ? status : label
 }
 
-export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchItemsPanelProps) {
+export function CteBatchItemsPanel({
+  batch,
+  controller,
+  onBill,
+  permissions,
+}: CteBatchItemsPanelProps) {
   const { t } = useTranslation('cteBatch')
   const { cancellationItem, justificationError, summary, trackedItem } = controller
 
@@ -187,17 +194,25 @@ export function CteBatchItemsPanel({ batch, controller, permissions }: CteBatchI
     <section className={styles.panel} aria-labelledby="cte-batch-items-title">
       <div className={styles.panelHead}>
         <h2 id="cte-batch-items-title">{t('items.title', { name: batch.name })}</h2>
-        {canTransmitBatch({ batch, permissions }) ? (
-          <Button
-            disabled={controller.issueMutation.isPending}
-            onClick={controller.transmitBatch}
-            size="sm"
-            type="button"
-          >
-            <Icon name="upload" />
-            {t('actions.transmit')}
-          </Button>
-        ) : null}
+        <div className={styles.rowActions}>
+          {canBillBatch({ batch, permissions }) ? (
+            <Button onClick={onBill} size="sm" type="button" variant="ghost">
+              <Icon name="invoice" />
+              {t('actions.billBatch')}
+            </Button>
+          ) : null}
+          {canTransmitBatch({ batch, permissions }) ? (
+            <Button
+              disabled={controller.issueMutation.isPending}
+              onClick={controller.transmitBatch}
+              size="sm"
+              type="button"
+            >
+              <Icon name="upload" />
+              {t('actions.transmit')}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <p className={styles.summaryLine}>

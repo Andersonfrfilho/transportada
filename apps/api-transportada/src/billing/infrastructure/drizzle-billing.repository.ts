@@ -64,9 +64,10 @@ export type BillingInvoiceListFilterInput = {
 class DrizzleBillingTransaction {
   public constructor(private readonly database: Queryable) {}
 
-  public async listEligibleCtes(
-    input: Record<string, unknown>,
-  ): Promise<readonly Record<string, unknown>[]> {
+  public async listEligibleCtes(input: Record<string, unknown>): Promise<{
+    readonly items: readonly Record<string, unknown>[]
+    readonly nextCursor: string | null
+  }> {
     const filters = optionalRecord(input.filters)
     return this.queryEligibleCtes({
       batchId: optionalString(filters['batchId']),
@@ -77,6 +78,7 @@ class DrizzleBillingTransaction {
       cteNumberFrom: optionalString(filters['cteNumberFrom']),
       cteNumberIn: optionalStringArray(filters['cteNumberIn']),
       cteNumberTo: optionalString(filters['cteNumberTo']),
+      cursor: decodeKeysetCursor(optionalString(input.cursor)),
       customerDocument: optionalString(filters['customerDocument']),
       customerName: optionalString(filters['customerName']),
       from: optionalString(filters['from']),
@@ -95,7 +97,7 @@ class DrizzleBillingTransaction {
   ): Promise<readonly Record<string, unknown>[]> {
     const cteDocumentIds = requiredStringArray(input.cteDocumentIds)
     if (cteDocumentIds.length === 0) return []
-    return this.queryEligibleCtes({
+    const page = await this.queryEligibleCtes({
       batchId: null,
       batchIdIn: null,
       companyId: requiredString(input.companyId),
@@ -104,6 +106,7 @@ class DrizzleBillingTransaction {
       cteNumberFrom: null,
       cteNumberIn: null,
       cteNumberTo: null,
+      cursor: null,
       customerDocument: null,
       customerName: null,
       from: null,
@@ -115,6 +118,7 @@ class DrizzleBillingTransaction {
       nfeNumberTo: null,
       to: null,
     })
+    return page.items
   }
 
   public async findBillingPreviewByIds(
@@ -426,8 +430,11 @@ class DrizzleBillingTransaction {
 
   private async queryEligibleCtes(
     input: EligibleCteFilterInput & { readonly limit: number },
-  ): Promise<readonly Record<string, unknown>[]> {
-    const rows = await this.database
+  ): Promise<{
+    readonly items: readonly Record<string, unknown>[]
+    readonly nextCursor: string | null
+  }> {
+    const records = await this.database
       .select({
         accessKey: cteFiscalDocuments.accessKey,
         authorizedAt: cteFiscalDocuments.authorizedAt,
@@ -479,9 +486,17 @@ class DrizzleBillingTransaction {
       )
       .where(and(...buildEligibleCteFilters(input)))
       .orderBy(asc(cteFiscalDocuments.authorizedAt), asc(cteFiscalDocuments.id))
-      .limit(input.limit)
+      // A linha extra é a única forma de distinguir "página cheia" de "acabou" sem um count à parte.
+      .limit(input.limit + 1)
 
-    return rows.map((row) => ({
+    const rows = records.slice(0, input.limit)
+    const last = rows[rows.length - 1]
+    const nextCursor =
+      records.length > input.limit && last !== undefined && last.authorizedAt !== null
+        ? encodeKeysetCursor({ createdAt: last.authorizedAt, id: last.id })
+        : null
+
+    const items = rows.map((row) => ({
       accessKey: row.accessKey,
       authorizedAt: row.authorizedAt?.toISOString() ?? '',
       batchId: row.batchId,
@@ -502,6 +517,8 @@ class DrizzleBillingTransaction {
       status: row.status,
       totalAmount: row.totalAmount,
     }))
+
+    return { items, nextCursor }
   }
 
   private async mapInvoice(record: InvoiceRecord): Promise<Record<string, unknown>> {

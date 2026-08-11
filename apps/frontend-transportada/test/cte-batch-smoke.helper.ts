@@ -48,6 +48,8 @@ const CTE_ITEM = {
   baseAmount: '1234.5600',
   batchId: BATCH_ID,
   batchName: BASE_BATCH.name,
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'pending',
   charges: [],
   createdAt: '2026-07-22T20:00:00.000Z',
@@ -72,6 +74,21 @@ const CTE_ITEM = {
   status: 'authorized',
   totalAmount: '1290.1100',
 } as const
+
+/** O resumo cobre o recorte inteiro, não a página: com um item mockado, ele repete os valores dele. */
+function itemSummaryWith(batchStatus: BatchStatus) {
+  // Enfileirar não é transmitir: com o lote em voo, o CT-e ainda não teve resposta da SEFAZ.
+  const isAwaitingSefaz = batchStatus === 'in_flight' || batchStatus === 'submitted'
+
+  return {
+    baseAmount: CTE_ITEM.baseAmount,
+    batchIds: [BATCH_ID],
+    batchIdsTruncated: false,
+    count: 1,
+    statusCounts: isAwaitingSefaz ? { pending: 1 } : { [CTE_ITEM.status]: 1 },
+    totalAmount: CTE_ITEM.totalAmount,
+  }
+}
 
 type MockPermissions = readonly ('cte.manage' | 'cte.submit')[]
 
@@ -221,6 +238,14 @@ async function registerCteItemMocks(
     }
     input.state.itemListRequests += 1
     await fulfillJson(route, { data: [CTE_ITEM], page: { nextCursor: null } })
+  })
+  // Registrado depois da listagem porque no Playwright a rota mais recente é consultada primeiro.
+  await input.page.route(/\/cte-batch-items\/summary(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: itemSummaryWith(input.state.batchStatus) })
   })
   await input.page.route(/\/cte-batches\/items\/export$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

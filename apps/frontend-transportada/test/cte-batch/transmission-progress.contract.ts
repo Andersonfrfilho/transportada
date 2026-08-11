@@ -247,9 +247,10 @@ describe('CT-e transmission progress contract', () => {
       readApplicationFile(SUBMISSION_HOOK_PATH),
     ])
 
-    expect(selectionBar).toContain('resolveCteBatchTransmissionSummary')
+    expect(selectionBar).toContain('submission.itemTransmission')
     expect(selectionBar).toContain('transmission.awaiting')
     expect(submissionHook).toContain('submittedBatchIds')
+    expect(submissionHook).toContain('resolveCteItemTransmissionSummary')
   })
 
   /** Releitura silenciosa parece tela congelada: o contador é o que prova que a página está viva. */

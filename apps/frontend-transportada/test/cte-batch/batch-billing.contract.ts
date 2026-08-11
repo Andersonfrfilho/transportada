@@ -13,6 +13,8 @@ const ROW_ACTIONS = 'src/modules/cte-batch/components/CteBatchRowActions.compone
 const SELECTION_BAR = 'src/modules/cte-batch/components/CteBatchSelectionBar.component.tsx'
 const BILLING_DIALOG = 'src/modules/cte-batch/components/CteBillingDialog.component.tsx'
 const BILLING_HOOK = 'src/modules/cte-batch/hooks/useCteBillingDialog.hook.ts'
+const ITEMS_PANEL = 'src/modules/cte-batch/components/CteBatchItemsPanel.component.tsx'
+const WORKSPACE_PAGE = 'src/modules/cte-batch/pages/CteBatchWorkspace.page.tsx'
 const PROGRESS_COMPONENT = 'src/components/ui/progress.tsx'
 const PROGRESS_STYLES = 'src/components/ui/progress.module.css'
 
@@ -138,6 +140,29 @@ describe('cte batch billing contract', () => {
     expect(progress).toContain('aria-valuetext')
     expect(progress).toContain('resolveProgressPercent')
     expect(dialog).not.toContain('<select')
+  })
+
+  /**
+   * Faturar a seleção congelada e faturar o lote inteiro são intenções diferentes: a barra de
+   * seleção continua com a primeira, e o painel do lote ganha a segunda ao lado de transmitir.
+   */
+  test('the batch panel offers billing the whole batch, gated by the same permission', async () => {
+    const [panel, page] = await Promise.all([readModule(ITEMS_PANEL), readModule(WORKSPACE_PAGE)])
+
+    expect(panel).toContain('canBillBatch')
+    expect(panel).toContain('actions.billBatch')
+    expect(panel).toContain('onBill')
+    /** O painel não abre o modal sozinho: quem guarda `billingBatchIds` é a página. */
+    expect(panel).not.toContain('useCteBillingDialog')
+    expect(page).toContain('onBill={() => handleBill([openBatch])}')
+  })
+
+  test('the progress bar counts CT-e, not invoice requests', async () => {
+    const dialog = await readModule(BILLING_DIALOG)
+
+    expect(dialog).toContain('dialog.progress.completedCteCount')
+    expect(dialog).toContain('dialog.progress.totalCteCount')
+    expect(dialog).not.toContain('total={dialog.groups.length}')
   })
 
   test('the animated bar respects who asked for less motion and stays on the design tokens', async () => {

@@ -207,13 +207,13 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
           <section className={styles.billingSection}>
             <h3>{t('billing.progress.title')}</h3>
             <ProgressBar
-              completed={dialog.outcomes.length}
+              completed={dialog.progress.completedCteCount}
               label={t('billing.progress.label')}
-              total={dialog.groups.length}
+              total={dialog.progress.totalCteCount}
               valueText={t('billing.progress.value', {
-                completed: dialog.outcomes.length,
+                completed: dialog.progress.completedCteCount,
                 percent: dialog.progress.percent,
-                total: dialog.groups.length,
+                total: dialog.progress.totalCteCount,
               })}
             />
             <p className={styles.summaryLine}>

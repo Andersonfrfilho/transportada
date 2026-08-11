@@ -10,11 +10,23 @@ import {
 } from '../shared/cteBatchItemClient.service'
 import {
   serializeCteItemQuery,
+  serializeCteItemSummaryQuery,
   type CteItemTableFilters,
 } from '../shared/cteBatchItemTable.service'
-import { resolveCteItemProgressInterval } from '../shared/cteBatchProgress.service'
+import {
+  resolveCteItemProgressInterval,
+  resolveCteItemSummaryInterval,
+} from '../shared/cteBatchProgress.service'
 
 export const COMPANY_CTE_ITEMS_QUERY_KEY = 'company-cte-items'
+export const COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY = 'company-cte-item-summary'
+
+export type UseCompanyCteItemSummaryInput = Readonly<{
+  batchIdIn?: readonly string[]
+  companyId?: string
+  enabled: boolean
+  filters?: CteItemTableFilters
+}>
 
 export type UseCompanyCteItemsInput = Readonly<{
   companyId?: string
@@ -29,6 +41,29 @@ export function getCteBatchItemClient(): CteBatchItemClient {
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+  })
+}
+
+/**
+ * A página mostra 25 linhas e não diz nada sobre as outras; o recorte inteiro é somado no banco.
+ * Sem `batchIdIn` nem filtros o resumo cobre a empresa toda — é isso que a aba Lotes usa.
+ */
+export function useCompanyCteItemSummaryQuery(input: UseCompanyCteItemSummaryInput) {
+  const client = getCteBatchItemClient()
+  const request = {
+    ...(input.batchIdIn === undefined ? {} : { batchIdIn: input.batchIdIn }),
+    ...(input.filters === undefined ? {} : { filters: input.filters }),
+  }
+
+  return useQuery({
+    enabled: input.enabled,
+    queryFn: () => client.summarizeCompanyItems(request),
+    queryKey: [
+      COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY,
+      input.companyId,
+      serializeCteItemSummaryQuery(request),
+    ],
+    refetchInterval: (query) => resolveCteItemSummaryInterval(query.state.data),
   })
 }
 

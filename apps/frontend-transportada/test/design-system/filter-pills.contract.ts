@@ -84,6 +84,23 @@ describe('design system filter pills contract', () => {
     expect(components.length).toBeGreaterThan(20)
   })
 
+  test('counts a summarising pill by its weight, so the badge never contradicts the pill', async () => {
+    const { countFilterPills } = await import('@/components/ui/filter-pills')
+    const pill = (id: string, count?: number) => ({
+      id,
+      label: id,
+      onRemove: () => undefined,
+      removeLabel: id,
+      value: id,
+      ...(count === undefined ? {} : { count }),
+    })
+
+    expect(countFilterPills([])).toBe(0)
+    expect(countFilterPills([pill('status'), pill('emitter')])).toBe(2)
+    expect(countFilterPills([pill('advanced-filter', 3)])).toBe(3)
+    expect(countFilterPills([pill('advanced-filter', 3), pill('status')])).toBe(4)
+  })
+
   test('states the rule for every future table', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/data-tables.md'),
@@ -91,7 +108,7 @@ describe('design system filter pills contract', () => {
     ])
 
     expect(rule).toContain('components/ui/filter-pills')
-    expect(rule).toContain('pills.length')
+    expect(rule).toContain('countFilterPills(pills)')
     expect(projectContext).toContain('components/ui/filter-pills')
   })
 })

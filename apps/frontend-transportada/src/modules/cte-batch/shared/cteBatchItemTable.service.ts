@@ -45,6 +45,18 @@ export type CteItemColumnKey = (typeof CTE_ITEM_COLUMN_KEYS)[number]
 
 export const CTE_ITEM_COLUMNS_STORAGE_KEY = 'cte-batch.items.columns.v1'
 
+/** Teto do `limit` da API — pedir mais devolve 400, então a lista de opções para em 100. */
+export const CTE_ITEM_PAGE_SIZES = [25, 50, 100] as const
+
+export type CteItemPageSize = (typeof CTE_ITEM_PAGE_SIZES)[number]
+
+export const CTE_ITEM_DEFAULT_PAGE_SIZE: CteItemPageSize = 25
+
+export function parseCteItemPageSize(value: string): CteItemPageSize {
+  const parsed = Number(value)
+  return CTE_ITEM_PAGE_SIZES.find((size) => size === parsed) ?? CTE_ITEM_DEFAULT_PAGE_SIZE
+}
+
 export const CTE_ITEM_STATUS_VALUES = [
   'authorized',
   'cancelled',
@@ -191,27 +203,46 @@ export function serializeCteItemQuery(
   const search = new URLSearchParams()
   search.set('limit', String(input.limit))
   if (input.cursor !== null) search.set('cursor', input.cursor)
+  applyCteItemFilters(search, input.filters)
+  return search.toString()
+}
+
+/** O resumo cobre o recorte inteiro: os mesmos filtros da listagem, sem cursor nem limite. */
+export function serializeCteItemSummaryQuery(
+  input: Readonly<{
+    batchIdIn?: readonly string[]
+    filters?: CteItemTableFilters
+  }>,
+): string {
+  const search = new URLSearchParams()
+  if (input.filters !== undefined) applyCteItemFilters(search, input.filters)
+  if (input.batchIdIn !== undefined && input.batchIdIn.length > 0) {
+    search.set('batchIdIn', input.batchIdIn.join(','))
+  }
+  return search.toString()
+}
+
+function applyCteItemFilters(search: URLSearchParams, filters: CteItemTableFilters): void {
   const fields = {
-    batchId: input.filters.batchId,
-    billingStatusIn: toBillingStatusIn(input.filters.billingStatuses),
-    issuedFrom: toIssuedFromInstant(input.filters.issuedFrom),
-    issuedUntil: toIssuedUntilInstant(input.filters.issuedTo),
-    statusIn: toStatusIn(input.filters.statuses),
+    batchId: filters.batchId,
+    billingStatusIn: toBillingStatusIn(filters.billingStatuses),
+    issuedFrom: toIssuedFromInstant(filters.issuedFrom),
+    issuedUntil: toIssuedUntilInstant(filters.issuedTo),
+    statusIn: toStatusIn(filters.statuses),
   }
   for (const [key, value] of Object.entries(fields)) {
     if (value.length > 0) search.set(key, value)
   }
-  applyNumberQuery(search, input.filters.cteNumberQuery, {
+  applyNumberQuery(search, filters.cteNumberQuery, {
     gte: 'cteNumberGte',
     in: 'cteNumberIn',
     lte: 'cteNumberLte',
   })
-  applyNumberQuery(search, input.filters.invoiceNumberQuery, {
+  applyNumberQuery(search, filters.invoiceNumberQuery, {
     gte: 'invoiceNumberGte',
     in: 'invoiceNumberIn',
     lte: 'invoiceNumberLte',
   })
-  return search.toString()
 }
 
 function applyNumberQuery(

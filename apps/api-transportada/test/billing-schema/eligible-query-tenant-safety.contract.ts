@@ -26,6 +26,7 @@ const EMPTY_FILTERS: EligibleCteFilterInput = {
   cteNumberFrom: null,
   cteNumberIn: null,
   cteNumberTo: null,
+  cursor: null,
   customerDocument: null,
   customerName: null,
   from: null,

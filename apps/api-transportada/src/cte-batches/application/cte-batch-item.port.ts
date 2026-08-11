@@ -43,6 +43,8 @@ export type CteBatchItem = {
   readonly authorizationProtocol: string | null
   readonly authorizedAt: string | null
   readonly baseAmount: string
+  readonly billingInvoiceNumber: string | null
+  readonly billingInvoicedAt: string | null
   readonly billingStatus: CteBatchItemBillingStatus
   readonly charges: readonly CteBatchItemCharge[]
   readonly documents: readonly CteBatchItemDocument[]
@@ -97,10 +99,35 @@ export type CompanyCteItemPage = {
   readonly nextCursor: string | null
 }
 
+/** Mesmo teto do filtro `batchIdIn`: o recorte devolvido tem de caber de volta numa consulta. */
+export const CTE_ITEM_SUMMARY_BATCH_LIMIT = 100
+
+/**
+ * Retrato do recorte inteiro, não da página. A tela pagina de 25 em 25 e precisava responder
+ * "quantos" e "quanto" sobre tudo que o filtro cobre — somar as páginas visitadas dava outro número.
+ *
+ * `batchIds` existe para a ação em lote fechar sobre o mesmo recorte que o operador está vendo;
+ * acima do teto ele vem truncado e a tela avisa em vez de transmitir pela metade em silêncio.
+ */
+export type CompanyCteItemSummary = {
+  readonly baseAmount: string
+  readonly batchIds: readonly string[]
+  readonly batchIdsTruncated: boolean
+  readonly count: number
+  readonly statusCounts: Readonly<Record<string, number>>
+  readonly totalAmount: string
+}
+
+export type CompanyCteItemSummaryQuery = {
+  readonly companyId: string
+  readonly filters?: CompanyCteItemFilters
+}
+
 export type CteBatchItemReaderPort = {
   findBatch(query: CteBatchItemQuery): Promise<{ readonly id: string } | null>
   listCompanyItems(query: CompanyCteItemQuery): Promise<CompanyCteItemPage>
   listItems(query: CteBatchItemQuery): Promise<readonly CteBatchItem[]>
+  summarizeCompanyItems(query: CompanyCteItemSummaryQuery): Promise<CompanyCteItemSummary>
 }
 
 export type ListCteBatchItemsInput = {
@@ -121,4 +148,11 @@ export type ListCompanyCteItemsInput = {
   readonly cursor: string | null
   readonly filters?: CompanyCteItemFilters
   readonly limit: number
+}
+
+export type SummarizeCompanyCteItemsInput = {
+  readonly context: {
+    readonly companyId: string
+  }
+  readonly filters?: CompanyCteItemFilters
 }
