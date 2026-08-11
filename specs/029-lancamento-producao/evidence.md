@@ -1673,3 +1673,37 @@ resultado. `@adatechnology/logger@0.0.1` não expõe redação (`src/` tem `logg
 - [ ] T026 —
 - [ ] T027 —
 - [ ] T028 —
+
+## Verificação de produção — distribuição NF-e (11/08/2026 11:52 local)
+
+Ciclo de verificação do laço de 10–11/08. Consultas por `railway ssh` no serviço `api` de
+production, via `Bun.SQL` (não há `psql` no contêiner).
+
+**O cursor andou.** `nfe_distribution_cursors`: `ult_nsu = 000000000045636`,
+`max_nsu = 000000000045636`, `next_allowed_at` 11:10 local, `updated_at` 10:55:55 local. Cursor
+igual ao `maxNSU` é acervo em dia: o tick das 10:55 recebeu `cStat 137` (nada mais a buscar),
+gravou a janela e não moveu nada — que é o comportamento correto, e o oposto do laço do §1 do
+runbook, em que o cursor ficava parado em `000000000037701` com a janela aberta.
+
+**A importação voltou a fluir.** `nfe_import_items` saiu de 627 para **808**, e as 808 linhas foram
+criadas nas últimas 24 h — ou seja, todo o acervo atual entrou depois do desbloqueio:
+
+```
+variant   | status   | total
+complete  | imported | 808
+```
+
+`nfe_imports`: 17 `completed`, 6 `queued` (as seis presas de 10/08, anteriores à correção).
+
+**O que isto prova e o que não prova.** Prova que a página não morre mais: 808 documentos
+classificados como `complete` e gravados sem uma única falha de constraint ou de conflito no
+bucket, com a normalização de sufixo de versão do §4.2 funcionando em produção — antes da correção
+nada era classificado como `complete`. **Não prova** o §4.3 nem o §4.4: `variant = 'summary'` tem
+**zero** linhas, e `access_key is null` também zero. Nenhum resumo chegou depois do desbloqueio,
+então o endereço próprio do resumo e a leitura da chave sem síntese seguem provados só por teste de
+contrato e integração, não por produção. Os ~7.900 documentos entre `000000000037701` e
+`000000000045636` foram abandonados por decisão explícita do usuário — é lá que os resumos
+estariam.
+
+**Log do worker:** zero ocorrências de `NFE_XML_UNSUPPORTED_DOCUMENT`, de violação de constraint e
+de `nfe_distribution_item_skipped` na janela retida. Nenhum defeito novo.
