@@ -1,8 +1,13 @@
 name: Deploy
 
+# Staging é o ambiente do PR: publica o código proposto antes do merge. O push em staging não
+# dispara nada — depois do squash-merge para main, o back-merge de main em staging não traz
+# conteúdo novo, e rodava o gate inteiro mais os cinco deploys para não mudar um arquivo.
 on:
   push:
-    branches: [main, staging]
+    branches: [main]
+  pull_request:
+    branches: [staging]
   workflow_dispatch:
     inputs:
       environment:
@@ -19,9 +24,12 @@ on:
 permissions:
   contents: read
 
+# Um grupo por PR: push novo no PR cancela o deploy anterior, que já é código velho em staging.
+# `main` fica no grupo dele e nunca é cancelado — deploy de produção interrompido no meio deixa os
+# cinco serviços em versões diferentes.
 concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+  group: deploy-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RAILWAY_CLI_VERSION: 4.58.0
@@ -38,10 +46,10 @@ jobs:
         run: |
           if [ -n "${{ inputs.environment }}" ]; then
             resolved="${{ inputs.environment }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            resolved=staging
           elif [ "${{ github.ref_name }}" = "main" ]; then
             resolved=production
-          elif [ "${{ github.ref_name }}" = "staging" ]; then
-            resolved=staging
           else
             # Sem fallback: branch sem ambiente falha em vez de publicar em staging por engano.
             echo "Branch '${{ github.ref_name }}' não tem ambiente. Use workflow_dispatch." >&2
@@ -69,11 +77,17 @@ jobs:
         run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
       - name: Deploy identity
         run: |
+          # Em PR o checkout é o merge commit: o primeiro pai é a base, e `event.before` não existe.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            baseline="$(git rev-parse HEAD^1)"
+          else
+            baseline="${{ github.event.before }}"
+          fi
           if [ "${{ inputs.deploy_identity }}" = "true" ]; then
             reason="pedido manual"
           elif ! .github/scripts/railway-deploy.sh has-succeeded keycloak; then
             reason="primeiro deploy do ambiente"
-          elif git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null \
+          elif git diff --name-only "$baseline" HEAD 2>/dev/null \
             | grep -q '^deploy/keycloak/'; then
             reason="mudança em deploy/keycloak"
           else

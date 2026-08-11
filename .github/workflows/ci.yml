@@ -1,19 +1,19 @@
 name: CI
 
+# Sem gatilho próprio: o `deploy.yml` chama este workflow como gate, e ele roda no PR mirando
+# staging e no push para main. Um `pull_request` aqui seria a mesma suíte duas vezes no mesmo
+# commit — quality e integration, com Playwright, migration-test e docker compose.
 on:
-  pull_request:
-  # O deploy chama este workflow como gate; por isso `push` não dispara CI direto — seria a mesma
-  # suíte rodando duas vezes no mesmo commit.
   workflow_call:
 
 permissions:
   contents: read
 
-# Push novo no mesmo PR cancela o run anterior. Chamado como gate de deploy, cada run fica no seu
-# próprio grupo — assim o gate nunca é cancelado nem enfileirado atrás de outro deploy.
+# Cada chamada fica no seu próprio grupo: o gate nunca é cancelado nem enfileirado atrás de outro
+# deploy. Quem cancela run velho de PR é o `concurrency` do `deploy.yml`, que derruba o run inteiro.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   quality:
