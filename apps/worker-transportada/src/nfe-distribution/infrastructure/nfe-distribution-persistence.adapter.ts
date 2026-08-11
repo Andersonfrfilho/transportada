@@ -5,7 +5,11 @@ import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 
-import { NfeXmlImportError, type DfeItem } from '@adatechnology/fiscal-provider'
+import {
+  NfeXmlImportError,
+  type DfeItem,
+  type ImportedNfeXml,
+} from '@adatechnology/fiscal-provider'
 import {
   OBJECT_STORAGE_ERROR_CODES,
   ObjectStorageError,
@@ -34,6 +38,36 @@ const SUMMARY_ACCESS_KEY_ELEMENT =
 
 type SkipReason = 'already_stored' | 'unsupported_document'
 
+type PreparedSummary = {
+  readonly accessKey: string | undefined
+  readonly dfe: DfeItem
+  readonly sourceBytes: Uint8Array
+  readonly sourceSha256: string
+  readonly variant: 'summary'
+}
+
+type PreparedEvent = {
+  readonly accessKey: string
+  readonly normalizedXml: ImportedNfeXml
+  readonly dfe: DfeItem
+  readonly sequence: string
+  readonly sourceBytes: Uint8Array
+  readonly sourceSha256: string
+  readonly type: string
+  readonly variant: 'event'
+}
+
+type PreparedDocument = {
+  readonly accessKey: string
+  readonly normalizedXml: ImportedNfeXml
+  readonly dfe: DfeItem
+  readonly sourceBytes: Uint8Array
+  readonly sourceSha256: string
+  readonly variant: 'complete'
+}
+
+type PreparedItem = PreparedDocument | PreparedEvent | PreparedSummary
+
 type DistributionPersistencePort = {
   finalizeImport(input: {
     readonly companyId: string
@@ -44,6 +78,10 @@ type DistributionPersistencePort = {
     readonly receivedCount: number
     readonly status: 'completed'
   }): Promise<void>
+  findStoredAccessKeys(input: {
+    readonly accessKeys: readonly string[]
+    readonly companyId: string
+  }): Promise<readonly string[]>
   persistPage(input: {
     readonly companyId: string
     readonly environment: NfeFiscalEnvironment
@@ -73,13 +111,33 @@ export function createNfeDistributionPersistenceAdapter(
       readonly duplicatedCount: number
       readonly skippedCount: number
     }> {
+      const prepared = (
+        await Promise.all(
+          input.items.map((dfe) =>
+            prepareItemOrSkip({
+              companyId: input.companyId,
+              dependencies,
+              dfe,
+              importId: input.importId,
+            }),
+          ),
+        )
+      ).filter((candidate): candidate is PreparedItem => candidate !== undefined)
+
+      const storedAccessKeys = await findStoredAccessKeys({
+        candidates: prepared,
+        companyId: input.companyId,
+        dependencies,
+      })
+
       const built = await Promise.all(
-        input.items.map((dfe) =>
-          buildPersistItemOrSkip({
+        prepared.map((candidate) =>
+          storeItemOrSkip({
+            candidate,
             companyId: input.companyId,
             dependencies,
-            dfe,
             importId: input.importId,
+            storedAccessKeys,
           }),
         ),
       )
@@ -95,46 +153,224 @@ export function createNfeDistributionPersistenceAdapter(
       return {
         acceptedCount: result.acceptedCount,
         duplicatedCount: result.duplicatedCount,
-        skippedCount: built.length - items.length,
+        skippedCount: input.items.length - items.length,
       }
     },
   }
 }
 
 /**
- * Um documento que o pacote fiscal não sabe importar, ou que já está guardado, não pode derrubar a
- * página inteira: sem cursor gravado, o retry reconsulta o mesmo CNPJ e queima a janela de uma hora
- * que a SEFAZ exige.
+ * Um documento que o pacote fiscal não sabe importar não pode derrubar a página inteira: sem cursor
+ * gravado, o retry reconsulta o mesmo CNPJ e queima a janela de uma hora que a SEFAZ exige.
  */
-async function buildPersistItemOrSkip(params: {
+async function prepareItemOrSkip(params: {
   readonly companyId: string
   readonly dependencies: PersistenceAdapterDependencies
   readonly dfe: DfeItem
   readonly importId: string
-}): Promise<DistributionPersistItem | undefined> {
+}): Promise<PreparedItem | undefined> {
   try {
-    return await buildPersistItem(params)
+    return await prepareItem(params)
   } catch (error: unknown) {
     const skip = resolveSkip(error)
     if (skip === undefined) {
       throw error
     }
 
-    params.dependencies.logger.warn('nfe_distribution_item_skipped', {
-      companyId: params.companyId,
-      errorCode: skip.errorCode,
-      importId: params.importId,
-      nsu: params.dfe.nsu,
-      reason: skip.reason,
-      schema: params.dfe.schema,
-    })
+    logSkip({ ...params, errorCode: skip.errorCode, reason: skip.reason })
     return undefined
   }
 }
 
 /**
- * A nota que já está no bucket não é falha: é a mesma nota chegando de novo pela distribuição, e
- * reimportá-la não acrescenta nada.
+ * O XML só é lido e classificado aqui — nada disso toca o bucket, e é por isso que a checagem do que
+ * já existe cabe entre esta etapa e a gravação.
+ */
+async function prepareItem(params: {
+  readonly companyId: string
+  readonly dependencies: PersistenceAdapterDependencies
+  readonly dfe: DfeItem
+  readonly importId: string
+}): Promise<PreparedItem> {
+  const { dependencies, dfe } = params
+  const sourceBytes = gunzipSync(Buffer.from(dfe.xmlComprimido, 'base64'))
+  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex')
+  const variant = classifyVariant(dfe.schema)
+
+  if (variant === 'summary') {
+    const accessKey = resolveSummaryAccessKey({ dfe, sourceBytes })
+    return { accessKey, dfe, sourceBytes, sourceSha256, variant }
+  }
+
+  const xml = new TextDecoder().decode(sourceBytes)
+  const normalizedXml = await dependencies.xmlImporter.importXml({ xml })
+
+  if (variant === 'event') {
+    if (normalizedXml.kind !== 'nfe-event') {
+      throw new Error('NFE_DISTRIBUTION_EVENT_XML_MISMATCH')
+    }
+    return {
+      accessKey: normalizedXml.event.accessKey,
+      dfe,
+      normalizedXml,
+      sequence: String(normalizedXml.event.sequence),
+      sourceBytes,
+      sourceSha256,
+      type: normalizedXml.event.type,
+      variant,
+    }
+  }
+
+  if (normalizedXml.kind === 'nfe-event') {
+    throw new Error('NFE_DISTRIBUTION_DOCUMENT_XML_MISMATCH')
+  }
+  return {
+    accessKey: normalizedXml.document.accessKey,
+    dfe,
+    normalizedXml,
+    sourceBytes,
+    sourceSha256,
+    variant,
+  }
+}
+
+/**
+ * Uma pergunta por página, não uma por item: as chaves candidatas vão juntas e voltam só as que a
+ * empresa já tem em `nfe_documents`.
+ */
+async function findStoredAccessKeys(params: {
+  readonly candidates: readonly PreparedItem[]
+  readonly companyId: string
+  readonly dependencies: PersistenceAdapterDependencies
+}): Promise<ReadonlySet<string>> {
+  const accessKeys = new Set<string>()
+  for (const candidate of params.candidates) {
+    if (candidate.variant !== 'event' && candidate.accessKey !== undefined) {
+      accessKeys.add(candidate.accessKey)
+    }
+  }
+  if (accessKeys.size === 0) {
+    return new Set()
+  }
+
+  const stored = await params.dependencies.repository.findStoredAccessKeys({
+    accessKeys: [...accessKeys],
+    companyId: params.companyId,
+  })
+  return new Set(stored)
+}
+
+/**
+ * A nota que a empresa já tem não é falha: é a mesma nota chegando de novo pela distribuição, e
+ * reimportá-la não acrescenta nada. Um resumo de nota já completa seria até um rebaixamento.
+ */
+async function storeItemOrSkip(params: {
+  readonly candidate: PreparedItem
+  readonly companyId: string
+  readonly dependencies: PersistenceAdapterDependencies
+  readonly importId: string
+  readonly storedAccessKeys: ReadonlySet<string>
+}): Promise<DistributionPersistItem | undefined> {
+  const { candidate, storedAccessKeys } = params
+
+  if (
+    candidate.variant !== 'event' &&
+    candidate.accessKey !== undefined &&
+    storedAccessKeys.has(candidate.accessKey)
+  ) {
+    logSkip({
+      accessKey: candidate.accessKey,
+      companyId: params.companyId,
+      dependencies: params.dependencies,
+      dfe: candidate.dfe,
+      importId: params.importId,
+      reason: 'already_stored',
+    })
+    return undefined
+  }
+
+  try {
+    return await storeItem(params)
+  } catch (error: unknown) {
+    const skip = resolveSkip(error)
+    if (skip === undefined) {
+      throw error
+    }
+
+    logSkip({
+      companyId: params.companyId,
+      dependencies: params.dependencies,
+      dfe: candidate.dfe,
+      errorCode: skip.errorCode,
+      importId: params.importId,
+      reason: skip.reason,
+    })
+    return undefined
+  }
+}
+
+async function storeItem(params: {
+  readonly candidate: PreparedItem
+  readonly companyId: string
+  readonly dependencies: PersistenceAdapterDependencies
+  readonly importId: string
+}): Promise<DistributionPersistItem> {
+  const { candidate, companyId, dependencies, importId } = params
+  const { dfe, sourceBytes, sourceSha256 } = candidate
+
+  if (candidate.variant === 'summary') {
+    const finalObject = await dependencies.finalStorage.storeImportedSummary({
+      accessKey: candidate.accessKey ?? `nsu-${dfe.nsu}`,
+      companyId,
+      importId,
+      nsu: dfe.nsu,
+      sourceBytes,
+      sourceSha256,
+    })
+    return {
+      finalObject,
+      nsu: dfe.nsu,
+      summary: buildSummary({ accessKey: candidate.accessKey, dfe }),
+      variant: candidate.variant,
+    }
+  }
+
+  if (candidate.variant === 'event') {
+    const finalObject = await dependencies.finalStorage.storeImportedEvent({
+      accessKey: candidate.accessKey,
+      companyId,
+      importId,
+      sequence: candidate.sequence,
+      sourceBytes,
+      sourceSha256,
+      type: candidate.type,
+    })
+    return {
+      finalObject,
+      normalizedXml: candidate.normalizedXml,
+      nsu: dfe.nsu,
+      variant: candidate.variant,
+    }
+  }
+
+  const finalObject = await dependencies.finalStorage.storeImportedDocument({
+    accessKey: candidate.accessKey,
+    companyId,
+    importId,
+    sourceBytes,
+    sourceSha256,
+  })
+  return {
+    finalObject,
+    normalizedXml: candidate.normalizedXml,
+    nsu: dfe.nsu,
+    variant: candidate.variant,
+  }
+}
+
+/**
+ * O conflito no bucket continua sendo pulo, e não falha — mas hoje ele é a última linha de defesa,
+ * não a checagem principal.
  */
 function resolveSkip(
   error: unknown,
@@ -151,60 +387,24 @@ function resolveSkip(
   return undefined
 }
 
-async function buildPersistItem(params: {
+function logSkip(params: {
+  readonly accessKey?: string
   readonly companyId: string
   readonly dependencies: PersistenceAdapterDependencies
   readonly dfe: DfeItem
+  readonly errorCode?: string
   readonly importId: string
-}): Promise<DistributionPersistItem> {
-  const { companyId, dependencies, dfe, importId } = params
-  const sourceBytes = gunzipSync(Buffer.from(dfe.xmlComprimido, 'base64'))
-  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex')
-  const variant = classifyVariant(dfe.schema)
-
-  if (variant === 'summary') {
-    const accessKey = resolveSummaryAccessKey({ dfe, sourceBytes })
-    const finalObject = await dependencies.finalStorage.storeImportedSummary({
-      accessKey: accessKey ?? `nsu-${dfe.nsu}`,
-      companyId,
-      importId,
-      nsu: dfe.nsu,
-      sourceBytes,
-      sourceSha256,
-    })
-    return { finalObject, nsu: dfe.nsu, summary: buildSummary({ accessKey, dfe }), variant }
-  }
-
-  const xml = new TextDecoder().decode(sourceBytes)
-  const normalizedXml = await dependencies.xmlImporter.importXml({ xml })
-
-  if (variant === 'event') {
-    if (normalizedXml.kind !== 'nfe-event') {
-      throw new Error('NFE_DISTRIBUTION_EVENT_XML_MISMATCH')
-    }
-    const finalObject = await dependencies.finalStorage.storeImportedEvent({
-      accessKey: normalizedXml.event.accessKey,
-      companyId,
-      importId,
-      sequence: String(normalizedXml.event.sequence),
-      sourceBytes,
-      sourceSha256,
-      type: normalizedXml.event.type,
-    })
-    return { finalObject, normalizedXml, nsu: dfe.nsu, variant }
-  }
-
-  if (normalizedXml.kind === 'nfe-event') {
-    throw new Error('NFE_DISTRIBUTION_DOCUMENT_XML_MISMATCH')
-  }
-  const finalObject = await dependencies.finalStorage.storeImportedDocument({
-    accessKey: normalizedXml.document.accessKey,
-    companyId,
-    importId,
-    sourceBytes,
-    sourceSha256,
+  readonly reason: SkipReason
+}): void {
+  params.dependencies.logger.warn('nfe_distribution_item_skipped', {
+    ...(params.accessKey !== undefined ? { accessKey: params.accessKey } : {}),
+    companyId: params.companyId,
+    ...(params.errorCode !== undefined ? { errorCode: params.errorCode } : {}),
+    importId: params.importId,
+    nsu: params.dfe.nsu,
+    reason: params.reason,
+    schema: params.dfe.schema,
   })
-  return { finalObject, normalizedXml, nsu: dfe.nsu, variant }
 }
 
 /**

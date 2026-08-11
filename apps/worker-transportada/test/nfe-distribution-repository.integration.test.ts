@@ -315,6 +315,28 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
     expect(items).toHaveLength(4)
   })
 
+  /**
+   * O resumo e o evento entraram na mesma página do documento completo, e nenhum dos dois grava
+   * linha em `nfe_documents` — a busca não pode confundi-los com nota que a empresa já tem.
+   */
+  it('answers only with access keys the company already has as a complete document', async () => {
+    const stored = await repository.findStoredAccessKeys({
+      accessKeys: [DOCUMENT_ACCESS_KEY, SUMMARY_ACCESS_KEY, EVENT_TARGET_KEY],
+      companyId,
+    })
+
+    expect([...stored]).toEqual([DOCUMENT_ACCESS_KEY])
+  })
+
+  it('never answers with an access key from another tenant', async () => {
+    const stored = await repository.findStoredAccessKeys({
+      accessKeys: [DOCUMENT_ACCESS_KEY],
+      companyId: crypto.randomUUID(),
+    })
+
+    expect(stored).toHaveLength(0)
+  })
+
   it('keeps persisted distribution data isolated per tenant', async () => {
     const documents = await db
       .select()

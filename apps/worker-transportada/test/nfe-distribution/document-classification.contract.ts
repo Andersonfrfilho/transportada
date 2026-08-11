@@ -31,6 +31,8 @@ const ACCESS_KEY = '35190730290856000160550010000000011000000010'
 const COMPANY_ID = 'fbc033e7-63e0-4698-adc6-12778bedf4a7'
 const IMPORT_ID = '97ba42a6-8b96-47c0-bdb5-b75dfed2f95c'
 
+const OTHER_ACCESS_KEY = '35190730290856000160550010000000021000000029'
+
 const RESUMO_XML = `<resNFe><chNFe>${ACCESS_KEY}</chNFe></resNFe>`
 const RESUMO_EVENTO_XML = `<resEvento><chNFe>${ACCESS_KEY}</chNFe></resEvento>`
 const DOCUMENTO_XML = `<nfeProc><NFe><infNFe Id="NFe${ACCESS_KEY}"/></NFe></nfeProc>`
@@ -46,6 +48,8 @@ type AdapterHarness = {
   readonly importedXml: string[]
   readonly logs: LogEntry[]
   readonly persisted: DistributionPersistItem[]
+  readonly storageCalls: string[]
+  readonly storedLookups: readonly string[][]
 }
 
 function compressXml(xml: string): string {
@@ -78,15 +82,18 @@ function createStoredObject(): NfeImportStoredObject {
   }
 }
 
-function createFinalStorage(): NfeImportFinalStorage {
+function createFinalStorage(harness: AdapterHarness): NfeImportFinalStorage {
   return {
-    async storeImportedDocument(): Promise<NfeImportStoredObject> {
+    async storeImportedDocument(params): Promise<NfeImportStoredObject> {
+      harness.storageCalls.push(`complete:${params.accessKey}`)
       return createStoredObject()
     },
-    async storeImportedEvent(): Promise<NfeImportStoredObject> {
+    async storeImportedEvent(params): Promise<NfeImportStoredObject> {
+      harness.storageCalls.push(`event:${params.accessKey}`)
       return createStoredObject()
     },
-    async storeImportedSummary(): Promise<NfeImportStoredObject> {
+    async storeImportedSummary(params): Promise<NfeImportStoredObject> {
+      harness.storageCalls.push(`summary:${params.accessKey}`)
       return createStoredObject()
     },
   }
@@ -99,22 +106,26 @@ function createConflictError(): ObjectStorageError {
   )
 }
 
-function createDocumentXml(): ImportedNfeXml {
+function createDocumentXml(accessKey: string): ImportedNfeXml {
   return {
-    document: { accessKey: ACCESS_KEY, status: 'authorized' },
+    document: { accessKey, status: 'authorized' },
     kind: 'authorized-nfe',
     nsu: '',
     schema: 'xml-import',
   } as unknown as ImportedNfeXml
 }
 
-function createEventXml(): ImportedNfeXml {
+function createEventXml(accessKey: string): ImportedNfeXml {
   return {
-    event: { accessKey: ACCESS_KEY, sequence: 1, type: '110111' },
+    event: { accessKey, sequence: 1, type: '110111' },
     kind: 'nfe-event',
     nsu: '',
     schema: 'xml-import',
   } as unknown as ImportedNfeXml
+}
+
+function readAccessKey(xml: string): string {
+  return /[0-9]{44}/.exec(xml)?.[0] ?? ACCESS_KEY
 }
 
 function createXmlImporter(harness: AdapterHarness): NfeXmlImporter {
@@ -123,10 +134,10 @@ function createXmlImporter(harness: AdapterHarness): NfeXmlImporter {
       harness.importedXml.push(input.xml)
 
       if (input.xml.includes('<procEventoNFe')) {
-        return createEventXml()
+        return createEventXml(readAccessKey(input.xml))
       }
       if (input.xml.includes('<nfeProc')) {
-        return createDocumentXml()
+        return createDocumentXml(readAccessKey(input.xml))
       }
 
       throw new NfeXmlImportError({
@@ -164,18 +175,35 @@ function createLogger(harness: AdapterHarness): WorkerLogger {
   }
 }
 
-function createAdapter(input: { readonly finalStorage?: NfeImportFinalStorage } = {}): {
+function createAdapter(
+  input: {
+    readonly finalStorage?: NfeImportFinalStorage
+    readonly storedAccessKeys?: readonly string[]
+  } = {},
+): {
   readonly adapter: ReturnType<typeof createNfeDistributionPersistenceAdapter>
   readonly harness: AdapterHarness
 } {
-  const harness: AdapterHarness = { importedXml: [], logs: [], persisted: [] }
+  const storedLookups: string[][] = []
+  const harness: AdapterHarness = {
+    importedXml: [],
+    logs: [],
+    persisted: [],
+    storageCalls: [],
+    storedLookups,
+  }
+  const alreadyStored = new Set(input.storedAccessKeys ?? [])
 
   const adapter = createNfeDistributionPersistenceAdapter({
-    finalStorage: input.finalStorage ?? createFinalStorage(),
+    finalStorage: input.finalStorage ?? createFinalStorage(harness),
     logger: createLogger(harness),
     repository: {
       async finalizeImport(): Promise<void> {
         /* o contrato mede a classificação da página, não o fechamento da importação */
+      },
+      async findStoredAccessKeys(lookupInput): Promise<readonly string[]> {
+        storedLookups.push([...lookupInput.accessKeys])
+        return lookupInput.accessKeys.filter((accessKey) => alreadyStored.has(accessKey))
       },
       async persistPage(persistInput): Promise<PersistPageResult> {
         for (const item of persistInput.items) {
@@ -490,6 +518,102 @@ describe('NF-e distribution document classification contract', () => {
 
     expect(result.skippedCount).toBe(1)
     expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037706'])
+  })
+
+  /**
+   * O conflito no bucket é rede de segurança, não o teste. Quem já está guardado se descobre
+   * perguntando ao banco antes — a nota que já existe nem chega no storage.
+   */
+  test('asks which access keys the company already has and imports only the new ones', async () => {
+    const { adapter, harness } = createAdapter({ storedAccessKeys: [ACCESS_KEY] })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({ nsu: '000000000037710', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+        createDfeItem({ nsu: '000000000037711', schema: 'resNFe_v1.01.xsd', xml: RESUMO_XML }),
+        createDfeItem({
+          chaveNfe: OTHER_ACCESS_KEY,
+          nsu: '000000000037712',
+          schema: 'procNFe_v4.00.xsd',
+          xml: `<nfeProc><NFe><infNFe Id="NFe${OTHER_ACCESS_KEY}"/></NFe></nfeProc>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037712',
+    })
+
+    expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037712'])
+    expect(result.skippedCount).toBe(2)
+    expect(harness.storageCalls).toEqual([`complete:${OTHER_ACCESS_KEY}`])
+
+    const skipped = harness.logs.filter(
+      (entry) => entry.message === 'nfe_distribution_item_skipped',
+    )
+    expect(skipped.map((entry) => entry.metadata['nsu'])).toEqual([
+      '000000000037710',
+      '000000000037711',
+    ])
+    expect(skipped[0]?.metadata).toMatchObject({ accessKey: ACCESS_KEY, reason: 'already_stored' })
+  })
+
+  /**
+   * Evento de nota que já temos é informação nova — cancelamento, carta de correção. Ele tem
+   * endereço próprio no bucket e nunca é pulado por a nota existir.
+   */
+  test('never skips an event just because the note is already stored', async () => {
+    const { adapter, harness } = createAdapter({ storedAccessKeys: [ACCESS_KEY] })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          nsu: '000000000037713',
+          schema: 'procEventoNFe_v1.00.xsd',
+          xml: EVENTO_XML,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037713',
+    })
+
+    expect(result.skippedCount).toBe(0)
+    expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037713'])
+    expect(harness.storageCalls).toEqual([`event:${ACCESS_KEY}`])
+  })
+
+  /**
+   * Uma consulta por página, não uma por item: 50 itens não podem virar 50 idas ao banco.
+   */
+  test('asks the base once per page, with each access key a single time', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({ nsu: '000000000037714', schema: 'resNFe_v1.01.xsd', xml: RESUMO_XML }),
+        createDfeItem({ nsu: '000000000037715', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+        createDfeItem({
+          chaveNfe: OTHER_ACCESS_KEY,
+          nsu: '000000000037716',
+          schema: 'resNFe_v1.01.xsd',
+          xml: `<resNFe><chNFe>${OTHER_ACCESS_KEY}</chNFe></resNFe>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037716',
+    })
+
+    expect(harness.storedLookups).toHaveLength(1)
+    expect([...(harness.storedLookups[0] ?? [])].sort()).toEqual(
+      [ACCESS_KEY, OTHER_ACCESS_KEY].sort(),
+    )
   })
 
   test('still fails the page when the error is not an unsupported document', async () => {
