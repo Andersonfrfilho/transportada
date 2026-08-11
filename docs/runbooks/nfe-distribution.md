@@ -23,14 +23,14 @@ com 0 notas. **A ausência de erro visível é parte do sintoma.**
 
 ## 2. Sintomas
 
-| O que se vê | Onde |
-|---|---|
-| `ult_nsu` congelado entre ciclos | `nfe_distribution_cursors` |
-| Importações fechando com 0 notas recebidas | Importações → Remota |
-| “A SEFAZ ainda está em intervalo obrigatório entre consultas” em todo ciclo | Importações → Remota |
-| `next_allowed_at` sempre ~1h à frente de *agora*, nunca do ciclo anterior | cursor |
-| `nfe_distribution_item_skipped` em massa | log do worker |
-| Lotes presos em `NA FILA` | Importações → Remota |
+| O que se vê                                                                 | Onde                       |
+| --------------------------------------------------------------------------- | -------------------------- |
+| `ult_nsu` congelado entre ciclos                                            | `nfe_distribution_cursors` |
+| Importações fechando com 0 notas recebidas                                  | Importações → Remota       |
+| “A SEFAZ ainda está em intervalo obrigatório entre consultas” em todo ciclo | Importações → Remota       |
+| `next_allowed_at` sempre ~1h à frente de _agora_, nunca do ciclo anterior   | cursor                     |
+| `nfe_distribution_item_skipped` em massa                                    | log do worker              |
+| Lotes presos em `NA FILA`                                                   | Importações → Remota       |
 
 ## 3. Diagnóstico, nesta ordem
 
@@ -55,11 +55,11 @@ railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hq
 > Só há caminho interno para o Postgres de produção (`postgres-hqfu.railway.internal`); não existe
 > `DATABASE_PUBLIC_URL` e não deve existir.
 
-**O `/**/` não é enfeite.** `railway ssh` reparte os argumentos por espaço em branco antes de montar
-a linha remota, então uma SQL com espaços chega ao container despedaçada — `psql` roda sem `-c`,
-abre sessão interativa sem tty e sai **em silêncio, com status 0**. Foi isso que produziu, por horas,
-respostas vazias que pareciam consulta sem resultado. `/**/` é comentário vazio: separa os tokens
-para o Postgres sem existir para o shell.
+O comentário vazio no lugar dos espaços não é enfeite. O `railway ssh` reparte os argumentos por
+espaço em branco antes de montar a linha remota, então uma SQL com espaços chega ao container
+despedaçada — o `psql` roda sem `-c`, abre sessão interativa sem tty e sai **em silêncio, com
+status 0**. Foi isso que produziu, por horas, respostas vazias que pareciam consulta sem resultado.
+Um comentário SQL vazio separa os tokens para o Postgres sem existir para o shell.
 
 Envolver a mesma coisa em `bash -lc` não resolve — piora, porque aí nem o stderr volta.
 
@@ -92,7 +92,7 @@ Todos os três produziam o laço do §1. Cada correção só revelou a seguinte.
 
 ### 4.1 `cStat 656` chegava como erro
 
-O 656 é *desfecho*, não falha: grava a janela, finaliza a importação e dá `ack`. Enquanto ele
+O 656 é _desfecho_, não falha: grava a janela, finaliza a importação e dá `ack`. Enquanto ele
 lançava, o retry reentregava em segundos e cada tentativa era uma consulta nova ao mesmo CNPJ.
 Reconhecimento em `nfe-distribution/domain/sefaz-rate-limit.policy.ts`.
 
