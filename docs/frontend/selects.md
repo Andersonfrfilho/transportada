@@ -48,6 +48,36 @@ Para exibir texto o componente **não** traduz nada: monte `options` já com o l
 `SelectOption` é exportado junto e deve ser o tipo usado para listas de opções, em vez de tipos
 locais por módulo.
 
+## Busca
+
+A busca **não se pede por prop: ela aparece sozinha** quando a lista passa de
+`SELECT_SEARCH_THRESHOLD` opções (`src/components/ui/select.service.ts`). Decidir por contagem é o
+que faz um select novo já nascer buscável — nenhum call site precisa lembrar, e uma lista que hoje
+tem três itens e amanhã tem quarenta ganha o campo no dia em que passa a precisar dele.
+
+Abaixo do limiar nada muda: um filtro de três status continua sendo uma lista limpa, sem um campo
+de busca roubando espaço.
+
+O casamento ignora acento e caixa (`sao` acha `São Paulo`), pelo mesmo `filterSearchableOptions` que
+o `searchable-select` usa — um matcher só para o produto inteiro. A busca é fixa no topo do painel;
+rolar é papel só da lista.
+
+| Prop                | Efeito                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `searchPlaceholder` | texto do campo de busca e seu rótulo acessível; sem ele, cai no `ariaLabel`           |
+| `emptyLabel`        | mensagem quando nada casa com o texto digitado; sem ele, o painel fica só com a busca |
+
+As duas são opcionais **de propósito**: o design system não inventa texto em português, porque o
+produto é bilíngue e todo texto vem de `*.locale.json`. Passe as duas em qualquer select cuja lista
+possa crescer.
+
+Teclado dentro da busca: `ArrowDown`/`ArrowUp` movem a opção ativa, `Enter` confirma, `Escape` e
+`Tab` fecham. O painel vive em `document.body`, então a tecla digitada na busca **não** sobe até o
+`onKeyDown` da raiz — por isso o campo tem o seu próprio manipulador.
+
+`SearchableSelect` continua existindo para o caso que este não cobre: aceitar um valor **fora do
+catálogo** (`resolveCustomOption`), como o banco digitado à mão nas configurações de cobrança.
+
 ## Acessibilidade e teclado
 
 O gatilho é um `<button type="button">` com `aria-haspopup="listbox"`, `aria-expanded` e

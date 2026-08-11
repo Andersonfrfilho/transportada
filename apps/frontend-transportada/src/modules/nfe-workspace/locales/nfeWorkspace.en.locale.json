@@ -153,6 +153,8 @@
     "errorAlreadyLinked": "One or more notes already belong to another CT-e. The projection was recalculated — review it before creating the batch."
   },
   "filters": {
+    "search": "Search",
+    "searchEmpty": "No results",
     "cteIssuedPending": "Without issued CT-e",
     "cteIssuedIssued": "With issued CT-e"
   }

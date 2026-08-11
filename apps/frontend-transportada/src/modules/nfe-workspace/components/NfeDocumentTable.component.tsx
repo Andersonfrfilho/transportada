@@ -546,9 +546,11 @@ export function NfeDocumentTable({
                 <Select
                   ariaLabel={t('documents.fields.emitterCity')}
                   clearable
+                  emptyLabel={t('filters.searchEmpty')}
                   onChange={(value) => table.setSelectFilter('emitterCity', value)}
                   options={toOptions(table.cityOptions.emitterCity)}
                   placeholder={t('filters.all')}
+                  searchPlaceholder={t('filters.search')}
                   value={table.filters.select.emitterCity}
                 />
               </div>
@@ -560,9 +562,11 @@ export function NfeDocumentTable({
                 <Select
                   ariaLabel={t('documents.fields.emitterState')}
                   clearable
+                  emptyLabel={t('filters.searchEmpty')}
                   onChange={(value) => table.setSelectFilter('emitterState', value)}
                   options={toOptions(table.stateOptions.emitterState)}
                   placeholder={t('filters.all')}
+                  searchPlaceholder={t('filters.search')}
                   value={table.filters.select.emitterState}
                 />
               </div>
@@ -600,9 +604,11 @@ export function NfeDocumentTable({
                 <Select
                   ariaLabel={t('documents.fields.recipientCity')}
                   clearable
+                  emptyLabel={t('filters.searchEmpty')}
                   onChange={(value) => table.setSelectFilter('recipientCity', value)}
                   options={toOptions(table.cityOptions.recipientCity)}
                   placeholder={t('filters.all')}
+                  searchPlaceholder={t('filters.search')}
                   value={table.filters.select.recipientCity}
                 />
               </div>
@@ -614,9 +620,11 @@ export function NfeDocumentTable({
                 <Select
                   ariaLabel={t('documents.fields.recipientState')}
                   clearable
+                  emptyLabel={t('filters.searchEmpty')}
                   onChange={(value) => table.setSelectFilter('recipientState', value)}
                   options={toOptions(table.stateOptions.recipientState)}
                   placeholder={t('filters.all')}
+                  searchPlaceholder={t('filters.search')}
                   value={table.filters.select.recipientState}
                 />
               </div>

@@ -74,6 +74,8 @@
     "toggle": "Filtros",
     "toggleClose": "Ocultar filtros",
     "all": "Todos",
+    "search": "Buscar",
+    "searchEmpty": "Nenhum resultado",
     "cteIssuedPending": "Sem CT-e emitido",
     "cteIssuedIssued": "Com CT-e emitido",
     "distribution": "Distribuição",
