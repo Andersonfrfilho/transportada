@@ -170,7 +170,9 @@ describe('NF-e distribution cursor recovery contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* noop */
+        },
         async persistPage() {
           return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
         },
@@ -214,7 +216,9 @@ describe('NF-e distribution cursor recovery contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* noop */
+        },
         async persistPage() {
           throw new Error('No documents should be persisted on an empty page')
         },
