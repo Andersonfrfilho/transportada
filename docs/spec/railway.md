@@ -154,17 +154,29 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 
 `.github/workflows/deploy.yml`:
 
-1. `push` em `staging` → staging; `push` em `main` → production;
+1. Pull request mirando `staging` → staging; `push` em `main` → production;
    `workflow_dispatch` escolhe o ambiente. Branch sem ambiente não dispara o
    workflow, e se disparar por engano o job `target` falha em vez de assumir
    staging — `develop` é branch de trabalho, não de publicação.
-2. O job `gate` chama `.github/workflows/ci.yml` inteiro (format, lint,
+   Staging publica o código **proposto**, antes do merge: é o que o PR está
+   pedindo para promover. `push` em `staging` não dispara nada, porque depois do
+   squash-merge para `main` o back-merge de `main` em `staging` não traz
+   conteúdo novo — rodava o gate inteiro e os cinco deploys para não mudar um
+   arquivo. Dois PRs abertos ao mesmo tempo disputam o mesmo staging; abra um
+   por vez.
+2. O PR `staging → main` roda o workflow **sem publicar**: os jobs `target` e
+   `deploy` ficam de fora por `github.base_ref`, e sobra o `gate`. Não é
+   cerimônia — a proteção da `main` exige os contextos `gate / quality` e
+   `gate / integration`, e eles só existem se este workflow rodar no commit do
+   PR. Antes eles vinham do deploy do push em `staging`; sem aquele run, o PR de
+   release ficaria bloqueado para sempre.
+3. O job `gate` chama `.github/workflows/ci.yml` inteiro (format, lint,
    typecheck, test, build, migration-test, integração e smoke). Nenhum deploy
-   começa antes dele passar. Por isso `ci.yml` não dispara mais em `push`:
-   rodaria a mesma suíte duas vezes no mesmo commit.
-3. O job `deploy` usa o GitHub Environment homônimo — é ali que production
+   começa antes dele passar. Por isso `ci.yml` **não tem gatilho próprio**:
+   um `pull_request` nele rodaria a mesma suíte duas vezes no mesmo commit.
+4. O job `deploy` usa o GitHub Environment homônimo — é ali que production
    ganha _required reviewers_ e a aprovação humana acontece.
-4. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
+5. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
    cron → transportada-frontend.
 
 `railway up --ci` sai quando o build termina, não quando o release sobe; por
