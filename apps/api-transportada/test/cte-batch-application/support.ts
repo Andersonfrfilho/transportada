@@ -38,6 +38,7 @@ export const BATCH_NAME = 'Lote CT-e julho'
 export type CteBatchStatus = 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
 
 export type CteBatchUseCaseContract = {
+  readonly appendItems: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   readonly cancel: (input: Record<string, unknown>) => Promise<unknown>
   readonly create: (input: Record<string, unknown>) => Promise<unknown>
   readonly get: (input: Record<string, unknown>) => Promise<unknown>

@@ -47,35 +47,28 @@ export type CteEmissionProgress = Readonly<{
 /**
  * `per_invoice` trata cada nota isoladamente, então fatiar não muda nenhum CT-e. Já
  * `sender_recipient` agrupa notas do mesmo par remetente/destinatário no mesmo CT-e — uma fatia que
- * caísse no meio de um par emitiria dois CT-es onde a regra pede um, e isso é erro fiscal. Por isso
- * esse modo sai numa fatia só, e o teto por requisição continua valendo para ele.
+ * caísse no meio de um par emitiria dois CT-es onde a regra pede um, e isso é erro fiscal. Com o
+ * par de cada nota em mãos a fatia respeita o par inteiro, e um par maior que a fatia sai sozinho e
+ * maior; sem esse mapa não há como provar o corte, e a seleção vai numa requisição só.
  */
 export function chunkEmissionSelection(
   input: Readonly<{
     documentIds: readonly string[]
+    groupKeyByDocumentId?: ReadonlyMap<string, string>
     groupingMode: CteEmissionGroupingMode
     size?: number
   }>,
 ): readonly CteEmissionChunk[] {
   const documentIds = [...new Set(input.documentIds)]
   if (documentIds.length === 0) return []
-  if (input.groupingMode === 'sender_recipient') return [{ documentIds, index: 0 }]
 
   const size = Math.max(1, input.size ?? CTE_EMISSION_CHUNK_SIZE)
-  const chunks: CteEmissionChunk[] = []
-  for (let offset = 0; offset < documentIds.length; offset += size) {
-    chunks.push({ documentIds: documentIds.slice(offset, offset + size), index: chunks.length })
-  }
+  if (input.groupingMode !== 'sender_recipient') return sliceBySize({ documentIds, size })
 
-  return chunks
-}
+  const groups = groupByPair({ documentIds, groupKeyByDocumentId: input.groupKeyByDocumentId })
+  if (groups === null) return [{ documentIds, index: 0 }]
 
-/** Nome do lote por fatia — sem sufixo quando a seleção coube numa só, para não poluir a tela. */
-export function buildChunkBatchName(
-  input: Readonly<{ index: number; name: string; total: number }>,
-): string {
-  if (input.total <= 1) return input.name
-  return `${input.name} (${input.index + 1}/${input.total})`
+  return packGroups({ groups, size })
 }
 
 /**
@@ -161,4 +154,55 @@ export function mergeEmissionPreviews(
 
 export function readErrorCode(error: unknown): null | string {
   return error instanceof Error ? error.message : null
+}
+
+function sliceBySize(
+  input: Readonly<{ documentIds: readonly string[]; size: number }>,
+): readonly CteEmissionChunk[] {
+  const chunks: CteEmissionChunk[] = []
+  for (let offset = 0; offset < input.documentIds.length; offset += input.size) {
+    chunks.push({
+      documentIds: input.documentIds.slice(offset, offset + input.size),
+      index: chunks.length,
+    })
+  }
+
+  return chunks
+}
+
+/** `null` quando alguma nota selecionada não está no mapa: sem o par dela, fatiar é adivinhação. */
+function groupByPair(
+  input: Readonly<{
+    documentIds: readonly string[]
+    groupKeyByDocumentId: ReadonlyMap<string, string> | undefined
+  }>,
+): readonly (readonly string[])[] | null {
+  if (input.groupKeyByDocumentId === undefined) return null
+
+  const groups = new Map<string, string[]>()
+  for (const documentId of input.documentIds) {
+    const groupKey = input.groupKeyByDocumentId.get(documentId)
+    if (groupKey === undefined) return null
+    groups.set(groupKey, [...(groups.get(groupKey) ?? []), documentId])
+  }
+
+  return [...groups.values()]
+}
+
+function packGroups(
+  input: Readonly<{ groups: readonly (readonly string[])[]; size: number }>,
+): readonly CteEmissionChunk[] {
+  const chunks: CteEmissionChunk[] = []
+  let current: string[] = []
+
+  for (const group of input.groups) {
+    if (current.length > 0 && current.length + group.length > input.size) {
+      chunks.push({ documentIds: current, index: chunks.length })
+      current = []
+    }
+    current.push(...group)
+  }
+  if (current.length > 0) chunks.push({ documentIds: current, index: chunks.length })
+
+  return chunks
 }

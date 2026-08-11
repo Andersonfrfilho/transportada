@@ -11,7 +11,7 @@ import type {
 } from '../domain/cte-batch-projection.service.js'
 import { createInvalidStateError } from '../domain/cte-batch.error.js'
 import { getRequiredString } from './cte-batch-record.service.js'
-import type { CreateCteBatchInput, CteBatchUnitOfWorkPort } from './cte-batch.port.js'
+import type { CteBatchUnitOfWorkPort, CteBatchWriteInput } from './cte-batch.port.js'
 
 const FREIGHT_CALCULATION_STATUS = 'snapshotted'
 const FREIGHT_IDEMPOTENCY_PREFIX = 'cte-batch'
@@ -30,7 +30,7 @@ export async function persistFreightCalculations({
 }: {
   readonly candidates: readonly CteBatchProjectionCandidate[]
   readonly fingerprint: string
-  readonly input: CreateCteBatchInput
+  readonly input: CteBatchWriteInput
   readonly transaction: CteBatchUnitOfWorkPort
 }): Promise<FreightCalculationIndex> {
   const calculationIdByDocumentId = new Map<string, string>()
@@ -45,20 +45,23 @@ export async function persistFreightCalculations({
   return calculationIdByDocumentId
 }
 
+/** `positionOffset` é a contagem que o lote já tem: a fatia seguinte continua a numeração. */
 export async function persistProjections({
   batchId,
   calculationIdByDocumentId,
   companyId,
+  positionOffset = 0,
   projections,
   transaction,
 }: {
   readonly batchId: string
   readonly calculationIdByDocumentId: FreightCalculationIndex
   readonly companyId: string
+  readonly positionOffset?: number
   readonly projections: readonly CteBatchProjection[]
   readonly transaction: CteBatchUnitOfWorkPort
 }): Promise<void> {
-  let position = 0
+  let position = positionOffset
   for (const projection of projections) {
     position += 1
     // sequencial de propósito: a ordem de inserção define a posição do item no lote
@@ -149,7 +152,7 @@ function buildFreightCalculation({
 }: {
   readonly candidate: CteBatchProjectionCandidate
   readonly fingerprint: string
-  readonly input: CreateCteBatchInput
+  readonly input: CteBatchWriteInput
 }): Record<string, unknown> {
   const documentId = candidate.document.documentId
   const calculation = calculatePercentageFreight({

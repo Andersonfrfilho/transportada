@@ -4,7 +4,6 @@ import { describe, expect, test } from 'bun:test'
 import {
   AUTOMATIC_PROFILE_ID,
   CTE_EMISSION_GROUPING_MODES,
-  CTE_EMISSION_MAX_DOCUMENTS,
   CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
@@ -14,7 +13,6 @@ import {
   defaultBatchName,
   groupBlocksByReason,
   isEmissionFormLocked,
-  isSelectionOverLimit,
   resolveBatchName,
   resolveEmissionStatus,
   selectEmissionMessageKey,
@@ -264,66 +262,61 @@ describe('CT-e emission dialog confirmation contract', () => {
   })
 })
 
-describe('CT-e emission selection ceiling contract', () => {
-  /**
-   * A tabela de notas pagina até 1000 e a API recusa acima de `CTE_EMISSION_MAX_DOCUMENTS`. Mandar
-   * a seleção grande assim mesmo devolvia 400 e o diálogo dizia "tente novamente" — repetir não
-   * resolve, e o operador não descobria o motivo.
-   */
-  test('names the ceiling before the request instead of turning it into a generic failure', () => {
+/**
+ * O teto é por requisição e é assunto do sistema, não do operador: ele seleciona quantas notas
+ * quiser e recebe **um lote só**. A seleção é fatiada por baixo, a primeira fatia cria o lote e as
+ * demais acrescentam itens nele.
+ */
+describe('CT-e emission invisible slicing contract', () => {
+  test('never tells the operator about a selection ceiling', async () => {
+    const [service, component, portuguese, english] = await Promise.all([
+      readModule('src/modules/nfe-workspace/shared/cteEmission.service.ts'),
+      readModule('src/modules/nfe-workspace/components/CteEmissionDialog.component.tsx'),
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
+    ])
+
+    for (const source of [service, component, portuguese, english]) {
+      expect(source).not.toContain('overLimit')
+    }
+    expect(component).not.toContain('documentLimit')
+  })
+
+  test('keeps the status free of a ceiling state', () => {
     const base = {
       hasPreview: true,
       isCreateError: false,
       isCreating: false,
-      isOverLimit: false,
       isPreviewError: false,
       isPreviewFetching: false,
     }
 
     expect(resolveEmissionStatus(base)).toBe('ready')
-    expect(resolveEmissionStatus({ ...base, isOverLimit: true })).toBe('overLimit')
-    expect(resolveEmissionStatus({ ...base, isOverLimit: true, isPreviewFetching: true })).toBe(
-      'overLimit',
-    )
-    expect(selectEmissionMessageKey({ errorCode: null, status: 'overLimit' })).toBe(
-      'cteEmission.errorOverLimit',
-    )
+    expect(canConfirmEmission({ preview: PREVIEW, status: 'ready' })).toBe(true)
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'ready' })).toBeNull()
   })
 
-  test('blocks the confirmation while the selection is over the ceiling', () => {
-    expect(canConfirmEmission({ preview: PREVIEW, status: 'overLimit' })).toBe(false)
-    expect(
-      isSelectionOverLimit({
-        count: CTE_EMISSION_MAX_DOCUMENTS,
-        groupingMode: 'sender_recipient',
-      }),
-    ).toBe(false)
-    expect(
-      isSelectionOverLimit({
-        count: CTE_EMISSION_MAX_DOCUMENTS + 1,
-        groupingMode: 'sender_recipient',
-      }),
-    ).toBe(true)
-  })
-
-  /**
-   * O teto é por requisição, e `per_invoice` é fatiado pela fila de emissão: barrar a seleção aqui
-   * devolveria ao operador um limite que não existe mais.
-   */
-  test('does not treat a large per-invoice selection as over the ceiling', () => {
-    expect(
-      isSelectionOverLimit({
-        count: CTE_EMISSION_MAX_DOCUMENTS * 20,
-        groupingMode: 'per_invoice',
-      }),
-    ).toBe(false)
-  })
-
-  test('does not spend a request the server will refuse', async () => {
+  /** Fatias em paralelo só disputariam a trava da linha do lote; a criação é que abre o rascunho. */
+  test('creates the first slice and appends the remaining ones to the same batch, in order', async () => {
     const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
 
-    expect(hook).toContain('isOverLimit')
-    expect(hook).toMatch(/enabled:[^\n]*!isOverLimit/)
+    expect(hook).toContain('appendBatchItems')
+    expect(hook).toContain('createBatch')
+    expect(hook).not.toContain('buildChunkBatchName')
+    expect(hook).toMatch(/concurrency: 1/)
+  })
+
+  /** Fatiar `sender_recipient` sem o par de cada nota separaria um par em dois CT-es. */
+  test('hands the pair of every selected note to the slicer', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+    const table = await readModule(
+      'src/modules/nfe-workspace/components/NfeDocumentTable.component.tsx',
+    )
+
+    expect(hook).toContain('groupKeyByDocumentId')
+    expect(table).toContain('groupKeyByDocumentId')
+    expect(table).toContain('emitterTaxId')
+    expect(table).toContain('recipientTaxId')
   })
 })
 
@@ -333,7 +326,6 @@ describe('CT-e emission dialog failure contract', () => {
       hasPreview: true,
       isCreateError: false,
       isCreating: false,
-      isOverLimit: false,
       isPreviewError: false,
       isPreviewFetching: false,
     }

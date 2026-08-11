@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
@@ -154,9 +154,22 @@ export function NfeDocumentTable({
     viewKey: VIEW_PREFERENCES_KEY,
   })
   const table = useNfeDocumentTable({ documents, preferences: viewPreferences, statusLabels })
+  // O par remetente/destinatário decide quais notas caem no mesmo CT-e agrupado — é o que a fila de
+  // emissão precisa saber para fatiar a seleção sem partir um par entre duas requisições.
+  const groupKeyByDocumentId = useMemo(
+    () =>
+      new Map(
+        documents.map((document) => [
+          document.id,
+          `${document.emitterTaxId}|${document.recipientTaxId}`,
+        ]),
+      ),
+    [documents],
+  )
   const cteEmission = useCteEmissionDialog({
     ...(companyId === undefined ? {} : { companyId }),
     documentIds: [...table.selectedIds],
+    groupKeyByDocumentId,
     onEmitted: table.clearSelection,
     permissions,
   })
@@ -389,7 +402,8 @@ export function NfeDocumentTable({
             </div>
           )}
         </div>
-        {table.hasActiveFilters && (
+        {/* Com pílula na tela o "limpar tudo" já está lá embaixo: o ícone só cobre busca e ordenação. */}
+        {pills.length === 0 && table.hasActiveFilters && (
           <button
             aria-label={t('documents.clearAll')}
             className={styles.iconAction}

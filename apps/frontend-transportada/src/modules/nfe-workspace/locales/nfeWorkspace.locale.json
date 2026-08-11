@@ -305,14 +305,13 @@
       "CTE_PROFILE_RULE_NOT_IN_FORCE": "Sem regra de frete vigente",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Somente resumo, sem XML completo"
     },
-    "projecting": "Projetando {{completed}} de {{total}} blocos...",
-    "emitting": "Criando {{completed}} de {{total}} lotes...",
-    "progressCreate": "Progresso da criação dos lotes",
+    "projecting": "Calculando a projeção... {{percent}}%",
+    "emitting": "Criando o lote... {{percent}}%",
+    "progressCreate": "Progresso da criação do lote",
     "progressPreview": "Progresso da projeção",
     "moreRows": "e mais {{count}} CT-e projetado, não listado aqui",
     "moreRows_other": "e mais {{count}} CT-es projetados, não listados aqui",
     "errorPreview": "Não foi possível calcular a projeção. Tente novamente.",
-    "errorOverLimit": "O agrupamento por remetente e destinatário precisa enxergar todas as notas juntas, então ele vai numa requisição só: no máximo {{max}} notas, e você selecionou {{selected}}. Reduza a seleção ou troque para um CT-e por nota, que não tem teto.",
     "errorNameTaken": "Já existe um lote com esse nome. Escolha outro nome para criar o lote.",
     "errorCreate": "Não foi possível criar o lote. Tente novamente.",
     "errorAlreadyLinked": "Uma ou mais notas já entraram em outro CT-e. A projeção foi recalculada — confira antes de criar o lote."

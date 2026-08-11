@@ -3,7 +3,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { SQL } from 'drizzle-orm'
-import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
 
 import {
   CTE_BATCH_ITEM_CHARGE_CALCULATIONS,
@@ -426,12 +426,13 @@ class DrizzleCteBatchTransaction {
     return mapBatch(record, await this.countItems(record.companyId, record.id))
   }
 
+  /** Conta no banco: a fatia seguinte de uma seleção grande lê esta contagem a cada requisição. */
   private async countItems(companyId: string, batchId: string): Promise<number> {
-    const rows = await this.database
-      .select({ id: cteBatchItems.id })
+    const [row] = await this.database
+      .select({ total: count() })
       .from(cteBatchItems)
       .where(and(eq(cteBatchItems.companyId, companyId), eq(cteBatchItems.batchId, batchId)))
-    return rows.length
+    return row?.total ?? 0
   }
 }
 

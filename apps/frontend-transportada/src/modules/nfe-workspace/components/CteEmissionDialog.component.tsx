@@ -156,10 +156,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             completed={dialog.previewProgress.completed}
             label={t('cteEmission.progressPreview')}
             total={dialog.previewProgress.total}
-            valueText={t('cteEmission.projecting', {
-              completed: dialog.previewProgress.completed,
-              total: dialog.previewProgress.total,
-            })}
+            valueText={t('cteEmission.projecting', { percent: dialog.previewProgress.percent })}
           />
         )}
         {dialog.status === 'creating' && (
@@ -167,10 +164,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             completed={dialog.createProgress.completed}
             label={t('cteEmission.progressCreate')}
             total={dialog.createProgress.total}
-            valueText={t('cteEmission.emitting', {
-              completed: dialog.createProgress.completed,
-              total: dialog.createProgress.total,
-            })}
+            valueText={t('cteEmission.emitting', { percent: dialog.createProgress.percent })}
           />
         )}
         {dialog.status === 'loading' && (
@@ -214,7 +208,7 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
         )}
         {messageKey !== null && (
           <p className={styles.emptyState} role="alert">
-            {t(messageKey, { max: dialog.documentLimit, selected: dialog.selectedCount })}
+            {t(messageKey, { selected: dialog.selectedCount })}
           </p>
         )}
 

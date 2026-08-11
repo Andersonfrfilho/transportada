@@ -8,7 +8,6 @@ import { useCteProfiles } from '@/modules/cte-profiles/hooks/useCteProfiles.hook
 
 import {
   AUTOMATIC_PROFILE_ID,
-  CTE_EMISSION_MAX_DOCUMENTS,
   CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
@@ -18,7 +17,6 @@ import {
   defaultBatchName,
   groupBlocksByReason,
   isEmissionFormLocked,
-  isSelectionOverLimit,
   resolveBatchName,
   resolveEmissionStatus,
   shouldRefreshPreviewAfterFailure,
@@ -31,9 +29,7 @@ import {
   type CteEmissionSummary,
 } from '../shared/cteEmission.service'
 import {
-  buildChunkBatchName,
   chunkEmissionSelection,
-  CTE_EMISSION_CREATE_CONCURRENCY,
   CTE_EMISSION_MAX_VISIBLE_ROWS,
   CTE_EMISSION_PREVIEW_CONCURRENCY,
   mergeEmissionPreviews,
@@ -57,6 +53,8 @@ export type CteEmissionProfileOption = Readonly<{ id: string; name: string }>
 type UseCteEmissionDialogParams = Readonly<{
   companyId?: string
   documentIds: readonly string[]
+  /** Par remetente/destinatário de cada nota: é o que permite fatiar sem partir um CT-e agrupado. */
+  groupKeyByDocumentId: ReadonlyMap<string, string>
   onEmitted: () => void
   permissions: readonly string[]
 }>
@@ -68,7 +66,6 @@ export type UseCteEmissionDialogResult = Readonly<{
   canManageProfiles: boolean
   chunkCount: number
   createProgress: CteEmissionProgress
-  documentLimit: number
   close: () => void
   confirm: () => void
   createdBatch: CteBatchSummary | null
@@ -126,10 +123,15 @@ export function useCteEmissionDialog(
     permissions,
   })
   const selection = { documentIds: input.documentIds, emissionProfileId: profileId, groupingMode }
-  const isOverLimit = isSelectionOverLimit({ count: input.documentIds.length, groupingMode })
+  const groupKeyByDocumentId = input.groupKeyByDocumentId
   const chunks = useMemo(
-    () => chunkEmissionSelection({ documentIds: input.documentIds, groupingMode }),
-    [input.documentIds, groupingMode],
+    () =>
+      chunkEmissionSelection({
+        documentIds: input.documentIds,
+        groupKeyByDocumentId,
+        groupingMode,
+      }),
+    [input.documentIds, groupKeyByDocumentId, groupingMode],
   )
 
   function forgetPreviews(): void {
@@ -143,7 +145,7 @@ export function useCteEmissionDialog(
   // A projeção da seleção inteira sai numa fatia por requisição, em paralelo limitado: o progresso
   // anda a cada fatia que volta, em vez da tela ficar parada até a última.
   const previewQuery = useQuery({
-    enabled: isOpen && canEmit && chunks.length > 0 && !isOverLimit,
+    enabled: isOpen && canEmit && chunks.length > 0,
     queryFn: async () => {
       setPreviewProgressEvent({ completed: 0, errorCount: 0, total: chunks.length })
       const results = await runEmissionQueue({
@@ -165,26 +167,39 @@ export function useCteEmissionDialog(
     },
     queryKey: buildPreviewQueryKey({ ...selection, companyId: input.companyId }),
   })
+  // O operador escolheu um lote e é um lote que ele recebe: a seleção é fatiada só porque o corpo da
+  // requisição tem teto — a primeira fatia cria o rascunho e as demais acrescentam itens nele.
   const createMutation = useMutation({
     mutationFn: async (documentIds: readonly string[]) => {
-      const createChunks = chunkEmissionSelection({ documentIds, groupingMode })
+      const createChunks = chunkEmissionSelection({
+        documentIds,
+        groupKeyByDocumentId,
+        groupingMode,
+      })
+      const [firstChunk, ...remainingChunks] = createChunks
+      if (firstChunk === undefined) throw new Error(REQUEST_FAILED_CODE)
+
       setCreateProgressEvent({ completed: 0, errorCount: 0, total: createChunks.length })
+      const batch = await client.createBatch(
+        buildCreateRequest({ ...selection, documentIds: firstChunk.documentIds, name }),
+      )
+      setCreateProgressEvent({ completed: 1, errorCount: 0, total: createChunks.length })
+
+      // Fatias concorrentes disputariam a trava da linha do lote: em série, sem fila desperdiçada.
       const results = await runEmissionQueue({
-        chunks: createChunks,
-        concurrency: CTE_EMISSION_CREATE_CONCURRENCY,
-        onProgress: setCreateProgressEvent,
+        chunks: remainingChunks,
+        concurrency: 1,
+        onProgress: (event) =>
+          setCreateProgressEvent({
+            ...event,
+            completed: event.completed + 1,
+            total: createChunks.length,
+          }),
         run: (chunk) =>
-          client.createBatch(
-            buildCreateRequest({
-              ...selection,
-              documentIds: chunk.documentIds,
-              name: buildChunkBatchName({
-                index: chunk.index,
-                name,
-                total: createChunks.length,
-              }),
-            }),
-          ),
+          client.appendBatchItems({
+            batchId: batch.id,
+            ...buildPreviewRequest({ ...selection, documentIds: chunk.documentIds }),
+          }),
       })
       // Uma fatia que falhou não desfaz as que gravaram: os caches são refeitos de qualquer jeito.
       forgetPreviews()
@@ -192,13 +207,13 @@ export function useCteEmissionDialog(
       const failure = firstErrorCode(results)
       if (failure !== null) throw new Error(failure === '' ? REQUEST_FAILED_CODE : failure)
 
-      return results.flatMap((result) => (result.value === null ? [] : [result.value]))
+      return results.at(-1)?.value ?? batch
     },
     onError: (error) => {
       if (shouldRefreshPreviewAfterFailure(readErrorCode(error))) forgetPreviews()
     },
-    onSuccess: (batches) => {
-      setCreatedBatch(batches.at(-1) ?? null)
+    onSuccess: (batch) => {
+      setCreatedBatch(batch)
       setIsOpen(false)
       input.onEmitted()
     },
@@ -215,7 +230,6 @@ export function useCteEmissionDialog(
     hasPreview: preview !== null,
     isCreateError: createMutation.isError,
     isCreating: createMutation.isPending,
-    isOverLimit,
     isPreviewError: previewQuery.isError,
     isPreviewFetching: previewQuery.isFetching,
   })
@@ -258,7 +272,6 @@ export function useCteEmissionDialog(
     confirm,
     createdBatch,
     createProgress: resolveEmissionProgress(createProgressEvent),
-    documentLimit: CTE_EMISSION_MAX_DOCUMENTS,
     errorCode: readErrorCode(previewQuery.error ?? createMutation.error),
     groupingMode,
     hiddenRowCount: Math.max(0, rows.length - CTE_EMISSION_MAX_VISIBLE_ROWS),

@@ -77,7 +77,10 @@ type ClientDependencies = Readonly<{
   newSubmitIdempotencyKey: () => string
 }>
 
+export type CteBatchAppendItems = CteBatchPreviewRequest & Readonly<{ batchId: string }>
+
 export type CteBatchClient = Readonly<{
+  appendBatchItems: (input: CteBatchAppendItems) => Promise<CteBatchSummary>
   cancelBatch: (batchId: string) => Promise<CteBatchSummary>
   createBatch: (input: CteBatchCreate) => Promise<CteBatchSummary>
   getBatch: (batchId: string) => Promise<CteBatchSummary>
@@ -233,6 +236,21 @@ export const createCteBatchClient: CteBatchClientFactory = (dependencies) => {
   const previewFromApi = createCteBatchPreviewAdapter()
 
   return {
+    /** Fatia seguinte de uma seleção grande: o lote é o mesmo, só ganha itens. */
+    async appendBatchItems({ batchId, ...request }) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(cleanPreviewBatch(request)),
+        dependencies,
+        idempotencyKey: dependencies.newIdempotencyKey(),
+        method: 'POST',
+        path: `/cte-batches/${batchId}/items`,
+      })
+      try {
+        return adapters.batchFromApi(readEnvelopeData(response))
+      } catch {
+        throw requestError('CTE_BATCH_RESPONSE_INVALID')
+      }
+    },
     async cancelBatch(batchId) {
       const response = await authorizedRequest({
         body: JSON.stringify({}),

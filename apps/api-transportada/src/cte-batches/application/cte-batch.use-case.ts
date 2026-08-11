@@ -7,9 +7,11 @@ import {
   createItemNotFoundError,
   createNotFoundError,
 } from '../domain/cte-batch.error.js'
+import { appendCteBatchItems } from './append-cte-batch-items.service.js'
 import type { CteEmissionProfileCatalogPort } from './cte-batch-preview.port.js'
 import { getRequiredRecord } from './cte-batch-record.service.js'
 import type {
+  AppendCteBatchItemsInput,
   CreateCteBatchInput,
   CteBatchContext,
   CteBatchFingerprintPort,
@@ -43,6 +45,7 @@ type Dependencies = {
 }
 
 export type {
+  AppendCteBatchItemsInput,
   CreateCteBatchInput,
   CteBatchLookupInput,
   RemoveCteBatchItemInput,
@@ -51,6 +54,7 @@ export type {
 }
 
 export function createCteBatchUseCase(dependencies: Dependencies): {
+  readonly appendItems: (input: AppendCteBatchItemsInput) => Promise<Record<string, unknown>>
   readonly cancel: (
     input: CteBatchLookupInput & { readonly correlationId: string },
   ) => Promise<Record<string, unknown>>
@@ -61,6 +65,7 @@ export function createCteBatchUseCase(dependencies: Dependencies): {
   readonly transition: (input: TransitionCteBatchInput) => Promise<Record<string, unknown>>
 } {
   return {
+    appendItems: (input) => appendCteBatchItems(dependencies, input),
     cancel: (input) => changeStatus(dependencies.unitOfWork, input, 'cancelled'),
     create: (input) => createCteBatch(dependencies, input),
     get: (input) => getBatch(dependencies.unitOfWork, input),

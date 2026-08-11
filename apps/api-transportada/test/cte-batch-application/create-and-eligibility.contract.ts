@@ -15,6 +15,7 @@ import {
   SECOND_CALCULATION_ID,
   SECOND_DOCUMENT_ID,
   SECOND_ITEM_ID,
+  THIRD_DOCUMENT_ID,
   captureApiError,
   createCteBatchUseCaseForTest,
   CteBatchFingerprintFixture,
@@ -23,6 +24,7 @@ import {
 } from './support.js'
 
 const BULK_DOCUMENT_COUNT = 250
+const APPEND_IDEMPOTENCY_KEY = 'cte-batch-append-idempotency-001'
 
 function registerBulkDocuments(unitOfWork: CteBatchUnitOfWorkFixture): readonly string[] {
   return Array.from({ length: BULK_DOCUMENT_COUNT }, (_unused, index) => {
@@ -187,6 +189,65 @@ describe('CT-e batch application create contract', () => {
         rate: '0.045000',
       },
     ])
+  })
+
+  test('appends a later slice to the same batch, continuing the item positions', async () => {
+    const unitOfWork = new CteBatchUnitOfWorkFixture()
+    unitOfWork.batch = { ...EXPECTED_BATCH_SUMMARY, itemCount: 2 }
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+
+    const result = await useCase.appendItems({
+      batchId: BATCH_ID,
+      companyId: 'attacker-company',
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      documentIds: [THIRD_DOCUMENT_ID],
+      idempotencyKey: APPEND_IDEMPOTENCY_KEY,
+    })
+
+    expect(result).toMatchObject({ id: BATCH_ID, itemCount: 3 })
+    expect(unitOfWork.createdBatches).toEqual([])
+    expect(unitOfWork.touchedBatches).toEqual([
+      {
+        batchId: BATCH_ID,
+        companyId: COMPANY_CONTEXT.companyId,
+        expectedStatus: 'draft',
+      },
+    ])
+    expect(unitOfWork.createdItems.map((item) => item['position'])).toEqual(['3'])
+    expect(unitOfWork.createdItems.map((item) => item['nfeDocumentId'])).toEqual([
+      THIRD_DOCUMENT_ID,
+    ])
+    expect(unitOfWork.createdEvents).toContainEqual({
+      batchId: BATCH_ID,
+      companyId: COMPANY_CONTEXT.companyId,
+      eventName: 'items_appended',
+      payload: {
+        documentIds: [THIRD_DOCUMENT_ID],
+        itemCount: 3,
+        status: 'draft',
+      },
+      userId: COMPANY_CONTEXT.userId,
+    })
+  })
+
+  test('refuses to append to a batch that already left the draft state', async () => {
+    const unitOfWork = new CteBatchUnitOfWorkFixture()
+    unitOfWork.batch = { ...EXPECTED_BATCH_SUMMARY, status: 'submitted' }
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+
+    const error = await captureApiError(() =>
+      useCase.appendItems({
+        batchId: BATCH_ID,
+        context: COMPANY_CONTEXT,
+        correlationId: CORRELATION_ID,
+        documentIds: [THIRD_DOCUMENT_ID],
+        idempotencyKey: APPEND_IDEMPOTENCY_KEY,
+      }),
+    )
+
+    expect(error).toMatchObject({ code: 'CTE_BATCH_INVALID_STATE', status: 409 })
+    expect(unitOfWork.createdItems).toEqual([])
   })
 
   test('replays matching create idempotency without creating another partial batch', async () => {

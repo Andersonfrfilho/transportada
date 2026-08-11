@@ -3,7 +3,6 @@ import { describe, expect, test } from 'bun:test'
 
 import type { CteEmissionPreview } from '../../src/modules/nfe-workspace/shared/cteEmission.service.js'
 import {
-  buildChunkBatchName,
   chunkEmissionSelection,
   CTE_EMISSION_CHUNK_SIZE,
   mergeEmissionPreviews,
@@ -72,14 +71,62 @@ describe('CT-e mass emission queue contract', () => {
     expect(chunks.map((chunk) => chunk.index)).toEqual(chunks.map((_unused, index) => index))
   })
 
-  test('never slices a sender/recipient selection, which would split a pair across CT-es', () => {
+  test('slices a sender/recipient selection without ever splitting a pair', () => {
+    const selection = documentIds(4501)
+    const groupKeyByDocumentId = new Map(
+      selection.map((documentId, index) => [documentId, `pair-${Math.floor(index / 3)}`]),
+    )
+
     const chunks = chunkEmissionSelection({
-      documentIds: documentIds(4501),
+      documentIds: selection,
+      groupKeyByDocumentId,
       groupingMode: 'sender_recipient',
+    })
+    const chunkIndexesByPair = new Map<string, Set<number>>()
+    for (const chunk of chunks) {
+      for (const documentId of chunk.documentIds) {
+        const pair = groupKeyByDocumentId.get(documentId) ?? ''
+        chunkIndexesByPair.set(pair, (chunkIndexesByPair.get(pair) ?? new Set()).add(chunk.index))
+      }
+    }
+
+    expect(chunks.flatMap((chunk) => chunk.documentIds)).toHaveLength(4501)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect([...chunkIndexesByPair.values()].every((indexes) => indexes.size === 1)).toBe(true)
+    expect(chunks.every((chunk) => chunk.documentIds.length <= CTE_EMISSION_CHUNK_SIZE)).toBe(true)
+  })
+
+  /** Fatiar por tamanho fixo cortaria o par no meio; o par manda, mesmo maior que a fatia. */
+  test('keeps a pair whole even when it alone outgrows the slice size', () => {
+    const chunks = chunkEmissionSelection({
+      documentIds: ['a', 'b', 'c', 'd', 'e'],
+      groupKeyByDocumentId: new Map([
+        ['a', 'pair-1'],
+        ['b', 'pair-1'],
+        ['c', 'pair-1'],
+        ['d', 'pair-2'],
+        ['e', 'pair-2'],
+      ]),
+      groupingMode: 'sender_recipient',
+      size: 2,
+    })
+
+    expect(chunks).toEqual([
+      { documentIds: ['a', 'b', 'c'], index: 0 },
+      { documentIds: ['d', 'e'], index: 1 },
+    ])
+  })
+
+  /** Sem o mapa de pares não dá para provar que a fatia não corta um par: vai tudo numa requisição. */
+  test('falls back to a single slice when the pairs of the selection are unknown', () => {
+    const chunks = chunkEmissionSelection({
+      documentIds: documentIds(450),
+      groupingMode: 'sender_recipient',
+      size: 100,
     })
 
     expect(chunks).toHaveLength(1)
-    expect(chunks[0]?.documentIds).toHaveLength(4501)
+    expect(chunks[0]?.documentIds).toHaveLength(450)
   })
 
   test('drops duplicates and returns nothing for an empty selection', () => {
@@ -91,11 +138,6 @@ describe('CT-e mass emission queue contract', () => {
       }),
     ).toEqual([{ documentIds: ['a', 'b'], index: 0 }])
     expect(chunkEmissionSelection({ documentIds: [], groupingMode: 'per_invoice' })).toEqual([])
-  })
-
-  test('names one batch per slice and leaves a single slice untouched', () => {
-    expect(buildChunkBatchName({ index: 0, name: 'Lote', total: 1 })).toBe('Lote')
-    expect(buildChunkBatchName({ index: 3, name: 'Lote', total: 12 })).toBe('Lote (4/12)')
   })
 
   test('runs slices with bounded concurrency and reports progress as each one lands', async () => {

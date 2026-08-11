@@ -63,14 +63,25 @@ export type CteBatchUnitOfWorkPort = {
   updateBatchStatus(input: Record<string, unknown>): Promise<Record<string, unknown>>
 }
 
-export type CreateCteBatchInput = {
+export type CteBatchWriteInput = {
   readonly context: CteBatchContext
   readonly correlationId: string
   readonly documentIds: readonly string[]
   readonly emissionProfileId?: string | undefined
   readonly groupingMode?: CteEmissionGroupingMode | undefined
   readonly idempotencyKey: string
+}
+
+export type CreateCteBatchInput = CteBatchWriteInput & {
   readonly name: string
+}
+
+/**
+ * Uma seleção grande chega fatiada por causa do corpo de 1 MiB, mas vira **um lote só**: a
+ * primeira fatia cria e as demais acrescentam itens ao mesmo rascunho.
+ */
+export type AppendCteBatchItemsInput = CteBatchWriteInput & {
+  readonly batchId: string
 }
 
 export type SubmitCteBatchInput = {

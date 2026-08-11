@@ -21,21 +21,6 @@ const CREATE_ERROR_MESSAGE_KEYS: Readonly<Record<string, string>> = {
   [DOCUMENT_ALREADY_LINKED_CODE]: 'cteEmission.errorAlreadyLinked',
 }
 
-/**
- * Espelha `CTE_BATCH_MAX_DOCUMENTS` da API: é o teto **por requisição**, não o teto da seleção. A
- * emissão em massa fatia a seleção abaixo desse número e emite fatia por fatia, então `per_invoice`
- * não tem teto. Só `sender_recipient` esbarra aqui, porque fatiar separaria notas do mesmo par
- * remetente/destinatário em CT-es diferentes.
- */
-export const CTE_EMISSION_MAX_DOCUMENTS = 1000
-
-export function isSelectionOverLimit(
-  input: Readonly<{ count: number; groupingMode: CteEmissionGroupingMode }>,
-): boolean {
-  if (input.groupingMode !== 'sender_recipient') return false
-  return input.count > CTE_EMISSION_MAX_DOCUMENTS
-}
-
 export const CTE_EMISSION_GROUPING_MODES: readonly CteEmissionGroupingMode[] = [
   'per_invoice',
   'sender_recipient',
@@ -84,7 +69,6 @@ export type CteEmissionStatus =
   | 'creating'
   | 'idle'
   | 'loading'
-  | 'overLimit'
   | 'previewError'
   | 'ready'
 
@@ -181,12 +165,10 @@ export function resolveEmissionStatus(
     hasPreview: boolean
     isCreateError: boolean
     isCreating: boolean
-    isOverLimit: boolean
     isPreviewError: boolean
     isPreviewFetching: boolean
   }>,
 ): CteEmissionStatus {
-  if (input.isOverLimit) return 'overLimit'
   if (input.isCreating) return 'creating'
   if (input.isPreviewError) return 'previewError'
   if (input.isCreateError) return 'createError'
@@ -197,7 +179,6 @@ export function resolveEmissionStatus(
 export function selectEmissionMessageKey(
   input: Readonly<{ errorCode: null | string; status: CteEmissionStatus }>,
 ): null | string {
-  if (input.status === 'overLimit') return 'cteEmission.errorOverLimit'
   if (input.status === 'previewError') return 'cteEmission.errorPreview'
   if (input.status !== 'createError') return null
   return CREATE_ERROR_MESSAGE_KEYS[input.errorCode ?? ''] ?? 'cteEmission.errorCreate'
