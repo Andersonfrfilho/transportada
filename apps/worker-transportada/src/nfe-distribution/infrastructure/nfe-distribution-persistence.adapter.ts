@@ -1,72 +1,25 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { Buffer } from 'node:buffer'
-import { createHash } from 'node:crypto'
-import { gunzipSync } from 'node:zlib'
-
-import {
-  NfeXmlImportError,
-  type DfeItem,
-  type ImportedNfeXml,
-} from '@adatechnology/fiscal-provider'
+import { NfeXmlImportError, type DfeItem } from '@adatechnology/fiscal-provider'
 import {
   OBJECT_STORAGE_ERROR_CODES,
   ObjectStorageError,
 } from '@adatechnology/object-storage-provider'
 
-import type { NfeFiscalEnvironment, NfeItemVariant } from '../../database/nfe.schema.js'
+import type { NfeFiscalEnvironment } from '../../database/nfe.schema.js'
 import type { NfeImportFinalStorage } from '../../nfe-imports/infrastructure/nfe-import-storage.gateway.js'
 import type { NfeXmlImporter } from '../../nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import type { NfeDistributionRepositoryPort } from '../application/nfe-distribution-consumer.service.js'
-import type {
-  DistributionPersistItem,
-  DistributionSummary,
-} from './drizzle-nfe-distribution.repository.js'
-
-const SUMMARY_SCHEMAS: ReadonlySet<string> = new Set(['resNFe', 'resEvento'])
-const EVENT_SCHEMA = 'procEventoNFe'
-// A SEFAZ manda o nome do arquivo do schema no docZip (`resEvento_v1.01.xsd`), versão e extensão
-// inclusas; o pacote fiscal entrega cru
-const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*(?:\.xsd)?$/i
-const ACCESS_KEY_PATTERN = /^[0-9]{44}$/
-// O prefixo de namespace é opcional porque falhar aqui não derruba a página: a chave viraria nula
-// em silêncio, e um resumo sem chave não serve para nada
-const SUMMARY_ACCESS_KEY_ELEMENT =
-  /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
+import type { DistributionPersistItem } from './drizzle-nfe-distribution.repository.js'
+import {
+  buildDistributionSummary,
+  prepareDistributionItem,
+  type PreparedItem,
+} from './nfe-distribution-item.mapper.js'
 
 type SkipReason = 'already_stored' | 'unsupported_document'
-
-type PreparedSummary = {
-  readonly accessKey: string | undefined
-  readonly dfe: DfeItem
-  readonly sourceBytes: Uint8Array
-  readonly sourceSha256: string
-  readonly variant: 'summary'
-}
-
-type PreparedEvent = {
-  readonly accessKey: string
-  readonly normalizedXml: ImportedNfeXml
-  readonly dfe: DfeItem
-  readonly sequence: string
-  readonly sourceBytes: Uint8Array
-  readonly sourceSha256: string
-  readonly type: string
-  readonly variant: 'event'
-}
-
-type PreparedDocument = {
-  readonly accessKey: string
-  readonly normalizedXml: ImportedNfeXml
-  readonly dfe: DfeItem
-  readonly sourceBytes: Uint8Array
-  readonly sourceSha256: string
-  readonly variant: 'complete'
-}
-
-type PreparedItem = PreparedDocument | PreparedEvent | PreparedSummary
 
 type DistributionPersistencePort = {
   finalizeImport(input: {
@@ -170,7 +123,10 @@ async function prepareItemOrSkip(params: {
   readonly importId: string
 }): Promise<PreparedItem | undefined> {
   try {
-    return await prepareItem(params)
+    return await prepareDistributionItem({
+      dfe: params.dfe,
+      xmlImporter: params.dependencies.xmlImporter,
+    })
   } catch (error: unknown) {
     const skip = resolveSkip(error)
     if (skip === undefined) {
@@ -183,60 +139,8 @@ async function prepareItemOrSkip(params: {
 }
 
 /**
- * O XML só é lido e classificado aqui — nada disso toca o bucket, e é por isso que a checagem do que
- * já existe cabe entre esta etapa e a gravação.
- */
-async function prepareItem(params: {
-  readonly companyId: string
-  readonly dependencies: PersistenceAdapterDependencies
-  readonly dfe: DfeItem
-  readonly importId: string
-}): Promise<PreparedItem> {
-  const { dependencies, dfe } = params
-  const sourceBytes = gunzipSync(Buffer.from(dfe.xmlComprimido, 'base64'))
-  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex')
-  const variant = classifyVariant(dfe.schema)
-
-  if (variant === 'summary') {
-    const accessKey = resolveSummaryAccessKey({ dfe, sourceBytes })
-    return { accessKey, dfe, sourceBytes, sourceSha256, variant }
-  }
-
-  const xml = new TextDecoder().decode(sourceBytes)
-  const normalizedXml = await dependencies.xmlImporter.importXml({ xml })
-
-  if (variant === 'event') {
-    if (normalizedXml.kind !== 'nfe-event') {
-      throw new Error('NFE_DISTRIBUTION_EVENT_XML_MISMATCH')
-    }
-    return {
-      accessKey: normalizedXml.event.accessKey,
-      dfe,
-      normalizedXml,
-      sequence: String(normalizedXml.event.sequence),
-      sourceBytes,
-      sourceSha256,
-      type: normalizedXml.event.type,
-      variant,
-    }
-  }
-
-  if (normalizedXml.kind === 'nfe-event') {
-    throw new Error('NFE_DISTRIBUTION_DOCUMENT_XML_MISMATCH')
-  }
-  return {
-    accessKey: normalizedXml.document.accessKey,
-    dfe,
-    normalizedXml,
-    sourceBytes,
-    sourceSha256,
-    variant,
-  }
-}
-
-/**
  * Uma pergunta por página, não uma por item: as chaves candidatas vão juntas e voltam só as que a
- * empresa já tem em `nfe_documents`.
+ * empresa já tem. Evento fica de fora — evento de nota que já temos é informação nova.
  */
 async function findStoredAccessKeys(params: {
   readonly candidates: readonly PreparedItem[]
@@ -330,7 +234,7 @@ async function storeItem(params: {
     return {
       finalObject,
       nsu: dfe.nsu,
-      summary: buildSummary({ accessKey: candidate.accessKey, dfe }),
+      summary: buildDistributionSummary({ accessKey: candidate.accessKey, dfe }),
       variant: candidate.variant,
     }
   }
@@ -405,49 +309,4 @@ function logSkip(params: {
     reason: params.reason,
     schema: params.dfe.schema,
   })
-}
-
-/**
- * A chave da coluna `access_key` só aceita NULL ou 44 dígitos. O pacote fiscal nem sempre preenche
- * `chaveNfe` no resumo, e a chave verdadeira está no `<chNFe>` do próprio XML — sintetizar um valor
- * a partir do NSU violava o CHECK e derrubava a página inteira.
- */
-function resolveSummaryAccessKey(params: {
-  readonly dfe: DfeItem
-  readonly sourceBytes: Uint8Array
-}): string | undefined {
-  const { dfe, sourceBytes } = params
-
-  if (dfe.chaveNfe !== undefined && ACCESS_KEY_PATTERN.test(dfe.chaveNfe)) {
-    return dfe.chaveNfe
-  }
-
-  const xml = new TextDecoder().decode(sourceBytes)
-  return SUMMARY_ACCESS_KEY_ELEMENT.exec(xml)?.[1]
-}
-
-function buildSummary(params: {
-  readonly accessKey: string | undefined
-  readonly dfe: DfeItem
-}): DistributionSummary {
-  const { accessKey, dfe } = params
-  return {
-    ...(accessKey !== undefined ? { accessKey } : {}),
-    ...(dfe.emitenteCnpj !== undefined ? { emitterCnpj: dfe.emitenteCnpj } : {}),
-    ...(dfe.dataEmissao !== undefined ? { issuedAt: dfe.dataEmissao } : {}),
-    ...(dfe.situacao !== undefined ? { situacao: dfe.situacao } : {}),
-    ...(dfe.valorTotal !== undefined ? { totalValue: String(dfe.valorTotal) } : {}),
-  }
-}
-
-function classifyVariant(schema: string): NfeItemVariant {
-  const normalizedSchema = schema.replace(SCHEMA_VERSION_SUFFIX, '')
-
-  if (SUMMARY_SCHEMAS.has(normalizedSchema)) {
-    return 'summary'
-  }
-  if (normalizedSchema === EVENT_SCHEMA) {
-    return 'event'
-  }
-  return 'complete'
 }

@@ -122,17 +122,28 @@ Duas correções, e as duas são necessárias:
 - **O resumo tem endereço próprio**: `tenants/{companyId}/nfe-summaries/{accessKey}/{nsu}.xml`. O NSU
   entra porque `resNFe` e `resEvento` da mesma chave são ambos `summary` e colidiriam entre si — e
   porque é o NSU que faz o endereço ser estável por documento, mantendo o replay idempotente.
-- **Conflito é pulo, não falha**: `nfe_distribution_item_skipped` com `reason: 'already_stored'`. Nota
-  que já está guardada é a mesma nota chegando de novo pela distribuição; reimportar não acrescenta
-  nada, e derrubar a página por causa dela custa uma hora de janela.
+- **A checagem vem antes da gravação**: a página é preparada em memória (descompacta, classifica,
+  extrai a chave), pergunta ao banco **de uma vez** quais daquelas chaves a empresa já tem em
+  `nfe_documents`, e só grava as que faltam. O que sobra vira
+  `nfe_distribution_item_skipped` com `reason: 'already_stored'`. O conflito no bucket continua
+  sendo pulo e não falha, mas hoje ele é a última linha de defesa, não o teste.
+
+Só `variant: 'complete'` grava linha em `nfe_documents`, e é isso que dá sentido ao filtro:
+
+| Chegou     | Chave já em `nfe_documents` | Decisão                                                   |
+| ---------- | --------------------------- | --------------------------------------------------------- |
+| `complete` | sim                         | pula — já temos o XML inteiro                             |
+| `summary`  | sim                         | pula — resumo sobre nota completa é rebaixamento          |
+| `summary`  | não                         | grava — é o que temos daquela chave até o completo chegar |
+| `event`    | qualquer                    | **nunca pula** — cancelamento e CC-e são informação nova  |
 
 Separar as chaves é o que torna o pulo seguro: com um endereço só, uma nota que chegou primeiro como
 resumo nunca poderia ser promovida ao XML completo, e ficaria travada para CT-e
 (`CTE_BATCH_DOCUMENT_SUMMARY_ONLY`).
 
 O caminho de upload manual já fazia o certo desde sempre: `processItem` consulta
-`findExistingDocument` e fecha o item como `duplicated` antes de tocar no storage. A distribuição não
-tinha essa checagem — o conflito no bucket era a única defesa dela.
+`findExistingDocument` e fecha o item como `duplicated` antes de tocar no storage. A distribuição
+agora faz o mesmo, em lote: uma pergunta por página, não uma por item.
 
 ## 5. O que não fazer
 
