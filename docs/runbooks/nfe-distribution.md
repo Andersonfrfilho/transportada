@@ -49,19 +49,32 @@ SEFAZ, quando foi a última busca automática e quantas notas ela trouxe.
 
 ```bash
 railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
-  -- bash -lc 'psql -At -c "select ult_nsu from nfe_distribution_cursors"'
+  -- psql -At -c 'select/**/ult_nsu/**/from/**/nfe_distribution_cursors'
 ```
 
 > Só há caminho interno para o Postgres de produção (`postgres-hqfu.railway.internal`); não existe
-> `DATABASE_PUBLIC_URL` e não deve existir. Consultas de uma coluna só, curtas: seleções com várias
-> colunas ou `concat` voltaram vazias de forma intermitente por esse caminho.
+> `DATABASE_PUBLIC_URL` e não deve existir.
 
-Contagem por variante, que é o que prova as correções de classificação e de chave:
+**O `/**/` não é enfeite.** `railway ssh` reparte os argumentos por espaço em branco antes de montar
+a linha remota, então uma SQL com espaços chega ao container despedaçada — `psql` roda sem `-c`,
+abre sessão interativa sem tty e sai **em silêncio, com status 0**. Foi isso que produziu, por horas,
+respostas vazias que pareciam consulta sem resultado. `/**/` é comentário vazio: separa os tokens
+para o Postgres sem existir para o shell.
+
+Envolver a mesma coisa em `bash -lc` não resolve — piora, porque aí nem o stderr volta.
+
+Consulta com parêntese (`count(*)`) quebra o `bash -c` remoto; preserve aspas duplas no argumento:
 
 ```bash
 railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
-  -- bash -lc 'psql -At -c "select count(*) from nfe_import_items where variant = '"'"'summary'"'"'"'
+  -- psql -At -c '"select/**/count(*)/**/from/**/nfe_import_items"'
+
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
+  -- psql -At -c '"select/**/count(*)/**/from/**/nfe_import_items/**/where/**/variant='"'"'summary'"'"'"'
 ```
+
+Prova de vida antes de acreditar num resultado vazio: `psql -At -c 'select/**/1+1'` tem que devolver
+`2`. Não devolveu, o problema é o transporte, não o dado.
 
 ### 3.3 Log do worker
 
