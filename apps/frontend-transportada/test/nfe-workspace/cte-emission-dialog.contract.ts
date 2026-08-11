@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   AUTOMATIC_PROFILE_ID,
   CTE_EMISSION_GROUPING_MODES,
+  CTE_EMISSION_MAX_DOCUMENTS,
   CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
@@ -13,6 +14,7 @@ import {
   defaultBatchName,
   groupBlocksByReason,
   isEmissionFormLocked,
+  isSelectionOverLimit,
   resolveBatchName,
   resolveEmissionStatus,
   selectEmissionMessageKey,
@@ -262,12 +264,53 @@ describe('CT-e emission dialog confirmation contract', () => {
   })
 })
 
+describe('CT-e emission selection ceiling contract', () => {
+  /**
+   * A tabela de notas pagina até 1000 e a API recusa acima de `CTE_EMISSION_MAX_DOCUMENTS`. Mandar
+   * a seleção grande assim mesmo devolvia 400 e o diálogo dizia "tente novamente" — repetir não
+   * resolve, e o operador não descobria o motivo.
+   */
+  test('names the ceiling before the request instead of turning it into a generic failure', () => {
+    const base = {
+      hasPreview: true,
+      isCreateError: false,
+      isCreating: false,
+      isOverLimit: false,
+      isPreviewError: false,
+      isPreviewFetching: false,
+    }
+
+    expect(resolveEmissionStatus(base)).toBe('ready')
+    expect(resolveEmissionStatus({ ...base, isOverLimit: true })).toBe('overLimit')
+    expect(resolveEmissionStatus({ ...base, isOverLimit: true, isPreviewFetching: true })).toBe(
+      'overLimit',
+    )
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'overLimit' })).toBe(
+      'cteEmission.errorOverLimit',
+    )
+  })
+
+  test('blocks the confirmation while the selection is over the ceiling', () => {
+    expect(canConfirmEmission({ preview: PREVIEW, status: 'overLimit' })).toBe(false)
+    expect(isSelectionOverLimit(CTE_EMISSION_MAX_DOCUMENTS)).toBe(false)
+    expect(isSelectionOverLimit(CTE_EMISSION_MAX_DOCUMENTS + 1)).toBe(true)
+  })
+
+  test('does not spend a request the server will refuse', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+
+    expect(hook).toContain('isOverLimit')
+    expect(hook).toMatch(/enabled:[^\n]*!isOverLimit/)
+  })
+})
+
 describe('CT-e emission dialog failure contract', () => {
   test('keeps the projection failure apart from the creation failure', () => {
     const base = {
       hasPreview: true,
       isCreateError: false,
       isCreating: false,
+      isOverLimit: false,
       isPreviewError: false,
       isPreviewFetching: false,
     }

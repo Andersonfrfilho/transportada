@@ -8,6 +8,7 @@ import { useCteProfiles } from '@/modules/cte-profiles/hooks/useCteProfiles.hook
 
 import {
   AUTOMATIC_PROFILE_ID,
+  CTE_EMISSION_MAX_DOCUMENTS,
   CTE_EMISSION_PREVIEW_QUERY_KEY,
   DEFAULT_GROUPING_MODE,
   buildCreateRequest,
@@ -17,6 +18,7 @@ import {
   defaultBatchName,
   groupBlocksByReason,
   isEmissionFormLocked,
+  isSelectionOverLimit,
   resolveBatchName,
   resolveEmissionStatus,
   shouldRefreshPreviewAfterFailure,
@@ -50,6 +52,7 @@ export type UseCteEmissionDialogResult = Readonly<{
   canConfirm: boolean
   canEmit: boolean
   canManageProfiles: boolean
+  documentLimit: number
   close: () => void
   confirm: () => void
   createdBatch: CteBatchSummary | null
@@ -95,6 +98,7 @@ export function useCteEmissionDialog(
     permissions,
   })
   const selection = { documentIds: input.documentIds, emissionProfileId: profileId, groupingMode }
+  const isOverLimit = isSelectionOverLimit(input.documentIds.length)
 
   function forgetPreviews(): void {
     void queryClient.invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })
@@ -105,7 +109,7 @@ export function useCteEmissionDialog(
   }
 
   const previewQuery = useQuery({
-    enabled: isOpen && canEmit && input.documentIds.length > 0,
+    enabled: isOpen && canEmit && input.documentIds.length > 0 && !isOverLimit,
     queryFn: () => client.previewBatch(buildPreviewRequest(selection)),
     queryKey: buildPreviewQueryKey({ ...selection, companyId: input.companyId }),
   })
@@ -137,6 +141,7 @@ export function useCteEmissionDialog(
     hasPreview: preview !== null,
     isCreateError: createMutation.isError,
     isCreating: createMutation.isPending,
+    isOverLimit,
     isPreviewError: previewQuery.isError,
     isPreviewFetching: previewQuery.isFetching,
   })
@@ -173,6 +178,7 @@ export function useCteEmissionDialog(
     close,
     confirm,
     createdBatch,
+    documentLimit: CTE_EMISSION_MAX_DOCUMENTS,
     errorCode: readErrorCode(previewQuery.error ?? createMutation.error),
     groupingMode,
     isFormLocked: isEmissionFormLocked(status),

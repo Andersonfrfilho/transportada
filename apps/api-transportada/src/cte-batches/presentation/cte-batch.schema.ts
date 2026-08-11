@@ -7,6 +7,7 @@ import { CTE_ISSUANCE_STATUSES } from '../../database/cte-issuance.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { CTE_BATCH_ITEM_BILLING_STATUSES } from '../application/cte-batch-item.port.js'
+import { CTE_BATCH_MAX_DOCUMENTS } from '../domain/cte-batch-limits.constant.js'
 
 const BILLING_STATUSES: ReadonlySet<string> = new Set(CTE_BATCH_ITEM_BILLING_STATUSES)
 const ISSUANCE_STATUSES: ReadonlySet<string> = new Set(CTE_ISSUANCE_STATUSES)
@@ -16,7 +17,7 @@ const UUID = z.uuid()
 
 const createBatchSchema = z
   .object({
-    documentIds: z.array(UUID).min(1).max(100),
+    documentIds: z.array(UUID).min(1).max(CTE_BATCH_MAX_DOCUMENTS),
     emissionProfileId: UUID.optional(),
     groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
     name: z.string().trim().min(2).max(100),
@@ -25,7 +26,7 @@ const createBatchSchema = z
 
 const previewBatchSchema = z
   .object({
-    documentIds: z.array(UUID).min(1).max(100),
+    documentIds: z.array(UUID).min(1).max(CTE_BATCH_MAX_DOCUMENTS),
     emissionProfileId: UUID.optional(),
     groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
   })

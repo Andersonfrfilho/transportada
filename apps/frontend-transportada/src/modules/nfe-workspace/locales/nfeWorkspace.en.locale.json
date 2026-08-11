@@ -105,7 +105,8 @@
     "cancel": "Cancel",
     "confirm": "Create batch",
     "creating": "Creating batch...",
-    "loading": "Calculating projection...",
+    "loading": "Projecting {{count}} note...",
+    "loading_other": "Projecting {{count}} notes...",
     "batchName": "Batch name",
     "profile": "Emission profile",
     "profileAutomatic": "Automatic (by sender tax id)",
@@ -148,6 +149,7 @@
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Summary only, no full XML"
     },
     "errorPreview": "The projection could not be calculated. Try again.",
+    "errorOverLimit": "Selection over the limit: at most {{max}} notes per batch, and you selected {{selected}}. Reduce the selection or split it into more than one batch.",
     "errorNameTaken": "A batch already uses this name. Pick another name to create the batch.",
     "errorCreate": "The batch could not be created. Try again.",
     "errorAlreadyLinked": "One or more notes already belong to another CT-e. The projection was recalculated — review it before creating the batch."

@@ -151,7 +151,10 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
 
         {!dialog.canEmit && <p className={styles.emptyState}>{t('cteEmission.forbidden')}</p>}
         {dialog.status === 'loading' && (
-          <SkeletonGroup className={styles.tableWrap} label={t('cteEmission.loading')}>
+          <SkeletonGroup
+            className={styles.tableWrap}
+            label={t('cteEmission.loading', { count: dialog.selectedCount })}
+          >
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -186,7 +189,11 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             </table>
           </SkeletonGroup>
         )}
-        {messageKey !== null && <p className={styles.emptyState}>{t(messageKey)}</p>}
+        {messageKey !== null && (
+          <p className={styles.emptyState} role="alert">
+            {t(messageKey, { max: dialog.documentLimit, selected: dialog.selectedCount })}
+          </p>
+        )}
 
         {dialog.summary !== null && (
           <section className={styles.cteEmissionSection}>
