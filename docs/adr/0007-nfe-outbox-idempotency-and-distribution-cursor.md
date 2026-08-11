@@ -123,6 +123,27 @@ inesperado impede a gravação do cursor, o retry reconsulta o mesmo CNPJ e quei
 `nfe_distribution_item_skipped` com NSU e schema, nunca com o XML. Qualquer outro erro continua
 derrubando a página, com retry e DLQ.
 
+### Emenda (10/08/2026): o resumo sem chave sintetizava um `access_key` que o banco recusa
+
+Com a classificação corrigida, os resumos finalmente chegaram ao `insert` — e a primeira página real
+morreu ali. `nfe_import_items` tem `CHECK (access_key IS NULL OR access_key ~ '^[0-9]{44}$')`, e o
+adapter, quando o pacote fiscal não preenchia `chaveNfe`, gravava `nsu-000000000037702`. A coluna é
+anulável desde sempre; a string sintética nunca teve onde caber. Antes da correção anterior esses
+itens caíam em `complete` e eram pulados antes do `insert`, então o defeito ficou escondido atrás do
+outro — e o desfecho em produção era o mesmo laço: página derrubada, cursor não gravado, retry
+reconsultando o mesmo CNPJ, `cStat 656`, uma hora perdida.
+
+Passa a valer: **a chave do resumo é lida, não inventada.** O adapter usa `chaveNfe` quando o pacote
+a entrega com 44 dígitos e, quando não entrega, extrai o `<chNFe>` do próprio resumo — que é onde a
+chave verdadeira está. Não achando nenhuma das duas, o item persiste com `access_key` nulo, que é o
+que a coluna sempre permitiu. O nome do objeto no bucket continua aceitando o sufixo por NSU: ali a
+string só precisa ser única, e nenhum CHECK a governa.
+
+As fixtures do contrato do adapter agora **espelham o CHECK do banco** — chave ou nula, ou 44
+dígitos, e nada mais. Foi a terceira vez seguida que a suíte ficou verde enquanto produção falhava,
+sempre pelo mesmo motivo: o fake aceitava o que o Postgres recusa. O teste de integração da página
+ganhou um quarto item, um resumo sem chave, contra Postgres de verdade.
+
 ## Consequências
 
 - não existe exactly-once distribuído, mas os efeitos observáveis são

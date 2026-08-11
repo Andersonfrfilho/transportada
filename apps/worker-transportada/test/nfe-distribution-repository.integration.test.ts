@@ -133,6 +133,19 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
       },
       variant: 'summary',
     },
+    /**
+     * Resumo sem chave: `nfe_import_items_access_key_check` só aceita NULL ou 44 dígitos, então a
+     * coluna precisa ficar vazia. Enquanto o adapter sintetizava `nsu-<nsu>` a página inteira caía.
+     */
+    {
+      finalObject: finalObject(crypto.randomUUID(), 'nsu-000000000000054', companyId),
+      nsu: '000000000000054',
+      summary: {
+        emitterCnpj: '30290856000160',
+        situacao: '1',
+      },
+      variant: 'summary',
+    },
   ]
 
   beforeAll(async () => {
@@ -195,13 +208,13 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
       importId,
       items: page,
       maxNsu: '000000000000100',
-      ultNsu: '000000000000053',
+      ultNsu: '000000000000054',
     })
 
     expect(result.documentCount).toBe(1)
     expect(result.eventCount).toBe(1)
-    expect(result.summaryCount).toBe(1)
-    expect(result.acceptedCount).toBe(3)
+    expect(result.summaryCount).toBe(2)
+    expect(result.acceptedCount).toBe(4)
     expect(result.duplicatedCount).toBe(0)
 
     const [document] = await db
@@ -239,32 +252,37 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
       .from(nfeImportItems)
       .where(eq(nfeImportItems.importId, importId))
       .orderBy(nfeImportItems.sourceNsu)
-    expect(items).toHaveLength(3)
-    expect(items.map((item) => item.variant)).toEqual(['complete', 'event', 'summary'])
+    expect(items).toHaveLength(4)
+    expect(items.map((item) => item.variant)).toEqual(['complete', 'event', 'summary', 'summary'])
     expect(items.map((item) => item.sourceNsu)).toEqual([
       '000000000000051',
       '000000000000052',
       '000000000000053',
+      '000000000000054',
     ])
     for (const item of items) {
       expect(item.environment).toBe(ENVIRONMENT)
       expect(item.status).toBe('imported')
     }
 
-    const summaryItem = items.find((item) => item.variant === 'summary')
+    const summaryItem = items.find((item) => item.sourceNsu === '000000000000053')
     expect(summaryItem?.accessKey).toBe(SUMMARY_ACCESS_KEY)
+
+    const keylessSummary = items.find((item) => item.sourceNsu === '000000000000054')
+    expect(keylessSummary?.variant).toBe('summary')
+    expect(keylessSummary?.accessKey).toBeNull()
 
     const objects = await db
       .select()
       .from(storedObjects)
       .where(eq(storedObjects.companyId, companyId))
-    expect(objects).toHaveLength(3)
+    expect(objects).toHaveLength(4)
     expect(objects.every((object) => object.status === 'final')).toBe(true)
 
     const [run] = await db.select().from(nfeImports).where(eq(nfeImports.id, importId))
-    expect(run?.receivedCount).toBe(3n)
-    expect(run?.processedCount).toBe(3n)
-    expect(run?.importedCount).toBe(3n)
+    expect(run?.receivedCount).toBe(4n)
+    expect(run?.processedCount).toBe(4n)
+    expect(run?.importedCount).toBe(4n)
     expect(run?.duplicatedCount).toBe(0n)
   })
 
@@ -275,11 +293,11 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
       importId,
       items: page,
       maxNsu: '000000000000100',
-      ultNsu: '000000000000053',
+      ultNsu: '000000000000054',
     })
 
     expect(result.acceptedCount).toBe(0)
-    expect(result.duplicatedCount).toBe(3)
+    expect(result.duplicatedCount).toBe(4)
 
     const documents = await db
       .select()
@@ -294,7 +312,7 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
       .select()
       .from(nfeImportItems)
       .where(eq(nfeImportItems.importId, importId))
-    expect(items).toHaveLength(3)
+    expect(items).toHaveLength(4)
   })
 
   it('keeps persisted distribution data isolated per tenant', async () => {

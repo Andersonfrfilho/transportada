@@ -49,12 +49,15 @@ function compressXml(xml: string): string {
 }
 
 function createDfeItem(input: {
+  readonly chaveNfe?: string | undefined
   readonly nsu: string
   readonly schema: string
   readonly xml: string
 }): DfeItem {
+  const chaveNfe = 'chaveNfe' in input ? input.chaveNfe : ACCESS_KEY
+
   return {
-    chaveNfe: ACCESS_KEY,
+    ...(chaveNfe !== undefined ? { chaveNfe } : {}),
     nsu: input.nsu,
     schema: input.schema,
     xmlComprimido: compressXml(input.xml),
@@ -120,6 +123,19 @@ function createXmlImporter(harness: AdapterHarness): NfeXmlImporter {
   }
 }
 
+/**
+ * Espelha `nfe_import_items_access_key_check` do banco: a coluna aceita NULL ou 44 dígitos, e nada
+ * mais. O fake anterior aceitava qualquer string, então a chave sintética `nsu-<nsu>` passava aqui
+ * e só estourava em produção, dentro da transação da página.
+ */
+function assertAccessKeyConstraint(item: DistributionPersistItem): void {
+  const accessKey = item.summary?.accessKey
+
+  if (accessKey !== undefined && !/^[0-9]{44}$/.test(accessKey)) {
+    throw new Error(`ACCESS_KEY_CHECK_VIOLATION:${accessKey}`)
+  }
+}
+
 function createLogger(harness: AdapterHarness): WorkerLogger {
   return {
     error(message, metadata): void {
@@ -148,6 +164,9 @@ function createAdapter(input: { readonly finalStorage?: NfeImportFinalStorage } 
         /* o contrato mede a classificação da página, não o fechamento da importação */
       },
       async persistPage(persistInput): Promise<PersistPageResult> {
+        for (const item of persistInput.items) {
+          assertAccessKeyConstraint(item)
+        }
         harness.persisted.push(...persistInput.items)
         return {
           acceptedCount: persistInput.items.length,
@@ -232,6 +251,66 @@ describe('NF-e distribution document classification contract', () => {
       '000000000037704:event',
     ])
     expect(result.skippedCount).toBe(0)
+  })
+
+  /**
+   * O pacote fiscal só preenche `chaveNfe` quando consegue; no resumo real ele vem vazio. Sintetizar
+   * `nsu-<nsu>` para a coluna violava o CHECK de 44 dígitos e derrubava a página inteira — a chave
+   * verdadeira está no `<chNFe>` do próprio resumo.
+   */
+  test('reads the summary access key from the resumo XML when the package leaves it empty', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037702',
+          schema: 'resNFe_v1.01.xsd',
+          xml: RESUMO_XML,
+        }),
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037701',
+          schema: 'resEvento_v1.01.xsd',
+          xml: RESUMO_EVENTO_XML,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037702',
+    })
+
+    expect(harness.persisted.map((item) => item.summary?.accessKey)).toEqual([
+      ACCESS_KEY,
+      ACCESS_KEY,
+    ])
+  })
+
+  test('leaves the summary access key unset when the resumo carries no key at all', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037703',
+          schema: 'resNFe_v1.01.xsd',
+          xml: '<resNFe><cSitNFe>1</cSitNFe></resNFe>',
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037703',
+    })
+
+    expect(harness.persisted).toHaveLength(1)
+    expect(harness.persisted[0]?.summary?.accessKey).toBeUndefined()
+    expect(JSON.stringify(harness.persisted[0]?.summary)).not.toContain('nsu-')
   })
 
   test('keeps classifying when the schema arrives without the version suffix', async () => {
