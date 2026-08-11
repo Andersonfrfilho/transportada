@@ -1,8 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { useCompanyCteItemSummaryQuery } from '../queries/cteBatchItems.query'
+import {
+  COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY,
+  COMPANY_CTE_ITEMS_QUERY_KEY,
+  useCompanyCteItemSummaryQuery,
+} from '../queries/cteBatchItems.query'
 import { resolveCteItemTransmissionSummary } from '../shared/cteBatchProgress.service'
 import {
   resolveCteBatchSubmissionProgress,
@@ -20,6 +24,7 @@ type UseCteBatchSubmissionInput = Readonly<{
 }>
 
 export function useCteBatchSubmission(input: UseCteBatchSubmissionInput) {
+  const queryClient = useQueryClient()
   const [completed, setCompleted] = useState(0)
   const [total, setTotal] = useState(0)
   const [outcomes, setOutcomes] = useState<readonly CteBatchSubmissionOutcome[]>([])
@@ -34,9 +39,18 @@ export function useCteBatchSubmission(input: UseCteBatchSubmissionInput) {
         },
         submitBatch: input.submitBatch,
       }),
-    onSuccess: (results) => {
+    onSuccess: async (results) => {
       setOutcomes(results)
       input.onFinish?.()
+      /**
+       * A aba Lotes já somou este recorte ao selecionar o lote, e a chave do resumo é a mesma:
+       * sem invalidar, a barra da SEFAZ lê o retrato de antes da transmissão — e como nele nada
+       * consta em voo, o polling nem liga e a barra congela no que era verdade antes.
+       */
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEMS_QUERY_KEY] }),
+      ])
     },
   })
 
