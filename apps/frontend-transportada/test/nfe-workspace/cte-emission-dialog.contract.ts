@@ -292,8 +292,31 @@ describe('CT-e emission selection ceiling contract', () => {
 
   test('blocks the confirmation while the selection is over the ceiling', () => {
     expect(canConfirmEmission({ preview: PREVIEW, status: 'overLimit' })).toBe(false)
-    expect(isSelectionOverLimit(CTE_EMISSION_MAX_DOCUMENTS)).toBe(false)
-    expect(isSelectionOverLimit(CTE_EMISSION_MAX_DOCUMENTS + 1)).toBe(true)
+    expect(
+      isSelectionOverLimit({
+        count: CTE_EMISSION_MAX_DOCUMENTS,
+        groupingMode: 'sender_recipient',
+      }),
+    ).toBe(false)
+    expect(
+      isSelectionOverLimit({
+        count: CTE_EMISSION_MAX_DOCUMENTS + 1,
+        groupingMode: 'sender_recipient',
+      }),
+    ).toBe(true)
+  })
+
+  /**
+   * O teto é por requisição, e `per_invoice` é fatiado pela fila de emissão: barrar a seleção aqui
+   * devolveria ao operador um limite que não existe mais.
+   */
+  test('does not treat a large per-invoice selection as over the ceiling', () => {
+    expect(
+      isSelectionOverLimit({
+        count: CTE_EMISSION_MAX_DOCUMENTS * 20,
+        groupingMode: 'per_invoice',
+      }),
+    ).toBe(false)
   })
 
   test('does not spend a request the server will refuse', async () => {

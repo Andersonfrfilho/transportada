@@ -7,6 +7,7 @@ import {
   COMPANY_CONTEXT,
   CORRELATION_ID,
   DOCUMENT_ID,
+  ELIGIBLE_DOCUMENT,
   EXPECTED_BATCH_SUMMARY,
   FINGERPRINT,
   IDEMPOTENCY_KEY,
@@ -20,6 +21,23 @@ import {
   CteBatchUnitOfWorkFixture,
   decodeFingerprintFields,
 } from './support.js'
+
+const BULK_DOCUMENT_COUNT = 250
+
+function registerBulkDocuments(unitOfWork: CteBatchUnitOfWorkFixture): readonly string[] {
+  return Array.from({ length: BULK_DOCUMENT_COUNT }, (_unused, index) => {
+    const ordinal = String(index + 1).padStart(6, '0')
+    const documentId = `nfe-document-bulk-${ordinal}`
+    unitOfWork.documentsById.set(documentId, {
+      ...ELIGIBLE_DOCUMENT,
+      accessKey: `3526070000000000000055001${ordinal}1000000010`,
+      id: documentId,
+      number: String(index + 1),
+    })
+
+    return documentId
+  })
+}
 
 describe('CT-e batch application create contract', () => {
   test('creates one item per selected document with frozen snapshots and charges', async () => {
@@ -99,6 +117,24 @@ describe('CT-e batch application create contract', () => {
       DOCUMENT_ID,
       SECOND_DOCUMENT_ID,
     ])
+  })
+
+  test('creates a batch with a selection far beyond the old hundred-document ceiling', async () => {
+    const unitOfWork = new CteBatchUnitOfWorkFixture()
+    const documentIds = registerBulkDocuments(unitOfWork)
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+
+    const result = await useCase.create({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      documentIds,
+      idempotencyKey: IDEMPOTENCY_KEY,
+      name: BATCH_NAME,
+    })
+
+    expect(result).toEqual({ ...EXPECTED_BATCH_SUMMARY, itemCount: BULK_DOCUMENT_COUNT })
+    expect(unitOfWork.createdItems).toHaveLength(BULK_DOCUMENT_COUNT)
+    expect(unitOfWork.createdItemDocuments).toHaveLength(BULK_DOCUMENT_COUNT)
   })
 
   test('binds every document to its projected CT-e item and freezes the charge breakdown', async () => {

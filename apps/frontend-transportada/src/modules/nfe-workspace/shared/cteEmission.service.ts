@@ -22,14 +22,18 @@ const CREATE_ERROR_MESSAGE_KEYS: Readonly<Record<string, string>> = {
 }
 
 /**
- * Espelha `CTE_BATCH_MAX_DOCUMENTS` da API. A projeção resolve a seleção inteira de uma vez porque
- * o agrupamento por remetente/destinatário precisa enxergar todas as notas juntas — fatiar em blocos
- * separaria notas do mesmo par em CT-es diferentes.
+ * Espelha `CTE_BATCH_MAX_DOCUMENTS` da API: é o teto **por requisição**, não o teto da seleção. A
+ * emissão em massa fatia a seleção abaixo desse número e emite fatia por fatia, então `per_invoice`
+ * não tem teto. Só `sender_recipient` esbarra aqui, porque fatiar separaria notas do mesmo par
+ * remetente/destinatário em CT-es diferentes.
  */
 export const CTE_EMISSION_MAX_DOCUMENTS = 1000
 
-export function isSelectionOverLimit(count: number): boolean {
-  return count > CTE_EMISSION_MAX_DOCUMENTS
+export function isSelectionOverLimit(
+  input: Readonly<{ count: number; groupingMode: CteEmissionGroupingMode }>,
+): boolean {
+  if (input.groupingMode !== 'sender_recipient') return false
+  return input.count > CTE_EMISSION_MAX_DOCUMENTS
 }
 
 export const CTE_EMISSION_GROUPING_MODES: readonly CteEmissionGroupingMode[] = [

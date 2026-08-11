@@ -148,8 +148,14 @@
       "CTE_PROFILE_RULE_NOT_IN_FORCE": "No freight rule in force",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Summary only, no full XML"
     },
+    "projecting": "Projecting {{completed}} of {{total}} blocks...",
+    "emitting": "Creating {{completed}} of {{total}} batches...",
+    "progressCreate": "Batch creation progress",
+    "progressPreview": "Projection progress",
+    "moreRows": "and {{count}} more projected CT-e, not listed here",
+    "moreRows_other": "and {{count}} more projected CT-es, not listed here",
     "errorPreview": "The projection could not be calculated. Try again.",
-    "errorOverLimit": "Selection over the limit: at most {{max}} notes per batch, and you selected {{selected}}. Reduce the selection or split it into more than one batch.",
+    "errorOverLimit": "Grouping by sender and recipient must see every note together, so it goes in a single request: at most {{max}} notes, and you selected {{selected}}. Reduce the selection or switch to one CT-e per note, which has no ceiling.",
     "errorNameTaken": "A batch already uses this name. Pick another name to create the batch.",
     "errorCreate": "The batch could not be created. Try again.",
     "errorAlreadyLinked": "One or more notes already belong to another CT-e. The projection was recalculated — review it before creating the batch."

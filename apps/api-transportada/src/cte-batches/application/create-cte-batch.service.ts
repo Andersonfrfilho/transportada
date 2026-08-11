@@ -32,7 +32,6 @@ import type {
 
 const TEXT_ENCODER = new TextEncoder()
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const MAXIMUM_DOCUMENTS_PER_BATCH = 100
 const FINGERPRINT_OPERATION = 'cte-batch.create'
 const CREATED_EVENT_NAME = 'created'
 const DRAFT_STATUS = 'draft'
@@ -219,10 +218,10 @@ function resolveCreateReplay(
   return getRequiredRecord(replay, 'batch')
 }
 
+// O teto por requisição vive no schema HTTP, que é onde o limite de corpo de 1 MiB morde. O
+// domínio não impõe teto próprio: a emissão em massa fatia a seleção e cria um lote por fatia.
 function resolveDocumentIds(documentIds: readonly string[]): readonly string[] {
-  if (documentIds.length === 0 || documentIds.length > MAXIMUM_DOCUMENTS_PER_BATCH) {
-    throw createDocumentNotEligibleError()
-  }
+  if (documentIds.length === 0) throw createDocumentNotEligibleError()
   const duplicated = splitDuplicatedDocumentIds(documentIds.map(resolveDocumentId))
   assertNoBlocks(duplicated.blocked)
 

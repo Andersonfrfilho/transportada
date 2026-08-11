@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { ProgressBar } from '@/components/ui/progress'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
@@ -150,6 +151,28 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
         </div>
 
         {!dialog.canEmit && <p className={styles.emptyState}>{t('cteEmission.forbidden')}</p>}
+        {dialog.status === 'loading' && dialog.chunkCount > 1 && (
+          <ProgressBar
+            completed={dialog.previewProgress.completed}
+            label={t('cteEmission.progressPreview')}
+            total={dialog.previewProgress.total}
+            valueText={t('cteEmission.projecting', {
+              completed: dialog.previewProgress.completed,
+              total: dialog.previewProgress.total,
+            })}
+          />
+        )}
+        {dialog.status === 'creating' && (
+          <ProgressBar
+            completed={dialog.createProgress.completed}
+            label={t('cteEmission.progressCreate')}
+            total={dialog.createProgress.total}
+            valueText={t('cteEmission.emitting', {
+              completed: dialog.createProgress.completed,
+              total: dialog.createProgress.total,
+            })}
+          />
+        )}
         {dialog.status === 'loading' && (
           <SkeletonGroup
             className={styles.tableWrap}
@@ -212,9 +235,14 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
                       <th scope="col">{t('cteEmission.columns.amount')}</th>
                     </tr>
                   </thead>
-                  <tbody>{dialog.summary.rows.map(renderRow)}</tbody>
+                  <tbody>{dialog.visibleRows.map(renderRow)}</tbody>
                 </table>
               </div>
+            )}
+            {dialog.hiddenRowCount > 0 && (
+              <p className={styles.cteEmissionComponents}>
+                {t('cteEmission.moreRows', { count: dialog.hiddenRowCount })}
+              </p>
             )}
             <p className={styles.cteEmissionTotal}>
               {t('cteEmission.total')}: <strong>{formatAmount(dialog.summary.totalAmount)}</strong>

@@ -98,7 +98,7 @@ type CteBatchEventPage = {
   readonly nextCursor: string | null
 }
 
-/** O lote é limitado a 100 notas, então os itens saem sem paginação. */
+/** O lote nasce de uma requisição só, teto `CTE_BATCH_MAX_DOCUMENTS`, então os itens saem inteiros. */
 type CteBatchItemPage = {
   readonly items: readonly CteBatchSummary[]
 }
