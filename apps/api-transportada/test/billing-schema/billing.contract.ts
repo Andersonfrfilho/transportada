@@ -10,6 +10,7 @@ import {
   indexColumnsByName,
   requiredColumnNames,
   uniqueColumnsByName,
+  uniqueIndexWhereSqlByName,
 } from '../fiscal-schema/support.js'
 import { requireSchemaTable } from './tables.js'
 
@@ -124,6 +125,7 @@ describe('billing schema', () => {
       'freight_amount',
       'total_amount',
       'snapshot',
+      'cancelled_at',
       'created_at',
       'updated_at',
     ])
@@ -146,10 +148,12 @@ describe('billing schema', () => {
       'updated_at',
     ])
     expect(columnSqlTypes(billingInvoiceItems)).toMatchObject({
+      cancelled_at: 'timestamp with time zone',
       cte_number: 'bigint',
       freight_amount: 'numeric(14, 2)',
       total_amount: 'numeric(14, 2)',
     })
+    expect(requiredColumnNames(billingInvoiceItems)).not.toContain('cancelled_at')
     expect(uniqueColumnsByName(billingInvoiceItems)).toMatchObject({
       billing_invoice_items_company_id_id_unique: ['company_id', 'id'],
       billing_invoice_items_company_invoice_line_unique: [
@@ -157,7 +161,16 @@ describe('billing schema', () => {
         'invoice_id',
         'line_number',
       ],
-      billing_invoice_items_company_cte_document_unique: ['company_id', 'cte_document_id'],
+    })
+    expect(Object.keys(uniqueColumnsByName(billingInvoiceItems))).not.toContain(
+      'billing_invoice_items_company_cte_document_unique',
+    )
+    expect(indexColumnsByName(billingInvoiceItems)).toMatchObject({
+      billing_invoice_items_active_cte_document_unique: ['company_id', 'cte_document_id'],
+    })
+    expect(uniqueIndexWhereSqlByName(billingInvoiceItems)).toMatchObject({
+      billing_invoice_items_active_cte_document_unique:
+        '"billing_invoice_items"."cancelled_at" is null',
     })
     expect(checkSqlByName(billingInvoiceItems)).toMatchObject({
       billing_invoice_items_line_number_check: '"billing_invoice_items"."line_number" > 0',

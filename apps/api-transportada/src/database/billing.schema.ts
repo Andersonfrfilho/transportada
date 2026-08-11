@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 
@@ -130,6 +131,7 @@ export const billingInvoiceItems = pgTable(
     freightAmount: numeric('freight_amount', { precision: 14, scale: 2 }).notNull(),
     totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).notNull(),
     snapshot: jsonb().notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -175,10 +177,14 @@ export const billingInvoiceItems = pgTable(
       table.invoiceId,
       table.lineNumber,
     ),
-    unique('billing_invoice_items_company_cte_document_unique').on(
-      table.companyId,
-      table.cteDocumentId,
-    ),
+    /**
+     * Um CT-e só entra numa fatura ativa por vez, mas cancelar a fatura precisa devolvê-lo para a
+     * fila: a unicidade vale apenas para a linha não cancelada, e a linha cancelada continua no
+     * relatório da fatura antiga.
+     */
+    uniqueIndex('billing_invoice_items_active_cte_document_unique')
+      .on(table.companyId, table.cteDocumentId)
+      .where(sql`${table.cancelledAt} is null`),
     index('billing_invoice_items_company_invoice_line_idx').on(
       table.companyId,
       table.invoiceId,

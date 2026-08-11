@@ -315,12 +315,30 @@ describe('billing repository integration', () => {
             invoiceId,
           }),
         ).rejects.toMatchObject({ code: 'BILLING_INVOICE_INVALID_STATE', status: 409 })
-        expect(
-          await useCase.listEligible({ context, cursor: null, filters: {}, limit: 20 }),
-        ).toEqual({
-          items: [],
-          nextCursor: null,
+
+        // Cancelar devolve o CT-e para a fila: a linha da fatura cancelada não bloqueia mais nada,
+        // nem na elegibilidade, nem na prévia, nem no índice único.
+        const releasedEligible = await useCase.listEligible({
+          context,
+          cursor: null,
+          filters: {},
+          limit: 20,
         })
+        expect(releasedEligible.items).toHaveLength(1)
+        expect(releasedEligible.items[0]?.['id']).toBe(cteDocumentId)
+        expect(await useCase.preview({ context, cteDocumentIds: [cteDocumentId] })).toMatchObject({
+          blocked: [],
+        })
+
+        const reissued = await useCase.create({
+          ...createInput,
+          correlationId: crypto.randomUUID(),
+          idempotencyKey: 'billing-after-cancellation',
+        })
+        expect(reissued['id']).not.toBe(invoiceId)
+        expect(reissued['status']).toBe('issued')
+        // A fatura cancelada continua com o detalhe dela: o relatório antigo não perde a linha.
+        expect((await useCase.get({ context, invoiceId }))['itemCount']).toBe(1)
       })
     },
     30_000,

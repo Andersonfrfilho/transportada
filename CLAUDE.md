@@ -87,6 +87,13 @@ faturamento junta por `(company_id, attempt_id)` pelo seam `buildBillingTakerJoi
 fatura continua mostrando o `recipient` por linha — ali o destinatário é o destino da carga, não o
 cliente. ADR-0028.
 
+**Cancelar fatura devolve o CT-e:** `billing_invoice_items.cancelled_at` marca a linha na mesma
+transação que muda o status da fatura (`releaseInvoiceItems`), e a unicidade do documento é o índice
+parcial `billing_invoice_items_active_cte_document_unique` — vale só para linha não cancelada. Todo
+caminho de elegibilidade lê pelo mesmo recorte: `buildActiveInvoiceItemJoin()` na listagem e na
+prévia, `cancelled_at is null` na reserva e nas duas expressões da coluna "Faturado" da tabela de
+CT-es. A fatura cancelada continua com o detalhe dela no relatório.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.

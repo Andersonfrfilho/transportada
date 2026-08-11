@@ -80,6 +80,20 @@ export function buildBillingTakerJoin(): SQL {
   return condition
 }
 
+/**
+ * Cancelar a fatura devolve o CT-e para a fila de faturamento: só a linha não cancelada ocupa o
+ * documento. Sem o recorte aqui, a linha da fatura cancelada prendia o CT-e para sempre.
+ */
+export function buildActiveInvoiceItemJoin(): SQL {
+  const condition = and(
+    eq(billingInvoiceItems.companyId, cteFiscalDocuments.companyId),
+    eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id),
+    isNull(billingInvoiceItems.cancelledAt),
+  )
+  if (condition === undefined) throw new Error('active invoice item join condition is empty')
+  return condition
+}
+
 /** A nota entra por `company_id` além do id: sem isso o join atravessaria empresas. */
 export function buildEligibleNfeDocumentJoin(): SQL {
   const condition = and(

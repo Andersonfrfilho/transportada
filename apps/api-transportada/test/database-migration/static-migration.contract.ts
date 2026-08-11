@@ -103,6 +103,7 @@ describe('Drizzle migrations', () => {
       '20260809134710_cte_issuance_payload_taker',
       '20260811140230_nfe_distribution_cursor_recovery',
       '20260811164234_billing_description_templates',
+      '20260811180555_billing_invoice_item_release',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -430,6 +431,47 @@ describe('Drizzle migrations', () => {
     // O backfill copia o texto salvo por empresa; a coluna de origem continua intacta.
     expect(migrationSql).toContain(`SELECT "company_id", 'Padrão', "billing_observations", true`)
     expect(migrationSql).toContain('FROM "company_fiscal_profiles"')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  // Trocar unicidade total por parcial é a única destruição aceita aqui: nenhuma linha é apagada,
+  // e é o que devolve para o faturamento o CT-e preso numa fatura cancelada.
+  test('versions the billing invoice item release with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_billing_invoice_item_release'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain(
+      'ALTER TABLE "billing_invoice_items" ADD COLUMN "cancelled_at" timestamp with time zone',
+    )
+    // O backfill solta agora os CT-es presos nas faturas canceladas antes desta migration.
+    expect(migrationSql).toContain('UPDATE "billing_invoice_items"')
+    expect(migrationSql).toContain(`"invoice"."status" = 'cancelled'`)
+    expect(migrationSql).toContain(
+      'ALTER TABLE "billing_invoice_items" DROP CONSTRAINT "billing_invoice_items_company_cte_document_unique"',
+    )
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "billing_invoice_items_active_cte_document_unique" ON "billing_invoice_items" ("company_id","cte_document_id") WHERE "cancelled_at" is null',
+    )
+    // A coluna só nasce depois de existir, e a unicidade parcial só entra depois da total sair.
+    expect(migrationSql.indexOf('ADD COLUMN "cancelled_at"')).toBeLessThan(
+      migrationSql.indexOf('UPDATE "billing_invoice_items"'),
+    )
+    expect(migrationSql.indexOf('DROP CONSTRAINT')).toBeLessThan(
+      migrationSql.indexOf('CREATE UNIQUE INDEX'),
+    )
+    expect(rollbackSql).toContain('billing_invoice_items_company_cte_document_unique')
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

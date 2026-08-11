@@ -135,6 +135,8 @@ export class BillingUnitOfWorkFixture {
   /** Quantos itens cada gravação levou: é o que separa "uma fatura" de "uma fatura por bloco". */
   public readonly itemWrites: Array<number> = []
   public readonly previewQueries: Array<Record<string, unknown>> = []
+  /** Liberação das linhas da fatura cancelada — é o que devolve o CT-e para a fila de faturamento. */
+  public readonly itemReleases: Array<Record<string, unknown>> = []
   public readonly reservations: Array<Record<string, unknown>> = []
 
   public concurrentReservationAllowed = true
@@ -157,6 +159,7 @@ export class BillingUnitOfWorkFixture {
       createdInvoices: this.createdInvoices.length,
       createdItems: this.createdItems.length,
       detailUpdates: this.detailUpdates.length,
+      itemReleases: this.itemReleases.length,
       itemWrites: this.itemWrites.length,
       reservations: this.reservations.length,
     }
@@ -169,6 +172,7 @@ export class BillingUnitOfWorkFixture {
       this.createdInvoices.length = writeLengths.createdInvoices
       this.createdItems.length = writeLengths.createdItems
       this.detailUpdates.length = writeLengths.detailUpdates
+      this.itemReleases.length = writeLengths.itemReleases
       this.itemWrites.length = writeLengths.itemWrites
       this.reservations.length = writeLengths.reservations
       throw error
@@ -241,6 +245,11 @@ export class BillingUnitOfWorkFixture {
       status: 'cancelled',
       updatedAt: NOW,
     }
+  }
+
+  public async releaseInvoiceItems(input: Record<string, unknown>): Promise<number> {
+    this.itemReleases.push(input)
+    return 1
   }
 
   public async updateInvoiceDetails(
