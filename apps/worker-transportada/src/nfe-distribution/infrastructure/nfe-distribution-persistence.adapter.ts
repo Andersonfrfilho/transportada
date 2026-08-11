@@ -23,7 +23,10 @@ const EVENT_SCHEMA = 'procEventoNFe'
 // inclusas; o pacote fiscal entrega cru
 const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*(?:\.xsd)?$/i
 const ACCESS_KEY_PATTERN = /^[0-9]{44}$/
-const SUMMARY_ACCESS_KEY_ELEMENT = /<chNFe>\s*([0-9]{44})\s*<\/chNFe>/
+// O prefixo de namespace é opcional porque falhar aqui não derruba a página: a chave viraria nula
+// em silêncio, e um resumo sem chave não serve para nada
+const SUMMARY_ACCESS_KEY_ELEMENT =
+  /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
 
 type DistributionPersistencePort = {
   finalizeImport(input: {

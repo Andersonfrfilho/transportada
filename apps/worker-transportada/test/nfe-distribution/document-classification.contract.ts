@@ -289,6 +289,28 @@ describe('NF-e distribution document classification contract', () => {
     ])
   })
 
+  test('reads the summary access key even when the resumo prefixes the namespace', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037705',
+          schema: 'resNFe_v1.01.xsd',
+          xml: `<nfe:resNFe><nfe:chNFe>${ACCESS_KEY}</nfe:chNFe></nfe:resNFe>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037705',
+    })
+
+    expect(harness.persisted[0]?.summary?.accessKey).toBe(ACCESS_KEY)
+  })
+
   test('leaves the summary access key unset when the resumo carries no key at all', async () => {
     const { adapter, harness } = createAdapter()
 
