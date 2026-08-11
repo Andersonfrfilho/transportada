@@ -118,15 +118,13 @@ export function BillingWorkspacePage() {
     <main className="workspace-shell">
       <header className="workspace-hero">
         <div>
-          <p className="workspace-kicker">Fechamento financeiro</p>
+          <p className="workspace-kicker">{t('pageKicker')}</p>
           <h1>{t('title')}</h1>
-          <p className="workspace-intro">
-            Selecione CT-e elegiveis, gere a fatura e acompanhe os documentos financeiros do lote.
-          </p>
+          <p className="workspace-intro">{t('pageIntro')}</p>
         </div>
         <div className="workspace-status-card">
-          <span>Estado atual</span>
-          <strong>{viewModel.status}</strong>
+          <span>{t('invoiceDetail.statusValue')}</span>
+          <strong>{t(`statusLabel.${viewModel.status}`)}</strong>
           <p className="workspace-status-text">
             {t('create.selectionSummary', {
               count: eligibleTable.selection.count,

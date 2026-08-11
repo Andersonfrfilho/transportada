@@ -735,6 +735,14 @@ a {
   border-top: 0;
 }
 
+/* Ícone e rótulo no mesmo eixo, separados pelo token — sem isso o módulo cola os dois. */
+button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
 .ui-button {
   display: inline-flex;
   align-items: center;

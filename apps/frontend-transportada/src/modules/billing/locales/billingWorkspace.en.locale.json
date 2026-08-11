@@ -1,5 +1,16 @@
 {
   "title": "Billing workspace",
+  "pageKicker": "Financial close",
+  "pageIntro": "Select eligible CT-es, issue the invoice and follow the financial documents of the batch.",
+  "statusLabel": {
+    "cancelled": "Cancelled",
+    "empty": "No invoices",
+    "error": "Unavailable",
+    "forbidden": "No access",
+    "issued": "Issued",
+    "loading": "Loading",
+    "selectable": "Ready to bill"
+  },
   "status": {
     "cancelled": "Invoice cancelled successfully.",
     "empty": "No invoice or eligible CT-e found.",
@@ -170,6 +181,29 @@
     "resultsCount": "{{count}} invoice(s) on this page",
     "clearFilters": "Clear filters",
     "clearSelection": "Clear selection",
+    "bulkCancel": {
+      "action": "Cancel invoices",
+      "title": "Cancel selected invoices",
+      "subtitle": "Cancellation is final and applies to every invoice listed below.",
+      "close": "Close",
+      "warning": "{{count}} invoice(s) will be cancelled. This cannot be undone.",
+      "invoiceLine": "Invoice {{number}} — {{customer}}",
+      "alreadyCancelled": "{{count}} selected invoice(s) were already cancelled and were skipped.",
+      "reason": "Cancellation reason",
+      "reasonError": {
+        "required": "Enter the cancellation reason.",
+        "tooShort": "The reason needs at least 3 characters."
+      },
+      "progressLabel": "Cancellation in progress",
+      "progressValue": "{{completed}} of {{total}} ({{percent}}%)",
+      "progressSummary": "{{successCount}} cancelled, {{errorCount}} failed",
+      "outcomeCancelled": "Invoice {{number}} cancelled.",
+      "outcomeFailed": "Invoice {{number}} was not cancelled: {{code}}",
+      "confirm": "Confirm cancellation",
+      "submitting": "Cancelling...",
+      "dismiss": "Back",
+      "done": "Done"
+    },
     "selectedCount": "{{count}} invoice(s) selected",
     "selectAll": "Select all invoices on this page",
     "selectRow": "Select invoice",

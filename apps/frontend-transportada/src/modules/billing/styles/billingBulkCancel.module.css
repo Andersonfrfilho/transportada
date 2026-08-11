@@ -1,0 +1,109 @@
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-5);
+  width: min(44rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, #ff5f57 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.subtitle {
+  margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  list-style: none;
+}
+
+.outcomeCancelled {
+  color: var(--color-fog);
+}
+
+.outcomeFailed {
+  color: #ff8a80;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.field textarea {
+  min-height: 5rem;
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: inherit;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  resize: vertical;
+}
+
+.hint {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.warning {
+  color: #ff8a80;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.summaryLine {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.iconAction {
+  padding: var(--space-1);
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}

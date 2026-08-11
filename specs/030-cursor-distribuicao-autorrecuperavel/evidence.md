@@ -188,3 +188,32 @@ $ make migration-test
  424 expect() calls
 EXIT=0
 ```
+
+## T009 — PR e deploy (11/08/2026 12:58 local)
+
+**PR #14** (`staging` → `main`), título _"cursor se recupera sozinho, e a fatura volta a ser uma só"_.
+Os seis checks fecharam verdes (`target`, `gate / quality`, `gate / integration`, `deploy`, `quality`,
+`integration`), mas o merge foi recusado com _"the base branch policy prohibits the merge"_: a proteção
+de `main` tem `required_conversation_resolution: true` e havia **14 conversas abertas** da análise
+estática do datadog — nenhuma de correção, todas de estilo. Duas eram mecânicas e foram corrigidas
+(`Array<T>` → `T[]` em `test/fixtures/distribution-cursor.fixture.ts`, bloco vazio explícito nos dois
+`finalizeImport` de `test/nfe-distribution/cursor-recovery.contract.ts`, commit `dfd297d`, `make check`
+EXIT=0). As demais eram nome de prop booleana (`disabled`, `loading`, `pending`, `adjusted`) — mantidas
+por coerência com o `ScheduledDistributionPanel` e com o atributo HTML homônimo, que é o que o design
+system já usa. As 14 conversas foram resolvidas.
+
+**Merge:** `1a8d9d0` em `main` às **12:40 local**. Workflow **Deploy** em `main` concluiu **verde às
+12:49 local** (`target`, `gate / quality`, `gate / integration`, `deploy`).
+
+**Prova em produção.** Consulta ao banco de produção pelo serviço `api` (`Bun.SQL`, não há `psql` no
+contêiner) às 12:58 local:
+
+```
+[{"ult_nsu":"000000000045636","max_nsu":"000000000045636","cr":0,"f":null,"t":null,"n":"11/08 13:00"}]
+```
+
+As colunas `consecutive_rate_limits`, `last_skipped_from_nsu` e `last_skipped_to_nsu` **existem em
+produção** — a migration da Fase A rodou. O cursor está em dia (`ult_nsu == max_nsu`), sem nenhuma
+recusa acumulada e sem intervalo pulado, com a janela seguinte às 13:00 local. É o estado esperado de
+acervo vazio: não há o que a autorrecuperação precise consertar agora, e é justamente por isso que ela
+existe — o próximo 656 fora de sequência se resolve sozinho, sem `UPDATE` manual.

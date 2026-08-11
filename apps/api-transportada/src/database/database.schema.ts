@@ -51,6 +51,7 @@ import {
   billingInvoiceItems,
   billingInvoices,
 } from './billing.schema.js'
+import { billingDescriptionTemplates } from './billing-description-template.schema.js'
 import { fleetDriverVehicleAssignments, fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -87,6 +88,7 @@ export * from './storage.schema.js'
 export * from './cte-batch.schema.js'
 export * from './cte-issuance.schema.js'
 export * from './billing.schema.js'
+export * from './billing-description-template.schema.js'
 export * from './view-preferences.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
@@ -151,6 +153,7 @@ export const databaseSchema = {
   cteIssuanceOutbox,
   cteRetrySchedules,
   cteSubmissionRecords,
+  billingDescriptionTemplates,
   billingInvoiceDocuments,
   billingInvoiceEvents,
   billingInvoiceItems,

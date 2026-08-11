@@ -7,6 +7,7 @@ export const BILLING_SCHEMA_EXPORT_NAMES = [
   'billingInvoiceItems',
   'billingInvoiceEvents',
   'billingInvoiceDocuments',
+  'billingDescriptionTemplates',
 ] as const
 
 export type BillingSchemaExportName = (typeof BILLING_SCHEMA_EXPORT_NAMES)[number]

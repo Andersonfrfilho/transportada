@@ -51,5 +51,5 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T009** `make check` verde, evidência em `evidence.md`, runbook §7 atualizado para apontar
+- [x] **T009** `make check` verde, evidência em `evidence.md`, runbook §7 atualizado para apontar
       esta feature no lugar do procedimento manual, PR e deploy.

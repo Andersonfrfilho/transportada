@@ -37,10 +37,12 @@ import {
   type BillingInvoiceTableFilters,
 } from '../shared/billingInvoiceTable.service'
 import { BILLING_INVOICE_LIST_QUERY_KEY } from '../shared/billingQueryKey.constant'
+import { useBillingBulkCancel } from './useBillingBulkCancel.hook'
 import { getBillingClient } from './useBillingWorkspace.hook'
 
 const BILLING_READ_PERMISSION = 'billing.read'
 const BILLING_CREATE_PERMISSION = 'billing.create'
+const BILLING_CANCEL_PERMISSION = 'billing.cancel'
 const BILLING_INVOICE_PAGE_SIZE = 25
 
 export { BILLING_INVOICE_LIST_QUERY_KEY }
@@ -106,6 +108,15 @@ export function useBillingInvoiceTable(input: UseBillingInvoiceTableInput) {
     (column) => columnPreferences.visibility[column],
   )
 
+  const bulkCancel = useBillingBulkCancel({
+    canCancel:
+      input.companyId !== undefined && input.permissions.includes(BILLING_CANCEL_PERMISSION),
+    client,
+    invoices: visibleItems,
+    onCancelled: () => setSelectedIds([]),
+    selectedIds,
+  })
+
   function restartPagination(): void {
     setPage(BILLING_INVOICE_FIRST_PAGE)
   }
@@ -117,6 +128,7 @@ export function useBillingInvoiceTable(input: UseBillingInvoiceTableInput) {
 
   return {
     activeFilterCount: countActiveBillingInvoiceFilters(filters),
+    bulkCancel,
     canGenerateDocuments,
     canGoToPreviousPage: canGoToPreviousBillingInvoicePage(page),
     canReadInvoices,

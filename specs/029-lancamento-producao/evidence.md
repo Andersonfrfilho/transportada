@@ -1707,3 +1707,11 @@ estariam.
 
 **Log do worker:** zero ocorrências de `NFE_XML_UNSUPPORTED_DOCUMENT`, de violação de constraint e
 de `nfe_distribution_item_skipped` na janela retida. Nenhum defeito novo.
+
+### Primeiro tick com a feature 030 em produção (11/08/2026 13:22 local)
+
+O ciclo das **13:01 local** foi o primeiro a rodar com o código da autorrecuperação já implantado
+(deploy verde em `main` às 12:49). Recebeu `cStat 137`, gravou a janela seguinte para **14:01 local**
+e não moveu o cursor — `ult_nsu = max_nsu = 000000000045636`, `consecutive_rate_limits = 0`, nenhum
+intervalo pulado. `nfe_import_items` segue em **808**, todos `variant = 'complete'` e nenhum com
+`access_key` nula. Acervo em dia, sem defeito novo. O ciclo de verificação horário foi encerrado.

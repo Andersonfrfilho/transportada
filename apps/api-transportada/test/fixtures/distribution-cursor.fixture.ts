@@ -68,12 +68,12 @@ export function createDistributionCursorRepositorySpy(
 }
 
 export type DistributionCursorAuditSpy = {
-  readonly entries: Array<Record<string, unknown>>
+  readonly entries: Record<string, unknown>[]
   readonly port: DistributionCursorAuditPort
 }
 
 export function createDistributionCursorAuditSpy(): DistributionCursorAuditSpy {
-  const entries: Array<Record<string, unknown>> = []
+  const entries: Record<string, unknown>[] = []
   return {
     entries,
     port: {

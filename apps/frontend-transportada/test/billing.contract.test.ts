@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './billing/batch-selection.contract.js'
+import './billing/bulk-cancel.contract.js'
 import './billing/client-and-queries.contract.js'
 import './billing/document-generation.contract.js'
 import './billing/due-date-display.contract.js'

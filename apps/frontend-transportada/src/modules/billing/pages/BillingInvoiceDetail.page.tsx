@@ -53,7 +53,7 @@ export function BillingInvoiceDetailPage({ invoiceId }: BillingInvoiceDetailPage
         </div>
         <div className="workspace-status-card">
           <span>{t('invoiceDetail.statusValue')}</span>
-          <strong>{viewModel.status}</strong>
+          <strong>{t(`statusLabel.${viewModel.status}`)}</strong>
         </div>
       </header>
       {viewModel.status === 'loading' ? (

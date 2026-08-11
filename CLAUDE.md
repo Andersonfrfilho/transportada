@@ -163,6 +163,12 @@ Todo ícone vem de `@/components/ui/icon` — `<svg>` cru é **proibido** em `sr
 Tamanho por token (`--icon-size-sm`/`--icon-size-md`), cor por `currentColor`, botão só de ícone com
 `aria-label` obrigatório. Nomes disponíveis e como criar um novo em `docs/frontend/icons.md`.
 
+Todo botão que hospeda ícone alinha ícone e rótulo por **uma regra global** (`button:has(svg)` em
+`src/styles/index.css`), nunca por CSS de módulo: classe de botão com ícone não declara `display`
+(a especificidade venceria a regra e devolveria o ícone colado ao rótulo) nem `gap` fora da escala
+`--space-*`. Regra completa em `docs/frontend/buttons.md`, contrato em
+`test/design-system/button.contract.ts`.
+
 Todo campo de seleção usa `@/components/ui/select` — `<select>` nativo é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/select.contract.ts` falha se algum reaparecer.
 Contrato de props, teclado e ARIA em `docs/frontend/selects.md`.
