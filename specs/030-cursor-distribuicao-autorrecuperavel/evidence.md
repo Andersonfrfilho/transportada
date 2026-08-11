@@ -191,9 +191,9 @@ EXIT=0
 
 ## T009 — PR e deploy (11/08/2026 12:58 local)
 
-**PR #14** (`staging` → `main`), título *"cursor se recupera sozinho, e a fatura volta a ser uma só"*.
+**PR #14** (`staging` → `main`), título _"cursor se recupera sozinho, e a fatura volta a ser uma só"_.
 Os seis checks fecharam verdes (`target`, `gate / quality`, `gate / integration`, `deploy`, `quality`,
-`integration`), mas o merge foi recusado com *"the base branch policy prohibits the merge"*: a proteção
+`integration`), mas o merge foi recusado com _"the base branch policy prohibits the merge"_: a proteção
 de `main` tem `required_conversation_resolution: true` e havia **14 conversas abertas** da análise
 estática do datadog — nenhuma de correção, todas de estilo. Duas eram mecânicas e foram corrigidas
 (`Array<T>` → `T[]` em `test/fixtures/distribution-cursor.fixture.ts`, bloco vazio explícito nos dois
