@@ -34,7 +34,7 @@ export type DistributionStoredObject = {
 }
 
 export type DistributionSummary = {
-  readonly accessKey: string
+  readonly accessKey?: string
   readonly emitterCnpj?: string
   readonly issuedAt?: string
   readonly situacao?: string
@@ -207,7 +207,7 @@ export class DrizzleNfeDistributionRepository {
       }
 
       await tx.insert(nfeImportItems).values({
-        accessKey,
+        accessKey: accessKey ?? null,
         companyId,
         environment,
         importId,
@@ -344,9 +344,9 @@ export class DrizzleNfeDistributionRepository {
   }
 }
 
-function resolveAccessKey(item: DistributionPersistItem): string {
+function resolveAccessKey(item: DistributionPersistItem): string | undefined {
   if (item.variant === 'summary') {
-    return item.summary?.accessKey ?? ''
+    return item.summary?.accessKey
   }
   const normalizedXml = item.normalizedXml
   if (normalizedXml === undefined) {

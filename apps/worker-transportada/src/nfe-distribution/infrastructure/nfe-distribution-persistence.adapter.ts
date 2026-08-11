@@ -22,6 +22,11 @@ const EVENT_SCHEMA = 'procEventoNFe'
 // A SEFAZ manda o nome do arquivo do schema no docZip (`resEvento_v1.01.xsd`), versão e extensão
 // inclusas; o pacote fiscal entrega cru
 const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*(?:\.xsd)?$/i
+const ACCESS_KEY_PATTERN = /^[0-9]{44}$/
+// O prefixo de namespace é opcional porque falhar aqui não derruba a página: a chave viraria nula
+// em silêncio, e um resumo sem chave não serve para nada
+const SUMMARY_ACCESS_KEY_ELEMENT =
+  /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
 
 type DistributionPersistencePort = {
   finalizeImport(input: {
@@ -130,9 +135,9 @@ async function buildPersistItem(params: {
   const variant = classifyVariant(dfe.schema)
 
   if (variant === 'summary') {
-    const accessKey = dfe.chaveNfe ?? `nsu-${dfe.nsu}`
+    const accessKey = resolveSummaryAccessKey({ dfe, sourceBytes })
     const finalObject = await dependencies.finalStorage.storeImportedDocument({
-      accessKey,
+      accessKey: accessKey ?? `nsu-${dfe.nsu}`,
       companyId,
       importId,
       sourceBytes,
@@ -173,13 +178,32 @@ async function buildPersistItem(params: {
   return { finalObject, normalizedXml, nsu: dfe.nsu, variant }
 }
 
+/**
+ * A chave da coluna `access_key` só aceita NULL ou 44 dígitos. O pacote fiscal nem sempre preenche
+ * `chaveNfe` no resumo, e a chave verdadeira está no `<chNFe>` do próprio XML — sintetizar um valor
+ * a partir do NSU violava o CHECK e derrubava a página inteira.
+ */
+function resolveSummaryAccessKey(params: {
+  readonly dfe: DfeItem
+  readonly sourceBytes: Uint8Array
+}): string | undefined {
+  const { dfe, sourceBytes } = params
+
+  if (dfe.chaveNfe !== undefined && ACCESS_KEY_PATTERN.test(dfe.chaveNfe)) {
+    return dfe.chaveNfe
+  }
+
+  const xml = new TextDecoder().decode(sourceBytes)
+  return SUMMARY_ACCESS_KEY_ELEMENT.exec(xml)?.[1]
+}
+
 function buildSummary(params: {
-  readonly accessKey: string
+  readonly accessKey: string | undefined
   readonly dfe: DfeItem
 }): DistributionSummary {
   const { accessKey, dfe } = params
   return {
-    accessKey,
+    ...(accessKey !== undefined ? { accessKey } : {}),
     ...(dfe.emitenteCnpj !== undefined ? { emitterCnpj: dfe.emitenteCnpj } : {}),
     ...(dfe.dataEmissao !== undefined ? { issuedAt: dfe.dataEmissao } : {}),
     ...(dfe.situacao !== undefined ? { situacao: dfe.situacao } : {}),
