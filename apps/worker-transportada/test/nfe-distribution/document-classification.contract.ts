@@ -195,6 +195,45 @@ describe('NF-e distribution document classification contract', () => {
     expect(harness.importedXml).toEqual([DOCUMENTO_XML, EVENTO_XML])
   })
 
+  /**
+   * Produção manda o nome do arquivo do schema, com `.xsd` no fim — `resEvento_v1.01.xsd`. As
+   * fixtures anteriores inventaram a string sem a extensão, e por isso o contrato passava verde
+   * enquanto os 50 itens de toda página real caíam em `complete` e eram pulados.
+   */
+  test('classifies the schema with the .xsd extension SEFAZ sends in production', async () => {
+    const { adapter, harness } = createAdapter()
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          nsu: '000000000037701',
+          schema: 'resEvento_v1.01.xsd',
+          xml: RESUMO_EVENTO_XML,
+        }),
+        createDfeItem({ nsu: '000000000037702', schema: 'resNFe_v1.01.xsd', xml: RESUMO_XML }),
+        createDfeItem({ nsu: '000000000037703', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+        createDfeItem({
+          nsu: '000000000037704',
+          schema: 'procEventoNFe_v1.00.xsd',
+          xml: EVENTO_XML,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037704',
+    })
+
+    expect(harness.persisted.map((item) => `${item.nsu}:${item.variant}`)).toEqual([
+      '000000000037701:summary',
+      '000000000037702:summary',
+      '000000000037703:complete',
+      '000000000037704:event',
+    ])
+    expect(result.skippedCount).toBe(0)
+  })
+
   test('keeps classifying when the schema arrives without the version suffix', async () => {
     const { adapter, harness } = createAdapter()
 

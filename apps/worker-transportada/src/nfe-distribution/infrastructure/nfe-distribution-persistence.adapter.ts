@@ -19,8 +19,9 @@ import type {
 
 const SUMMARY_SCHEMAS: ReadonlySet<string> = new Set(['resNFe', 'resEvento'])
 const EVENT_SCHEMA = 'procEventoNFe'
-// A SEFAZ versiona o atributo `schema` do docZip (`resNFe_v1.01`); o pacote fiscal entrega cru
-const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*$/
+// A SEFAZ manda o nome do arquivo do schema no docZip (`resEvento_v1.01.xsd`), versão e extensão
+// inclusas; o pacote fiscal entrega cru
+const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*(?:\.xsd)?$/i
 
 type DistributionPersistencePort = {
   finalizeImport(input: {
