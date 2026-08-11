@@ -12,6 +12,7 @@ export const API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH = '/company-settings/cnpj-inf
 export const API_COMPANY_SETTINGS_LOGO_PATH = '/company-settings/logo'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
+export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'

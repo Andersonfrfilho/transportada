@@ -349,6 +349,9 @@ describe('NF-e distribution observability contract', () => {
         async releaseLease() {
           /* empty */
         },
+        async resyncCursor() {
+          /* empty */
+        },
         async saveCursor() {
           /* empty */
         },
@@ -397,6 +400,7 @@ function createCursorRepository(
 ): NfeDistributionCursorRepositoryPort {
   let cursor: DistributionCursorRecord = {
     companyId: COMPANY_ID,
+    consecutiveRateLimits: 0,
     environment: 'homologation',
     leaseExpiresAt: null,
     leaseOwner: null,
@@ -422,10 +426,15 @@ function createCursorRepository(
       calls.push(`release:${input.owner}`)
       cursor = { ...cursor, leaseExpiresAt: null, leaseOwner: null }
     },
+    async resyncCursor(input) {
+      calls.push(`resync:${input.skippedFromNsu}-${input.skippedToNsu}`)
+      cursor = { ...cursor, consecutiveRateLimits: 0, ultNsu: input.ultNsu }
+    },
     async saveCursor(input) {
       calls.push(`cursor:${input.ultNsu}:${input.maxNsu}`)
       cursor = {
         ...cursor,
+        consecutiveRateLimits: input.consecutiveRateLimits,
         maxNsu: input.maxNsu,
         nextAllowedAt: input.nextAllowedAt,
         ultNsu: input.ultNsu,

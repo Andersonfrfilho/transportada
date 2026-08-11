@@ -8,6 +8,7 @@ import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
+import { DistributionCursorPanel } from '../components/DistributionCursorPanel.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
@@ -15,6 +16,7 @@ import {
   EMPTY_MDFE_DEFAULTS,
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
+import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import {
   CERTIFICATE_PURPOSES,
@@ -23,6 +25,7 @@ import {
   type CompanyLogoMetadata,
   type CompanyProfileLookup,
   type CompanySettingsUpdate,
+  type DistributionCursor,
   type SafeCertificate,
   type ScheduledDistributionStatus,
 } from '../shared/companySettingsClient.service'
@@ -75,10 +78,20 @@ type ScheduledDistributionSection = Readonly<{
   toggleErrorCode: string | undefined
 }>
 
+type DistributionCursorSection = Readonly<{
+  adjusted: boolean
+  cursor: DistributionCursor | undefined
+  errorCode: string | undefined
+  loading: boolean
+  onAdjust: (ultNsu: string) => void
+  pending: boolean
+}>
+
 type SettingsBodyProps = Readonly<{
   canManageSettings: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
+  distributionCursor: DistributionCursorSection
   initialValue: CompanySettingsUpdate | undefined
   logo: LogoSection
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
@@ -205,6 +218,14 @@ function SettingsBody(props: SettingsBodyProps) {
               status={props.scheduledDistribution.status}
               toggleErrorCode={props.scheduledDistribution.toggleErrorCode}
             />
+            <DistributionCursorPanel
+              adjusted={props.distributionCursor.adjusted}
+              cursor={props.distributionCursor.cursor}
+              disabled={props.distributionCursor.pending}
+              errorCode={props.distributionCursor.errorCode}
+              loading={props.distributionCursor.loading}
+              onAdjust={props.distributionCursor.onAdjust}
+            />
           </>
         )}
         {!props.canManageSettings && props.viewModel.status !== 'error' && (
@@ -245,6 +266,10 @@ export function CompanySettingsPage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings,
   })
+  const distributionCursor = useDistributionCursor({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings,
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -266,6 +291,17 @@ export function CompanySettingsPage() {
         canManageSettings={canManageSettings}
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
+        distributionCursor={{
+          adjusted: distributionCursor.adjustMutation.isSuccess,
+          cursor: distributionCursor.query.data,
+          errorCode:
+            distributionCursor.adjustMutation.error instanceof Error
+              ? distributionCursor.adjustMutation.error.message
+              : undefined,
+          loading: distributionCursor.query.isLoading,
+          onAdjust: (ultNsu) => distributionCursor.adjustMutation.mutate(ultNsu),
+          pending: distributionCursor.adjustMutation.isPending,
+        }}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
         logo={{
           image: logoQuery.data ?? null,
