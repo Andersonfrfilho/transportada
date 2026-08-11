@@ -6,6 +6,7 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_CTE_BATCHES_PATH,
   API_CTE_BATCH_ITEMS_PATH,
+  API_CTE_BATCH_ITEMS_SUMMARY_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import {
@@ -13,6 +14,7 @@ import {
   parseAppendCteBatchItemsRequest,
   parseCreateCteBatchRequest,
   parseCteBatchItemList,
+  parseCteBatchItemSummary,
   parseCteBatchList,
   parseEmptyJsonRequest,
   parseIdempotencyKey,
@@ -123,6 +125,19 @@ type CompanyCteItemPage = {
   readonly nextCursor: string | null
 }
 
+type CompanyCteItemSummaryInput = {
+  readonly filters?: CteBatchItemListFilters
+}
+
+type CompanyCteItemSummary = {
+  readonly baseAmount: string
+  readonly batchIds: readonly string[]
+  readonly batchIdsTruncated: boolean
+  readonly count: number
+  readonly statusCounts: Readonly<Record<string, number>>
+  readonly totalAmount: string
+}
+
 type Dependencies = {
   readonly cteBatches: {
     readonly appendItems: (input: WithContext<AppendCteBatchItemsInput>) => Promise<CteBatchSummary>
@@ -137,6 +152,11 @@ type Dependencies = {
   }
   readonly listCompanyItems: {
     readonly execute: (input: WithContext<CompanyCteItemListInput>) => Promise<CompanyCteItemPage>
+  }
+  readonly summarizeCompanyItems: {
+    readonly execute: (
+      input: WithContext<CompanyCteItemSummaryInput>,
+    ) => Promise<CompanyCteItemSummary>
   }
   readonly listEvents: {
     readonly execute: (input: WithContext<CteBatchEventsInput>) => Promise<CteBatchEventPage>
@@ -186,6 +206,19 @@ export function createCteBatchRoutes(
       method: 'GET',
       parse: ({ request }) => parseCteBatchItemList(new URL(request.url)),
       pathname: API_CTE_BATCH_ITEMS_PATH,
+      policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<CompanyCteItemSummaryInput>({
+      async handle({ context, input }): Promise<Response> {
+        const summary = await dependencies.summarizeCompanyItems.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: summary }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseCteBatchItemSummary(new URL(request.url)),
+      pathname: API_CTE_BATCH_ITEMS_SUMMARY_PATH,
       policy: CTE_SUBMIT_POLICY,
     }),
     defineRoute<CreateCteBatchInput>({
@@ -356,6 +389,8 @@ function serializeItem(item: CteBatchSummary): object {
     authorizationProtocol: item['authorizationProtocol'],
     authorizedAt: item['authorizedAt'],
     baseAmount: item['baseAmount'],
+    billingInvoiceNumber: item['billingInvoiceNumber'],
+    billingInvoicedAt: item['billingInvoicedAt'],
     billingStatus: item['billingStatus'],
     charges: item['charges'],
     documents: item['documents'],

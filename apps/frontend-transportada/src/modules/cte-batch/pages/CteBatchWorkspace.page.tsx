@@ -42,7 +42,10 @@ export function CteBatchWorkspacePage() {
     permissions,
   })
   const batches = workspace.batchesQuery.data?.items ?? []
-  const table = useCteBatchTable({ batches })
+  const table = useCteBatchTable({
+    batches,
+    ...(companyId === undefined ? {} : { companyId }),
+  })
   const items = useCteBatchItems({
     ...(openBatchId === undefined ? {} : { batchId: openBatchId }),
     ...(companyId === undefined ? {} : { companyId }),
@@ -54,6 +57,7 @@ export function CteBatchWorkspacePage() {
     permissions,
   })
   const submission = useCteBatchSubmission({
+    ...(companyId === undefined ? {} : { companyId }),
     onFinish: () => void workspace.batchesQuery.refetch(),
     submitBatch: (batchId) =>
       createCteIssuanceController({
@@ -174,7 +178,12 @@ export function CteBatchWorkspacePage() {
             />
           )}
           {openBatch === undefined ? null : (
-            <CteBatchItemsPanel batch={openBatch} controller={items} permissions={permissions} />
+            <CteBatchItemsPanel
+              batch={openBatch}
+              controller={items}
+              onBill={() => handleBill([openBatch])}
+              permissions={permissions}
+            />
           )}
           <CteBillingDialog dialog={billingDialog} />
         </>

@@ -35,6 +35,7 @@ import { createCteBatchUseCase } from './cte-batches/application/cte-batch.use-c
 import { createListCompanyCteItemsUseCase } from './cte-batches/application/list-company-cte-items.use-case'
 import { createListCteBatchItemsUseCase } from './cte-batches/application/list-cte-batch-items.use-case'
 import { createPreviewCteBatchUseCase } from './cte-batches/application/preview-cte-batch.use-case'
+import { createSummarizeCompanyCteItemsUseCase } from './cte-batches/application/summarize-company-cte-items.use-case'
 import { DrizzleCteBatchItemRepository } from './cte-batches/infrastructure/drizzle-cte-batch-item.repository'
 import { DrizzleCteBatchPreviewRepository } from './cte-batches/infrastructure/drizzle-cte-batch-preview.repository'
 import { DrizzleCteBatchRepository } from './cte-batches/infrastructure/drizzle-cte-batch.repository'
@@ -400,6 +401,9 @@ function createApplicationRoutes({
   const cteBatchItemReader = new DrizzleCteBatchItemRepository(database)
   const listCteBatchItems = createListCteBatchItemsUseCase({ reader: cteBatchItemReader })
   const listCompanyCteItems = createListCompanyCteItemsUseCase({ reader: cteBatchItemReader })
+  const summarizeCompanyCteItems = createSummarizeCompanyCteItemsUseCase({
+    reader: cteBatchItemReader,
+  })
   const billing = createBillingUseCase({
     clock: { now: () => new Date().toISOString() },
     fingerprintService,
@@ -577,6 +581,7 @@ function createApplicationRoutes({
       listEvents: { execute: (input) => cteBatchRepository.listEvents(input) },
       listItems: { execute: (input) => listCteBatchItems.execute(input) },
       previewBatches: { execute: (input) => previewCteBatches.execute(input) },
+      summarizeCompanyItems: { execute: (input) => summarizeCompanyCteItems.execute(input) },
     }),
     ...createBillingRoutes({
       billingInvoices: {
@@ -615,8 +620,9 @@ function createApplicationRoutes({
       },
       listEligibleBillingCtes: {
         async execute(input) {
-          const items = await billing.listEligible({
+          const page = await billing.listEligible({
             context: input.context,
+            cursor: input.cursor,
             filters: {
               batchId: input.batchId,
               batchIdIn: input.batchIdIn,
@@ -636,7 +642,7 @@ function createApplicationRoutes({
             },
             limit: input.limit,
           })
-          return { items, nextCursor: input.cursor }
+          return page
         },
       },
     }),

@@ -67,10 +67,13 @@
     "selectAll": "Selecionar todos os lotes",
     "select": "Selecionar lote",
     "summary": "{{count}} lote(s) selecionado(s)",
+    "itemCount": "CT-es dos lotes",
+    "totalsLoading": "Somando as CT-es dos lotes selecionados",
     "clear": "Limpar seleção"
   },
   "actions": {
     "transmit": "Transmitir",
+    "billBatch": "Gerar fatura do lote",
     "bill": "Gerar fatura",
     "cancel": "Cancelar lote",
     "reprocess": "Reprocessar",
@@ -119,6 +122,7 @@
   },
   "cteItems": {
     "title": "CT-es da empresa",
+    "invoicedTag": "Fatura {{number}} · {{date}}",
     "loading": "Carregando CT-es",
     "error": "Não foi possível carregar os CT-es",
     "empty": "Nenhum CT-e encontrado com os filtros atuais",
@@ -157,8 +161,18 @@
       "sefaz_duplicate_number": "Número alterado automaticamente: o número {{previousNumber}} já pertencia a outro CT-e autorizado (rejeição {{rejectionCode}} da SEFAZ)."
     },
     "pageCounter": "{{shown}} de até {{size}} por página",
+    "pageCounterOfTotal": "{{shown}} de {{total}} CT-e(s) do filtro",
+    "pageSize": "CT-es por página",
     "previousPage": "Página anterior",
     "nextPage": "Próxima página",
+    "filterSummary": {
+      "count": "CT-es no filtro",
+      "base": "Base do filtro",
+      "total": "Total do filtro",
+      "loading": "Somando as CT-es do filtro",
+      "transmit": "Transmitir tudo do filtro ({{count}} lote(s))",
+      "truncated": "O filtro cobre mais lotes do que cabem numa transmissão — refine o filtro para transmitir o resto."
+    },
     "filters": {
       "title": "Filtros de CT-e",
       "active": "{{count}} filtro(s) ativo(s)",
@@ -263,8 +277,8 @@
     "progress": {
       "title": "Progresso",
       "label": "Progresso da geração de faturas",
-      "value": "{{percent}}% — {{completed}} de {{total}} fatura(s)",
-      "summary": "{{successCount}} gerada(s) · {{errorCount}} com erro"
+      "value": "{{percent}}% — {{completed}} de {{total}} CT-e(s) faturado(s)",
+      "summary": "{{successCount}} fatura(s) gerada(s) · {{errorCount}} com erro"
     },
     "outcomeIssued": "{{customer}}: fatura {{number}} emitida.",
     "outcomeFailed": "{{customer}}: falhou ({{code}}).",
@@ -285,9 +299,9 @@
     },
     "awaiting": {
       "label": "Progresso da transmissão para a SEFAZ",
-      "value": "{{percent}}% — {{settled}} de {{total}} lote(s) com resposta da SEFAZ",
-      "pending": "{{count}} lote(s) ainda transmitindo — a tela atualiza sozinha.",
-      "complete": "Todos os lotes da fila receberam resposta da SEFAZ."
+      "value": "{{percent}}% — {{settled}} de {{total}} CT-e(s) com resposta da SEFAZ",
+      "pending": "{{count}} CT-e(s) ainda transmitindo — a tela atualiza sozinha.",
+      "complete": "Todas as CT-es da fila receberam resposta da SEFAZ."
     },
     "reasons": {
       "unknown": "não foi possível transmitir ({{code}})",

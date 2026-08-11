@@ -1,11 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { CompanyCteItemPage } from './cteBatchItem.types'
-import { createCompanyCteItemPageAdapter } from './cteBatchItem.validation'
+import type { CompanyCteItemPage, CompanyCteItemSummary } from './cteBatchItem.types'
+import {
+  createCompanyCteItemPageAdapter,
+  createCompanyCteItemSummaryAdapter,
+} from './cteBatchItem.validation'
 import type { CteExportRequestBody } from './cteBatchItemExport.service'
 import type { CteItemTableFilters } from './cteBatchItemTable.service'
-import { serializeCteItemQuery } from './cteBatchItemTable.service'
+import { serializeCteItemQuery, serializeCteItemSummaryQuery } from './cteBatchItemTable.service'
 
 const CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
+const CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
 const CTE_BATCHES_PATH = '/cte-batches'
 const CTE_ITEM_EXPORT_PATH = '/cte-batches/items/export'
 const CTE_EXPORT_FALLBACK_FILE_NAME = 'cte-xml.zip'
@@ -39,16 +43,23 @@ export type DownloadItemDacteInput = Readonly<{
   itemId: string
 }>
 
+export type SummarizeCompanyCteItemsInput = Readonly<{
+  batchIdIn?: readonly string[]
+  filters?: CteItemTableFilters
+}>
+
 export type CteBatchItemClient = Readonly<{
   downloadItemDacte: (input: DownloadItemDacteInput) => Promise<CteItemExportFile>
   exportCompanyItems: (body: CteExportRequestBody) => Promise<CteItemExportFile>
   listCompanyItems: (input: ListCompanyCteItemsInput) => Promise<CompanyCteItemPage>
+  summarizeCompanyItems: (input: SummarizeCompanyCteItemsInput) => Promise<CompanyCteItemSummary>
 }>
 
 export function createCteBatchItemClient(
   dependencies: CteBatchItemClientDependencies,
 ): CteBatchItemClient {
   const pageFromApi = createCompanyCteItemPageAdapter()
+  const summaryFromApi = createCompanyCteItemSummaryAdapter()
 
   return {
     async downloadItemDacte(input) {
@@ -107,6 +118,21 @@ export function createCteBatchItemClient(
         url: `${dependencies.apiUrl}${CTE_BATCH_ITEMS_PATH}?${search}`,
       })
       return pageFromApi(payload)
+    },
+    async summarizeCompanyItems(input) {
+      const accessToken = await dependencies.getAccessToken()
+      const search = serializeCteItemSummaryQuery(input)
+      const path = `${dependencies.apiUrl}${CTE_BATCH_ITEMS_SUMMARY_PATH}`
+      const payload = await requestJson({
+        fetch: dependencies.fetch,
+        init: {
+          cache: 'no-store',
+          headers: { authorization: `Bearer ${accessToken}` },
+          method: 'GET',
+        },
+        url: search.length === 0 ? path : `${path}?${search}`,
+      })
+      return summaryFromApi(payload)
     },
   }
 }

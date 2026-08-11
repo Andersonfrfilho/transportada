@@ -126,7 +126,12 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
     isSubmitting: submitMutation.isPending,
     loadErrorCode: readErrorCode(previewQuery.error ?? batchQuery.error),
     outcomes,
-    progress: resolveBillingProgress({ completed, outcomes, total: groups.length }),
+    progress: resolveBillingProgress({
+      completed,
+      outcomes,
+      total: groups.length,
+      totalCteCount: groups.reduce((sum, group) => sum + group.cteCount, 0),
+    }),
     setDueDate: (value: string) => {
       setDueDate(value)
       setDueDateError(null)

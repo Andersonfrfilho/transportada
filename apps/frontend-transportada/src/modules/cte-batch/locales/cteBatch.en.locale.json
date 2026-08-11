@@ -67,10 +67,13 @@
     "selectAll": "Select all batches",
     "select": "Select batch",
     "summary": "{{count}} batch(es) selected",
+    "itemCount": "CT-es in the batches",
+    "totalsLoading": "Summing the CT-es of the selected batches",
     "clear": "Clear selection"
   },
   "actions": {
     "transmit": "Transmit",
+    "billBatch": "Generate batch invoice",
     "bill": "Generate invoice",
     "cancel": "Cancel batch",
     "reprocess": "Reprocess",
@@ -119,6 +122,7 @@
   },
   "cteItems": {
     "title": "Company CT-es",
+    "invoicedTag": "Invoice {{number}} · {{date}}",
     "loading": "Loading CT-es",
     "error": "Could not load the CT-es",
     "empty": "No CT-e found with the current filters",
@@ -157,8 +161,18 @@
       "sefaz_duplicate_number": "Number changed automatically: number {{previousNumber}} already belonged to another authorized CT-e (SEFAZ rejection {{rejectionCode}})."
     },
     "pageCounter": "{{shown}} of up to {{size}} per page",
+    "pageCounterOfTotal": "{{shown}} of {{total}} CT-e(s) in the filter",
+    "pageSize": "CT-es per page",
     "previousPage": "Previous page",
     "nextPage": "Next page",
+    "filterSummary": {
+      "count": "CT-es in the filter",
+      "base": "Filter base",
+      "total": "Filter total",
+      "loading": "Summing the CT-es in the filter",
+      "transmit": "Transmit the whole filter ({{count}} batch(es))",
+      "truncated": "The filter covers more batches than one transmission can take — narrow it to send the rest."
+    },
     "filters": {
       "title": "CT-e filters",
       "active": "{{count}} active filter(s)",
@@ -263,8 +277,8 @@
     "progress": {
       "title": "Progress",
       "label": "Invoice generation progress",
-      "value": "{{percent}}% — {{completed}} of {{total}} invoice(s)",
-      "summary": "{{successCount}} generated · {{errorCount}} failed"
+      "value": "{{percent}}% — {{completed}} of {{total}} CT-e(s) invoiced",
+      "summary": "{{successCount}} invoice(s) generated · {{errorCount}} failed"
     },
     "outcomeIssued": "{{customer}}: invoice {{number}} issued.",
     "outcomeFailed": "{{customer}}: failed ({{code}}).",
@@ -285,9 +299,9 @@
     },
     "awaiting": {
       "label": "SEFAZ transmission progress",
-      "value": "{{percent}}% — {{settled}} of {{total}} batch(es) answered by SEFAZ",
-      "pending": "{{count}} batch(es) still transmitting — this screen refreshes itself.",
-      "complete": "Every queued batch was answered by SEFAZ."
+      "value": "{{percent}}% — {{settled}} of {{total}} CT-e(s) answered by SEFAZ",
+      "pending": "{{count}} CT-e(s) still transmitting — this screen refreshes itself.",
+      "complete": "Every queued CT-e was answered by SEFAZ."
     },
     "reasons": {
       "unknown": "could not transmit ({{code}})",

@@ -9,6 +9,8 @@ import {
 
 import {
   COMPANY_CTE_ITEMS_QUERY_KEY,
+  COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY,
+  useCompanyCteItemSummaryQuery,
   useCompanyCteItemsQuery,
 } from '../queries/cteBatchItems.query'
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
@@ -26,6 +28,7 @@ import {
   accumulateCteItemAmounts,
   canGoToPreviousCteItemPage,
   countActiveCteItemFilters,
+  CTE_ITEM_DEFAULT_PAGE_SIZE,
   CTE_ITEM_FIRST_PAGE,
   EMPTY_CTE_ITEM_FILTERS,
   nextCteItemPage,
@@ -42,6 +45,7 @@ import {
   type CteItemBillingStatus,
   type CteItemColumnKey,
   type CteItemColumnPreferences,
+  type CteItemPageSize,
   type CteItemPageState,
   type CteItemSortState,
   type CteItemStatus,
@@ -55,7 +59,6 @@ import { useCteDacteDownload } from './useCteDacteDownload.hook'
 import { useCteItemExport } from './useCteItemExport.hook'
 
 const CTE_SUBMIT_PERMISSION = 'cte.submit'
-const CTE_ITEM_PAGE_SIZE = 25
 
 export type CteItemTableController = ReturnType<typeof useCteItemTable>
 
@@ -76,6 +79,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
   const [filters, setFilters] = useState<CteItemTableFilters>(EMPTY_CTE_ITEM_FILTERS)
   const [sort, setSort] = useState<CteItemSortState>(null)
   const [page, setPage] = useState<CteItemPageState>(CTE_ITEM_FIRST_PAGE)
+  const [pageSize, setPageSize] = useState<CteItemPageSize>(CTE_ITEM_DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
   /** A seleção congela ao abrir o faturamento: paginar atrás do modal não muda o que será faturado. */
   const [billingRequest, setBillingRequest] = useState<null | readonly BillableCte[]>(null)
@@ -91,8 +95,15 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     cursor: page.cursor,
     enabled: canReadItems,
     filters,
-    limit: CTE_ITEM_PAGE_SIZE,
+    limit: pageSize,
   })
+  /** A página não sabe o tamanho do recorte: a contagem e o dinheiro do filtro vêm somados do banco. */
+  const filterSummaryQuery = useCompanyCteItemSummaryQuery({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    enabled: canReadItems,
+    filters,
+  })
+  const filterSummary = filterSummaryQuery.data
 
   const items = itemsQuery.data?.items ?? []
   const nextCursor = itemsQuery.data?.nextCursor ?? null
@@ -118,6 +129,22 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     groups: transmitGroups,
     permissions: input.permissions,
   })
+  /**
+   * Transmitir é por lote na API: o recorte do filtro vira a lista de lotes distintos que ele toca.
+   * Só os transmissíveis entram — lote encerrado no meio do filtro travava o botão sem dizer qual.
+   */
+  const filterTransmitGroups = selectTransmittableGroups({
+    batchStatuses,
+    groups: (filterSummary?.batchIds ?? []).map((batchId) => ({ batchId, itemIds: [] })),
+  })
+  const canTransmitFilter =
+    filterSummary !== undefined &&
+    filterSummary.count > 0 &&
+    canTransmitSelection({
+      batchStatuses,
+      groups: filterTransmitGroups,
+      permissions: input.permissions,
+    })
   const billingSelection = collectBillableCtes({ amounts: knownAmounts.current, selectedIds })
   const canBill = canBillSelection({
     billable: billingSelection.billable,
@@ -154,6 +181,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     onSettled: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEMS_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [CTE_BATCHES_QUERY_KEY] }),
       ])
     },
@@ -182,6 +210,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     canReadItems,
     canGoToPreviousPage: canGoToPreviousCteItemPage(page),
     canTransmit,
+    canTransmitFilter,
     clearFilterField: (field: CteItemPillField) => {
       setFilters((current) => clearCteItemFilterField({ field, filters: current }))
       restartPagination()
@@ -195,6 +224,9 @@ export function useCteItemTable(input: UseCteItemTableInput) {
     clearSelection: () => setSelectedIds([]),
     closeBilling: () => setBillingRequest(null),
     columnPreferences,
+    filterSummary,
+    filterSummaryQuery,
+    filterTransmitGroups,
     filters,
     goToNextPage: () => setPage((current) => nextCteItemPage(current, nextCursor)),
     goToPreviousPage: () => setPage((current) => previousCteItemPage(current)),
@@ -211,9 +243,14 @@ export function useCteItemTable(input: UseCteItemTableInput) {
         ...columnPreferences,
         order: reorderCteItemColumns(columnPreferences.order, column, direction),
       }),
-    pageSize: CTE_ITEM_PAGE_SIZE,
+    pageSize,
     selectedIds,
     selection,
+    /** Trocar o tamanho move a borda da página: o cursor guardado apontaria para outro recorte. */
+    setPageSize: (size: CteItemPageSize) => {
+      setPageSize(size)
+      restartPagination()
+    },
     setTextFilter: (field: CteItemTextFilterField, value: string) => {
       setFilters((current) => ({ ...current, [field]: value }))
       restartPagination()
@@ -243,6 +280,7 @@ export function useCteItemTable(input: UseCteItemTableInput) {
       restartPagination()
     },
     transmitErrorCode,
+    transmitFilter: () => transmitMutation.mutate(filterTransmitGroups),
     transmitGroups,
     transmitSelection: (groups: readonly CteItemBatchGroup[]) => transmitMutation.mutate(groups),
     visibleColumns,

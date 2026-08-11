@@ -73,6 +73,7 @@ type BillingClientModule = Readonly<{
 }>
 
 type BillingGroupOutcome = Readonly<{
+  cteCount: number
   customerDocument: string
   errorCode?: string
   invoiceNumber?: number
@@ -220,8 +221,8 @@ describe('billing from cte selection contract', () => {
     expect(calls.every((call) => call.dueDate === DUE_DATE)).toBeTrue()
     expect(new Set(calls.map((call) => call.idempotencyKey)).size).toBe(2)
     expect(outcomes).toEqual([
-      { customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 1 },
-      { customerDocument: CUSTOMER_BETA.document, invoiceNumber: 2 },
+      { cteCount: 1, customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 1 },
+      { cteCount: 1, customerDocument: CUSTOMER_BETA.document, invoiceNumber: 2 },
     ])
   })
 
@@ -241,8 +242,12 @@ describe('billing from cte selection contract', () => {
     })
 
     expect(outcomes).toEqual([
-      { customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 17 },
-      { customerDocument: CUSTOMER_BETA.document, errorCode: 'BILLING_CTE_NOT_ELIGIBLE' },
+      { cteCount: 1, customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 17 },
+      {
+        cteCount: 1,
+        customerDocument: CUSTOMER_BETA.document,
+        errorCode: 'BILLING_CTE_NOT_ELIGIBLE',
+      },
     ])
   })
 

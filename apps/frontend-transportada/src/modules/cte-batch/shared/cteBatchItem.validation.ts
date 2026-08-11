@@ -2,6 +2,7 @@
 import type {
   CompanyCteItem,
   CompanyCteItemPage,
+  CompanyCteItemSummary,
   CteBatchItem,
   CteBatchItemCharge,
   CteBatchItemDocument,
@@ -15,6 +16,8 @@ const ITEM_KEYS = [
   'authorizationProtocol',
   'authorizedAt',
   'baseAmount',
+  'billingInvoiceNumber',
+  'billingInvoicedAt',
   'billingStatus',
   'charges',
   'documents',
@@ -41,6 +44,15 @@ const DOCUMENT_KEYS = ['accessKey', 'id', 'number', 'position', 'series', 'total
 const COMPANY_ITEM_KEYS = [...ITEM_KEYS, 'batchId', 'batchName', 'createdAt'] as const
 
 const PAGE_KEYS = ['data', 'page'] as const
+
+const SUMMARY_KEYS = [
+  'baseAmount',
+  'batchIds',
+  'batchIdsTruncated',
+  'count',
+  'statusCounts',
+  'totalAmount',
+] as const
 
 function validationError(): Error {
   return new Error(INVALID_ITEMS)
@@ -138,6 +150,8 @@ function itemFromApi(input: unknown): CteBatchItem {
     !isNullableString(input.authorizationProtocol) ||
     !isNullableString(input.authorizedAt) ||
     !isString(input.baseAmount) ||
+    !isNullableString(input.billingInvoiceNumber) ||
+    !isNullableString(input.billingInvoicedAt) ||
     !isString(input.billingStatus) ||
     !Array.isArray(input.charges) ||
     !Array.isArray(input.documents) ||
@@ -158,6 +172,8 @@ function itemFromApi(input: unknown): CteBatchItem {
     authorizationProtocol: input.authorizationProtocol,
     authorizedAt: input.authorizedAt,
     baseAmount: input.baseAmount,
+    billingInvoiceNumber: input.billingInvoiceNumber,
+    billingInvoicedAt: input.billingInvoicedAt,
     billingStatus: input.billingStatus,
     charges: input.charges.map(chargeFromApi),
     documents: input.documents.map(documentFromApi),
@@ -206,6 +222,54 @@ export function createCteBatchItemsAdapter(): (input: unknown) => readonly CteBa
     if (!isRecord(input) || !Array.isArray(input.data)) throw validationError()
     rejectExtraKeys(input, ['data'])
     return input.data.map(itemFromApi)
+  }
+}
+
+function batchIdsFromApi(input: unknown): readonly string[] {
+  if (!Array.isArray(input)) throw validationError()
+  return input.map((batchId) => {
+    if (!isString(batchId)) throw validationError()
+    return batchId
+  })
+}
+
+/** A SEFAZ acrescenta situações: a chave é aberta, só a contagem precisa ser número. */
+function statusCountsFromApi(input: unknown): Readonly<Record<string, number>> {
+  if (!isRecord(input)) throw validationError()
+  const counts: Record<string, number> = {}
+  for (const [status, occurrences] of Object.entries(input)) {
+    if (typeof occurrences !== 'number') throw validationError()
+    counts[status] = occurrences
+  }
+  return counts
+}
+
+function summaryFromApi(input: unknown): CompanyCteItemSummary {
+  if (!isRecord(input)) throw validationError()
+  rejectExtraKeys(input, SUMMARY_KEYS)
+  if (
+    !isString(input.baseAmount) ||
+    !isString(input.totalAmount) ||
+    typeof input.batchIdsTruncated !== 'boolean' ||
+    typeof input.count !== 'number'
+  ) {
+    throw validationError()
+  }
+  return {
+    baseAmount: input.baseAmount,
+    batchIds: batchIdsFromApi(input.batchIds),
+    batchIdsTruncated: input.batchIdsTruncated,
+    count: input.count,
+    statusCounts: statusCountsFromApi(input.statusCounts),
+    totalAmount: input.totalAmount,
+  }
+}
+
+export function createCompanyCteItemSummaryAdapter(): (input: unknown) => CompanyCteItemSummary {
+  return (input) => {
+    if (!isRecord(input)) throw validationError()
+    rejectExtraKeys(input, ['data'])
+    return summaryFromApi(input.data)
   }
 }
 

@@ -54,6 +54,8 @@ const AUTHORIZED_ROW = {
   baseAmount: '1058.4800',
   batchId: CTE_BATCH_ID,
   batchName: 'Lote CT-e julho',
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'invoiced',
   charges: [],
   createdAt: '2026-07-22T20:10:00.000Z',
@@ -82,6 +84,8 @@ const REJECTED_ROW = {
   baseAmount: '958.4800',
   batchId: CTE_DONE_BATCH_ID,
   batchName: 'Lote CT-e agosto',
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'pending',
   createdAt: '2026-07-21T20:10:00.000Z',
   fiscalAmount: '43.13',
@@ -603,6 +607,43 @@ describe('CT-e item table contract', () => {
     ])
     expect(table).toContain('fiscalNumberChange')
     expect(locale).toContain('fiscalNumberChange')
+  })
+
+  /**
+   * "Faturado" sem identificação obriga a abrir o faturamento e procurar. O selo carrega o número
+   * da fatura e a data de emissão dela, que é o que permite conferir a linha contra o relatório.
+   */
+  test('the billing chip identifies the invoice that took the CT-e', async () => {
+    const { createCompanyCteItemPageAdapter } =
+      await loadFutureModule<CteItemPageAdapterModule>(ITEM_VALIDATION_MODULE)
+    const pageFromApi = createCompanyCteItemPageAdapter()
+
+    const invoiced = pageFromApi({
+      data: [
+        {
+          ...AUTHORIZED_ROW,
+          billingInvoiceNumber: '17',
+          billingInvoicedAt: '2026-07-20T12:00:00.000Z',
+          billingStatus: 'invoiced',
+        },
+      ],
+      page: { nextCursor: null },
+    }) as {
+      readonly items: readonly {
+        readonly billingInvoiceNumber: unknown
+        readonly billingInvoicedAt: unknown
+      }[]
+    }
+    expect(invoiced.items[0]?.billingInvoiceNumber).toBe('17')
+    expect(invoiced.items[0]?.billingInvoicedAt).toBe('2026-07-20T12:00:00.000Z')
+
+    const [table, locale] = await Promise.all([
+      readModule('src/modules/cte-batch/components/CteItemTable.component.tsx'),
+      readModule('src/modules/cte-batch/locales/cteBatch.locale.json'),
+    ])
+    expect(table).toContain('billingInvoiceNumber')
+    expect(table).toContain('cteItems.invoicedTag')
+    expect(locale).toContain('invoicedTag')
   })
 
   test('registers the CT-e table as a living reference of the data table rule', async () => {

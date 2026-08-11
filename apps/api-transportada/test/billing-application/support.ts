@@ -137,6 +137,7 @@ export class BillingUnitOfWorkFixture {
 
   public concurrentReservationAllowed = true
   public eligibleCtes: Array<Record<string, unknown>> = [{ ...ELIGIBLE_CTE }]
+  public eligibleNextCursor: string | null = null
   public previewRecords: Array<Record<string, unknown>> = []
   public invoice: Record<string, unknown> | null = EXPECTED_INVOICE
   public replayedCreate: {
@@ -170,11 +171,12 @@ export class BillingUnitOfWorkFixture {
     }
   }
 
-  public async listEligibleCtes(
-    input: Record<string, unknown>,
-  ): Promise<readonly Record<string, unknown>[]> {
+  public async listEligibleCtes(input: Record<string, unknown>): Promise<{
+    readonly items: readonly Record<string, unknown>[]
+    readonly nextCursor: string | null
+  }> {
     this.eligibilityQueries.push(input)
-    return this.eligibleCtes
+    return { items: this.eligibleCtes, nextCursor: this.eligibleNextCursor }
   }
 
   public async findEligibleCtesByIds(

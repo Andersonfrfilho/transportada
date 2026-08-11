@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { ProgressBar } from '@/components/ui/progress'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import { useCteBatchExport } from '../hooks/useCteBatchExport.hook'
 import type { CteBatchSubmissionController } from '../hooks/useCteBatchSubmission.hook'
@@ -11,7 +13,6 @@ import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import { collectBillableBatches } from '../shared/cteBatchBilling.service'
 import type { CteBatchSummary } from '../shared/cteBatchClient.service'
 import { canCancelBatch, canTransmitBatch } from '../shared/cteBatchItemActions.service'
-import { resolveCteBatchTransmissionSummary } from '../shared/cteBatchProgress.service'
 import {
   CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE,
   type CteBatchSubmissionOutcome,
@@ -53,10 +54,7 @@ export function CteBatchSelectionBar({
   const billable = collectBillableBatches({ batches: table.selectedBatches, permissions })
   const failed = submission.outcomes.filter((outcome) => outcome.errorCode !== undefined)
   const hasProgress = submission.isSubmitting || submission.outcomes.length > 0
-  const transmission = resolveCteBatchTransmissionSummary({
-    batchIds: submission.submittedBatchIds,
-    batches: table.batches,
-  })
+  const transmission = submission.itemTransmission
 
   function renderFailure(outcome: CteBatchSubmissionOutcome) {
     const code = outcome.errorCode ?? CTE_BATCH_SUBMIT_UNKNOWN_ERROR_CODE
@@ -76,6 +74,29 @@ export function CteBatchSelectionBar({
       <p className={styles.counter}>
         {t('selection.summary', { count: table.selectedBatches.length })}
       </p>
+      {table.isLoadingSelectionSummary ? (
+        <SkeletonGroup className={styles.selectionTotals} label={t('selection.totalsLoading')}>
+          <Skeleton height="var(--space-4)" width="12ch" />
+          <Skeleton height="var(--space-4)" width="12ch" />
+          <Skeleton height="var(--space-4)" width="12ch" />
+        </SkeletonGroup>
+      ) : null}
+      {table.selectionSummary === undefined ? null : (
+        <dl className={styles.selectionTotals}>
+          <div>
+            <dt>{t('selection.itemCount')}</dt>
+            <dd>{table.selectionSummary.count}</dd>
+          </div>
+          <div>
+            <dt>{t('cteItems.baseSelected')}</dt>
+            <dd>{formatAmount(table.selectionSummary.baseAmount)}</dd>
+          </div>
+          <div>
+            <dt>{t('cteItems.totalSelected')}</dt>
+            <dd>{formatAmount(table.selectionSummary.totalAmount)}</dd>
+          </div>
+        </dl>
+      )}
       <div className={styles.bulkActions}>
         <Button
           aria-label={t('transmission.bulkTransmit')}
@@ -152,7 +173,7 @@ export function CteBatchSelectionBar({
               successCount: submission.progress.successCount,
             })}
           </p>
-          {transmission.total === 0 ? null : (
+          {transmission === undefined || transmission.total === 0 ? null : (
             <>
               <ProgressBar
                 completed={transmission.settled}

@@ -38,9 +38,7 @@ type BillingUnitOfWorkPort = {
   readonly findInvoiceByIdempotency: (
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown> | null>
-  readonly listEligibleCtes: (
-    input: Record<string, unknown>,
-  ) => Promise<readonly Record<string, unknown>[]>
+  readonly listEligibleCtes: (input: Record<string, unknown>) => Promise<BillingEligiblePage>
   readonly listInvoices: (input: Record<string, unknown>) => Promise<BillingInvoicePage>
   readonly reserveCteForActiveInvoice: (input: Record<string, unknown>) => Promise<boolean>
   readonly updateInvoiceDetails: (
@@ -51,6 +49,7 @@ type BillingUnitOfWorkPort = {
 
 export type BillingEligibilityInput = {
   readonly context: BillingContext
+  readonly cursor: string | null
   readonly filters: Record<string, unknown>
   readonly limit: number
 }
@@ -125,6 +124,8 @@ export type BillingInvoicePage = {
   readonly nextCursor: string | null
 }
 
+export type BillingEligiblePage = BillingInvoicePage
+
 export function createBillingUseCase(dependencies: {
   readonly clock: BillingClockPort
   readonly fingerprintService: BillingFingerprintPort
@@ -134,9 +135,7 @@ export function createBillingUseCase(dependencies: {
   readonly create: (input: CreateBillingInvoiceInput) => Promise<Record<string, unknown>>
   readonly get: (input: BillingInvoiceLookupInput) => Promise<Record<string, unknown>>
   readonly list: (input: BillingInvoiceListInput) => Promise<BillingInvoicePage>
-  readonly listEligible: (
-    input: BillingEligibilityInput,
-  ) => Promise<readonly Record<string, unknown>[]>
+  readonly listEligible: (input: BillingEligibilityInput) => Promise<BillingEligiblePage>
   readonly preview: (input: PreviewBillingInvoiceInput) => Promise<BillingPreview>
   readonly update: (input: UpdateBillingInvoiceInput) => Promise<Record<string, unknown>>
 } {
@@ -224,9 +223,10 @@ function hasText(value: unknown): boolean {
 async function listEligibleCtes(
   unitOfWork: BillingUnitOfWorkPort,
   input: BillingEligibilityInput,
-): Promise<readonly Record<string, unknown>[]> {
+): Promise<BillingEligiblePage> {
   return unitOfWork.listEligibleCtes({
     companyId: input.context.companyId,
+    cursor: input.cursor,
     excludeActiveInvoice: true,
     filters: input.filters,
     limit: input.limit,

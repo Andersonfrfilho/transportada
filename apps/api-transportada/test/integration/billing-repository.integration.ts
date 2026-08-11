@@ -74,12 +74,17 @@ describe('billing repository integration', () => {
         })
         const context = { companyId, userId }
         const otherContext = { companyId: otherCompanyId, userId }
-        const eligible = await useCase.listEligible({ context, filters: {}, limit: 20 })
-        const otherEligible = await useCase.listEligible({
-          context: otherContext,
-          filters: {},
-          limit: 20,
-        })
+        const eligible = (
+          await useCase.listEligible({ context, cursor: null, filters: {}, limit: 20 })
+        ).items
+        const otherEligible = (
+          await useCase.listEligible({
+            context: otherContext,
+            cursor: null,
+            filters: {},
+            limit: 20,
+          })
+        ).items
 
         expect(eligible).toHaveLength(1)
         expect(otherEligible).toHaveLength(1)
@@ -94,15 +99,18 @@ describe('billing repository integration', () => {
         const otherBatchId = requiredResultString(otherEligible[0], 'batchId')
         // Os dois tenants têm o mesmo nome de cliente e números de CT-e vizinhos: os filtros de
         // lista e de nome só podem devolver a linha da empresa autenticada.
-        const filtered = await useCase.listEligible({
-          context,
-          filters: {
-            batchIdIn: [batchId, otherBatchId],
-            cteNumberIn: ['1', '2'],
-            customerName: 'Cliente',
-          },
-          limit: 20,
-        })
+        const filtered = (
+          await useCase.listEligible({
+            context,
+            cursor: null,
+            filters: {
+              batchIdIn: [batchId, otherBatchId],
+              cteNumberIn: ['1', '2'],
+              customerName: 'Cliente',
+            },
+            limit: 20,
+          })
+        ).items
 
         expect(filtered).toHaveLength(1)
         expect(filtered[0]?.['companyId']).toBe(companyId)
@@ -110,35 +118,41 @@ describe('billing repository integration', () => {
         expect(
           await useCase.listEligible({
             context,
+            cursor: null,
             filters: { batchIdIn: [otherBatchId] },
             limit: 20,
           }),
-        ).toEqual([])
+        ).toEqual({ items: [], nextCursor: null })
         expect(
           await useCase.listEligible({
             context,
+            cursor: null,
             filters: { customerName: 'Cliente 2' },
             limit: 20,
           }),
-        ).toEqual([])
+        ).toEqual({ items: [], nextCursor: null })
 
         // O CT-e foi autorizado às 20:00 do dia 22; escolher 22/07 como fim do período tem de
         // incluí-lo, e o dia anterior continua excluindo.
         const authorizationDay = '2026-07-22'
-        const sameDay = await useCase.listEligible({
-          context,
-          filters: { from: authorizationDay, to: authorizationDay },
-          limit: 20,
-        })
+        const sameDay = (
+          await useCase.listEligible({
+            context,
+            cursor: null,
+            filters: { from: authorizationDay, to: authorizationDay },
+            limit: 20,
+          })
+        ).items
         expect(sameDay).toHaveLength(1)
         expect(sameDay[0]?.['companyId']).toBe(companyId)
         expect(
           await useCase.listEligible({
             context,
+            cursor: null,
             filters: { to: '2026-07-21' },
             limit: 20,
           }),
-        ).toEqual([])
+        ).toEqual({ items: [], nextCursor: null })
 
         const cteDocumentId = requiredResultString(eligible[0], 'id')
         const otherCteDocumentId = requiredResultString(otherEligible[0], 'id')
@@ -179,7 +193,12 @@ describe('billing repository integration', () => {
         expect(rejected[0]?.reason).toBeInstanceOf(ApiError)
         expect(rejected[0]?.reason).toMatchObject({ status: 409 })
         expect(CONCURRENT_BILLING_CONFLICT_CODES).toContain((rejected[0]?.reason as ApiError).code)
-        expect(await useCase.listEligible({ context, filters: {}, limit: 20 })).toEqual([])
+        expect(
+          await useCase.listEligible({ context, cursor: null, filters: {}, limit: 20 }),
+        ).toEqual({
+          items: [],
+          nextCursor: null,
+        })
         expect(await useCase.preview({ context, cteDocumentIds: [cteDocumentId] })).toEqual({
           blocked: [{ cteId: cteDocumentId, reason: 'already_invoiced' }],
           groups: [],
@@ -296,7 +315,12 @@ describe('billing repository integration', () => {
             invoiceId,
           }),
         ).rejects.toMatchObject({ code: 'BILLING_INVOICE_INVALID_STATE', status: 409 })
-        expect(await useCase.listEligible({ context, filters: {}, limit: 20 })).toEqual([])
+        expect(
+          await useCase.listEligible({ context, cursor: null, filters: {}, limit: 20 }),
+        ).toEqual({
+          items: [],
+          nextCursor: null,
+        })
       })
     },
     30_000,

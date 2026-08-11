@@ -1,7 +1,19 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, gte, ilike, inArray, isNotNull, isNull, lte, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 
 import {
   billingInvoiceItems,
@@ -11,6 +23,7 @@ import {
   freightCalculations,
   nfeDocuments,
 } from '../../database/database.schema.js'
+import type { KeysetCursor } from '../../shared/keyset-cursor.js'
 
 import { buildNumberFilter } from './number-filter.query.js'
 
@@ -23,6 +36,7 @@ export type EligibleCteFilterInput = {
   readonly cteNumberFrom: string | null
   readonly cteNumberIn: readonly string[] | null
   readonly cteNumberTo: string | null
+  readonly cursor: KeysetCursor | null
   readonly customerDocument: string | null
   readonly customerName: string | null
   readonly from: string | null
@@ -80,8 +94,20 @@ export function buildEligibleNfeDocumentJoin(): SQL {
  * Recorte de elegibilidade e filtros da listagem num só lugar, para o isolamento de tenant ser
  * verificável sem banco — o mesmo seam usado pela exportação de CT-e.
  */
+/**
+ * A listagem ordena por `(authorized_at, id)` crescente; o cursor retoma exatamente depois da última
+ * linha entregue. Sem ele a página seguinte repetiria a primeira, e o lote inteiro nunca sairia.
+ */
+function eligibleKeysetCondition(cursor: KeysetCursor): SQL {
+  return sql`(${gt(cteFiscalDocuments.authorizedAt, cursor.createdAt)} or (${eq(
+    cteFiscalDocuments.authorizedAt,
+    cursor.createdAt,
+  )} and ${gt(cteFiscalDocuments.id, cursor.id)}))`
+}
+
 export function buildEligibleCteFilters(input: EligibleCteFilterInput): SQL[] {
   const conditions: (SQL | undefined)[] = [
+    input.cursor === null ? undefined : eligibleKeysetCondition(input.cursor),
     eq(cteFiscalDocuments.companyId, input.companyId),
     eq(cteFiscalDocuments.status, AUTHORIZED_DOCUMENT_STATUS),
     isNotNull(cteFiscalDocuments.authorizedAt),

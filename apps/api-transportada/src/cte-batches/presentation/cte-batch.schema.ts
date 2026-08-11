@@ -195,30 +195,34 @@ export type CteBatchItemListFilters = {
   readonly statusIn?: readonly string[]
 }
 
+const CTE_BATCH_ITEM_FILTER_KEYS = [
+  'batchId',
+  'batchIdIn',
+  'billingStatusIn',
+  'cteNumberGte',
+  'cteNumberIn',
+  'cteNumberLte',
+  'invoiceNumberGte',
+  'invoiceNumberIn',
+  'invoiceNumberLte',
+  'issuedFrom',
+  'issuedUntil',
+  'statusIn',
+] as const
+
+function assertKnownQueryKeys(url: URL, extraKeys: readonly string[]): void {
+  const allowedKeys = new Set<string>([...CTE_BATCH_ITEM_FILTER_KEYS, ...extraKeys])
+  const entries = [...url.searchParams.entries()]
+  if (entries.some(([key]) => !allowedKeys.has(key))) throw invalidRequest()
+  if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
+}
+
 export function parseCteBatchItemList(url: URL): {
   readonly cursor: string | null
   readonly filters?: CteBatchItemListFilters
   readonly limit: number
 } {
-  const allowedKeys = new Set([
-    'batchId',
-    'batchIdIn',
-    'billingStatusIn',
-    'cteNumberGte',
-    'cteNumberIn',
-    'cteNumberLte',
-    'cursor',
-    'invoiceNumberGte',
-    'invoiceNumberIn',
-    'invoiceNumberLte',
-    'issuedFrom',
-    'issuedUntil',
-    'limit',
-    'statusIn',
-  ])
-  const entries = [...url.searchParams.entries()]
-  if (entries.some(([key]) => !allowedKeys.has(key))) throw invalidRequest()
-  if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
+  assertKnownQueryKeys(url, ['cursor', 'limit'])
   const cursor = url.searchParams.get('cursor')
   const limit = url.searchParams.get('limit')
   if (cursor !== null) parseCursor(cursor)
@@ -229,6 +233,16 @@ export function parseCteBatchItemList(url: URL): {
     limit: limit === null ? 25 : parseLimit(limit),
     ...(parsedFilters === undefined ? {} : { filters: parsedFilters }),
   }
+}
+
+/** O resumo cobre o recorte inteiro: aceita os mesmos filtros da listagem e nenhuma paginação. */
+export function parseCteBatchItemSummary(url: URL): {
+  readonly filters?: CteBatchItemListFilters
+} {
+  assertKnownQueryKeys(url, [])
+  const parsedFilters = parseCteBatchItemFilters((key) => url.searchParams.get(key))
+
+  return parsedFilters === undefined ? {} : { filters: parsedFilters }
 }
 
 /**

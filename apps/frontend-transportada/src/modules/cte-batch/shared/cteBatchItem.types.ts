@@ -40,6 +40,8 @@ export type CteBatchItem = Readonly<{
   authorizationProtocol: null | string
   authorizedAt: null | string
   baseAmount: string
+  billingInvoiceNumber: null | string
+  billingInvoicedAt: null | string
   billingStatus: string
   charges: readonly CteBatchItemCharge[]
   documents: readonly CteBatchItemDocument[]
@@ -66,6 +68,19 @@ export type CompanyCteItem = CteBatchItem &
 export type CompanyCteItemPage = Readonly<{
   items: readonly CompanyCteItem[]
   nextCursor: null | string
+}>
+
+/**
+ * O recorte inteiro do filtro, somado no banco: a página mostra 25 linhas e nada diz sobre as
+ * outras 142. `batchIds` é o que permite agir sobre o recorte — transmitir vai por lote.
+ */
+export type CompanyCteItemSummary = Readonly<{
+  baseAmount: string
+  batchIds: readonly string[]
+  batchIdsTruncated: boolean
+  count: number
+  statusCounts: Readonly<Record<string, number>>
+  totalAmount: string
 }>
 
 export type CteBatchItemDocumentLabel = Readonly<{

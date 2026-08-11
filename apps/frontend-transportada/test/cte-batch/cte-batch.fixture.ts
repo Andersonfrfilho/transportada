@@ -91,6 +91,8 @@ export const CTE_BATCH_AUTHORIZED_ITEM = {
   authorizationProtocol: '135260000000001',
   authorizedAt: '2026-07-22T21:00:00.000Z',
   baseAmount: '1058.4800',
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'invoiced',
   charges: [
     {
@@ -137,6 +139,8 @@ export const CTE_BATCH_REJECTED_ITEM = {
   authorizationProtocol: null,
   authorizedAt: null,
   baseAmount: '958.4800',
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'pending',
   charges: [
     {

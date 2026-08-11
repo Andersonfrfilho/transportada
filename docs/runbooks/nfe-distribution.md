@@ -175,8 +175,14 @@ lista explícita de arquivos do `package.json` da app, senão não roda.
 
 ## 7. Em aberto
 
-- A SEFAZ recusou com 656 a 27 minutos de janela aberta em 10/08. Ou o bloqueio é maior que a hora
-  que assumimos, ou ele reconta a cada tentativa recusada. Sem conclusão.
+- **O bloqueio da SEFAZ é maior que uma hora.** Em 11/08 houve duas consultas reais, às 08:03 e às
+  10:02 local — **1h59 de intervalo** — e a segunda voltou 656 do mesmo jeito
+  (`nfe_distribution_rate_limited_by_sefaz`, `ultNsu 000000000037701`). Isso descarta a hipótese de
+  “recontagem a cada tentativa recusada”: nenhuma tentativa aconteceu no meio. Hipótese que sobra, e
+  ainda sem prova: a SEFAZ trata como consumo indevido a consulta repetida **com o mesmo `ultNSU`**,
+  e escala o bloqueio a cada reincidência. Se for isso, o cron de hora em hora alimenta o próprio
+  bloqueio — e nós não temos como avançar o NSU sem receber a página. Recuar por algumas horas antes
+  de tentar de novo é o próximo experimento.
 - O cron é `0 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
   desalinham sozinhos. Rodar a cada 10–15 min fecharia a folga.
 - `finalizeImport` sobrescreve `receivedCount` com os números da última página, enquanto

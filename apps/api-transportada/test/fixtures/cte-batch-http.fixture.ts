@@ -51,6 +51,9 @@ type CteBatchHttpRouteDependencies = {
   readonly listCompanyItems: {
     readonly execute: (input: CteBatchCall) => Promise<typeof COMPANY_ITEMS_PAGE>
   }
+  readonly summarizeCompanyItems: {
+    readonly execute: (input: CteBatchCall) => Promise<typeof COMPANY_ITEMS_SUMMARY>
+  }
   readonly listEvents: {
     readonly execute: (input: CteBatchCall) => Promise<typeof EVENTS_PAGE>
   }
@@ -71,6 +74,7 @@ type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
   readonly removeItemError?: Error
   readonly submitError?: Error
+  readonly summarizeCompanyItemsError?: Error
 }
 
 export const FRONTEND_ORIGIN = 'http://localhost:53000'
@@ -206,6 +210,16 @@ export const COMPANY_ITEMS_PAGE = {
   nextCursor: '2026-07-22T20:00:00.000Z::00000000-0000-4000-8000-000000000507',
 } as const
 
+export const CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
+export const COMPANY_ITEMS_SUMMARY = {
+  baseAmount: '1000.0000',
+  batchIds: [BATCH_ID],
+  batchIdsTruncated: false,
+  count: 167,
+  statusCounts: { authorized: 20, pending: 147 },
+  totalAmount: '1234.5600',
+} as const
+
 export const EVENTS_PAGE = {
   items: [
     {
@@ -233,6 +247,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   readonly previewCalls: CteBatchCall[]
   readonly removeItemCalls: CteBatchCall[]
   readonly submitCalls: CteBatchCall[]
+  readonly summarizeCompanyItemCalls: CteBatchCall[]
 }> {
   const appendItemCalls: CteBatchCall[] = []
   const cancelCalls: CteBatchCall[] = []
@@ -241,6 +256,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   const getCalls: CteBatchCall[] = []
   const listCalls: CteBatchCall[] = []
   const listCompanyItemCalls: CteBatchCall[] = []
+  const summarizeCompanyItemCalls: CteBatchCall[] = []
   const listEventCalls: CteBatchCall[] = []
   const listItemCalls: CteBatchCall[] = []
   const previewCalls: CteBatchCall[] = []
@@ -288,6 +304,13 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
         listCompanyItemCalls.push(structuredClone(input))
         if (params.listCompanyItemsError) throw params.listCompanyItemsError
         return COMPANY_ITEMS_PAGE
+      },
+    },
+    summarizeCompanyItems: {
+      async execute(input) {
+        summarizeCompanyItemCalls.push(structuredClone(input))
+        if (params.summarizeCompanyItemsError) throw params.summarizeCompanyItemsError
+        return COMPANY_ITEMS_SUMMARY
       },
     },
     listEvents: {
@@ -338,7 +361,15 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
     previewCalls,
     removeItemCalls,
     submitCalls,
+    summarizeCompanyItemCalls,
   }
+}
+
+export function summarizeCompanyItemsRequest(input: { readonly search?: string } = {}): Request {
+  return new Request(`http://api.test${CTE_BATCH_ITEMS_SUMMARY_PATH}${input.search ?? ''}`, {
+    headers: { authorization: 'Bearer token' },
+    method: 'GET',
+  })
 }
 
 export function deleteBatchItemRequest(

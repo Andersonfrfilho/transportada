@@ -48,6 +48,8 @@ const CTE_ITEM = {
   baseAmount: '1234.5600',
   batchId: BATCH_ID,
   batchName: BASE_BATCH.name,
+  billingInvoiceNumber: null,
+  billingInvoicedAt: null,
   billingStatus: 'pending',
   charges: [],
   createdAt: '2026-07-22T20:00:00.000Z',
