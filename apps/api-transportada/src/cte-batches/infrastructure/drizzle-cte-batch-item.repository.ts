@@ -385,12 +385,18 @@ function latestAttemptExpression(column: AnyPgColumn): SQL {
   } desc limit 1)`
 }
 
-/** Mesma regra da elegibilidade: o CT-e já lançado em fatura sai da fila, e o recorte é por tenant. */
+/**
+ * Mesma regra da elegibilidade: o CT-e já lançado em fatura sai da fila, e o recorte é por tenant.
+ * A linha da fatura cancelada não conta — cancelar devolve o CT-e para "Não faturado".
+ */
 function billingItemExistsExpression(): SQL {
   return sql`exists (select 1 from ${billingInvoiceItems} where ${eq(
     billingInvoiceItems.companyId,
     cteBatchItems.companyId,
-  )} and ${eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id)})`
+  )} and ${eq(
+    billingInvoiceItems.cteDocumentId,
+    cteFiscalDocuments.id,
+  )} and ${billingInvoiceItems.cancelledAt} is null)`
 }
 
 /**
@@ -406,7 +412,7 @@ function invoiceIdentityExpression<TValue>(column: SQL): SQL<TValue | null> {
   )} where ${eq(billingInvoiceItems.companyId, cteBatchItems.companyId)} and ${eq(
     billingInvoiceItems.cteDocumentId,
     cteFiscalDocuments.id,
-  )} limit 1)`
+  )} and ${billingInvoiceItems.cancelledAt} is null limit 1)`
 }
 
 function billingStatusCondition(status: string): SQL {

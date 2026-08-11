@@ -40,6 +40,7 @@ type BillingUnitOfWorkPort = {
   ) => Promise<Record<string, unknown> | null>
   readonly listEligibleCtes: (input: Record<string, unknown>) => Promise<BillingEligiblePage>
   readonly listInvoices: (input: Record<string, unknown>) => Promise<BillingInvoicePage>
+  readonly releaseInvoiceItems: (input: Record<string, unknown>) => Promise<number>
   readonly reserveCtesForActiveInvoice: (input: Record<string, unknown>) => Promise<boolean>
   readonly updateInvoiceDetails: (
     input: Record<string, unknown>,
@@ -390,6 +391,12 @@ async function cancelInvoice(
       expectedStatus: 'issued',
       invoiceId: input.invoiceId,
       nextStatus: 'cancelled',
+    })
+    // Na mesma transação do status: fatura cancelada com CT-e ainda preso é CT-e que ninguém fatura.
+    await transaction.releaseInvoiceItems({
+      cancelledAt,
+      companyId: input.context.companyId,
+      invoiceId: input.invoiceId,
     })
     await transaction.createInvoiceEvent({
       actorUserId: input.context.userId,

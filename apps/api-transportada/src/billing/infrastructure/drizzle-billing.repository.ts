@@ -2,7 +2,20 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, count, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 
 import { BILLING_INVOICE_STATUSES } from '../../database/billing.schema.js'
 import {
@@ -24,6 +37,7 @@ import {
   type KeysetCursor,
 } from '../../shared/keyset-cursor.js'
 import {
+  buildActiveInvoiceItemJoin,
   buildBillingTakerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
@@ -155,13 +169,7 @@ class DrizzleBillingTransaction {
         ),
       )
       .leftJoin(cteIssuancePayloads, buildBillingTakerJoin())
-      .leftJoin(
-        billingInvoiceItems,
-        and(
-          eq(billingInvoiceItems.companyId, cteFiscalDocuments.companyId),
-          eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id),
-        ),
-      )
+      .leftJoin(billingInvoiceItems, buildActiveInvoiceItemJoin())
       .where(
         and(
           eq(cteFiscalDocuments.companyId, companyId),
@@ -228,10 +236,28 @@ class DrizzleBillingTransaction {
         and(
           eq(billingInvoiceItems.companyId, companyId),
           inArray(billingInvoiceItems.cteDocumentId, cteDocumentIds),
+          isNull(billingInvoiceItems.cancelledAt),
         ),
       )
       .limit(1)
     return existingItem === undefined
+  }
+
+  /** Cancelar a fatura solta os CT-es dela: a linha continua no relatório, mas deixa de ocupar. */
+  public async releaseInvoiceItems(input: Record<string, unknown>): Promise<number> {
+    const cancelledAt = requiredDate(input.cancelledAt)
+    const released = await this.database
+      .update(billingInvoiceItems)
+      .set({ cancelledAt, updatedAt: new Date() })
+      .where(
+        and(
+          eq(billingInvoiceItems.companyId, requiredString(input.companyId)),
+          eq(billingInvoiceItems.invoiceId, requiredString(input.invoiceId)),
+          isNull(billingInvoiceItems.cancelledAt),
+        ),
+      )
+      .returning({ id: billingInvoiceItems.id })
+    return released.length
   }
 
   public async createInvoice(input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -488,13 +514,7 @@ class DrizzleBillingTransaction {
       )
       .innerJoin(cteIssuancePayloads, buildBillingTakerJoin())
       .leftJoin(nfeDocuments, buildEligibleNfeDocumentJoin())
-      .leftJoin(
-        billingInvoiceItems,
-        and(
-          eq(billingInvoiceItems.companyId, cteFiscalDocuments.companyId),
-          eq(billingInvoiceItems.cteDocumentId, cteFiscalDocuments.id),
-        ),
-      )
+      .leftJoin(billingInvoiceItems, buildActiveInvoiceItemJoin())
       .where(and(...buildEligibleCteFilters(input)))
       .orderBy(asc(cteFiscalDocuments.authorizedAt), asc(cteFiscalDocuments.id))
       // A linha extra é a única forma de distinguir "página cheia" de "acabou" sem um count à parte.

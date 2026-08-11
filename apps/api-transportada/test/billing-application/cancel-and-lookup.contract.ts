@@ -76,6 +76,13 @@ describe('billing application cancel and lookup contract', () => {
         nextStatus: 'cancelled',
       },
     ])
+    expect(unitOfWork.itemReleases).toEqual([
+      {
+        cancelledAt: '2026-07-23T15:00:00.000Z',
+        companyId: COMPANY_CONTEXT.companyId,
+        invoiceId: INVOICE_ID,
+      },
+    ])
     expect(unitOfWork.createdEvents).toEqual([
       {
         actorUserId: COMPANY_CONTEXT.userId,
@@ -109,6 +116,7 @@ describe('billing application cancel and lookup contract', () => {
 
     expect(result).toEqual(unitOfWork.invoice)
     expect(unitOfWork.cancellationUpdates).toEqual([])
+    expect(unitOfWork.itemReleases).toEqual([])
     expect(unitOfWork.createdEvents).toEqual([])
   })
 })

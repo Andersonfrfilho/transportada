@@ -6,6 +6,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  buildActiveInvoiceItemJoin,
   buildBillingTakerJoin,
   buildEligibleCteFilters,
   buildEligibleNfeDocumentJoin,
@@ -114,6 +115,23 @@ describe('billing eligible CT-e query tenant safety', () => {
     expect(query.params).toContain('000000007')
     expect(query.params).toContain('000000010')
     expect(query.params[0]).toBe(COMPANY_ID)
+  })
+
+  /**
+   * Cancelar a fatura precisa devolver o CT-e para a fila de faturamento. Sem o recorte de linha
+   * ativa no join, a linha da fatura cancelada continuava existindo e o CT-e ficava preso para
+   * sempre.
+   */
+  test('o join com a linha de fatura só enxerga item não cancelado', () => {
+    const join = dialect.sqlToQuery(buildActiveInvoiceItemJoin())
+
+    expect(join.sql).toContain(
+      '"billing_invoice_items"."company_id" = "cte_fiscal_documents"."company_id"',
+    )
+    expect(join.sql).toContain(
+      '"billing_invoice_items"."cte_document_id" = "cte_fiscal_documents"."id"',
+    )
+    expect(join.sql).toContain('"billing_invoice_items"."cancelled_at" is null')
   })
 
   /** Sem o `company_id` na condição, o join alcançaria nota de outra empresa pelo id sozinho. */
