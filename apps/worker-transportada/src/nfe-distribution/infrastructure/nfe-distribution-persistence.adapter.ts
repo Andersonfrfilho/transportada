@@ -6,6 +6,10 @@ import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 
 import { NfeXmlImportError, type DfeItem } from '@adatechnology/fiscal-provider'
+import {
+  OBJECT_STORAGE_ERROR_CODES,
+  ObjectStorageError,
+} from '@adatechnology/object-storage-provider'
 
 import type { NfeFiscalEnvironment, NfeItemVariant } from '../../database/nfe.schema.js'
 import type { NfeImportFinalStorage } from '../../nfe-imports/infrastructure/nfe-import-storage.gateway.js'
@@ -27,6 +31,8 @@ const ACCESS_KEY_PATTERN = /^[0-9]{44}$/
 // em silêncio, e um resumo sem chave não serve para nada
 const SUMMARY_ACCESS_KEY_ELEMENT =
   /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
+
+type SkipReason = 'already_stored' | 'unsupported_document'
 
 type DistributionPersistencePort = {
   finalizeImport(input: {
@@ -96,8 +102,9 @@ export function createNfeDistributionPersistenceAdapter(
 }
 
 /**
- * Um documento que o pacote fiscal não sabe importar não pode derrubar a página inteira: sem cursor
- * gravado, o retry reconsulta o mesmo CNPJ e queima a janela de uma hora que a SEFAZ exige.
+ * Um documento que o pacote fiscal não sabe importar, ou que já está guardado, não pode derrubar a
+ * página inteira: sem cursor gravado, o retry reconsulta o mesmo CNPJ e queima a janela de uma hora
+ * que a SEFAZ exige.
  */
 async function buildPersistItemOrSkip(params: {
   readonly companyId: string
@@ -108,19 +115,40 @@ async function buildPersistItemOrSkip(params: {
   try {
     return await buildPersistItem(params)
   } catch (error: unknown) {
-    if (!(error instanceof NfeXmlImportError)) {
+    const skip = resolveSkip(error)
+    if (skip === undefined) {
       throw error
     }
 
     params.dependencies.logger.warn('nfe_distribution_item_skipped', {
       companyId: params.companyId,
-      errorCode: error.code,
+      errorCode: skip.errorCode,
       importId: params.importId,
       nsu: params.dfe.nsu,
+      reason: skip.reason,
       schema: params.dfe.schema,
     })
     return undefined
   }
+}
+
+/**
+ * A nota que já está no bucket não é falha: é a mesma nota chegando de novo pela distribuição, e
+ * reimportá-la não acrescenta nada.
+ */
+function resolveSkip(
+  error: unknown,
+): { readonly errorCode: string; readonly reason: SkipReason } | undefined {
+  if (error instanceof NfeXmlImportError) {
+    return { errorCode: error.code, reason: 'unsupported_document' }
+  }
+  if (
+    error instanceof ObjectStorageError &&
+    error.code === OBJECT_STORAGE_ERROR_CODES.objectConflict
+  ) {
+    return { errorCode: error.code, reason: 'already_stored' }
+  }
+  return undefined
 }
 
 async function buildPersistItem(params: {
@@ -136,10 +164,11 @@ async function buildPersistItem(params: {
 
   if (variant === 'summary') {
     const accessKey = resolveSummaryAccessKey({ dfe, sourceBytes })
-    const finalObject = await dependencies.finalStorage.storeImportedDocument({
+    const finalObject = await dependencies.finalStorage.storeImportedSummary({
       accessKey: accessKey ?? `nsu-${dfe.nsu}`,
       companyId,
       importId,
+      nsu: dfe.nsu,
       sourceBytes,
       sourceSha256,
     })

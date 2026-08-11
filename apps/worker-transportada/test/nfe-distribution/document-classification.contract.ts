@@ -10,6 +10,10 @@ import {
   type DfeItem,
   type ImportedNfeXml,
 } from '@adatechnology/fiscal-provider'
+import {
+  OBJECT_STORAGE_ERROR_CODES,
+  ObjectStorageError,
+} from '@adatechnology/object-storage-provider'
 
 import type {
   DistributionPersistItem,
@@ -82,7 +86,17 @@ function createFinalStorage(): NfeImportFinalStorage {
     async storeImportedEvent(): Promise<NfeImportStoredObject> {
       return createStoredObject()
     },
+    async storeImportedSummary(): Promise<NfeImportStoredObject> {
+      return createStoredObject()
+    },
   }
+}
+
+function createConflictError(): ObjectStorageError {
+  return new ObjectStorageError(
+    OBJECT_STORAGE_ERROR_CODES.objectConflict,
+    'Object already exists with different content',
+  )
 }
 
 function createDocumentXml(): ImportedNfeXml {
@@ -392,6 +406,92 @@ describe('NF-e distribution document classification contract', () => {
     expect(JSON.stringify(skipped[0]?.metadata)).not.toContain('xNovo')
   })
 
+  /**
+   * A nota que já está no bucket derrubava a página inteira: o cursor não era gravado, o retry
+   * reconsultava o mesmo CNPJ e a SEFAZ recusava com 656, queimando mais uma hora de janela. Já
+   * existir não é erro — é motivo para pular e registrar.
+   */
+  test('skips the document already stored instead of losing the whole page', async () => {
+    const { adapter, harness } = createAdapter({
+      finalStorage: {
+        async storeImportedDocument(): Promise<NfeImportStoredObject> {
+          throw createConflictError()
+        },
+        async storeImportedEvent(): Promise<NfeImportStoredObject> {
+          return createStoredObject()
+        },
+        async storeImportedSummary(): Promise<NfeImportStoredObject> {
+          return createStoredObject()
+        },
+      },
+    })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({ nsu: '000000000037702', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+        createDfeItem({ nsu: '000000000037703', schema: 'resNFe_v1.01.xsd', xml: RESUMO_XML }),
+        createDfeItem({
+          nsu: '000000000037704',
+          schema: 'procEventoNFe_v1.00.xsd',
+          xml: EVENTO_XML,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037704',
+    })
+
+    expect(result.skippedCount).toBe(1)
+    expect(harness.persisted.map((item) => item.nsu)).toEqual([
+      '000000000037703',
+      '000000000037704',
+    ])
+
+    const skipped = harness.logs.filter(
+      (entry) => entry.message === 'nfe_distribution_item_skipped',
+    )
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0]?.level).toBe('warn')
+    expect(skipped[0]?.metadata).toMatchObject({
+      errorCode: OBJECT_STORAGE_ERROR_CODES.objectConflict,
+      nsu: '000000000037702',
+      reason: 'already_stored',
+    })
+  })
+
+  test('skips the summary already stored the same way it skips a document', async () => {
+    const { adapter, harness } = createAdapter({
+      finalStorage: {
+        async storeImportedDocument(): Promise<NfeImportStoredObject> {
+          return createStoredObject()
+        },
+        async storeImportedEvent(): Promise<NfeImportStoredObject> {
+          return createStoredObject()
+        },
+        async storeImportedSummary(): Promise<NfeImportStoredObject> {
+          throw createConflictError()
+        },
+      },
+    })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({ nsu: '000000000037705', schema: 'resNFe_v1.01.xsd', xml: RESUMO_XML }),
+        createDfeItem({ nsu: '000000000037706', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037706',
+    })
+
+    expect(result.skippedCount).toBe(1)
+    expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037706'])
+  })
+
   test('still fails the page when the error is not an unsupported document', async () => {
     const { adapter } = createAdapter({
       finalStorage: {
@@ -399,6 +499,9 @@ describe('NF-e distribution document classification contract', () => {
           throw new Error('STORAGE_UNAVAILABLE')
         },
         async storeImportedEvent(): Promise<NfeImportStoredObject> {
+          return createStoredObject()
+        },
+        async storeImportedSummary(): Promise<NfeImportStoredObject> {
           return createStoredObject()
         },
       },

@@ -86,9 +86,9 @@ Procure, em ordem de gravidade:
 
 **Nunca leia nem repasse `rawResponse` de erro fiscal**: ali vai o XML da SEFAZ.
 
-## 4. Os três defeitos de 10/08/2026
+## 4. Os quatro defeitos de 10/08/2026
 
-Todos os três produziam o laço do §1. Cada correção só revelou a seguinte.
+Todos os quatro produziam o laço do §1. Cada correção só revelou a seguinte.
 
 ### 4.1 `cStat 656` chegava como erro
 
@@ -108,6 +108,31 @@ antes de comparar, e **item que o importador não sabe ler é pulado, não derru
 gravava `nsu-000000000037702` quando o pacote fiscal não preenchia `chaveNfe`. Hoje: **a chave do
 resumo é lida, não inventada** — `chaveNfe` com 44 dígitos, senão `<chNFe>` do próprio XML, senão
 nulo. O nome do objeto no bucket continua aceitando sufixo por NSU: ali nenhum CHECK governa.
+
+### 4.4 O resumo disputava o endereço do XML completo
+
+Resumo e `nfeProc` da mesma chave escreviam os dois em
+`tenants/{companyId}/nfe-documents/{accessKey}/original.xml`. O bucket é `create-only`: bytes iguais
+replayam em silêncio, bytes diferentes viram `OBJECT_STORAGE_OBJECT_CONFLICT`. Como o conflito subia
+como erro, a página inteira morria — o cursor ficou parado em `000000000037701` contra um
+`maxNsu 000000000045636`, com ~7.900 documentos represados.
+
+Duas correções, e as duas são necessárias:
+
+- **O resumo tem endereço próprio**: `tenants/{companyId}/nfe-summaries/{accessKey}/{nsu}.xml`. O NSU
+  entra porque `resNFe` e `resEvento` da mesma chave são ambos `summary` e colidiriam entre si — e
+  porque é o NSU que faz o endereço ser estável por documento, mantendo o replay idempotente.
+- **Conflito é pulo, não falha**: `nfe_distribution_item_skipped` com `reason: 'already_stored'`. Nota
+  que já está guardada é a mesma nota chegando de novo pela distribuição; reimportar não acrescenta
+  nada, e derrubar a página por causa dela custa uma hora de janela.
+
+Separar as chaves é o que torna o pulo seguro: com um endereço só, uma nota que chegou primeiro como
+resumo nunca poderia ser promovida ao XML completo, e ficaria travada para CT-e
+(`CTE_BATCH_DOCUMENT_SUMMARY_ONLY`).
+
+O caminho de upload manual já fazia o certo desde sempre: `processItem` consulta
+`findExistingDocument` e fecha o item como `duplicated` antes de tocar no storage. A distribuição não
+tinha essa checagem — o conflito no bucket era a única defesa dela.
 
 ## 5. O que não fazer
 
@@ -144,5 +169,6 @@ lista explícita de arquivos do `package.json` da app, senão não roda.
 - O cron é `0 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
   desalinham sozinhos. Rodar a cada 10–15 min fecharia a folga.
 - `finalizeImport` sobrescreve `receivedCount` com os números da última página, enquanto
-  `persistPage` acumula. Latente: só aparece quando mais de uma página passar.
+  `persistPage` acumula. Não é mais latente: a importação de 10/08 21:04 gravou 627 notas e a tela
+  mostra “concluída, 0 notas”. Quem for diagnosticar volume conta `nfe_documents`, não a coluna.
 - Resumo descartado no NSU `000000000037283` ainda não foi recuperado.

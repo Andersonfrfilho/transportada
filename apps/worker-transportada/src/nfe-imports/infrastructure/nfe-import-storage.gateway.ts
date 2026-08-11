@@ -36,6 +36,14 @@ export type NfeImportFinalStorage = {
     readonly sourceSha256: string
     readonly type: string
   }): Promise<NfeImportStoredObject>
+  storeImportedSummary(input: {
+    readonly accessKey: string
+    readonly companyId: string
+    readonly importId: string
+    readonly nsu: string
+    readonly sourceBytes: Uint8Array
+    readonly sourceSha256: string
+  }): Promise<NfeImportStoredObject>
 }
 
 export function createNfeImportSourceStorage(input: {
@@ -92,6 +100,19 @@ export function createNfeImportFinalStorage(input: {
         sourceSha256: params.sourceSha256,
       })
     },
+    async storeImportedSummary(params): Promise<NfeImportStoredObject> {
+      return storeImmutable({
+        bucket: input.bucket,
+        gateway: input.gateway,
+        key: buildSummaryKey({
+          accessKey: params.accessKey,
+          companyId: params.companyId,
+          nsu: params.nsu,
+        }),
+        sourceBytes: params.sourceBytes,
+        sourceSha256: params.sourceSha256,
+      })
+    },
   }
 }
 
@@ -125,6 +146,18 @@ function buildDocumentKey(input: {
   readonly companyId: string
 }): string {
   return `tenants/${input.companyId}/nfe-documents/${input.accessKey}/original.xml`
+}
+
+/**
+ * O resumo não divide endereço com o XML completo da mesma chave, e o NSU separa o `resNFe` do
+ * `resEvento`: sem isso, bytes diferentes disputavam a mesma chave imutável.
+ */
+function buildSummaryKey(input: {
+  readonly accessKey: string
+  readonly companyId: string
+  readonly nsu: string
+}): string {
+  return `tenants/${input.companyId}/nfe-summaries/${input.accessKey}/${input.nsu}.xml`
 }
 
 function buildEventKey(input: {
