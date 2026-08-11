@@ -151,7 +151,9 @@ export function useCteEmissionDialog(
         concurrency: CTE_EMISSION_PREVIEW_CONCURRENCY,
         onProgress: setPreviewProgressEvent,
         run: (chunk) =>
-          client.previewBatch(buildPreviewRequest({ ...selection, documentIds: chunk.documentIds })),
+          client.previewBatch(
+            buildPreviewRequest({ ...selection, documentIds: chunk.documentIds }),
+          ),
       })
       // Projeção parcial mentiria no total e no que o operador está prestes a confirmar.
       const failure = firstErrorCode(results)
