@@ -102,6 +102,7 @@ describe('Drizzle migrations', () => {
       '20260807223440_rntrc_registry_leading_zero',
       '20260809134710_cte_issuance_payload_taker',
       '20260811140230_nfe_distribution_cursor_recovery',
+      '20260811164234_billing_description_templates',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -399,6 +400,36 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
       rollbackSql.indexOf('ALTER TABLE "fleet_vehicles"'),
     )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the billing description templates as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_billing_description_templates'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('CREATE TABLE "billing_description_templates"')
+    expect(migrationSql).toContain('billing_description_templates_company_name_unique')
+    expect(migrationSql).toContain('billing_description_templates_name_check')
+    expect(migrationSql).toContain('billing_description_templates_body_check')
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "billing_description_templates_company_default_unique" ON "billing_description_templates" ("company_id") WHERE "is_default"',
+    )
+    expect(migrationSql).toContain('ON DELETE RESTRICT ON UPDATE CASCADE')
+    // O backfill copia o texto salvo por empresa; a coluna de origem continua intacta.
+    expect(migrationSql).toContain(`SELECT "company_id", 'Padrão', "billing_observations", true`)
+    expect(migrationSql).toContain('FROM "company_fiscal_profiles"')
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

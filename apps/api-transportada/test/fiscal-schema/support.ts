@@ -50,6 +50,18 @@ export const indexColumnsByName = (
     ]),
   )
 
+export const uniqueIndexWhereSqlByName = (table: SchemaTable): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    getTableConfig(table)
+      .indexes.filter((tableIndex) => tableIndex.config.unique)
+      .map((tableIndex) => [
+        tableIndex.config.name ?? '',
+        tableIndex.config.where === undefined
+          ? ''
+          : dialect.sqlToQuery(tableIndex.config.where).sql,
+      ]),
+  )
+
 export const foreignKeys = (
   table: SchemaTable,
 ): readonly Readonly<{
