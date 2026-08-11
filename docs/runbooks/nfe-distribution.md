@@ -6,6 +6,13 @@ não traz nada, e **cada tentativa nossa queima uma hora de silêncio que a SEFA
 
 Contexto de decisão: ADR-0007 e suas três emendas de 10/08/2026.
 
+Fonte normativa do serviço: **NT 2014.002 — “Web Service de Distribuição de DF-e de Interesse dos
+Atores da NF-e (PF ou PJ)”**, versão 1.20 de maio/2024 (produção em 03/06/2024), no
+portal da NF-e em Documentos → Notas Técnicas. Toda regra de janela, sequência de NSU e consumo
+indevido citada aqui vem dela — §3.5 (`distNSU`), §3.6 (`consNSU`), §3.7 (`consChNFe`) e §3.11.4
+(consumo indevido). O portal serve o PDF atrás de detecção de cookie: `curl -sL -c jar -b jar`
+resolve, `WebFetch` entra em laço de redirect.
+
 ## 1. O laço
 
 Todo defeito desta família termina no mesmo lugar, e é por isso que eles se escondem um atrás do
@@ -154,6 +161,12 @@ agora faz o mesmo, em lote: uma pergunta por página, não uma por item.
   sobreviver a um documento inesperado.
 - **Não rode `consultarPorChave`/`consultarPorNsu` localmente.** O certificado A1 só é decriptado em
   memória pelo consumer (ADR-0007, item 15) — qualquer teste desses roda dentro do contêiner.
+- **Não passe de 20 consultas por hora em `consNSU`/`consChNFe`.** Elas existem para busca pontual, e
+  o teto é do CNPJ, não da aplicação: passar dele devolve 656 e bloqueia por uma hora
+  (NT 2014.002 §3.11.4.2). Download em massa é `distNSU`, sempre.
+- **Não deixe documento envelhecer represado.** O Ambiente Nacional guarda o DF-e por 3 meses
+  (§3.5); passado o prazo vem a rejeição 632 e o XML não volta mais. Cursor parado com backlog é
+  perda com data marcada.
 
 ## 6. A regra estrutural
 
@@ -173,18 +186,41 @@ verdade — `apps/worker-transportada/test/nfe-distribution-repository.integrati
 quarto item de página (resumo sem chave) exatamente para isso. Teste novo **precisa** entrar na
 lista explícita de arquivos do `package.json` da app, senão não roda.
 
-## 7. Em aberto
+## 7. O cursor se recupera sozinho (feature 030)
 
-- **O bloqueio da SEFAZ é maior que uma hora.** Em 11/08 houve duas consultas reais, às 08:03 e às
-  10:02 local — **1h59 de intervalo** — e a segunda voltou 656 do mesmo jeito
-  (`nfe_distribution_rate_limited_by_sefaz`, `ultNsu 000000000037701`). Isso descarta a hipótese de
-  “recontagem a cada tentativa recusada”: nenhuma tentativa aconteceu no meio. Hipótese que sobra, e
-  ainda sem prova: a SEFAZ trata como consumo indevido a consulta repetida **com o mesmo `ultNSU`**,
-  e escala o bloqueio a cada reincidência. Se for isso, o cron de hora em hora alimenta o próprio
-  bloqueio — e nós não temos como avançar o NSU sem receber a página. Recuar por algumas horas antes
-  de tentar de novo é o próximo experimento.
-- O cron é `0 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
-  desalinham sozinhos. Rodar a cada 10–15 min fecharia a folga.
+O laço de 11/08 — 656 a cada tick, com `ult_nsu < max_nsu` — era **consulta fora de sequência**
+(NT 2014.002 §3.11.4.1, causa 2), não cooldown: o cursor apontava para um NSU que a SEFAZ já tinha
+servido, e cada tentativa nova zerava a contagem da hora. Esperar não resolvia; o **pedido** é que
+precisava mudar. Isso hoje é automático, e **não existe mais procedimento manual de `UPDATE` no
+banco**:
+
+- A página que falha ao persistir **avança o cursor mesmo assim** e grava o intervalo pulado
+  (`last_skipped_from_nsu`/`to_nsu`/`at`) — documento problemático não represa a fila.
+- Dois 656 seguidos com `ult_nsu < max_nsu` ressincronizam o cursor para `max_nsu`. 656 com
+  `ult_nsu == max_nsu` é cooldown legítimo e não move nada; 137/138 zeram `consecutive_rate_limits`.
+- **Todo salto abre a janela de uma hora por construção**: o repositório expõe um `resyncCursor`
+  próprio, que calcula `next_allowed_at = agora + 1h` no mesmo `UPDATE` do salto. Não há caminho de
+  código que pule NSU sem esperar — era exatamente assim que a contagem da SEFAZ era zerada.
+- Logs próprios: `nfe_distribution_page_skipped` e `nfe_distribution_cursor_resynced`.
+
+**Ajuste manual, quando a SEFAZ perde o intervalo em que paramos:** Configurações → painel “Cursor da
+distribuição”. Ele mostra posição, `maxNSU`, recusas seguidas e o último intervalo pulado, e o ajuste
+é em dois passos, avisando antes do clique que as notas do intervalo não serão buscadas e que a
+próxima consulta só sai depois de uma hora. Rota `PUT /company-settings/distribution-cursor`
+(`settings.manage`, escopo `company`), 422 para NSU acima do `maxNSU` ou fora de 15 dígitos, trilha
+em `audit_logs` com `fromUltNsu`/`toUltNsu` — salto de NSU nunca é silencioso.
+
+Continua valendo o §5: **não force a busca manual para “testar”**. A recuperação é do ciclo
+automático; tentativa recusada à mão empurra a janela mais uma hora.
+
+## 8. Em aberto
+
+- O cron é `7 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
+  desalinham sozinhos. Com a ressincronização automática o desalinhamento custa um tick, não um dia;
+  cadência mais curta segue sem ganho.
+- `@adatechnology/fiscal-provider` ainda lança `Error` cru no 656, em vez de rejeição tipada com o
+  `ultNSU` que a NT 1.14 devolve desde 24/03/2022. Por isso a ressincronização usa `max_nsu` em vez do
+  número exato que a SEFAZ mandou. Ler `rawResponse` para alcançá-lo continua proibido.
 - `finalizeImport` sobrescreve `receivedCount` com os números da última página, enquanto
   `persistPage` acumula. Não é mais latente: a importação de 10/08 21:04 gravou 627 notas e a tela
   mostra “concluída, 0 notas”. Quem for diagnosticar volume conta `nfe_documents`, não a coluna.

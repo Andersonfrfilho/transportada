@@ -17,6 +17,10 @@ import { createCompanyLogoUseCase } from './companies/application/company-logo.u
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import { createAdjustDistributionCursorUseCase } from './companies/application/adjust-distribution-cursor.use-case.js'
+import { createGetDistributionCursorUseCase } from './companies/application/get-distribution-cursor.use-case.js'
+import { DrizzleDistributionCursorRepository } from './companies/infrastructure/drizzle-distribution-cursor.repository.js'
+import { createDistributionCursorRoutes } from './companies/presentation/distribution-cursor.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -300,6 +304,7 @@ function createApplicationRoutes({
 >[number][] {
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
+  const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -507,6 +512,14 @@ function createApplicationRoutes({
         unitOfWork: scheduledDistributionRepository,
       }),
       getStatus: getScheduledDistribution,
+    }),
+    ...createDistributionCursorRoutes({
+      adjust: createAdjustDistributionCursorUseCase({
+        audit: distributionCursorRepository,
+        clock: { now: () => new Date() },
+        repository: distributionCursorRepository,
+      }),
+      getStatus: createGetDistributionCursorUseCase({ repository: distributionCursorRepository }),
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),

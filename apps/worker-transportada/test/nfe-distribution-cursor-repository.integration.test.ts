@@ -22,6 +22,18 @@ describeDatabase('DrizzleNfeDistributionCursorRepository (integration)', () => {
   const db = provider.db
   const repository = new DrizzleNfeDistributionCursorRepository(db)
 
+  function selectCursor(tenantId: string): Promise<(typeof nfeDistributionCursors.$inferSelect)[]> {
+    return db
+      .select()
+      .from(nfeDistributionCursors)
+      .where(
+        and(
+          eq(nfeDistributionCursors.companyId, tenantId),
+          eq(nfeDistributionCursors.environment, ENVIRONMENT),
+        ),
+      )
+  }
+
   beforeAll(async () => {
     await db.execute(sql`insert into companies (id, status) values (${companyId}, 'active')`)
     await db.execute(sql`insert into companies (id, status) values (${otherCompanyId}, 'active')`)
@@ -85,6 +97,7 @@ describeDatabase('DrizzleNfeDistributionCursorRepository (integration)', () => {
 
     await repository.saveCursor({
       companyId,
+      consecutiveRateLimits: 0,
       environment: ENVIRONMENT,
       maxNsu: '000000000000120',
       nextAllowedAt,
@@ -158,6 +171,69 @@ describeDatabase('DrizzleNfeDistributionCursorRepository (integration)', () => {
     expect(record).not.toBeNull()
     expect(record?.leaseOwner).toBe('worker-fresh')
     await repository.releaseLease({ companyId, environment: ENVIRONMENT, owner: 'worker-fresh' })
+  })
+
+  it('records the refusal counter and the abandoned NSU range via saveCursor', async () => {
+    const now = new Date('2026-07-25T16:00:00.000Z')
+    await repository.acquireLease({
+      companyId,
+      environment: ENVIRONMENT,
+      leaseMs: LEASE_MS,
+      now,
+      owner: 'worker-skip',
+    })
+
+    await repository.saveCursor({
+      companyId,
+      consecutiveRateLimits: 2,
+      environment: ENVIRONMENT,
+      maxNsu: '000000000000200',
+      nextAllowedAt: null,
+      owner: 'worker-skip',
+      skipped: { fromNsu: '000000000000091', toNsu: '000000000000140' },
+      ultNsu: '000000000000140',
+    })
+
+    const [row] = await selectCursor(companyId)
+    expect(row?.consecutiveRateLimits).toBe(2)
+    expect(row?.lastSkippedFromNsu).toBe('000000000000091')
+    expect(row?.lastSkippedToNsu).toBe('000000000000140')
+    expect(row?.lastSkippedAt).not.toBeNull()
+
+    await repository.releaseLease({ companyId, environment: ENVIRONMENT, owner: 'worker-skip' })
+    const reacquired = await repository.acquireLease({
+      companyId,
+      environment: ENVIRONMENT,
+      leaseMs: LEASE_MS,
+      now: new Date('2026-07-25T16:01:00.000Z'),
+      owner: 'worker-skip',
+    })
+    expect(reacquired?.consecutiveRateLimits).toBe(2)
+  })
+
+  it('jumps the cursor and opens the one-hour window on resyncCursor', async () => {
+    const now = new Date('2026-07-25T17:00:00.000Z')
+
+    await repository.resyncCursor({
+      companyId,
+      environment: ENVIRONMENT,
+      now,
+      owner: 'worker-skip',
+      skippedFromNsu: '000000000000141',
+      skippedToNsu: '000000000000200',
+      ultNsu: '000000000000200',
+    })
+
+    const [row] = await selectCursor(companyId)
+    expect(row?.ultNsu).toBe('000000000000200')
+    // A janela é responsabilidade do próprio método: quem salta nunca a esquece
+    expect(row?.nextAllowedAt?.getTime()).toBe(now.getTime() + 60 * 60 * 1000)
+    expect(row?.consecutiveRateLimits).toBe(0)
+    expect(row?.lastSkippedFromNsu).toBe('000000000000141')
+    expect(row?.lastSkippedToNsu).toBe('000000000000200')
+    expect(row?.lastSkippedAt?.getTime()).toBe(now.getTime())
+
+    await repository.releaseLease({ companyId, environment: ENVIRONMENT, owner: 'worker-skip' })
   })
 
   it('keeps cursors isolated per tenant', async () => {

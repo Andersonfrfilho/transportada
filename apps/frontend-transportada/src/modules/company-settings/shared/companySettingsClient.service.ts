@@ -13,6 +13,10 @@ import {
   toSafeCertificate,
 } from './companySettingsResponse.validation'
 import {
+  isDistributionCursorResponse,
+  type DistributionCursor,
+} from './distributionCursor.validation'
+import {
   isScheduledDistributionResponse,
   type ScheduledDistributionStatus,
 } from './scheduledDistribution.validation'
@@ -42,6 +46,7 @@ export type {
 
 const COMPANY_LOGO_PATH = '/company-settings/logo'
 const COMPANY_SCHEDULED_DISTRIBUTION_PATH = '/company-settings/scheduled-distribution'
+const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -62,10 +67,13 @@ class CompanySettingsRequestError extends Error {
 }
 
 export type { ScheduledDistributionStatus } from './scheduledDistribution.validation'
+export type { DistributionCursor, DistributionCursorSkip } from './distributionCursor.validation'
 
 export type CompanySettingsClient = Readonly<{
+  adjustDistributionCursor: (ultNsu: string) => Promise<DistributionCursor>
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
+  getDistributionCursor: () => Promise<DistributionCursor>
   getLogo: () => Promise<CompanyLogoImage | null>
   getScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getSettings: () => Promise<CompanySettingsResponse>
@@ -386,10 +394,38 @@ async function requestScheduledDistribution(
   return response.data
 }
 
+async function requestDistributionCursor(
+  input: Readonly<{
+    body?: Readonly<{ ultNsu: string }>
+    dependencies: ClientDependencies
+    method: string
+  }>,
+): Promise<DistributionCursor> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(`${input.dependencies.apiBaseUrl}${COMPANY_DISTRIBUTION_CURSOR_PATH}`, {
+      ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
+      cache: 'no-store',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      method: input.method,
+    }),
+  })
+  if (!isDistributionCursorResponse(response))
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
+  adjustDistributionCursor: (ultNsu) =>
+    requestDistributionCursor({ body: { ultNsu }, dependencies, method: 'PUT' }),
   disableScheduledDistribution: () =>
     requestScheduledDistribution({ dependencies, method: 'DELETE' }),
   enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),
+  getDistributionCursor: () => requestDistributionCursor({ dependencies, method: 'GET' }),
   getLogo: () => readLogo(dependencies),
   getScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'GET' }),
   getSettings: () => readSettings(dependencies),

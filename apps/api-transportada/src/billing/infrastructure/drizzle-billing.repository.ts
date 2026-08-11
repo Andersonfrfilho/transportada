@@ -17,6 +17,7 @@ import {
   nfeDocuments,
 } from '../../database/database.schema.js'
 import { ApiError } from '../../shared/api.error.js'
+import { BILLING_INVOICE_ITEM_INSERT_CHUNK } from '../domain/invoice-limits.constant.js'
 import {
   decodeKeysetCursor,
   encodeKeysetCursor,
@@ -200,22 +201,25 @@ class DrizzleBillingTransaction {
     }
   }
 
-  public async reserveCteForActiveInvoice(input: Record<string, unknown>): Promise<boolean> {
+  public async reserveCtesForActiveInvoice(input: Record<string, unknown>): Promise<boolean> {
     const companyId = requiredString(input.companyId)
-    const cteDocumentId = requiredString(input.cteDocumentId)
-    const [document] = await this.database
+    const cteDocumentIds = requiredStringArray(input.cteDocumentIds)
+    if (cteDocumentIds.length === 0) return true
+
+    // Ordem estável de bloqueio: duas faturas concorrentes com CT-es em comum esperam, não travam.
+    const documents = await this.database
       .select({ id: cteFiscalDocuments.id })
       .from(cteFiscalDocuments)
       .where(
         and(
           eq(cteFiscalDocuments.companyId, companyId),
-          eq(cteFiscalDocuments.id, cteDocumentId),
+          inArray(cteFiscalDocuments.id, cteDocumentIds),
           eq(cteFiscalDocuments.status, 'authorized'),
         ),
       )
-      .limit(1)
+      .orderBy(asc(cteFiscalDocuments.id))
       .for('update')
-    if (document === undefined) return false
+    if (documents.length !== new Set(cteDocumentIds).size) return false
 
     const [existingItem] = await this.database
       .select({ id: billingInvoiceItems.id })
@@ -223,7 +227,7 @@ class DrizzleBillingTransaction {
       .where(
         and(
           eq(billingInvoiceItems.companyId, companyId),
-          eq(billingInvoiceItems.cteDocumentId, cteDocumentId),
+          inArray(billingInvoiceItems.cteDocumentId, cteDocumentIds),
         ),
       )
       .limit(1)
@@ -267,22 +271,29 @@ class DrizzleBillingTransaction {
     return mapInvoiceRecord(record, [])
   }
 
-  public async createInvoiceItem(input: Record<string, unknown>): Promise<void> {
+  public async createInvoiceItems(input: Record<string, unknown>): Promise<void> {
+    const values = requiredRecordArray(input.items).map((item) => ({
+      batchId: requiredString(item.batchId),
+      batchItemId: requiredString(item.batchItemId),
+      companyId: requiredString(item.companyId),
+      cteAccessKey: requiredString(item.cteAccessKey),
+      cteDocumentId: requiredString(item.cteDocumentId),
+      cteNumber: BigInt(requiredString(item.cteNumber)),
+      description: requiredString(item.description),
+      freightAmount: requiredString(item.freightAmount),
+      invoiceId: requiredString(item.invoiceId),
+      lineNumber: BigInt(requiredString(item.lineNumber)),
+      snapshot: optionalRecord(item.snapshot),
+      totalAmount: requiredString(item.totalAmount),
+    }))
+    if (values.length === 0) return
+
     try {
-      await this.database.insert(billingInvoiceItems).values({
-        batchId: requiredString(input.batchId),
-        batchItemId: requiredString(input.batchItemId),
-        companyId: requiredString(input.companyId),
-        cteAccessKey: requiredString(input.cteAccessKey),
-        cteDocumentId: requiredString(input.cteDocumentId),
-        cteNumber: BigInt(requiredString(input.cteNumber)),
-        description: requiredString(input.description),
-        freightAmount: requiredString(input.freightAmount),
-        invoiceId: requiredString(input.invoiceId),
-        lineNumber: BigInt(requiredString(input.lineNumber)),
-        snapshot: optionalRecord(input.snapshot),
-        totalAmount: requiredString(input.totalAmount),
-      })
+      for (let start = 0; start < values.length; start += BILLING_INVOICE_ITEM_INSERT_CHUNK) {
+        await this.database
+          .insert(billingInvoiceItems)
+          .values(values.slice(start, start + BILLING_INVOICE_ITEM_INSERT_CHUNK))
+      }
     } catch (error) {
       if (isCteReservationConflict(error)) throw cteAlreadyInvoicedError()
       throw error
@@ -704,6 +715,16 @@ function requiredPositiveInteger(value: unknown): number {
     throw new Error('EXPECTED_POSITIVE_INTEGER')
   }
   return value
+}
+
+function requiredRecordArray(value: unknown): readonly Record<string, unknown>[] {
+  if (!Array.isArray(value)) throw new Error('EXPECTED_RECORD_ARRAY')
+  return value.map((item) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new Error('EXPECTED_RECORD_ARRAY')
+    }
+    return item as Record<string, unknown>
+  })
 }
 
 function requiredStringArray(value: unknown): readonly string[] {

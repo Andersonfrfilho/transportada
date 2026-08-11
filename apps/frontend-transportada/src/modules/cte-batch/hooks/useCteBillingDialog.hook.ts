@@ -56,8 +56,8 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
     queryKey: [CTE_BILLING_PREVIEW_QUERY_KEY, ...cteIds],
   })
 
-  // O preview aceita no máximo 100 ids: um lote inteiro é resolvido pela listagem de elegíveis,
-  // que pagina por cursor, e agrupado por tomador aqui mesmo.
+  // O lote inteiro é resolvido pela listagem de elegíveis, que pagina por cursor, e agrupado por
+  // tomador aqui mesmo — um grupo por tomador, que é uma fatura por tomador.
   const batchQuery = useQuery({
     enabled: batchIds.length > 0,
     queryFn: async () => {

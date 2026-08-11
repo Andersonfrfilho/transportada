@@ -132,6 +132,8 @@ export class BillingUnitOfWorkFixture {
   public readonly executedTransactions: Array<'billing'> = []
   public readonly idempotencyQueries: Array<Record<string, unknown>> = []
   public readonly invoiceQueries: Array<Record<string, unknown>> = []
+  /** Quantos itens cada gravação levou: é o que separa "uma fatura" de "uma fatura por bloco". */
+  public readonly itemWrites: Array<number> = []
   public readonly previewQueries: Array<Record<string, unknown>> = []
   public readonly reservations: Array<Record<string, unknown>> = []
 
@@ -155,6 +157,7 @@ export class BillingUnitOfWorkFixture {
       createdInvoices: this.createdInvoices.length,
       createdItems: this.createdItems.length,
       detailUpdates: this.detailUpdates.length,
+      itemWrites: this.itemWrites.length,
       reservations: this.reservations.length,
     }
 
@@ -166,6 +169,7 @@ export class BillingUnitOfWorkFixture {
       this.createdInvoices.length = writeLengths.createdInvoices
       this.createdItems.length = writeLengths.createdItems
       this.detailUpdates.length = writeLengths.detailUpdates
+      this.itemWrites.length = writeLengths.itemWrites
       this.reservations.length = writeLengths.reservations
       throw error
     }
@@ -200,7 +204,7 @@ export class BillingUnitOfWorkFixture {
     return this.replayedCreate
   }
 
-  public async reserveCteForActiveInvoice(input: Record<string, unknown>): Promise<boolean> {
+  public async reserveCtesForActiveInvoice(input: Record<string, unknown>): Promise<boolean> {
     this.reservations.push(input)
     return this.concurrentReservationAllowed
   }
@@ -210,8 +214,11 @@ export class BillingUnitOfWorkFixture {
     return EXPECTED_INVOICE
   }
 
-  public async createInvoiceItem(input: Record<string, unknown>): Promise<void> {
-    this.createdItems.push(input)
+  /** O caso de uso grava os itens de uma vez; o duplo aqui achata para as asserções lerem linha a linha. */
+  public async createInvoiceItems(input: Record<string, unknown>): Promise<void> {
+    const items = Array.isArray(input.items) ? (input.items as Record<string, unknown>[]) : []
+    this.itemWrites.push(items.length)
+    this.createdItems.push(...items)
   }
 
   public async createInvoiceEvent(input: Record<string, unknown>): Promise<void> {

@@ -3,9 +3,10 @@ import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 
 import type { BillingEligibleCte, BillingEligiblePage } from './billingClient.service'
 
-/** Teto de `cteIds` que `POST /billing/invoices` aceita — acima disso o tomador vira partes. */
-export const BILLING_MAX_CTES_PER_INVOICE = 100
-/** A varredura do lote precisa terminar: sem teto, um lote gigante prende a tela indefinidamente. */
+/**
+ * A varredura do lote precisa terminar: sem teto, um lote gigante prende a tela indefinidamente.
+ * É o mesmo teto de `cteIds` que `POST /billing/invoices` aceita — o tomador cabe numa fatura só.
+ */
 export const BILLING_BATCH_CTE_CEILING = 1000
 export const BILLING_BATCH_CTE_PAGE_LIMIT = 100
 
@@ -24,8 +25,6 @@ export type BillingBatchCteGroup = Readonly<{
   cteIds: readonly string[]
   customerDocument: string
   customerName: string
-  part: number
-  partCount: number
   totalAmount: string
 }>
 
@@ -73,6 +72,7 @@ export async function collectBillableCtesForBatches(
   }
 }
 
+/** Um tomador, uma fatura: o volume de CT-es é problema de processamento, não do documento. */
 export function groupEligibleCtesByCustomer(
   items: readonly BillingEligibleCte[],
 ): readonly BillingBatchCteGroup[] {
@@ -84,30 +84,20 @@ export function groupEligibleCtesByCustomer(
     else bucket.push(item)
   }
 
-  return [...byCustomer.values()].flatMap(splitIntoInvoiceParts)
+  return [...byCustomer.values()].flatMap(toInvoiceGroup)
 }
 
-function splitIntoInvoiceParts(
-  bucket: readonly BillingEligibleCte[],
-): readonly BillingBatchCteGroup[] {
+function toInvoiceGroup(bucket: readonly BillingEligibleCte[]): readonly BillingBatchCteGroup[] {
   const [first] = bucket
   if (first === undefined) return []
-  const partCount = Math.ceil(bucket.length / BILLING_MAX_CTES_PER_INVOICE)
 
-  return Array.from({ length: partCount }, (_unused, index) => {
-    const part = bucket.slice(
-      index * BILLING_MAX_CTES_PER_INVOICE,
-      (index + 1) * BILLING_MAX_CTES_PER_INVOICE,
-    )
-
-    return {
-      cteCount: part.length,
-      cteIds: part.map((item) => item.cteId),
+  return [
+    {
+      cteCount: bucket.length,
+      cteIds: bucket.map((item) => item.cteId),
       customerDocument: first.customerDocument,
       customerName: first.customerName,
-      part: index + 1,
-      partCount,
-      totalAmount: sumScaledAmounts(part.map((item) => item.totalAmount)),
-    }
-  })
+      totalAmount: sumScaledAmounts(bucket.map((item) => item.totalAmount)),
+    },
+  ]
 }

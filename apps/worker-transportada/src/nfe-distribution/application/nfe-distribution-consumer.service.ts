@@ -10,10 +10,12 @@ import type {
 import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
+import { decideCursorRecovery } from '../domain/cursor-recovery.policy.js'
 import { isSefazDistributionRateLimit } from '../domain/sefaz-rate-limit.policy.js'
 
 type DistributionCursorRecord = {
   readonly companyId: string
+  readonly consecutiveRateLimits: number
   readonly environment: 'homologation' | 'production'
   readonly leaseExpiresAt: Date | null
   readonly leaseOwner: string | null
@@ -53,12 +55,26 @@ type NfeDistributionCursorRepositoryPort = {
     readonly environment: 'homologation' | 'production'
     readonly owner: string
   }): Promise<void>
+  resyncCursor(input: {
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+    readonly now: Date
+    readonly owner: string
+    readonly skippedFromNsu: string
+    readonly skippedToNsu: string
+    readonly ultNsu: string
+  }): Promise<void>
   saveCursor(input: {
     readonly companyId: string
+    readonly consecutiveRateLimits: number
     readonly environment: 'homologation' | 'production'
     readonly maxNsu: string
     readonly nextAllowedAt: Date | null
     readonly owner: string
+    readonly skipped?: {
+      readonly fromNsu: string
+      readonly toNsu: string
+    }
     readonly ultNsu: string
   }): Promise<void>
 }
@@ -148,6 +164,7 @@ function describePullFailure(error: unknown): PullFailureDescription {
 async function openRateLimitWindow(input: {
   readonly clock: NfeDistributionClock
   readonly companyId: string
+  readonly consecutiveRateLimits: number
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
   readonly environment: NfeDistributionEnvironment
   readonly importId: string
@@ -158,6 +175,7 @@ async function openRateLimitWindow(input: {
   const nextAllowedAt = new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS)
   await input.cursorRepository.saveCursor({
     companyId: input.companyId,
+    consecutiveRateLimits: input.consecutiveRateLimits,
     environment: input.environment,
     maxNsu: input.maxNsu,
     nextAllowedAt,
@@ -177,6 +195,93 @@ async function openRateLimitWindow(input: {
       ultNsu: input.ultNsu,
     },
   })
+}
+
+/**
+ * O salto é gravado por método próprio: a janela de uma hora não é opção de quem chama, senão o
+ * tick seguinte do cron consultaria dentro do bloqueio corrente e zeraria a contagem da SEFAZ.
+ */
+async function resyncCursorToWatermark(input: {
+  readonly clock: NfeDistributionClock
+  readonly companyId: string
+  readonly cursorRepository: NfeDistributionCursorRepositoryPort
+  readonly environment: NfeDistributionEnvironment
+  readonly importId: string
+  readonly logger: WorkerLogger
+  readonly maxNsu: string
+  readonly ultNsu: string
+}): Promise<void> {
+  await input.cursorRepository.resyncCursor({
+    companyId: input.companyId,
+    environment: input.environment,
+    now: input.clock.now(),
+    owner: LEASE_OWNER,
+    skippedFromNsu: input.ultNsu,
+    skippedToNsu: input.maxNsu,
+    ultNsu: input.maxNsu,
+  })
+
+  safeLogWarn({
+    logger: input.logger,
+    message: 'nfe_distribution_cursor_resynced',
+    metadata: {
+      companyId: input.companyId,
+      environment: input.environment,
+      importId: input.importId,
+      skippedFromNsu: input.ultNsu,
+      skippedToNsu: input.maxNsu,
+      ultNsu: input.maxNsu,
+    },
+  })
+}
+
+function firstNsuOf(items: readonly DfeItem[]): string | undefined {
+  return items.map((item) => item.nsu).sort()[0]
+}
+
+/**
+ * Uma página que não persiste não pode segurar o cursor: o retry seguinte reconsultaria o mesmo
+ * `ultNSU` que a SEFAZ já serviu, e é isso que a NT 2014.002 §3.11.4.1 chama de fora de sequência.
+ */
+async function persistPageOrSkip(input: {
+  readonly companyId: string
+  readonly environment: NfeDistributionEnvironment
+  readonly importId: string
+  readonly logger: WorkerLogger
+  readonly page: NfeDistribuicaoResult
+  readonly repository: NfeDistributionRepositoryPort
+}): Promise<
+  | {
+      readonly acceptedCount: number
+      readonly duplicatedCount: number
+      readonly skippedCount: number
+    }
+  | undefined
+> {
+  try {
+    return await input.repository.persistPage({
+      companyId: input.companyId,
+      environment: input.environment,
+      importId: input.importId,
+      items: input.page.itens,
+      maxNsu: input.page.maxNSU,
+      ultNsu: input.page.ultNSU,
+    })
+  } catch (error: unknown) {
+    safeLogError({
+      logger: input.logger,
+      message: 'nfe_distribution_page_skipped',
+      metadata: {
+        companyId: input.companyId,
+        environment: input.environment,
+        fetched: input.page.itens.length,
+        importId: input.importId,
+        ultNsu: input.page.ultNSU,
+        ...describePullFailure(error),
+      },
+    })
+    return undefined
+  }
 }
 
 export function createNfeDistributionConsumer(input: {
@@ -308,6 +413,7 @@ export function createNfeDistributionConsumer(input: {
             await openRateLimitWindow({
               clock: input.clock,
               companyId: params.envelope.companyId,
+              consecutiveRateLimits: 0,
               cursorRepository: input.cursorRepository,
               environment: config.environment,
               importId: params.envelope.payload.importId,
@@ -318,19 +424,36 @@ export function createNfeDistributionConsumer(input: {
             break
           }
 
-          const persistence = await input.repository.persistPage({
+          const persistence = await persistPageOrSkip({
             companyId: params.envelope.companyId,
             environment: config.environment,
             importId: params.envelope.payload.importId,
-            items: page.itens,
-            maxNsu: page.maxNSU,
-            ultNsu: page.ultNSU,
+            logger: input.logger,
+            page,
+            repository: input.repository,
           })
+          const fromNsu = ultNsu
+          maxNsu = page.maxNSU
+          ultNsu = page.ultNSU
+
+          if (persistence === undefined) {
+            // Perder documento é recuperável por consNSU; ficar fora de sequência bloqueia o CNPJ
+            await input.cursorRepository.saveCursor({
+              companyId: params.envelope.companyId,
+              consecutiveRateLimits: 0,
+              environment: config.environment,
+              maxNsu,
+              nextAllowedAt: null,
+              owner: LEASE_OWNER,
+              skipped: { fromNsu: firstNsuOf(page.itens) ?? fromNsu, toNsu: ultNsu },
+              ultNsu,
+            })
+            break
+          }
+
           duplicatedCount += persistence.duplicatedCount
           persistedCount += persistence.acceptedCount
           skippedCount += persistence.skippedCount
-          maxNsu = page.maxNSU
-          ultNsu = page.ultNSU
 
           safeLogInfo({
             logger: input.logger,
@@ -348,6 +471,7 @@ export function createNfeDistributionConsumer(input: {
 
           await input.cursorRepository.saveCursor({
             companyId: params.envelope.companyId,
+            consecutiveRateLimits: 0,
             environment: config.environment,
             maxNsu,
             nextAllowedAt: null,
@@ -423,16 +547,35 @@ export function createNfeDistributionConsumer(input: {
           },
         })
 
-        await openRateLimitWindow({
-          clock: input.clock,
-          companyId: params.envelope.companyId,
-          cursorRepository: input.cursorRepository,
-          environment: config.environment,
-          importId: params.envelope.payload.importId,
-          logger: input.logger,
+        const recovery = decideCursorRecovery({
+          consecutiveRateLimits: cursor.consecutiveRateLimits,
           maxNsu,
           ultNsu,
         })
+        if (recovery.kind === 'resync') {
+          await resyncCursorToWatermark({
+            clock: input.clock,
+            companyId: params.envelope.companyId,
+            cursorRepository: input.cursorRepository,
+            environment: config.environment,
+            importId: params.envelope.payload.importId,
+            logger: input.logger,
+            maxNsu,
+            ultNsu,
+          })
+        } else {
+          await openRateLimitWindow({
+            clock: input.clock,
+            companyId: params.envelope.companyId,
+            consecutiveRateLimits: recovery.consecutiveRateLimits,
+            cursorRepository: input.cursorRepository,
+            environment: config.environment,
+            importId: params.envelope.payload.importId,
+            logger: input.logger,
+            maxNsu,
+            ultNsu,
+          })
+        }
 
         await input.repository.finalizeImport({
           companyId: params.envelope.companyId,

@@ -21,9 +21,8 @@ type CteBillingDialogProps = Readonly<{
   dialog: CteBillingDialogController
 }>
 
-/** Um mesmo tomador pode render várias faturas quando passa do teto de CT-es por fatura. */
-function groupKey(group: CteBillingGroup, index: number): string {
-  return `${group.customerDocument}:${index}`
+function groupKey(group: CteBillingGroup): string {
+  return group.customerDocument
 }
 
 function outcomeKey(outcome: BillingGroupOutcome, index: number): string {
@@ -152,16 +151,9 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {dialog.groups.map((group, index) => (
-                    <tr key={groupKey(group, index)}>
-                      <td>
-                        {group.customerName}
-                        {'partCount' in group && group.partCount > 1 ? (
-                          <span className={styles.billingPart}>
-                            {t('billing.part', { part: group.part, partCount: group.partCount })}
-                          </span>
-                        ) : null}
-                      </td>
+                  {dialog.groups.map((group) => (
+                    <tr key={groupKey(group)}>
+                      <td>{group.customerName}</td>
                       <td>{group.customerDocument}</td>
                       <td>{group.cteCount}</td>
                       <td>{formatAmount(group.totalAmount)}</td>
@@ -170,7 +162,7 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
                 </tbody>
               </table>
             </div>
-            <p className={styles.summaryLine}>
+            <p className={`${styles.summaryLine} ${styles.summaryTotalTrailing}`}>
               {t('billing.total')}: <strong>{formatAmount(totalAmount)}</strong>
             </p>
           </section>

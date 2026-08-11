@@ -12,6 +12,7 @@ import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
 export type DistributionCursorRecord = {
   readonly companyId: string
+  readonly consecutiveRateLimits: number
   readonly environment: 'homologation' | 'production'
   readonly leaseExpiresAt: Date | null
   readonly leaseOwner: string | null
@@ -61,12 +62,26 @@ export type NfeDistributionCursorRepositoryPort = {
     readonly environment: 'homologation' | 'production'
     readonly owner: string
   }): Promise<void>
+  resyncCursor(input: {
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+    readonly now: Date
+    readonly owner: string
+    readonly skippedFromNsu: string
+    readonly skippedToNsu: string
+    readonly ultNsu: string
+  }): Promise<void>
   saveCursor(input: {
     readonly companyId: string
+    readonly consecutiveRateLimits: number
     readonly environment: 'homologation' | 'production'
     readonly maxNsu: string
     readonly nextAllowedAt: Date | null
     readonly owner: string
+    readonly skipped?: {
+      readonly fromNsu: string
+      readonly toNsu: string
+    }
     readonly ultNsu: string
   }): Promise<void>
 }
