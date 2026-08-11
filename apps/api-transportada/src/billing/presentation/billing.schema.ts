@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { BILLING_INVOICE_STATUSES } from '../../database/billing.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { BILLING_MAX_CTES_PER_INVOICE } from '../domain/invoice-limits.constant.js'
 
 const BILLING_INVOICE_STATUS_SET: ReadonlySet<string> = new Set(BILLING_INVOICE_STATUSES)
 const CURSOR = /^[A-Za-z0-9._:-]{1,200}$/
@@ -77,7 +78,7 @@ const INVOICE_LIST_RANGES: readonly (readonly [string, string])[] = [
 
 const createBillingInvoiceSchema = z
   .object({
-    cteIds: z.array(UUID).min(1).max(100),
+    cteIds: z.array(UUID).min(1).max(BILLING_MAX_CTES_PER_INVOICE),
     dueDate: z.iso.date(),
   })
   .strict()
@@ -87,7 +88,7 @@ const previewBillingInvoiceSchema = z
     cteIds: z
       .array(UUID)
       .min(1)
-      .max(100)
+      .max(BILLING_MAX_CTES_PER_INVOICE)
       .refine((values) => new Set(values).size === values.length),
   })
   .strict()

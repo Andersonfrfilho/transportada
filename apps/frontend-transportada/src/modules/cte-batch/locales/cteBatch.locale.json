@@ -258,7 +258,6 @@
       "totalAmount": "Valor"
     },
     "total": "Total",
-    "part": " (parte {{part}} de {{partCount}})",
     "truncated": "O lote tem mais CT-es do que cabe em uma rodada: gere estas faturas e repita a ação para o restante.",
     "blocked": "Bloqueados",
     "blockedCount": "{{count}} CT-e(s)",

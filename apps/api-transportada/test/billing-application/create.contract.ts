@@ -50,7 +50,7 @@ describe('billing application create contract', () => {
     expect(unitOfWork.reservations).toEqual([
       {
         companyId: COMPANY_CONTEXT.companyId,
-        cteDocumentId: CTE_DOCUMENT_ID,
+        cteDocumentIds: [CTE_DOCUMENT_ID],
       },
     ])
     expect(unitOfWork.createdInvoices).toEqual([
@@ -102,6 +102,45 @@ describe('billing application create contract', () => {
     ])
     expect(JSON.stringify(unitOfWork.createdInvoices)).not.toContain('attacker-company')
     expect(JSON.stringify(unitOfWork.createdItems)).not.toContain('xml')
+  })
+
+  test('bills a large selection of the same customer as a single invoice', async () => {
+    const CTE_COUNT = 250
+    const unitOfWork = new BillingUnitOfWorkFixture()
+    unitOfWork.eligibleCtes = Array.from({ length: CTE_COUNT }, (_unused, index) => ({
+      ...ELIGIBLE_CTE,
+      cteNumber: String(2000 + index),
+      id: `cte-document-${String(index + 1).padStart(4, '0')}`,
+    }))
+    const useCase = await createBillingUseCaseForTest(unitOfWork)
+
+    await useCase.create({
+      ...CREATE_INPUT,
+      cteDocumentIds: unitOfWork.eligibleCtes.map((cte) => cte.id as string),
+    })
+
+    /** O tomador tem uma dívida só: dividir a seleção criaria duas cobranças para o mesmo período. */
+    expect(unitOfWork.createdInvoices).toHaveLength(1)
+    expect(unitOfWork.createdInvoices[0]).toMatchObject({
+      subtotalAmount: '87500.00',
+      totalAmount: '87500.00',
+    })
+    expect(unitOfWork.createdItems).toHaveLength(CTE_COUNT)
+    /** Reserva e gravação vão em bloco: por CT-e seriam centenas de idas ao banco na transação. */
+    expect(unitOfWork.reservations).toHaveLength(1)
+    expect(unitOfWork.itemWrites).toEqual([CTE_COUNT])
+    expect(unitOfWork.createdEvents).toEqual([
+      {
+        actorUserId: COMPANY_CONTEXT.userId,
+        companyId: COMPANY_CONTEXT.companyId,
+        eventName: 'invoice_created',
+        invoiceId: INVOICE_ID,
+        payload: {
+          itemCount: CTE_COUNT,
+          totalAmount: '87500.00',
+        },
+      },
+    ])
   })
 
   test('replays matching idempotency without creating another invoice', async () => {

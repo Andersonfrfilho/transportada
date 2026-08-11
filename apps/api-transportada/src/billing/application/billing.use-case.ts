@@ -24,7 +24,7 @@ type BillingFingerprintPort = {
 type BillingUnitOfWorkPort = {
   readonly createInvoice: (input: Record<string, unknown>) => Promise<Record<string, unknown>>
   readonly createInvoiceEvent: (input: Record<string, unknown>) => Promise<void>
-  readonly createInvoiceItem: (input: Record<string, unknown>) => Promise<void>
+  readonly createInvoiceItems: (input: Record<string, unknown>) => Promise<void>
   readonly execute?: <TResponse>(
     operation: (transaction: BillingUnitOfWorkPort) => Promise<TResponse>,
   ) => Promise<TResponse>
@@ -40,7 +40,7 @@ type BillingUnitOfWorkPort = {
   ) => Promise<Record<string, unknown> | null>
   readonly listEligibleCtes: (input: Record<string, unknown>) => Promise<BillingEligiblePage>
   readonly listInvoices: (input: Record<string, unknown>) => Promise<BillingInvoicePage>
-  readonly reserveCteForActiveInvoice: (input: Record<string, unknown>) => Promise<boolean>
+  readonly reserveCtesForActiveInvoice: (input: Record<string, unknown>) => Promise<boolean>
   readonly updateInvoiceDetails: (
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown>>
@@ -280,13 +280,12 @@ async function createInvoice(
     assertEligibleCtes(eligibleCtes, cteDocumentIds, input.context.companyId)
     assertSingleCustomer(eligibleCtes)
 
-    for (const cte of eligibleCtes) {
-      const reserved = await transaction.reserveCteForActiveInvoice({
-        companyId: input.context.companyId,
-        cteDocumentId: requiredString(cte, 'id'),
-      })
-      if (!reserved) throw cteAlreadyInvoicedError()
-    }
+    /** Uma trava só para a seleção inteira: por CT-e seriam mil idas ao banco com a transação aberta. */
+    const reserved = await transaction.reserveCtesForActiveInvoice({
+      companyId: input.context.companyId,
+      cteDocumentIds: eligibleCtes.map((cte) => requiredString(cte, 'id')),
+    })
+    if (!reserved) throw cteAlreadyInvoicedError()
 
     const subtotalAmount = sumMoney(eligibleCtes.map((cte) => requiredString(cte, 'totalAmount')))
     const invoice = await transaction.createInvoice({
@@ -309,6 +308,7 @@ async function createInvoice(
     const invoiceId = requiredString(invoice, 'id')
 
     const items: Record<string, unknown>[] = []
+    const persistedItems: Record<string, unknown>[] = []
     for (const [index, cte] of eligibleCtes.entries()) {
       const cteNumber = requiredString(cte, 'cteNumber')
       const totalAmount = normalizeMoney(requiredString(cte, 'totalAmount'))
@@ -319,7 +319,7 @@ async function createInvoice(
         description,
         totalAmount,
       })
-      await transaction.createInvoiceItem({
+      persistedItems.push({
         batchId: requiredString(cte, 'batchId'),
         batchItemId: requiredString(cte, 'batchItemId'),
         companyId: input.context.companyId,
@@ -334,6 +334,7 @@ async function createInvoice(
         totalAmount,
       })
     }
+    await transaction.createInvoiceItems({ items: persistedItems })
 
     await transaction.createInvoiceEvent({
       actorUserId: input.context.userId,

@@ -258,7 +258,6 @@
       "totalAmount": "Amount"
     },
     "total": "Total",
-    "part": " (part {{part}} of {{partCount}})",
     "truncated": "The batch has more CT-es than one round can take: generate these invoices and repeat the action for the rest.",
     "blocked": "Blocked",
     "blockedCount": "{{count}} CT-e(s)",

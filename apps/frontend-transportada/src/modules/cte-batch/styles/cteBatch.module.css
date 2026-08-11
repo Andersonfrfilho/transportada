@@ -338,6 +338,11 @@
   font-size: 0.78rem;
 }
 
+/* Fecha na mesma borda da coluna Valor, que é a que o total soma. */
+.summaryTotalTrailing {
+  text-align: right;
+}
+
 .cancellationForm {
   display: grid;
   gap: var(--space-3);
@@ -618,12 +623,6 @@
 
 .billingOutcomeIssued {
   color: var(--color-ready);
-}
-
-.billingPart {
-  color: var(--color-slate);
-  font-family: var(--font-utility);
-  font-size: var(--field-font-size-compact);
 }
 
 .billingFooter {

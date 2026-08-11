@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { BILLING_MAX_CTES_PER_INVOICE } from '../../src/billing/domain/invoice-limits.constant.js'
 import {
   COMPANY_CONTEXT,
   CTE_ID_PRIMARY,
@@ -44,7 +45,7 @@ describe('Billing HTTP invoice preview contract', () => {
       { cteIds: [] },
       { cteIds: [CTE_ID_PRIMARY, CTE_ID_PRIMARY] },
       { cteIds: ['not-a-uuid'] },
-      { cteIds: Array.from({ length: 101 }, (_, index) => cteIdAt(index + 1)) },
+      { cteIds: Array.from({ length: 1001 }, (_, index) => cteIdAt(index + 1)) },
       { cteIds: [CTE_ID_PRIMARY], dueDate: '2026-08-05' },
       { companyId: 'attacker-company', cteIds: [CTE_ID_PRIMARY] },
     ]) {
@@ -58,18 +59,22 @@ describe('Billing HTTP invoice preview contract', () => {
     }
   })
 
-  test('accepts the maximum selection of one hundred CT-es', async () => {
+  test('accepts a whole batch in one selection instead of splitting the customer', async () => {
     const fixture = await createBillingHttpFixture()
 
     const response = await fixture.handle(
       previewBillingInvoiceRequest({
-        body: { cteIds: Array.from({ length: 100 }, (_, index) => cteIdAt(index + 1)) },
+        body: {
+          cteIds: Array.from({ length: BILLING_MAX_CTES_PER_INVOICE }, (_, index) =>
+            cteIdAt(index + 1),
+          ),
+        },
       }),
     )
 
     expect(response.status).toBe(200)
     expect(fixture.previewCalls).toHaveLength(1)
-    expect(fixture.previewCalls[0]?.cteIds).toHaveLength(100)
+    expect(fixture.previewCalls[0]?.cteIds).toHaveLength(BILLING_MAX_CTES_PER_INVOICE)
   })
 
   test('requires the billing create permission', async () => {

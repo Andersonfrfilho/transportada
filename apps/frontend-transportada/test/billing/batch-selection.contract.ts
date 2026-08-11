@@ -139,8 +139,6 @@ describe('billing batch selection contract', () => {
         cteIds: ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000003'],
         customerDocument: CUSTOMER_PRIMARY.document,
         customerName: CUSTOMER_PRIMARY.name,
-        part: 1,
-        partCount: 1,
         totalAmount: '20.10',
       },
       {
@@ -148,38 +146,33 @@ describe('billing batch selection contract', () => {
         cteIds: ['00000000-0000-4000-8000-000000000002'],
         customerDocument: CUSTOMER_SECONDARY.document,
         customerName: CUSTOMER_SECONDARY.name,
-        part: 1,
-        partCount: 1,
         totalAmount: '10.05',
       },
     ])
   })
 
-  test('splits a customer above the invoice ceiling into numbered parts', async () => {
-    const { groupEligibleCtesByCustomer, BILLING_MAX_CTES_PER_INVOICE } =
-      await loadFutureModule<BillingBatchSelectionModule>(BATCH_SELECTION_SERVICE_PATH)
-
-    expect(BILLING_MAX_CTES_PER_INVOICE).toBe(100)
+  test('keeps one invoice per customer no matter the volume', async () => {
+    const { groupEligibleCtesByCustomer } = await loadFutureModule<BillingBatchSelectionModule>(
+      BATCH_SELECTION_SERVICE_PATH,
+    )
 
     const groups = groupEligibleCtesByCustomer(
       Array.from({ length: 130 }, (_unused, index) => eligibleCte(index + 1, CUSTOMER_PRIMARY)),
     )
 
-    expect(groups).toHaveLength(2)
-    expect(groups.map((group) => [group.part, group.partCount, group.cteCount])).toEqual([
-      [1, 2, 100],
-      [2, 2, 30],
-    ])
-    /** A ordem dentro do tomador não pode embaralhar: a parte 2 continua de onde a 1 parou. */
-    expect(groups[0]?.cteIds.at(-1)).toBe('00000000-0000-4000-8000-000000000100')
-    expect(groups[1]?.cteIds.at(0)).toBe('00000000-0000-4000-8000-000000000101')
-    expect(groups[0]?.totalAmount).toBe('1005.00')
-    expect(groups[1]?.totalAmount).toBe('301.50')
+    /** O tomador tem uma dívida só no período: duas faturas seriam duas cobranças pelo mesmo frete. */
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.cteCount).toBe(130)
+    expect(groups[0]?.totalAmount).toBe('1306.50')
+    /** A ordem da varredura é a ordem da fatura: a linha 130 é a última nota lida, não a primeira. */
+    expect(groups[0]?.cteIds.at(0)).toBe('00000000-0000-4000-8000-000000000001')
+    expect(groups[0]?.cteIds.at(-1)).toBe('00000000-0000-4000-8000-000000000130')
   })
 
-  test('never emits a group above what a single invoice accepts', async () => {
-    const { groupEligibleCtesByCustomer, BILLING_MAX_CTES_PER_INVOICE } =
-      await loadFutureModule<BillingBatchSelectionModule>(BATCH_SELECTION_SERVICE_PATH)
+  test('emits exactly one group per customer document', async () => {
+    const { groupEligibleCtesByCustomer } = await loadFutureModule<BillingBatchSelectionModule>(
+      BATCH_SELECTION_SERVICE_PATH,
+    )
 
     const groups = groupEligibleCtesByCustomer(
       Array.from({ length: 250 }, (_unused, index) =>
@@ -187,7 +180,10 @@ describe('billing batch selection contract', () => {
       ),
     )
 
-    expect(groups.every((group) => group.cteCount <= BILLING_MAX_CTES_PER_INVOICE)).toBe(true)
+    expect(groups.map((group) => group.customerDocument)).toEqual([
+      CUSTOMER_PRIMARY.document,
+      CUSTOMER_SECONDARY.document,
+    ])
     expect(groups.reduce((total, group) => total + group.cteCount, 0)).toBe(250)
     expect(groupEligibleCtesByCustomer([])).toEqual([])
   })
@@ -198,14 +194,11 @@ type BillingBatchCteGroup = Readonly<{
   cteIds: readonly string[]
   customerDocument: string
   customerName: string
-  part: number
-  partCount: number
   totalAmount: string
 }>
 
 type BillingBatchSelectionModule = {
   readonly BILLING_BATCH_CTE_CEILING: number
-  readonly BILLING_MAX_CTES_PER_INVOICE: number
   readonly collectBillableCtesForBatches: (
     input: Readonly<{
       batchIds: readonly string[]
