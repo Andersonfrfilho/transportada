@@ -107,6 +107,24 @@ endpoints:
         description: a API de staging parou de responder no /health/ready
         send-on-resolved: true
 
+  # A variável guarda a URL do realm (`https://<host>/realms/<realm>`), e o caminho do documento de
+  # descoberta é sufixo fixo aqui — trocar de instalação não deve poder trocar o que é vigiado.
+  #
+  # O caminho importa. Em 10/08/2026 o Keycloak de production ficou horas sem alcançar o Postgres e
+  # ninguém entrou no produto, com o painel inteiro verde: não havia monitor de Keycloak, e o
+  # `/certs` — candidato óbvio — respondia 200 de memória durante a queda inteira. O documento de
+  # descoberta lê a configuração do realm no banco e cai junto com ele.
+  - name: keycloak
+    group: staging
+    url: ${GATUS_STAGING_KEYCLOAK_URL}/.well-known/openid-configuration
+    interval: 2m
+    conditions:
+      - '[STATUS] == 200'
+    alerts:
+      - type: ntfy
+        description: o Keycloak de staging parou de servir a descoberta do realm
+        send-on-resolved: true
+
   - name: frontend
     group: staging
     url: ${GATUS_STAGING_FRONTEND_URL}
@@ -127,6 +145,17 @@ endpoints:
     alerts:
       - type: ntfy
         description: a API de production parou de responder no /health/ready
+        send-on-resolved: true
+
+  - name: keycloak
+    group: production
+    url: ${GATUS_PRODUCTION_KEYCLOAK_URL}/.well-known/openid-configuration
+    interval: 2m
+    conditions:
+      - '[STATUS] == 200'
+    alerts:
+      - type: ntfy
+        description: o Keycloak de production parou de servir a descoberta do realm
         send-on-resolved: true
 
   - name: frontend
