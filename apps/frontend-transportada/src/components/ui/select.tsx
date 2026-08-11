@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom'
 
 import { Icon } from '@/components/ui/icon'
 
+import { filterSelectOptions, shouldOfferSelectSearch, type SelectOption } from './select.service'
 import { useFloatingLayer } from './useFloatingLayer.hook'
 
 import styles from './select.module.css'
 
-export type SelectOption = Readonly<{ label: string; value: string }>
+export type { SelectOption } from './select.service'
 
 type SelectProps = Readonly<{
   onChange: (value: string) => void
@@ -19,7 +20,9 @@ type SelectProps = Readonly<{
   clearable?: boolean
   compact?: boolean
   disabled?: boolean
+  emptyLabel?: string
   placeholder?: string
+  searchPlaceholder?: string
 }>
 
 const OPENING_KEYS = ['ArrowDown', 'ArrowUp', 'Enter', ' '] as const
@@ -45,39 +48,57 @@ export function Select({
   clearable = false,
   compact = false,
   disabled = false,
+  emptyLabel,
   onChange,
   options,
   placeholder = '',
+  searchPlaceholder,
   value,
 }: SelectProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const triggerReference = useRef<HTMLButtonElement>(null)
+  const listReference = useRef<HTMLUListElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const baseId = useId()
   const {
     anchorRef: rootReference,
-    layerRef: listReference,
+    layerRef: panelReference,
     layerStyle,
-  } = useFloatingLayer<HTMLUListElement>({
+  } = useFloatingLayer<HTMLDivElement>({
     ...(align === undefined ? {} : { align }),
     isOpen,
     onDismiss: () => setIsOpen(false),
   })
 
-  const entries: readonly SelectOption[] = clearable
+  const allEntries: readonly SelectOption[] = clearable
     ? [{ label: placeholder, value: '' }, ...options]
     : options
+  const hasSearch = shouldOfferSelectSearch(allEntries.length)
+  const entries = hasSearch ? filterSelectOptions({ options: allEntries, query }) : allEntries
   const selectedIndex = entries.findIndex((entry) => entry.value === value)
-  const selected = selectedIndex < 0 ? undefined : entries[selectedIndex]
+  const selected = allEntries.find((entry) => entry.value === value)
 
   // The active option has to follow the keyboard inside the scrolling list.
   useEffect(() => {
     if (!isOpen) return
     listReference.current?.children[activeIndex]?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex, isOpen, listReference])
+  }, [activeIndex, isOpen])
+
+  // Filtrar encurta a lista: um índice herdado apontaria para fora dela e o Enter não escolheria nada.
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [query])
+
+  useEffect(() => {
+    if (!isOpen || !hasSearch) return
+    searchInputRef.current?.focus()
+  }, [hasSearch, isOpen])
 
   function open(): void {
     if (disabled) return
+    setQuery('')
     setActiveIndex(selectedIndex < 0 ? 0 : selectedIndex)
     setIsOpen(true)
   }
@@ -125,6 +146,29 @@ export function Select({
     }
   }
 
+  // O painel vive no document.body: a tecla digitada na busca nunca sobe até o onKeyDown da raiz.
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      if (event.key === 'Escape') event.stopPropagation()
+      close()
+      return
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((current) => Math.min(current + 1, entries.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((current) => Math.max(current - 1, 0))
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commit(activeIndex)
+    }
+  }
+
   return (
     <div
       className={joinClassNames(styles.root, compact && styles.rootCompact)}
@@ -152,31 +196,58 @@ export function Select({
       </button>
       {isOpen
         ? createPortal(
-            <ul
-              aria-label={ariaLabel}
-              className={styles.list}
-              ref={listReference}
-              role="listbox"
-              style={layerStyle}
-            >
-              {entries.map((entry, index) => (
-                <li
-                  aria-selected={entry.value === value}
-                  className={joinClassNames(
-                    styles.option,
-                    index === activeIndex && styles.optionActive,
-                    entry.value === value && styles.optionSelected,
-                  )}
-                  id={`${baseId}-${String(index)}`}
-                  key={entry.value}
-                  onClick={() => commit(index)}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  role="option"
+            <div className={styles.panel} ref={panelReference} style={layerStyle}>
+              {hasSearch ? (
+                <div className={styles.searchField}>
+                  <Icon className={styles.searchIcon ?? ''} name="search" />
+                  <input
+                    aria-activedescendant={
+                      entries.length === 0 ? undefined : `${baseId}-${String(activeIndex)}`
+                    }
+                    aria-controls={`${baseId}-list`}
+                    aria-expanded
+                    aria-label={searchPlaceholder ?? ariaLabel}
+                    className={styles.searchInput}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder={searchPlaceholder ?? ''}
+                    ref={searchInputRef}
+                    role="combobox"
+                    type="text"
+                    value={query}
+                  />
+                </div>
+              ) : null}
+              {entries.length === 0 && emptyLabel !== undefined ? (
+                <p className={styles.empty}>{emptyLabel}</p>
+              ) : (
+                <ul
+                  aria-label={ariaLabel}
+                  className={styles.list}
+                  id={`${baseId}-list`}
+                  ref={listReference}
+                  role="listbox"
                 >
-                  {entry.label}
-                </li>
-              ))}
-            </ul>,
+                  {entries.map((entry, index) => (
+                    <li
+                      aria-selected={entry.value === value}
+                      className={joinClassNames(
+                        styles.option,
+                        index === activeIndex && styles.optionActive,
+                        entry.value === value && styles.optionSelected,
+                      )}
+                      id={`${baseId}-${String(index)}`}
+                      key={entry.value}
+                      onClick={() => commit(index)}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      role="option"
+                    >
+                      {entry.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>,
             document.body,
           )
         : null}

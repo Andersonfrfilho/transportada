@@ -2,6 +2,12 @@
 import { readdir } from 'node:fs/promises'
 import { describe, expect, test } from 'bun:test'
 
+import {
+  filterSelectOptions,
+  SELECT_SEARCH_THRESHOLD,
+  shouldOfferSelectSearch,
+} from '../../src/components/ui/select.service'
+
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const SELECT_COMPONENT_PATH = 'src/components/ui/select.tsx'
 const SELECT_STYLES_PATH = 'src/components/ui/select.module.css'
@@ -20,7 +26,7 @@ describe('design system select contract', () => {
     const component = await readApplicationFile(SELECT_COMPONENT_PATH)
 
     expect(component).toContain('export function Select(')
-    expect(component).toContain('export type SelectOption')
+    expect(component).toContain('export type { SelectOption }')
     expect(
       Bun.file(
         new URL('src/modules/nfe-workspace/components/SelectMenu.component.tsx', APPLICATION_ROOT),
@@ -93,6 +99,53 @@ describe('design system select contract', () => {
     expect(styles).toContain(':disabled')
   })
 
+  test('offers search by option count, so no call site has to remember to ask for it', () => {
+    expect(shouldOfferSelectSearch(SELECT_SEARCH_THRESHOLD - 1)).toBe(false)
+    expect(shouldOfferSelectSearch(SELECT_SEARCH_THRESHOLD)).toBe(true)
+    // Um limiar de 1 ou 2 poria campo de busca em filtro de três status.
+    expect(SELECT_SEARCH_THRESHOLD).toBeGreaterThan(3)
+  })
+
+  test('finds a city typed without accent or case', () => {
+    const options = [
+      { label: 'São Paulo', value: '3550308' },
+      { label: 'Santo André', value: '3547809' },
+      { label: 'Curitiba', value: '4106902' },
+    ]
+
+    expect(filterSelectOptions({ options, query: 'sao' }).map((option) => option.label)).toEqual([
+      'São Paulo',
+    ])
+    expect(filterSelectOptions({ options, query: 'ANDRE' }).map((option) => option.label)).toEqual([
+      'Santo André',
+    ])
+    expect(filterSelectOptions({ options, query: '  ' })).toEqual(options)
+  })
+
+  test('drives the search field by keyboard from inside the portal', async () => {
+    const component = await readApplicationFile(SELECT_COMPONENT_PATH)
+
+    // O painel vai para o document.body: tecla digitada na busca não sobe até o onKeyDown da raiz.
+    for (const contract of [
+      'shouldOfferSelectSearch',
+      'filterSelectOptions',
+      'role="combobox"',
+      'handleSearchKeyDown',
+      'searchInputRef',
+    ]) {
+      expect(component).toContain(contract)
+    }
+  })
+
+  test('pins the search field while only the option list scrolls', async () => {
+    const styles = await readApplicationFile(SELECT_STYLES_PATH)
+
+    expect(styles).toContain('.panel')
+    expect(styles).toContain('.searchInput')
+    expect(styles).toContain('overflow-y: auto')
+    expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
   test('states the rule for every future select', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/selects.md'),
@@ -101,6 +154,7 @@ describe('design system select contract', () => {
 
     expect(rule).toContain('components/ui/select')
     expect(rule).toContain('<select')
+    expect(rule).toContain('SELECT_SEARCH_THRESHOLD')
     expect(projectContext).toContain('docs/frontend/selects.md')
   })
 })

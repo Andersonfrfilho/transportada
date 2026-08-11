@@ -38,6 +38,7 @@ type CteBatchPage = {
 
 type CteBatchHttpRouteDependencies = {
   readonly cteBatches: {
+    readonly appendItems: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly cancel: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly create: (input: CteBatchCall) => Promise<CteBatchSummary>
     readonly get: (input: CteBatchCall) => Promise<CteBatchSummary>
@@ -62,6 +63,7 @@ type CteBatchHttpRouteDependencies = {
 }
 
 type CreateFixtureParams = {
+  readonly appendItemsError?: Error
   readonly authenticationError?: Error
   readonly createError?: Error
   readonly listCompanyItemsError?: Error
@@ -218,6 +220,7 @@ export const EVENTS_PAGE = {
 } as const
 
 export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}): Promise<{
+  readonly appendItemCalls: CteBatchCall[]
   readonly cancelCalls: CteBatchCall[]
   readonly createCalls: CteBatchCall[]
   readonly events: string[]
@@ -231,6 +234,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   readonly removeItemCalls: CteBatchCall[]
   readonly submitCalls: CteBatchCall[]
 }> {
+  const appendItemCalls: CteBatchCall[] = []
   const cancelCalls: CteBatchCall[] = []
   const createCalls: CteBatchCall[] = []
   const events: string[] = []
@@ -244,6 +248,11 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   const submitCalls: CteBatchCall[] = []
   const routes = await loadRoutes({
     cteBatches: {
+      async appendItems(input) {
+        appendItemCalls.push(structuredClone(input))
+        if (params.appendItemsError) throw params.appendItemsError
+        return { ...BATCH_SUMMARY, itemCount: 3, version: '2' }
+      },
       async cancel(input) {
         cancelCalls.push(structuredClone(input))
         return { ...BATCH_SUMMARY, status: 'cancelled' }
@@ -316,6 +325,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   })
 
   return {
+    appendItemCalls,
     cancelCalls,
     createCalls,
     events,
@@ -383,6 +393,23 @@ export function createBatchRequest(
     method: 'POST',
     origin: input.origin,
     pathname: CTE_BATCHES_PATH,
+  })
+}
+
+export function appendBatchItemsRequest(
+  input: {
+    readonly body?: unknown
+    readonly events?: string[]
+    readonly origin?: string
+  } = {},
+): Request {
+  return jsonRequest({
+    body: input.body ?? { documentIds: [DOCUMENT_ID] },
+    events: input.events,
+    idempotencyKey: IDEMPOTENCY_KEY,
+    method: 'POST',
+    origin: input.origin,
+    pathname: `${CTE_BATCHES_PATH}/${BATCH_ID}/items`,
   })
 }
 

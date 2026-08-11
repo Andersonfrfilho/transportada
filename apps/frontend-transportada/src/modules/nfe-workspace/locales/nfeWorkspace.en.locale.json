@@ -105,7 +105,8 @@
     "cancel": "Cancel",
     "confirm": "Create batch",
     "creating": "Creating batch...",
-    "loading": "Calculating projection...",
+    "loading": "Projecting {{count}} note...",
+    "loading_other": "Projecting {{count}} notes...",
     "batchName": "Batch name",
     "profile": "Emission profile",
     "profileAutomatic": "Automatic (by sender tax id)",
@@ -147,12 +148,20 @@
       "CTE_PROFILE_RULE_NOT_IN_FORCE": "No freight rule in force",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Summary only, no full XML"
     },
+    "projecting": "Calculating the projection... {{percent}}%",
+    "emitting": "Creating the batch... {{percent}}%",
+    "progressCreate": "Batch creation progress",
+    "progressPreview": "Projection progress",
+    "moreRows": "and {{count}} more projected CT-e, not listed here",
+    "moreRows_other": "and {{count}} more projected CT-es, not listed here",
     "errorPreview": "The projection could not be calculated. Try again.",
     "errorNameTaken": "A batch already uses this name. Pick another name to create the batch.",
     "errorCreate": "The batch could not be created. Try again.",
     "errorAlreadyLinked": "One or more notes already belong to another CT-e. The projection was recalculated — review it before creating the batch."
   },
   "filters": {
+    "search": "Search",
+    "searchEmpty": "No results",
     "cteIssuedPending": "Without issued CT-e",
     "cteIssuedIssued": "With issued CT-e"
   }

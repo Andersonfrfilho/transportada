@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { CTE_BATCH_MAX_DOCUMENTS } from '../../src/cte-batches/domain/cte-batch-limits.constant.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import {
   BATCH_ID,
@@ -86,6 +87,28 @@ describe('CT-e batch HTTP create, submit, and query contract', () => {
         name: 'Lote CT-e julho',
       },
     ])
+  })
+
+  /**
+   * Criar o lote tem o mesmo teto da projeção: projetar 1000 notas e não conseguir criar o lote
+   * delas seria pior que recusar antes.
+   */
+  test('accepts a selection up to the documented ceiling and rejects the item past it', async () => {
+    const fixture = await createCteBatchHttpFixture()
+    const documentIds = Array.from({ length: CTE_BATCH_MAX_DOCUMENTS }, () => crypto.randomUUID())
+
+    const accepted = await fixture.handle(
+      createBatchRequest({ body: { documentIds, name: 'Lote CT-e cheio' } }),
+    )
+    const rejected = await fixture.handle(
+      createBatchRequest({
+        body: { documentIds: [...documentIds, crypto.randomUUID()], name: 'Lote CT-e cheio' },
+      }),
+    )
+
+    expect(accepted.status).toBe(201)
+    expect(rejected.status).toBe(400)
+    expect(fixture.createCalls).toHaveLength(1)
   })
 
   test('rejects an unknown grouping mode before application work', async () => {

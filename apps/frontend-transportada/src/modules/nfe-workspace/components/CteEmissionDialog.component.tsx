@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { ProgressBar } from '@/components/ui/progress'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
@@ -150,8 +151,27 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
         </div>
 
         {!dialog.canEmit && <p className={styles.emptyState}>{t('cteEmission.forbidden')}</p>}
+        {dialog.status === 'loading' && dialog.chunkCount > 1 && (
+          <ProgressBar
+            completed={dialog.previewProgress.completed}
+            label={t('cteEmission.progressPreview')}
+            total={dialog.previewProgress.total}
+            valueText={t('cteEmission.projecting', { percent: dialog.previewProgress.percent })}
+          />
+        )}
+        {dialog.status === 'creating' && (
+          <ProgressBar
+            completed={dialog.createProgress.completed}
+            label={t('cteEmission.progressCreate')}
+            total={dialog.createProgress.total}
+            valueText={t('cteEmission.emitting', { percent: dialog.createProgress.percent })}
+          />
+        )}
         {dialog.status === 'loading' && (
-          <SkeletonGroup className={styles.tableWrap} label={t('cteEmission.loading')}>
+          <SkeletonGroup
+            className={styles.tableWrap}
+            label={t('cteEmission.loading', { count: dialog.selectedCount })}
+          >
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -186,7 +206,11 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
             </table>
           </SkeletonGroup>
         )}
-        {messageKey !== null && <p className={styles.emptyState}>{t(messageKey)}</p>}
+        {messageKey !== null && (
+          <p className={styles.emptyState} role="alert">
+            {t(messageKey, { selected: dialog.selectedCount })}
+          </p>
+        )}
 
         {dialog.summary !== null && (
           <section className={styles.cteEmissionSection}>
@@ -205,9 +229,14 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
                       <th scope="col">{t('cteEmission.columns.amount')}</th>
                     </tr>
                   </thead>
-                  <tbody>{dialog.summary.rows.map(renderRow)}</tbody>
+                  <tbody>{dialog.visibleRows.map(renderRow)}</tbody>
                 </table>
               </div>
+            )}
+            {dialog.hiddenRowCount > 0 && (
+              <p className={styles.cteEmissionComponents}>
+                {t('cteEmission.moreRows', { count: dialog.hiddenRowCount })}
+              </p>
             )}
             <p className={styles.cteEmissionTotal}>
               {t('cteEmission.total')}: <strong>{formatAmount(dialog.summary.totalAmount)}</strong>

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { CTE_BATCH_MAX_DOCUMENTS } from '../../src/cte-batches/domain/cte-batch-limits.constant.js'
 import {
   COMPANY_CONTEXT,
   DOCUMENT_ID,
@@ -68,6 +69,24 @@ describe('CT-e batch preview HTTP contract', () => {
       expect((await responseApiError(response)).error.code).toBe('INVALID_REQUEST')
     }
     expect(fixture.previewCalls).toEqual([])
+  })
+
+  /**
+   * O teto anterior de 100 rejeitava a seleção inteira da tela de notas, que pagina até 1000. O
+   * corte precisa estar acima do que a UI consegue selecionar, senão "selecionar todos" devolve 400.
+   */
+  test('accepts a selection up to the documented ceiling and rejects the item past it', async () => {
+    const fixture = await createCteBatchHttpFixture()
+    const documentIds = Array.from({ length: CTE_BATCH_MAX_DOCUMENTS }, () => crypto.randomUUID())
+
+    const accepted = await fixture.handle(previewBatchRequest({ body: { documentIds } }))
+    const rejected = await fixture.handle(
+      previewBatchRequest({ body: { documentIds: [...documentIds, crypto.randomUUID()] } }),
+    )
+
+    expect(accepted.status).toBe(200)
+    expect(rejected.status).toBe(400)
+    expect(fixture.previewCalls).toEqual([{ context: COMPANY_CONTEXT, documentIds }])
   })
 
   test('requires the cte.manage permission', async () => {

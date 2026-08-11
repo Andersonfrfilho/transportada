@@ -3,7 +3,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { ImportedNfeXml } from '@adatechnology/fiscal-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import {
   type NfeFiscalEnvironment,
@@ -114,6 +114,30 @@ export class DrizzleNfeDistributionRepository {
         version: sql`${nfeImports.version} + 1`,
       })
       .where(and(eq(nfeImports.companyId, input.companyId), eq(nfeImports.id, input.importId)))
+  }
+
+  /**
+   * Só `variant: 'complete'` grava linha em `nfe_documents` — quem já está aqui tem o XML inteiro, e
+   * receber a mesma chave de novo pela distribuição não acrescenta nada.
+   */
+  async findStoredAccessKeys(input: {
+    readonly accessKeys: readonly string[]
+    readonly companyId: string
+  }): Promise<readonly string[]> {
+    if (input.accessKeys.length === 0) {
+      return []
+    }
+
+    const rows = await this.#database
+      .select({ accessKey: nfeDocuments.accessKey })
+      .from(nfeDocuments)
+      .where(
+        and(
+          eq(nfeDocuments.companyId, input.companyId),
+          inArray(nfeDocuments.accessKey, [...input.accessKeys]),
+        ),
+      )
+    return rows.map((row) => row.accessKey)
   }
 
   async persistPage(input: PersistPageInput): Promise<PersistPageResult> {

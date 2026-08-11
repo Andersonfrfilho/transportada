@@ -10,6 +10,7 @@ import {
 } from '../../shared/api.constant.js'
 import {
   type CteBatchItemListFilters,
+  parseAppendCteBatchItemsRequest,
   parseCreateCteBatchRequest,
   parseCteBatchItemList,
   parseCteBatchList,
@@ -67,6 +68,14 @@ type BatchIdentifierInput = {
   readonly batchId: string
 }
 
+type AppendCteBatchItemsInput = BatchIdentifierInput & {
+  readonly correlationId: string
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
+  readonly idempotencyKey: string
+}
+
 type SubmitCteBatchInput = BatchIdentifierInput & {
   readonly correlationId: string
   readonly idempotencyKey: string
@@ -98,7 +107,7 @@ type CteBatchEventPage = {
   readonly nextCursor: string | null
 }
 
-/** O lote é limitado a 100 notas, então os itens saem sem paginação. */
+/** A tela do lote lê os itens inteiros; a listagem paginada da empresa é `/cte-batch-items`. */
 type CteBatchItemPage = {
   readonly items: readonly CteBatchSummary[]
 }
@@ -116,6 +125,7 @@ type CompanyCteItemPage = {
 
 type Dependencies = {
   readonly cteBatches: {
+    readonly appendItems: (input: WithContext<AppendCteBatchItemsInput>) => Promise<CteBatchSummary>
     readonly cancel: (input: WithContext<CancelCteBatchInput>) => Promise<CteBatchSummary>
     readonly create: (input: WithContext<CreateCteBatchInput>) => Promise<CteBatchSummary>
     readonly get: (input: WithContext<BatchIdentifierInput>) => Promise<CteBatchSummary>
@@ -263,6 +273,26 @@ export function createCteBatchRoutes(
       }),
       pathname: `${API_CTE_BATCHES_PATH}/:id/items`,
       policy: CTE_SUBMIT_POLICY,
+    }),
+    defineRoute<AppendCteBatchItemsInput>({
+      async handle({ context, input }): Promise<Response> {
+        const batch = await dependencies.cteBatches.appendItems({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeBatch(batch) }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        return {
+          batchId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          ...(await parseAppendCteBatchItemsRequest(request)),
+        }
+      },
+      pathname: `${API_CTE_BATCHES_PATH}/:id/items`,
+      policy: CTE_MANAGE_POLICY,
     }),
     defineRoute<RemoveCteBatchItemInput>({
       async handle({ context, input }): Promise<Response> {

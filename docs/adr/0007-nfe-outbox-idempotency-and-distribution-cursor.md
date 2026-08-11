@@ -151,7 +151,8 @@ ganhou um quarto item, um resumo sem chave, contra Postgres de verdade.
 - outbox e processed messages crescem e exigirão retenção operacional depois
   de prazo seguro;
 - o worker passa a depender de PostgreSQL, RabbitMQ e storage para readiness;
-- DLQ exige runbook e reprocessamento explícito;
+- DLQ exige runbook e reprocessamento explícito — o diagnóstico do laço descrito nas emendas está
+  em `docs/runbooks/nfe-distribution.md`;
 - o curso da distribuição permanece correto entre instâncias e restart;
 - chamada SEFAZ continua sujeita ao contrato real do provider, encapsulado pelo
   gateway.

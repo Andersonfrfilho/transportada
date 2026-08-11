@@ -1,78 +1,80 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CteEmissionProfileDetail } from '../../cte-profiles/application/cte-emission-profile.port.js'
 import { projectCteBatchCharges } from '../domain/cte-batch-projection.service.js'
-import { createIdempotencyConflictError } from '../domain/cte-batch.error.js'
+import { createNotFoundError } from '../domain/cte-batch.error.js'
 import {
   resolveCteBatchCandidates,
   resolveCteBatchDocumentIds,
 } from './cte-batch-candidates.service.js'
 import { persistFreightCalculations, persistProjections } from './cte-batch-persistence.service.js'
 import type { CteEmissionProfileCatalogPort } from './cte-batch-preview.port.js'
-import { getRequiredRecord, getRequiredString } from './cte-batch-record.service.js'
 import type {
-  CreateCteBatchInput,
+  AppendCteBatchItemsInput,
   CteBatchFingerprintPort,
   CteBatchUnitOfWorkPort,
 } from './cte-batch.port.js'
 
 const TEXT_ENCODER = new TextEncoder()
-const FINGERPRINT_OPERATION = 'cte-batch.create'
-const CREATED_EVENT_NAME = 'created'
+const FINGERPRINT_OPERATION = 'cte-batch.append-items'
+const APPENDED_EVENT_NAME = 'items_appended'
 const DRAFT_STATUS = 'draft'
 
-export type CreateCteBatchDependencies = {
+export type AppendCteBatchItemsDependencies = {
   readonly fingerprintService: CteBatchFingerprintPort
   readonly profiles: CteEmissionProfileCatalogPort
   readonly unitOfWork: CteBatchUnitOfWorkPort
 }
 
-export async function createCteBatch(
-  dependencies: CreateCteBatchDependencies,
-  input: CreateCteBatchInput,
+/**
+ * Uma seleção grande chega fatiada por causa do corpo de 1 MiB, e cada fatia posterior à primeira
+ * entra aqui: o operador escolheu um lote só, e é um lote só que ele recebe de volta.
+ */
+export async function appendCteBatchItems(
+  dependencies: AppendCteBatchItemsDependencies,
+  input: AppendCteBatchItemsInput,
 ): Promise<Record<string, unknown>> {
   const documentIds = resolveCteBatchDocumentIds(input.documentIds)
   const fingerprint = await dependencies.fingerprintService.create({
     fields: [
       input.context.companyId,
-      input.name,
+      input.batchId,
       input.emissionProfileId ?? '',
       input.groupingMode ?? '',
       ...documentIds,
     ].map((value) => TEXT_ENCODER.encode(value)),
     operation: FINGERPRINT_OPERATION,
   })
-  // O catálogo vem do seu próprio repositório, que abre transação na mesma instância de `db`:
-  // buscá-lo já dentro da transação do lote pediria uma segunda conexão do pool com a primeira
-  // ainda presa, e a criação travaria em `idle in transaction` quando o pool estivesse cheio.
+  // Mesma razão do `create`: buscar o catálogo dentro da transação pediria uma segunda conexão
+  // do pool com a primeira ainda presa, e a escrita travaria em `idle in transaction`.
   const catalog = await dependencies.profiles.listProfiles({ companyId: input.context.companyId })
   const operation = (transaction: CteBatchUnitOfWorkPort) =>
-    runCreate({ catalog, documentIds, fingerprint, input, transaction })
+    runAppend({ catalog, documentIds, fingerprint, input, transaction })
 
   return dependencies.unitOfWork.execute?.(operation) ?? operation(dependencies.unitOfWork)
 }
 
-async function runCreate({
+async function runAppend({
   catalog,
   documentIds,
   fingerprint,
   input,
   transaction,
 }: {
-  readonly catalog: readonly CteEmissionProfileDetail[]
+  readonly catalog: Awaited<ReturnType<CteEmissionProfileCatalogPort['listProfiles']>>
   readonly documentIds: readonly string[]
   readonly fingerprint: string
-  readonly input: CreateCteBatchInput
+  readonly input: AppendCteBatchItemsInput
   readonly transaction: CteBatchUnitOfWorkPort
 }): Promise<Record<string, unknown>> {
   const companyId = input.context.companyId
-  const replay = await transaction.findBatchByIdempotency({
-    companyId,
-    idempotencyKey: input.idempotencyKey,
-  })
-  if (replay !== null) return resolveCreateReplay(replay, fingerprint)
+  // Trava a linha antes de ler a contagem: fatias concorrentes serializam aqui e nenhuma
+  // reaproveita a mesma posição.
+  await transaction.touchBatch({ batchId: input.batchId, companyId, expectedStatus: DRAFT_STATUS })
+  const batch = await transaction.findBatch({ batchId: input.batchId, companyId })
+  if (batch === null || batch.companyId !== companyId) throw createNotFoundError()
 
+  const positionOffset = resolveItemCount(batch)
   const candidates = await resolveCteBatchCandidates({
     catalog,
     companyId,
@@ -81,18 +83,6 @@ async function runCreate({
     transaction,
   })
   const projections = projectCteBatchCharges(candidates)
-  const batch = await transaction.createBatch({
-    companyId,
-    correlationId: input.correlationId,
-    idempotencyFingerprint: fingerprint,
-    idempotencyKey: input.idempotencyKey,
-    name: input.name,
-    operatorUserId: input.context.userId,
-    status: DRAFT_STATUS,
-    version: '1',
-  })
-  const batchId = getRequiredString(batch, 'id')
-
   const calculationIdByDocumentId = await persistFreightCalculations({
     candidates,
     fingerprint,
@@ -100,33 +90,34 @@ async function runCreate({
     transaction,
   })
   await persistProjections({
-    batchId,
+    batchId: input.batchId,
     calculationIdByDocumentId,
     companyId,
+    positionOffset,
     projections,
     transaction,
   })
+
+  const itemCount = positionOffset + projections.length
   await transaction.createBatchEvent({
-    batchId,
+    batchId: input.batchId,
     companyId,
-    eventName: CREATED_EVENT_NAME,
+    eventName: APPENDED_EVENT_NAME,
     payload: {
       documentIds: [...documentIds],
-      itemCount: projections.length,
+      itemCount,
       status: DRAFT_STATUS,
     },
     userId: input.context.userId,
   })
 
-  // A linha do lote é inserida antes dos itens, então a contagem só é verdadeira aqui.
-  return { ...batch, itemCount: projections.length }
+  return { ...batch, itemCount }
 }
 
-function resolveCreateReplay(
-  replay: Record<string, unknown>,
-  fingerprint: string,
-): Record<string, unknown> {
-  if (replay['idempotencyFingerprint'] !== fingerprint) throw createIdempotencyConflictError()
+function resolveItemCount(batch: Record<string, unknown>): number {
+  const itemCount = batch['itemCount']
+  if (typeof itemCount === 'number') return itemCount
+  if (typeof itemCount === 'string' && itemCount.trim() !== '') return Number(itemCount)
 
-  return getRequiredRecord(replay, 'batch')
+  return 0
 }

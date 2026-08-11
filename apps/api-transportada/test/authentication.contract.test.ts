@@ -289,9 +289,15 @@ describe('authentication contract', () => {
     })
   })
 
-  test('exposes lazy and recoverable identity readiness backed by the Ada JWKS probe', async () => {
-    let isReady = false
-    let probeCalls = 0
+  /**
+   * Em 10/08/2026 o Keycloak de production passou horas sem alcançar o Postgres — ninguém entrou no
+   * produto — e o `/health/ready` da API respondeu `identity: up` a queda inteira, porque a prova
+   * era o probe de JWKS e o `/certs` é servido de memória. Prova de dependência viva tem de
+   * atravessar a dependência: o documento de descoberta lê a configuração do realm no banco.
+   */
+  test('readiness atravessa o banco do realm em vez de aceitar o cache de JWKS', async () => {
+    const requested: string[] = []
+    let respond: () => Response | Promise<Response> = () => new Response('{}', { status: 200 })
     const gateway = createKeycloakAccessTokenVerifier(
       {
         audience: 'transportada-api',
@@ -303,27 +309,76 @@ describe('authentication contract', () => {
           return {
             getJwksStatus: () => ({
               coolingDown: false,
-              fresh: false,
-              hasUsableCachedKey: false,
+              fresh: true,
+              hasUsableCachedKey: true,
               reloading: false,
             }),
             async probeJwks() {
-              probeCalls += 1
-              return { ready: isReady }
+              throw new Error('must not answer readiness from the JWKS cache')
             },
             async verify() {
               throw new Error('must not verify a token during readiness')
             },
           }
         },
+        async fetch(input) {
+          requested.push(String(input))
+          return await respond()
+        },
       },
     )
 
-    expect(probeCalls).toBe(0)
-    await expect(gateway.checkReadiness()).resolves.toBe(false)
-    isReady = true
+    expect(requested).toBeEmpty()
     await expect(gateway.checkReadiness()).resolves.toBe(true)
-    expect(probeCalls).toBe(2)
+    expect(requested).toEqual([`${ISSUER}/.well-known/openid-configuration`])
+
+    // Keycloak de pé e banco fora responde 503 aqui: é a queda que o probe de JWKS escondia.
+    respond = () => new Response('', { status: 503 })
+    await expect(gateway.checkReadiness()).resolves.toBe(false)
+
+    // Rede fora não é exceção que sobe pelo `/health/ready`: é dependência ausente.
+    respond = () => {
+      throw new Error('connection refused')
+    }
+    await expect(gateway.checkReadiness()).resolves.toBe(false)
+  })
+
+  /** Identidade lenta não pode segurar o `/health/ready`: o monitor leria timeout, não `down`. */
+  test('readiness desiste da identidade em vez de pendurar o healthcheck', async () => {
+    let receivedSignal: AbortSignal | undefined
+    const gateway = createKeycloakAccessTokenVerifier(
+      {
+        audience: 'transportada-api',
+        issuer: ISSUER,
+        jwksUri: `${ISSUER}/protocol/openid-connect/certs`,
+      },
+      {
+        createVerifier() {
+          return {
+            getJwksStatus: () => ({
+              coolingDown: false,
+              fresh: true,
+              hasUsableCachedKey: true,
+              reloading: false,
+            }),
+            async probeJwks() {
+              throw new Error('must not answer readiness from the JWKS cache')
+            },
+            async verify() {
+              throw new Error('must not verify a token during readiness')
+            },
+          }
+        },
+        async fetch(_input, init) {
+          receivedSignal = init?.signal ?? undefined
+          return new Response('{}', { status: 200 })
+        },
+      },
+    )
+
+    await gateway.checkReadiness()
+
+    expect(receivedSignal).toBeInstanceOf(AbortSignal)
   })
 })
 

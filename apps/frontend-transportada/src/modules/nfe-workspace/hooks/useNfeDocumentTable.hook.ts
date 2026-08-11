@@ -248,7 +248,10 @@ export const EMPTY_FILTERS: DocumentFilters = {
   text: EMPTY_TEXT,
 }
 
-export const DEFAULT_SORT: SortState = { column: 'number', direction: 'asc' }
+export const DEFAULT_SORT: SortState = { column: 'issuedAt', direction: 'desc' }
+
+// Ordenação anterior; visões já salvas que a carregam adotam o padrão atual em vez de congelá-lo
+export const SUPERSEDED_NUMBER_SORT: SortState = { column: 'number', direction: 'asc' }
 
 export const ALL_COLUMNS_VISIBLE: Record<ColumnKey, boolean> = {
   amount: true,
@@ -629,6 +632,18 @@ function compareByColumn(
   return first.status.localeCompare(second.status)
 }
 
+export function sortDocuments(params: {
+  readonly documents: readonly NfeDocumentListItem[]
+  readonly sort: SortState
+}): readonly NfeDocumentListItem[] {
+  const { documents, sort } = params
+  if (sort === null) return documents
+  return [...documents].sort((first, second) => {
+    const base = compareByColumn(sort.column, first, second)
+    return sort.direction === 'asc' ? base : -base
+  })
+}
+
 function nextSort(current: SortState, column: SortColumn): SortState {
   if (current === null || current.column !== column) return { column, direction: 'asc' }
   if (current.direction === 'asc') return { column, direction: 'desc' }
@@ -816,13 +831,7 @@ export function useNfeDocumentTable({
     return byMode.filter((document) => documentMatchesSearch(document, searchTerm))
   }, [advancedFilter, documents, filters, mode, savedAdvancedFilter, searchTerm])
 
-  const sorted = useMemo(() => {
-    if (sort === null) return filtered
-    return [...filtered].sort((first, second) => {
-      const base = compareByColumn(sort.column, first, second)
-      return sort.direction === 'asc' ? base : -base
-    })
-  }, [filtered, sort])
+  const sorted = useMemo(() => sortDocuments({ documents: filtered, sort }), [filtered, sort])
 
   const totalFiltered = sorted.length
   const pageCount = Math.max(1, Math.ceil(totalFiltered / pageSize))

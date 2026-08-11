@@ -1,0 +1,185 @@
+# Runbook — distribuição de NF-e parada
+
+Este runbook cobre o modo de falha mais caro do produto: a busca automática de notas (DF-e) roda,
+não traz nada, e **cada tentativa nossa queima uma hora de silêncio que a SEFAZ exige**. Em
+10/08/2026 isso durou o dia inteiro em produção com a suíte de testes verde.
+
+Contexto de decisão: ADR-0007 e suas três emendas de 10/08/2026.
+
+## 1. O laço
+
+Todo defeito desta família termina no mesmo lugar, e é por isso que eles se escondem um atrás do
+outro:
+
+```
+página chega → um item derruba a página → cursor NÃO é gravado
+     → mensagem vai para o trilho de retry → retry reconsulta o MESMO CNPJ
+     → SEFAZ responde cStat 656 (consumo indevido) → mais uma hora perdida
+     → o cron da hora seguinte encontra a janela ainda fechada
+```
+
+`ultNSU` fica congelado, `nfe_import_items` não cresce, e a tela mostra importações “concluídas”
+com 0 notas. **A ausência de erro visível é parte do sintoma.**
+
+## 2. Sintomas
+
+| O que se vê                                                                 | Onde                       |
+| --------------------------------------------------------------------------- | -------------------------- |
+| `ult_nsu` congelado entre ciclos                                            | `nfe_distribution_cursors` |
+| Importações fechando com 0 notas recebidas                                  | Importações → Remota       |
+| “A SEFAZ ainda está em intervalo obrigatório entre consultas” em todo ciclo | Importações → Remota       |
+| `next_allowed_at` sempre ~1h à frente de _agora_, nunca do ciclo anterior   | cursor                     |
+| `nfe_distribution_item_skipped` em massa                                    | log do worker              |
+| Lotes presos em `NA FILA`                                                   | Importações → Remota       |
+
+## 3. Diagnóstico, nesta ordem
+
+**Primeiro a tela, depois o banco, depois o log.** A tela responde em segundos e já separa
+“a janela está fechada” de “a página está caindo”.
+
+### 3.1 Painel Remota
+
+`Importações → Remota` responde três coisas de uma vez: qual é a próxima janela permitida pela
+SEFAZ, quando foi a última busca automática e quantas notas ela trouxe.
+
+- Janela no futuro + última busca com 0 notas → **cooldown**, não há o que corrigir agora; espere.
+- Janela aberta + cursor parado → **a página está caindo**; vá para o log.
+
+### 3.2 Cursor em produção
+
+```bash
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
+  -- psql -At -c 'select/**/ult_nsu/**/from/**/nfe_distribution_cursors'
+```
+
+> Só há caminho interno para o Postgres de produção (`postgres-hqfu.railway.internal`); não existe
+> `DATABASE_PUBLIC_URL` e não deve existir.
+
+O comentário vazio no lugar dos espaços não é enfeite. O `railway ssh` reparte os argumentos por
+espaço em branco antes de montar a linha remota, então uma SQL com espaços chega ao container
+despedaçada — o `psql` roda sem `-c`, abre sessão interativa sem tty e sai **em silêncio, com
+status 0**. Foi isso que produziu, por horas, respostas vazias que pareciam consulta sem resultado.
+Um comentário SQL vazio separa os tokens para o Postgres sem existir para o shell.
+
+Envolver a mesma coisa em `bash -lc` não resolve — piora, porque aí nem o stderr volta.
+
+Consulta com parêntese (`count(*)`) quebra o `bash -c` remoto; preserve aspas duplas no argumento:
+
+```bash
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
+  -- psql -At -c '"select/**/count(*)/**/from/**/nfe_import_items"'
+
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s Postgres-Hqfu \
+  -- psql -At -c '"select/**/count(*)/**/from/**/nfe_import_items/**/where/**/variant='"'"'summary'"'"'"'
+```
+
+Prova de vida antes de acreditar num resultado vazio: `psql -At -c 'select/**/1+1'` tem que devolver
+`2`. Não devolveu, o problema é o transporte, não o dado.
+
+### 3.3 Log do worker
+
+Procure, em ordem de gravidade:
+
+1. `NFE_XML_UNSUPPORTED_DOCUMENT` — classificação errada (ver §4.2).
+2. Violação de constraint no `insert` — chave sintética (ver §4.3).
+3. `nfe_distribution_item_skipped` — item pulado; **isto é desfecho normal**, a página seguiu.
+
+**Nunca leia nem repasse `rawResponse` de erro fiscal**: ali vai o XML da SEFAZ.
+
+## 4. Os quatro defeitos de 10/08/2026
+
+Todos os quatro produziam o laço do §1. Cada correção só revelou a seguinte.
+
+### 4.1 `cStat 656` chegava como erro
+
+O 656 é _desfecho_, não falha: grava a janela, finaliza a importação e dá `ack`. Enquanto ele
+lançava, o retry reentregava em segundos e cada tentativa era uma consulta nova ao mesmo CNPJ.
+Reconhecimento em `nfe-distribution/domain/sefaz-rate-limit.policy.ts`.
+
+### 4.2 O `schema` da SEFAZ é versionado
+
+A SEFAZ manda `resNFe_v1.01`, `procEventoNFe_v1.01.xsd`; a classificação comparava por igualdade
+exata contra `resNFe`. Nada batia, tudo virava `complete`. Hoje o sufixo de versão é normalizado
+antes de comparar, e **item que o importador não sabe ler é pulado, não derruba a página**.
+
+### 4.3 Resumo sem chave sintetizava `access_key`
+
+`nfe_import_items` tem `CHECK (access_key IS NULL OR access_key ~ '^[0-9]{44}$')`. O adapter
+gravava `nsu-000000000037702` quando o pacote fiscal não preenchia `chaveNfe`. Hoje: **a chave do
+resumo é lida, não inventada** — `chaveNfe` com 44 dígitos, senão `<chNFe>` do próprio XML, senão
+nulo. O nome do objeto no bucket continua aceitando sufixo por NSU: ali nenhum CHECK governa.
+
+### 4.4 O resumo disputava o endereço do XML completo
+
+Resumo e `nfeProc` da mesma chave escreviam os dois em
+`tenants/{companyId}/nfe-documents/{accessKey}/original.xml`. O bucket é `create-only`: bytes iguais
+replayam em silêncio, bytes diferentes viram `OBJECT_STORAGE_OBJECT_CONFLICT`. Como o conflito subia
+como erro, a página inteira morria — o cursor ficou parado em `000000000037701` contra um
+`maxNsu 000000000045636`, com ~7.900 documentos represados.
+
+Duas correções, e as duas são necessárias:
+
+- **O resumo tem endereço próprio**: `tenants/{companyId}/nfe-summaries/{accessKey}/{nsu}.xml`. O NSU
+  entra porque `resNFe` e `resEvento` da mesma chave são ambos `summary` e colidiriam entre si — e
+  porque é o NSU que faz o endereço ser estável por documento, mantendo o replay idempotente.
+- **A checagem vem antes da gravação**: a página é preparada em memória (descompacta, classifica,
+  extrai a chave), pergunta ao banco **de uma vez** quais daquelas chaves a empresa já tem em
+  `nfe_documents`, e só grava as que faltam. O que sobra vira
+  `nfe_distribution_item_skipped` com `reason: 'already_stored'`. O conflito no bucket continua
+  sendo pulo e não falha, mas hoje ele é a última linha de defesa, não o teste.
+
+Só `variant: 'complete'` grava linha em `nfe_documents`, e é isso que dá sentido ao filtro:
+
+| Chegou     | Chave já em `nfe_documents` | Decisão                                                   |
+| ---------- | --------------------------- | --------------------------------------------------------- |
+| `complete` | sim                         | pula — já temos o XML inteiro                             |
+| `summary`  | sim                         | pula — resumo sobre nota completa é rebaixamento          |
+| `summary`  | não                         | grava — é o que temos daquela chave até o completo chegar |
+| `event`    | qualquer                    | **nunca pula** — cancelamento e CC-e são informação nova  |
+
+Separar as chaves é o que torna o pulo seguro: com um endereço só, uma nota que chegou primeiro como
+resumo nunca poderia ser promovida ao XML completo, e ficaria travada para CT-e
+(`CTE_BATCH_DOCUMENT_SUMMARY_ONLY`).
+
+O caminho de upload manual já fazia o certo desde sempre: `processItem` consulta
+`findExistingDocument` e fecha o item como `duplicated` antes de tocar no storage. A distribuição
+agora faz o mesmo, em lote: uma pergunta por página, não uma por item.
+
+## 5. O que não fazer
+
+- **Não force a busca manual para “testar”.** Cada tentativa recusada empurra `next_allowed_at`
+  mais uma hora à frente e desalinha a janela do cron. Em 10/08 uma tentativa às 23:57 moveu a
+  janela para 00:57 — o custo de confirmar uma correção foi uma hora de produção.
+- **Não trate `nfe_distribution_item_skipped` como incidente.** Ele existe justamente para a página
+  sobreviver a um documento inesperado.
+- **Não rode `consultarPorChave`/`consultarPorNsu` localmente.** O certificado A1 só é decriptado em
+  memória pelo consumer (ADR-0007, item 15) — qualquer teste desses roda dentro do contêiner.
+
+## 6. A regra estrutural
+
+Três vezes seguidas a suíte ficou verde enquanto produção falhava, sempre pelo mesmo motivo:
+**o fake do teste aceitava o que o Postgres recusa.**
+
+> Fixture de teste que representa linha de banco espelha as constraints da tabela — CHECK, unique e
+> nulabilidade. Fixture que representa payload de terceiro usa o valor que o terceiro **manda**, não
+> o que a documentação dele anuncia.
+
+As strings sem versão de §4.2 estavam na documentação do pacote fiscal e a SEFAZ nunca as envia; a
+chave sintética de §4.3 nunca teve onde caber na coluna. Nos dois casos o teste afirmava um mundo
+que não existe.
+
+Caminho certo quando a dúvida for “o banco aceita isto?”: teste de integração contra Postgres de
+verdade — `apps/worker-transportada/test/nfe-distribution-repository.integration.test.ts` já tem o
+quarto item de página (resumo sem chave) exatamente para isso. Teste novo **precisa** entrar na
+lista explícita de arquivos do `package.json` da app, senão não roda.
+
+## 7. Em aberto
+
+- A SEFAZ recusou com 656 a 27 minutos de janela aberta em 10/08. Ou o bloqueio é maior que a hora
+  que assumimos, ou ele reconta a cada tentativa recusada. Sem conclusão.
+- O cron é `0 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
+  desalinham sozinhos. Rodar a cada 10–15 min fecharia a folga.
+- `finalizeImport` sobrescreve `receivedCount` com os números da última página, enquanto
+  `persistPage` acumula. Não é mais latente: a importação de 10/08 21:04 gravou 627 notas e a tela
+  mostra “concluída, 0 notas”. Quem for diagnosticar volume conta `nfe_documents`, não a coluna.
+- Resumo descartado no NSU `000000000037283` ainda não foi recuperado.

@@ -262,6 +262,64 @@ describe('CT-e emission dialog confirmation contract', () => {
   })
 })
 
+/**
+ * O teto é por requisição e é assunto do sistema, não do operador: ele seleciona quantas notas
+ * quiser e recebe **um lote só**. A seleção é fatiada por baixo, a primeira fatia cria o lote e as
+ * demais acrescentam itens nele.
+ */
+describe('CT-e emission invisible slicing contract', () => {
+  test('never tells the operator about a selection ceiling', async () => {
+    const [service, component, portuguese, english] = await Promise.all([
+      readModule('src/modules/nfe-workspace/shared/cteEmission.service.ts'),
+      readModule('src/modules/nfe-workspace/components/CteEmissionDialog.component.tsx'),
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+      readModule('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
+    ])
+
+    for (const source of [service, component, portuguese, english]) {
+      expect(source).not.toContain('overLimit')
+    }
+    expect(component).not.toContain('documentLimit')
+  })
+
+  test('keeps the status free of a ceiling state', () => {
+    const base = {
+      hasPreview: true,
+      isCreateError: false,
+      isCreating: false,
+      isPreviewError: false,
+      isPreviewFetching: false,
+    }
+
+    expect(resolveEmissionStatus(base)).toBe('ready')
+    expect(canConfirmEmission({ preview: PREVIEW, status: 'ready' })).toBe(true)
+    expect(selectEmissionMessageKey({ errorCode: null, status: 'ready' })).toBeNull()
+  })
+
+  /** Fatias em paralelo só disputariam a trava da linha do lote; a criação é que abre o rascunho. */
+  test('creates the first slice and appends the remaining ones to the same batch, in order', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+
+    expect(hook).toContain('appendBatchItems')
+    expect(hook).toContain('createBatch')
+    expect(hook).not.toContain('buildChunkBatchName')
+    expect(hook).toMatch(/concurrency: 1/)
+  })
+
+  /** Fatiar `sender_recipient` sem o par de cada nota separaria um par em dois CT-es. */
+  test('hands the pair of every selected note to the slicer', async () => {
+    const hook = await readModule('src/modules/nfe-workspace/hooks/useCteEmissionDialog.hook.ts')
+    const table = await readModule(
+      'src/modules/nfe-workspace/components/NfeDocumentTable.component.tsx',
+    )
+
+    expect(hook).toContain('groupKeyByDocumentId')
+    expect(table).toContain('groupKeyByDocumentId')
+    expect(table).toContain('emitterTaxId')
+    expect(table).toContain('recipientTaxId')
+  })
+})
+
 describe('CT-e emission dialog failure contract', () => {
   test('keeps the projection failure apart from the creation failure', () => {
     const base = {

@@ -123,9 +123,11 @@ export function AdvancedFilterBuilder({
         <Select
           ariaLabel={t('documents.builder.value')}
           clearable={false}
+          emptyLabel={t('filters.searchEmpty')}
           onChange={(value) => onUpdateCondition(group.id, condition.id, { value })}
           options={selectOptionsFor(condition.field)}
           placeholder={t('filters.all')}
+          searchPlaceholder={t('filters.search')}
           value={condition.value}
         />
       )

@@ -7,6 +7,7 @@ import { CTE_ISSUANCE_STATUSES } from '../../database/cte-issuance.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { CTE_BATCH_ITEM_BILLING_STATUSES } from '../application/cte-batch-item.port.js'
+import { CTE_BATCH_MAX_DOCUMENTS } from '../domain/cte-batch-limits.constant.js'
 
 const BILLING_STATUSES: ReadonlySet<string> = new Set(CTE_BATCH_ITEM_BILLING_STATUSES)
 const ISSUANCE_STATUSES: ReadonlySet<string> = new Set(CTE_ISSUANCE_STATUSES)
@@ -16,7 +17,7 @@ const UUID = z.uuid()
 
 const createBatchSchema = z
   .object({
-    documentIds: z.array(UUID).min(1).max(100),
+    documentIds: z.array(UUID).min(1).max(CTE_BATCH_MAX_DOCUMENTS),
     emissionProfileId: UUID.optional(),
     groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
     name: z.string().trim().min(2).max(100),
@@ -25,11 +26,17 @@ const createBatchSchema = z
 
 const previewBatchSchema = z
   .object({
-    documentIds: z.array(UUID).min(1).max(100),
+    documentIds: z.array(UUID).min(1).max(CTE_BATCH_MAX_DOCUMENTS),
     emissionProfileId: UUID.optional(),
     groupingMode: z.enum(['per_invoice', 'sender_recipient']).optional(),
   })
   .strict()
+
+/**
+ * O teto é por requisição, não por lote: uma seleção maior chega fatiada e cada fatia acrescenta
+ * itens ao mesmo rascunho. O operador escolhe quantas notas quiser e recebe um lote só.
+ */
+const appendBatchItemsSchema = previewBatchSchema
 
 const emptyObjectSchema = z.object({}).strict()
 
@@ -57,6 +64,22 @@ export async function parsePreviewCteBatchRequest(request: Request): Promise<{
   readonly groupingMode?: 'per_invoice' | 'sender_recipient'
 }> {
   const result = previewBatchSchema.safeParse(await parseJsonBody(request))
+  if (!result.success) throw invalidRequest()
+  const { documentIds, emissionProfileId, groupingMode } = result.data
+
+  return {
+    documentIds,
+    ...(emissionProfileId === undefined ? {} : { emissionProfileId }),
+    ...(groupingMode === undefined ? {} : { groupingMode }),
+  }
+}
+
+export async function parseAppendCteBatchItemsRequest(request: Request): Promise<{
+  readonly documentIds: readonly string[]
+  readonly emissionProfileId?: string
+  readonly groupingMode?: 'per_invoice' | 'sender_recipient'
+}> {
+  const result = appendBatchItemsSchema.safeParse(await parseJsonBody(request))
   if (!result.success) throw invalidRequest()
   const { documentIds, emissionProfileId, groupingMode } = result.data
 

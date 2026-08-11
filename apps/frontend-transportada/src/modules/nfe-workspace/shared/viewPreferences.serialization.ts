@@ -10,6 +10,7 @@ import {
   sanitizeColumnOrder,
   sanitizeColumnVisibility,
   SORT_COLUMNS,
+  SUPERSEDED_NUMBER_SORT,
   TEXT_FILTER_FIELDS,
 } from '../hooks/useNfeDocumentTable.hook.js'
 import type {
@@ -89,6 +90,14 @@ function parseSort(raw: unknown): SortState {
     SORT_COLUMNS.includes(column as SortColumn) &&
     (direction === 'asc' || direction === 'desc')
   ) {
+    // A visão é gravada a cada interação, então quase toda conta carrega o padrão antigo sem
+    // nunca tê-lo escolhido; sem isto o padrão novo não chegaria a ninguém
+    if (
+      column === SUPERSEDED_NUMBER_SORT?.column &&
+      direction === SUPERSEDED_NUMBER_SORT.direction
+    ) {
+      return DEFAULT_SORT
+    }
     return { column: column as SortColumn, direction }
   }
   return DEFAULT_SORT

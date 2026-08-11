@@ -15,6 +15,8 @@ const RAILWAY_PATH = new URL('railway.json', GATUS_DIRECTORY)
  * e cada monitor é cobrado dos dois lados, não de um.
  */
 const ENVIRONMENTS = ['staging', 'production'] as const
+/** `backup`, `restore`, `api`, `frontend` e `keycloak`. Número fechado: monitor que sai some sem barulho. */
+const MONITORS_PER_ENVIRONMENT = 5
 /** `0 6 * * *` no `deploy/backup/railway.json`: a janela real é 24h, e a folga é o que sobra. */
 const BACKUP_SCHEDULE_HOURS = 24
 /** `0 7 5 * *` no `restore-test.yml`: entre 5 de janeiro e 5 de fevereiro cabem 31 dias. */
@@ -170,7 +172,7 @@ describe('contrato do serviço gatus', () => {
       ...(configuration.endpoints ?? []),
     ]
 
-    expect(monitors.length).toBeGreaterThanOrEqual(ENVIRONMENTS.length * 4)
+    expect(monitors.length).toBeGreaterThanOrEqual(ENVIRONMENTS.length * MONITORS_PER_ENVIRONMENT)
     for (const monitor of monitors) {
       expect(monitor.alerts ?? []).not.toBeEmpty()
     }
@@ -192,7 +194,9 @@ describe('contrato do serviço gatus', () => {
       expect(knownGroups).toContain(monitor.group ?? '')
     }
     for (const environment of ENVIRONMENTS) {
-      expect(monitors.filter((monitor) => monitor.group === environment)).toHaveLength(4)
+      expect(monitors.filter((monitor) => monitor.group === environment)).toHaveLength(
+        MONITORS_PER_ENVIRONMENT,
+      )
     }
   })
 
@@ -242,6 +246,24 @@ describe('contrato do serviço gatus', () => {
     // O host muda por instalação, então vem do ambiente; o que não muda é não ser texto claro.
     for (const url of urls) {
       expect(url).toMatch(/^(?:\$\{[A-Z_]+\}|https:\/\/)/)
+    }
+  })
+
+  /**
+   * Em 10/08/2026 o Keycloak de production perdeu a conexão com o Postgres e ninguém entrou no
+   * produto por horas — com todos os monitores verdes, porque não havia monitor de Keycloak. O
+   * `/certs` não serve para preencher a lacuna: ele responde 200 de memória enquanto o banco está
+   * inalcançável, que foi exatamente o que aconteceu. O documento de descoberta do OIDC lê a
+   * configuração do realm e cai junto — é ele que distingue "está de pé" de "alcança o banco".
+   */
+  test('o Keycloak é vigiado por um endpoint que depende do banco', async () => {
+    const configuration = await readConfiguration()
+
+    for (const environment of ENVIRONMENTS) {
+      const url = httpEndpoint(configuration, 'keycloak', environment).url ?? ''
+
+      expect(url).toEndWith('/.well-known/openid-configuration')
+      expect(url).not.toContain('/certs')
     }
   })
 

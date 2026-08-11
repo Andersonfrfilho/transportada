@@ -4,6 +4,10 @@
 import { createHash } from 'node:crypto'
 
 import { describe, expect, test } from 'bun:test'
+import {
+  OBJECT_STORAGE_ERROR_CODES,
+  ObjectStorageError,
+} from '@adatechnology/object-storage-provider'
 
 import {
   createNfeImportFinalStorage,
@@ -76,7 +80,10 @@ function createFakeGateway() {
           sha256: input.sha256,
         }
       }
-      throw new Error('object with different content')
+      throw new ObjectStorageError(
+        OBJECT_STORAGE_ERROR_CODES.objectConflict,
+        'Object already exists with different content',
+      )
     },
     async getObjectStream(input: { readonly bucket: string; readonly key: string }) {
       const existing = objects.get(`${input.bucket}:${input.key}`)
@@ -155,7 +162,7 @@ describe('nfe import storage adapters contract', () => {
     expect(gateway.objects.size).toBe(1)
   })
 
-  test('storeImportedDocument fails fatally when the immutable key holds different content', async () => {
+  test('storeImportedDocument reports a conflict when the immutable key holds different content', async () => {
     const gateway = createFakeGateway()
     const finalStorage = createNfeImportFinalStorage({ bucket: FINAL_BUCKET, gateway })
     const original = new TextEncoder().encode('<NFe id="doc"/>')
@@ -177,6 +184,69 @@ describe('nfe import storage adapters contract', () => {
         sourceSha256: sha256(tampered),
       }),
     ).rejects.toThrow()
+  })
+
+  /**
+   * O resumo e o XML completo da mesma chave disputavam `original.xml`. Bytes diferentes no mesmo
+   * endereço viram conflito, e o conflito derrubava a página inteira da distribuição.
+   */
+  test('storeImportedSummary keeps the resumo out of the full document key', async () => {
+    const gateway = createFakeGateway()
+    const finalStorage = createNfeImportFinalStorage({ bucket: FINAL_BUCKET, gateway })
+    const complete = new TextEncoder().encode('<nfeProc/>')
+    const resumo = new TextEncoder().encode('<resNFe/>')
+
+    const document = await finalStorage.storeImportedDocument({
+      accessKey: ACCESS_KEY,
+      companyId: COMPANY_ID,
+      importId: IMPORT_ID,
+      sourceBytes: complete,
+      sourceSha256: sha256(complete),
+    })
+    const summary = await finalStorage.storeImportedSummary({
+      accessKey: ACCESS_KEY,
+      companyId: COMPANY_ID,
+      importId: IMPORT_ID,
+      nsu: '000000000037702',
+      sourceBytes: resumo,
+      sourceSha256: sha256(resumo),
+    })
+
+    expect(summary.key).toBe(
+      `tenants/${COMPANY_ID}/nfe-summaries/${ACCESS_KEY}/000000000037702.xml`,
+    )
+    expect(summary.key).not.toBe(document.key)
+    expect(gateway.objects.size).toBe(2)
+  })
+
+  /**
+   * `resNFe` e `resEvento` da mesma chave são os dois "summary" e chegam em NSU diferentes — sem o
+   * NSU no endereço, o segundo colidia com o primeiro.
+   */
+  test('storeImportedSummary gives each NSU of the same access key its own key', async () => {
+    const gateway = createFakeGateway()
+    const finalStorage = createNfeImportFinalStorage({ bucket: FINAL_BUCKET, gateway })
+    const resumoNota = new TextEncoder().encode('<resNFe/>')
+    const resumoEvento = new TextEncoder().encode('<resEvento/>')
+
+    await finalStorage.storeImportedSummary({
+      accessKey: ACCESS_KEY,
+      companyId: COMPANY_ID,
+      importId: IMPORT_ID,
+      nsu: '000000000037702',
+      sourceBytes: resumoNota,
+      sourceSha256: sha256(resumoNota),
+    })
+    await finalStorage.storeImportedSummary({
+      accessKey: ACCESS_KEY,
+      companyId: COMPANY_ID,
+      importId: IMPORT_ID,
+      nsu: '000000000037703',
+      sourceBytes: resumoEvento,
+      sourceSha256: sha256(resumoEvento),
+    })
+
+    expect(gateway.objects.size).toBe(2)
   })
 
   test('storeImportedEvent writes to an immutable per-event final key', async () => {
