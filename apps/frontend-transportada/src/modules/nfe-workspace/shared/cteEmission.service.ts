@@ -202,15 +202,22 @@ export function canConfirmEmission(
   return input.preview.projections.length > 0
 }
 
+/** O nome do perfil não diz quanto ele cobra; a alíquota no rótulo é o que separa dois perfis do mesmo cliente. */
 export function buildProfileSelectOptions(
   input: Readonly<{
     automaticLabel: string
-    profiles: readonly Readonly<{ id: string; name: string }>[]
+    profiles: readonly Readonly<{ id: string; name: string; percentage?: string }>[]
   }>,
 ): readonly CteEmissionProfileSelectOption[] {
   return [
     { label: input.automaticLabel, value: AUTOMATIC_PROFILE_ID },
-    ...input.profiles.map((profile) => ({ label: profile.name, value: profile.id })),
+    ...input.profiles.map((profile) => ({
+      label:
+        profile.percentage === undefined
+          ? profile.name
+          : `${profile.name} ${toPercentageLabel(profile.percentage)}%`,
+      value: profile.id,
+    })),
   ]
 }
 

@@ -48,7 +48,7 @@ import {
 
 const CTE_MANAGE_PERMISSION = 'cte.manage'
 
-export type CteEmissionProfileOption = Readonly<{ id: string; name: string }>
+export type CteEmissionProfileOption = Readonly<{ id: string; name: string; percentage: string }>
 
 type UseCteEmissionDialogParams = Readonly<{
   companyId?: string
@@ -286,6 +286,7 @@ export function useCteEmissionDialog(
     profileOptions: (profiles.profilesQuery.data?.items ?? []).map((profile) => ({
       id: profile.id,
       name: profile.name,
+      percentage: profile.freightRule.percentage,
     })),
     selectedCount: input.documentIds.length,
     setGroupingMode,
