@@ -74,6 +74,7 @@ const server = startApiServer({
       jwksUri: 'http://localhost:58080/realms/transportada-local/protocol/openid-connect/certs',
     },
     logLevel: 'error',
+    nfseCallbackBaseUrl: undefined,
     port: 0,
     scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: undefined,

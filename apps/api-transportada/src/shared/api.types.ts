@@ -26,6 +26,8 @@ export type ApiEnvironment = {
     readonly jwksUri: string
   }
   readonly logLevel: LogLevel
+  /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
+  readonly nfseCallbackBaseUrl: string | undefined
   readonly port: number
   /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
   readonly scheduledDistributionCron: string

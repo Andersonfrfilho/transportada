@@ -49,6 +49,10 @@ describe('authorization contract', () => {
       'mdfe.issue',
       'mdfe.close',
       'mdfe.cancel',
+      'nfse.manage',
+      'nfse.issue',
+      'nfse.cancel',
+      'nfse.read',
       'trip.read',
       'trip.report',
     ])
@@ -71,6 +75,8 @@ describe('authorization contract', () => {
         'fleet.manage',
         'mdfe.read',
         'mdfe.manage',
+        'nfse.manage',
+        'nfse.read',
       ],
       finance: [
         'cte.read',
@@ -79,6 +85,7 @@ describe('authorization contract', () => {
         'billing.read',
         'operations.read',
         'view-preferences.manage',
+        'nfse.read',
       ],
       fiscal: [
         'invoices.import',
@@ -99,6 +106,10 @@ describe('authorization contract', () => {
         'mdfe.issue',
         'mdfe.close',
         'mdfe.cancel',
+        'nfse.manage',
+        'nfse.issue',
+        'nfse.cancel',
+        'nfse.read',
       ],
       operator: [
         'invoices.import',
@@ -114,6 +125,8 @@ describe('authorization contract', () => {
         'fleet.manage',
         'mdfe.read',
         'mdfe.manage',
+        'nfse.manage',
+        'nfse.read',
       ],
       viewer: [
         'invoices.read',
@@ -122,6 +135,7 @@ describe('authorization contract', () => {
         'view-preferences.manage',
         'fleet.read',
         'mdfe.read',
+        'nfse.read',
       ],
       driver: ['trip.read', 'trip.report'],
     })
@@ -189,6 +203,10 @@ describe('authorization contract', () => {
       'mdfe.issue',
       'mdfe.close',
       'mdfe.cancel',
+      'nfse.manage',
+      'nfse.issue',
+      'nfse.cancel',
+      'nfse.read',
     ])
     expect([...permissions]).not.toContain('companies.manage')
     expect(Object.isFrozen(permissions)).toBe(true)
