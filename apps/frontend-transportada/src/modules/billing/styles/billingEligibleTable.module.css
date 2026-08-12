@@ -58,19 +58,6 @@
   cursor: pointer;
 }
 
-.filterCountPill {
-  position: absolute;
-  top: calc(var(--space-1) * -1);
-  right: calc(var(--space-1) * -1);
-  min-width: var(--space-4);
-  padding: 0 var(--space-1);
-  color: var(--color-asphalt);
-  font-family: var(--font-utility);
-  font-size: 0.65rem;
-  line-height: var(--space-4);
-  background: var(--color-copper);
-}
-
 .filterPanel {
   display: grid;
   gap: var(--space-4);

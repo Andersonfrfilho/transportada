@@ -3,12 +3,14 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 
 import {
   describeNfeDocumentFilterPills,
@@ -353,7 +355,7 @@ export function NfeDocumentTable({
           type="button"
         >
           <Icon name="filter" />
-          {filterCount > 0 && <span className={styles.filterCountPill}>{filterCount}</span>}
+          <CountBadge count={filterCount} />
         </button>
         <div className={styles.columnsMenuWrap}>
           <button
@@ -687,6 +689,13 @@ export function NfeDocumentTable({
                 {t('documents.emitCte', { count: table.selectedCount })}
               </button>
             )}
+            <NfseEmissionAction
+              className={styles.iconActionActive}
+              {...(companyId === undefined ? {} : { companyId })}
+              documentIds={[...table.selectedIds]}
+              onEmitted={table.clearSelection}
+              permissions={permissions}
+            />
             <button
               aria-label={t('documents.downloadSelected')}
               className={styles.iconAction}

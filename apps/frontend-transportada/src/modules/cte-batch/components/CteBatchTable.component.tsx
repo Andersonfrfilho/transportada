@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
@@ -127,7 +128,7 @@ export function CteBatchTable({
             type="button"
           >
             <Icon name="filter" />
-            {activeCount > 0 ? <span className={styles.filterCountPill}>{activeCount}</span> : null}
+            <CountBadge count={activeCount} />
           </button>
           <span className={styles.columnsMenuWrap}>
             <button

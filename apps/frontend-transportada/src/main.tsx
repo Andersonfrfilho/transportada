@@ -15,6 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { applyEnvironmentBadge } from '@/modules/shared/environmentFavicon.service'
+import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
@@ -28,6 +31,7 @@ import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthByp
 import { MdfeManifestWorkspacePage } from '@/modules/mdfe-manifest/pages/MdfeManifestWorkspace.page'
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
+import { NfseInvoiceWorkspacePage } from '@/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page'
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
 import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
 import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
@@ -37,6 +41,10 @@ import '@/styles/index.css'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
 })
+
+const deploymentEnvironment = getDeploymentEnvironment()
+
+applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
 if (!isSmokeAuthBypassEnabled()) {
   registerSW({ immediate: true })
@@ -62,6 +70,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'freight'
     | 'mdfe-manifest'
     | 'nfe'
+    | 'nfse-invoice'
     | 'operations'
     | 'trip'
   label: string
@@ -80,6 +89,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/trips', key: 'trip', label: 'Viagens' },
   { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
   { href: '/billing', key: 'billing', label: 'Faturamento' },
+  { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
@@ -91,7 +101,9 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'fiscal',
     label: 'Fiscal',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing'].includes(key),
+      ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing', 'nfse-invoice'].includes(
+        key,
+      ),
     ),
   },
   {
@@ -128,6 +140,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/cte-profiles') return 'cte-profiles'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
+  if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/freight') return 'freight'
 
@@ -139,6 +152,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'cte-profiles' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
+    storedWorkspace === 'nfse-invoice' ||
     storedWorkspace === 'operations' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip'
@@ -173,6 +187,8 @@ function resolvePage(
       return (
         <MdfeManifestWorkspacePage originTripId={parseMdfeManifestTripParameter(input.search)} />
       )
+    case 'nfse-invoice':
+      return <NfseInvoiceWorkspacePage />
     case 'trip': {
       const tripId = parseTripRoute(input.path)
       return tripId === null ? <TripWorkspacePage /> : <TripDetailPage tripId={tripId} />
@@ -203,9 +219,15 @@ function ApplicationShell(): ReactNode {
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
     administration: ['company-settings', 'cte-profiles', 'fleet'].includes(currentWorkspace),
-    fiscal: ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing'].includes(
-      currentWorkspace,
-    ),
+    fiscal: [
+      'nfe',
+      'freight',
+      'cte-batch',
+      'trip',
+      'mdfe-manifest',
+      'billing',
+      'nfse-invoice',
+    ].includes(currentWorkspace),
     operations: currentWorkspace === 'operations',
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
@@ -337,6 +359,7 @@ function ApplicationShell(): ReactNode {
         </nav>
       </aside>
       <div className="application-main">
+        <EnvironmentBanner environment={deploymentEnvironment} />
         <header className="application-header">
           <Card className="application-header-card">
             <CardHeader className="application-header-copy">

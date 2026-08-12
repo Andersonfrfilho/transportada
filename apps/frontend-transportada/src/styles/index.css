@@ -303,6 +303,19 @@ a {
   color: var(--color-fog);
 }
 
+.application-environment-banner {
+  width: var(--layout-width);
+  margin: 0 auto var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  color: var(--color-fog);
+}
+
 .page-transition-skeleton {
   width: var(--layout-width);
   margin: 0 auto;

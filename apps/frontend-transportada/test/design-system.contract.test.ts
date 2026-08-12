@@ -2,6 +2,7 @@
 import './design-system/brazilian-holiday.contract.js'
 import './design-system/button.contract.js'
 import './design-system/checkbox.contract.js'
+import './design-system/count-badge.contract.js'
 import './design-system/date-picker.contract.js'
 import './design-system/date-range-picker.contract.js'
 import './design-system/field-metrics.contract.js'

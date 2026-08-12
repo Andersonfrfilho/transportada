@@ -1,0 +1,22 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/**
+ * Em fluxo o número estourava a borda do botão de ícone, que tem largura fixa: a contagem mora no
+ * canto, sobre a borda, e o botão continua quadrado com ou sem filtro aplicado.
+ */
+.root {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: 0;
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  line-height: var(--space-4);
+  background: var(--color-copper);
+}

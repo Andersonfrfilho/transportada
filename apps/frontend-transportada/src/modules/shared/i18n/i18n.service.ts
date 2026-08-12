@@ -22,6 +22,8 @@ import mdfeManifestLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.loc
 import mdfeManifestEnglishLocale from '@/modules/mdfe-manifest/locales/mdfeManifest.en.locale.json'
 import nfeWorkspaceLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.locale.json'
 import nfeWorkspaceEnglishLocale from '@/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'
+import nfseInvoiceLocale from '@/modules/nfse-invoice/locales/nfseInvoice.locale.json'
+import nfseInvoiceEnglishLocale from '@/modules/nfse-invoice/locales/nfseInvoice.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
 import tripLocale from '@/modules/trip/locales/trip.locale.json'
@@ -42,6 +44,7 @@ void i18n.use(initReactI18next).init({
       identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
       nfeWorkspace: nfeWorkspaceEnglishLocale,
+      nfseInvoice: nfseInvoiceEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
@@ -56,6 +59,7 @@ void i18n.use(initReactI18next).init({
       identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,
       nfeWorkspace: nfeWorkspaceLocale,
+      nfseInvoice: nfseInvoiceLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       translation: foundationLocale,
       trip: tripLocale,

@@ -296,6 +296,7 @@
     "blockReason": {
       "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Já vinculada a outro CT-e",
       "CTE_BATCH_DOCUMENT_DUPLICATED": "Repetida na seleção",
+      "CTE_BATCH_DOCUMENT_LINKED_TO_NFSE": "Já vinculada a uma nota de serviço",
       "CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY": "Sem código de município",
       "CTE_BATCH_DOCUMENT_MISSING_PARTY": "Sem emitente ou destinatário",
       "CTE_BATCH_DOCUMENT_MISSING_TOTAL": "Sem valor total",

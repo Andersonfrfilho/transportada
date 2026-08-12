@@ -201,3 +201,23 @@ removível por filtro ativo, logo abaixo do painel de filtros.
   repetido em módulo é rejeitado em review.
 - **Contrato.** `test/design-system/filter-pills.contract.ts` cobre o
   componente, os descritores de cada módulo e esta regra.
+
+## 9. Contagem no botão de filtro (obrigatório)
+
+O número de filtros ativos aparece como **badge no canto** do botão de ícone, e
+vem de `@/components/ui/count-badge` (`components/ui/count-badge.tsx`) — proibido
+cada módulo desenhar a sua. Em fluxo dentro do botão o número estourava a borda:
+o botão de ícone tem largura fixa (`2.25rem`) e `padding: 0`, então a contagem
+vazava para fora ou empurrava o botão para um retângulo, e a barra ficava com um
+botão de tamanho diferente dos vizinhos.
+
+- **Forma.** `position: absolute` sobre o canto superior direito
+  (`top`/`right: calc(var(--space-1) * -1)`), quadrado cobre como o resto da
+  linguagem (`border-radius: 0`, `var(--color-copper)`), só tokens.
+- **Botão hospedeiro é contexto de posicionamento.** Toda classe `.iconAction` /
+  `.iconActionActive` declara `position: relative`; sem isso o badge se ancora no
+  ancestral errado. O botão permanece quadrado com ou sem filtro aplicado.
+- **Decorativo.** `aria-hidden="true"`: o número repete o que as pílulas de
+  filtro (§ 8) já dizem em texto, e o botão carrega o próprio `aria-label`.
+- **Sem contagem, sem badge.** `count <= 0` devolve `null`.
+- **Contrato.** `test/design-system/count-badge.contract.ts`.

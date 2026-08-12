@@ -3,6 +3,7 @@ import { useState, type JSX, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
@@ -165,7 +166,7 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
             type="button"
           >
             <Icon name="filter" />
-            {activeCount > 0 ? <span className={styles.filterCountPill}>{activeCount}</span> : null}
+            <CountBadge count={activeCount} />
           </button>
           <span className={styles.columnsMenuWrap}>
             <button
