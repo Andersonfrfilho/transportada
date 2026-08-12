@@ -89,6 +89,7 @@ export type NfeDistributionRepositoryPort = {
     readonly duplicatedCount: number
     readonly importId: string
     readonly importedCount: number
+    readonly invalidCount: number
     readonly processedCount: number
     readonly receivedCount: number
     readonly status: 'completed'
@@ -103,6 +104,7 @@ export type NfeDistributionRepositoryPort = {
   }): Promise<{
     readonly acceptedCount: number
     readonly duplicatedCount: number
+    readonly invalidCount: number
     readonly skippedCount: number
   }>
 }
@@ -122,6 +124,9 @@ type NfeDistributionConsumer = {
 }
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+// A hora corre do lado da SEFAZ, a partir do instante em que ela nos serviu: uma janela exata volta
+// cedo demais e é recusada com 656, e cada recusa empurra a janela seguinte para mais tarde
+const RATE_LIMIT_SAFETY_MARGIN_MS = 5 * 60 * 1000
 const LEASE_OWNER = 'distribution-consumer'
 const UNKNOWN_ERROR_CODE = 'UNKNOWN'
 const UNKNOWN_ERROR_NAME = 'UnknownError'
@@ -161,6 +166,34 @@ function describePullFailure(error: unknown): PullFailureDescription {
   }
 }
 
+/**
+ * O banco só aceita contador que fecha: `processed` é a soma das parcelas. Confiar no total servido
+ * pela SEFAZ deixava a página inteiramente pulada com `processed` cheio e as parcelas em zero, e a
+ * importação nunca saía de "Na fila".
+ */
+function summarizeImportCounters(input: {
+  readonly duplicatedCount: number
+  readonly fetchedCount: number
+  readonly importedCount: number
+  readonly invalidCount: number
+}): {
+  readonly duplicatedCount: number
+  readonly importedCount: number
+  readonly invalidCount: number
+  readonly processedCount: number
+  readonly receivedCount: number
+} {
+  const processedCount = input.importedCount + input.duplicatedCount + input.invalidCount
+
+  return {
+    duplicatedCount: input.duplicatedCount,
+    importedCount: input.importedCount,
+    invalidCount: input.invalidCount,
+    processedCount,
+    receivedCount: Math.max(input.fetchedCount, processedCount),
+  }
+}
+
 async function openRateLimitWindow(input: {
   readonly clock: NfeDistributionClock
   readonly companyId: string
@@ -172,7 +205,9 @@ async function openRateLimitWindow(input: {
   readonly maxNsu: string
   readonly ultNsu: string
 }): Promise<void> {
-  const nextAllowedAt = new Date(input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS)
+  const nextAllowedAt = new Date(
+    input.clock.now().getTime() + RATE_LIMIT_WINDOW_MS + RATE_LIMIT_SAFETY_MARGIN_MS,
+  )
   await input.cursorRepository.saveCursor({
     companyId: input.companyId,
     consecutiveRateLimits: input.consecutiveRateLimits,
@@ -254,6 +289,7 @@ async function persistPageOrSkip(input: {
   | {
       readonly acceptedCount: number
       readonly duplicatedCount: number
+      readonly invalidCount: number
       readonly skippedCount: number
     }
   | undefined
@@ -344,6 +380,7 @@ export function createNfeDistributionConsumer(input: {
             duplicatedCount: 0,
             importId: params.envelope.payload.importId,
             importedCount: 0,
+            invalidCount: 0,
             processedCount: 0,
             receivedCount: 0,
             status: 'completed',
@@ -368,6 +405,7 @@ export function createNfeDistributionConsumer(input: {
       const gateway = input.gatewayFactory.create({ config })
       let duplicatedCount = 0
       let fetchedCount = 0
+      let invalidCount = 0
       let persistedCount = 0
       let skippedCount = 0
       let maxNsu = cursor.maxNsu
@@ -452,6 +490,7 @@ export function createNfeDistributionConsumer(input: {
           }
 
           duplicatedCount += persistence.duplicatedCount
+          invalidCount += persistence.invalidCount
           persistedCount += persistence.acceptedCount
           skippedCount += persistence.skippedCount
 
@@ -486,12 +525,14 @@ export function createNfeDistributionConsumer(input: {
 
         await input.repository.finalizeImport({
           companyId: params.envelope.companyId,
-          duplicatedCount,
           importId: params.envelope.payload.importId,
-          importedCount: persistedCount,
-          processedCount: fetchedCount,
-          receivedCount: fetchedCount,
           status: 'completed',
+          ...summarizeImportCounters({
+            duplicatedCount,
+            fetchedCount,
+            importedCount: persistedCount,
+            invalidCount,
+          }),
         })
 
         safeLogInfo({
@@ -579,12 +620,14 @@ export function createNfeDistributionConsumer(input: {
 
         await input.repository.finalizeImport({
           companyId: params.envelope.companyId,
-          duplicatedCount,
           importId: params.envelope.payload.importId,
-          importedCount: persistedCount,
-          processedCount: fetchedCount,
-          receivedCount: fetchedCount,
           status: 'completed',
+          ...summarizeImportCounters({
+            duplicatedCount,
+            fetchedCount,
+            importedCount: persistedCount,
+            invalidCount,
+          }),
         })
 
         return {

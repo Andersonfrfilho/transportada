@@ -84,7 +84,7 @@ describe('NF-e distribution observability contract', () => {
           /* empty */
         },
         async persistPage() {
-          return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
+          return { acceptedCount: 1, duplicatedCount: 0, invalidCount: 0, skippedCount: 0 }
         },
       },
     })
@@ -240,7 +240,7 @@ describe('NF-e distribution observability contract', () => {
       environment: 'homologation',
       importId: IMPORT_ID,
       maxNsu: EMPTY_NSU,
-      nextAllowedAt: '2026-08-10T16:00:00.000Z',
+      nextAllowedAt: '2026-08-10T16:05:00.000Z',
       ultNsu: EMPTY_NSU,
     })
     expect(findEvent(events, 'nfe_distribution_pull_failed')).toBeUndefined()
@@ -285,7 +285,7 @@ describe('NF-e distribution observability contract', () => {
       environment: 'homologation',
       importId: IMPORT_ID,
       maxNsu: EMPTY_NSU,
-      nextAllowedAt: '2026-07-23T00:50:00.000Z',
+      nextAllowedAt: '2026-07-23T00:55:00.000Z',
       ultNsu: EMPTY_NSU,
     })
   })

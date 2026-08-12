@@ -5,7 +5,7 @@
     "dockerfilePath": "apps/cron-transportada/Dockerfile"
   },
   "deploy": {
-    "cronSchedule": "0 * * * *",
+    "cronSchedule": "*/15 * * * *",
     "restartPolicyType": "NEVER"
   }
 }

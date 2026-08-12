@@ -96,6 +96,7 @@ export type NfeDistributionRepositoryPort = {
     readonly duplicatedCount: number
     readonly importId: string
     readonly importedCount: number
+    readonly invalidCount: number
     readonly processedCount: number
     readonly receivedCount: number
     readonly status: 'completed'
@@ -110,6 +111,7 @@ export type NfeDistributionRepositoryPort = {
   }): Promise<{
     readonly acceptedCount: number
     readonly duplicatedCount: number
+    readonly invalidCount: number
     readonly skippedCount: number
   }>
 }

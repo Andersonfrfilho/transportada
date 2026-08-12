@@ -217,3 +217,64 @@ produção** — a migration da Fase A rodou. O cursor está em dia (`ult_nsu ==
 recusa acumulada e sem intervalo pulado, com a janela seguinte às 13:00 local. É o estado esperado de
 acervo vazio: não há o que a autorrecuperação precise consertar agora, e é justamente por isso que ela
 existe — o próximo 656 fora de sequência se resolve sozinho, sem `UPDATE` manual.
+
+## Correção pós-lançamento — 12/08, dois defeitos vistos no log de produção
+
+O log de produção mostrou dois problemas que a feature não cobria. Os dois foram corrigidos com
+contrato antes da implementação.
+
+### 1. Página inteiramente pulada deixava a importação presa em "Na fila"
+
+`finalizeImport` gravava `processed_count` com o total servido pela SEFAZ enquanto
+`imported/duplicated/invalid` ficavam em zero — o `nfe_imports_counters_check` recusa
+(`processed = imported + duplicated + invalid + rejected + failed`) e o consumidor morria com
+`DrizzleQueryError`, deixando a importação `da622a70-c983-48e0-820a-356bf1e4eeb3` sem finalizar.
+
+O pulo virou desfecho contado: `already_stored` entra em `duplicated`, `unsupported_document` entra
+em `invalid`, e o consumidor deriva `processed = imported + duplicated + invalid` com
+`received = max(fetched, processed)`. Sem migration — as duas colunas já existiam.
+
+- `apps/worker-transportada/src/nfe-distribution/infrastructure/nfe-distribution-persistence.adapter.ts`
+- `apps/worker-transportada/src/nfe-distribution/application/nfe-distribution-consumer.service.ts`
+  (`summarizeImportCounters`)
+- `apps/worker-transportada/src/nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.ts`
+
+Contrato novo: `test/nfe-distribution/consumer.contract.ts` — _"closes the counters when every item of
+the page was skipped"_, que afirma a própria invariante do banco em vez de só o número esperado.
+
+### 2. A janela de 656 escorregava para a frente a cada recusa
+
+A hora corre do lado da SEFAZ, a partir do instante em que ela nos serviu. Abríamos a janela com
+`now + 1h` exata e o cron tocava na hora cheia: metade dos ciclos voltava `656`, e cada recusa
+empurrava a janela seguinte — a cadência efetiva caiu para ~3h.
+
+Duas pontas:
+
+- `RATE_LIMIT_SAFETY_MARGIN_MS = 5 min` no worker — a janela que gravamos passa a ser 65 min.
+  Contrato: _"opens the anti-656 window with a safety margin beyond the bare hour"_.
+- tique do cron de `0 * * * *` para `*/15 * * * *` (`deploy/cron/railway.json`,
+  `DEFAULT_SCHEDULED_DISTRIBUTION_CRON`, `.env.example`, manifesto K8s). `CADENCE_MINUTES`
+  **continua 60**: ele deixou de ser espelho do tique e passou a ser a janela de deduplicação —
+  uma enfileirada por empresa por hora, por mais que o cron toque quatro vezes. Os três tiques
+  extras são no-op limpo: a elegibilidade recusa por `cooldown_active` antes de criar importação.
+
+### Gates
+
+```
+apps/worker-transportada  → 408 pass, 0 fail (54 arquivos)
+apps/cron-transportada    → 123 pass, 0 fail (5 arquivos)
+apps/api-transportada     → 2218 pass, 2 fail (87 arquivos)
+bunx tsc --noEmit         → api, worker, frontend limpos
+```
+
+As 2 falhas da API e o erro de typecheck do cron **não são desta correção**: vêm de trabalho não
+commitado na árvore (`docs/spec/railway.md` renomeou as seções que
+`test/deploy/service-naming.contract.ts` procura; `test/nfse-status-pull/nota-rp-parity.contract.ts`
+tem erro de tipo e de lint). Nenhum dos dois entra neste commit.
+
+### Fora do código
+
+A cadência real de produção mora no painel da Railway, não no repositório: o serviço `cron` estava em
+`7 * * * *`. Mudar `deploy/cron/railway.json` não muda o serviço em execução — o painel tem de ser
+alterado à mão, junto de `SCHEDULED_DISTRIBUTION_CRON` no serviço `api` (é dela que sai o "próximo
+ciclo" que a tela mostra).

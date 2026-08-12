@@ -86,8 +86,12 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   aplicada manualmente:
   `railway ssh --service api --environment <env> bun src/database/database-migration.service.ts`
   (de dentro do contêiner, porque `*.railway.internal` não é acessível de fora).
-- **cron**: `cronSchedule` `0 * * * *` com `restartPolicyType: NEVER` — processo
-  de ciclo único, não serviço em loop.
+- **cron**: `cronSchedule` `*/15 * * * *` com `restartPolicyType: NEVER` — processo
+  de ciclo único, não serviço em loop. O tique é mais fino que a janela de uma hora
+  da SEFAZ porque essa hora corre do lado dela, a partir do instante em que nos
+  serviu: no tique de hora cheia a permissão só era reencontrada na hora seguinte.
+  Ciclo fora da janela é no-op — a elegibilidade recusa por `cooldown_active` antes
+  de criar importação, e `CADENCE_MINUTES=60` mantém uma enfileirada por hora.
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
   Mudar domínio exige **rebuild**, não só restart.
 
