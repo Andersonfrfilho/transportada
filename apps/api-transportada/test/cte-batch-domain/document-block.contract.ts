@@ -11,6 +11,7 @@ import {
 } from '../../src/cte-batches/domain/cte-batch-eligibility.policy.js'
 
 const BATCH_ID = '00000000-0000-4000-8000-000000000601'
+const NFSE_INVOICE_ID = '00000000-0000-4000-8000-000000000602'
 
 const ELIGIBLE: EligibilityDocument = {
   grossWeight: '120.5000',
@@ -27,7 +28,11 @@ const ELIGIBLE: EligibilityDocument = {
 
 describe('CT-e batch document block contract', () => {
   test('releases an eligible document that is not linked to any batch', () => {
-    const decision = resolveDocumentBlock({ document: ELIGIBLE, linkedBatchId: null })
+    const decision = resolveDocumentBlock({
+      document: ELIGIBLE,
+      linkedBatchId: null,
+      linkedNfseInvoiceId: null,
+    })
 
     expect(decision.blocked).toBeUndefined()
     expect(decision.chargeable).toEqual({
@@ -38,9 +43,45 @@ describe('CT-e batch document block contract', () => {
   })
 
   test('blocks a linked document and carries the batch that holds it', () => {
-    const decision = resolveDocumentBlock({ document: ELIGIBLE, linkedBatchId: BATCH_ID })
+    const decision = resolveDocumentBlock({
+      document: ELIGIBLE,
+      linkedBatchId: BATCH_ID,
+      linkedNfseInvoiceId: null,
+    })
 
     expect(decision.chargeable).toBeUndefined()
+    expect(decision.blocked).toEqual({
+      batchId: BATCH_ID,
+      reason: CTE_BATCH_BLOCK_REASON.alreadyLinked,
+    })
+  })
+
+  /**
+   * Emitir CT-e para uma nota que já sustenta uma NFS-e é bitributar o mesmo transporte — o
+   * bloqueio é recíproco ao que a seleção de NFS-e já faz com os lotes de CT-e abertos.
+   */
+  test('blocks a document held by a live municipal service invoice', () => {
+    const decision = resolveDocumentBlock({
+      document: ELIGIBLE,
+      linkedBatchId: null,
+      linkedNfseInvoiceId: NFSE_INVOICE_ID,
+    })
+
+    expect(decision.chargeable).toBeUndefined()
+    expect(decision.blocked).toEqual({
+      batchId: null,
+      reason: CTE_BATCH_BLOCK_REASON.linkedToNfse,
+    })
+  })
+
+  /** O lote responde primeiro porque é ele que carrega o id que a prévia mostra. */
+  test('reports the batch when the document is held by both documents', () => {
+    const decision = resolveDocumentBlock({
+      document: ELIGIBLE,
+      linkedBatchId: BATCH_ID,
+      linkedNfseInvoiceId: NFSE_INVOICE_ID,
+    })
+
     expect(decision.blocked).toEqual({
       batchId: BATCH_ID,
       reason: CTE_BATCH_BLOCK_REASON.alreadyLinked,
@@ -51,6 +92,7 @@ describe('CT-e batch document block contract', () => {
     const decision = resolveDocumentBlock({
       document: { ...ELIGIBLE, status: 'cancelled' },
       linkedBatchId: BATCH_ID,
+      linkedNfseInvoiceId: NFSE_INVOICE_ID,
     })
 
     expect(decision.blocked).toEqual({
@@ -73,6 +115,7 @@ describe('CT-e batch document block contract', () => {
       const decision = resolveDocumentBlock({
         document: { ...ELIGIBLE, ...override },
         linkedBatchId: null,
+        linkedNfseInvoiceId: null,
       })
       expect(decision.blocked).toEqual({ batchId: null, reason })
     }

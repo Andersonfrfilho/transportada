@@ -13,7 +13,10 @@ import {
   createPreviewUseCaseForTest,
   createProfileFixture,
   CteBatchPreviewProfileCatalogFixture,
+  CteBatchPreviewReaderFixture,
 } from './preview-support.js'
+
+const NFSE_INVOICE_ID = '00000000-0000-4000-8000-0000000009f1'
 
 describe('CT-e batch preview projection', () => {
   test('projects the reference NF-e at 4,5% without persisting anything', async () => {
@@ -82,10 +85,39 @@ describe('CT-e batch preview projection', () => {
     const readerKeys = Object.getOwnPropertyNames(
       Object.getPrototypeOf(preview.reader) as object,
     ).filter((name) => name !== 'constructor')
+    expect(preview.reader.nfseLinkQueries).toEqual([
+      { companyId: PREVIEW_COMPANY_ID, documentIds: [REFERENCE_DOCUMENT_ID, SECOND_DOCUMENT_ID] },
+    ])
     expect(readerKeys.toSorted()).toEqual([
       'findActiveBatchLinks',
+      'findActiveNfseLinks',
       'findBatchNamesStartingWith',
       'findPreviewDocuments',
+    ])
+  })
+
+  /** Recíproco do bloqueio que a seleção de NFS-e faz com lotes abertos: nada de bitributar. */
+  test('blocks a note already held by a live municipal service invoice', async () => {
+    const preview = await createPreviewUseCaseForTest({
+      reader: new CteBatchPreviewReaderFixture(
+        undefined,
+        new Map(),
+        new Map([[REFERENCE_DOCUMENT_ID, NFSE_INVOICE_ID]]),
+      ),
+    })
+
+    const result = await preview.execute({
+      context: PREVIEW_CONTEXT,
+      documentIds: [REFERENCE_DOCUMENT_ID],
+    })
+
+    expect(result.projections).toEqual([])
+    expect(result.blocked).toEqual([
+      {
+        batchId: null,
+        documentId: REFERENCE_DOCUMENT_ID,
+        reason: 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE',
+      },
     ])
   })
 

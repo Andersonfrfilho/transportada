@@ -14,6 +14,8 @@ import {
   CteBatchUnitOfWorkFixture,
 } from './support.js'
 
+const NFSE_INVOICE_ID = '00000000-0000-4000-8000-0000000009f2'
+
 function expectNothingPersisted(unitOfWork: CteBatchUnitOfWorkFixture): void {
   expect(unitOfWork.createdBatches).toEqual([])
   expect(unitOfWork.createdItems).toEqual([])
@@ -42,6 +44,30 @@ describe('CT-e batch document blocking contract', () => {
     expect(error).toMatchObject({
       code: 'CTE_BATCH_DOCUMENT_NOT_ELIGIBLE',
       message: 'NF-e is not eligible for CT-e batch',
+      status: 409,
+    })
+    expectNothingPersisted(unitOfWork)
+  })
+
+  /** Bitributar o mesmo transporte é erro de negócio, e o operador precisa ler por que foi barrado. */
+  test('hard-blocks a document already linked to a live municipal service invoice', async () => {
+    const unitOfWork = new CteBatchUnitOfWorkFixture()
+    unitOfWork.activeNfseLinks.set(SECOND_DOCUMENT_ID, NFSE_INVOICE_ID)
+    const useCase = await createCteBatchUseCaseForTest(unitOfWork)
+
+    const error = await captureApiError(() =>
+      useCase.create({
+        context: COMPANY_CONTEXT,
+        correlationId: CORRELATION_ID,
+        documentIds: [DOCUMENT_ID, SECOND_DOCUMENT_ID],
+        idempotencyKey: IDEMPOTENCY_KEY,
+        name: BATCH_NAME,
+      }),
+    )
+
+    expect(error).toMatchObject({
+      code: 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE',
+      message: 'NF-e is already linked to a municipal service invoice',
       status: 409,
     })
     expectNothingPersisted(unitOfWork)

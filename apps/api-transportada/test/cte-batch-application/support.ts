@@ -174,6 +174,8 @@ export class CteBatchFingerprintFixture {
 export class CteBatchUnitOfWorkFixture {
   public readonly activeLinkQueries: Array<Record<string, unknown>> = []
   public readonly activeLinks = new Map<string, string>()
+  public readonly activeNfseLinkQueries: Array<Record<string, unknown>> = []
+  public readonly activeNfseLinks = new Map<string, string>()
   public readonly batchQueries: Array<Record<string, unknown>> = []
   public readonly createdBatches: Array<Record<string, unknown>> = []
   public readonly createdEvents: Array<Record<string, unknown>> = []
@@ -233,6 +235,16 @@ export class CteBatchUnitOfWorkFixture {
     return readDocumentIds(input).flatMap((documentId) => {
       const batchId = this.activeLinks.get(documentId)
       return batchId === undefined ? [] : [{ batchId, documentId }]
+    })
+  }
+
+  public async findActiveNfseLinks(
+    input: Record<string, unknown>,
+  ): Promise<readonly { readonly documentId: string; readonly invoiceId: string }[]> {
+    this.activeNfseLinkQueries.push(input)
+    return readDocumentIds(input).flatMap((documentId) => {
+      const invoiceId = this.activeNfseLinks.get(documentId)
+      return invoiceId === undefined ? [] : [{ documentId, invoiceId }]
     })
   }
 

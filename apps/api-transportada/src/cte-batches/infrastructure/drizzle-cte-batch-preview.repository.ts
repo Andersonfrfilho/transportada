@@ -7,11 +7,13 @@ import type {
   CteBatchNameQuery,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
+  CteBatchPreviewNfseLink,
   CteBatchPreviewQuery,
   CteBatchPreviewReaderPort,
 } from '../application/cte-batch-preview.port.js'
 import {
   findActiveBatchLinks,
+  findActiveNfseLinks,
   findBatchNamesByPrefix,
   findSelectionDocuments,
 } from './cte-batch-selection.query.js'
@@ -25,6 +27,12 @@ export class DrizzleCteBatchPreviewRepository implements CteBatchPreviewReaderPo
     query: CteBatchPreviewQuery,
   ): Promise<readonly CteBatchPreviewLink[]> {
     return findActiveBatchLinks(this.database, query)
+  }
+
+  public findActiveNfseLinks(
+    query: CteBatchPreviewQuery,
+  ): Promise<readonly CteBatchPreviewNfseLink[]> {
+    return findActiveNfseLinks(this.database, query)
   }
 
   public findBatchNamesStartingWith(query: CteBatchNameQuery): Promise<readonly string[]> {

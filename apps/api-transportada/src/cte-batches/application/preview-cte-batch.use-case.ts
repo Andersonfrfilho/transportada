@@ -39,9 +39,10 @@ async function previewCteBatch(
   const duplicated = splitDuplicatedDocumentIds(input.documentIds)
   const query = { companyId, documentIds: duplicated.documentIds }
   const prefix = buildBatchNamePrefix({ now: clock.now() })
-  const [documents, links, catalog, names] = await Promise.all([
+  const [documents, links, nfseLinks, catalog, names] = await Promise.all([
     reader.findPreviewDocuments(query),
     reader.findActiveBatchLinks(query),
+    reader.findActiveNfseLinks(query),
     profiles.listProfiles({ companyId }),
     reader.findBatchNamesStartingWith({ companyId, prefix }),
   ])
@@ -53,6 +54,7 @@ async function previewCteBatch(
     emissionProfileId: input.emissionProfileId,
     groupingMode: input.groupingMode,
     links,
+    nfseLinks,
   })
   const blocked = [...duplicated.blocked, ...selection.blocked]
   const projections = projectCteBatchCharges(selection.candidates)

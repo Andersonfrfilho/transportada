@@ -169,14 +169,18 @@ export class CteBatchPreviewReaderFixture {
   public readonly linkQueries: Array<Record<string, unknown>> = []
   public readonly links: Map<string, string>
   public readonly nameQueries: Array<Record<string, unknown>> = []
+  public readonly nfseLinkQueries: Array<Record<string, unknown>> = []
+  public readonly nfseLinks: Map<string, string>
   public batchNames: readonly string[] = []
 
   public constructor(
     documents: readonly PreviewDocumentFixture[] = [REFERENCE_DOCUMENT, SECOND_DOCUMENT],
     links: Map<string, string> = new Map(),
+    nfseLinks: Map<string, string> = new Map(),
   ) {
     this.documents = new Map(documents.map((document) => [document.id, document]))
     this.links = links
+    this.nfseLinks = nfseLinks
   }
 
   public async findBatchNamesStartingWith(
@@ -203,6 +207,16 @@ export class CteBatchPreviewReaderFixture {
     return readDocumentIds(input).flatMap((documentId) => {
       const batchId = this.links.get(documentId)
       return batchId === undefined ? [] : [{ batchId, documentId }]
+    })
+  }
+
+  public async findActiveNfseLinks(
+    input: Record<string, unknown>,
+  ): Promise<readonly { readonly documentId: string; readonly invoiceId: string }[]> {
+    this.nfseLinkQueries.push(input)
+    return readDocumentIds(input).flatMap((documentId) => {
+      const invoiceId = this.nfseLinks.get(documentId)
+      return invoiceId === undefined ? [] : [{ documentId, invoiceId }]
     })
   }
 }

@@ -5,6 +5,7 @@
 export const CTE_BATCH_BLOCK_REASON = {
   alreadyLinked: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
   duplicated: 'CTE_BATCH_DOCUMENT_DUPLICATED',
+  linkedToNfse: 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE',
   missingMunicipality: 'CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY',
   missingParty: 'CTE_BATCH_DOCUMENT_MISSING_PARTY',
   missingTotal: 'CTE_BATCH_DOCUMENT_MISSING_TOTAL',
@@ -66,9 +67,11 @@ export type DocumentBlockDecision =
 export function resolveDocumentBlock({
   document,
   linkedBatchId,
+  linkedNfseInvoiceId,
 }: {
   readonly document: EligibilityDocument
   readonly linkedBatchId: string | null
+  readonly linkedNfseInvoiceId: string | null
 }): DocumentBlockDecision {
   const eligibility = checkDocumentEligibility(document)
   if (eligibility.reason !== undefined) {
@@ -76,6 +79,10 @@ export function resolveDocumentBlock({
   }
   if (linkedBatchId !== null) {
     return { blocked: { batchId: linkedBatchId, reason: CTE_BATCH_BLOCK_REASON.alreadyLinked } }
+  }
+  // Emitir CT-e e nota de serviço para o mesmo transporte é bitributação.
+  if (linkedNfseInvoiceId !== null) {
+    return { blocked: { batchId: null, reason: CTE_BATCH_BLOCK_REASON.linkedToNfse } }
   }
 
   return { chargeable: eligibility.chargeable }

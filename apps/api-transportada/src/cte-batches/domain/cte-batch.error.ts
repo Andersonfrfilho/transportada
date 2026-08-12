@@ -19,6 +19,14 @@ export function createDocumentAlreadyLinkedError(): ApiError {
   })
 }
 
+export function createDocumentLinkedToNfseError(): ApiError {
+  return new ApiError({
+    code: CTE_BATCH_BLOCK_REASON.linkedToNfse,
+    message: 'NF-e is already linked to a municipal service invoice',
+    status: 409,
+  })
+}
+
 export function createBatchNameTakenError(): ApiError {
   return new ApiError({
     code: 'CTE_BATCH_NAME_TAKEN',
@@ -78,6 +86,7 @@ export function createItemNotFoundError(): ApiError {
 /** Creation is all-or-nothing, so a preview block becomes the equivalent hard failure. */
 export function createBlockError(reason: string): ApiError {
   if (ALREADY_LINKED_REASONS.includes(reason)) return createDocumentAlreadyLinkedError()
+  if (reason === CTE_BATCH_BLOCK_REASON.linkedToNfse) return createDocumentLinkedToNfseError()
   if (reason.startsWith(PROFILE_REASON_PREFIX)) {
     return new ApiError({
       code: reason,

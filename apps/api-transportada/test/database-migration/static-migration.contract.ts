@@ -8,6 +8,7 @@ import {
   FISCAL_TABLES,
   IDENTITY_TABLES,
   INVITATION_TABLES,
+  NFSE_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -104,6 +105,10 @@ describe('Drizzle migrations', () => {
       '20260811140230_nfe_distribution_cursor_recovery',
       '20260811164234_billing_description_templates',
       '20260811180555_billing_invoice_item_release',
+      '20260812154051_nfse_service_invoices',
+      '20260812172200_invitation_delivery',
+      '20260812180149_company_activation_channel',
+      '20260812180517_nfse_profile_municipality_name',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -472,6 +477,86 @@ describe('Drizzle migrations', () => {
       migrationSql.indexOf('CREATE UNIQUE INDEX'),
     )
     expect(rollbackSql).toContain('billing_invoice_items_company_cte_document_unique')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  // A única destruição aqui é a troca do check de propósito de `stored_objects`, no mesmo
+  // ALTER TABLE que o recria — nenhuma linha existente é apagada nem invalidada.
+  test('versions the nfse service invoices as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_nfse_service_invoices'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const table of NFSE_TABLES) expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    expect(migrationSql).toContain('ON DELETE RESTRICT ON UPDATE CASCADE')
+    // Cancelar a nota de serviço devolve a NF-e: a unicidade nasce parcial, nunca total.
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "nfse_service_invoice_documents_active_nfe_unique" ON "nfse_service_invoice_documents" ("company_id","nfe_document_id") WHERE "cancelled_at" is null',
+    )
+    // O propósito novo entra no mesmo ALTER TABLE que remove o antigo, sem janela sem check.
+    expect(migrationSql).toMatch(
+      /ALTER TABLE "stored_objects" DROP CONSTRAINT "stored_objects_purpose_check",\s*ADD CONSTRAINT "stored_objects_purpose_check"/,
+    )
+    expect(migrationSql).toContain(`'nfse_document'`)
+    // O pedido de cancelamento é estado próprio, e ele varre junto com a autorização pendente.
+    expect(migrationSql).toContain(
+      `CONSTRAINT "nfse_service_invoices_next_check_state_check" CHECK ("status" in ('pending_authorization', 'cancellation_requested') or "next_status_check_at" is null)`,
+    )
+    expect(migrationSql).toContain(
+      `CONSTRAINT "nfse_service_invoices_cancellation_requested_check" CHECK ("status" <> 'cancellation_requested' or ("cancellation_reason" is not null and "cancelled_at" is null))`,
+    )
+    for (const table of NFSE_TABLES)
+      expect(rollbackSql).toContain(`DROP TABLE IF EXISTS "${table}"`)
+    // O rollback desfaz o propósito na ordem inversa: primeiro as tabelas, depois o check.
+    expect(rollbackSql.indexOf('nfse_issuance_outbox')).toBeLessThan(
+      rollbackSql.indexOf('stored_objects_purpose_check'),
+    )
+    expect(rollbackSql).toContain(
+      `CHECK ("purpose" in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document'))`,
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * O nome do município não pôde entrar na migration da própria feature: ela deixou de ser a ponta
+   * da fila, e regerá-la apagaria as tabelas de NFS-e dos snapshots que vieram depois.
+   */
+  test('versions the nfse profile municipality name as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_nfse_profile_municipality_name'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(migrationSql).toContain(
+      'ALTER TABLE "nfse_emission_profiles" ADD COLUMN "municipality_name" text NOT NULL',
+    )
+    // O nome em branco não descreve município nenhum: o piso é um caractere, não zero.
+    expect(migrationSql).toContain(
+      'CHECK (length("municipality_name") > 0 and length("municipality_name") <= 60)',
+    )
+    expect(rollbackSql).toContain(
+      'ALTER TABLE "nfse_emission_profiles" DROP COLUMN IF EXISTS "municipality_name"',
+    )
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')
