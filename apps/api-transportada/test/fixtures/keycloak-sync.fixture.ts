@@ -76,6 +76,18 @@ export type InvitationRepositoryFake = {
   registerFailedAttempt(input: { readonly invitationId: string }): Promise<void>
 }
 
+/** A selagem do código e a fila de entrega não são o assunto deste contrato — só precisam existir. */
+export function createInvitationDeliveryFakes() {
+  return {
+    envelopeProvider: {
+      async encrypt({ plaintext }: { readonly plaintext: string }) {
+        return { ciphertext: plaintext, keyId: 'test', version: 1 } as never
+      },
+    },
+    outbox: { async save() {} },
+  }
+}
+
 export function createInvitationRepositoryFake(
   options: { readonly withPendingCode?: string } = {},
 ): InvitationRepositoryFake {

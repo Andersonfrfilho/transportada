@@ -112,9 +112,10 @@ function settingsResponse(settings: CompanySettingsResult | null): Response {
 
 function serializeSettings(settings: CompanySettingsResult | null): object {
   if (settings === null) {
-    return { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null }
+    return { activation: null, billing: null, cte: null, cteRetry: null, mdfe: null, profile: null }
   }
   return {
+    activation: { channel: settings.activation.channel },
     billing: {
       bankAccount: settings.billing.bankAccount,
       bankBranch: settings.billing.bankBranch,

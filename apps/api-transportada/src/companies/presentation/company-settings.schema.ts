@@ -4,7 +4,11 @@
 import { z } from 'zod'
 
 import type { CompanySettingsInput } from '../application/company-settings.port.js'
-import { BILLING_OBSERVATIONS_MAX_LENGTH } from '../../database/company-fiscal-profile.schema.js'
+import {
+  ACTIVATION_CHANNELS,
+  BILLING_OBSERVATIONS_MAX_LENGTH,
+  DEFAULT_ACTIVATION_CHANNEL,
+} from '../../database/company-fiscal-profile.schema.js'
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
@@ -96,8 +100,15 @@ const billingSchema = z
   })
   .strict()
 
+// Bloco opcional porque cliente antigo não o envia — ausente é `email`, o único canal com driver.
+const activationSchema = z
+  .object({ channel: z.enum(ACTIVATION_CHANNELS) })
+  .strict()
+  .default({ channel: DEFAULT_ACTIVATION_CHANNEL })
+
 const settingsSchema = z
   .object({
+    activation: activationSchema,
     billing: billingSchema,
     cte: z
       .object({

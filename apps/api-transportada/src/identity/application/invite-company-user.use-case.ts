@@ -8,13 +8,15 @@ import {
   toCompanyUserView,
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
-import {
-  generateInvitationCode,
-  hashInvitationCode,
-  planInvitationResend,
-} from '../domain/invitation.policy.js'
+import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
-import type { InvitationRepositoryPort } from './invitation.port.js'
+import {
+  issueInvitationCode,
+  type InvitationCodeEnvelopeProviderPort,
+} from './invitation-code.service.js'
+import type { InvitationDeliveryOutboxPort, InvitationRepositoryPort } from './invitation.port.js'
+
+const INVITATION_DELIVERY_EVENT_TYPE = 'transportada.identity.invitation.code.requested' as const
 
 type InviteIdentityGatewayPort = {
   createUser(input: {
@@ -28,17 +30,20 @@ type InviteIdentityGatewayPort = {
 }
 
 type InviteCompanyUserDependencies = {
+  readonly envelopeProvider: InvitationCodeEnvelopeProviderPort
   readonly identityGateway: InviteIdentityGatewayPort
   readonly invitations: Pick<InvitationRepositoryPort, 'create'>
   readonly issuer: string
   readonly now: () => Date
+  readonly outbox: InvitationDeliveryOutboxPort
   readonly repository: Pick<CompanyUserRepositoryPort, 'createInvitedUser'>
 }
 
 export type InviteCompanyUserInput = {
   readonly channel: ContactChannel
-  readonly context: { readonly companyId: string }
+  readonly context: { readonly companyId: string; readonly userId?: string }
   readonly contact: string
+  readonly correlationId?: string
   readonly name: string
   readonly roles: readonly CompanyRole[]
 }
@@ -52,14 +57,16 @@ export type InviteCompanyUserUseCase = {
  * `username` sintetiza o id interno porque o contato pode ser telefone, sem formato de login.
  */
 export function createInviteCompanyUserUseCase({
+  envelopeProvider,
   identityGateway,
   invitations,
   issuer,
   now,
+  outbox,
   repository,
 }: InviteCompanyUserDependencies): InviteCompanyUserUseCase {
   return {
-    async execute({ channel, context, contact, name, roles }) {
+    async execute({ channel, context, contact, correlationId, name, roles }) {
       const userId = crypto.randomUUID()
       /** `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. */
       const { subject } = await identityGateway.createUser({
@@ -82,13 +89,31 @@ export function createInviteCompanyUserUseCase({
       })
 
       const plan = planInvitationResend({ invitation: undefined, now: now() })
-      await invitations.create({
-        codeHash: hashInvitationCode(generateInvitationCode()),
+      const { codeHash, sealedCode } = await issueInvitationCode({
+        companyId: context.companyId,
+        envelopeProvider,
+        userId,
+      })
+      const invitation = await invitations.create({
+        codeHash,
         companyId: context.companyId,
         expiresAt: plan.expiresAt,
         roles,
+        sealedCode,
         supersededInvitationId: plan.supersededInvitationId,
         userId,
+      })
+
+      // Nenhum canal é chamado aqui: a rota persiste e devolve, e a entrega é do worker.
+      await outbox.save({
+        actorUserId: context.userId ?? userId,
+        companyId: context.companyId,
+        correlationId: correlationId ?? crypto.randomUUID(),
+        eventId: crypto.randomUUID(),
+        eventType: INVITATION_DELIVERY_EVENT_TYPE,
+        eventVersion: 1,
+        invitationId: invitation.id,
+        payload: { invitationId: invitation.id, userId },
       })
 
       return toCompanyUserView({

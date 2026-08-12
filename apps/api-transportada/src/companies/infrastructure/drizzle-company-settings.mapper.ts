@@ -9,6 +9,10 @@ import {
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
   createCteRetryPolicy,
 } from '../../cte-issuance/domain/cte-retry.policy.js'
+import {
+  ACTIVATION_CHANNELS,
+  DEFAULT_ACTIVATION_CHANNEL,
+} from '../../database/company-fiscal-profile.schema.js'
 import { companyFiscalProfiles, fiscalSequences } from '../../database/database.schema.js'
 import type {
   CompanySettingsInput,
@@ -18,6 +22,11 @@ import type { CompanySettingsQueryable } from './drizzle-company-settings.types.
 
 const persistedResponseSchema = z
   .object({
+    // Resposta idempotente gravada antes desta coluna não traz o bloco — o padrão a mantém legível.
+    activation: z
+      .object({ channel: z.enum(ACTIVATION_CHANNELS) })
+      .strict()
+      .default({ channel: DEFAULT_ACTIVATION_CHANNEL }),
     billing: z
       .object({
         bankAccount: z.string(),
@@ -79,6 +88,9 @@ const persistedResponseSchema = z
   .strict()
 
 const settingsSelection = {
+  activation: {
+    channel: companyFiscalProfiles.activationChannel,
+  },
   billing: {
     bankAccount: companyFiscalProfiles.billingBankAccount,
     bankBranch: companyFiscalProfiles.billingBankBranch,
@@ -152,6 +164,7 @@ export async function findCompanySettings(
     throw new Error('Company fiscal settings are inconsistent')
   }
   return {
+    activation: settings.activation,
     billing: settings.billing,
     cte,
     cteRetry: createCteRetryPolicy(settings.cteRetry),
@@ -166,6 +179,7 @@ export function createCompanySettingsResult(
   sequenceVersion: bigint,
 ): CompanySettingsResult {
   return {
+    activation: settings.activation,
     billing: settings.billing,
     cte: { ...settings.cte, version: sequenceVersion },
     cteRetry: settings.cteRetry,
@@ -178,6 +192,7 @@ export function serializeCompanySettingsResponse(
   response: CompanySettingsResult,
 ): z.input<typeof persistedResponseSchema> {
   return {
+    activation: { ...response.activation },
     billing: { ...response.billing },
     cte: {
       environment: response.cte.environment,
@@ -200,6 +215,7 @@ export function serializeCompanySettingsResponse(
 export function deserializeCompanySettingsResponse(response: unknown): CompanySettingsResult {
   const parsed = persistedResponseSchema.parse(response)
   return {
+    activation: parsed.activation,
     billing: parsed.billing,
     cte: {
       environment: parsed.cte.environment,

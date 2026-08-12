@@ -125,6 +125,7 @@ export class DrizzleInvitationRepository implements InvitationRepositoryPort {
           codeHash: input.codeHash,
           companyId: input.companyId,
           expiresAt: input.expiresAt,
+          sealedCode: input.sealedCode,
           userId: input.userId,
         })
         .returning(INVITATION_COLUMNS)

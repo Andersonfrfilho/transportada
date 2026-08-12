@@ -67,6 +67,7 @@ export function createContext(companyId: string, userId: string): CompanyContext
 
 export function createSettings(cnpj: string): CompanySettingsInput {
   return {
+    activation: { channel: 'email' },
     billing: {
       bankAccount: '12345-6',
       bankBranch: '1234',

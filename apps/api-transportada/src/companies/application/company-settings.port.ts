@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CteRetryPolicy } from '../../cte-issuance/domain/cte-retry.policy.js'
+import type { ActivationChannel } from '../../database/company-fiscal-profile.schema.js'
 import type { MdfeInsuranceResponsibility } from '../../database/mdfe.schema.js'
 
 export type FiscalEnvironment = 'homologation' | 'production'
@@ -48,7 +49,13 @@ export type CompanyFiscalProfileInput = {
   readonly tradeName: string
 }
 
+/** Por onde o código de ativação do convite sai. É da empresa: quem convida não escolhe o canal. */
+export type CompanyActivationInput = {
+  readonly channel: ActivationChannel
+}
+
 export type CompanySettingsInput = {
+  readonly activation: CompanyActivationInput
   readonly billing: CompanyBillingDefaultsInput
   readonly cte: {
     readonly environment: FiscalEnvironment
@@ -62,6 +69,7 @@ export type CompanySettingsInput = {
 }
 
 export type CompanySettingsResult = {
+  readonly activation: CompanyActivationInput
   readonly billing: CompanyBillingDefaultsInput
   readonly cte: {
     readonly environment: FiscalEnvironment

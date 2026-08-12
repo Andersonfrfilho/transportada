@@ -321,20 +321,20 @@ o convite (fases B–D). Staging pode ser resetado à vontade durante o percurso
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T012 Decidir e registrar, com `make migration-test` como juiz, se o estado do convite fica no
+- [x] T012 Decidir e registrar, com `make migration-test` como juiz, se o estado do convite fica no
       schema da aplicação (consumindo só `notification-contracts` + provider stateless) ou se
       `notification-module` entra com as migrations dele. Dependências: T004. Sucesso: decisão
       registrada no `plan.md` e cadeia de migrations verde.
 
-- [ ] T013 Contrato **falhando**: convite não chama canal nenhum no caminho síncrono da rota;
+- [x] T013 Contrato **falhando**: convite não chama canal nenhum no caminho síncrono da rota;
       publica mensagem; o consumidor do worker entrega pelo canal da empresa; falha de entrega **não**
       invalida o código e permite reenvio. Dependências: T012. Sucesso: vermelho.
 
-- [ ] T014 Implementar o consumidor no worker com o trio de notificação, envelope Zod versionado,
+- [x] T014 Implementar o consumidor no worker com o trio de notificação, envelope Zod versionado,
       idempotência por `processed_messages` e política de retry do trilho. Dependências: T013.
       Sucesso: T013 verde + `make worker-integration` verde.
 
-- [ ] T015 Campo de canal de ativação (`email` / `sms` / `whatsapp`) nas configurações da empresa —
+- [x] T015 Campo de canal de ativação (`email` / `sms` / `whatsapp`) nas configurações da empresa —
       schema, migration e `PATCH` existente. Dependências: T014. Sucesso: gates da API verdes,
       canal persistido e lido pelo worker.
 

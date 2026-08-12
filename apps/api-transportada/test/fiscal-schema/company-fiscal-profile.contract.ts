@@ -46,14 +46,18 @@ describe('tenant fiscal schema', () => {
       'billing_bank_account',
       'billing_pix_key',
       'billing_observations',
+      'activation_channel',
       'cte_retry_max_attempts',
       'cte_retry_backoff_seconds',
+      'nfse_retry_max_attempts',
+      'nfse_retry_backoff_seconds',
       'version',
       'created_at',
       'updated_at',
     ])
     expect(requiredColumnNames(companyFiscalProfiles)).toEqual(columnNames(companyFiscalProfiles))
     expect(columnSqlTypes(companyFiscalProfiles)).toEqual({
+      activation_channel: 'text',
       company_id: 'uuid',
       legal_name: 'text',
       trade_name: 'text',
@@ -88,6 +92,8 @@ describe('tenant fiscal schema', () => {
       billing_observations: 'text',
       cte_retry_max_attempts: 'integer',
       cte_retry_backoff_seconds: 'integer',
+      nfse_retry_max_attempts: 'integer',
+      nfse_retry_backoff_seconds: 'integer',
       version: 'bigint',
       created_at: 'timestamp with time zone',
       updated_at: 'timestamp with time zone',
@@ -101,6 +107,12 @@ describe('tenant fiscal schema', () => {
     expect(retryBackoff?.dimensions).toBe(1)
     expect(retryBackoff?.default).toEqual([5, 30, 300])
     expect(columns.find((column) => column.name === 'cte_retry_max_attempts')?.default).toBe(3)
+
+    /** A janela da prefeitura é outra: a curva da NFS-e começa onde a da SEFAZ já desistiu. */
+    const nfseRetryBackoff = columns.find((column) => column.name === 'nfse_retry_backoff_seconds')
+    expect(nfseRetryBackoff?.dimensions).toBe(1)
+    expect(nfseRetryBackoff?.default).toEqual([30, 120, 600, 1800])
+    expect(columns.find((column) => column.name === 'nfse_retry_max_attempts')?.default).toBe(5)
     expect(foreignKeys(companyFiscalProfiles)).toEqual([
       {
         columns: ['company_id'],
@@ -115,12 +127,16 @@ describe('tenant fiscal schema', () => {
       company_fiscal_profiles_cnpj_unique: ['cnpj'],
     })
     expect(checkSqlByName(companyFiscalProfiles)).toEqual({
+      company_fiscal_profiles_activation_channel_check:
+        "\"company_fiscal_profiles\".\"activation_channel\" in ('email', 'sms', 'whatsapp')",
       company_fiscal_profiles_billing_bank_branch_check: `length("company_fiscal_profiles"."billing_bank_branch") = 0 or "company_fiscal_profiles"."billing_bank_branch" ~ '^[0-9]{1,10}$'`,
       company_fiscal_profiles_billing_bank_code_check: `length("company_fiscal_profiles"."billing_bank_code") = 0 or "company_fiscal_profiles"."billing_bank_code" ~ '^[0-9]{3}$'`,
       company_fiscal_profiles_billing_observations_check: `length("company_fiscal_profiles"."billing_observations") <= 500`,
       company_fiscal_profiles_cnpj_check: `"company_fiscal_profiles"."cnpj" ~ '^[0-9]{14}$'`,
       company_fiscal_profiles_cte_retry_backoff_check: `array_length("company_fiscal_profiles"."cte_retry_backoff_seconds", 1) between 1 and 10 and 0 < all("company_fiscal_profiles"."cte_retry_backoff_seconds")`,
       company_fiscal_profiles_cte_retry_max_attempts_check: `"company_fiscal_profiles"."cte_retry_max_attempts" between 1 and 10`,
+      company_fiscal_profiles_nfse_retry_backoff_check: `array_length("company_fiscal_profiles"."nfse_retry_backoff_seconds", 1) between 1 and 10 and 0 < all("company_fiscal_profiles"."nfse_retry_backoff_seconds")`,
+      company_fiscal_profiles_nfse_retry_max_attempts_check: `"company_fiscal_profiles"."nfse_retry_max_attempts" between 1 and 10`,
       company_fiscal_profiles_environment_check: `"company_fiscal_profiles"."environment" in ('homologation', 'production')`,
       company_fiscal_profiles_mdfe_insurance_responsibility_check: `length("company_fiscal_profiles"."mdfe_insurance_responsibility") = 0 or "company_fiscal_profiles"."mdfe_insurance_responsibility" in ('1', '2')`,
       company_fiscal_profiles_mdfe_insurer_tax_id_check: `length("company_fiscal_profiles"."mdfe_insurer_tax_id") = 0 or "company_fiscal_profiles"."mdfe_insurer_tax_id" ~ '^[0-9]{11}$|^[0-9]{14}$'`,

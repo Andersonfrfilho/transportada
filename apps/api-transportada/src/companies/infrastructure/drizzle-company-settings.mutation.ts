@@ -112,6 +112,7 @@ async function createSettings(
       ...input.settings.profile,
       ...toMdfeColumns(input.settings.mdfe),
       ...toBillingColumns(input.settings.billing),
+      activationChannel: input.settings.activation.channel,
       cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
       cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
@@ -147,6 +148,7 @@ async function updateProfile(
       ...input.settings.profile,
       ...toMdfeColumns(input.settings.mdfe),
       ...toBillingColumns(input.settings.billing),
+      activationChannel: input.settings.activation.channel,
       cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
       cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
