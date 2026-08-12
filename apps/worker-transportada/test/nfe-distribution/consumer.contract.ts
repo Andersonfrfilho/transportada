@@ -436,7 +436,9 @@ describe('NF-e distribution consumer contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('An empty page must not persist documents')
         },
@@ -578,7 +580,9 @@ describe('NF-e distribution consumer contract', () => {
         },
       },
       repository: {
-        async finalizeImport() {},
+        async finalizeImport() {
+          /* empty */
+        },
         async persistPage() {
           throw new Error('An empty page must not persist documents')
         },
