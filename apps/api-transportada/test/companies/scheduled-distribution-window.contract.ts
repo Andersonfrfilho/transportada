@@ -112,7 +112,7 @@ describe('scheduled distribution status use case with the next window', () => {
       companyId: COMPANY_ID,
     })
 
-    expect(status.nextScheduledRunAt).toBe('2026-08-05T22:00:00.000Z')
+    expect(status.nextScheduledRunAt).toBe('2026-08-05T21:30:00.000Z')
     expect(status.nextAllowedAt).toBeUndefined()
   })
 
@@ -122,7 +122,7 @@ describe('scheduled distribution status use case with the next window', () => {
       now: new Date('2026-08-05T21:17:00.000Z'),
     }).execute({ companyId: COMPANY_ID })
 
-    expect(status.nextScheduledRunAt).toBe('2026-08-05T22:00:00.000Z')
+    expect(status.nextScheduledRunAt).toBe('2026-08-05T21:30:00.000Z')
     expect(status.nextAllowedAt).toBe('2026-08-05T23:30:00.000Z')
     expect(status.ineligibilityReason).toBe('cooldown_active')
   })
@@ -134,7 +134,7 @@ describe('scheduled distribution status use case with the next window', () => {
     }).execute({ companyId: COMPANY_ID })
 
     expect(status.enabled).toBe(false)
-    expect(status.nextScheduledRunAt).toBe('2026-08-05T22:00:00.000Z')
+    expect(status.nextScheduledRunAt).toBe('2026-08-05T21:30:00.000Z')
   })
 })
 

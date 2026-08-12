@@ -174,7 +174,7 @@ describe('NF-e distribution cursor recovery contract', () => {
           /* noop */
         },
         async persistPage() {
-          return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
+          return { acceptedCount: 1, duplicatedCount: 0, invalidCount: 0, skippedCount: 0 }
         },
       },
     })

@@ -21,12 +21,17 @@ import {
 
 type SkipReason = 'already_stored' | 'unsupported_document'
 
+type ItemOutcome<TValue> =
+  | { readonly kind: 'skipped'; readonly reason: SkipReason }
+  | { readonly kind: 'stored'; readonly value: TValue }
+
 type DistributionPersistencePort = {
   finalizeImport(input: {
     readonly companyId: string
     readonly duplicatedCount: number
     readonly importId: string
     readonly importedCount: number
+    readonly invalidCount: number
     readonly processedCount: number
     readonly receivedCount: number
     readonly status: 'completed'
@@ -62,31 +67,31 @@ export function createNfeDistributionPersistenceAdapter(
     async persistPage(input): Promise<{
       readonly acceptedCount: number
       readonly duplicatedCount: number
+      readonly invalidCount: number
       readonly skippedCount: number
     }> {
-      const prepared = (
-        await Promise.all(
-          input.items.map((dfe) =>
-            prepareItemOrSkip({
-              companyId: input.companyId,
-              dependencies,
-              dfe,
-              importId: input.importId,
-            }),
-          ),
-        )
-      ).filter((candidate): candidate is PreparedItem => candidate !== undefined)
+      const preparation = await Promise.all(
+        input.items.map((dfe) =>
+          prepareItemOrSkip({
+            companyId: input.companyId,
+            dependencies,
+            dfe,
+            importId: input.importId,
+          }),
+        ),
+      )
+      const prepared = preparation.filter((outcome) => outcome.kind === 'stored')
 
       const storedAccessKeys = await findStoredAccessKeys({
-        candidates: prepared,
+        candidates: prepared.map((outcome) => outcome.value),
         companyId: input.companyId,
         dependencies,
       })
 
-      const built = await Promise.all(
-        prepared.map((candidate) =>
+      const storage = await Promise.all(
+        prepared.map((outcome) =>
           storeItemOrSkip({
-            candidate,
+            candidate: outcome.value,
             companyId: input.companyId,
             dependencies,
             importId: input.importId,
@@ -94,7 +99,9 @@ export function createNfeDistributionPersistenceAdapter(
           }),
         ),
       )
-      const items = built.filter((item): item is DistributionPersistItem => item !== undefined)
+      const items = storage
+        .filter((outcome) => outcome.kind === 'stored')
+        .map((outcome) => outcome.value)
       const result = await dependencies.repository.persistPage({
         companyId: input.companyId,
         environment: input.environment,
@@ -103,10 +110,18 @@ export function createNfeDistributionPersistenceAdapter(
         maxNsu: input.maxNsu,
         ultNsu: input.ultNsu,
       })
+
+      // Pulo também é desfecho: fora das parcelas, o contador da importação não fecha e o banco recusa
+      const skips = [...preparation, ...storage].filter((outcome) => outcome.kind === 'skipped')
+      const alreadyStoredCount = skips.filter(
+        (outcome) => outcome.reason === 'already_stored',
+      ).length
+
       return {
         acceptedCount: result.acceptedCount,
-        duplicatedCount: result.duplicatedCount,
-        skippedCount: input.items.length - items.length,
+        duplicatedCount: result.duplicatedCount + alreadyStoredCount,
+        invalidCount: skips.length - alreadyStoredCount,
+        skippedCount: skips.length,
       }
     },
   }
@@ -121,12 +136,15 @@ async function prepareItemOrSkip(params: {
   readonly dependencies: PersistenceAdapterDependencies
   readonly dfe: DfeItem
   readonly importId: string
-}): Promise<PreparedItem | undefined> {
+}): Promise<ItemOutcome<PreparedItem>> {
   try {
-    return await prepareDistributionItem({
-      dfe: params.dfe,
-      xmlImporter: params.dependencies.xmlImporter,
-    })
+    return {
+      kind: 'stored',
+      value: await prepareDistributionItem({
+        dfe: params.dfe,
+        xmlImporter: params.dependencies.xmlImporter,
+      }),
+    }
   } catch (error: unknown) {
     const skip = resolveSkip(error)
     if (skip === undefined) {
@@ -134,7 +152,7 @@ async function prepareItemOrSkip(params: {
     }
 
     logSkip({ ...params, errorCode: skip.errorCode, reason: skip.reason })
-    return undefined
+    return { kind: 'skipped', reason: skip.reason }
   }
 }
 
@@ -174,7 +192,7 @@ async function storeItemOrSkip(params: {
   readonly dependencies: PersistenceAdapterDependencies
   readonly importId: string
   readonly storedAccessKeys: ReadonlySet<string>
-}): Promise<DistributionPersistItem | undefined> {
+}): Promise<ItemOutcome<DistributionPersistItem>> {
   const { candidate, storedAccessKeys } = params
 
   if (
@@ -190,11 +208,11 @@ async function storeItemOrSkip(params: {
       importId: params.importId,
       reason: 'already_stored',
     })
-    return undefined
+    return { kind: 'skipped', reason: 'already_stored' }
   }
 
   try {
-    return await storeItem(params)
+    return { kind: 'stored', value: await storeItem(params) }
   } catch (error: unknown) {
     const skip = resolveSkip(error)
     if (skip === undefined) {
@@ -209,7 +227,7 @@ async function storeItemOrSkip(params: {
       importId: params.importId,
       reason: skip.reason,
     })
-    return undefined
+    return { kind: 'skipped', reason: skip.reason }
   }
 }
 

@@ -56,7 +56,7 @@ describe('scheduled distribution status use case', () => {
       ineligibilityReason: undefined,
       lastAutomationImport: undefined,
       nextAllowedAt: undefined,
-      nextScheduledRunAt: '2026-08-05T22:00:00.000Z',
+      nextScheduledRunAt: '2026-08-05T21:15:00.000Z',
     })
   })
 

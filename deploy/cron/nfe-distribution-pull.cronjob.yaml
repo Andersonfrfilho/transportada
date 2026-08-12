@@ -7,8 +7,11 @@
 # This is a reviewable infra-as-code artifact:
 #   - the DATABASE_URL secret is referenced, never defined here (segredos nunca
 #     são commitados);
-#   - `schedule` and CADENCE_MINUTES share the same 60-min window — change both
-#     together or the idempotency bucket stops matching the run window;
+#   - `schedule` is the tick and CADENCE_MINUTES is the dedup window; the tick is
+#     finer on purpose (SEFAZ counts the hour from the moment it served us, so an
+#     on-the-hour tick only met the window an hour late). CADENCE_MINUTES must
+#     stay >= the tick interval or two ticks inside one SEFAZ window would each
+#     get their own idempotency bucket;
 #   - concurrencyPolicy=Forbid + the Postgres advisory lock + the
 #     (company_id, idempotency_key) unique keep overlapping cycles safe.
 ---
@@ -24,7 +27,8 @@ data:
   CRON_JOB: 'nfe.distribution.pull'
   # Fiscal environment is explicit and never mixed; set per cluster/namespace.
   FISCAL_ENVIRONMENT: 'homologation'
-  # Must mirror the CronJob schedule below (60 min → "0 * * * *").
+  # Dedup window, not the tick: one enqueue per company per hour, however many
+  # times the CronJob below fires inside that hour.
   CADENCE_MINUTES: '60'
   PAGE_SIZE: '50'
   LOG_LEVEL: 'info'
@@ -38,8 +42,9 @@ metadata:
     app.kubernetes.io/part-of: transportada
     app.kubernetes.io/component: nfe-distribution-pull
 spec:
-  # Hourly. Mirror of CADENCE_MINUTES=60 — change both together.
-  schedule: '0 * * * *'
+  # Every 15 min so the SEFAZ window is met soon after it opens; the extra ticks
+  # are no-ops while CADENCE_MINUTES=60 holds the enqueue to one per hour.
+  schedule: '*/15 * * * *'
   timeZone: 'America/Sao_Paulo'
   # One instance per window; a late start never overlaps the previous run.
   concurrencyPolicy: Forbid

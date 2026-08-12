@@ -98,6 +98,7 @@ export class DrizzleNfeDistributionRepository {
     readonly duplicatedCount: number
     readonly importId: string
     readonly importedCount: number
+    readonly invalidCount: number
     readonly processedCount: number
     readonly receivedCount: number
     readonly status: 'completed'
@@ -107,6 +108,7 @@ export class DrizzleNfeDistributionRepository {
       .set({
         duplicatedCount: BigInt(input.duplicatedCount),
         importedCount: BigInt(input.importedCount),
+        invalidCount: BigInt(input.invalidCount),
         processedCount: BigInt(input.processedCount),
         receivedCount: BigInt(input.receivedCount),
         status: input.status,

@@ -101,6 +101,7 @@ describe('NF-e distribution consumer contract', () => {
           return {
             acceptedCount,
             duplicatedCount: input.items.length - acceptedCount,
+            invalidCount: 0,
             skippedCount: 0,
           }
         },
@@ -350,7 +351,7 @@ describe('NF-e distribution consumer contract', () => {
         },
         async persistPage(input) {
           calls.push(`persist:${input.ultNsu}:${input.items.length}`)
-          return { acceptedCount: 1, duplicatedCount: 0, skippedCount: 0 }
+          return { acceptedCount: 1, duplicatedCount: 0, invalidCount: 0, skippedCount: 0 }
         },
       },
     })
@@ -458,7 +459,149 @@ describe('NF-e distribution consumer contract', () => {
       ultNsu: '000000000000000',
     })
   })
+
+  /**
+   * O banco recusa contador que não fecha: `processed` tem que ser a soma das parcelas. Uma página
+   * inteira pulada deixava `processed` com o total servido pela SEFAZ e as parcelas em zero, e a
+   * importação ficava eternamente "Na fila".
+   */
+  test('closes the counters when every item of the page was skipped', async () => {
+    const calls: string[] = []
+    const finalized: FinalizedImport[] = []
+    const cursorRepository = createCursorRepository(calls)
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => new Date('2026-08-10T15:00:00.000Z') },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            async consultarDFe() {
+              return {
+                itens: [
+                  createDistributionItem({
+                    accessKey: '35190730290856000160550010000000011000000059',
+                    nsu: '000000000000001',
+                  }),
+                  createDistributionItem({
+                    accessKey: '35190730290856000160550010000000011000000060',
+                    nsu: '000000000000002',
+                  }),
+                  createDistributionItem({
+                    accessKey: '35190730290856000160550010000000011000000061',
+                    nsu: '000000000000003',
+                  }),
+                ],
+                maxNSU: '000000000000003',
+                temMais: false,
+                ultNSU: '000000000000003',
+              }
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport(input) {
+          finalized.push(input)
+        },
+        async persistPage() {
+          return { acceptedCount: 0, duplicatedCount: 2, invalidCount: 1, skippedCount: 3 }
+        },
+      },
+    })
+
+    await consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })
+
+    const [summary] = finalized
+    expect(summary).toBeDefined()
+    expect(summary?.processedCount).toBe(
+      (summary?.importedCount ?? 0) +
+        (summary?.duplicatedCount ?? 0) +
+        (summary?.invalidCount ?? 0),
+    )
+    expect(summary?.processedCount).toBeLessThanOrEqual(summary?.receivedCount ?? 0)
+    expect(summary).toMatchObject({
+      duplicatedCount: 2,
+      importedCount: 0,
+      invalidCount: 1,
+      processedCount: 3,
+      receivedCount: 3,
+      status: 'completed',
+    })
+  })
+
+  /**
+   * A hora do 656 é contada do lado da SEFAZ, a partir do instante em que ela nos serviu. Uma janela
+   * de exatamente uma hora chega cedo demais para eles e volta recusada — a margem é o que faz a
+   * próxima consulta cair depois da hora deles, e não meio segundo antes.
+   */
+  test('opens the anti-656 window with a safety margin beyond the bare hour', async () => {
+    const calls: string[] = []
+    const savedWindows: (Date | null)[] = []
+    const now = new Date('2026-08-10T15:00:00.000Z')
+    const recorded = createCursorRepository(calls)
+    const cursorRepository: NfeDistributionCursorRepositoryPort = {
+      ...recorded,
+      async saveCursor(input) {
+        savedWindows.push(input.nextAllowedAt)
+        await recorded.saveCursor(input)
+      },
+    }
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => now },
+      cursorRepository,
+      gatewayFactory: {
+        create() {
+          return {
+            async consultarDFe() {
+              return {
+                itens: [],
+                maxNSU: '000000000000200',
+                temMais: false,
+                ultNSU: '000000000000000',
+              }
+            },
+          }
+        },
+      },
+      leaseMs: 30_000,
+      logger: SILENT_LOGGER,
+      profile: {
+        async loadConfig() {
+          return DISTRIBUTION_CONFIG
+        },
+      },
+      repository: {
+        async finalizeImport() {},
+        async persistPage() {
+          throw new Error('An empty page must not persist documents')
+        },
+      },
+    })
+
+    await consumer.execute({ envelope: DISTRIBUTION_ENVELOPE })
+
+    const [nextAllowedAt] = savedWindows
+    expect(nextAllowedAt).not.toBeNull()
+    expect((nextAllowedAt?.getTime() ?? 0) - now.getTime()).toBeGreaterThan(60 * 60 * 1000)
+    expect((nextAllowedAt?.getTime() ?? 0) - now.getTime()).toBe(65 * 60 * 1000)
+  })
 })
+
+type FinalizedImport = {
+  readonly duplicatedCount: number
+  readonly importedCount: number
+  readonly invalidCount: number
+  readonly processedCount: number
+  readonly receivedCount: number
+  readonly status: 'completed'
+}
 
 function createCursorRepository(
   calls: string[],

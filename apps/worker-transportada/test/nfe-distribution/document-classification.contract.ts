@@ -416,6 +416,8 @@ describe('NF-e distribution document classification contract', () => {
     })
 
     expect(result.skippedCount).toBe(1)
+    expect(result.invalidCount).toBe(1)
+    expect(result.duplicatedCount).toBe(0)
     expect(harness.persisted.map((item) => item.nsu)).toEqual([
       '000000000000001',
       '000000000000003',
@@ -472,6 +474,8 @@ describe('NF-e distribution document classification contract', () => {
     })
 
     expect(result.skippedCount).toBe(1)
+    expect(result.duplicatedCount).toBe(1)
+    expect(result.invalidCount).toBe(0)
     expect(harness.persisted.map((item) => item.nsu)).toEqual([
       '000000000037703',
       '000000000037704',
@@ -517,6 +521,7 @@ describe('NF-e distribution document classification contract', () => {
     })
 
     expect(result.skippedCount).toBe(1)
+    expect(result.duplicatedCount).toBe(1)
     expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037706'])
   })
 
@@ -547,6 +552,8 @@ describe('NF-e distribution document classification contract', () => {
 
     expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037712'])
     expect(result.skippedCount).toBe(2)
+    expect(result.duplicatedCount).toBe(2)
+    expect(result.invalidCount).toBe(0)
     expect(harness.storageCalls).toEqual([`complete:${OTHER_ACCESS_KEY}`])
 
     const skipped = harness.logs.filter(

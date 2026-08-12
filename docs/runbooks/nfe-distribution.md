@@ -215,13 +215,18 @@ automático; tentativa recusada à mão empurra a janela mais uma hora.
 
 ## 8. Em aberto
 
-- O cron é `7 * * * *`, mas a janela da SEFAZ conta a partir da consulta, não do relógio — os dois
-  desalinham sozinhos. Com a ressincronização automática o desalinhamento custa um tick, não um dia;
-  cadência mais curta segue sem ganho.
+- A janela da SEFAZ conta a partir da consulta, não do relógio, e um tique de hora cheia só
+  reencontrava a permissão na hora seguinte — metade dos ciclos voltava `656` e cada recusa empurrava
+  a janela para mais tarde. O cron passou a `*/15 * * * *` e a janela que abrimos ganhou margem de
+  5 min sobre a hora cheia; `CADENCE_MINUTES=60` continua segurando uma enfileirada por hora, então
+  os três tiques extras são no-op. **A cadência de produção mora no painel da Railway** (estava
+  `7 * * * *`): mudar `deploy/cron/railway.json` não muda o serviço em execução.
 - `@adatechnology/fiscal-provider` ainda lança `Error` cru no 656, em vez de rejeição tipada com o
   `ultNSU` que a NT 1.14 devolve desde 24/03/2022. Por isso a ressincronização usa `max_nsu` em vez do
   número exato que a SEFAZ mandou. Ler `rawResponse` para alcançá-lo continua proibido.
-- `finalizeImport` sobrescreve `receivedCount` com os números da última página, enquanto
-  `persistPage` acumula. Não é mais latente: a importação de 10/08 21:04 gravou 627 notas e a tela
-  mostra “concluída, 0 notas”. Quem for diagnosticar volume conta `nfe_documents`, não a coluna.
+- `finalizeImport` fecha os contadores do ciclo inteiro (`processed = imported + duplicated +
+invalid`), e o pulo entrou nas parcelas: página toda pulada deixava `processed` cheio com as
+  parcelas em zero, o `nfe_imports_counters_check` recusava e a importação ficava presa em “Na fila”.
+  Importações anteriores a essa correção continuam com a coluna errada — para volume histórico,
+  conte `nfe_documents`.
 - Resumo descartado no NSU `000000000037283` ainda não foi recuperado.
