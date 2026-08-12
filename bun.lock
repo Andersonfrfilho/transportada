@@ -44,6 +44,8 @@
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
+        "@adatechnology/object-storage-provider": "0.2.0-rc.0",
+        "@adatechnology/secret-envelope": "0.1.0",
         "@sentry/bun": "10.69.0",
         "drizzle-orm": "1.0.0-rc.4",
         "zod": "4.4.3",
@@ -95,14 +97,17 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
+        "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.6",
         "@adatechnology/logger": "0.1.0-rc.0",
+        "@adatechnology/notification-contracts": "0.1.0-rc.2",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
         "@sentry/bun": "10.69.0",
         "drizzle-orm": "1.0.0-rc.4",
         "fflate": "^0.8.3",
+        "nodemailer": "^7.0.9",
         "zod": "4.4.3",
       },
       "devDependencies": {
@@ -119,6 +124,8 @@
   "packages": {
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 
+    "@adatechnology/email-provider": ["@adatechnology/email-provider@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" }, "peerDependencies": { "@aws-sdk/client-sesv2": ">=3 <4", "nodemailer": ">=6.9.0 <10", "resend": ">=4 <7" }, "optionalPeers": ["@aws-sdk/client-sesv2", "nodemailer", "resend"] }, "sha512-W2dbLcUq/QF7xwv5cqACVNU7ZKauqLaSshhK+8q4rEZmmDRoxFLNgMQzbhbR8atADvr2dN4POTW3EbnxV/q7sA=="],
+
     "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.3.0-rc.6", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-eTME7E8wQYe6t86psj2hH3hTSxzNUl/OZXi/hhQ5ZO42TrHKyfLKj3bj5lFNwODNWifWXBWbpe8EqXO2khd0sQ=="],
 
     "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.0", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-JdpsvO0DKagdl8r3WQfS0CRMrDRlemPD5R4f0hg0NHMb/8pRQEDqCAUmdCovglrpITdZUHqs5fkzA/6UgbjHjw=="],
@@ -126,6 +133,8 @@
     "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.1", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg=="],
 
     "@adatechnology/logger": ["@adatechnology/logger@0.1.0-rc.0", "", {}, "sha512-OIA1YlWimL4oThdGpT975hXYZJXWEoEYskAHofPSD4KznOLX1lLIYHHkmLq+o9PNQW8K4y+lheQzrlI7AIT2cA=="],
+
+    "@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.2", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-MKQp3GitUggBWdCNrINZl1ui3trwwc1SqrWy00TX6Rdji3QXOG/S4sZ5iylgHWRPQq3sv3C+O4ICpsZztpNXlw=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
 
@@ -1167,6 +1176,8 @@
 
     "node-releases": ["node-releases@2.0.51", "", {}, "sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ=="],
 
+    "nodemailer": ["nodemailer@7.0.13", "", {}, "sha512-PNDFSJdP+KFgdsG3ZzMXCgquO7I6McjY2vlqILjtJd0hy8wEvtugS9xKRF2NWlPNGxvLCXlTNIae4serI7dinw=="],
+
     "object-inspect": ["object-inspect@1.13.4", "", {}, "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew=="],
 
     "object-keys": ["object-keys@1.1.1", "", {}, "sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA=="],
@@ -1492,6 +1503,8 @@
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
+
+    "@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@apideck/better-ajv-errors/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 

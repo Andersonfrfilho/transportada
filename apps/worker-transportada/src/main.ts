@@ -4,6 +4,7 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider, type RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
+import { createSmtpEmailProvider } from '@adatechnology/email-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseWorkerCryptographicConfiguration } from './config/cryptographic-configuration.schema.js'
@@ -58,6 +59,28 @@ import { createMdfeIssuanceWorkerEffect } from './mdfe-issuance/application/mdfe
 import { MdfeOutboxPublisherService } from './mdfe-issuance/application/mdfe-outbox-publisher.service.js'
 import { MdfeOutboxRelayService } from './mdfe-issuance/application/mdfe-outbox-relay.service.js'
 import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.service.js'
+import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-delivery-rabbitmq-topology.js'
+import { InvitationDeliveryOutboxPublisherService } from './identity/application/invitation-delivery-outbox-publisher.service.js'
+import { InvitationDeliveryOutboxRelayService } from './identity/application/invitation-delivery-outbox-relay.service.js'
+import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository.js'
+import { DrizzleInvitationDeliveryRepository } from './identity/infrastructure/drizzle-invitation.repository.js'
+import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
+import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
+import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
+import { startInvitationDeliveryConsumer } from './runtime/invitation-delivery-consumer.service.js'
+import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
+import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
+import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
+import { createNfseIssuanceWorkerEffect } from './nfse-issuance/application/nfse-issuance-consumer.effect.js'
+import { NfseOutboxPublisherService } from './nfse-issuance/application/nfse-outbox-publisher.service.js'
+import { NfseOutboxRelayService } from './nfse-issuance/application/nfse-outbox-relay.service.js'
+import { DrizzleNfseIssuanceExecutionRepository } from './nfse-issuance/infrastructure/drizzle-nfse-issuance-execution.repository.js'
+import { DrizzleNfseIssuanceWorkerRepository } from './nfse-issuance/infrastructure/drizzle-nfse-issuance-worker.repository.js'
+import { DrizzleNfseIssuanceWriteBackRepository } from './nfse-issuance/infrastructure/drizzle-nfse-issuance-write-back.repository.js'
+import { DrizzleNfseOutboxRepository } from './nfse-issuance/infrastructure/drizzle-nfse-outbox.repository.js'
+import { DrizzleNfseRetryPolicyRepository } from './nfse-issuance/infrastructure/drizzle-nfse-retry-policy.repository.js'
+import { createNfseFiscalGateway } from './nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
+import { startNfseIssuanceConsumer } from './runtime/nfse-issuance-consumer.service.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
 import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
@@ -149,6 +172,13 @@ type MdfeIssuanceMessageKey = {
   readonly manifestId: string
 }
 
+type NfseIssuanceMessageKey = {
+  readonly attemptId: string
+  readonly companyId: string
+  readonly eventId: string
+  readonly invoiceId: string
+}
+
 type WorkerRuntimeDependencies = {
   readonly createDatabase?: RuntimeDatabaseFactory
   readonly createLogger?: RuntimeLoggerFactory
@@ -216,6 +246,26 @@ type WorkerRuntimeDependencies = {
       ): Promise<void>
     }
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startNfseIssuanceConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly effect: {
+      execute(params: { readonly envelope: NfseProcessingEnvelopeV1 }): Promise<void>
+    }
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+    readonly repository: {
+      hasProcessed(input: NfseIssuanceMessageKey): Promise<boolean>
+      markDeadLettered(input: NfseIssuanceMessageKey & { readonly reason: string }): Promise<void>
+      markProcessed(input: NfseIssuanceMessageKey): Promise<void>
+      scheduleRetry(input: NfseIssuanceMessageKey & { readonly nextAttemptAt: Date }): Promise<void>
+    }
+  }) => Promise<RuntimeConsumer | undefined>
+  readonly startInvitationDeliveryConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: InvitationDeliveryDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startFoundationSyntheticConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly logger: WorkerLogger
@@ -253,6 +303,9 @@ export async function startWorkerRuntime(
   const distributionStarter = dependencies.startDistributionConsumer ?? startNfeDistributionConsumer
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
+  const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
+  const invitationDeliveryStarter =
+    dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
     dependencies.createStorageGateway ??
@@ -308,6 +361,12 @@ export async function startWorkerRuntime(
   const mdfeIssuanceTopology = buildMdfeIssuanceRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const nfseIssuanceTopology = buildNfseIssuanceRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
+  const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
@@ -321,6 +380,12 @@ export async function startWorkerRuntime(
   let mdfeIssuanceConsumer: RuntimeConsumer | undefined
   let mdfeIssuancePublisher: RabbitMqProvider | undefined
   let mdfeRelayLoop: OutboxRelayLoop | undefined
+  let nfseIssuanceConsumer: RuntimeConsumer | undefined
+  let nfseIssuancePublisher: RabbitMqProvider | undefined
+  let nfseRelayLoop: OutboxRelayLoop | undefined
+  let invitationDeliveryConsumer: RuntimeConsumer | undefined
+  let invitationDeliveryPublisher: RabbitMqProvider | undefined
+  let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
 
   try {
@@ -343,6 +408,14 @@ export async function startWorkerRuntime(
     mdfeIssuancePublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: mdfeIssuanceTopology,
+    })
+    nfseIssuancePublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: nfseIssuanceTopology,
+    })
+    invitationDeliveryPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: invitationDeliveryTopology,
     })
     const healthService = new WorkerHealthService({
       database,
@@ -523,6 +596,60 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    const nfseIssuanceWriteBack = new DrizzleNfseIssuanceWriteBackRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
+    nfseIssuanceConsumer = await nfseIssuanceStarter({
+      config,
+      effect: createNfseIssuanceWorkerEffect({
+        executionInput: new DrizzleNfseIssuanceExecutionRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        gateway: createNfseFiscalGateway({
+          config: config.nfseProvider,
+          fetch: (input, init) => fetch(input, init),
+          secretService: createNfseCredentialSecretService({
+            envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+          }),
+        }),
+        writeBack: nfseIssuanceWriteBack,
+      }),
+      logger,
+      provider: nfseIssuancePublisher,
+      repository: new DrizzleNfseIssuanceWorkerRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        nfseIssuanceWriteBack,
+      ),
+      retryPolicyResolver: new DrizzleNfseRetryPolicyRepository(
+        database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      ),
+    })
+    invitationDeliveryConsumer = await invitationDeliveryStarter({
+      config,
+      dependencies: {
+        // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
+        // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
+        channels: createInvitationChannelGateway(
+          config.emailDelivery === undefined
+            ? {}
+            : {
+                email: createSmtpEmailProvider({
+                  from: config.emailDelivery.from,
+                  smtpUrl: config.emailDelivery.smtpUrl,
+                }),
+              },
+        ),
+        envelopeProvider: createInvitationCodeSecretGateway({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+        invitations: new DrizzleInvitationDeliveryRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        logger,
+      },
+      logger,
+      provider: invitationDeliveryPublisher,
+    })
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -600,11 +727,57 @@ export async function startWorkerRuntime(
       }),
     })
     mdfeRelayLoop.start()
+    nfseRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.nfse.relay.${crypto.randomUUID()}`,
+      failureMessage: 'nfse_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new NfseOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new NfseOutboxPublisherService(nfseIssuancePublisher),
+        repository: new DrizzleNfseOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error ? error : new Error('NFS-e outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    nfseRelayLoop.start()
+    invitationDeliveryRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
+      failureMessage: 'invitation_delivery_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new InvitationDeliveryOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new InvitationDeliveryOutboxPublisherService(invitationDeliveryPublisher),
+        repository: new DrizzleInvitationDeliveryOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('Invitation delivery outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    invitationDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
         relayLoop,
         cteRelayLoop,
         mdfeRelayLoop,
+        nfseRelayLoop,
+        invitationDeliveryRelayLoop,
         storageGateway,
         // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
         // processo pela rede. Depois deles não há mais para onde mandar nada.
@@ -622,6 +795,8 @@ export async function startWorkerRuntime(
         distributionConsumer,
         cteIssuanceConsumer,
         mdfeIssuanceConsumer,
+        nfseIssuanceConsumer,
+        invitationDeliveryConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -631,6 +806,8 @@ export async function startWorkerRuntime(
         distributionPublisher,
         cteIssuancePublisher,
         mdfeIssuancePublisher,
+        nfseIssuancePublisher,
+        invitationDeliveryPublisher,
       ]),
     })
     runtimeShutdown.resolve(shutdown)
@@ -651,15 +828,21 @@ export async function startWorkerRuntime(
     await distributionConsumer?.cancel().catch(() => undefined)
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
+    await nfseIssuanceConsumer?.cancel().catch(() => undefined)
+    await invitationDeliveryConsumer?.cancel().catch(() => undefined)
+    await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
+    await nfseRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
     await importPublisher?.close().catch(() => undefined)
     await cteIssuancePublisher?.close().catch(() => undefined)
     await mdfeIssuancePublisher?.close().catch(() => undefined)
+    await nfseIssuancePublisher?.close().catch(() => undefined)
+    await invitationDeliveryPublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
     // Sinal que chegou no meio do boot está esperando o desligamento existir. Ele não vai existir.

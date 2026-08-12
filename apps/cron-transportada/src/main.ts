@@ -11,8 +11,8 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { CRON_PROJECT_NAME, CRON_VERSION } from './config/cron.constant.js'
 import { parseCronEnvironment } from './config/environment.schema.js'
+import { resolveCronJob } from './job-registry.js'
 import { createCronLogger, runWithCycleContext } from './logging/cycle-logger.service.js'
-import { resolveCronJob } from './nfe-distribution-pull/job-registry.js'
 import { createErrorTracker } from './observability/sentry.service.js'
 
 const CRON_CONNECTION_MAX_SOCKETS = 1

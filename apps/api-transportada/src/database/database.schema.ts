@@ -65,6 +65,19 @@ import {
   mdfeManifests,
   mdfeProcessedMessages,
 } from './mdfe.schema.js'
+import {
+  nfseEmissionProfiles,
+  nfseFiscalDocuments,
+  nfseIssuanceAttempts,
+  nfseIssuanceEvents,
+  nfseIssuanceOutbox,
+  nfseIssuancePayloads,
+  nfseProcessedMessages,
+  nfseProviderCredentials,
+  nfseServiceInvoiceCharges,
+  nfseServiceInvoiceDocuments,
+  nfseServiceInvoices,
+} from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
@@ -81,6 +94,7 @@ export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './freight.schema.js'
 export * from './mdfe.schema.js'
+export * from './nfse.schema.js'
 export * from './identity.schema.js'
 export * from './nfe.schema.js'
 export * from './processing.schema.js'
@@ -136,6 +150,17 @@ export const databaseSchema = {
   nfeParticipants,
   nfeProducts,
   nfeVolumes,
+  nfseEmissionProfiles,
+  nfseFiscalDocuments,
+  nfseIssuanceAttempts,
+  nfseIssuanceEvents,
+  nfseIssuanceOutbox,
+  nfseIssuancePayloads,
+  nfseProcessedMessages,
+  nfseProviderCredentials,
+  nfseServiceInvoiceCharges,
+  nfseServiceInvoiceDocuments,
+  nfseServiceInvoices,
   processedMessages,
   processingJobs,
   processingOutbox,

@@ -48,6 +48,21 @@ import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.route
 import { createCteEmissionProfilesUseCase } from './cte-profiles/application/cte-emission-profiles.use-case'
 import { DrizzleCteEmissionProfileRepository } from './cte-profiles/infrastructure/drizzle-cte-emission-profile.repository'
 import { createCteEmissionProfileRoutes } from './cte-profiles/presentation/cte-emission-profiles.routes'
+import { createNfseCredentialSecretService } from './nfse-profiles/application/nfse-credential-secret.service.js'
+import { createNfseEmissionProfilesUseCase } from './nfse-profiles/application/nfse-emission-profiles.use-case.js'
+import { createNfseProviderCredentialsUseCase } from './nfse-profiles/application/nfse-provider-credentials.use-case.js'
+import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/drizzle-nfse-profile.repository.js'
+import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
+import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
+import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
+import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
+import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
+import { DrizzleNfseInvoiceRepository } from './nfse-invoices/infrastructure/drizzle-nfse-invoice.repository.js'
+import { createNfseFiscalDocumentArchiveGateway } from './nfse-invoices/infrastructure/nfse-fiscal-document-archive.gateway.js'
+import { createNfseInvoiceRoutes } from './nfse-invoices/presentation/nfse-invoices.routes.js'
+import { createNotifyNfseCallbackUseCase } from './nfse-callbacks/application/notify-nfse-callback.use-case.js'
+import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/drizzle-nfse-callback.repository.js'
+import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
 import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
@@ -116,6 +131,8 @@ import { DrizzleExternalIdentityRepository } from './identity/infrastructure/dri
 import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { DrizzleCompanyUserRepository } from './identity/infrastructure/drizzle-company-user.repository'
+import { createInvitationCodeSecretService } from './identity/application/invitation-code-secret.service.js'
+import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository'
 import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
@@ -143,7 +160,7 @@ import { createGetViewPreferencesUseCase } from './view-preferences/application/
 import { createSaveViewPreferencesUseCase } from './view-preferences/application/save-view-preferences.use-case'
 import { DrizzleViewPreferencesRepository } from './view-preferences/infrastructure/drizzle-view-preferences.repository'
 import { createViewPreferencesRoutes } from './view-preferences/presentation/view-preferences.routes'
-import type { ApiEnvironment } from './shared/api.types'
+import type { ApiEnvironment, ApiLogger } from './shared/api.types'
 import {
   createShutdownHandler,
   registerShutdownSignals,
@@ -185,7 +202,7 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new DrizzleMembershipRepository(database.db),
   })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db }),
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
@@ -243,16 +260,27 @@ function createApiLogger(
 type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
+  readonly logger: ApiLogger
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
 function createAnonymousRoutes({
   config,
   database,
+  logger,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
-  if (config.companyId === undefined) return []
+  // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
+  const nfseCallbackRoutes = createNfseCallbackRoutes({
+    callbackBaseUrl: config.nfseCallbackBaseUrl,
+    logger,
+    notifyNfseCallback: createNotifyNfseCallbackUseCase({
+      repository: new DrizzleNfseCallbackRepository(database),
+    }),
+  })
+  if (config.companyId === undefined) return nfseCallbackRoutes
 
   return [
+    ...nfseCallbackRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -320,6 +348,8 @@ function createApplicationRoutes({
   const tripRepository = new DrizzleTripRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
+  const nfseProfileRepository = new DrizzleNfseProfileRepository(database)
+  const nfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database)
   const billingRepository = new DrizzleBillingRepository(database)
   const cteIssuanceRepository = new DrizzleCteIssuanceRepository(database)
   const operationsRepository = new DrizzleOperationsRepository(database)
@@ -398,6 +428,27 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: cteEmissionProfileRepository,
   })
+  const envelopeProvider = createSecretEnvelopeProvider(envelopeKeyRing)
+  const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
+    fingerprintService,
+    unitOfWork: nfseProfileRepository,
+  })
+  const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
+    secretService: createNfseCredentialSecretService({ envelopeProvider }),
+    unitOfWork: nfseProfileRepository,
+  })
+  const nfseInvoices = createNfseInvoiceUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
+  const nfseInvoiceQuery = createNfseInvoiceQueryUseCase({
+    archive: createNfseFiscalDocumentArchiveGateway({ storage: storageGateway }),
+    repository: nfseInvoiceRepository,
+  })
+  const cancelNfseInvoice = createNfseInvoiceCancellationUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
   const previewCteBatches = createPreviewCteBatchUseCase({
     clock: { now: () => new Date() },
     profiles: cteEmissionProfileCatalog,
@@ -454,28 +505,32 @@ function createApplicationRoutes({
     createCertificateId: () => crypto.randomUUID(),
     fingerprintService,
     repository: certificateRepository,
-    secretService: createDigitalCertificateSecretService({
-      envelopeProvider: createSecretEnvelopeProvider(envelopeKeyRing),
-    }),
+    secretService: createDigitalCertificateSecretService({ envelopeProvider }),
   })
   const companyUserRepository = new DrizzleCompanyUserRepository(database)
   const invitationRepository = new DrizzleInvitationRepository(database)
+  const invitationDeliveryOutbox = new DrizzleInvitationDeliveryOutboxRepository(database)
+  const invitationCodeSecret = createInvitationCodeSecretService({ envelopeProvider })
   const identityAccessGateway = createIdentityAccessGateway({
     clientId: keycloak.admin.clientId,
     clientSecret: keycloak.admin.clientSecret,
     issuer: keycloak.issuer,
   })
   const inviteCompanyUser = createInviteCompanyUserUseCase({
+    envelopeProvider: invitationCodeSecret,
     identityGateway: identityAccessGateway,
     invitations: invitationRepository,
     issuer: keycloak.issuer,
     now: () => new Date(),
+    outbox: invitationDeliveryOutbox,
     repository: companyUserRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
   const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
+    envelopeProvider: invitationCodeSecret,
     invitations: invitationRepository,
     now: () => new Date(),
+    outbox: invitationDeliveryOutbox,
     repository: companyUserRepository,
   })
   const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
@@ -672,6 +727,30 @@ function createApplicationRoutes({
         issue: (input) => cteIssuance.issue(input),
         reprocess: (input) => cteIssuance.reprocess(input),
         listDocuments: (input) => cteIssuance.listDocuments(input),
+      },
+    }),
+    ...createNfseEmissionProfileRoutes({
+      activateProfile: { execute: (input) => nfseEmissionProfiles.activate(input) },
+      createProfile: { execute: (input) => nfseEmissionProfiles.create(input) },
+      deactivateProfile: { execute: (input) => nfseEmissionProfiles.deactivate(input) },
+      listProfiles: { execute: (input) => nfseEmissionProfiles.list(input) },
+      updateProfile: { execute: (input) => nfseEmissionProfiles.update(input) },
+    }),
+    ...createNfseProviderCredentialRoutes({
+      readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
+      saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },
+    }),
+    ...createNfseInvoiceRoutes({
+      cancelNfseInvoice: { execute: (input) => cancelNfseInvoice.execute(input) },
+      nfseInvoice: {
+        create: (input) => nfseInvoices.create(input),
+        preview: (input) => nfseInvoices.preview(input),
+      },
+      nfseInvoiceQuery: {
+        detail: (input) => nfseInvoiceQuery.detail(input),
+        documents: (input) => nfseInvoiceQuery.documents(input),
+        download: (input) => nfseInvoiceQuery.download(input),
+        list: (input) => nfseInvoiceQuery.list(input),
       },
     }),
     ...createOperationsRoutes({
