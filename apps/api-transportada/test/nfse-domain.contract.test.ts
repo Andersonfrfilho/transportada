@@ -1,0 +1,6 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import './nfse-domain/description.contract.js'
+import './nfse-domain/selection.contract.js'
+import './nfse-domain/state.contract.js'

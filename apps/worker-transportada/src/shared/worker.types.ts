@@ -11,10 +11,32 @@ export type CteTechnicalResponsibleEnvironment = {
   readonly xContato: string
 }
 
+/** Remetente e conexão SMTP da instalação — em dev aponta para o Mailpit do `docker-compose.yml`. */
+export type EmailDeliveryEnvironment = {
+  readonly from: string
+  readonly smtpUrl: string
+}
+
+/**
+ * O endereço da Nota RP é da instalação, um por ambiente fiscal. Ausente significa provedor não
+ * contratado: o trilho continua subindo e drenando, e a tentativa registra a causa própria em vez
+ * de bater numa URL vazia.
+ */
+export type NfseProviderEnvironment = {
+  readonly baseUrls: {
+    readonly homologation: string | undefined
+    readonly production: string | undefined
+  }
+  readonly timeoutMilliseconds: number
+}
+
 export type WorkerEnvironment = {
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
+  /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */
+  readonly emailDelivery?: EmailDeliveryEnvironment
+  readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
   readonly logLevel: LogLevel

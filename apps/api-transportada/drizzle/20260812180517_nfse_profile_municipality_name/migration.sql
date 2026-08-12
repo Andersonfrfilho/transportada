@@ -1,0 +1,2 @@
+ALTER TABLE "nfse_emission_profiles" ADD COLUMN "municipality_name" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "nfse_emission_profiles" ADD CONSTRAINT "nfse_emission_profiles_municipality_name_check" CHECK (length("municipality_name") > 0 and length("municipality_name") <= 60);

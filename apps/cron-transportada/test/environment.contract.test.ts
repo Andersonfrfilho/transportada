@@ -24,6 +24,8 @@ describe('cron environment contract', () => {
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'homologation',
       logLevel: 'info',
+      // O deploy da busca de notas continua subindo sem chaveiro, sem bucket e sem prefeitura.
+      nfseStatusPull: undefined,
       pageSize: 50,
       logSinkUrl: undefined,
       sentryDsn: undefined,

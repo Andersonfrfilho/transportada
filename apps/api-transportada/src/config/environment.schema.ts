@@ -85,6 +85,17 @@ const environmentSchema = z.object({
     })
     .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  // Endereço público desta instalação, por onde a prefeitura devolve o postback de NFS-e. Vazio
+  // significa callback não publicado, e aí a rota anônima nem é registrada. Não é segredo — o
+  // segredo é o token opaco por empresa, que vive no banco e nunca sai em variável de ambiente.
+  NFSE_CALLBACK_BASE_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo. Expressão que a
   // política não sabe resolver derruba o boot: melhor não subir do que servir data inventada.
   SCHEDULED_DISTRIBUTION_CRON: z
@@ -120,6 +131,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       jwksUri: parsed.KEYCLOAK_JWKS_URI,
     },
     logLevel: parsed.LOG_LEVEL,
+    nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     port: parsed.APP_PORT,
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: parsed.LOG_SINK_URL,

@@ -5,8 +5,7 @@
  * adapters into the pure cycle orchestrator. One instance holds the advisory
  * lock, selects eligible companies and enqueues an automation import each.
  */
-import type { CronEnvironment, CronLogger } from '../config/cron.types.js'
-import type { CronDatabase } from '../database/cron-database.types.js'
+import type { CronJobDependencies } from '../config/cron.types.js'
 import { createEnqueueDistributionUseCase } from './application/enqueue-distribution.use-case.js'
 import { runDistributionPullCycle } from './application/run-cycle.js'
 import type { DistributionPullCycleResult } from './application/run-cycle.js'
@@ -16,16 +15,8 @@ import { createDrizzleAdvisoryLock } from './infrastructure/drizzle-advisory-loc
 import { createDrizzleDistributionCandidateSource } from './infrastructure/drizzle-distribution-candidate.source.js'
 import { createDrizzleDistributionEnqueueGateway } from './infrastructure/drizzle-distribution-enqueue.gateway.js'
 
-export type DistributionPullJobDependencies = {
-  readonly config: CronEnvironment
-  readonly correlationId: string
-  readonly db: CronDatabase
-  readonly logger: CronLogger
-  readonly now: Date
-}
-
 export function runNfeDistributionPullJob(
-  dependencies: DistributionPullJobDependencies,
+  dependencies: CronJobDependencies,
 ): Promise<DistributionPullCycleResult> {
   const selectEligibleUseCase = createSelectEligibleCompaniesUseCase({
     logger: dependencies.logger,
