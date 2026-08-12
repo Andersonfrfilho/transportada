@@ -125,10 +125,22 @@ não há loop nem agendador embutido. Sai com código 1 só quando alguma empres
 advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`max: 1`) para o lock de
 sessão valer por todas as transações do ciclo.
 
-`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `nfe-distribution-pull/job-registry.ts`
-mapeia o nome para a função. Hoje há um job só: `nfe.distribution.pull` — seleciona as empresas
-elegíveis e enfileira uma importação `source: 'distribution'`, `triggeredBy: 'automation'` na
-`processing_outbox`, reusando o relay e o consumidor de distribuição que já existiam.
+`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `src/job-registry.ts` mapeia o
+nome para a função. Dois jobs:
+
+- `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
+  `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
+  consumidor de distribuição que já existiam.
+- `nfse.status.pull` — reconcilia NFS-e com a prefeitura: consulta a situação de cada nota pendente,
+  arquiva XML e PDF no bucket na autorização, grava a rejeição com código e mensagem. Aqui o cron
+  **processa** em vez de enfileirar (desvio deliberado da regra geral): o consumidor seria dele
+  mesmo. Quem decide a transição é o banco — todo `UPDATE` de liquidação projeta o status de origem
+  no `WHERE` e devolve `RETURNING`; sem linha, a escrita inteira é abandonada. O XML é o documento
+  fiscal e sem ele a nota não liquida; o PDF é conveniência, e sua falta só é registrada.
+
+O bloco de configuração de NFS-e (chaveiro, bucket, endereço da prefeitura) só é resolvido quando
+`CRON_JOB` é `nfse.status.pull` — o deploy da busca de notas continua subindo sem nenhum deles, e o
+de NFS-e falha no boot se faltar algum.
 
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
@@ -136,6 +148,17 @@ vocabulário de razões, duas apps que não importam código uma da outra. Mudou
 mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda a paridade do corpo
 servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
 vocabulário no cron.
+
+⚠️ O trilho de NFS-e do cron carrega quatro **cópias por valor** do worker:
+`nfse-status-pull/infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+`nfse-status-pull/application/nfse-credential-secret.service.ts` e
+`src/database/nfse-reconciliation.schema.ts` (mais `config/cryptographic-configuration.schema.ts`,
+cópia do parser de chaveiro). São reduções, não espelhos — aqui só se consulta e se baixa documento.
+O que guarda a paridade é comportamento, não diff de texto:
+`test/nfse-status-pull/nota-rp-parity.contract.ts` fixa a mesma tabela de tradução de resposta e de
+causas de falha que o cliente do worker. Mudou o vocabulário da Nota RP de um lado? mude do outro.
+O AAD do envelope tem de ser idêntico ao que selou:
+`transportada:nfse-credential:v1:${companyId}:${credentialId}`.
 
 ## frontend-transportada
 
@@ -201,6 +224,11 @@ em `clearFilterField` do hook; no modo simples o badge do filtro usa `countFilte
 pílula que resume vários filtros declara o próprio peso em `count`. Regra completa na
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
 
+Toda contagem de filtros ativos no botão de ícone vem de `@/components/ui/count-badge` — o badge fica
+no canto (`position: absolute`), e todo `.iconAction`/`.iconActionActive` declara `position: relative`
+para ancorá-lo. Em fluxo o número estourava a borda do botão, que tem largura fixa. Regra na § 9 de
+`docs/frontend/data-tables.md`, contrato em `test/design-system/count-badge.contract.ts`.
+
 Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
 renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
 antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
@@ -212,7 +240,15 @@ varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
 Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
-Envs: `VITE_API_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
+Fora de produção a aba leva 🚧 e a tela abre com uma faixa de ambiente. Quem decide é
+`VITE_APP_ENV` (`local` · `staging` · `production`), resolvido em
+`shared/deploymentEnvironment.service.ts`: ausente ou desconhecido cai em `production` — variável
+esquecida no painel não pode fazer a instalação do cliente pedir desculpas. Build de dev (`vite dev`)
+cai em `local` sem configurar nada. Contrato em `test/shared/deployment-environment.contract.ts`,
+que também guarda o `ARG VITE_APP_ENV` do `Dockerfile` — sem ele o valor não entra no bundle.
+
+Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
+`VITE_KEYCLOAK_CLIENT_ID`.
 
 ## Convenções
 
