@@ -14,6 +14,7 @@ import type {
 } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
 import { VehicleIdentityFields } from './VehicleIdentityFields.component'
+import { VehicleOperationFields } from './VehicleOperationFields.component'
 import { VehicleOwnerFields } from './VehicleOwnerFields.component'
 
 type VehicleFormProps = Readonly<{
@@ -32,7 +33,6 @@ export function VehicleForm({ lookup, onCancel, onCreate, onUpdate, vehicle }: V
     onUpdate,
     ...(vehicle === undefined ? {} : { vehicle }),
   })
-  const canLookupPlate = lookup.canLookupPlate
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -42,24 +42,17 @@ export function VehicleForm({ lookup, onCancel, onCreate, onUpdate, vehicle }: V
   return (
     <form className={styles.panel} onSubmit={handleSubmit}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
-      <VehicleIdentityFields state={form.state} onChange={form.patch} />
-      {canLookupPlate ? (
-        <div className={styles.lookupAction}>
-          <Button
-            disabled={form.isLookingUpPlate || form.state.plate === ''}
-            type="button"
-            variant="ghost"
-            onClick={() => void form.lookupPlate()}
-          >
-            <Icon name="search" />
-            {t('lookupPlate')}
-          </Button>
-          <p className={styles.lookupHint}>{t('lookupPlateHint')}</p>
-        </div>
-      ) : null}
-      {form.state.ownership === 'own' ? null : (
-        <VehicleOwnerFields state={form.state} onChange={form.patch} />
-      )}
+      <VehicleIdentityFields
+        lookup={{
+          canLookupPlate: lookup.canLookupPlate,
+          isLookingUpPlate: form.isLookingUpPlate,
+          onLookupPlate: () => void form.lookupPlate(),
+        }}
+        state={form.state}
+        onChange={form.patch}
+      />
+      <VehicleOperationFields state={form.state} onChange={form.patch} />
+      <VehicleOwnerFields state={form.state} onChange={form.patch} />
       {form.feedbackKey === null ? null : (
         <p className={styles.feedback} role="status">
           {t(form.feedbackKey)}

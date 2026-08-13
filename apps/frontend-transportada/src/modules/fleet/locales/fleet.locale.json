@@ -6,6 +6,13 @@
   "error": "Não foi possível carregar a frota",
   "empty": "Nenhum veículo ou motorista cadastrado",
   "readOnly": "Você não tem permissão para gerenciar a frota",
+  "vehiclesEmptyTitle": "Nenhum veículo cadastrado",
+  "vehiclesEmptyHint": "Cadastre a placa, a capacidade e o proprietário de cada veículo — é isso que o MDF-e e o cálculo de frete leem.",
+  "driversEmptyTitle": "Nenhum motorista cadastrado",
+  "driversEmptyHint": "Cadastre CPF e CNH de cada condutor para poder emitir o manifesto e liberar o acesso ao aplicativo.",
+  "filtersEmptyTitle": "Nenhum resultado para este filtro",
+  "filtersEmptyHint": "Ajuste os campos da busca ou limpe os filtros para ver a lista completa.",
+  "clearFilters": "Limpar filtros",
   "tabs": {
     "vehicles": "Veículos",
     "drivers": "Motoristas"
@@ -79,6 +86,7 @@
     "04": "04 — Porta container",
     "05": "05 — Sider"
   },
+  "vehicleOperationLegend": "Capacidade e operação",
   "tareWeightKilograms": "Tara (kg)",
   "capacityKilograms": "Capacidade (kg)",
   "capacityCubicMeters": "Capacidade (m³)",
@@ -93,7 +101,7 @@
   "lookupNotFound": "Nenhum veículo encontrado para essa placa",
   "lookupFailed": "Não foi possível consultar a placa agora",
   "lookupUnavailable": "A consulta por placa não está configurada nesta instalação",
-  "vehicleOwnerLegend": "Proprietário do veículo",
+  "vehicleOwnershipLegend": "Propriedade do veículo",
   "vehicleOwnerHint": "Obrigatório para veículos agregados ou de terceiros — vai no grupo de proprietário do MDF-e.",
   "ownerName": "Nome do proprietário",
   "ownerTaxId": "CPF/CNPJ do proprietário",

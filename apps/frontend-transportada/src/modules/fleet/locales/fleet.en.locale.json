@@ -6,6 +6,13 @@
   "error": "Could not load the fleet",
   "empty": "No vehicle or driver registered",
   "readOnly": "You are not allowed to manage the fleet",
+  "vehiclesEmptyTitle": "No vehicle registered",
+  "vehiclesEmptyHint": "Register the plate, the capacity and the owner of each vehicle — that is what the MDF-e and the freight calculation read.",
+  "driversEmptyTitle": "No driver registered",
+  "driversEmptyHint": "Register the tax id and the license of each driver to issue the manifest and grant access to the app.",
+  "filtersEmptyTitle": "No result for this filter",
+  "filtersEmptyHint": "Adjust the search fields or clear the filters to see the full list.",
+  "clearFilters": "Clear filters",
   "tabs": {
     "vehicles": "Vehicles",
     "drivers": "Drivers"
@@ -79,6 +86,7 @@
     "04": "04 — Container carrier",
     "05": "05 — Sider"
   },
+  "vehicleOperationLegend": "Capacity and operation",
   "tareWeightKilograms": "Tare weight (kg)",
   "capacityKilograms": "Capacity (kg)",
   "capacityCubicMeters": "Capacity (m³)",
@@ -93,7 +101,7 @@
   "lookupNotFound": "No vehicle found for this plate",
   "lookupFailed": "The plate lookup is not answering right now",
   "lookupUnavailable": "The plate lookup is not configured in this installation",
-  "vehicleOwnerLegend": "Vehicle owner",
+  "vehicleOwnershipLegend": "Vehicle ownership",
   "vehicleOwnerHint": "Required for aggregate or third-party vehicles — it fills the MDF-e owner group.",
   "ownerName": "Owner name",
   "ownerTaxId": "Owner tax id",

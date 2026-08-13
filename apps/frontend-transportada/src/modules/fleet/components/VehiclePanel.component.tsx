@@ -15,8 +15,12 @@ import type {
 import { cleanFleetFilters } from '../shared/fleetFilters.service'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
 import styles from '../styles/fleet.module.css'
+import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
+import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import { VehicleList } from './VehicleList.component'
+
+const VEHICLE_COLUMN_COUNT = 5
 
 type VehiclePanelProps = Readonly<{
   actions: Readonly<{
@@ -81,8 +85,55 @@ function VehicleFilterBar({ filters }: Pick<VehiclePanelProps, 'filters'>) {
   )
 }
 
-export function VehiclePanel({ actions, canManageFleet, filters, view }: VehiclePanelProps) {
+function VehiclePanelBody({ actions, canManageFleet, filters, view }: VehiclePanelProps) {
   const { t } = useTranslation('fleet')
+  const status = view.status
+
+  if (status === 'loading') {
+    return (
+      <FleetTableSkeleton
+        columnCount={canManageFleet ? VEHICLE_COLUMN_COUNT + 1 : VEHICLE_COLUMN_COUNT}
+        label={t('loading')}
+      />
+    )
+  }
+  if (status === 'error' || status === 'forbidden') return null
+
+  const vehicles = view.vehicles ?? []
+  if (vehicles.length > 0) {
+    return (
+      <VehicleList
+        canManageFleet={canManageFleet}
+        vehicles={vehicles}
+        onEdit={actions.onEdit}
+        onToggleStatus={actions.onToggleStatus}
+      />
+    )
+  }
+  if (Object.keys(cleanFleetFilters(filters.value)).length > 0) {
+    return (
+      <FleetEmptyState
+        action={{ icon: 'close', label: t('clearFilters'), onAction: () => filters.onChange({}) }}
+        description={t('filtersEmptyHint')}
+        title={t('filtersEmptyTitle')}
+      />
+    )
+  }
+
+  return (
+    <FleetEmptyState
+      {...(canManageFleet
+        ? { action: { icon: 'add' as const, label: t('newVehicle'), onAction: actions.onNew } }
+        : {})}
+      description={t('vehiclesEmptyHint')}
+      title={t('vehiclesEmptyTitle')}
+    />
+  )
+}
+
+export function VehiclePanel(props: VehiclePanelProps) {
+  const { t } = useTranslation('fleet')
+  const { actions, canManageFleet, filters, view } = props
 
   return (
     <section className={styles.panel} aria-labelledby="fleet-vehicles-title">
@@ -97,14 +148,7 @@ export function VehiclePanel({ actions, canManageFleet, filters, view }: Vehicle
       </div>
       <VehicleFilterBar filters={filters} />
       <FleetStatusHint status={view.status} />
-      {view.vehicles === undefined ? null : (
-        <VehicleList
-          canManageFleet={canManageFleet}
-          vehicles={view.vehicles}
-          onEdit={actions.onEdit}
-          onToggleStatus={actions.onToggleStatus}
-        />
-      )}
+      <VehiclePanelBody {...props} />
     </section>
   )
 }

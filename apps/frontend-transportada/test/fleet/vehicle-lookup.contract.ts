@@ -148,17 +148,19 @@ describe('fleet vehicle lookup contract', () => {
     expect(await controller.lookupVehicleByPlate({ plate: 'ABC1D23' })).toEqual(VEHICLE_LOOKUP)
   })
 
-  test('shows the plate lookup action in the vehicle form and names it in both locales', async () => {
-    const [form, ptLocale, enLocale, constants] = await Promise.all([
+  test('shows the plate lookup action beside the plate field and names it in both locales', async () => {
+    const [identityFields, form, ptLocale, enLocale, constants] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/VehicleIdentityFields.component.tsx'),
       readApplicationFile('src/modules/fleet/components/VehicleForm.component.tsx'),
       readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),
       readApplicationFile('src/modules/fleet/locales/fleet.en.locale.json'),
       readApplicationFile('src/modules/fleet/shared/fleet.constant.ts'),
     ])
 
-    expect(form).toContain("t('lookupPlate')")
-    expect(form).toContain('name="search"')
-    expect(form).toContain('canLookupPlate')
+    expect(identityFields).toContain("t('lookupPlate')")
+    expect(identityFields).toContain('name="search"')
+    expect(identityFields).toContain('canLookupPlate')
+    expect(form).toContain('onLookupPlate')
     for (const locale of [ptLocale, enLocale]) {
       const dictionary = JSON.parse(locale) as Record<string, unknown>
       for (const key of ['lookupPlate', 'lookupNotFound', 'lookupFailed', 'lookupUnavailable']) {

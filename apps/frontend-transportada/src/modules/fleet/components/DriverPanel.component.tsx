@@ -15,7 +15,11 @@ import { cleanFleetFilters } from '../shared/fleetFilters.service'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
 import styles from '../styles/fleet.module.css'
 import { DriverList } from './DriverList.component'
+import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
+import { FleetTableSkeleton } from './FleetTableSkeleton.component'
+
+const DRIVER_COLUMN_COUNT = 6
 
 type DriverPanelProps = Readonly<{
   actions: Readonly<{
@@ -65,8 +69,55 @@ function DriverFilterBar({ filters }: Pick<DriverPanelProps, 'filters'>) {
   )
 }
 
-export function DriverPanel({ actions, canManageFleet, filters, view }: DriverPanelProps) {
+function DriverPanelBody({ actions, canManageFleet, filters, view }: DriverPanelProps) {
   const { t } = useTranslation('fleet')
+  const status = view.status
+
+  if (status === 'loading') {
+    return (
+      <FleetTableSkeleton
+        columnCount={canManageFleet ? DRIVER_COLUMN_COUNT + 1 : DRIVER_COLUMN_COUNT}
+        label={t('loading')}
+      />
+    )
+  }
+  if (status === 'error' || status === 'forbidden') return null
+
+  const drivers = view.drivers ?? []
+  if (drivers.length > 0) {
+    return (
+      <DriverList
+        canManageFleet={canManageFleet}
+        drivers={drivers}
+        onEdit={actions.onEdit}
+        onToggleStatus={actions.onToggleStatus}
+      />
+    )
+  }
+  if (Object.keys(cleanFleetFilters(filters.value)).length > 0) {
+    return (
+      <FleetEmptyState
+        action={{ icon: 'close', label: t('clearFilters'), onAction: () => filters.onChange({}) }}
+        description={t('filtersEmptyHint')}
+        title={t('filtersEmptyTitle')}
+      />
+    )
+  }
+
+  return (
+    <FleetEmptyState
+      {...(canManageFleet
+        ? { action: { icon: 'add' as const, label: t('newDriver'), onAction: actions.onNew } }
+        : {})}
+      description={t('driversEmptyHint')}
+      title={t('driversEmptyTitle')}
+    />
+  )
+}
+
+export function DriverPanel(props: DriverPanelProps) {
+  const { t } = useTranslation('fleet')
+  const { actions, canManageFleet, filters, view } = props
 
   return (
     <section className={styles.panel} aria-labelledby="fleet-drivers-title">
@@ -81,14 +132,7 @@ export function DriverPanel({ actions, canManageFleet, filters, view }: DriverPa
       </div>
       <DriverFilterBar filters={filters} />
       <FleetStatusHint status={view.status} />
-      {view.drivers === undefined ? null : (
-        <DriverList
-          canManageFleet={canManageFleet}
-          drivers={view.drivers}
-          onEdit={actions.onEdit}
-          onToggleStatus={actions.onToggleStatus}
-        />
-      )}
+      <DriverPanelBody {...props} />
     </section>
   )
 }
