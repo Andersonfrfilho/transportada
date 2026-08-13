@@ -2505,3 +2505,80 @@ Nenhum número, série ou chave de acesso de NF-e de terceiro nesta evidência �
 citados são de tabela interna. Nenhum CNPJ, razão social, inscrição municipal ou endereço real. O
 token do stub vive só no `.env`, e o bloco NFS-e do `.env` local aponta para o stub em
 `127.0.0.1:54999`, não para a conta real. Nada foi commitado.
+
+## T029a — o segundo serviço de cron, `cron-nfse`
+
+A reconciliação de NFS-e roda no `cron-transportada`, mas o pipeline deployava **um** serviço de
+cron, com `CRON_JOB=nfe.distribution.pull`. Uma NFS-e emitida em produção seria aceita pela
+prefeitura e ficaria em `pending_authorization` para sempre, porque ninguém passaria para consultar
+a situação e arquivar XML e PDF. O cancelamento não sofria — ele é síncrono, pelo worker.
+
+### Contrato antes da implementação (vermelho pelo motivo certo)
+
+`apps/cron-transportada/test/deploy/cron-services.contract.ts`, registrado no entrypoint fino
+`test/deploy.contract.test.ts` e na lista literal do `package.json` da app.
+
+```
+(fail) cada serviço de cron declara o job que roda
+(fail) os dois serviços de cron partem do mesmo Dockerfile e não reiniciam sozinhos
+       ENOENT: deploy/cron-nfse/railway.json
+(fail) o tique da reconciliação de NFS-e não é mais largo que a janela de reconsulta
+       ENOENT: deploy/cron-nfse/railway.json
+(fail) os dois crons sobem depois da API
+       Expected to contain: "cron-nfse"
+       Received: [ "keycloak", "api", "worker", "cron", "transportada-frontend" ]
+
+ 0 pass / 4 fail
+```
+
+As quatro invariantes que ele fixa:
+
+1. `docs/spec/railway.md` declara, para cada serviço de cron, o nome, o caminho do `railway.json` e
+   **o job que ele roda**. Um Dockerfile, um binário, dois serviços: quem decide é `CRON_JOB`, e
+   configurá-la errado não falha em lugar nenhum — apenas roda o outro job de novo.
+2. Os dois partem do mesmo `apps/cron-transportada/Dockerfile`, com `restartPolicyType: NEVER`
+   (processo de ciclo único, não serviço em loop).
+3. O tique do `cron-nfse` não é mais largo que `NFSE_PENDING_RECHECK_MINUTES` (5). Tique maior
+   transformaria o intervalo em promessa vazia: a nota fica elegível e ninguém passa para pegá-la.
+4. Os dois crons sobem **depois** da API no `deploy.yml` — eles leem tabelas que só a migration dela
+   cria.
+
+### Depois (verde)
+
+- `deploy/cron-nfse/railway.json` — `cronSchedule: "*/5 * * * *"`, `restartPolicyType: "NEVER"`,
+  `dockerfilePath: "apps/cron-transportada/Dockerfile"`.
+- `.github/workflows/deploy.yml` — passo `Deploy cron-nfse` entre `Deploy cron` e `Deploy frontend`.
+- `docs/spec/railway.md` — linha na tabela de build, o serviço na topologia e na lista de serviços
+  internos (sem domínio público), o parágrafo explicando que `CRON_JOB` é o único separador e por
+  que o tique é `*/5`, a ordem do pipeline e a contagem de pares serviço/ambiente do config-as-code
+  (dez → doze).
+- `apps/api-transportada/test/deploy/service-naming.contract.ts` — `cron-nfse` entra em
+  `INTERNAL_SERVICES`, para que um domínio público nele reprove no contrato.
+
+```
+bun test ./apps/cron-transportada/test/deploy.contract.test.ts
+ 4 pass / 0 fail
+
+bun run --cwd apps/cron-transportada test
+ 128 pass / 0 fail   (6 arquivos)
+
+bun test ./apps/api-transportada/test/deploy.contract.test.ts
+ 77 pass / 0 fail
+
+bun run --cwd apps/cron-transportada lint      → sem saída
+bun run --cwd apps/cron-transportada typecheck → sem saída
+bunx prettier --check <arquivos tocados>       → All matched files use Prettier code style!
+```
+
+### O que continua sendo passo humano
+
+O serviço `cron-nfse` precisa ser criado no dashboard da Railway em cada ambiente, com
+`CRON_JOB=nfse.status.pull`, `RAILWAY_DOCKERFILE_PATH=apps/cron-transportada/Dockerfile` e o campo
+_Config-as-code_ apontando para `deploy/cron-nfse/railway.json` — sem esse último o `cronSchedule`
+do arquivo é inerte. O bloco `NFSE_*` (chaveiro, bucket, endereço da prefeitura) só é exigido por
+esse job: o deploy do `cron` de busca de notas continua subindo sem nenhum deles.
+
+### Segurança
+
+Nenhum segredo, token, CNPJ ou endereço real nesta evidência. Os únicos valores citados são nome de
+serviço, caminho de arquivo versionado e expressão de cron.

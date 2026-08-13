@@ -164,6 +164,11 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 - [x] **T029** Ponta a ponta local (`make dev`): seleção → prévia → emissão → outbox publicado → fila
       → `pending_authorization` → reconciliação → `authorized` com XML e PDF em `stored_objects`;
       depois cancelamento liberando as notas.
+- [x] **T029a** Serviço `cron-nfse` no pipeline: `deploy/cron-nfse/railway.json` (`*/5 * * * *`,
+      `restartPolicyType: NEVER`, mesmo Dockerfile do `cron`), passo `Deploy cron-nfse` em
+      `deploy.yml` depois da API, e `docs/spec/railway.md` declarando qual `CRON_JOB` cada serviço
+      roda. Sem ele a NFS-e emitida em produção ficaria em `pending_authorization` para sempre.
+      Contrato: `apps/cron-transportada/test/deploy/cron-services.contract.ts`.
 - [ ] **T030** Emissão real de **uma** NFS-e de valor mínimo com a credencial de produção, e medida
       do teto real da `Discriminacao`.
 - [ ] **T031** `make check` verde, `CLAUDE.md` atualizado com o módulo novo, evidência completa, PR.
