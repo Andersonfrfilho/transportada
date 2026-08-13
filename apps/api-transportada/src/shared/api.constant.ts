@@ -44,6 +44,8 @@ export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
 export const API_USER_ACTIVATION_PATH = '/user-activation'
+export const API_PASSWORD_RESETS_PATH = '/password-resets'
+export const API_PASSWORD_RESET_CONFIRM_PATH = '/password-resets/confirm'
 /** Rota anônima: o segmento é segredo, e por isso o caminho fica fora da allowlist de log. */
 export const API_PUBLIC_NFSE_CALLBACKS_PATH = '/public/nfse-callbacks/:token'
 export const CORRELATION_ID_HEADER = 'x-correlation-id'

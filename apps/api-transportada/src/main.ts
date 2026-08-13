@@ -132,6 +132,12 @@ import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bo
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { DrizzleCompanyUserRepository } from './identity/infrastructure/drizzle-company-user.repository'
 import { createInvitationCodeSecretService } from './identity/application/invitation-code-secret.service.js'
+import { createConfirmPasswordResetUseCase } from './identity/application/confirm-password-reset.use-case'
+import { createPasswordResetCodeSecretService } from './identity/application/password-reset-code.service.js'
+import { createRequestPasswordResetUseCase } from './identity/application/request-password-reset.use-case'
+import { DrizzlePasswordResetDeliveryOutboxRepository } from './identity/infrastructure/drizzle-password-reset-delivery-outbox.repository'
+import { DrizzlePasswordResetRepository } from './identity/infrastructure/drizzle-password-reset.repository'
+import { createPasswordResetRoutes } from './identity/presentation/password-reset.routes'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository'
 import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
@@ -304,6 +310,26 @@ function createAnonymousRoutes({
         }),
         invitations: new DrizzleInvitationRepository(database),
         now: () => new Date(),
+      }),
+    }),
+    ...createPasswordResetRoutes({
+      confirmPasswordReset: createConfirmPasswordResetUseCase({
+        identities: new DrizzleCompanyUserRepository(database),
+        identityProvider: createIdentityAccessGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
+        now: () => new Date(),
+        requests: new DrizzlePasswordResetRepository(database),
+      }),
+      requestPasswordReset: createRequestPasswordResetUseCase({
+        envelopeProvider: createPasswordResetCodeSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+        }),
+        now: () => new Date(),
+        outbox: new DrizzlePasswordResetDeliveryOutboxRepository(database),
+        requests: new DrizzlePasswordResetRepository(database),
       }),
     }),
   ]

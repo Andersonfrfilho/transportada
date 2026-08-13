@@ -8,6 +8,7 @@
   "loginWithEmailAllowed": false,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
+  "loginTheme": "transportada",
   "roles": {
     "realm": [
       {

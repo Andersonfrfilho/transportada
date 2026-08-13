@@ -119,6 +119,12 @@ export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] a
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
 export const INVITATION_DELIVERY_TABLES = ['invitation_delivery_outbox'] as const
 
+/** Recuperação de senha (feature 033) — tabela própria, e não um `kind` no convite: ADR-0030. */
+export const PASSWORD_RESET_TABLES = [
+  'password_reset_requests',
+  'password_reset_delivery_outbox',
+] as const
+
 export async function listMigrationDirectories(): Promise<readonly string[]> {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true })
 
@@ -156,6 +162,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...IDENTITY_TABLES,
     ...INVITATION_TABLES,
     ...INVITATION_DELIVERY_TABLES,
+    ...PASSWORD_RESET_TABLES,
     ...FISCAL_TABLES,
     ...FREIGHT_TABLES,
     ...NFE_TABLES,

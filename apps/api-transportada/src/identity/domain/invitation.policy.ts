@@ -76,7 +76,8 @@ export function hashInvitationCode(code: string): string {
   return new Bun.CryptoHasher('sha256').update(code).digest('hex').toLowerCase()
 }
 
-const matchesCodeHash = (storedHash: string, attemptedHash: string): boolean => {
+/** Exportado porque a recuperação de senha compara o mesmo tipo de hash, do mesmo jeito. */
+export const matchesCodeHash = (storedHash: string, attemptedHash: string): boolean => {
   const stored = Buffer.from(storedHash, 'hex')
   const attempted = Buffer.from(attemptedHash, 'hex')
   if (stored.length !== attempted.length || stored.length === 0) return false

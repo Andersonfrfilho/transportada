@@ -68,6 +68,14 @@ import { createInvitationChannelGateway } from './identity/infrastructure/invita
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
 import { startInvitationDeliveryConsumer } from './runtime/invitation-delivery-consumer.service.js'
+import { buildPasswordResetDeliveryRabbitMqTopology } from './messaging/password-reset-delivery-rabbitmq-topology.js'
+import { PasswordResetDeliveryOutboxPublisherService } from './identity/application/password-reset-delivery-outbox-publisher.service.js'
+import { PasswordResetDeliveryOutboxRelayService } from './identity/application/password-reset-delivery-outbox-relay.service.js'
+import { DrizzlePasswordResetDeliveryOutboxRepository } from './identity/infrastructure/drizzle-password-reset-delivery-outbox.repository.js'
+import { DrizzlePasswordResetDeliveryRepository } from './identity/infrastructure/drizzle-password-reset-delivery.repository.js'
+import { createPasswordResetCodeSecretGateway } from './identity/infrastructure/password-reset-code-secret.gateway.js'
+import type { PasswordResetDeliveryDependencies } from './identity/application/deliver-password-reset-code.service.js'
+import { startPasswordResetDeliveryConsumer } from './runtime/password-reset-delivery-consumer.service.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -266,6 +274,12 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startPasswordResetDeliveryConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: PasswordResetDeliveryDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startFoundationSyntheticConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly logger: WorkerLogger
@@ -306,6 +320,8 @@ export async function startWorkerRuntime(
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
+  const passwordResetDeliveryStarter =
+    dependencies.startPasswordResetDeliveryConsumer ?? startPasswordResetDeliveryConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
     dependencies.createStorageGateway ??
@@ -367,6 +383,9 @@ export async function startWorkerRuntime(
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const passwordResetDeliveryTopology = buildPasswordResetDeliveryRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
@@ -386,6 +405,9 @@ export async function startWorkerRuntime(
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
+  let passwordResetDeliveryConsumer: RuntimeConsumer | undefined
+  let passwordResetDeliveryPublisher: RabbitMqProvider | undefined
+  let passwordResetDeliveryRelayLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
 
   try {
@@ -416,6 +438,10 @@ export async function startWorkerRuntime(
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: invitationDeliveryTopology,
+    })
+    passwordResetDeliveryPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: passwordResetDeliveryTopology,
     })
     const healthService = new WorkerHealthService({
       database,
@@ -650,6 +676,32 @@ export async function startWorkerRuntime(
       logger,
       provider: invitationDeliveryPublisher,
     })
+    passwordResetDeliveryConsumer = await passwordResetDeliveryStarter({
+      config,
+      dependencies: {
+        // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
+        // válido para reenvio — quem falhou foi o transporte.
+        channels: createInvitationChannelGateway(
+          config.emailDelivery === undefined
+            ? {}
+            : {
+                email: createSmtpEmailProvider({
+                  from: config.emailDelivery.from,
+                  smtpUrl: config.emailDelivery.smtpUrl,
+                }),
+              },
+        ),
+        envelopeProvider: createPasswordResetCodeSecretGateway({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+        logger,
+        resets: new DrizzlePasswordResetDeliveryRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      },
+      logger,
+      provider: passwordResetDeliveryPublisher,
+    })
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -771,6 +823,29 @@ export async function startWorkerRuntime(
       }),
     })
     invitationDeliveryRelayLoop.start()
+    passwordResetDeliveryRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.password-reset-delivery.relay.${crypto.randomUUID()}`,
+      failureMessage: 'password_reset_delivery_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new PasswordResetDeliveryOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new PasswordResetDeliveryOutboxPublisherService(passwordResetDeliveryPublisher),
+        repository: new DrizzlePasswordResetDeliveryOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('Password reset delivery outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    passwordResetDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
         relayLoop,
@@ -778,6 +853,7 @@ export async function startWorkerRuntime(
         mdfeRelayLoop,
         nfseRelayLoop,
         invitationDeliveryRelayLoop,
+        passwordResetDeliveryRelayLoop,
         storageGateway,
         // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
         // processo pela rede. Depois deles não há mais para onde mandar nada.
@@ -797,6 +873,7 @@ export async function startWorkerRuntime(
         mdfeIssuanceConsumer,
         nfseIssuanceConsumer,
         invitationDeliveryConsumer,
+        passwordResetDeliveryConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -808,6 +885,7 @@ export async function startWorkerRuntime(
         mdfeIssuancePublisher,
         nfseIssuancePublisher,
         invitationDeliveryPublisher,
+        passwordResetDeliveryPublisher,
       ]),
     })
     runtimeShutdown.resolve(shutdown)
@@ -831,6 +909,8 @@ export async function startWorkerRuntime(
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
+    await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
+    await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
@@ -843,6 +923,7 @@ export async function startWorkerRuntime(
     await mdfeIssuancePublisher?.close().catch(() => undefined)
     await nfseIssuancePublisher?.close().catch(() => undefined)
     await invitationDeliveryPublisher?.close().catch(() => undefined)
+    await passwordResetDeliveryPublisher?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
     // Sinal que chegou no meio do boot está esperando o desligamento existir. Ele não vai existir.

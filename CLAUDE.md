@@ -74,6 +74,17 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `context.companyId` e filtra por ele. Testes de isolamento em `test/*-schema/tenant-safety.contract.ts`
 são obrigatórios em qualquer mudança de query.
 
+**Recuperação de senha:** `POST /password-resets` e `POST /password-resets/confirm` são as **únicas
+rotas anônimas** da API. A primeira responde `204` sempre — login inexistente, desabilitado e válido
+são indistinguíveis, e é isso que impede a enumeração de usuários; o cliente do frontend engole
+falha de rede pelo mesmo motivo. O código é de uso único, expira em 15 minutos e sai por
+`password-reset-delivery.v1` no worker, com o envelope carregando só referência (`requestId`,
+`userId`) e AAD `transportada:password-reset:v1:${companyId}:${requestId}` — amarrado ao **pedido**,
+não ao usuário como no convite, porque a mesma pessoa abre vários pedidos. O Keycloak é só o
+depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "Esqueci minha senha"
+do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
+— não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
+
 **Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
 `ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba
@@ -225,9 +236,11 @@ pílula que resume vários filtros declara o próprio peso em `count`. Regra com
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
 
 Toda contagem de filtros ativos no botão de ícone vem de `@/components/ui/count-badge` — o badge fica
-no canto (`position: absolute`), e todo `.iconAction`/`.iconActionActive` declara `position: relative`
-para ancorá-lo. Em fluxo o número estourava a borda do botão, que tem largura fixa. Regra na § 9 de
-`docs/frontend/data-tables.md`, contrato em `test/design-system/count-badge.contract.ts`.
+**ao lado do ícone, dentro do botão**, e a regra global `button:has([data-count-badge])` em
+`src/styles/index.css` troca a largura fixa do botão por `width: auto` + `padding-inline`. No canto
+(`position: absolute`) ele ficava pendurado por cima da borda e era recortado pelo `overflow` da barra
+de ações. Regra na § 9 de `docs/frontend/data-tables.md`, contrato em
+`test/design-system/count-badge.contract.ts`.
 
 Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
 renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
@@ -246,6 +259,13 @@ Fora de produção a aba leva 🚧 e a tela abre com uma faixa de ambiente. Quem
 esquecida no painel não pode fazer a instalação do cliente pedir desculpas. Build de dev (`vite dev`)
 cai em `local` sem configurar nada. Contrato em `test/shared/deployment-environment.contract.ts`,
 que também guarda o `ARG VITE_APP_ENV` do `Dockerfile` — sem ele o valor não entra no bundle.
+
+A tela de login **não é desta app**: é o tema Keycloak em `deploy/keycloak/theme/`, montado pelo
+`compose.yaml` e copiado pelo `deploy/keycloak/Dockerfile` — o mesmo diretório nos dois caminhos.
+Herda de `base` (não de `keycloak.v2`, que arrasta o PatternFly) e reescreve `template.ftl` e
+`login.ftl`; os tokens de design são **cópia por valor** de `src/styles/index.css`, porque o tema
+não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra completa em
+`docs/frontend/login-theme.md`.
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.

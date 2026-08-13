@@ -28,6 +28,7 @@ import {
   nfeProducts,
   nfeVolumes,
 } from './nfe.schema.js'
+import { passwordResetDeliveryOutbox, passwordResetRequests } from './password-reset.schema.js'
 import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
@@ -107,6 +108,7 @@ export * from './view-preferences.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
+export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
@@ -161,6 +163,8 @@ export const databaseSchema = {
   nfseServiceInvoiceCharges,
   nfseServiceInvoiceDocuments,
   nfseServiceInvoices,
+  passwordResetDeliveryOutbox,
+  passwordResetRequests,
   processedMessages,
   processingJobs,
   processingOutbox,

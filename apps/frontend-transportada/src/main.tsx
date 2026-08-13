@@ -22,6 +22,7 @@ import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
+import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import {
   getKeycloakAuthProvider,
@@ -469,6 +470,16 @@ async function bootstrapApplication(): Promise<void> {
     createRoot(applicationRootElement).render(
       <StrictMode>
         <FirstAccessPage />
+      </StrictMode>,
+    )
+    return
+  }
+
+  // A tela de login é do Keycloak; a de recuperação é nossa, e precisa abrir sem sessão nenhuma.
+  if (window.location.pathname === '/recuperar-senha') {
+    createRoot(applicationRootElement).render(
+      <StrictMode>
+        <PasswordResetPage />
       </StrictMode>,
     )
     return

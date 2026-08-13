@@ -10,5 +10,16 @@
   "token": "Bootstrap token",
   "submit": "Create administrator",
   "submitting": "Creating administrator...",
-  "unavailable": "First access could not be completed. Check the data and the token, then try again."
+  "unavailable": "First access could not be completed. Check the data and the token, then try again.",
+  "resetTitle": "Reset password",
+  "resetDescription": "Enter your username. If it exists, we send a code to the registered contact.",
+  "resetUsername": "Username",
+  "resetCode": "Code received",
+  "resetNewPassword": "New password",
+  "resetRequestSubmit": "Send code",
+  "resetConfirmSubmit": "Set new password",
+  "resetCodeSent": "If the username exists, the code is on its way to the registered contact. It is valid for 15 minutes.",
+  "resetRejected": "Could not finish the reset. Check the code and the password and try again.",
+  "resetDone": "Password changed. You can sign in with the new password.",
+  "resetBackToLogin": "Back to sign in"
 }

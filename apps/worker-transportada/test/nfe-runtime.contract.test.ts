@@ -134,6 +134,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('invitationDelivery.cancel')
           },
         }),
+        startPasswordResetDeliveryConsumer: async () => ({
+          cancel: async () => {
+            calls.push('passwordResetDelivery.cancel')
+          },
+        }),
         startFoundationSyntheticConsumer: async () => ({
           cancel: async () => {
             calls.push('synthetic.cancel')
@@ -172,6 +177,7 @@ describe('NF-e worker runtime contract', () => {
       'mdfeIssuance.cancel',
       'nfseIssuance.cancel',
       'invitationDelivery.cancel',
+      'passwordResetDelivery.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-import.v1.main.queue',
@@ -180,6 +186,7 @@ describe('NF-e worker runtime contract', () => {
       'provider.close:transportada.runtime.contract.mdfe-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfse-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.invitation-delivery.v1.main.queue',
+      'provider.close:transportada.runtime.contract.password-reset-delivery.v1.main.queue',
       'database.close',
       'health.stop',
     ])
@@ -237,6 +244,7 @@ describe('NF-e worker runtime contract', () => {
         startMdfeIssuanceConsumer: async () => undefined,
         startNfseIssuanceConsumer: async () => undefined,
         startInvitationDeliveryConsumer: async () => undefined,
+        startPasswordResetDeliveryConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {
           return {

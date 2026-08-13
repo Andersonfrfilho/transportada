@@ -94,6 +94,9 @@ const noopRuntimeDependencies = {
   startMdfeIssuanceConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startNfseIssuanceConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startInvitationDeliveryConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
+  startPasswordResetDeliveryConsumer: async () => ({
+    cancel: async (): Promise<void> => undefined,
+  }),
 }
 
 let restoreSignalListeners: (() => void) | undefined
