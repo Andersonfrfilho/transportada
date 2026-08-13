@@ -1012,7 +1012,6 @@
 }
 
 .iconAction {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1213,7 +1212,6 @@
 }
 
 .iconActionActive {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1222,6 +1220,20 @@
   padding: 0;
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);
+  cursor: pointer;
+  background: var(--color-copper);
+}
+
+/* Mesma linguagem cobre do botão de ícone, mas com rótulo: a caixa quadrada quebrava o texto. */
+.labelActionActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-copper);
+  color: var(--color-asphalt);
+  white-space: nowrap;
   cursor: pointer;
   background: var(--color-copper);
 }

@@ -34,7 +34,6 @@
 }
 
 .iconAction {
-  position: relative;
   display: inline-flex;
   width: 2.25rem;
   height: 2.25rem;
@@ -47,7 +46,6 @@
 }
 
 .iconActionActive {
-  position: relative;
   display: inline-flex;
   width: 2.25rem;
   height: 2.25rem;

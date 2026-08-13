@@ -101,7 +101,6 @@
 }
 
 .iconAction {
-  position: relative;
   padding: var(--space-1);
   border: 0;
   color: inherit;

@@ -45,10 +45,16 @@ O sintoma que essa regra apaga é o ícone colado no rótulo — foi assim que "
 - **Não declara `gap` fora da escala.** Se o espaçamento precisa mudar naquele botão, é
   `var(--space-1)` ou `var(--space-3)` — nunca `6px`. Quatro módulos com gap literal viram quatro
   espaçamentos diferentes na mesma tela.
+- **Não veste um botão com rótulo com a classe do botão de ícone.** A caixa do botão só-ícone tem
+  `width` fixa (`2.25rem`) e `padding: 0`; com texto dentro, o rótulo quebra em três linhas por cima
+  do ícone. Botão com rótulo ganha a sua própria classe, com `padding` na escala e `width` livre —
+  foi assim que a barra de seleção das notas chegou em produção.
 - Espaçamento, altura e cor vêm dos tokens (`--space-*`, `--field-height*`, `--color-*`).
 
-Ambas as proibições são verificadas por `test/design-system/button.contract.ts`, que varre todo
-`src/**/*.tsx` atrás de botões com ícone e resolve a classe no `*.module.css` vizinho.
+As três proibições são verificadas por `test/design-system/button.contract.ts`, que varre todo
+`src/**/*.tsx` atrás de botões com ícone e resolve a classe no `*.module.css` vizinho. A varredura
+enxerga a classe escrita no próprio `<button>`; classe passada por prop para um componente de outro
+arquivo escapa dela, e nesse caso a regra vale por revisão.
 
 ## Ícone sem rótulo
 

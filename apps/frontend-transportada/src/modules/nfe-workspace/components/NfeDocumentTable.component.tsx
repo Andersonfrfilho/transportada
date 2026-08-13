@@ -680,7 +680,7 @@ export function NfeDocumentTable({
           <div className={styles.selectionActions}>
             {cteEmission.canEmit && (
               <button
-                className={styles.iconActionActive}
+                className={styles.labelActionActive}
                 onClick={cteEmission.open}
                 title={t('documents.emitCte', { count: table.selectedCount })}
                 type="button"
@@ -690,7 +690,7 @@ export function NfeDocumentTable({
               </button>
             )}
             <NfseEmissionAction
-              className={styles.iconActionActive}
+              className={styles.labelActionActive}
               {...(companyId === undefined ? {} : { companyId })}
               documentIds={[...table.selectedIds]}
               onEmitted={table.clearSelection}

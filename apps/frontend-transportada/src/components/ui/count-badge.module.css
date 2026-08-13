@@ -1,13 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 /**
- * Em fluxo o número estourava a borda do botão de ícone, que tem largura fixa: a contagem mora no
- * canto, sobre a borda, e o botão continua quadrado com ou sem filtro aplicado.
+ * A contagem anda ao lado do ícone, dentro do botão. No canto ela ficava pendurada por cima da
+ * borda e era recortada pelo `overflow` da barra de ações.
  */
 .root {
-  position: absolute;
-  top: calc(var(--space-1) * -1);
-  right: calc(var(--space-1) * -1);
   display: inline-flex;
   align-items: center;
   justify-content: center;

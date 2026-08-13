@@ -5,7 +5,8 @@ import { describe, expect, test } from 'bun:test'
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const COUNT_BADGE_COMPONENT_PATH = 'src/components/ui/count-badge.tsx'
 const COUNT_BADGE_STYLES_PATH = 'src/components/ui/count-badge.module.css'
-const HOST_CLASS_NAMES = ['iconAction', 'iconActionActive'] as const
+const GLOBAL_STYLES_PATH = 'src/styles/index.css'
+const HOST_SELECTOR = 'button:has([data-count-badge])'
 
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
@@ -16,9 +17,9 @@ async function listModuleFiles(suffix: string): Promise<readonly string[]> {
   return entries.filter((entry) => entry.endsWith(suffix)).map((entry) => `src/modules/${entry}`)
 }
 
-/** Lê um bloco de regra pelo nome da classe, para conferir o que ela declara sem parser de CSS. */
-function readRuleBlock(styles: string, className: string): null | string {
-  const start = styles.indexOf(`.${className} {`)
+/** Lê um bloco de regra pelo seletor, para conferir o que ela declara sem parser de CSS. */
+function readRuleBlock(styles: string, selector: string): null | string {
+  const start = styles.indexOf(`${selector} {`)
   if (start === -1) return null
   const end = styles.indexOf('}', start)
   return end === -1 ? null : styles.slice(start, end)
@@ -32,7 +33,7 @@ describe('design system count badge contract', () => {
     expect(component).toContain('count: number')
   })
 
-  test('renders nothing without a count, so the corner stays clean', async () => {
+  test('renders nothing without a count, so the button stays square', async () => {
     const component = await readApplicationFile(COUNT_BADGE_COMPONENT_PATH)
 
     expect(component).toContain('count <= 0')
@@ -56,29 +57,42 @@ describe('design system count badge contract', () => {
   })
 
   /**
-   * Em fluxo, o número estourava a borda do botão de ícone, que tem largura fixa e `padding: 0` —
-   * foi assim que a listagem de notas chegou em produção com a contagem pendurada para fora.
+   * No canto o badge era recortado pelo `overflow` da barra de ações e ficava pendurado por cima
+   * da borda — foi assim que a listagem de notas chegou em produção com o número para fora.
    */
-  test('sits on the corner so the icon button never changes width', async () => {
+  test('flows beside the icon instead of hanging off the corner', async () => {
     const styles = await readApplicationFile(COUNT_BADGE_STYLES_PATH)
 
-    expect(styles).toContain('position: absolute')
-    expect(styles).toContain('top: calc(var(--space-1) * -1)')
-    expect(styles).toContain('right: calc(var(--space-1) * -1)')
+    expect(styles).not.toContain('position: absolute')
+    expect(styles).not.toContain('right:')
   })
 
-  test('every icon button that can host the badge is a positioning context', async () => {
+  test('marks itself so the host button can grow', async () => {
+    const component = await readApplicationFile(COUNT_BADGE_COMPONENT_PATH)
+
+    expect(component).toContain('data-count-badge')
+  })
+
+  /**
+   * O botão de ícone tem largura fixa e `padding: 0` no CSS do módulo; sem a regra global o número
+   * fica espremido contra a borda.
+   */
+  test('one global rule widens every icon button that hosts the badge', async () => {
+    const globalStyles = await readApplicationFile(GLOBAL_STYLES_PATH)
+    const block = readRuleBlock(globalStyles, HOST_SELECTOR)
+
+    expect(block).not.toBeNull()
+    expect(block).toContain('width: auto')
+    expect(block).toContain('padding-inline: var(--space-')
+  })
+
+  test('forbids a module from widening the host button on its own', async () => {
     const styleSheets = await listModuleFiles('.module.css')
     const offenders: string[] = []
 
     for (const filePath of styleSheets) {
       const styles = await readApplicationFile(filePath)
-      for (const className of HOST_CLASS_NAMES) {
-        const block = readRuleBlock(styles, className)
-        if (block !== null && !block.includes('position: relative')) {
-          offenders.push(`${filePath} .${className}`)
-        }
-      }
+      if (styles.includes(HOST_SELECTOR)) offenders.push(filePath)
     }
 
     expect(offenders).toEqual([])

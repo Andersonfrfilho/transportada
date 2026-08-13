@@ -204,19 +204,18 @@ removível por filtro ativo, logo abaixo do painel de filtros.
 
 ## 9. Contagem no botão de filtro (obrigatório)
 
-O número de filtros ativos aparece como **badge no canto** do botão de ícone, e
-vem de `@/components/ui/count-badge` (`components/ui/count-badge.tsx`) — proibido
-cada módulo desenhar a sua. Em fluxo dentro do botão o número estourava a borda:
-o botão de ícone tem largura fixa (`2.25rem`) e `padding: 0`, então a contagem
-vazava para fora ou empurrava o botão para um retângulo, e a barra ficava com um
-botão de tamanho diferente dos vizinhos.
+O número de filtros ativos aparece **ao lado do ícone, dentro do botão**, e vem de
+`@/components/ui/count-badge` (`components/ui/count-badge.tsx`) — proibido cada
+módulo desenhar a sua. No canto o badge ficava pendurado por cima da borda, era
+recortado pelo `overflow` da barra de ações e disputava espaço com o botão
+vizinho; ao lado do ícone ele é lido junto com a ação que ele qualifica.
 
-- **Forma.** `position: absolute` sobre o canto superior direito
-  (`top`/`right: calc(var(--space-1) * -1)`), quadrado cobre como o resto da
+- **Forma.** Em fluxo (sem `position: absolute`), quadrado cobre como o resto da
   linguagem (`border-radius: 0`, `var(--color-copper)`), só tokens.
-- **Botão hospedeiro é contexto de posicionamento.** Toda classe `.iconAction` /
-  `.iconActionActive` declara `position: relative`; sem isso o badge se ancora no
-  ancestral errado. O botão permanece quadrado com ou sem filtro aplicado.
+- **O botão cresce, o badge não encolhe.** A regra global
+  `button:has([data-count-badge])` em `src/styles/index.css` troca a largura fixa
+  do botão de ícone por `width: auto` + `padding-inline`; por isso o badge marca
+  `data-count-badge` e nenhum módulo redeclara largura para acomodá-lo.
 - **Decorativo.** `aria-hidden="true"`: o número repete o que as pílulas de
   filtro (§ 8) já dizem em texto, e o botão carrega o próprio `aria-label`.
 - **Sem contagem, sem badge.** `count <= 0` devolve `null`.

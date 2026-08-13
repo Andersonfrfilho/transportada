@@ -8,14 +8,14 @@ type CountBadgeProps = Readonly<{
 }>
 
 /**
- * Contagem no canto do botão de ícone. Ela é decorativa: o número repete o que as pílulas de filtro
- * já dizem em texto, e o botão hospedeiro carrega o próprio `aria-label`.
+ * Contagem ao lado do ícone, dentro do botão. Ela é decorativa: o número repete o que as pílulas de
+ * filtro já dizem em texto, e o botão hospedeiro carrega o próprio `aria-label`.
  */
 export function CountBadge({ count }: CountBadgeProps): JSX.Element | null {
   if (count <= 0) return null
 
   return (
-    <span aria-hidden="true" className={styles.root}>
+    <span aria-hidden="true" className={styles.root} data-count-badge="true">
       {count}
     </span>
   )
