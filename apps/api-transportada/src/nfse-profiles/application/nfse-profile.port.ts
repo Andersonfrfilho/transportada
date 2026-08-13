@@ -47,6 +47,16 @@ export type NfseEmissionProfileDetail = NfseEmissionProfileSettings & {
   readonly version: string
 }
 
+/**
+ * A projeção que o diálogo de emissão enxerga. Quem emite escolhe o perfil e escreve a descrição;
+ * alíquota, CNAE, item da lista e tomador são configuração da empresa e não atravessam por aqui.
+ */
+export type NfseEmissionProfileOption = {
+  readonly descriptionTemplate: string
+  readonly id: string
+  readonly name: string
+}
+
 export type NfseEmissionProfileFilters = {
   readonly nameContains?: string | undefined
   readonly statusEq?: NfseEmissionProfileStatus | undefined
@@ -121,6 +131,9 @@ export type NfseProfileTransactionPort = {
     readonly settings: NfseEmissionProfileSettings
     readonly userId: string
   }): Promise<NfseEmissionProfileDetail>
+  listActiveProfileOptions(input: {
+    readonly companyId: string
+  }): Promise<readonly NfseEmissionProfileOption[]>
   listProfiles(input: {
     readonly companyId: string
     readonly cursor: string | null

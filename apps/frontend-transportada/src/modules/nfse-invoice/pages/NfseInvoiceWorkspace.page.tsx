@@ -1,13 +1,15 @@
+import type { JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
-import { useNfseInvoices } from '../hooks/useNfseInvoices.hook'
+import { NfseInvoiceTable } from '../components/NfseInvoiceTable.component'
+import { useNfseInvoiceTable } from '../hooks/useNfseInvoiceTable.hook'
 import { NFSE_READ_PERMISSION } from '../shared/nfseInvoice.constant'
 import styles from '../styles/nfseInvoice.module.css'
 
-function InvoiceListSkeleton({ label }: Readonly<{ label: string }>) {
+function InvoiceListSkeleton({ label }: Readonly<{ label: string }>): JSX.Element {
   return (
     <SkeletonGroup className={styles.listSkeleton} label={label}>
       {[0, 1, 2, 3].map((row) => (
@@ -17,17 +19,16 @@ function InvoiceListSkeleton({ label }: Readonly<{ label: string }>) {
   )
 }
 
-export function NfseInvoiceWorkspacePage() {
+export function NfseInvoiceWorkspacePage(): JSX.Element {
   const { t } = useTranslation('nfseInvoice')
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
-  const workspace = useNfseInvoices({
+  const table = useNfseInvoiceTable({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
   })
   const canReadInvoices = permissions.includes(NFSE_READ_PERMISSION)
-  const isWaiting = authQuery.isPending || (canReadInvoices && workspace.status === 'loading')
 
   return (
     <main className={styles.nfseInvoiceShell}>
@@ -36,19 +37,17 @@ export function NfseInvoiceWorkspacePage() {
         <h1>{t('title')}</h1>
         <p className={styles.intro}>{t('intro')}</p>
       </header>
-      <section className={styles.panel}>
-        {isWaiting ? (
+      {authQuery.isPending ? (
+        <section className={styles.panel}>
           <InvoiceListSkeleton label={t('list.loading')} />
-        ) : canReadInvoices ? (
-          <p className={styles.placeholder}>
-            {workspace.invoices.length === 0
-              ? t('list.empty')
-              : t('list.total', { total: workspace.invoices.length })}
-          </p>
-        ) : (
+        </section>
+      ) : canReadInvoices ? (
+        <NfseInvoiceTable table={table} />
+      ) : (
+        <section className={styles.panel}>
           <p className={styles.placeholder}>{t('feedback.readOnly')}</p>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   )
 }

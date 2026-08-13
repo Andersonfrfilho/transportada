@@ -3,9 +3,98 @@
   "title": "Service invoices",
   "intro": "Municipal service invoices issued from the selected notes, grouped by taker.",
   "list": {
-    "empty": "No service invoice issued yet.",
-    "loading": "Loading the service invoices",
-    "total": "{{total}} service invoices on this page."
+    "loading": "Loading the service invoices"
+  },
+  "columns": {
+    "takerLegalName": "Taker",
+    "documentCount": "Notes",
+    "serviceAmount": "Service",
+    "issAmount": "ISS",
+    "status": "Status",
+    "providerNumber": "Invoice number",
+    "verificationCode": "Verification code",
+    "createdAt": "Created at",
+    "authorizedAt": "Authorized at"
+  },
+  "field": {
+    "takerLegalName": "Taker",
+    "takerTaxId": "Taker tax id",
+    "status": "Status",
+    "providerNumber": "Invoice number",
+    "verificationCode": "Verification code",
+    "documentCount": "Note count",
+    "serviceAmount": "Service amount",
+    "issAmount": "ISS amount",
+    "createdAt": "Created at",
+    "authorizedAt": "Authorized at"
+  },
+  "operator": {
+    "between": "between",
+    "contains": "contains",
+    "eq": "equals",
+    "gt": "greater than",
+    "gte": "greater than or equal to",
+    "lt": "less than",
+    "lte": "less than or equal to",
+    "ne": "not equal to",
+    "notContains": "does not contain"
+  },
+  "connector": {
+    "and": "AND",
+    "or": "OR"
+  },
+  "columnsMenu": {
+    "moveDown": "Move the column down",
+    "moveUp": "Move the column up"
+  },
+  "dateRange": {
+    "clear": "Clear",
+    "nextMonth": "Next month",
+    "placeholder": "Pick the range",
+    "previousMonth": "Previous month"
+  },
+  "advanced": {
+    "addCondition": "Add condition",
+    "addGroup": "Add group",
+    "field": "Field",
+    "groupConnector": "Toggle the connector between the group conditions",
+    "groupTitle": "Group {{index}}",
+    "hint": "Conditions narrow the page already loaded, without going back to the API.",
+    "operator": "Operator",
+    "removeCondition": "Remove the condition",
+    "removeGroup": "Remove the group",
+    "rootConnector": "Toggle the connector between the groups",
+    "value": "Value"
+  },
+  "filters": {
+    "createdRange": "Created at",
+    "mode": "Filter mode",
+    "modeAdvanced": "Advanced",
+    "modeSimple": "Simple",
+    "statuses": "Status",
+    "takerTaxId": "Taker tax id",
+    "takerTaxIdPlaceholder": "Digits only"
+  },
+  "table": {
+    "activeFilters": "{{count}} active filters",
+    "clearFilters": "Clear filters",
+    "clearSelection": "Clear selection",
+    "columnsMenu": "Columns",
+    "counter": "{{count}} service invoices on this page",
+    "empty": "No service invoice on this page.",
+    "nextPage": "Next page",
+    "pageSize": "Invoices per page",
+    "previousPage": "Previous page",
+    "removeFilter": "Remove the {{field}} filter",
+    "select": "Select the service invoice",
+    "selectAll": "Select the invoices on this page",
+    "selected": "Selected",
+    "selectionTotal": "Service total",
+    "sortAsc": "sorted ascending",
+    "sortDesc": "sorted descending",
+    "sortNone": "not sorted",
+    "title": "Service invoices",
+    "toggleFilters": "Filters"
   },
   "status": {
     "requested": "Requested",

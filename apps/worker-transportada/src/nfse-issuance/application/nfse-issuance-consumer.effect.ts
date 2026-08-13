@@ -11,6 +11,7 @@ import { NfseIssuanceFatalError, NfseIssuanceRecoverableError } from './nfse-iss
 const CANCEL_ATTEMPT_KIND = 'cancel'
 const DEFAULT_CAUSE = 'transport_failure'
 const MISSING_CANCELLATION_REASON = 'missing_cancellation_reason'
+const MISSING_ISSUANCE_PAYLOAD = 'missing_issuance_payload'
 const MISSING_PROVIDER_DOCUMENT = 'missing_provider_document'
 const REJECTED_CAUSE = 'rejected'
 const UNKNOWN_REJECTION_CODE = 'NFSE_UNKNOWN'
@@ -25,11 +26,13 @@ export type NfseIssuanceWriteBackKey = {
 /**
  * O que o banco entrega na hora de transmitir. O motivo do cancelamento é lido daqui, e não do
  * envelope: ele é texto livre do operador e não atravessa o broker (`security.md` §6).
+ *
+ * O payload é o congelado na requisição de emissão — o cancelamento não congela nenhum.
  */
 export type NfseIssuanceExecutionInput = {
   readonly cancellationReason?: string
   readonly credential: NfseCredentialAccess
-  readonly payload: unknown
+  readonly payload?: unknown
   readonly providerDocumentId?: string
 }
 
@@ -75,12 +78,14 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     readonly execution: NfseIssuanceExecutionInput
     readonly key: NfseIssuanceWriteBackKey
   }): Promise<void> {
+    const { credential, payload } = input.execution
+
+    /** O documento transmitido é o congelado na requisição: remontá-lo aqui mudaria a nota fiscal. */
+    if (payload === undefined) throw new NfseIssuanceFatalError(MISSING_ISSUANCE_PAYLOAD)
+
     await writeBack.recordInFlight(input.key)
 
-    const outcome = await gateway.issue({
-      credential: input.execution.credential,
-      payload: input.execution.payload,
-    })
+    const outcome = await gateway.issue({ credential, payload })
 
     if (outcome.status === 'accepted') {
       await writeBack.recordAccepted({

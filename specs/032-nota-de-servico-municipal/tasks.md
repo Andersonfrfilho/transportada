@@ -144,15 +144,24 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       Verificação: `bun run --cwd apps/frontend-transportada test` (888 pass, 0 fail), `typecheck`,
       `bun run lint`, `bunx prettier --check apps/frontend-transportada`, `build`.
 - [x] **T027** Ação em massa e diálogo na tela Notas, com prévia por tomador e descrição editável.
-- [ ] **T028** Tela de listagem seguindo `docs/frontend/data-tables.md` e aba de perfil/credencial em
-      `company-settings`.
-      Verificação: `bun run --cwd apps/frontend-transportada test`; conferir 375px, 768px e 1280px.
+- [x] **T028** Tela de listagem seguindo `docs/frontend/data-tables.md` e painel de perfil/credencial
+      em `company-settings`.
+      Verificação: `bun run --cwd apps/frontend-transportada test` (988 pass, 0 fail), `typecheck`,
+      `bun run lint`, `bunx prettier --check`; API sem regressão (2291 pass, 0 fail).
+- [x] **T028a** `GET /nfse-emission-profiles/options` — o diálogo de emissão lia a listagem inteira,
+      que pede `settings.manage`; o papel fiscal recebia 403 e a emissão morria sem perfil para
+      escolher. Rota só-leitura atrás de `nfse.issue`, servindo três campos (`id`, `name`,
+      `descriptionTemplate`) apenas de perfil `active` — alíquota, CNAE e tomador continuam atrás de
+      `settings.manage`. A projeção é estreita nas quatro camadas (seam de query própria, tipo de
+      porta, `select` e serializador à mão) e o guarda do frontend recusa campo a mais.
+      Verificação: `test` da API (2291 pass) e do frontend (952 pass), `typecheck` e `lint` na raiz
+      (ver `evidence.md`).
 
 ## Fase H — fechamento
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T029** Ponta a ponta local (`make dev`): seleção → prévia → emissão → outbox publicado → fila
+- [x] **T029** Ponta a ponta local (`make dev`): seleção → prévia → emissão → outbox publicado → fila
       → `pending_authorization` → reconciliação → `authorized` com XML e PDF em `stored_objects`;
       depois cancelamento liberando as notas.
 - [ ] **T030** Emissão real de **uma** NFS-e de valor mínimo com a credencial de produção, e medida

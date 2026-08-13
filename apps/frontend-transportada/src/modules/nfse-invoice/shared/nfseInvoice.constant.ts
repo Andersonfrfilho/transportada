@@ -1,6 +1,12 @@
 export const NFSE_SERVICE_INVOICES_PATH = '/nfse-service-invoices'
 export const NFSE_INVOICE_PREVIEW_PATH = `${NFSE_SERVICE_INVOICES_PATH}/preview`
 export const NFSE_EMISSION_PROFILES_PATH = '/nfse-emission-profiles'
+/**
+ * O diálogo de emissão lê as opções, não a listagem: quem emite tem `nfse.issue`, e a listagem
+ * inteira — com alíquota, CNAE e tomador — pede `settings.manage`, que o papel fiscal não tem.
+ */
+export const NFSE_EMISSION_PROFILE_OPTIONS_PATH = `${NFSE_EMISSION_PROFILES_PATH}/options`
+export const NFSE_PROVIDER_CREDENTIALS_PATH = '/nfse-provider-credentials'
 export const NFSE_INVOICE_WORKSPACE_ROUTE = '/nfse-invoices'
 
 export const NFSE_READ_PERMISSION = 'nfse.read'
@@ -14,7 +20,30 @@ export const NFSE_INVOICE_ERROR = {
   RESPONSE_INVALID: 'NFSE_INVOICE_RESPONSE_INVALID',
 } as const
 
+/** Configuração é outra rota e outro erro: confundir os códigos esconde de quem falhou o quê. */
+export const NFSE_SETTINGS_ERROR = {
+  REQUEST_FAILED: 'NFSE_SETTINGS_REQUEST_FAILED',
+  RESPONSE_INVALID: 'NFSE_SETTINGS_RESPONSE_INVALID',
+} as const
+
+/** O resumo da credencial: onze campos e nenhum segredo. Token de volta é resposta recusada. */
+export const NFSE_PROVIDER_CREDENTIAL_KEYS = [
+  'apiTokenConfigured',
+  'callbackTokenConfigured',
+  'createdAt',
+  'fiscalEnvironment',
+  'id',
+  'municipalRegistration',
+  'provider',
+  'status',
+  'taxId',
+  'updatedAt',
+  'version',
+] as const
+
 export const NFSE_INVOICE_PAGE_SIZE = 25
+export const NFSE_INVOICE_PAGE_SIZES = [25, 50, 100] as const
+export type NfseInvoicePageSize = (typeof NFSE_INVOICE_PAGE_SIZES)[number]
 export const NFSE_MAX_SELECTION_DOCUMENTS = 500
 export const NFSE_CANCELLATION_REASON_MIN_LENGTH = 5
 export const NFSE_CANCELLATION_REASON_MAX_LENGTH = 255
@@ -161,7 +190,10 @@ export const NFSE_CANCELLATION_SUMMARY_KEYS = [
 
 export const NFSE_DOCUMENT_DOWNLOAD_KEYS = ['expiresAt', 'url'] as const
 
-/** O perfil chega inteiro da API; o diálogo usa cinco campos, mas o guarda continua estrito. */
+/** A rota de opções serve três campos e nada mais — campo fiscal a mais é resposta de outra rota. */
+export const NFSE_EMISSION_PROFILE_OPTION_KEYS = ['descriptionTemplate', 'id', 'name'] as const
+
+/** O perfil chega inteiro na listagem de configurações, atrás de `settings.manage`. */
 export const NFSE_EMISSION_PROFILE_KEYS = [
   'chargeComponentLabel',
   'cnaeCode',

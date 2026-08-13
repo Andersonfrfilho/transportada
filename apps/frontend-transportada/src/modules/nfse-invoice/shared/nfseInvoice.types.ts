@@ -164,12 +164,15 @@ export type NfseInvoiceFilters = Readonly<{
 export const NFSE_EMISSION_PROFILE_STATUSES = ['active', 'inactive'] as const
 export type NfseEmissionProfileStatus = (typeof NFSE_EMISSION_PROFILE_STATUSES)[number]
 
-/** O diálogo escolhe o perfil e semeia a descrição com o modelo dele — o resto da linha não usa. */
+/**
+ * O diálogo escolhe o perfil e semeia a descrição com o modelo dele. A rota de opções só serve
+ * perfil ativo, então não há status para filtrar aqui — e alíquota, CNAE e tomador ficam atrás de
+ * `settings.manage`, que quem emite não tem.
+ */
 export type NfseEmissionProfileOption = Readonly<{
   descriptionTemplate: string
   id: string
   name: string
-  status: NfseEmissionProfileStatus
 }>
 
 export type NfseInvoiceSelection = Readonly<{

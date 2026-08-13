@@ -13,6 +13,7 @@ import {
 import type {
   NfseEmissionProfileDetail,
   NfseEmissionProfileFilters,
+  NfseEmissionProfileOption,
   NfseEmissionProfilePage,
   NfseEmissionProfileSettings,
   NfseEmissionProfileStatus,
@@ -29,6 +30,7 @@ import {
   mapCredentialSummary,
   mapProfile,
 } from './nfse-emission-profile.mapper.js'
+import { buildNfseEmissionProfileOptionFilters } from './nfse-emission-profile-options.query.js'
 import { isProfileNameConflict, NFSE_PROFILE_NAME_TAKEN_SIGNAL } from './nfse-profile.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -152,6 +154,20 @@ class DrizzleNfseProfileTransaction implements NfseProfileTransactionPort {
     })
     if (record === undefined) throw new Error('NFSE_PROFILE_CREATE_FAILED')
     return mapProfile(record)
+  }
+
+  public async listActiveProfileOptions(input: {
+    readonly companyId: string
+  }): Promise<readonly NfseEmissionProfileOption[]> {
+    return this.transaction
+      .select({
+        descriptionTemplate: nfseEmissionProfiles.descriptionTemplate,
+        id: nfseEmissionProfiles.id,
+        name: nfseEmissionProfiles.name,
+      })
+      .from(nfseEmissionProfiles)
+      .where(and(...buildNfseEmissionProfileOptionFilters({ companyId: input.companyId })))
+      .orderBy(nfseEmissionProfiles.name)
   }
 
   public async listProfiles(input: {

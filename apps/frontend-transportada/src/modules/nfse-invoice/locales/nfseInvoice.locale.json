@@ -3,9 +3,98 @@
   "title": "NFS-e",
   "intro": "Notas de serviço municipais emitidas a partir das notas selecionadas, agrupadas por tomador.",
   "list": {
-    "empty": "Nenhuma nota de serviço emitida até agora.",
-    "loading": "Carregando as notas de serviço",
-    "total": "{{total}} notas de serviço nesta página."
+    "loading": "Carregando as notas de serviço"
+  },
+  "columns": {
+    "takerLegalName": "Tomador",
+    "documentCount": "Notas",
+    "serviceAmount": "Serviço",
+    "issAmount": "ISS",
+    "status": "Situação",
+    "providerNumber": "Número da NFS-e",
+    "verificationCode": "Código de verificação",
+    "createdAt": "Criada em",
+    "authorizedAt": "Autorizada em"
+  },
+  "field": {
+    "takerLegalName": "Tomador",
+    "takerTaxId": "CNPJ do tomador",
+    "status": "Situação",
+    "providerNumber": "Número da NFS-e",
+    "verificationCode": "Código de verificação",
+    "documentCount": "Quantidade de notas",
+    "serviceAmount": "Valor do serviço",
+    "issAmount": "Valor do ISS",
+    "createdAt": "Criada em",
+    "authorizedAt": "Autorizada em"
+  },
+  "operator": {
+    "between": "entre",
+    "contains": "contém",
+    "eq": "igual a",
+    "gt": "maior que",
+    "gte": "maior ou igual a",
+    "lt": "menor que",
+    "lte": "menor ou igual a",
+    "ne": "diferente de",
+    "notContains": "não contém"
+  },
+  "connector": {
+    "and": "E",
+    "or": "OU"
+  },
+  "columnsMenu": {
+    "moveDown": "Descer a coluna",
+    "moveUp": "Subir a coluna"
+  },
+  "dateRange": {
+    "clear": "Limpar",
+    "nextMonth": "Próximo mês",
+    "placeholder": "Escolha o período",
+    "previousMonth": "Mês anterior"
+  },
+  "advanced": {
+    "addCondition": "Adicionar condição",
+    "addGroup": "Adicionar grupo",
+    "field": "Campo",
+    "groupConnector": "Alternar o conector das condições do grupo",
+    "groupTitle": "Grupo {{index}}",
+    "hint": "As condições recortam a página já carregada, sem voltar à API.",
+    "operator": "Operador",
+    "removeCondition": "Remover a condição",
+    "removeGroup": "Remover o grupo",
+    "rootConnector": "Alternar o conector entre os grupos",
+    "value": "Valor"
+  },
+  "filters": {
+    "createdRange": "Criada em",
+    "mode": "Modo do filtro",
+    "modeAdvanced": "Avançado",
+    "modeSimple": "Simples",
+    "statuses": "Situação",
+    "takerTaxId": "CNPJ do tomador",
+    "takerTaxIdPlaceholder": "Somente números"
+  },
+  "table": {
+    "activeFilters": "{{count}} filtros ativos",
+    "clearFilters": "Limpar filtros",
+    "clearSelection": "Limpar seleção",
+    "columnsMenu": "Colunas",
+    "counter": "{{count}} notas de serviço nesta página",
+    "empty": "Nenhuma nota de serviço nesta página.",
+    "nextPage": "Próxima página",
+    "pageSize": "Notas por página",
+    "previousPage": "Página anterior",
+    "removeFilter": "Remover o filtro {{field}}",
+    "select": "Selecionar a nota de serviço",
+    "selectAll": "Selecionar as notas desta página",
+    "selected": "Selecionadas",
+    "selectionTotal": "Total do serviço",
+    "sortAsc": "ordenada em ordem crescente",
+    "sortDesc": "ordenada em ordem decrescente",
+    "sortNone": "sem ordenação",
+    "title": "Notas de serviço",
+    "toggleFilters": "Filtros"
   },
   "status": {
     "requested": "Solicitada",

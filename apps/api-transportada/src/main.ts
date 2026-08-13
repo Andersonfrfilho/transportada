@@ -733,6 +733,7 @@ function createApplicationRoutes({
       activateProfile: { execute: (input) => nfseEmissionProfiles.activate(input) },
       createProfile: { execute: (input) => nfseEmissionProfiles.create(input) },
       deactivateProfile: { execute: (input) => nfseEmissionProfiles.deactivate(input) },
+      listProfileOptions: { execute: (input) => nfseEmissionProfiles.listOptions(input) },
       listProfiles: { execute: (input) => nfseEmissionProfiles.list(input) },
       updateProfile: { execute: (input) => nfseEmissionProfiles.update(input) },
     }),

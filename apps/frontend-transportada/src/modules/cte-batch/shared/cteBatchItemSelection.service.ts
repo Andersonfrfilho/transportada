@@ -1,4 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  canGoToPreviousCursorPage,
+  FIRST_CURSOR_PAGE,
+  nextCursorPage,
+  previousCursorPage,
+  type CursorPageState,
+} from '@/modules/shared/cursorPagination.service'
 import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 
 import type { CompanyCteItem } from './cteBatchItem.types'
@@ -17,12 +24,9 @@ export type CteItemSelectionSummary = Readonly<{
   totalAmount: string
 }>
 
-export type CteItemPageState = Readonly<{
-  cursor: null | string
-  history: readonly (null | string)[]
-}>
+export type CteItemPageState = CursorPageState
 
-export const CTE_ITEM_FIRST_PAGE: CteItemPageState = { cursor: null, history: [] }
+export const CTE_ITEM_FIRST_PAGE: CteItemPageState = FIRST_CURSOR_PAGE
 
 export function accumulateCteItemAmounts(
   input: Readonly<{
@@ -65,16 +69,13 @@ export function nextCteItemPage(
   state: CteItemPageState,
   nextCursor: null | string,
 ): CteItemPageState {
-  if (nextCursor === null) return state
-  return { cursor: nextCursor, history: [...state.history, state.cursor] }
+  return nextCursorPage(state, nextCursor)
 }
 
 export function previousCteItemPage(state: CteItemPageState): CteItemPageState {
-  const previousCursor = state.history.at(-1)
-  if (previousCursor === undefined) return CTE_ITEM_FIRST_PAGE
-  return { cursor: previousCursor, history: state.history.slice(0, -1) }
+  return previousCursorPage(state)
 }
 
 export function canGoToPreviousCteItemPage(state: CteItemPageState): boolean {
-  return state.history.length > 0
+  return canGoToPreviousCursorPage(state)
 }

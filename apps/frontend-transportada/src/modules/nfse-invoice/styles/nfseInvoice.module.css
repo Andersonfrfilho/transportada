@@ -35,7 +35,7 @@
 }
 
 .intro {
-  max-width: 44rem;
+  width: min(44rem, 100%);
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.95rem;
@@ -275,4 +275,389 @@
     max-height: 100vh;
     border: none;
   }
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.panelHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.tableToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.iconActionActive {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  color: var(--color-asphalt);
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.iconAction:disabled,
+.iconActionActive:disabled {
+  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  cursor: not-allowed;
+}
+
+.filterPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.modeSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.fieldGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 40rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 64rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fieldGrid label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.fieldGrid input {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.statusChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.statusChip {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.statusChipActive {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+  color: var(--color-copper);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.counter {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.selectionTotals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.selectionTotals dt {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.selectionTotals dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Sem position, o .srOnly absoluto resolve o bloco contêiner fora do scroller e estica a página. */
+.tableScroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.dataTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
+}
+
+.dataTable tbody tr[aria-selected='true'] {
+  outline: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.statusBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.statusReady {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.statusAlert {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
+.columnsMenuWrap {
+  display: inline-flex;
+}
+
+/* Dentro do painel rolável o absoluto era recortado: a lista vive em portal, posicionada por JS. */
+.columnsPopover {
+  position: fixed;
+  z-index: 40;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  gap: var(--space-2);
+  min-width: max(16rem, var(--floating-layer-min-width, 0));
+  max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+}
+
+.columnRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.checkOption {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.columnReorder {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.builder {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.conditionGroup {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.conditionGroupHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.conditionGroupTitle {
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.conditionList {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.conditionRow {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 48rem) {
+  .conditionRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    align-items: end;
+  }
+}
+
+.conditionRow input {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.connectorRail {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.connectorLine {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.connectorChip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  background: transparent;
+  cursor: pointer;
+}
+
+.builderAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: 0.82rem;
+  background: transparent;
+  cursor: pointer;
 }

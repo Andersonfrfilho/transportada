@@ -12,6 +12,7 @@ import type { AuthenticatedContext, CompanyContext } from '../../src/identity/do
 import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application.fixture'
 import type {
   NfseEmissionProfileDetail,
+  NfseEmissionProfileOption,
   NfseEmissionProfilePage,
   NfseProviderCredentialSummary,
 } from '../../src/nfse-profiles/application/nfse-profile.port'
@@ -62,6 +63,16 @@ export const PROFILES_PAGE = {
   nextCursor: null,
 } as const
 
+/**
+ * A opção leva só o que o diálogo de emissão precisa escolher e escrever. Alíquota, CNAE, item da
+ * lista e tomador ficam de fora: quem emite não administra parâmetro fiscal.
+ */
+export const PROFILE_OPTION = {
+  descriptionTemplate: PROFILE_SETTINGS.descriptionTemplate,
+  id: PROFILE_ID,
+  name: PROFILE_SETTINGS.name,
+} as const
+
 export const CREDENTIAL_SUMMARY = {
   apiTokenConfigured: true,
   callbackTokenConfigured: true,
@@ -86,10 +97,19 @@ export const READ_ONLY_CONTEXT: CompanyContext = {
   permissions: new Set(['invoices.read', 'nfse.read']),
 }
 
+/** O papel `fiscal`: emite nota, não administra configuração da empresa. */
+export const ISSUE_ONLY_CONTEXT: CompanyContext = {
+  ...COMPANY_CONTEXT,
+  permissions: new Set(['nfse.issue', 'nfse.read']),
+}
+
 type ProfileRouteDependencies = {
   readonly activateProfile: { execute(input: ExecuteCall): Promise<NfseEmissionProfileDetail> }
   readonly createProfile: { execute(input: ExecuteCall): Promise<NfseEmissionProfileDetail> }
   readonly deactivateProfile: { execute(input: ExecuteCall): Promise<NfseEmissionProfileDetail> }
+  readonly listProfileOptions: {
+    execute(input: ExecuteCall): Promise<readonly NfseEmissionProfileOption[]>
+  }
   readonly listProfiles: { execute(input: ExecuteCall): Promise<NfseEmissionProfilePage> }
   readonly updateProfile: { execute(input: ExecuteCall): Promise<NfseEmissionProfileDetail> }
 }
@@ -113,6 +133,7 @@ export async function createNfseProfilesHttpFixture(params: CreateFixtureParams 
   readonly deactivateCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: ExecuteCall[]
+  readonly listOptionsCalls: ExecuteCall[]
   readonly readCredentialCalls: ExecuteCall[]
   readonly saveCredentialCalls: ExecuteCall[]
   readonly updateCalls: ExecuteCall[]
@@ -121,6 +142,7 @@ export async function createNfseProfilesHttpFixture(params: CreateFixtureParams 
   const createCalls: ExecuteCall[] = []
   const deactivateCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
+  const listOptionsCalls: ExecuteCall[] = []
   const readCredentialCalls: ExecuteCall[] = []
   const saveCredentialCalls: ExecuteCall[] = []
   const updateCalls: ExecuteCall[] = []
@@ -143,6 +165,12 @@ export async function createNfseProfilesHttpFixture(params: CreateFixtureParams 
       async execute(input) {
         deactivateCalls.push(structuredClone(input))
         return { ...PROFILE_DETAIL, status: 'inactive', version: '3' }
+      },
+    },
+    listProfileOptions: {
+      async execute(input) {
+        listOptionsCalls.push(structuredClone(input))
+        return [PROFILE_OPTION]
       },
     },
     listProfiles: {
@@ -192,6 +220,7 @@ export async function createNfseProfilesHttpFixture(params: CreateFixtureParams 
     deactivateCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
+    listOptionsCalls,
     readCredentialCalls,
     saveCredentialCalls,
     updateCalls,

@@ -165,6 +165,13 @@ export const SELECTION_BODY = {
 
 export const CANCELLATION_REASON = 'Serviço não prestado no período informado'
 
+/** A opção que a rota de emissão serve: três campos, nenhum parâmetro fiscal. */
+export const EMISSION_PROFILE_OPTION = {
+  descriptionTemplate: 'Transporte rodoviário de cargas referente às notas {{notas}}.',
+  id: PROFILE_ID,
+  name: 'Transporte municipal',
+} as const
+
 export async function loadFutureModule<TModule>(modulePath: string): Promise<TModule> {
   return (await import(modulePath)) as TModule
 }

@@ -1,6 +1,5 @@
 import {
-  NFSE_EMISSION_PROFILE_PAGE_SIZE,
-  NFSE_EMISSION_PROFILES_PATH,
+  NFSE_EMISSION_PROFILE_OPTIONS_PATH,
   NFSE_INVOICE_ERROR,
   NFSE_INVOICE_PREVIEW_PATH,
   NFSE_SERVICE_INVOICES_PATH,
@@ -193,14 +192,10 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
       return adapters.documentDownloadFromApi(readEnvelopeData(payload))
     },
     async listEmissionProfiles() {
-      const search = new URLSearchParams({
-        limit: String(NFSE_EMISSION_PROFILE_PAGE_SIZE),
-        statusEq: 'active',
-      })
       const payload = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: `${NFSE_EMISSION_PROFILES_PATH}?${search.toString()}`,
+        path: NFSE_EMISSION_PROFILE_OPTIONS_PATH,
       })
       return adapters.emissionProfilesFromApi(payload)
     },

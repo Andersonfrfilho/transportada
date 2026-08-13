@@ -3,4 +3,5 @@
  */
 import './nfse-profiles/credential-secret.contract.js'
 import './nfse-profiles/credentials.contract.js'
+import './nfse-profiles/emission-profile-options.contract.js'
 import './nfse-profiles/emission-profiles.contract.js'

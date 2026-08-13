@@ -669,8 +669,8 @@ describe('nfse emission profile contract', () => {
   })
 
   /**
-   * `GET /nfse-emission-profiles` exige `settings.manage`, e o perfil é obrigatório na criação:
-   * sem a lista o diálogo não tem o que enviar, e dizer isso é melhor que uma prévia vazia.
+   * O perfil é obrigatório na criação, e a lista de opções vem gateada por `nfse.issue`: sem ela o
+   * diálogo não tem o que enviar, e dizer isso é melhor que uma prévia vazia.
    */
   test('says why the emission is blocked when the profile list is out of reach', async () => {
     const dialog = await readApplicationFile(DIALOG_PATH)

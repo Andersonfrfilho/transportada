@@ -260,6 +260,35 @@ describe('NFS-e issuance effect contract', () => {
     expect(fixture.writes).toEqual([])
   })
 
+  /** O XML da emissão é o congelado na requisição: sem ele não há o que transmitir, e remontar aqui mudaria o documento. */
+  test('an issue whose payload was never frozen is fatal, and the provider is never called', async () => {
+    const fixture = createEffectFixture({
+      input: { credential: CREDENTIAL, providerDocumentId: PROVIDER_DOCUMENT_ID },
+    })
+
+    await expect(fixture.execute(ISSUE_ENVELOPE)).rejects.toBeInstanceOf(NfseIssuanceFatalError)
+    expect(fixture.issued).toEqual([])
+    expect(fixture.writes).toEqual([])
+  })
+
+  test('a cancellation runs without a frozen payload — only the issue freezes one', async () => {
+    const fixture = createEffectFixture({
+      input: {
+        cancellationReason: CANCELLATION_REASON,
+        credential: CREDENTIAL,
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+      },
+    })
+
+    await fixture.execute(CANCEL_ENVELOPE)
+
+    expect(fixture.cancelled).toHaveLength(1)
+    expect(fixture.writes.map((call) => call.method)).toEqual([
+      'recordInFlight',
+      'recordCancellationConfirmed',
+    ])
+  })
+
   test('reads the cancellation reason from the invoice row at transmission time', async () => {
     const fixture = createEffectFixture()
 

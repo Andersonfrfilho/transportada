@@ -53,7 +53,11 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
           eq(nfseServiceInvoices.id, nfseIssuanceAttempts.invoiceId),
         ),
       )
-      .innerJoin(
+      /**
+       * Só a emissão congela payload. Obrigatório, o vínculo apagava a tentativa de cancelamento da
+       * consulta, e o efeito a tratava como linha que sumiu: mensagem confirmada, nada transmitido.
+       */
+      .leftJoin(
         nfseIssuancePayloads,
         and(
           eq(nfseIssuancePayloads.companyId, nfseIssuanceAttempts.companyId),
@@ -87,7 +91,7 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
         envelope: row.envelope,
         fiscalEnvironment: row.fiscalEnvironment,
       },
-      payload: row.payload,
+      ...(row.payload === null ? {} : { payload: row.payload }),
       ...(row.cancellationReason === null ? {} : { cancellationReason: row.cancellationReason }),
       ...(row.providerDocumentId === null ? {} : { providerDocumentId: row.providerDocumentId }),
     }

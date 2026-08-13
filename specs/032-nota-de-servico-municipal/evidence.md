@@ -2109,3 +2109,399 @@ contrato é sintético e existe só para provar o agrupamento. Os dois locales s
 API é `.strict()`.
 
 Nada foi commitado.
+
+## T028a — rota de opções de perfil para quem emite
+
+A limitação registrada em T027 virou task própria antes de T028: o diálogo de emissão pedia
+`GET /nfse-emission-profiles`, que exige `settings.manage`. O papel `fiscal` — que é quem carrega
+`nfse.issue` — não tem essa permissão, recebia 403 e ficava sem perfil para escolher, com `profileId`
+obrigatório no schema da prévia e da criação.
+
+Das três saídas desenhadas em T027, a escolhida foi a **rota de opções somente-leitura**. Casar o
+perfil no servidor quando há um só ativo foi descartado: o comentário do schema já diz que escolher
+em silêncio emitiria a nota pelo perfil errado. Dar `settings.manage` ao papel `fiscal` também —
+abriria toda a configuração da empresa para quem só precisa emitir.
+
+```
+GET /nfse-emission-profiles/options   nfse.issue      [{ id, name, descriptionTemplate }], status='active'
+GET /nfse-emission-profiles           settings.manage  inalterada
+```
+
+### A projeção é estreita nas quatro camadas
+
+Não basta a rota devolver três campos hoje. Um parâmetro fiscal acrescentado ao perfil amanhã não
+pode escorregar sozinho para quem emite, então cada camada estreita por conta própria:
+
+- `infrastructure/nfse-emission-profile-options.query.ts` — seam de filtros próprio (`companyId` +
+  `status = 'active'`), separado do da listagem;
+- `application/nfse-profile.port.ts` — tipo `NfseEmissionProfileOption`, três campos, distinto do
+  perfil;
+- `drizzle-nfse-profile.repository.ts` — `select({ descriptionTemplate, id, name })`, não `select()`;
+- `presentation/*.routes.ts` — `serializeProfileOption` escrito campo a campo, não derivado de
+  `serializeProfile`.
+
+Só perfil `active` entra: rascunho não tem parâmetro fiscal fechado e desativado foi tirado de
+circulação de propósito — emitir por qualquer um dos dois é nota rejeitada pela prefeitura.
+
+### O segmento `options` não é um identificador de perfil
+
+Duas garantias independentes, ambas provadas por contrato: `matchRoute` tenta a rota estática exata
+antes da dinâmica, e `:id` usa `pathParameterFormat: 'canonicalUuid'`, que recusa o literal
+`"options"`. `GET /options` responde 200 pela rota de opções com `listCalls` vazio; `PATCH /options`
+responde 404 com `updateCalls` vazio.
+
+### Vermelho — API
+
+Contrato antes da implementação, `test/nfse-profiles/emission-profile-options.contract.ts` e
+`test/nfse-schema/emission-profile-options-query-tenant-safety.contract.ts` já na lista literal do
+`package.json`:
+
+```
+$ bun test test/nfse-profiles.contract.test.ts test/nfse-schema.contract.test.ts
+expect(received).toBe(expected)   // collection.status
+Expected: 200
+Received: 404
+TypeError: undefined is not an object (evaluating 'payload.data[0]')
+error: Cannot find module '../../src/nfse-profiles/infrastructure/nfse-emission-profile-options.query.js'
+
+ 18 pass
+ 5 fail
+ 1 error
+```
+
+404 porque a rota não existia, `payload.data[0]` indefinido pelo mesmo motivo, e o módulo ausente
+porque o seam de query era o arquivo que o contrato tenant-safe importava. Os três motivos certos.
+
+### Vermelho — frontend
+
+```
+$ bun test test/nfse-invoice.contract.test.ts
+(fail) nfse emission profile options contract > reads the options route instead of the settings.manage listing
+  error: NFSE_INVOICE_RESPONSE_INVALID  (nfseInvoiceResponse.validation.ts:251)
+(fail) nfse emission profile options contract > rejects an option carrying a field beyond the three the dialog needs
+  error: NFSE_INVOICE_RESPONSE_INVALID  (nfseInvoiceResponse.validation.ts:251)
+(fail) nfse emission profile options contract > gates the profile query on nfse.issue
+  expect(received).not.toContain("NFSE_SETTINGS_MANAGE_PERMISSION")
+
+ 83 pass
+ 3 fail
+```
+
+As duas primeiras porque o guarda ainda exigia as vinte e duas chaves do perfil inteiro e recusava a
+opção de três campos; a terceira porque o gate do diálogo ainda era `settings.manage`.
+
+### Verde
+
+```
+$ bun run --cwd apps/api-transportada test
+ 2291 pass
+ 3 skip
+ 0 fail
+ 9368 expect() calls
+Ran 2294 tests across 90 files.
+
+$ bun run --cwd apps/frontend-transportada test
+ 952 pass
+ 0 fail
+ 4563 expect() calls
+Ran 952 tests across 17 files.
+
+$ bun run typecheck   # api, worker, cron, frontend — sem saída
+$ bun run lint        # sem saída
+```
+
+`bun test` sem argumento no frontend varre `test/responsive.smoke.spec.ts` e quebra com "Playwright
+Test did not expect test() to be called here" — é o smoke do Playwright, que roda por `make smoke`.
+A lista literal do `package.json` é a que vale, e é a que está acima.
+
+### Frontend
+
+O client passou a ler `NFSE_EMISSION_PROFILE_OPTIONS_PATH`; o guarda virou
+`isEmissionProfileOption`, estrito nos dois sentidos — campo de menos é resposta quebrada, campo de
+mais é a listagem de configurações chegando pela rota errada. `NfseEmissionProfileOption` perdeu
+`status` (a rota só serve ativo) e a projeção manual sumiu junto: o guarda já garante a forma exata.
+O gate do diálogo é `NFSE_ISSUE_PERMISSION`, e `emission.profileUnavailable` continua no lugar para
+quem não pode emitir.
+
+### Segurança
+
+Nenhum dado de terceiro em código, teste ou fixture — a opção do contrato é sintética. A resposta não
+carrega alíquota, CNAE, item da lista, tomador nem `companyId`, e há asserção sobre o conjunto exato
+de chaves para que um campo novo falhe alto em vez de vazar calado. `companyId` continua vindo do
+contexto autenticado: o contrato tenant-safe prova `company_id = $1` e `status = 'active'` nos
+filtros da query.
+
+Nada foi commitado.
+
+## T028 — tela de listagem de NFS-e e painel de perfil/credencial
+
+### Contrato antes da implementação (vermelho)
+
+`test/nfse-invoice/invoice-table-state.contract.ts` foi escrito antes dos componentes e da folha de
+estilo. Com o contrato registrado no entrypoint e a implementação ausente:
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 979 pass
+ 9 fail
+```
+
+Os 9 são todos do contrato novo, e falham pelo motivo certo — o arquivo que a asserção lê não
+existia:
+
+- presentation × 5 — `NfseInvoiceTable`, `NfseInvoiceFilters`, `NfseInvoiceColumnsMenu`,
+  `NfseInvoicePagination`, `NfseInvoiceSelectionBar`/`NfseInvoiceAdvancedFilterBuilder`
+- style × 2 — `nfseInvoice.module.css` sem `.tableScroll`, `.sortButton`, `.columnsPopover`,
+  `.bulkBar`, `.pagination`, `.conditionGroup`, `.fieldGrid` e sem `@media (width >= 40rem)`
+- locales × 2 — `columns.*`, `field.*`, `operator.*`, `connector.*` e o bloco `table.*` ausentes nos
+  dois idiomas
+
+As asserções de paginação por cursor e do hook já passavam nesse ponto: `cursorPagination.service.ts`
+e `useNfseInvoiceTable.hook.ts` tinham sido escritos antes.
+
+### Depois (verde)
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 988 pass
+ 0 fail
+ 4943 expect() calls
+Ran 988 tests across 17 files.
+```
+
+API sem regressão:
+
+```
+$ bun run --cwd apps/api-transportada test
+ 2291 pass
+ 3 skip
+ 0 fail
+ 9368 expect() calls
+```
+
+Gates da raiz: `bun run typecheck` e `bun run lint` limpos nas quatro apps;
+`bunx prettier --check` verde em tudo que foi tocado e em `specs/032-nota-de-servico-municipal`
+(dois componentes precisaram de `--write` e a suíte foi reexecutada depois, ainda 988/0).
+
+`bun test test/cte-batch.contract.test.ts` → **121 pass, 0 fail**.
+
+### O que a tela ganhou
+
+Tabela seguindo `docs/frontend/data-tables.md`: cabeçalho ordenável com `aria-sort` e rótulo textual
+para leitor de tela, filtro simples e avançado (grupos E/OU aninhados) com troca por `Select`,
+pílulas removíveis de `@/components/ui/filter-pills` com `countFilterPills`, badge de contagem no
+botão de filtro, menu de colunas com visibilidade e reordenação persistidas em `localStorage`,
+seleção em massa com soma decimal exata por `formatAmount` (nunca `Number`/`parseFloat`), e
+paginação por cursor com pilha de cursores visitados para o "anterior".
+
+Design system respeitado sem afrouxar contrato: ícone só de `@/components/ui/icon`, `Select` e
+`Checkbox` só dos primitivos, esqueleto de `@/components/ui/skeleton` em **todo** carregamento — a
+tabela em carregamento renderiza um esqueleto com a mesma forma das linhas reais, nunca texto nem
+`null`. Nenhum hexadecimal, nenhuma medida mágica: cores por `color-mix` sobre token, espaçamento
+por `--space-*`, campos por `--field-height`/`--field-padding`/`--field-font-size` (e as variantes
+`*-compact` no construtor de condições).
+
+O menu de colunas abre em **portal no `document.body`**, posicionado por `useFloatingLayer`: dentro
+do painel rolável o `position: absolute` era recortado pelo `overflow` do ancestral.
+
+### 375px, 768px e 1280px
+
+Conferido pela folha de estilo, não em navegador — este ambiente não tem sessão de browser aberta
+nesta frente. O que a regra garante em cada largura:
+
+- **375px** — `.fieldGrid` e `.conditionRow` em uma coluna; `.tableScroll` com `overflow-x: auto` e
+  `.dataTable { white-space: nowrap }`, então a tabela rola dentro do painel e a página não ganha
+  scroll horizontal; `.intro` em `width: min(44rem, 100%)`.
+- **768px** — `@media (width >= 40rem)` leva `.fieldGrid` a duas colunas e
+  `@media (width >= 48rem)` leva `.conditionRow` a `repeat(3, minmax(0, 1fr)) auto`.
+- **1280px** — `@media (width >= 64rem)` leva `.fieldGrid` a três colunas; o contêiner continua em
+  `var(--layout-width)`, guardado por `test/design-system/layout-width.contract.ts`.
+
+Nenhuma regra usa `max-width: <número>` — o contrato recusa, e a folha só adiciona com `min-width`.
+
+### Refatoração fora da frente — `modules/shared/cursorPagination.service.ts`
+
+**Precisa de decisão sua.** Extraí a paginação por cursor para
+`modules/shared/cursorPagination.service.ts` e reescrevi
+`cte-batch/shared/cteBatchItemSelection.service.ts` em cima dela. É arquivo de outra frente, e a
+orientação era não tocar.
+
+O que motivou: a tabela de NFS-e precisa da mesma pilha de cursores visitados que a de CT-es (avançar
+empilha, voltar desempilha, qualquer troca de filtro/ordenação/tamanho volta à primeira página). A
+alternativa era uma segunda cópia da mesma máquina de estado em `nfse-invoice`, com o risco clássico
+de as duas divergirem na correção de borda.
+
+Evidência para decidir: **`test/cte-batch.contract.test.ts` → 121 pass, 0 fail**, sem alterar nenhum
+teste de `cte-batch`. `CTE_ITEM_FIRST_PAGE` continua exportado e o contrato novo prova que ele é o
+mesmo valor de `FIRST_CURSOR_PAGE`; o serviço compartilhado não menciona `CteItem` nem `Nfse`. Se a
+decisão for reverter, o caminho é restaurar `cteBatchItemSelection.service.ts` do HEAD e duplicar a
+máquina de estado dentro de `nfse-invoice` — a tabela de NFS-e não depende de nada específico de
+CT-e.
+
+### Segurança
+
+Token da credencial é somente-escrita: a resposta traz `apiTokenConfigured`/`callbackTokenConfigured`
+como booleanos, sem máscara, e o painel diz em texto que campo em branco preserva o valor guardado.
+Nenhum token em `localStorage`, log, query string ou estado global — o que persiste em `localStorage`
+é só preferência de coluna. Nenhum CNPJ, razão social, inscrição municipal ou endereço real em
+código, teste, fixture, locale ou nesta evidência; o contrato de locales recusa sequência de 11 a 14
+dígitos e string em formato de CNPJ no arquivo pt-BR.
+
+Nada foi commitado.
+
+## T029 — ponta a ponta local: seleção → emissão → cancelamento → notas liberadas
+
+Banco local recriado do zero antes da verificação (decisão registrada em conversa: apagar os dados de
+desenvolvimento existentes). A conta usada é a do stub local da Nota RP, nunca a real.
+
+### Três defeitos encontrados pela verificação
+
+**1. Cancelamento silencioso (worker).** `POST /:id/cancel` respondia, a mensagem era consumida e
+`nfse_processed_messages` gravava o `event_id` — e a prefeitura nunca era chamada. Nenhum erro, em
+lugar nenhum.
+
+A causa era o carregador da execução em
+`nfse-issuance/infrastructure/drizzle-nfse-issuance-execution.repository.ts`: o vínculo com
+`nfse_issuance_payloads` era `innerJoin`. Só a **emissão** congela payload; a tentativa de
+cancelamento não tem linha nenhuma lá. Confirmado no banco: para a tentativa de cancelamento,
+`payloads = 0`. Com o `innerJoin`, a consulta não devolvia linha, `load()` devolvia `undefined` e o
+efeito caía no caminho `/** Tentativa já liquidada ou linha que sumiu: nada a transmitir */` —
+confirmava a mensagem e marcava processado. Falha silenciosa por construção.
+
+Correção: `leftJoin` no payload (`invoice` e `credential` continuam `inner` — sem eles não há o que
+transmitir), payload omitido do retorno quando nulo, e **guarda fatal explícita** no caminho de
+emissão: sem payload congelado a tentativa vai para dead-letter em vez de transmitir documento
+remontado na hora. Remontar aqui mudaria a nota fiscal.
+
+**2. Ordenação das notas devidas (cron).** `next_status_check_at` é nulo até a primeira consulta, e a
+política trata nota sem agendamento como devida agora (contrato `eligibility`: _"accepts a pending
+invoice with no scheduled check"_). O repositório ordenava por `asc(nextStatusCheckAt)` — e no
+Postgres `asc` é `nulls last`. A nota recém-emitida, a mais devida de todas, ia para o fim da fila e
+o `limit` do ciclo podia nunca alcançá-la. O comentário no código já prometia `nulls first`; o SQL
+não entregava.
+
+Correção: seam `nfse-status-pull/infrastructure/nfse-reconciliation.query.ts` com
+`buildDueInvoiceOrdering()` emitindo `asc nulls first`, consumido pelo repositório.
+
+**3. Registro fiscal preso em `authorized` (worker).** Depois do cancelamento confirmado, a consulta
+ao banco mostrou a nota `cancelled` e a linha de `nfse_fiscal_documents` ainda `authorized`, com
+`cancelled_at` nulo. O write-back síncrono do worker só mexia na nota; quem marcava o documento era o
+job de reconciliação, e ele não passa por aqui — no fluxo normal quem confirma o cancelamento é o
+worker. Duas rotas de escrita para a mesma tabela, comportamentos diferentes. O CT-e não tem esse
+buraco: `recordCancelled` marca `cte_fiscal_documents` como `cancelled` na mesma transação.
+
+Impacto hoje é de registro, não de comportamento: a API só lê `xml_object_id`/`pdf_object_id` dessa
+tabela, para o download. Mas é a linha que a auditoria fiscal lê, e ela dizia o contrário do que
+aconteceu.
+
+Correção: `recordCancellationConfirmed` atualiza `nfse_fiscal_documents` (`status: 'cancelled'`,
+`cancelled_at`) antes de fechar a nota, no mesmo recorte `(company_id, invoice_id)` que a
+reconciliação usa.
+
+### Contrato antes da correção (vermelho pelo motivo certo)
+
+Worker — `test/nfse-issuance-execution-input.contract.test.ts` (novo, banco falso que registra o
+tipo de cada join, molde `api-transportada/test/billing-infrastructure/support.ts`) mais duas
+asserções em `test/nfse-issuance-write-back.contract.test.ts`. Com o `innerJoin` ainda no lugar,
+**3 falhas**, todas pelo defeito:
+
+- o join do payload vinha como `inner`, não `left`;
+- linha com `payload: null` vazava a chave nula para dentro do objeto devolvido;
+- emissão sem payload congelado **resolvia** em vez de rejeitar — nenhum `NfseIssuanceFatalError`.
+
+Cron — `test/nfse-status-pull/due-ordering.contract.ts` (novo, compila o SQL com
+`PgDialect().sqlToQuery()`, sem banco) falhou primeiro por
+`Cannot find module '…/nfse-reconciliation.query.js'`: o seam ainda não existia.
+
+Worker, defeito 3 — `test/nfse-write-back-statements.contract.test.ts` (novo, banco que grava cada
+statement da transação e compila o `where` com `PgDialect`, molde
+`mdfe-issuance-write-back.contract.test.ts`): **2 falhas** — nenhum statement em
+`nfse_fiscal_documents`, e a ordem tentativa → documento → nota não existia:
+
+```
+ 2 pass
+ 2 fail
+error: NFSE_FISCAL_DOCUMENT_CANCELLATION_MISSING
+```
+
+Os três arquivos novos entraram na lista literal de testes do `package.json` de cada app — fora dela
+o teste não roda.
+
+### Depois (verde)
+
+```
+$ bun run --cwd apps/worker-transportada test
+ 423 pass
+ 0 fail
+ 1005 expect() calls
+Ran 423 tests across 57 files.
+
+$ bun run --cwd apps/cron-transportada test
+ 124 pass
+ 0 fail
+ 223 expect() calls
+Ran 124 tests across 5 files.
+```
+
+`bun run typecheck` limpo nas duas apps e `bun run lint` limpo na raiz.
+
+A correção do defeito 3 é provada por contrato (o SQL compilado, as colunas escritas e a ordem dentro
+da transação), não por nova rodada no banco: a nota do ciclo já estava liquidada, e o guarda de
+status impede reescrever tentativa fechada — que é exatamente o que ele deve fazer.
+
+### A emissão, ao vivo
+
+Antes do cancelamento, o ciclo completo ficou registrado no banco local:
+
+| Evidência                                  | Valor                                                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `nfse_issuance_attempts`                   | `issue` nº 1 → `authorized`; `cancel` nº 2 → `cancelled`                                             |
+| `nfse_service_invoices`                    | `authorized_at`, `provider_number` e `verification_code` populados                                   |
+| `nfse_fiscal_documents`                    | `authorized`, `homologation`, XML e PDF com id e sha256                                              |
+| `stored_objects` `purpose='nfse_document'` | `application/xml` (`…/authorized.xml`) e `application/pdf` (`…/nota.pdf`), ambos `final` e com bytes |
+
+O PDF é caminho novo — nenhum outro trilho arquivava `application/pdf` — e chegou ao bucket pelo
+mesmo gateway do XML.
+
+### O cancelamento, ao vivo
+
+A mensagem original já constava em `nfse_processed_messages`, então o replay foi feito inserindo uma
+cópia da linha do outbox com `event_id` novo — a idempotência puliria a mesma chave, e é isso que ela
+deve fazer.
+
+| Evidência                                       | Valor                                      |
+| ----------------------------------------------- | ------------------------------------------ |
+| `nfse_issuance_outbox.published_at`             | `2026-08-13 02:20:51.185` (relay publicou) |
+| `nfse_issuance_attempts.status`                 | `cancelled`                                |
+| `nfse_service_invoices.status` / `cancelled_at` | `cancelled` / `2026-08-13 02:20:51.188`    |
+| Última linha do log do stub                     | `[stub] POST /cancelar`                    |
+| `nfse_service_invoice_documents`                | 0 ativos, 5 com `cancelled_at` preenchido  |
+
+Antes da correção esse mesmo caminho terminava sem nenhuma linha no log do stub.
+
+### As notas voltaram a ser elegíveis nos dois trilhos
+
+Prévia de NFS-e sobre as cinco notas liberadas: **200**, `blocked: []`, `listedDocuments 5`,
+`omittedDocuments 0`, `baseAmount 8016.2300`, `calculatedAmount 801.6230`, `issAmount 40.08` — o
+índice parcial `nfse_invoice_documents_active_nfe_unique` de fato só vale para linha não cancelada.
+
+Prévia de CT-e sobre as mesmas cinco: os cinco documentos aparecem bloqueados **apenas** por
+`CTE_PROFILE_UNRESOLVED` — não existe perfil de emissão de CT-e no banco recriado.
+`CTE_BATCH_DOCUMENT_LINKED_TO_NFSE` sumiu da lista, que é exatamente o que o bloqueio recíproco deve
+fazer quando a NFS-e é cancelada.
+
+### Fora desta frente, não corrigido
+
+`cte-batches/infrastructure/drizzle-cte-batch.repository.ts:517-532` — os seis filtros de contagem de
+itens usam subconsulta correlacionada com colunas interpoladas cruas dentro do template `sql`, que as
+emite **sem qualificação de tabela**. É o mesmo defeito já corrigido nesta feature no seam de
+elegibilidade. O idioma correto já existe no repositório
+(`drizzle-cte-batch-item.repository.ts:393`, `trips/infrastructure/trip.query.ts:57,73`). Não foi
+tocado: é anterior à feature 032 e precisa de contrato próprio.
+
+### Segurança
+
+Nenhum número, série ou chave de acesso de NF-e de terceiro nesta evidência — os identificadores
+citados são de tabela interna. Nenhum CNPJ, razão social, inscrição municipal ou endereço real. O
+token do stub vive só no `.env`, e o bloco NFS-e do `.env` local aponta para o stub em
+`127.0.0.1:54999`, não para a conta real. Nada foi commitado.

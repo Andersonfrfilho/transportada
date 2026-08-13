@@ -9,6 +9,7 @@ import {
   buildFiscalDocumentFilters,
   buildInvoiceChargeFilters,
   buildInvoiceCursorFilter,
+  buildInvoiceDocumentCountExpression,
   buildInvoiceDocumentFilters,
   buildInvoiceDocumentJoin,
   buildInvoiceLinkReleaseFilters,
@@ -120,6 +121,22 @@ describe('nfse invoice query tenant safety', () => {
     expect(query.sql).toContain('"nfse_service_invoice_documents"."invoice_id" = $')
     expect(query.sql).toContain('"nfse_service_invoice_documents"."cancelled_at" is null')
     expect(query.params[0]).toBe(COMPANY_ID)
+  })
+
+  /**
+   * A subconsulta é correlacionada: sem o nome da tabela nas colunas de fora, o Postgres resolve os
+   * dois lados na tabela interna — `company_id = company_id` vira sempre verdadeiro e
+   * `invoice_id = id` nunca casa. A contagem sai zero sem nenhum erro.
+   */
+  test('a contagem de documentos se correlaciona com a nota de fora', () => {
+    const expression = dialect.sqlToQuery(buildInvoiceDocumentCountExpression())
+
+    expect(expression.sql).toContain(
+      '"nfse_service_invoice_documents"."company_id" = "nfse_service_invoices"."company_id"',
+    )
+    expect(expression.sql).toContain(
+      '"nfse_service_invoice_documents"."invoice_id" = "nfse_service_invoices"."id"',
+    )
   })
 
   test('o documento fiscal é preso à empresa do contexto', () => {

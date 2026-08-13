@@ -1,7 +1,7 @@
 import {
   NFSE_CANCELLATION_SUMMARY_KEYS,
   NFSE_DOCUMENT_DOWNLOAD_KEYS,
-  NFSE_EMISSION_PROFILE_KEYS,
+  NFSE_EMISSION_PROFILE_OPTION_KEYS,
   NFSE_INVOICE_CHARGE_KEYS,
   NFSE_INVOICE_DETAIL_KEYS,
   NFSE_INVOICE_DOCUMENT_KEYS,
@@ -30,7 +30,6 @@ import {
 import {
   NFSE_ADJUSTMENT_TYPES,
   NFSE_CHARGE_CALCULATION_TYPES,
-  NFSE_EMISSION_PROFILE_STATUSES,
   NFSE_INVOICE_STATUSES,
   type NfseCancellationSummary,
   type NfseDocumentDownload,
@@ -215,26 +214,17 @@ function isDocumentDownload(value: unknown): value is NfseDocumentDownload {
   )
 }
 
-type EmissionProfilePayload = NfseEmissionProfileOption & Record<string, unknown>
-
-/** O perfil traz vinte e dois campos; o diálogo projeta os quatro que usa e descarta o resto. */
-function isEmissionProfile(value: unknown): value is EmissionProfilePayload {
+/**
+ * Estrito nos dois sentidos: campo de menos é resposta quebrada, campo de mais é parâmetro fiscal
+ * vindo da listagem de configurações — nenhum dos dois é a rota de opções.
+ */
+function isEmissionProfileOption(value: unknown): value is NfseEmissionProfileOption {
   return (
-    hasExactKeys(value, NFSE_EMISSION_PROFILE_KEYS) &&
+    hasExactKeys(value, NFSE_EMISSION_PROFILE_OPTION_KEYS) &&
     isString(value.descriptionTemplate) &&
     isString(value.id) &&
-    isString(value.name) &&
-    isOneOf(value.status, NFSE_EMISSION_PROFILE_STATUSES)
+    isString(value.name)
   )
-}
-
-function toProfileOption(profile: EmissionProfilePayload): NfseEmissionProfileOption {
-  return {
-    descriptionTemplate: profile.descriptionTemplate,
-    id: profile.id,
-    name: profile.name,
-    status: profile.status,
-  }
 }
 
 export function createNfseInvoiceResponseAdapters() {
@@ -248,8 +238,8 @@ export function createNfseInvoiceResponseAdapters() {
       return input
     },
     emissionProfilesFromApi(input: unknown): readonly NfseEmissionProfileOption[] {
-      if (!isRecord(input) || !isEveryItem(input.data, isEmissionProfile)) throw invalid()
-      return input.data.map(toProfileOption)
+      if (!isRecord(input) || !isEveryItem(input.data, isEmissionProfileOption)) throw invalid()
+      return input.data
     },
     invoiceDetailFromApi(input: unknown): NfseInvoiceDetail {
       if (!isInvoiceDetail(input)) throw invalid()

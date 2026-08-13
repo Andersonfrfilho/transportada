@@ -6,6 +6,7 @@ import {
   CANCELLATION_SUMMARY,
   DOCUMENT_DOWNLOAD,
   DOCUMENT_ID,
+  EMISSION_PROFILE_OPTION,
   INVOICE_DETAIL,
   INVOICE_DOCUMENTS,
   INVOICE_ID,
@@ -25,6 +26,7 @@ import {
 
 const API_URL = 'https://api.example.test'
 const INVOICES_PATH = `${API_URL}/nfse-service-invoices`
+const PROFILE_OPTIONS_PATH = `${API_URL}/nfse-emission-profiles/options`
 const CLIENT_MODULE = '../../src/modules/nfse-invoice/shared/nfseInvoiceClient.service'
 const ADAPTERS_MODULE = '../../src/modules/nfse-invoice/shared/nfseInvoiceResponse.validation'
 const HOOK_MODULE = '../../src/modules/nfse-invoice/hooks/useNfseInvoices.hook'
@@ -408,6 +410,58 @@ async function createAdapters(): Promise<
   return createNfseInvoiceResponseAdapters()
 }
 
+describe('nfse emission profile options contract', () => {
+  /**
+   * Quem emite tem `nfse.issue` e não `settings.manage`. Pedir a listagem inteira devolvia 403 e a
+   * emissão morria com o diálogo vazio — o caminho é a rota de opções.
+   */
+  test('reads the options route instead of the settings.manage listing', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(await client.listEmissionProfiles()).toEqual([EMISSION_PROFILE_OPTION])
+
+    const [optionsRequest] = requests
+    if (optionsRequest === undefined) throw new Error('NFSE_CONTRACT_REQUEST_MISSING')
+
+    expect(optionsRequest.url).toBe(PROFILE_OPTIONS_PATH)
+    expect(optionsRequest.method).toBe('GET')
+    expect(optionsRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
+    expect(optionsRequest.cache).toBe('no-store')
+    expect(optionsRequest.url).not.toContain('statusEq')
+    expect(optionsRequest.url).not.toContain('limit')
+  })
+
+  /** Um parâmetro fiscal a mais no corpo é resposta de outra rota — o guarda recusa. */
+  test('rejects an option carrying a field beyond the three the dialog needs', async () => {
+    const { createNfseInvoiceResponseAdapters } =
+      await loadFutureModule<AdaptersModule>(ADAPTERS_MODULE)
+    const adapters = createNfseInvoiceResponseAdapters()
+
+    expect(adapters.emissionProfilesFromApi({ data: [EMISSION_PROFILE_OPTION] })).toEqual([
+      EMISSION_PROFILE_OPTION,
+    ])
+    expect(() =>
+      adapters.emissionProfilesFromApi({
+        data: [{ ...EMISSION_PROFILE_OPTION, issRate: '0.050000' }],
+      }),
+    ).toThrow('NFSE_INVOICE_RESPONSE_INVALID')
+  })
+
+  /** O gate do diálogo é a permissão de emitir, não a de administrar a empresa. */
+  test('gates the profile query on nfse.issue', async () => {
+    const hook = await Bun.file(
+      new URL(
+        '../../src/modules/nfse-invoice/hooks/useNfseEmissionDialog.hook.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(hook).toContain('NFSE_ISSUE_PERMISSION')
+    expect(hook).not.toContain('NFSE_SETTINGS_MANAGE_PERMISSION')
+  })
+})
+
 async function createRecordingClient(requests: Request[]): Promise<InvoiceClient> {
   const { createNfseInvoiceClient } = await loadFutureModule<ClientModule>(CLIENT_MODULE)
   return createNfseInvoiceClient({
@@ -448,6 +502,9 @@ function respond(request: Request): Promise<Response> {
   if (request.url === `${INVOICES_PATH}/${INVOICE_ID}`) {
     return Promise.resolve(Response.json({ data: INVOICE_DETAIL }))
   }
+  if (request.url === PROFILE_OPTIONS_PATH) {
+    return Promise.resolve(Response.json({ data: [EMISSION_PROFILE_OPTION] }))
+  }
 
   throw new Error(`Unexpected request in contract: ${request.url}`)
 }
@@ -457,6 +514,10 @@ function createStubClient(calls: string[]): InvoiceClient {
     cancelInvoice: () => {
       calls.push('cancel')
       return Promise.resolve(CANCELLATION_SUMMARY)
+    },
+    listEmissionProfiles: () => {
+      calls.push('profiles')
+      return Promise.resolve([EMISSION_PROFILE_OPTION])
     },
     createInvoices: () => {
       calls.push('create')
@@ -504,6 +565,7 @@ type InvoiceClient = {
   getInvoiceDocumentUrl(
     input: Readonly<{ invoiceId: string; kind: 'pdf' | 'xml' }>,
   ): Promise<unknown>
+  listEmissionProfiles(): Promise<readonly unknown[]>
   listInvoiceDocuments(input: Readonly<{ invoiceId: string }>): Promise<unknown>
   listInvoices(
     input: Readonly<{
@@ -532,6 +594,7 @@ type AdaptersModule = {
   readonly createNfseInvoiceResponseAdapters: () => {
     readonly cancellationSummaryFromApi: (input: unknown) => unknown
     readonly documentDownloadFromApi: (input: unknown) => unknown
+    readonly emissionProfilesFromApi: (input: unknown) => readonly unknown[]
     readonly invoiceDetailFromApi: (input: unknown) => unknown
     readonly invoiceDocumentsFromApi: (input: unknown) => unknown
     readonly invoiceFromApi: (input: unknown) => unknown

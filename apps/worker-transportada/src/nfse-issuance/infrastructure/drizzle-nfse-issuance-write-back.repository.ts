@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import {
+  nfseFiscalDocuments,
   nfseIssuanceAttempts,
   nfseIssuanceEvents,
   nfseServiceInvoices,
@@ -168,6 +169,10 @@ export class DrizzleNfseIssuanceWriteBackRepository implements NfseIssuanceWrite
         return
       }
 
+      if (transition.invoiceKind === 'cancelled') {
+        await cancelFiscalDocument(transaction, transition.key)
+      }
+
       await updateInvoiceStatus(transaction, {
         fields: transition.invoiceFields ?? {},
         key: transition.key,
@@ -175,6 +180,25 @@ export class DrizzleNfseIssuanceWriteBackRepository implements NfseIssuanceWrite
       })
     })
   }
+}
+
+/**
+ * Nota cancelada na prefeitura não pode seguir `authorized` no registro fiscal — é a linha que a
+ * auditoria lê. Mesmo recorte do job de reconciliação, que escreve isto quando quem confirma é ele.
+ */
+async function cancelFiscalDocument(
+  transaction: Transaction,
+  key: NfseIssuanceWriteBackKey,
+): Promise<void> {
+  await transaction
+    .update(nfseFiscalDocuments)
+    .set({ cancelledAt: key.occurredAt, status: 'cancelled', updatedAt: key.occurredAt })
+    .where(
+      and(
+        eq(nfseFiscalDocuments.companyId, key.companyId),
+        eq(nfseFiscalDocuments.invoiceId, key.invoiceId),
+      ),
+    )
 }
 
 /**

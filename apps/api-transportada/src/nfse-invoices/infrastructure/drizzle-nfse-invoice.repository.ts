@@ -35,6 +35,7 @@ import {
 import {
   buildFiscalDocumentFilters,
   buildInvoiceChargeFilters,
+  buildInvoiceDocumentCountExpression,
   buildInvoiceDocumentFilters,
   buildInvoiceDocumentJoin,
   buildInvoiceLinkReleaseFilters,
@@ -253,11 +254,7 @@ function createScopedTransaction(
   }
 }
 
-/**
- * O vínculo cancelado continua contando: a nota foi emitida sobre aquelas notas, e o número na
- * listagem é a composição dela, não o que ainda está reservado.
- */
-const DOCUMENT_COUNT = sql<string>`(select count(*) from ${nfseServiceInvoiceDocuments} where ${nfseServiceInvoiceDocuments.companyId} = ${nfseServiceInvoices.companyId} and ${nfseServiceInvoiceDocuments.invoiceId} = ${nfseServiceInvoices.id})`
+const DOCUMENT_COUNT = buildInvoiceDocumentCountExpression()
 
 const INVOICE_LIST_COLUMNS = {
   authorizedAt: nfseServiceInvoices.authorizedAt,
@@ -280,7 +277,7 @@ type InvoiceListRow = {
   readonly authorizedAt: Date | null
   readonly cancelledAt: Date | null
   readonly createdAt: Date
-  readonly documentCount: string
+  readonly documentCount: bigint
   readonly emissionProfileId: string
   readonly id: string
   readonly issAmount: string

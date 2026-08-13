@@ -1,8 +1,13 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 export const NFSE_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export type NfseFiscalEnvironment = (typeof NFSE_FISCAL_ENVIRONMENTS)[number]
 
 export const NFSE_CREDENTIAL_STATUSES = ['active', 'inactive'] as const
 export type NfseCredentialStatus = (typeof NFSE_CREDENTIAL_STATUSES)[number]
+
+/** `draft` é o estado em que o perfil nasce: a tela precisa saber lê-lo para poder ativá-lo. */
+export const NFSE_EMISSION_PROFILE_STATUSES = ['active', 'draft', 'inactive'] as const
+export type NfseEmissionProfileStatus = (typeof NFSE_EMISSION_PROFILE_STATUSES)[number]
 
 export const NFSE_TAKERS = ['0', '3'] as const
 export type NfseTaker = (typeof NFSE_TAKERS)[number]
@@ -33,13 +38,13 @@ export type NfseEmissionProfileSettings = Readonly<{
   cnaeCode: string
   descriptionMaxLength: string
   descriptionTemplate: string
-  freightRuleId: null | string
+  freightRuleId: string
   issExigibility: NfseIssExigibility
   issRate: string
   issWithheld: boolean
+  municipalTaxationCode: string
   municipalityIbgeCode: string
   municipalityName: string
-  municipalTaxationCode: string
   name: string
   nbsCode: string
   observations: string
@@ -52,7 +57,7 @@ export type NfseEmissionProfile = NfseEmissionProfileSettings &
     companyId: string
     createdAt: string
     id: string
-    status: 'active' | 'inactive'
+    status: NfseEmissionProfileStatus
     updatedAt: string
     version: string
   }>

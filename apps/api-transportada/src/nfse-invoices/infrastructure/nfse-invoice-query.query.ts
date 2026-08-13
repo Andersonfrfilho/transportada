@@ -98,6 +98,24 @@ export function buildInvoiceDocumentJoin(): SQL {
 }
 
 /**
+ * O vínculo cancelado continua contando: a nota foi emitida sobre aquelas notas, e o número na
+ * listagem é a composição dela, não o que ainda está reservado.
+ *
+ * A correlação passa por `and(eq(...))` de propósito. Interpolar as colunas soltas no template
+ * (`${a.companyId} = ${b.companyId}`) as emite sem o nome da tabela, e o Postgres resolve os dois
+ * lados na tabela interna: a comparação vira sempre verdadeira de um lado, nunca casa do outro, e a
+ * contagem sai zero sem erro nenhum.
+ */
+export function buildInvoiceDocumentCountExpression(): SQL<bigint> {
+  const correlation = and(
+    eq(nfseServiceInvoiceDocuments.companyId, nfseServiceInvoices.companyId),
+    eq(nfseServiceInvoiceDocuments.invoiceId, nfseServiceInvoices.id),
+  )
+  if (correlation === undefined) throw new Error('nfse invoice document count correlation is empty')
+  return sql<bigint>`(select count(*) from ${nfseServiceInvoiceDocuments} where ${correlation})`
+}
+
+/**
  * Mesmo recorte do índice parcial único da tabela. Cancelar duas vezes não pode reescrever a data:
  * a primeira liberação é a que devolveu as notas para a seleção.
  */

@@ -28,7 +28,6 @@ import {
 import {
   NFSE_EMISSION_PROFILES_QUERY_KEY,
   NFSE_ISSUE_PERMISSION,
-  NFSE_SETTINGS_MANAGE_PERMISSION,
 } from '../shared/nfseInvoice.constant'
 import type { NfseInvoiceSelection, NfseIssuanceSummary } from '../shared/nfseInvoice.types'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
@@ -79,8 +78,8 @@ export function useNfseEmissionDialog(
   const permissions = input.companyId === undefined ? [] : input.permissions
   const canOpen = canOpenNfseEmission(permissions)
   const canIssue = permissions.includes(NFSE_ISSUE_PERMISSION)
-  // `GET /nfse-emission-profiles` exige `settings.manage`, e o perfil é obrigatório na criação.
-  const canListProfiles = permissions.includes(NFSE_SETTINGS_MANAGE_PERMISSION)
+  // As opções de perfil vêm da rota de emissão: quem emite lê a lista com a própria permissão.
+  const canListProfiles = permissions.includes(NFSE_ISSUE_PERMISSION)
   const client = getNfseInvoiceClient()
   const controller = createNfseInvoiceController({ client, permissions })
   const queryClient = useQueryClient()

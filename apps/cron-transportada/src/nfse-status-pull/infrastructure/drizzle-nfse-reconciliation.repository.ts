@@ -8,7 +8,7 @@
  *    escrita inteira é abandonada sem efeito — é o que torna o ciclo repetível.
  * 2. **Uma transação por nota.** Objeto arquivado, documento fiscal, evento e nota mudam juntos.
  */
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import type { CronDatabase } from '../../database/cron-database.types.js'
 import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
@@ -24,6 +24,7 @@ import {
   type NfseIssuanceStatus,
   type NfseServiceInvoiceStatus,
 } from '../../database/nfse-reconciliation.schema.js'
+import { buildDueInvoiceOrdering } from './nfse-reconciliation.query.js'
 import type { NfseStoredDocument } from '../application/nfse-document-storage.port.js'
 import type { NfseReconciliationWriteBackPort } from '../application/nfse-reconciliation-write-back.port.js'
 import type {
@@ -69,8 +70,7 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
         })
         .from(nfseServiceInvoices)
         .where(inArray(nfseServiceInvoices.status, POLLABLE_INVOICE_STATUSES))
-        /** Sem agendamento a nota é a mais devida de todas: `nulls first` a põe na frente. */
-        .orderBy(asc(nfseServiceInvoices.nextStatusCheckAt))
+        .orderBy(buildDueInvoiceOrdering())
         .limit(limit)
 
       if (invoices.length === 0) return []

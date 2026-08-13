@@ -7,11 +7,13 @@ import { API_NFSE_EMISSION_PROFILES_PATH, JSON_CONTENT_TYPE } from '../../shared
 import type {
   NfseEmissionProfileDetail,
   NfseEmissionProfileFilters,
+  NfseEmissionProfileOption,
   NfseEmissionProfilePage,
 } from '../application/nfse-profile.port.js'
 import type {
   ChangeNfseEmissionProfileStatusInput,
   CreateNfseEmissionProfileInput,
+  ListNfseEmissionProfileOptionsInput,
   ListNfseEmissionProfilesInput,
   UpdateNfseEmissionProfileInput,
 } from '../application/nfse-emission-profiles.use-case.js'
@@ -24,6 +26,12 @@ import {
   parseUuidPathIdentifier,
 } from './nfse-profiles.schema.js'
 
+/**
+ * Emitir e administrar são papéis diferentes. `nfse.issue` abre só as opções — a listagem inteira,
+ * com alíquota, CNAE e tomador, continua atrás de `settings.manage`.
+ */
+const NFSE_ISSUE_POLICY = { permission: 'nfse.issue', scope: 'company' } as const
+const OPTIONS_PATH = `${API_NFSE_EMISSION_PROFILES_PATH}/options`
 const PROFILE_PATH = `${API_NFSE_EMISSION_PROFILES_PATH}/:id`
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const STATUS_PATH = `${PROFILE_PATH}/status`
@@ -54,6 +62,11 @@ type Dependencies = {
       input: TenantInput<ChangeNfseEmissionProfileStatusInput>,
     ): Promise<NfseEmissionProfileDetail>
   }
+  readonly listProfileOptions: {
+    execute(
+      input: TenantInput<ListNfseEmissionProfileOptionsInput>,
+    ): Promise<readonly NfseEmissionProfileOption[]>
+  }
   readonly listProfiles: {
     execute(input: TenantInput<ListNfseEmissionProfilesInput>): Promise<NfseEmissionProfilePage>
   }
@@ -78,6 +91,16 @@ export function createNfseEmissionProfileRoutes(
       parse: ({ request }) => parseProfileList(new URL(request.url)),
       pathname: API_NFSE_EMISSION_PROFILES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const options = await dependencies.listProfileOptions.execute({ context: context.scope })
+        return jsonResponse({ body: { data: options.map(serializeProfileOption) }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OPTIONS_PATH,
+      policy: NFSE_ISSUE_POLICY,
     }),
     defineRoute<Omit<CreateNfseEmissionProfileInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -144,6 +167,15 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
     headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
     status: input.status,
   })
+}
+
+/** Campo a campo de propósito: um parâmetro fiscal novo no perfil não escorrega para cá sozinho. */
+function serializeProfileOption(option: NfseEmissionProfileOption): object {
+  return {
+    descriptionTemplate: option.descriptionTemplate,
+    id: option.id,
+    name: option.name,
+  }
 }
 
 function serializeProfile(profile: NfseEmissionProfileDetail): object {

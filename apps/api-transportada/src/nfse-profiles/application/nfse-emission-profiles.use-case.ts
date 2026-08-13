@@ -11,6 +11,7 @@ import { NFSE_PROFILE_NAME_TAKEN_SIGNAL } from '../infrastructure/nfse-profile.s
 import type {
   NfseEmissionProfileDetail,
   NfseEmissionProfileFilters,
+  NfseEmissionProfileOption,
   NfseEmissionProfilePage,
   NfseEmissionProfileSettings,
   NfseEmissionProfileStatus,
@@ -60,11 +61,18 @@ export type ListNfseEmissionProfilesInput = {
   readonly limit: number
 }
 
+export type ListNfseEmissionProfileOptionsInput = {
+  readonly context: NfseProfileCompanyContext
+}
+
 export type NfseEmissionProfilesUseCase = {
   activate(input: ChangeNfseEmissionProfileStatusInput): Promise<NfseEmissionProfileDetail>
   create(input: CreateNfseEmissionProfileInput): Promise<NfseEmissionProfileDetail>
   deactivate(input: ChangeNfseEmissionProfileStatusInput): Promise<NfseEmissionProfileDetail>
   list(input: ListNfseEmissionProfilesInput): Promise<NfseEmissionProfilePage>
+  listOptions(
+    input: ListNfseEmissionProfileOptionsInput,
+  ): Promise<readonly NfseEmissionProfileOption[]>
   update(input: UpdateNfseEmissionProfileInput): Promise<NfseEmissionProfileDetail>
 }
 
@@ -175,6 +183,12 @@ export function createNfseEmissionProfilesUseCase(dependencies: {
           limit: input.limit,
           ...(input.filters === undefined ? {} : { filters: input.filters }),
         }),
+      )
+    },
+
+    async listOptions(input) {
+      return unitOfWork.execute(async (transaction) =>
+        transaction.listActiveProfileOptions({ companyId: input.context.companyId }),
       )
     },
 
