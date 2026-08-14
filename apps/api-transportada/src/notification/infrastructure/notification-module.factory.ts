@@ -14,6 +14,7 @@ import {
   NOTIFICATION_DEFAULT_TIMEZONE,
 } from '../notification.constant.js'
 import { createIdentityRecipientResolver } from './identity-recipient.resolver.js'
+import { createInMemoryNotificationCache } from './in-memory-notification-cache.provider.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -51,6 +52,8 @@ export function createApiNotificationModule({
     db: db as never,
     features: { email: emailDriver !== undefined },
     providers: {
+      // Sem `cache` o módulo **pula** a checagem de nonce do webhook em silêncio, e o replay passa.
+      cache: createInMemoryNotificationCache(),
       ...(emailDriver === undefined ? {} : { channels: { email: emailDriver } }),
       recipientResolver: createIdentityRecipientResolver({ db }),
     },

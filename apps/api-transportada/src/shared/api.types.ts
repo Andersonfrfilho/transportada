@@ -35,6 +35,8 @@ export type ApiEnvironment = {
   readonly logLevel: LogLevel
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
   readonly nfseCallbackBaseUrl: string | undefined
+  /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
+  readonly notificationWebhookSecret: string | undefined
   readonly port: number
   /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
   readonly scheduledDistributionCron: string

@@ -117,6 +117,10 @@ const environmentSchema = z.object({
   // O mesmo remetente do worker (ADR-0031): não se cria segunda configuração de SMTP. As duas
   // juntas ou nenhuma — meia configuração daria envio sem remetente.
   EMAIL_FROM: optionalText(),
+  // Segredo compartilhado com o provedor de entrega, para o recibo. Ausente, a rota de webhook nem
+  // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
+  // qualquer um dizendo que a mensagem chegou.
+  NOTIFICATION_WEBHOOK_SECRET: optionalText(),
   SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
@@ -149,6 +153,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     },
     logLevel: parsed.LOG_LEVEL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
+    notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     port: parsed.APP_PORT,
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: parsed.LOG_SINK_URL,

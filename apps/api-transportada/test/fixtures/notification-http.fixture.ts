@@ -1,6 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createHmac } from 'node:crypto'
+
+import type { CachePort } from '@adatechnology/notification-contracts'
 import type { NotificationModule } from '@adatechnology/notification-module'
 
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
@@ -20,20 +23,33 @@ type ListNotificationsCall = {
   readonly recipientUserId: string
 }
 
+type DeliveryReceiptCall = {
+  readonly channel: string
+}
+
+type NotificationCalls = {
+  listNotifications: ListNotificationsCall[]
+  receiveDeliveryReceipt: DeliveryReceiptCall[]
+}
+
 type NotificationHttpFixtureParams = {
   readonly authenticated?: boolean
+  readonly cache?: CachePort
   readonly companyId?: string
   readonly membership?: boolean
+  readonly now?: Date
   readonly webhookSecret?: string
 }
 
 export function notificationHttpFixture({
   authenticated = true,
+  cache,
   companyId = NOTIFICATION_COMPANY_ID,
   membership = true,
+  now,
   webhookSecret,
 }: NotificationHttpFixtureParams = {}) {
-  const calls: { listNotifications: ListNotificationsCall[] } = { listNotifications: [] }
+  const calls: NotificationCalls = { listNotifications: [], receiveDeliveryReceipt: [] }
 
   const router = createNotificationHttpRouter({
     authResolver: createNotificationAuthResolver({
@@ -58,7 +74,11 @@ export function notificationHttpFixture({
         },
       },
     }),
-    module: stubModule(calls),
+    module: stubModule({
+      calls,
+      ...(cache === undefined ? {} : { cache }),
+      ...(now === undefined ? {} : { now }),
+    }),
     ...(webhookSecret === undefined ? {} : { webhookSecret }),
   })
 
@@ -81,7 +101,49 @@ export function notificationRequest({
   })
 }
 
-function stubModule(calls: { listNotifications: ListNotificationsCall[] }): NotificationModule {
+type StubModuleParams = {
+  readonly cache?: CachePort
+  readonly calls: NotificationCalls
+  readonly now?: Date
+}
+
+export const NOTIFICATION_WEBHOOK_PATH = `${NOTIFICATION_ROUTES_BASE_PATH}/notification-webhooks/smtp`
+
+type NotificationWebhookRequestParams = {
+  readonly body?: string
+  readonly secret: string
+  readonly signature?: string
+  readonly timestampSeconds: number
+}
+
+/**
+ * A assinatura é HMAC-SHA256 sobre o timestamp **e** o corpo cru, nessa ordem: reproduzi-la aqui é
+ * o que permite ao contrato assinar certo e depois assinar errado de propósito.
+ */
+export function notificationWebhookRequest({
+  body = JSON.stringify({
+    occurredAt: '2026-08-13T12:00:00.000Z',
+    providerMessageId: 'provider-message-1',
+    status: 'delivered',
+  }),
+  secret,
+  signature,
+  timestampSeconds,
+}: NotificationWebhookRequestParams): Request {
+  const timestampHeader = String(timestampSeconds)
+  const digest = createHmac('sha256', secret).update(timestampHeader).update(body).digest('hex')
+  return new Request(`http://localhost${NOTIFICATION_WEBHOOK_PATH}`, {
+    body,
+    headers: {
+      'content-type': 'application/json',
+      'x-notification-signature': signature ?? `sha256=${digest}`,
+      'x-notification-timestamp': timestampHeader,
+    },
+    method: 'POST',
+  })
+}
+
+function stubModule({ cache, calls, now }: StubModuleParams): NotificationModule {
   const useCases = {
     getPreferences: {
       async execute() {
@@ -100,12 +162,17 @@ function stubModule(calls: { listNotifications: ListNotificationsCall[] }): Noti
       },
     },
     receiveDeliveryReceipt: {
-      async execute() {
+      async execute(params: DeliveryReceiptCall) {
+        calls.receiveDeliveryReceipt.push(params)
         return undefined
       },
     },
   }
-  return { useCases } as unknown as NotificationModule
+  return {
+    useCases,
+    ...(cache === undefined ? {} : { cache }),
+    ...(now === undefined ? {} : { clock: { now: () => now } }),
+  } as unknown as NotificationModule
 }
 
 function companyContext(companyId: string): AuthenticatedContext<CompanyContext> {

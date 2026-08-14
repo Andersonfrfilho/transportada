@@ -44,3 +44,25 @@ describe('contrato do segredo de supressão de notificações', () => {
     ).toThrow(CryptographicConfigurationError)
   })
 })
+
+describe('contrato do segredo do webhook de recibo', () => {
+  test('o segredo declarado chega à configuração', () => {
+    expect(
+      parseEnvironment({ ...API_ENVIRONMENT, NOTIFICATION_WEBHOOK_SECRET: 'segredo-do-provedor' })
+        .notificationWebhookSecret,
+    ).toBe('segredo-do-provedor')
+  })
+
+  // Diferente da chave de supressão, este é opcional: quem ainda não contratou provedor com recibo
+  // sobe sem ele — e a rota de webhook simplesmente não existe (404), em vez de aceitar qualquer
+  // corpo como recibo.
+  test.each([
+    ['ausente', undefined],
+    ['vazio', ''],
+  ])('sobe sem segredo %s', (_name, value) => {
+    expect(
+      parseEnvironment({ ...API_ENVIRONMENT, NOTIFICATION_WEBHOOK_SECRET: value })
+        .notificationWebhookSecret,
+    ).toBeUndefined()
+  })
+})

@@ -76,6 +76,7 @@ const server = startApiServer({
     },
     logLevel: 'error',
     nfseCallbackBaseUrl: undefined,
+    notificationWebhookSecret: undefined,
     port: 0,
     scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: undefined,

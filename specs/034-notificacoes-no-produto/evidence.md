@@ -140,3 +140,46 @@ Ran 2432 tests across 100 files.
 
 $ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
 ```
+
+## T005 — webhook de recibo: assinatura, janela e nonce
+
+A rota só é publicada com `NOTIFICATION_WEBHOOK_SECRET` no ambiente — variável **opcional**, ao
+contrário da chave de supressão: instalação sem provedor de recibo sobe normalmente e o caminho
+responde 404. A assinatura é HMAC-SHA256 sobre o timestamp **e** o corpo cru (`rawBody`), nessa
+ordem, comparada em tempo constante pelo módulo; fora da janela de 300s o recibo é recusado com 401,
+sem chegar ao caso de uso.
+
+O achado que decidiu o desenho: a proteção contra replay do módulo só roda **se o módulo tiver um
+`cache`** (`providers.cache`). Sem ele o `claimNotificationWebhookDelivery` nem é chamado, e o
+replay passa — em silêncio, com 204, indistinguível do caminho correto. O contrato fixa os dois
+lados: com cache, a repetição da mesma assinatura não chega duas vezes ao caso de uso; sem cache,
+chega — é este teste que documenta por que o provider existe.
+
+O cache é de processo (`in-memory-notification-cache.provider.ts`), e a escolha vem da distribuição:
+uma instalação por transportadora, um processo de API (ADR-0021). A expiração é a da **primeira**
+reivindicação — renovar a cada tentativa deixaria um atacante manter a chave viva repetindo o
+replay. ⚠️ Com mais de uma réplica a proteção passa a valer por réplica, e aí isto vira adaptador
+sobre armazenamento compartilhado; é a mesma ressalva que o módulo faz para o notificador em
+processo. O pior caso de reinício é aceitar de novo um recibo dos últimos 5 minutos, e recibo é
+idempotente no módulo.
+
+Recibo duplicado responde **200**, não 4xx: é o módulo dizendo ao provedor "já recebi", para ele não
+entrar em loop de reentrega.
+
+```
+$ bun test ./test/notification-webhook.contract.test.ts
+ 9 pass
+ 0 fail
+
+$ bun run --cwd apps/api-transportada test
+ 2432 pass
+ 12 skip
+ 0 fail
+Ran 2444 tests across 101 files.
+
+$ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
+```
+
+⚠️ **Deploy (T005):** `NOTIFICATION_WEBHOOK_SECRET` precisa ser cadastrada no Railway (distinta por
+ambiente) quando houver provedor entregando recibo. Sem ela nada quebra — a rota simplesmente não
+existe.

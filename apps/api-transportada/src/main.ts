@@ -217,11 +217,14 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
-    // Sem `webhookSecret` a rota de recibo não é publicada — ela entra no T005, junto da
-    // verificação de assinatura. Publicar antes seria aceitar qualquer corpo como recibo.
+    // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar assinatura,
+    // aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
     moduleRouter: createNotificationHttpRouter({
       authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
       module: notifications,
+      ...(config.notificationWebhookSecret === undefined
+        ? {}
+        : { webhookSecret: config.notificationWebhookSecret }),
     }),
     routes: createApplicationRoutes({
       database: database.db,

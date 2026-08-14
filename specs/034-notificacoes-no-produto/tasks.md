@@ -30,7 +30,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       `authResolver` da aplicação. Contrato em `test/notification/http.contract.ts`: as rotas de
       inbox, preferências e templates respondem; isolamento entre empresas; sem `webhookSecret` a
       rota de webhook **não existe** (404, não 401).
-- [ ] **T005** Webhook de recibo: assinatura sobre `rawBody`, janela de timestamp, nonce contra
+- [x] **T005** Webhook de recibo: assinatura sobre `rawBody`, janela de timestamp, nonce contra
       replay. Contrato: assinatura inválida rejeitada, replay do mesmo nonce rejeitado.
 
 ## Fase C — fila
