@@ -157,13 +157,31 @@ function createLogger(): CronLogger & { readonly calls: LogCall[] } {
   }
 }
 
-function buildUseCase(script: StatusScript) {
+function createNotifier() {
+  const calls: Record<string, unknown>[] = []
+  return {
+    calls,
+    notifyRejection: (input: Record<string, unknown>) => {
+      calls.push({ ...input })
+      return Promise.resolve()
+    },
+  }
+}
+
+function buildUseCase(script: StatusScript, options: { readonly notify?: boolean } = {}) {
   const documentStorage = createDocumentStorage()
   const logger = createLogger()
+  const notifier = createNotifier()
   const status = createStatusPort(script)
   const writeBack = createWriteBack()
-  const useCase = createReconcileInvoiceUseCase({ documentStorage, logger, status, writeBack })
-  return { documentStorage, logger, status, useCase, writeBack }
+  const useCase = createReconcileInvoiceUseCase({
+    documentStorage,
+    logger,
+    status,
+    writeBack,
+    ...(options.notify === true ? { notifier } : {}),
+  })
+  return { documentStorage, logger, notifier, status, useCase, writeBack }
 }
 
 describe('NFS-e reconciliation: authorized', () => {
@@ -286,6 +304,36 @@ describe('NFS-e reconciliation: rejected', () => {
       },
     ])
     expect(fixture.status.documentCalls).toEqual([])
+  })
+
+  test('avisa o dono da nota depois de gravar a rejeição', async () => {
+    const fixture = buildUseCase(
+      { status: { rejection: { code: 'E320', message: REJECTION_MESSAGE }, status: 'rejected' } },
+      { notify: true },
+    )
+
+    await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
+
+    expect(fixture.notifier.calls).toEqual([
+      {
+        attemptId: ATTEMPT_ID,
+        companyId: COMPANY_ID,
+        invoiceId: INVOICE_ID,
+        rejectionMessage: REJECTION_MESSAGE,
+      },
+    ])
+  })
+
+  /** O deploy de NFS-e sobe sem broker: sem notificador configurado, a reconciliação segue igual. */
+  test('sem notificador configurado a rejeição continua sendo gravada', async () => {
+    const fixture = buildUseCase({
+      status: { rejection: { code: 'E320', message: REJECTION_MESSAGE }, status: 'rejected' },
+    })
+
+    const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
+
+    expect(result).toEqual({ outcome: 'rejected' })
+    expect(fixture.writeBack.rejected).toHaveLength(1)
   })
 
   test('never carries the city message or the taker into a log line', async () => {

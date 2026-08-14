@@ -50,7 +50,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 - [x] **T008** Catálogo de assuntos (`cte-batch`, `nfse`, `billing`, `identity`) e canais (`inbox`,
       `email`) em `*.constant.ts`, com os templates iniciais. Contrato do vocabulário.
-- [ ] **T009** Ligar os três disparos que já têm dono: falha de emissão de lote, rejeição de NFS-e e
+- [x] **T009** Ligar os três disparos que já têm dono: falha de emissão de lote, rejeição de NFS-e e
       fatura vencendo. Toda chamada com `dedupeKey` derivada do agregado. Contrato por disparo.
 
 ## Fase E — frontend

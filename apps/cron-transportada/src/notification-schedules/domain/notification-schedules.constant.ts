@@ -13,3 +13,26 @@ export const NOTIFICATION_QUEUE_PREFETCH = 1
 
 export const NOTIFICATION_DEFAULT_LOCALE = 'pt-BR'
 export const NOTIFICATION_DEFAULT_TIMEZONE = 'America/Sao_Paulo'
+
+/**
+ * ⚠️ Cópia por valor do catálogo da API (`notification/domain/notification-catalog.constant.ts`),
+ * só a parte que este processo dispara. Mudou a chave ou os marcadores lá? mude aqui —
+ * `test/notification-schedules/triggers.contract.ts` guarda o casamento entre marcador e carga.
+ */
+export const NOTIFICATION_CATEGORY = {
+  BILLING: 'billing',
+  NFSE: 'nfse',
+} as const
+
+export const NOTIFICATION_TEMPLATE_KEY = {
+  BILLING_INVOICE_DUE: 'billing.invoice-due',
+  NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
+} as const
+
+export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = {
+  'billing.invoice-due': ['dueDate', 'invoiceNumber'],
+  'nfse.invoice-rejected': ['invoiceNumber', 'rejectionReason'],
+} as const
+
+/** Quantos dias antes do vencimento a fatura vira aviso. */
+export const BILLING_INVOICE_DUE_WINDOW_DAYS = 3

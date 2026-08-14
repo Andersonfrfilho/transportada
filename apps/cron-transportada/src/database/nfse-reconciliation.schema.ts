@@ -121,3 +121,11 @@ export const storedObjects = pgTable('stored_objects', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** Só o que o aviso de rejeição precisa: a tentativa guarda quem pediu a emissão. */
+export const nfseIssuanceOutbox = pgTable('nfse_issuance_outbox', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  attemptId: uuid('attempt_id').notNull(),
+  actorUserId: uuid('actor_user_id').notNull(),
+})

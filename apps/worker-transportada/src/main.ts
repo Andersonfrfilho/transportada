@@ -63,6 +63,9 @@ import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-
 import { buildNotificationRabbitMqTopology } from './messaging/notification-rabbitmq-topology.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
 import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { createCteBatchFailureQuery } from './notification/infrastructure/drizzle-cte-batch-failure.query.js'
+import { createNotificationTrigger } from './notification/application/notification-trigger.service.js'
+import { buildCteBatchFailureNotification } from './notification/domain/notification-trigger.policy.js'
 import { startNotificationConsumer } from './runtime/notification-consumer.service.js'
 import { InvitationDeliveryOutboxPublisherService } from './identity/application/invitation-delivery-outbox-publisher.service.js'
 import { InvitationDeliveryOutboxRelayService } from './identity/application/invitation-delivery-outbox-relay.service.js'
@@ -537,8 +540,42 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    // A mesma instância vai para o módulo (que reenfileira a próxima tentativa) e para o worker
+    // dele (que consome): duas seriam dois canais e um `close` que fecha só metade.
+    const notificationQueue = createRabbitMqNotificationQueue({
+      logger,
+      provider: notificationProvider,
+    })
+    const notificationModule = createWorkerNotificationModule({
+      db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      emailDelivery: config.emailDelivery,
+      queue: notificationQueue,
+      suppressionHmacKey: cryptography.notificationSuppressionHmacKey,
+    })
+    const loadCteBatchFailure = createCteBatchFailureQuery(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
+    const notificationTrigger = createNotificationTrigger({
+      logger,
+      send: (params) => notificationModule.useCases.sendNotification.execute(params),
+    })
     const cteIssuanceWriteBack = new DrizzleCteIssuanceWriteBackRepository(
       database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      undefined,
+      async ({ batchId, companyId, status }) => {
+        if (status !== 'error') {
+          return
+        }
+
+        const failure = await loadCteBatchFailure({ batchId, companyId })
+        if (failure === undefined) {
+          return
+        }
+
+        await notificationTrigger.notify(
+          buildCteBatchFailureNotification({ batchId, companyId, ...failure }),
+        )
+      },
     )
     const cteFiscalDocumentStorage = createCteFiscalDocumentStorage({
       bucket: storageBucket,
@@ -724,20 +761,9 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
-    // A mesma instância vai para o módulo (que reenfileira a próxima tentativa) e para o worker
-    // dele (que consome): duas seriam dois canais e um `close` que fecha só metade.
-    const notificationQueue = createRabbitMqNotificationQueue({
-      logger,
-      provider: notificationProvider,
-    })
     notificationConsumer = await notificationStarter({
       logger,
-      module: createWorkerNotificationModule({
-        db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
-        emailDelivery: config.emailDelivery,
-        queue: notificationQueue,
-        suppressionHmacKey: cryptography.notificationSuppressionHmacKey,
-      }),
+      module: notificationModule,
       queue: notificationQueue,
     })
     const relay = new OutboxRelayService({

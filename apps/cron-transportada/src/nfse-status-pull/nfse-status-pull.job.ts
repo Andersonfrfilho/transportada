@@ -9,6 +9,7 @@
  * pré-requisito, e meia configuração autorizaria nota sem XML guardado.
  */
 import { createObjectStorageProvider } from '@adatechnology/object-storage-provider'
+import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { CRON_MAX_FISCAL_DOCUMENT_BYTES } from '../config/cron.constant.js'
@@ -26,6 +27,11 @@ import {
 } from './infrastructure/drizzle-nfse-reconciliation.repository.js'
 import { createNfseFiscalDocumentStorage } from './infrastructure/nfse-fiscal-document-storage.gateway.js'
 import { createNfseFiscalGateway } from './infrastructure/nfse-fiscal-gateway.js'
+import { createNfseRejectionNotifier } from './infrastructure/nfse-rejection-notifier.gateway.js'
+import { createNotificationTrigger } from '../notification-schedules/application/notification-trigger.service.js'
+import { buildNotificationRabbitMqTopology } from '../notification-schedules/infrastructure/notification-rabbitmq-topology.js'
+import { createScheduleNotificationModule } from '../notification-schedules/infrastructure/notification-module.factory.js'
+import { createRabbitMqNotificationQueue } from '../notification-schedules/infrastructure/rabbitmq-notification-queue.adapter.js'
 
 const STORAGE_FORCE_PATH_STYLE = true
 
@@ -45,6 +51,16 @@ export async function runNfseStatusPullJob(
     secretAccessKey: settings.storage.secretKey,
   })
 
+  // O aviso é opcional por configuração: sem broker declarado, a reconciliação roda igual e calada.
+  const notifications = dependencies.config.notificationSchedules
+  const notificationProvider =
+    notifications === undefined
+      ? undefined
+      : await createRabbitMqProvider({
+          connection: notifications.rabbitMqUrl,
+          topology: buildNotificationRabbitMqTopology({ queuePrefix: notifications.queuePrefix }),
+        })
+
   try {
     const secretService = createNfseCredentialSecretService({
       envelopeProvider: createSecretEnvelopeProvider(
@@ -55,7 +71,30 @@ export async function runNfseStatusPullJob(
       ),
     })
 
+    const notificationModule =
+      notifications === undefined || notificationProvider === undefined
+        ? undefined
+        : createScheduleNotificationModule({
+            db: dependencies.db,
+            queue: createRabbitMqNotificationQueue({
+              logger: dependencies.logger,
+              provider: notificationProvider,
+            }),
+            suppressionHmacKey: notifications.suppressionHmacKey,
+          })
+    const notifier =
+      notificationModule === undefined
+        ? undefined
+        : createNfseRejectionNotifier({
+            db: dependencies.db,
+            trigger: createNotificationTrigger({
+              logger: dependencies.logger,
+              send: (params) => notificationModule.useCases.sendNotification.execute(params),
+            }),
+          })
+
     const reconcileUseCase = createReconcileInvoiceUseCase({
+      ...(notifier === undefined ? {} : { notifier }),
       documentStorage: createNfseFiscalDocumentStorage({
         bucket: settings.storage.bucket,
         provider: storageProvider,
@@ -96,5 +135,6 @@ export async function runNfseStatusPullJob(
     // O processo é one-shot: a conexão do bucket morre com ele, mas fechar aqui evita o socket
     // pendurado quando o ciclo termina antes do runtime.
     await storageProvider.close()
+    await notificationProvider?.close()
   }
 }

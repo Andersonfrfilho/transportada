@@ -35,9 +35,23 @@ export type ReconcileInvoiceUseCase = {
   }): Promise<{ readonly outcome: NfseReconciliationOutcome }>
 }
 
+/**
+ * Opcional de propósito: o deploy de NFS-e sobe sem broker nem chave de supressão, e a
+ * reconciliação fiscal não pode depender de o aviso existir para acontecer.
+ */
+export type NfseRejectionNotifierPort = {
+  notifyRejection(input: {
+    readonly attemptId: string
+    readonly companyId: string
+    readonly invoiceId: string
+    readonly rejectionMessage: string
+  }): Promise<void>
+}
+
 type ReconcileDependencies = {
   readonly documentStorage: NfseDocumentStoragePort
   readonly logger: CronLogger
+  readonly notifier?: NfseRejectionNotifierPort
   readonly status: NfseStatusPort
   readonly writeBack: NfseReconciliationWriteBackPort
 }
@@ -70,6 +84,13 @@ export function createReconcileInvoiceUseCase(
           occurredAt: now,
         })
         log(dependencies, 'cron_nfse_rejected', invoice, decision.errorCode)
+        // Depois da gravação: o aviso conta um fato já persistido, nunca uma intenção.
+        await dependencies.notifier?.notifyRejection({
+          attemptId: invoice.attemptId,
+          companyId: invoice.companyId,
+          invoiceId: invoice.invoiceId,
+          rejectionMessage: decision.errorMessage,
+        })
         return { outcome: 'rejected' }
       }
 

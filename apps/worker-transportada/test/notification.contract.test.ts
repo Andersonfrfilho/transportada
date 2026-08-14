@@ -4,3 +4,4 @@
 import './notification/queue-topology.contract'
 import './notification/consumer.contract'
 import './notification/suppression-key.contract'
+import './notification/triggers.contract'

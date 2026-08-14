@@ -343,3 +343,41 @@ bun run --cwd apps/api-transportada test    → 2456 pass · 14 skip · 0 fail
 bun run --cwd apps/api-transportada lint    → limpo
 bunx tsc --noEmit (api)                     → limpo
 ```
+
+## T009 — os três disparos ligados
+
+Cada aviso tem **um destinatário: o dono do agregado**, não a empresa inteira. O lote guarda
+`operator_user_id`, a fatura guarda `actor_user_id` e a tentativa de NFS-e guarda o ator no
+`nfse_issuance_outbox`. Leque para todo mundo seria caixa de entrada de ninguém, e a chave de
+deduplicação do módulo é única **por empresa** — o primeiro membro consumiria a chave e os demais
+ficariam sem aviso.
+
+Três decisões que valem por si:
+
+1. **A chave sai do agregado, nunca do relógio.** `cte-batch.issuance-failed:${batchId}`,
+   `billing.invoice-due:${invoiceId}` e `nfse.invoice-rejected:${attemptId}` — reentrega da mesma
+   mensagem e ciclo seguinte do cron não viram segundo aviso. A de NFS-e é da **tentativa** porque
+   reemitir e ser recusado de novo é fato novo.
+2. **O aviso do lote sai depois do commit.** `synchronizeBatchStatus` passou a devolver o status
+   novo quando ele muda; as duas transações do write-back propagam esse retorno e o repositório
+   chama `onBatchSettled` **fora** da transação, só quando o lote fechou em `error`. Notificar de
+   dentro é avisar de algo que o banco ainda pode desfazer.
+3. **Falha ao notificar não derruba o processamento fiscal.** O CT-e já foi liquidado quando o
+   disparo acontece: `createNotificationTrigger` engole a exceção como `notification_trigger_failed`.
+
+O notificador de NFS-e é **dependência opcional** do caso de uso: o deploy de NFS-e sobe sem broker
+nem chave de supressão, e a reconciliação não pode depender do aviso para existir. Sem
+`notificationSchedules` configurado o job roda igual e calado.
+
+⚠️ Cópias por valor novas, guardadas por contrato: catálogo reduzido no worker e no cron
+(`notification.constant.ts` / `notification-schedules.constant.ts`), `cte_batches.name` e
+`operator_user_id` na cópia do worker, `billing_invoices` e `nfse_issuance_outbox` no cron.
+
+```
+bun run --cwd apps/worker-transportada test  → 445 pass · 0 fail
+bun run --cwd apps/worker-transportada lint  → limpo
+bunx tsc --noEmit (worker)                   → limpo
+bun run --cwd apps/cron-transportada test    → 148 pass · 0 fail
+bun run --cwd apps/cron-transportada lint    → limpo
+bunx tsc --noEmit (cron)                     → limpo
+```

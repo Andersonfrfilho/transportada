@@ -6,6 +6,9 @@ import { createNotificationSchedules } from '@adatechnology/notification-module'
 
 import type { CronCycleResult, CronJobDependencies } from '../config/cron.types.js'
 import { runNotificationSchedulesCycle } from './application/run-cycle.js'
+import { createNotificationTrigger } from './application/notification-trigger.service.js'
+import { sweepDueInvoices } from './application/sweep-due-invoices.use-case.js'
+import { createDueInvoicesQuery } from './infrastructure/drizzle-due-invoices.query.js'
 import { CronConfigurationError } from '../config/environment.schema.js'
 import { buildNotificationRabbitMqTopology } from './infrastructure/notification-rabbitmq-topology.js'
 import { createScheduleNotificationModule } from './infrastructure/notification-module.factory.js'
@@ -28,6 +31,18 @@ export async function runNotificationSchedulesJob(
       db: dependencies.db,
       queue: createRabbitMqNotificationQueue({ logger: dependencies.logger, provider }),
       suppressionHmacKey: settings.suppressionHmacKey,
+    })
+
+    // Antes de despachar o que já venceu: a varredura é quem cria o aviso de fatura vencendo, e
+    // a rotina de despacho do módulo, logo abaixo, o leva para a fila na mesma janela.
+    await sweepDueInvoices({
+      logger: dependencies.logger,
+      now: new Date(),
+      selectDueInvoices: createDueInvoicesQuery(dependencies.db),
+      trigger: createNotificationTrigger({
+        logger: dependencies.logger,
+        send: (params) => module.useCases.sendNotification.execute(params),
+      }),
     })
 
     return await runNotificationSchedulesCycle({
