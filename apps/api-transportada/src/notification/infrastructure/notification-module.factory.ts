@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import type { QueuePort } from '@adatechnology/notification-contracts'
 import { createSmtpEmailProvider } from '@adatechnology/email-provider'
 import {
   createNotificationModule,
@@ -21,6 +22,8 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 type CreateApiNotificationModuleParams = {
   readonly config: Pick<ApiEnvironment, 'cryptography' | 'emailDelivery'>
   readonly db: Database
+  /** Ausente, o módulo cai na fila em memória dele — que ninguém consome e que morre no restart. */
+  readonly queue?: QueuePort
 }
 
 /**
@@ -34,6 +37,7 @@ type CreateApiNotificationModuleParams = {
 export function createApiNotificationModule({
   config,
   db,
+  queue,
 }: CreateApiNotificationModuleParams): NotificationModule {
   const emailDriver =
     config.emailDelivery === undefined
@@ -55,6 +59,7 @@ export function createApiNotificationModule({
       // Sem `cache` o módulo **pula** a checagem de nonce do webhook em silêncio, e o replay passa.
       cache: createInMemoryNotificationCache(),
       ...(emailDriver === undefined ? {} : { channels: { email: emailDriver } }),
+      ...(queue === undefined ? {} : { queue }),
       recipientResolver: createIdentityRecipientResolver({ db }),
     },
   })

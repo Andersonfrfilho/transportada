@@ -121,6 +121,10 @@ const environmentSchema = z.object({
   // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
   // qualquer um dizendo que a mensagem chegou.
   NOTIFICATION_WEBHOOK_SECRET: optionalText(),
+  // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
+  // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
+  QUEUE_PREFIX: optionalText(),
+  RABBITMQ_URL: optionalText(),
   SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
@@ -152,6 +156,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       jwksUri: parsed.KEYCLOAK_JWKS_URI,
     },
     logLevel: parsed.LOG_LEVEL,
+    messaging:
+      parsed.QUEUE_PREFIX === undefined || parsed.RABBITMQ_URL === undefined
+        ? undefined
+        : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     port: parsed.APP_PORT,

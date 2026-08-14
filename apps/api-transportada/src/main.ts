@@ -3,6 +3,7 @@
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
+import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseEnvironment } from './config/environment.schema'
@@ -180,6 +181,8 @@ import {
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
+import { createLazyRabbitMqNotificationQueue } from './notification/infrastructure/rabbitmq-notification-queue.adapter.js'
 import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
 import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
 
@@ -207,7 +210,27 @@ export function bootstrap(): Bun.Server<undefined> {
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
   })
-  const notifications = createApiNotificationModule({ config, db: database.db })
+  const messaging = config.messaging
+  const notificationQueue =
+    messaging === undefined
+      ? undefined
+      : createLazyRabbitMqNotificationQueue({
+          connect: () =>
+            createRabbitMqProvider({
+              connection: messaging.url,
+              topology: buildNotificationRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
+            }),
+          logger,
+        })
+  if (notificationQueue === undefined) {
+    // Sem broker o módulo usa a fila em memória dele: nada consome, e a entrega some no restart.
+    logger.warn('notification.queue.not_configured')
+  }
+  const notifications = createApiNotificationModule({
+    config,
+    db: database.db,
+    ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
+  })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
@@ -246,6 +269,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const shutdown = createShutdownHandler({
     database,
     drainObservability: async (): Promise<void> => {
+      await notificationQueue?.close()
       await errorTracker.flush()
       await logger.flush()
       logger.stop()

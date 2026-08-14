@@ -33,6 +33,13 @@ export type ApiEnvironment = {
     readonly jwksUri: string
   }
   readonly logLevel: LogLevel
+  /** Broker das entregas de notificação; ausente deixa o módulo sem fila em vez de inventar uma. */
+  readonly messaging:
+    | {
+        readonly queuePrefix: string
+        readonly url: string
+      }
+    | undefined
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
   readonly nfseCallbackBaseUrl: string | undefined
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */

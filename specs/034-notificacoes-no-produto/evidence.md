@@ -223,3 +223,39 @@ $ bun run --cwd apps/frontend-transportada build       # ✓ built, PWA 11 entri
 
 ⚠️ A caixa abre **vazia**: nada dispara notificação ainda (T006–T009). A tela e o sino estão de pé e
 falam com a API; conteúdo real depende da fila e dos gatilhos de produto.
+
+## T006 — a fila de entregas sai da memória
+
+Contrato antes da implementação: `apps/api-transportada/test/notification/queue.contract.ts`
+(12 testes) fixa o nome das três trilhas
+(`${QUEUE_PREFIX}.notification.v1.{main,retry,dead}.{exchange,queue}`), que o prefixo vem do
+ambiente, que o corpo publicado tem **só as cinco referências** do `NotificationJob` — nada de
+endereço ou conteúdo —, que `messageId`/`correlationId` carregam entrega e notificação, e as
+disposições: sucesso → `ack`, exceção → `retry`, payload que não é job → erro no `decode`, isto é,
+fila morta.
+
+Duas decisões que valem registro:
+
+- **O atraso não é obedecido, e isso é dito em voz alta.** Sem o plugin
+  `rabbitmq-delayed-message-exchange` o broker entrega o `x-delay` na hora. O adaptador publica o
+  cabeçalho e **loga `notification.queue.delay_not_supported`** — agendamento silenciosamente virado
+  em entrega imediata é o mesmo modo de falha do cache do T005: falha aberta, e sem ruído.
+- **A conexão é preguiçosa.** `bootstrap()` é síncrono e abrir canal não é; o
+  `createLazyRabbitMqNotificationQueue` abre na primeira entrega e memoriza a promessa, então duas
+  entregas simultâneas não abrem dois canais e fechar sem nunca ter entregado não conecta.
+
+Configuração: `RABBITMQ_URL` + `QUEUE_PREFIX` entram no env da API como **par** (`messaging`) — meia
+configuração viraria trilha com nome de outro ambiente. Ausentes, a API sobe, loga
+`notification.queue.not_configured` e o módulo cai na fila em memória dele.
+
+⚠️ A API não tinha broker: ela produz por outbox (`processing_outbox`, `cte_issuance_outbox`) e o
+relay do worker publica. Aqui o módulo publica direto, então existe uma janela de perda entre a
+transação dele e o `publish` (queda no meio = entrega que ninguém retoma). A varredura do T007 é o
+caminho de recuperação previsto; se ela não cobrir, a alternativa é levar a entrega para o outbox.
+
+```bash
+bun test ./test/notification-queue.contract.test.ts   # 12 pass / 0 fail
+bun run --cwd apps/api-transportada typecheck         # limpo
+bun run --cwd apps/api-transportada lint              # limpo
+bun run --cwd apps/api-transportada test              # 2450 pass / 12 skip / 0 fail (102 arquivos)
+```

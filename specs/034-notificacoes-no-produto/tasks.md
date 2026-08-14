@@ -37,7 +37,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T006** Adaptador de `QueuePort` sobre `@adatechnology/rabbitmq-provider`, trilha
+- [x] **T006** Adaptador de `QueuePort` sobre `@adatechnology/rabbitmq-provider`, trilha
       `${QUEUE_PREFIX}.notification.v1.{main,retry,dead}`. O `bullmq` do pacote não é usado.
       Contrato do nome das filas junto dos demais.
 - [ ] **T007** `createNotificationWorker` e `createNotificationSchedules` no runtime do worker e no

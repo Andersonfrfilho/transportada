@@ -98,6 +98,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
               jwksUri: 'https://identity.example.test/realms/transportada/certs',
             },
             logLevel: 'error',
+            messaging: undefined,
             nfseCallbackBaseUrl: undefined,
             notificationWebhookSecret: undefined,
             port: 0,

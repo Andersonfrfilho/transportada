@@ -66,3 +66,29 @@ describe('contrato do segredo do webhook de recibo', () => {
     ).toBeUndefined()
   })
 })
+
+describe('contrato da conexão de fila do módulo', () => {
+  test('URL e prefixo declarados chegam à configuração', () => {
+    const environment = parseEnvironment({
+      ...API_ENVIRONMENT,
+      QUEUE_PREFIX: 'transportada_local',
+      RABBITMQ_URL: 'amqp://transportada:transportada@localhost:55672',
+    })
+
+    expect(environment.messaging).toEqual({
+      queuePrefix: 'transportada_local',
+      url: 'amqp://transportada:transportada@localhost:55672',
+    })
+  })
+
+  // Sem broker o módulo cai na fila em memória dele — que ninguém consome e que morre no restart.
+  // O par é opcional para o ambiente de teste subir sem RabbitMQ, mas é tudo ou nada: metade da
+  // configuração viraria uma trilha com nome de outro ambiente.
+  test.each([
+    ['sem URL', { QUEUE_PREFIX: 'transportada_local', RABBITMQ_URL: undefined }],
+    ['sem prefixo', { QUEUE_PREFIX: undefined, RABBITMQ_URL: 'amqp://localhost:55672' }],
+    ['sem nenhum', { QUEUE_PREFIX: undefined, RABBITMQ_URL: undefined }],
+  ])('fica sem fila %s', (_name, overrides) => {
+    expect(parseEnvironment({ ...API_ENVIRONMENT, ...overrides }).messaging).toBeUndefined()
+  })
+})
