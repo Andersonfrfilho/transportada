@@ -25,6 +25,7 @@
     "@adatechnology/fiscal-provider": "0.3.0-rc.6",
     "@adatechnology/logger": "0.1.0-rc.0",
     "@adatechnology/notification-contracts": "0.1.0-rc.2",
+    "@adatechnology/notification-module": "0.1.0-rc.3",
     "@adatechnology/object-storage-provider": "0.2.0-rc.0",
     "@adatechnology/rabbitmq-provider": "0.1.1",
     "@adatechnology/secret-envelope": "0.1.0",

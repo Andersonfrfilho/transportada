@@ -6,8 +6,9 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 > 🤖 Modelo: `sonnet` (T001 e T002 são 🧠 — schema de terceiro no nosso banco)
 
-- [ ] **T001** 🧠 Instalar `@adatechnology/notification-module` e `@adatechnology/module-http` na API
-      e no worker, **pinados** em `0.1.0-rc.2`. Rodar `runNotificationMigrations` no passo manual de
+- [x] **T001** 🧠 Instalar `@adatechnology/notification-module` e `@adatechnology/module-http` na API
+      e no worker, **pinados** em `0.1.0-rc.2` (na prática `notification-module@0.1.0-rc.3` e
+      `module-http@0.1.0-rc.1` — ver `evidence.md`). Rodar `runNotificationMigrations` no passo manual de
       `db:migrate` (nunca no startup), com rollback ao lado. Contrato em
       `test/notification/migration.contract.ts`: o schema `notification` existe, nenhuma tabela do
       `public` mudou, e o rollback devolve o estado anterior. Verificação: `make migration-test`.

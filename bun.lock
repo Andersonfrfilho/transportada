@@ -17,6 +17,8 @@
         "@adatechnology/keycloak-admin": "1.0.0-rc.0",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
+        "@adatechnology/module-http": "0.1.0-rc.1",
+        "@adatechnology/notification-module": "0.1.0-rc.3",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/secret-envelope": "0.1.0",
         "@sentry/bun": "10.69.0",
@@ -101,6 +103,7 @@
         "@adatechnology/fiscal-provider": "0.3.0-rc.6",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/notification-contracts": "0.1.0-rc.2",
+        "@adatechnology/notification-module": "0.1.0-rc.3",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
@@ -134,7 +137,11 @@
 
     "@adatechnology/logger": ["@adatechnology/logger@0.1.0-rc.0", "", {}, "sha512-OIA1YlWimL4oThdGpT975hXYZJXWEoEYskAHofPSD4KznOLX1lLIYHHkmLq+o9PNQW8K4y+lheQzrlI7AIT2cA=="],
 
+    "@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.1", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ThCyhqC1fa/vSmfArvLs6Y0rogHLmuiMvQ+lzgIScuYiLJsVueW9RG6ZP0v8hMh+wEB6maLyVypIMl6rwzVPbw=="],
+
     "@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.2", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-MKQp3GitUggBWdCNrINZl1ui3trwwc1SqrWy00TX6Rdji3QXOG/S4sZ5iylgHWRPQq3sv3C+O4ICpsZztpNXlw=="],
+
+    "@adatechnology/notification-module": ["@adatechnology/notification-module@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/module-http": "0.1.0-rc.1", "@adatechnology/notification-contracts": "0.1.0-rc.2", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-J1RWGC1Hh6KZFUed4QCYl6/H0XrTAaZR96yjbU3xl+ebhJJ5cK2j0rXShdFWtHn9epq4GFyF1ky0xchQs1Qx/Q=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
 
@@ -1504,7 +1511,11 @@
 
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
 
+    "@adatechnology/module-http/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
     "@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/notification-module/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@apideck/better-ajv-errors/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 
