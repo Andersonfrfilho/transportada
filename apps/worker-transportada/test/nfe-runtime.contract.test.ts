@@ -11,6 +11,7 @@ const ENVIRONMENT = {
   DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/transportada',
   ENCRYPTION_ACTIVE_KEY_ID: 'test-key',
   ENCRYPTION_KEYRING_JSON: '{"test-key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}',
+  NOTIFICATION_SUPPRESSION_HMAC_KEY: Buffer.alloc(32, 9).toString('base64'),
   LOG_LEVEL: 'info',
   QUEUE_PREFIX: 'transportada.runtime.contract',
   RABBITMQ_URL: 'amqp://guest:guest@127.0.0.1:5672',
@@ -129,6 +130,7 @@ describe('NF-e worker runtime contract', () => {
             calls.push('nfseIssuance.cancel')
           },
         }),
+        startNotificationConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
         startInvitationDeliveryConsumer: async () => ({
           cancel: async () => {
             calls.push('invitationDelivery.cancel')
@@ -187,6 +189,7 @@ describe('NF-e worker runtime contract', () => {
       'provider.close:transportada.runtime.contract.nfse-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.invitation-delivery.v1.main.queue',
       'provider.close:transportada.runtime.contract.password-reset-delivery.v1.main.queue',
+      'provider.close:transportada.runtime.contract.notification.v1.main.queue',
       'database.close',
       'health.stop',
     ])
@@ -243,6 +246,7 @@ describe('NF-e worker runtime contract', () => {
         startCteIssuanceConsumer: async () => undefined,
         startMdfeIssuanceConsumer: async () => undefined,
         startNfseIssuanceConsumer: async () => undefined,
+        startNotificationConsumer: async () => undefined,
         startInvitationDeliveryConsumer: async () => undefined,
         startPasswordResetDeliveryConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,

@@ -10,7 +10,11 @@ import {
   readNotificationRollbackSql,
   runNotificationSchemaMigrations,
 } from '../../src/database/notification-migration.service.js'
-import { readBusinessTables, testWithPostgres, withDisposableDatabase } from '../database-migration/support.js'
+import {
+  readBusinessTables,
+  testWithPostgres,
+  withDisposableDatabase,
+} from '../database-migration/support.js'
 
 /**
  * O schema `notification` é de terceiro: as migrations viajam dentro do pacote e não têm diretório
@@ -79,7 +83,9 @@ describe('Notification migration contract', () => {
       await database.unsafe(await readNotificationRollbackSql())
       await runNotificationSchemaMigrations({ connectionString })
 
-      expect(await readSchemaTables(database, NOTIFICATION_SCHEMA)).toEqual([...NOTIFICATION_TABLES])
+      expect(await readSchemaTables(database, NOTIFICATION_SCHEMA)).toEqual([
+        ...NOTIFICATION_TABLES,
+      ])
     })
   })
 

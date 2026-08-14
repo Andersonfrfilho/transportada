@@ -60,6 +60,10 @@ import { MdfeOutboxPublisherService } from './mdfe-issuance/application/mdfe-out
 import { MdfeOutboxRelayService } from './mdfe-issuance/application/mdfe-outbox-relay.service.js'
 import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.service.js'
 import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-delivery-rabbitmq-topology.js'
+import { buildNotificationRabbitMqTopology } from './messaging/notification-rabbitmq-topology.js'
+import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
+import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { startNotificationConsumer } from './runtime/notification-consumer.service.js'
 import { InvitationDeliveryOutboxPublisherService } from './identity/application/invitation-delivery-outbox-publisher.service.js'
 import { InvitationDeliveryOutboxRelayService } from './identity/application/invitation-delivery-outbox-relay.service.js'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository.js'
@@ -123,6 +127,9 @@ import {
   createNfeStorageGatewayFromEnvironment,
   type NfeStorageGateway,
 } from './storage/infrastructure/nfe-storage-gateway.js'
+import type { QueuePort } from '@adatechnology/notification-contracts'
+import type { NotificationModule } from '@adatechnology/notification-module'
+
 import type { WorkerLogger } from './shared/worker.types.js'
 
 const NFE_DISTRIBUTION_LEASE_MS = 30_000
@@ -280,6 +287,11 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startNotificationConsumer?: (input: {
+    readonly logger: WorkerLogger
+    readonly module: NotificationModule
+    readonly queue: QueuePort
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startFoundationSyntheticConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly logger: WorkerLogger
@@ -322,6 +334,7 @@ export async function startWorkerRuntime(
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
     dependencies.startPasswordResetDeliveryConsumer ?? startPasswordResetDeliveryConsumer
+  const notificationStarter = dependencies.startNotificationConsumer ?? startNotificationConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
     dependencies.createStorageGateway ??
@@ -386,6 +399,9 @@ export async function startWorkerRuntime(
   const passwordResetDeliveryTopology = buildPasswordResetDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const notificationTopology = buildNotificationRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
@@ -409,6 +425,8 @@ export async function startWorkerRuntime(
   let passwordResetDeliveryPublisher: RabbitMqProvider | undefined
   let passwordResetDeliveryRelayLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
+  let notificationConsumer: RuntimeConsumer | undefined
+  let notificationProvider: RabbitMqProvider | undefined
 
   try {
     provider = await rabbitProviderFactory({
@@ -442,6 +460,10 @@ export async function startWorkerRuntime(
     passwordResetDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: passwordResetDeliveryTopology,
+    })
+    notificationProvider = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: notificationTopology,
     })
     const healthService = new WorkerHealthService({
       database,
@@ -702,6 +724,22 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
+    // A mesma instância vai para o módulo (que reenfileira a próxima tentativa) e para o worker
+    // dele (que consome): duas seriam dois canais e um `close` que fecha só metade.
+    const notificationQueue = createRabbitMqNotificationQueue({
+      logger,
+      provider: notificationProvider,
+    })
+    notificationConsumer = await notificationStarter({
+      logger,
+      module: createWorkerNotificationModule({
+        db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        emailDelivery: config.emailDelivery,
+        queue: notificationQueue,
+        suppressionHmacKey: cryptography.notificationSuppressionHmacKey,
+      }),
+      queue: notificationQueue,
+    })
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -874,6 +912,7 @@ export async function startWorkerRuntime(
         nfseIssuanceConsumer,
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
+        notificationConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -886,6 +925,7 @@ export async function startWorkerRuntime(
         nfseIssuancePublisher,
         invitationDeliveryPublisher,
         passwordResetDeliveryPublisher,
+        notificationProvider,
       ]),
     })
     runtimeShutdown.resolve(shutdown)

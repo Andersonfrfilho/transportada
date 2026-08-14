@@ -11,6 +11,7 @@ const ENVIRONMENT = {
   DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/transportada',
   ENCRYPTION_ACTIVE_KEY_ID: 'test-key',
   ENCRYPTION_KEYRING_JSON: '{"test-key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}',
+  NOTIFICATION_SUPPRESSION_HMAC_KEY: Buffer.alloc(32, 9).toString('base64'),
   LOG_LEVEL: 'info',
   QUEUE_PREFIX: 'transportada.shutdown.contract',
   RABBITMQ_URL: 'amqp://guest:guest@127.0.0.1:5672',
@@ -94,6 +95,7 @@ const noopRuntimeDependencies = {
   startMdfeIssuanceConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startNfseIssuanceConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startInvitationDeliveryConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
+  startNotificationConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startPasswordResetDeliveryConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),

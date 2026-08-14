@@ -40,7 +40,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 - [x] **T006** Adaptador de `QueuePort` sobre `@adatechnology/rabbitmq-provider`, trilha
       `${QUEUE_PREFIX}.notification.v1.{main,retry,dead}`. O `bullmq` do pacote não é usado.
       Contrato do nome das filas junto dos demais.
-- [ ] **T007** `createNotificationWorker` e `createNotificationSchedules` no runtime do worker e no
+- [x] **T007** `createNotificationWorker` e `createNotificationSchedules` no runtime do worker e no
       cron (agendadas, expiradas, purge de retenção). Contrato: `dedupeKey` repetida produz uma
       entrega só; `invalid-target` suprime o endereço e o envio seguinte não sai.
 

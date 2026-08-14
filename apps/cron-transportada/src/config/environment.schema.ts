@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
+import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
 import {
   CRON_DEFAULT_CADENCE_MINUTES,
   CRON_DEFAULT_PAGE_SIZE,
@@ -14,7 +15,11 @@ import {
   CRON_MAX_PAGE_SIZE,
   CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS,
 } from './cron.constant.js'
-import type { CronEnvironment, CronNfseStatusPullEnvironment } from './cron.types.js'
+import type {
+  CronEnvironment,
+  CronNfseStatusPullEnvironment,
+  CronNotificationSchedulesEnvironment,
+} from './cron.types.js'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 
@@ -53,6 +58,9 @@ const cronEnvironmentSchema = z.object({
   STORAGE_PROVIDER: optionalText(),
   STORAGE_REGION: optionalText(),
   STORAGE_SECRET_KEY: optionalText(),
+  NOTIFICATION_SUPPRESSION_HMAC_KEY: optionalText(),
+  QUEUE_PREFIX: optionalText(),
+  RABBITMQ_URL: optionalText(),
 })
 
 export class CronConfigurationError extends Error {
@@ -81,6 +89,10 @@ export function parseCronEnvironment(
     nfseStatusPull:
       result.data.CRON_JOB === NFSE_STATUS_PULL_JOB
         ? resolveNfseStatusPullEnvironment(result.data)
+        : undefined,
+    notificationSchedules:
+      result.data.CRON_JOB === NOTIFICATION_SCHEDULES_JOB
+        ? resolveNotificationSchedulesEnvironment(result.data)
         : undefined,
     pageSize: result.data.PAGE_SIZE,
     logSinkUrl: result.data.LOG_SINK_URL,
@@ -124,6 +136,26 @@ function resolveNfseStatusPullEnvironment(
       region: data.STORAGE_REGION ?? DEFAULT_STORAGE_REGION,
       secretKey: requireConfigured(data.STORAGE_SECRET_KEY),
     },
+  }
+}
+
+const BASE64_32_BYTES_PATTERN = /^[A-Za-z0-9+/]{43}=$/
+
+/**
+ * Este job enfileira no mesmo trilho da API e consulta supressão com a mesma chave que ela usou
+ * para gravar. Chave diferente produz HMAC que não casa com nada — e o e-mail volta a sair para
+ * quem já recusou. Falhar no boot é preferível a descobrir isso na primeira entrega.
+ */
+function resolveNotificationSchedulesEnvironment(
+  data: z.output<typeof cronEnvironmentSchema>,
+): CronNotificationSchedulesEnvironment {
+  const suppressionHmacKey = requireConfigured(data.NOTIFICATION_SUPPRESSION_HMAC_KEY)
+  if (!BASE64_32_BYTES_PATTERN.test(suppressionHmacKey)) throw new CronConfigurationError()
+
+  return {
+    queuePrefix: requireConfigured(data.QUEUE_PREFIX),
+    rabbitMqUrl: requireConfigured(data.RABBITMQ_URL),
+    suppressionHmacKey,
   }
 }
 

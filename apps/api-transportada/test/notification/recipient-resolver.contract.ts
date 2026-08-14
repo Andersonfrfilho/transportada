@@ -78,12 +78,12 @@ async function withResolver(
 describe('Notification recipient resolver contract', () => {
   testWithPostgres('resolve o contato de e-mail do membro da empresa', async () => {
     await withResolver(async (resolver, seeded) => {
-      expect(await resolver.resolve({ companyId: seeded.companyId, userId: seeded.userId })).toEqual(
-        {
-          displayName: 'Alice',
-          email: 'alice@example.test',
-        },
-      )
+      expect(
+        await resolver.resolve({ companyId: seeded.companyId, userId: seeded.userId }),
+      ).toEqual({
+        displayName: 'Alice',
+        email: 'alice@example.test',
+      })
     })
   })
 
@@ -113,14 +113,17 @@ describe('Notification recipient resolver contract', () => {
   })
 
   // Contato de whatsapp não vira e-mail: o canal errado entregaria para um endereço inválido
-  testWithPostgres('devolve telefone, e não e-mail, quando o contato é de outro canal', async () => {
-    await withResolver(async (resolver, seeded) => {
-      expect(
-        await resolver.resolve({ companyId: seeded.companyId, userId: seeded.phoneUserId }),
-      ).toEqual({
-        displayName: 'Carla',
-        phone: '+5511999990000',
+  testWithPostgres(
+    'devolve telefone, e não e-mail, quando o contato é de outro canal',
+    async () => {
+      await withResolver(async (resolver, seeded) => {
+        expect(
+          await resolver.resolve({ companyId: seeded.companyId, userId: seeded.phoneUserId }),
+        ).toEqual({
+          displayName: 'Carla',
+          phone: '+5511999990000',
+        })
       })
-    })
-  })
+    },
+  )
 })

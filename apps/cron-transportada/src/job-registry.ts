@@ -10,12 +10,15 @@ import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distributi
 import { runNfeDistributionPullJob } from './nfe-distribution-pull/nfe-distribution-pull.job.js'
 import { NFSE_STATUS_PULL_JOB } from './nfse-status-pull/domain/nfse-status-pull.constant.js'
 import { runNfseStatusPullJob } from './nfse-status-pull/nfse-status-pull.job.js'
+import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
+import { runNotificationSchedulesJob } from './notification-schedules/notification-schedules.job.js'
 
 export type CronJobRunner = (dependencies: CronJobDependencies) => Promise<CronCycleResult>
 
 const JOB_REGISTRY: Readonly<Record<CronJob, CronJobRunner>> = {
   [DISTRIBUTION_PULL_JOB]: runNfeDistributionPullJob,
   [NFSE_STATUS_PULL_JOB]: runNfseStatusPullJob,
+  [NOTIFICATION_SCHEDULES_JOB]: runNotificationSchedulesJob,
 }
 
 export function resolveCronJob(cronJob: CronJob): CronJobRunner {

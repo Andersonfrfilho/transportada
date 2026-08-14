@@ -19,6 +19,16 @@ export type CronNfseStatusPullEnvironment = {
   readonly storage: CronStorageEnvironment
 }
 
+/**
+ * Configuração exclusiva do trilho de rotinas de notificação. Só é resolvida quando `CRON_JOB` é o
+ * job de notificação — o deploy dos outros continua subindo sem broker e sem chave de supressão.
+ */
+export type CronNotificationSchedulesEnvironment = {
+  readonly queuePrefix: string
+  readonly rabbitMqUrl: string
+  readonly suppressionHmacKey: string
+}
+
 export type CronStorageEnvironment = {
   readonly accessKey: string
   readonly bucket: string
@@ -36,6 +46,7 @@ export type CronEnvironment = {
   readonly fiscalEnvironment: CronFiscalEnvironment
   readonly logLevel: LogLevel
   readonly nfseStatusPull: CronNfseStatusPullEnvironment | undefined
+  readonly notificationSchedules: CronNotificationSchedulesEnvironment | undefined
   readonly pageSize: number
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined

@@ -26,6 +26,7 @@ describe('cron environment contract', () => {
       logLevel: 'info',
       // O deploy da busca de notas continua subindo sem chaveiro, sem bucket e sem prefeitura.
       nfseStatusPull: undefined,
+      notificationSchedules: undefined,
       pageSize: 50,
       logSinkUrl: undefined,
       sentryDsn: undefined,

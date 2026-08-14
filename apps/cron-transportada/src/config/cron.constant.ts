@@ -2,11 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
+import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
 
 export const CRON_PROJECT_NAME = 'cron-transportada'
 export const CRON_VERSION = '0.1.0'
 
-export const CRON_JOBS = ['nfe.distribution.pull', NFSE_STATUS_PULL_JOB] as const
+export const CRON_JOBS = [
+  'nfe.distribution.pull',
+  NFSE_STATUS_PULL_JOB,
+  NOTIFICATION_SCHEDULES_JOB,
+] as const
 export type CronJob = (typeof CRON_JOBS)[number]
 
 export const CRON_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

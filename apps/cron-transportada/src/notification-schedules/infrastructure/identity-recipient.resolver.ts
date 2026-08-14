@@ -1,5 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * ⚠️ Cópia por valor de `api-transportada/src/notification/infrastructure/identity-recipient.resolver.ts`.
+ * Mudou a junção lá? mude aqui — quem resolve o endereço na hora da entrega é este worker.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type {
@@ -8,8 +11,7 @@ import type {
 } from '@adatechnology/notification-contracts'
 import { and, eq } from 'drizzle-orm'
 
-import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
-import { userCompanyMemberships } from '../../database/identity.schema.js'
+import { identityUserProfiles, userCompanyMemberships } from '../../database/identity.schema.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -18,9 +20,6 @@ type CreateIdentityRecipientResolverParams = {
 }
 
 /**
- * O módulo de notificações não conhece a tabela de usuários do produto: ele pergunta o endereço no
- * instante do envio, e é por isso que o schema dele guarda só máscara e HMAC.
- *
  * A junção passa pelo `user_company_memberships` de propósito — o perfil não tem empresa, quem tem
  * é o vínculo. Pedir o mesmo `userId` pelo contexto de outra empresa tem de devolver "não existe",
  * e não o contato da pessoa.

@@ -259,3 +259,53 @@ bun run --cwd apps/api-transportada typecheck         # limpo
 bun run --cwd apps/api-transportada lint              # limpo
 bun run --cwd apps/api-transportada test              # 2450 pass / 12 skip / 0 fail (102 arquivos)
 ```
+
+## T007 — o worker consome a fila e o cron roda as rotinas
+
+O módulo agora tem as duas metades que faltavam. **No worker**, `startNotificationConsumer` liga o
+`createNotificationWorker` do próprio pacote — quem conhece a máquina de estados da entrega é ele; a
+app só entrega o transporte (`createRabbitMqNotificationQueue` sobre o mesmo trilho que a API
+publica) e o ciclo de vida do processo. O `stop()` entra na lista de consumidores do
+`WorkerShutdown`, então o desligamento devolve a entrega em voo para a fila em vez de deixá-la presa
+em `queued`. **No cron**, o job novo `notification.schedules.run` roda `createNotificationSchedules`
+— despachar o que venceu, expirar, purgar retenção — uma vez por janela.
+
+Decisões:
+
+- **A mesma instância de fila vai para o módulo e para o worker dele.** Duas seriam dois canais, e
+  um `close` que fecha só metade.
+- **O cron roda todas as rotinas, ignorando o `cronExpression` que elas declaram.** O processo é
+  one-shot e quem agenda é o CronJob lá fora; as três são idempotentes. Uma rotina que quebra é
+  contada como falha e **não interrompe** as outras — a purga não depende do despacho, e a próxima
+  janela só vem daqui a uma cadência inteira.
+- **Sem driver de canal no cron.** Ele só agenda; um canal configurado ali faria o mesmo e-mail sair
+  por dois processos.
+- **`NOTIFICATION_SUPPRESSION_HMAC_KEY` passa a ser obrigatória no worker e no job de notificação do
+  cron**, com a mesma recusa de reuso da chave de envelope que a API já fazia. Chave diferente da que
+  a API usou para gravar produz HMAC que não casa com nada — e o e-mail volta a sair para quem já
+  recusou. Falha no boot, não na primeira entrega. ⚠️ Precisa ser configurada no Railway (staging e
+  produção) **também nesses dois serviços**, com o mesmo valor da API.
+
+⚠️ Três cópias por valor novas, e nenhuma app importa código da outra: a rota/topologia da fila e o
+adaptador (`worker/src/messaging/`, `cron/src/notification-schedules/infrastructure/`), o resolvedor
+de destinatário e a tabela `identity_user_profiles`. Nome de trilha que divirja produz duas filas que
+nunca se encontram e entrega que some sem erro — o que guarda a paridade é
+`worker/test/notification/queue-topology.contract.ts` contra
+`api/test/notification/queue.contract.ts`.
+
+O contrato pedido pela task é comportamento do módulo e só vale contra Postgres de verdade — fora do
+banco, dedupe e supressão seriam encenação, porque quem garante é o índice único e a tabela de
+supressão:
+
+```bash
+# dedupeKey repetida devolve a mesma notificação e enfileira uma entrega só;
+# `invalid_target` suprime o endereço e o envio seguinte nem chega ao driver
+DRIZZLE_TEST_DATABASE_URL=… bun test ./test/notification-delivery-behaviour.contract.test.ts  # 2 pass / 0 fail
+
+bun test ./test/notification.contract.test.ts               # worker — 11 pass / 0 fail
+bun test ./test/notification-schedules.contract.test.ts     # cron — 11 pass / 0 fail
+bun run --cwd apps/api-transportada test                    # 2450 pass / 0 fail
+bun run --cwd apps/worker-transportada test                 # 441 pass / 0 fail
+bun run --cwd apps/cron-transportada test                   # 138 pass / 0 fail
+bun run lint && bun run typecheck                           # limpos nas quatro apps
+```
