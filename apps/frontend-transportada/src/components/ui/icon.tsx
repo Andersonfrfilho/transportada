@@ -56,6 +56,7 @@ export type IconName =
   | 'workspace-mdfe-manifest'
   | 'workspace-nfe'
   | 'workspace-nfse-invoice'
+  | 'workspace-notification'
   | 'workspace-operations'
   | 'workspace-trip'
 
@@ -157,6 +158,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M12 9v8',
     'M14 11h-3a1.5 1.5 0 0 0 0 3h2a1.5 1.5 0 0 1 0 3h-3',
   ],
+  'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
 }

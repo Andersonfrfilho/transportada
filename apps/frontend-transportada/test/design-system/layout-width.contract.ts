@@ -20,6 +20,10 @@ const SHELL_RULES = [
   },
   { filePath: 'src/modules/fleet/styles/fleet.module.css', selector: '.fleetShell' },
   {
+    filePath: 'src/modules/notification/styles/notification.module.css',
+    selector: '.notificationShell',
+  },
+  {
     filePath: 'src/modules/mdfe-manifest/styles/mdfeManifest.module.css',
     selector: '.manifestShell',
   },

@@ -183,3 +183,43 @@ $ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
 ⚠️ **Deploy (T005):** `NOTIFICATION_WEBHOOK_SECRET` precisa ser cadastrada no Railway (distinta por
 ambiente) quando houver provedor entregando recibo. Sem ela nada quebra — a rota simplesmente não
 existe.
+
+## T010 · T011 — o módulo aparece na tela
+
+Antecipados fora da ordem da spec, a pedido: até aqui nada de notificações era visível no produto.
+
+`@adatechnology/notification-ui` e `@adatechnology/notification-client` pinados em `0.1.0-rc.2` no
+`apps/frontend-transportada`. O `NotificationProvider` envolve o `ApplicationShell` em `src/main.tsx`
+com o cliente de `notification/shared/notificationClient.service.ts` — `baseUrl` de
+`getIdentityEnvironment().apiBaseUrl + '/v1'` e o Bearer buscado **a cada chamada**, nunca capturado
+no boot, porque o token do Keycloak rotaciona.
+
+O tema é `notification.module.css`, e a descoberta que ele registra: as variáveis que o hospedeiro
+preenche são as **curtas** (`--adn-surface`, `--adn-text`, `--adn-muted`, `--adn-accent`,
+`--adn-danger`, `--adn-border`, `--adn-radius-md`, `--adn-space-2..4`). As `--adn-color-*` o pacote
+redeclara nas classes dele (`.adn-bell`, `.adn-list`, …), abaixo do nosso tema na cascata — escrever
+nelas não pegaria, e o valor de fábrica é claro: seria texto quase branco sobre fundo branco no meio
+do nosso tema escuro, buraco que só aparece na tela, nunca no build. O contrato
+`test/design-system/notification-theme.contract.ts` extrai a lista de `var(--adn-x, fallback)` do
+CSS do pacote e falha se alguma ficar sem valor nosso; mais dois testes proíbem hexadecimal, `px` e
+valor que não venha de `var(--…)`.
+
+Sino no cabeçalho (`application-user-area`), rota `/notificacoes` com `NotificationsWorkspace`,
+textos acentuados em `notification.locale.json` (e o `.en.`). A entrada `notification` fica **fora**
+dos grupos do menu lateral: a porta é o sino; ela existe em `WORKSPACE_NAVIGATION_ITEMS` só para o
+título da tela sair certo. Ícone novo `workspace-notification` no design system — `<svg>` cru é
+proibido. O shell entrou em `SHELL_RULES` do contrato de largura.
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 1122 pass
+ 0 fail
+Ran 1122 tests across 17 files.
+
+$ bun run --cwd apps/frontend-transportada typecheck   # sem achados
+$ bun run --cwd apps/frontend-transportada lint        # sem achados
+$ bun run --cwd apps/frontend-transportada build       # ✓ built, PWA 11 entries
+```
+
+⚠️ A caixa abre **vazia**: nada dispara notificação ainda (T006–T009). A tela e o sino estão de pé e
+falam com a API; conteúdo real depende da fila e dos gatilhos de produto.

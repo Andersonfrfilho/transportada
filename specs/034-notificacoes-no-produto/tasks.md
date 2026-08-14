@@ -57,11 +57,11 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T010** Instalar `notification-ui` e `notification-client` pinados; `NotificationProvider`
+- [x] **T010** Instalar `notification-ui` e `notification-client` pinados; `NotificationProvider`
       com o `NotificationTheme` preenchido pelos tokens de `src/styles/index.css`. Contrato em
       `test/design-system/notification-theme.contract.ts`: nenhum token literal, e os contratos de
       `icon`/`select`/`checkbox`/`skeleton` continuam verdes sem exceção nova.
-- [ ] **T011** `NotificationBell` no cabeçalho e rota `/notificacoes` com `NotificationsWorkspace`,
+- [x] **T011** `NotificationBell` no cabeçalho e rota `/notificacoes` com `NotificationsWorkspace`,
       na navegação manual de `src/main.tsx`. Textos acentuados em `*.locale.json`.
 - [ ] **T012** Rota de configurações com `NotificationSettingsWorkspace`, recebendo `channels` e
       `categories` do catálogo do T008.
