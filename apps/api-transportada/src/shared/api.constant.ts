@@ -56,8 +56,13 @@ export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
-export const IDLE_TIMEOUT_SECONDS = 10
+/**
+ * Janela ociosa do stream (SSE), não da requisição comum: o heartbeat do módulo de notificações bate
+ * a cada 25s, e a conexão precisa sobreviver ao silêncio entre duas batidas.
+ */
+export const IDLE_TIMEOUT_SECONDS = 60
 export const REQUEST_TIMEOUT_SECONDS = 10
+export const SSE_CONTENT_TYPE = 'text/event-stream'
 export const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export const INVALID_LOG_PATHNAME = '<invalid>'
 export const UNMATCHED_LOG_PATHNAME = '<unmatched>'

@@ -22,7 +22,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T003** Subir `IDLE_TIMEOUT_SECONDS` de 10 para 60 em `shared/api.constant.ts`, mantendo
+- [x] **T003** Subir `IDLE_TIMEOUT_SECONDS` de 10 para 60 em `shared/api.constant.ts`, mantendo
       `REQUEST_TIMEOUT_SECONDS` em 10. Contrato em `test/server/sse-timeout.contract.ts`: conexão
       viva além de 25s (o heartbeat do módulo) — é este teste que guarda a decisão, porque a falha
       real é silenciosa.

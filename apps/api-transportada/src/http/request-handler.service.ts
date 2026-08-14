@@ -7,6 +7,8 @@ import {
   APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES,
   CORRELATION_ID_HEADER,
   HTTP_ERROR,
+  IDLE_TIMEOUT_SECONDS,
+  SSE_CONTENT_TYPE,
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { ApiLogger, RequestTimeoutPort } from '../shared/api.types'
@@ -135,10 +137,17 @@ async function executeRequest({
       request,
     }))
   assertRequestActive(request.signal)
+  // `server.timeout()` vale por requisição e vence o `idleTimeout` do `Bun.serve`: sem soltar a
+  // rédea aqui, o stream morreria nos mesmos 10 segundos da requisição comum.
+  if (isEventStream(response)) server.timeout(request, IDLE_TIMEOUT_SECONDS)
   return response
 }
 
 export { createServerErrorHandler }
+
+function isEventStream(response: Response): boolean {
+  return (response.headers.get('content-type') ?? '').startsWith(SSE_CONTENT_TYPE)
+}
 
 function assertRequestSize(contentLength: number | undefined): void {
   if (contentLength !== undefined && contentLength > APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES) {

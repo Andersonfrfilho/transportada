@@ -65,7 +65,36 @@ $ make config   # exit 0 — o gate agora exige NOTIFICATION_SUPPRESSION_HMAC_KE
 $ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
 ```
 
-⚠️ **Deploy:** a variável é obrigatória. Staging e production não sobem sem ela — precisa ser
+⚠️ **Deploy (T002):** a variável é obrigatória. Staging e production não sobem sem ela — precisa ser
 gerada por ambiente (distinta das outras chaves) e cadastrada no Railway antes do próximo deploy da
 API. Está no runbook (`docs/ops/backup-emergencia.md`) e no contrato
 `test/deploy/secrets.contract.ts`.
+
+## T003 — a conexão de stream sobrevive ao heartbeat
+
+Subir `IDLE_TIMEOUT_SECONDS` de 10 para 60 não bastaria: `server.timeout(request, seconds)` vale
+**por requisição** e vence o `idleTimeout` global do `Bun.serve`, e o handler já chamava
+`server.timeout(request, REQUEST_TIMEOUT_SECONDS)` no começo de toda requisição. O stream morreria
+nos mesmos 10 segundos, calado, com o cliente reconectando em loop. A rédea é solta no fim de
+`executeRequest`, e só para resposta `text/event-stream`; requisição comum continua em 10s.
+
+O contrato (`test/server/sse-timeout.contract.ts`) observa as chamadas de `timeout()` por um espião
+do `RequestTimeoutPort`, em vez de manter um socket vivo por 26 segundos — a suíte não paga meio
+minuto para provar o que a sequência de chamadas já prova. Ele fixa três coisas: que
+`IDLE_TIMEOUT_SECONDS` é maior que o `DEFAULT_SSE_HEARTBEAT_SECONDS` (25) exportado pelo módulo, que
+resposta JSON recebe só `REQUEST_TIMEOUT_SECONDS`, e que resposta de stream termina em
+`IDLE_TIMEOUT_SECONDS`.
+
+```
+$ bun test test/sse-timeout.contract.test.ts
+ 3 pass
+ 0 fail
+
+$ bun run --cwd apps/api-transportada test
+ 2412 pass
+ 12 skip
+ 0 fail
+Ran 2424 tests across 99 files.
+
+$ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
+```
