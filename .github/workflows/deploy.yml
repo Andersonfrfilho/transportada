@@ -112,9 +112,13 @@ jobs:
         run: .github/scripts/railway-deploy.sh deploy worker
       - name: Deploy cron
         run: .github/scripts/railway-deploy.sh deploy cron
+      # Os dois trilhos ainda não têm serviço no ambiente de produção. Publicar neles ali derruba o
+      # deploy antes do frontend, então o passo é de staging até os serviços existirem lá.
       - name: Deploy cron-nfse
+        if: needs.target.outputs.environment == 'staging'
         run: .github/scripts/railway-deploy.sh deploy cron-nfse
       - name: Deploy cron-notifications
+        if: needs.target.outputs.environment == 'staging'
         run: .github/scripts/railway-deploy.sh deploy cron-notifications
       - name: Deploy frontend
         run: .github/scripts/railway-deploy.sh deploy transportada-frontend
