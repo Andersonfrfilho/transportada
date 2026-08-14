@@ -309,3 +309,37 @@ bun run --cwd apps/worker-transportada test                 # 441 pass / 0 fail
 bun run --cwd apps/cron-transportada test                   # 138 pass / 0 fail
 bun run lint && bun run typecheck                           # limpos nas quatro apps
 ```
+
+## T008 — o catálogo de assuntos, canais e templates
+
+O módulo aceita `category` e `templateKey` como string livre. String livre erra em silêncio: o
+disparo grava a notificação, a renderização não acha template e a entrega morre sem ninguém ver.
+O catálogo em `src/notification/domain/notification-catalog.constant.ts` fecha esse vocabulário.
+
+Quatro decisões:
+
+1. **Quatro categorias** (`billing`, `cte-batch`, `identity`, `nfse`) — é por categoria que o
+   destinatário liga e desliga canal na tela de preferências, então ela é vocabulário de produto,
+   não de módulo. `identity` já existe no catálogo de categorias sem template próprio: convite e
+   recuperação de senha continuam saindo pelo trilho antigo do worker.
+2. **Dois canais** (`inbox`, `email`). O módulo conhece push, WhatsApp e SMS; nenhum tem driver
+   configurado aqui, e oferecê-los na tela prometeria entrega que não sai.
+3. **A chave do template é prefixada pela categoria** (`cte-batch.issuance-failed`) e é identidade
+   de negócio: renomear quebra template já publicado no banco.
+4. **Os marcadores são declarados na entrada** e o contrato compara nos dois sentidos com o que o
+   texto usa. Marcador não declarado renderiza string vazia — o e-mail sai com "o lote  falhou" e
+   nada falha.
+
+A semente é derivada do catálogo (`buildNotificationTemplateSeeds`), nunca escrita à mão, e o
+`upsert` é idempotente por `(key, channel, locale)`: rodar a cada subida devolve o texto do
+código, e é assim que um template antigo no banco não sobrevive à atualização.
+
+⚠️ **Passo novo de deploy:** `bun run --cwd apps/api-transportada db:seed:notification-templates`,
+ao lado de `db:migrate` e `db:provision` — nunca no startup do servidor. Ambiente sem
+`PROVISION_COMPANY_ID` sai calado (`{"templates":"skipped"}`).
+
+```
+bun run --cwd apps/api-transportada test    → 2456 pass · 14 skip · 0 fail
+bun run --cwd apps/api-transportada lint    → limpo
+bunx tsc --noEmit (api)                     → limpo
+```
