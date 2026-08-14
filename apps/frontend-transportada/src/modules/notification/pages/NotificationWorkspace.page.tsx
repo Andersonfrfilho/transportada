@@ -3,6 +3,7 @@ import { NotificationsWorkspace } from '@adatechnology/notification-ui'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { NOTIFICATION_SETTINGS_HREF } from '../shared/notificationCatalog.constant'
 import styles from '../styles/notification.module.css'
 
 export function NotificationWorkspacePage(): ReactNode {
@@ -14,7 +15,10 @@ export function NotificationWorkspacePage(): ReactNode {
         <h1 className={styles.notificationTitle}>{t('title')}</h1>
         <p className={styles.notificationSubtitle}>{t('subtitle')}</p>
       </header>
-      <NotificationsWorkspace renderEmpty={() => <p>{t('empty')}</p>} />
+      <NotificationsWorkspace
+        renderEmpty={() => <p>{t('empty')}</p>}
+        settingsHref={NOTIFICATION_SETTINGS_HREF}
+      />
     </main>
   )
 }

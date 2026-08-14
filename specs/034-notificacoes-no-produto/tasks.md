@@ -63,7 +63,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       `icon`/`select`/`checkbox`/`skeleton` continuam verdes sem exceção nova.
 - [x] **T011** `NotificationBell` no cabeçalho e rota `/notificacoes` com `NotificationsWorkspace`,
       na navegação manual de `src/main.tsx`. Textos acentuados em `*.locale.json`.
-- [ ] **T012** Rota de configurações com `NotificationSettingsWorkspace`, recebendo `channels` e
+- [x] **T012** Rota de configurações com `NotificationSettingsWorkspace`, recebendo `channels` e
       `categories` do catálogo do T008.
 
 ## Fase F — fechamento

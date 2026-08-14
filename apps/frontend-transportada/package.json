@@ -13,7 +13,7 @@
     "smoke": "ENV_FILE=${ENV_FILE:-../../.env}; set -a; . \"$ENV_FILE\"; set +a; VITE_SMOKE_AUTH_BYPASS=true playwright test",
     "smoke:auth": "ENV_FILE=${ENV_FILE:-../../.env}; INLINE_API_URL=$VITE_API_URL; set -a; . \"$ENV_FILE\"; set +a; VITE_API_URL=${INLINE_API_URL:-$VITE_API_URL} playwright test",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-5173}",
-    "test": "bun test test/frontend-contract.test.ts test/design-system.contract.test.ts test/shared.contract.test.ts test/keycloak-auth-provider.test.ts test/company-settings.contract.test.ts test/identity.contract.test.ts test/nfe-workspace.contract.test.ts test/cte-batch.contract.test.ts test/freight.contract.test.ts test/cte-profiles.contract.test.ts test/cte-issuance.contract.test.ts test/billing.contract.test.ts test/operations.contract.test.ts test/fleet.contract.test.ts test/mdfe-manifest.contract.test.ts test/trip.contract.test.ts test/nfse-invoice.contract.test.ts",
+    "test": "bun test test/frontend-contract.test.ts test/design-system.contract.test.ts test/shared.contract.test.ts test/keycloak-auth-provider.test.ts test/company-settings.contract.test.ts test/identity.contract.test.ts test/nfe-workspace.contract.test.ts test/cte-batch.contract.test.ts test/freight.contract.test.ts test/cte-profiles.contract.test.ts test/cte-issuance.contract.test.ts test/billing.contract.test.ts test/operations.contract.test.ts test/fleet.contract.test.ts test/mdfe-manifest.contract.test.ts test/trip.contract.test.ts test/nfse-invoice.contract.test.ts test/notification.contract.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

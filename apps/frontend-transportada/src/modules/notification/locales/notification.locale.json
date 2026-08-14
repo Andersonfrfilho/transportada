@@ -2,5 +2,18 @@
   "title": "Notificações",
   "subtitle": "Avisos do sistema para você, e a escolha de por onde recebê-los.",
   "bellLabel": "Abrir notificações",
-  "empty": "Nada por aqui ainda. Os avisos aparecem assim que o sistema tiver algo a contar."
+  "empty": "Nada por aqui ainda. Os avisos aparecem assim que o sistema tiver algo a contar.",
+  "settings": {
+    "title": "Preferências de notificação",
+    "subtitle": "Escolha por onde receber cada assunto. A caixa de entrada guarda tudo de qualquer forma.",
+    "backLabel": "Voltar às notificações",
+    "inbox": "Caixa de entrada",
+    "inboxHint": "Dentro do TransportAdA, no sino do cabeçalho.",
+    "email": "E-mail",
+    "emailHint": "Chega mesmo com o sistema fechado; depende do endereço do seu perfil.",
+    "cteBatch": "Emissão de CT-e",
+    "nfse": "NFS-e",
+    "billing": "Faturamento",
+    "identity": "Acesso e conta"
+  }
 }

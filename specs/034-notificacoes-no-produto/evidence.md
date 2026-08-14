@@ -381,3 +381,22 @@ bun run --cwd apps/cron-transportada test    → 148 pass · 0 fail
 bun run --cwd apps/cron-transportada lint    → limpo
 bunx tsc --noEmit (cron)                     → limpo
 ```
+
+## T012 — tela de preferências
+
+`/notificacoes/preferencias` é **sub-rota do mesmo workspace**, não item de menu: quem chega vem do
+link da inbox (`settingsHref`), e a porta de entrada continua sendo o sino. `NOTIFICATION_SETTINGS_HREF`
+é declarada uma vez em `notificationCatalog.constant.ts` — a navegação manual de `src/main.tsx` casa
+por esse valor, e a inbox aponta para ele; duas cópias do caminho dariam link que não abre nada.
+
+O catálogo da tela (`inbox`/`email`; `cte-batch`, `nfse`, `billing`, `identity`) é **cópia por valor**
+do catálogo da API. Canal a mais promete entrega que não sai; assunto a menos esconde o desligamento
+de um aviso que existe. `test/notification/settings-catalog.contract.ts` lê o arquivo da API e falha
+quando divergem — inclusive exigindo rótulo nos dois idiomas para cada id.
+
+```
+bun run --cwd apps/frontend-transportada test       → 1152 pass · 0 fail (18 arquivos)
+bun run --cwd apps/frontend-transportada typecheck  → limpo
+bun run --cwd apps/frontend-transportada lint       → limpo
+bun run --cwd apps/frontend-transportada build      → ok (PWA, 12 entradas)
+```

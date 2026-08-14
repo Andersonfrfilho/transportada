@@ -2,5 +2,18 @@
   "title": "Notifications",
   "subtitle": "System alerts for you, and where you want to receive them.",
   "bellLabel": "Open notifications",
-  "empty": "Nothing here yet. Alerts show up as soon as the system has something to tell."
+  "empty": "Nothing here yet. Alerts show up as soon as the system has something to tell.",
+  "settings": {
+    "title": "Notification preferences",
+    "subtitle": "Choose where each subject reaches you. The inbox keeps everything either way.",
+    "backLabel": "Back to notifications",
+    "inbox": "Inbox",
+    "inboxHint": "Inside TransportAdA, under the header bell.",
+    "email": "Email",
+    "emailHint": "Arrives with the system closed; depends on the address in your profile.",
+    "cteBatch": "CT-e issuance",
+    "nfse": "NFS-e",
+    "billing": "Billing",
+    "identity": "Access and account"
+  }
 }
