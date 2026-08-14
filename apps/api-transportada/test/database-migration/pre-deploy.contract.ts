@@ -22,6 +22,7 @@ describe('Pre-deploy da API', () => {
         order.push('provision')
         return ['company']
       },
+      seedTemplates: undefined,
     })
 
     expect(order).toEqual(['migrate', 'provision'])
@@ -31,18 +32,49 @@ describe('Pre-deploy da API', () => {
     const report = await runPreDeploy({
       migrate: async () => undefined,
       provision: undefined,
+      seedTemplates: undefined,
     })
 
-    expect(report).toEqual({ migrated: true, provisioning: 'skipped' })
+    expect(report).toEqual({ migrated: true, provisioning: 'skipped', templates: 'skipped' })
   })
 
   test('reporta o que foi criado para o deploy virar evidência', async () => {
     const report = await runPreDeploy({
       migrate: async () => undefined,
       provision: async () => ['company'],
+      seedTemplates: async () => 4,
     })
 
-    expect(report).toEqual({ created: ['company'], migrated: true, provisioning: 'ensured' })
+    expect(report).toEqual({
+      created: ['company'],
+      migrated: true,
+      provisioning: 'ensured',
+      templates: 4,
+    })
+  })
+
+  /**
+   * O texto do template vem do catálogo em código: sem esta semeadura o aviso sai com o corpo do
+   * deploy anterior, e ninguém percebe porque a entrega continua acontecendo.
+   */
+  test('semeia os templates depois do provisionamento, nunca antes', async () => {
+    const order: string[] = []
+
+    await runPreDeploy({
+      migrate: async () => {
+        order.push('migrate')
+      },
+      provision: async () => {
+        order.push('provision')
+        return []
+      },
+      seedTemplates: async () => {
+        order.push('seed')
+        return 0
+      },
+    })
+
+    expect(order).toEqual(['migrate', 'provision', 'seed'])
   })
 
   // Migration que falha não pode deixar o provisionamento rodar contra schema velho.

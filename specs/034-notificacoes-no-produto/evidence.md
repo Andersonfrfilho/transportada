@@ -428,3 +428,15 @@ de disparo referencia a pessoa por `recipientUserId` e nada mais. Os payloads do
 ⏳ **Pendente:** as três telas lidas em staging com dado real. Depende do deploy, que sai pelo
 pipeline do GitHub, e de `NOTIFICATION_SUPPRESSION_HMAC_KEY` configurada nos três serviços
 (API, worker e cron), mais o passo de seed dos templates no pipeline. Enquanto isso T013 fica aberta.
+
+### Passos de deploy que faltavam
+
+O seed dos templates entrou no **pre-deploy da API**, depois do provisionamento: a Railway aceita um
+`preDeployCommand` só, e a empresa precisa existir para o template pertencer a alguém. Ambiente sem
+`COMPANY_ID` declarado reporta `templates: 'skipped'` e sobe igual. O contrato do grafo de imports
+pegou na hora que a imagem de runtime não copiava `src/notification` — o `COPY` foi acrescentado, e
+sem ele o deploy quebraria só dentro do contêiner, com `Cannot find module`.
+
+O trilho agendado ganhou serviço próprio: `deploy/cron-notifications/railway.json`
+(`CRON_JOB=notification.schedules.run`, de hora em hora) e o passo correspondente no `deploy.yml`,
+ao lado de `cron` e `cron-nfse`.
