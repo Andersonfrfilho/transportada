@@ -86,6 +86,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
+            emailDelivery: undefined,
             frontendOrigin: 'http://localhost:53000',
             keycloak: {
               admin: {
@@ -103,6 +104,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             logSinkUrl: undefined,
             sentryDsn: undefined,
             sentryEnvironment: 'test',
+            vehicleCatalog: null,
             vehicleLookup: null,
           },
           logger,

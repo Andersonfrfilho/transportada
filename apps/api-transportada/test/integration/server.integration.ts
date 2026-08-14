@@ -63,6 +63,7 @@ const server = startApiServer({
     companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
+    emailDelivery: undefined,
     frontendOrigin: 'http://localhost:53000',
     keycloak: {
       admin: {
@@ -80,6 +81,7 @@ const server = startApiServer({
     logSinkUrl: undefined,
     sentryDsn: undefined,
     sentryEnvironment: 'test',
+    vehicleCatalog: null,
     vehicleLookup: null,
   },
   logger,

@@ -84,6 +84,15 @@ const environmentSchema = z.object({
       message: 'FLEET_VEHICLE_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
+  FLEET_VEHICLE_CATALOG_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'FLEET_VEHICLE_CATALOG_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   // Endereço público desta instalação, por onde a prefeitura devolve o postback de NFS-e. Vazio
   // significa callback não publicado, e aí a rota anônima nem é registrada. Não é segredo — o
@@ -105,6 +114,10 @@ const environmentSchema = z.object({
     .refine(isSupportedScheduleExpression, {
       message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
     }),
+  // O mesmo remetente do worker (ADR-0031): não se cria segunda configuração de SMTP. As duas
+  // juntas ou nenhuma — meia configuração daria envio sem remetente.
+  EMAIL_FROM: optionalText(),
+  SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
   SENTRY_ENVIRONMENT: optionalText(),
@@ -120,6 +133,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
+    emailDelivery:
+      parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
+        ? undefined
+        : { from: parsed.EMAIL_FROM, smtpUrl: parsed.SMTP_URL },
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     keycloak: {
       admin: {
@@ -137,6 +154,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     logSinkUrl: parsed.LOG_SINK_URL,
     sentryDsn: parsed.SENTRY_DSN,
     sentryEnvironment: parsed.SENTRY_ENVIRONMENT ?? parsed.APP_ENV,
+    vehicleCatalog:
+      parsed.FLEET_VEHICLE_CATALOG_URL === undefined
+        ? null
+        : { url: parsed.FLEET_VEHICLE_CATALOG_URL },
     vehicleLookup:
       parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
         ? null

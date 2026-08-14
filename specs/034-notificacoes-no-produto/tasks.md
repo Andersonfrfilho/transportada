@@ -12,7 +12,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       `db:migrate` (nunca no startup), com rollback ao lado. Contrato em
       `test/notification/migration.contract.ts`: o schema `notification` existe, nenhuma tabela do
       `public` mudou, e o rollback devolve o estado anterior. Verificação: `make migration-test`.
-- [ ] **T002** 🧠 Composition root: `createNotificationModule` com `recipientResolver` sobre
+- [x] **T002** 🧠 Composition root: `createNotificationModule` com `recipientResolver` sobre
       `identity_user_profiles` (filtra por `companyId` do contexto), driver de e-mail reusando
       `EMAIL_FROM`/`SMTP_URL`, e `suppressionHmacKey` novo no schema de env — **falha no boot** se
       ausente. Contrato negativo em `test/notification/recipient-resolver.contract.ts`: destinatário

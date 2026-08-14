@@ -15,6 +15,13 @@ export type ApiEnvironment = {
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
+  /** Remetente compartilhado com o worker; ausente deixa o canal de e-mail sem driver. */
+  readonly emailDelivery:
+    | {
+        readonly from: string
+        readonly smtpUrl: string
+      }
+    | undefined
   readonly frontendOrigin: string
   readonly keycloak: {
     readonly admin: {
@@ -36,6 +43,10 @@ export type ApiEnvironment = {
   /** DSN do rastreio de erro; ausente desliga o rastreio em vez de derrubar o boot. */
   readonly sentryDsn: string | undefined
   readonly sentryEnvironment: string
+  /** Catálogo de marca/modelo FIPE; `null` desliga o recurso — campos viram texto livre. */
+  readonly vehicleCatalog: {
+    readonly url: string
+  } | null
   /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
   readonly vehicleLookup: {
     readonly token: string
@@ -91,10 +102,17 @@ export type ReadinessHealthResponse = HealthResponseBase & {
 
 export type HealthResponse = LivenessHealthResponse | ReadinessHealthResponse
 
+export type ApiErrorDetail = {
+  readonly field: string
+  readonly message: string
+}
+
 export type ErrorResponse = {
   readonly error: {
     readonly code: string
     readonly correlationId: string
+    /** Presente só quando a validação reprovou mais de um campo — todos de uma vez. */
+    readonly details?: readonly ApiErrorDetail[]
     readonly message: string
   }
 }

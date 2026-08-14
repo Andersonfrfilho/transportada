@@ -179,6 +179,7 @@ import {
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
+import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -204,6 +205,9 @@ export function bootstrap(): Bun.Server<undefined> {
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
   })
+  // As rotas do módulo entram no T004; aqui ele já sobe porque é no boot que a falta da chave de
+  // supressão ou do remetente precisa aparecer — não no primeiro envio.
+  const notifications = createApiNotificationModule({ config, db: database.db })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
@@ -243,7 +247,9 @@ export function bootstrap(): Bun.Server<undefined> {
 
   registerShutdownSignals({ logger, shutdown })
   logger.info('api_started', {
+    emailNotificationsEnabled: config.emailDelivery !== undefined,
     environment: config.appEnv,
+    notificationUseCases: Object.keys(notifications.useCases).length,
     hostname: server.hostname,
     port: server.port,
   })

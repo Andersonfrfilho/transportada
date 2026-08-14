@@ -160,7 +160,8 @@ Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{rabbitmq.*}}`.
 
 Secretas, geradas por ambiente e nunca iguais entre ambientes:
-`ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY`, `OBJECT_STORAGE_ACCESS_KEY`,
+`ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY`, `NOTIFICATION_SUPPRESSION_HMAC_KEY`,
+`OBJECT_STORAGE_ACCESS_KEY`,
 `OBJECT_STORAGE_SECRET_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`.
 
 > 🔑 **Faça backup do `ENCRYPTION_KEYRING_JSON` de production fora do Railway.**
