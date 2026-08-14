@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { LOCAL_IDENTITY_ROLES } from '../src/database/local-identity-seed.constant'
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import {
   COMPANY_ROLE_PERMISSIONS,
@@ -179,6 +180,19 @@ describe('authorization contract', () => {
     expect(fiscal.has('mdfe.issue')).toBe(true)
     expect(fiscal.has('mdfe.close')).toBe(true)
     expect(fiscal.has('mdfe.cancel')).toBe(true)
+  })
+
+  // O usuário do seed local existe para exercitar qualquer feature sem trocar de conta:
+  // papel de menos ali some com botão na tela e devolve 403 sem que nada esteja quebrado
+  test('grants the local seed user every company permission', () => {
+    const permissions = resolveCompanyPermissions([...LOCAL_IDENTITY_ROLES])
+    const companyPermissions = TRANSPORTADA_PERMISSIONS.filter(
+      (permission) => permission !== 'companies.manage',
+    )
+
+    expect([...permissions]).toEqual(companyPermissions)
+    // A permissão de plataforma segue reservada e sem rota consumidora (ADR-0021)
+    expect([...permissions]).not.toContain('companies.manage')
   })
 
   test('unions local roles into an immutable permission set without platform access', () => {

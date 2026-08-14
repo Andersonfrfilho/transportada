@@ -128,7 +128,9 @@ describe('mdfe fiscal document schema', () => {
   test('validates the 44 digit key and the stored xml digest', () => {
     const checks = checkSqlByName(mdfeFiscalDocuments)
 
-    expect(checks.mdfe_fiscal_documents_access_key_check).toContain("~ '^[0-9]{44}$'")
+    expect(checks.mdfe_fiscal_documents_access_key_check).toContain(
+      "~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'",
+    )
     expect(checks.mdfe_fiscal_documents_sha256_check).toContain("~ '^[0-9a-f]{64}$'")
     expect(checks.mdfe_fiscal_documents_status_check).toContain(
       "in ('authorized', 'closed', 'cancelled')",

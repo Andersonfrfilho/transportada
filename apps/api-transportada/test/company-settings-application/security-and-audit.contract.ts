@@ -91,7 +91,7 @@ describe('company settings security and audit contract', () => {
       message: 'Company fiscal settings conflict',
       status: 409,
     })
-    expect(Object.keys(error).sort()).toEqual(['code', 'headers', 'name', 'status'])
+    expect(Object.keys(error).sort()).toEqual(['code', 'details', 'headers', 'name', 'status'])
     for (const sensitive of [COMPANY_SETTINGS.profile.cnpj, COMPANY_ID, OTHER_COMPANY_ID]) {
       expect(String(error)).not.toContain(sensitive)
       expect(JSON.stringify(error)).not.toContain(sensitive)
@@ -125,7 +125,7 @@ describe('company settings security and audit contract', () => {
     const error = await captureApiError(() => useCase.execute(UPDATE_COMPANY_SETTINGS_INPUT))
 
     expect(error).toMatchObject({ code, message, status: 409 })
-    expect(Object.keys(error).sort()).toEqual(['code', 'headers', 'name', 'status'])
+    expect(Object.keys(error).sort()).toEqual(['code', 'details', 'headers', 'name', 'status'])
     expect(JSON.stringify(error)).not.toContain(COMPANY_ID)
     expect(unitOfWork.settings).toBeNull()
     expect(unitOfWork.audits).toEqual([])

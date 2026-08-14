@@ -156,7 +156,7 @@ describe('CT-e issuance schema', () => {
     })
     expect(checkSqlByName(cteFiscalDocuments)).toMatchObject({
       cte_fiscal_documents_access_key_check:
-        '"cte_fiscal_documents"."access_key" ~ \'^[0-9]{44}$\'',
+        '"cte_fiscal_documents"."access_key" ~ \'^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$\'',
       cte_fiscal_documents_status_check:
         '"cte_fiscal_documents"."status" in (\'authorized\', \'cancelled\')',
       cte_fiscal_documents_environment_check:

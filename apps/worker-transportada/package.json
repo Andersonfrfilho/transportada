@@ -22,7 +22,7 @@
   "dependencies": {
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/email-provider": "0.1.0-rc.2",
-    "@adatechnology/fiscal-provider": "0.3.0-rc.6",
+    "@adatechnology/fiscal-provider": "0.3.0-rc.7",
     "@adatechnology/logger": "0.1.0-rc.0",
     "@adatechnology/notification-contracts": "0.1.0-rc.2",
     "@adatechnology/notification-module": "0.1.0-rc.3",

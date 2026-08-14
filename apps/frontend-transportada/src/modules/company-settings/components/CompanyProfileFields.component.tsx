@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import {
@@ -24,24 +25,27 @@ type FieldDefinition = Readonly<{
   field: TextField
   inputMode?: 'email' | 'numeric' | 'text'
   maximum: number
+  /** Campo cujo valor guardado difere do exibido — a máscara é maior, e o `maxLength` cortaria nela. */
+  normalize?: 'digits' | 'taxId'
   required?: boolean
 }>
 
 const PROFILE_FIELDS: readonly FieldDefinition[] = [
   { field: 'legalName', maximum: 200, required: true },
   { field: 'tradeName', maximum: 200 },
-  { field: 'cnpj', inputMode: 'numeric', maximum: 14, required: true },
+  // Teclado de texto: o CNPJ alfanumérico tem letra na base, e o numérico não as oferece.
+  { field: 'cnpj', maximum: 14, normalize: 'taxId', required: true },
   { field: 'stateRegistration', maximum: 20 },
   { field: 'municipalRegistration', maximum: 20 },
-  { field: 'rntrc', inputMode: 'numeric', maximum: 9, required: true },
+  { field: 'rntrc', inputMode: 'numeric', maximum: 9, normalize: 'digits', required: true },
   { field: 'street', maximum: 200, required: true },
   { field: 'number', maximum: 20, required: true },
   { field: 'complement', maximum: 100 },
   { field: 'district', maximum: 100, required: true },
   { field: 'city', maximum: 100, required: true },
   { field: 'state', maximum: 2, required: true },
-  { field: 'postalCode', inputMode: 'numeric', maximum: 8, required: true },
-  { field: 'cityIbgeCode', inputMode: 'numeric', maximum: 7, required: true },
+  { field: 'postalCode', inputMode: 'numeric', maximum: 8, normalize: 'digits', required: true },
+  { field: 'cityIbgeCode', inputMode: 'numeric', maximum: 7, normalize: 'digits', required: true },
   { field: 'phone', maximum: 20 },
   { field: 'email', inputMode: 'email', maximum: 254 },
 ]
@@ -70,11 +74,12 @@ function ProfileTextField(
   }>,
 ) {
   const { t } = useTranslation('companySettings')
-  const { field, inputMode, maximum, required } = props.definition
+  const { field, inputMode, maximum, normalize, required } = props.definition
   const invalid = props.error !== undefined
   // Cortar o excedente aqui gravava um documento fiscal errado sem o usuário ver: a validação acusa.
   const normalizeValue = (value: string) => {
-    if (inputMode === 'numeric') return stripNonDigits(value)
+    if (normalize === 'taxId') return normalizeTaxId(value)
+    if (normalize === 'digits') return stripNonDigits(value)
     if (field === 'stateRegistration') return stripStateRegistrationMask(value).slice(0, maximum)
     return value
   }
@@ -94,7 +99,7 @@ function ProfileTextField(
       aria-invalid={invalid}
       id={profileFieldId(field)}
       inputMode={inputMode ?? 'text'}
-      maxLength={inputMode === 'numeric' ? undefined : displayMaxLength}
+      maxLength={normalize === undefined ? displayMaxLength : undefined}
       required={required}
       type={inputMode === 'email' ? 'email' : 'text'}
       value={formatDisplayValue(props.value)}

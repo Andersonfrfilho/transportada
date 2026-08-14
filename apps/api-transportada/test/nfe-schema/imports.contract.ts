@@ -157,7 +157,7 @@ describe('NF-e import schema', () => {
       nfe_import_items_sha256_check: `"nfe_import_items"."source_sha256" ~ '^[0-9a-f]{64}$'`,
       nfe_import_items_status_check: `"nfe_import_items"."status" in ('pending', 'validating', 'imported', 'duplicated', 'invalid', 'rejected', 'failed')`,
       nfe_import_items_variant_check: `"nfe_import_items"."variant" is null or "nfe_import_items"."variant" in ('complete', 'summary', 'event')`,
-      nfe_import_items_access_key_check: `"nfe_import_items"."access_key" is null or "nfe_import_items"."access_key" ~ '^[0-9]{44}$'`,
+      nfe_import_items_access_key_check: `"nfe_import_items"."access_key" is null or "nfe_import_items"."access_key" ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
       nfe_import_items_distribution_source_presence_check: `("nfe_import_items"."source_nsu" is null) = ("nfe_import_items"."environment" is null)`,
       nfe_import_items_source_nsu_check: `"nfe_import_items"."source_nsu" is null or "nfe_import_items"."source_nsu" ~ '^[0-9]{15}$'`,
       nfe_import_items_environment_check: `"nfe_import_items"."environment" is null or "nfe_import_items"."environment" in ('homologation', 'production')`,

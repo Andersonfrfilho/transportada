@@ -144,6 +144,8 @@
     "selectedCount": "{{count}} nota selecionada",
     "selectedCount_other": "{{count}} notas selecionadas",
     "blockedRow": "Nota bloqueada para CT-e",
+    "nfseLink": "Vinculada à nota de serviço {{number}} — abrir o detalhe",
+    "nfseLinkPending": "Vinculada a uma nota de serviço ainda sem numeração — abrir o detalhe",
     "blockedCount": "{{count}} bloqueada fora da seleção",
     "blockedCount_other": "{{count}} bloqueadas fora da seleção",
     "downloadSelected": "Baixar XML das selecionadas",

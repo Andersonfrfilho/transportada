@@ -87,6 +87,8 @@
     "downloadXml": "Download XML",
     "emitCte": "Issue CT-es ({{count}})",
     "blockedRow": "Invoice blocked for CT-e",
+    "nfseLink": "Linked to service invoice {{number}} — open the detail",
+    "nfseLinkPending": "Linked to a service invoice with no number yet — open the detail",
     "blockedCount": "{{count}} blocked out of the selection",
     "blockedCount_other": "{{count}} blocked out of the selection",
     "fields": {

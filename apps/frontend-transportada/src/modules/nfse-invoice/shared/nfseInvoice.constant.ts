@@ -1,5 +1,8 @@
 export const NFSE_SERVICE_INVOICES_PATH = '/nfse-service-invoices'
 export const NFSE_INVOICE_PREVIEW_PATH = `${NFSE_SERVICE_INVOICES_PATH}/preview`
+export const NFSE_INVOICE_EXPORT_PATH = `${NFSE_SERVICE_INVOICES_PATH}/export`
+/** O servidor carimba o nome; o padrão só existe para o arquivo não sair sem nome nenhum. */
+export const NFSE_INVOICE_EXPORT_FALLBACK_FILE_NAME = 'nfse-documentos.zip'
 export const NFSE_EMISSION_PROFILES_PATH = '/nfse-emission-profiles'
 /**
  * O diálogo de emissão lê as opções, não a listagem: quem emite tem `nfse.issue`, e a listagem
@@ -105,10 +108,21 @@ export const NFSE_INVOICE_DETAIL_KEYS = [
   ...NFSE_INVOICE_KEYS,
   'cancellationReason',
   'charges',
+  'delivery',
   'description',
   'rejectionCode',
   'rejectionMessage',
   'version',
+] as const
+
+export const NFSE_INVOICE_DELIVERY_KEYS = [
+  'attemptCount',
+  'lastErrorCause',
+  'lastErrorCode',
+  'lastErrorMessage',
+  'nextAttemptAt',
+  'status',
+  'updatedAt',
 ] as const
 
 export const NFSE_INVOICE_CHARGE_KEYS = [

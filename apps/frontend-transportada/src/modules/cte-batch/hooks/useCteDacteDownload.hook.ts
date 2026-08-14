@@ -2,7 +2,7 @@
 import { useMutation } from '@tanstack/react-query'
 
 import { getCteBatchItemClient } from '../queries/cteBatchItems.query'
-import { saveCteArchive } from '../shared/cteArchiveDownload.service'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import {
   canDownloadCteDacte,
   resolveCteExportMessageKey,
@@ -26,7 +26,7 @@ export function useCteDacteDownload(input: UseCteDacteDownloadInput) {
         batchId: target.batchId,
         itemId: target.id,
       })
-      saveCteArchive(file)
+      saveArchiveFile(file)
     },
   })
 

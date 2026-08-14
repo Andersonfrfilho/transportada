@@ -84,6 +84,7 @@ const params = (overrides: Partial<BuildMdfePayloadParams> = {}): BuildMdfePaylo
     bodyType: '02',
     capacityKg: 25000n,
     capacityM3: 90n,
+    fleetNumber: '',
     ownerName: '',
     ownerRntrc: '',
     ownerState: '',
@@ -208,6 +209,31 @@ describe('MDF-e payload builder', () => {
       'tipoRodado',
       'uf',
     ])
+  })
+
+  // Fase C: fleet_number vira <cInt> no veículo de tração — sentinela vazio, omitido do XML
+  test('carries the fleet number as codigoInterno, omitted when the vehicle has none', () => {
+    const withFleetNumber = buildMdfePayload(
+      params({
+        vehicle: {
+          ...params().vehicle,
+          fleetNumber: 'ROTA-01',
+        } as BuildMdfePayloadParams['vehicle'],
+      }),
+    )
+
+    expect((withFleetNumber.veiculoTracao as Record<string, unknown>).codigoInterno).toBe('ROTA-01')
+
+    const withoutFleetNumber = buildMdfePayload(
+      params({
+        vehicle: {
+          ...params().vehicle,
+          fleetNumber: '',
+        } as BuildMdfePayloadParams['vehicle'],
+      }),
+    )
+
+    expect(Object.keys(withoutFleetNumber.veiculoTracao)).not.toContain('codigoInterno')
   })
 
   test('keeps the predominant product without the NCM the company did not inform', () => {

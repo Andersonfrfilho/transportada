@@ -107,7 +107,6 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             sentryDsn: undefined,
             sentryEnvironment: 'test',
             vehicleCatalog: null,
-            vehicleLookup: null,
           },
           logger,
           router: createHttpRouterFixture({

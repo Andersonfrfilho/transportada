@@ -2582,3 +2582,234 @@ esse job: o deploy do `cron` de busca de notas continua subindo sem nenhum deles
 
 Nenhum segredo, token, CNPJ ou endereço real nesta evidência. Os únicos valores citados são nome de
 serviço, caminho de arquivo versionado e expressão de cron.
+
+## T028b — ações por linha: detalhe, download e cancelamento
+
+As três rotas já existiam desde T018 (`GET /:id`, `GET /:id/documents`, `GET /:id/xml`, `GET /:id/pdf`,
+`POST /:id/cancel`) e o cliente e o controlador do frontend já as expunham desde T026 — o que faltava
+era quem as acionasse. A tabela renderizava checkbox e colunas, sem coluna de ação, e
+`cancelInvoiceMutation`, `getInvoiceDocumentUrl` e `listInvoiceDocuments` não tinham nenhum consumidor.
+
+O que cada linha oferece saiu para serviço puro (`shared/nfseInvoiceRowActions.service.ts`), espelhando
+`nfse-invoice-state.policy.ts` da API: cancelar só em `authorized`, porque é a única transição que o
+domínio aceita; baixar só onde o documento fiscal existe. Esse recorte foi conferido no repositório, não
+assumido — `findFiscalDocumentLocation` devolve `null` quando o `object_id` é nulo, e a linha em
+`nfse_fiscal_documents` nasce na autorização e sobrevive ao cancelamento. Daí `authorized`,
+`cancellation_requested` e `cancelled` oferecerem o download, e os demais não.
+
+Cancelar é permissão própria (`nfse.cancel`): quem só lê **não vê** o botão, em vez de vê-lo
+desabilitado — botão morto na tela é promessa que o produto não cumpre.
+
+O detalhe virou diálogo, não página. Página exigiria mexer na navegação de `src/main.tsx` (chave no
+union, `WORKSPACE_NAVIGATION_ITEMS`, `resolveCurrentWorkspace`, `resolvePage`) e no serviço de rota, que
+hoje só carrega o estado de busca da tabela — custo desproporcional para ler encargos, notas vinculadas
+e motivo de rejeição.
+
+A justificativa do cancelamento é validada contra o mesmo teto da API (5 a 255 caracteres, sobre o texto
+já aparado), para a tela recusar antes de gastar rede, e a chave de idempotência é montada no formato que
+o cabeçalho aceita (`^[A-Za-z0-9._:-]{16,256}$`), estável por tentativa.
+
+Contrato escrito antes da implementação, vermelho pelos motivos certos:
+
+```
+$ bun test ./test/nfse-invoice.contract.test.ts
+ 103 pass
+ 17 fail
+```
+
+Uma asserção do contrato foi corrigida durante a implementação: exigia o literal
+`resolveNfseRowActions` dentro do componente da célula. O componente delega por
+`actions.resolveActions(invoice.status)` — o mesmo serviço puro, já amarrado às permissões pelo hook —,
+que é o desenho melhor: a célula não repassa permissão. A asserção passou a provar a delegação
+(`actions.resolveActions(invoice.status)` na célula, `resolveNfseRowActions` no hook) e manteve a
+negativa que importa: nenhum `=== 'authorized'` inline no componente.
+
+Depois da implementação:
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 1016 pass
+ 0 fail
+Ran 1016 tests across 17 files.
+
+$ bun run typecheck
+(sem saída — as quatro apps limpas)
+
+$ bun run lint
+(sem saída — as quatro apps limpas)
+
+$ bun run format:check
+All matched files use Prettier code style!
+```
+
+Arquivos novos: `shared/nfseInvoiceRowActions.service.ts`, `hooks/useNfseInvoiceRowActions.hook.ts`,
+`components/NfseInvoiceRowActions.component.tsx`, `components/NfseInvoiceDetailDialog.component.tsx`,
+`components/NfseInvoiceCancelDialog.component.tsx`, `test/nfse-invoice/row-actions.contract.ts`.
+
+## T028c — chegar até as ações: coluna fixa e linha clicável
+
+A T028b entregou os botões e o operador continuou sem conseguir agir. A causa não era permissão nem
+bundle velho: `.dataTable` tem `white-space: nowrap` dentro de `.tableScroll { overflow-x: auto }`, e
+com nove colunas de conteúdo largo (razão social, código de verificação, duas datas) a coluna de
+ações nasce além da borda direita. Quem não rola horizontalmente vê a tabela inteira e nenhuma ação.
+
+Duas correções, nenhuma delas nova regra de negócio:
+
+- A coluna de ações passa a andar com a rolagem (`position: sticky; right: 0`). Fundo opaco
+  (`var(--color-graphite)`) porque o conteúdo passa por baixo, e o zebrado da linha par é refeito
+  sobre esse fundo — o `color-mix` translúcido original desapareceria contra o opaco.
+- A célula de dado abre o detalhe ao clique. Só ela: a célula do checkbox e a das ações já hospedam
+  controle próprio, e o contrato prende isso contando **uma** ocorrência de `openDetail(invoice)` no
+  componente. A linha não vira `role="button"` — isso destruiria a semântica de linha para o leitor
+  de tela; o teclado continua servido pelo botão de detalhe, que já é focável.
+
+O que a linha oferece continua vindo do gate puro da T028b: em `issuing` só o detalhe está ativo,
+porque XML e PDF só existem depois da autorização e o cancelamento só transita de `authorized`.
+
+```
+$ bun test apps/frontend-transportada/test/nfse-invoice.contract.test.ts   # antes
+ 121 pass
+ 6 fail
+
+$ bun test apps/frontend-transportada/test/nfse-invoice.contract.test.ts   # depois
+ 127 pass
+ 0 fail
+
+$ bun run --cwd apps/frontend-transportada test
+ 1023 pass
+ 0 fail
+Ran 1023 tests across 17 files.
+
+$ bun run typecheck && bun run lint
+(sem saída — as quatro apps limpas)
+
+$ bunx prettier --check "apps/frontend-transportada/src/modules/nfse-invoice/**" "apps/frontend-transportada/test/nfse-invoice/**"
+All matched files use Prettier code style!
+```
+
+Arquivo novo: `test/nfse-invoice/row-navigation.contract.ts`. O sétimo teste do contrato já passava
+antes da implementação — é guarda de regressão da semântica da linha, não medida do que faltava.
+
+## T028d — cancelar as selecionadas
+
+A barra de seleção contava e somava, e era só isso: marcar dez notas não habilitava ação nenhuma.
+O cancelamento do lote entra sobre a rota que já existe (`POST /:id/cancel`), sem endpoint novo.
+
+Três decisões que o contrato tranca:
+
+**Quem entra é decisão pura.** `planNfseBulkCancellation` repete a única transição que a API aceita
+(`authorized` → `cancellation_requested`) e devolve `eligible` e `blocked` separados. Mandar o lote
+inteiro para o servidor e deixá-lo recusar produziria uma fila de 409 que ninguém lê; aqui a nota
+fora do lote aparece no diálogo com o motivo antes de qualquer chamada. Os motivos reusam chaves de
+`feedback.*` que já existiam (`alreadyCancelled`, `cancellationInFlight`, `notAuthorized`) — nenhum
+texto novo para um estado que a tela já sabia nomear.
+
+**Sequencial de propósito.** O laço é `for … of` com `await`, não `Promise.all`, e o contrato falha
+se `Promise.all` reaparecer no hook: do outro lado está a prefeitura, e o lote inteiro em paralelo
+vira 429 no meio do caminho, com metade das notas em estado indefinido. Cada nota leva a **própria**
+`idempotency-key` (`buildNfseCancellationIdempotencyKey`, mesmo serviço da nota avulsa) — chave única
+para o lote faria a segunda nota ser respondida com o resultado da primeira. Uma recusa não derruba
+as seguintes: o resultado por nota é acumulado e o resumo sai no fim.
+
+**A justificativa é uma só, validada pelo mesmo serviço.** `validateNfseCancellationReason` da T028b
+governa os dois caminhos; o diálogo do lote reusa `cancelDialog.reasonTooShort`/`reasonTooLong` em
+vez de duplicar a régua de 5 a 255 caracteres.
+
+O identificador da nota não vai para a tela: `countNfseBulkCancelBlocks` agrupa os bloqueios por
+motivo e o diálogo mostra "motivo (n)". UUID na cara do operador não informa nada.
+
+```
+$ bun test apps/frontend-transportada/test/nfse-invoice.contract.test.ts   # antes
+ 128 pass
+ 13 fail
+
+$ bun test apps/frontend-transportada/test/nfse-invoice.contract.test.ts   # depois
+ 141 pass
+ 0 fail
+
+$ bun run typecheck
+(sem saída — as quatro apps limpas)
+
+$ bunx prettier --check "apps/frontend-transportada/src/modules/nfse-invoice/**" …
+All matched files use Prettier code style!
+```
+
+Arquivos novos: `test/nfse-invoice/bulk-cancel.contract.ts`,
+`shared/nfseInvoiceBulkCancel.service.ts`, `hooks/useNfseInvoiceBulkCancel.hook.ts`,
+`components/NfseInvoiceBulkCancelDialog.component.tsx`.
+
+⚠️ `bun run --cwd apps/frontend-transportada test` fecha em **1040 pass / 3 fail**, e `bun run lint`
+acusa três variáveis não usadas em `src/modules/fleet/components/VehiclePanel.component.tsx`. As
+três falhas e os três erros são de `test/fleet/screen-standards.contract.ts` — contrato da feature
+035, ainda vermelho de propósito, sem relação com a 032.
+
+## T028e — baixar XML e PDF em massa
+
+Uma aba por documento assinado não é caminho: o navegador bloqueia a partir da segunda, e a seleção
+de dez notas viraria vinte popups recusados. A seleção inteira atravessa como **um arquivo só**.
+
+**A rota espelha a exportação de CT-e, e o laço de ZIP deixou de existir em duas cópias.**
+`POST /nfse-service-invoices/export` (`nfse.read`) monta o pacote em stream, um objeto por vez, sem
+materializar a coleção em memória. O laço de `fflate` que só o CT-e tinha subiu para
+`src/shared/archive-stream.service.ts` — `createArchiveStream({entries, storage})` — e
+`createCteArchiveGateway` virou adaptador fino sobre ele (§16). Manter duas cópias faria a correção
+de um vazamento de stream valer para metade das rotas.
+
+**A seleção é tenant-safe por construção.** `createNfseExportSelection` filtra
+`eq(company_id)` + `inArray(invoice_id)` e junta os objetos por `(company_id, id)` nas duas pontas —
+`buildNfseExportFilters` é o seam que o contrato de tenant-safety inspeciona.
+
+**Ausência de PDF é estado real, ZIP vazio não é.** O `innerJoin` é no XML e o `leftJoin` no PDF:
+nota autorizada sem PDF entra no pacote com o XML e nada mais. Mas exportação que resolveu **zero**
+entradas (formato `pdf` sobre notas sem PDF, ou seleção sem documento arquivado) levanta
+`NFSE_EXPORT_EMPTY` em vez de entregar um arquivo vazio — o operador salvaria algo que não explica
+nada. Teto de 500 documentos recusado na fronteira Zod e de novo na aplicação.
+
+**Quem nomeia o arquivo é o servidor.** O nome carrega o carimbo da exportação e sai no
+`content-disposition`; o cliente lê o cabeçalho em vez de inventar, e só cai no
+`nfse-documentos.zip` quando o cabeçalho não veio. `exportInvoices` é a única chamada do módulo que
+não passa por `requestJson` — resposta binária — mas o erro continua chegando como JSON, e o código
+é o que a tela traduz.
+
+**No frontend, o salvamento também parou de ser cópia.** `saveCteArchive` saiu de `cte-batch` e
+virou `saveArchiveFile` em `src/modules/shared/archiveDownload.service.ts`; os três hooks de CT-e
+(`useCteDacteDownload`, `useCteBatchExport`, `useCteItemExport`) passaram a importar de lá, e o
+contrato falha se `cteArchiveDownload` reaparecer. Só entram na exportação as notas que passaram
+pela prefeitura (`authorized`, `cancellation_requested`, `cancelled`) — `planNfseBulkExport` é puro
+e decide antes de qualquer chamada.
+
+```
+$ bun test apps/frontend-transportada/test/nfse-invoice.contract.test.ts   # antes
+ 141 pass
+ 12 fail
+
+$ bun run --cwd apps/api-transportada test
+ 2359 pass
+ 3 skip
+ 0 fail
+Ran 2362 tests across 94 files.
+
+$ bun run --cwd apps/frontend-transportada test
+ 1055 pass
+ 0 fail
+Ran 1055 tests across 17 files.
+
+$ bun run --cwd apps/frontend-transportada typecheck   /   lint
+(sem saída — limpo nos dois)
+
+$ bunx prettier --check "apps/*/src/nfse-invoices/**" "apps/frontend-transportada/src/modules/nfse-invoice/**" …
+All matched files use Prettier code style!
+```
+
+Arquivos novos na API: `src/shared/archive-stream.service.ts`,
+`nfse-invoices/application/export-nfse-documents.{port,use-case}.ts`,
+`nfse-invoices/domain/nfse-export.error.ts`,
+`nfse-invoices/infrastructure/{nfse-export-selection.query.ts,nfse-archive.gateway.ts}`.
+No frontend: `test/nfse-invoice/bulk-export.contract.ts`,
+`src/modules/shared/archiveDownload.service.ts`,
+`nfse-invoice/shared/nfseInvoiceBulkExport.service.ts`,
+`nfse-invoice/hooks/useNfseInvoiceBulkExport.hook.ts`.
+Removido: `cte-batch/shared/cteArchiveDownload.service.ts`.
+
+O contrato da 035 (`test/fleet/screen-standards.contract.ts`), vermelho de propósito na T028d, está
+verde nesta rodada — o `lint` do frontend fecha sem achado.

@@ -97,8 +97,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   color: var(--color-fog);
@@ -242,6 +242,19 @@
   text-align: right;
 }
 
+/** Cabeçalho de coluna numérica acompanha a coluna: à esquerda ele ficava longe do número que rotula. */
+.emissionTable .amountHeader {
+  text-align: right;
+}
+
+/** O total fecha a tabela na mesma coluna dos valores — é o número que se procura primeiro. */
+.emissionTable tfoot td,
+.emissionTable tfoot th {
+  border-bottom: none;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  font-weight: 600;
+}
+
 .emissionTotal {
   margin: 0;
   text-align: right;
@@ -299,8 +312,8 @@
 
 .iconActionActive {
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
@@ -429,6 +442,12 @@
   align-items: center;
 }
 
+.bulkFeedback {
+  margin: 0;
+  color: var(--color-copper);
+  font-size: 0.8rem;
+}
+
 .selectionTotals {
   display: flex;
   flex-wrap: wrap;
@@ -475,6 +494,24 @@
 
 .dataTable tbody tr[aria-selected='true'] {
   outline: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+/* Nove colunas de conteúdo largo empurram as ações para fora da tela: a coluna anda com a rolagem. */
+.dataTable th:last-child,
+.dataTable td:last-child {
+  position: sticky;
+  right: 0;
+  border-left: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+  background: var(--color-graphite);
+}
+
+/* O zebrado é translúcido; sobre fundo opaco ele precisa ser refeito ou a linha par se perde. */
+.dataTable tbody tr:nth-child(even) td:last-child {
+  background: color-mix(in srgb, var(--color-asphalt) 32%, var(--color-graphite));
+}
+
+.rowLink {
+  cursor: pointer;
 }
 
 .sortButton {
@@ -658,4 +695,37 @@
   font-size: 0.82rem;
   background: transparent;
   cursor: pointer;
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.detailList {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.detailList dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detailList dd {
+  margin: 0;
+  color: var(--color-fog);
+}
+
+@media (width >= 64rem) {
+  .detailList {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }

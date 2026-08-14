@@ -9,6 +9,8 @@ import {
   MDFE_EMITTER_TYPES,
   MDFE_TRANSPORTER_TYPES,
 } from '../../database/mdfe.schema.js'
+import { buildOptionalTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 
 /** Um manifesto não carrega mais CT-e do que o layout aceita em infDoc. */
 const MAX_DOCUMENTS_PER_MANIFEST = 1000
@@ -20,7 +22,6 @@ const ENDORSEMENT_MAX_LENGTH = 40
 const NCM = /^[0-9]{8}$/
 const OPTIONAL_STATE = /^(?:[A-Z]{2})?$/
 const POSTAL_CODE = /^[0-9]{8}$/
-const TAX_ID = /^(?:[0-9]{11}|[0-9]{14})$/
 const DECIMAL_AMOUNT = /^[0-9]{1,13}\.[0-9]{2}$/
 
 export const previewManifestSchema = z
@@ -39,7 +40,7 @@ export const createManifestSchema = z
     cargoType: z.union([z.literal(''), z.enum(MDFE_CARGO_TYPES)]).default(''),
     cargoUnit: z.enum(MDFE_CARGO_UNITS).default('01'),
     contractorName: z.string().max(CONTRACTOR_NAME_MAX_LENGTH).default(''),
-    contractorTaxId: z.union([z.literal(''), z.string().regex(TAX_ID)]).default(''),
+    contractorTaxId: buildOptionalTaxIdSchema(TAX_ID_PATTERN).default(''),
     destinationState: z.string().regex(OPTIONAL_STATE).default(''),
     dischargePostalCode: z.union([z.literal(''), z.string().regex(POSTAL_CODE)]).default(''),
     documentIds: z.array(z.uuid()).min(1).max(MAX_DOCUMENTS_PER_MANIFEST),

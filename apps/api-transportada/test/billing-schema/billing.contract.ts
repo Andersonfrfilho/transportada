@@ -95,7 +95,7 @@ describe('billing schema', () => {
       billing_invoices_request_fingerprint_check:
         'length("billing_invoices"."request_fingerprint") > 0',
       billing_invoices_customer_document_check:
-        '"billing_invoices"."customer_document" ~ \'^[0-9]{11,14}$\'',
+        '"billing_invoices"."customer_document" ~ \'^[0-9]{11,14}$|^[A-Z0-9]{12}[0-9]{2}$\'',
       billing_invoices_observations_check: 'length("billing_invoices"."observations") <= 500',
     })
     expect(foreignKeys(billingInvoices)).toContainEqual({
@@ -175,7 +175,7 @@ describe('billing schema', () => {
     expect(checkSqlByName(billingInvoiceItems)).toMatchObject({
       billing_invoice_items_line_number_check: '"billing_invoice_items"."line_number" > 0',
       billing_invoice_items_cte_access_key_check:
-        '"billing_invoice_items"."cte_access_key" ~ \'^[0-9]{44}$\'',
+        '"billing_invoice_items"."cte_access_key" ~ \'^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$\'',
       billing_invoice_items_cte_number_check: '"billing_invoice_items"."cte_number" > 0',
       billing_invoice_items_amounts_check:
         '"billing_invoice_items"."freight_amount" >= 0 and "billing_invoice_items"."total_amount" >= 0',

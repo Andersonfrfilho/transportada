@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { DacteXmlInvalidError } from '../../src/cte-issuance/domain/dacte.error.js'
 import { parseCteXmlForDacte } from '../../src/cte-issuance/infrastructure/cte-xml.mapper.js'
 import {
+  ALPHANUMERIC_CTE_ACCESS_KEY,
   buildSyntheticCteXml,
   SYNTHETIC_CTE_ACCESS_KEY,
   SYNTHETIC_ICMS00_BLOCK,
@@ -161,6 +162,26 @@ describe('parseCteXmlForDacte', () => {
     const broken = buildSyntheticCteXml().replace(`CTe${SYNTHETIC_CTE_ACCESS_KEY}`, 'CTe123')
 
     expect(() => parseCteXmlForDacte(broken)).toThrow(DacteXmlInvalidError)
+  })
+
+  test('reads the key of a CT-e issued by a company with an alphanumeric CNPJ', () => {
+    const xml = buildSyntheticCteXml().replaceAll(
+      SYNTHETIC_CTE_ACCESS_KEY,
+      ALPHANUMERIC_CTE_ACCESS_KEY,
+    )
+
+    expect(parseCteXmlForDacte(xml).accessKey).toBe(ALPHANUMERIC_CTE_ACCESS_KEY)
+  })
+
+  /** A letra só cabe nas doze posições do CNPJ; fora delas a chave não é chave. */
+  test('rejects a key with a letter outside the CNPJ positions', () => {
+    const withLetterInTheCheckDigit = `${ALPHANUMERIC_CTE_ACCESS_KEY.slice(0, 43)}A`
+    const withLowercase = ALPHANUMERIC_CTE_ACCESS_KEY.toLowerCase()
+
+    for (const key of [withLetterInTheCheckDigit, withLowercase]) {
+      const xml = buildSyntheticCteXml().replace(`CTe${SYNTHETIC_CTE_ACCESS_KEY}`, `CTe${key}`)
+      expect(() => parseCteXmlForDacte(xml), key).toThrow(DacteXmlInvalidError)
+    }
   })
 
   test('rejects malformed XML instead of returning an empty document', () => {

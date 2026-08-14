@@ -41,8 +41,8 @@ describe('cte emission profile matcher schema', () => {
   test('accepts either a full CNPJ or its 8-digit root, nothing else', () => {
     const checks = checkSqlByName(cteEmissionProfileMatchers)
 
-    expect(checks.cte_emission_profile_matchers_tax_id_check).toContain('^[0-9]{8}$')
-    expect(checks.cte_emission_profile_matchers_tax_id_check).toContain('^[0-9]{14}$')
+    expect(checks.cte_emission_profile_matchers_tax_id_check).toContain('^[A-Z0-9]{8}$')
+    expect(checks.cte_emission_profile_matchers_tax_id_check).toContain('^[A-Z0-9]{12}[0-9]{2}$')
     expect(checks.cte_emission_profile_matchers_match_role_check).toContain(
       "in ('sender', 'recipient')",
     )

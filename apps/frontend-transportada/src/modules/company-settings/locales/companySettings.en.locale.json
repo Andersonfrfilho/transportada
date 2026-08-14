@@ -76,6 +76,7 @@
   "validationSummaryTitle": "Fix the fields below before saving:",
   "validationRequiredField": "{{field}} is required.",
   "validationDigitLength": "{{field}} must have exactly {{length}} digits.",
+  "validationCharacterSet": "{{field}} takes letters and digits in the base, and digits only in the last two.",
   "save": "Save settings",
   "saved": "Settings saved.",
   "saveError": "Settings could not be saved. Review the data and try again.",

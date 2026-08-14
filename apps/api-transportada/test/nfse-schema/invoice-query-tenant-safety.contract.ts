@@ -15,12 +15,15 @@ import {
   buildInvoiceLinkReleaseFilters,
   buildInvoiceListFilters,
   buildInvoiceScopeFilters,
+  buildLatestAttemptFilters,
+  buildPendingOutboxFilters,
   buildStoredObjectFilters,
 } from '../../src/nfse-invoices/infrastructure/nfse-invoice-query.query.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000c01'
 const INVOICE_ID = '00000000-0000-4000-8000-000000000c02'
 const OBJECT_ID = '00000000-0000-4000-8000-000000000c03'
+const ATTEMPT_ID = '00000000-0000-4000-8000-000000000c05'
 const CURSOR_ID = '00000000-0000-4000-8000-000000000c04'
 const CURSOR_CREATED_AT = '2026-08-12T12:00:00.000Z'
 const TAKER_TAX_ID = '12345678000199'
@@ -137,6 +140,30 @@ describe('nfse invoice query tenant safety', () => {
     expect(expression.sql).toContain(
       '"nfse_service_invoice_documents"."invoice_id" = "nfse_service_invoices"."id"',
     )
+  })
+
+  test('a tentativa lida pelo detalhe é presa à empresa do contexto', () => {
+    const query = compile(buildLatestAttemptFilters(SCOPE))
+
+    expect(query.sql).toContain('"nfse_issuance_attempts"."company_id" = $')
+    expect(query.sql).toContain('"nfse_issuance_attempts"."invoice_id" = $')
+    expect(query.params[0]).toBe(COMPANY_ID)
+  })
+
+  /**
+   * A linha publicada já saiu: a data dela é a da entrega feita, e mostrá-la seria prometer uma
+   * tentativa que não vem.
+   */
+  test('a próxima tentativa só sai de linha da empresa ainda não publicada', () => {
+    const query = compile(
+      buildPendingOutboxFilters({ attemptId: ATTEMPT_ID, companyId: COMPANY_ID }),
+    )
+
+    expect(query.sql).toContain('"nfse_issuance_outbox"."company_id" = $')
+    expect(query.sql).toContain('"nfse_issuance_outbox"."attempt_id" = $')
+    expect(query.sql).toContain('"nfse_issuance_outbox"."published_at" is null')
+    expect(query.params[0]).toBe(COMPANY_ID)
+    expect(query.params).toContain(ATTEMPT_ID)
   })
 
   test('o documento fiscal é preso à empresa do contexto', () => {

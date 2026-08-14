@@ -19,6 +19,7 @@ import {
   type NfseFiscalEnvironment,
   type NfseProviderCredentialSummary,
 } from '@/modules/nfse-invoice/shared/nfseSettings.types'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import styles from '../styles/companySettings.module.css'
 
@@ -147,9 +148,10 @@ export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Elemen
               <span>{t('nfseCredentialTaxIdLabel')}</span>
               <input
                 disabled={props.disabled}
-                inputMode="numeric"
                 maxLength={TAX_ID_MAX_LENGTH}
-                onChange={(event) => setDraft({ ...draft, taxId: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, taxId: normalizeTaxId(event.target.value) })
+                }
                 value={draft.taxId}
               />
             </label>

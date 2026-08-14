@@ -1,12 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import {
-  FLEET_VEHICLE_ROLE,
-  MDFE_BODY_TYPE,
-  MDFE_WHEEL_TYPE,
-  type FleetVehicleFormState,
-} from '../shared/fleet.types'
+import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
 import { FleetField, FleetSelectField } from './FleetField.component'
 
@@ -22,22 +17,6 @@ export function VehicleOperationFields({ onChange, state }: VehicleOperationFiel
     <fieldset className={styles.fieldGroup}>
       <legend>{t('vehicleOperationLegend')}</legend>
       <div className={styles.fieldGrid}>
-        <FleetSelectField
-          label={t('role')}
-          optionLabelKey="roleOption"
-          options={FLEET_VEHICLE_ROLE}
-          value={state.role}
-          onChange={(role) => onChange({ role })}
-        />
-        {state.role === 'traction' ? (
-          <FleetSelectField
-            label={t('wheelType')}
-            optionLabelKey="wheelTypeOption"
-            options={MDFE_WHEEL_TYPE}
-            value={state.wheelType}
-            onChange={(wheelType) => onChange({ wheelType })}
-          />
-        ) : null}
         <FleetSelectField
           label={t('bodyType')}
           optionLabelKey="bodyTypeOption"

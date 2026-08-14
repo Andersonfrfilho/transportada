@@ -1,10 +1,23 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useId, useRef, useState, type JSX, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+  type KeyboardEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 
 import { Icon } from '@/components/ui/icon'
 
-import { filterSelectOptions, shouldOfferSelectSearch, type SelectOption } from './select.service'
+import {
+  filterSelectOptions,
+  resolveSelectSearchKey,
+  shouldOfferSelectSearch,
+  type SelectOption,
+} from './select.service'
 import { useFloatingLayer } from './useFloatingLayer.hook'
 
 import styles from './select.module.css'
@@ -40,6 +53,17 @@ function joinClassNames(...names: readonly (string | undefined | false)[]): stri
   return names
     .filter((name): name is string => typeof name === 'string' && name.length > 0)
     .join(' ')
+}
+
+/** A cor entra por propriedade CSS: o painel é portal e nenhuma classe de módulo o alcança. */
+function Swatch({ swatch }: Readonly<{ swatch: string }>): JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      className={styles.swatch}
+      style={{ '--select-swatch': swatch } as CSSProperties}
+    />
+  )
 }
 
 export function Select({
@@ -146,27 +170,26 @@ export function Select({
     }
   }
 
-  // O painel vive no document.body: a tecla digitada na busca nunca sobe até o onKeyDown da raiz.
   function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key === 'Escape' || event.key === 'Tab') {
-      if (event.key === 'Escape') event.stopPropagation()
+    // Portal do React propaga pela árvore de componentes, não pela do DOM: sem parar aqui, o
+    // espaço digitado na busca chega ao onKeyDown da raiz e seleciona a opção ativa.
+    event.stopPropagation()
+    const action = resolveSelectSearchKey(event.key)
+    if (action === 'type') return
+    if (action === 'close') {
       close()
       return
     }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
+    event.preventDefault()
+    if (action === 'move-down') {
       setActiveIndex((current) => Math.min(current + 1, entries.length - 1))
       return
     }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
+    if (action === 'move-up') {
       setActiveIndex((current) => Math.max(current - 1, 0))
       return
     }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      commit(activeIndex)
-    }
+    commit(activeIndex)
   }
 
   return (
@@ -186,8 +209,11 @@ export function Select({
         ref={triggerReference}
         type="button"
       >
-        <span className={selected === undefined ? styles.placeholder : styles.value}>
-          {selected?.label ?? placeholder}
+        <span className={styles.selection}>
+          {selected?.swatch === undefined ? null : <Swatch swatch={selected.swatch} />}
+          <span className={selected === undefined ? styles.placeholder : styles.value}>
+            {selected?.label ?? placeholder}
+          </span>
         </span>
         <Icon
           className={joinClassNames(styles.chevron, isOpen && styles.chevronOpen)}
@@ -242,6 +268,7 @@ export function Select({
                       onMouseEnter={() => setActiveIndex(index)}
                       role="option"
                     >
+                      {entry.swatch === undefined ? null : <Swatch swatch={entry.swatch} />}
                       {entry.label}
                     </li>
                   ))}

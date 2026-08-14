@@ -6,6 +6,8 @@ import { type SQL, and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { nfeDocuments } from '../../database/nfe.schema.js'
 import {
   nfseFiscalDocuments,
+  nfseIssuanceAttempts,
+  nfseIssuanceOutbox,
   nfseServiceInvoiceCharges,
   nfseServiceInvoiceDocuments,
   nfseServiceInvoices,
@@ -124,6 +126,29 @@ export function buildInvoiceLinkReleaseFilters(scope: NfseInvoiceScope): readonl
     eq(nfseServiceInvoiceDocuments.companyId, scope.companyId),
     eq(nfseServiceInvoiceDocuments.invoiceId, scope.invoiceId),
     isNull(nfseServiceInvoiceDocuments.cancelledAt),
+  ]
+}
+
+/** A tentativa mais recente é a que a tela lê: as anteriores já foram substituídas por esta. */
+export function buildLatestAttemptFilters(scope: NfseInvoiceScope): readonly SQL[] {
+  return [
+    eq(nfseIssuanceAttempts.companyId, scope.companyId),
+    eq(nfseIssuanceAttempts.invoiceId, scope.invoiceId),
+  ]
+}
+
+/**
+ * Só a linha ainda não publicada carrega quando a próxima entrega acontece — publicada, a data é
+ * a da entrega que já saiu, e mostrá-la seria prometer uma tentativa que não vem.
+ */
+export function buildPendingOutboxFilters(input: {
+  readonly attemptId: string
+  readonly companyId: string
+}): readonly SQL[] {
+  return [
+    eq(nfseIssuanceOutbox.companyId, input.companyId),
+    eq(nfseIssuanceOutbox.attemptId, input.attemptId),
+    isNull(nfseIssuanceOutbox.publishedAt),
   ]
 }
 

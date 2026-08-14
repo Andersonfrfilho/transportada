@@ -74,16 +74,6 @@ const environmentSchema = z.object({
       message: 'PROVISION_COMPANY_ID must be a valid UUID',
     })
     .optional(),
-  FLEET_VEHICLE_LOOKUP_TOKEN: z.string().trim().default(''),
-  FLEET_VEHICLE_LOOKUP_URL: z
-    .string()
-    .trim()
-    // Variável declarada e vazia significa provedor não contratado — não pode derrubar o boot.
-    .transform((value) => (value === '' ? undefined : value))
-    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
-      message: 'FLEET_VEHICLE_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL',
-    })
-    .optional(),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -171,10 +161,6 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       parsed.FLEET_VEHICLE_CATALOG_URL === undefined
         ? null
         : { url: parsed.FLEET_VEHICLE_CATALOG_URL },
-    vehicleLookup:
-      parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
-        ? null
-        : { token: parsed.FLEET_VEHICLE_LOOKUP_TOKEN, url: parsed.FLEET_VEHICLE_LOOKUP_URL },
   }
 }
 

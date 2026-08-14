@@ -13,7 +13,6 @@ const BLANK_RUN_PATTERN = /\s+/gu
 const ENTRY_SEPARATOR = '; '
 
 export type NfseDescriptionDocument = {
-  readonly accessKey: string
   readonly issuedAt: string
   readonly number: string
   readonly series: string
@@ -34,9 +33,9 @@ export type NfseDescription = {
 }
 
 /**
- * A lista de notas é cortada na fronteira entre notas — nunca no meio de uma chave — e o excedente
- * vira resumo. `quantidadeNotas` conta a seleção inteira mesmo quando a lista foi cortada: o número
- * que o tomador lê é o número de notas que o serviço cobre.
+ * A lista de notas é cortada na fronteira entre notas — nunca no meio de uma — e o excedente vira
+ * resumo. `quantidadeNotas` conta a seleção inteira mesmo quando a lista foi cortada: o número que o
+ * tomador lê é o número de notas que o serviço cobre.
  */
 export function buildNfseDescription({
   documents,
@@ -153,8 +152,9 @@ function buildList({
   return listed.length === 0 ? summary : `${listed}${ENTRY_SEPARATOR}${summary}`
 }
 
+/** Número e série identificam a nota para o tomador; a chave de 44 dígitos só enchia a linha. */
 function formatEntry(document: NfseDescriptionDocument): string {
-  return `NF-e ${document.number}/${document.series} chave ${document.accessKey}`
+  return `NF-e ${document.number}/${document.series}`
 }
 
 function collapseBlanks(value: string): string {

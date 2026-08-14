@@ -157,6 +157,49 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       Verificação: `test` da API (2291 pass) e do frontend (952 pass), `typecheck` e `lint` na raiz
       (ver `evidence.md`).
 
+- [x] **T028b** Ações por linha na tela de NFS-e: ver o detalhe, baixar XML e PDF, e cancelar. As três
+      rotas já existem (`GET /:id`, `GET /:id/documents`, `GET /:id/xml`, `GET /:id/pdf`,
+      `POST /:id/cancel`) e o cliente e o controlador do frontend já as expõem — o que falta é quem
+      as aciona: a tabela renderiza checkbox e colunas, sem coluna de ação. Coluna de ações com
+      botões só de ícone (`aria-label` obrigatório), diálogo de detalhe (encargos, descrição, notas
+      vinculadas, motivo de rejeição) e diálogo de cancelamento com justificativa validada contra o
+      mesmo teto da API (5 a 255 caracteres). O que cada linha oferece sai de serviço puro espelhando
+      `nfse-invoice-state.policy.ts`: cancelar só em `authorized`; baixar só onde o documento fiscal
+      existe (`authorized`, `cancellation_requested`, `cancelled`).
+      Verificação: `test/nfse-invoice/row-actions.contract.ts` vermelho antes da implementação;
+      depois `bun run --cwd apps/frontend-transportada test`, `typecheck`, `lint` e `prettier`.
+
+- [x] **T028c** Chegar até as ações. Com a T028b no ar o operador continuou sem conseguir agir: a
+      tabela tem nove colunas de conteúdo largo dentro de um `overflow-x` com `white-space: nowrap`,
+      e a coluna de ações fica além da borda direita — quem não rola horizontalmente não a vê. A
+      coluna de ações passa a ser fixa na borda direita (`position: sticky`, fundo opaco para o
+      conteúdo não atravessar), e a linha inteira abre o detalhe ao clique, exceto onde já existe
+      controle próprio (a célula do checkbox e a das ações). O teclado continua servido pelo botão
+      de detalhe, que já é focável — a linha não vira `role="button"` para não destruir a semântica
+      da tabela.
+      Verificação: contrato novo `test/nfse-invoice/row-navigation.contract.ts` vermelho antes;
+      depois `test` do frontend, `typecheck`, `lint` e `prettier`.
+
+- [x] **T028d** Cancelar em massa. A barra de seleção só informa contagem e total: selecionar não
+      habilita ação nenhuma. Entra o cancelamento do lote sobre a rota que já existe
+      (`POST /:id/cancel`, uma chamada por nota, `idempotency-key` própria por nota), com uma
+      justificativa única validada pelo mesmo serviço puro da T028b. Só as `authorized` entram; as
+      demais aparecem no diálogo com o motivo de ficarem de fora, e o resultado por nota é relatado
+      no fim (quantas cancelaram, quais falharam).
+      Verificação: contrato novo `test/nfse-invoice/bulk-cancel.contract.ts` vermelho antes;
+      depois `test` do frontend, `typecheck`, `lint` e `prettier`.
+
+- [x] **T028e** Baixar XML e PDF em massa. Uma aba por documento assinado não é caminho — o
+      navegador bloqueia a partir da segunda. O repositório já resolveu isso para o CT-e:
+      `POST /cte-items/export` monta um ZIP em stream (`createCteArchiveGateway`, modo `store`, um
+      objeto por vez para não materializar a coleção em memória). Rota espelho
+      `POST /nfse-service-invoices/export` atrás de `nfse.read`, com formato `xml` · `pdf` · `both`,
+      teto de documentos por requisição e seleção tenant-safe por `(company_id, id)`; só nota com
+      documento fiscal arquivado entra. No frontend, os dois botões na barra de seleção salvam o
+      blob pelo mesmo `saveCteArchive` — âncora temporária, sem popup.
+      Verificação: contratos novos na API (`nfse-export`, incluindo tenant-safety da seleção) e no
+      frontend, vermelhos antes; depois `test` das duas apps, `typecheck`, `lint` e `prettier`.
+
 ## Fase H — fechamento
 
 > 🤖 Modelo: `sonnet`

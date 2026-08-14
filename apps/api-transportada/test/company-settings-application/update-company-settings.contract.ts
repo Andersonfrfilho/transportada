@@ -111,7 +111,7 @@ describe('update company settings application contract', () => {
         status: 409,
       }),
     )
-    expect(Object.keys(error).sort()).toEqual(['code', 'headers', 'name', 'status'])
+    expect(Object.keys(error).sort()).toEqual(['code', 'details', 'headers', 'name', 'status'])
     for (const sensitive of [IDEMPOTENCY_KEY, COMPANY_ID, COMPANY_SETTINGS.profile.cnpj]) {
       expect(String(error)).not.toContain(sensitive)
       expect(JSON.stringify(error)).not.toContain(sensitive)

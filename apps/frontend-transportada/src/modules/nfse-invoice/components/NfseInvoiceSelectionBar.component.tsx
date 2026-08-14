@@ -32,6 +32,28 @@ export function NfseInvoiceSelectionBar({
         </div>
       </dl>
       <div className={styles.bulkActions}>
+        {table.bulkExport.isAllowed && (
+          <button
+            className={styles.builderAction}
+            disabled={table.bulkExport.isPending}
+            onClick={table.bulkExport.download}
+            type="button"
+          >
+            <Icon name="download" />
+            <span>{t('bulkExport.action')}</span>
+          </button>
+        )}
+        {table.bulkExport.failure !== null && (
+          <p className={styles.bulkFeedback} role="status">
+            {t(`bulkExport.${table.bulkExport.failure}`)}
+          </p>
+        )}
+        {table.bulkCancel.isAllowed && (
+          <button className={styles.builderAction} onClick={table.bulkCancel.open} type="button">
+            <Icon name="trash" />
+            <span>{t('bulkCancel.action')}</span>
+          </button>
+        )}
         <button className={styles.builderAction} onClick={table.clearSelection} type="button">
           <Icon name="close" />
           <span>{t('table.clearSelection')}</span>

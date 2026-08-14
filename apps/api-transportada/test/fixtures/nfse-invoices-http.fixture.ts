@@ -10,6 +10,7 @@ import { AuthorizationService } from '../../src/identity/application/authorizati
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
 import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application.fixture'
+import type { NfseExportResult } from '../../src/nfse-invoices/application/export-nfse-documents.port'
 import type { NfseInvoiceCancellationSummary } from '../../src/nfse-invoices/application/nfse-invoice-cancellation.use-case'
 import type { NfseInvoicePreview } from '../../src/nfse-invoices/application/nfse-invoice-preview.service'
 import type {
@@ -32,6 +33,7 @@ export const INVOICE_ID = '00000000-0000-4000-8000-0000000000b4'
 export const ATTEMPT_ID = '00000000-0000-4000-8000-0000000000b5'
 export const BLOCKED_DOCUMENT_ID = '00000000-0000-4000-8000-0000000000b6'
 export const IDEMPOTENCY_KEY = 'nfse-invoice-contract-key-0001'
+export const EXPORT_FILE_NAME = 'nfse-documentos-20260813-093840.zip'
 
 export const PREVIEW: NfseInvoicePreview = {
   blocked: [{ documentId: BLOCKED_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_ALREADY_LINKED' }],
@@ -99,6 +101,15 @@ export const DETAIL: NfseInvoiceDetail = {
     },
   ],
   createdAt: '2026-08-12T12:00:00.000Z',
+  delivery: {
+    attemptCount: 2,
+    lastErrorCause: 'transport_failure',
+    lastErrorCode: null,
+    lastErrorMessage: null,
+    nextAttemptAt: '2026-08-12T13:05:00.000Z',
+    status: 'retry_scheduled',
+    updatedAt: '2026-08-12T13:00:00.000Z',
+  },
   description: 'Transporte rodoviário de cargas referente às notas 000000123.',
   documentCount: 1,
   emissionProfileId: PROFILE_ID,
@@ -152,6 +163,9 @@ type InvoiceRouteDependencies = {
   readonly cancelNfseInvoice: {
     execute(input: ExecuteCall): Promise<NfseInvoiceCancellationSummary>
   }
+  readonly exportNfseDocuments: {
+    exportDocuments(input: ExecuteCall): Promise<NfseExportResult>
+  }
   readonly nfseInvoice: {
     create(input: ExecuteCall): Promise<NfseInvoiceSummary>
     preview(input: ExecuteCall): Promise<NfseInvoicePreview>
@@ -169,6 +183,7 @@ type CreateFixtureParams = {
   readonly createError?: Error
   readonly detailError?: Error
   readonly downloadError?: Error
+  readonly exportError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly summary?: NfseInvoiceSummary
 }
@@ -179,6 +194,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   readonly detailCalls: ExecuteCall[]
   readonly documentCalls: ExecuteCall[]
   readonly downloadCalls: ExecuteCall[]
+  readonly exportCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: ExecuteCall[]
   readonly previewCalls: ExecuteCall[]
@@ -188,6 +204,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   const detailCalls: ExecuteCall[] = []
   const documentCalls: ExecuteCall[] = []
   const downloadCalls: ExecuteCall[] = []
+  const exportCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
   const previewCalls: ExecuteCall[] = []
 
@@ -197,6 +214,21 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
         cancelCalls.push(serializeCall(input))
         if (params.cancelError) throw params.cancelError
         return CANCELLATION
+      },
+    },
+    exportNfseDocuments: {
+      async exportDocuments(input) {
+        exportCalls.push(serializeCall(input))
+        if (params.exportError) throw params.exportError
+        return {
+          documentCount: 1,
+          fileName: EXPORT_FILE_NAME,
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close()
+            },
+          }),
+        }
       },
     },
     nfseInvoice: {
@@ -252,6 +284,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
     detailCalls,
     documentCalls,
     downloadCalls,
+    exportCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
     previewCalls,

@@ -12,9 +12,10 @@ import {
   NFSE_ISS_EXIGIBILITIES,
   NFSE_TAKERS,
 } from '../../database/nfse.schema.js'
+import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 const CNAE = /^[0-9]{7}$/
-const CNPJ = /^[0-9]{14}$/
 const IBGE_CITY = /^[0-9]{7}$/
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RATE_DECIMAL = /^(?:0\.[0-9]{6}|1\.000000)$/
@@ -76,6 +77,6 @@ export const saveCredentialSchema = z
     fiscalEnvironment: z.enum(NFSE_FISCAL_ENVIRONMENTS),
     municipalRegistration: z.string().trim().max(40).default(''),
     status: z.enum(NFSE_CREDENTIAL_STATUSES).default('active'),
-    taxId: z.string().regex(CNPJ),
+    taxId: buildTaxIdSchema(CNPJ_PATTERN),
   })
   .strict()

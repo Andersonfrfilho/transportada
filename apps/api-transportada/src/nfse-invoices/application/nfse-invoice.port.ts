@@ -9,6 +9,7 @@ import type {
   NfseIssExigibility,
   NfseIssuanceEvent,
   NfseIssuanceOutboxEventType,
+  NfseIssuanceStatus,
   NfseProvider,
   NfseServiceInvoiceStatus,
   NfseTaker,
@@ -168,9 +169,24 @@ export type NfseInvoiceChargeLine = {
   readonly rate: string
 }
 
+/**
+ * Estado da entrega à prefeitura. A emissão é automática e sem isso ela é invisível: a nota fica
+ * parada na tela sem dizer que está tentando de novo, nem por que a última tentativa falhou.
+ */
+export type NfseInvoiceDelivery = {
+  readonly attemptCount: number
+  readonly lastErrorCause: string | null
+  readonly lastErrorCode: string | null
+  readonly lastErrorMessage: string | null
+  readonly nextAttemptAt: string | null
+  readonly status: NfseIssuanceStatus
+  readonly updatedAt: string
+}
+
 export type NfseInvoiceDetail = NfseInvoiceListItem & {
   readonly cancellationReason: string | null
   readonly charges: readonly NfseInvoiceChargeLine[]
+  readonly delivery: NfseInvoiceDelivery | null
   readonly description: string
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null

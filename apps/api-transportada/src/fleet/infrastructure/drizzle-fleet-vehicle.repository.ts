@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, lt, or } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
@@ -15,6 +15,7 @@ import type {
 } from '../application/fleet.port.js'
 import type { FleetVehicleStatus } from '../../database/fleet.schema.js'
 import { FleetVehiclePlateTakenError } from '../domain/fleet.error.js'
+import { hasInformedCosts } from '../domain/vehicle-cost.policy.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mapVehicle, toVehicleColumns } from './fleet.mapper.js'
 
@@ -32,7 +33,11 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
     const record = await runGuarded(async () => {
       const [created] = await this.database
         .insert(fleetVehicles)
-        .values({ ...toVehicleColumns(input.vehicle), companyId: input.companyId })
+        .values({
+          ...toVehicleColumns(input.vehicle),
+          companyId: input.companyId,
+          costsUpdatedAt: hasInformedCosts(input.vehicle) ? new Date() : null,
+        })
         .returning()
       return created
     })
@@ -109,6 +114,14 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
         .update(fleetVehicles)
         .set({
           ...toVehicleColumns(input.vehicle),
+          costsUpdatedAt: sql`case when ${or(
+            ne(fleetVehicles.acquisitionAmount, input.vehicle.acquisitionAmount),
+            ne(fleetVehicles.annualInsuranceAmount, input.vehicle.annualInsuranceAmount),
+            ne(fleetVehicles.annualVehicleTaxAmount, input.vehicle.annualVehicleTaxAmount),
+            ne(fleetVehicles.averageConsumption, input.vehicle.averageConsumption),
+            ne(fleetVehicles.costPerKilometer, input.vehicle.costPerKilometer),
+            ne(fleetVehicles.monthlyInstallmentAmount, input.vehicle.monthlyInstallmentAmount),
+          )} then now() else ${fleetVehicles.costsUpdatedAt} end`,
           status: input.status,
           updatedAt: new Date(),
           version: BigInt(input.expectedVersion) + 1n,

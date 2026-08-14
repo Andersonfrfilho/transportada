@@ -22,6 +22,7 @@ import styles from '../styles/nfseInvoice.module.css'
 import { NfseInvoiceColumnsMenu } from './NfseInvoiceColumnsMenu.component'
 import { NfseInvoiceFilters } from './NfseInvoiceFilters.component'
 import { NfseInvoicePagination } from './NfseInvoicePagination.component'
+import { NfseInvoiceRowActions } from './NfseInvoiceRowActions.component'
 import { NfseInvoiceSelectionBar } from './NfseInvoiceSelectionBar.component'
 
 const EMPTY_CELL = '—'
@@ -136,6 +137,7 @@ export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element 
             </button>
           </th>
         ))}
+        <th scope="col">{t('table.columns.actions')}</th>
       </tr>
     )
   }
@@ -151,6 +153,9 @@ export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element 
             <Skeleton variant="text" width={AMOUNT_COLUMNS.includes(column) ? '4rem' : '70%'} />
           </td>
         ))}
+        <td>
+          <Skeleton height="var(--icon-size-md)" variant="block" width="6rem" />
+        </td>
       </tr>
     )
   }
@@ -225,8 +230,17 @@ export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element 
                     />
                   </td>
                   {table.visibleColumns.map((column) => (
-                    <td key={column}>{renderCell(invoice, column)}</td>
+                    <td
+                      className={styles.rowLink}
+                      key={column}
+                      onClick={() => table.rowActions.openDetail(invoice)}
+                    >
+                      {renderCell(invoice, column)}
+                    </td>
                   ))}
+                  <td>
+                    <NfseInvoiceRowActions actions={table.rowActions} invoice={invoice} />
+                  </td>
                 </tr>
               ))}
             </tbody>

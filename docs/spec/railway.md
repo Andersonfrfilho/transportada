@@ -23,7 +23,7 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  cron-nfse  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  cron-nfse  cron-notifications  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -55,14 +55,15 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 O Dockerfile de cada serviço é escolhido pela variável de build
 `RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 
-| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                          |
-| ----------------------- | --------------------------------------- | ------------------------------- |
-| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`       |
-| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`    |
-| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`      |
-| `cron-nfse`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-nfse/railway.json` |
-| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json`  |
-| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json`  |
+| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                                   |
+| ----------------------- | --------------------------------------- | ---------------------------------------- |
+| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`                |
+| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`             |
+| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`               |
+| `cron-nfse`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-nfse/railway.json`          |
+| `cron-notifications`    | `apps/cron-transportada/Dockerfile`     | `deploy/cron-notifications/railway.json` |
+| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json`           |
+| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json`           |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
 > variável de ambiente.** Não existe `RAILWAY_CONFIG_PATH`: definir essa

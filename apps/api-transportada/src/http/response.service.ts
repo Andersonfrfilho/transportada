@@ -24,7 +24,12 @@ export function createErrorResponse({
   if (error instanceof ApiError) {
     return jsonResponse({
       body: {
-        error: { code: error.code, correlationId, message: error.message },
+        error: {
+          code: error.code,
+          correlationId,
+          ...(error.details ? { details: error.details } : {}),
+          message: error.message,
+        },
       },
       ...(error.headers ? { headers: error.headers } : {}),
       status: error.status,

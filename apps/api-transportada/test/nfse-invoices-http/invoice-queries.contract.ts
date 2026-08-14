@@ -147,6 +147,32 @@ describe('nfse service invoice detail http', () => {
     expect(body.data.verificationCode).toBe(DETAIL.verificationCode)
   })
 
+  /**
+   * A emissão é automática: sem o estado da entrega no corpo, a nota parada na tela é
+   * indistinguível de uma nota esquecida, e o operador procura um botão de transmitir que não existe.
+   */
+  test('o detalhe devolve o estado da entrega à prefeitura', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(invoiceReadRequest(INVOICE_PATH))
+    const body = (await response.json()) as {
+      data: {
+        delivery: {
+          attemptCount: number
+          lastErrorCause: string | null
+          nextAttemptAt: string | null
+          status: string
+        } | null
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.data.delivery?.attemptCount).toBe(DETAIL.delivery?.attemptCount)
+    expect(body.data.delivery?.status).toBe(DETAIL.delivery?.status ?? '')
+    expect(body.data.delivery?.lastErrorCause).toBe(DETAIL.delivery?.lastErrorCause ?? null)
+    expect(body.data.delivery?.nextAttemptAt).toBe(DETAIL.delivery?.nextAttemptAt ?? null)
+  })
+
   /** Nota de outra empresa some: `403` já entregaria que ela existe, e o número dela é sequencial. */
   test('nota de outra empresa é 404, não 403', async () => {
     const fixture = await createNfseInvoicesHttpFixture({

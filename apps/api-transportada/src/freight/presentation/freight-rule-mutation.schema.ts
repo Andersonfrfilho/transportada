@@ -5,18 +5,19 @@ import { z } from 'zod'
 
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 import { parseFreightJsonBody } from './freight.schema.js'
 
 const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const PERCENTAGE_DECIMAL = /^(?:0|0\.[0-9]{6}|1|1\.000000)$/
 const RULE_VERSION = /^(?:0|[1-9][0-9]{0,18})$/
 const STATE_CODE = /^[A-Za-z]{2}$/
-const TAX_ID = /^[0-9]{14}$/
 
 const filtersSchema = z
   .object({
     destinationStates: z.array(z.string().trim().regex(STATE_CODE)).max(27).optional(),
-    senderTaxIds: z.array(z.string().trim().regex(TAX_ID)).max(200).optional(),
+    senderTaxIds: z.array(buildTaxIdSchema(CNPJ_PATTERN)).max(200).optional(),
   })
   .strict()
 

@@ -287,10 +287,11 @@ conserto.
 - [ ] `role: 'trailer'` responde lista vazia com motivo, e não erro.
 - [ ] Timeout, `429` e `5xx` do provedor não derrubam a rota nem impedem salvar o veículo.
 - [ ] Salvar veículo nunca chama o provedor externo.
-- [ ] A consulta por placa preenche marca, modelo e ano no formulário.
+- [x] ~~A consulta por placa preenche marca, modelo e ano no formulário.~~ Sem efeito: o trilho de
+      consulta por placa foi removido do produto pela ADR-0032 (não há fonte pública e gratuita).
 - [ ] Trocar a marca limpa o modelo.
-- [ ] O formulário tem os blocos na ordem descrita, com o botão de consulta junto da placa e
-      `ownership` no bloco de propriedade.
+- [ ] O formulário tem os blocos na ordem descrita, com `ownership` no bloco de propriedade (o
+      botão de consulta junto da placa saiu com a ADR-0032).
 - [ ] Veículo de tração sem rodado aparece como incompleto no formulário e na listagem.
 - [ ] `fleet_number` chega ao `cInt` do `veicTracao` no payload do MDF-e.
 - [ ] Nenhum outro campo novo no payload do MDF-e ou do CT-e.

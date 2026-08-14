@@ -6,6 +6,11 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_NFSE_SERVICE_INVOICES_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  NFSE_EXPORT_CONTENT_TYPE,
+  type NfseExportRequest,
+  type NfseExportResult,
+} from '../application/export-nfse-documents.port.js'
 import type { NfseInvoiceCancellationSummary } from '../application/nfse-invoice-cancellation.use-case.js'
 import type { CancelNfseInvoiceInput } from '../application/nfse-invoice-cancellation.use-case.js'
 import type {
@@ -19,6 +24,7 @@ import type {
 } from '../application/nfse-invoice-query.use-case.js'
 import type {
   NfseFiscalDocumentDownload,
+  NfseInvoiceDelivery,
   NfseInvoiceDetail,
   NfseInvoiceLinkedDocument,
   NfseInvoiceListItem,
@@ -31,6 +37,7 @@ import type {
 import type { NfseInvoiceSummary } from '../application/nfse-issuance-attempt.service.js'
 import {
   nfseInvoiceCancellationSchema,
+  nfseInvoiceExportSchema,
   nfseInvoiceSelectionSchema,
   parseNfseInvoiceList,
   parseUuidPathIdentifier,
@@ -42,6 +49,7 @@ const NFSE_ISSUE_POLICY = { permission: 'nfse.issue', scope: 'company' } as cons
 const NFSE_CANCEL_POLICY = { permission: 'nfse.cancel', scope: 'company' } as const
 const CANCEL_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/cancel`
 const DOCUMENTS_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/documents`
+const EXPORT_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/export`
 const INVOICE_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id`
 const PDF_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/pdf`
 const PREVIEW_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/preview`
@@ -52,6 +60,9 @@ type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: Company
 type Dependencies = {
   readonly cancelNfseInvoice: {
     execute(input: TenantInput<CancelNfseInvoiceInput>): Promise<NfseInvoiceCancellationSummary>
+  }
+  readonly exportNfseDocuments: {
+    exportDocuments(input: TenantInput<NfseExportRequest>): Promise<NfseExportResult>
   }
   readonly nfseInvoice: {
     create(input: TenantInput<CreateNfseInvoiceInput>): Promise<NfseInvoiceSummary>
@@ -94,6 +105,33 @@ export function createNfseInvoiceRoutes(
         return parseBody(nfseInvoiceSelectionSchema, request)
       },
       pathname: PREVIEW_PATH,
+      policy: NFSE_READ_POLICY,
+    }),
+    /**
+     * O ZIP sai em stream e o nome do arquivo vai no cabeçalho: exportar é leitura, e exigir chave
+     * de idempotência aqui só faria o cliente inventar uma.
+     */
+    defineRoute<Omit<NfseExportRequest, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.exportNfseDocuments.exportDocuments({
+          context: context.scope,
+          ...input,
+        })
+        return new Response(result.stream, {
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${result.fileName}"`,
+            'content-type': NFSE_EXPORT_CONTENT_TYPE,
+          },
+          status: 200,
+        })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const { format, invoiceIds } = await parseBody(nfseInvoiceExportSchema, request)
+        return { ...(format === undefined ? {} : { format }), invoiceIds }
+      },
+      pathname: EXPORT_PATH,
       policy: NFSE_READ_POLICY,
     }),
     defineRoute<Omit<CreateNfseInvoiceInput, 'context'>>({
@@ -238,10 +276,23 @@ function serializeDetail(invoice: NfseInvoiceDetail): object {
       ordinal: charge.ordinal,
       rate: charge.rate,
     })),
+    delivery: invoice.delivery === null ? null : serializeDelivery(invoice.delivery),
     description: invoice.description,
     rejectionCode: invoice.rejectionCode,
     rejectionMessage: invoice.rejectionMessage,
     version: invoice.version,
+  }
+}
+
+function serializeDelivery(delivery: NfseInvoiceDelivery): object {
+  return {
+    attemptCount: delivery.attemptCount,
+    lastErrorCause: delivery.lastErrorCause,
+    lastErrorCode: delivery.lastErrorCode,
+    lastErrorMessage: delivery.lastErrorMessage,
+    nextAttemptAt: delivery.nextAttemptAt,
+    status: delivery.status,
+    updatedAt: delivery.updatedAt,
   }
 }
 

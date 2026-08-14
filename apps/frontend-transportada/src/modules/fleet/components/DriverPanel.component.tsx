@@ -124,7 +124,7 @@ export function DriverPanel(props: DriverPanelProps) {
       <div className={styles.panelHeading}>
         <h2 id="fleet-drivers-title">{t('driversTitle')}</h2>
         {canManageFleet ? (
-          <Button type="button" onClick={actions.onNew}>
+          <Button size="sm" type="button" onClick={actions.onNew}>
             <Icon name="add" />
             {t('newDriver')}
           </Button>

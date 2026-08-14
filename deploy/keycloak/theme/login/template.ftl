@@ -99,8 +99,11 @@
             </div>
         </#if>
 
-        <@loginFooter.content/>
     </div>
+
+    <#-- O rodapé é da página, não do cartão: o `base` o chama dentro do painel, e ali ele lê como
+         parte do formulário. -->
+    <@loginFooter.content/>
 </main>
 </body>
 </html>

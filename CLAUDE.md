@@ -125,9 +125,10 @@ recebe `{config, logger, provider}` e devolve `{cancel()}`; a lógica fica em `s
 Dependências injetáveis via `WorkerRuntimeDependencies` — é assim que os contract tests substituem
 RabbitMQ e banco.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker
-(`src/database/processing.schema.ts`, `cte-issuance-execution.schema.ts`). Mudou tabela na API? confira
-a cópia do worker — migrations só rodam na API.
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — oito arquivos em
+`src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
+`nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`), e
+outros oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada
 
@@ -210,6 +211,12 @@ Todo botão que hospeda ícone alinha ícone e rótulo por **uma regra global** 
 `--space-*`. Regra completa em `docs/frontend/buttons.md`, contrato em
 `test/design-system/button.contract.ts`.
 
+Toda altura de controle sai de `--control-height` / `--control-height-compact` (derivados de
+`--field-height*`): as duas classes de tamanho do botão e todo botão só de ícone, que é quadrado
+nesse valor. Nenhum módulo declara controle quadrado com medida literal em `rem` — era assim que
+"Novo veículo" (2,5rem), o botão de colunas (2,25rem) e a barra de filtro (2,4rem) davam três
+alturas na mesma fileira. Contrato em `test/design-system/control-height.contract.ts`.
+
 Todo campo de seleção usa `@/components/ui/select` — `<select>` nativo é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/select.contract.ts` falha se algum reaparecer.
 Contrato de props, teclado e ARIA em `docs/frontend/selects.md`.
@@ -253,7 +260,10 @@ varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
 Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
-Fora de produção a aba leva 🚧 e a tela abre com uma faixa de ambiente. Quem decide é
+Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — o 🚧 vem à
+frente da marca, dentro do próprio desenho, porque na aba o ícone é o que aparece antes do título; o
+título fica só com o nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
+ambiente. Quem decide é
 `VITE_APP_ENV` (`local` · `staging` · `production`), resolvido em
 `shared/deploymentEnvironment.service.ts`: ausente ou desconhecido cai em `production` — variável
 esquecida no painel não pode fazer a instalação do cliente pedir desculpas. Build de dev (`vite dev`)
@@ -269,6 +279,47 @@ não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra co
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
+
+## Documento fiscal: o CNPJ tem letra
+
+CNPJ alfanumérico (IN RFB 2229/2024, NT Conjunta DF-e 2025.001, em produção desde 01/07/2026):
+**`[A-Z0-9]{12}[0-9]{2}`** — letra só nas doze posições da base, os dois dígitos verificadores
+continuam numéricos. **O CPF não mudou**: onze dígitos, sempre. A chave de acesso herda o documento
+nas posições 7 a 20, então o padrão dela é `^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$` (cUF+AAMM, o CNPJ do
+emitente, e daí em diante só dígito). Todo CHECK de chave no banco é esse — `nfe`, `cte-issuance`,
+`billing`, `mdfe`, `nfse`, `fleet`, `digital-certificate`.
+
+**A forma canônica é sem máscara e em CAIXA ALTA.** Canonicalizar é `normalizeTaxId`: tira `.`, `/`,
+`-` e espaço, e sobe a caixa. Onde ela mora:
+
+- `api-transportada/src/shared/tax-id.service.ts` — **único** ponto da API que importa
+  `CNPJ_PATTERN`/`CHAVE_PATTERN`/`normalizeTaxId` de `@adatechnology/fiscal-provider`, para o `~` do
+  Postgres, o `regex` do Zod e o XML não divergirem. Ali também ficam `CPF_PATTERN`,
+  `CNPJ_ROOT_PATTERN` (a raiz alfanumeriza junto — é prefixo do documento), `TAX_ID_PATTERN`,
+  `DOCUMENT_FILTER_PATTERN` e `parseTaxIdValue` para fronteira que não é Zod (query string, rota).
+- `api-transportada/src/shared/tax-id.schema.ts` — `buildTaxIdSchema` / `buildOptionalTaxIdSchema`.
+  A ordem importa: `.transform(normalizeTaxId)` **antes** do `.refine(pattern)`, senão a minúscula
+  vinda do formulário é recusada antes de ter chance de subir a caixa.
+- `worker-transportada/src/shared/tax-id.service.ts` — reexporta do mesmo pacote fiscal.
+- `frontend-transportada/src/modules/shared/taxId.service.ts` — aqui a regra é **reescrita**, porque
+  o bundle não carrega o pacote fiscal; `test/shared/alphanumeric-tax-id.contract.ts` é o que
+  garante que as duas dizem a mesma coisa. Campo de CNPJ **nunca** leva `inputMode="numeric"` — o
+  teclado do celular não tem letra — e o `onChange` canonicaliza enquanto se digita.
+
+**O que continua sendo por comprimento, e está certo:** `toParticipante`
+(`cte-issuance/domain/cte-payload.builder.ts`) escolhe `cnpj` em 14 caracteres e `cpf` em 11. O CNPJ
+alfanumérico continua tendo 14 — a discriminação sobrevive à IN, e trocá-la por padrão seria
+mudança sem ganho.
+
+**O que precisou virar guarda de conjunto:** `formatDacteDocumentNumber`
+(`cte-issuance/domain/dacte-format.policy.ts`) canonicaliza e testa `CNPJ_PATTERN` **antes** de
+`CPF_PATTERN`. Filtrar por dígito, como antes, deixava onze dígitos num CNPJ de três letras e
+imprimia o documento sob a máscara de CPF.
+
+Cobertura ponta a ponta em
+`api-transportada/test/integration/alphanumeric-cnpj-end-to-end.integration.ts`: nota de emitente
+alfanumérico → lote → frete → payload de CT-e → DACTE → fatura. Ele **não** cobre assinatura e
+transmissão (o XML nasce no worker, com certificado e rede).
 
 ## Convenções
 

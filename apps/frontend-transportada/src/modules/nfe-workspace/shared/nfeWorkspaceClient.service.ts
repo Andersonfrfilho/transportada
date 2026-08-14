@@ -64,6 +64,9 @@ export type NfeDocumentListItem = Readonly<{
   emitterTaxId: null | string
   id: string
   issuedAt: string
+  /** O número chega `null` enquanto a prefeitura não autoriza: o vínculo já existe, a numeração não. */
+  nfseInvoiceId: null | string
+  nfseInvoiceNumber: null | string
   number: string
   recipientAddress: null | string
   recipientCity: null | string
@@ -281,6 +284,8 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.emitterTaxId) &&
     isString(value.id) &&
     isString(value.issuedAt) &&
+    isNullableString(value.nfseInvoiceId) &&
+    isNullableString(value.nfseInvoiceNumber) &&
     isString(value.number) &&
     isNullableString(value.recipientAddress) &&
     isNullableString(value.recipientCity) &&

@@ -17,14 +17,14 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** — Contrato: `test/fleet-schema/vehicles.contract.ts` (onde a lista de colunas e os
+- [x] **T001** — Contrato: `test/fleet-schema/vehicles.contract.ts` (onde a lista de colunas e os
       checks de `fleet_vehicles` já moram) passa a exigir `brand`, `model`, `fleet_number`,
       `model_year` e `axle_count` com os dois checks de faixa, e
       `test/database-migration/static-migration.contract.ts` recebe o diretório novo na lista
       literal, com asserts de aditividade e de rollback guardado.
       Verificação: `bun test ./apps/api-transportada/test/fleet-schema.contract.test.ts` — vermelho
       pelos motivos certos.
-- [ ] **T002** — Colunas e checks em `src/database/fleet.schema.ts`;
+- [x] **T002** — Colunas e checks em `src/database/fleet.schema.ts`;
       `db:generate --name fleet_vehicle_model_fields`; `rollback.sql` escrito à mão.
       Verificação: `make migration-test` e `db:check` sem drift; T001 verde.
 
@@ -32,23 +32,26 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet` (T003 é 🧠 — confirmar a forma da resposta antes de escrever o adaptador)
 
-- [ ] **T003** 🧠 — Sondar o provedor: listar marcas de caminhões, pegar **um código real** da
+- [x] **T003** 🧠 — Sondar o provedor: listar marcas de caminhões, pegar **um código real** da
       resposta e chamar o endpoint de modelos com ele. Registrar a forma exata dos dois corpos em
       `evidence.md`. A sondagem anterior usou código inventado e voltou "recurso não encontrado".
       Verificação: os dois corpos colados na evidência, sem nada de terceiro.
-- [ ] **T004** — Contrato: `test/fleet/vehicle-catalog-segment.contract.ts` fixa rodado → segmento
-      (`04`/`05` → automóvel, `01`/`02`/`03`/`06` → caminhão, `trailer` → `none`) e
-      `test/fleet/fipe-catalog-gateway.contract.ts` cobre sucesso, `429`, `500` e timeout com `fetch`
-      falso, mais o cache positivo de 24 h e o negativo de 60 s.
+- [x] **T004** — Contrato: `test/fleet-domain/vehicle-catalog-segment.contract.ts` fixa rodado →
+      segmento (`04`/`05` → automóvel, `01`/`02`/`03`/`06` → caminhão, `trailer` → `none`) e
+      `test/fleet-infrastructure/fipe-catalog-gateway.contract.ts` cobre sucesso, `429`, `500` e
+      timeout com `fetch` falso, mais o cache positivo de 24 h e o negativo de 60 s. Caminhos
+      corrigidos de `test/fleet/` (texto original da task) para a convenção real do repositório —
+      ver nota em `evidence.md`.
       Verificação: vermelho; arquivos acrescentados à lista literal do `package.json` da app.
-- [ ] **T005** — `vehicle-catalog-segment.policy.ts`, `fleet-vehicle-catalog.port.ts`,
+- [x] **T005** — `vehicle-catalog-segment.policy.ts`, `fleet-vehicle-catalog.port.ts`,
       `fipe-vehicle-catalog.gateway.ts` e `cached-vehicle-catalog.gateway.ts`.
       Verificação: T004 verde.
-- [ ] **T006** — Contrato de rota em `test/fleet/vehicle-catalog-routes.contract.ts`: `fleet.read`
-      exigida, `trailer` devolvendo lista vazia com motivo, provedor fora do ar devolvendo `200` com
-      `source` degradado — nunca `5xx`.
+- [x] **T006** — Contrato de rota em `test/fleet-http/vehicle-catalog-routes.contract.ts` (caminho
+      corrigido de `test/fleet/`, mesma razão de T004): `fleet.read` exigida, `trailer` devolvendo
+      lista vazia com motivo, provedor fora do ar devolvendo `200` com `source` degradado — nunca
+      `5xx`.
       Verificação: vermelho.
-- [ ] **T007** — `FLEET_VEHICLE_CATALOG_URL` no `environment.schema.ts` e no `.env.example`; rotas,
+- [x] **T007** — `FLEET_VEHICLE_CATALOG_URL` no `environment.schema.ts` e no `.env.example`; rotas,
       schema Zod `.strict()`, `vehicleCatalog` em `FleetCapabilities`, fiação em `main.ts`.
       Verificação: T006 verde; `make config` passa sem a variável configurada.
 
@@ -56,11 +59,11 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T008** — Contrato: os cinco campos atravessando `POST`/`PUT`/`GET` de veículo, com validação
+- [x] **T008** — Contrato: os cinco campos atravessando `POST`/`PUT`/`GET` de veículo, com validação
       de faixa (`axleCount` 2–9, `modelYear` 1900–2100, `0` aceito como não informado); e
       `fleet_number` chegando ao `cInt` no contrato do payload de MDF-e, omitido quando vazio.
       Verificação: vermelho.
-- [ ] **T009** — Request schema, mapper, repositório, view-model, rotas; `fleet_number` percorrendo
+- [x] **T009** — Request schema, mapper, repositório, view-model, rotas; `fleet_number` percorrendo
       `mdfe-issuance-payload.query.ts` → `mdfe-payload.types.ts` → `mdfe-payload.builder.ts`.
       Verificação: T008 verde; contrato de tenant-safety de query continua verde.
 
@@ -68,16 +71,16 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T010** — Contrato de formulário: o bloco de modelo entre identificação e operação,
+- [x] **T010** — Contrato de formulário: o bloco de modelo entre identificação e operação,
       marca/modelo/ano preenchidos pela consulta por placa, trocar a marca limpando o modelo, e
       degradação para texto livre quando `vehicleCatalog` é `false` ou o papel é `trailer`.
       Verificação: vermelho.
-- [ ] **T011** — `fleet.constant.ts` (`VEHICLE_LOOKUP_FORM_KEYS`, `VEHICLE_BODY_KEYS`,
+- [x] **T011** — `fleet.constant.ts` (`VEHICLE_LOOKUP_FORM_KEYS`, `VEHICLE_BODY_KEYS`,
       `VEHICLE_FORM_KEYS`, `FLEET_CAPABILITY_KEYS`), `fleetCatalogClient.service.ts`,
       `useVehicleCatalog.hook.ts` e `VehicleModelFields.component.tsx`. A quebra do formulário em três
       blocos **já saiu na T000** — aqui entra o quarto.
       Verificação: T010 verde.
-- [ ] **T012** — Aviso de campo exigido pelo MDF-e no formulário e marca de incompleto na listagem;
+- [x] **T012** — Aviso de campo exigido pelo MDF-e no formulário e marca de incompleto na listagem;
       colunas novas em `VehicleList`, ano e eixos ocultos por padrão.
       Verificação: contrato de tabela e de acentuação de locale verdes.
 
@@ -85,13 +88,13 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T013** — Contrato: `test/fleet-schema/vehicles.contract.ts` exige as seis colunas de
+- [x] **T013** — Contrato: `test/fleet-schema/vehicles.contract.ts` exige as seis colunas de
       custo (`average_consumption`, `cost_per_kilometer`, `acquisition_amount`,
       `monthly_installment_amount`, `annual_vehicle_tax_amount`, `annual_insurance_amount`) e
       `costs_updated_at`, todas `numeric`/`timestamptz` — **nenhuma** `double precision` — com check
       de não-negatividade; diretório da migration na lista literal.
       Verificação: vermelho.
-- [ ] **T014** — Colunas e checks em `fleet.schema.ts`;
+- [x] **T014** — Colunas e checks em `fleet.schema.ts`;
       `db:generate --name fleet_vehicle_cost_fields`; `rollback.sql` à mão.
       Verificação: `make migration-test` e `db:check` sem drift; T013 verde.
 
@@ -99,7 +102,7 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T015** — Contrato `test/fleet-domain/vehicle-cost.contract.ts` — diretório novo na convenção
+- [x] **T015** — Contrato `test/fleet-domain/vehicle-cost.contract.ts` — diretório novo na convenção
       já usada por `billing-domain/`, `mdfe-domain/` e afins, com entrypoint próprio
       `test/fleet-domain.contract.test.ts` acrescentado à lista literal do `package.json`:
       `deriveMonthlyFixedCost` = `parcela + (IPVA + seguro) / 12` em
@@ -108,7 +111,7 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
       `PUT`, valor negativo recusado com `400` e **todos** os erros de uma vez, `costs_updated_at`
       mudando só quando algum custo muda, e nenhuma coluna de total no view-model.
       Verificação: vermelho.
-- [ ] **T016** — `vehicle-cost.policy.ts`, request schema, mapper, repositório, use case e
+- [x] **T016** — `vehicle-cost.policy.ts`, request schema, mapper, repositório, use case e
       view-model (`monthlyFixedCost`, `costsUpdatedAt`).
       Verificação: T015 verde; tenant-safety de query continua verde.
 
@@ -116,11 +119,11 @@ Arquivo de teste novo entra na lista literal do `package.json` da app, ou não r
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T017** — Contrato: `VehicleCostFields` como quinto bloco do formulário, os seis campos na
+- [x] **T017** — Contrato: `VehicleCostFields` como quinto bloco do formulário, os seis campos na
       métrica cheia, resumo em leitura com custo fixo mensal e custo por km, `0` renderizado como
       "não informado", colunas de custo ocultas por padrão em `VehicleList`, chaves nos dois locales.
       Verificação: vermelho.
-- [ ] **T018** — `VehicleCostFields.component.tsx`, formatação de moeda pelo helper existente de
+- [x] **T018** — `VehicleCostFields.component.tsx`, formatação de moeda pelo helper existente de
       `shared/`, colunas e locales.
       Verificação: T017 verde; contrato de acentuação verde.
 

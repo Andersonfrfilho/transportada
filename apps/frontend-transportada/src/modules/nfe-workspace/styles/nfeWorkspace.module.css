@@ -508,6 +508,20 @@
   color: var(--color-slate);
 }
 
+/* Ao lado do status, na mesma linha: o ícone diz o que a frase dizia, sem empurrar a coluna. */
+.nfseLink {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-2);
+  color: var(--color-slate);
+  vertical-align: middle;
+}
+
+.nfseLink:hover,
+.nfseLink:focus-visible {
+  color: var(--color-copper);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -668,8 +682,8 @@
 
 .copyButton svg,
 .copyButtonDone svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .copyCell {
@@ -723,8 +737,8 @@
 
 .copyInline svg,
 .copyInlineDone svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .listToolbar {
@@ -1015,8 +1029,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   color: var(--color-fog);
@@ -1160,7 +1174,7 @@
 }
 
 .pagerButton {
-  min-height: 2.25rem;
+  min-height: var(--control-height-compact);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-slate);
   color: var(--color-fog);
@@ -1215,8 +1229,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   padding: 0;
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);
@@ -1229,7 +1243,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2.25rem;
+  height: var(--control-height-compact);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);

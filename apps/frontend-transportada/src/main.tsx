@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
+import '@adatechnology/notification-ui/styles.css'
 import { StrictMode, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -16,7 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
-import { applyEnvironmentBadge } from '@/modules/shared/environmentFavicon.service'
+import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
+import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
@@ -33,6 +36,12 @@ import { MdfeManifestWorkspacePage } from '@/modules/mdfe-manifest/pages/MdfeMan
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
 import { NfseInvoiceWorkspacePage } from '@/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page'
+import { parseNfseInvoiceParameter } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
+import { NotificationSettingsPage } from '@/modules/notification/pages/NotificationSettings.page'
+import { NotificationWorkspacePage } from '@/modules/notification/pages/NotificationWorkspace.page'
+import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
+import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
+import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
 import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
 import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
@@ -72,13 +81,14 @@ type WorkspaceNavigationItem = Readonly<{
     | 'mdfe-manifest'
     | 'nfe'
     | 'nfse-invoice'
+    | 'notification'
     | 'operations'
     | 'trip'
   label: string
 }>
 
 type NavigationGroup = Readonly<{
-  key: 'administration' | 'fiscal' | 'operations'
+  key: 'administration' | 'fiscal' | 'operations' | 'registries'
   label: string
   items: readonly WorkspaceNavigationItem[]
 }>
@@ -95,6 +105,9 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
+  // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
+  // existe aqui só para o título da tela sair certo quando a rota abre.
+  { href: '/notificacoes', key: 'notification', label: 'Notificações' },
 ]
 
 const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
@@ -113,11 +126,14 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'operations'),
   },
   {
+    key: 'registries',
+    label: 'Cadastros',
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => ['fleet', 'cte-profiles'].includes(key)),
+  },
+  {
     key: 'administration',
     label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['company-settings', 'cte-profiles', 'fleet'].includes(key),
-    ),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => ['company-settings'].includes(key)),
   },
 ]
 
@@ -142,6 +158,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
+  if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/freight') return 'freight'
 
@@ -154,6 +171,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
+    storedWorkspace === 'notification' ||
     storedWorkspace === 'operations' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip'
@@ -189,7 +207,13 @@ function resolvePage(
         <MdfeManifestWorkspacePage originTripId={parseMdfeManifestTripParameter(input.search)} />
       )
     case 'nfse-invoice':
-      return <NfseInvoiceWorkspacePage />
+      return <NfseInvoiceWorkspacePage openInvoiceId={parseNfseInvoiceParameter(input.search)} />
+    case 'notification':
+      return input.path === NOTIFICATION_SETTINGS_HREF ? (
+        <NotificationSettingsPage />
+      ) : (
+        <NotificationWorkspacePage />
+      )
     case 'trip': {
       const tripId = parseTripRoute(input.path)
       return tripId === null ? <TripWorkspacePage /> : <TripDetailPage tripId={tripId} />
@@ -202,6 +226,10 @@ function resolvePage(
       return <NfeWorkspacePage />
   }
 }
+
+/** O tipo gerado para CSS Module devolve `string | undefined`; o pacote pede classe obrigatória. */
+const NOTIFICATION_BELL_CLASS = notificationStyles.notificationBell ?? ''
+const NOTIFICATION_THEME_CLASS = notificationStyles.notificationTheme ?? ''
 
 /** O selo avisa se a emissão vale de verdade — o rótulo vem do ambiente da empresa, nunca de literal. */
 const FISCAL_ENVIRONMENT_LABELS: Readonly<Record<FiscalEnvironment, string>> = {
@@ -219,7 +247,7 @@ function ApplicationShell(): ReactNode {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
-    administration: ['company-settings', 'cte-profiles', 'fleet'].includes(currentWorkspace),
+    administration: currentWorkspace === 'company-settings',
     fiscal: [
       'nfe',
       'freight',
@@ -230,6 +258,7 @@ function ApplicationShell(): ReactNode {
       'nfse-invoice',
     ].includes(currentWorkspace),
     operations: currentWorkspace === 'operations',
+    registries: ['cte-profiles', 'fleet'].includes(currentWorkspace),
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
@@ -243,7 +272,7 @@ function ApplicationShell(): ReactNode {
     function closeWithEscape(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         setSidebarOpen(false)
-        setOpenGroups({ administration: true, fiscal: true, operations: true })
+        setOpenGroups({ administration: true, fiscal: true, operations: true, registries: true })
       }
     }
     window.addEventListener('keydown', closeWithEscape)
@@ -297,7 +326,12 @@ function ApplicationShell(): ReactNode {
             onClick={() => {
               setSidebarOpen((current) => !current)
               setCollapsedGroup(null)
-              setOpenGroups({ administration: true, fiscal: true, operations: true })
+              setOpenGroups({
+                administration: true,
+                fiscal: true,
+                operations: true,
+                registries: true,
+              })
             }}
           >
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
@@ -394,6 +428,16 @@ function ApplicationShell(): ReactNode {
                 </span>
               )}
               <div className="application-user-area" aria-label="Sessão do usuário">
+                <NotificationBell
+                  className={NOTIFICATION_BELL_CLASS}
+                  onClick={() =>
+                    navigateTo({
+                      href: '/notificacoes',
+                      key: 'notification',
+                      label: 'Notificações',
+                    })
+                  }
+                />
                 <span className="application-user-avatar" aria-hidden="true">
                   {userProfile.pictureUrl !== undefined ? (
                     <img className="application-user-photo" src={userProfile.pictureUrl} alt="" />
@@ -447,6 +491,7 @@ function ApplicationShell(): ReactNode {
             resolvePage({ path: currentPath, search: currentSearch, workspace: currentWorkspace })
           )}
         </div>
+        <ApplicationFooter />
       </div>
     </div>
   )
@@ -490,7 +535,12 @@ async function bootstrapApplication(): Promise<void> {
   createRoot(applicationRootElement).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <ApplicationShell />
+        <NotificationProvider
+          client={getNotificationClient()}
+          theme={{ rootClassName: NOTIFICATION_THEME_CLASS }}
+        >
+          <ApplicationShell />
+        </NotificationProvider>
       </QueryClientProvider>
     </StrictMode>,
   )

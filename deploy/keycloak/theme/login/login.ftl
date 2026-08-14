@@ -16,12 +16,31 @@
                     </label>
                 </#if>
 
-                <label class="field" for="password">
-                    <span class="field-label">${msg("password")}</span>
-                    <input autocomplete="current-password" class="field-input" dir="ltr" id="password" name="password"
-                           type="password"
-                           aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
-                </label>
+                <#-- Aqui o rótulo é irmão do campo, não o envolve: o botão do olho é conteúdo
+                     interativo, e dentro de um `label` o clique nele também alcançaria o campo. -->
+                <div class="field">
+                    <label class="field-label" for="password">${msg("password")}</label>
+                    <span class="field-control">
+                        <input autocomplete="current-password" class="field-input" dir="ltr" id="password" name="password"
+                               type="password"
+                               aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
+                        <button aria-controls="password" aria-label="${msg("showPassword")}" aria-pressed="false"
+                                class="field-reveal" data-label-hide="${msg("hidePassword")}"
+                                data-label-show="${msg("showPassword")}" data-password-toggle hidden type="button">
+                            <svg aria-hidden="true" data-icon="show" fill="none" stroke="currentColor" stroke-width="1.6"
+                                 viewBox="0 0 24 24">
+                                <path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            <svg aria-hidden="true" data-icon="hide" fill="none" stroke="currentColor" stroke-width="1.6"
+                                 viewBox="0 0 24 24">
+                                <path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="m3 3 18 18" />
+                            </svg>
+                        </button>
+                    </span>
+                </div>
 
                 <#if messagesPerField.existsError('username','password')>
                     <p class="field-error" id="input-error" role="alert">

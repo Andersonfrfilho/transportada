@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 
 import { usePasswordReset } from '../hooks/usePasswordReset.hook'
@@ -122,6 +123,7 @@ export function PasswordResetPage() {
           </fieldset>
         </form>
       </div>
+      <ApplicationFooter />
     </div>
   )
 }

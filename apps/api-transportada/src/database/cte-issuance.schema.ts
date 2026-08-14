@@ -212,7 +212,10 @@ export const cteFiscalDocuments = pgTable(
     unique('cte_fiscal_documents_company_id_id_unique').on(table.companyId, table.id),
     unique('cte_fiscal_documents_company_access_key_unique').on(table.companyId, table.accessKey),
     unique('cte_fiscal_documents_company_batch_item_unique').on(table.companyId, table.batchItemId),
-    check('cte_fiscal_documents_access_key_check', sql`${table.accessKey} ~ '^[0-9]{44}$'`),
+    check(
+      'cte_fiscal_documents_access_key_check',
+      sql`${table.accessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
     check('cte_fiscal_documents_status_check', sql`${table.status} in ('authorized', 'cancelled')`),
     check(
       'cte_fiscal_documents_environment_check',

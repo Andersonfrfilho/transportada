@@ -41,6 +41,8 @@ import {
   buildInvoiceLinkReleaseFilters,
   buildInvoiceListFilters,
   buildInvoiceScopeFilters,
+  buildLatestAttemptFilters,
+  buildPendingOutboxFilters,
   buildStoredObjectFilters,
 } from './nfse-invoice-query.query.js'
 import type {
@@ -57,6 +59,7 @@ import type {
   NfseInvoiceChargeLine,
   NfseInvoiceCredential,
   NfseInvoiceCursor,
+  NfseInvoiceDelivery,
   NfseInvoiceDetail,
   NfseInvoiceDocumentLink,
   NfseInvoiceLinkedDocument,
@@ -357,10 +360,54 @@ async function findInvoiceDetail(
     ...mapInvoiceListItem(record),
     cancellationReason: record.cancellationReason,
     charges: await findInvoiceCharges(queryable, input),
+    delivery: await findInvoiceDelivery(queryable, input),
     description: record.description,
     rejectionCode: record.rejectionCode,
     rejectionMessage: record.rejectionMessage,
     version: record.version.toString(),
+  }
+}
+
+/**
+ * A emissão é automática: quando ela não anda, a tela precisa dizer em que tentativa está, o que a
+ * última falha disse e quando vem a próxima. Sem isso a nota parada é indistinguível de uma nota
+ * esquecida.
+ */
+async function findInvoiceDelivery(
+  queryable: NfseQueryable,
+  scope: { readonly companyId: string; readonly invoiceId: string },
+): Promise<NfseInvoiceDelivery | null> {
+  const [attempt] = await queryable
+    .select({
+      attemptNumber: nfseIssuanceAttempts.attemptNumber,
+      id: nfseIssuanceAttempts.id,
+      lastErrorCause: nfseIssuanceAttempts.lastErrorCause,
+      lastErrorCode: nfseIssuanceAttempts.lastErrorCode,
+      lastErrorMessage: nfseIssuanceAttempts.lastErrorMessage,
+      status: nfseIssuanceAttempts.status,
+      updatedAt: nfseIssuanceAttempts.updatedAt,
+    })
+    .from(nfseIssuanceAttempts)
+    .where(and(...buildLatestAttemptFilters(scope)))
+    .orderBy(desc(nfseIssuanceAttempts.attemptNumber), desc(nfseIssuanceAttempts.createdAt))
+    .limit(1)
+  if (attempt === undefined) return null
+
+  const [pending] = await queryable
+    .select({ nextAttemptAt: nfseIssuanceOutbox.nextAttemptAt })
+    .from(nfseIssuanceOutbox)
+    .where(and(...buildPendingOutboxFilters({ attemptId: attempt.id, companyId: scope.companyId })))
+    .orderBy(asc(nfseIssuanceOutbox.nextAttemptAt))
+    .limit(1)
+
+  return {
+    attemptCount: Number(attempt.attemptNumber),
+    lastErrorCause: attempt.lastErrorCause,
+    lastErrorCode: attempt.lastErrorCode,
+    lastErrorMessage: attempt.lastErrorMessage,
+    nextAttemptAt: pending?.nextAttemptAt?.toISOString() ?? null,
+    status: attempt.status,
+    updatedAt: attempt.updatedAt.toISOString(),
   }
 }
 

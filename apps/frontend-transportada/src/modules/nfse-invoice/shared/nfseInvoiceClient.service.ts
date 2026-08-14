@@ -1,6 +1,10 @@
+import type { ArchiveFile } from '@/modules/shared/archiveDownload.service'
+
 import {
   NFSE_EMISSION_PROFILE_OPTIONS_PATH,
   NFSE_INVOICE_ERROR,
+  NFSE_INVOICE_EXPORT_FALLBACK_FILE_NAME,
+  NFSE_INVOICE_EXPORT_PATH,
   NFSE_INVOICE_PREVIEW_PATH,
   NFSE_SERVICE_INVOICES_PATH,
 } from './nfseInvoice.constant'
@@ -41,11 +45,20 @@ export type NfseInvoiceCancellationInput = Readonly<{
   invoiceId: string
 }>
 
+export const NFSE_EXPORT_FORMATS = ['both', 'pdf', 'xml'] as const
+export type NfseExportFormat = (typeof NFSE_EXPORT_FORMATS)[number]
+
+export type NfseInvoiceExportInput = Readonly<{
+  format?: NfseExportFormat
+  invoiceIds: readonly string[]
+}>
+
 export type NfseInvoiceClient = Readonly<{
   cancelInvoice: (input: NfseInvoiceCancellationInput) => Promise<NfseCancellationSummary>
   createInvoices: (
     input: NfseInvoiceSelection & Readonly<{ idempotencyKey: string }>,
   ) => Promise<NfseIssuanceSummary>
+  exportInvoices: (input: NfseInvoiceExportInput) => Promise<ArchiveFile>
   getInvoice: (input: Readonly<{ invoiceId: string }>) => Promise<NfseInvoiceDetail>
   getInvoiceDocumentUrl: (
     input: Readonly<{ invoiceId: string; kind: NfseInvoiceDocumentKind }>,
@@ -151,6 +164,57 @@ async function authorizedRequest(
   })
 }
 
+const CONTENT_DISPOSITION_FILE_NAME = /filename="([^"]+)"/u
+
+/** O corpo de erro ainda é JSON numa rota de arquivo; parse quebrado não pode virar exceção crua. */
+async function readJsonPayload(response: Response): Promise<unknown> {
+  try {
+    return (await response.json()) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function readFileName(input: Readonly<{ disposition: null | string; fallback: string }>): string {
+  const matched =
+    input.disposition === null ? null : CONTENT_DISPOSITION_FILE_NAME.exec(input.disposition)
+  return matched?.[1] ?? input.fallback
+}
+
+async function requestArchive(
+  input: Readonly<{
+    body: string
+    dependencies: ClientDependencies
+    fallbackFileName: string
+    path: string
+  }>,
+): Promise<ArchiveFile> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const request = new Request(`${input.dependencies.apiUrl}${input.path}`, {
+    body: input.body,
+    cache: 'no-store',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    method: 'POST',
+  })
+
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(request)
+  } catch {
+    throw requestError(NFSE_INVOICE_ERROR.REQUEST_FAILED)
+  }
+
+  if (!response.ok) throw requestError(readErrorCode(await readJsonPayload(response)))
+
+  return {
+    blob: await response.blob(),
+    fileName: readFileName({
+      disposition: response.headers.get('content-disposition'),
+      fallback: input.fallbackFileName,
+    }),
+  }
+}
+
 export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseInvoiceClient {
   const adapters: NfseInvoiceResponseAdapters = createNfseInvoiceResponseAdapters()
 
@@ -174,6 +238,17 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
         path: NFSE_SERVICE_INVOICES_PATH,
       })
       return adapters.issuanceSummaryFromApi(readEnvelopeData(payload))
+    },
+    async exportInvoices(input) {
+      const body: Record<string, unknown> = { invoiceIds: input.invoiceIds }
+      if (input.format !== undefined) body['format'] = input.format
+
+      return requestArchive({
+        body: JSON.stringify(body),
+        dependencies,
+        fallbackFileName: NFSE_INVOICE_EXPORT_FALLBACK_FILE_NAME,
+        path: NFSE_INVOICE_EXPORT_PATH,
+      })
     },
     async getInvoice(input) {
       const payload = await authorizedRequest({

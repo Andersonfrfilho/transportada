@@ -54,7 +54,6 @@ function describeProjection({
 }): NfseInvoicePreviewItem {
   const description = buildNfseDescription({
     documents: projection.documents.map((document) => ({
-      accessKey: document.accessKey,
       issuedAt: document.issuedAt,
       number: document.number,
       series: document.series,

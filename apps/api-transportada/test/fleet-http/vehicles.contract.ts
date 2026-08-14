@@ -61,6 +61,129 @@ describe('fleet vehicles http contract', () => {
     ])
   })
 
+  // Fase C: marca, modelo, ano-modelo, eixos e frota alimentam cálculo de frete e o cInt do MDF-e
+  test('carries brand, model, color, modelYear, axleCount and fleetNumber through create and update', async () => {
+    const identityFields = {
+      axleCount: 3,
+      brand: 'Volvo',
+      color: 'branca',
+      fleetNumber: 'ROTA-01',
+      model: 'FH 540',
+      modelYear: 2020,
+    }
+
+    const createFixture = await createFleetHttpFixture()
+    const createResponse = await createFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, ...identityFields },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(createResponse.status).toBe(201)
+    expect(createFixture.createVehicleCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        vehicle: { ...CREATE_VEHICLE_BODY, ...identityFields },
+      },
+    ])
+
+    const updateFixture = await createFleetHttpFixture()
+    const updateResponse = await updateFixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_VEHICLE_BODY, ...identityFields },
+        method: 'PATCH',
+        path: VEHICLE_PATH,
+      }),
+    )
+
+    expect(updateResponse.status).toBe(200)
+    expect(updateFixture.updateVehicleCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        expectedVersion: '1',
+        status: 'active',
+        vehicle: { ...CREATE_VEHICLE_BODY, ...identityFields },
+        vehicleId: VEHICLE_ID,
+      },
+    ])
+  })
+
+  // 0 é "não informado"; a faixa vem do que o layout do MDF-e e o catálogo aceitam
+  test('validates axleCount between 2 and 9 and modelYear between 1900 and 2100, zero meaning not-informed', async () => {
+    const inRangeFixture = await createFleetHttpFixture()
+    const inRangeResponse = await inRangeFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, axleCount: 2, modelYear: 1900 },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(inRangeResponse.status).toBe(201)
+
+    const zeroFixture = await createFleetHttpFixture()
+    const zeroResponse = await zeroFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, axleCount: 0, modelYear: 0 },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(zeroResponse.status).toBe(201)
+
+    const outOfRangeAxleFixture = await createFleetHttpFixture()
+    const outOfRangeAxleResponse = await outOfRangeAxleFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, axleCount: 1 },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(outOfRangeAxleResponse.status).toBe(400)
+
+    const outOfRangeYearFixture = await createFleetHttpFixture()
+    const outOfRangeYearResponse = await outOfRangeYearFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, modelYear: 2101 },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(outOfRangeYearResponse.status).toBe(400)
+  })
+
+  // Cor é lista fechada do Denatran: aceitar "Prata metálico" quebra filtro e relatório depois
+  test('refuses a color outside the Denatran list and accepts a blank one', async () => {
+    const invalidFixture = await createFleetHttpFixture()
+    const invalidResponse = await invalidFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, color: 'Prata metálico' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(invalidResponse.status).toBe(400)
+
+    const blankFixture = await createFleetHttpFixture()
+    const blankResponse = await blankFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, color: '' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(blankResponse.status).toBe(201)
+  })
+
   // tpRod só existe no veicTracao — deixar passar aqui vira rejeição na SEFAZ depois
   test('refuses a trailer carrying a wheel type and a traction without one', async () => {
     const trailerFixture = await createFleetHttpFixture()

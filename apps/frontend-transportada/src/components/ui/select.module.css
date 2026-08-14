@@ -57,6 +57,22 @@
   font-size: var(--field-font-size-compact);
 }
 
+/* O gatilho separa os extremos: sem este invólucro o quadrado iria para o lado do chevron. */
+.selection {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 55%, transparent);
+  background: var(--select-swatch);
+}
+
 .value,
 .placeholder {
   overflow: hidden;
@@ -85,8 +101,10 @@
   position: fixed;
   z-index: 60;
   top: var(--floating-layer-top, 0);
+  bottom: var(--floating-layer-bottom, auto);
   left: var(--floating-layer-left, 0);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: var(--floating-layer-min-width, 0);
   max-height: min(16rem, var(--floating-layer-max-height, 16rem));
   overflow: hidden;
@@ -98,6 +116,7 @@
 
 /* A busca fica fixa no topo; rolar é papel só da lista, senão o campo sai de vista ao descer. */
 .searchField {
+  flex: 0 0 auto;
   display: flex;
   gap: var(--space-2);
   align-items: center;
@@ -126,7 +145,9 @@
 }
 
 .list {
+  flex: 1 1 auto;
   display: grid;
+  min-height: 0;
   margin: 0;
   padding: var(--space-1);
   overflow-y: auto;
@@ -141,6 +162,9 @@
 }
 
 .option {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
   padding: var(--space-2) var(--space-3);
   border-left: 2px solid transparent;
   color: var(--color-fog);

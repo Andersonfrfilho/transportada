@@ -124,7 +124,7 @@ export const companyFiscalProfiles = pgTable(
       'company_fiscal_profiles_billing_observations_check',
       sql`length(${table.billingObservations}) <= ${sql.raw(String(BILLING_OBSERVATIONS_MAX_LENGTH))}`,
     ),
-    check('company_fiscal_profiles_cnpj_check', sql`${table.cnpj} ~ '^[0-9]{14}$'`),
+    check('company_fiscal_profiles_cnpj_check', sql`${table.cnpj} ~ '^[A-Z0-9]{12}[0-9]{2}$'`),
     check(
       'company_fiscal_profiles_cte_retry_backoff_check',
       sql`array_length(${table.cteRetryBackoffSeconds}, 1) between 1 and ${sql.raw(String(CTE_RETRY_BACKOFF_STEPS_LIMIT))} and 0 < all(${table.cteRetryBackoffSeconds})`,
@@ -151,7 +151,7 @@ export const companyFiscalProfiles = pgTable(
     ),
     check(
       'company_fiscal_profiles_mdfe_insurer_tax_id_check',
-      sql`length(${table.mdfeInsurerTaxId}) = 0 or ${table.mdfeInsurerTaxId} ~ '^[0-9]{11}$|^[0-9]{14}$'`,
+      sql`length(${table.mdfeInsurerTaxId}) = 0 or ${table.mdfeInsurerTaxId} ~ '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'company_fiscal_profiles_rntrc_check',

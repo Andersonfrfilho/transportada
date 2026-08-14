@@ -49,9 +49,14 @@ body {
   background: linear-gradient(125deg, var(--transportada-asphalt), var(--transportada-graphite));
 }
 
+/*
+ * Duas faixas de mesma altura em volta do painel o mantêm no centro óptico; o rodapé mora na última
+ * delas, encostado na base. Centralizar a pilha inteira (`align-content`) deixava o copyright
+ * pendurado logo abaixo do cartão, no meio da tela.
+ */
 .gate {
   display: grid;
-  align-content: center;
+  grid-template-rows: 1fr auto 1fr;
   gap: var(--transportada-space-10);
   min-height: 100vh;
   padding: var(--transportada-space-8) var(--transportada-space-5);
@@ -61,14 +66,22 @@ body {
 @media (min-width: 60rem) {
   .gate {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    /* Marca e painel dividem a primeira faixa; o rodapé fica sozinho na segunda. */
+    grid-template-rows: 1fr auto;
     align-items: center;
     gap: var(--transportada-space-10);
     padding: var(--transportada-space-10) clamp(var(--transportada-space-8), 7vw, 6rem);
+  }
+
+  .brand {
+    align-self: center;
   }
 }
 
 .brand {
   display: grid;
+  /* Desce até o pé da faixa de cima, colada ao painel — esticada, a marca se afastaria dele. */
+  align-self: end;
   gap: var(--transportada-space-4);
   /* Cabe a palavra inteira em Impact no maior corpo da escala; abaixo disso ela vaza da coluna. */
   max-width: 40rem;
@@ -197,6 +210,55 @@ body {
   font: inherit;
   font-size: 0.9rem;
   background: color-mix(in srgb, var(--transportada-asphalt) 84%, transparent);
+}
+
+.field-control {
+  display: grid;
+}
+
+/* Campo e botão ocupam a mesma célula: o olho fica sobre a borda direita, sem alterar a altura. */
+.field-control > * {
+  grid-area: 1 / 1;
+}
+
+.field-control .field-input {
+  padding-right: calc(var(--transportada-field-height) - var(--transportada-space-2));
+}
+
+.field-reveal {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--transportada-field-height);
+  padding: 0;
+  border: 0;
+  color: var(--transportada-slate);
+  background: none;
+  cursor: pointer;
+}
+
+.field-reveal:hover {
+  color: var(--transportada-copper);
+}
+
+.field-reveal:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--transportada-copper) 70%, transparent);
+  outline-offset: -2px;
+}
+
+.field-reveal svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.field-reveal [data-icon='hide'],
+.field-reveal[aria-pressed='true'] [data-icon='show'] {
+  display: none;
+}
+
+.field-reveal[aria-pressed='true'] [data-icon='hide'] {
+  display: block;
 }
 
 .field-input:focus-visible,
@@ -348,6 +410,45 @@ a:focus-visible {
 
 .required {
   color: var(--transportada-copper);
+}
+
+.colophon {
+  align-self: end;
+  margin: 0;
+  color: var(--transportada-slate);
+  font-family: var(--transportada-font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+/* `inline-flex` num elemento de linha continua obedecendo ao `text-align` do rodapé. */
+.colophon p {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--transportada-space-2);
+  margin: 0;
+}
+
+/*
+ * O gradiente azul da marca é feito para fundo claro: sobre o asfalto a ponta escura some. O próprio
+ * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta branca, e é essa a regra
+ * que se copia aqui, não uma cor inventada.
+ */
+.colophon-mark {
+  flex: none;
+  /* A marca não é quadrada: travar os dois lados a amassaria. Altura manda, largura acompanha. */
+  width: auto;
+  height: 1.5rem;
+  filter: brightness(0) invert(1);
+  opacity: 0.8;
+}
+
+/* Na grade de duas colunas o rodapé atravessa as duas, senão ele cairia sob a marca. */
+@media (min-width: 60rem) {
+  .colophon {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Uma entrada só, encadeada: a marca chega antes do formulário, como na leitura. */

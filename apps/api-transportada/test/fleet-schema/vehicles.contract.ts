@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import { fleetVehicles } from '../../src/database/database.schema.js'
+import { VEHICLE_COLORS } from '../../src/database/fleet.schema.js'
 import {
   checkSqlByName,
   columnNames,
@@ -27,6 +28,11 @@ describe('fleet vehicle schema', () => {
       'company_id',
       'plate',
       'renavam',
+      'brand',
+      'model',
+      'model_year',
+      'color',
+      'fleet_number',
       'role',
       'status',
       'tare_weight_kg',
@@ -34,6 +40,7 @@ describe('fleet vehicle schema', () => {
       'capacity_m3',
       'wheel_type',
       'body_type',
+      'axle_count',
       'state',
       'ownership',
       'owner_tax_id',
@@ -41,6 +48,13 @@ describe('fleet vehicle schema', () => {
       'owner_state',
       'owner_rntrc',
       'owner_tax_regime',
+      'average_consumption',
+      'cost_per_kilometer',
+      'acquisition_amount',
+      'monthly_installment_amount',
+      'annual_vehicle_tax_amount',
+      'annual_insurance_amount',
+      'costs_updated_at',
       'version',
       'created_at',
       'updated_at',
@@ -49,17 +63,34 @@ describe('fleet vehicle schema', () => {
 
   test('keeps weights and volumes integral, as the MDF-e layout transmits them', () => {
     expect(columnSqlTypes(fleetVehicles)).toMatchObject({
+      axle_count: 'integer',
       capacity_kg: 'bigint',
       capacity_m3: 'bigint',
       company_id: 'uuid',
       id: 'uuid',
+      model_year: 'integer',
       tare_weight_kg: 'bigint',
       version: 'bigint',
     })
   })
 
+  test('keeps cost and consumption fields in exact decimal, never binary float', () => {
+    expect(columnSqlTypes(fleetVehicles)).toMatchObject({
+      acquisition_amount: 'numeric(19, 4)',
+      annual_insurance_amount: 'numeric(19, 4)',
+      annual_vehicle_tax_amount: 'numeric(19, 4)',
+      average_consumption: 'numeric(6, 2)',
+      cost_per_kilometer: 'numeric(12, 4)',
+      costs_updated_at: 'timestamp with time zone',
+      monthly_installment_amount: 'numeric(19, 4)',
+    })
+  })
+
+  // costs_updated_at fica nulo até o primeiro custo ser informado — não há "vazio" para timestamp
   test('requires every column — optional owner fields carry explicit empty defaults', () => {
-    expect(requiredColumnNames(fleetVehicles)).toEqual(columnNames(fleetVehicles))
+    expect(requiredColumnNames(fleetVehicles)).toEqual(
+      columnNames(fleetVehicles).filter((name) => name !== 'costs_updated_at'),
+    )
   })
 
   test('scopes the plate to the tenant and exposes the composite tenant key', () => {
@@ -108,13 +139,20 @@ describe('fleet vehicle schema', () => {
     expect(check).toContain('>= 0')
   })
 
+  // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
+  test('keeps every cost and consumption field non-negative', () => {
+    const check = checkSqlByName(fleetVehicles).fleet_vehicles_cost_check
+
+    expect(check).toContain('>= 0')
+  })
+
   // Emitir <prop> com o CNPJ do emitente é rejeição — veículo próprio não tem proprietário
   test('emits the owner group only when the vehicle is not the carrier own', () => {
     const checks = checkSqlByName(fleetVehicles)
 
     expect(checks.fleet_vehicles_owner_check).toContain("'own'")
     expect(checks.fleet_vehicles_owner_tax_id_check).toContain("~ '^[0-9]{11}$'")
-    expect(checks.fleet_vehicles_owner_tax_id_check).toContain("~ '^[0-9]{14}$'")
+    expect(checks.fleet_vehicles_owner_tax_id_check).toContain("~ '^[A-Z0-9]{12}[0-9]{2}$'")
     // O cadastro do proprietário guarda o registro como o certificado da ANTT o imprime.
     expect(checks.fleet_vehicles_owner_rntrc_check).toContain("~ '^0?[0-9]{8}$'")
     expect(checks.fleet_vehicles_owner_tax_regime_check).toContain("in ('0', '1', '2')")
@@ -122,5 +160,33 @@ describe('fleet vehicle schema', () => {
 
   test('starts the optimistic lock at a positive version', () => {
     expect(checkSqlByName(fleetVehicles).fleet_vehicles_version_check).toContain('> 0')
+  })
+
+  // 0 é "não informado" — o motorista que buscou pela placa preenche depois, ninguém trava o salvamento
+  test('accepts zero as not-informed for model year and axle count, else a plausible range', () => {
+    const checks = checkSqlByName(fleetVehicles)
+
+    expect(checks.fleet_vehicles_model_year_check).toContain('= 0')
+    expect(checks.fleet_vehicles_model_year_check).toContain('between 1900 and 2100')
+    expect(checks.fleet_vehicles_axle_count_check).toContain('= 0')
+    expect(checks.fleet_vehicles_axle_count_check).toContain('between 2 and 9')
+  })
+
+  test('bounds brand, model and fleet number to what the catalog and the CRLV hold', () => {
+    const checks = checkSqlByName(fleetVehicles)
+
+    expect(checks.fleet_vehicles_brand_check).toContain('<= 60')
+    expect(checks.fleet_vehicles_model_check).toContain('<= 120')
+    expect(checks.fleet_vehicles_fleet_number_check).toContain('<= 20')
+  })
+
+  /** Cor é lista fechada do Denatran: em texto livre a mesma frota grava "branca" e "BRANCO". */
+  test('closes the color in the Denatran list, still allowing it to be blank', () => {
+    const check = checkSqlByName(fleetVehicles).fleet_vehicles_color_check
+
+    expect(check).toContain('= 0')
+    for (const color of VEHICLE_COLORS) {
+      expect(check).toContain(`'${color}'`)
+    }
   })
 })

@@ -7,6 +7,7 @@ import {
   formatDacteAccessKey,
   formatDacteAmount,
   formatDacteDateTime,
+  formatDacteDocumentNumber,
 } from '../../src/cte-issuance/domain/dacte-format.policy.js'
 import {
   buildDacteLayout,
@@ -15,6 +16,7 @@ import {
 import type { DacteDocument } from '../../src/cte-issuance/domain/dacte.types.js'
 import { parseCteXmlForDacte } from '../../src/cte-issuance/infrastructure/cte-xml.mapper.js'
 import {
+  ALPHANUMERIC_CTE_ACCESS_KEY,
   buildSyntheticCteXml,
   SYNTHETIC_CTE_ACCESS_KEY,
   SYNTHETIC_ICMS00_BLOCK,
@@ -67,6 +69,36 @@ describe('formatDacteAccessKey', () => {
     expect(formatDacteAccessKey(SYNTHETIC_CTE_ACCESS_KEY)).toBe(
       '3526 0700 0000 0000 0191 5700 1000 0000 0110 0000 0010',
     )
+  })
+
+  test('groups an alphanumeric key without dropping a single character', () => {
+    expect(formatDacteAccessKey(ALPHANUMERIC_CTE_ACCESS_KEY)).toBe(
+      '3526 0812 ABC3 4501 DE35 5700 1000 0000 0110 0000 0017',
+    )
+  })
+})
+
+describe('formatDacteDocumentNumber', () => {
+  test('punctuates the alphanumeric CNPJ in the positions the IN publishes', () => {
+    expect(formatDacteDocumentNumber('12ABC34501DE35')).toBe('12.ABC.345/01DE-35')
+  })
+
+  test('keeps punctuating the numeric CNPJ and the CPF', () => {
+    expect(formatDacteDocumentNumber('61156864000191')).toBe('61.156.864/0001-91')
+    expect(formatDacteDocumentNumber('12345678909')).toBe('123.456.789-09')
+  })
+
+  /**
+   * Um CNPJ com três letras deixa onze dígitos ao ser filtrado — o comprimento do CPF. A guarda tem
+   * de ser de conjunto: o documento inteiro, não o que sobra depois de apagar as letras.
+   */
+  test('never prints a CNPJ with three letters under a CPF mask', () => {
+    expect(formatDacteDocumentNumber('12ABC345000135')).toBe('12.ABC.345/0001-35')
+  })
+
+  test('prints what it does not recognize exactly as it came', () => {
+    expect(formatDacteDocumentNumber('SEM DOCUMENTO')).toBe('SEM DOCUMENTO')
+    expect(formatDacteDocumentNumber('')).toBe('')
   })
 })
 

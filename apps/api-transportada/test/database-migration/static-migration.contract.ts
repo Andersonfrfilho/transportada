@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
 
+import { VEHICLE_COLORS } from '../../src/database/fleet.schema.js'
 import {
   DESTRUCTIVE_MIGRATION_PATTERN,
   FISCAL_TABLES,
@@ -110,6 +111,11 @@ describe('Drizzle migrations', () => {
       '20260812180149_company_activation_channel',
       '20260812180517_nfse_profile_municipality_name',
       '20260813024255_password_reset_requests',
+      '20260813151612_fleet_vehicle_model_fields',
+      '20260813181604_fleet_vehicle_cost_fields',
+      '20260814131353_fleet_vehicle_color',
+      '20260814191354_tax_id_alphanumeric',
+      '20260814211033_fleet_vehicle_color_list',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -561,6 +567,175 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the fleet vehicle model fields as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_model_fields'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const column of ['brand', 'model', 'fleet_number', 'model_year', 'axle_count']) {
+      expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+    }
+    expect(migrationSql).toContain('fleet_vehicles_model_year_check')
+    expect(migrationSql).toContain('fleet_vehicles_axle_count_check')
+    expect(migrationSql).toContain('fleet_vehicles_brand_check')
+    expect(migrationSql).toContain('fleet_vehicles_model_check')
+    expect(migrationSql).toContain('fleet_vehicles_fleet_number_check')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the fleet vehicle cost and consumption fields as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_cost_fields'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const column of [
+      'average_consumption',
+      'cost_per_kilometer',
+      'acquisition_amount',
+      'monthly_installment_amount',
+      'annual_vehicle_tax_amount',
+      'annual_insurance_amount',
+      'costs_updated_at',
+    ]) {
+      expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+    }
+    expect(migrationSql).toContain('fleet_vehicles_cost_check')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the fleet vehicle color as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_color'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('ADD COLUMN "color"')
+    expect(migrationSql).toContain('fleet_vehicles_color_check')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Estreitar CHECK reprova linha que passava antes: a migration normaliza o que não casa com a
+   * lista para vazio na mesma transação, e é isso que a torna aplicável sem intervenção manual.
+   */
+  test('narrows the fleet vehicle color to the Denatran list, blanking what falls outside it', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_color_list'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('DROP CONSTRAINT "fleet_vehicles_color_check"')
+    expect(migrationSql).toContain('ADD CONSTRAINT "fleet_vehicles_color_check"')
+    expect(migrationSql).toMatch(/UPDATE "fleet_vehicles"[\s\S]*SET "color" = ''/i)
+    for (const color of VEHICLE_COLORS) expect(migrationSql).toContain(`'${color}'`)
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Alargar CHECK é aditivo por natureza — nenhuma linha existente deixa de passar —, mas em SQL
+   * exige derrubar e recriar a constraint. O que este teste guarda é que a derrubada é sempre
+   * seguida da recriação do mesmo nome, e que os CHECK de CPF não vão de arrasto.
+   */
+  test('versions the alphanumeric tax id as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_tax_id_alphanumeric'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+
+    for (const constraint of [
+      'company_fiscal_profiles_cnpj_check',
+      'company_fiscal_profiles_mdfe_insurer_tax_id_check',
+      'digital_certificates_validated_cnpj_check',
+      'fleet_drivers_linked_tax_id_check',
+      'fleet_vehicles_owner_tax_id_check',
+      'cte_emission_profile_matchers_tax_id_check',
+      'billing_invoices_customer_document_check',
+      'nfse_provider_credentials_tax_id_check',
+      'nfse_service_invoices_taker_tax_id_check',
+      'mdfe_manifests_contractor_tax_id_check',
+      'nfe_documents_access_key_check',
+      'nfe_events_access_key_check',
+      'nfe_import_items_access_key_check',
+      'cte_fiscal_documents_access_key_check',
+      'billing_invoice_items_cte_access_key_check',
+      'mdfe_fiscal_documents_access_key_check',
+      'mdfe_manifest_items_access_key_check',
+    ]) {
+      expect(migrationSql).toContain(`DROP CONSTRAINT "${constraint}"`)
+      expect(migrationSql).toContain(`ADD CONSTRAINT "${constraint}"`)
+    }
+
+    expect(migrationSql).toContain('^[A-Z0-9]{12}[0-9]{2}$')
+    expect(migrationSql).toContain('^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$')
+    expect(migrationSql).toContain('^[A-Z0-9]{8}$')
+
+    for (const untouched of [
+      'fleet_drivers_tax_id_check',
+      'fleet_drivers_license_number_check',
+      'trip_drivers_tax_id_check',
+      'mdfe_manifest_drivers_tax_id_check',
+    ]) {
+      expect(migrationSql).not.toContain(untouched)
+    }
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toContain(`~ '^[0-9]{14}$'`)
+    expect(rollbackSql).toContain(`~ '^[0-9]{44}$'`)
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')

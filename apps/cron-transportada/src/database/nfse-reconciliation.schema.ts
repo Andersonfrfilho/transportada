@@ -59,7 +59,7 @@ export const nfseIssuanceAttempts = pgTable('nfse_issuance_attempts', {
   companyId: uuid('company_id').notNull(),
   invoiceId: uuid('invoice_id').notNull(),
   attemptKind: text('attempt_kind').$type<NfseAttemptKind>().notNull(),
-  attemptNumber: bigint('attempt_number', { mode: 'number' }).notNull(),
+  attemptNumber: bigint('attempt_number', { mode: 'bigint' }).notNull(),
   status: text().$type<NfseIssuanceStatus>().notNull(),
   fiscalEnvironment: text('fiscal_environment').$type<NfseFiscalEnvironment>().notNull(),
   lastErrorCode: text('last_error_code'),

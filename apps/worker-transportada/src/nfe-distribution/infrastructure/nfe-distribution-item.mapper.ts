@@ -8,6 +8,7 @@ import { gunzipSync } from 'node:zlib'
 import type { DfeItem, ImportedNfeXml } from '@adatechnology/fiscal-provider'
 
 import type { NfeItemVariant } from '../../database/nfe.schema.js'
+import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
 import type { NfeXmlImporter } from '../../nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import type { DistributionSummary } from './drizzle-nfe-distribution.repository.js'
 
@@ -16,11 +17,10 @@ const EVENT_SCHEMA = 'procEventoNFe'
 // A SEFAZ manda o nome do arquivo do schema no docZip (`resEvento_v1.01.xsd`), versão e extensão
 // inclusas; o pacote fiscal entrega cru
 const SCHEMA_VERSION_SUFFIX = /_v\d+(?:\.\d+)*(?:\.xsd)?$/i
-const ACCESS_KEY_PATTERN = /^[0-9]{44}$/
 // O prefixo de namespace é opcional porque falhar aqui não derruba a página: a chave viraria nula
 // em silêncio, e um resumo sem chave não serve para nada
 const SUMMARY_ACCESS_KEY_ELEMENT =
-  /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
+  /<(?:[A-Za-z0-9._-]+:)?chNFe>\s*([A-Za-z0-9]{44})\s*<\/(?:[A-Za-z0-9._-]+:)?chNFe>/
 
 export type PreparedSummary = {
   readonly accessKey: string | undefined
@@ -117,9 +117,10 @@ export function buildDistributionSummary(params: {
 }
 
 /**
- * A chave da coluna `access_key` só aceita NULL ou 44 dígitos. O pacote fiscal nem sempre preenche
- * `chaveNfe` no resumo, e a chave verdadeira está no `<chNFe>` do próprio XML — sintetizar um valor
- * a partir do NSU violava o CHECK e derrubava a página inteira.
+ * O pacote fiscal nem sempre preenche `chaveNfe` no resumo, e a chave verdadeira está no `<chNFe>`
+ * do próprio XML — sintetizar um valor a partir do NSU violava o CHECK da coluna e derrubava a
+ * página inteira. A guarda é `CHAVE_PATTERN`, não dígito: a chave de emitente com CNPJ alfanumérico
+ * tem letra nas doze posições da base, e um literal só de dígito a jogaria fora em silêncio.
  */
 function resolveSummaryAccessKey(params: {
   readonly dfe: DfeItem
@@ -127,12 +128,13 @@ function resolveSummaryAccessKey(params: {
 }): string | undefined {
   const { dfe, sourceBytes } = params
 
-  if (dfe.chaveNfe !== undefined && ACCESS_KEY_PATTERN.test(dfe.chaveNfe)) {
+  if (dfe.chaveNfe !== undefined && CHAVE_PATTERN.test(dfe.chaveNfe)) {
     return dfe.chaveNfe
   }
 
   const xml = new TextDecoder().decode(sourceBytes)
-  return SUMMARY_ACCESS_KEY_ELEMENT.exec(xml)?.[1]
+  const candidate = SUMMARY_ACCESS_KEY_ELEMENT.exec(xml)?.[1]
+  return candidate !== undefined && CHAVE_PATTERN.test(candidate) ? candidate : undefined
 }
 
 function classifyVariant(schema: string): NfeItemVariant {

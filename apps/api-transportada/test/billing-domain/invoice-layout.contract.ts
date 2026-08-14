@@ -323,6 +323,73 @@ describe('invoice layout policy contract', () => {
     ])
   })
 
+  test('CNPJ alfanumérico da transportadora e do tomador sai pontuado nas posições da IN', () => {
+    const layout = buildInvoiceLayout({
+      invoice: { ...INVOICE, customerDocument: '12ABC34501DE35' },
+      observations: '',
+      profile: { ...PROFILE, cnpj: '12ABC34501DE35' },
+      rows: buildRows(1),
+      rowsPerPage: ROWS_PER_PAGE,
+    })
+
+    expect(layout.carrier.taxLine).toBe('CNPJ 12.ABC.345/01DE-35 · IE 110042490114')
+    expect(layout.customer.fields).toEqual([
+      { label: 'Nome', value: 'TOMADOR SINTETICO LTDA' },
+      { label: 'CNPJ', value: '12.ABC.345/01DE-35' },
+    ])
+  })
+
+  /**
+   * Um CNPJ com três letras deixa onze dígitos quando se apaga o que não é número — o comprimento
+   * do CPF. A guarda tem de olhar o documento inteiro, ou o tomador aparece rotulado como pessoa
+   * física com a máscara errada.
+   */
+  test('CNPJ com três letras nunca é rotulado nem mascarado como CPF', () => {
+    const layout = buildInvoiceLayout({
+      invoice: { ...INVOICE, customerDocument: '12ABC345000135' },
+      observations: '',
+      profile: PROFILE,
+      rows: buildRows(1),
+      rowsPerPage: ROWS_PER_PAGE,
+    })
+
+    expect(layout.customer.fields).toEqual([
+      { label: 'Nome', value: 'TOMADOR SINTETICO LTDA' },
+      { label: 'CNPJ', value: '12.ABC.345/0001-35' },
+    ])
+  })
+
+  test('tomador pessoa física continua rotulado e mascarado como CPF', () => {
+    const layout = buildInvoiceLayout({
+      invoice: { ...INVOICE, customerDocument: '12345678909' },
+      observations: '',
+      profile: PROFILE,
+      rows: buildRows(1),
+      rowsPerPage: ROWS_PER_PAGE,
+    })
+
+    expect(layout.customer.fields.at(1)).toEqual({ label: 'CPF', value: '123.456.789-09' })
+  })
+
+  /**
+   * A guarda de comprimento aceitava qualquer coisa com catorze caracteres: o texto que o
+   * destinatário não tem saía pontuado como se fosse documento, e a letra minúscula ia para o papel
+   * como veio. A guarda tem de ser de conjunto — o documento inteiro, normalizado.
+   */
+  test('coluna do destinatário só mascara o que é documento, e normaliza antes', () => {
+    const [row] = buildRows(1)
+
+    expect(buildInvoiceRowCells({ ...row!, recipientTaxId: '12abc34501de35' }).at(3)).toBe(
+      '12.ABC.345/01DE-35',
+    )
+    expect(buildInvoiceRowCells({ ...row!, recipientTaxId: 'DOCUMENTO NULO' }).at(3)).toBe(
+      'DOCUMENTO NULO',
+    )
+    expect(buildInvoiceRowCells({ ...row!, recipientTaxId: 'SEM DOCUMENTO' }).at(3)).toBe(
+      'SEM DOCUMENTO',
+    )
+  })
+
   test('as colunas da tabela cabem na largura útil da página A4', () => {
     const totalWidth = INVOICE_TABLE_COLUMNS.reduce((sum, column) => sum + column.width, 0)
 

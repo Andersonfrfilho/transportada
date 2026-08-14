@@ -79,6 +79,9 @@
     "activeFilters": "{{count}} filtros ativos",
     "clearFilters": "Limpar filtros",
     "clearSelection": "Limpar seleção",
+    "columns": {
+      "actions": "Ações"
+    },
     "columnsMenu": "Colunas",
     "counter": "{{count}} notas de serviço nesta página",
     "empty": "Nenhuma nota de serviço nesta página.",
@@ -95,6 +98,91 @@
     "sortNone": "sem ordenação",
     "title": "Notas de serviço",
     "toggleFilters": "Filtros"
+  },
+  "rowActions": {
+    "cancel": "Cancelar a nota de serviço",
+    "detail": "Ver o detalhe da nota de serviço",
+    "downloadPdf": "Baixar o PDF da nota de serviço",
+    "downloadXml": "Baixar o XML da nota de serviço"
+  },
+  "detail": {
+    "cancellation": "Cancelamento",
+    "chargeAmount": "Valor",
+    "chargeBase": "Base de cálculo",
+    "chargeLabel": "Encargo",
+    "charges": "Encargos",
+    "chargeTotal": "Total do serviço",
+    "close": "Fechar",
+    "documentAmount": "Valor da nota",
+    "documentNumber": "Número",
+    "documents": "Notas vinculadas",
+    "documentsEmpty": "Nenhuma nota fiscal vinculada.",
+    "documentSeries": "Série",
+    "documentsTotal": "Total das notas",
+    "issCharge": "ISS",
+    "issChargeWithRate": "ISS ({{rate}}%)",
+    "loading": "Carregando o detalhe da nota de serviço",
+    "rejection": "Rejeição",
+    "summary": "Resumo",
+    "title": "Detalhe da nota de serviço",
+    "unavailable": "Não foi possível carregar esta nota de serviço."
+  },
+  "delivery": {
+    "attempts": "Tentativas",
+    "cause": {
+      "invalid_payload": "A prefeitura recusou o formato dos dados da nota.",
+      "malformed_response": "A prefeitura respondeu num formato que não reconhecemos.",
+      "timeout": "A prefeitura não respondeu a tempo.",
+      "transport_failure": "Não foi possível falar com a prefeitura.",
+      "unexpected_status": "A prefeitura respondeu com um erro inesperado."
+    },
+    "failure": "Última falha",
+    "hint": "A emissão é automática: a nota é reenviada sozinha até a prefeitura responder.",
+    "next": "Próxima tentativa",
+    "situation": "Situação",
+    "status": {
+      "accepted": "Recebida pela prefeitura",
+      "authorized": "Autorizada",
+      "cancelled": "Cancelada",
+      "failed": "Falhou",
+      "in_flight": "Em envio",
+      "pending": "Na fila",
+      "reconciliation_required": "Aguardando conferência",
+      "rejected": "Rejeitada",
+      "retry_scheduled": "Nova tentativa agendada"
+    },
+    "title": "Entrega à prefeitura",
+    "updatedAt": "Atualizada em"
+  },
+  "cancelDialog": {
+    "back": "Voltar",
+    "close": "Fechar",
+    "confirm": "Cancelar a nota",
+    "failed": "Não foi possível cancelar a nota de serviço. Tente de novo em instantes.",
+    "reason": "Justificativa do cancelamento",
+    "reasonHint": "De 5 a 255 caracteres. A prefeitura registra este texto na nota.",
+    "reasonTooLong": "A justificativa passou de 255 caracteres.",
+    "reasonTooShort": "A justificativa precisa de pelo menos 5 caracteres.",
+    "sending": "Cancelando…",
+    "title": "Cancelar a nota de serviço",
+    "warning": "O cancelamento é enviado à prefeitura e libera as notas fiscais vinculadas."
+  },
+  "bulkExport": {
+    "action": "Baixar XML e PDF",
+    "empty": "Nenhuma nota da seleção tem documento arquivado.",
+    "failed": "Não foi possível gerar o arquivo. Tente de novo.",
+    "limitExceeded": "Seleção acima do limite de exportação. Baixe em partes."
+  },
+  "bulkCancel": {
+    "action": "Cancelar as selecionadas",
+    "blocked": "Fora do cancelamento",
+    "close": "Fechar",
+    "confirm": "Cancelar as notas",
+    "empty": "Nenhuma nota da seleção pode ser cancelada.",
+    "reasonHint": "De 5 a 255 caracteres. A mesma justificativa vai para todas as notas do lote.",
+    "result": "{{cancelled}} canceladas, {{failed}} com falha.",
+    "subtitle": "{{count}} notas autorizadas serão canceladas, uma de cada vez.",
+    "title": "Cancelar as notas de serviço selecionadas"
   },
   "status": {
     "requested": "Solicitada",

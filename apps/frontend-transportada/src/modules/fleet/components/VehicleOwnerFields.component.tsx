@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
+
 import {
   FLEET_VEHICLE_OWNERSHIP,
   MDFE_OWNER_TAX_REGIME,
@@ -39,11 +41,10 @@ export function VehicleOwnerFields({ onChange, state }: VehicleOwnerFieldsProps)
               onChange={(ownerName) => onChange({ ownerName })}
             />
             <FleetField
-              inputMode="numeric"
               label={t('ownerTaxId')}
               maxLength={14}
               value={state.ownerTaxId}
-              onChange={(ownerTaxId) => onChange({ ownerTaxId })}
+              onChange={(ownerTaxId) => onChange({ ownerTaxId: normalizeTaxId(ownerTaxId) })}
             />
             <FleetField
               inputMode="numeric"

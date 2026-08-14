@@ -10,11 +10,66 @@ export const DECIMAL_AMOUNT_ERROR = {
 } as const
 
 const AMOUNT_PATTERN = /^-?\d+(?:\.\d+)?$/
+const TYPED_AMOUNT_PATTERN = /^(?:\d+|\d*\.\d+)$/
+const WHITESPACE_PATTERN = /\s/g
+const GROUP_SEPARATOR_PATTERN = /\./g
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' })
 
 type ScaledAmount = {
   readonly scale: number
   readonly units: bigint
+}
+
+export type ScaledAmountInput = Readonly<{
+  scale: number
+  value: string
+}>
+
+export type DivideAmountInput = ScaledAmountInput &
+  Readonly<{
+    divisor: number
+  }>
+
+/** Zero na escala pedida: o campo em branco vira `'0.0000'`, que é o que a API aceita. */
+export function zeroAmount(scale: number): string {
+  return toDecimalString(0n, scale)
+}
+
+export function isZeroAmount(value: string): boolean {
+  return parseScaledAmount(value).units === 0n
+}
+
+/**
+ * Traduz o que o operador digitou em pt-BR para a escala decimal da API. Com vírgula presente o
+ * ponto é separador de milhar; sem vírgula o ponto é o decimal, que é como a própria API responde.
+ */
+export function parseTypedAmount(input: ScaledAmountInput): string {
+  const normalized = normalizeTypedValue(input.value)
+  if (normalized === '') return zeroAmount(input.scale)
+  if (!TYPED_AMOUNT_PATTERN.test(normalized)) throw invalidAmount()
+  const [integerPart = '', fractionPart = ''] = normalized.split('.')
+  const typed: ScaledAmount = {
+    scale: fractionPart.length,
+    units: BigInt(`${integerPart}${fractionPart}`),
+  }
+
+  return toDecimalString(rescaleHalfUp(typed, input.scale), input.scale)
+}
+
+/** Devolve o valor para o campo de digitação; zero volta vazio para não fingir custo informado. */
+export function toTypedAmount(input: ScaledAmountInput): string {
+  const amount = parseScaledAmount(input.value)
+  if (amount.units === 0n) return ''
+
+  return toDecimalString(rescaleHalfUp(amount, input.scale), input.scale).replace('.', ',')
+}
+
+/** Divisão exata na escala pedida, arredondando meio para cima como o domínio da API. */
+export function divideAmount(input: DivideAmountInput): string {
+  const amount = parseScaledAmount(input.value)
+  const units = divideHalfUp(rescaleHalfUp(amount, input.scale), BigInt(input.divisor))
+
+  return toDecimalString(units, input.scale)
 }
 
 /** Soma exata da seleção: os valores viram inteiros na escala mais larga e voltam a string. */
@@ -64,6 +119,28 @@ function parseScaledAmount(value: string): ScaledAmount {
 
 function rescale(amount: ScaledAmount, scale: number): bigint {
   return amount.units * 10n ** BigInt(scale - amount.scale)
+}
+
+function rescaleHalfUp(amount: ScaledAmount, scale: number): bigint {
+  if (scale >= amount.scale) return rescale(amount, scale)
+
+  return divideHalfUp(amount.units, 10n ** BigInt(amount.scale - scale))
+}
+
+function divideHalfUp(dividend: bigint, divisor: bigint): bigint {
+  const isNegative = dividend < 0n
+  const absolute = isNegative ? -dividend : dividend
+  const quotient = absolute / divisor
+  const rounded = (absolute % divisor) * 2n >= divisor ? quotient + 1n : quotient
+
+  return isNegative ? -rounded : rounded
+}
+
+function normalizeTypedValue(value: string): string {
+  const compact = value.replace(WHITESPACE_PATTERN, '')
+  if (!compact.includes(',')) return compact
+
+  return compact.replace(GROUP_SEPARATOR_PATTERN, '').replace(',', '.')
 }
 
 function toDecimalString(units: bigint, scale: number): string {

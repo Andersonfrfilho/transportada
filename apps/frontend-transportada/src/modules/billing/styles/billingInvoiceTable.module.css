@@ -35,8 +35,8 @@
 
 .iconAction {
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
@@ -47,8 +47,8 @@
 
 .iconActionActive {
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);

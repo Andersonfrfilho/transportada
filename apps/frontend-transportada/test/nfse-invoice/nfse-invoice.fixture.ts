@@ -47,6 +47,17 @@ export const INVOICE_PAGE = {
   nextCursor: SYNTHETIC_CURSOR,
 } as const
 
+/** A entrega é automática: a tela mostra em que tentativa está e o que a última falha disse. */
+export const INVOICE_DELIVERY = {
+  attemptCount: 2,
+  lastErrorCause: 'transport_failure',
+  lastErrorCode: null,
+  lastErrorMessage: null,
+  nextAttemptAt: '2026-08-11T12:10:00.000Z',
+  status: 'retry_scheduled',
+  updatedAt: '2026-08-11T12:05:00.000Z',
+} as const
+
 export const INVOICE_DETAIL = {
   ...INVOICE_LIST_ITEM,
   cancellationReason: null,
@@ -60,6 +71,7 @@ export const INVOICE_DETAIL = {
       rate: '5.00',
     },
   ],
+  delivery: INVOICE_DELIVERY,
   description: 'Entregas na cidade de Ribeirão Preto de 27-07-2026 a 31-07-2026.',
   rejectionCode: null,
   rejectionMessage: null,
@@ -68,6 +80,14 @@ export const INVOICE_DETAIL = {
 
 export const REJECTED_INVOICE_DETAIL = {
   ...INVOICE_DETAIL,
+  delivery: {
+    ...INVOICE_DELIVERY,
+    lastErrorCause: null,
+    lastErrorCode: 'E0142',
+    lastErrorMessage: 'Atividade não habilitada para o prestador',
+    nextAttemptAt: null,
+    status: 'rejected',
+  },
   rejectionCode: 'E0142',
   rejectionMessage: 'Atividade não habilitada para o prestador',
   status: 'rejected',

@@ -84,7 +84,6 @@ const server = startApiServer({
     sentryDsn: undefined,
     sentryEnvironment: 'test',
     vehicleCatalog: null,
-    vehicleLookup: null,
   },
   logger,
   router: createHttpRouterFixture({ authentication, healthService, tenantContext }),

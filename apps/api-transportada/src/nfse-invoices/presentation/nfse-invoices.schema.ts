@@ -9,6 +9,11 @@ import {
 } from '../../database/nfse.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import {
+  NFSE_EXPORT_FORMATS,
+  NFSE_EXPORT_MAX_DOCUMENTS,
+} from '../application/export-nfse-documents.port.js'
 import type { NfseInvoiceCursor, NfseInvoiceListFilters } from '../application/nfse-invoice.port.js'
 
 /** Uma nota de serviço cobre uma seleção da tela de notas; acima disso o pedido vira lote. */
@@ -20,7 +25,6 @@ const DEFAULT_PAGE_LIMIT = 25
 const MAX_CANCELLATION_REASON = 255
 const MIN_CANCELLATION_REASON = 5
 const PAGE_LIMIT = /^(?:[1-9]|[1-9][0-9]|100)$/
-const TAX_ID = /^[0-9]{11}$|^[0-9]{14}$/
 const UUID = z.uuid()
 
 const LIST_QUERY_KEYS = new Set([
@@ -125,8 +129,9 @@ function parseStatusIn(value: string | null): NfseInvoiceListFilters['statusIn']
 
 function parseTaxId(value: string | null): string | undefined {
   if (value === null) return undefined
-  if (!TAX_ID.test(value)) throw invalidRequest()
-  return value
+  const taxId = parseTaxIdValue(value, TAX_ID_PATTERN)
+  if (taxId === undefined) throw invalidRequest()
+  return taxId
 }
 
 /**
@@ -143,3 +148,13 @@ export const nfseInvoiceSelectionSchema = z
   .strict()
 
 export type NfseInvoiceSelectionBody = z.infer<typeof nfseInvoiceSelectionSchema>
+
+/** O teto da exportação é o mesmo da aplicação: recusar na fronteira poupa a consulta inteira. */
+export const nfseInvoiceExportSchema = z
+  .object({
+    format: z.enum(NFSE_EXPORT_FORMATS).optional(),
+    invoiceIds: z.array(z.uuid()).min(1).max(NFSE_EXPORT_MAX_DOCUMENTS),
+  })
+  .strict()
+
+export type NfseInvoiceExportBody = z.infer<typeof nfseInvoiceExportSchema>

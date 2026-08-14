@@ -22,11 +22,12 @@ export type FloatingLayerSize = Readonly<{ height: number; width: number }>
 export type FloatingViewportSize = Readonly<{ height: number; width: number }>
 
 export type FloatingLayerPosition = Readonly<{
+  bottom: number | null
   left: number
   maxHeight: number
   minWidth: number
   placement: FloatingLayerPlacement
-  top: number
+  top: number | null
 }>
 
 export type ResolveFloatingLayerPositionParams = Readonly<{
@@ -55,6 +56,9 @@ function resolveLeft(
 /**
  * Posiciona a camada em coordenadas de viewport, para ela sair de qualquer ancestral com
  * `overflow` — dentro de um modal ou de uma tabela rolável a lista era recortada na borda.
+ *
+ * Acima do gatilho a camada é ancorada pela **borda de baixo**: o teto de altura é do CSS de cada
+ * pele, e calcular o topo pela altura medida do conteúdo jogava o painel na borda da janela.
  */
 export function resolveFloatingLayerPosition({
   align = 'start',
@@ -69,17 +73,14 @@ export function resolveFloatingLayerPosition({
   const available =
     (placement === 'below' ? spaceBelow : spaceAbove) - FLOATING_LAYER_VIEWPORT_MARGIN
   const maxHeight = Math.max(available, FLOATING_LAYER_MIN_HEIGHT)
-  const height = Math.min(layer.height, maxHeight)
   const width = Math.max(layer.width, anchor.width)
 
   return {
+    bottom: placement === 'below' ? null : viewport.height - anchor.top + FLOATING_LAYER_GAP,
     left: resolveLeft({ align, anchor, width }, viewport),
     maxHeight,
     minWidth: anchor.width,
     placement,
-    top:
-      placement === 'below'
-        ? anchor.bottom + FLOATING_LAYER_GAP
-        : Math.max(anchor.top - FLOATING_LAYER_GAP - height, FLOATING_LAYER_VIEWPORT_MARGIN),
+    top: placement === 'below' ? anchor.bottom + FLOATING_LAYER_GAP : null,
   }
 }

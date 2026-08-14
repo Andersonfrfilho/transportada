@@ -2,9 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 const BRAZILIAN_STATE_PATTERN = /^[A-Z]{2}$/
-const TAX_ID_PATTERN = /^[0-9]{14}$/
 
 export type FreightRuleVersionFilters = {
   readonly destinationStates: readonly string[]
@@ -34,8 +34,8 @@ export function normalizeFreightRuleFilters(
     }),
     senderTaxIds: normalizeSelector({
       code: 'FREIGHT_RULE_FILTER_TAX_ID_INVALID',
-      message: 'Sender tax id filter must use unformatted 14-digit documents',
-      pattern: TAX_ID_PATTERN,
+      message: 'Sender tax id filter must use unformatted 14-character documents',
+      pattern: CNPJ_PATTERN,
       values: input?.senderTaxIds,
     }),
   }

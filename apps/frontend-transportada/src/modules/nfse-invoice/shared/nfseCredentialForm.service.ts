@@ -1,3 +1,5 @@
+import { CNPJ_PATTERN, normalizeTaxId } from '@/modules/shared/taxId.service'
+
 import { isRecord, isString } from './nfseInvoiceGuards.validation'
 import {
   NFSE_CREDENTIAL_STATUSES,
@@ -12,8 +14,6 @@ export const NFSE_CREDENTIAL_BLOCK_REASON = {
 } as const
 export type NfseCredentialBlockReason =
   (typeof NFSE_CREDENTIAL_BLOCK_REASON)[keyof typeof NFSE_CREDENTIAL_BLOCK_REASON]
-
-const TAX_ID_PATTERN = /^\d{14}$/
 
 export type NfseCredentialDraft = Readonly<{
   apiToken: string
@@ -51,8 +51,8 @@ export const EMPTY_NFSE_CREDENTIAL_DRAFT: NfseCredentialDraft = {
 export function buildNfseCredentialSubmission(
   draft: NfseCredentialDraft,
 ): NfseCredentialSubmission {
-  const taxId = draft.taxId.replace(/\D/g, '')
-  if (!TAX_ID_PATTERN.test(taxId)) {
+  const taxId = normalizeTaxId(draft.taxId)
+  if (!CNPJ_PATTERN.test(taxId)) {
     return { reason: NFSE_CREDENTIAL_BLOCK_REASON.TAX_ID_INVALID, status: 'blocked' }
   }
 

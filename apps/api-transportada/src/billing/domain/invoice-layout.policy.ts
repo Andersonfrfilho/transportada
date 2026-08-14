@@ -2,12 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { FISCAL_MONEY_SCALE, parseScaledDecimal } from '../../shared/decimal.service.js'
+import {
+  CNPJ_PATTERN,
+  CPF_PATTERN,
+  formatCnpjForDisplay,
+  normalizeTaxId,
+} from '../../shared/tax-id.service.js'
 import { invoiceAmountInWords } from './invoice-amount-in-words.service.js'
 import { InvoiceFiscalProfileMissingError } from './invoice-layout.error.js'
 
 const AMOUNT_ERROR_CODE_PREFIX = 'BILLING_INVOICE_LAYOUT'
-const CNPJ_LENGTH = 14
-const CPF_LENGTH = 11
 const PAYMENT_BLOCK_TITLE = 'DADOS PARA PAGAMENTO'
 const POSTAL_CODE_LENGTH = 8
 const THOUSANDS_PATTERN = /\B(?=(\d{3})+(?!\d))/g
@@ -211,7 +215,7 @@ function buildCustomerBlock(invoice: InvoiceLayoutInvoice): InvoiceLayoutBlock {
     fields: [
       { label: 'Nome', value: invoice.customerName },
       {
-        label: invoice.customerDocument.length === CPF_LENGTH ? 'CPF' : 'CNPJ',
+        label: isCpf(invoice.customerDocument) ? 'CPF' : 'CNPJ',
         value: formatDocument(invoice.customerDocument),
       },
     ],
@@ -244,14 +248,21 @@ function formatDecimalText(value: string): string {
   return fractionalPart === undefined ? grouped : `${grouped},${fractionalPart}`
 }
 
-function formatDocument(digits: string): string {
-  if (digits.length === CNPJ_LENGTH) {
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+/**
+ * Guarda de conjunto, nunca de comprimento: catorze caracteres quaisquer não são um CNPJ, e um CNPJ
+ * alfanumérico com três letras deixa onze dígitos — o comprimento do CPF.
+ */
+function formatDocument(document: string): string {
+  const normalized = normalizeTaxId(document)
+  if (CNPJ_PATTERN.test(normalized)) return formatCnpjForDisplay(normalized)
+  if (CPF_PATTERN.test(normalized)) {
+    return `${normalized.slice(0, 3)}.${normalized.slice(3, 6)}.${normalized.slice(6, 9)}-${normalized.slice(9)}`
   }
-  if (digits.length === CPF_LENGTH) {
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
-  }
-  return digits
+  return document
+}
+
+function isCpf(document: string): boolean {
+  return CPF_PATTERN.test(normalizeTaxId(document))
 }
 
 function formatPostalCode(digits: string): string {

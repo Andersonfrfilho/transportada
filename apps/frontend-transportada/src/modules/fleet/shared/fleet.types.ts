@@ -12,6 +12,27 @@ export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIP)[number]
 export const MDFE_WHEEL_TYPE = ['01', '02', '03', '04', '05', '06'] as const
 export type MdfeWheelType = (typeof MDFE_WHEEL_TYPE)[number]
 
+/** A cor do CRLV é fechada no Denatran: texto livre gerava "prata metálico" e "PRATA" na mesma frota. */
+export const VEHICLE_COLOR = [
+  'amarela',
+  'azul',
+  'bege',
+  'branca',
+  'cinza',
+  'dourada',
+  'fantasia',
+  'grena',
+  'laranja',
+  'marrom',
+  'prata',
+  'preta',
+  'rosa',
+  'roxa',
+  'verde',
+  'vermelha',
+] as const
+export type VehicleColor = (typeof VEHICLE_COLOR)[number]
+
 /** tpCar — 00 não aplicável, 01 aberta, 02 fechada/baú, 03 granelera, 04 porta container, 05 sider. */
 export const MDFE_BODY_TYPE = ['00', '01', '02', '03', '04', '05'] as const
 export type MdfeBodyType = (typeof MDFE_BODY_TYPE)[number]
@@ -19,6 +40,38 @@ export type MdfeBodyType = (typeof MDFE_BODY_TYPE)[number]
 /** tpProp — 0 TAC agregado, 1 TAC independente, 2 outros. */
 export const MDFE_OWNER_TAX_REGIME = ['0', '1', '2'] as const
 export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIME)[number]
+
+/** A UF é fechada em 27, e é o que a API valida: `/^[A-Z]{2}$/` aceita 'XX' que não existe. */
+export const BRAZIL_STATE = [
+  'AC',
+  'AL',
+  'AM',
+  'AP',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MG',
+  'MS',
+  'MT',
+  'PA',
+  'PB',
+  'PE',
+  'PI',
+  'PR',
+  'RJ',
+  'RN',
+  'RO',
+  'RR',
+  'RS',
+  'SC',
+  'SE',
+  'SP',
+  'TO',
+] as const
+export type BrazilState = (typeof BRAZIL_STATE)[number]
 
 export const FLEET_DRIVER_STATUS = ['active', 'inactive'] as const
 export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUS)[number]
@@ -31,24 +84,50 @@ export type FleetVehicleOwner = Readonly<{
   taxRegime: MdfeOwnerTaxRegime
 }>
 
-export type FleetVehicleBody = Readonly<{
-  bodyType: MdfeBodyType
-  capacityCubicMeters: string
-  capacityKilograms: string
-  owner: FleetVehicleOwner | null
-  ownership: FleetVehicleOwnership
-  plate: string
-  renavam: string
-  role: FleetVehicleRole
-  state: string
-  tareWeightKilograms: string
-  wheelType: '' | MdfeWheelType
+/** Custos do veículo em decimal string: dinheiro em quatro casas, consumo em duas. */
+export type FleetVehicleCostFields = Readonly<{
+  acquisitionAmount: string
+  annualInsuranceAmount: string
+  annualVehicleTaxAmount: string
+  averageConsumption: string
+  costPerKilometer: string
+  monthlyInstallmentAmount: string
 }>
+
+/** Custo por km e custo fixo mensal já em moeda; `null` quando nada foi informado. */
+export type FleetVehicleCostSummary = Readonly<{
+  costPerKilometer: null | string
+  monthlyFixedCost: null | string
+}>
+
+export type FleetVehicleBody = FleetVehicleCostFields &
+  Readonly<{
+    axleCount: number
+    bodyType: MdfeBodyType
+    brand: string
+    capacityCubicMeters: string
+    capacityKilograms: string
+    color: string
+    fleetNumber: string
+    model: string
+    modelYear: number
+    owner: FleetVehicleOwner | null
+    ownership: FleetVehicleOwnership
+    plate: string
+    renavam: string
+    role: FleetVehicleRole
+    state: string
+    tareWeightKilograms: string
+    wheelType: '' | MdfeWheelType
+  }>
 
 export type FleetVehicleDetail = FleetVehicleBody &
   Readonly<{
+    costsUpdatedAt: null | string
     createdAt: string
     id: string
+    /** Derivado pela API — prestação + (IPVA + seguro) ÷ 12. */
+    monthlyFixedCost: null | string
     status: FleetVehicleStatus
     updatedAt: string
     version: string
@@ -71,21 +150,25 @@ export type FleetVehiclePage = Readonly<{
   nextCursor: null | string
 }>
 
-/** Resposta já traduzida da consulta por placa; marca, modelo e ano são só para conferência visual. */
-export type FleetVehicleLookup = Readonly<{
-  brand: string
-  capacityKilograms: string
-  model: string
-  modelYear: string
-  ownerName: string
-  ownerTaxId: string
-  plate: string
-  renavam: string
-  state: string
-  tareWeightKilograms: string
+export type FleetCapabilities = Readonly<{ vehicleCatalog: boolean }>
+
+export const FLEET_VEHICLE_CATALOG_SOURCE = ['fipe', 'none', 'unavailable'] as const
+export type FleetVehicleCatalogSource = (typeof FLEET_VEHICLE_CATALOG_SOURCE)[number]
+
+export type FleetVehicleCatalogOption = Readonly<{ code: string; name: string }>
+
+export type FleetVehicleCatalogResult = Readonly<{
+  items: readonly FleetVehicleCatalogOption[]
+  source: FleetVehicleCatalogSource
 }>
 
-export type FleetCapabilities = Readonly<{ vehicleLookup: boolean }>
+export type FleetVehicleCatalogBrandsInput = Readonly<{
+  role: FleetVehicleRole
+  wheelType: '' | MdfeWheelType
+}>
+
+export type FleetVehicleCatalogModelsInput = FleetVehicleCatalogBrandsInput &
+  Readonly<{ brand: string }>
 
 export type FleetDriverBody = Readonly<{
   licenseNumber: string
@@ -137,23 +220,30 @@ export type FleetDriverPage = Readonly<{
   nextCursor: null | string
 }>
 
-export type FleetVehicleFormState = Readonly<{
-  bodyType: MdfeBodyType
-  capacityCubicMeters: string
-  capacityKilograms: string
-  ownerName: string
-  ownerRntrc: string
-  ownerState: string
-  ownerTaxId: string
-  ownerTaxRegime: MdfeOwnerTaxRegime
-  ownership: FleetVehicleOwnership
-  plate: string
-  renavam: string
-  role: FleetVehicleRole
-  state: string
-  tareWeightKilograms: string
-  wheelType: MdfeWheelType
-}>
+export type FleetVehicleFormState = FleetVehicleCostFields &
+  Readonly<{
+    axleCount: string
+    bodyType: MdfeBodyType
+    brand: string
+    capacityCubicMeters: string
+    capacityKilograms: string
+    color: '' | VehicleColor
+    fleetNumber: string
+    model: string
+    modelYear: string
+    ownerName: string
+    ownerRntrc: string
+    ownerState: string
+    ownerTaxId: string
+    ownerTaxRegime: MdfeOwnerTaxRegime
+    ownership: FleetVehicleOwnership
+    plate: string
+    renavam: string
+    role: FleetVehicleRole
+    state: string
+    tareWeightKilograms: string
+    wheelType: '' | MdfeWheelType
+  }>
 
 export type FleetDriverFormState = Readonly<{
   licenseNumber: string

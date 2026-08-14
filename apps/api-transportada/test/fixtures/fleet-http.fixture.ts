@@ -17,7 +17,6 @@ import {
   DRIVER_VEHICLE_ASSIGNMENTS,
   FRONTEND_ORIGIN,
   VEHICLE,
-  VEHICLE_LOOKUP,
   VEHICLE_PAGE,
 } from './fleet-http-payload.fixture'
 
@@ -36,9 +35,8 @@ type RouteDependencies = {
     list(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
     replace(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
   }
-  readonly vehicleLookup: {
+  readonly vehicleCatalog: {
     isAvailable(): boolean
-    lookup(input: ExecuteCall): Promise<typeof VEHICLE_LOOKUP | null>
   }
 }
 
@@ -47,9 +45,7 @@ type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
   readonly replaceDriverVehiclesError?: Error
   readonly updateVehicleError?: Error
-  readonly vehicleLookupAvailable?: boolean
-  readonly vehicleLookupError?: Error
-  readonly vehicleLookupResult?: typeof VEHICLE_LOOKUP | null
+  readonly vehicleCatalogAvailable?: boolean
 }
 
 export const COMPANY_CONTEXT: CompanyContext = {
@@ -66,7 +62,6 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   readonly listDriverCalls: ExecuteCall[]
   readonly listDriverVehicleCalls: ExecuteCall[]
   readonly listVehicleCalls: ExecuteCall[]
-  readonly lookupVehicleCalls: ExecuteCall[]
   readonly replaceDriverVehicleCalls: ExecuteCall[]
   readonly updateDriverCalls: ExecuteCall[]
   readonly updateVehicleCalls: ExecuteCall[]
@@ -76,7 +71,6 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   const listDriverCalls: ExecuteCall[] = []
   const listDriverVehicleCalls: ExecuteCall[] = []
   const listVehicleCalls: ExecuteCall[] = []
-  const lookupVehicleCalls: ExecuteCall[] = []
   const replaceDriverVehicleCalls: ExecuteCall[] = []
   const updateDriverCalls: ExecuteCall[] = []
   const updateVehicleCalls: ExecuteCall[] = []
@@ -131,15 +125,8 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
         return { ...VEHICLE, version: '2' }
       },
     },
-    vehicleLookup: {
-      isAvailable: () => params.vehicleLookupAvailable ?? true,
-      async lookup(input) {
-        lookupVehicleCalls.push(structuredClone(input))
-        if (params.vehicleLookupError) throw params.vehicleLookupError
-        return params.vehicleLookupResult === undefined
-          ? VEHICLE_LOOKUP
-          : params.vehicleLookupResult
-      },
+    vehicleCatalog: {
+      isAvailable: () => params.vehicleCatalogAvailable ?? true,
     },
   })
 
@@ -162,7 +149,6 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     listDriverCalls,
     listDriverVehicleCalls,
     listVehicleCalls,
-    lookupVehicleCalls,
     replaceDriverVehicleCalls,
     updateDriverCalls,
     updateVehicleCalls,

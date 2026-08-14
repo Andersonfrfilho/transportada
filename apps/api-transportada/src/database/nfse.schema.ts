@@ -115,8 +115,8 @@ export type NfseIssuanceOutboxStatus = (typeof NFSE_ISSUANCE_OUTBOX_STATUSES)[nu
 
 const IBGE_CITY_PATTERN = '^[0-9]{7}$'
 const CNAE_PATTERN = '^[0-9]{7}$'
-const CNPJ_PATTERN = '^[0-9]{14}$'
-const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[0-9]{14}$'
+const CNPJ_PATTERN = '^[A-Z0-9]{12}[0-9]{2}$'
+const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'
 const SHA256_PATTERN = '^[0-9a-f]{64}$'
 
 /** Mesmo teto do nome de município do MDF-e — é o mesmo dado, vindo da mesma tabela do IBGE. */

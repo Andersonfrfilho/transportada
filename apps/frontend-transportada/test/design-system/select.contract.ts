@@ -4,13 +4,16 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   filterSelectOptions,
+  resolveSelectSearchKey,
   SELECT_SEARCH_THRESHOLD,
   shouldOfferSelectSearch,
 } from '../../src/components/ui/select.service'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const SELECT_COMPONENT_PATH = 'src/components/ui/select.tsx'
+const SEARCHABLE_COMPONENT_PATH = 'src/components/ui/searchable-select.tsx'
 const SELECT_STYLES_PATH = 'src/components/ui/select.module.css'
+const SEARCHABLE_STYLES_PATH = 'src/components/ui/searchable-select.module.css'
 
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
@@ -22,6 +25,25 @@ async function listSourceComponents(): Promise<readonly string[]> {
 }
 
 describe('design system select contract', () => {
+  /**
+   * O painel tem teto de altura; sem a lista poder encolher dentro dele, o teto recorta as opções
+   * e não há barra de rolagem — as UFs depois de "CE" ficavam inalcançáveis pelo mouse.
+   */
+  test('scrolls the option list inside the panel instead of clipping it', async () => {
+    const [selectStyles, searchableStyles] = await Promise.all([
+      readApplicationFile(SELECT_STYLES_PATH),
+      readApplicationFile(SEARCHABLE_STYLES_PATH),
+    ])
+
+    for (const styles of [selectStyles, searchableStyles]) {
+      expect(styles).toContain('flex-direction: column')
+      expect(styles).toContain('flex: 0 0 auto')
+      expect(styles).toContain('flex: 1 1 auto')
+      expect(styles).toContain('min-height: 0')
+      expect(styles).toContain('overflow-y: auto')
+    }
+  })
+
   test('publishes a single select in the design system instead of one per module', async () => {
     const component = await readApplicationFile(SELECT_COMPONENT_PATH)
 
@@ -125,7 +147,6 @@ describe('design system select contract', () => {
   test('drives the search field by keyboard from inside the portal', async () => {
     const component = await readApplicationFile(SELECT_COMPONENT_PATH)
 
-    // O painel vai para o document.body: tecla digitada na busca não sobe até o onKeyDown da raiz.
     for (const contract of [
       'shouldOfferSelectSearch',
       'filterSelectOptions',
@@ -134,6 +155,35 @@ describe('design system select contract', () => {
       'searchInputRef',
     ]) {
       expect(component).toContain(contract)
+    }
+  })
+
+  /** É o defeito relatado: o espaço na busca selecionava a opção ativa em vez de virar texto. */
+  test('leaves every typing key to the search field, including the space bar', () => {
+    for (const key of [' ', 'a', 'Ç', '1', 'Home', 'End', 'Backspace']) {
+      expect(resolveSelectSearchKey(key)).toBe('type')
+    }
+
+    expect(resolveSelectSearchKey('ArrowDown')).toBe('move-down')
+    expect(resolveSelectSearchKey('ArrowUp')).toBe('move-up')
+    expect(resolveSelectSearchKey('Enter')).toBe('commit')
+    expect(resolveSelectSearchKey('Escape')).toBe('close')
+    expect(resolveSelectSearchKey('Tab')).toBe('close')
+  })
+
+  /**
+   * Portal do React propaga pela árvore de componentes, não pela do DOM: sem parar o evento, a
+   * tecla digitada na busca chega ao `onKeyDown` da raiz, onde espaço é atalho de seleção.
+   */
+  test('stops the search keystroke before the root handler of every select skin', async () => {
+    const [select, searchable] = await Promise.all([
+      readApplicationFile(SELECT_COMPONENT_PATH),
+      readApplicationFile(SEARCHABLE_COMPONENT_PATH),
+    ])
+
+    for (const component of [select, searchable]) {
+      expect(component).toContain('resolveSelectSearchKey')
+      expect(component).toMatch(/handleSearchKeyDown[\s\S]{0,400}stopPropagation\(\)/)
     }
   })
 
@@ -146,6 +196,38 @@ describe('design system select contract', () => {
     expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
   })
 
+  /**
+   * O gatilho é `space-between`: um quadrado solto lá dentro iria para a ponta oposta do rótulo,
+   * por isso os dois vão agrupados. A cor entra por propriedade CSS — o painel é portal e nenhuma
+   * classe de módulo alcança a opção.
+   */
+  test('paints the swatch of an option beside its label, in the list and in the trigger', async () => {
+    const [component, styles] = await Promise.all([
+      readApplicationFile(SELECT_COMPONENT_PATH),
+      readApplicationFile(SELECT_STYLES_PATH),
+    ])
+
+    expect(component).toContain('entry.swatch')
+    expect(component).toContain('selected?.swatch')
+    expect(component).toContain('--select-swatch')
+    expect(component).toContain('aria-hidden="true"')
+    expect(styles).toContain('.swatch')
+    expect(styles).toContain('.selection')
+    expect(styles).toContain('var(--select-swatch)')
+    expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  /** O quadrado é decoração da opção: filtrar por rótulo não pode descartá-lo pelo caminho. */
+  test('carries the swatch through the search filter', () => {
+    const white = { label: 'Branca', swatch: 'var(--vehicle-color-branca)', value: 'branca' }
+    const options = [
+      white,
+      { label: 'Preta', swatch: 'var(--vehicle-color-preta)', value: 'preta' },
+    ]
+
+    expect(filterSelectOptions({ options, query: 'bran' })).toEqual([white])
+  })
+
   test('states the rule for every future select', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/selects.md'),
@@ -155,6 +237,7 @@ describe('design system select contract', () => {
     expect(rule).toContain('components/ui/select')
     expect(rule).toContain('<select')
     expect(rule).toContain('SELECT_SEARCH_THRESHOLD')
+    expect(rule).toContain('swatch')
     expect(projectContext).toContain('docs/frontend/selects.md')
   })
 })

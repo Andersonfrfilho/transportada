@@ -56,11 +56,6 @@ export type ApiEnvironment = {
   readonly vehicleCatalog: {
     readonly url: string
   } | null
-  /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
-  readonly vehicleLookup: {
-    readonly token: string
-    readonly url: string
-  } | null
 }
 
 export type DatabaseHealthPort = {

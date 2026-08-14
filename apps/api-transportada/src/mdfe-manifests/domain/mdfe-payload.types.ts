@@ -79,6 +79,7 @@ export type MdfePayloadVehicle = {
   readonly bodyType: MdfeBodyType
   readonly capacityKg: bigint
   readonly capacityM3: bigint
+  readonly fleetNumber: string
   readonly ownerName: string
   readonly ownerRntrc: string
   readonly ownerState: string
@@ -131,6 +132,7 @@ export type MdfePayloadOwner = {
 export type MdfePayloadTractionVehicle = {
   readonly capacidadeKg?: number
   readonly capacidadeM3?: number
+  readonly codigoInterno?: string
   readonly condutores: readonly MdfePayloadCondutor[]
   readonly placa: string
   readonly proprietario?: MdfePayloadOwner

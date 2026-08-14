@@ -11,13 +11,22 @@ import {
   MDFE_BODY_TYPES,
   MDFE_OWNER_TAX_REGIMES,
   MDFE_WHEEL_TYPES,
+  VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
+import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 
-const CNPJ = /^[0-9]{14}$/
+const AXLE_COUNT_MAX = 9
+const AXLE_COUNT_MIN = 2
+const CONSUMPTION_DECIMAL = /^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{2})$/
+const COST_PER_KILOMETER_DECIMAL = /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{4})$/
 const CPF = /^[0-9]{11}$/
+const MODEL_YEAR_MAX = 2100
+const MODEL_YEAR_MIN = 1900
+const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const NAME_MAX_LENGTH = 60
-const OWNER_TAX_ID = /^(?:[0-9]{11}|[0-9]{14})$/
+const NOT_INFORMED = 0
 const OWN_OWNERSHIP = 'own'
 const PHONE = /^[0-9]{10,11}$/
 const PLATE = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/
@@ -26,23 +35,44 @@ const RENAVAM = /^[0-9]{9,11}$/
 const STATE = /^[A-Z]{2}$/
 const TRACTION_ROLE = 'traction'
 const UNSIGNED_BIGINT = /^(?:0|[1-9][0-9]{0,18})$/
+const VEHICLE_BRAND_MAX_LENGTH = 60
+const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
+const VEHICLE_MODEL_MAX_LENGTH = 120
 
 const optionalDigits = (pattern: RegExp) => z.literal('').or(z.string().regex(pattern))
+
+const optionalRangedInteger = (min: number, max: number) =>
+  z
+    .number()
+    .int()
+    .refine((value) => value === NOT_INFORMED || (value >= min && value <= max))
 
 const ownerSchema = z
   .object({
     name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
     rntrc: z.string().regex(RNTRC_INPUT),
     state: z.string().regex(STATE),
-    taxId: z.string().regex(OWNER_TAX_ID),
+    taxId: buildTaxIdSchema(TAX_ID_PATTERN),
     taxRegime: z.enum(MDFE_OWNER_TAX_REGIMES),
   })
   .strict()
 
 const vehicleFieldsSchema = z.object({
+  acquisitionAmount: z.string().regex(MONEY_DECIMAL),
+  annualInsuranceAmount: z.string().regex(MONEY_DECIMAL),
+  annualVehicleTaxAmount: z.string().regex(MONEY_DECIMAL),
+  averageConsumption: z.string().regex(CONSUMPTION_DECIMAL),
+  axleCount: optionalRangedInteger(AXLE_COUNT_MIN, AXLE_COUNT_MAX),
   bodyType: z.enum(MDFE_BODY_TYPES),
+  brand: z.string().trim().max(VEHICLE_BRAND_MAX_LENGTH),
   capacityCubicMeters: z.string().regex(UNSIGNED_BIGINT),
   capacityKilograms: z.string().regex(UNSIGNED_BIGINT),
+  color: z.literal('').or(z.enum(VEHICLE_COLORS)),
+  costPerKilometer: z.string().regex(COST_PER_KILOMETER_DECIMAL),
+  fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
+  model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
+  modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
+  monthlyInstallmentAmount: z.string().regex(MONEY_DECIMAL),
   owner: ownerSchema.nullable(),
   ownership: z.enum(FLEET_VEHICLE_OWNERSHIPS),
   plate: z.string().regex(PLATE),
@@ -55,7 +85,7 @@ const vehicleFieldsSchema = z.object({
 
 const driverFieldsSchema = z.object({
   licenseNumber: optionalDigits(CPF),
-  linkedTaxId: optionalDigits(CNPJ),
+  linkedTaxId: buildOptionalTaxIdSchema(CNPJ_PATTERN),
   membershipId: z.uuid().nullable(),
   name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
   phone: optionalDigits(PHONE),

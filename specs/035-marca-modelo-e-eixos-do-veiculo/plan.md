@@ -11,9 +11,11 @@ formulário em três blocos com a consulta por placa ao lado da placa. Evidênci
 ## Fase A — banco: identidade e modelo
 
 `apps/api-transportada/src/database/fleet.schema.ts`: cinco colunas em `fleet_vehicles` —
-`brand varchar(60) not null default ''`, `model varchar(120) not null default ''`,
-`fleet_number varchar(20) not null default ''`, `model_year integer not null default 0`,
-`axle_count integer not null default 0`. Dois checks: `model_year = 0 or model_year between 1900 and
+`brand text not null default ''`, `model text not null default ''`,
+`fleet_number text not null default ''`, `model_year integer not null default 0`,
+`axle_count integer not null default 0` (convenção do repositório: nunca `varchar(n)`, tamanho
+limitado por check `length(...) <= N`). Quatro checks de tamanho (`brand <= 60`, `model <= 120`,
+`fleet_number <= 20`) mais os dois de faixa: `model_year = 0 or model_year between 1900 and
 2100`, `axle_count = 0 or axle_count between 2 and 9`. Todas aditivas com default — nenhuma linha
 existente precisa ser tocada.
 
@@ -89,11 +91,12 @@ ocultas por padrão. Locales pt-BR/en.
 
 `src/database/fleet.schema.ts` — tabela `fleet_vehicle_documents`:
 
-`id uuid pk`, `company_id uuid not null`, `vehicle_id uuid not null`, `type varchar(20) not null`,
-`reference varchar(60) not null default ''`, `issued_at date null`, `expires_at date not null`,
-`stored_object_id uuid null`, `file_name varchar(160) not null default ''`,
-`notes varchar(300) not null default ''`, `archived_at timestamptz null`, `version integer`,
-`created_at`, `updated_at`.
+`id uuid pk`, `company_id uuid not null`, `vehicle_id uuid not null`, `type text not null`
+(check `<= 20`), `reference text not null default ''` (check `<= 60`), `issued_at date null`,
+`expires_at date not null`, `stored_object_id uuid null`, `file_name text not null default ''`
+(check `<= 160`), `notes text not null default ''` (check `<= 300`), `archived_at timestamptz null`,
+`version integer`, `created_at`, `updated_at` — texto limitado por check de tamanho, nunca
+`varchar(n)`.
 
 - FK composta para `fleet_vehicles (company_id, id)` — o tenant entra na integridade referencial, não
   só no `where`.

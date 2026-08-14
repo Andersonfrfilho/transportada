@@ -1,24 +1,23 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
-
-import type { FleetVehicleFormState } from '../shared/fleet.types'
+import {
+  BRAZIL_STATE,
+  FLEET_VEHICLE_ROLE,
+  MDFE_WHEEL_TYPE,
+  type FleetVehicleFormState,
+} from '../shared/fleet.types'
+import { toPlateInput } from '../shared/fleetPlate.service'
 import styles from '../styles/fleet.module.css'
-import { FleetField } from './FleetField.component'
+import { FleetField, FleetSelectField } from './FleetField.component'
+import { PlateThumbnail } from './PlateThumbnail.component'
 
 type VehicleIdentityFieldsProps = Readonly<{
-  lookup: Readonly<{
-    canLookupPlate: boolean
-    isLookingUpPlate: boolean
-    onLookupPlate: () => void
-  }>
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
 }>
 
-export function VehicleIdentityFields({ lookup, onChange, state }: VehicleIdentityFieldsProps) {
+export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFieldsProps) {
   const { t } = useTranslation('fleet')
 
   return (
@@ -29,21 +28,10 @@ export function VehicleIdentityFields({ lookup, onChange, state }: VehicleIdenti
           label={t('plate')}
           maxLength={8}
           value={state.plate}
-          onChange={(plate) => onChange({ plate })}
+          onChange={(plate) => onChange({ plate: toPlateInput(plate) })}
         />
-        {lookup.canLookupPlate ? (
-          <Button
-            disabled={lookup.isLookingUpPlate || state.plate === ''}
-            type="button"
-            variant="ghost"
-            onClick={lookup.onLookupPlate}
-          >
-            <Icon name="search" />
-            {t('lookupPlate')}
-          </Button>
-        ) : null}
+        <PlateThumbnail plate={state.plate} />
       </div>
-      {lookup.canLookupPlate ? <p className={styles.lookupHint}>{t('lookupPlateHint')}</p> : null}
       <div className={styles.fieldGrid}>
         <FleetField
           inputMode="numeric"
@@ -52,13 +40,36 @@ export function VehicleIdentityFields({ lookup, onChange, state }: VehicleIdenti
           value={state.renavam}
           onChange={(renavam) => onChange({ renavam })}
         />
-        <FleetField
+        <FleetSelectField
           label={t('vehicleState')}
-          maxLength={2}
+          optionLabelKey="stateOption"
+          options={BRAZIL_STATE}
+          placeholder={t('vehicleStateUnset')}
           value={state.state}
           onChange={(vehicleState) => onChange({ state: vehicleState })}
         />
+        <FleetSelectField
+          label={t('role')}
+          optionLabelKey="roleOption"
+          options={FLEET_VEHICLE_ROLE}
+          value={state.role}
+          onChange={(role) => onChange({ role })}
+        />
+        {state.role === 'traction' ? (
+          <FleetSelectField
+            clearable
+            label={t('wheelType')}
+            optionLabelKey="wheelTypeOption"
+            options={MDFE_WHEEL_TYPE}
+            placeholder={t('wheelTypeUnset')}
+            value={state.wheelType}
+            onChange={(wheelType) => onChange({ wheelType })}
+          />
+        ) : null}
       </div>
+      {state.role === 'traction' && state.wheelType === '' ? (
+        <p className={styles.hint}>{t('wheelTypeRequiredHint')}</p>
+      ) : null}
     </fieldset>
   )
 }

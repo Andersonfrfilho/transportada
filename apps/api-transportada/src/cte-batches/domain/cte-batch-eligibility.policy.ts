@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 export const CTE_BATCH_BLOCK_REASON = {
   alreadyLinked: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
@@ -18,8 +19,6 @@ export const CTE_BATCH_BLOCK_REASON = {
 
 export type CteBatchBlockReason =
   (typeof CTE_BATCH_BLOCK_REASON)[keyof typeof CTE_BATCH_BLOCK_REASON]
-
-const FULL_TAX_ID_PATTERN = /^[0-9]{14}$/
 
 export type EligibilityDocument = {
   readonly grossWeight: string | null
@@ -134,7 +133,7 @@ function isFilled(value: string | null): boolean {
 }
 
 function isFullTaxId(value: string | null): value is string {
-  return value !== null && FULL_TAX_ID_PATTERN.test(value)
+  return value !== null && CNPJ_PATTERN.test(value)
 }
 
 /** Persisted decimals are constrained to be non-negative, so any non-zero digit means positive. */

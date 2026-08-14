@@ -6,25 +6,28 @@ import {
   FLEET_ERROR,
   OWNER_KEYS,
   VEHICLE_DETAIL_KEYS,
-  VEHICLE_LOOKUP_KEYS,
 } from './fleet.constant'
 import type {
   FleetCapabilities,
   FleetDriverDetail,
   FleetDriverPage,
   FleetDriverVehicleLink,
+  FleetVehicleCatalogResult,
   FleetVehicleDetail,
-  FleetVehicleLookup,
   FleetVehiclePage,
 } from './fleet.types'
+import { FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
 import {
   FLEET_ENUMS,
   hasEveryKey,
   hasOnlyKeys,
+  isDecimalString,
+  isNullableDecimalString,
   isNullableString,
   isOneOf,
   isRecord,
   isString,
+  isUnsignedIntegerNumber,
   isUnsignedIntegerString,
 } from './fleetGuards.validation'
 
@@ -51,11 +54,25 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     return false
   }
   return (
+    isDecimalString(value.acquisitionAmount) &&
+    isDecimalString(value.annualInsuranceAmount) &&
+    isDecimalString(value.annualVehicleTaxAmount) &&
+    isDecimalString(value.averageConsumption) &&
+    isUnsignedIntegerNumber(value.axleCount) &&
     isOneOf(value.bodyType, FLEET_ENUMS.bodyType) &&
+    isString(value.brand) &&
     isUnsignedIntegerString(value.capacityCubicMeters) &&
     isUnsignedIntegerString(value.capacityKilograms) &&
+    isString(value.color) &&
+    isDecimalString(value.costPerKilometer) &&
+    isNullableString(value.costsUpdatedAt) &&
     isString(value.createdAt) &&
+    isString(value.fleetNumber) &&
     isString(value.id) &&
+    isString(value.model) &&
+    isUnsignedIntegerNumber(value.modelYear) &&
+    isNullableDecimalString(value.monthlyFixedCost) &&
+    isDecimalString(value.monthlyInstallmentAmount) &&
     (value.owner === null || isOwner(value.owner)) &&
     isOneOf(value.ownership, FLEET_ENUMS.ownership) &&
     isString(value.plate) &&
@@ -106,20 +123,25 @@ function isDriverVehicleLink(value: unknown): value is FleetDriverVehicleLink {
   )
 }
 
-function isVehicleLookup(value: unknown): value is FleetVehicleLookup {
-  if (!isRecord(value)) return false
-  if (!hasOnlyKeys(value, VEHICLE_LOOKUP_KEYS) || !hasEveryKey(value, VEHICLE_LOOKUP_KEYS)) {
-    return false
-  }
-  return VEHICLE_LOOKUP_KEYS.every((key) => isString(value[key]))
-}
-
 function isCapabilities(value: unknown): value is FleetCapabilities {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, FLEET_CAPABILITY_KEYS) || !hasEveryKey(value, FLEET_CAPABILITY_KEYS)) {
     return false
   }
-  return typeof value.vehicleLookup === 'boolean'
+  return typeof value.vehicleCatalog === 'boolean'
+}
+
+function isCatalogOption(value: unknown): boolean {
+  return isRecord(value) && isString(value.code) && isString(value.name)
+}
+
+function isCatalogResult(value: unknown): value is FleetVehicleCatalogResult {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.items) &&
+    value.items.every(isCatalogOption) &&
+    isOneOf(value.source, FLEET_VEHICLE_CATALOG_SOURCE)
+  )
 }
 
 function readPage<TItem>(
@@ -151,6 +173,10 @@ export function createFleetResponseAdapters() {
       if (!isCapabilities(input)) throw invalid()
       return input
     },
+    catalogResultFromApi(input: unknown): FleetVehicleCatalogResult {
+      if (!isCatalogResult(input)) throw invalid()
+      return input
+    },
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
       return readPage(input, driverFromApi)
@@ -163,11 +189,6 @@ export function createFleetResponseAdapters() {
       })
     },
     vehicleFromApi,
-    vehicleLookupFromApi(input: unknown): FleetVehicleLookup | null {
-      if (input === null) return null
-      if (!isVehicleLookup(input)) throw invalid()
-      return input
-    },
     vehicleListFromApi(input: unknown): FleetVehiclePage {
       return readPage(input, vehicleFromApi)
     },

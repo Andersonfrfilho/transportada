@@ -55,10 +55,13 @@ import { createNfseProviderCredentialsUseCase } from './nfse-profiles/applicatio
 import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/drizzle-nfse-profile.repository.js'
 import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
 import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
+import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
 import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
 import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
 import { DrizzleNfseInvoiceRepository } from './nfse-invoices/infrastructure/drizzle-nfse-invoice.repository.js'
+import { createNfseArchiveGateway } from './nfse-invoices/infrastructure/nfse-archive.gateway.js'
+import { createNfseExportSelection } from './nfse-invoices/infrastructure/nfse-export-selection.query.js'
 import { createNfseFiscalDocumentArchiveGateway } from './nfse-invoices/infrastructure/nfse-fiscal-document-archive.gateway.js'
 import { createNfseInvoiceRoutes } from './nfse-invoices/presentation/nfse-invoices.routes.js'
 import { createNotifyNfseCallbackUseCase } from './nfse-callbacks/application/notify-nfse-callback.use-case.js'
@@ -87,12 +90,14 @@ import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/driz
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
-import { createFleetVehicleLookupUseCase } from './fleet/application/fleet-vehicle-lookup.use-case'
+import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
-import { createHttpVehicleLookupGateway } from './fleet/infrastructure/http-vehicle-lookup.gateway'
+import { createCachedVehicleCatalogGateway } from './fleet/infrastructure/cached-vehicle-catalog.gateway'
+import { createFipeVehicleCatalogGateway } from './fleet/infrastructure/fipe-vehicle-catalog.gateway'
 import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/drizzle-fleet-driver-vehicle.repository'
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
+import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.routes'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
@@ -256,7 +261,7 @@ export function bootstrap(): Bun.Server<undefined> {
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
       scheduledDistributionCron: config.scheduledDistributionCron,
-      vehicleLookup: config.vehicleLookup,
+      vehicleCatalog: config.vehicleCatalog,
     }),
     tenantContext,
   })
@@ -381,7 +386,7 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
-  readonly vehicleLookup: ApiEnvironment['vehicleLookup']
+  readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
 function createApplicationRoutes({
@@ -391,7 +396,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   scheduledDistributionCron,
-  vehicleLookup,
+  vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
@@ -459,15 +464,18 @@ function createApplicationRoutes({
     driverRepository: fleetDriverRepository,
     repository: fleetDriverVehicleRepository,
   })
-  const fleetVehicleLookup = createFleetVehicleLookupUseCase({
-    gateway:
-      vehicleLookup === null
-        ? null
-        : createHttpVehicleLookupGateway({
-            configuration: vehicleLookup,
+  const fleetVehicleCatalog: FleetVehicleCatalogPort =
+    vehicleCatalog === null
+      ? {
+          listBrands: async () => ({ items: [], source: 'unavailable' }),
+          listModels: async () => ({ items: [], source: 'unavailable' }),
+        }
+      : createCachedVehicleCatalogGateway({
+          gateway: createFipeVehicleCatalogGateway({
+            configuration: vehicleCatalog,
             fetch: (target, init) => fetch(target, init),
           }),
-  })
+        })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -513,6 +521,11 @@ function createApplicationRoutes({
   const cancelNfseInvoice = createNfseInvoiceCancellationUseCase({
     now: () => new Date(),
     repository: nfseInvoiceRepository,
+  })
+  const exportNfseDocuments = createExportNfseDocumentsUseCase({
+    archive: createNfseArchiveGateway({ storage: storageGateway }),
+    clock: () => new Date(),
+    selection: createNfseExportSelection(database),
   })
   const previewCteBatches = createPreviewCteBatchUseCase({
     clock: { now: () => new Date() },
@@ -671,11 +684,9 @@ function createApplicationRoutes({
       listVehicles: { execute: (input) => fleetVehicles.list(input) },
       updateDriver: { execute: (input) => fleetDrivers.update(input) },
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },
-      vehicleLookup: {
-        isAvailable: () => fleetVehicleLookup.isAvailable(),
-        lookup: (input) => fleetVehicleLookup.lookup(input),
-      },
+      vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
+    ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createMdfeManifestRoutes({
       createManifest: { execute: (input) => mdfeManifests.create(input) },
       discardManifest: { execute: (input) => mdfeManifests.discard(input) },
@@ -808,6 +819,9 @@ function createApplicationRoutes({
     }),
     ...createNfseInvoiceRoutes({
       cancelNfseInvoice: { execute: (input) => cancelNfseInvoice.execute(input) },
+      exportNfseDocuments: {
+        exportDocuments: (input) => exportNfseDocuments.exportDocuments(input),
+      },
       nfseInvoice: {
         create: (input) => nfseInvoices.create(input),
         preview: (input) => nfseInvoices.preview(input),

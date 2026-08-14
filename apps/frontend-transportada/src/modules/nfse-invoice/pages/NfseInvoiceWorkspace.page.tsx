@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { NfseInvoiceBulkCancelDialog } from '../components/NfseInvoiceBulkCancelDialog.component'
+import { NfseInvoiceCancelDialog } from '../components/NfseInvoiceCancelDialog.component'
+import { NfseInvoiceDetailDialog } from '../components/NfseInvoiceDetailDialog.component'
 import { NfseInvoiceTable } from '../components/NfseInvoiceTable.component'
 import { useNfseInvoiceTable } from '../hooks/useNfseInvoiceTable.hook'
 import { NFSE_READ_PERMISSION } from '../shared/nfseInvoice.constant'
@@ -19,13 +22,20 @@ function InvoiceListSkeleton({ label }: Readonly<{ label: string }>): JSX.Elemen
   )
 }
 
-export function NfseInvoiceWorkspacePage(): JSX.Element {
+type NfseInvoiceWorkspacePageProps = Readonly<{
+  openInvoiceId?: null | string
+}>
+
+export function NfseInvoiceWorkspacePage({
+  openInvoiceId = null,
+}: NfseInvoiceWorkspacePageProps): JSX.Element {
   const { t } = useTranslation('nfseInvoice')
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
   const table = useNfseInvoiceTable({
     ...(companyId === undefined ? {} : { companyId }),
+    openInvoiceId,
     permissions,
   })
   const canReadInvoices = permissions.includes(NFSE_READ_PERMISSION)
@@ -42,7 +52,12 @@ export function NfseInvoiceWorkspacePage(): JSX.Element {
           <InvoiceListSkeleton label={t('list.loading')} />
         </section>
       ) : canReadInvoices ? (
-        <NfseInvoiceTable table={table} />
+        <>
+          <NfseInvoiceTable table={table} />
+          <NfseInvoiceDetailDialog actions={table.rowActions} />
+          <NfseInvoiceCancelDialog actions={table.rowActions} />
+          <NfseInvoiceBulkCancelDialog bulkCancel={table.bulkCancel} />
+        </>
       ) : (
         <section className={styles.panel}>
           <p className={styles.placeholder}>{t('feedback.readOnly')}</p>

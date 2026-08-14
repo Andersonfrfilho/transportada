@@ -76,6 +76,7 @@
   "validationSummaryTitle": "Corrija os campos abaixo antes de salvar:",
   "validationRequiredField": "{{field}} é obrigatório.",
   "validationDigitLength": "{{field}} precisa ter exatamente {{length}} dígitos.",
+  "validationCharacterSet": "{{field}} aceita letra e número na base, e só número nos dois últimos.",
   "save": "Salvar configurações",
   "saved": "Configurações salvas.",
   "saveError": "Não foi possível salvar. Revise os dados e tente novamente.",

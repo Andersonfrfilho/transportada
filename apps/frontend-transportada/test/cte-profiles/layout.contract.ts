@@ -35,7 +35,11 @@ describe('cte emission profiles layout contract', () => {
       readModule('src/modules/company-settings/styles/companySettings.module.css'),
     ])
 
-    for (const declaration of ['min-height: 3rem', 'padding: var(--space-3)', 'border-radius: 0']) {
+    for (const declaration of [
+      'min-height: var(--control-height)',
+      'padding: var(--space-3)',
+      'border-radius: 0',
+    ]) {
       expect(settingsStyles).toContain(declaration)
       expect(profileStyles).toContain(declaration)
     }

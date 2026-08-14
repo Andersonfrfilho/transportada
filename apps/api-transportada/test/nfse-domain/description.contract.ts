@@ -11,15 +11,17 @@ import {
 const MAX_LENGTH = 2000
 const MUNICIPALITY = 'Ribeirão Preto'
 const LIST_TEMPLATE = 'Transporte das notas: {{notas}}.'
-/** Prefixo longo para a truncagem acontecer dentro do teto mínimo do perfil (200). */
-const LONG_TEMPLATE =
-  'Prestação de serviço de transporte rodoviário de cargas referente às notas fiscais: {{notas}}.'
+/** Prefixo que sozinho já estoura o teto mínimo do perfil (200): não sobra espaço para nota alguma. */
+const OVERSIZED_TEMPLATE = `${'Prestação de serviço de transporte. '.repeat(6)}{{notas}}`
 
+/**
+ * Número de NF-e tem 9 dígitos, e o comprimento da entrada é o que decide se cortar a lista encurta
+ * o texto: com entradas curtas o resumo do excedente pode custar mais que listar tudo.
+ */
 function buildDocument(position: number): NfseDescriptionDocument {
   return {
-    accessKey: `3526${String(position).padStart(40, '0')}`,
-    issuedAt: `2026-07-${String(position).padStart(2, '0')}T12:00:00.000Z`,
-    number: String(position),
+    issuedAt: `2026-07-${String(((position - 1) % 28) + 1).padStart(2, '0')}T12:00:00.000Z`,
+    number: String(position).padStart(9, '0'),
     series: '1',
   }
 }
@@ -33,7 +35,7 @@ function documentIssuedAt(issuedAt: string): NfseDescriptionDocument {
 }
 
 function entryOf(document: NfseDescriptionDocument): string {
-  return `NF-e ${document.number}/${document.series} chave ${document.accessKey}`
+  return `NF-e ${document.number}/${document.series}`
 }
 
 function periodOf(documents: readonly NfseDescriptionDocument[]): string {
@@ -123,8 +125,21 @@ describe('NFS-e description contract', () => {
     expect((thrown as Error).message).toContain('notasFiscais')
   })
 
+  test('names the note by number and series, never by the access key', () => {
+    const result = buildNfseDescription({
+      documents: buildDocuments(1),
+      maxLength: MAX_LENGTH,
+      municipalityName: MUNICIPALITY,
+      template: LIST_TEMPLATE,
+    })
+
+    expect(result.description).toBe('Transporte das notas: NF-e 000000001/1.')
+    expect(result.description).not.toContain('chave')
+    expect(result.description).not.toMatch(/\d{44}/u)
+  })
+
   test('truncates on the list boundary and never mid document', () => {
-    const documents = buildDocuments(10)
+    const documents = buildDocuments(100)
     const result = buildNfseDescription({
       documents,
       maxLength: 200,
@@ -144,12 +159,12 @@ describe('NFS-e description contract', () => {
     )
     expect(listedText.split('; ')).toEqual(documents.slice(0, result.listedDocuments).map(entryOf))
     for (const document of documents.slice(result.listedDocuments)) {
-      expect(result.description).not.toContain(document.accessKey)
+      expect(result.description).not.toContain(entryOf(document))
     }
   })
 
   test('counts every selected note even when the list is truncated', () => {
-    const documents = buildDocuments(10)
+    const documents = buildDocuments(100)
     const result = buildNfseDescription({
       documents,
       maxLength: 260,
@@ -158,19 +173,21 @@ describe('NFS-e description contract', () => {
     })
 
     expect(result.omittedDocuments).toBeGreaterThan(0)
-    expect(result.description).toStartWith('Notas (10):')
+    expect(result.description).toStartWith('Notas (100):')
   })
 
   test('says one note in the singular', () => {
+    // Orçamento medido: listar as duas custa 41 caracteres, listar uma e resumir a outra custa 40.
     const result = buildNfseDescription({
       documents: buildDocuments(2),
-      maxLength: 200,
+      maxLength: 40,
       municipalityName: MUNICIPALITY,
-      template: LONG_TEMPLATE,
+      template: 'Notas: {{notas}}',
     })
 
     expect(result.listedDocuments).toBe(1)
-    expect(result.description).toEndWith('… e mais 1 nota.')
+    expect(result.omittedDocuments).toBe(1)
+    expect(result.description).toEndWith('… e mais 1 nota')
   })
 
   test('refuses a template that leaves no room for a single note', () => {
@@ -180,7 +197,7 @@ describe('NFS-e description contract', () => {
         documents: buildDocuments(5),
         maxLength: 200,
         municipalityName: MUNICIPALITY,
-        template: `${'Prestação de serviço de transporte. '.repeat(5)}{{notas}}`,
+        template: OVERSIZED_TEMPLATE,
       })
     } catch (error) {
       thrown = error
@@ -267,7 +284,7 @@ describe('NFS-e description period contract', () => {
   })
 
   test('covers the whole selection even when the list of notes is truncated', () => {
-    const documents = buildDocuments(10)
+    const documents = buildDocuments(100)
     const result = buildNfseDescription({
       documents,
       maxLength: 260,
@@ -277,7 +294,7 @@ describe('NFS-e description period contract', () => {
 
     // O período é a janela do serviço prestado, não a das notas que couberam no texto.
     expect(result.omittedDocuments).toBeGreaterThan(0)
-    expect(result.description).toStartWith('Entregas 01-07 a 10-07-2026:')
+    expect(result.description).toStartWith('Entregas 01-07 a 28-07-2026:')
   })
 
   test('refuses an unknown variable that only looks like the new ones', () => {

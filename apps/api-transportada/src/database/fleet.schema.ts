@@ -7,6 +7,8 @@ import {
   check,
   foreignKey,
   index,
+  integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -33,6 +35,27 @@ export type MdfeWheelType = (typeof MDFE_WHEEL_TYPES)[number]
 export const MDFE_BODY_TYPES = ['00', '01', '02', '03', '04', '05'] as const
 export type MdfeBodyType = (typeof MDFE_BODY_TYPES)[number]
 
+/** Cor do CRLV pela tabela do Denatran — texto livre misturava "PRATA", "prata" e "prata metálico". */
+export const VEHICLE_COLORS = [
+  'amarela',
+  'azul',
+  'bege',
+  'branca',
+  'cinza',
+  'dourada',
+  'fantasia',
+  'grena',
+  'laranja',
+  'marrom',
+  'prata',
+  'preta',
+  'rosa',
+  'roxa',
+  'verde',
+  'vermelha',
+] as const
+export type VehicleColor = (typeof VEHICLE_COLORS)[number]
+
 export const FLEET_VEHICLE_OWNERSHIPS = ['own', 'aggregate', 'third_party'] as const
 export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIPS)[number]
 
@@ -51,6 +74,14 @@ const PLATE_PATTERN = '^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$'
 
 const STATE_PATTERN = '^[A-Z]{2}$'
 
+/** Marca livre — a FIPE não cobre implemento, e o operador digita quando o catálogo falha. */
+const VEHICLE_BRAND_MAX_LENGTH = 60
+const VEHICLE_MODEL_MAX_LENGTH = 120
+/** cInt do MDF-e — número de frota do transportador, opcional no layout. */
+const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
+
+const moneyColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
+
 export const fleetVehicles = pgTable(
   'fleet_vehicles',
   {
@@ -58,6 +89,11 @@ export const fleetVehicles = pgTable(
     companyId: uuid('company_id').notNull(),
     plate: text().notNull(),
     renavam: text().notNull().default(''),
+    brand: text().notNull().default(''),
+    model: text().notNull().default(''),
+    modelYear: integer('model_year').notNull().default(0),
+    color: text().notNull().default(''),
+    fleetNumber: text('fleet_number').notNull().default(''),
     role: text().$type<FleetVehicleRole>().notNull(),
     status: text().$type<FleetVehicleStatus>().notNull().default('active'),
     tareWeightKg: bigint('tare_weight_kg', { mode: 'bigint' }).notNull().default(0n),
@@ -65,6 +101,7 @@ export const fleetVehicles = pgTable(
     capacityM3: bigint('capacity_m3', { mode: 'bigint' }).notNull().default(0n),
     wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
+    axleCount: integer('axle_count').notNull().default(0),
     state: text().notNull(),
     ownership: text().$type<FleetVehicleOwnership>().notNull().default('own'),
     ownerTaxId: text('owner_tax_id').notNull().default(''),
@@ -72,6 +109,17 @@ export const fleetVehicles = pgTable(
     ownerState: text('owner_state').notNull().default(''),
     ownerRntrc: text('owner_rntrc').notNull().default(''),
     ownerTaxRegime: text('owner_tax_regime').$type<MdfeOwnerTaxRegime | ''>().notNull().default(''),
+    averageConsumption: numeric('average_consumption', { precision: 6, scale: 2 })
+      .notNull()
+      .default('0'),
+    costPerKilometer: numeric('cost_per_kilometer', { precision: 12, scale: 4 })
+      .notNull()
+      .default('0'),
+    acquisitionAmount: moneyColumn('acquisition_amount').notNull().default('0'),
+    monthlyInstallmentAmount: moneyColumn('monthly_installment_amount').notNull().default('0'),
+    annualVehicleTaxAmount: moneyColumn('annual_vehicle_tax_amount').notNull().default('0'),
+    annualInsuranceAmount: moneyColumn('annual_insurance_amount').notNull().default('0'),
+    costsUpdatedAt: timestamp('costs_updated_at', { withTimezone: true }),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +141,27 @@ export const fleetVehicles = pgTable(
       sql`length(${table.renavam}) = 0 or ${table.renavam} ~ '^[0-9]{9,11}$'`,
     ),
     check(
+      'fleet_vehicles_brand_check',
+      sql`length(${table.brand}) <= ${sql.raw(String(VEHICLE_BRAND_MAX_LENGTH))}`,
+    ),
+    check(
+      'fleet_vehicles_model_check',
+      sql`length(${table.model}) <= ${sql.raw(String(VEHICLE_MODEL_MAX_LENGTH))}`,
+    ),
+    check(
+      'fleet_vehicles_color_check',
+      sql`length(${table.color}) = 0 or ${table.color} in (${sql.raw(inList(VEHICLE_COLORS))})`,
+    ),
+    check(
+      'fleet_vehicles_fleet_number_check',
+      sql`length(${table.fleetNumber}) <= ${sql.raw(String(VEHICLE_FLEET_NUMBER_MAX_LENGTH))}`,
+    ),
+    // 0 é "não informado" — o motorista que buscou pela placa preenche depois, ninguém trava o salvamento
+    check(
+      'fleet_vehicles_model_year_check',
+      sql`${table.modelYear} = 0 or ${table.modelYear} between 1900 and 2100`,
+    ),
+    check(
       'fleet_vehicles_role_check',
       sql`${table.role} in (${sql.raw(inList(FLEET_VEHICLE_ROLES))})`,
     ),
@@ -104,6 +173,11 @@ export const fleetVehicles = pgTable(
       'fleet_vehicles_capacity_check',
       sql`${table.tareWeightKg} >= 0 and ${table.capacityKg} >= 0 and ${table.capacityM3} >= 0`,
     ),
+    // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
+    check(
+      'fleet_vehicles_cost_check',
+      sql`${table.averageConsumption} >= 0 and ${table.costPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
+    ),
     check(
       'fleet_vehicles_wheel_type_check',
       sql`(${table.role} = 'traction') = (${table.wheelType} in (${sql.raw(inList(MDFE_WHEEL_TYPES))}))`,
@@ -111,6 +185,10 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_body_type_check',
       sql`${table.bodyType} in (${sql.raw(inList(MDFE_BODY_TYPES))})`,
+    ),
+    check(
+      'fleet_vehicles_axle_count_check',
+      sql`${table.axleCount} = 0 or ${table.axleCount} between 2 and 9`,
     ),
     check(
       'fleet_vehicles_state_check',
@@ -126,7 +204,7 @@ export const fleetVehicles = pgTable(
     ),
     check(
       'fleet_vehicles_owner_tax_id_check',
-      sql`length(${table.ownerTaxId}) = 0 or ${table.ownerTaxId} ~ '^[0-9]{11}$' or ${table.ownerTaxId} ~ '^[0-9]{14}$'`,
+      sql`length(${table.ownerTaxId}) = 0 or ${table.ownerTaxId} ~ '^[0-9]{11}$' or ${table.ownerTaxId} ~ '^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'fleet_vehicles_owner_rntrc_check',
@@ -181,7 +259,7 @@ export const fleetDrivers = pgTable(
     // O condutor do MDF-e é sempre pessoa física — o CNPJ do autônomo acompanha o CPF, nunca o substitui
     check(
       'fleet_drivers_linked_tax_id_check',
-      sql`length(${table.linkedTaxId}) = 0 or ${table.linkedTaxId} ~ '^[0-9]{14}$'`,
+      sql`length(${table.linkedTaxId}) = 0 or ${table.linkedTaxId} ~ '^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'fleet_drivers_name_check',

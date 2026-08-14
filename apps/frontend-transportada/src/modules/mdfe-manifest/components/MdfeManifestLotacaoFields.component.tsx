@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
+
 import type { MdfeManifestFormDraft } from '../shared/mdfeManifestForm.service'
 import styles from '../styles/mdfeManifest.module.css'
 
@@ -37,9 +39,8 @@ export function MdfeManifestLotacaoFields({ draft, onChange }: MdfeManifestLotac
       <label>
         {t('creation.contractorTaxId')}
         <input
-          inputMode="numeric"
           maxLength={TAX_ID_MAX_LENGTH}
-          onChange={(event) => onChange('contractorTaxId', digitsOnly(event.target.value))}
+          onChange={(event) => onChange('contractorTaxId', normalizeTaxId(event.target.value))}
           value={draft.contractorTaxId}
         />
       </label>

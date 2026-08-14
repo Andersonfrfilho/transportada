@@ -46,6 +46,50 @@ cópia idêntica, para o dia em que algum realm ligar i18n. Texto novo entra nos
 Os rótulos e erros não pedem desculpa e não descrevem o mecanismo: `Usuário ou senha inválidos.`,
 `Informe o usuário.`, `Algo deu errado`.
 
+## O rodapé de copyright
+
+O `base` traz um `footer.ftl` cujo macro é vazio — por isso a tela nasceu sem rodapé mesmo com o
+`template.ftl` chamando `<@loginFooter.content/>`. O arquivo foi sobrescrito em
+`login/footer.ftl`, e com isso o rodapé aparece em **toda** página do tema, inclusive nas herdadas
+do `base`, sem editar nenhuma delas.
+
+O ano vem de `.now?string('yyyy')`, não do texto: um rodapé com ano fixo envelhece na virada e
+ninguém percebe. O texto é `transportadaColophon` no pacote de mensagens, com `{0}` recebendo o ano.
+
+A chamada foi movida para fora do `.panel`: o `base` a coloca dentro do cartão, onde a linha lê como
+parte do formulário. Na grade de duas colunas o `.colophon` atravessa as duas (`grid-column: 1 / -1`);
+sem isso ele cairia embaixo da marca, desalinhado do painel.
+
+Ao lado do texto vem a marca da Ada Technology, em `resources/img/ada-technology.png`. O arquivo é
+**cópia por valor** de `apps/frontend-site/public/ada-icon.png` do repositório `ada-technology`,
+reduzido para 96px (`sips -Z 96`) — o tema não importa código nosso, e menos ainda de outro
+repositório; trocou a marca lá? copie aqui. O `alt` é vazio porque o nome está escrito ao lado —
+anunciar a imagem repetiria a palavra no leitor de tela.
+
+⚠️ **Não use o `ada-icon-192.png` do painel.** Aquele é ícone de PWA: alfa 255 em todo pixel, com o
+fundo branco chapado no arquivo, porque ladrilho de PWA precisa ser opaco. Aqui ele vira um bloco
+branco — e o filtro abaixo é justamente o que torna o defeito total em vez de discreto. O arquivo
+certo é o do site: cantos em `alpha 0` e 256 valores de alfa. Antes de trocar a marca, confira o
+alfa dos cantos do arquivo novo.
+
+O gradiente azul da marca é feito para fundo claro: sobre o asfalto a ponta escura sumiria. O
+`.colophon-mark` a achata em silhueta branca (`filter: brightness(0) invert(1)`, `opacity: 0.8`) —
+que é exatamente o que o site da Ada faz no rodapé escuro dele. A regra é copiada de lá, não
+inventada aqui; recolorir a marca no cobre do produto seria pintar a marca de outra empresa com a
+nossa cor.
+
+## O botão de mostrar a senha
+
+O olho vive em `resources/js/password-visibility.js` e nasce `hidden` no `login.ftl` — sem script
+ele não teria como alternar nada, e um olho que não abre é pior do que olho nenhum. O script revela
+o botão, troca `type` entre `password` e `text`, e acompanha com `aria-pressed` e `aria-label`
+(`showPassword` / `hidePassword` no pacote de mensagens), devolvendo o foco ao campo.
+
+O rótulo do campo de senha é **irmão** do `input`, não o envolve: dentro de um `<label>` o clique
+num botão descendente também alcançaria o controle rotulado. O `for="password"` mantém a
+associação. Os dois ícones ficam no markup e o CSS escolhe qual aparece por `[aria-pressed]` — nada
+de montar SVG por script.
+
 ## O link de recuperação de senha
 
 A recuperação de senha é tela nossa (`/recuperar-senha`, servida pelo frontend) e o Keycloak não

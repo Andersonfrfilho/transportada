@@ -307,7 +307,7 @@
 
 .fileUploadButton,
 .fileUploadName {
-  min-height: 3rem;
+  min-height: var(--control-height);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
 }
 
@@ -391,8 +391,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  min-height: 3rem;
+  width: var(--control-height);
+  min-height: var(--control-height);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   border-left: 0;
   color: color-mix(in srgb, var(--color-fog) 82%, var(--color-slate) 18%);
@@ -436,7 +436,7 @@
 
 .taxRegimeOption,
 .environmentOption {
-  min-height: 3rem;
+  min-height: var(--control-height);
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   color: color-mix(in srgb, var(--color-fog) 86%, var(--color-slate) 14%);
@@ -483,9 +483,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  min-height: 3rem;
-  min-width: 3rem;
+  width: var(--control-height);
+  min-height: var(--control-height);
+  min-width: var(--control-height);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-copper) 72%, transparent);
   color: var(--color-copper);
@@ -510,7 +510,7 @@
   align-items: center;
   gap: var(--space-2);
   justify-self: start;
-  min-height: 3rem;
+  min-height: var(--control-height);
   padding: var(--space-3) var(--space-6);
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);

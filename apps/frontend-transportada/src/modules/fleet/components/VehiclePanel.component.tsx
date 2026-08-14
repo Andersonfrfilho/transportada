@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
@@ -6,6 +7,7 @@ import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import type { VehicleColumnsController } from '../hooks/useVehicleColumns.hook'
 import type {
   FleetVehicleDetail,
   FleetVehicleFilters,
@@ -18,6 +20,7 @@ import styles from '../styles/fleet.module.css'
 import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
+import { VehicleColumnsMenu } from './VehicleColumnsMenu.component'
 import { VehicleList } from './VehicleList.component'
 
 const VEHICLE_COLUMN_COUNT = 5
@@ -29,6 +32,7 @@ type VehiclePanelProps = Readonly<{
     onToggleStatus: (vehicle: FleetVehicleDetail) => void
   }>
   canManageFleet: boolean
+  columns: VehicleColumnsController
   filters: Readonly<{
     onChange: (value: FleetVehicleFilters) => void
     value: FleetVehicleFilters
@@ -85,14 +89,15 @@ function VehicleFilterBar({ filters }: Pick<VehiclePanelProps, 'filters'>) {
   )
 }
 
-function VehiclePanelBody({ actions, canManageFleet, filters, view }: VehiclePanelProps) {
+function VehiclePanelBody({ actions, canManageFleet, columns, filters, view }: VehiclePanelProps) {
   const { t } = useTranslation('fleet')
   const status = view.status
+  const columnCount = VEHICLE_COLUMN_COUNT + columns.visibleColumns.length
 
   if (status === 'loading') {
     return (
       <FleetTableSkeleton
-        columnCount={canManageFleet ? VEHICLE_COLUMN_COUNT + 1 : VEHICLE_COLUMN_COUNT}
+        columnCount={canManageFleet ? columnCount + 1 : columnCount}
         label={t('loading')}
       />
     )
@@ -104,6 +109,7 @@ function VehiclePanelBody({ actions, canManageFleet, filters, view }: VehiclePan
     return (
       <VehicleList
         canManageFleet={canManageFleet}
+        columns={columns.visibleColumns}
         vehicles={vehicles}
         onEdit={actions.onEdit}
         onToggleStatus={actions.onToggleStatus}
@@ -120,31 +126,40 @@ function VehiclePanelBody({ actions, canManageFleet, filters, view }: VehiclePan
     )
   }
 
-  return (
-    <FleetEmptyState
-      {...(canManageFleet
-        ? { action: { icon: 'add' as const, label: t('newVehicle'), onAction: actions.onNew } }
-        : {})}
-      description={t('vehiclesEmptyHint')}
-      title={t('vehiclesEmptyTitle')}
-    />
-  )
+  // O botão "Novo veículo" mora no cabeçalho do painel, logo acima — repeti-lo aqui dobra a ação
+  return <FleetEmptyState description={t('vehiclesEmptyHint')} title={t('vehiclesEmptyTitle')} />
 }
 
 export function VehiclePanel(props: VehiclePanelProps) {
   const { t } = useTranslation('fleet')
-  const { actions, canManageFleet, filters, view } = props
+  const { actions, canManageFleet, columns, filters, view } = props
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 
   return (
     <section className={styles.panel} aria-labelledby="fleet-vehicles-title">
       <div className={styles.panelHeading}>
         <h2 id="fleet-vehicles-title">{t('vehiclesTitle')}</h2>
-        {canManageFleet ? (
-          <Button type="button" onClick={actions.onNew}>
-            <Icon name="add" />
-            {t('newVehicle')}
-          </Button>
-        ) : null}
+        <div className={styles.panelActions}>
+          <span className={styles.columnsMenuWrap}>
+            <button
+              aria-expanded={isColumnsMenuOpen}
+              aria-label={t('columns.title')}
+              className={isColumnsMenuOpen ? styles.iconActionActive : styles.iconAction}
+              title={t('columns.title')}
+              type="button"
+              onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+            >
+              <Icon name="columns" />
+            </button>
+            {isColumnsMenuOpen ? <VehicleColumnsMenu table={columns} /> : null}
+          </span>
+          {canManageFleet ? (
+            <Button size="sm" type="button" onClick={actions.onNew}>
+              <Icon name="add" />
+              {t('newVehicle')}
+            </Button>
+          ) : null}
+        </div>
       </div>
       <VehicleFilterBar filters={filters} />
       <FleetStatusHint status={view.status} />

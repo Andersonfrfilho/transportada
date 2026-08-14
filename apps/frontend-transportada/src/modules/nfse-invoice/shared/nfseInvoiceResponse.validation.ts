@@ -3,6 +3,7 @@ import {
   NFSE_DOCUMENT_DOWNLOAD_KEYS,
   NFSE_EMISSION_PROFILE_OPTION_KEYS,
   NFSE_INVOICE_CHARGE_KEYS,
+  NFSE_INVOICE_DELIVERY_KEYS,
   NFSE_INVOICE_DETAIL_KEYS,
   NFSE_INVOICE_DOCUMENT_KEYS,
   NFSE_INVOICE_ERROR,
@@ -30,12 +31,14 @@ import {
 import {
   NFSE_ADJUSTMENT_TYPES,
   NFSE_CHARGE_CALCULATION_TYPES,
+  NFSE_DELIVERY_STATUSES,
   NFSE_INVOICE_STATUSES,
   type NfseCancellationSummary,
   type NfseDocumentDownload,
   type NfseEmissionProfileOption,
   type NfseInvoice,
   type NfseInvoiceCharge,
+  type NfseInvoiceDelivery,
   type NfseInvoiceDetail,
   type NfseInvoiceDocument,
   type NfseInvoicePage,
@@ -84,15 +87,37 @@ function isCharge(value: unknown): value is NfseInvoiceCharge {
   )
 }
 
+/** A nota criada e ainda não entregue não tem tentativa nenhuma: aí o bloco inteiro vem nulo. */
+function isDelivery(value: unknown): value is NfseInvoiceDelivery {
+  return (
+    hasExactKeys(value, NFSE_INVOICE_DELIVERY_KEYS) &&
+    isUnsignedInteger(value.attemptCount) &&
+    isNullableString(value.lastErrorCause) &&
+    isNullableString(value.lastErrorCode) &&
+    isNullableString(value.lastErrorMessage) &&
+    isNullableString(value.nextAttemptAt) &&
+    isOneOf(value.status, NFSE_DELIVERY_STATUSES) &&
+    isString(value.updatedAt)
+  )
+}
+
 function isInvoiceDetail(value: unknown): value is NfseInvoiceDetail {
   if (!hasExactKeys(value, NFSE_INVOICE_DETAIL_KEYS)) return false
-  const { cancellationReason, charges, description, rejectionCode, rejectionMessage, version } =
-    value
+  const {
+    cancellationReason,
+    charges,
+    delivery,
+    description,
+    rejectionCode,
+    rejectionMessage,
+    version,
+  } = value
   const summary = Object.fromEntries(NFSE_INVOICE_KEYS.map((key) => [key, value[key]]))
   return (
     isInvoice(summary) &&
     isNullableString(cancellationReason) &&
     isEveryItem(charges, isCharge) &&
+    (delivery === null || isDelivery(delivery)) &&
     isString(description) &&
     isNullableString(rejectionCode) &&
     isNullableString(rejectionMessage) &&

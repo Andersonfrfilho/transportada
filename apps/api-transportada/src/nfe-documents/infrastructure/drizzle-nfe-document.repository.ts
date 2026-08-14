@@ -5,7 +5,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { type SQL, and, desc, eq, inArray, isNull, lt, ne, or, sum } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
-import { nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
+import { nfseServiceInvoiceDocuments, nfseServiceInvoices } from '../../database/nfse.schema.js'
 import {
   nfeAddresses,
   nfeDocuments,
@@ -60,16 +60,25 @@ type DocumentScope = {
   readonly documentIds: readonly string[]
 }
 
+/**
+ * O número vem `null` enquanto a prefeitura não autoriza: a nota existe e já segura o documento,
+ * mas ainda não tem numeração. Quem consome mostra o vínculo mesmo assim.
+ */
+type NfseInvoiceLink = {
+  readonly id: string
+  readonly number: string | null
+}
+
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
   readonly grossWeightByDocumentId: ReadonlyMap<string, string>
-  readonly nfseInvoiceIdByDocumentId: ReadonlyMap<string, string>
+  readonly nfseInvoiceByDocumentId: ReadonlyMap<string, NfseInvoiceLink>
 }
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
   grossWeightByDocumentId: new Map(),
-  nfseInvoiceIdByDocumentId: new Map(),
+  nfseInvoiceByDocumentId: new Map(),
 }
 
 export function buildDocumentGrossWeightFilters({
@@ -266,8 +275,16 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         .selectDistinctOn([nfseServiceInvoiceDocuments.nfeDocumentId], {
           documentId: nfseServiceInvoiceDocuments.nfeDocumentId,
           invoiceId: nfseServiceInvoiceDocuments.invoiceId,
+          providerNumber: nfseServiceInvoices.providerNumber,
         })
         .from(nfseServiceInvoiceDocuments)
+        .innerJoin(
+          nfseServiceInvoices,
+          and(
+            eq(nfseServiceInvoices.companyId, nfseServiceInvoiceDocuments.companyId),
+            eq(nfseServiceInvoices.id, nfseServiceInvoiceDocuments.invoiceId),
+          ),
+        )
         .where(and(...buildDocumentNfseLinkFilters(scope)))
         .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
     ])
@@ -279,8 +296,11 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]],
         ),
       ),
-      nfseInvoiceIdByDocumentId: new Map(
-        nfseLinkRows.map((row) => [row.documentId, row.invoiceId]),
+      nfseInvoiceByDocumentId: new Map(
+        nfseLinkRows.map((row) => [
+          row.documentId,
+          { id: row.invoiceId, number: row.providerNumber },
+        ]),
       ),
     }
   }
@@ -351,6 +371,7 @@ function mapSummary(
 ): NfeDocumentSummary {
   const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
   const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
+  const nfseInvoice = blockContext.nfseInvoiceByDocumentId.get(document.id) ?? null
   const decision = resolveDocumentBlock({
     document: {
       grossWeight: blockContext.grossWeightByDocumentId.get(document.id) ?? null,
@@ -365,7 +386,7 @@ function mapSummary(
       variant: 'complete',
     },
     linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
-    linkedNfseInvoiceId: blockContext.nfseInvoiceIdByDocumentId.get(document.id) ?? null,
+    linkedNfseInvoiceId: nfseInvoice?.id ?? null,
   })
   return {
     accessKey: document.accessKey,
@@ -378,6 +399,8 @@ function mapSummary(
     emitterTaxId: emitter.taxId,
     id: document.id,
     issuedAt: document.issuedAt.toISOString(),
+    nfseInvoiceId: nfseInvoice?.id ?? null,
+    nfseInvoiceNumber: nfseInvoice?.number ?? null,
     number: document.number,
     recipientAddress: recipient.address,
     recipientCity: recipient.city,

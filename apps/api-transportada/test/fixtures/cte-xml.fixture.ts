@@ -5,6 +5,12 @@
 /** Chave sintética de 44 dígitos: nunca uma chave fiscal real de cliente. */
 export const SYNTHETIC_CTE_ACCESS_KEY = '35260700000000000191570010000000011000000010'
 
+/**
+ * Mesma chave sintética com o CNPJ alfanumérico oficial da IN (`12.ABC.345/01DE-35`) nas posições
+ * 7 a 20. As letras só cabem nas doze primeiras posições do documento — o DV dele já é numérico.
+ */
+export const ALPHANUMERIC_CTE_ACCESS_KEY = '35260812ABC34501DE35570010000000011000000017'
+
 type CteXmlOptions = Readonly<{
   icms?: string
   supplement?: string

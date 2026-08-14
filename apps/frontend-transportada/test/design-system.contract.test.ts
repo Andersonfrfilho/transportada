@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import './design-system/application-footer.contract.js'
 import './design-system/brazilian-holiday.contract.js'
 import './design-system/button.contract.js'
 import './design-system/checkbox.contract.js'
+import './design-system/control-height.contract.js'
 import './design-system/count-badge.contract.js'
 import './design-system/date-picker.contract.js'
 import './design-system/date-range-picker.contract.js'

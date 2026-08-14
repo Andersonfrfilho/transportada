@@ -88,7 +88,7 @@ describe('fleet driver schema', () => {
   test('keeps the CPF mandatory and the linked CNPJ optional', () => {
     const checks = checkSqlByName(fleetDrivers)
 
-    expect(checks.fleet_drivers_linked_tax_id_check).toContain("~ '^[0-9]{14}$'")
+    expect(checks.fleet_drivers_linked_tax_id_check).toContain("~ '^[A-Z0-9]{12}[0-9]{2}$'")
     expect(checks.fleet_drivers_linked_tax_id_check).toContain('= 0')
     expect(checks.fleet_drivers_tax_id_check).not.toContain('{14}')
   })

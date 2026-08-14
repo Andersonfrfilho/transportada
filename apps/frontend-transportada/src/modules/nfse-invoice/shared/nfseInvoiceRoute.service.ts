@@ -11,10 +11,13 @@ const SEARCH_PARAM = {
   createdFrom: 'createdFrom',
   createdUntil: 'createdUntil',
   cursor: 'cursor',
+  invoice: 'invoice',
   sort: 'sort',
   statuses: 'statuses',
   takerTaxId: 'takerTaxId',
 } as const
+
+export const NFSE_INVOICE_WORKSPACE_PATH = '/nfse-invoices'
 
 const STATUS_SEPARATOR = ','
 const SORT_SEPARATOR = ':'
@@ -66,6 +69,21 @@ export function parseNfseInvoiceTableSearch(search: string): NfseInvoiceTableSea
     },
     sort: readSort(params.get(SEARCH_PARAM.sort)),
   }
+}
+
+/**
+ * O endereço da nota é a listagem com a nota aberta, não uma tela própria: o detalhe é diálogo, e
+ * quem chega pelo link cai na mesma lista de onde os outros chegam.
+ */
+export function buildNfseInvoiceDetailHref(invoiceId: string): string {
+  const search = new URLSearchParams({ [SEARCH_PARAM.invoice]: invoiceId })
+  return `${NFSE_INVOICE_WORKSPACE_PATH}?${search.toString()}`
+}
+
+export function parseNfseInvoiceParameter(search: string): null | string {
+  const invoiceId = new URLSearchParams(search).get(SEARCH_PARAM.invoice)
+  if (invoiceId === null || invoiceId.length === 0) return null
+  return invoiceId
 }
 
 function readDay(value: null | string): string {

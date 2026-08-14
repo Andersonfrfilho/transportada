@@ -7,6 +7,7 @@ import type {
   CompanyProfileLookupPort,
   CompanyProfileLookupResult,
 } from '../application/company-settings.port.js'
+import { normalizeTaxId } from '../../shared/tax-id.service.js'
 
 export function createFiscalCompanyProfileLookupGateway(): CompanyProfileLookupPort {
   return {
@@ -16,7 +17,7 @@ export function createFiscalCompanyProfileLookupGateway(): CompanyProfileLookupP
         return {
           city: normalizeText(result.municipio),
           cityIbgeCode: onlyDigits(result.codigoMunicipio),
-          cnpj: onlyDigits(result.cnpj),
+          cnpj: normalizeTaxId(result.cnpj),
           complement: normalizeText(result.complemento),
           district: normalizeText(result.bairro),
           email: normalizeText(result.email),
@@ -40,6 +41,7 @@ function normalizeText(value: string | undefined): string {
   return value?.trim() ?? ''
 }
 
+/** Só para CEP e código de município, que continuam numéricos. O documento passa por `normalizeTaxId`. */
 function onlyDigits(value: string | undefined): string {
   return value?.replace(/\D/g, '') ?? ''
 }

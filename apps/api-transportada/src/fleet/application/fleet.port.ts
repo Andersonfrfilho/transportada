@@ -25,9 +25,21 @@ export type FleetVehicleOwner = {
 }
 
 export type FleetVehicleInput = {
+  readonly acquisitionAmount: string
+  readonly annualInsuranceAmount: string
+  readonly annualVehicleTaxAmount: string
+  readonly averageConsumption: string
+  readonly axleCount: number
   readonly bodyType: MdfeBodyType
+  readonly brand: string
   readonly capacityCubicMeters: string
   readonly capacityKilograms: string
+  readonly color: string
+  readonly costPerKilometer: string
+  readonly fleetNumber: string
+  readonly model: string
+  readonly modelYear: number
+  readonly monthlyInstallmentAmount: string
   readonly owner: FleetVehicleOwner | null
   readonly ownership: FleetVehicleOwnership
   readonly plate: string
@@ -39,29 +51,13 @@ export type FleetVehicleInput = {
 }
 
 export type FleetVehicle = FleetVehicleInput & {
+  readonly costsUpdatedAt: string | null
   readonly createdAt: string
   readonly id: string
+  readonly monthlyFixedCost: string | null
   readonly status: FleetVehicleStatus
   readonly updatedAt: string
   readonly version: string
-}
-
-/** Resposta já traduzida de um serviço externo de consulta de placa: só o que preenche o cadastro. */
-export type FleetVehicleLookup = {
-  readonly brand: string
-  readonly capacityKilograms: string
-  readonly model: string
-  readonly modelYear: string
-  readonly ownerName: string
-  readonly ownerTaxId: string
-  readonly plate: string
-  readonly renavam: string
-  readonly state: string
-  readonly tareWeightKilograms: string
-}
-
-export type FleetVehicleLookupPort = {
-  lookupByPlate(input: { readonly plate: string }): Promise<FleetVehicleLookup | null>
 }
 
 export type FleetVehicleFilters = {

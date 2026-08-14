@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import type { ArchiveFile } from '@/modules/shared/archiveDownload.service'
 
 import {
   NFSE_CANCEL_PERMISSION,
@@ -28,6 +29,7 @@ import {
   createNfseInvoiceClient,
   type NfseInvoiceCancellationInput,
   type NfseInvoiceClient,
+  type NfseInvoiceExportInput,
   type NfseInvoiceListQuery,
 } from '../shared/nfseInvoiceClient.service'
 
@@ -40,6 +42,7 @@ export type NfseInvoiceController = Readonly<{
   createInvoices: (
     input: NfseInvoiceSelection & Readonly<{ idempotencyKey: string }>,
   ) => Promise<NfseIssuanceSummary>
+  exportInvoices: (input: NfseInvoiceExportInput) => Promise<ArchiveFile>
   getInvoice: (input: Readonly<{ invoiceId: string }>) => Promise<NfseInvoiceDetail>
   getInvoiceDocumentUrl: (
     input: Readonly<{ invoiceId: string; kind: NfseInvoiceDocumentKind }>,
@@ -75,6 +78,7 @@ export function createNfseInvoiceController(input: ControllerInput): NfseInvoice
     cancelInvoice: (query) => (canCancelInvoices ? input.client.cancelInvoice(query) : forbidden()),
     createInvoices: (query) =>
       canIssueInvoices ? input.client.createInvoices(query) : forbidden(),
+    exportInvoices: (query) => (canReadInvoices ? input.client.exportInvoices(query) : forbidden()),
     getInvoice: (query) => (canReadInvoices ? input.client.getInvoice(query) : forbidden()),
     getInvoiceDocumentUrl: (query) =>
       canReadInvoices ? input.client.getInvoiceDocumentUrl(query) : forbidden(),

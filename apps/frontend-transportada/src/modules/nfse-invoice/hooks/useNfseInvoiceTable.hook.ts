@@ -41,6 +41,9 @@ import {
   type NfseInvoiceTableFilters,
 } from '../shared/nfseInvoiceTable.service'
 import { useNfseAdvancedFilterModel } from './useNfseAdvancedFilter.hook'
+import { useNfseInvoiceBulkCancel } from './useNfseInvoiceBulkCancel.hook'
+import { useNfseInvoiceBulkExport } from './useNfseInvoiceBulkExport.hook'
+import { useNfseInvoiceRowActions } from './useNfseInvoiceRowActions.hook'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
 
 export type NfseInvoiceTableController = ReturnType<typeof useNfseInvoiceTable>
@@ -51,6 +54,8 @@ export type NfseInvoiceFilterMode = 'advanced' | 'simple'
 
 type UseNfseInvoiceTableInput = Readonly<{
   companyId?: string
+  /** Nota a abrir de saída, vinda do link da tabela de NF-e. */
+  openInvoiceId?: null | string
   permissions: readonly string[]
 }>
 
@@ -86,6 +91,11 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
   }
 
   const advancedFilter = useNfseAdvancedFilterModel(restartPagination)
+  const rowActions = useNfseInvoiceRowActions({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    openInvoiceId: input.openInvoiceId ?? null,
+    permissions: input.permissions,
+  })
   const controller = createNfseInvoiceController({
     client: getNfseInvoiceClient(),
     permissions: input.companyId === undefined ? [] : input.permissions,
@@ -115,6 +125,17 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
     return invoice === undefined ? [] : [invoice]
   })
 
+  const bulkCancel = useNfseInvoiceBulkCancel({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    invoices: selectedInvoices,
+    permissions: input.permissions,
+  })
+  const bulkExport = useNfseInvoiceBulkExport({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    invoices: selectedInvoices,
+    permissions: input.permissions,
+  })
+
   function persistColumns(preferences: NfseInvoiceColumnPreferences): void {
     setColumnPreferences(preferences)
     writeNfseInvoiceColumnPreferences({ preferences, storage: getColumnStorage() })
@@ -126,6 +147,8 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
         ? countActiveNfseConditions(advancedFilter.model)
         : countActiveNfseInvoiceFilters(filters),
     advancedFilter,
+    bulkCancel,
+    bulkExport,
     canGoToPreviousPage: canGoToPreviousCursorPage(page),
     canReadInvoices: controller.canReadInvoices,
     clearFilterField: (field: NfseInvoicePillField) => {
@@ -158,7 +181,9 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
         order: reorderNfseInvoiceColumns(columnPreferences.order, column, direction),
       }),
     pageSize,
+    rowActions,
     selectedIds,
+    selectedInvoices,
     selectionCount: selectedInvoices.length,
     selectionTotal: sumNfseInvoiceServiceAmount(selectedInvoices),
     setFilterMode: (mode: NfseInvoiceFilterMode) => {

@@ -225,7 +225,7 @@ export const nfeImportItems = pgTable(
     ),
     check(
       'nfe_import_items_access_key_check',
-      sql`${table.accessKey} is null or ${table.accessKey} ~ '^[0-9]{44}$'`,
+      sql`${table.accessKey} is null or ${table.accessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
     ),
     check(
       'nfe_import_items_distribution_source_presence_check',
@@ -313,7 +313,10 @@ export const nfeDocuments = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    check('nfe_documents_access_key_check', sql`${table.accessKey} ~ '^[0-9]{44}$'`),
+    check(
+      'nfe_documents_access_key_check',
+      sql`${table.accessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
     check('nfe_documents_model_check', sql`${table.model} = '55'`),
     check('nfe_documents_number_check', sql`${table.number} ~ '^[0-9]{1,9}$'`),
     check('nfe_documents_series_check', sql`${table.series} ~ '^[0-9]{1,3}$'`),
@@ -512,7 +515,10 @@ export const nfeEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    check('nfe_events_access_key_check', sql`${table.targetAccessKey} ~ '^[0-9]{44}$'`),
+    check(
+      'nfe_events_access_key_check',
+      sql`${table.targetAccessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
     check('nfe_events_sequence_check', sql`${table.eventSequence} > 0`),
     check(
       'nfe_events_distribution_source_presence_check',

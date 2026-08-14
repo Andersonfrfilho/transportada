@@ -4,6 +4,7 @@
 import { NfeXmlImportError, type ImportedNfeXml } from '@adatechnology/fiscal-provider'
 
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
+import { normalizeTaxId } from '../../shared/tax-id.service.js'
 
 type NfeImportSafeError = {
   readonly code: string
@@ -310,17 +311,29 @@ function buildSummary(input: {
   }
 }
 
+/**
+ * Os dois lados são canonicalizados antes de comparar: enquanto o CNPJ era só dígito, caixa e
+ * pontuação não podiam divergir; com letra na base, `12abc…` e `12ABC…` são o mesmo documento e a
+ * igualdade crua diria que a nota é de outra empresa.
+ */
 function isRelatedToCompany(input: {
   readonly accessKey: string
   readonly companyCnpj: string
   readonly existingDocument: { readonly documentId: string } | null
   readonly normalizedXml: ImportedNfeXml
 }): boolean {
+  const companyCnpj = normalizeTaxId(input.companyCnpj)
+
   if (input.normalizedXml.kind === 'nfe-event') {
-    return input.existingDocument !== null || input.accessKey.slice(6, 20) === input.companyCnpj
+    return (
+      input.existingDocument !== null ||
+      normalizeTaxId(input.accessKey).slice(6, 20) === companyCnpj
+    )
   }
 
-  return input.normalizedXml.document.relatedCnpjs.includes(input.companyCnpj)
+  return input.normalizedXml.document.relatedCnpjs
+    .map((relatedCnpj) => normalizeTaxId(relatedCnpj))
+    .includes(companyCnpj)
 }
 
 function resolveAccessKey(normalizedXml: ImportedNfeXml): string {

@@ -51,10 +51,38 @@ export type NfseInvoiceCharge = Readonly<{
   rate: string
 }>
 
+export const NFSE_DELIVERY_STATUSES = [
+  'pending',
+  'in_flight',
+  'accepted',
+  'authorized',
+  'rejected',
+  'retry_scheduled',
+  'failed',
+  'reconciliation_required',
+  'cancelled',
+] as const
+export type NfseDeliveryStatus = (typeof NFSE_DELIVERY_STATUSES)[number]
+
+/**
+ * A emissão é automática e não tem botão de transmitir: sem isto a nota parada é indistinguível de
+ * uma nota esquecida. A causa é vocabulário aberto — a classificação do gateway entra sem tradução.
+ */
+export type NfseInvoiceDelivery = Readonly<{
+  attemptCount: number
+  lastErrorCause: null | string
+  lastErrorCode: null | string
+  lastErrorMessage: null | string
+  nextAttemptAt: null | string
+  status: NfseDeliveryStatus
+  updatedAt: string
+}>
+
 export type NfseInvoiceDetail = NfseInvoice &
   Readonly<{
     cancellationReason: null | string
     charges: readonly NfseInvoiceCharge[]
+    delivery: null | NfseInvoiceDelivery
     description: string
     rejectionCode: null | string
     rejectionMessage: null | string

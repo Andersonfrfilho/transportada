@@ -1,0 +1,2 @@
+UPDATE "fleet_vehicles" SET "color" = '' WHERE "color" <> '' AND "color" NOT IN ('amarela', 'azul', 'bege', 'branca', 'cinza', 'dourada', 'fantasia', 'grena', 'laranja', 'marrom', 'prata', 'preta', 'rosa', 'roxa', 'verde', 'vermelha');--> statement-breakpoint
+ALTER TABLE "fleet_vehicles" DROP CONSTRAINT "fleet_vehicles_color_check", ADD CONSTRAINT "fleet_vehicles_color_check" CHECK (length("color") = 0 or "color" in ('amarela', 'azul', 'bege', 'branca', 'cinza', 'dourada', 'fantasia', 'grena', 'laranja', 'marrom', 'prata', 'preta', 'rosa', 'roxa', 'verde', 'vermelha'));

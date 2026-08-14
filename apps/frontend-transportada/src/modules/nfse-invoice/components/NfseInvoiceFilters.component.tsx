@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { NfseInvoiceTableController } from '../hooks/useNfseInvoiceTable.hook'
 import { NFSE_INVOICE_STATUSES } from '../shared/nfseInvoice.types'
@@ -46,8 +47,9 @@ export function NfseInvoiceFilters({ table }: NfseInvoiceFiltersProps): JSX.Elem
             <label>
               <span>{t('filters.takerTaxId')}</span>
               <input
-                inputMode="numeric"
-                onChange={(event) => table.setTextFilter('takerTaxId', event.target.value)}
+                onChange={(event) =>
+                  table.setTextFilter('takerTaxId', normalizeTaxId(event.target.value))
+                }
                 placeholder={t('filters.takerTaxIdPlaceholder')}
                 type="text"
                 value={table.filters.takerTaxId}
