@@ -327,7 +327,7 @@ Quatro decisões:
 3. **A chave do template é prefixada pela categoria** (`cte-batch.issuance-failed`) e é identidade
    de negócio: renomear quebra template já publicado no banco.
 4. **Os marcadores são declarados na entrada** e o contrato compara nos dois sentidos com o que o
-   texto usa. Marcador não declarado renderiza string vazia — o e-mail sai com "o lote  falhou" e
+   texto usa. Marcador não declarado renderiza string vazia — o e-mail sai com "o lote falhou" e
    nada falha.
 
 A semente é derivada do catálogo (`buildNotificationTemplateSeeds`), nunca escrita à mão, e o
@@ -400,3 +400,31 @@ bun run --cwd apps/frontend-transportada typecheck  → limpo
 bun run --cwd apps/frontend-transportada lint       → limpo
 bun run --cwd apps/frontend-transportada build      → ok (PWA, 12 entradas)
 ```
+
+## T013 — portões de fechamento
+
+```
+make check                 → format:check falha em 4 docs de spec de outra feature (035, 037);
+                             o restante do portão foi rodado direto:
+bun run lint (4 apps)      → limpo
+bun run typecheck (4 apps) → limpo
+bun run test  api          → 2456 pass · 0 fail (104 arquivos)
+bun run test  worker       → 445 pass · 0 fail
+bun run test  cron         → 148 pass · 0 fail
+bun run test  frontend     → 1152 pass · 0 fail
+bun run build (4 apps)     → ok
+make migration-test        → 64 pass · 0 fail (migration + rollback em Postgres descartável)
+make worker-integration    → 39 pass · 0 fail (RabbitMQ, MinIO e Postgres reais)
+```
+
+**Varredura de log.** Os quatro únicos pontos que logam no caminho de notificação —
+`notification_trigger_failed` (worker e cron), `notification_schedule_failed` e
+`billing_invoice_due_swept` — carregam id, contagem, `templateKey`, `dedupeKey` e razão de erro.
+Nenhum endereço de destinatário aparece em nenhum nível. O endereço só existe dentro de
+`identity-recipient.resolver.ts`, que o devolve ao módulo para a entrega e não o registra; a política
+de disparo referencia a pessoa por `recipientUserId` e nada mais. Os payloads dos três avisos levam
+`batchName`, `failedCount`, `dueDate`, `invoiceNumber` e `rejectionReason` — nenhum dado pessoal.
+
+⏳ **Pendente:** as três telas lidas em staging com dado real. Depende do deploy, que sai pelo
+pipeline do GitHub, e de `NOTIFICATION_SUPPRESSION_HMAC_KEY` configurada nos três serviços
+(API, worker e cron), mais o passo de seed dos templates no pipeline. Enquanto isso T013 fica aberta.

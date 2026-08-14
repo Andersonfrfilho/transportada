@@ -32,9 +32,7 @@ describe('contrato dos disparos de notificação do worker', () => {
     expect(notification.recipientUserId).toBe(OPERATOR_ID)
     expect(Object.keys(notification.payload).toSorted()).toEqual(
       [
-        ...NOTIFICATION_TEMPLATE_PLACEHOLDERS[
-          NOTIFICATION_TEMPLATE_KEY.CTE_BATCH_ISSUANCE_FAILED
-        ],
+        ...NOTIFICATION_TEMPLATE_PLACEHOLDERS[NOTIFICATION_TEMPLATE_KEY.CTE_BATCH_ISSUANCE_FAILED],
       ].toSorted(),
     )
   })

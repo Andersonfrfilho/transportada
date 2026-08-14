@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { NOTIFICATION_CHANNEL, extractTemplatePlaceholders } from '@adatechnology/notification-contracts'
+import {
+  NOTIFICATION_CHANNEL,
+  extractTemplatePlaceholders,
+} from '@adatechnology/notification-contracts'
 
 import { buildNotificationTemplateSeeds } from '../../src/notification/application/notification-template-seed.service.js'
 import {

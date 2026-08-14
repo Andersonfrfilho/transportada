@@ -14,7 +14,8 @@ export const NOTIFICATION_CATEGORY = {
   IDENTITY: 'identity',
   NFSE: 'nfse',
 } as const
-export type NotificationCategory = (typeof NOTIFICATION_CATEGORY)[keyof typeof NOTIFICATION_CATEGORY]
+export type NotificationCategory =
+  (typeof NOTIFICATION_CATEGORY)[keyof typeof NOTIFICATION_CATEGORY]
 
 /**
  * Os canais que este produto entrega. O módulo conhece push, WhatsApp e SMS; nenhum deles tem

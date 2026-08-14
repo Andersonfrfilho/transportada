@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { CronConfigurationError, parseCronEnvironment } from '../../src/config/environment.schema.js'
+import {
+  CronConfigurationError,
+  parseCronEnvironment,
+} from '../../src/config/environment.schema.js'
 import { NOTIFICATION_SCHEDULES_JOB } from '../../src/notification-schedules/domain/notification-schedules.constant.js'
 import { resolveCronJob } from '../../src/job-registry.js'
 

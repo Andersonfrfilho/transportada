@@ -4,10 +4,7 @@
 import { and, count, eq, inArray } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
-import {
-  cteBatches,
-  cteIssuanceAttempts,
-} from '../../database/cte-issuance-execution.schema.js'
+import { cteBatches, cteIssuanceAttempts } from '../../database/cte-issuance-execution.schema.js'
 import {
   CTE_ISSUANCE_ITEM_STATUSES,
   isSettledCteIssuanceStatus,
@@ -31,10 +28,7 @@ export function createCteBatchFailureQuery(database: Database) {
     readonly batchId: string
     readonly companyId: string
   }): Promise<CteBatchFailureSummary | undefined> {
-    const scope = and(
-      eq(cteBatches.companyId, input.companyId),
-      eq(cteBatches.id, input.batchId),
-    )
+    const scope = and(eq(cteBatches.companyId, input.companyId), eq(cteBatches.id, input.batchId))
 
     const [batch] = await database
       .select({ name: cteBatches.name, operatorUserId: cteBatches.operatorUserId })

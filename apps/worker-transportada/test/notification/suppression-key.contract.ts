@@ -22,9 +22,9 @@ const ENVIRONMENT = {
  */
 describe('contrato da chave de supressão no worker', () => {
   test('a chave declarada chega à configuração', () => {
-    expect(
-      parseWorkerCryptographicConfiguration(ENVIRONMENT).notificationSuppressionHmacKey,
-    ).toBe(SUPPRESSION_KEY)
+    expect(parseWorkerCryptographicConfiguration(ENVIRONMENT).notificationSuppressionHmacKey).toBe(
+      SUPPRESSION_KEY,
+    )
   })
 
   test.each([

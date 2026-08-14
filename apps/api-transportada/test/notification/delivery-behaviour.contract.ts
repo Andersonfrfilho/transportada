@@ -47,7 +47,10 @@ function collectingQueue(): { readonly jobs: NotificationJob[]; readonly queue: 
 
 function emailDriver(result: DeliveryAttemptResult): {
   readonly attempts: EmailAttempt[]
-  readonly driver: { readonly driver: string; send(params: SendEmailParams): Promise<DeliveryAttemptResult> }
+  readonly driver: {
+    readonly driver: string
+    send(params: SendEmailParams): Promise<DeliveryAttemptResult>
+  }
 } {
   const attempts: EmailAttempt[] = []
   return {
