@@ -440,3 +440,16 @@ sem ele o deploy quebraria só dentro do contêiner, com `Cannot find module`.
 O trilho agendado ganhou serviço próprio: `deploy/cron-notifications/railway.json`
 (`CRON_JOB=notification.schedules.run`, de hora em hora) e o passo correspondente no `deploy.yml`,
 ao lado de `cron` e `cron-nfse`.
+
+### Furo achado ao configurar o deploy
+
+`notificationSchedules` só era resolvido quando `CRON_JOB` era o job de rotinas — o job de NFS-e,
+que também avisa (rejeição da prefeitura, T009), recebia `undefined` e nunca construía o notificador.
+A rejeição morria no banco e ninguém era avisado, sem nada falhar. Agora o trilho é resolvido para os
+dois jobs: obrigatório no dono, **opcional** no de NFS-e — nenhuma das três variáveis declarada, sobe
+calado; qualquer uma declarada, as três são exigidas, porque chave sem broker publicaria em lugar
+nenhum. `test/notification-schedules/environment.contract.ts` cobre os três ramos.
+
+```
+bun run --cwd apps/cron-transportada test → 151 pass · 0 fail
+```

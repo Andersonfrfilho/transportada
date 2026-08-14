@@ -90,10 +90,7 @@ export function parseCronEnvironment(
       result.data.CRON_JOB === NFSE_STATUS_PULL_JOB
         ? resolveNfseStatusPullEnvironment(result.data)
         : undefined,
-    notificationSchedules:
-      result.data.CRON_JOB === NOTIFICATION_SCHEDULES_JOB
-        ? resolveNotificationSchedulesEnvironment(result.data)
-        : undefined,
+    notificationSchedules: resolveNotificationEnvironment(result.data),
     pageSize: result.data.PAGE_SIZE,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
@@ -146,6 +143,29 @@ const BASE64_32_BYTES_PATTERN = /^[A-Za-z0-9+/]{43}=$/
  * para gravar. Chave diferente produz HMAC que não casa com nada — e o e-mail volta a sair para
  * quem já recusou. Falhar no boot é preferível a descobrir isso na primeira entrega.
  */
+/**
+ * O dono do trilho é o job de rotinas: sem broker ele não tem o que fazer, e falha no boot. O job
+ * de NFS-e só avisa de rejeição de passagem — ali o broker é opcional, e a reconciliação roda
+ * calada quando não há nenhum. Meia configuração é engano nos dois casos: chave sem broker
+ * publicaria em lugar nenhum, e é por isso que o ramo opcional só aceita tudo ou nada.
+ */
+function resolveNotificationEnvironment(
+  data: z.output<typeof cronEnvironmentSchema>,
+): CronNotificationSchedulesEnvironment | undefined {
+  if (data.CRON_JOB === NOTIFICATION_SCHEDULES_JOB) {
+    return resolveNotificationSchedulesEnvironment(data)
+  }
+  if (data.CRON_JOB !== NFSE_STATUS_PULL_JOB) return undefined
+
+  const declared = [
+    data.NOTIFICATION_SUPPRESSION_HMAC_KEY,
+    data.QUEUE_PREFIX,
+    data.RABBITMQ_URL,
+  ].filter((value) => value !== undefined)
+
+  return declared.length === 0 ? undefined : resolveNotificationSchedulesEnvironment(data)
+}
+
 function resolveNotificationSchedulesEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
 ): CronNotificationSchedulesEnvironment {

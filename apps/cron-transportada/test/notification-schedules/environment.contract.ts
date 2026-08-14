@@ -25,6 +25,18 @@ const BASE_ENVIRONMENT = {
   RABBITMQ_URL: 'amqp://localhost:55672',
 } as const
 
+/** O job de NFS-e exige o bloco dele; aqui ele é só cenário para o trilho de aviso. */
+const NFSE_SETTINGS = {
+  ENCRYPTION_ACTIVE_KEY_ID: 'k1',
+  ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
+  NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'https://homologacao.example.com',
+  NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.example.com',
+  STORAGE_ACCESS_KEY: 'access',
+  STORAGE_BUCKET: 'transportada',
+  STORAGE_ENDPOINT: 'http://localhost:59000',
+  STORAGE_SECRET_KEY: 'secret',
+} as const
+
 describe('contrato do job de rotinas de notificação', () => {
   test('o registro conhece o job', () => {
     expect(typeof resolveCronJob(NOTIFICATION_SCHEDULES_JOB)).toBe('function')
@@ -50,6 +62,47 @@ describe('contrato do job de rotinas de notificação', () => {
         RABBITMQ_URL: undefined,
       }).notificationSchedules,
     ).toBeUndefined()
+  })
+
+  /**
+   * O job de NFS-e avisa quem pediu a nota quando a prefeitura recusa. Ele não é o dono do trilho,
+   * então o broker é opcional ali: configurado, o aviso sai; ausente, a reconciliação roda calada.
+   * Sem este ramo o notificador nunca era construído e a rejeição morria só no banco.
+   */
+  test('o job de NFS-e resolve o trilho quando o broker está configurado', () => {
+    expect(
+      parseCronEnvironment({ ...BASE_ENVIRONMENT, CRON_JOB: 'nfse.status.pull', ...NFSE_SETTINGS })
+        .notificationSchedules,
+    ).toEqual({
+      queuePrefix: 'transportada_test',
+      rabbitMqUrl: 'amqp://localhost:55672',
+      suppressionHmacKey: SUPPRESSION_KEY,
+    })
+  })
+
+  test('o job de NFS-e sobe sem broker declarado, e sem aviso', () => {
+    expect(
+      parseCronEnvironment({
+        ...BASE_ENVIRONMENT,
+        CRON_JOB: 'nfse.status.pull',
+        ...NFSE_SETTINGS,
+        NOTIFICATION_SUPPRESSION_HMAC_KEY: undefined,
+        QUEUE_PREFIX: undefined,
+        RABBITMQ_URL: undefined,
+      }).notificationSchedules,
+    ).toBeUndefined()
+  })
+
+  // Meia configuração é engano, não opção: chave sem broker publicaria em lugar nenhum.
+  test('o job de NFS-e falha no boot com meia configuração de aviso', () => {
+    expect(() =>
+      parseCronEnvironment({
+        ...BASE_ENVIRONMENT,
+        CRON_JOB: 'nfse.status.pull',
+        ...NFSE_SETTINGS,
+        RABBITMQ_URL: undefined,
+      }),
+    ).toThrow(CronConfigurationError)
   })
 
   // Falhar no boot é preferível a rodar o ciclo e descobrir na primeira entrega que a supressão
