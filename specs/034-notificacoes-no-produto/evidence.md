@@ -98,3 +98,45 @@ Ran 2424 tests across 99 files.
 
 $ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
 ```
+
+## T004 — rotas do módulo sob `/v1`
+
+`createModuleFetchRouter` entra no `createRouter` como `moduleRouter`, e a delegação acontece
+**antes** do `authentication.authenticate` da aplicação. Não é detalhe: o módulo tem rota de escopo
+`public` (o webhook de recibo, que se protege por assinatura sobre o `rawBody`), e autenticar aqui
+daria 401 no que é público por contrato. Os dois conjuntos de caminho são disjuntos pelo prefixo
+`/v1`, que nenhuma rota da aplicação usa — o módulo é superfície de terceiro e versiona no ritmo
+dele.
+
+O `authResolver` (`notification-auth.resolver.ts`) é o mesmo caminho de sempre: token pelo
+`authentication`, empresa pelo `tenantContext`. Token recusado vira identidade não resolvida (401 no
+módulo, sem distinguir ausente de expirado). Falta de vínculo **não** vira 401: o `ApiError` 403 é
+traduzido para a forma que o filtro do `module-http` reconhece (`statusCode`/`code`/`message`), senão
+"não tem acesso a esta empresa" chegaria ao cliente como "não se identificou".
+
+As rotas do módulo também alimentam o `allowedMethods`, que é a fonte do preflight — rota nova ganha
+CORS por existir, sem lista paralela. O formato do segmento dinâmico ali é `raw`, e não
+`canonicalUuid`, porque `:driver` do webhook não é UUID.
+
+Sem `webhookSecret` o próprio módulo não publica a rota de recibo: o caminho responde **404, não
+401**. Ele fica assim até o T005, que traz assinatura, janela de timestamp e nonce — publicar antes
+seria aceitar qualquer corpo como recibo.
+
+⚠️ As rotas de template têm escopo `admin` no módulo e `requiredScopes` vazio, o que o `module-http`
+lê como "qualquer escopo do host": hoje qualquer usuário com vínculo ativo lista e cria template. O
+`createNotificationRoutes` não expõe como restringir isso. Registrado para o T008, que é quando o
+catálogo passa a ter dono.
+
+```
+$ bun test ./test/notification-http.contract.test.ts
+ 8 pass
+ 0 fail
+
+$ bun run --cwd apps/api-transportada test
+ 2420 pass
+ 12 skip
+ 0 fail
+Ran 2432 tests across 100 files.
+
+$ bun run typecheck && bun run lint   # raiz, quatro apps, sem achados
+```

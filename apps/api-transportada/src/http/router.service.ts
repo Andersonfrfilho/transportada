@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ModuleFetchRouter } from '@adatechnology/module-http/fetch'
+
 import type { CompanyFiscalEnvironmentPort } from '../companies/application/company-fiscal-environment.port'
 import type { FiscalEnvironment } from '../database/database.schema'
 import type { HealthService } from '../health/health.service'
@@ -8,6 +10,7 @@ import type { AuthenticationPort } from '../identity/application/identity.port'
 import type { TenantContextService } from '../identity/application/tenant-context.service'
 import type { RouteAuthorizationPolicy } from '../identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../identity/domain/tenant-context'
+import { NOTIFICATION_ROUTES_BASE_PATH } from '../notification/notification.constant'
 import {
   API_AUTH_ME_PATH,
   API_LIVE_PATH,
@@ -128,6 +131,12 @@ type CreateRouterParams = {
   readonly authorization: RouteAuthorizationPort
   readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly healthService: HealthService
+  /**
+   * Módulo plugável servido pelo adaptador dele: resolve a própria autenticação pelo `authResolver`
+   * da aplicação e devolve `Response` pronta. Entra depois das rotas nossas e antes do 404 daqui —
+   * um caminho do produto nunca é capturado por engano.
+   */
+  readonly moduleRouter?: ModuleFetchRouter
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
 }
@@ -138,12 +147,14 @@ export function createRouter({
   authorization,
   companyFiscalEnvironment,
   healthService,
+  moduleRouter,
   routes,
   tenantContext,
 }: CreateRouterParams): HttpRouter {
+  const moduleCandidates = toModuleCandidates(moduleRouter)
   return Object.freeze({
     allowedMethods(pathname: string): readonly string[] {
-      return collectAllowedMethods({ anonymousRoutes, pathname, routes })
+      return collectAllowedMethods({ anonymousRoutes, moduleCandidates, pathname, routes })
     },
     async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
@@ -162,6 +173,11 @@ export function createRouter({
       if (anonymousRoutes.some((candidate) => routeMatchesPathname({ candidate, pathname }))) {
         throw new ApiError(HTTP_ERROR.notFound)
       }
+
+      // Antes de autenticar aqui: o módulo tem rota pública (webhook, protegida por assinatura) e
+      // resolve identidade pelo `authResolver` dele. Autenticar duas vezes daria 401 no que é
+      // público. Os conjuntos são disjuntos pelo prefixo `/v1`, que nenhuma rota nossa usa.
+      if (moduleRouter?.match(request) === true) return moduleRouter.handle(request)
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
@@ -221,14 +237,30 @@ export function defineAnonymousRoute<TInput>(
   })
 }
 
+/**
+ * O módulo declara as rotas dele como dado; aqui elas viram candidatas só para o preflight. O
+ * formato é `raw` porque o segmento dinâmico do módulo nem sempre é UUID (`:driver` do webhook), e
+ * exigir UUID esconderia o caminho do CORS.
+ */
+function toModuleCandidates(moduleRouter: ModuleFetchRouter | undefined): DynamicRouteCandidate[] {
+  if (moduleRouter === undefined) return []
+  return moduleRouter.routes.map((route) => ({
+    method: route.method,
+    pathParameterFormat: 'raw' as const,
+    pathname: `${NOTIFICATION_ROUTES_BASE_PATH}${route.path}`,
+  }))
+}
+
 type CollectAllowedMethodsParams = {
   readonly anonymousRoutes: readonly RegisteredAnonymousRoute[]
+  readonly moduleCandidates: readonly DynamicRouteCandidate[]
   readonly pathname: string
   readonly routes: readonly RegisteredRouterRoute[]
 }
 
 function collectAllowedMethods({
   anonymousRoutes,
+  moduleCandidates,
   pathname,
   routes,
 }: CollectAllowedMethodsParams): readonly string[] {
@@ -242,8 +274,11 @@ function collectAllowedMethods({
   const authenticatedMethods = routes
     .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
     .map((candidate) => candidate.method)
+  const moduleMethods = moduleCandidates
+    .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
+    .map((candidate) => candidate.method)
 
-  return [...new Set([...anonymousMethods, ...authenticatedMethods])].sort(
+  return [...new Set([...anonymousMethods, ...authenticatedMethods, ...moduleMethods])].sort(
     (left, right) => methodRank(left) - methodRank(right),
   )
 }

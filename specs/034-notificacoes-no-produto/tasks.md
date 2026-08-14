@@ -26,7 +26,7 @@ Uma task por vez. Teste de contrato **antes** da implementação. Evidência em 
       `REQUEST_TIMEOUT_SECONDS` em 10. Contrato em `test/server/sse-timeout.contract.ts`: conexão
       viva além de 25s (o heartbeat do módulo) — é este teste que guarda a decisão, porque a falha
       real é silenciosa.
-- [ ] **T004** Montar `createNotificationRoutes` via `createModuleFetchRouter` sob `/v1` com o
+- [x] **T004** Montar `createNotificationRoutes` via `createModuleFetchRouter` sob `/v1` com o
       `authResolver` da aplicação. Contrato em `test/notification/http.contract.ts`: as rotas de
       inbox, preferências e templates respondem; isolamento entre empresas; sem `webhookSecret` a
       rota de webhook **não existe** (404, não 401).

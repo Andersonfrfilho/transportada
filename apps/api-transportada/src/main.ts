@@ -180,6 +180,8 @@ import {
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
+import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -205,8 +207,6 @@ export function bootstrap(): Bun.Server<undefined> {
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
   })
-  // As rotas do módulo entram no T004; aqui ele já sobe porque é no boot que a falta da chave de
-  // supressão ou do remetente precisa aparecer — não no primeiro envio.
   const notifications = createApiNotificationModule({ config, db: database.db })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
@@ -217,6 +217,12 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    // Sem `webhookSecret` a rota de recibo não é publicada — ela entra no T005, junto da
+    // verificação de assinatura. Publicar antes seria aceitar qualquer corpo como recibo.
+    moduleRouter: createNotificationHttpRouter({
+      authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
+      module: notifications,
+    }),
     routes: createApplicationRoutes({
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
