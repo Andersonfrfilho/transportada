@@ -174,14 +174,14 @@ Tem de imprimir `[]`. Banco de production com proxy aberto e esquecido é o inci
 O `pg_dump` leva o dado. Não leva nada disto, e sem estes itens o dado restaurado não volta a
 funcionar:
 
-| Item                              | Consequência de perder                                                    |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `ENCRYPTION_KEYRING_JSON`         | Todo certificado A1 vira envelope indecifrável (ADR-0004)                 |
-| `IDEMPOTENCY_HMAC_KEY`            | Chaves de idempotência antigas param de casar                             |
-| `NOTIFICATION_SUPPRESSION_HMAC_KEY` | As supressões de e-mail param de casar e o envio volta a quem recusou   |
-| XML fiscal no bucket              | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe   |
-| Configuração do realm feita à mão | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
-| Variáveis de ambiente do Railway  | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis             |
+| Item                                | Consequência de perder                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `ENCRYPTION_KEYRING_JSON`           | Todo certificado A1 vira envelope indecifrável (ADR-0004)                 |
+| `IDEMPOTENCY_HMAC_KEY`              | Chaves de idempotência antigas param de casar                             |
+| `NOTIFICATION_SUPPRESSION_HMAC_KEY` | As supressões de e-mail param de casar e o envio volta a quem recusou     |
+| XML fiscal no bucket                | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe   |
+| Configuração do realm feita à mão   | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
+| Variáveis de ambiente do Railway    | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis             |
 
 Por isso o backup do banco sozinho **não** é o backup do produto. As duas linhas seguintes fazem
 parte do mesmo procedimento.

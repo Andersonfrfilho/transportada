@@ -149,27 +149,27 @@ custeá-lo e o que a fiscalização cobra na estrada:
 
 ## Campos novos — o que entra e o que fica de fora
 
-| Campo                                      | Entra? | Por quê                                                                                                     |
-| ------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------- |
-| `brand` — marca                            | ✅     | pedido; a consulta por placa já devolve                                                                     |
-| `model` — modelo                           | ✅     | pedido; a consulta por placa já devolve                                                                     |
-| `axle_count` — eixos                       | ✅     | pedido; nenhuma fonte externa informa, é digitado                                                           |
-| `model_year` — ano do modelo               | ✅     | **a consulta já devolve e é descartado.** Custo de digitação zero, e separa duas carretas iguais no pátio    |
-| `fleet_number` — número de frota           | ✅     | é o `cInt` do `veicTracao`, campo do layout do MDF-e que hoje sai vazio ("frota 42")                         |
-| `average_consumption` — km/l               | ✅     | pedido; base do custo de combustível por quilômetro                                                          |
-| `cost_per_kilometer` — custo variável/km    | ✅     | pedido; combustível + manutenção + pneu, informado pela transportadora                                      |
-| `acquisition_amount` — valor de aquisição  | ✅     | pedido; é a referência de depreciação e de decisão de troca                                                  |
-| `monthly_installment_amount` — parcela     | ✅     | pedido; componente do custo fixo mensal                                                                     |
-| `annual_vehicle_tax_amount` — IPVA anual   | ✅     | pedido; componente do custo fixo mensal                                                                     |
-| `annual_insurance_amount` — seguro anual   | ✅     | pedido; componente do custo fixo mensal                                                                     |
-| `costs_updated_at`                         | ✅     | custo sem data de referência não se sabe se é deste ano                                                      |
-| documentos com vencimento e anexo          | ✅     | pedido; tabela própria (`fleet_vehicle_documents`), não coluna                                               |
-| custo fixo mensal somado                   | ❌     | derivado — decisão 9                                                                                        |
-| histórico de custo                         | ❌     | decisão 11; nenhum consumidor hoje                                                                          |
-| preço do litro de combustível              | ❌     | é parâmetro da empresa, não do veículo, e só serve à precificação por quilômetro, que está fora             |
-| chassi                                     | ❌     | nenhum documento nosso pede, nenhuma regra lê. Identidade única já é a placa, com `unique` por empresa      |
-| cor                                        | ❌     | mesma razão; e não sabemos se o provedor de placa devolve — assumir que devolve é adivinhar                 |
-| combustível                                | ❌     | só serviria para categoria de pedágio, que depende da decisão em aberto lá embaixo                          |
+| Campo                                     | Entra? | Por quê                                                                                                   |
+| ----------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| `brand` — marca                           | ✅     | pedido; a consulta por placa já devolve                                                                   |
+| `model` — modelo                          | ✅     | pedido; a consulta por placa já devolve                                                                   |
+| `axle_count` — eixos                      | ✅     | pedido; nenhuma fonte externa informa, é digitado                                                         |
+| `model_year` — ano do modelo              | ✅     | **a consulta já devolve e é descartado.** Custo de digitação zero, e separa duas carretas iguais no pátio |
+| `fleet_number` — número de frota          | ✅     | é o `cInt` do `veicTracao`, campo do layout do MDF-e que hoje sai vazio ("frota 42")                      |
+| `average_consumption` — km/l              | ✅     | pedido; base do custo de combustível por quilômetro                                                       |
+| `cost_per_kilometer` — custo variável/km  | ✅     | pedido; combustível + manutenção + pneu, informado pela transportadora                                    |
+| `acquisition_amount` — valor de aquisição | ✅     | pedido; é a referência de depreciação e de decisão de troca                                               |
+| `monthly_installment_amount` — parcela    | ✅     | pedido; componente do custo fixo mensal                                                                   |
+| `annual_vehicle_tax_amount` — IPVA anual  | ✅     | pedido; componente do custo fixo mensal                                                                   |
+| `annual_insurance_amount` — seguro anual  | ✅     | pedido; componente do custo fixo mensal                                                                   |
+| `costs_updated_at`                        | ✅     | custo sem data de referência não se sabe se é deste ano                                                   |
+| documentos com vencimento e anexo         | ✅     | pedido; tabela própria (`fleet_vehicle_documents`), não coluna                                            |
+| custo fixo mensal somado                  | ❌     | derivado — decisão 9                                                                                      |
+| histórico de custo                        | ❌     | decisão 11; nenhum consumidor hoje                                                                        |
+| preço do litro de combustível             | ❌     | é parâmetro da empresa, não do veículo, e só serve à precificação por quilômetro, que está fora           |
+| chassi                                    | ❌     | nenhum documento nosso pede, nenhuma regra lê. Identidade única já é a placa, com `unique` por empresa    |
+| cor                                       | ❌     | mesma razão; e não sabemos se o provedor de placa devolve — assumir que devolve é adivinhar               |
+| combustível                               | ❌     | só serviria para categoria de pedágio, que depende da decisão em aberto lá embaixo                        |
 
 ## Comportamento
 
