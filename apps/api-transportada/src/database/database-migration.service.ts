@@ -66,10 +66,4 @@ if (import.meta.main) {
   await runAllDatabaseMigrations({
     connectionString,
   })
-
-  // As migrations do schema de notificações viajam dentro do pacote e têm tabela de controle
-  // própria, então rodam depois — e só aqui, no passo manual: o startup da API não migra nada.
-  await runNotificationSchemaMigrations({
-    connectionString,
-  })
 }
