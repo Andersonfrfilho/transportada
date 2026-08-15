@@ -10,6 +10,7 @@ import {
 } from './fleet.types'
 
 const UNSIGNED_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/
+const DECIMAL_PATTERN = /^\d+(?:\.\d+)?$/
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -25,6 +26,19 @@ export function isNullableString(value: unknown): value is null | string {
 
 export function isUnsignedIntegerString(value: unknown): value is string {
   return isString(value) && UNSIGNED_INTEGER_PATTERN.test(value)
+}
+
+/** Dinheiro e consumo chegam como decimal string — número binário aqui é resposta inválida. */
+export function isDecimalString(value: unknown): value is string {
+  return isString(value) && DECIMAL_PATTERN.test(value)
+}
+
+export function isNullableDecimalString(value: unknown): value is null | string {
+  return value === null || isDecimalString(value)
+}
+
+export function isUnsignedIntegerNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
 export function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

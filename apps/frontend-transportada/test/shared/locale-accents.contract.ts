@@ -7,6 +7,7 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const LOCALE_PATTERN = 'src/modules/*/locales/*.locale.json'
 const ENGLISH_MARK = '.en.locale.json'
 const WORD_PATTERN = /[A-Za-zÀ-ÿ]+/g
+const INTERPOLATION_PATTERN = /\{\{[^}]*\}\}/g
 
 /** Palavras que em pt-BR nunca existem sem acento: encontrá-las é erro de digitação, não escolha. */
 const UNACCENTED_FORMS: readonly string[] = [
@@ -136,9 +137,17 @@ function listBrazilianLocalePaths(): readonly string[] {
   return paths.filter((path) => !path.endsWith(ENGLISH_MARK)).sort()
 }
 
+/**
+ * `{{municipio}}` é identificador de interpolação, não prosa: quem o escreve acentuado quebra a
+ * substituição. A varredura de acentos olha o texto sem os marcadores.
+ */
+function withoutInterpolation(text: string): string {
+  return text.replace(INTERPOLATION_PATTERN, ' ')
+}
+
 function collectUnaccentedWords(node: unknown, keyPath: string, found: string[]): void {
   if (typeof node === 'string') {
-    for (const word of node.match(WORD_PATTERN) ?? []) {
+    for (const word of withoutInterpolation(node).match(WORD_PATTERN) ?? []) {
       if (FORBIDDEN.has(word.toLowerCase())) found.push(`${keyPath}: ${word}`)
     }
     return

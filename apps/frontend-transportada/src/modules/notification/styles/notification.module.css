@@ -1,0 +1,60 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * O pacote desenha com as variáveis `--adn-*` dele. Este bloco é a tradução para os nossos tokens,
+ * e é a única fronteira: nenhuma cor ou medida literal entra aqui, senão o módulo de terceiro para
+ * de acompanhar uma mudança de tema.
+ *
+ * São os nomes **curtos** que se preenchem: o pacote redeclara `--adn-color-*` nas classes dele
+ * (`.adn-bell`, `.adn-list`, …), que ficam abaixo daqui na cascata. Escrever `--adn-color-surface`
+ * seria escrever no lugar que ele sobrescreve, e o tema não pegaria.
+ */
+.notificationTheme {
+  --adn-accent: var(--color-copper);
+  --adn-border: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  --adn-danger: var(--color-alert);
+  --adn-muted: var(--color-slate);
+  --adn-radius-md: var(--space-2);
+  --adn-space-2: var(--space-2);
+  --adn-space-3: var(--space-3);
+  --adn-space-4: var(--space-4);
+  --adn-surface: var(--color-graphite);
+  --adn-text: var(--color-fog);
+
+  font-family: var(--font-body);
+}
+
+.notificationShell {
+  width: var(--layout-width);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-block: var(--space-6);
+}
+
+.notificationHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.notificationTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-fog);
+}
+
+.notificationSubtitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: var(--field-font-size);
+}
+
+.notificationBell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { useDriverForm } from '../hooks/useDriverForm.hook'
 import type {
@@ -67,11 +68,10 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
             onChange={(taxId) => form.patch({ taxId })}
           />
           <FleetField
-            inputMode="numeric"
             label={t('driverLinkedTaxId')}
             maxLength={14}
             value={form.state.linkedTaxId}
-            onChange={(linkedTaxId) => form.patch({ linkedTaxId })}
+            onChange={(linkedTaxId) => form.patch({ linkedTaxId: normalizeTaxId(linkedTaxId) })}
           />
           <FleetField
             inputMode="numeric"

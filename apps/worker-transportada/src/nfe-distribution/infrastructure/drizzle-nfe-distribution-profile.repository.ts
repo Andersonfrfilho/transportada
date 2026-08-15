@@ -6,6 +6,7 @@ import { and, desc, eq } from 'drizzle-orm'
 
 import { digitalCertificates } from '../../database/cte-issuance-execution.schema.js'
 import { companyFiscalProfiles } from '../../database/nfe.schema.js'
+import { normalizeTaxId } from '../../shared/tax-id.service.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -82,7 +83,9 @@ export class DrizzleNfeDistributionProfileRepository {
     if (certificate === undefined || certificate.secretEnvelope === null) {
       throw new Error('NFE_DISTRIBUTION_CERTIFICATE_MISSING')
     }
-    if (certificate.validatedCnpj !== profile.cnpj) {
+    // Certificado e perfil vêm de tabelas diferentes: com letra na base do CNPJ, comparar cru faz
+    // caixa ou pontuação divergente parecer certificado de outra empresa
+    if (normalizeTaxId(certificate.validatedCnpj) !== normalizeTaxId(profile.cnpj)) {
       throw new Error('NFE_DISTRIBUTION_CERTIFICATE_CNPJ_MISMATCH')
     }
 

@@ -111,6 +111,7 @@ const PAYLOAD_SOURCE: MdfeIssuancePayloadSource = {
     bodyType: '01',
     capacityKg: 25000n,
     capacityM3: 90n,
+    fleetNumber: '',
     ownerName: '',
     ownerRntrc: '',
     ownerState: '',

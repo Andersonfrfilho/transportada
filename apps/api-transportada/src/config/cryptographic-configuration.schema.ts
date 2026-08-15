@@ -11,6 +11,12 @@ const KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 export type CryptographicConfiguration = {
   readonly envelopeKeyRing: SecretKeyRing
   readonly idempotencyHmacKey: Uint8Array
+  /**
+   * O módulo de notificações recebe a chave como texto — é ele quem guarda só o HMAC do endereço
+   * suprimido. Sem ela, a supressão não casaria com ninguém e o e-mail continuaria saindo para
+   * quem já recusou; por isso é obrigatória no boot, e não tem valor padrão.
+   */
+  readonly notificationSuppressionHmacKey: string
 }
 
 export function parseCryptographicConfiguration(
@@ -33,10 +39,14 @@ function parseConfiguration(
   const envelopeKeys = parseKeyRing(encodedKeyRing)
   if (!Object.hasOwn(envelopeKeys, activeKeyId)) failConfiguration()
 
+  const encodedSuppressionKey = requireValue(environment.NOTIFICATION_SUPPRESSION_HMAC_KEY)
   const idempotencyHmacKey = decodeCanonicalKey(encodedHmacKey)
+  const suppressionHmacKey = decodeCanonicalKey(encodedSuppressionKey)
+  const reservedKeys = [...Object.values(envelopeKeys), idempotencyHmacKey]
   if (Object.values(envelopeKeys).some((key) => keysEqual(key, idempotencyHmacKey))) {
     failConfiguration()
   }
+  if (reservedKeys.some((key) => keysEqual(key, suppressionHmacKey))) failConfiguration()
 
   return {
     envelopeKeyRing: {
@@ -44,6 +54,7 @@ function parseConfiguration(
       keys: Object.freeze(envelopeKeys),
     },
     idempotencyHmacKey,
+    notificationSuppressionHmacKey: encodedSuppressionKey,
   }
 }
 

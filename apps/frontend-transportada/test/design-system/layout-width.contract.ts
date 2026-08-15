@@ -20,12 +20,20 @@ const SHELL_RULES = [
   },
   { filePath: 'src/modules/fleet/styles/fleet.module.css', selector: '.fleetShell' },
   {
+    filePath: 'src/modules/notification/styles/notification.module.css',
+    selector: '.notificationShell',
+  },
+  {
     filePath: 'src/modules/mdfe-manifest/styles/mdfeManifest.module.css',
     selector: '.manifestShell',
   },
   {
     filePath: 'src/modules/nfe-workspace/styles/nfeWorkspace.module.css',
     selector: '.workspaceShell',
+  },
+  {
+    filePath: 'src/modules/nfse-invoice/styles/nfseInvoice.module.css',
+    selector: '.nfseInvoiceShell',
   },
   { filePath: 'src/modules/operations/styles/operationsWorkspace.module.css', selector: '.shell' },
 ] as const

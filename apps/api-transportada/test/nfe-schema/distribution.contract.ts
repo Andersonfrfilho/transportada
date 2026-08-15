@@ -68,7 +68,7 @@ describe('NF-e distribution schema', () => {
       'nfe_documents',
     )
     expect(checkSqlByName(nfeEvents)).toMatchObject({
-      nfe_events_access_key_check: `"nfe_events"."target_access_key" ~ '^[0-9]{44}$'`,
+      nfe_events_access_key_check: `"nfe_events"."target_access_key" ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
       nfe_events_sequence_check: `"nfe_events"."event_sequence" > 0`,
       nfe_events_distribution_source_presence_check: `("nfe_events"."source_nsu" is null) = ("nfe_events"."environment" is null)`,
       nfe_events_source_nsu_check: `"nfe_events"."source_nsu" is null or "nfe_events"."source_nsu" ~ '^[0-9]{15}$'`,

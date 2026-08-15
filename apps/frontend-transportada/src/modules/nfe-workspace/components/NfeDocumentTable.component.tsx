@@ -3,17 +3,21 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
+import { buildNfseInvoiceDetailHref } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
 
 import {
   describeNfeDocumentFilterPills,
   type NfeDocumentFilterPill,
 } from '../shared/nfeDocumentFilterPills.service'
+import { NFSE_LINK_BLOCK_REASON } from '../shared/nfeWorkspace.constant'
 import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 import {
   AMOUNT_OPERATORS,
@@ -289,12 +293,23 @@ export function NfeDocumentTable({
     if (column === 'amount') {
       return copyableCell('amount', formatAmount(document.totalAmount), styles.amountCell)
     }
+    const nfseLink = resolveNfseLink(document)
     return (
       <td>
         <span className={`${styles.badge} ${DOCUMENT_STATUS_TONE[document.status] ?? ''}`}>
           {statusLabels[document.status]}
         </span>
-        {document.cteBlockReason !== null && (
+        {nfseLink !== null && (
+          <a
+            aria-label={nfseLink.label}
+            className={styles.nfseLink}
+            href={nfseLink.href}
+            title={nfseLink.label}
+          >
+            <Icon name="invoice" />
+          </a>
+        )}
+        {nfseLink === null && document.cteBlockReason !== null && (
           <span
             className={`${styles.badge} ${styles.badgeMuted}`}
             title={t('documents.blockedRow')}
@@ -304,6 +319,24 @@ export function NfeDocumentTable({
         )}
       </td>
     )
+  }
+
+  /**
+   * O vínculo com a nota de serviço vira ícone: a frase inteira ocupava mais espaço que o status e
+   * se repetia linha após linha. O número só existe depois que a prefeitura autoriza.
+   */
+  function resolveNfseLink(
+    document: NfeDocumentListItem,
+  ): null | Readonly<{ href: string; label: string }> {
+    if (document.cteBlockReason !== NFSE_LINK_BLOCK_REASON) return null
+    if (document.nfseInvoiceId === null) return null
+    return {
+      href: buildNfseInvoiceDetailHref(document.nfseInvoiceId),
+      label:
+        document.nfseInvoiceNumber === null
+          ? t('documents.nfseLinkPending')
+          : t('documents.nfseLink', { number: document.nfseInvoiceNumber }),
+    }
   }
 
   function blockReasonLabel(reason: string): string {
@@ -353,7 +386,7 @@ export function NfeDocumentTable({
           type="button"
         >
           <Icon name="filter" />
-          {filterCount > 0 && <span className={styles.filterCountPill}>{filterCount}</span>}
+          <CountBadge count={filterCount} />
         </button>
         <div className={styles.columnsMenuWrap}>
           <button
@@ -678,7 +711,7 @@ export function NfeDocumentTable({
           <div className={styles.selectionActions}>
             {cteEmission.canEmit && (
               <button
-                className={styles.iconActionActive}
+                className={styles.labelActionActive}
                 onClick={cteEmission.open}
                 title={t('documents.emitCte', { count: table.selectedCount })}
                 type="button"
@@ -687,6 +720,13 @@ export function NfeDocumentTable({
                 {t('documents.emitCte', { count: table.selectedCount })}
               </button>
             )}
+            <NfseEmissionAction
+              className={styles.labelActionActive}
+              {...(companyId === undefined ? {} : { companyId })}
+              documentIds={[...table.selectedIds]}
+              onEmitted={table.clearSelection}
+              permissions={permissions}
+            />
             <button
               aria-label={t('documents.downloadSelected')}
               className={styles.iconAction}

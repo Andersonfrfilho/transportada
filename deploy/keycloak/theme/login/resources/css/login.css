@@ -1,0 +1,471 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * A tela de login é a única superfície do produto que aparece antes da sessão existir. Os valores
+ * abaixo são cópia por valor dos tokens de `src/styles/index.css` do frontend — o tema do Keycloak
+ * não importa código nosso, e duas paletas diferentes no mesmo fluxo leem como dois produtos.
+ */
+:root {
+  --transportada-alert: #ff5f57;
+  --transportada-asphalt: #10222c;
+  --transportada-copper: #d58a47;
+  --transportada-fog: #f0f2ee;
+  --transportada-graphite: #1c2b33;
+  --transportada-ready: #6aae8c;
+  --transportada-slate: #8fa3ad;
+  --transportada-font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  --transportada-font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  --transportada-font-utility: 'SFMono-Regular', Consolas, monospace;
+  --transportada-space-1: 0.25rem;
+  --transportada-space-2: 0.5rem;
+  --transportada-space-3: 0.75rem;
+  --transportada-space-4: 1rem;
+  --transportada-space-5: 1.25rem;
+  --transportada-space-6: 1.5rem;
+  --transportada-space-8: 2rem;
+  --transportada-space-10: 2.5rem;
+  --transportada-field-height: 3rem;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* A linha de cobre atravessa a borda da coluna de propósito; `clip` a corta sem virar rolagem. */
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-width: 20rem;
+  color: var(--transportada-fog);
+  font-family: var(--transportada-font-body);
+  background: linear-gradient(125deg, var(--transportada-asphalt), var(--transportada-graphite));
+}
+
+/*
+ * Duas faixas de mesma altura em volta do painel o mantêm no centro óptico; o rodapé mora na última
+ * delas, encostado na base. Centralizar a pilha inteira (`align-content`) deixava o copyright
+ * pendurado logo abaixo do cartão, no meio da tela.
+ */
+.gate {
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  gap: var(--transportada-space-10);
+  min-height: 100vh;
+  padding: var(--transportada-space-8) var(--transportada-space-5);
+}
+
+/* A marca ocupa a página; o formulário é o instrumento ao lado dela. */
+@media (min-width: 60rem) {
+  .gate {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    /* Marca e painel dividem a primeira faixa; o rodapé fica sozinho na segunda. */
+    grid-template-rows: 1fr auto;
+    align-items: center;
+    gap: var(--transportada-space-10);
+    padding: var(--transportada-space-10) clamp(var(--transportada-space-8), 7vw, 6rem);
+  }
+
+  .brand {
+    align-self: center;
+  }
+}
+
+.brand {
+  display: grid;
+  /* Desce até o pé da faixa de cima, colada ao painel — esticada, a marca se afastaria dele. */
+  align-self: end;
+  gap: var(--transportada-space-4);
+  /* Cabe a palavra inteira em Impact no maior corpo da escala; abaixo disso ela vaza da coluna. */
+  max-width: 40rem;
+}
+
+.brand-wordmark {
+  position: relative;
+  margin: 0 0 var(--transportada-space-2);
+  font-family: var(--transportada-font-display);
+  font-size: clamp(2.75rem, 12vw, 6.5rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.84;
+  text-transform: uppercase;
+}
+
+/*
+ * A linha de cobre corre para fora da coluna, até a borda da tela. É a assinatura da tela: a rota
+ * que o produto acompanha, e a única liberdade que o resto da página não toma.
+ */
+.brand-wordmark::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + var(--transportada-space-4));
+  left: 0;
+  width: 100vw;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--transportada-copper),
+    color-mix(in srgb, var(--transportada-copper) 10%, transparent)
+  );
+}
+
+.brand-description {
+  margin: var(--transportada-space-6) 0 0;
+  max-width: 26rem;
+  color: var(--transportada-fog);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.brand-installation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--transportada-space-2);
+  margin: 0;
+  color: var(--transportada-slate);
+  font-family: var(--transportada-font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand-installation strong {
+  color: var(--transportada-copper);
+  font-weight: 400;
+}
+
+.panel {
+  display: grid;
+  gap: var(--transportada-space-5);
+  align-content: start;
+  width: min(28rem, 100%);
+  padding: var(--transportada-space-6);
+  border: 1px solid color-mix(in srgb, var(--transportada-copper) 45%, transparent);
+  background: var(--transportada-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--transportada-asphalt) 55%, transparent);
+}
+
+@media (min-width: 60rem) {
+  .panel {
+    justify-self: end;
+  }
+}
+
+#kc-page-title {
+  margin: 0;
+  font-family: var(--transportada-font-body);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel-description,
+.panel-required {
+  /* Encosta no título: a linha explica o título, não é o próximo assunto do painel. */
+  margin: calc(var(--transportada-space-3) * -1) 0 0;
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+.panel-attempt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--transportada-space-2);
+  justify-content: space-between;
+  margin: 0;
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+#kc-form-login {
+  display: grid;
+  gap: var(--transportada-space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--transportada-space-1);
+  align-content: start;
+}
+
+.field-label {
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+.field-input {
+  min-width: 0;
+  min-height: var(--transportada-field-height);
+  padding: var(--transportada-space-3);
+  border: 1px solid color-mix(in srgb, var(--transportada-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--transportada-fog);
+  font: inherit;
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--transportada-asphalt) 84%, transparent);
+}
+
+.field-control {
+  display: grid;
+}
+
+/* Campo e botão ocupam a mesma célula: o olho fica sobre a borda direita, sem alterar a altura. */
+.field-control > * {
+  grid-area: 1 / 1;
+}
+
+.field-control .field-input {
+  padding-right: calc(var(--transportada-field-height) - var(--transportada-space-2));
+}
+
+.field-reveal {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--transportada-field-height);
+  padding: 0;
+  border: 0;
+  color: var(--transportada-slate);
+  background: none;
+  cursor: pointer;
+}
+
+.field-reveal:hover {
+  color: var(--transportada-copper);
+}
+
+.field-reveal:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--transportada-copper) 70%, transparent);
+  outline-offset: -2px;
+}
+
+.field-reveal svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.field-reveal [data-icon='hide'],
+.field-reveal[aria-pressed='true'] [data-icon='show'] {
+  display: none;
+}
+
+.field-reveal[aria-pressed='true'] [data-icon='hide'] {
+  display: block;
+}
+
+.field-input:focus-visible,
+.action:focus-visible,
+.panel-link:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--transportada-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.field-input[aria-invalid='true'] {
+  border-color: var(--transportada-alert);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--transportada-alert);
+  font-size: 0.875rem;
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--transportada-space-2);
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+.field-inline input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--transportada-copper);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--transportada-space-2);
+  min-height: var(--transportada-field-height);
+  padding: var(--transportada-space-3) var(--transportada-space-4);
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--transportada-asphalt);
+  font: inherit;
+  font-weight: 700;
+  background: var(--transportada-copper);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
+}
+
+.action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.action-quiet {
+  color: var(--transportada-copper);
+  font-weight: 400;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--transportada-slate) 32%, transparent);
+}
+
+.action-quiet:hover {
+  background: color-mix(in srgb, var(--transportada-copper) 12%, transparent);
+}
+
+.panel-link,
+.panel-footnote a,
+#kc-info-message a,
+#reset-login {
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.panel-link:hover,
+.panel-footnote a:hover,
+#reset-login:hover {
+  color: var(--transportada-copper);
+  text-decoration: underline;
+}
+
+.panel-footnote {
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/*
+ * Páginas que continuam vindo do tema `base` (erro, aviso, sessão expirada, confirmação de saída)
+ * escrevem estas classes direto no markup, fora do mapeamento de `theme.properties`. Sem elas o
+ * painel volta a ser texto solto no meio da tela.
+ */
+.content-area,
+.form-actions {
+  display: grid;
+  gap: var(--transportada-space-4);
+  margin: 0;
+}
+
+.instruction {
+  margin: 0;
+  color: var(--transportada-slate);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.action-block {
+  width: 100%;
+}
+
+#kc-info-message p {
+  margin: 0;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.clearfix {
+  display: none;
+}
+
+/* O aviso herda a cor do tipo em vez de uma caixa colorida: a tela já é escura e contida. */
+.notice {
+  margin: 0;
+  padding: var(--transportada-space-3) var(--transportada-space-4);
+  border-left: 2px solid var(--transportada-slate);
+  color: var(--transportada-fog);
+  font-size: 0.875rem;
+  background: color-mix(in srgb, var(--transportada-asphalt) 60%, transparent);
+}
+
+.notice-error {
+  border-left-color: var(--transportada-alert);
+}
+
+.notice-success {
+  border-left-color: var(--transportada-ready);
+}
+
+.notice-warning,
+.notice-info {
+  border-left-color: var(--transportada-copper);
+}
+
+.required {
+  color: var(--transportada-copper);
+}
+
+.colophon {
+  align-self: end;
+  margin: 0;
+  color: var(--transportada-slate);
+  font-family: var(--transportada-font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+/* `inline-flex` num elemento de linha continua obedecendo ao `text-align` do rodapé. */
+.colophon p {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--transportada-space-2);
+  margin: 0;
+}
+
+/*
+ * O gradiente azul da marca é feito para fundo claro: sobre o asfalto a ponta escura some. O próprio
+ * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta branca, e é essa a regra
+ * que se copia aqui, não uma cor inventada.
+ */
+.colophon-mark {
+  flex: none;
+  /* A marca não é quadrada: travar os dois lados a amassaria. Altura manda, largura acompanha. */
+  width: auto;
+  height: 1.5rem;
+  filter: brightness(0) invert(1);
+  opacity: 0.8;
+}
+
+/* Na grade de duas colunas o rodapé atravessa as duas, senão ele cairia sob a marca. */
+@media (min-width: 60rem) {
+  .colophon {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Uma entrada só, encadeada: a marca chega antes do formulário, como na leitura. */
+@media (prefers-reduced-motion: no-preference) {
+  .brand,
+  .panel {
+    animation: transportada-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .panel {
+    animation-delay: 80ms;
+  }
+
+  @keyframes transportada-rise {
+    from {
+      opacity: 0;
+      transform: translateY(var(--transportada-space-4));
+    }
+  }
+}

@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
 
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
+
 import { createDefaultCompanySettings } from '../shared/companySettings.constant'
 import { mergeProfileLookup } from '../shared/companySettingsProfile.service'
 import { toWizardSettingsUpdate } from '../shared/companySettingsWizard.service'
@@ -47,7 +49,7 @@ export function useCompanyWizard(settings: WizardSettings): CompanyWizardControl
 
   function onLookupCnpj(): void {
     setLookupStatus('idle')
-    settings.lookupMutation.mutate(profile.cnpj.replace(/\D/g, ''), {
+    settings.lookupMutation.mutate(normalizeTaxId(profile.cnpj), {
       onError: () => setLookupStatus('error'),
       onSuccess: (found) => {
         if (found === null) {

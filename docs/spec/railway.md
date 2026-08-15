@@ -23,7 +23,7 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  cron-nfse  cron-notifications  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -55,13 +55,15 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 O Dockerfile de cada serviço é escolhido pela variável de build
 `RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 
-| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                         |
-| ----------------------- | --------------------------------------- | ------------------------------ |
-| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`      |
-| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`   |
-| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`     |
-| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
-| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
+| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                                   |
+| ----------------------- | --------------------------------------- | ---------------------------------------- |
+| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`                |
+| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`             |
+| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`               |
+| `cron-nfse`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-nfse/railway.json`          |
+| `cron-notifications`    | `apps/cron-transportada/Dockerfile`     | `deploy/cron-notifications/railway.json` |
+| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json`           |
+| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json`           |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
 > variável de ambiente.** Não existe `RAILWAY_CONFIG_PATH`: definir essa
@@ -92,8 +94,21 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   serviu: no tique de hora cheia a permissão só era reencontrada na hora seguinte.
   Ciclo fora da janela é no-op — a elegibilidade recusa por `cooldown_active` antes
   de criar importação, e `CADENCE_MINUTES=60` mantém uma enfileirada por hora.
+  Roda o job `nfe.distribution.pull`.
+- **cron-nfse**: mesmo Dockerfile, mesmo binário, mesma política de reinício — o
+  que separa os dois serviços é a variável `CRON_JOB`, e nada no build. Aqui ela é
+  `nfse.status.pull`, a reconciliação das notas de serviço municipais. O tique é
+  `*/5 * * * *` porque a reconsulta de uma nota pendente só é reagendada a cada
+  `NFSE_PENDING_RECHECK_MINUTES` (5): tique mais largo que essa janela deixaria a
+  nota elegível sem ninguém passando para pegá-la, e a autorização da prefeitura
+  esperaria o tique inteiro para virar XML arquivado. É o serviço que exige o
+  bloco `NFSE_*` de configuração — sem ele o boot falha, de propósito.
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
-  Mudar domínio exige **rebuild**, não só restart.
+  Mudar domínio exige **rebuild**, não só restart. `VITE_APP_ENV` (`local` ·
+  `staging` · `production`) decide o 🚧 no ícone da aba e a faixa de ambiente:
+  ausente ou desconhecido cai em `production`, porque o valor esquecido no painel
+  não pode fazer a instalação do cliente se anunciar como obra em andamento — em
+  staging ele **precisa** estar declarado.
 
 ## Identidade
 
@@ -146,7 +161,8 @@ Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{rabbitmq.*}}`.
 
 Secretas, geradas por ambiente e nunca iguais entre ambientes:
-`ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY`, `OBJECT_STORAGE_ACCESS_KEY`,
+`ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY`, `NOTIFICATION_SUPPRESSION_HMAC_KEY`,
+`OBJECT_STORAGE_ACCESS_KEY`,
 `OBJECT_STORAGE_SECRET_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`.
 
 > 🔑 **Faça backup do `ENCRYPTION_KEYRING_JSON` de production fora do Railway.**
@@ -181,7 +197,8 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 4. O job `deploy` usa o GitHub Environment homônimo — é ali que production
    ganha _required reviewers_ e a aprovação humana acontece.
 5. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
-   cron → transportada-frontend.
+   cron → cron-nfse → transportada-frontend. Os dois crons depois da API porque
+   leem tabelas que só a migration dela cria.
 
 `railway up --ci` sai quando o build termina, não quando o release sobe; por
 isso `.github/scripts/railway-deploy.sh` faz polling do status do deployment e
@@ -195,7 +212,7 @@ auto-deploy nativo dispararia sem passar pelo gate.
 Passos que exigem o dashboard ou uma decisão humana:
 
 1. **Config-as-code por serviço**: preencher o caminho do `railway.json` na aba
-   _Settings_ de cada um dos dez pares serviço/ambiente. É o que liga
+   _Settings_ de cada um dos doze pares serviço/ambiente. É o que liga
    `preDeployCommand` (migration da API), healthcheck e `cronSchedule`.
 2. ~~**`RAILWAY_TOKEN`**~~ resolvida: project token por ambiente, guardado como secret do GitHub
    Environment homônimo (`staging` e `production`).
@@ -219,7 +236,17 @@ Passos que exigem o dashboard ou uma decisão humana:
 6. **Emissão fiscal real** em production continua atrás da configuração por
    empresa; o ambiente estar de pé não habilita CT-e real.
 
-## Domínios de production
+## Domínios próprios
+
+O endereço que o cliente digita é `fernandes-transportadora.com.br`, em subdomínios:
+`app`/`api`/`auth` para production e `*.staging` para staging. A zona responde pela KingHost, o
+apex e o e-mail do domínio ficam intocados, e não há Cloudflare no caminho — estado da zona,
+motivos e ordem de execução em `docs/ops/dns.md`. Os domínios no Railway se criam e se conferem
+com `./scripts/railway-domains.py <ambiente>`.
+
+Os `*.up.railway.app` abaixo continuam válidos e são o endereço interno de gate e smoke.
+
+## Domínios gerados de production
 
 O domínio é o endereço que o cliente digita, então é ele — não o nome do serviço —
 que carrega o nome do cliente. Production não diz o ambiente:
@@ -237,21 +264,20 @@ que carrega o nome do cliente. Production não diz o ambiente:
 targetPort})` e `domain` sendo o hostname inteiro. O CLI não serve: `railway domain
 <valor>` trata o valor como domínio próprio.
 
-> ⏳ Os três ainda **não existem**. `serviceDomainCreate` responde
-> `ServiceInstance not found` enquanto o serviço não tiver o primeiro deploy no
-> ambiente — a instância nasce com ele, e não há como antecipá-la: um
+> ✅ Os três existem desde o primeiro deploy de production. Foi preciso deployar antes:
+> `serviceDomainCreate` responde `ServiceInstance not found` enquanto o serviço não tiver
+> o primeiro deploy no ambiente — a instância nasce com ele, e não há como antecipá-la: um
 > `serviceInstanceUpdate` no par serviço/ambiente sem instância responde `true` e não
-> cria nada. Por isso a primeira passada do deploy de production para em
-> `assert-migrations`, que exige domínio público na api para ler `/health/ready`:
-> deploya, cria e renomeia os três domínios, e roda de novo.
+> cria nada. Por isso a primeira passada do deploy de production parou em
+> `assert-migrations`, que exige domínio público na api para ler `/health/ready`.
 
-Serviço interno não recebe domínio: `worker`, `cron`, `rabbitmq` e os bancos falam
+Serviço interno não recebe domínio: `worker`, `cron`, `cron-nfse`, `rabbitmq` e os bancos falam
 só por `*.railway.internal`. O `worker` de staging tinha um domínio gerado que
 ninguém pedia e ninguém monitorava — anônimo, da internet aberta, o `/health/ready`
 devolvia `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"}}` e
 entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDelete`.
 
-## Domínios de staging
+## Domínios gerados de staging
 
 - api: `https://api-staging-5633.up.railway.app`
 - transportada-frontend: `https://transportada-staging.up.railway.app`

@@ -34,10 +34,9 @@
 }
 
 .iconAction {
-  position: relative;
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
@@ -47,29 +46,15 @@
 }
 
 .iconActionActive {
-  position: relative;
   display: inline-flex;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
   color: var(--color-asphalt);
   background: var(--color-copper);
   cursor: pointer;
-}
-
-.filterCountPill {
-  position: absolute;
-  top: calc(var(--space-1) * -1);
-  right: calc(var(--space-1) * -1);
-  min-width: var(--space-4);
-  padding: 0 var(--space-1);
-  color: var(--color-asphalt);
-  font-family: var(--font-utility);
-  font-size: 0.65rem;
-  line-height: var(--space-4);
-  background: var(--color-copper);
 }
 
 .filterPanel {

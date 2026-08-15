@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, like, ne, sum } from 'drizzle-orm'
+import { type SQL, and, eq, inArray, isNull, like, ne, sum } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import {
@@ -11,10 +11,12 @@ import {
   nfeParticipants,
   nfeVolumes,
 } from '../../database/nfe.schema.js'
+import { nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
 import type {
   CteBatchNameQuery,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
+  CteBatchPreviewNfseLink,
   CteBatchPreviewQuery,
 } from '../application/cte-batch-preview.port.js'
 
@@ -89,6 +91,37 @@ export async function findActiveBatchLinks(
       ),
     )
     .orderBy(cteBatchItemDocuments.nfeDocumentId)
+}
+
+/**
+ * O vínculo com a nota de serviço é liberado marcando `cancelled_at` na mesma transação que cancela
+ * a nota — é esse recorte que o índice parcial único guarda, e o mesmo que a listagem de notas lê.
+ */
+export function buildActiveNfseLinkFilters({
+  companyId,
+  documentIds,
+}: CteBatchPreviewQuery): readonly SQL[] {
+  return [
+    eq(nfseServiceInvoiceDocuments.companyId, companyId),
+    inArray(nfseServiceInvoiceDocuments.nfeDocumentId, [...documentIds]),
+    isNull(nfseServiceInvoiceDocuments.cancelledAt),
+  ] as const as readonly SQL[]
+}
+
+export async function findActiveNfseLinks(
+  queryable: SelectionQueryable,
+  query: CteBatchPreviewQuery,
+): Promise<readonly CteBatchPreviewNfseLink[]> {
+  if (query.documentIds.length === 0) return []
+
+  return queryable
+    .selectDistinctOn([nfseServiceInvoiceDocuments.nfeDocumentId], {
+      documentId: nfseServiceInvoiceDocuments.nfeDocumentId,
+      invoiceId: nfseServiceInvoiceDocuments.invoiceId,
+    })
+    .from(nfseServiceInvoiceDocuments)
+    .where(and(...buildActiveNfseLinkFilters(query)))
+    .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId)
 }
 
 export async function findSelectionDocuments(

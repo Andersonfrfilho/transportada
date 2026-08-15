@@ -508,6 +508,20 @@
   color: var(--color-slate);
 }
 
+/* Ao lado do status, na mesma linha: o ícone diz o que a frase dizia, sem empurrar a coluna. */
+.nfseLink {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-2);
+  color: var(--color-slate);
+  vertical-align: middle;
+}
+
+.nfseLink:hover,
+.nfseLink:focus-visible {
+  color: var(--color-copper);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -668,8 +682,8 @@
 
 .copyButton svg,
 .copyButtonDone svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .copyCell {
@@ -723,8 +737,8 @@
 
 .copyInline svg,
 .copyInlineDone svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .listToolbar {
@@ -837,21 +851,6 @@
 
 .tableSearchInput::placeholder {
   color: color-mix(in srgb, var(--color-slate) 80%, transparent);
-}
-
-.filterCountPill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 var(--space-1);
-  border-radius: 999px;
-  font-family: var(--font-utility);
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--color-asphalt);
-  background: var(--color-copper);
 }
 
 .multiFilterPanel {
@@ -1030,8 +1029,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   color: var(--color-fog);
@@ -1175,7 +1174,7 @@
 }
 
 .pagerButton {
-  min-height: 2.25rem;
+  min-height: var(--control-height-compact);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-slate);
   color: var(--color-fog);
@@ -1230,19 +1229,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  width: auto;
-  min-width: 2.25rem;
-  height: 2.25rem;
-  padding: 0 var(--space-2);
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
   border: 1px solid var(--color-copper);
   color: var(--color-asphalt);
   cursor: pointer;
   background: var(--color-copper);
 }
 
-.iconAction {
-  gap: var(--space-1);
+/* Mesma linguagem cobre do botão de ícone, mas com rótulo: a caixa quadrada quebrava o texto. */
+.labelActionActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height-compact);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-copper);
+  color: var(--color-asphalt);
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--color-copper);
 }
 
 .rangeInputs {

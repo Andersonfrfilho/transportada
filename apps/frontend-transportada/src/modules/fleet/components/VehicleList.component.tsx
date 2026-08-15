@@ -4,11 +4,17 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import {
+  readFleetVehicleColumnValue,
+  type FleetVehicleColumnKey,
+} from '../shared/fleetVehicleTable.service'
 import type { FleetVehicleDetail } from '../shared/fleet.types'
+import { isVehicleIncompleteForMdfe } from '../shared/vehicleCompleteness.service'
 import styles from '../styles/fleet.module.css'
 
 type VehicleListProps = Readonly<{
   canManageFleet: boolean
+  columns: readonly FleetVehicleColumnKey[]
   onEdit: (vehicle: FleetVehicleDetail) => void
   onToggleStatus: (vehicle: FleetVehicleDetail) => void
   vehicles: readonly FleetVehicleDetail[]
@@ -16,6 +22,7 @@ type VehicleListProps = Readonly<{
 
 export function VehicleList({
   canManageFleet,
+  columns,
   onEdit,
   onToggleStatus,
   vehicles,
@@ -30,6 +37,11 @@ export function VehicleList({
             <th scope="col">{t('columnPlate')}</th>
             <th scope="col">{t('columnRole')}</th>
             <th scope="col">{t('columnOwnership')}</th>
+            {columns.map((column) => (
+              <th key={column} scope="col">
+                {t(`columns.${column}`)}
+              </th>
+            ))}
             <th scope="col">{t('columnCapacity')}</th>
             <th scope="col">{t('columnStatus')}</th>
             {canManageFleet ? <th scope="col">{t('columnActions')}</th> : null}
@@ -41,6 +53,16 @@ export function VehicleList({
               <td>{vehicle.plate}</td>
               <td>{t(`roleOption.${vehicle.role}`)}</td>
               <td>{t(`ownershipOption.${vehicle.ownership}`)}</td>
+              {columns.map((column) => (
+                <td key={column}>
+                  {readFleetVehicleColumnValue({
+                    colorLabel: vehicle.color === '' ? '' : t(`colorOption.${vehicle.color}`),
+                    column,
+                    notInformedLabel: t('costNotInformed'),
+                    vehicle,
+                  })}
+                </td>
+              ))}
               <td>{`${vehicle.capacityKilograms} kg`}</td>
               <td>
                 <span
@@ -52,6 +74,9 @@ export function VehicleList({
                 >
                   {t(`status.${vehicle.status}`)}
                 </span>
+                {isVehicleIncompleteForMdfe(vehicle) ? (
+                  <span className={styles.incompleteBadge}>{t('vehicleIncomplete')}</span>
+                ) : null}
               </td>
               {canManageFleet ? (
                 <td>

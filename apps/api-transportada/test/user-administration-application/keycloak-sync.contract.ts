@@ -15,6 +15,7 @@ import {
   ANOTHER_COMPANY_ID,
   COMPANY_ID,
   createIdentityGatewayFake,
+  createInvitationDeliveryFakes,
   createInvitationRepositoryFake,
   createCompanyUserRepositoryFake,
   KEYCLOAK_SUBJECT,
@@ -28,6 +29,7 @@ describe('sincronização com o Keycloak — convite', () => {
     const invitations = createInvitationRepositoryFake()
 
     await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
       identityGateway: gateway,
       invitations,
       issuer: 'https://keycloak.test/realms/transportada',
@@ -53,6 +55,7 @@ describe('sincronização com o Keycloak — convite', () => {
     const gateway = createIdentityGatewayFake()
 
     await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
       identityGateway: gateway,
       invitations: createInvitationRepositoryFake(),
       issuer: 'https://keycloak.test/realms/transportada',

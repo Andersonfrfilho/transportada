@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, desc, eq, inArray, lt, ne, or, sum } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, isNull, lt, ne, or, sum } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
+import { nfseServiceInvoiceDocuments, nfseServiceInvoices } from '../../database/nfse.schema.js'
 import {
   nfeAddresses,
   nfeDocuments,
@@ -59,14 +60,25 @@ type DocumentScope = {
   readonly documentIds: readonly string[]
 }
 
+/**
+ * O número vem `null` enquanto a prefeitura não autoriza: a nota existe e já segura o documento,
+ * mas ainda não tem numeração. Quem consome mostra o vínculo mesmo assim.
+ */
+type NfseInvoiceLink = {
+  readonly id: string
+  readonly number: string | null
+}
+
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
   readonly grossWeightByDocumentId: ReadonlyMap<string, string>
+  readonly nfseInvoiceByDocumentId: ReadonlyMap<string, NfseInvoiceLink>
 }
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
   grossWeightByDocumentId: new Map(),
+  nfseInvoiceByDocumentId: new Map(),
 }
 
 export function buildDocumentGrossWeightFilters({
@@ -87,6 +99,21 @@ export function buildDocumentBatchLinkFilters({
     eq(cteBatchItemDocuments.companyId, companyId),
     inArray(cteBatchItemDocuments.nfeDocumentId, [...documentIds]),
     ne(cteBatches.status, CANCELLED_BATCH_STATUS),
+  ] as const as readonly SQL[]
+}
+
+/**
+ * O vínculo com a nota de serviço é liberado marcando `cancelled_at` na mesma transação que cancela
+ * a nota, então esse é o recorte de vínculo ativo — o mesmo que o índice parcial único guarda.
+ */
+export function buildDocumentNfseLinkFilters({
+  companyId,
+  documentIds,
+}: DocumentScope): readonly SQL[] {
+  return [
+    eq(nfseServiceInvoiceDocuments.companyId, companyId),
+    inArray(nfseServiceInvoiceDocuments.nfeDocumentId, [...documentIds]),
+    isNull(nfseServiceInvoiceDocuments.cancelledAt),
   ] as const as readonly SQL[]
 }
 
@@ -223,7 +250,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
 
   private async loadBlockContext(scope: DocumentScope): Promise<DocumentBlockContext> {
     if (scope.documentIds.length === 0) return EMPTY_BLOCK_CONTEXT
-    const [weightRows, linkRows] = await Promise.all([
+    const [weightRows, linkRows, nfseLinkRows] = await Promise.all([
       this.database
         .select({ documentId: nfeVolumes.documentId, grossWeight: sum(nfeVolumes.grossWeight) })
         .from(nfeVolumes)
@@ -244,6 +271,22 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         )
         .where(and(...buildDocumentBatchLinkFilters(scope)))
         .orderBy(cteBatchItemDocuments.nfeDocumentId),
+      this.database
+        .selectDistinctOn([nfseServiceInvoiceDocuments.nfeDocumentId], {
+          documentId: nfseServiceInvoiceDocuments.nfeDocumentId,
+          invoiceId: nfseServiceInvoiceDocuments.invoiceId,
+          providerNumber: nfseServiceInvoices.providerNumber,
+        })
+        .from(nfseServiceInvoiceDocuments)
+        .innerJoin(
+          nfseServiceInvoices,
+          and(
+            eq(nfseServiceInvoices.companyId, nfseServiceInvoiceDocuments.companyId),
+            eq(nfseServiceInvoices.id, nfseServiceInvoiceDocuments.invoiceId),
+          ),
+        )
+        .where(and(...buildDocumentNfseLinkFilters(scope)))
+        .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
     ])
 
     return {
@@ -252,6 +295,12 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         weightRows.flatMap((row) =>
           row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]],
         ),
+      ),
+      nfseInvoiceByDocumentId: new Map(
+        nfseLinkRows.map((row) => [
+          row.documentId,
+          { id: row.invoiceId, number: row.providerNumber },
+        ]),
       ),
     }
   }
@@ -322,6 +371,7 @@ function mapSummary(
 ): NfeDocumentSummary {
   const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
   const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
+  const nfseInvoice = blockContext.nfseInvoiceByDocumentId.get(document.id) ?? null
   const decision = resolveDocumentBlock({
     document: {
       grossWeight: blockContext.grossWeightByDocumentId.get(document.id) ?? null,
@@ -336,6 +386,7 @@ function mapSummary(
       variant: 'complete',
     },
     linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
+    linkedNfseInvoiceId: nfseInvoice?.id ?? null,
   })
   return {
     accessKey: document.accessKey,
@@ -348,6 +399,8 @@ function mapSummary(
     emitterTaxId: emitter.taxId,
     id: document.id,
     issuedAt: document.issuedAt.toISOString(),
+    nfseInvoiceId: nfseInvoice?.id ?? null,
+    nfseInvoiceNumber: nfseInvoice?.number ?? null,
     number: document.number,
     recipientAddress: recipient.address,
     recipientCity: recipient.city,

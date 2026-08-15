@@ -22,6 +22,7 @@ type UseFloatingLayerResult<TLayer extends HTMLElement> = Readonly<{
 
 function samePosition(left: FloatingLayerPosition, right: FloatingLayerPosition): boolean {
   return (
+    left.bottom === right.bottom &&
     left.left === right.left &&
     left.maxHeight === right.maxHeight &&
     left.minWidth === right.minWidth &&
@@ -29,13 +30,18 @@ function samePosition(left: FloatingLayerPosition, right: FloatingLayerPosition)
   )
 }
 
+function toEdge(value: number | null): string {
+  return value === null ? 'auto' : `${String(value)}px`
+}
+
 function toStyle(position: FloatingLayerPosition | null): CSSProperties | undefined {
   if (position === null) return undefined
   return {
+    '--floating-layer-bottom': toEdge(position.bottom),
     '--floating-layer-left': `${String(position.left)}px`,
     '--floating-layer-max-height': `${String(position.maxHeight)}px`,
     '--floating-layer-min-width': `${String(position.minWidth)}px`,
-    '--floating-layer-top': `${String(position.top)}px`,
+    '--floating-layer-top': toEdge(position.top),
   } as CSSProperties
 }
 

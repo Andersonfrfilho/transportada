@@ -102,10 +102,11 @@ describe('design system searchable select contract', () => {
       'aria-selected',
       'id={`${baseId}-${String(index)}`}',
       "scrollIntoView({ block: 'nearest' })",
-      "'ArrowDown'",
-      "'ArrowUp'",
-      "'Enter'",
-      "'Escape'",
+      // As teclas vivem em resolveSelectSearchKey, para as duas peles decidirem igual.
+      'resolveSelectSearchKey(event.key)',
+      "action === 'move-down'",
+      "action === 'move-up'",
+      "action === 'close'",
       'onClick={() => commit(index)}',
     ]) {
       expect(component).toContain(contract)

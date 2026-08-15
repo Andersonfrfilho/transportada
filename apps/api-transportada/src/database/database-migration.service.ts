@@ -4,6 +4,8 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
+import { runNotificationSchemaMigrations } from './notification-migration.service.js'
+
 const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
 const MIGRATIONS_SCHEMA = 'drizzle'
 
@@ -45,6 +47,12 @@ if (import.meta.main) {
   }
 
   await runDatabaseMigrations({
+    connectionString,
+  })
+
+  // As migrations do schema de notificações viajam dentro do pacote e têm tabela de controle
+  // própria, então rodam depois — e só aqui, no passo manual: o startup da API não migra nada.
+  await runNotificationSchemaMigrations({
     connectionString,
   })
 }

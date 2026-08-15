@@ -6,7 +6,6 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_FLEET_CAPABILITIES_PATH,
   API_FLEET_DRIVERS_PATH,
-  API_FLEET_VEHICLE_LOOKUP_PATH,
   API_FLEET_VEHICLES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
@@ -24,13 +23,11 @@ import type {
   ListFleetVehiclesInput,
   UpdateFleetVehicleInput,
 } from '../application/fleet-vehicles.use-case.js'
-import type { LookupFleetVehicleInput } from '../application/fleet-vehicle-lookup.use-case.js'
 import type {
   FleetDriver,
   FleetDriverPage,
   FleetDriverVehicleAssignment,
   FleetVehicle,
-  FleetVehicleLookup,
   FleetVehiclePage,
 } from '../application/fleet.port.js'
 import {
@@ -42,7 +39,6 @@ import {
   parseUpdateVehicleRequest,
   parseUuidPathIdentifier,
   parseVehicleList,
-  parseVehicleLookupQuery,
 } from './fleet.schema.js'
 
 const DRIVER_PATH = `${API_FLEET_DRIVERS_PATH}/:id`
@@ -80,9 +76,8 @@ type Dependencies = {
   readonly updateVehicle: {
     execute(input: TenantInput<UpdateFleetVehicleInput>): Promise<FleetVehicle>
   }
-  readonly vehicleLookup: {
+  readonly vehicleCatalog: {
     isAvailable(): boolean
-    lookup(input: TenantInput<LookupFleetVehicleInput>): Promise<FleetVehicleLookup | null>
   }
 }
 
@@ -115,24 +110,10 @@ export function createFleetRoutes(
       pathname: API_FLEET_VEHICLES_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
-    // Consultar placa é serviço pago por consulta: fica atrás de fleet.manage, não de fleet.read
-    defineRoute<Omit<LookupFleetVehicleInput, 'context'>>({
-      async handle({ context, input }): Promise<Response> {
-        const vehicle = await dependencies.vehicleLookup.lookup({
-          context: context.scope,
-          ...input,
-        })
-        return jsonResponse({ body: { data: vehicle }, status: 200 })
-      },
-      method: 'GET',
-      parse: ({ request }) => parseVehicleLookupQuery(new URL(request.url)),
-      pathname: API_FLEET_VEHICLE_LOOKUP_PATH,
-      policy: FLEET_MANAGE_POLICY,
-    }),
     defineRoute<Record<string, never>>({
       async handle(): Promise<Response> {
-        const vehicleLookup = dependencies.vehicleLookup.isAvailable()
-        return jsonResponse({ body: { data: { vehicleLookup } }, status: 200 })
+        const vehicleCatalog = dependencies.vehicleCatalog.isAvailable()
+        return jsonResponse({ body: { data: { vehicleCatalog } }, status: 200 })
       },
       method: 'GET',
       parse: () => ({}),
@@ -275,11 +256,25 @@ function serializeDriverVehicle(link: FleetDriverVehicleAssignment): object {
 
 function serializeVehicle(vehicle: FleetVehicle): object {
   return {
+    acquisitionAmount: vehicle.acquisitionAmount,
+    annualInsuranceAmount: vehicle.annualInsuranceAmount,
+    annualVehicleTaxAmount: vehicle.annualVehicleTaxAmount,
+    averageConsumption: vehicle.averageConsumption,
+    axleCount: vehicle.axleCount,
     bodyType: vehicle.bodyType,
+    brand: vehicle.brand,
     capacityCubicMeters: vehicle.capacityCubicMeters,
     capacityKilograms: vehicle.capacityKilograms,
+    color: vehicle.color,
+    costPerKilometer: vehicle.costPerKilometer,
+    costsUpdatedAt: vehicle.costsUpdatedAt,
     createdAt: vehicle.createdAt,
+    fleetNumber: vehicle.fleetNumber,
     id: vehicle.id,
+    model: vehicle.model,
+    modelYear: vehicle.modelYear,
+    monthlyFixedCost: vehicle.monthlyFixedCost,
+    monthlyInstallmentAmount: vehicle.monthlyInstallmentAmount,
     owner: vehicle.owner === null ? null : { ...vehicle.owner },
     ownership: vehicle.ownership,
     plate: vehicle.plate,

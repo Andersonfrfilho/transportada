@@ -6,11 +6,11 @@ import { z } from 'zod'
 import { BILLING_INVOICE_STATUSES } from '../../database/billing.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { DOCUMENT_FILTER_PATTERN, parseTaxIdValue } from '../../shared/tax-id.service.js'
 import { BILLING_MAX_CTES_PER_INVOICE } from '../domain/invoice-limits.constant.js'
 
 const BILLING_INVOICE_STATUS_SET: ReadonlySet<string> = new Set(BILLING_INVOICE_STATUSES)
 const CURSOR = /^[A-Za-z0-9._:-]{1,200}$/
-const DOCUMENT = /^[0-9]{11,14}$/
 const FISCAL_NUMBER = /^[1-9][0-9]{0,8}$/
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,256}$/
 const MONEY = /^(?:0|[1-9][0-9]{0,11})\.[0-9]{2}$/
@@ -403,8 +403,7 @@ function parsePositiveIntegerRange(
 function parseDocumentList(value: string | null): readonly string[] | undefined {
   const values = parseListValues(value)
   if (values === undefined) return undefined
-  for (const item of values) parseDocument(item)
-  return values
+  return values.map(normalizeDocument)
 }
 
 /** Status repetido na lista não muda o resultado, mas denuncia consulta montada errado. */
@@ -469,8 +468,13 @@ function parseCustomerName(value: string | null): string | undefined {
 
 function parseDocument(value: string | null): string | undefined {
   if (value === null) return undefined
-  if (!DOCUMENT.test(value)) throw invalidRequest()
-  return value
+  return normalizeDocument(value)
+}
+
+function normalizeDocument(value: string): string {
+  const document = parseTaxIdValue(value, DOCUMENT_FILTER_PATTERN)
+  if (document === undefined) throw invalidRequest()
+  return document
 }
 
 function parseIsoDate(value: string | null): string | undefined {

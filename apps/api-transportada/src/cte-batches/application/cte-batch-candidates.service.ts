@@ -40,6 +40,7 @@ export async function resolveCteBatchCandidates({
   const query = { companyId, documentIds }
   const documents = await transaction.findSelectionDocuments(query)
   const links = await transaction.findActiveBatchLinks(query)
+  const nfseLinks = await transaction.findActiveNfseLinks(query)
   const params: CteBatchSelectionParams = {
     catalog,
     documentIds,
@@ -47,6 +48,7 @@ export async function resolveCteBatchCandidates({
     emissionProfileId: input.emissionProfileId,
     groupingMode: input.groupingMode,
     links,
+    nfseLinks,
   }
 
   const preselection = selectCteBatchCandidates(params)

@@ -10,5 +10,16 @@
   "token": "Token de arranque",
   "submit": "Criar administrador",
   "submitting": "Criando administrador...",
-  "unavailable": "Não foi possível concluir o primeiro acesso. Confira os dados e o token e tente novamente."
+  "unavailable": "Não foi possível concluir o primeiro acesso. Confira os dados e o token e tente novamente.",
+  "resetTitle": "Recuperar senha",
+  "resetDescription": "Informe o seu usuário. Se ele existir, enviamos um código para o contato cadastrado.",
+  "resetUsername": "Usuário",
+  "resetCode": "Código recebido",
+  "resetNewPassword": "Nova senha",
+  "resetRequestSubmit": "Enviar código",
+  "resetConfirmSubmit": "Definir nova senha",
+  "resetCodeSent": "Se o usuário existir, o código já está a caminho do contato cadastrado. Ele vale por 15 minutos.",
+  "resetRejected": "Não foi possível concluir a recuperação. Confira o código e a senha e tente novamente.",
+  "resetDone": "Senha alterada. Você já pode entrar com a nova senha.",
+  "resetBackToLogin": "Voltar para o login"
 }

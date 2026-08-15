@@ -47,6 +47,37 @@
 6. **Fase F — documentação e evidência.** `CLAUDE.md`, `docs/spec/railway.md` (o passo manual de
    criar usuário deixa de existir) e `evidence.md`.
 
+## Decisão da T012 — `notification-module` fica de fora
+
+Publicação confirmada em 12/08/2026: `notification-contracts`, `notification-module` e
+`email-provider` estão todos em `0.1.0-rc.2` (a tabela acima cita `rc.0`, do levantamento inicial).
+O risco levantado no planejamento — colisão de migrations — **não se confirma**: o módulo cria as
+tabelas dele em `pgSchema('notification')`, com journal próprio, e nunca toca o `public`.
+
+Ainda assim a decisão é **consumir só `notification-contracts` + `email-provider`**, sem o módulo,
+e guardar o estado do convite no schema da própria aplicação (onde ele já está, desde a T005).
+
+O motivo não é conflito, é escopo. O que o módulo entrega além do envio — inbox, SSE, preferência
+por usuário, horário de silêncio, agendamento, deduplicação, retry classificado e supressão — ou
+não se aplica ou já existe aqui:
+
+| Recurso do módulo          | Por que não paga o schema novo                                                                       |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Preferência e silêncio     | Código de ativação é transacional: não tem opt-out nem espera o horário do usuário                   |
+| Deduplicação (`dedupeKey`) | O trilho do worker já é idempotente por `processed_messages`                                         |
+| Retry classificado         | Cada trilho já tem `main`/`retry`/`dead` com backoff por política                                    |
+| Supressão de bounce        | Alimentada por webhook (`parseResendWebhook`/`parseSesNotification`); com SMTP não há webhook nenhum |
+| Inbox e SSE                | Não há inbox no produto                                                                              |
+
+Some também um caminho de migration fora de `apps/api-transportada/drizzle/` — `runNotificationMigrations`
+precisaria de dono, e o startup aqui não roda migration por regra. `make migration-test` continua
+julgando uma cadeia só.
+
+A decisão é reversível e barata de reverter: o módulo consome as mesmas portas de
+`notification-contracts` que o driver de e-mail já implementa. Quando entrar inbox, push ou
+WhatsApp — aí sim com preferência e supressão de verdade — ele entra por cima do que a fase D
+deixar pronto, sem reescrever o driver.
+
 ## Riscos e como são contidos
 
 | Risco                                                                   | Contenção                                                                                                                                                                                 |

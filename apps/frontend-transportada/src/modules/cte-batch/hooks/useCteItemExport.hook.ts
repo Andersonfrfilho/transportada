@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { getCteBatchItemClient } from '../queries/cteBatchItems.query'
-import { saveCteArchive } from '../shared/cteArchiveDownload.service'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import {
   buildCteExportRequest,
   canExportCteSelection,
@@ -32,7 +32,7 @@ export function useCteItemExport(input: UseCteItemExportInput) {
         scope,
         selectedIds: input.selectedIds,
       })
-      saveCteArchive(await getCteBatchItemClient().exportCompanyItems(body))
+      saveArchiveFile(await getCteBatchItemClient().exportCompanyItems(body))
     },
   })
 

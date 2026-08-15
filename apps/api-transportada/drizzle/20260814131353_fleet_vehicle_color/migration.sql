@@ -1,0 +1,2 @@
+ALTER TABLE "fleet_vehicles" ADD COLUMN "color" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "fleet_vehicles" ADD CONSTRAINT "fleet_vehicles_color_check" CHECK (length("color") <= 30);

@@ -17,6 +17,10 @@ import {
   CTE_RETRY_DEFAULT_BACKOFF_SECONDS,
   CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
 } from '../cte-issuance/domain/cte-retry.policy.js'
+import {
+  NFSE_RETRY_DEFAULT_BACKOFF_SECONDS,
+  NFSE_RETRY_DEFAULT_MAX_ATTEMPTS,
+} from '../nfse-issuance/domain/nfse-retry.policy.js'
 
 export type NfeImportSource = 'distribution' | 'upload'
 export type NfeImportStatus =
@@ -82,6 +86,13 @@ export const companyFiscalProfiles = pgTable('company_fiscal_profiles', {
     .array()
     .notNull()
     .default([...CTE_RETRY_DEFAULT_BACKOFF_SECONDS]),
+  nfseRetryMaxAttempts: integer('nfse_retry_max_attempts')
+    .notNull()
+    .default(NFSE_RETRY_DEFAULT_MAX_ATTEMPTS),
+  nfseRetryBackoffSeconds: integer('nfse_retry_backoff_seconds')
+    .array()
+    .notNull()
+    .default([...NFSE_RETRY_DEFAULT_BACKOFF_SECONDS]),
   version: bigint({ mode: 'bigint' }).notNull().default(1n),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

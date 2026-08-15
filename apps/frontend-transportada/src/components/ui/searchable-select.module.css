@@ -9,8 +9,10 @@
   position: fixed;
   z-index: 60;
   top: var(--floating-layer-top, 0);
+  bottom: var(--floating-layer-bottom, auto);
   left: var(--floating-layer-left, 0);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: var(--floating-layer-min-width, 16rem);
   max-height: min(20rem, var(--floating-layer-max-height, 20rem));
   overflow: hidden;
@@ -21,6 +23,7 @@
 }
 
 .searchField {
+  flex: 0 0 auto;
   display: flex;
   gap: var(--space-2);
   align-items: center;
@@ -49,6 +52,8 @@
 }
 
 .optionList {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   padding: var(--space-1);
   overflow-y: auto;

@@ -138,13 +138,14 @@ async function prepareItemOrSkip(params: {
   readonly importId: string
 }): Promise<ItemOutcome<PreparedItem>> {
   try {
-    return {
-      kind: 'stored',
-      value: await prepareDistributionItem({
-        dfe: params.dfe,
-        xmlImporter: params.dependencies.xmlImporter,
-      }),
+    const prepared = await prepareDistributionItem({
+      dfe: params.dfe,
+      xmlImporter: params.dependencies.xmlImporter,
+    })
+    if (prepared.variant === 'summary' && prepared.accessKey === undefined) {
+      logSummaryWithoutAccessKey(params)
     }
+    return { kind: 'stored', value: prepared }
   } catch (error: unknown) {
     const skip = resolveSkip(error)
     if (skip === undefined) {
@@ -307,6 +308,25 @@ function resolveSkip(
     return { errorCode: error.code, reason: 'already_stored' }
   }
   return undefined
+}
+
+/**
+ * O resumo sem chave é gravado assim mesmo — mas ele não entra na deduplicação e nunca se liga ao
+ * documento completo, então a mesma nota volta em toda janela. Não é pulo, e por isso não usa a
+ * mensagem de pulo: é aceite degradado, e sem log não haveria por onde investigar.
+ */
+function logSummaryWithoutAccessKey(params: {
+  readonly companyId: string
+  readonly dependencies: PersistenceAdapterDependencies
+  readonly dfe: DfeItem
+  readonly importId: string
+}): void {
+  params.dependencies.logger.warn('nfe_distribution_summary_access_key_missing', {
+    companyId: params.companyId,
+    importId: params.importId,
+    nsu: params.dfe.nsu,
+    schema: params.dfe.schema,
+  })
 }
 
 function logSkip(params: {

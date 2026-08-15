@@ -18,24 +18,42 @@ export type FleetVehicleOwnerContract = Readonly<{
   taxRegime: '0' | '1' | '2'
 }>
 
-export type FleetVehicleBodyContract = Readonly<{
-  bodyType: '00' | '01' | '02' | '03' | '04' | '05'
-  capacityCubicMeters: string
-  capacityKilograms: string
-  owner: FleetVehicleOwnerContract | null
-  ownership: 'aggregate' | 'own' | 'third_party'
-  plate: string
-  renavam: string
-  role: 'traction' | 'trailer'
-  state: string
-  tareWeightKilograms: string
-  wheelType: '' | '01' | '02' | '03' | '04' | '05' | '06'
+export type FleetVehicleCostFieldsContract = Readonly<{
+  acquisitionAmount: string
+  annualInsuranceAmount: string
+  annualVehicleTaxAmount: string
+  averageConsumption: string
+  costPerKilometer: string
+  monthlyInstallmentAmount: string
 }>
+
+export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
+  Readonly<{
+    axleCount: number
+    bodyType: '00' | '01' | '02' | '03' | '04' | '05'
+    brand: string
+    capacityCubicMeters: string
+    capacityKilograms: string
+    color: string
+    fleetNumber: string
+    model: string
+    modelYear: number
+    owner: FleetVehicleOwnerContract | null
+    ownership: 'aggregate' | 'own' | 'third_party'
+    plate: string
+    renavam: string
+    role: 'traction' | 'trailer'
+    state: string
+    tareWeightKilograms: string
+    wheelType: '' | '01' | '02' | '03' | '04' | '05' | '06'
+  }>
 
 export type FleetVehicleDetailContract = FleetVehicleBodyContract &
   Readonly<{
+    costsUpdatedAt: null | string
     createdAt: string
     id: string
+    monthlyFixedCost: null | string
     status: 'active' | 'inactive'
     updatedAt: string
     version: string
@@ -84,10 +102,32 @@ export const VEHICLE_OWNER = {
   taxRegime: '1',
 } as const satisfies FleetVehicleOwnerContract
 
+/** Custo não informado é zero na escala fiscal, nunca vazio — é o que a API aceita. */
+export const VEHICLE_COST_DRAFT = {
+  acquisitionAmount: '0.0000',
+  annualInsuranceAmount: '0.0000',
+  annualVehicleTaxAmount: '0.0000',
+  averageConsumption: '0.00',
+  costPerKilometer: '0.0000',
+  monthlyInstallmentAmount: '0.0000',
+} as const satisfies FleetVehicleCostFieldsContract
+
 export const VEHICLE_BODY = {
+  acquisitionAmount: '150000.0000',
+  annualInsuranceAmount: '3600.0000',
+  annualVehicleTaxAmount: '1200.0000',
+  averageConsumption: '2.50',
+  axleCount: 3,
   bodyType: '00',
+  brand: 'Marca Sintetica',
   capacityCubicMeters: '90',
   capacityKilograms: '27000',
+  color: 'branca',
+  costPerKilometer: '1.2500',
+  fleetNumber: '101',
+  model: 'Modelo Sintetico',
+  modelYear: 2020,
+  monthlyInstallmentAmount: '2000.0000',
   owner: null,
   ownership: 'own',
   plate: 'ABC1D23',
@@ -119,13 +159,27 @@ export const DRIVER_BODY = {
   taxId: '12345678901',
 } as const satisfies FleetDriverBodyContract
 
+export const VEHICLE_COSTS_UPDATED_AT = '2026-07-28T12:00:00.000Z'
+
+/** Prestação + (IPVA + seguro) ÷ 12 = 2000 + 4800 ÷ 12, derivado pela API e relido pela tela. */
+export const VEHICLE_MONTHLY_FIXED_COST = '2400.0000'
+
 export const VEHICLE_DETAIL = {
   ...VEHICLE_BODY,
+  costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: VEHICLE_ID,
+  monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
+} as const satisfies FleetVehicleDetailContract
+
+export const NO_COSTS_VEHICLE_DETAIL = {
+  ...VEHICLE_DETAIL,
+  ...VEHICLE_COST_DRAFT,
+  costsUpdatedAt: null,
+  monthlyFixedCost: null,
 } as const satisfies FleetVehicleDetailContract
 
 export const DRIVER_DETAIL = {
@@ -140,8 +194,10 @@ export const DRIVER_DETAIL = {
 
 export const DRIVER_OWNED_VEHICLE = {
   ...AGGREGATE_VEHICLE_BODY,
+  costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: DRIVER_OWNED_VEHICLE_ID,
+  monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
@@ -161,32 +217,6 @@ export const DRIVER_VEHICLE_LINKS = [
     vehicle: DRIVER_OWNED_VEHICLE,
   },
 ] as const satisfies readonly FleetDriverVehicleContract[]
-
-export type FleetVehicleLookupContract = Readonly<{
-  brand: string
-  capacityKilograms: string
-  model: string
-  modelYear: string
-  ownerName: string
-  ownerTaxId: string
-  plate: string
-  renavam: string
-  state: string
-  tareWeightKilograms: string
-}>
-
-export const VEHICLE_LOOKUP = {
-  brand: 'Marca Sintetica',
-  capacityKilograms: '27000',
-  model: 'Modelo Sintetico',
-  modelYear: '2020',
-  ownerName: 'Agregado Transportes Ltda',
-  ownerTaxId: '12345678000195',
-  plate: 'ABC1D23',
-  renavam: '12345678901',
-  state: 'SP',
-  tareWeightKilograms: '8000',
-} as const satisfies FleetVehicleLookupContract
 
 export const VEHICLE_PAGE = {
   items: [VEHICLE_DETAIL],
@@ -209,9 +239,16 @@ export const EMPTY_DRIVER_PAGE = {
 } as const satisfies FleetDriverPageContract
 
 export const VEHICLE_DRAFT_BODY = {
+  ...VEHICLE_COST_DRAFT,
+  axleCount: 0,
   bodyType: '00',
+  brand: '',
   capacityCubicMeters: '0',
   capacityKilograms: '0',
+  color: '',
+  fleetNumber: '',
+  model: '',
+  modelYear: 0,
   owner: null,
   ownership: 'own',
   plate: '',
@@ -219,8 +256,27 @@ export const VEHICLE_DRAFT_BODY = {
   role: 'traction',
   state: '',
   tareWeightKilograms: '0',
-  wheelType: '01',
+  wheelType: '',
 } as const satisfies FleetVehicleBodyContract
+
+export const INCOMPLETE_TRACTION_VEHICLE_ID = '00000000-0000-4000-8000-000000000914'
+
+export const INCOMPLETE_TRACTION_VEHICLE_BODY = {
+  ...VEHICLE_BODY,
+  plate: 'INC1M23',
+  wheelType: '',
+} as const satisfies FleetVehicleBodyContract
+
+export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
+  ...INCOMPLETE_TRACTION_VEHICLE_BODY,
+  costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
+  createdAt: '2026-07-28T12:00:00.000Z',
+  id: INCOMPLETE_TRACTION_VEHICLE_ID,
+  monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
+  status: 'active',
+  updatedAt: '2026-07-28T12:00:00.000Z',
+  version: '1',
+} as const satisfies FleetVehicleDetailContract
 
 export const DRIVER_DRAFT_BODY = {
   licenseNumber: '',

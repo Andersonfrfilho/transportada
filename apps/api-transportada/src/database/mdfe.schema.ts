@@ -118,12 +118,12 @@ export type MdfeIssuanceOutboxStatus = (typeof MDFE_ISSUANCE_OUTBOX_STATUSES)[nu
 
 const STATE_PATTERN = '^[A-Z]{2}$'
 const IBGE_CITY_PATTERN = '^[0-9]{7}$'
-const ACCESS_KEY_PATTERN = '^[0-9]{44}$'
+const ACCESS_KEY_PATTERN = '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'
 const SHA256_PATTERN = '^[0-9a-f]{64}$'
 const RNTRC_PATTERN = '^[0-9]{8}$'
 const NCM_PATTERN = '^[0-9]{8}$'
 const TAX_ID_PATTERN = '^[0-9]{11}$'
-const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[0-9]{14}$'
+const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'
 const POSTAL_CODE_PATTERN = '^[0-9]{8}$'
 
 /** xNome de município cabe em 60 caracteres no layout 3.00. */

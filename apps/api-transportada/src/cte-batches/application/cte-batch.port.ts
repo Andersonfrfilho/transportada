@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CteEmissionGroupingMode } from '../../database/cte-emission-profile.schema.js'
-import type { CteBatchPreviewDocument, CteBatchPreviewLink } from './cte-batch-preview.port.js'
+import type {
+  CteBatchPreviewDocument,
+  CteBatchPreviewLink,
+  CteBatchPreviewNfseLink,
+} from './cte-batch-preview.port.js'
 
 export type CteBatchStatus = 'draft' | 'submitted' | 'in_flight' | 'done' | 'error' | 'cancelled'
 
@@ -45,6 +49,7 @@ export type CteBatchUnitOfWorkPort = {
     operation: (transaction: CteBatchUnitOfWorkPort) => Promise<TResponse>,
   ): Promise<TResponse>
   findActiveBatchLinks(query: CteBatchSelectionQuery): Promise<readonly CteBatchPreviewLink[]>
+  findActiveNfseLinks(query: CteBatchSelectionQuery): Promise<readonly CteBatchPreviewNfseLink[]>
   findBatch(input: Record<string, unknown>): Promise<CteBatchRecord | null>
   findBatchByIdempotency(input: Record<string, unknown>): Promise<Record<string, unknown> | null>
   findBatchItem(input: CteBatchItemLookup): Promise<Record<string, unknown> | null>

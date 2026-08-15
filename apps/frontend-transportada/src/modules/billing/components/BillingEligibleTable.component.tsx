@@ -3,6 +3,7 @@ import { useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -123,7 +124,7 @@ export function BillingEligibleTable({ table }: BillingEligibleTableProps): JSX.
             type="button"
           >
             <Icon name="filter" />
-            {activeCount > 0 ? <span className={styles.filterCountPill}>{activeCount}</span> : null}
+            <CountBadge count={activeCount} />
           </button>
           <span className={styles.columnsMenuWrap}>
             <button

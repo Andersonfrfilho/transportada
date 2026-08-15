@@ -24,11 +24,10 @@ import {
   text,
   type XmlNode,
 } from './cte-xml-node.mapper.js'
+import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
 import { readOptionalParty, readParty, resolveServiceTaker } from './cte-xml-party.mapper.js'
 
 const REPEATING_TAGS = new Set(['Comp', 'infNFe', 'infQ'])
-
-const ACCESS_KEY_PATTERN = /^\d{44}$/u
 
 /** `parseTagValue: false` é obrigatório: `1250.75` convertido para float binário perde centavo. */
 const xmlParser = new XMLParser({
@@ -122,11 +121,11 @@ function readParties(infCte: XmlNode): CteParties {
 
 function readAccessKey(infCte: XmlNode): string {
   const identifier = infCte['@Id']
-  const digits = typeof identifier === 'string' ? identifier.replace(/^CTe/u, '') : ''
-  if (!ACCESS_KEY_PATTERN.test(digits)) {
-    throw new DacteXmlInvalidError('infCte Id is not a 44 digit access key')
+  const accessKey = typeof identifier === 'string' ? identifier.replace(/^CTe/u, '') : ''
+  if (!CHAVE_PATTERN.test(accessKey)) {
+    throw new DacteXmlInvalidError('infCte Id is not a valid access key')
   }
-  return digits
+  return accessKey
 }
 
 function readService(node: XmlNode): DacteService {

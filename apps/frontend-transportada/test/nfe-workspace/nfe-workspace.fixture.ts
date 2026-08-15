@@ -77,6 +77,8 @@ export type NfeDocumentListItemContract = Readonly<{
   emitterTaxId: null | string
   id: string
   issuedAt: string
+  nfseInvoiceId: null | string
+  nfseInvoiceNumber: null | string
   number: string
   recipientAddress: null | string
   recipientCity: null | string
@@ -204,6 +206,8 @@ export const DOCUMENT_LIST_PAGE = {
       emitterTaxId: '30290856000160',
       id: '4c596f2c-388e-4820-8e49-0fa5916f5cb0',
       issuedAt: '2026-07-22T10:00:00.000Z',
+      nfseInvoiceId: null,
+      nfseInvoiceNumber: null,
       number: '000000011',
       recipientAddress: 'Avenida Logística, 500 - Distrito Industrial',
       recipientCity: 'Jundiaí',

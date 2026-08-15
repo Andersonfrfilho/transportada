@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ModuleFetchRouter } from '@adatechnology/module-http/fetch'
+
 import type { CompanyFiscalEnvironmentPort } from '../companies/application/company-fiscal-environment.port'
 import type { FiscalEnvironment } from '../database/database.schema'
 import type { HealthService } from '../health/health.service'
@@ -8,6 +10,7 @@ import type { AuthenticationPort } from '../identity/application/identity.port'
 import type { TenantContextService } from '../identity/application/tenant-context.service'
 import type { RouteAuthorizationPolicy } from '../identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../identity/domain/tenant-context'
+import { NOTIFICATION_ROUTES_BASE_PATH } from '../notification/notification.constant'
 import {
   API_AUTH_ME_PATH,
   API_LIVE_PATH,
@@ -46,24 +49,30 @@ type RouterRoute<TInput> = {
   readonly parse: (params: RouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
   readonly policy?: RouteAuthorizationPolicy
-  /**
-   * Convites/administração de usuários precisam distinguir id malformado (400, erro do cliente)
-   * de usuário de outra empresa (404, sem confirmar que existe) — 'raw' devolve o segmento decodificado
-   * como está e deixa o `parse` da rota validar o formato, ao invés do 404 padrão de segmento não-UUID.
-   */
-  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
+  readonly pathParameterFormat?: PathParameterFormat
 }
+
+/**
+ * Como o segmento dinâmico é lido antes de a rota existir:
+ * - 'canonicalUuid' decodifica e exige UUID canônico; o que não for vira 404 sem tocar na rota.
+ * - 'raw' decodifica e entrega como está — convites precisam distinguir id malformado (400, erro do
+ *   cliente) de usuário de outra empresa (404, sem confirmar que existe), e quem decide é o `parse`.
+ * - 'opaque' não decodifica nada: o segmento é segredo comparado byte a byte, e decodificar criaria
+ *   dois caminhos para o mesmo token e um 404 observável quando o percent-escape fosse inválido.
+ */
+type PathParameterFormat = 'canonicalUuid' | 'opaque' | 'raw'
 
 export type RegisteredRouterRoute = {
   readonly execute: (params: RouteParserParams) => Promise<Response>
   readonly method: string
   readonly pathname: string
-  readonly pathParameterFormat?: 'canonicalUuid' | 'raw'
+  readonly pathParameterFormat?: PathParameterFormat
   readonly policy?: RouteAuthorizationPolicy
 }
 
 export type AnonymousRouteParserParams = {
   readonly correlationId: string
+  readonly pathParameters: RouterPathParameters
   readonly request: Request
 }
 
@@ -77,12 +86,14 @@ type AnonymousRouterRoute<TInput> = {
   readonly method: string
   readonly parse: (params: AnonymousRouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
+  readonly pathParameterFormat?: PathParameterFormat
 }
 
 export type RegisteredAnonymousRoute = {
   readonly execute: (params: AnonymousRouteParserParams) => Promise<Response>
   readonly method: string
   readonly pathname: string
+  readonly pathParameterFormat?: PathParameterFormat
 }
 
 type RouterRequest = {
@@ -92,9 +103,15 @@ type RouterRequest = {
   readonly request: Request
 }
 
-type MatchedRouterRoute = {
+type DynamicRouteCandidate = {
+  readonly method: string
+  readonly pathname: string
+  readonly pathParameterFormat?: PathParameterFormat
+}
+
+type MatchedRoute<TRoute extends DynamicRouteCandidate> = {
   readonly pathParameters: RouterPathParameters
-  readonly route: RegisteredRouterRoute
+  readonly route: TRoute
 }
 
 export type HttpRouter = {
@@ -114,6 +131,12 @@ type CreateRouterParams = {
   readonly authorization: RouteAuthorizationPort
   readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly healthService: HealthService
+  /**
+   * Módulo plugável servido pelo adaptador dele: resolve a própria autenticação pelo `authResolver`
+   * da aplicação e devolve `Response` pronta. Entra depois das rotas nossas e antes do 404 daqui —
+   * um caminho do produto nunca é capturado por engano.
+   */
+  readonly moduleRouter?: ModuleFetchRouter
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
 }
@@ -124,28 +147,37 @@ export function createRouter({
   authorization,
   companyFiscalEnvironment,
   healthService,
+  moduleRouter,
   routes,
   tenantContext,
 }: CreateRouterParams): HttpRouter {
+  const moduleCandidates = toModuleCandidates(moduleRouter)
   return Object.freeze({
     allowedMethods(pathname: string): readonly string[] {
-      return collectAllowedMethods({ anonymousRoutes, pathname, routes })
+      return collectAllowedMethods({ anonymousRoutes, moduleCandidates, pathname, routes })
     },
     async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
         return handleHealthRequest({ healthService, method, pathname })
       }
 
-      const anonymousRoute = anonymousRoutes.find(
-        (candidate) => candidate.pathname === pathname && candidate.method === method,
-      )
+      const anonymousRoute = matchRoute({ method, pathname, routes: anonymousRoutes })
       if (anonymousRoute !== undefined) {
-        return anonymousRoute.execute({ correlationId, request })
+        return anonymousRoute.route.execute({
+          correlationId,
+          pathParameters: anonymousRoute.pathParameters,
+          request,
+        })
       }
       // Caminho anônimo com método errado morre aqui: descobrir isso não pode custar autenticação.
-      if (anonymousRoutes.some((candidate) => candidate.pathname === pathname)) {
+      if (anonymousRoutes.some((candidate) => routeMatchesPathname({ candidate, pathname }))) {
         throw new ApiError(HTTP_ERROR.notFound)
       }
+
+      // Antes de autenticar aqui: o módulo tem rota pública (webhook, protegida por assinatura) e
+      // resolve identidade pelo `authResolver` dele. Autenticar duas vezes daria 401 no que é
+      // público. Os conjuntos são disjuntos pelo prefixo `/v1`, que nenhuma rota nossa usa.
+      if (moduleRouter?.match(request) === true) return moduleRouter.handle(request)
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
@@ -191,23 +223,44 @@ export function defineAnonymousRoute<TInput>(
   route: AnonymousRouterRoute<TInput>,
 ): RegisteredAnonymousRoute {
   return Object.freeze({
-    async execute({ correlationId, request }: AnonymousRouteParserParams): Promise<Response> {
-      const input = await route.parse({ correlationId, request })
+    async execute({
+      correlationId,
+      pathParameters,
+      request,
+    }: AnonymousRouteParserParams): Promise<Response> {
+      const input = await route.parse({ correlationId, pathParameters, request })
       return route.handle({ correlationId, input })
     },
     method: route.method,
     pathname: route.pathname,
+    ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
   })
+}
+
+/**
+ * O módulo declara as rotas dele como dado; aqui elas viram candidatas só para o preflight. O
+ * formato é `raw` porque o segmento dinâmico do módulo nem sempre é UUID (`:driver` do webhook), e
+ * exigir UUID esconderia o caminho do CORS.
+ */
+function toModuleCandidates(moduleRouter: ModuleFetchRouter | undefined): DynamicRouteCandidate[] {
+  if (moduleRouter === undefined) return []
+  return moduleRouter.routes.map((route) => ({
+    method: route.method,
+    pathParameterFormat: 'raw' as const,
+    pathname: `${NOTIFICATION_ROUTES_BASE_PATH}${route.path}`,
+  }))
 }
 
 type CollectAllowedMethodsParams = {
   readonly anonymousRoutes: readonly RegisteredAnonymousRoute[]
+  readonly moduleCandidates: readonly DynamicRouteCandidate[]
   readonly pathname: string
   readonly routes: readonly RegisteredRouterRoute[]
 }
 
 function collectAllowedMethods({
   anonymousRoutes,
+  moduleCandidates,
   pathname,
   routes,
 }: CollectAllowedMethodsParams): readonly string[] {
@@ -216,13 +269,16 @@ function collectAllowedMethods({
   }
 
   const anonymousMethods = anonymousRoutes
-    .filter((candidate) => candidate.pathname === pathname)
+    .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
     .map((candidate) => candidate.method)
   const authenticatedMethods = routes
     .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
     .map((candidate) => candidate.method)
+  const moduleMethods = moduleCandidates
+    .filter((candidate) => routeMatchesPathname({ candidate, pathname }))
+    .map((candidate) => candidate.method)
 
-  return [...new Set([...anonymousMethods, ...authenticatedMethods])].sort(
+  return [...new Set([...anonymousMethods, ...authenticatedMethods, ...moduleMethods])].sort(
     (left, right) => methodRank(left) - methodRank(right),
   )
 }
@@ -232,29 +288,32 @@ function methodRank(method: string): number {
   return rank === -1 ? METHOD_ORDER.length : rank
 }
 
-type RouteMatchesPathnameParams = {
-  readonly candidate: RegisteredRouterRoute
+type RouteMatchesPathnameParams<TRoute extends DynamicRouteCandidate> = {
+  readonly candidate: TRoute
   readonly pathname: string
 }
 
-function routeMatchesPathname({ candidate, pathname }: RouteMatchesPathnameParams): boolean {
+function routeMatchesPathname<TRoute extends DynamicRouteCandidate>({
+  candidate,
+  pathname,
+}: RouteMatchesPathnameParams<TRoute>): boolean {
   if (findParameterSegments(candidate.pathname.split('/')).length === 0) {
     return candidate.pathname === pathname
   }
   return matchDynamicRoute({ candidate, pathname }) !== undefined
 }
 
-type MatchRouteParams = {
+type MatchRouteParams<TRoute extends DynamicRouteCandidate> = {
   readonly method: string
   readonly pathname: string
-  readonly routes: readonly RegisteredRouterRoute[]
+  readonly routes: readonly TRoute[]
 }
 
-function matchRoute({
+function matchRoute<TRoute extends DynamicRouteCandidate>({
   method,
   pathname,
   routes,
-}: MatchRouteParams): MatchedRouterRoute | undefined {
+}: MatchRouteParams<TRoute>): MatchedRoute<TRoute> | undefined {
   const exactRoute = routes.find(
     (candidate) =>
       candidate.method === method &&
@@ -268,18 +327,18 @@ function matchRoute({
   return routes
     .filter((candidate) => candidate.method === method)
     .map((candidate) => matchDynamicRoute({ candidate, pathname }))
-    .find((candidate): candidate is MatchedRouterRoute => candidate !== undefined)
+    .find((candidate): candidate is MatchedRoute<TRoute> => candidate !== undefined)
 }
 
-type MatchDynamicRouteParams = {
-  readonly candidate: RegisteredRouterRoute
+type MatchDynamicRouteParams<TRoute extends DynamicRouteCandidate> = {
+  readonly candidate: TRoute
   readonly pathname: string
 }
 
-function matchDynamicRoute({
+function matchDynamicRoute<TRoute extends DynamicRouteCandidate>({
   candidate,
   pathname,
-}: MatchDynamicRouteParams): MatchedRouterRoute | undefined {
+}: MatchDynamicRouteParams<TRoute>): MatchedRoute<TRoute> | undefined {
   const routeSegments = candidate.pathname.split('/')
   const requestSegments = pathname.split('/')
   const parameters = findParameterSegments(routeSegments)
@@ -331,7 +390,7 @@ function staticSegmentsMatch({
 }
 
 function collectPathParameters(input: {
-  readonly format: 'canonicalUuid' | 'raw'
+  readonly format: PathParameterFormat
   readonly parameters: readonly PathParameterSegment[]
   readonly requestSegments: readonly string[]
 }): RouterPathParameters | undefined {
@@ -339,6 +398,10 @@ function collectPathParameters(input: {
   for (const parameter of input.parameters) {
     const identifier = input.requestSegments[parameter.index]
     if (identifier === undefined) return undefined
+    if (input.format === 'opaque') {
+      entries.push([parameter.name, identifier])
+      continue
+    }
     const decodedIdentifier = decodeIdentifier(identifier)
     if (decodedIdentifier === undefined) return undefined
     if (input.format === 'canonicalUuid' && !isCanonicalUuid(decodedIdentifier)) return undefined

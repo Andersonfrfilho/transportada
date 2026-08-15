@@ -31,7 +31,15 @@ function resolveStylesheet(componentPath: string, importedPath: string): string 
   return resolved.join('/')
 }
 
-type IconButton = Readonly<{ className: string; componentPath: string; stylesheetPath: string }>
+type IconButton = Readonly<{
+  className: string
+  componentPath: string
+  hasLabel: boolean
+  stylesheetPath: string
+}>
+
+/** Linha que começa em `{t(` é conteúdo do botão; atributo sempre traz `nome=` antes na linha. */
+const TEXT_LABEL = /^\s*\{t\(/m
 
 async function listIconButtons(): Promise<readonly IconButton[]> {
   const buttons: IconButton[] = []
@@ -49,6 +57,7 @@ async function listIconButtons(): Promise<readonly IconButton[]> {
       buttons.push({
         className: className[1] ?? '',
         componentPath,
+        hasLabel: TEXT_LABEL.test(block),
         stylesheetPath: resolveStylesheet(componentPath, stylesImport[1] ?? ''),
       })
     }
@@ -110,6 +119,27 @@ describe('design system button contract', () => {
         const gap = /gap:\s*([^;]+)/.exec(declarations)
         if (gap !== null && !(gap[1] ?? '').includes('var(--space')) {
           offenders.push(`${button.stylesheetPath}#${button.className}: ${gap[1]}`)
+        }
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  /**
+   * A caixa quadrada do botão de ícone tem `width` fixa e não cabe rótulo: o texto quebrava em três
+   * linhas por cima do ícone, e foi assim que a barra de seleção das notas chegou em produção.
+   */
+  test('never dresses a labelled button with a fixed-width icon class', async () => {
+    const buttons = await listIconButtons()
+    const offenders: string[] = []
+
+    for (const button of buttons) {
+      if (!button.hasLabel) continue
+      const stylesheet = await readApplicationFile(button.stylesheetPath)
+      for (const declarations of readDeclarations(stylesheet, button.className)) {
+        if (/\bwidth:\s*(?:[\d.]+(?:rem|px|em|ch)|var\()/.test(declarations)) {
+          offenders.push(`${button.componentPath}#${button.className}`)
         }
       }
     }

@@ -14,6 +14,8 @@ Aplicação HTTP independente, executada por Bun 1.3.14 com `Bun.serve`.
 - `ENCRYPTION_KEYRING_JSON`: objeto JSON não vazio de IDs para chaves AES de
   32 bytes em base64 canônico;
 - `IDEMPOTENCY_HMAC_KEY`: chave HMAC separada de 32 bytes em base64 canônico;
+- `NOTIFICATION_SUPPRESSION_HMAC_KEY`: chave HMAC do módulo de notificações,
+  32 bytes em base64 canônico e distinta das anteriores;
 - `APP_PORT`: porta HTTP, padrão `53001`;
 - `APP_ENV`: ambiente, padrão `local`;
 - `LOG_LEVEL`: `debug`, `info`, `warn` ou `error`.

@@ -15,6 +15,13 @@ export type ApiEnvironment = {
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
+  /** Remetente compartilhado com o worker; ausente deixa o canal de e-mail sem driver. */
+  readonly emailDelivery:
+    | {
+        readonly from: string
+        readonly smtpUrl: string
+      }
+    | undefined
   readonly frontendOrigin: string
   readonly keycloak: {
     readonly admin: {
@@ -26,6 +33,17 @@ export type ApiEnvironment = {
     readonly jwksUri: string
   }
   readonly logLevel: LogLevel
+  /** Broker das entregas de notificação; ausente deixa o módulo sem fila em vez de inventar uma. */
+  readonly messaging:
+    | {
+        readonly queuePrefix: string
+        readonly url: string
+      }
+    | undefined
+  /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
+  readonly nfseCallbackBaseUrl: string | undefined
+  /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
+  readonly notificationWebhookSecret: string | undefined
   readonly port: number
   /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
   readonly scheduledDistributionCron: string
@@ -34,9 +52,8 @@ export type ApiEnvironment = {
   /** DSN do rastreio de erro; ausente desliga o rastreio em vez de derrubar o boot. */
   readonly sentryDsn: string | undefined
   readonly sentryEnvironment: string
-  /** Consulta de veículo por placa; `null` desliga o recurso em vez de chamar um provedor inexistente. */
-  readonly vehicleLookup: {
-    readonly token: string
+  /** Catálogo de marca/modelo FIPE; `null` desliga o recurso — campos viram texto livre. */
+  readonly vehicleCatalog: {
     readonly url: string
   } | null
 }
@@ -89,10 +106,17 @@ export type ReadinessHealthResponse = HealthResponseBase & {
 
 export type HealthResponse = LivenessHealthResponse | ReadinessHealthResponse
 
+export type ApiErrorDetail = {
+  readonly field: string
+  readonly message: string
+}
+
 export type ErrorResponse = {
   readonly error: {
     readonly code: string
     readonly correlationId: string
+    /** Presente só quando a validação reprovou mais de um campo — todos de uma vez. */
+    readonly details?: readonly ApiErrorDetail[]
     readonly message: string
   }
 }

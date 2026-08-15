@@ -4,7 +4,11 @@
 import { z } from 'zod'
 
 import type { CompanySettingsInput } from '../application/company-settings.port.js'
-import { BILLING_OBSERVATIONS_MAX_LENGTH } from '../../database/company-fiscal-profile.schema.js'
+import {
+  ACTIVATION_CHANNELS,
+  BILLING_OBSERVATIONS_MAX_LENGTH,
+  DEFAULT_ACTIVATION_CHANNEL,
+} from '../../database/company-fiscal-profile.schema.js'
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
@@ -12,15 +16,15 @@ import {
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
+import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { CNPJ_PATTERN, parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 
 const DECIMAL_BIGINT = /^(?:[1-9][0-9]{0,18})$/
-const CNPJ = /^\d{14}$/
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,128}$/
 const MAX_DATABASE_BIGINT = 9_223_372_036_854_775_807n
 const MAX_DATABASE_INTEGER = 2_147_483_647
 const BANK_CODE = /^\d{3}$/
 const NUMERIC_TEXT = /^\d+$/
-const TAX_ID = /^(?:\d{11}|\d{14})$/
 const BANK_BRANCH_MAX_LENGTH = 10
 const BANK_ACCOUNT_MAX_LENGTH = 20
 const BANK_NAME_MAX_LENGTH = 60
@@ -49,7 +53,7 @@ const profileSchema = z
   .object({
     city: requiredText({ maximum: 100, minimum: 2 }),
     cityIbgeCode: z.string().regex(/^\d{7}$/),
-    cnpj: z.string().regex(/^\d{14}$/),
+    cnpj: buildTaxIdSchema(CNPJ_PATTERN),
     complement: optionalText(100),
     district: requiredText({ maximum: 100, minimum: 1 }),
     email: optionalText(254),
@@ -77,7 +81,7 @@ const mdfeSchema = z
     insurancePolicy: optionalText(INSURANCE_POLICY_MAX_LENGTH),
     insuranceResponsibility: z.enum(['', '1', '2']),
     insurerName: optionalText(INSURER_NAME_MAX_LENGTH),
-    insurerTaxId: z.string().refine((value) => value === '' || TAX_ID.test(value)),
+    insurerTaxId: buildOptionalTaxIdSchema(TAX_ID_PATTERN),
     pixKey: optionalText(PIX_KEY_MAX_LENGTH),
   })
   .strict()
@@ -96,8 +100,15 @@ const billingSchema = z
   })
   .strict()
 
+// Bloco opcional porque cliente antigo não o envia — ausente é `email`, o único canal com driver.
+const activationSchema = z
+  .object({ channel: z.enum(ACTIVATION_CHANNELS) })
+  .strict()
+  .default({ channel: DEFAULT_ACTIVATION_CHANNEL })
+
 const settingsSchema = z
   .object({
+    activation: activationSchema,
     billing: billingSchema,
     cte: z
       .object({
@@ -137,8 +148,9 @@ export function parseIdempotencyKey(value: string | null): string {
 
 export function parseCompanySettingsLookupCnpjRequest(request: Request): string {
   const cnpj = new URL(request.url).searchParams.get('cnpj')?.trim() ?? ''
-  if (!CNPJ.test(cnpj)) throw new ApiError(HTTP_ERROR.invalidRequest)
-  return cnpj
+  const normalized = parseTaxIdValue(cnpj, CNPJ_PATTERN)
+  if (normalized === undefined) throw new ApiError(HTTP_ERROR.invalidRequest)
+  return normalized
 }
 
 function assertJsonContentType(value: string | null): void {

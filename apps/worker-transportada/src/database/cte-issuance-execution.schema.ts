@@ -84,6 +84,9 @@ export const cteFiscalDocuments = pgTable('cte_fiscal_documents', {
 export const cteBatches = pgTable('cte_batches', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),
+  /** Lidos só para o aviso de falha: quem abriu o lote e como ele se chama na tela. */
+  operatorUserId: uuid('operator_user_id').notNull(),
+  name: text().notNull(),
   status: text().$type<CteBatchProgressStatus>().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })

@@ -23,6 +23,7 @@ import type {
   CteBatchPreviewBlock,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
+  CteBatchPreviewNfseLink,
 } from './cte-batch-preview.port.js'
 
 /** Preview projects without persisting, so it has no versioned rule to reference. */
@@ -40,6 +41,7 @@ export type CteBatchSelectionParams = {
   readonly emissionProfileId?: string | undefined
   readonly groupingMode?: CteEmissionGroupingMode | undefined
   readonly links: readonly CteBatchPreviewLink[]
+  readonly nfseLinks: readonly CteBatchPreviewNfseLink[]
   readonly ruleVersions?: ReadonlyMap<string, FreightRuleVersionReference>
 }
 
@@ -75,6 +77,9 @@ export function splitDuplicatedDocumentIds(requested: readonly string[]): {
 export function selectCteBatchCandidates(params: CteBatchSelectionParams): CteBatchSelectionResult {
   const documentById = new Map(params.documents.map((document) => [document.id, document]))
   const batchIdByDocumentId = new Map(params.links.map((link) => [link.documentId, link.batchId]))
+  const nfseInvoiceIdByDocumentId = new Map(
+    params.nfseLinks.map((link) => [link.documentId, link.invoiceId]),
+  )
   const manualResolution = resolveRequestedProfile(params.catalog, params.emissionProfileId)
   const blocked: CteBatchPreviewBlock[] = []
   const candidates: CteBatchProjectionCandidate[] = []
@@ -90,6 +95,7 @@ export function selectCteBatchCandidates(params: CteBatchSelectionParams): CteBa
       batchId: batchIdByDocumentId.get(documentId) ?? null,
       document,
       manualResolution,
+      nfseInvoiceId: nfseInvoiceIdByDocumentId.get(documentId) ?? null,
       params,
     })
     if (outcome.blocked !== undefined) blocked.push(outcome.blocked)
@@ -103,15 +109,21 @@ function resolveDocument({
   batchId,
   document,
   manualResolution,
+  nfseInvoiceId,
   params,
 }: {
   readonly batchId: string | null
   readonly document: CteBatchPreviewDocument
   readonly manualResolution: EmissionProfileResolution | undefined
+  readonly nfseInvoiceId: string | null
   readonly params: CteBatchSelectionParams
 }): DocumentOutcome {
   const documentId = document.id
-  const decision = resolveDocumentBlock({ document, linkedBatchId: batchId })
+  const decision = resolveDocumentBlock({
+    document,
+    linkedBatchId: batchId,
+    linkedNfseInvoiceId: nfseInvoiceId,
+  })
   if (decision.blocked !== undefined) {
     return { blocked: { ...decision.blocked, documentId } }
   }

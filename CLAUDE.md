@@ -74,6 +74,17 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `context.companyId` e filtra por ele. Testes de isolamento em `test/*-schema/tenant-safety.contract.ts`
 são obrigatórios em qualquer mudança de query.
 
+**Recuperação de senha:** `POST /password-resets` e `POST /password-resets/confirm` são as **únicas
+rotas anônimas** da API. A primeira responde `204` sempre — login inexistente, desabilitado e válido
+são indistinguíveis, e é isso que impede a enumeração de usuários; o cliente do frontend engole
+falha de rede pelo mesmo motivo. O código é de uso único, expira em 15 minutos e sai por
+`password-reset-delivery.v1` no worker, com o envelope carregando só referência (`requestId`,
+`userId`) e AAD `transportada:password-reset:v1:${companyId}:${requestId}` — amarrado ao **pedido**,
+não ao usuário como no convite, porque a mesma pessoa abre vários pedidos. O Keycloak é só o
+depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "Esqueci minha senha"
+do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
+— não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
+
 **Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
 `ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba
@@ -114,9 +125,10 @@ recebe `{config, logger, provider}` e devolve `{cancel()}`; a lógica fica em `s
 Dependências injetáveis via `WorkerRuntimeDependencies` — é assim que os contract tests substituem
 RabbitMQ e banco.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker
-(`src/database/processing.schema.ts`, `cte-issuance-execution.schema.ts`). Mudou tabela na API? confira
-a cópia do worker — migrations só rodam na API.
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — oito arquivos em
+`src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
+`nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`), e
+outros oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada
 
@@ -125,10 +137,22 @@ não há loop nem agendador embutido. Sai com código 1 só quando alguma empres
 advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`max: 1`) para o lock de
 sessão valer por todas as transações do ciclo.
 
-`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `nfe-distribution-pull/job-registry.ts`
-mapeia o nome para a função. Hoje há um job só: `nfe.distribution.pull` — seleciona as empresas
-elegíveis e enfileira uma importação `source: 'distribution'`, `triggeredBy: 'automation'` na
-`processing_outbox`, reusando o relay e o consumidor de distribuição que já existiam.
+`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `src/job-registry.ts` mapeia o
+nome para a função. Dois jobs:
+
+- `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
+  `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
+  consumidor de distribuição que já existiam.
+- `nfse.status.pull` — reconcilia NFS-e com a prefeitura: consulta a situação de cada nota pendente,
+  arquiva XML e PDF no bucket na autorização, grava a rejeição com código e mensagem. Aqui o cron
+  **processa** em vez de enfileirar (desvio deliberado da regra geral): o consumidor seria dele
+  mesmo. Quem decide a transição é o banco — todo `UPDATE` de liquidação projeta o status de origem
+  no `WHERE` e devolve `RETURNING`; sem linha, a escrita inteira é abandonada. O XML é o documento
+  fiscal e sem ele a nota não liquida; o PDF é conveniência, e sua falta só é registrada.
+
+O bloco de configuração de NFS-e (chaveiro, bucket, endereço da prefeitura) só é resolvido quando
+`CRON_JOB` é `nfse.status.pull` — o deploy da busca de notas continua subindo sem nenhum deles, e o
+de NFS-e falha no boot se faltar algum.
 
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
@@ -136,6 +160,17 @@ vocabulário de razões, duas apps que não importam código uma da outra. Mudou
 mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda a paridade do corpo
 servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
 vocabulário no cron.
+
+⚠️ O trilho de NFS-e do cron carrega quatro **cópias por valor** do worker:
+`nfse-status-pull/infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+`nfse-status-pull/application/nfse-credential-secret.service.ts` e
+`src/database/nfse-reconciliation.schema.ts` (mais `config/cryptographic-configuration.schema.ts`,
+cópia do parser de chaveiro). São reduções, não espelhos — aqui só se consulta e se baixa documento.
+O que guarda a paridade é comportamento, não diff de texto:
+`test/nfse-status-pull/nota-rp-parity.contract.ts` fixa a mesma tabela de tradução de resposta e de
+causas de falha que o cliente do worker. Mudou o vocabulário da Nota RP de um lado? mude do outro.
+O AAD do envelope tem de ser idêntico ao que selou:
+`transportada:nfse-credential:v1:${companyId}:${credentialId}`.
 
 ## frontend-transportada
 
@@ -176,6 +211,12 @@ Todo botão que hospeda ícone alinha ícone e rótulo por **uma regra global** 
 `--space-*`. Regra completa em `docs/frontend/buttons.md`, contrato em
 `test/design-system/button.contract.ts`.
 
+Toda altura de controle sai de `--control-height` / `--control-height-compact` (derivados de
+`--field-height*`): as duas classes de tamanho do botão e todo botão só de ícone, que é quadrado
+nesse valor. Nenhum módulo declara controle quadrado com medida literal em `rem` — era assim que
+"Novo veículo" (2,5rem), o botão de colunas (2,25rem) e a barra de filtro (2,4rem) davam três
+alturas na mesma fileira. Contrato em `test/design-system/control-height.contract.ts`.
+
 Todo campo de seleção usa `@/components/ui/select` — `<select>` nativo é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/select.contract.ts` falha se algum reaparecer.
 Contrato de props, teclado e ARIA em `docs/frontend/selects.md`.
@@ -201,6 +242,13 @@ em `clearFilterField` do hook; no modo simples o badge do filtro usa `countFilte
 pílula que resume vários filtros declara o próprio peso em `count`. Regra completa na
 § 8 de `docs/frontend/data-tables.md`, contrato em `test/design-system/filter-pills.contract.ts`.
 
+Toda contagem de filtros ativos no botão de ícone vem de `@/components/ui/count-badge` — o badge fica
+**ao lado do ícone, dentro do botão**, e a regra global `button:has([data-count-badge])` em
+`src/styles/index.css` troca a largura fixa do botão por `width: auto` + `padding-inline`. No canto
+(`position: absolute`) ele ficava pendurado por cima da borda e era recortado pelo `overflow` da barra
+de ações. Regra na § 9 de `docs/frontend/data-tables.md`, contrato em
+`test/design-system/count-badge.contract.ts`.
+
 Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
 renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
 antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
@@ -212,7 +260,66 @@ varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
 Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
-Envs: `VITE_API_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
+Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — o 🚧 vem à
+frente da marca, dentro do próprio desenho, porque na aba o ícone é o que aparece antes do título; o
+título fica só com o nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
+ambiente. Quem decide é
+`VITE_APP_ENV` (`local` · `staging` · `production`), resolvido em
+`shared/deploymentEnvironment.service.ts`: ausente ou desconhecido cai em `production` — variável
+esquecida no painel não pode fazer a instalação do cliente pedir desculpas. Build de dev (`vite dev`)
+cai em `local` sem configurar nada. Contrato em `test/shared/deployment-environment.contract.ts`,
+que também guarda o `ARG VITE_APP_ENV` do `Dockerfile` — sem ele o valor não entra no bundle.
+
+A tela de login **não é desta app**: é o tema Keycloak em `deploy/keycloak/theme/`, montado pelo
+`compose.yaml` e copiado pelo `deploy/keycloak/Dockerfile` — o mesmo diretório nos dois caminhos.
+Herda de `base` (não de `keycloak.v2`, que arrasta o PatternFly) e reescreve `template.ftl` e
+`login.ftl`; os tokens de design são **cópia por valor** de `src/styles/index.css`, porque o tema
+não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra completa em
+`docs/frontend/login-theme.md`.
+
+Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
+`VITE_KEYCLOAK_CLIENT_ID`.
+
+## Documento fiscal: o CNPJ tem letra
+
+CNPJ alfanumérico (IN RFB 2229/2024, NT Conjunta DF-e 2025.001, em produção desde 01/07/2026):
+**`[A-Z0-9]{12}[0-9]{2}`** — letra só nas doze posições da base, os dois dígitos verificadores
+continuam numéricos. **O CPF não mudou**: onze dígitos, sempre. A chave de acesso herda o documento
+nas posições 7 a 20, então o padrão dela é `^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$` (cUF+AAMM, o CNPJ do
+emitente, e daí em diante só dígito). Todo CHECK de chave no banco é esse — `nfe`, `cte-issuance`,
+`billing`, `mdfe`, `nfse`, `fleet`, `digital-certificate`.
+
+**A forma canônica é sem máscara e em CAIXA ALTA.** Canonicalizar é `normalizeTaxId`: tira `.`, `/`,
+`-` e espaço, e sobe a caixa. Onde ela mora:
+
+- `api-transportada/src/shared/tax-id.service.ts` — **único** ponto da API que importa
+  `CNPJ_PATTERN`/`CHAVE_PATTERN`/`normalizeTaxId` de `@adatechnology/fiscal-provider`, para o `~` do
+  Postgres, o `regex` do Zod e o XML não divergirem. Ali também ficam `CPF_PATTERN`,
+  `CNPJ_ROOT_PATTERN` (a raiz alfanumeriza junto — é prefixo do documento), `TAX_ID_PATTERN`,
+  `DOCUMENT_FILTER_PATTERN` e `parseTaxIdValue` para fronteira que não é Zod (query string, rota).
+- `api-transportada/src/shared/tax-id.schema.ts` — `buildTaxIdSchema` / `buildOptionalTaxIdSchema`.
+  A ordem importa: `.transform(normalizeTaxId)` **antes** do `.refine(pattern)`, senão a minúscula
+  vinda do formulário é recusada antes de ter chance de subir a caixa.
+- `worker-transportada/src/shared/tax-id.service.ts` — reexporta do mesmo pacote fiscal.
+- `frontend-transportada/src/modules/shared/taxId.service.ts` — aqui a regra é **reescrita**, porque
+  o bundle não carrega o pacote fiscal; `test/shared/alphanumeric-tax-id.contract.ts` é o que
+  garante que as duas dizem a mesma coisa. Campo de CNPJ **nunca** leva `inputMode="numeric"` — o
+  teclado do celular não tem letra — e o `onChange` canonicaliza enquanto se digita.
+
+**O que continua sendo por comprimento, e está certo:** `toParticipante`
+(`cte-issuance/domain/cte-payload.builder.ts`) escolhe `cnpj` em 14 caracteres e `cpf` em 11. O CNPJ
+alfanumérico continua tendo 14 — a discriminação sobrevive à IN, e trocá-la por padrão seria
+mudança sem ganho.
+
+**O que precisou virar guarda de conjunto:** `formatDacteDocumentNumber`
+(`cte-issuance/domain/dacte-format.policy.ts`) canonicaliza e testa `CNPJ_PATTERN` **antes** de
+`CPF_PATTERN`. Filtrar por dígito, como antes, deixava onze dígitos num CNPJ de três letras e
+imprimia o documento sob a máscara de CPF.
+
+Cobertura ponta a ponta em
+`api-transportada/test/integration/alphanumeric-cnpj-end-to-end.integration.ts`: nota de emitente
+alfanumérico → lote → frete → payload de CT-e → DACTE → fatura. Ele **não** cobre assinatura e
+transmissão (o XML nasce no worker, com certificado e rede).
 
 ## Convenções
 

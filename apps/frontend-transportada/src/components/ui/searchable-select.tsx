@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Icon } from '@/components/ui/icon'
 
 import { SELECT_TRIGGER_CLASS_NAMES } from './select'
+import { resolveSelectSearchKey } from './select.service'
 import {
   filterSearchableOptions,
   resolveSearchableSelectLabel,
@@ -94,25 +95,25 @@ export function SearchableSelect({
   }
 
   function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key === 'Escape') {
-      event.stopPropagation()
+    // Portal do React propaga pela árvore de componentes, não pela do DOM: sem parar aqui, a
+    // tecla digitada na busca chega a quem quer que escute do gatilho para cima.
+    event.stopPropagation()
+    const action = resolveSelectSearchKey(event.key)
+    if (action === 'type') return
+    if (action === 'close') {
       close()
       return
     }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
+    event.preventDefault()
+    if (action === 'move-down') {
       setActiveIndex((current) => Math.min(current + 1, filtered.length - 1))
       return
     }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
+    if (action === 'move-up') {
       setActiveIndex((current) => Math.max(current - 1, 0))
       return
     }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      commit(activeIndex)
-    }
+    commit(activeIndex)
   }
 
   const listId = `${baseId}-list`

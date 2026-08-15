@@ -32,8 +32,40 @@
   --field-padding-compact: var(--space-2) var(--space-3);
   --field-font-size: 0.9rem;
   --field-font-size-compact: 0.82rem;
+  /* Botão e botão de ícone saem da medida do campo: numa fileira de controles tudo tem uma altura */
+  --control-height: var(--field-height);
+  --control-height-compact: var(--field-height-compact);
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
+  /* Cores e proporção da placa Mercosul são do documento oficial: não seguem o tema da aplicação */
+  --color-plate-band: #062f9e;
+  --color-plate-flag-blue: #17298a;
+  --color-plate-flag-green: #009c3b;
+  --color-plate-flag-yellow: #ffdf00;
+  --color-plate-ink: #16181c;
+  --color-plate-surface: #eef0f2;
+  --font-plate: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* 400 × 130 mm é a placa impressa — a miniatura mantém a proporção */
+  --plate-width: 10rem;
+  --plate-height: 3.25rem;
+  /* Cor do veículo é a do CRLV, não a do tema: o quadrado tem de parecer a lataria */
+  --vehicle-color-amarela: #f2c200;
+  --vehicle-color-azul: #2f6fd0;
+  --vehicle-color-bege: #d8c9a3;
+  --vehicle-color-branca: #f2f2f0;
+  --vehicle-color-cinza: #8a9099;
+  --vehicle-color-dourada: #c9a227;
+  /* "Fantasia" é o multicor do Denatran — nenhum tom único a representa */
+  --vehicle-color-fantasia: linear-gradient(135deg, #d94f4f 0%, #e0c14a 50%, #4f8fd9 100%);
+  --vehicle-color-grena: #7b1e3a;
+  --vehicle-color-laranja: #e07b2a;
+  --vehicle-color-marrom: #6b4423;
+  --vehicle-color-prata: #c3c7cc;
+  --vehicle-color-preta: #1a1c1f;
+  --vehicle-color-rosa: #e58ab5;
+  --vehicle-color-roxa: #6f42a5;
+  --vehicle-color-verde: #2f8f4e;
+  --vehicle-color-vermelha: #cc3333;
 }
 
 * {
@@ -289,6 +321,16 @@ a {
   animation: page-enter 180ms ease both;
 }
 
+.application-footer {
+  width: var(--layout-width);
+  margin: var(--space-8) auto var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
 .application-session-banner {
   width: var(--layout-width);
   margin: 0 auto var(--space-4);
@@ -300,6 +342,19 @@ a {
   padding: var(--space-3) var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  color: var(--color-fog);
+}
+
+.application-environment-banner {
+  width: var(--layout-width);
+  margin: 0 auto var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
   color: var(--color-fog);
 }
 
@@ -743,6 +798,13 @@ button:has(svg) {
   gap: var(--space-2);
 }
 
+/* Botão de ícone quadrado cresce para caber a contagem ao lado do ícone, em vez de espremê-la. */
+button:has([data-count-badge]) {
+  width: auto;
+  padding-inline: var(--space-2);
+  gap: var(--space-1);
+}
+
 .ui-button {
   display: inline-flex;
   align-items: center;
@@ -763,12 +825,12 @@ button:has(svg) {
 }
 
 .ui-button-size-default {
-  min-height: 3rem;
+  min-height: var(--control-height);
   padding: var(--space-3) var(--space-5);
 }
 
 .ui-button-size-sm {
-  min-height: 2.5rem;
+  min-height: var(--control-height-compact);
   padding: var(--space-2) var(--space-3);
 }
 

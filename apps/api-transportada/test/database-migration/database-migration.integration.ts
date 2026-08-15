@@ -15,6 +15,8 @@ import {
   FLEET_TABLES,
   FREIGHT_TABLES,
   IDENTITY_TABLES,
+  INVITATION_DELIVERY_TABLES,
+  PASSWORD_RESET_TABLES,
   INVITATION_TABLES,
   NFE_TABLES,
   CTE_BATCH_TABLES,
@@ -23,6 +25,7 @@ import {
   BILLING_TABLES,
   OPERATIONS_TABLES,
   MDFE_TABLES,
+  NFSE_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -49,6 +52,8 @@ describe('Drizzle migration integration', () => {
           [
             ...IDENTITY_TABLES,
             ...INVITATION_TABLES,
+            ...INVITATION_DELIVERY_TABLES,
+            ...PASSWORD_RESET_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,
@@ -59,6 +64,7 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...NFSE_TABLES,
             ...TRIP_TABLES,
           ].toSorted(),
         )
@@ -91,6 +97,8 @@ describe('Drizzle migration integration', () => {
           [
             ...IDENTITY_TABLES,
             ...INVITATION_TABLES,
+            ...INVITATION_DELIVERY_TABLES,
+            ...PASSWORD_RESET_TABLES,
             ...FISCAL_TABLES,
             ...FREIGHT_TABLES,
             ...NFE_TABLES,
@@ -101,6 +109,7 @@ describe('Drizzle migration integration', () => {
             ...OPERATIONS_TABLES,
             ...FLEET_TABLES,
             ...MDFE_TABLES,
+            ...NFSE_TABLES,
             ...TRIP_TABLES,
           ].toSorted(),
         )

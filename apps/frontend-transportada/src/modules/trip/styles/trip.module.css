@@ -294,8 +294,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   color: var(--color-fog);

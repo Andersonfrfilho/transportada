@@ -1,10 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 export const CTE_BATCH_BLOCK_REASON = {
   alreadyLinked: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
   duplicated: 'CTE_BATCH_DOCUMENT_DUPLICATED',
+  linkedToNfse: 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE',
   missingMunicipality: 'CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY',
   missingParty: 'CTE_BATCH_DOCUMENT_MISSING_PARTY',
   missingTotal: 'CTE_BATCH_DOCUMENT_MISSING_TOTAL',
@@ -17,8 +19,6 @@ export const CTE_BATCH_BLOCK_REASON = {
 
 export type CteBatchBlockReason =
   (typeof CTE_BATCH_BLOCK_REASON)[keyof typeof CTE_BATCH_BLOCK_REASON]
-
-const FULL_TAX_ID_PATTERN = /^[0-9]{14}$/
 
 export type EligibilityDocument = {
   readonly grossWeight: string | null
@@ -66,9 +66,11 @@ export type DocumentBlockDecision =
 export function resolveDocumentBlock({
   document,
   linkedBatchId,
+  linkedNfseInvoiceId,
 }: {
   readonly document: EligibilityDocument
   readonly linkedBatchId: string | null
+  readonly linkedNfseInvoiceId: string | null
 }): DocumentBlockDecision {
   const eligibility = checkDocumentEligibility(document)
   if (eligibility.reason !== undefined) {
@@ -76,6 +78,10 @@ export function resolveDocumentBlock({
   }
   if (linkedBatchId !== null) {
     return { blocked: { batchId: linkedBatchId, reason: CTE_BATCH_BLOCK_REASON.alreadyLinked } }
+  }
+  // Emitir CT-e e nota de serviço para o mesmo transporte é bitributação.
+  if (linkedNfseInvoiceId !== null) {
+    return { blocked: { batchId: null, reason: CTE_BATCH_BLOCK_REASON.linkedToNfse } }
   }
 
   return { chargeable: eligibility.chargeable }
@@ -127,7 +133,7 @@ function isFilled(value: string | null): boolean {
 }
 
 function isFullTaxId(value: string | null): value is string {
-  return value !== null && FULL_TAX_ID_PATTERN.test(value)
+  return value !== null && CNPJ_PATTERN.test(value)
 }
 
 /** Persisted decimals are constrained to be non-negative, so any non-zero digit means positive. */

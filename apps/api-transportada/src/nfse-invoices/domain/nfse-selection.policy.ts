@@ -1,0 +1,155 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import {
+  type CteBatchBlockReason,
+  type EligibilityDocument,
+  checkDocumentEligibility,
+} from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import type { NfseTaker } from '../../database/nfse.schema.js'
+import type { NfseProjectionCandidate, NfseProjectionProfile } from './nfse-projection.service.js'
+
+export const NFSE_SELECTION_BLOCK_REASON = {
+  alreadyLinked: 'NFSE_DOCUMENT_ALREADY_LINKED',
+  duplicated: 'NFSE_DOCUMENT_DUPLICATED',
+  linkedToCteBatch: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+  missingTakerName: 'NFSE_DOCUMENT_MISSING_TAKER_NAME',
+  notFound: 'NFSE_DOCUMENT_NOT_FOUND',
+} as const
+
+/**
+ * A elegibilidade é a mesma do CT-e — o serviço prestado é o mesmo transporte —, então as razões
+ * dela entram no vocabulário sem tradução: duas palavras para o mesmo bloqueio confundem quem lê.
+ */
+export type NfseSelectionBlockReason =
+  | (typeof NFSE_SELECTION_BLOCK_REASON)[keyof typeof NFSE_SELECTION_BLOCK_REASON]
+  | CteBatchBlockReason
+
+export type NfseSelectionDocument = EligibilityDocument & {
+  readonly accessKey: string
+  readonly documentId: string
+  readonly issuedAt: string
+  readonly number: string
+  readonly recipientLegalName: string | null
+  readonly senderLegalName: string | null
+  readonly series: string
+}
+
+export type NfseSelectionProfile = NfseProjectionProfile & {
+  readonly taker: NfseTaker
+}
+
+export type NfseSelectionBlock = {
+  readonly documentId: string
+  readonly reason: NfseSelectionBlockReason
+}
+
+export type NfseSelection = {
+  readonly blocked: readonly NfseSelectionBlock[]
+  readonly candidates: readonly NfseProjectionCandidate[]
+}
+
+export type SelectNfseCandidatesParams = {
+  readonly cteBatchLinks: ReadonlyMap<string, string>
+  readonly documentIds: readonly string[]
+  readonly documents: readonly NfseSelectionDocument[]
+  readonly nfseLinks: ReadonlyMap<string, string>
+  readonly profile: NfseSelectionProfile
+}
+
+type ResolvedTaker = {
+  readonly legalName: string
+  readonly taxId: string
+}
+
+export function selectNfseCandidates({
+  cteBatchLinks,
+  documentIds,
+  documents,
+  nfseLinks,
+  profile,
+}: SelectNfseCandidatesParams): NfseSelection {
+  const documentsById = new Map(documents.map((document) => [document.documentId, document]))
+  const seen = new Set<string>()
+  const blocked: NfseSelectionBlock[] = []
+  const candidates: NfseProjectionCandidate[] = []
+
+  for (const documentId of documentIds) {
+    if (seen.has(documentId)) {
+      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.duplicated })
+      continue
+    }
+    seen.add(documentId)
+
+    const document = documentsById.get(documentId)
+    if (document === undefined) {
+      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.notFound })
+      continue
+    }
+
+    const eligibility = checkDocumentEligibility(document)
+    if (eligibility.reason !== undefined) {
+      blocked.push({ documentId, reason: eligibility.reason })
+      continue
+    }
+
+    const linkReason = resolveLinkBlockReason({ cteBatchLinks, documentId, nfseLinks })
+    if (linkReason !== undefined) {
+      blocked.push({ documentId, reason: linkReason })
+      continue
+    }
+
+    const taker = resolveTaker({ document, taker: profile.taker })
+    if (taker === null) {
+      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName })
+      continue
+    }
+
+    candidates.push({
+      document: {
+        accessKey: document.accessKey,
+        documentId: document.documentId,
+        issuedAt: document.issuedAt,
+        number: document.number,
+        series: document.series,
+        takerLegalName: taker.legalName,
+        takerTaxId: taker.taxId,
+        totalAmount: eligibility.chargeable.totalAmount,
+      },
+      profile,
+    })
+  }
+
+  return { blocked, candidates }
+}
+
+function resolveLinkBlockReason({
+  cteBatchLinks,
+  documentId,
+  nfseLinks,
+}: {
+  readonly cteBatchLinks: ReadonlyMap<string, string>
+  readonly documentId: string
+  readonly nfseLinks: ReadonlyMap<string, string>
+}): NfseSelectionBlockReason | undefined {
+  // Emitir CT-e e nota de serviço para o mesmo transporte é bitributação.
+  if (cteBatchLinks.has(documentId)) return NFSE_SELECTION_BLOCK_REASON.linkedToCteBatch
+  if (nfseLinks.has(documentId)) return NFSE_SELECTION_BLOCK_REASON.alreadyLinked
+
+  return undefined
+}
+
+/** A prefeitura exige a razão social do tomador; o CT-e vive só com o CNPJ, a NFS-e não. */
+function resolveTaker({
+  document,
+  taker,
+}: {
+  readonly document: NfseSelectionDocument
+  readonly taker: NfseTaker
+}): ResolvedTaker | null {
+  const legalName = taker === '0' ? document.senderLegalName : document.recipientLegalName
+  const taxId = taker === '0' ? document.senderTaxId : document.recipientTaxId
+  if (legalName === null || legalName.trim().length === 0 || taxId === null) return null
+
+  return { legalName: legalName.trim(), taxId }
+}

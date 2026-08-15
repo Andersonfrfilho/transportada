@@ -4,7 +4,6 @@ import {
   FLEET_CAPABILITIES_PATH,
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
-  FLEET_VEHICLE_LOOKUP_PATH,
   FLEET_VEHICLES_PATH,
   OWNER_KEYS,
   VEHICLE_BODY_KEYS,
@@ -23,11 +22,9 @@ import type {
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFilters,
-  FleetVehicleLookup,
   FleetVehiclePage,
   FleetVehicleVersionInput,
 } from './fleet.types'
-import { normalizePlate } from './fleetForm.service'
 import { isRecord, isString } from './fleetGuards.validation'
 import { createFleetResponseAdapters } from './fleetResponse.validation'
 
@@ -46,7 +43,6 @@ export type FleetClient = Readonly<{
   ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
-  lookupVehicleByPlate: (input: Readonly<{ plate: string }>) => Promise<FleetVehicleLookup | null>
   replaceDriverVehicles: (
     input: FleetReplaceDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
@@ -204,15 +200,6 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_VEHICLES_PATH}?${search}`,
       })
       return adapters.vehicleListFromApi(response)
-    },
-    async lookupVehicleByPlate(input) {
-      const search = new URLSearchParams({ plate: normalizePlate(input.plate) })
-      const response = await authorizedRequest({
-        dependencies,
-        method: 'GET',
-        path: `${FLEET_VEHICLE_LOOKUP_PATH}?${search.toString()}`,
-      })
-      return adapters.vehicleLookupFromApi(readEnvelopeData(response))
     },
     async replaceDriverVehicles(input) {
       const response = await authorizedRequest({

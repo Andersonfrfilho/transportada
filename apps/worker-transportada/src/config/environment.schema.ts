@@ -15,6 +15,13 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
   'CTE_TECHNICAL_RESPONSIBLE_PHONE',
 ] as const
 
+const NFSE_PROVIDER_BASE_URL_KEYS = [
+  'NFSE_PROVIDER_BASE_URL_HOMOLOGATION',
+  'NFSE_PROVIDER_BASE_URL_PRODUCTION',
+] as const
+
+const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
+
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 
@@ -27,12 +34,19 @@ const workerEnvironmentSchema = z
     CTE_TECHNICAL_RESPONSIBLE_EMAIL: z.string().trim().email().optional(),
     CTE_TECHNICAL_RESPONSIBLE_PHONE: z.string().trim().min(1).optional(),
     DATABASE_URL: protocolUrl(POSTGRESQL_PROTOCOLS),
+    // Remetente e conexão juntos ou nenhum: com um só, o convite sai sem canal e o código morre
+    // selado na linha do convite.
+    EMAIL_FROM: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+    // Homologação e produção juntas ou nenhuma: com uma só, a nota sairia no ambiente errado.
+    NFSE_PROVIDER_BASE_URL_HOMOLOGATION: optionalUrl(),
+    NFSE_PROVIDER_BASE_URL_PRODUCTION: optionalUrl(),
+    NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
     QUEUE_PREFIX: z
       .string()
       .trim()
@@ -42,6 +56,7 @@ const workerEnvironmentSchema = z
     RABBITMQ_URL: protocolUrl(RABBITMQ_PROTOCOLS),
     LOG_SINK_URL: optionalUrl(),
     SENTRY_DSN: optionalUrl(),
+    SMTP_URL: optionalUrl(),
     SENTRY_ENVIRONMENT: optionalText(),
     WORKER_PORT: z.coerce.number().int().min(0).max(65_535).default(53_002),
     WORKER_PREFETCH: z.coerce.number().int().min(1).max(100).default(1),
@@ -55,6 +70,28 @@ const workerEnvironmentSchema = z
         code: 'custom',
         message: 'The technical responsible requires every field or none',
         path: [...TECHNICAL_RESPONSIBLE_KEYS],
+      })
+    }
+
+    const declaredNfseBaseUrls = NFSE_PROVIDER_BASE_URL_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declaredNfseBaseUrls > 0 && declaredNfseBaseUrls < NFSE_PROVIDER_BASE_URL_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The NFS-e provider requires both fiscal environments or none',
+        path: [...NFSE_PROVIDER_BASE_URL_KEYS],
+      })
+    }
+
+    const declaredEmailKeys = EMAIL_DELIVERY_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declaredEmailKeys > 0 && declaredEmailKeys < EMAIL_DELIVERY_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Email delivery requires both the sender and the SMTP connection or none',
+        path: [...EMAIL_DELIVERY_KEYS],
       })
     }
 
@@ -91,9 +128,19 @@ export function parseWorkerEnvironment(
       ? {}
       : { cteTechnicalResponsible: technicalResponsible }),
     databaseUrl: result.data.DATABASE_URL,
+    ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
+      ? {}
+      : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
+    nfseProvider: {
+      baseUrls: {
+        homologation: result.data.NFSE_PROVIDER_BASE_URL_HOMOLOGATION,
+        production: result.data.NFSE_PROVIDER_BASE_URL_PRODUCTION,
+      },
+      timeoutMilliseconds: result.data.NFSE_PROVIDER_TIMEOUT_MS,
+    },
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,
     queuePrefix: result.data.QUEUE_PREFIX,

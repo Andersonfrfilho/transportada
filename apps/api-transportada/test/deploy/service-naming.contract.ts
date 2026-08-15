@@ -16,7 +16,7 @@ const DOMAIN_LINE_PATTERN = /^- ([a-z-]+): `https:\/\/([a-z0-9.-]+)`$/gm
 
 const PUBLIC_DOMAIN_PATTERN = /^transportada-afr-fernandes(?:-api|-auth)?\.up\.railway\.app$/
 /** Serviço que só fala por `*.railway.internal` — domínio público nele é superfície de graça. */
-const INTERNAL_SERVICES = ['worker', 'cron', 'rabbitmq'] as const
+const INTERNAL_SERVICES = ['worker', 'cron', 'cron-nfse', 'rabbitmq'] as const
 
 async function readDocument(): Promise<string> {
   return Bun.file(RAILWAY_DOC_PATH).text()
@@ -68,7 +68,7 @@ describe('contrato de nome de serviço e de domínio', () => {
    * da API, o `redirect_uri` do frontend e os `redirectUris` do client no Keycloak.
    */
   test('os domínios de production carregam o nome do cliente e não o ambiente', async () => {
-    const domains = domainsOf(section(await readDocument(), 'Domínios de production'))
+    const domains = domainsOf(section(await readDocument(), 'Domínios gerados de production'))
 
     expect([...domains.keys()].toSorted()).toEqual(['api', 'keycloak', 'transportada-frontend'])
     for (const host of domains.values()) {
@@ -83,8 +83,8 @@ describe('contrato de nome de serviço e de domínio', () => {
   test('nenhum serviço interno aparece com domínio público', async () => {
     const document = await readDocument()
     const published = new Set([
-      ...domainsOf(section(document, 'Domínios de production')).keys(),
-      ...domainsOf(section(document, 'Domínios de staging')).keys(),
+      ...domainsOf(section(document, 'Domínios gerados de production')).keys(),
+      ...domainsOf(section(document, 'Domínios gerados de staging')).keys(),
     ])
 
     for (const service of INTERNAL_SERVICES) {

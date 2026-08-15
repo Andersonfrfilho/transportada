@@ -19,7 +19,10 @@ import type {
   CteIssuanceWriteBackKey,
   CteStoredXmlObject,
 } from '../application/cte-issuance-consumer.effect.js'
-import type { CteIssuanceItemStatus } from '../domain/cte-batch-progress.policy.js'
+import type {
+  CteBatchProgressStatus,
+  CteIssuanceItemStatus,
+} from '../domain/cte-batch-progress.policy.js'
 import {
   CTE_ISSUANCE_ITEM_STATUSES,
   isSettledCteIssuanceStatus,
@@ -56,13 +59,40 @@ type AttemptTransition = {
   readonly status: CteIssuanceItemStatus
 }
 
+/**
+ * Efeito de domínio observado **depois** do commit: notificar de dentro da transação é avisar de
+ * algo que o banco ainda pode desfazer.
+ */
+export type CteBatchSettlementListener = (input: {
+  readonly batchId: string
+  readonly companyId: string
+  readonly status: CteBatchProgressStatus
+}) => Promise<void>
+
 export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBack {
   readonly #database: Database
+  readonly #onBatchSettled: CteBatchSettlementListener | undefined
   readonly #storageProvider: string
 
-  constructor(database: Database, storageProvider: string = DEFAULT_STORAGE_PROVIDER) {
+  constructor(
+    database: Database,
+    storageProvider: string = DEFAULT_STORAGE_PROVIDER,
+    onBatchSettled?: CteBatchSettlementListener,
+  ) {
     this.#database = database
+    this.#onBatchSettled = onBatchSettled
     this.#storageProvider = storageProvider
+  }
+
+  async #announceBatchSettlement(
+    companyId: string,
+    settled: { readonly batchId: string; readonly status: CteBatchProgressStatus } | undefined,
+  ): Promise<void> {
+    if (settled === undefined || this.#onBatchSettled === undefined) {
+      return
+    }
+
+    await this.#onBatchSettled({ batchId: settled.batchId, companyId, status: settled.status })
   }
 
   async recordInFlight(key: CteIssuanceWriteBackKey): Promise<void> {
@@ -213,7 +243,7 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
   async #settleWithCause(
     input: CteIssuanceSettlementInput & { readonly status: CteIssuanceItemStatus },
   ): Promise<void> {
-    await this.#database.transaction(async (transaction) => {
+    const settled = await this.#database.transaction(async (transaction) => {
       const [updated] = await transaction
         .update(cteIssuanceAttempts)
         .set({ lastErrorCause: input.cause, status: input.status, updatedAt: input.occurredAt })
@@ -227,7 +257,7 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
         .returning({ batchId: cteIssuanceAttempts.batchId })
 
       if (updated === undefined) {
-        return
+        return undefined
       }
 
       const key: CteIssuanceWriteBackKey = {
@@ -243,12 +273,17 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
         eventName: input.status,
         payload: { cause: input.cause },
       })
-      await synchronizeBatchStatus(transaction, key)
+
+      const status = await synchronizeBatchStatus(transaction, key)
+
+      return status === undefined ? undefined : { batchId: key.batchId, status }
     })
+
+    await this.#announceBatchSettlement(input.companyId, settled)
   }
 
   async #apply(transition: AttemptTransition): Promise<void> {
-    await this.#database.transaction(async (transaction) => {
+    const settled = await this.#database.transaction(async (transaction) => {
       // Guarda a tentativa já liquidada: reentrega não pode sobrescrever autorização com rejeição.
       const [updated] = await transaction
         .update(cteIssuanceAttempts)
@@ -272,7 +307,7 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
         .returning({ id: cteIssuanceAttempts.id })
 
       if (updated === undefined) {
-        return
+        return undefined
       }
 
       await insertIssuanceEvent(transaction, {
@@ -283,8 +318,12 @@ export class DrizzleCteIssuanceWriteBackRepository implements CteIssuanceWriteBa
 
       await transition.settle?.(transaction)
 
-      await synchronizeBatchStatus(transaction, transition.key)
+      const status = await synchronizeBatchStatus(transaction, transition.key)
+
+      return status === undefined ? undefined : { batchId: transition.key.batchId, status }
     })
+
+    await this.#announceBatchSettlement(transition.key.companyId, settled)
   }
 }
 
@@ -399,10 +438,11 @@ async function insertIssuanceEvent(
   })
 }
 
+/** Devolve o status novo do lote quando ele mudou — é esse retorno que acorda o aviso pós-commit. */
 async function synchronizeBatchStatus(
   transaction: Transaction,
   key: CteIssuanceWriteBackKey,
-): Promise<void> {
+): Promise<CteBatchProgressStatus | undefined> {
   const nextStatus = resolveCteBatchStatus(await collectItemStatuses(transaction, key))
 
   const [current] = await transaction
@@ -412,7 +452,7 @@ async function synchronizeBatchStatus(
     .limit(1)
 
   if (current === undefined || current.status === nextStatus) {
-    return
+    return undefined
   }
 
   await transaction
@@ -428,6 +468,8 @@ async function synchronizeBatchStatus(
     occurredAt: key.occurredAt,
     payload: { previousStatus: current.status },
   })
+
+  return nextStatus
 }
 
 async function collectItemStatuses(

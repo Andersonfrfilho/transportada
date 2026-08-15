@@ -3,6 +3,7 @@
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
+import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseEnvironment } from './config/environment.schema'
@@ -48,6 +49,24 @@ import { createCteBatchRoutes } from './cte-batches/presentation/cte-batch.route
 import { createCteEmissionProfilesUseCase } from './cte-profiles/application/cte-emission-profiles.use-case'
 import { DrizzleCteEmissionProfileRepository } from './cte-profiles/infrastructure/drizzle-cte-emission-profile.repository'
 import { createCteEmissionProfileRoutes } from './cte-profiles/presentation/cte-emission-profiles.routes'
+import { createNfseCredentialSecretService } from './nfse-profiles/application/nfse-credential-secret.service.js'
+import { createNfseEmissionProfilesUseCase } from './nfse-profiles/application/nfse-emission-profiles.use-case.js'
+import { createNfseProviderCredentialsUseCase } from './nfse-profiles/application/nfse-provider-credentials.use-case.js'
+import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/drizzle-nfse-profile.repository.js'
+import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
+import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
+import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
+import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
+import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
+import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
+import { DrizzleNfseInvoiceRepository } from './nfse-invoices/infrastructure/drizzle-nfse-invoice.repository.js'
+import { createNfseArchiveGateway } from './nfse-invoices/infrastructure/nfse-archive.gateway.js'
+import { createNfseExportSelection } from './nfse-invoices/infrastructure/nfse-export-selection.query.js'
+import { createNfseFiscalDocumentArchiveGateway } from './nfse-invoices/infrastructure/nfse-fiscal-document-archive.gateway.js'
+import { createNfseInvoiceRoutes } from './nfse-invoices/presentation/nfse-invoices.routes.js'
+import { createNotifyNfseCallbackUseCase } from './nfse-callbacks/application/notify-nfse-callback.use-case.js'
+import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/drizzle-nfse-callback.repository.js'
+import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
 import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
@@ -71,12 +90,14 @@ import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/driz
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
-import { createFleetVehicleLookupUseCase } from './fleet/application/fleet-vehicle-lookup.use-case'
+import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
-import { createHttpVehicleLookupGateway } from './fleet/infrastructure/http-vehicle-lookup.gateway'
+import { createCachedVehicleCatalogGateway } from './fleet/infrastructure/cached-vehicle-catalog.gateway'
+import { createFipeVehicleCatalogGateway } from './fleet/infrastructure/fipe-vehicle-catalog.gateway'
 import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/drizzle-fleet-driver-vehicle.repository'
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
+import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.routes'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
@@ -116,6 +137,14 @@ import { DrizzleExternalIdentityRepository } from './identity/infrastructure/dri
 import { DrizzleBootstrapRepository } from './identity/infrastructure/drizzle-bootstrap.repository'
 import { DrizzleMembershipRepository } from './identity/infrastructure/drizzle-membership.repository'
 import { DrizzleCompanyUserRepository } from './identity/infrastructure/drizzle-company-user.repository'
+import { createInvitationCodeSecretService } from './identity/application/invitation-code-secret.service.js'
+import { createConfirmPasswordResetUseCase } from './identity/application/confirm-password-reset.use-case'
+import { createPasswordResetCodeSecretService } from './identity/application/password-reset-code.service.js'
+import { createRequestPasswordResetUseCase } from './identity/application/request-password-reset.use-case'
+import { DrizzlePasswordResetDeliveryOutboxRepository } from './identity/infrastructure/drizzle-password-reset-delivery-outbox.repository'
+import { DrizzlePasswordResetRepository } from './identity/infrastructure/drizzle-password-reset.repository'
+import { createPasswordResetRoutes } from './identity/presentation/password-reset.routes'
+import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository'
 import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
@@ -143,7 +172,7 @@ import { createGetViewPreferencesUseCase } from './view-preferences/application/
 import { createSaveViewPreferencesUseCase } from './view-preferences/application/save-view-preferences.use-case'
 import { DrizzleViewPreferencesRepository } from './view-preferences/infrastructure/drizzle-view-preferences.repository'
 import { createViewPreferencesRoutes } from './view-preferences/presentation/view-preferences.routes'
-import type { ApiEnvironment } from './shared/api.types'
+import type { ApiEnvironment, ApiLogger } from './shared/api.types'
 import {
   createShutdownHandler,
   registerShutdownSignals,
@@ -156,6 +185,11 @@ import {
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
+import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
+import { createLazyRabbitMqNotificationQueue } from './notification/infrastructure/rabbitmq-notification-queue.adapter.js'
+import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
+import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -181,15 +215,45 @@ export function bootstrap(): Bun.Server<undefined> {
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
   })
+  const messaging = config.messaging
+  const notificationQueue =
+    messaging === undefined
+      ? undefined
+      : createLazyRabbitMqNotificationQueue({
+          connect: () =>
+            createRabbitMqProvider({
+              connection: messaging.url,
+              topology: buildNotificationRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
+            }),
+          logger,
+        })
+  if (notificationQueue === undefined) {
+    // Sem broker o módulo usa a fila em memória dele: nada consome, e a entrega some no restart.
+    logger.warn('notification.queue.not_configured')
+  }
+  const notifications = createApiNotificationModule({
+    config,
+    db: database.db,
+    ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
+  })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db }),
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar assinatura,
+    // aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
+    moduleRouter: createNotificationHttpRouter({
+      authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
+      module: notifications,
+      ...(config.notificationWebhookSecret === undefined
+        ? {}
+        : { webhookSecret: config.notificationWebhookSecret }),
+    }),
     routes: createApplicationRoutes({
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -197,7 +261,7 @@ export function bootstrap(): Bun.Server<undefined> {
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
       scheduledDistributionCron: config.scheduledDistributionCron,
-      vehicleLookup: config.vehicleLookup,
+      vehicleCatalog: config.vehicleCatalog,
     }),
     tenantContext,
   })
@@ -210,6 +274,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const shutdown = createShutdownHandler({
     database,
     drainObservability: async (): Promise<void> => {
+      await notificationQueue?.close()
       await errorTracker.flush()
       await logger.flush()
       logger.stop()
@@ -220,7 +285,9 @@ export function bootstrap(): Bun.Server<undefined> {
 
   registerShutdownSignals({ logger, shutdown })
   logger.info('api_started', {
+    emailNotificationsEnabled: config.emailDelivery !== undefined,
     environment: config.appEnv,
+    notificationUseCases: Object.keys(notifications.useCases).length,
     hostname: server.hostname,
     port: server.port,
   })
@@ -243,16 +310,27 @@ function createApiLogger(
 type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
+  readonly logger: ApiLogger
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
 function createAnonymousRoutes({
   config,
   database,
+  logger,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
-  if (config.companyId === undefined) return []
+  // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
+  const nfseCallbackRoutes = createNfseCallbackRoutes({
+    callbackBaseUrl: config.nfseCallbackBaseUrl,
+    logger,
+    notifyNfseCallback: createNotifyNfseCallbackUseCase({
+      repository: new DrizzleNfseCallbackRepository(database),
+    }),
+  })
+  if (config.companyId === undefined) return nfseCallbackRoutes
 
   return [
+    ...nfseCallbackRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -278,6 +356,26 @@ function createAnonymousRoutes({
         now: () => new Date(),
       }),
     }),
+    ...createPasswordResetRoutes({
+      confirmPasswordReset: createConfirmPasswordResetUseCase({
+        identities: new DrizzleCompanyUserRepository(database),
+        identityProvider: createIdentityAccessGateway({
+          clientId: config.keycloak.admin.clientId,
+          clientSecret: config.keycloak.admin.clientSecret,
+          issuer: config.keycloak.issuer,
+        }),
+        now: () => new Date(),
+        requests: new DrizzlePasswordResetRepository(database),
+      }),
+      requestPasswordReset: createRequestPasswordResetUseCase({
+        envelopeProvider: createPasswordResetCodeSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+        }),
+        now: () => new Date(),
+        outbox: new DrizzlePasswordResetDeliveryOutboxRepository(database),
+        requests: new DrizzlePasswordResetRepository(database),
+      }),
+    }),
   ]
 }
 
@@ -288,7 +386,7 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
-  readonly vehicleLookup: ApiEnvironment['vehicleLookup']
+  readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
 function createApplicationRoutes({
@@ -298,7 +396,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   scheduledDistributionCron,
-  vehicleLookup,
+  vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
@@ -320,6 +418,8 @@ function createApplicationRoutes({
   const tripRepository = new DrizzleTripRepository(database)
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
+  const nfseProfileRepository = new DrizzleNfseProfileRepository(database)
+  const nfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database)
   const billingRepository = new DrizzleBillingRepository(database)
   const cteIssuanceRepository = new DrizzleCteIssuanceRepository(database)
   const operationsRepository = new DrizzleOperationsRepository(database)
@@ -364,15 +464,18 @@ function createApplicationRoutes({
     driverRepository: fleetDriverRepository,
     repository: fleetDriverVehicleRepository,
   })
-  const fleetVehicleLookup = createFleetVehicleLookupUseCase({
-    gateway:
-      vehicleLookup === null
-        ? null
-        : createHttpVehicleLookupGateway({
-            configuration: vehicleLookup,
+  const fleetVehicleCatalog: FleetVehicleCatalogPort =
+    vehicleCatalog === null
+      ? {
+          listBrands: async () => ({ items: [], source: 'unavailable' }),
+          listModels: async () => ({ items: [], source: 'unavailable' }),
+        }
+      : createCachedVehicleCatalogGateway({
+          gateway: createFipeVehicleCatalogGateway({
+            configuration: vehicleCatalog,
             fetch: (target, init) => fetch(target, init),
           }),
-  })
+        })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -397,6 +500,32 @@ function createApplicationRoutes({
   const cteEmissionProfiles = createCteEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: cteEmissionProfileRepository,
+  })
+  const envelopeProvider = createSecretEnvelopeProvider(envelopeKeyRing)
+  const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
+    fingerprintService,
+    unitOfWork: nfseProfileRepository,
+  })
+  const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
+    secretService: createNfseCredentialSecretService({ envelopeProvider }),
+    unitOfWork: nfseProfileRepository,
+  })
+  const nfseInvoices = createNfseInvoiceUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
+  const nfseInvoiceQuery = createNfseInvoiceQueryUseCase({
+    archive: createNfseFiscalDocumentArchiveGateway({ storage: storageGateway }),
+    repository: nfseInvoiceRepository,
+  })
+  const cancelNfseInvoice = createNfseInvoiceCancellationUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
+  const exportNfseDocuments = createExportNfseDocumentsUseCase({
+    archive: createNfseArchiveGateway({ storage: storageGateway }),
+    clock: () => new Date(),
+    selection: createNfseExportSelection(database),
   })
   const previewCteBatches = createPreviewCteBatchUseCase({
     clock: { now: () => new Date() },
@@ -454,28 +583,32 @@ function createApplicationRoutes({
     createCertificateId: () => crypto.randomUUID(),
     fingerprintService,
     repository: certificateRepository,
-    secretService: createDigitalCertificateSecretService({
-      envelopeProvider: createSecretEnvelopeProvider(envelopeKeyRing),
-    }),
+    secretService: createDigitalCertificateSecretService({ envelopeProvider }),
   })
   const companyUserRepository = new DrizzleCompanyUserRepository(database)
   const invitationRepository = new DrizzleInvitationRepository(database)
+  const invitationDeliveryOutbox = new DrizzleInvitationDeliveryOutboxRepository(database)
+  const invitationCodeSecret = createInvitationCodeSecretService({ envelopeProvider })
   const identityAccessGateway = createIdentityAccessGateway({
     clientId: keycloak.admin.clientId,
     clientSecret: keycloak.admin.clientSecret,
     issuer: keycloak.issuer,
   })
   const inviteCompanyUser = createInviteCompanyUserUseCase({
+    envelopeProvider: invitationCodeSecret,
     identityGateway: identityAccessGateway,
     invitations: invitationRepository,
     issuer: keycloak.issuer,
     now: () => new Date(),
+    outbox: invitationDeliveryOutbox,
     repository: companyUserRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
   const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
+    envelopeProvider: invitationCodeSecret,
     invitations: invitationRepository,
     now: () => new Date(),
+    outbox: invitationDeliveryOutbox,
     repository: companyUserRepository,
   })
   const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
@@ -551,11 +684,9 @@ function createApplicationRoutes({
       listVehicles: { execute: (input) => fleetVehicles.list(input) },
       updateDriver: { execute: (input) => fleetDrivers.update(input) },
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },
-      vehicleLookup: {
-        isAvailable: () => fleetVehicleLookup.isAvailable(),
-        lookup: (input) => fleetVehicleLookup.lookup(input),
-      },
+      vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
+    ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createMdfeManifestRoutes({
       createManifest: { execute: (input) => mdfeManifests.create(input) },
       discardManifest: { execute: (input) => mdfeManifests.discard(input) },
@@ -672,6 +803,34 @@ function createApplicationRoutes({
         issue: (input) => cteIssuance.issue(input),
         reprocess: (input) => cteIssuance.reprocess(input),
         listDocuments: (input) => cteIssuance.listDocuments(input),
+      },
+    }),
+    ...createNfseEmissionProfileRoutes({
+      activateProfile: { execute: (input) => nfseEmissionProfiles.activate(input) },
+      createProfile: { execute: (input) => nfseEmissionProfiles.create(input) },
+      deactivateProfile: { execute: (input) => nfseEmissionProfiles.deactivate(input) },
+      listProfileOptions: { execute: (input) => nfseEmissionProfiles.listOptions(input) },
+      listProfiles: { execute: (input) => nfseEmissionProfiles.list(input) },
+      updateProfile: { execute: (input) => nfseEmissionProfiles.update(input) },
+    }),
+    ...createNfseProviderCredentialRoutes({
+      readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
+      saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },
+    }),
+    ...createNfseInvoiceRoutes({
+      cancelNfseInvoice: { execute: (input) => cancelNfseInvoice.execute(input) },
+      exportNfseDocuments: {
+        exportDocuments: (input) => exportNfseDocuments.exportDocuments(input),
+      },
+      nfseInvoice: {
+        create: (input) => nfseInvoices.create(input),
+        preview: (input) => nfseInvoices.preview(input),
+      },
+      nfseInvoiceQuery: {
+        detail: (input) => nfseInvoiceQuery.detail(input),
+        documents: (input) => nfseInvoiceQuery.documents(input),
+        download: (input) => nfseInvoiceQuery.download(input),
+        list: (input) => nfseInvoiceQuery.list(input),
       },
     }),
     ...createOperationsRoutes({

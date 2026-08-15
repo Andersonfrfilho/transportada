@@ -1,0 +1,2 @@
+ALTER TABLE "company_fiscal_profiles" ADD COLUMN "activation_channel" text DEFAULT 'email' NOT NULL;--> statement-breakpoint
+ALTER TABLE "company_fiscal_profiles" ADD CONSTRAINT "company_fiscal_profiles_activation_channel_check" CHECK ("activation_channel" in ('email', 'sms', 'whatsapp'));

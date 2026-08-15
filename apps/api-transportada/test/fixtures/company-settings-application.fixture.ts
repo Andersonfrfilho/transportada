@@ -4,6 +4,9 @@
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 
 export type CompanySettings = {
+  readonly activation: {
+    readonly channel: 'email' | 'sms' | 'whatsapp'
+  }
   readonly billing: {
     readonly bankAccount: string
     readonly bankBranch: string
@@ -81,6 +84,7 @@ const CTE_RETRY_POLICY: CompanySettings['cteRetry'] = {
 }
 
 export const COMPANY_SETTINGS = {
+  activation: { channel: 'email' },
   billing: {
     bankAccount: '12345-6',
     bankBranch: '1234',
@@ -134,6 +138,7 @@ export const UPDATE_COMPANY_SETTINGS_INPUT = {
 } as const satisfies UpdateCompanySettingsInput
 
 export const EXPECTED_SETTINGS_RESULT = {
+  activation: COMPANY_SETTINGS.activation,
   billing: COMPANY_SETTINGS.billing,
   cte: {
     environment: 'homologation',

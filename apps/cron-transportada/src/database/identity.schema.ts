@@ -26,6 +26,14 @@ export const companies = pgTable('companies', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+/** Só as colunas que a resolução de destinatário do módulo de notificação lê. */
+export const identityUserProfiles = pgTable('identity_user_profiles', {
+  userId: uuid('user_id').primaryKey(),
+  name: text().notNull(),
+  contactAddress: text('contact_address').notNull(),
+  contactChannel: text('contact_channel').notNull(),
+})
+
 export const userCompanyMemberships = pgTable('user_company_memberships', {
   id: uuid().defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull(),

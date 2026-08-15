@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import styles from '../styles/companySettings.module.css'
@@ -63,12 +64,11 @@ export function MdfeDefaultsFields({ disabled, mdfe, onChange }: MdfeDefaultsFie
         <label>
           <span>{t('mdfeInsurerTaxId')}</span>
           <input
-            inputMode="numeric"
             maxLength={INSURER_TAX_ID_MAX_LENGTH}
             type="text"
             value={mdfe.insurerTaxId}
             onChange={(event) =>
-              onChange({ ...mdfe, insurerTaxId: digitsOnly(event.target.value) })
+              onChange({ ...mdfe, insurerTaxId: normalizeTaxId(event.target.value) })
             }
           />
         </label>

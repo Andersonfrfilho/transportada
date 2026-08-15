@@ -4,10 +4,10 @@ export type SearchableSelectOption = Readonly<{ label: string; value: string }>
 
 export type ResolveCustomSearchableOption = (query: string) => SearchableSelectOption | undefined
 
-type FilterSearchableOptionsInput = Readonly<{
-  options: readonly SearchableSelectOption[]
+type FilterSearchableOptionsInput<TOption extends SearchableSelectOption> = Readonly<{
+  options: readonly TOption[]
   query: string
-  resolveCustomOption?: ResolveCustomSearchableOption | undefined
+  resolveCustomOption?: ((query: string) => TOption | undefined) | undefined
 }>
 
 const DIACRITIC_PATTERN = /[\u0300-\u036f]/g
@@ -16,10 +16,13 @@ export function normalizeSearchText(value: string): string {
   return value.normalize('NFD').replace(DIACRITIC_PATTERN, '').toLowerCase()
 }
 
-/** Uma lista fechada esconderia um valor legítimo fora do catálogo — o item customizado é a saída. */
-export function filterSearchableOptions(
-  input: FilterSearchableOptionsInput,
-): readonly SearchableSelectOption[] {
+/**
+ * Uma lista fechada esconderia um valor legítimo fora do catálogo — o item customizado é a saída.
+ * Genérico porque a opção pode carregar mais que rótulo e valor, e filtrar não pode apagar isso.
+ */
+export function filterSearchableOptions<TOption extends SearchableSelectOption>(
+  input: FilterSearchableOptionsInput<TOption>,
+): readonly TOption[] {
   const query = input.query.trim()
   if (query === '') return input.options
   const normalizedQuery = normalizeSearchText(query)

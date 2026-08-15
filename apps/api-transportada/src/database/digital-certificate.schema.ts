@@ -72,7 +72,10 @@ export const digitalCertificates = pgTable(
       'digital_certificates_envelope_status_check',
       sql`(${table.status} = 'active' and ${table.secretEnvelope} is not null) or (${table.status} = 'retired' and ${table.secretEnvelope} is null)`,
     ),
-    check('digital_certificates_validated_cnpj_check', sql`${table.validatedCnpj} ~ '^[0-9]{14}$'`),
+    check(
+      'digital_certificates_validated_cnpj_check',
+      sql`${table.validatedCnpj} ~ '^[A-Z0-9]{12}[0-9]{2}$'`,
+    ),
     check(
       'digital_certificates_validity_range_check',
       sql`${table.validFrom} < ${table.expiresAt}`,

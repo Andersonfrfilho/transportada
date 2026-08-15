@@ -18,8 +18,9 @@ export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
-export const API_FLEET_VEHICLE_LOOKUP_PATH = '/fleet/vehicles/lookup'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
+export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
+export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
@@ -27,6 +28,9 @@ export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
 export const API_CTE_EMISSION_PROFILES_PATH = '/cte-emission-profiles'
+export const API_NFSE_EMISSION_PROFILES_PATH = '/nfse-emission-profiles'
+export const API_NFSE_PROVIDER_CREDENTIALS_PATH = '/nfse-provider-credentials'
+export const API_NFSE_SERVICE_INVOICES_PATH = '/nfse-service-invoices'
 export const API_BILLING_ELIGIBLE_CTES_PATH = '/billing/eligible-ctes'
 export const API_BILLING_INVOICES_PATH = '/billing/invoices'
 export const API_BILLING_INVOICE_PREVIEW_PATH = '/billing/invoices/preview'
@@ -41,6 +45,10 @@ export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
 export const API_USER_ACTIVATION_PATH = '/user-activation'
+export const API_PASSWORD_RESETS_PATH = '/password-resets'
+export const API_PASSWORD_RESET_CONFIRM_PATH = '/password-resets/confirm'
+/** Rota anônima: o segmento é segredo, e por isso o caminho fica fora da allowlist de log. */
+export const API_PUBLIC_NFSE_CALLBACKS_PATH = '/public/nfse-callbacks/:token'
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
 export const JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 export const HTTP_GET_METHOD = 'GET'
@@ -49,8 +57,13 @@ export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
-export const IDLE_TIMEOUT_SECONDS = 10
+/**
+ * Janela ociosa do stream (SSE), não da requisição comum: o heartbeat do módulo de notificações bate
+ * a cada 25s, e a conexão precisa sobreviver ao silêncio entre duas batidas.
+ */
+export const IDLE_TIMEOUT_SECONDS = 60
 export const REQUEST_TIMEOUT_SECONDS = 10
+export const SSE_CONTENT_TYPE = 'text/event-stream'
 export const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export const INVALID_LOG_PATHNAME = '<invalid>'
 export const UNMATCHED_LOG_PATHNAME = '<unmatched>'

@@ -4,12 +4,14 @@
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { defineRoute } from '../../http/router.service.js'
 import { API_NFE_DOCUMENTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
 import {
   parseDocumentList,
   parseUuidPathIdentifier,
 } from '../../nfe-imports/presentation/nfe-imports.schema.js'
 
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
+const XML_EXTENSION = '.xml'
 
 type NfeDocumentSummary = {
   readonly accessKey: string
@@ -22,6 +24,8 @@ type NfeDocumentSummary = {
   readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly nfseInvoiceId: string | null
+  readonly nfseInvoiceNumber: string | null
   readonly number: string
   readonly recipientAddress: string | null
   readonly recipientCity: string | null
@@ -177,6 +181,8 @@ function serializeDocument(document: NfeDocumentSummary): object {
     emitterTaxId: document.emitterTaxId,
     id: document.id,
     issuedAt: document.issuedAt,
+    nfseInvoiceId: document.nfseInvoiceId,
+    nfseInvoiceNumber: document.nfseInvoiceNumber,
     number: document.number,
     recipientAddress: document.recipientAddress,
     recipientCity: document.recipientCity,
@@ -191,9 +197,13 @@ function serializeDocument(document: NfeDocumentSummary): object {
   }
 }
 
+/** A chave de emitente com CNPJ alfanumérico tem letra: guarda só de dígito recusaria o nome real. */
 function sanitizeFileName(fileName: string, accessKey: string): string {
   const normalized = fileName.trim()
-  return /^[0-9]{44}\.xml$/.test(normalized) ? normalized : `${accessKey}.xml`
+  const withoutExtension = normalized.slice(0, -XML_EXTENSION.length)
+  return normalized.endsWith(XML_EXTENSION) && CHAVE_PATTERN.test(withoutExtension)
+    ? normalized
+    : `${accessKey}${XML_EXTENSION}`
 }
 
 function jsonResponse(input: { readonly body: object; readonly status: number }): Response {

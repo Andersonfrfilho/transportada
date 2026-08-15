@@ -77,7 +77,7 @@ describe('normalized NF-e document schema', () => {
       nfe_documents_company_id_access_key_unique: ['company_id', 'access_key'],
     })
     expect(checkSqlByName(nfeDocuments)).toMatchObject({
-      nfe_documents_access_key_check: `"nfe_documents"."access_key" ~ '^[0-9]{44}$'`,
+      nfe_documents_access_key_check: `"nfe_documents"."access_key" ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
       nfe_documents_model_check: `"nfe_documents"."model" = '55'`,
       nfe_documents_number_check: `"nfe_documents"."number" ~ '^[0-9]{1,9}$'`,
       nfe_documents_series_check: `"nfe_documents"."series" ~ '^[0-9]{1,3}$'`,

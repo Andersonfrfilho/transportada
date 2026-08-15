@@ -42,6 +42,10 @@ const COMPANY_PERMISSIONS = [
   'mdfe.issue',
   'mdfe.close',
   'mdfe.cancel',
+  'nfse.manage',
+  'nfse.issue',
+  'nfse.cancel',
+  'nfse.read',
   'trip.read',
   'trip.report',
 ] as const

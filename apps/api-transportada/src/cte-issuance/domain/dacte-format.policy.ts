@@ -1,6 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  CNPJ_PATTERN,
+  CPF_PATTERN,
+  formatCnpjForDisplay,
+  normalizeTaxId,
+} from '../../shared/tax-id.service.js'
 import type { DacteTax } from './dacte.types.js'
 
 const DECIMAL_PATTERN = /^\d+(?:\.\d+)?$/u
@@ -8,8 +14,6 @@ const THOUSANDS_PATTERN = /\B(?=(?:\d{3})+(?!\d))/gu
 const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}))?/u
 const ACCESS_KEY_GROUP_SIZE = 4
 const NON_DIGIT_PATTERN = /\D/gu
-const CNPJ_LENGTH = 14
-const CPF_LENGTH = 11
 const ZIP_CODE_LENGTH = 8
 const SHORT_PHONE_LENGTH = 10
 const LONG_PHONE_LENGTH = 11
@@ -75,14 +79,16 @@ export function formatDacteDateTime(value: string): string {
   return time === undefined ? date : `${date} ${time}`
 }
 
-/** CNPJ e CPF saem com a pontuação que o documento impresso usa; o que não reconhecer, sai cru. */
+/**
+ * CNPJ e CPF saem com a pontuação que o documento impresso usa; o que não reconhecer, sai cru.
+ * A guarda é de conjunto, nunca de comprimento: um CNPJ alfanumérico com três letras deixa onze
+ * dígitos ao ser filtrado, e sairia impresso sob a máscara do CPF.
+ */
 export function formatDacteDocumentNumber(value: string): string {
-  const digits = value.replace(NON_DIGIT_PATTERN, '')
-  if (digits.length === CNPJ_LENGTH) {
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
-  }
-  if (digits.length === CPF_LENGTH) {
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+  const normalized = normalizeTaxId(value)
+  if (CNPJ_PATTERN.test(normalized)) return formatCnpjForDisplay(normalized)
+  if (CPF_PATTERN.test(normalized)) {
+    return `${normalized.slice(0, 3)}.${normalized.slice(3, 6)}.${normalized.slice(6, 9)}-${normalized.slice(9)}`
   }
   return value
 }

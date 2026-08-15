@@ -9,6 +9,7 @@ import type {
   CertificateValidationInput,
   CertificateValidationOutcome,
 } from '../application/certificate-validation.port'
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 type FiscalCertificateValidator = {
   readonly validateCertificate: (
@@ -92,7 +93,7 @@ function isUnopenedCertificate(validation: CertificateValidation): boolean {
 }
 
 function isCanonicalCnpj(value: string | undefined): value is string {
-  return value !== undefined && /^[0-9]{14}$/.test(value)
+  return value !== undefined && CNPJ_PATTERN.test(value)
 }
 
 function isValidDate(value: Date): boolean {

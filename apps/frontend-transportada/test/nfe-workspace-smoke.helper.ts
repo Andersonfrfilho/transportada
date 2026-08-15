@@ -42,6 +42,8 @@ const DOCUMENT_PAGE = {
       emitterTaxId: '11222333000181',
       id: '4c596f2c-388e-4820-8e49-0fa5916f5cb0',
       issuedAt: '2026-07-22T10:00:00.000Z',
+      nfseInvoiceId: null,
+      nfseInvoiceNumber: null,
       number: '1',
       recipientAddress: 'Avenida do Destino, 200',
       recipientCity: 'Campinas',

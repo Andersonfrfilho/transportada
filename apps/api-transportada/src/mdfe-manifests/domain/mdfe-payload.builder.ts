@@ -157,6 +157,7 @@ function buildTractionVehicle(
     ...(vehicle.renavam.length > 0 ? { renavam: vehicle.renavam } : {}),
     ...(vehicle.capacityKg > 0n ? { capacidadeKg: Number(vehicle.capacityKg) } : {}),
     ...(vehicle.capacityM3 > 0n ? { capacidadeM3: Number(vehicle.capacityM3) } : {}),
+    ...(vehicle.fleetNumber.length > 0 ? { codigoInterno: vehicle.fleetNumber } : {}),
     ...(vehicle.ownership === 'own' ? {} : { proprietario: buildOwner(vehicle) }),
   }
 }

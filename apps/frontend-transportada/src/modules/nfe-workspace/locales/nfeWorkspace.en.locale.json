@@ -87,6 +87,8 @@
     "downloadXml": "Download XML",
     "emitCte": "Issue CT-es ({{count}})",
     "blockedRow": "Invoice blocked for CT-e",
+    "nfseLink": "Linked to service invoice {{number}} — open the detail",
+    "nfseLinkPending": "Linked to a service invoice with no number yet — open the detail",
     "blockedCount": "{{count}} blocked out of the selection",
     "blockedCount_other": "{{count}} blocked out of the selection",
     "fields": {
@@ -139,6 +141,7 @@
     "blockReason": {
       "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Already linked to another CT-e",
       "CTE_BATCH_DOCUMENT_DUPLICATED": "Repeated in the selection",
+      "CTE_BATCH_DOCUMENT_LINKED_TO_NFSE": "Already linked to a service invoice",
       "CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY": "Missing municipality code",
       "CTE_BATCH_DOCUMENT_MISSING_PARTY": "Missing sender or recipient",
       "CTE_BATCH_DOCUMENT_MISSING_TOTAL": "Missing total amount",

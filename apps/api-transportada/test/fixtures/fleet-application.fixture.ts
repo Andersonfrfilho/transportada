@@ -65,11 +65,11 @@ export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositor
   readonly listCalls: unknown[]
   readonly repository: FleetDriverVehicleRepositoryPort
   readonly replaceCalls: unknown[]
-  readonly vehicleLookupCalls: unknown[]
+  readonly existingVehicleIdCalls: unknown[]
 } {
   const listCalls: unknown[] = []
   const replaceCalls: unknown[] = []
-  const vehicleLookupCalls: unknown[] = []
+  const existingVehicleIdCalls: unknown[] = []
 
   return {
     listCalls,
@@ -79,7 +79,7 @@ export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositor
         return DRIVER_VEHICLE_LINKS
       },
       async listExistingVehicleIds(input) {
-        vehicleLookupCalls.push(structuredClone(input))
+        existingVehicleIdCalls.push(structuredClone(input))
         return params.existingVehicleIds ?? input.vehicleIds
       },
       async replaceForDriver(input) {
@@ -88,7 +88,7 @@ export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositor
       },
     },
     replaceCalls,
-    vehicleLookupCalls,
+    existingVehicleIdCalls,
   }
 }
 

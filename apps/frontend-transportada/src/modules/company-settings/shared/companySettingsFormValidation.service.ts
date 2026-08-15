@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { normalizeRntrc } from '@/modules/shared/rntrc.service'
+import {
+  CNPJ_LENGTH,
+  hasValidCnpjCharacterSet,
+  normalizeTaxId,
+} from '@/modules/shared/taxId.service'
 
 import { PROFILE_DIGIT_LENGTHS } from './companySettings.constant'
 import type { CompanySettingsUpdate } from './companySettings.types'
@@ -20,6 +25,7 @@ export type CompanySettingsFieldError =
       fieldId: string
       reason: 'digitLength'
     }>
+  | Readonly<{ field: 'cnpj'; fieldId: string; reason: 'characterSet' }>
   | Readonly<{ field: RequiredProfileField; fieldId: string; reason: 'required' }>
 
 const REQUIRED_PROFILE_FIELDS: readonly RequiredProfileField[] = [
@@ -51,12 +57,29 @@ export function describeCompanySettingsFieldError(
       length: input.error.expectedLength,
     })
   }
+  if (input.error.reason === 'characterSet') {
+    return input.translate('validationCharacterSet', { field })
+  }
   return input.translate('validationRequiredField', { field })
+}
+
+/**
+ * O CNPJ alfanumérico não cabe na conferência por dígito: letra fora da base é erro de conjunto, e
+ * acusá-la como "faltam dígitos" mandaria o usuário procurar o que não está faltando.
+ */
+function cnpjError(raw: string): CompanySettingsFieldError | undefined {
+  const document = normalizeTaxId(raw)
+  const fieldId = profileFieldId('cnpj')
+  if (document === '') return undefined
+  if (!hasValidCnpjCharacterSet(document)) return { field: 'cnpj', fieldId, reason: 'characterSet' }
+  if (document.length === CNPJ_LENGTH) return undefined
+  return { expectedLength: CNPJ_LENGTH, field: 'cnpj', fieldId, reason: 'digitLength' }
 }
 
 function digitLengthError(
   input: Readonly<{ field: DigitProfileField; profile: Profile }>,
 ): CompanySettingsFieldError | undefined {
+  if (input.field === 'cnpj') return cnpjError(input.profile.cnpj)
   const expectedLength = PROFILE_DIGIT_LENGTHS[input.field]
   const raw = input.profile[input.field]
   const value = input.field === 'rntrc' ? normalizeRntrc(raw) : raw.replace(/\D/g, '')

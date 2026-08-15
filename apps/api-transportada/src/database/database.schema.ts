@@ -28,6 +28,7 @@ import {
   nfeProducts,
   nfeVolumes,
 } from './nfe.schema.js'
+import { passwordResetDeliveryOutbox, passwordResetRequests } from './password-reset.schema.js'
 import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
@@ -65,6 +66,19 @@ import {
   mdfeManifests,
   mdfeProcessedMessages,
 } from './mdfe.schema.js'
+import {
+  nfseEmissionProfiles,
+  nfseFiscalDocuments,
+  nfseIssuanceAttempts,
+  nfseIssuanceEvents,
+  nfseIssuanceOutbox,
+  nfseIssuancePayloads,
+  nfseProcessedMessages,
+  nfseProviderCredentials,
+  nfseServiceInvoiceCharges,
+  nfseServiceInvoiceDocuments,
+  nfseServiceInvoices,
+} from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
@@ -81,6 +95,7 @@ export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './freight.schema.js'
 export * from './mdfe.schema.js'
+export * from './nfse.schema.js'
 export * from './identity.schema.js'
 export * from './nfe.schema.js'
 export * from './processing.schema.js'
@@ -93,6 +108,7 @@ export * from './view-preferences.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
+export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
@@ -136,6 +152,19 @@ export const databaseSchema = {
   nfeParticipants,
   nfeProducts,
   nfeVolumes,
+  nfseEmissionProfiles,
+  nfseFiscalDocuments,
+  nfseIssuanceAttempts,
+  nfseIssuanceEvents,
+  nfseIssuanceOutbox,
+  nfseIssuancePayloads,
+  nfseProcessedMessages,
+  nfseProviderCredentials,
+  nfseServiceInvoiceCharges,
+  nfseServiceInvoiceDocuments,
+  nfseServiceInvoices,
+  passwordResetDeliveryOutbox,
+  passwordResetRequests,
   processedMessages,
   processingJobs,
   processingOutbox,

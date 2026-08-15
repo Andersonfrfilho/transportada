@@ -10,6 +10,11 @@ const KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
 export type WorkerCryptographicConfiguration = {
   readonly envelopeKeyRing: SecretKeyRing
+  /**
+   * Quem consulta a supressão na hora de entregar é o worker. Chave diferente da que a API usou
+   * para gravar produz HMAC que não casa com nada — e o e-mail volta a sair para quem já recusou.
+   */
+  readonly notificationSuppressionHmacKey: string
 }
 
 export function parseWorkerCryptographicConfiguration(
@@ -31,12 +36,23 @@ function parseConfiguration(
   const envelopeKeys = parseKeyRing(encodedKeyRing)
   if (!Object.hasOwn(envelopeKeys, activeKeyId)) failConfiguration()
 
+  const encodedSuppressionKey = requireValue(environment.NOTIFICATION_SUPPRESSION_HMAC_KEY)
+  const suppressionHmacKey = decodeCanonicalKey(encodedSuppressionKey)
+  if (Object.values(envelopeKeys).some((key) => keysEqual(key, suppressionHmacKey))) {
+    failConfiguration()
+  }
+
   return {
     envelopeKeyRing: {
       activeKeyId,
       keys: Object.freeze(envelopeKeys),
     },
+    notificationSuppressionHmacKey: encodedSuppressionKey,
   }
+}
+
+function keysEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index])
 }
 
 function parseKeyRing(value: string): Record<string, Uint8Array> {

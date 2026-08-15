@@ -117,7 +117,7 @@ function expectRejectedWithoutEnumeration(error: Error): void {
 }
 
 function expectSafeError(error: Error): void {
-  expect(Object.keys(error).sort()).toEqual(['code', 'headers', 'name', 'status'])
+  expect(Object.keys(error).sort()).toEqual(['code', 'details', 'headers', 'name', 'status'])
   for (const sensitive of [
     COMPANY_ID,
     OTHER_COMPANY_ID,

@@ -22,13 +22,18 @@ const MANAGE_USERS_ROLE = 'manage-users'
 const LOCAL_REALM_PATH = 'realm/transportada-local-realm.json'
 const DEPLOY_REALM_PATH = 'deploy/keycloak/realm.json'
 const ENVIRONMENT_PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/
+const THEME_NAME = 'transportada'
+const THEME_ROOT = 'deploy/keycloak/theme'
+const THEME_PATH = `${THEME_ROOT}/login`
 
 type KeycloakRealm = {
   readonly clients: readonly KeycloakClient[]
+  readonly loginTheme?: string
   readonly realm: string
   readonly roles: {
     readonly realm: readonly { readonly name: string }[]
   }
+  readonly resetPasswordAllowed: boolean
   readonly sslRequired: string
   readonly users: readonly KeycloakUser[]
 }
@@ -330,5 +335,74 @@ describe('Keycloak Admin API service account contract', () => {
     expect(environment).toContain(
       'KEYCLOAK_ADMIN_CLIENT_SECRET=replace-with-local-admin-client-secret',
     )
+  })
+})
+
+describe('Keycloak login theme contract', () => {
+  test('both realms wear the application theme and keep Keycloak out of the reset flow', async () => {
+    const realms = await readEveryRealm()
+
+    for (const realm of realms) {
+      expect(realm.loginTheme).toBe(THEME_NAME)
+      expect(realm.resetPasswordAllowed).toBe(false)
+    }
+  })
+
+  /**
+   * O tema desce até `base` e traz os próprios templates: herdar `keycloak.v2` traria o PatternFly
+   * inteiro junto, e sobrescrever a folha de outro design system custa mais que escrever a nossa.
+   */
+  test('owns its templates on top of the bare base theme', async () => {
+    const properties = await readProjectFile(`${THEME_PATH}/theme.properties`)
+    const template = await readProjectFile(`${THEME_PATH}/login.ftl`)
+
+    expect(properties).toContain('parent=base')
+    expect(properties).toContain('styles=css/login.css')
+    expect(properties).toContain('scripts=js/password-reset-link.js')
+    expect(template).toContain('data-password-reset')
+  })
+
+  /**
+   * O link nasce escondido: sem origem confiável para resolver, ele fica fora da tela em vez de
+   * levar o operador para lugar nenhum.
+   */
+  test('hides the forgotten-password link until the script resolves its address', async () => {
+    const template = await readProjectFile(`${THEME_PATH}/login.ftl`)
+    const script = await readProjectFile(`${THEME_PATH}/resources/js/password-reset-link.js`)
+
+    expect(template).toContain('data-password-reset hidden')
+    expect(script).toContain('link.hidden = false')
+  })
+
+  /**
+   * O tema é a única superfície onde a nossa identidade aparece antes da sessão existir: sem token
+   * de cor e tipografia iguais aos do app, o usuário vê duas marcas diferentes no mesmo fluxo.
+   */
+  test('carries the application design tokens', async () => {
+    const stylesheet = await readProjectFile(`${THEME_PATH}/resources/css/login.css`)
+
+    for (const token of ['#10222c', '#1c2b33', '#f0f2ee', '#d58a47', '#8fa3ad', 'Avenir Next']) {
+      expect(stylesheet).toContain(token)
+    }
+  })
+
+  /**
+   * A tela de login é do Keycloak, a de recuperação é nossa. O link precisa sair da origem que
+   * pediu o login — nenhuma URL de frontend fica escrita no tema, que serve todas as instalações.
+   */
+  test('points the forgotten-password link at our own screen, derived from the caller origin', async () => {
+    const script = await readProjectFile(`${THEME_PATH}/resources/js/password-reset-link.js`)
+
+    expect(script).toContain('/recuperar-senha')
+    expect(script).toContain('redirect_uri')
+    expect(script).not.toContain('http://localhost:53000')
+  })
+
+  test('ships the theme to both the local container and the deployed image', async () => {
+    const compose = await readProjectFile('compose.yaml')
+    const dockerfile = await readProjectFile('deploy/keycloak/Dockerfile')
+
+    expect(compose).toContain(`./${THEME_ROOT}:/opt/keycloak/themes/${THEME_NAME}:ro`)
+    expect(dockerfile).toContain(`COPY ${THEME_ROOT} /opt/keycloak/themes/${THEME_NAME}`)
   })
 })

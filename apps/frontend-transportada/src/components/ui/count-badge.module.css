@@ -1,0 +1,19 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/**
+ * A contagem anda ao lado do ícone, dentro do botão. No canto ela ficava pendurada por cima da
+ * borda e era recortada pelo `overflow` da barra de ações.
+ */
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: 0;
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  line-height: var(--space-4);
+  background: var(--color-copper);
+}

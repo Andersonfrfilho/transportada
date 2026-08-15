@@ -38,6 +38,38 @@ describe('nfe http download and reprocess contract', () => {
     ])
   })
 
+  test('never lets a stored filename escape into the content-disposition header', async () => {
+    const alphanumericKey = '35260712ABC34501DE35550010000000022000000022'
+    const fixture = await createNfeHttpFixture({
+      downloadResult: {
+        accessKey: alphanumericKey,
+        content: new TextEncoder().encode('<nfeProc />'),
+        contentType: 'application/xml',
+        fileName: '../../etc/passwd',
+      },
+    })
+
+    const response = await fixture.handle(documentXmlRequest())
+
+    expect(response.headers.get('content-disposition')).toBe(
+      `attachment; filename="${alphanumericKey}.xml"`,
+    )
+  })
+
+  /**
+   * O repositório sempre monta o nome como `${accessKey}.xml`, então a queda para a chave devolve
+   * exatamente a mesma string e o defeito não aparece na resposta HTTP. O que se guarda aqui é a
+   * guarda em si: um literal só de dígito recusa toda chave de emitente com CNPJ alfanumérico.
+   */
+  test('validates the stored filename against the shared access key pattern', async () => {
+    const source = await Bun.file(
+      new URL('../../src/nfe-documents/presentation/nfe-documents.routes.ts', import.meta.url),
+    ).text()
+
+    expect(source).toContain('CHAVE_PATTERN')
+    expect(source).not.toMatch(/\[0-9\]\{44\}\\\.xml/u)
+  })
+
   test('returns the same 404 for missing or cross-tenant document downloads', async () => {
     const notFound = new ApiError({
       code: 'NFE_DOCUMENT_NOT_FOUND',

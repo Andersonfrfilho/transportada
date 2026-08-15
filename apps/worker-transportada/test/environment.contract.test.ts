@@ -26,7 +26,7 @@ describe('worker environment contract', () => {
       readonly dependencies?: Readonly<Record<string, string>>
     }
 
-    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.6')
+    expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.0-rc.7')
     expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
       '0.2.0-rc.0',
     )
@@ -40,6 +40,10 @@ describe('worker environment contract', () => {
       foundationSyntheticEffectDelayMs: 0,
       logLevel: 'info',
       logSinkUrl: undefined,
+      nfseProvider: {
+        baseUrls: { homologation: undefined, production: undefined },
+        timeoutMilliseconds: 15_000,
+      },
       port: 53_002,
       prefetch: 1,
       queuePrefix: 'transportada_local',
@@ -113,6 +117,44 @@ describe('worker environment contract', () => {
         CTE_TECHNICAL_RESPONSIBLE_CNPJ: '11222333000181',
         CTE_TECHNICAL_RESPONSIBLE_CONTACT: 'Equipe de Suporte',
         CTE_TECHNICAL_RESPONSIBLE_EMAIL: 'contato@exemplo.com.br',
+      }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
+  // O endereço da Nota RP é da instalação: cada prefeitura contrata o seu, e a base de homologação
+  // nunca é a de produção. As duas juntas ou nenhuma — meia configuração emitiria no ambiente errado.
+  test('reads the Nota RP base URLs of both fiscal environments from the installation', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'https://homologacao.exemplo/api/v2',
+      NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
+      NFSE_PROVIDER_TIMEOUT_MS: '20000',
+    })
+
+    expect(parsed.nfseProvider).toEqual({
+      baseUrls: {
+        homologation: 'https://homologacao.exemplo/api/v2',
+        production: 'https://producao.exemplo/api/v2',
+      },
+      timeoutMilliseconds: 20_000,
+    })
+  })
+
+  test('rejects a partially declared Nota RP base URL pair', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
+      }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
+  test('rejects a Nota RP base URL that is not a URL instead of emitting to nowhere', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'nao-e-url',
+        NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
       }),
     ).toThrow(WorkerConfigurationError)
   })

@@ -10,14 +10,33 @@ import {
   CTE_RETRY_DEFAULT_MAX_ATTEMPTS,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
 } from '../cte-issuance/domain/cte-retry.policy.js'
+import {
+  NFSE_RETRY_BACKOFF_STEPS_LIMIT,
+  NFSE_RETRY_DEFAULT_BACKOFF_SECONDS,
+  NFSE_RETRY_DEFAULT_MAX_ATTEMPTS,
+  NFSE_RETRY_MAX_ATTEMPTS_LIMIT,
+} from '../nfse-invoices/domain/nfse-retry.policy.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import { companies } from './identity.schema.js'
+import { CONTACT_CHANNELS, type ContactChannel } from './identity-user-profile.schema.js'
 import type { MdfeInsuranceResponsibility } from './mdfe.schema.js'
 
 export const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export type FiscalEnvironment = (typeof FISCAL_ENVIRONMENTS)[number]
 
 export const BILLING_OBSERVATIONS_MAX_LENGTH = 500
+
+/**
+ * Por onde o código de ativação sai. É da empresa, não de quem convida — e `email` é o padrão
+ * porque é o único canal com driver hoje (`worker/src/identity/infrastructure/invitation-channel.gateway.ts`).
+ */
+export const ACTIVATION_CHANNELS = CONTACT_CHANNELS
+export type ActivationChannel = ContactChannel
+export const DEFAULT_ACTIVATION_CHANNEL: ActivationChannel = 'email'
+
+const ACTIVATION_CHANNEL_LIST = sql.raw(
+  ACTIVATION_CHANNELS.map((channel) => `'${channel}'`).join(', '),
+)
 
 export const TAX_REGIMES = ['1', '2', '3'] as const
 export type TaxRegime = (typeof TAX_REGIMES)[number]
@@ -65,6 +84,10 @@ export const companyFiscalProfiles = pgTable(
     billingBankAccount: text('billing_bank_account').notNull().default(''),
     billingPixKey: text('billing_pix_key').notNull().default(''),
     billingObservations: text('billing_observations').notNull().default(''),
+    activationChannel: text('activation_channel')
+      .$type<ActivationChannel>()
+      .notNull()
+      .default(DEFAULT_ACTIVATION_CHANNEL),
     cteRetryMaxAttempts: integer('cte_retry_max_attempts')
       .notNull()
       .default(CTE_RETRY_DEFAULT_MAX_ATTEMPTS),
@@ -72,12 +95,23 @@ export const companyFiscalProfiles = pgTable(
       .array()
       .notNull()
       .default([...CTE_RETRY_DEFAULT_BACKOFF_SECONDS]),
+    nfseRetryMaxAttempts: integer('nfse_retry_max_attempts')
+      .notNull()
+      .default(NFSE_RETRY_DEFAULT_MAX_ATTEMPTS),
+    nfseRetryBackoffSeconds: integer('nfse_retry_backoff_seconds')
+      .array()
+      .notNull()
+      .default([...NFSE_RETRY_DEFAULT_BACKOFF_SECONDS]),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique('company_fiscal_profiles_cnpj_unique').on(table.cnpj),
+    check(
+      'company_fiscal_profiles_activation_channel_check',
+      sql`${table.activationChannel} in (${ACTIVATION_CHANNEL_LIST})`,
+    ),
     check(
       'company_fiscal_profiles_billing_bank_code_check',
       sql`length(${table.billingBankCode}) = 0 or ${table.billingBankCode} ~ '^[0-9]{3}$'`,
@@ -90,7 +124,7 @@ export const companyFiscalProfiles = pgTable(
       'company_fiscal_profiles_billing_observations_check',
       sql`length(${table.billingObservations}) <= ${sql.raw(String(BILLING_OBSERVATIONS_MAX_LENGTH))}`,
     ),
-    check('company_fiscal_profiles_cnpj_check', sql`${table.cnpj} ~ '^[0-9]{14}$'`),
+    check('company_fiscal_profiles_cnpj_check', sql`${table.cnpj} ~ '^[A-Z0-9]{12}[0-9]{2}$'`),
     check(
       'company_fiscal_profiles_cte_retry_backoff_check',
       sql`array_length(${table.cteRetryBackoffSeconds}, 1) between 1 and ${sql.raw(String(CTE_RETRY_BACKOFF_STEPS_LIMIT))} and 0 < all(${table.cteRetryBackoffSeconds})`,
@@ -98,6 +132,14 @@ export const companyFiscalProfiles = pgTable(
     check(
       'company_fiscal_profiles_cte_retry_max_attempts_check',
       sql`${table.cteRetryMaxAttempts} between 1 and ${sql.raw(String(CTE_RETRY_MAX_ATTEMPTS_LIMIT))}`,
+    ),
+    check(
+      'company_fiscal_profiles_nfse_retry_backoff_check',
+      sql`array_length(${table.nfseRetryBackoffSeconds}, 1) between 1 and ${sql.raw(String(NFSE_RETRY_BACKOFF_STEPS_LIMIT))} and 0 < all(${table.nfseRetryBackoffSeconds})`,
+    ),
+    check(
+      'company_fiscal_profiles_nfse_retry_max_attempts_check',
+      sql`${table.nfseRetryMaxAttempts} between 1 and ${sql.raw(String(NFSE_RETRY_MAX_ATTEMPTS_LIMIT))}`,
     ),
     check(
       'company_fiscal_profiles_environment_check',
@@ -109,7 +151,7 @@ export const companyFiscalProfiles = pgTable(
     ),
     check(
       'company_fiscal_profiles_mdfe_insurer_tax_id_check',
-      sql`length(${table.mdfeInsurerTaxId}) = 0 or ${table.mdfeInsurerTaxId} ~ '^[0-9]{11}$|^[0-9]{14}$'`,
+      sql`length(${table.mdfeInsurerTaxId}) = 0 or ${table.mdfeInsurerTaxId} ~ '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'company_fiscal_profiles_rntrc_check',

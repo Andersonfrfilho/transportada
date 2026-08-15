@@ -22,6 +22,7 @@ export const VALID_HTTP_SETTINGS_BODY = {
 } as const
 
 export const EXPECTED_HTTP_SETTINGS_DATA = {
+  activation: { ...EXPECTED_SETTINGS_RESULT.activation },
   billing: { ...EXPECTED_SETTINGS_RESULT.billing },
   cte: {
     environment: EXPECTED_SETTINGS_RESULT.cte.environment,

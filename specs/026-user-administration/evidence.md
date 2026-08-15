@@ -1373,3 +1373,142 @@ $ bun run format:check   # prettier --check .
 ```
 
 Nada foi commitado e nenhuma variável de ambiente ou serviço de production foi tocado.
+
+## T012 — `notification-module` fica de fora (12/08/2026)
+
+Task de decisão, sem código de produção. Decisão e justificativa completas na seção
+"Decisão da T012" do `plan.md`: consumir só `notification-contracts` + `email-provider`, com o
+estado do convite no schema da própria aplicação.
+
+Duas verificações sustentam a decisão:
+
+```
+$ npm view @adatechnology/notification-contracts version   → 0.1.0-rc.2
+$ npm view @adatechnology/notification-module   version   → 0.1.0-rc.2
+$ npm view @adatechnology/email-provider        version   → 0.1.0-rc.2
+```
+
+Os três estão publicados — o risco "pacotes `0.1.0-rc.0` não publicados" do `plan.md` está
+encerrado. O risco de colisão de migrations também não se confirma (o módulo usa
+`pgSchema('notification')` com journal próprio), e a decisão de deixá-lo de fora é por escopo, não
+por conflito.
+
+Juiz da task, com a cadeia de migrations intacta:
+
+```
+$ make migration-test
+→ 37 pass, 0 fail, 497 expect() calls, 2 files, exit 0
+```
+
+## T013 — contrato vermelho da entrega do código (12/08/2026)
+
+Contrato antes da implementação, nas duas apps.
+
+**API** — `test/user-invitation-delivery/enqueue.contract.ts`, entrada em
+`test/user-invitation-delivery.contract.test.ts`:
+
+```
+$ bun test ./test/user-invitation-delivery.contract.test.ts
+→ 1 pass, 6 fail, 10 expect() calls
+```
+
+O único verde é "o caminho síncrono não chama canal nenhum", que passa trivialmente hoje porque
+canal não existe; fica como guarda de regressão. Os seis vermelhos são o buraco real: nada é
+publicado no outbox, e o código em claro continua sendo descartado em
+`invite-company-user.use-case.ts:86` e `resend-company-user-code.use-case.ts:51`.
+
+**Worker** — `test/invitation-delivery/consumer.contract.ts`, entrada em
+`test/invitation-delivery.contract.test.ts`:
+
+```
+$ bun test ./test/invitation-delivery.contract.test.ts
+→ 0 pass, 1 fail (módulo inexistente: invitation-delivery-rabbitmq-topology)
+```
+
+Ambos os arquivos foram acrescentados à lista explícita de `test` no `package.json` da app — sem
+isso não rodariam.
+
+### Decisão de desenho embutida no contrato
+
+O código em claro **não** atravessa o broker e **não** é persistido em claro: fica selado por
+`@adatechnology/secret-envelope` na linha do convite, ao lado do hash que segue sendo o que valida
+a tentativa; a mensagem leva só `invitationId` e `userId`. É o mesmo arranjo já usado para a
+credencial de NFS-e (comentário em `worker/src/messaging/nfse-processing-envelope.schema.ts`) e o
+que `security.md` §6 pede. A primeira versão do contrato punha o envelope no payload; foi corrigida
+antes de fechar a task, por esse precedente.
+
+O envelope Zod recusa `code` no payload por `strictObject` — é asserção do contrato, não convenção.
+
+## T014 — Entrega do código pelo canal configurado (implementação)
+
+Trilho dedicado, ponta a ponta: a rota de convite sela o código e grava a fila; o relay publica; o
+consumidor abre o envelope e entrega por SMTP.
+
+**API** — `issueInvitationCode` passou a devolver `{codeHash, sealedCode}`, o repositório persiste
+`user_invitations.sealed_code`, e `DrizzleInvitationDeliveryOutboxRepository` grava a intenção de
+entrega. Migration `20260812172200_invitation_delivery` (tabela `invitation_delivery_outbox` +
+`sealed_code`/`delivered_at`), com `rollback.sql` guardado por contagem de linha do journal.
+
+**Worker** — `invitation-delivery.v1` (main/retry/dead), envelope Zod `strictObject` que recusa
+`code` no payload, `DrizzleInvitationDeliveryRepository`, `createInvitationCodeSecretGateway`
+(AAD espelhado palavra por palavra do da API), `createInvitationChannelGateway` sobre
+`createSmtpEmailProvider` do `@adatechnology/email-provider`, e `OutboxRelayLoop` próprio
+(1s / lease 30s / limite 25) no `main.ts`, com consumidor e publisher no desligamento gracioso.
+
+Configuração: `EMAIL_FROM` + `SMTP_URL`, **as duas juntas ou nenhuma** (`superRefine`). Ausentes, o
+trilho sobe e a entrega falha alto no canal — o convite nunca é marcado entregue sem ter saído.
+
+```
+$ bunx tsc --noEmit            → sem erros
+$ bun run test (worker)        → 413 pass, 0 fail (55 arquivos)
+$ make worker-integration      → 37 pass, 0 fail (9 arquivos)
+$ bun run format:check         → All matched files use Prettier code style
+```
+
+### Desvios registrados
+
+- **Idempotência não usa `processed_messages`.** A chave natural é a própria linha do convite:
+  `delivered_at` preenchido faz a reentrega inofensiva e dispensa uma segunda tabela no caminho.
+  Falha de transporte devolve `retry` sem tocar na validade do código, como o T013 exige.
+- **A gravação na fila é uma segunda escrita**, não a mesma transação da criação do convite. A
+  garantia real é a recuperação por reenvio: convite sem entrega segue pendente e reenviável.
+- **Gate verde com Mailpit não prova entrega real.** Falta host/porta e senha do SMTP da KingHost
+  nas variáveis do Railway (`EMAIL_FROM`, `SMTP_URL`) — nenhuma credencial entra no repositório.
+
+## T015 — canal de ativação por empresa
+
+O canal é da **empresa**, não de quem convida nem do perfil de quem foi convidado: o perfil diz
+para onde mandar (`contact_address`), a empresa diz por onde. Ele mora em
+`company_fiscal_profiles.activation_channel` (VARCHAR + check `('email','sms','whatsapp')`,
+default `email`), e não numa tabela nova — aquela linha já é o alvo do `PATCH /company-settings`,
+então versionamento otimista, idempotência e auditoria valem para ele sem nada novo.
+
+**API** — bloco `activation` opcional no corpo (cliente antigo não o envia; ausente é `email`),
+serializado na leitura e `null` no estado vazio, junto dos demais blocos. Migration
+`20260812180149_company_activation_channel` com `rollback.sql` guardado por contagem de linha do
+journal.
+
+**Worker** — `DrizzleInvitationDeliveryRepository` lê o canal por `leftJoin` em
+`company_fiscal_profiles`; empresa sem configuração fiscal ainda entrega por e-mail.
+
+```
+$ bun test ./test/company-activation-channel.contract.test.ts  → 5 pass, 0 fail (vermelho antes)
+$ bun run test (api)          → 2285 pass, 3 skip, 0 fail (90 arquivos)
+$ bun run test (worker)       → 413 pass, 0 fail
+$ make migration-test         → 37 pass, 0 fail
+$ make worker-integration     → 39 pass, 0 fail
+$ bun run lint / typecheck    → sem erros
+```
+
+### Desvios registrados
+
+- **Contratos alheios ajustados no caminho.** `user-invitation-schema/schema.contract.ts` ainda
+  descrevia `user_invitations` sem `sealed_code`/`delivered_at` (o T014 rodou só os gates do
+  worker), e `deploy/service-naming.contract.ts` procurava seções de `docs/spec/railway.md`
+  renomeadas para "Domínios gerados de …" por trabalho de deploy fora desta feature.
+- **Sem tela.** O canal é persistido e lido, mas a configuração ainda não expõe o campo no
+  frontend — quem quiser trocar hoje troca pelo `PATCH`.
+- **Só `email` tem driver.** Escolher `sms` ou `whatsapp` faz a entrega falhar no canal, alto, em
+  vez de marcar o convite como entregue.
+
+Nada foi commitado.

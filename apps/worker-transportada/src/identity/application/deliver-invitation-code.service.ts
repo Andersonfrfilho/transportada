@@ -1,0 +1,111 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import type { InvitationDeliveryEnvelopeV1 } from '../../messaging/invitation-delivery-envelope.schema.js'
+
+export type InvitationContactChannel = 'email' | 'sms' | 'whatsapp'
+
+export type InvitationDeliveryRecord = {
+  readonly companyId: string
+  readonly contactAddress: string
+  readonly contactChannel: InvitationContactChannel
+  readonly id: string
+  readonly sealedCode: unknown
+  readonly userId: string
+}
+
+export type InvitationDeliveryDependencies = {
+  readonly channels: {
+    readonly send: (input: {
+      readonly address: string
+      readonly body: string
+      readonly channel: InvitationContactChannel
+      readonly subject: string
+    }) => Promise<void>
+  }
+  readonly envelopeProvider: {
+    readonly decrypt: (input: {
+      readonly companyId: string
+      readonly envelope: unknown
+      readonly userId: string
+    }) => Promise<string>
+  }
+  readonly invitations: {
+    readonly findForDelivery: (input: {
+      readonly companyId: string
+      readonly invitationId: string
+    }) => Promise<InvitationDeliveryRecord | undefined>
+    readonly markDelivered: (input: {
+      readonly companyId: string
+      readonly deliveredAt: Date
+      readonly invitationId: string
+    }) => Promise<void>
+  }
+  readonly logger: {
+    readonly error: (message: string, meta?: Readonly<Record<string, unknown>>) => void
+    readonly info: (message: string, meta?: Readonly<Record<string, unknown>>) => void
+  }
+}
+
+const DELIVERY_SUBJECT = 'Seu código de ativação'
+
+/**
+ * Falha de entrega **não** invalida o código: o convite segue válido e reenviável, porque quem
+ * falhou foi o transporte e não a regra. O erro sobe para o consumidor rejeitar a mensagem e o
+ * trilho de retry cuidar do resto.
+ *
+ * Nada de código ou endereço em log, em nenhum nível: só identificadores opacos (`security.md` §1).
+ */
+export async function handleInvitationDelivery(
+  message: InvitationDeliveryEnvelopeV1,
+  dependencies: InvitationDeliveryDependencies,
+): Promise<void> {
+  const { channels, envelopeProvider, invitations, logger } = dependencies
+  const invitation = await invitations.findForDelivery({
+    companyId: message.companyId,
+    invitationId: message.payload.invitationId,
+  })
+
+  if (invitation === undefined) {
+    logger.info('invitation delivery skipped: invitation not found', {
+      invitationId: message.payload.invitationId,
+    })
+    return
+  }
+
+  const code = await envelopeProvider.decrypt({
+    companyId: invitation.companyId,
+    envelope: invitation.sealedCode,
+    userId: invitation.userId,
+  })
+
+  try {
+    await channels.send({
+      address: invitation.contactAddress,
+      body: buildInvitationMessageBody(code),
+      channel: invitation.contactChannel,
+      subject: DELIVERY_SUBJECT,
+    })
+  } catch (error) {
+    logger.error('invitation delivery failed', {
+      channel: invitation.contactChannel,
+      invitationId: invitation.id,
+    })
+    throw error
+  }
+
+  await invitations.markDelivered({
+    companyId: invitation.companyId,
+    deliveredAt: new Date(),
+    invitationId: invitation.id,
+  })
+
+  logger.info('invitation delivered', {
+    channel: invitation.contactChannel,
+    invitationId: invitation.id,
+  })
+}
+
+function buildInvitationMessageBody(code: string): string {
+  return `Seu código de ativação é ${code}. Ele é de uso único e expira em breve.`
+}

@@ -11,6 +11,14 @@ const BARCODE_SCALE = 3
 const BARCODE_HEIGHT = 12
 const QR_CODE_SCALE = 4
 
+/**
+ * O item 6 da NT Conjunta DF-e 2025.001 diz que o CODE-128C não é compatível com a chave
+ * alfanumérica e publica as regras de alternância de Code Set. O `code128` do bwip-js já alterna
+ * sozinho — desenha em C enquanto a chave é numérica e passa para B nas letras do CNPJ. Quem prova
+ * isso é `test/cte-issuance-infrastructure/dacte-barcode.contract.ts`, que decodifica o símbolo.
+ */
+export const ACCESS_KEY_SYMBOLOGY = 'code128'
+
 export type DacteBarcodeGateway = {
   readonly renderAccessKey: (accessKey: string) => Promise<Buffer>
   readonly renderQrCode: (url: string) => Promise<Buffer>
@@ -18,10 +26,9 @@ export type DacteBarcodeGateway = {
 
 export function createDacteBarcodeGateway(): DacteBarcodeGateway {
   return {
-    // Chave de acesso tem 44 dígitos: o bwip-js codifica em Code128C, como o MOC exige.
     renderAccessKey: async (accessKey) =>
       bwipjs.toBuffer({
-        bcid: 'code128',
+        bcid: ACCESS_KEY_SYMBOLOGY,
         height: BARCODE_HEIGHT,
         includetext: false,
         scale: BARCODE_SCALE,

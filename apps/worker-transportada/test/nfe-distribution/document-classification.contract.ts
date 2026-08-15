@@ -33,6 +33,9 @@ const IMPORT_ID = '97ba42a6-8b96-47c0-bdb5-b75dfed2f95c'
 
 const OTHER_ACCESS_KEY = '35190730290856000160550010000000021000000029'
 
+/** Emitente com CNPJ alfanumérico: as posições 6–17 da chave são `12ABC34501DE`. */
+const ALPHANUMERIC_ACCESS_KEY = '35260712ABC34501DE35550010000000022000000022'
+
 const RESUMO_XML = `<resNFe><chNFe>${ACCESS_KEY}</chNFe></resNFe>`
 const RESUMO_EVENTO_XML = `<resEvento><chNFe>${ACCESS_KEY}</chNFe></resEvento>`
 const DOCUMENTO_XML = `<nfeProc><NFe><infNFe Id="NFe${ACCESS_KEY}"/></NFe></nfeProc>`
@@ -149,14 +152,14 @@ function createXmlImporter(harness: AdapterHarness): NfeXmlImporter {
 }
 
 /**
- * Espelha `nfe_import_items_access_key_check` do banco: a coluna aceita NULL ou 44 dígitos, e nada
- * mais. O fake anterior aceitava qualquer string, então a chave sintética `nsu-<nsu>` passava aqui
- * e só estourava em produção, dentro da transação da página.
+ * Espelha `nfe_import_items_access_key_check` do banco, já alargado para o CNPJ alfanumérico: só as
+ * doze posições da base do CNPJ aceitam letra. O fake anterior aceitava qualquer string, então a
+ * chave sintética `nsu-<nsu>` passava aqui e só estourava em produção, dentro da transação da página.
  */
 function assertAccessKeyConstraint(item: DistributionPersistItem): void {
   const accessKey = item.summary?.accessKey
 
-  if (accessKey !== undefined && !/^[0-9]{44}$/.test(accessKey)) {
+  if (accessKey !== undefined && !/^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/.test(accessKey)) {
     throw new Error(`ACCESS_KEY_CHECK_VIOLATION:${accessKey}`)
   }
 }
@@ -351,6 +354,121 @@ describe('NF-e distribution document classification contract', () => {
     })
 
     expect(harness.persisted[0]?.summary?.accessKey).toBe(ACCESS_KEY)
+  })
+
+  /**
+   * A chave de emitente com CNPJ alfanumérico traz letra nas posições 6–17. As duas guardas do
+   * mapper são só de dígito, então a chave verdadeira é descartada — e o resumo ainda é gravado,
+   * sem chave e sem log. Não é um pulo registrado: é perda silenciosa que passa por sucesso.
+   */
+  test('keeps the alphanumeric access key the package hands over in chaveNfe', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: ALPHANUMERIC_ACCESS_KEY,
+          nsu: '000000000037720',
+          schema: 'resNFe_v1.01.xsd',
+          xml: `<resNFe><chNFe>${ALPHANUMERIC_ACCESS_KEY}</chNFe></resNFe>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037720',
+    })
+
+    expect(harness.persisted[0]?.summary?.accessKey).toBe(ALPHANUMERIC_ACCESS_KEY)
+    expect(harness.storageCalls).toEqual([`summary:${ALPHANUMERIC_ACCESS_KEY}`])
+  })
+
+  test('reads the alphanumeric access key from the resumo XML when the package leaves it empty', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037721',
+          schema: 'resNFe_v1.01.xsd',
+          xml: `<nfe:resNFe><nfe:chNFe>${ALPHANUMERIC_ACCESS_KEY}</nfe:chNFe></nfe:resNFe>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037721',
+    })
+
+    expect(harness.persisted[0]?.summary?.accessKey).toBe(ALPHANUMERIC_ACCESS_KEY)
+  })
+
+  /**
+   * Perder a chave não custa só a coluna: sem ela o resumo não entra na pergunta de deduplicação,
+   * e a mesma nota volta a ser importada em toda janela da distribuição.
+   */
+  test('asks the base about the alphanumeric key like any other', async () => {
+    const { adapter, harness } = createAdapter({ storedAccessKeys: [ALPHANUMERIC_ACCESS_KEY] })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: ALPHANUMERIC_ACCESS_KEY,
+          nsu: '000000000037722',
+          schema: 'resNFe_v1.01.xsd',
+          xml: `<resNFe><chNFe>${ALPHANUMERIC_ACCESS_KEY}</chNFe></resNFe>`,
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037722',
+    })
+
+    expect(harness.storedLookups).toEqual([[ALPHANUMERIC_ACCESS_KEY]])
+    expect(result.duplicatedCount).toBe(1)
+    expect(harness.persisted).toHaveLength(0)
+  })
+
+  /**
+   * Pulo por documento não suportado ou por já existir já sai em log com a razão. O que não saía é
+   * o resumo que **é** gravado sem chave nenhuma: ele conta como aceito, some da deduplicação e não
+   * deixa rastro. Registrar é o mínimo para essa perda ser investigável.
+   */
+  test('logs the summary it stores without an access key', async () => {
+    const { adapter, harness } = createAdapter()
+
+    await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        createDfeItem({
+          chaveNfe: undefined,
+          nsu: '000000000037723',
+          schema: 'resNFe_v1.01.xsd',
+          xml: '<resNFe><cSitNFe>1</cSitNFe></resNFe>',
+        }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037723',
+    })
+
+    const missing = harness.logs.filter(
+      (entry) => entry.message === 'nfe_distribution_summary_access_key_missing',
+    )
+    expect(missing).toHaveLength(1)
+    expect(missing[0]?.level).toBe('warn')
+    expect(missing[0]?.metadata).toMatchObject({
+      companyId: COMPANY_ID,
+      importId: IMPORT_ID,
+      nsu: '000000000037723',
+      schema: 'resNFe_v1.01.xsd',
+    })
   })
 
   test('leaves the summary access key unset when the resumo carries no key at all', async () => {

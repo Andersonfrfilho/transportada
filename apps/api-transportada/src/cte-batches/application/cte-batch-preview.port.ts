@@ -30,6 +30,11 @@ export type CteBatchPreviewLink = {
   readonly documentId: string
 }
 
+export type CteBatchPreviewNfseLink = {
+  readonly documentId: string
+  readonly invoiceId: string
+}
+
 export type CteBatchPreviewQuery = {
   readonly companyId: string
   readonly documentIds: readonly string[]
@@ -42,6 +47,7 @@ export type CteBatchNameQuery = {
 
 export type CteBatchPreviewReaderPort = {
   findActiveBatchLinks(query: CteBatchPreviewQuery): Promise<readonly CteBatchPreviewLink[]>
+  findActiveNfseLinks(query: CteBatchPreviewQuery): Promise<readonly CteBatchPreviewNfseLink[]>
   findBatchNamesStartingWith(query: CteBatchNameQuery): Promise<readonly string[]>
   findPreviewDocuments(query: CteBatchPreviewQuery): Promise<readonly CteBatchPreviewDocument[]>
 }

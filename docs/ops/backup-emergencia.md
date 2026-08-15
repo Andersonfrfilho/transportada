@@ -174,13 +174,14 @@ Tem de imprimir `[]`. Banco de production com proxy aberto e esquecido é o inci
 O `pg_dump` leva o dado. Não leva nada disto, e sem estes itens o dado restaurado não volta a
 funcionar:
 
-| Item                              | Consequência de perder                                                    |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `ENCRYPTION_KEYRING_JSON`         | Todo certificado A1 vira envelope indecifrável (ADR-0004)                 |
-| `IDEMPOTENCY_HMAC_KEY`            | Chaves de idempotência antigas param de casar                             |
-| XML fiscal no bucket              | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe   |
-| Configuração do realm feita à mão | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
-| Variáveis de ambiente do Railway  | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis             |
+| Item                                | Consequência de perder                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `ENCRYPTION_KEYRING_JSON`           | Todo certificado A1 vira envelope indecifrável (ADR-0004)                 |
+| `IDEMPOTENCY_HMAC_KEY`              | Chaves de idempotência antigas param de casar                             |
+| `NOTIFICATION_SUPPRESSION_HMAC_KEY` | As supressões de e-mail param de casar e o envio volta a quem recusou     |
+| XML fiscal no bucket                | O banco referencia `bucket`/`key`; sem o objeto, o documento não existe   |
+| Configuração do realm feita à mão   | `--import-realm` ignora realm existente e não reconstrói o que foi manual |
+| Variáveis de ambiente do Railway    | Reconstituídas a partir de `docs/spec/railway.md` § Variáveis             |
 
 Por isso o backup do banco sozinho **não** é o backup do produto. As duas linhas seguintes fazem
 parte do mesmo procedimento.
@@ -221,9 +222,10 @@ queimado (regra de segurança §4).
 
 **Local da cópia de production:** Chaveiro do macOS do responsável pelo produto, serviço
 `TransportAdA production`, um item por campo — `ENCRYPTION_KEYRING_JSON`,
-`ENCRYPTION_ACTIVE_KEY_ID`, `IDEMPOTENCY_HMAC_KEY`, `RABBITMQ_DEFAULT_PASS`,
+`ENCRYPTION_ACTIVE_KEY_ID`, `IDEMPOTENCY_HMAC_KEY`, `NOTIFICATION_SUPPRESSION_HMAC_KEY`,
+`RABBITMQ_DEFAULT_PASS`,
 `KC_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_ADMIN_CLIENT_SECRET`, `POSTGRES_PASSWORD_APP`,
-`POSTGRES_PASSWORD_KEYCLOAK` e os seis `OBJECT_STORAGE_*` — quatorze ao todo. É a única cópia que
+`POSTGRES_PASSWORD_KEYCLOAK` e os seis `OBJECT_STORAGE_*` — quinze ao todo. É a única cópia que
 sobrevive ao cenário em que a conta Railway é justamente o que se perdeu — bucket de ops não serve,
 porque mora na mesma conta.
 
@@ -355,7 +357,7 @@ de tocar em production.
 
 ### R4. Voltar as chaves e subir
 
-1. Repor `ENCRYPTION_KEYRING_JSON` e `IDEMPOTENCY_HMAC_KEY` nos serviços.
+1. Repor `ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY` e `NOTIFICATION_SUPPRESSION_HMAC_KEY` nos serviços.
 2. `railway redeploy --service api --environment production` e conferir o `assert-migrations`.
 3. Worker e cron depois da API.
 4. `GET /health/ready` verde.

@@ -59,6 +59,8 @@ describe('user invitation schema', () => {
       'company_id',
       'user_id',
       'code_hash',
+      'sealed_code',
+      'delivered_at',
       'status',
       'attempt_count',
       'expires_at',
@@ -90,7 +92,8 @@ describe('user invitation schema', () => {
     expect(identifier?.getSQLType()).toBe('uuid')
 
     for (const column of config.columns) {
-      const optional = column.name === 'accepted_at'
+      // O envelope do código e a marca de entrega nascem vazios: o convite existe antes de sair.
+      const optional = ['accepted_at', 'sealed_code', 'delivered_at'].includes(column.name)
       expect(column.notNull).toBe(!optional)
     }
     for (const column of getTableConfig(userInvitationRoles).columns) {

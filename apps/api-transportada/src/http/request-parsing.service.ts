@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES, HTTP_ERROR } from '../shared/api.constant.js'
 import { ApiError } from '../shared/api.error.js'
+import type { ApiErrorDetail } from '../shared/api.types.js'
 
 const CONTAINS_MAX_LENGTH = 60
 const DEFAULT_PAGE_LIMIT = 25
@@ -16,8 +17,8 @@ export type Paging = {
   readonly limit: number
 }
 
-export function invalidRequest(): ApiError {
-  return new ApiError(HTTP_ERROR.invalidRequest)
+export function invalidRequest(details?: readonly ApiErrorDetail[]): ApiError {
+  return new ApiError({ ...HTTP_ERROR.invalidRequest, ...(details ? { details } : {}) })
 }
 
 export function hasFilter(filters: object): boolean {
@@ -36,7 +37,14 @@ export async function parseBody<TSchema extends z.ZodType>(
   request: Request,
 ): Promise<z.infer<TSchema>> {
   const result = schema.safeParse(await parseJsonBody(request))
-  if (!result.success) throw invalidRequest()
+  if (!result.success) {
+    throw invalidRequest(
+      result.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      })),
+    )
+  }
   return result.data
 }
 

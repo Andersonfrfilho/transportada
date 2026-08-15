@@ -109,7 +109,7 @@ export const billingInvoices = pgTable(
     ),
     check(
       'billing_invoices_customer_document_check',
-      sql`${table.customerDocument} ~ '^[0-9]{11,14}$'`,
+      sql`${table.customerDocument} ~ '^[0-9]{11,14}$|^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check('billing_invoices_observations_check', sql`length(${table.observations}) <= 500`),
   ],
@@ -191,7 +191,10 @@ export const billingInvoiceItems = pgTable(
       table.lineNumber,
     ),
     check('billing_invoice_items_line_number_check', sql`${table.lineNumber} > 0`),
-    check('billing_invoice_items_cte_access_key_check', sql`${table.cteAccessKey} ~ '^[0-9]{44}$'`),
+    check(
+      'billing_invoice_items_cte_access_key_check',
+      sql`${table.cteAccessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
     check('billing_invoice_items_cte_number_check', sql`${table.cteNumber} > 0`),
     check(
       'billing_invoice_items_amounts_check',

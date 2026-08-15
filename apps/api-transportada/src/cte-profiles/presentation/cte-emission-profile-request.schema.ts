@@ -17,6 +17,11 @@ import {
   CTE_TAKERS,
   PICKUP_DETAILS_MAX_LENGTH,
 } from '../../database/cte-emission-profile.schema.js'
+import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { CNPJ_PATTERN, CNPJ_ROOT_PATTERN } from '../../shared/tax-id.service.js'
+
+/** O matcher casa pela raiz de 8 ou pelo documento inteiro — as duas alfanuméricas. */
+const MATCHER_TAX_ID = new RegExp(`${CNPJ_ROOT_PATTERN.source}|${CNPJ_PATTERN.source}`, 'u')
 
 const CFOP = /^[0-9]{4}$/
 const COUNTER = /^(?:0|[1-9][0-9]{0,3})$/
@@ -27,7 +32,6 @@ const RECEIVER_PICKUP_AT_DESTINATION = '0'
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const PREDOMINANT_PRODUCT_FIXED = 'fixed'
 const RATE_DECIMAL = /^(?:0\.[0-9]{6}|1\.000000)$/
-const TAX_ID = /^(?:[0-9]{8}|[0-9]{14})$/
 
 const componentSchema = z
   .object({
@@ -54,7 +58,7 @@ const componentSchema = z
 const matcherSchema = z
   .object({
     matchRole: z.enum(CTE_EMISSION_MATCH_ROLES),
-    taxId: z.string().regex(TAX_ID),
+    taxId: buildTaxIdSchema(MATCHER_TAX_ID),
   })
   .strict()
 

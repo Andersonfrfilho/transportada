@@ -4,9 +4,11 @@
 import { sql } from 'drizzle-orm'
 import {
   check,
+  bigint,
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -39,6 +41,14 @@ export const userInvitations = pgTable(
     userId: uuid('user_id').notNull(),
     /** SHA-256 do código em hexadecimal. O código em claro nunca é persistido. */
     codeHash: text('code_hash').notNull(),
+    /**
+     * Envelope de `@adatechnology/secret-envelope` com o código. O hash acima continua sendo o
+     * que valida a tentativa; isto existe só para o worker poder entregar o código a quem o pediu,
+     * já que hash não se desfaz. Nulo nos convites criados antes da entrega existir — eles nunca
+     * foram entregáveis, e reenviar é o caminho de recuperá-los.
+     */
+    sealedCode: jsonb('sealed_code'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
     status: text().$type<UserInvitationStatus>().notNull().default('pending'),
     attemptCount: integer('attempt_count').notNull().default(0),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -82,6 +92,81 @@ export const userInvitations = pgTable(
     check(
       'user_invitations_accepted_at_check',
       sql`(${table.status} = 'accepted') = (${table.acceptedAt} is not null)`,
+    ),
+  ],
+)
+
+export const INVITATION_DELIVERY_EVENT_TYPES = [
+  'transportada.identity.invitation.code.requested',
+] as const
+
+const INVITATION_DELIVERY_EVENT_TYPE_LIST = sql.raw(
+  INVITATION_DELIVERY_EVENT_TYPES.map((eventType) => `'${eventType}'`).join(', '),
+)
+
+/**
+ * Trilho próprio, e não `processing_outbox`: aquela tem FK para `nfe_imports` e check
+ * `aggregate_type = 'nfe_import'` — é outbox de um trilho só, como a `cte_issuance_outbox` já
+ * demonstrou ao nascer separada.
+ *
+ * O payload carrega **referência**: `invitationId` e `userId`. O código vai selado na linha do
+ * convite, nunca no broker (`security.md` §6).
+ */
+export const invitationDeliveryOutbox = pgTable(
+  'invitation_delivery_outbox',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    eventId: uuid('event_id').notNull().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    invitationId: uuid('invitation_id').notNull(),
+    eventType: text('event_type')
+      .$type<(typeof INVITATION_DELIVERY_EVENT_TYPES)[number]>()
+      .notNull(),
+    eventVersion: bigint('event_version', { mode: 'bigint' }).notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    payload: jsonb().notNull(),
+    attempt: bigint({ mode: 'bigint' }).notNull().default(0n),
+    claimOwner: text('claim_owner'),
+    claimExpiresAt: timestamp('claim_expires_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'invitation_delivery_outbox_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.invitationId, table.companyId],
+      foreignColumns: [userInvitations.id, userInvitations.companyId],
+      name: 'invitation_delivery_outbox_invitation_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('invitation_delivery_outbox_company_id_event_id_unique').on(
+      table.companyId,
+      table.eventId,
+    ),
+    index('invitation_delivery_outbox_pending_idx').on(
+      table.publishedAt,
+      table.nextAttemptAt,
+      table.createdAt,
+    ),
+    check('invitation_delivery_outbox_attempt_check', sql`${table.attempt} >= 0`),
+    check('invitation_delivery_outbox_event_version_check', sql`${table.eventVersion} > 0`),
+    check(
+      'invitation_delivery_outbox_event_type_check',
+      sql`${table.eventType} in (${INVITATION_DELIVERY_EVENT_TYPE_LIST})`,
+    ),
+    check(
+      'invitation_delivery_outbox_claim_check',
+      sql`(${table.claimOwner} is null) = (${table.claimExpiresAt} is null)`,
     ),
   ],
 )

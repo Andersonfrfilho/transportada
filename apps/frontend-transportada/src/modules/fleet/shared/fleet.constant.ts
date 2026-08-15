@@ -1,8 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { VehicleColor } from './fleet.types'
+
 export const FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const FLEET_DRIVERS_PATH = '/fleet/drivers'
-export const FLEET_VEHICLE_LOOKUP_PATH = '/fleet/vehicles/lookup'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
+export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
+export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
@@ -27,11 +30,29 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_VERSION_CONFLICT: 'versionConflict',
   FLEET_FORBIDDEN: 'readOnly',
   FLEET_INVALID_DRAFT: 'invalidDraft',
-  FLEET_VEHICLE_LOOKUP_FAILED: 'lookupFailed',
-  FLEET_VEHICLE_LOOKUP_UNAVAILABLE: 'lookupUnavailable',
   FLEET_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   FLEET_VEHICLE_PLATE_TAKEN: 'plateTaken',
   FLEET_VEHICLE_VERSION_CONFLICT: 'versionConflict',
+}
+
+/** O tom real do CRLV vive em `:root`; aqui só o caminho até ele, para nenhum módulo pintar cor crua. */
+export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
+  amarela: 'var(--vehicle-color-amarela)',
+  azul: 'var(--vehicle-color-azul)',
+  bege: 'var(--vehicle-color-bege)',
+  branca: 'var(--vehicle-color-branca)',
+  cinza: 'var(--vehicle-color-cinza)',
+  dourada: 'var(--vehicle-color-dourada)',
+  fantasia: 'var(--vehicle-color-fantasia)',
+  grena: 'var(--vehicle-color-grena)',
+  laranja: 'var(--vehicle-color-laranja)',
+  marrom: 'var(--vehicle-color-marrom)',
+  prata: 'var(--vehicle-color-prata)',
+  preta: 'var(--vehicle-color-preta)',
+  rosa: 'var(--vehicle-color-rosa)',
+  roxa: 'var(--vehicle-color-roxa)',
+  verde: 'var(--vehicle-color-verde)',
+  vermelha: 'var(--vehicle-color-vermelha)',
 }
 
 export const OWNER_KEYS = ['name', 'rntrc', 'state', 'taxId', 'taxRegime'] as const
@@ -41,10 +62,26 @@ export const DRIVER_VEHICLE_LINK_KEYS = ['assignedAt', 'id', 'ownedByDriver', 'v
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
 
+export const VEHICLE_COST_KEYS = [
+  'acquisitionAmount',
+  'annualInsuranceAmount',
+  'annualVehicleTaxAmount',
+  'averageConsumption',
+  'costPerKilometer',
+  'monthlyInstallmentAmount',
+] as const
+
 export const VEHICLE_BODY_KEYS = [
+  ...VEHICLE_COST_KEYS,
+  'axleCount',
   'bodyType',
+  'brand',
   'capacityCubicMeters',
   'capacityKilograms',
+  'color',
+  'fleetNumber',
+  'model',
+  'modelYear',
   'owner',
   'ownership',
   'plate',
@@ -57,17 +94,26 @@ export const VEHICLE_BODY_KEYS = [
 
 export const VEHICLE_DETAIL_KEYS = [
   ...VEHICLE_BODY_KEYS,
+  'costsUpdatedAt',
   'createdAt',
   'id',
+  'monthlyFixedCost',
   'status',
   'updatedAt',
   'version',
 ] as const
 
 export const VEHICLE_FORM_KEYS = [
+  ...VEHICLE_COST_KEYS,
+  'axleCount',
   'bodyType',
+  'brand',
   'capacityCubicMeters',
   'capacityKilograms',
+  'color',
+  'fleetNumber',
+  'model',
+  'modelYear',
   'ownerName',
   'ownerRntrc',
   'ownerState',
@@ -82,31 +128,7 @@ export const VEHICLE_FORM_KEYS = [
   'wheelType',
 ] as const
 
-export const VEHICLE_LOOKUP_KEYS = [
-  'brand',
-  'capacityKilograms',
-  'model',
-  'modelYear',
-  'ownerName',
-  'ownerTaxId',
-  'plate',
-  'renavam',
-  'state',
-  'tareWeightKilograms',
-] as const
-
-export const FLEET_CAPABILITY_KEYS = ['vehicleLookup'] as const
-
-/** Campos da consulta por placa que existem no formulário; marca, modelo e ano não têm campo. */
-export const VEHICLE_LOOKUP_FORM_KEYS = [
-  'capacityKilograms',
-  'ownerName',
-  'ownerTaxId',
-  'plate',
-  'renavam',
-  'state',
-  'tareWeightKilograms',
-] as const
+export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const
 
 export const DRIVER_BODY_KEYS = [
   'licenseNumber',

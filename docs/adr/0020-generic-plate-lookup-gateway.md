@@ -1,5 +1,10 @@
 # ADR-0020: Consulta de veículo por placa é um gateway genérico configurado por env
 
+> **Substituída pela ADR-0032.** O desenho abaixo nunca teve provedor: não existe fonte pública e
+> gratuita que combine placa e Renavam, e todo provedor de mercado cobra por consulta. O trilho foi
+> removido do produto. Este documento fica como registro do desenho, e é o caminho a retomar se
+> alguma instalação passar a contratar um provedor.
+
 ## Contexto
 
 O cadastro de veículo tem doze campos e o operador digita todos à mão, olhando o CRLV. Placa,

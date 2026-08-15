@@ -3,7 +3,6 @@
  */
 import {
   hasFilter,
-  invalidRequest,
   optionalFilter,
   parseBody,
   parseContains,
@@ -20,7 +19,6 @@ import type { FleetDriverFilters, FleetVehicleFilters } from '../application/fle
 import {
   createDriverSchema,
   createVehicleSchema,
-  plateSchema,
   replaceDriverVehiclesSchema,
   updateDriverSchema,
   updateVehicleSchema,
@@ -29,7 +27,6 @@ import {
 } from './fleet-request.schema.js'
 
 const DRIVER_QUERY_KEYS = new Set(['cursor', 'limit', 'nameContains', 'statusEq'])
-const VEHICLE_LOOKUP_QUERY_KEYS = new Set(['plate'])
 const VEHICLE_QUERY_KEYS = new Set(['cursor', 'limit', 'plateContains', 'roleEq', 'statusEq'])
 
 type Listing<TFilters> = {
@@ -81,13 +78,6 @@ export function parseVehicleList(url: URL): Listing<FleetVehicleFilters> {
   }
 
   return { ...readPaging(parameters), ...(hasFilter(filters) ? { filters } : {}) }
-}
-
-export function parseVehicleLookupQuery(url: URL): { readonly plate: string } {
-  const parameters = readListQuery(url, VEHICLE_LOOKUP_QUERY_KEYS)
-  const plate = (parameters.get('plate') ?? '').trim().toUpperCase()
-  if (!plateSchema.safeParse(plate).success) throw invalidRequest()
-  return { plate }
 }
 
 export function parseDriverList(url: URL): Listing<FleetDriverFilters> {

@@ -22,7 +22,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
-      includeAssets: ['icons/icon.svg', 'offline.html'],
+      includeAssets: ['icons/icon.svg', 'icons/icon-work-in-progress.svg', 'offline.html'],
       manifest: {
         name: 'TransportAdA',
         short_name: 'TransportAdA',

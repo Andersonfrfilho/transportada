@@ -8,6 +8,7 @@ const SELECT_PATH = 'src/components/ui/select.tsx'
 const DATE_PICKER_PATH = 'src/components/ui/date-picker.tsx'
 const RANGE_PICKER_PATH = 'src/components/ui/date-range-picker.tsx'
 const SELECT_STYLES_PATH = 'src/components/ui/select.module.css'
+const SEARCHABLE_STYLES_PATH = 'src/components/ui/searchable-select.module.css'
 const CALENDAR_STYLES_PATH = 'src/components/ui/date-range-picker.module.css'
 
 type FloatingLayerModule = Readonly<{
@@ -22,11 +23,12 @@ type FloatingLayerModule = Readonly<{
       viewport: Readonly<{ height: number; width: number }>
     }>,
   ) => Readonly<{
+    bottom: number | null
     left: number
     maxHeight: number
     minWidth: number
     placement: 'above' | 'below'
-    top: number
+    top: number | null
   }>
 }>
 
@@ -55,6 +57,7 @@ describe('design system floating layer contract', () => {
 
     expect(position.placement).toBe('below')
     expect(position.top).toBe(ANCHOR.bottom + FLOATING_LAYER_GAP)
+    expect(position.bottom).toBeNull()
     expect(position.left).toBe(ANCHOR.left)
     expect(position.minWidth).toBe(ANCHOR.width)
     expect(position.maxHeight).toBe(
@@ -73,8 +76,27 @@ describe('design system floating layer contract', () => {
     })
 
     expect(position.placement).toBe('above')
-    expect(position.top).toBe(ANCHOR.top - FLOATING_LAYER_GAP - LAYER.height)
-    expect(position.top).toBeGreaterThanOrEqual(0)
+    expect(position.bottom).toBe(700 - ANCHOR.top + FLOATING_LAYER_GAP)
+    expect(position.top).toBeNull()
+  })
+
+  /**
+   * É o defeito relatado no cadastro de veículo: o conteúdo mede muito mais que o teto de CSS do
+   * painel, e a camada ancorada pelo topo calculado subia até a borda da janela.
+   */
+  test('anchors an above layer by its bottom edge, whatever height the content reports', async () => {
+    const { FLOATING_LAYER_GAP, resolveFloatingLayerPosition } = await loadFloatingLayer()
+    const anchor = { bottom: 880, left: 200, right: 320, top: 840, width: 120 } as const
+
+    const position = resolveFloatingLayerPosition({
+      anchor,
+      layer: { height: 900, width: 160 },
+      viewport: VIEWPORT,
+    })
+
+    expect(position.placement).toBe('above')
+    expect(position.bottom).toBe(VIEWPORT.height - anchor.top + FLOATING_LAYER_GAP)
+    expect(position.top).toBeNull()
   })
 
   test('never lets the layer grow past the visible space, keeping a scrollable minimum', async () => {
@@ -88,7 +110,7 @@ describe('design system floating layer contract', () => {
 
     expect(cramped.maxHeight).toBeGreaterThanOrEqual(FLOATING_LAYER_MIN_HEIGHT)
     expect(cramped.maxHeight).toBeLessThan(600)
-    expect(cramped.top).toBeGreaterThanOrEqual(0)
+    expect(cramped.bottom).toBeGreaterThanOrEqual(0)
   })
 
   test('keeps the layer inside the viewport on both edges', async () => {
@@ -155,15 +177,18 @@ describe('design system floating layer contract', () => {
     }
   })
 
-  test('positions both floating skins by the shared custom properties', async () => {
-    const [selectStyles, calendarStyles] = await Promise.all([
+  test('positions every floating skin by the shared custom properties', async () => {
+    const [selectStyles, searchableStyles, calendarStyles] = await Promise.all([
       readApplicationFile(SELECT_STYLES_PATH),
+      readApplicationFile(SEARCHABLE_STYLES_PATH),
       readApplicationFile(CALENDAR_STYLES_PATH),
     ])
 
-    for (const styles of [selectStyles, calendarStyles]) {
+    for (const styles of [selectStyles, searchableStyles, calendarStyles]) {
       expect(styles).toContain('position: fixed')
       expect(styles).toContain('--floating-layer-top')
+      // Sem a borda de baixo o painel acima do gatilho volta a ser posicionado por altura medida.
+      expect(styles).toContain('--floating-layer-bottom')
       expect(styles).toContain('--floating-layer-left')
       expect(styles).toContain('--floating-layer-max-height')
       expect(styles).toContain('overflow-y: auto')

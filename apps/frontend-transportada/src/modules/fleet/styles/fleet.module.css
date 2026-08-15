@@ -48,8 +48,9 @@
   grid-template-columns: 1fr;
 }
 
+/* Sem editor aberto a segunda coluna não existe — reservá-la encolhia a tabela para 60% da tela */
 @media (min-width: 64rem) {
-  .workspaceDeck {
+  .workspaceDeck[data-editor-open='true'] {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     align-items: start;
   }
@@ -74,6 +75,17 @@
   gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
+}
+
+/*
+ * As ações andam juntas num filho só. Soltas no cabeçalho elas viravam o terceiro item de um
+ * `space-between`, e o botão de colunas parava no meio da faixa, longe do que ele controla.
+ */
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .filterBar {
@@ -159,6 +171,7 @@
 
 .fieldGrid label,
 .filterBar label,
+.plateRow label,
 .fieldGroup > label {
   display: grid;
   gap: var(--space-1);
@@ -166,22 +179,274 @@
   font-size: 0.85rem;
 }
 
+/* Rótulo que quebra em duas linhas empurrava só o seu campo: a fileira toda divide os trilhos. */
+.fieldGrid label {
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: var(--space-1);
+}
+
+/* No trilho compartilhado o rótulo curto flutuaria longe do seu campo. */
+.fieldGrid label > span {
+  align-self: end;
+}
+
 .fieldGrid input,
-.filterBar input,
+.plateRow input,
 .fieldGroup > label input {
+  min-width: 0;
   min-height: var(--field-height);
   padding: var(--field-padding);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
   color: var(--color-fog);
-  font-family: inherit;
+  font: inherit;
   font-size: var(--field-font-size);
-  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+/* A barra de filtro fica lado a lado com selects compactos */
+.filterBar input {
+  min-width: 0;
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.fieldGrid input:focus,
+.filterBar input:focus,
+.plateRow input:focus,
+.fieldGroup > label input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.plateRow {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+@media (min-width: 40rem) {
+  .plateRow {
+    grid-template-columns: minmax(0, 16rem) auto auto;
+  }
+}
+
+/* Miniatura da placa: proporção e cores do documento impresso, não do tema */
+.plate {
+  display: grid;
+  width: var(--plate-width);
+  height: var(--plate-height);
+  grid-template-rows: auto 1fr;
+  justify-self: start;
+  padding: 2px;
+  border-radius: var(--space-2);
+  font-family: var(--font-plate);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-plate-surface) 70%, white 30%),
+    color-mix(in srgb, var(--color-plate-surface) 80%, var(--color-plate-ink) 20%)
+  );
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-plate-ink) 45%, transparent);
+}
+
+.plateBand {
+  display: grid;
+  padding-block: 1px;
+  padding-inline: 3px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-radius: var(--space-1) var(--space-1) 0 0;
+  color: color-mix(in srgb, white 96%, var(--color-plate-band) 4%);
+  background: var(--color-plate-band);
+}
+
+.plateBloc {
+  font-size: 0.42rem;
+  letter-spacing: 0.02em;
+}
+
+/* No documento impresso o país é o que domina a faixa, centralizado */
+.plateCountry {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+}
+
+.plateFlag {
+  position: relative;
+  width: 0.62rem;
+  height: 0.44rem;
+  justify-self: end;
+  border-radius: 1px;
+  overflow: hidden;
+  background: var(--color-plate-flag-green);
+}
+
+.plateFlag::before {
+  position: absolute;
+  inset: 22%;
+  transform: rotate(45deg);
+  background: var(--color-plate-flag-yellow);
+  content: '';
+}
+
+.plateFlag::after {
+  position: absolute;
+  inset: 38%;
+  border-radius: 50%;
+  background: var(--color-plate-flag-blue);
+  content: '';
+}
+
+.plateBody {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+/* Fica na tarja lateral esquerda da placa, embaixo — como no documento */
+.plateCountryCode {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  color: var(--color-plate-ink);
+  font-size: 0.4rem;
+  font-weight: 700;
+}
+
+.plateCharacters {
+  display: flex;
+  gap: 0.04em;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-plate-ink);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Os sete caracteres ocupam quase toda a largura, como na placa impressa */
+.plateCharacter,
+.plateCharacterEmpty {
+  display: grid;
+  width: 0.78em;
+  place-items: center;
+}
+
+/* Posição ainda vazia mostra a base do caractere: o formato aparece antes do conteúdo */
+.plateCharacterEmpty::after {
+  width: 78%;
+  border-bottom: 2px solid color-mix(in srgb, var(--color-plate-ink) 22%, transparent);
+  content: '';
+}
+
+.skeletonTable {
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.skeletonRow {
+  display: grid;
+  gap: var(--space-3);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+}
+
+.emptyState {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-6);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 28%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 24%, transparent);
+}
+
+.emptyState h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.emptyState p {
+  max-width: 34rem;
+  margin: 0 0 var(--space-2);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.optionalMark {
+  margin-left: var(--space-1);
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
+.fieldHint {
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .hint {
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   font-size: 0.8rem;
+}
+
+.costSummary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-slate) 8%, transparent);
+}
+
+.costSummary h3 {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.costSummary dl {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .costSummary dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.costSummary dt {
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.72rem;
+}
+
+.costSummary dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.costSummary p {
+  margin: 0;
 }
 
 .vehicleLinkList {
@@ -214,16 +479,79 @@
   font-size: 0.85rem;
 }
 
-.lookupAction {
-  display: flex;
-  flex-wrap: wrap;
+.iconAction {
+  display: inline-flex;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: transparent;
+  color: var(--color-fog);
+  cursor: pointer;
 }
 
-.lookupHint {
-  flex: 1 1 16rem;
-  margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
-  font-size: 0.8rem;
+.iconAction:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.iconActionActive {
+  display: inline-flex;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  background: var(--color-copper);
+  color: var(--color-asphalt);
+  cursor: pointer;
+}
+
+.columnsMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.columnsPopover {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 5;
+  display: grid;
+  min-width: 16rem;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+}
+
+.columnRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: 0.82rem;
+}
+
+.checkOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.columnReorder {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.incompleteBadge {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }

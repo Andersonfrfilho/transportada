@@ -22,11 +22,16 @@ import { ApiError } from '../../shared/api.error.js'
 import type {
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
+  CteBatchPreviewNfseLink,
 } from '../application/cte-batch-preview.port.js'
 import type { CteBatchItemLookup, CteBatchSelectionQuery } from '../application/cte-batch.port.js'
 import { createBatchNameTakenError } from '../domain/cte-batch.error.js'
 
-import { findActiveBatchLinks, findSelectionDocuments } from './cte-batch-selection.query.js'
+import {
+  findActiveBatchLinks,
+  findActiveNfseLinks,
+  findSelectionDocuments,
+} from './cte-batch-selection.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -177,6 +182,12 @@ class DrizzleCteBatchTransaction {
     query: CteBatchSelectionQuery,
   ): Promise<readonly CteBatchPreviewLink[]> {
     return findActiveBatchLinks(this.database, query)
+  }
+
+  public findActiveNfseLinks(
+    query: CteBatchSelectionQuery,
+  ): Promise<readonly CteBatchPreviewNfseLink[]> {
+    return findActiveNfseLinks(this.database, query)
   }
 
   public async findBatch(input: Record<string, unknown>): Promise<Record<string, unknown> | null> {

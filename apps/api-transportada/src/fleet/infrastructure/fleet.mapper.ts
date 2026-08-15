@@ -12,6 +12,7 @@ import type {
   FleetVehicle,
   FleetVehicleInput,
 } from '../application/fleet.port.js'
+import { deriveMonthlyFixedCost } from '../domain/vehicle-cost.policy.js'
 
 type DriverRecord = typeof fleetDrivers.$inferSelect
 type VehicleRecord = typeof fleetVehicles.$inferSelect
@@ -20,11 +21,29 @@ const OWN_OWNERSHIP = 'own'
 
 export function mapVehicle(record: VehicleRecord): FleetVehicle {
   return {
+    acquisitionAmount: record.acquisitionAmount,
+    annualInsuranceAmount: record.annualInsuranceAmount,
+    annualVehicleTaxAmount: record.annualVehicleTaxAmount,
+    averageConsumption: record.averageConsumption,
+    axleCount: record.axleCount,
     bodyType: record.bodyType,
+    brand: record.brand,
     capacityCubicMeters: record.capacityM3.toString(),
     capacityKilograms: record.capacityKg.toString(),
+    color: record.color,
+    costPerKilometer: record.costPerKilometer,
+    costsUpdatedAt: record.costsUpdatedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
+    fleetNumber: record.fleetNumber,
     id: record.id,
+    model: record.model,
+    modelYear: record.modelYear,
+    monthlyFixedCost: deriveMonthlyFixedCost({
+      annualInsuranceAmount: record.annualInsuranceAmount,
+      annualVehicleTaxAmount: record.annualVehicleTaxAmount,
+      monthlyInstallmentAmount: record.monthlyInstallmentAmount,
+    }),
+    monthlyInstallmentAmount: record.monthlyInstallmentAmount,
     owner:
       record.ownership === OWN_OWNERSHIP
         ? null
@@ -50,11 +69,23 @@ export function mapVehicle(record: VehicleRecord): FleetVehicle {
 
 export function toVehicleColumns(
   vehicle: FleetVehicleInput,
-): Omit<typeof fleetVehicles.$inferInsert, 'companyId' | 'status' | 'version'> {
+): Omit<typeof fleetVehicles.$inferInsert, 'companyId' | 'costsUpdatedAt' | 'status' | 'version'> {
   return {
+    acquisitionAmount: vehicle.acquisitionAmount,
+    annualInsuranceAmount: vehicle.annualInsuranceAmount,
+    annualVehicleTaxAmount: vehicle.annualVehicleTaxAmount,
+    averageConsumption: vehicle.averageConsumption,
+    axleCount: vehicle.axleCount,
     bodyType: vehicle.bodyType,
+    brand: vehicle.brand,
     capacityKg: BigInt(vehicle.capacityKilograms),
     capacityM3: BigInt(vehicle.capacityCubicMeters),
+    color: vehicle.color,
+    costPerKilometer: vehicle.costPerKilometer,
+    fleetNumber: vehicle.fleetNumber,
+    model: vehicle.model,
+    modelYear: vehicle.modelYear,
+    monthlyInstallmentAmount: vehicle.monthlyInstallmentAmount,
     ownerName: vehicle.owner?.name ?? '',
     ownerRntrc: vehicle.owner?.rntrc ?? '',
     ownerState: vehicle.owner?.state ?? '',

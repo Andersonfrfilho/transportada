@@ -31,13 +31,16 @@ COPY apps/api-transportada/package.json apps/api-transportada/package.json
 COPY apps/api-transportada/drizzle apps/api-transportada/drizzle
 COPY apps/api-transportada/src/database apps/api-transportada/src/database
 COPY apps/api-transportada/src/config apps/api-transportada/src/config
-# Fechamento transitivo dos schemas Drizzle: company-fiscal-profile.schema.ts (cte-retry.policy),
-# environment-provisioning.repository.ts (authorization.policy), environment.schema.ts
-# (scheduled-distribution-window.policy) e erros base compartilhados.
+# Fechamento transitivo dos schemas Drizzle: company-fiscal-profile.schema.ts (cte-retry.policy e
+# nfse-retry.policy), environment-provisioning.repository.ts (authorization.policy),
+# environment.schema.ts (scheduled-distribution-window.policy) e erros base compartilhados.
 COPY apps/api-transportada/src/companies/domain apps/api-transportada/src/companies/domain
 COPY apps/api-transportada/src/cte-issuance/domain apps/api-transportada/src/cte-issuance/domain
+COPY apps/api-transportada/src/nfse-invoices/domain apps/api-transportada/src/nfse-invoices/domain
 COPY apps/api-transportada/src/identity/domain apps/api-transportada/src/identity/domain
 COPY apps/api-transportada/src/shared apps/api-transportada/src/shared
+# O pre-deploy semeia os templates de notificação: o texto do aviso vem do catálogo em código.
+COPY apps/api-transportada/src/notification apps/api-transportada/src/notification
 
 USER transportada
 WORKDIR /app/apps/api-transportada

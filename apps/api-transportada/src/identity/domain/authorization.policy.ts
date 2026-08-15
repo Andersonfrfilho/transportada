@@ -30,6 +30,10 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'mdfe.issue',
   'mdfe.close',
   'mdfe.cancel',
+  'nfse.manage',
+  'nfse.issue',
+  'nfse.cancel',
+  'nfse.read',
   'trip.read',
   'trip.report',
 ] as const)
@@ -58,6 +62,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'fleet.manage',
     'mdfe.read',
     'mdfe.manage',
+    'nfse.manage',
+    'nfse.read',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -66,6 +72,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'billing.read',
     'operations.read',
     'view-preferences.manage',
+    'nfse.read',
   ]),
   fiscal: Object.freeze([
     'invoices.import',
@@ -86,6 +93,10 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.issue',
     'mdfe.close',
     'mdfe.cancel',
+    'nfse.manage',
+    'nfse.issue',
+    'nfse.cancel',
+    'nfse.read',
   ]),
   operator: Object.freeze([
     'invoices.import',
@@ -101,6 +112,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'fleet.manage',
     'mdfe.read',
     'mdfe.manage',
+    'nfse.manage',
+    'nfse.read',
   ]),
   viewer: Object.freeze([
     'invoices.read',
@@ -109,6 +122,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'view-preferences.manage',
     'fleet.read',
     'mdfe.read',
+    'nfse.read',
   ]),
   // O motorista é papel de campo: só a própria viagem, nada de nota, CT-e, faturamento ou frota
   driver: Object.freeze(['trip.read', 'trip.report']),

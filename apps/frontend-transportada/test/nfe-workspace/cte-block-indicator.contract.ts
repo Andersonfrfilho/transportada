@@ -41,6 +41,8 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
     emitterTaxId: '30290856000160',
     id: 'free-1',
     issuedAt: '2026-07-22T10:00:00.000Z',
+    nfseInvoiceId: null,
+    nfseInvoiceNumber: null,
     number: '11',
     recipientAddress: 'Avenida Logística, 500',
     recipientCity: 'Jundiaí',

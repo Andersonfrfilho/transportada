@@ -48,6 +48,20 @@ Para exibir texto o componente **não** traduz nada: monte `options` já com o l
 `SelectOption` é exportado junto e deve ser o tipo usado para listas de opções, em vez de tipos
 locais por módulo.
 
+## Quadrado de cor
+
+Cada opção pode carregar `swatch`, um valor de `background` que a lista pinta num quadrado antes do
+rótulo — e que o gatilho repete quando a opção está escolhida. Serve para lista em que a cor é o
+próprio dado (a cor do veículo no CRLV), não para decorar categoria.
+
+| Campo    | Efeito                                                                              |
+| -------- | ----------------------------------------------------------------------------------- |
+| `swatch` | qualquer `background` válido: `var(--vehicle-color-branca)` ou um `linear-gradient` |
+
+A cor **vem de token**, nunca literal no call site: os tons reais ficam em `:root` de
+`src/styles/index.css` (`--vehicle-color-*`) e o módulo só monta `var(--…)`. O quadrado é
+`aria-hidden` — o rótulo já diz a cor, e o leitor de tela não deve anunciá-la duas vezes.
+
 ## Busca
 
 A busca **não se pede por prop: ela aparece sozinha** quando a lista passa de
@@ -72,8 +86,15 @@ produto é bilíngue e todo texto vem de `*.locale.json`. Passe as duas em qualq
 possa crescer.
 
 Teclado dentro da busca: `ArrowDown`/`ArrowUp` movem a opção ativa, `Enter` confirma, `Escape` e
-`Tab` fecham. O painel vive em `document.body`, então a tecla digitada na busca **não** sobe até o
-`onKeyDown` da raiz — por isso o campo tem o seu próprio manipulador.
+`Tab` fecham. **Todo o resto é texto** — inclusive `Space`, `Home` e `End`, que na raiz do select
+são atalhos de lista. Quem decide é `resolveSelectSearchKey` (`select.service.ts`), uma tabela só
+para as duas peles.
+
+O painel vai para `document.body`, mas **portal do React propaga pela árvore de componentes, não
+pela do DOM**: a tecla digitada na busca chega ao `onKeyDown` da raiz assim mesmo. Por isso o
+manipulador do campo começa com `event.stopPropagation()` — sem ele, o espaço no meio de
+"santo andre" selecionava a opção ativa e fechava o painel. Contrato em
+`test/design-system/select.contract.ts`.
 
 `SearchableSelect` continua existindo para o caso que este não cobre: aceitar um valor **fora do
 catálogo** (`resolveCustomOption`), como o banco digitado à mão nas configurações de cobrança.
@@ -97,8 +118,8 @@ Clique fora fecha. Ao fechar, o foco volta para o gatilho.
 A lista de opções não é filha do gatilho no DOM: ela vai para `document.body` por portal e é
 posicionada em coordenadas de viewport pelo hook `useFloatingLayer`
 (`src/components/ui/useFloatingLayer.hook.ts`), que aplica o cálculo puro de
-`floatingLayer.service.ts` em `--floating-layer-top`, `--floating-layer-left`,
-`--floating-layer-min-width` e `--floating-layer-max-height`.
+`floatingLayer.service.ts` em `--floating-layer-top`, `--floating-layer-bottom`,
+`--floating-layer-left`, `--floating-layer-min-width` e `--floating-layer-max-height`.
 
 Sem isso, qualquer ancestral com `overflow` recorta a lista — foi o que aconteceu no modal "Gerar
 fatura", cujo `overflow-y: auto` cortava as opções na borda inferior. O mesmo hook governa o
@@ -107,12 +128,28 @@ fatura", cujo `overflow-y: auto` cortava as opções na borda inferior. O mesmo 
 O que o hook garante:
 
 - vira para cima quando o espaço abaixo do gatilho não cabe o painel e o de cima é maior;
+- acima do gatilho, ancora o painel pela **borda de baixo** (`--floating-layer-bottom`, com
+  `--floating-layer-top: auto`), e não por um topo calculado a partir da altura medida: o teto de
+  altura é do CSS de cada pele (`min(16rem, …)` no select), então a altura do conteúdo não descreve
+  o que será desenhado — era o que jogava a lista de UFs na borda de cima da janela;
 - limita a altura ao espaço visível, mantendo o painel rolável em vez de estourar a janela;
 - prende as bordas dentro da viewport, inclusive com `align="end"`;
 - reposiciona em `scroll` (com captura, para painéis internos) e em `resize`;
 - fecha ao clicar fora, entendendo que o portal também é "dentro".
 
 Componente flutuante novo usa esse hook — não reinvente `position: absolute` dentro do container.
+
+## Rolagem do painel
+
+O painel é uma **coluna flexível** (`display: flex; flex-direction: column`) com teto de altura em
+`max-height`. A busca é `flex: 0 0 auto` — fica fixa no topo — e a lista é `flex: 1 1 auto` com
+`min-height: 0`, que é o que permite ela encolher dentro do teto e virar a área rolável.
+
+Sem o `min-height: 0` a lista mantém a altura natural do conteúdo, o `overflow: hidden` do painel
+recorta o excedente e **não aparece barra de rolagem**: era o defeito do select de UF, em que as
+unidades depois de "CE" não tinham como ser alcançadas pelo mouse. Vale igual para as duas peles —
+`select.module.css` e `searchable-select.module.css` — e o contrato
+`test/design-system/select.contract.ts` falha se uma delas perder a regra.
 
 ## Estilo
 

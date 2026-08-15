@@ -170,7 +170,7 @@ function expectSafeUnavailable(error: Error): void {
     message: 'Digital certificate is unavailable',
     status: 500,
   })
-  expect(Object.keys(error).sort()).toEqual(['code', 'headers', 'name', 'status'])
+  expect(Object.keys(error).sort()).toEqual(['code', 'details', 'headers', 'name', 'status'])
   for (const sensitive of [COMPANY_ID, OTHER_COMPANY_ID, CERTIFICATE_ID, SECRET_TEXT]) {
     expect(JSON.stringify(error)).not.toContain(sensitive)
   }

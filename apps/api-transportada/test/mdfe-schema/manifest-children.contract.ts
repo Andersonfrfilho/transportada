@@ -45,7 +45,9 @@ describe('mdfe manifest item schema', () => {
   test('validates the access key and the IBGE city code of the item', () => {
     const checks = checkSqlByName(mdfeManifestItems)
 
-    expect(checks.mdfe_manifest_items_access_key_check).toContain("~ '^[0-9]{44}$'")
+    expect(checks.mdfe_manifest_items_access_key_check).toContain(
+      "~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'",
+    )
     expect(checks.mdfe_manifest_items_discharge_city_code_check).toContain("~ '^[0-9]{7}$'")
     expect(checks.mdfe_manifest_items_discharge_city_name_check).toContain('length(')
     expect(checks.mdfe_manifest_items_totals_check).toContain('>= 0')

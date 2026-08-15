@@ -13,8 +13,8 @@ import {
   CteEmissionProfileNotFoundError,
   CteEmissionProfileUnresolvedError,
 } from './cte-profile.error.js'
+import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
-const FULL_TAX_ID_PATTERN = /^[0-9]{14}$/
 const TAX_ID_ROOT_LENGTH = 14 - 6
 
 const PRECISION_RANK = { full: 0, root: 1 } as const
@@ -154,6 +154,6 @@ function compareMatches(left: ProfileMatch, right: ProfileMatch): number {
 }
 
 function assertFullTaxId(value: string): string {
-  if (!FULL_TAX_ID_PATTERN.test(value)) throw new CteEmissionProfileInvalidTaxIdError()
+  if (!CNPJ_PATTERN.test(value)) throw new CteEmissionProfileInvalidTaxIdError()
   return value
 }

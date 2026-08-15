@@ -250,7 +250,7 @@ export const cteEmissionProfileMatchers = pgTable(
     ),
     check(
       'cte_emission_profile_matchers_tax_id_check',
-      sql`${table.taxId} ~ '^[0-9]{8}$' or ${table.taxId} ~ '^[0-9]{14}$'`,
+      sql`${table.taxId} ~ '^[A-Z0-9]{8}$' or ${table.taxId} ~ '^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'cte_emission_profile_matchers_match_role_check',

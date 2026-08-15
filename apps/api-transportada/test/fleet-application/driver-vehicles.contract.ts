@@ -109,7 +109,7 @@ describe('fleet driver vehicles use case contract', () => {
     expect((failure as ApiError).code).toBe('FLEET_VEHICLE_NOT_FOUND')
     expect((failure as ApiError).status).toBe(404)
     expect(links.replaceCalls).toEqual([])
-    expect(links.vehicleLookupCalls).toEqual([
+    expect(links.existingVehicleIdCalls).toEqual([
       {
         companyId: FLEET_CONTEXT.companyId,
         vehicleIds: [VEHICLE_ID, OTHER_COMPANY_VEHICLE_ID],
@@ -146,7 +146,7 @@ describe('fleet driver vehicles use case contract', () => {
       vehicleIds: [],
     })
 
-    expect(links.vehicleLookupCalls).toEqual([])
+    expect(links.existingVehicleIdCalls).toEqual([])
     expect(links.replaceCalls).toEqual([
       { companyId: FLEET_CONTEXT.companyId, driverId: DRIVER_ID, vehicleIds: [] },
     ])

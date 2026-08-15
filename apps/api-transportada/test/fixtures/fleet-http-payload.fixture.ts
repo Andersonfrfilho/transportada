@@ -7,7 +7,6 @@ import type {
   FleetDriverVehicleAssignment,
   FleetDriverVehicleLink,
   FleetVehicle,
-  FleetVehicleLookup,
   FleetVehiclePage,
 } from '../../src/fleet/application/fleet.port'
 
@@ -24,9 +23,21 @@ export const LINK_ID = '00000000-0000-4000-8000-000000000914'
 export const OWNED_LINK_ID = '00000000-0000-4000-8000-000000000915'
 
 export const CREATE_VEHICLE_BODY = {
+  acquisitionAmount: '0.0000',
+  annualInsuranceAmount: '0.0000',
+  annualVehicleTaxAmount: '0.0000',
+  averageConsumption: '0.00',
+  axleCount: 0,
   bodyType: '00',
+  brand: '',
   capacityCubicMeters: '90',
   capacityKilograms: '27000',
+  color: '',
+  costPerKilometer: '0.0000',
+  fleetNumber: '',
+  model: '',
+  modelYear: 0,
+  monthlyInstallmentAmount: '0.0000',
   owner: null,
   ownership: 'own',
   plate: 'ABC1D23',
@@ -79,8 +90,10 @@ export const UPDATE_DRIVER_BODY = {
 
 export const VEHICLE: FleetVehicle = {
   ...CREATE_VEHICLE_BODY,
+  costsUpdatedAt: null,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: VEHICLE_ID,
+  monthlyFixedCost: null,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
@@ -119,19 +132,6 @@ export const DRIVER_VEHICLE_ASSIGNMENTS: readonly FleetDriverVehicleAssignment[]
   { ...DRIVER_VEHICLE_LINKS[1]!, ownedByDriver: true },
 ]
 
-export const VEHICLE_LOOKUP: FleetVehicleLookup = {
-  brand: 'VOLVO',
-  capacityKilograms: '27000',
-  model: 'FH 540',
-  modelYear: '2021',
-  ownerName: 'Transportes Ada',
-  ownerTaxId: '12345678000195',
-  plate: 'ABC1D23',
-  renavam: '12345678901',
-  state: 'SP',
-  tareWeightKilograms: '8000',
-}
-
 export const VEHICLE_PAGE: FleetVehiclePage = { items: [VEHICLE], nextCursor: null }
 
 export const DRIVER_PAGE: FleetDriverPage = { items: [DRIVER], nextCursor: null }
@@ -156,10 +156,15 @@ export function jsonRequest(input: {
 
 export async function responseApiError(response: Response): Promise<{
   readonly code: string
+  readonly details?: readonly { readonly field: string; readonly message: string }[]
   readonly message: string
 }> {
   const payload = (await response.json()) as {
-    readonly error: { readonly code: string; readonly message: string }
+    readonly error: {
+      readonly code: string
+      readonly details?: readonly { readonly field: string; readonly message: string }[]
+      readonly message: string
+    }
   }
   return payload.error
 }

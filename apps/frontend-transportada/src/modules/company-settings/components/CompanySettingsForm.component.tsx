@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type {
   CompanyProfileLookup,
@@ -71,7 +72,7 @@ export function CompanySettingsForm({
     setLookupPending(true)
     setLookupStatus('idle')
     try {
-      const profile = await onLookupProfile(settings.profile.cnpj.replace(/\D/g, ''))
+      const profile = await onLookupProfile(normalizeTaxId(settings.profile.cnpj))
       if (profile === null) {
         setLookupStatus('error')
         return

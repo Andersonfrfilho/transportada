@@ -74,17 +74,27 @@ const environmentSchema = z.object({
       message: 'PROVISION_COMPANY_ID must be a valid UUID',
     })
     .optional(),
-  FLEET_VEHICLE_LOOKUP_TOKEN: z.string().trim().default(''),
-  FLEET_VEHICLE_LOOKUP_URL: z
+  // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
+  FLEET_VEHICLE_CATALOG_URL: z
     .string()
     .trim()
-    // Variável declarada e vazia significa provedor não contratado — não pode derrubar o boot.
     .transform((value) => (value === '' ? undefined : value))
     .refine((value) => value === undefined || isTrustedLookupUrl(value), {
-      message: 'FLEET_VEHICLE_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL',
+      message: 'FLEET_VEHICLE_CATALOG_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  // Endereço público desta instalação, por onde a prefeitura devolve o postback de NFS-e. Vazio
+  // significa callback não publicado, e aí a rota anônima nem é registrada. Não é segredo — o
+  // segredo é o token opaco por empresa, que vive no banco e nunca sai em variável de ambiente.
+  NFSE_CALLBACK_BASE_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo. Expressão que a
   // política não sabe resolver derruba o boot: melhor não subir do que servir data inventada.
   SCHEDULED_DISTRIBUTION_CRON: z
@@ -94,6 +104,18 @@ const environmentSchema = z.object({
     .refine(isSupportedScheduleExpression, {
       message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
     }),
+  // O mesmo remetente do worker (ADR-0031): não se cria segunda configuração de SMTP. As duas
+  // juntas ou nenhuma — meia configuração daria envio sem remetente.
+  EMAIL_FROM: optionalText(),
+  // Segredo compartilhado com o provedor de entrega, para o recibo. Ausente, a rota de webhook nem
+  // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
+  // qualquer um dizendo que a mensagem chegou.
+  NOTIFICATION_WEBHOOK_SECRET: optionalText(),
+  // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
+  // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
+  QUEUE_PREFIX: optionalText(),
+  RABBITMQ_URL: optionalText(),
+  SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
   SENTRY_ENVIRONMENT: optionalText(),
@@ -109,6 +131,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
+    emailDelivery:
+      parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
+        ? undefined
+        : { from: parsed.EMAIL_FROM, smtpUrl: parsed.SMTP_URL },
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     keycloak: {
       admin: {
@@ -120,15 +146,21 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       jwksUri: parsed.KEYCLOAK_JWKS_URI,
     },
     logLevel: parsed.LOG_LEVEL,
+    messaging:
+      parsed.QUEUE_PREFIX === undefined || parsed.RABBITMQ_URL === undefined
+        ? undefined
+        : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
+    nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
+    notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     port: parsed.APP_PORT,
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: parsed.LOG_SINK_URL,
     sentryDsn: parsed.SENTRY_DSN,
     sentryEnvironment: parsed.SENTRY_ENVIRONMENT ?? parsed.APP_ENV,
-    vehicleLookup:
-      parsed.FLEET_VEHICLE_LOOKUP_URL === undefined
+    vehicleCatalog:
+      parsed.FLEET_VEHICLE_CATALOG_URL === undefined
         ? null
-        : { token: parsed.FLEET_VEHICLE_LOOKUP_TOKEN, url: parsed.FLEET_VEHICLE_LOOKUP_URL },
+        : { url: parsed.FLEET_VEHICLE_CATALOG_URL },
   }
 }
 

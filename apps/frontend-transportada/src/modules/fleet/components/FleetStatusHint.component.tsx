@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
 import styles from '../styles/fleet.module.css'
 
+// Carregando é esqueleto e vazio é convite para agir — cada painel desenha os seus
 const HINT_KEY_BY_STATUS: Readonly<Record<FleetViewStatus, null | string>> = {
-  empty: 'empty',
+  empty: null,
   error: 'error',
   forbidden: 'readOnly',
-  loading: 'loading',
+  loading: null,
   ready: null,
 }
 

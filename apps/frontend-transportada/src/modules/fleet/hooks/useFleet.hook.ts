@@ -24,7 +24,6 @@ import type {
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFilters,
-  FleetVehicleLookup,
   FleetVehiclePage,
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
@@ -45,7 +44,6 @@ export type FleetController = Readonly<{
   ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
-  lookupVehicleByPlate: (input: Readonly<{ plate: string }>) => Promise<FleetVehicleLookup | null>
   replaceDriverVehicles: (
     input: FleetReplaceDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
@@ -76,9 +74,6 @@ export function createFleetController(input: ControllerInput): FleetController {
       canReadFleet ? input.client.listDriverVehicles(query) : forbidden(),
     listDrivers: (query) => (canReadFleet ? input.client.listDrivers(query) : forbidden()),
     listVehicles: (query) => (canReadFleet ? input.client.listVehicles(query) : forbidden()),
-    // Consultar placa é serviço pago por consulta: exige fleet.manage, como o cadastro
-    lookupVehicleByPlate: (query) =>
-      canManageFleet ? input.client.lookupVehicleByPlate(query) : forbidden(),
     replaceDriverVehicles: (body) =>
       canManageFleet ? input.client.replaceDriverVehicles(body) : forbidden(),
     updateDriver: (body) => (canManageFleet ? input.client.updateDriver(body) : forbidden()),
