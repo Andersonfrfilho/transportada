@@ -248,5 +248,32 @@
   "nfseIssExigibility6": "6 — Suspensa por decisão judicial",
   "nfseIssExigibility7": "7 — Suspensa por processo administrativo",
   "nfseTaker0": "Remetente da carga",
-  "nfseTaker3": "Destinatário da carga"
+  "nfseTaker3": "Destinatário da carga",
+  "fuelPricesTitle": "Preço do combustível",
+  "fuelPricesHint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência da ANP; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
+  "fuelPriceEffective": "Em uso: {{price}} ({{source}}).",
+  "fuelPriceUnavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência da ANP, o R$/km não é calculado para este combustível.",
+  "fuelPriceReference": "Referência da ANP: {{price}} — {{state}}, semana encerrada em {{week}}.",
+  "fuelPriceReferenceMissing": "A ANP ainda não publicou referência para este combustível.",
+  "fuelPriceUpdatedAt": "Atualizado em {{moment}}.",
+  "fuelPriceFieldLabel": "Novo preço por {{unit}}",
+  "fuelPriceFieldHint": "Até quatro casas decimais. Use vírgula ou ponto.",
+  "fuelPriceSave": "Salvar preço",
+  "fuelPriceClear": "Limpar ajuste",
+  "fuelPriceSaved": "Preço salvo.",
+  "fuelPriceError": "Não foi possível salvar o preço. Código: {{code}}.",
+  "fuelPriceLoadError": "Não foi possível carregar os preços de combustível.",
+  "fuelPriceSourceAnp": "referência da ANP",
+  "fuelPriceSourceManual": "ajuste da empresa",
+  "fuelOption": {
+    "diesel-s10": "Diesel S-10",
+    "diesel-s500": "Diesel S-500",
+    "gasolina-comum": "Gasolina comum",
+    "etanol-hidratado": "Etanol hidratado",
+    "gnv": "GNV"
+  },
+  "fuelPriceUnit": {
+    "litre": "litro",
+    "cubic-metre": "metro cúbico"
+  }
 }

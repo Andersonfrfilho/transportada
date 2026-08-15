@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { FUEL_PRICE_PULL_JOB } from '../fuel-price-pull/domain/fuel-price-pull.constant.js'
 import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
 import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
 
@@ -9,6 +10,7 @@ export const CRON_VERSION = '0.1.0'
 
 export const CRON_JOBS = [
   'nfe.distribution.pull',
+  FUEL_PRICE_PULL_JOB,
   NFSE_STATUS_PULL_JOB,
   NOTIFICATION_SCHEDULES_JOB,
 ] as const

@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   AMOUNT_MAX_SCALE,
   DECIMAL_AMOUNT_ERROR,
+  divideScaledAmounts,
   formatAmount,
   sumScaledAmounts,
 } from '@/modules/shared/decimalAmount.service'
@@ -58,6 +59,26 @@ describe('scaled amount sum', () => {
     expect(AMOUNT_MAX_SCALE).toBe(4)
     expect(() => sumScaledAmounts(['1.00001'])).toThrow(DECIMAL_AMOUNT_ERROR.INVALID_AMOUNT)
     expect(sumScaledAmounts(['1.0001'])).toBe('1.0001')
+  })
+})
+
+describe('scaled amount division', () => {
+  // Preço em quatro casas dividido por consumo em duas — a conta do R$/km, meio para cima
+  test('divides two decimals in the requested scale, rounding half up', () => {
+    expect(divideScaledAmounts({ dividend: '5.4800', divisor: '12.00', scale: 4 })).toBe('0.4567')
+    expect(divideScaledAmounts({ dividend: '5.4802', divisor: '4.00', scale: 4 })).toBe('1.3701')
+    expect(divideScaledAmounts({ dividend: '5.4801', divisor: '4.00', scale: 4 })).toBe('1.3700')
+  })
+
+  // Dividir por zero é pergunta sem resposta, não exceção: o veículo ainda não tem consumo apurado
+  test('answers null instead of throwing when the divisor is zero', () => {
+    expect(divideScaledAmounts({ dividend: '5.4800', divisor: '0.00', scale: 4 })).toBe(null)
+  })
+
+  test('rejects anything that is not a plain scaled decimal', () => {
+    expect(() => divideScaledAmounts({ dividend: '5,48', divisor: '2.00', scale: 4 })).toThrow(
+      DECIMAL_AMOUNT_ERROR.INVALID_AMOUNT,
+    )
   })
 })
 

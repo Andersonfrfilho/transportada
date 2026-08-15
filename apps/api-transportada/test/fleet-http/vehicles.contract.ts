@@ -7,7 +7,9 @@ import { ApiError } from '../../src/shared/api.error.js'
 import {
   CREATE_TRAILER_BODY,
   CREATE_VEHICLE_BODY,
+  DERIVED_COST_VEHICLE,
   FLEET_VEHICLES_PATH,
+  OTHER_COSTS_ONLY_VEHICLE,
   jsonRequest,
   responseApiError,
   responseData,
@@ -352,6 +354,133 @@ describe('fleet vehicles http contract', () => {
     expect(invalidPathFixture.updateVehicleCalls).toEqual([])
   })
 
+  test('refuses a costPerKilometer sent in the body of a create or an update', async () => {
+    const createFixture = await createFleetHttpFixture()
+    const createResponse = await createFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, costPerKilometer: '1.8500' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(createResponse.status).toBe(400)
+    expect((await responseApiError(createResponse)).code).toBe('INVALID_REQUEST')
+    expect(createFixture.createVehicleCalls).toEqual([])
+
+    const updateFixture = await createFleetHttpFixture()
+    const updateResponse = await updateFixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_VEHICLE_BODY, costPerKilometer: '1.8500' },
+        method: 'PATCH',
+        path: VEHICLE_PATH,
+      }),
+    )
+
+    expect(updateResponse.status).toBe(400)
+    expect(updateFixture.updateVehicleCalls).toEqual([])
+  })
+
+  test('requires a fuelType from the catalogue and carries it to the use case', async () => {
+    const missingFixture = await createFleetHttpFixture()
+    const missingResponse = await missingFixture.handle(
+      jsonRequest({ body: bodyWithoutFuelType(), method: 'POST', path: FLEET_VEHICLES_PATH }),
+    )
+
+    expect(missingResponse.status).toBe(400)
+    expect(
+      (await responseApiError(missingResponse)).details?.map((detail) => detail.field),
+    ).toContain('fuelType')
+
+    const unknownFixture = await createFleetHttpFixture()
+    const unknownResponse = await unknownFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, fuelType: 'glp' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(unknownResponse.status).toBe(400)
+    expect(unknownFixture.createVehicleCalls).toEqual([])
+
+    const acceptedFixture = await createFleetHttpFixture()
+    const acceptedResponse = await acceptedFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, fuelType: 'gnv' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(acceptedResponse.status).toBe(201)
+    expect(acceptedFixture.createVehicleCalls[0]).toMatchObject({ vehicle: { fuelType: 'gnv' } })
+  })
+
+  test('accepts otherCostsPerKilometer on the four-decimal scale and refuses a coarser one', async () => {
+    const fixture = await createFleetHttpFixture()
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, otherCostsPerKilometer: '0.5000' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createVehicleCalls[0]).toMatchObject({
+      vehicle: { otherCostsPerKilometer: '0.5000' },
+    })
+
+    const coarseFixture = await createFleetHttpFixture()
+    const coarseResponse = await coarseFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, otherCostsPerKilometer: '0.5' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(coarseResponse.status).toBe(400)
+    expect(coarseFixture.createVehicleCalls).toEqual([])
+  })
+
+  test('serializes the derived cost, its breakdown and the fuel price beside the fixed cost', async () => {
+    const fixture = await createFleetHttpFixture({ vehicle: DERIVED_COST_VEHICLE })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: CREATE_VEHICLE_BODY, method: 'POST', path: FLEET_VEHICLES_PATH }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(await responseData(response)).toMatchObject({
+      costPerKilometer: '0.9567',
+      costPerKilometerBreakdown: { fuel: '0.4567', otherCosts: '0.5000' },
+      fuelPrice: {
+        pricePerUnit: '5.4800',
+        source: 'manual',
+        unit: 'litre',
+        weekEndingOn: '2026-08-08',
+      },
+      monthlyFixedCost: null,
+    })
+  })
+
+  test('omits the uninformed parcel from the breakdown and nulls the price it has none of', async () => {
+    const fixture = await createFleetHttpFixture({ vehicle: OTHER_COSTS_ONLY_VEHICLE })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: FLEET_VEHICLES_PATH }))
+
+    expect(response.status).toBe(200)
+    const [listed] = await responseData<readonly Record<string, unknown>[]>(response)
+    expect(listed).toMatchObject({
+      costPerKilometer: '0.5000',
+      costPerKilometerBreakdown: { otherCosts: '0.5000' },
+      fuelPrice: null,
+    })
+    expect(Object.keys(listed?.costPerKilometerBreakdown as object)).toEqual(['otherCosts'])
+  })
+
   test('propagates the optimistic locking conflict as 409', async () => {
     const fixture = await createFleetHttpFixture({
       updateVehicleError: new ApiError({
@@ -369,3 +498,9 @@ describe('fleet vehicles http contract', () => {
     expect((await responseApiError(response)).code).toBe('FLEET_VEHICLE_VERSION_CONFLICT')
   })
 })
+
+function bodyWithoutFuelType(): unknown {
+  const body: Record<string, unknown> = { ...CREATE_VEHICLE_BODY }
+  delete body.fuelType
+  return body
+}

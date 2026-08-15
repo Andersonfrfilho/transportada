@@ -57,6 +57,10 @@ export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
 
 export const OWNER_KEYS = ['name', 'rntrc', 'state', 'taxId', 'taxRegime'] as const
 
+export const VEHICLE_COST_BREAKDOWN_KEYS = ['fuel', 'otherCosts'] as const
+
+export const VEHICLE_FUEL_PRICE_KEYS = ['pricePerUnit', 'source', 'unit', 'weekEndingOn'] as const
+
 export const DRIVER_VEHICLE_LINK_KEYS = ['assignedAt', 'id', 'ownedByDriver', 'vehicle'] as const
 
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
@@ -67,8 +71,8 @@ export const VEHICLE_COST_KEYS = [
   'annualInsuranceAmount',
   'annualVehicleTaxAmount',
   'averageConsumption',
-  'costPerKilometer',
   'monthlyInstallmentAmount',
+  'otherCostsPerKilometer',
 ] as const
 
 export const VEHICLE_BODY_KEYS = [
@@ -80,6 +84,7 @@ export const VEHICLE_BODY_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
+  'fuelType',
   'model',
   'modelYear',
   'owner',
@@ -94,8 +99,11 @@ export const VEHICLE_BODY_KEYS = [
 
 export const VEHICLE_DETAIL_KEYS = [
   ...VEHICLE_BODY_KEYS,
+  'costPerKilometer',
+  'costPerKilometerBreakdown',
   'costsUpdatedAt',
   'createdAt',
+  'fuelPrice',
   'id',
   'monthlyFixedCost',
   'status',
@@ -112,6 +120,7 @@ export const VEHICLE_FORM_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
+  'fuelType',
   'model',
   'modelYear',
   'ownerName',

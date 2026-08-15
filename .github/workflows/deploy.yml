@@ -120,5 +120,10 @@ jobs:
         run: .github/scripts/railway-deploy.sh deploy cron-nfse
       - name: Deploy cron-notifications
         run: .github/scripts/railway-deploy.sh deploy cron-notifications
+      # A referência da ANP é dado público de mercado: sem certificado, sem tenant e sem efeito
+      # fiscal. Staging coleta a mesma semana que production — é o que faz o R$/km derivado ter
+      # número para mostrar antes de production existir.
+      - name: Deploy cron-fuel
+        run: .github/scripts/railway-deploy.sh deploy cron-fuel
       - name: Deploy frontend
         run: .github/scripts/railway-deploy.sh deploy transportada-frontend

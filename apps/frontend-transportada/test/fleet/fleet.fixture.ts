@@ -18,13 +18,32 @@ export type FleetVehicleOwnerContract = Readonly<{
   taxRegime: '0' | '1' | '2'
 }>
 
+export type FleetVehicleFuelProductContract =
+  | 'diesel-s10'
+  | 'diesel-s500'
+  | 'etanol-hidratado'
+  | 'gasolina-comum'
+  | 'gnv'
+
 export type FleetVehicleCostFieldsContract = Readonly<{
   acquisitionAmount: string
   annualInsuranceAmount: string
   annualVehicleTaxAmount: string
   averageConsumption: string
-  costPerKilometer: string
   monthlyInstallmentAmount: string
+  otherCostsPerKilometer: string
+}>
+
+export type FleetVehicleCostBreakdownContract = Readonly<{
+  fuel?: string
+  otherCosts?: string
+}>
+
+export type FleetVehicleFuelPriceContract = Readonly<{
+  pricePerUnit: string
+  source: 'anp' | 'manual'
+  unit: 'cubic-metre' | 'litre'
+  weekEndingOn: null | string
 }>
 
 export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
@@ -36,6 +55,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    fuelType: FleetVehicleFuelProductContract
     model: string
     modelYear: number
     owner: FleetVehicleOwnerContract | null
@@ -50,8 +70,11 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
 
 export type FleetVehicleDetailContract = FleetVehicleBodyContract &
   Readonly<{
+    costPerKilometer: null | string
+    costPerKilometerBreakdown: FleetVehicleCostBreakdownContract | null
     costsUpdatedAt: null | string
     createdAt: string
+    fuelPrice: FleetVehicleFuelPriceContract | null
     id: string
     monthlyFixedCost: null | string
     status: 'active' | 'inactive'
@@ -108,8 +131,8 @@ export const VEHICLE_COST_DRAFT = {
   annualInsuranceAmount: '0.0000',
   annualVehicleTaxAmount: '0.0000',
   averageConsumption: '0.00',
-  costPerKilometer: '0.0000',
   monthlyInstallmentAmount: '0.0000',
+  otherCostsPerKilometer: '0.0000',
 } as const satisfies FleetVehicleCostFieldsContract
 
 export const VEHICLE_BODY = {
@@ -123,11 +146,12 @@ export const VEHICLE_BODY = {
   capacityCubicMeters: '90',
   capacityKilograms: '27000',
   color: 'branca',
-  costPerKilometer: '1.2500',
   fleetNumber: '101',
+  fuelType: 'diesel-s10',
   model: 'Modelo Sintetico',
   modelYear: 2020,
   monthlyInstallmentAmount: '2000.0000',
+  otherCostsPerKilometer: '0.5000',
   owner: null,
   ownership: 'own',
   plate: 'ABC1D23',
@@ -164,8 +188,30 @@ export const VEHICLE_COSTS_UPDATED_AT = '2026-07-28T12:00:00.000Z'
 /** Prestação + (IPVA + seguro) ÷ 12 = 2000 + 4800 ÷ 12, derivado pela API e relido pela tela. */
 export const VEHICLE_MONTHLY_FIXED_COST = '2400.0000'
 
+export const VEHICLE_FUEL_PRICE = {
+  pricePerUnit: '5.4800',
+  source: 'anp',
+  unit: 'litre',
+  weekEndingOn: '2026-07-25',
+} as const satisfies FleetVehicleFuelPriceContract
+
+/** 5,48 ÷ 2,50 fecha em 2,1920 antes da soma — a mesma conta de T006, agora vista pela tela. */
+export const VEHICLE_COST_BREAKDOWN = {
+  fuel: '2.1920',
+  otherCosts: '0.5000',
+} as const satisfies FleetVehicleCostBreakdownContract
+
+export const VEHICLE_COST_PER_KILOMETER = '2.6920'
+
+export const VEHICLE_DERIVED_COSTS = {
+  costPerKilometer: VEHICLE_COST_PER_KILOMETER,
+  costPerKilometerBreakdown: VEHICLE_COST_BREAKDOWN,
+  fuelPrice: VEHICLE_FUEL_PRICE,
+} as const
+
 export const VEHICLE_DETAIL = {
   ...VEHICLE_BODY,
+  ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: VEHICLE_ID,
@@ -178,7 +224,10 @@ export const VEHICLE_DETAIL = {
 export const NO_COSTS_VEHICLE_DETAIL = {
   ...VEHICLE_DETAIL,
   ...VEHICLE_COST_DRAFT,
+  costPerKilometer: null,
+  costPerKilometerBreakdown: null,
   costsUpdatedAt: null,
+  fuelPrice: null,
   monthlyFixedCost: null,
 } as const satisfies FleetVehicleDetailContract
 
@@ -194,6 +243,7 @@ export const DRIVER_DETAIL = {
 
 export const DRIVER_OWNED_VEHICLE = {
   ...AGGREGATE_VEHICLE_BODY,
+  ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: DRIVER_OWNED_VEHICLE_ID,
@@ -247,6 +297,7 @@ export const VEHICLE_DRAFT_BODY = {
   capacityKilograms: '0',
   color: '',
   fleetNumber: '',
+  fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
   owner: null,
@@ -269,6 +320,7 @@ export const INCOMPLETE_TRACTION_VEHICLE_BODY = {
 
 export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
   ...INCOMPLETE_TRACTION_VEHICLE_BODY,
+  ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: INCOMPLETE_TRACTION_VEHICLE_ID,

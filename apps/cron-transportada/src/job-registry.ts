@@ -6,6 +6,8 @@
  */
 import type { CronJob } from './config/cron.constant.js'
 import type { CronCycleResult, CronJobDependencies } from './config/cron.types.js'
+import { FUEL_PRICE_PULL_JOB } from './fuel-price-pull/domain/fuel-price-pull.constant.js'
+import { runFuelPricePullJob } from './fuel-price-pull/fuel-price-pull.job.js'
 import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distribution-pull.constant.js'
 import { runNfeDistributionPullJob } from './nfe-distribution-pull/nfe-distribution-pull.job.js'
 import { NFSE_STATUS_PULL_JOB } from './nfse-status-pull/domain/nfse-status-pull.constant.js'
@@ -17,6 +19,7 @@ export type CronJobRunner = (dependencies: CronJobDependencies) => Promise<CronC
 
 const JOB_REGISTRY: Readonly<Record<CronJob, CronJobRunner>> = {
   [DISTRIBUTION_PULL_JOB]: runNfeDistributionPullJob,
+  [FUEL_PRICE_PULL_JOB]: runFuelPricePullJob,
   [NFSE_STATUS_PULL_JOB]: runNfseStatusPullJob,
   [NOTIFICATION_SCHEDULES_JOB]: runNotificationSchedulesJob,
 }

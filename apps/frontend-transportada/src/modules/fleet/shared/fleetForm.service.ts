@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { DEFAULT_FUEL_PRODUCT } from '@/modules/shared/fuel.constant'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { DRIVER_FORM_KEYS, FLEET_ERROR, VEHICLE_FORM_KEYS } from './fleet.constant'
@@ -34,11 +35,12 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   capacityCubicMeters: '0',
   capacityKilograms: '0',
   color: '',
-  costPerKilometer: '',
   fleetNumber: '',
+  fuelType: DEFAULT_FUEL_PRODUCT,
   model: '',
   modelYear: '0',
   monthlyInstallmentAmount: '',
+  otherCostsPerKilometer: '',
   ownerName: '',
   ownerRntrc: '',
   ownerState: '',
@@ -109,6 +111,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     capacityKilograms: vehicle.capacityKilograms,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
+    fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
     ownerName: vehicle.owner?.name ?? '',
@@ -219,6 +222,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     capacityKilograms: normalizeUnsignedInteger(state.capacityKilograms),
     color: state.color,
     fleetNumber: state.fleetNumber,
+    fuelType: state.fuelType,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
     owner: isOwn

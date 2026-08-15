@@ -237,6 +237,10 @@ Uma escolha que eu fiz sozinho ao escrever isto, dita em voz alta porque muda da
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: qual a janela do CronJob semanal — a ANP publica na sexta-feira; rodar
-  sábado de manhã, ou domingo? Não é bloqueante para o código, é valor de `schedule` no deploy, mas
-  precisa ser escolhido antes de subir o serviço.]
+- ~~Qual a janela do CronJob semanal — sábado de manhã, ou domingo?~~ **Resolvida: sábado, `0 9 * * 6`**
+  (09:00 UTC, 06:00 no Brasil). Não é preferência, é o que a semana da ANP permite. A semana vai de
+  domingo a sábado e dá nome ao arquivo, e `resolveReferenceWeek` deriva a URL da semana que contém
+  o dia de hoje. No sábado, isso é a semana que fecha naquele dia — publicada na sexta-feira
+  anterior (ADR-0033: semana de 09/08 a 15/08, no ar em 14/08). No domingo, seria a semana que
+  acabou de começar, cujo arquivo só existe seis dias depois: 404 a cada ciclo. Valor em
+  `deploy/cron-fuel/railway.json`, descrito em `docs/spec/railway.md`.

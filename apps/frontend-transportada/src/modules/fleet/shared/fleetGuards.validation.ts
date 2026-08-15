@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { FUEL_PRODUCTS, FUEL_UNITS } from '../../shared/fuel.constant'
 import {
   FLEET_DRIVER_STATUS,
+  FLEET_FUEL_PRICE_SOURCE,
   FLEET_VEHICLE_OWNERSHIP,
   FLEET_VEHICLE_ROLE,
   FLEET_VEHICLE_STATUS,
@@ -59,6 +61,9 @@ export function isOneOf<TOption extends string>(
 export const FLEET_ENUMS = {
   bodyType: MDFE_BODY_TYPE,
   driverStatus: FLEET_DRIVER_STATUS,
+  fuelPriceSource: FLEET_FUEL_PRICE_SOURCE,
+  fuelType: FUEL_PRODUCTS,
+  fuelUnit: FUEL_UNITS,
   ownership: FLEET_VEHICLE_OWNERSHIP,
   role: FLEET_VEHICLE_ROLE,
   taxRegime: MDFE_OWNER_TAX_REGIME,

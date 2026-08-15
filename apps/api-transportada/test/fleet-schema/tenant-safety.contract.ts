@@ -4,12 +4,14 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  companyFuelPrices,
   fleetDriverVehicleAssignments,
   fleetDrivers,
   fleetVehicles,
+  fuelPriceReferences,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
+import { columnNames, foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 
 describe('fleet tenant safety', () => {
   test('anchors every fleet table to a company', () => {
@@ -37,6 +39,26 @@ describe('fleet tenant safety', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+
+  test('anchors the company fuel price adjustment to the tenant', () => {
+    expect(foreignKeys(companyFuelPrices)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'company_fuel_prices_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /**
+   * Preço publicado pela ANP é dado de mercado, igual para toda empresa da instalação: a tabela não
+   * tem `company_id` de propósito, e a ausência é assertada aqui para não passar por esquecimento.
+   */
+  test('keeps the public reference tenant-less on purpose, and unable to reach a company', () => {
+    expect(columnNames(fuelPriceReferences)).not.toContain('company_id')
+    expect(foreignKeys(fuelPriceReferences)).toEqual([])
   })
 
   // Um motorista de outra empresa não pode herdar o login desta — o vínculo passa pelo tenant

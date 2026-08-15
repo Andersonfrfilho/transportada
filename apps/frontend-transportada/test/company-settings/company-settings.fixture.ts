@@ -194,6 +194,71 @@ export const DUAL_PURPOSE_CERTIFICATES_RESPONSE = {
   page: { nextCursor: null },
 } as const satisfies DigitalCertificatesResponseContract
 
+export type FuelPriceEntryContract = Readonly<{
+  effectivePricePerUnit: string | null
+  product: string
+  reference: Readonly<{ pricePerUnit: string; state: string; weekEndingOn: string }> | null
+  source: 'anp' | 'manual' | null
+  unit: 'cubic-metre' | 'litre'
+  updatedAt: string | null
+}>
+
+/**
+ * A API devolve os cinco produtos do catálogo mesmo sem preço — é o que permite a tela desenhar a
+ * linha faltante em vez de adivinhar quais sumiram.
+ */
+export const FUEL_PRICE_ENTRIES = [
+  {
+    effectivePricePerUnit: '6.2400',
+    product: 'diesel-s10',
+    reference: { pricePerUnit: '6.2400', state: 'SP', weekEndingOn: '2026-07-25' },
+    source: 'anp',
+    unit: 'litre',
+    updatedAt: '2026-07-26T03:00:00.000Z',
+  },
+  {
+    effectivePricePerUnit: '5.8900',
+    product: 'diesel-s500',
+    reference: { pricePerUnit: '6.0100', state: 'SP', weekEndingOn: '2026-07-25' },
+    source: 'manual',
+    unit: 'litre',
+    updatedAt: '2026-07-28T12:00:00.000Z',
+  },
+  {
+    effectivePricePerUnit: '6.4900',
+    product: 'gasolina-comum',
+    reference: { pricePerUnit: '6.4900', state: 'SP', weekEndingOn: '2026-07-25' },
+    source: 'anp',
+    unit: 'litre',
+    updatedAt: '2026-07-26T03:00:00.000Z',
+  },
+  {
+    effectivePricePerUnit: '4.1500',
+    product: 'etanol-hidratado',
+    reference: { pricePerUnit: '4.1500', state: 'SP', weekEndingOn: '2026-07-25' },
+    source: 'anp',
+    unit: 'litre',
+    updatedAt: '2026-07-26T03:00:00.000Z',
+  },
+  {
+    effectivePricePerUnit: null,
+    product: 'gnv',
+    reference: null,
+    source: null,
+    unit: 'cubic-metre',
+    updatedAt: null,
+  },
+] as const satisfies readonly FuelPriceEntryContract[]
+
+export const ADJUSTED_FUEL_PRICE = {
+  effectivePricePerUnit: '4.9900',
+  product: 'gnv',
+  reference: null,
+  source: 'manual',
+  unit: 'cubic-metre',
+  updatedAt: '2026-08-14T09:00:00.000Z',
+} as const satisfies FuelPriceEntryContract
+
 export const EMPTY_COMPANY_SETTINGS_RESPONSE = {
   data: { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
 } as const

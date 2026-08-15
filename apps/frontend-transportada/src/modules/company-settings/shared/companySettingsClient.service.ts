@@ -16,6 +16,12 @@ import {
   isDistributionCursorResponse,
   type DistributionCursor,
 } from './distributionCursor.validation'
+import type { FuelProduct } from '../../shared/fuel.constant'
+import {
+  isFuelPriceListResponse,
+  isFuelPriceResponse,
+  type FuelPriceEntry,
+} from './fuelPrice.validation'
 import {
   isScheduledDistributionResponse,
   type ScheduledDistributionStatus,
@@ -47,6 +53,7 @@ export type {
 const COMPANY_LOGO_PATH = '/company-settings/logo'
 const COMPANY_SCHEDULED_DISTRIBUTION_PATH = '/company-settings/scheduled-distribution'
 const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
+const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -68,12 +75,18 @@ class CompanySettingsRequestError extends Error {
 
 export type { ScheduledDistributionStatus } from './scheduledDistribution.validation'
 export type { DistributionCursor, DistributionCursorSkip } from './distributionCursor.validation'
+export type { FuelPriceEntry, FuelPriceReference, FuelPriceSource } from './fuelPrice.validation'
 
 export type CompanySettingsClient = Readonly<{
   adjustDistributionCursor: (ultNsu: string) => Promise<DistributionCursor>
+  adjustFuelPrice: (
+    input: Readonly<{ pricePerUnit: string; product: FuelProduct }>,
+  ) => Promise<FuelPriceEntry>
+  clearFuelPrice: (product: FuelProduct) => Promise<void>
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getDistributionCursor: () => Promise<DistributionCursor>
+  getFuelPrices: () => Promise<readonly FuelPriceEntry[]>
   getLogo: () => Promise<CompanyLogoImage | null>
   getScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getSettings: () => Promise<CompanySettingsResponse>
@@ -419,13 +432,72 @@ async function requestDistributionCursor(
   return response.data
 }
 
+async function readFuelPrices(
+  dependencies: ClientDependencies,
+): Promise<readonly FuelPriceEntry[]> {
+  const response = await getRequest({ dependencies, path: COMPANY_FUEL_PRICES_PATH })
+  if (!isFuelPriceListResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+async function adjustFuelPrice(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    pricePerUnit: string
+    product: FuelProduct
+  }>,
+): Promise<FuelPriceEntry> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(
+      `${input.dependencies.apiBaseUrl}${COMPANY_FUEL_PRICES_PATH}/${input.product}`,
+      {
+        body: JSON.stringify({ pricePerUnit: input.pricePerUnit }),
+        cache: 'no-store',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        method: 'PUT',
+      },
+    ),
+  })
+  if (!isFuelPriceResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+/** A limpeza responde 204 sem corpo: pedir JSON aqui transformaria sucesso em erro de formato. */
+async function clearFuelPrice(
+  input: Readonly<{ dependencies: ClientDependencies; product: FuelProduct }>,
+): Promise<void> {
+  const accessToken = await input.dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(
+      new Request(`${input.dependencies.apiBaseUrl}${COMPANY_FUEL_PRICES_PATH}/${input.product}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'DELETE',
+      }),
+    )
+  } catch {
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
+  }
+  if (!response.ok) throw requestError(readErrorCode(await response.text()))
+}
+
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
   adjustDistributionCursor: (ultNsu) =>
     requestDistributionCursor({ body: { ultNsu }, dependencies, method: 'PUT' }),
+  adjustFuelPrice: (input) =>
+    adjustFuelPrice({ dependencies, pricePerUnit: input.pricePerUnit, product: input.product }),
+  clearFuelPrice: (product) => clearFuelPrice({ dependencies, product }),
   disableScheduledDistribution: () =>
     requestScheduledDistribution({ dependencies, method: 'DELETE' }),
   enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),
   getDistributionCursor: () => requestDistributionCursor({ dependencies, method: 'GET' }),
+  getFuelPrices: () => readFuelPrices(dependencies),
   getLogo: () => readLogo(dependencies),
   getScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'GET' }),
   getSettings: () => readSettings(dependencies),

@@ -30,6 +30,12 @@ export type DivideAmountInput = ScaledAmountInput &
     divisor: number
   }>
 
+export type DivideScaledAmountsInput = Readonly<{
+  dividend: string
+  divisor: string
+  scale: number
+}>
+
 /** Zero na escala pedida: o campo em branco vira `'0.0000'`, que é o que a API aceita. */
 export function zeroAmount(scale: number): string {
   return toDecimalString(0n, scale)
@@ -68,6 +74,23 @@ export function toTypedAmount(input: ScaledAmountInput): string {
 export function divideAmount(input: DivideAmountInput): string {
   const amount = parseScaledAmount(input.value)
   const units = divideHalfUp(rescaleHalfUp(amount, input.scale), BigInt(input.divisor))
+
+  return toDecimalString(units, input.scale)
+}
+
+/**
+ * Divisão entre dois decimais na escala pedida, meio para cima — a mesma conta que o domínio da API
+ * faz para o R$/km. Divisor zerado devolve `null`: é pergunta sem resposta, não erro de digitação.
+ */
+export function divideScaledAmounts(input: DivideScaledAmountsInput): null | string {
+  const divisor = parseScaledAmount(input.divisor)
+  const dividend = parseScaledAmount(input.dividend)
+  if (divisor.units === 0n) return null
+
+  const units = divideHalfUp(
+    rescaleHalfUp(dividend, input.scale) * 10n ** BigInt(divisor.scale),
+    divisor.units,
+  )
 
   return toDecimalString(units, input.scale)
 }

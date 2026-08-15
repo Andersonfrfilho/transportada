@@ -33,11 +33,12 @@ export const CREATE_VEHICLE_BODY = {
   capacityCubicMeters: '90',
   capacityKilograms: '27000',
   color: '',
-  costPerKilometer: '0.0000',
   fleetNumber: '',
+  fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
   monthlyInstallmentAmount: '0.0000',
+  otherCostsPerKilometer: '0.0000',
   owner: null,
   ownership: 'own',
   plate: 'ABC1D23',
@@ -90,13 +91,39 @@ export const UPDATE_DRIVER_BODY = {
 
 export const VEHICLE: FleetVehicle = {
   ...CREATE_VEHICLE_BODY,
+  costPerKilometer: null,
+  costPerKilometerBreakdown: null,
   costsUpdatedAt: null,
   createdAt: '2026-07-28T12:00:00.000Z',
+  fuelPrice: null,
   id: VEHICLE_ID,
   monthlyFixedCost: null,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
+}
+
+/** Consumo e outros custos informados, com preço efetivo do diesel na UF da empresa. */
+export const DERIVED_COST_VEHICLE: FleetVehicle = {
+  ...VEHICLE,
+  averageConsumption: '12.00',
+  costPerKilometer: '0.9567',
+  costPerKilometerBreakdown: { fuel: '0.4567', otherCosts: '0.5000' },
+  fuelPrice: {
+    pricePerUnit: '5.4800',
+    source: 'manual',
+    unit: 'litre',
+    weekEndingOn: '2026-08-08',
+  },
+  otherCostsPerKilometer: '0.5000',
+}
+
+/** Sem consumo informado: a parcela de combustível não existe e é omitida da composição. */
+export const OTHER_COSTS_ONLY_VEHICLE: FleetVehicle = {
+  ...VEHICLE,
+  costPerKilometer: '0.5000',
+  costPerKilometerBreakdown: { otherCosts: '0.5000' },
+  otherCostsPerKilometer: '0.5000',
 }
 
 export const DRIVER: FleetDriver = {

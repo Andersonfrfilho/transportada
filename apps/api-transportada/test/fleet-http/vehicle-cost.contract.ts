@@ -22,8 +22,8 @@ const INFORMED_COSTS = {
   annualInsuranceAmount: '2400.0000',
   annualVehicleTaxAmount: '1200.0000',
   averageConsumption: '3.20',
-  costPerKilometer: '1.8500',
   monthlyInstallmentAmount: '1500.0000',
+  otherCostsPerKilometer: '1.8500',
 } as const
 
 describe('fleet vehicle cost http contract', () => {
@@ -68,8 +68,8 @@ describe('fleet vehicle cost http contract', () => {
           annualInsuranceAmount: '-1.0000',
           annualVehicleTaxAmount: '-1.0000',
           averageConsumption: '-1.00',
-          costPerKilometer: '-1.0000',
           monthlyInstallmentAmount: '-1.0000',
+          otherCostsPerKilometer: '-1.0000',
         },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
@@ -86,13 +86,25 @@ describe('fleet vehicle cost http contract', () => {
         'annualInsuranceAmount',
         'annualVehicleTaxAmount',
         'averageConsumption',
-        'costPerKilometer',
         'monthlyInstallmentAmount',
+        'otherCostsPerKilometer',
       ]),
     )
   })
 
-  test('rejects a derived monthlyFixedCost or costsUpdatedAt sent in the request body', async () => {
+  test('rejects a derived costPerKilometer, monthlyFixedCost or costsUpdatedAt in the request body', async () => {
+    const derivedFixture = await createFleetHttpFixture()
+    const derivedResponse = await derivedFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, costPerKilometer: '0.9567' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(derivedResponse.status).toBe(400)
+    expect(derivedFixture.createVehicleCalls).toEqual([])
+
     const monthlyFixedCostFixture = await createFleetHttpFixture()
     const monthlyFixedCostResponse = await monthlyFixedCostFixture.handle(
       jsonRequest({

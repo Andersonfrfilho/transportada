@@ -7,6 +7,12 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const FEDERATION_UNIT_COUNT = 27
 const FLEET_STYLES_PATH = 'src/modules/fleet/styles/fleet.module.css'
 const FIELD_RESETS = ['min-width: 0', 'border-radius: 0', 'font: inherit'] as const
+const VEHICLE_COST_FIELDS_PATH = 'src/modules/fleet/components/VehicleCostFields.component.tsx'
+const FUEL_SUMMARY_LOCALE_KEYS = [
+  'fuelCostPerKilometer',
+  'fuelPriceWeek',
+  'otherCostsPerKilometer',
+] as const
 const NEW_LOCALE_KEYS = [
   'clearFilters',
   'driversEmptyHint',
@@ -163,30 +169,63 @@ describe('fleet screen standards contract', () => {
     expect(heading.indexOf("t('newVehicle')")).toBeGreaterThan(actionsIndex)
   })
 
-  // O cadastro abre com os seis campos de custo em branco, e branco não é escala de API: somar o
-  // estado cru derrubava a tela inteira em `INVALID_AMOUNT` no clique de "Novo veículo"
-  test('summarizes the costs of a form still being typed without throwing', async () => {
-    const { summarizeTypedVehicleCosts } = await import(
-      '../../src/modules/fleet/shared/fleetVehicleCost.service'
+  /**
+   * O R$/km deixou de ser digitado: ele nasce do preço do combustível e do consumo. Campo editável
+   * para um valor derivado é promessa que a tela não cumpre — o próximo salvamento sobrescreve.
+   */
+  test('derives the cost per kilometer instead of offering it as a field', async () => {
+    const costFields = await readApplicationFile(VEHICLE_COST_FIELDS_PATH)
+    const grid = costFields.slice(
+      costFields.indexOf('styles.fieldGrid'),
+      costFields.indexOf('styles.costSummary'),
     )
-    const { EMPTY_VEHICLE_FORM } = await import('../../src/modules/fleet/shared/fleetForm.service')
-    const empty = { costPerKilometer: null, monthlyFixedCost: null }
 
-    expect(summarizeTypedVehicleCosts(EMPTY_VEHICLE_FORM)).toEqual(empty)
-    expect(summarizeTypedVehicleCosts({ ...EMPTY_VEHICLE_FORM, costPerKilometer: '1,' })).toEqual(
-      empty,
+    expect(grid).not.toContain('state.costPerKilometer')
+    expect(grid).not.toContain('onChange({ costPerKilometer })')
+    expect(grid).toContain('state.otherCostsPerKilometer')
+    // Nenhum campo de custo é exigido: a transportadora preenche o que já apurou
+    const otherCostsField = grid.slice(
+      grid.lastIndexOf('<FleetField', grid.indexOf('state.otherCostsPerKilometer')),
+      grid.indexOf('state.otherCostsPerKilometer'),
     )
-    const filled = summarizeTypedVehicleCosts({
-      ...EMPTY_VEHICLE_FORM,
-      annualInsuranceAmount: '3.600,00',
-      annualVehicleTaxAmount: '1.200,00',
-      costPerKilometer: '1,25',
-      monthlyInstallmentAmount: '2.000,00',
-    })
+    expect(otherCostsField).toContain('optional')
+  })
 
-    // O separador que o `Intl` põe depois de "R$" é espaço não separável, não espaço comum
-    expect(filled.monthlyFixedCost?.replace(/\s/gu, ' ')).toBe('R$ 2.400,00')
-    expect(filled.costPerKilometer?.replace(/\s/gu, ' ')).toBe('R$ 1,25')
+  // Combustível e consumo se leem juntos — "diesel S10, 2,5 km/l" é uma frase só
+  test('picks the fuel from the catalog with the design system select, right before consumption', async () => {
+    const costFields = await readApplicationFile(VEHICLE_COST_FIELDS_PATH)
+
+    expect(costFields).toContain('FleetSelectField')
+    expect(costFields).toContain('optionLabelKey="fuelOption"')
+    expect(costFields).toContain('options={FUEL_PRODUCTS}')
+    expect(costFields).toContain("from '@/modules/shared/fuel.constant'")
+    expect(costFields.indexOf('state.fuelType')).toBeGreaterThan(-1)
+    expect(costFields.indexOf('state.averageConsumption')).toBeGreaterThan(
+      costFields.indexOf('state.fuelType'),
+    )
+  })
+
+  /** Total sem composição é número que o operador não consegue conferir contra a planilha dele. */
+  test('shows the composition, the fuel and the origin of the price in the summary', async () => {
+    const costFields = await readApplicationFile(VEHICLE_COST_FIELDS_PATH)
+    const summary = costFields.slice(costFields.indexOf('styles.costSummary'))
+    const [pt, en] = await Promise.all([
+      readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),
+      readApplicationFile('src/modules/fleet/locales/fleet.en.locale.json'),
+    ])
+
+    expect(summary).toContain("t('costPerKilometer')")
+    expect(summary).toContain('fuelCostPerKilometer')
+    expect(summary).toContain('otherCostsPerKilometer')
+    expect(summary).toContain('fuelPriceSource')
+    expect(summary).toContain('weekEndingOn')
+    for (const locale of [pt, en]) {
+      const dictionary = JSON.parse(locale) as Record<string, unknown>
+      for (const key of FUEL_SUMMARY_LOCALE_KEYS) expect(typeof dictionary[key]).toBe('string')
+      const sources = dictionary['fuelPriceSource'] as Record<string, string> | undefined
+      expect(typeof sources?.['anp']).toBe('string')
+      expect(typeof sources?.['manual']).toBe('string')
+    }
   })
 
   // O botão padrão tem 3rem e ficava uma cabeça acima do botão de ícone (2,25rem) e da barra de

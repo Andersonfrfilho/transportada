@@ -23,7 +23,7 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  cron-nfse  cron-notifications  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  cron-nfse  cron-notifications  cron-fuel  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -62,6 +62,7 @@ O Dockerfile de cada serviço é escolhido pela variável de build
 | `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`               |
 | `cron-nfse`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-nfse/railway.json`          |
 | `cron-notifications`    | `apps/cron-transportada/Dockerfile`     | `deploy/cron-notifications/railway.json` |
+| `cron-fuel`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-fuel/railway.json`          |
 | `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json`           |
 | `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json`           |
 
@@ -103,6 +104,15 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   nota elegível sem ninguém passando para pegá-la, e a autorização da prefeitura
   esperaria o tique inteiro para virar XML arquivado. É o serviço que exige o
   bloco `NFSE_*` de configuração — sem ele o boot falha, de propósito.
+- **cron-fuel**: `CRON_JOB=fuel.price.pull`, o resumo semanal de preço da ANP (ADR-0033). O tique é
+  `0 9 * * 6` — **sábado, 09:00 UTC (06:00 no Brasil)**, e o dia não é preferência. A semana da ANP
+  vai de domingo a sábado e dá nome ao arquivo; `resolveReferenceWeek` deriva a URL da semana que
+  contém o dia de hoje. Rodando no sábado, pede a semana que fecha naquele dia — publicada na
+  sexta-feira anterior (ADR-0033: semana de 09/08 a 15/08, no ar em 14/08). Rodando no domingo,
+  pediria a semana que **acabou de começar**, cujo arquivo só existe seis dias depois: 404 a cada
+  ciclo. Ciclo sem a semana no ar não grava meia referência — falha limpa, e a semana anterior
+  continua valendo. Diferente dos outros crons, este sobe nos dois ambientes: a referência é dado
+  público de mercado, sem certificado, sem tenant e sem efeito fiscal.
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
   Mudar domínio exige **rebuild**, não só restart. `VITE_APP_ENV` (`local` ·
   `staging` · `production`) decide o 🚧 no ícone da aba e a faixa de ambiente:
@@ -197,8 +207,8 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 4. O job `deploy` usa o GitHub Environment homônimo — é ali que production
    ganha _required reviewers_ e a aprovação humana acontece.
 5. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
-   cron → cron-nfse → transportada-frontend. Os dois crons depois da API porque
-   leem tabelas que só a migration dela cria.
+   cron → cron-nfse → cron-notifications → cron-fuel → transportada-frontend. Os
+   crons depois da API porque leem tabelas que só a migration dela cria.
 
 `railway up --ci` sai quando o build termina, não quando o release sobe; por
 isso `.github/scripts/railway-deploy.sh` faz polling do status do deployment e
@@ -212,7 +222,7 @@ auto-deploy nativo dispararia sem passar pelo gate.
 Passos que exigem o dashboard ou uma decisão humana:
 
 1. **Config-as-code por serviço**: preencher o caminho do `railway.json` na aba
-   _Settings_ de cada um dos doze pares serviço/ambiente. É o que liga
+   _Settings_ de cada um dos dezesseis pares serviço/ambiente. É o que liga
    `preDeployCommand` (migration da API), healthcheck e `cronSchedule`.
 2. ~~**`RAILWAY_TOKEN`**~~ resolvida: project token por ambiente, guardado como secret do GitHub
    Environment homônimo (`staging` e `production`).
@@ -271,7 +281,7 @@ targetPort})` e `domain` sendo o hostname inteiro. O CLI não serve: `railway do
 > cria nada. Por isso a primeira passada do deploy de production parou em
 > `assert-migrations`, que exige domínio público na api para ler `/health/ready`.
 
-Serviço interno não recebe domínio: `worker`, `cron`, `cron-nfse`, `rabbitmq` e os bancos falam
+Serviço interno não recebe domínio: `worker`, `cron`, `cron-nfse`, `cron-fuel`, `rabbitmq` e os bancos falam
 só por `*.railway.internal`. O `worker` de staging tinha um domínio gerado que
 ninguém pedia e ninguém monitorava — anônimo, da internet aberta, o `/health/ready`
 devolvia `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"}}` e

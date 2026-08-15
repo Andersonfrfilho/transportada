@@ -6,6 +6,7 @@ import {
   API_AUDIT_EVENTS_PATH,
   API_BILLING_ELIGIBLE_CTES_PATH,
   API_BILLING_INVOICES_PATH,
+  API_COMPANY_SETTINGS_FUEL_PRICES_PATH,
   API_COMPANY_SETTINGS_PATH,
   API_CTE_BATCHES_PATH,
   API_DIGITAL_CERTIFICATES_PATH,
@@ -25,6 +26,8 @@ export function isNoStorePath(pathname: string): boolean {
   return (
     pathname === API_AUTH_ME_PATH ||
     pathname === API_COMPANY_SETTINGS_PATH ||
+    pathname === API_COMPANY_SETTINGS_FUEL_PRICES_PATH ||
+    pathname.startsWith(`${API_COMPANY_SETTINGS_FUEL_PRICES_PATH}/`) ||
     pathname === API_DIGITAL_CERTIFICATES_PATH ||
     pathname === API_FREIGHT_RULES_PATH ||
     pathname.startsWith(`${API_FREIGHT_RULES_PATH}/`) ||
@@ -50,6 +53,8 @@ export function isNoStorePath(pathname: string): boolean {
 export function resolveLogPathname(pathname: string): string {
   return pathname === API_AUTH_ME_PATH ||
     pathname === API_COMPANY_SETTINGS_PATH ||
+    pathname === API_COMPANY_SETTINGS_FUEL_PRICES_PATH ||
+    pathname.startsWith(`${API_COMPANY_SETTINGS_FUEL_PRICES_PATH}/`) ||
     pathname === API_DIGITAL_CERTIFICATES_PATH ||
     pathname === API_FREIGHT_RULES_PATH ||
     pathname.startsWith(`${API_FREIGHT_RULES_PATH}/`) ||
