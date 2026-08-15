@@ -8,7 +8,6 @@
  *    nem chega a ser aberto.
  * 2. **Nenhuma exceção escapa.** Exceção aqui derrubaria o ciclo inteiro por causa de uma nota.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
 import type { NfseCredentialSecretService } from '../application/nfse-credential-secret.service.js'
 import type {
   NfseCredentialAccess,
@@ -24,7 +23,7 @@ import {
 } from './nota-rp-v2.client.js'
 
 export type NfseFiscalGatewayConfig = {
-  readonly baseUrls: Readonly<Record<CronFiscalEnvironment, string | undefined>>
+  readonly baseUrl: string | undefined
   readonly timeoutMilliseconds: number
 }
 
@@ -42,7 +41,7 @@ export function createNfseFiscalGateway(dependencies: {
   async function resolveClient(
     credential: NfseCredentialAccess,
   ): Promise<NotaRpStatusClient | 'credential_unreadable' | 'provider_not_configured'> {
-    const baseUrl = config.baseUrls[credential.fiscalEnvironment]
+    const { baseUrl } = config
     /** Sem endereço não há a quem pedir — e o segredo continua selado. */
     if (baseUrl === undefined || baseUrl === '') return 'provider_not_configured'
 

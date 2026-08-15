@@ -18,15 +18,12 @@ export type EmailDeliveryEnvironment = {
 }
 
 /**
- * O endereço da Nota RP é da instalação, um por ambiente fiscal. Ausente significa provedor não
- * contratado: o trilho continua subindo e drenando, e a tentativa registra a causa própria em vez
- * de bater numa URL vazia.
+ * O endereço da Nota RP é da instalação, e é um só — o provedor publica um servidor, o de produção
+ * (ADR-0035). Ausente significa provedor não contratado: o trilho continua subindo e drenando, e a
+ * tentativa registra a causa própria em vez de bater numa URL vazia.
  */
 export type NfseProviderEnvironment = {
-  readonly baseUrls: {
-    readonly homologation: string | undefined
-    readonly production: string | undefined
-  }
+  readonly baseUrl: string | undefined
   readonly timeoutMilliseconds: number
 }
 

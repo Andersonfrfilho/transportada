@@ -14,7 +14,7 @@ import type { CronFiscalEnvironment, CronJob } from './cron.constant.js'
 export type CronNfseStatusPullEnvironment = {
   readonly encryptionActiveKeyId: string
   readonly encryptionKeyRingJson: string
-  readonly providerBaseUrls: Readonly<Record<CronFiscalEnvironment, string | undefined>>
+  readonly providerBaseUrl: string
   readonly providerTimeoutMilliseconds: number
   readonly storage: CronStorageEnvironment
 }

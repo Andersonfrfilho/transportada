@@ -29,8 +29,7 @@ const BASE_ENVIRONMENT = {
 const NFSE_SETTINGS = {
   ENCRYPTION_ACTIVE_KEY_ID: 'k1',
   ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
-  NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'https://homologacao.example.com',
-  NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.example.com',
+  NFSE_PROVIDER_BASE_URL: 'https://www.notarp.com.br/api/v2',
   STORAGE_ACCESS_KEY: 'access',
   STORAGE_BUCKET: 'transportada',
   STORAGE_ENDPOINT: 'http://localhost:59000',

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { Glob } from 'bun'
 import { describe, expect, test } from 'bun:test'
 
 import {
@@ -41,7 +42,7 @@ describe('worker environment contract', () => {
       logLevel: 'info',
       logSinkUrl: undefined,
       nfseProvider: {
-        baseUrls: { homologation: undefined, production: undefined },
+        baseUrl: undefined,
         timeoutMilliseconds: 15_000,
       },
       port: 53_002,
@@ -121,41 +122,36 @@ describe('worker environment contract', () => {
     ).toThrow(WorkerConfigurationError)
   })
 
-  // O endereço da Nota RP é da instalação: cada prefeitura contrata o seu, e a base de homologação
-  // nunca é a de produção. As duas juntas ou nenhuma — meia configuração emitiria no ambiente errado.
-  test('reads the Nota RP base URLs of both fiscal environments from the installation', () => {
+  // A Nota RP publica um servidor só, e é o de produção (ADR-0035). O endereço é da instalação, mas
+  // não é por ambiente fiscal: quem separa staging de produção é a credencial selada por empresa.
+  test('reads the single Nota RP base URL of the installation', () => {
     const parsed = parseWorkerEnvironment({
       ...validEnvironment,
-      NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'https://homologacao.exemplo/api/v2',
-      NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
+      NFSE_PROVIDER_BASE_URL: 'https://www.notarp.com.br/api/v2',
       NFSE_PROVIDER_TIMEOUT_MS: '20000',
     })
 
     expect(parsed.nfseProvider).toEqual({
-      baseUrls: {
-        homologation: 'https://homologacao.exemplo/api/v2',
-        production: 'https://producao.exemplo/api/v2',
-      },
+      baseUrl: 'https://www.notarp.com.br/api/v2',
       timeoutMilliseconds: 20_000,
     })
   })
 
-  test('rejects a partially declared Nota RP base URL pair', () => {
-    expect(() =>
-      parseWorkerEnvironment({
-        ...validEnvironment,
-        NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
-      }),
-    ).toThrow(WorkerConfigurationError)
+  // O par por ambiente fiscal prometia um isolamento que o provedor não oferece (ADR-0035). Se o
+  // nome voltar, volta a promessa — e ninguém audita o que já parece resolvido.
+  test('o par de endereços por ambiente fiscal não reaparece no código', async () => {
+    const offenders: string[] = []
+    for await (const file of new Glob('**/*.ts').scan(`${import.meta.dir}/../src`)) {
+      const source = await Bun.file(`${import.meta.dir}/../src/${file}`).text()
+      if (source.includes('NFSE_PROVIDER_BASE_URL_')) offenders.push(file)
+    }
+
+    expect(offenders).toEqual([])
   })
 
   test('rejects a Nota RP base URL that is not a URL instead of emitting to nowhere', () => {
     expect(() =>
-      parseWorkerEnvironment({
-        ...validEnvironment,
-        NFSE_PROVIDER_BASE_URL_HOMOLOGATION: 'nao-e-url',
-        NFSE_PROVIDER_BASE_URL_PRODUCTION: 'https://producao.exemplo/api/v2',
-      }),
+      parseWorkerEnvironment({ ...validEnvironment, NFSE_PROVIDER_BASE_URL: 'nao-e-url' }),
     ).toThrow(WorkerConfigurationError)
   })
 

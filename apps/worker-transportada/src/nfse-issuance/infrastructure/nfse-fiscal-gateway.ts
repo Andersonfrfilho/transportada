@@ -90,7 +90,7 @@ export type NfseCredentialAccess = {
 }
 
 export type NfseFiscalGatewayConfig = {
-  readonly baseUrls: Readonly<Record<NfseFiscalEnvironment, string | undefined>>
+  readonly baseUrl: string | undefined
   readonly timeoutMilliseconds: number
 }
 
@@ -129,7 +129,7 @@ export function createNfseFiscalGateway(dependencies: {
   async function resolveClient(
     credential: NfseCredentialAccess,
   ): Promise<NotaRpV2Client | 'credential_unreadable' | 'provider_not_configured'> {
-    const baseUrl = config.baseUrls[credential.fiscalEnvironment]
+    const { baseUrl } = config
     /** Sem endereço não há a quem pedir — e o segredo continua selado. */
     if (baseUrl === undefined || baseUrl === '') return 'provider_not_configured'
 

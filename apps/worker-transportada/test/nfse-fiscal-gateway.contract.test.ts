@@ -6,7 +6,6 @@ import { describe, expect, test } from 'bun:test'
 import type { NfseCredentialAccess } from '../src/nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
 import { createNfseFiscalGateway } from '../src/nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
 
-const HOMOLOGATION_BASE_URL = 'https://homologacao.exemplo/api/v2'
 const PRODUCTION_BASE_URL = 'https://producao.exemplo/api/v2'
 
 const PAYLOAD = {
@@ -40,13 +39,12 @@ function rejectingFetch(): never {
 }
 
 describe('NFS-e fiscal gateway configuration contract', () => {
-  test('picks the base URL of the fiscal environment declared by the credential', async () => {
+  // O ambiente fiscal da credencial continua existindo e continua escolhendo a credencial; ele não
+  // escolhe mais o endereço, porque a Nota RP tem um só (ADR-0035).
+  test('uses the single configured base URL whatever the credential declares', async () => {
     const baseUrls: string[] = []
     const gateway = createNfseFiscalGateway({
-      config: {
-        baseUrls: { homologation: HOMOLOGATION_BASE_URL, production: PRODUCTION_BASE_URL },
-        timeoutMilliseconds: 15_000,
-      },
+      config: { baseUrl: PRODUCTION_BASE_URL, timeoutMilliseconds: 15_000 },
       createClient: ({ config }) => {
         baseUrls.push(config.baseUrl)
         return {
@@ -63,7 +61,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
     await gateway.issue({ credential: createCredential('homologation'), payload: PAYLOAD })
     await gateway.issue({ credential: createCredential('production'), payload: PAYLOAD })
 
-    expect(baseUrls).toEqual([HOMOLOGATION_BASE_URL, PRODUCTION_BASE_URL])
+    expect(baseUrls).toEqual([PRODUCTION_BASE_URL, PRODUCTION_BASE_URL])
   })
 
   /**
@@ -74,10 +72,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
   test('reports an unconfigured provider without opening the sealed token', async () => {
     const decryptCalls: number[] = []
     const gateway = createNfseFiscalGateway({
-      config: {
-        baseUrls: { homologation: undefined, production: undefined },
-        timeoutMilliseconds: 15_000,
-      },
+      config: { baseUrl: undefined, timeoutMilliseconds: 15_000 },
       createClient: () => {
         throw new Error('The gateway must not build a client without a base URL')
       },

@@ -150,9 +150,16 @@ nome para a função. Dois jobs:
   no `WHERE` e devolve `RETURNING`; sem linha, a escrita inteira é abandonada. O XML é o documento
   fiscal e sem ele a nota não liquida; o PDF é conveniência, e sua falta só é registrada.
 
-O bloco de configuração de NFS-e (chaveiro, bucket, endereço da prefeitura) só é resolvido quando
+O bloco de configuração de NFS-e (chaveiro, bucket, `NFSE_PROVIDER_BASE_URL`) só é resolvido quando
 `CRON_JOB` é `nfse.status.pull` — o deploy da busca de notas continua subindo sem nenhum deles, e o
 de NFS-e falha no boot se faltar algum.
+
+**O endereço da Nota RP é um só, e a NFS-e é trilho de produção** (ADR-0035). O provedor publica um
+servidor (`https://www.notarp.com.br/api/v2`) e não tem homologação; quem separa uma instalação da
+outra é a credencial selada por empresa, não a URL. Por isso `NFSE_PROVIDER_BASE_URL` substituiu o par
+`_HOMOLOGATION`/`_PRODUCTION` — um teste em cada app falha se os nomes voltarem — `FISCAL_ENVIRONMENT`
+não escolhe mais endereço de NFS-e (segue valendo para CT-e e MDF-e), e o `deploy.yml` publica
+`cron-nfse` **em produção**, não em staging.
 
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo

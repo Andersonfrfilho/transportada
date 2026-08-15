@@ -15,11 +15,6 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
   'CTE_TECHNICAL_RESPONSIBLE_PHONE',
 ] as const
 
-const NFSE_PROVIDER_BASE_URL_KEYS = [
-  'NFSE_PROVIDER_BASE_URL_HOMOLOGATION',
-  'NFSE_PROVIDER_BASE_URL_PRODUCTION',
-] as const
-
 const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
@@ -43,9 +38,8 @@ const workerEnvironmentSchema = z
       .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-    // Homologação e produção juntas ou nenhuma: com uma só, a nota sairia no ambiente errado.
-    NFSE_PROVIDER_BASE_URL_HOMOLOGATION: optionalUrl(),
-    NFSE_PROVIDER_BASE_URL_PRODUCTION: optionalUrl(),
+    // Um endereço só: a Nota RP publica um servidor, e é o de produção (ADR-0035).
+    NFSE_PROVIDER_BASE_URL: optionalUrl(),
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
     QUEUE_PREFIX: z
       .string()
@@ -70,17 +64,6 @@ const workerEnvironmentSchema = z
         code: 'custom',
         message: 'The technical responsible requires every field or none',
         path: [...TECHNICAL_RESPONSIBLE_KEYS],
-      })
-    }
-
-    const declaredNfseBaseUrls = NFSE_PROVIDER_BASE_URL_KEYS.filter(
-      (key) => environment[key] !== undefined,
-    ).length
-    if (declaredNfseBaseUrls > 0 && declaredNfseBaseUrls < NFSE_PROVIDER_BASE_URL_KEYS.length) {
-      context.addIssue({
-        code: 'custom',
-        message: 'The NFS-e provider requires both fiscal environments or none',
-        path: [...NFSE_PROVIDER_BASE_URL_KEYS],
       })
     }
 
@@ -135,10 +118,7 @@ export function parseWorkerEnvironment(
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
     nfseProvider: {
-      baseUrls: {
-        homologation: result.data.NFSE_PROVIDER_BASE_URL_HOMOLOGATION,
-        production: result.data.NFSE_PROVIDER_BASE_URL_PRODUCTION,
-      },
+      baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       timeoutMilliseconds: result.data.NFSE_PROVIDER_TIMEOUT_MS,
     },
     port: result.data.WORKER_PORT,
