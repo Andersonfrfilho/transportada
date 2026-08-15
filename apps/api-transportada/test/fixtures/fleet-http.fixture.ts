@@ -45,6 +45,7 @@ type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
   readonly replaceDriverVehiclesError?: Error
   readonly updateVehicleError?: Error
+  readonly vehicle?: typeof VEHICLE
   readonly vehicleCatalogAvailable?: boolean
 }
 
@@ -74,6 +75,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   const replaceDriverVehicleCalls: ExecuteCall[] = []
   const updateDriverCalls: ExecuteCall[] = []
   const updateVehicleCalls: ExecuteCall[] = []
+  const vehicle = params.vehicle ?? VEHICLE
 
   const routes = await loadRoutes({
     createDriver: {
@@ -86,7 +88,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     createVehicle: {
       async execute(input) {
         createVehicleCalls.push(structuredClone(input))
-        return VEHICLE
+        return vehicle
       },
     },
     driverVehicles: {
@@ -109,7 +111,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     listVehicles: {
       async execute(input) {
         listVehicleCalls.push(structuredClone(input))
-        return VEHICLE_PAGE
+        return { ...VEHICLE_PAGE, items: [vehicle] }
       },
     },
     updateDriver: {
@@ -122,7 +124,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
       async execute(input) {
         updateVehicleCalls.push(structuredClone(input))
         if (params.updateVehicleError) throw params.updateVehicleError
-        return { ...VEHICLE, version: '2' }
+        return { ...vehicle, version: '2' }
       },
     },
     vehicleCatalog: {

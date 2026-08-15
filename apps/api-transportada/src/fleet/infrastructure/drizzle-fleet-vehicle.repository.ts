@@ -7,6 +7,7 @@ import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
 import { fleetVehicles } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
+  FleetFuelPricePort,
   FleetVehicle,
   FleetVehicleFilters,
   FleetVehicleInput,
@@ -14,6 +15,8 @@ import type {
   FleetVehicleRepositoryPort,
 } from '../application/fleet.port.js'
 import type { FleetVehicleStatus } from '../../database/fleet.schema.js'
+import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
+import type { FuelProduct } from '../../shared/fuel.constant.js'
 import { FleetVehiclePlateTakenError } from '../domain/fleet.error.js'
 import { hasInformedCosts } from '../domain/vehicle-cost.policy.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
@@ -23,8 +26,20 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const PLATE_CONSTRAINT = 'fleet_vehicles_company_id_plate_unique'
 
+type RepositoryDependencies = {
+  readonly database: Database
+  readonly fuelPrices: FleetFuelPricePort
+}
+
 export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort {
-  public constructor(private readonly database: Database) {}
+  private readonly database: Database
+
+  private readonly fuelPrices: FleetFuelPricePort
+
+  public constructor(dependencies: RepositoryDependencies) {
+    this.database = dependencies.database
+    this.fuelPrices = dependencies.fuelPrices
+  }
 
   public async create(input: {
     readonly companyId: string
@@ -42,7 +57,7 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
       return created
     })
     if (record === undefined) throw new Error('FLEET_VEHICLE_CREATE_FAILED')
-    return mapVehicle(record)
+    return mapVehicle({ fuelPrices: await this.resolvePrices(input.companyId), record })
   }
 
   public async findById(input: {
@@ -56,7 +71,8 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
         and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
       )
       .limit(1)
-    return record === undefined ? null : mapVehicle(record)
+    if (record === undefined) return null
+    return mapVehicle({ fuelPrices: await this.resolvePrices(input.companyId), record })
   }
 
   public async list(input: {
@@ -94,9 +110,10 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
 
     const pageRecords = records.slice(0, input.limit)
     const last = pageRecords.at(-1)
+    const fuelPrices = await this.resolvePrices(input.companyId)
 
     return {
-      items: pageRecords.map(mapVehicle),
+      items: pageRecords.map((record) => mapVehicle({ fuelPrices, record })),
       nextCursor:
         records.length > input.limit && last !== undefined ? encodeKeysetCursor(last) : null,
     }
@@ -119,7 +136,7 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
             ne(fleetVehicles.annualInsuranceAmount, input.vehicle.annualInsuranceAmount),
             ne(fleetVehicles.annualVehicleTaxAmount, input.vehicle.annualVehicleTaxAmount),
             ne(fleetVehicles.averageConsumption, input.vehicle.averageConsumption),
-            ne(fleetVehicles.costPerKilometer, input.vehicle.costPerKilometer),
+            ne(fleetVehicles.otherCostsPerKilometer, input.vehicle.otherCostsPerKilometer),
             ne(fleetVehicles.monthlyInstallmentAmount, input.vehicle.monthlyInstallmentAmount),
           )} then now() else ${fleetVehicles.costsUpdatedAt} end`,
           status: input.status,
@@ -136,7 +153,14 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
         .returning()
       return updated
     })
-    return record === undefined ? null : mapVehicle(record)
+    if (record === undefined) return null
+    return mapVehicle({ fuelPrices: await this.resolvePrices(input.companyId), record })
+  }
+
+  private async resolvePrices(
+    companyId: string,
+  ): Promise<ReadonlyMap<FuelProduct, EffectiveFuelPrice>> {
+    return this.fuelPrices.resolveByProduct({ companyId })
   }
 }
 

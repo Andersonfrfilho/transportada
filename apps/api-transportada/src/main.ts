@@ -18,6 +18,11 @@ import { createCompanyLogoUseCase } from './companies/application/company-logo.u
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
+import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
+import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
+import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
+import { createFuelPriceRoutes } from './companies/presentation/fuel-price.routes.js'
 import { createAdjustDistributionCursorUseCase } from './companies/application/adjust-distribution-cursor.use-case.js'
 import { createGetDistributionCursorUseCase } from './companies/application/get-distribution-cursor.use-case.js'
 import { DrizzleDistributionCursorRepository } from './companies/infrastructure/drizzle-distribution-cursor.repository.js'
@@ -93,6 +98,7 @@ import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
 import { createCachedVehicleCatalogGateway } from './fleet/infrastructure/cached-vehicle-catalog.gateway'
+import { CompanyFuelPriceGateway } from './fleet/infrastructure/company-fuel-price.gateway'
 import { createFipeVehicleCatalogGateway } from './fleet/infrastructure/fipe-vehicle-catalog.gateway'
 import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/drizzle-fleet-driver-vehicle.repository'
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
@@ -403,6 +409,7 @@ function createApplicationRoutes({
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
+  const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -410,9 +417,16 @@ function createApplicationRoutes({
   const freightSimulationRepository = new DrizzleFreightSimulationRepository(database)
   const freightRuleListRepository = new DrizzleFreightRuleListRepository(database)
   const freightCalculationListRepository = new DrizzleFreightCalculationListRepository(database)
-  const fleetVehicleRepository = new DrizzleFleetVehicleRepository(database)
+  const fleetFuelPriceGateway = new CompanyFuelPriceGateway(fuelPriceRepository)
+  const fleetVehicleRepository = new DrizzleFleetVehicleRepository({
+    database,
+    fuelPrices: fleetFuelPriceGateway,
+  })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
-  const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository(database)
+  const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
+    database,
+    fuelPrices: fleetFuelPriceGateway,
+  })
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
   const tripRepository = new DrizzleTripRepository(database)
@@ -645,6 +659,11 @@ function createApplicationRoutes({
         unitOfWork: scheduledDistributionRepository,
       }),
       getStatus: getScheduledDistribution,
+    }),
+    ...createFuelPriceRoutes({
+      adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
+      clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
+      list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
     }),
     ...createDistributionCursorRoutes({
       adjust: createAdjustDistributionCursorUseCase({

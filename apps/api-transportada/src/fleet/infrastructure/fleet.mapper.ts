@@ -6,20 +6,35 @@ import type {
   fleetVehicles,
   MdfeOwnerTaxRegime,
 } from '../../database/fleet.schema.js'
+import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
+import type { FuelProduct } from '../../shared/fuel.constant.js'
 import type {
   FleetDriver,
   FleetDriverInput,
   FleetVehicle,
+  FleetVehicleFuelPrice,
   FleetVehicleInput,
 } from '../application/fleet.port.js'
-import { deriveMonthlyFixedCost } from '../domain/vehicle-cost.policy.js'
+import { deriveCostPerKilometer, deriveMonthlyFixedCost } from '../domain/vehicle-cost.policy.js'
 
 type DriverRecord = typeof fleetDrivers.$inferSelect
 type VehicleRecord = typeof fleetVehicles.$inferSelect
 
 const OWN_OWNERSHIP = 'own'
 
-export function mapVehicle(record: VehicleRecord): FleetVehicle {
+type MapVehicleParams = {
+  readonly fuelPrices: ReadonlyMap<FuelProduct, EffectiveFuelPrice>
+  readonly record: VehicleRecord
+}
+
+export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehicle {
+  const fuelPrice = mapFuelPrice(fuelPrices.get(record.fuelType))
+  const derived = deriveCostPerKilometer({
+    averageConsumption: record.averageConsumption,
+    fuelPricePerUnit: fuelPrice?.pricePerUnit ?? null,
+    otherCostsPerKilometer: record.otherCostsPerKilometer,
+  })
+
   return {
     acquisitionAmount: record.acquisitionAmount,
     annualInsuranceAmount: record.annualInsuranceAmount,
@@ -31,10 +46,13 @@ export function mapVehicle(record: VehicleRecord): FleetVehicle {
     capacityCubicMeters: record.capacityM3.toString(),
     capacityKilograms: record.capacityKg.toString(),
     color: record.color,
-    costPerKilometer: record.costPerKilometer,
+    costPerKilometer: derived?.total ?? null,
+    costPerKilometerBreakdown: derived?.breakdown ?? null,
     costsUpdatedAt: record.costsUpdatedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     fleetNumber: record.fleetNumber,
+    fuelPrice,
+    fuelType: record.fuelType,
     id: record.id,
     model: record.model,
     modelYear: record.modelYear,
@@ -44,6 +62,7 @@ export function mapVehicle(record: VehicleRecord): FleetVehicle {
       monthlyInstallmentAmount: record.monthlyInstallmentAmount,
     }),
     monthlyInstallmentAmount: record.monthlyInstallmentAmount,
+    otherCostsPerKilometer: record.otherCostsPerKilometer,
     owner:
       record.ownership === OWN_OWNERSHIP
         ? null
@@ -67,6 +86,17 @@ export function mapVehicle(record: VehicleRecord): FleetVehicle {
   }
 }
 
+function mapFuelPrice(price: EffectiveFuelPrice | undefined): FleetVehicleFuelPrice | null {
+  if (price?.effectivePricePerUnit == null || price.source === null) return null
+
+  return {
+    pricePerUnit: price.effectivePricePerUnit,
+    source: price.source,
+    unit: price.unit,
+    weekEndingOn: price.reference?.weekEndingOn ?? null,
+  }
+}
+
 export function toVehicleColumns(
   vehicle: FleetVehicleInput,
 ): Omit<typeof fleetVehicles.$inferInsert, 'companyId' | 'costsUpdatedAt' | 'status' | 'version'> {
@@ -81,11 +111,12 @@ export function toVehicleColumns(
     capacityKg: BigInt(vehicle.capacityKilograms),
     capacityM3: BigInt(vehicle.capacityCubicMeters),
     color: vehicle.color,
-    costPerKilometer: vehicle.costPerKilometer,
     fleetNumber: vehicle.fleetNumber,
+    fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: vehicle.modelYear,
     monthlyInstallmentAmount: vehicle.monthlyInstallmentAmount,
+    otherCostsPerKilometer: vehicle.otherCostsPerKilometer,
     ownerName: vehicle.owner?.name ?? '',
     ownerRntrc: vehicle.owner?.rntrc ?? '',
     ownerState: vehicle.owner?.state ?? '',

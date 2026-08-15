@@ -194,8 +194,31 @@
   "monthlyInstallmentAmount": "Monthly installment (BRL)",
   "annualVehicleTaxAmount": "Annual vehicle tax (BRL)",
   "annualInsuranceAmount": "Annual insurance (BRL)",
-  "averageConsumption": "Average consumption (km/l)",
+  "fuelType": "Fuel",
+  "fuelOption": {
+    "diesel-s10": "Diesel S-10",
+    "diesel-s500": "Diesel S-500",
+    "gasolina-comum": "Regular gasoline",
+    "etanol-hidratado": "Hydrous ethanol",
+    "gnv": "CNG"
+  },
+  "consumptionByUnit": {
+    "litre": "Average consumption (km/l)",
+    "cubic-metre": "Average consumption (km/m³)"
+  },
+  "fuelPriceByUnit": {
+    "litre": "Fuel price (BRL/litre)",
+    "cubic-metre": "Fuel price (BRL/m³)"
+  },
+  "otherCostsPerKilometer": "Other costs per kilometer (BRL)",
   "costPerKilometer": "Cost per kilometer (BRL)",
+  "fuelCostPerKilometer": "Fuel per kilometer",
+  "fuelPriceSource": {
+    "anp": "ANP reference",
+    "manual": "Carrier adjustment"
+  },
+  "fuelPriceWeek": "Reference week ending on",
+  "fuelPriceUnavailable": "No price for this fuel",
   "costSummaryTitle": "Cost summary",
   "monthlyFixedCost": "Monthly fixed cost",
   "costNotInformed": "Not informed",

@@ -10,6 +10,12 @@ import type {
   MdfeOwnerTaxRegime,
   MdfeWheelType,
 } from '../../database/fleet.schema.js'
+import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
+import type {
+  EffectiveFuelPrice,
+  FuelPriceSource,
+} from '../../companies/domain/fuel-price.policy.js'
+import type { CostPerKilometerBreakdown } from '../domain/vehicle-cost.policy.js'
 
 export type FleetCompanyContext = {
   readonly companyId: string
@@ -35,11 +41,12 @@ export type FleetVehicleInput = {
   readonly capacityCubicMeters: string
   readonly capacityKilograms: string
   readonly color: string
-  readonly costPerKilometer: string
   readonly fleetNumber: string
+  readonly fuelType: FuelProduct
   readonly model: string
   readonly modelYear: number
   readonly monthlyInstallmentAmount: string
+  readonly otherCostsPerKilometer: string
   readonly owner: FleetVehicleOwner | null
   readonly ownership: FleetVehicleOwnership
   readonly plate: string
@@ -50,14 +57,32 @@ export type FleetVehicleInput = {
   readonly wheelType: MdfeWheelType | ''
 }
 
+/** O preço que sustentou a derivação, para a tela explicar o número em vez de só exibi-lo. */
+export type FleetVehicleFuelPrice = {
+  readonly pricePerUnit: string
+  readonly source: FuelPriceSource
+  readonly unit: FuelUnit
+  readonly weekEndingOn: string | null
+}
+
 export type FleetVehicle = FleetVehicleInput & {
+  readonly costPerKilometer: string | null
+  readonly costPerKilometerBreakdown: CostPerKilometerBreakdown | null
   readonly costsUpdatedAt: string | null
   readonly createdAt: string
+  readonly fuelPrice: FleetVehicleFuelPrice | null
   readonly id: string
   readonly monthlyFixedCost: string | null
   readonly status: FleetVehicleStatus
   readonly updatedAt: string
   readonly version: string
+}
+
+/** A tabela inteira da empresa de uma vez: resolver preço por veículo seria N+1 na listagem. */
+export type FleetFuelPricePort = {
+  resolveByProduct(input: {
+    readonly companyId: string
+  }): Promise<ReadonlyMap<FuelProduct, EffectiveFuelPrice>>
 }
 
 export type FleetVehicleFilters = {

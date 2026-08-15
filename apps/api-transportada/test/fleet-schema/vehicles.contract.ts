@@ -49,7 +49,8 @@ describe('fleet vehicle schema', () => {
       'owner_rntrc',
       'owner_tax_regime',
       'average_consumption',
-      'cost_per_kilometer',
+      'fuel_type',
+      'other_costs_per_kilometer',
       'acquisition_amount',
       'monthly_installment_amount',
       'annual_vehicle_tax_amount',
@@ -80,10 +81,30 @@ describe('fleet vehicle schema', () => {
       annual_insurance_amount: 'numeric(19, 4)',
       annual_vehicle_tax_amount: 'numeric(19, 4)',
       average_consumption: 'numeric(6, 2)',
-      cost_per_kilometer: 'numeric(12, 4)',
       costs_updated_at: 'timestamp with time zone',
+      fuel_type: 'varchar(20)',
       monthly_installment_amount: 'numeric(19, 4)',
+      other_costs_per_kilometer: 'numeric(19, 4)',
     })
+  })
+
+  /**
+   * O R$/km passou a ser derivado do preço do combustível: guardá-lo congelaria o número na data em
+   * que alguém digitou, que é exatamente o defeito que a spec 038 fecha.
+   */
+  test('no longer stores the cost per kilometer, which is derived at read time', () => {
+    expect(columnNames(fleetVehicles)).not.toContain('cost_per_kilometer')
+  })
+
+  test('gives the new cost fields a default, so no existing vehicle blocks the migration', () => {
+    const columns = getTableConfig(fleetVehicles).columns
+    const fuelType = columns.find((column) => column.name === 'fuel_type')
+    const otherCosts = columns.find((column) => column.name === 'other_costs_per_kilometer')
+
+    expect(fuelType?.notNull).toBeTrue()
+    expect(fuelType?.default).toBe('diesel-s10')
+    expect(otherCosts?.notNull).toBeTrue()
+    expect(otherCosts?.default).toBe('0')
   })
 
   // costs_updated_at fica nulo até o primeiro custo ser informado — não há "vazio" para timestamp

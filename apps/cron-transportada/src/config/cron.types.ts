@@ -7,6 +7,15 @@ import type { CronDatabase } from '../database/cron-database.types.js'
 import type { CronFiscalEnvironment, CronJob } from './cron.constant.js'
 
 /**
+ * Configuração exclusiva do trilho de coleta do preço de referência. Só é resolvida quando
+ * `CRON_JOB` é o job da ANP — os outros deploys continuam subindo sem endereço nenhum da agência.
+ */
+export type CronFuelPricePullEnvironment = {
+  readonly baseUrl: string
+  readonly timeoutMilliseconds: number
+}
+
+/**
  * Configuração exclusiva do trilho de reconciliação de NFS-e. Só é resolvida quando `CRON_JOB` é o
  * job de NFS-e — o deploy da busca de notas continua subindo sem bucket, sem chaveiro e sem
  * provedor municipal, que ele não usa.
@@ -44,6 +53,7 @@ export type CronEnvironment = {
   readonly cronJob: CronJob
   readonly databaseUrl: string
   readonly fiscalEnvironment: CronFiscalEnvironment
+  readonly fuelPricePull: CronFuelPricePullEnvironment | undefined
   readonly logLevel: LogLevel
   readonly nfseStatusPull: CronNfseStatusPullEnvironment | undefined
   readonly notificationSchedules: CronNotificationSchedulesEnvironment | undefined

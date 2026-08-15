@@ -12,6 +12,7 @@ import type {
   FleetVehicleDetail,
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
+import { resolveFormFuelPrice } from '../shared/fleetVehicleCost.service'
 import styles from '../styles/fleet.module.css'
 import { VehicleCostFields } from './VehicleCostFields.component'
 import { VehicleIdentityFields } from './VehicleIdentityFields.component'
@@ -49,6 +50,7 @@ export function VehicleForm({ catalog, onCancel, onCreate, onUpdate, vehicle }: 
       <VehicleOwnerFields state={form.state} onChange={form.patch} />
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
+        fuelPrice={resolveFormFuelPrice({ selectedFuelType: form.state.fuelType, vehicle })}
         state={form.state}
         onChange={form.patch}
       />

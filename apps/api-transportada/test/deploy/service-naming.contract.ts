@@ -16,7 +16,7 @@ const DOMAIN_LINE_PATTERN = /^- ([a-z-]+): `https:\/\/([a-z0-9.-]+)`$/gm
 
 const PUBLIC_DOMAIN_PATTERN = /^transportada-afr-fernandes(?:-api|-auth)?\.up\.railway\.app$/
 /** Serviço que só fala por `*.railway.internal` — domínio público nele é superfície de graça. */
-const INTERNAL_SERVICES = ['worker', 'cron', 'cron-nfse', 'rabbitmq'] as const
+const INTERNAL_SERVICES = ['worker', 'cron', 'cron-nfse', 'cron-fuel', 'rabbitmq'] as const
 
 async function readDocument(): Promise<string> {
   return Bun.file(RAILWAY_DOC_PATH).text()

@@ -20,7 +20,7 @@ costuma ter mais de um CNPJ — e defesa em profundidade, não o modelo comercia
 ```
 apps/api-transportada/       Bun.serve + Drizzle + Zod (sem framework HTTP)
 apps/worker-transportada/    consumidor RabbitMQ + outbox relay
-apps/cron-transportada/      processo one-shot agendado (busca automática de NF-e)
+apps/cron-transportada/      processo one-shot agendado (NF-e, NFS-e, notificações, preço da ANP)
 apps/frontend-transportada/  React 19 + Vite 7 (PWA)
 docs/spec/                   constitution, architecture, domain-model, fiscal-integration
 docs/adr/                    NNNN-titulo.md (0001..0010)
@@ -60,8 +60,9 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `freight`, `freight-calculations`,
-`freight-rules`, `identity`, `nfe-documents`, `nfe-imports`, `operations`, `storage`, `health`.
+Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `fleet`, `freight`,
+`freight-calculations`, `freight-rules`, `identity`, `nfe-documents`, `nfe-imports`, `operations`,
+`storage`, `health`.
 Transversais: `config`, `database`, `http`, `logging`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
@@ -105,6 +106,24 @@ caminho de elegibilidade lê pelo mesmo recorte: `buildActiveInvoiceItemJoin()` 
 prévia, `cancelled_at is null` na reserva e nas duas expressões da coluna "Faturado" da tabela de
 CT-es. A fatura cancelada continua com o detalhe dela no relatório.
 
+**O R$/km do veículo é derivado, não digitado:** `costPerKilometer` sai de
+`fleet/domain/vehicle-cost.policy.ts`, ao lado de `monthlyFixedCost` e com a mesma forma —
+`preço do combustível ÷ consumo médio`, arredondado na quarta casa, **somado** a
+`otherCostsPerKilometer`. A coluna homônima `cost_per_kilometer` **não existe mais** — a spec 038 a
+removeu no único `drop column` do repositório, com `rollback.sql` que devolve a coluna mas não os
+valores. O que o veículo persiste é `fuel_type` — do catálogo `FUEL_TYPES`, com a unidade como
+atributo do produto (GNV em m³, os outros quatro em litro) — e `other_costs_per_kilometer`. `POST` e
+`PUT` de veículo **recusam** `costPerKilometer` no corpo pelo `strict()`.
+
+O preço efetivo é `ajuste da empresa ?? referência da ANP da UF`, por produto
+(`companies/domain/fuel-price.policy.ts`), e `GET`/`PUT`/`DELETE
+/company-settings/fuel-prices[/{produto}]` (`settings.manage`, escopo `company`) leem e alternam o
+ajuste. ⚠️ `fuel_price_references` é a **única tabela do produto sem `company_id`**, de propósito: a
+publicação semanal da ANP é dado público de mercado, idêntico para toda empresa da instalação, sem
+PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista como exceção
+declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
+listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.
@@ -128,7 +147,7 @@ RabbitMQ e banco.
 ⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — oito arquivos em
 `src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`), e
-outros oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
+outras nove no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada
 
@@ -138,7 +157,7 @@ advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`m
 sessão valer por todas as transações do ciclo.
 
 `config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `src/job-registry.ts` mapeia o
-nome para a função. Dois jobs:
+nome para a função. Quatro jobs:
 
 - `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
   `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
@@ -149,6 +168,16 @@ nome para a função. Dois jobs:
   mesmo. Quem decide a transição é o banco — todo `UPDATE` de liquidação projeta o status de origem
   no `WHERE` e devolve `RETURNING`; sem linha, a escrita inteira é abandonada. O XML é o documento
   fiscal e sem ele a nota não liquida; o PDF é conveniência, e sua falta só é registrada.
+- `notification.schedules.run` — varre o que venceu (fatura a vencer, NFS-e rejeitada) e reenfileira
+  em `notification.v1`, a mesma trilha que a API publica e o worker consome.
+- `fuel.price.pull` — baixa o resumo semanal da ANP (XLSX lido por código nosso, ZIP +
+  `inflateRawSync`, sem dependência nova — ADR-0033) e grava `fuel_price_references` por produto e
+  UF. Como o cron de NFS-e, aqui ele **processa** em vez de enfileirar. Roda **sábado**
+  (`0 9 * * 6`): a semana da ANP vai de domingo a sábado e **dá nome ao arquivo**, então a URL é
+  derivada da semana que contém o dia de hoje — domingo pediria uma semana publicada seis dias
+  depois, e daria 404 todo ciclo. Reexecutar a mesma semana não duplica linha: a chave natural
+  `(product, state, week_ending_on)` é a idempotência do ciclo. É o único job que sobe sem chaveiro,
+  sem bucket e sem tenant — a planilha é dado público de mercado.
 
 O bloco de configuração de NFS-e (chaveiro, bucket, `NFSE_PROVIDER_BASE_URL`) só é resolvido quando
 `CRON_JOB` é `nfse.status.pull` — o deploy da busca de notas continua subindo sem nenhum deles, e o
@@ -178,6 +207,17 @@ O que guarda a paridade é comportamento, não diff de texto:
 causas de falha que o cliente do worker. Mudou o vocabulário da Nota RP de um lado? mude do outro.
 O AAD do envelope tem de ser idêntico ao que selou:
 `transportada:nfse-credential:v1:${companyId}:${credentialId}`.
+
+⚠️ O catálogo `FUEL_TYPES` é **cópia por valor** nas três apps que o usam —
+`api-transportada/src/shared/fuel.constant.ts`,
+`frontend-transportada/src/modules/shared/fuel.constant.ts` e
+`cron-transportada/src/fuel-price-pull/domain/fuel.constant.ts` — com a mesma lista, na mesma ordem
+e com a mesma unidade por produto (`gnv` em `cubic-metre`, os outros quatro em `litre`). A unidade é
+atributo do produto, não coluna: guardá-la por linha abriria a porta para duas linhas do mesmo
+produto discordarem. Quem guarda a paridade são os contratos `test/fuel-catalog/catalog.contract.ts`
+(API), `test/shared/fuel-catalog.contract.ts` (frontend) e
+`test/fuel-price-pull/catalog.contract.ts` (cron) — mudou produto ou unidade de um lado? mude dos
+três. Uma linha de GNV lida como litro entra no banco sem reclamar de nada.
 
 ## frontend-transportada
 

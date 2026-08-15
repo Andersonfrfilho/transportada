@@ -116,6 +116,7 @@ describe('Drizzle migrations', () => {
       '20260814131353_fleet_vehicle_color',
       '20260814191354_tax_id_alphanumeric',
       '20260814211033_fleet_vehicle_color_list',
+      '20260815001423_fuel_price_reference',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -736,6 +737,40 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toContain(`~ '^[0-9]{14}$'`)
     expect(rollbackSql).toContain(`~ '^[0-9]{44}$'`)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * A única migration destrutiva do repositório, e ela é destrutiva de propósito: o R$/km passou a
+   * ser derivado, e manter a coluna deixaria dois números disputando qual é o custo. O que este
+   * teste guarda é o recorte — um `drop column`, nomeado, e nenhuma tabela ou índice de arrasto.
+   */
+  test('drops the stored cost per kilometer as the single destructive step, with the column recreated on rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fuel_price_reference'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).toContain('DROP COLUMN "cost_per_kilometer"')
+    expect(migrationSql.match(/\bDROP COLUMN\b/gi)).toHaveLength(1)
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+
+    expect(migrationSql).toContain('CREATE TABLE "fuel_price_references"')
+    expect(migrationSql).toContain('CREATE TABLE "company_fuel_prices"')
+    expect(migrationSql).toContain('ADD COLUMN "fuel_type"')
+    expect(migrationSql).toContain('ADD COLUMN "other_costs_per_kilometer"')
+
+    // A coluna volta vazia: o valor antigo era digitado, e recuperá-lo seria inventar dinheiro
+    expect(rollbackSql).toContain('ADD COLUMN "cost_per_kilometer"')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')

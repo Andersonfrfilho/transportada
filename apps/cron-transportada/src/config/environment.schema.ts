@@ -3,6 +3,7 @@
  */
 import { z } from 'zod'
 
+import { FUEL_PRICE_PULL_JOB } from '../fuel-price-pull/domain/fuel-price-pull.constant.js'
 import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
 import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
 import {
@@ -17,6 +18,7 @@ import {
 } from './cron.constant.js'
 import type {
   CronEnvironment,
+  CronFuelPricePullEnvironment,
   CronNfseStatusPullEnvironment,
   CronNotificationSchedulesEnvironment,
 } from './cron.types.js'
@@ -42,6 +44,13 @@ const cronEnvironmentSchema = z.object({
   LOG_SINK_URL: optionalUrl(),
   SENTRY_DSN: optionalUrl(),
   SENTRY_ENVIRONMENT: optionalText(),
+  ANP_BASE_URL: optionalUrl(),
+  ANP_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS)
+    .default(CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS),
   ENCRYPTION_ACTIVE_KEY_ID: optionalText(),
   ENCRYPTION_KEYRING_JSON: optionalText(),
   NFSE_PROVIDER_BASE_URL: optionalUrl(),
@@ -84,6 +93,10 @@ export function parseCronEnvironment(
     cronJob: result.data.CRON_JOB,
     databaseUrl: result.data.DATABASE_URL,
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
+    fuelPricePull:
+      result.data.CRON_JOB === FUEL_PRICE_PULL_JOB
+        ? resolveFuelPricePullEnvironment(result.data)
+        : undefined,
     logLevel: result.data.LOG_LEVEL,
     nfseStatusPull:
       result.data.CRON_JOB === NFSE_STATUS_PULL_JOB
@@ -94,6 +107,20 @@ export function parseCronEnvironment(
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
+  }
+}
+
+/**
+ * A coleta não tem o que fazer sem o endereço da ANP, e não existe padrão razoável para ele: o
+ * domínio da agência muda sem avisar, e chutar um faria o ciclo falhar toda semana em silêncio.
+ * O preço é dado público — aqui não há segredo nenhum, só endereço e tempo de espera.
+ */
+function resolveFuelPricePullEnvironment(
+  data: z.output<typeof cronEnvironmentSchema>,
+): CronFuelPricePullEnvironment {
+  return {
+    baseUrl: requireConfigured(data.ANP_BASE_URL),
+    timeoutMilliseconds: data.ANP_TIMEOUT_MS,
   }
 }
 

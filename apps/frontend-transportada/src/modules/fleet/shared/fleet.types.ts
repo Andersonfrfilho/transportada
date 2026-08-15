@@ -1,4 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+
+/** A origem do preço efetivo: a série pública da ANP ou o ajuste da própria transportadora. */
+export const FLEET_FUEL_PRICE_SOURCE = ['anp', 'manual'] as const
+export type FleetFuelPriceSource = (typeof FLEET_FUEL_PRICE_SOURCE)[number]
+
 export const FLEET_VEHICLE_ROLE = ['traction', 'trailer'] as const
 export type FleetVehicleRole = (typeof FLEET_VEHICLE_ROLE)[number]
 
@@ -90,14 +96,30 @@ export type FleetVehicleCostFields = Readonly<{
   annualInsuranceAmount: string
   annualVehicleTaxAmount: string
   averageConsumption: string
-  costPerKilometer: string
   monthlyInstallmentAmount: string
+  otherCostsPerKilometer: string
 }>
 
-/** Custo por km e custo fixo mensal já em moeda; `null` quando nada foi informado. */
+/** Parcela zerada fica de fora: `'0.0000'` diria custo zero, e o que houve foi não ter informado. */
+export type FleetVehicleCostBreakdown = Readonly<{
+  fuel?: string
+  otherCosts?: string
+}>
+
+/** Preço efetivo do combustível do veículo, com a origem e a semana de referência da ANP. */
+export type FleetVehicleFuelPrice = Readonly<{
+  pricePerUnit: string
+  source: FleetFuelPriceSource
+  unit: FuelUnit
+  weekEndingOn: null | string
+}>
+
+/** Composição e totais já em moeda; `null` quando a parcela não existe. */
 export type FleetVehicleCostSummary = Readonly<{
   costPerKilometer: null | string
+  fuelCostPerKilometer: null | string
   monthlyFixedCost: null | string
+  otherCostsPerKilometer: null | string
 }>
 
 export type FleetVehicleBody = FleetVehicleCostFields &
@@ -109,6 +131,7 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    fuelType: FuelProduct
     model: string
     modelYear: number
     owner: FleetVehicleOwner | null
@@ -123,8 +146,12 @@ export type FleetVehicleBody = FleetVehicleCostFields &
 
 export type FleetVehicleDetail = FleetVehicleBody &
   Readonly<{
+    /** Derivado pela API — preço do combustível ÷ consumo, mais os outros custos por km. */
+    costPerKilometer: null | string
+    costPerKilometerBreakdown: FleetVehicleCostBreakdown | null
     costsUpdatedAt: null | string
     createdAt: string
+    fuelPrice: FleetVehicleFuelPrice | null
     id: string
     /** Derivado pela API — prestação + (IPVA + seguro) ÷ 12. */
     monthlyFixedCost: null | string
@@ -229,6 +256,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     capacityKilograms: string
     color: '' | VehicleColor
     fleetNumber: string
+    fuelType: FuelProduct
     model: string
     modelYear: string
     ownerName: string

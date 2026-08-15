@@ -194,8 +194,31 @@
   "monthlyInstallmentAmount": "Prestação mensal (R$)",
   "annualVehicleTaxAmount": "IPVA anual (R$)",
   "annualInsuranceAmount": "Seguro anual (R$)",
-  "averageConsumption": "Consumo médio (km/l)",
+  "fuelType": "Combustível",
+  "fuelOption": {
+    "diesel-s10": "Diesel S-10",
+    "diesel-s500": "Diesel S-500",
+    "gasolina-comum": "Gasolina comum",
+    "etanol-hidratado": "Etanol hidratado",
+    "gnv": "GNV"
+  },
+  "consumptionByUnit": {
+    "litre": "Consumo médio (km/l)",
+    "cubic-metre": "Consumo médio (km/m³)"
+  },
+  "fuelPriceByUnit": {
+    "litre": "Preço do combustível (R$/litro)",
+    "cubic-metre": "Preço do combustível (R$/m³)"
+  },
+  "otherCostsPerKilometer": "Outros custos por quilômetro (R$)",
   "costPerKilometer": "Custo por quilômetro (R$)",
+  "fuelCostPerKilometer": "Combustível por quilômetro",
+  "fuelPriceSource": {
+    "anp": "Referência ANP",
+    "manual": "Ajuste da transportadora"
+  },
+  "fuelPriceWeek": "Semana de referência encerrada em",
+  "fuelPriceUnavailable": "Sem preço para este combustível",
   "costSummaryTitle": "Resumo dos custos",
   "monthlyFixedCost": "Custo fixo mensal",
   "costNotInformed": "Não informado",

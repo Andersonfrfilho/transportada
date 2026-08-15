@@ -6,6 +6,7 @@ import {
   NO_COSTS_VEHICLE_DETAIL,
   VEHICLE_BODY,
   VEHICLE_COST_DRAFT,
+  VEHICLE_COST_PER_KILOMETER,
   VEHICLE_COSTS_UPDATED_AT,
   VEHICLE_DETAIL,
   VEHICLE_MONTHLY_FIXED_COST,
@@ -39,7 +40,7 @@ describe('fleet vehicle cost fields contract', () => {
     expect(adapters.vehicleFromApi(NO_COSTS_VEHICLE_DETAIL)).toEqual(NO_COSTS_VEHICLE_DETAIL)
 
     const { costPerKilometer, ...withoutCostPerKilometer } = VEHICLE_DETAIL
-    expect(costPerKilometer).toBe('1.2500')
+    expect(costPerKilometer).toBe(VEHICLE_COST_PER_KILOMETER)
     expect(() => adapters.vehicleFromApi(withoutCostPerKilometer)).toThrow('FLEET_RESPONSE_INVALID')
     expect(() => adapters.vehicleFromApi({ ...VEHICLE_DETAIL, acquisitionAmount: 150000 })).toThrow(
       'FLEET_RESPONSE_INVALID',
@@ -62,7 +63,8 @@ describe('fleet vehicle cost fields contract', () => {
       acquisitionAmount: '150.000,50',
       annualInsuranceAmount: '3600',
       averageConsumption: '2,567',
-      costPerKilometer: '1,25',
+      fuelType: 'gnv',
+      otherCostsPerKilometer: '0,25',
     })
     expect(toVehicleBody(typed)).toMatchObject({
       acquisitionAmount: '150000.5000',
@@ -70,8 +72,10 @@ describe('fleet vehicle cost fields contract', () => {
       annualVehicleTaxAmount: '0.0000',
       // Terceira casa digitada arredonda para a escala do consumo, em vez de recusar o cadastro
       averageConsumption: '2.57',
-      costPerKilometer: '1.2500',
+      // O combustível é do veículo, não do custo: é ele que escolhe o preço a dividir
+      fuelType: 'gnv',
       monthlyInstallmentAmount: '0.0000',
+      otherCostsPerKilometer: '0.2500',
     })
   })
 
@@ -83,17 +87,18 @@ describe('fleet vehicle cost fields contract', () => {
       annualInsuranceAmount: '3600,00',
       annualVehicleTaxAmount: '1200,00',
       averageConsumption: '2,50',
-      // Custo por km é decimal de quatro casas por natureza — arredondar na tela esconderia dígito
-      costPerKilometer: '1,2500',
+      fuelType: 'diesel-s10',
       monthlyInstallmentAmount: '2000,00',
+      // Outros custos por km é decimal de quatro casas por natureza — arredondar esconderia dígito
+      otherCostsPerKilometer: '0,5000',
     })
     expect(toVehicleFormState(NO_COSTS_VEHICLE_DETAIL)).toMatchObject({
       acquisitionAmount: '',
       annualInsuranceAmount: '',
       annualVehicleTaxAmount: '',
       averageConsumption: '',
-      costPerKilometer: '',
       monthlyInstallmentAmount: '',
+      otherCostsPerKilometer: '',
     })
   })
 
@@ -114,19 +119,6 @@ describe('fleet vehicle cost fields contract', () => {
         averageConsumption: '2.50',
       }),
     ).toBe(null)
-  })
-
-  test('summarizes the costs in currency and calls zero "not informed"', async () => {
-    const { summarizeVehicleCosts } = await loadFutureModule<FleetCostModule>(COST_SERVICE_PATH)
-
-    expect(summarizeVehicleCosts(VEHICLE_BODY)).toEqual({
-      costPerKilometer: currencyFormatter.format(1.25),
-      monthlyFixedCost: currencyFormatter.format(2400),
-    })
-    expect(summarizeVehicleCosts(VEHICLE_COST_DRAFT)).toEqual({
-      costPerKilometer: null,
-      monthlyFixedCost: null,
-    })
   })
 
   test('offers cost columns hidden by default and formats their cells', async () => {
@@ -154,6 +146,15 @@ describe('fleet vehicle cost fields contract', () => {
         vehicle: VEHICLE_DETAIL,
       }),
     ).toBe(currencyFormatter.format(2400))
+    // A coluna lê o derivado que a API mandou: a tela não recalcula o total para a listagem
+    expect(
+      readFleetVehicleColumnValue({
+        column: 'costPerKilometer',
+        colorLabel: COLOR_LABEL,
+        notInformedLabel: NOT_INFORMED,
+        vehicle: VEHICLE_DETAIL,
+      }),
+    ).toBe(currencyFormatter.format(Number(VEHICLE_COST_PER_KILOMETER)))
     expect(
       readFleetVehicleColumnValue({
         column: 'costPerKilometer',
@@ -203,11 +204,14 @@ describe('fleet vehicle cost fields contract', () => {
       'acquisitionAmount',
       'annualInsuranceAmount',
       'annualVehicleTaxAmount',
-      'averageConsumption',
-      'costPerKilometer',
       'monthlyInstallmentAmount',
+      'otherCostsPerKilometer',
     ]) {
       expect(costFields).toContain(`t('${field}')`)
+      expect(costFields).toContain(`{ ${field} }`)
+    }
+    // Consumo e combustível continuam editáveis; só o rótulo do consumo sai do resolvedor de unidade
+    for (const field of ['averageConsumption', 'fuelType']) {
       expect(costFields).toContain(`{ ${field} }`)
     }
     expect(costFields).toContain('summarizeTypedVehicleCosts')
@@ -242,13 +246,14 @@ describe('fleet vehicle cost fields contract', () => {
         'acquisitionAmount',
         'annualInsuranceAmount',
         'annualVehicleTaxAmount',
-        'averageConsumption',
         'costNotInformed',
         'costPerKilometer',
         'costSummaryTitle',
         'costsUpdatedAt',
+        'fuelType',
         'monthlyFixedCost',
         'monthlyInstallmentAmount',
+        'otherCostsPerKilometer',
         'vehicleCostLegend',
         'vehicleCostHint',
       ]) {
@@ -266,16 +271,8 @@ describe('fleet vehicle cost fields contract', () => {
   })
 })
 
-type FleetVehicleCostSummaryContract = Readonly<{
-  costPerKilometer: null | string
-  monthlyFixedCost: null | string
-}>
-
 type FleetCostModule = {
   readonly deriveMonthlyFixedCost: (fields: FleetVehicleCostFieldsContract) => null | string
-  readonly summarizeVehicleCosts: (
-    fields: FleetVehicleCostFieldsContract,
-  ) => FleetVehicleCostSummaryContract
 }
 
 type FleetVehicleFormStateContract = Record<string, string>

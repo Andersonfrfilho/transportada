@@ -8,6 +8,8 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies } from '../../src/database/database.schema.js'
 import type { FleetVehicleInput } from '../../src/fleet/application/fleet.port.js'
+import { DrizzleFuelPriceRepository } from '../../src/companies/infrastructure/drizzle-fuel-price.repository.js'
+import { CompanyFuelPriceGateway } from '../../src/fleet/infrastructure/company-fuel-price.gateway.js'
 import { DrizzleFleetVehicleRepository } from '../../src/fleet/infrastructure/drizzle-fleet-vehicle.repository.js'
 
 const databaseUrl =
@@ -27,11 +29,12 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   capacityCubicMeters: '90',
   capacityKilograms: '27000',
   color: '',
-  costPerKilometer: '0.0000',
   fleetNumber: '',
+  fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
   monthlyInstallmentAmount: '0.0000',
+  otherCostsPerKilometer: '0.0000',
   owner: null,
   ownership: 'own',
   plate: 'ABC1D23',
@@ -49,7 +52,7 @@ describe('fleet vehicle repository integration', () => {
       await withDisposableDatabase(async (database) => {
         const companyId = crypto.randomUUID()
         await database.db.insert(companies).values({ id: companyId, status: 'active' })
-        const repository = new DrizzleFleetVehicleRepository(database.db)
+        const repository = createRepository(database)
 
         const withoutCosts = await repository.create({ companyId, vehicle: NO_COSTS_VEHICLE })
         expect(withoutCosts.costsUpdatedAt).toBeNull()
@@ -58,7 +61,7 @@ describe('fleet vehicle repository integration', () => {
           companyId,
           vehicle: {
             ...NO_COSTS_VEHICLE,
-            costPerKilometer: '1.5000',
+            otherCostsPerKilometer: '1.5000',
             plate: 'XYZ9A88',
           },
         })
@@ -71,11 +74,11 @@ describe('fleet vehicle repository integration', () => {
     await withDisposableDatabase(async (database) => {
       const companyId = crypto.randomUUID()
       await database.db.insert(companies).values({ id: companyId, status: 'active' })
-      const repository = new DrizzleFleetVehicleRepository(database.db)
+      const repository = createRepository(database)
 
       const created = await repository.create({
         companyId,
-        vehicle: { ...NO_COSTS_VEHICLE, costPerKilometer: '1.5000' },
+        vehicle: { ...NO_COSTS_VEHICLE, otherCostsPerKilometer: '1.5000' },
       })
       const firstCostsUpdatedAt = created.costsUpdatedAt
       expect(firstCostsUpdatedAt).not.toBeNull()
@@ -84,7 +87,7 @@ describe('fleet vehicle repository integration', () => {
         companyId,
         expectedVersion: created.version,
         status: 'active',
-        vehicle: { ...NO_COSTS_VEHICLE, costPerKilometer: '1.5000', brand: 'VOLVO' },
+        vehicle: { ...NO_COSTS_VEHICLE, otherCostsPerKilometer: '1.5000', brand: 'VOLVO' },
         vehicleId: created.id,
       })
       expect(untouched?.costsUpdatedAt).toBe(firstCostsUpdatedAt)
@@ -93,7 +96,7 @@ describe('fleet vehicle repository integration', () => {
         companyId,
         expectedVersion: untouched?.version ?? created.version,
         status: 'active',
-        vehicle: { ...NO_COSTS_VEHICLE, costPerKilometer: '2.0000' },
+        vehicle: { ...NO_COSTS_VEHICLE, otherCostsPerKilometer: '2.0000' },
         vehicleId: created.id,
       })
       expect(changed?.costsUpdatedAt).not.toBe(firstCostsUpdatedAt)
@@ -102,6 +105,13 @@ describe('fleet vehicle repository integration', () => {
 })
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
+
+function createRepository(database: TestDatabase): DrizzleFleetVehicleRepository {
+  return new DrizzleFleetVehicleRepository({
+    database: database.db,
+    fuelPrices: new CompanyFuelPriceGateway(new DrizzleFuelPriceRepository(database.db)),
+  })
+}
 
 async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,

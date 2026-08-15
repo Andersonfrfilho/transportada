@@ -5,7 +5,9 @@ import {
   FLEET_CAPABILITY_KEYS,
   FLEET_ERROR,
   OWNER_KEYS,
+  VEHICLE_COST_BREAKDOWN_KEYS,
   VEHICLE_DETAIL_KEYS,
+  VEHICLE_FUEL_PRICE_KEYS,
 } from './fleet.constant'
 import type {
   FleetCapabilities,
@@ -48,6 +50,28 @@ function isOwner(value: unknown): boolean {
   )
 }
 
+/** Parcela ausente e parcela zerada dizem coisas diferentes: a chave só existe quando há custo. */
+function isCostBreakdown(value: unknown): boolean {
+  if (value === null) return true
+  if (!isRecord(value) || !hasOnlyKeys(value, VEHICLE_COST_BREAKDOWN_KEYS)) return false
+
+  return VEHICLE_COST_BREAKDOWN_KEYS.every(
+    (key) => value[key] === undefined || isDecimalString(value[key]),
+  )
+}
+
+function isFuelPrice(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, VEHICLE_FUEL_PRICE_KEYS) &&
+    hasEveryKey(value, VEHICLE_FUEL_PRICE_KEYS) &&
+    isDecimalString(value.pricePerUnit) &&
+    isOneOf(value.source, FLEET_ENUMS.fuelPriceSource) &&
+    isOneOf(value.unit, FLEET_ENUMS.fuelUnit) &&
+    isNullableString(value.weekEndingOn)
+  )
+}
+
 function isVehicle(value: unknown): value is FleetVehicleDetail {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, VEHICLE_DETAIL_KEYS) || !hasEveryKey(value, VEHICLE_DETAIL_KEYS)) {
@@ -64,10 +88,13 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isUnsignedIntegerString(value.capacityCubicMeters) &&
     isUnsignedIntegerString(value.capacityKilograms) &&
     isString(value.color) &&
-    isDecimalString(value.costPerKilometer) &&
+    isNullableDecimalString(value.costPerKilometer) &&
+    isCostBreakdown(value.costPerKilometerBreakdown) &&
     isNullableString(value.costsUpdatedAt) &&
     isString(value.createdAt) &&
     isString(value.fleetNumber) &&
+    (value.fuelPrice === null || isFuelPrice(value.fuelPrice)) &&
+    isOneOf(value.fuelType, FLEET_ENUMS.fuelType) &&
     isString(value.id) &&
     isString(value.model) &&
     isUnsignedIntegerNumber(value.modelYear) &&

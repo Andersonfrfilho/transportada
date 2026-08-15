@@ -612,6 +612,49 @@
   color: var(--color-fog);
 }
 
+.fuelPriceList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.fuelPriceRow {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.fuelPriceFacts {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.fuelPriceProduct {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-fog);
+}
+
+.fuelPriceForm {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.fuelPriceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (min-width: 48rem) {
+  .fuelPriceRow {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
 .certificateSavedRecord {
   display: grid;
   gap: var(--space-1);

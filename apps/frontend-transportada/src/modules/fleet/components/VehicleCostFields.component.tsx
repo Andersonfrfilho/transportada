@@ -1,23 +1,37 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import type { FleetVehicleFormState } from '../shared/fleet.types'
+import { FUEL_PRODUCTS } from '@/modules/shared/fuel.constant'
+
+import type { FleetVehicleFormState, FleetVehicleFuelPrice } from '../shared/fleet.types'
 import {
   formatCostReferenceDate,
+  formatFuelPricePerUnit,
+  resolveFuelLabelKeys,
   summarizeTypedVehicleCosts,
 } from '../shared/fleetVehicleCost.service'
 import styles from '../styles/fleet.module.css'
-import { FleetField } from './FleetField.component'
+import { FleetField, FleetSelectField } from './FleetField.component'
 
 type VehicleCostFieldsProps = Readonly<{
   costsUpdatedAt: null | string
+  fuelPrice: FleetVehicleFuelPrice | null
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
 }>
 
-export function VehicleCostFields({ costsUpdatedAt, onChange, state }: VehicleCostFieldsProps) {
+export function VehicleCostFields({
+  costsUpdatedAt,
+  fuelPrice,
+  onChange,
+  state,
+}: VehicleCostFieldsProps) {
   const { i18n, t } = useTranslation('fleet')
-  const summary = summarizeTypedVehicleCosts(state)
+  const fuelLabels = resolveFuelLabelKeys(state.fuelType)
+  const summary = summarizeTypedVehicleCosts({
+    fields: state,
+    fuelPricePerUnit: fuelPrice?.pricePerUnit ?? null,
+  })
 
   return (
     <fieldset className={styles.fieldGroup}>
@@ -55,10 +69,17 @@ export function VehicleCostFields({ costsUpdatedAt, onChange, state }: VehicleCo
           value={state.annualInsuranceAmount}
           onChange={(annualInsuranceAmount) => onChange({ annualInsuranceAmount })}
         />
+        <FleetSelectField
+          label={t('fuelType')}
+          optionLabelKey="fuelOption"
+          options={FUEL_PRODUCTS}
+          value={state.fuelType}
+          onChange={(fuelType) => onChange({ fuelType })}
+        />
         <FleetField
           optional
           inputMode="numeric"
-          label={t('averageConsumption')}
+          label={t(fuelLabels.averageConsumption)}
           maxLength={8}
           value={state.averageConsumption}
           onChange={(averageConsumption) => onChange({ averageConsumption })}
@@ -66,10 +87,10 @@ export function VehicleCostFields({ costsUpdatedAt, onChange, state }: VehicleCo
         <FleetField
           optional
           inputMode="numeric"
-          label={t('costPerKilometer')}
+          label={t('otherCostsPerKilometer')}
           maxLength={12}
-          value={state.costPerKilometer}
-          onChange={(costPerKilometer) => onChange({ costPerKilometer })}
+          value={state.otherCostsPerKilometer}
+          onChange={(otherCostsPerKilometer) => onChange({ otherCostsPerKilometer })}
         />
       </div>
       <div className={styles.costSummary}>
@@ -83,7 +104,33 @@ export function VehicleCostFields({ costsUpdatedAt, onChange, state }: VehicleCo
             <dt>{t('costPerKilometer')}</dt>
             <dd>{summary.costPerKilometer ?? t('costNotInformed')}</dd>
           </div>
+          <div>
+            <dt>{t('fuelCostPerKilometer')}</dt>
+            <dd>{summary.fuelCostPerKilometer ?? t('costNotInformed')}</dd>
+          </div>
+          <div>
+            <dt>{t('otherCostsPerKilometer')}</dt>
+            <dd>{summary.otherCostsPerKilometer ?? t('costNotInformed')}</dd>
+          </div>
+          <div>
+            <dt>{t(fuelLabels.fuelPricePerUnit)}</dt>
+            <dd>
+              {fuelPrice === null
+                ? t('fuelPriceUnavailable')
+                : `${formatFuelPricePerUnit(fuelPrice.pricePerUnit)} · ${t(
+                    `fuelPriceSource.${fuelPrice.source}`,
+                  )}`}
+            </dd>
+          </div>
         </dl>
+        {fuelPrice === null || fuelPrice.weekEndingOn === null ? null : (
+          <p className={styles.fieldHint}>
+            {`${t('fuelPriceWeek')} ${formatCostReferenceDate({
+              locale: i18n.language,
+              value: fuelPrice.weekEndingOn,
+            })}`}
+          </p>
+        )}
         {costsUpdatedAt === null ? null : (
           <p className={styles.fieldHint}>
             {`${t('costsUpdatedAt')} ${formatCostReferenceDate({

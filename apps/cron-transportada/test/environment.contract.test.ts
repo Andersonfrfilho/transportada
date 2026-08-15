@@ -37,6 +37,8 @@ describe('cron environment contract', () => {
       cronJob: 'nfe.distribution.pull',
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'homologation',
+      // Nem sem o endereço da ANP, que só o trilho de preço de combustível usa.
+      fuelPricePull: undefined,
       logLevel: 'info',
       // O deploy da busca de notas continua subindo sem chaveiro, sem bucket e sem prefeitura.
       nfseStatusPull: undefined,

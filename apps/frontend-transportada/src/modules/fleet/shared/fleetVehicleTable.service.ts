@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { formatAmount, isZeroAmount } from '../../shared/decimalAmount.service'
+import { formatAmount } from '../../shared/decimalAmount.service'
 import {
   readTableColumnPreferences,
   reorderTableColumns,
@@ -80,7 +80,7 @@ export function readFleetVehicleColumnValue(
   // A cor é slug fechado no banco: traduzir é papel de quem tem o `t`, não deste serviço puro.
   if (column === 'color') return colorLabel
   if (column === 'costPerKilometer') {
-    if (isZeroAmount(vehicle.costPerKilometer)) return notInformedLabel
+    if (vehicle.costPerKilometer === null) return notInformedLabel
     return formatAmount(vehicle.costPerKilometer)
   }
   if (vehicle.monthlyFixedCost === null) return notInformedLabel

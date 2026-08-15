@@ -13,6 +13,7 @@ import {
   MDFE_WHEEL_TYPES,
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
+import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
@@ -38,6 +39,12 @@ const UNSIGNED_BIGINT = /^(?:0|[1-9][0-9]{0,18})$/
 const VEHICLE_BRAND_MAX_LENGTH = 60
 const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
 const VEHICLE_MODEL_MAX_LENGTH = 120
+
+/** `z.enum` pede tupla não vazia; o catálogo é `readonly`, e derivá-la aqui evita uma segunda lista. */
+const FUEL_PRODUCTS_TUPLE = FUEL_TYPES.map(({ product }) => product) as [
+  FuelProduct,
+  ...FuelProduct[],
+]
 
 const optionalDigits = (pattern: RegExp) => z.literal('').or(z.string().regex(pattern))
 
@@ -68,11 +75,12 @@ const vehicleFieldsSchema = z.object({
   capacityCubicMeters: z.string().regex(UNSIGNED_BIGINT),
   capacityKilograms: z.string().regex(UNSIGNED_BIGINT),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
-  costPerKilometer: z.string().regex(COST_PER_KILOMETER_DECIMAL),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
+  fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
   monthlyInstallmentAmount: z.string().regex(MONEY_DECIMAL),
+  otherCostsPerKilometer: z.string().regex(COST_PER_KILOMETER_DECIMAL),
   owner: ownerSchema.nullable(),
   ownership: z.enum(FLEET_VEHICLE_OWNERSHIPS),
   plate: z.string().regex(PLATE),

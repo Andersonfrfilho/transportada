@@ -8,20 +8,33 @@ import { fleetDriverVehicleAssignments, fleetVehicles } from '../../database/dat
 import type {
   FleetDriverVehicleLink,
   FleetDriverVehicleRepositoryPort,
+  FleetFuelPricePort,
 } from '../application/fleet.port.js'
 import { mapVehicle } from './fleet.mapper.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
+type RepositoryDependencies = {
+  readonly database: Database
+  readonly fuelPrices: FleetFuelPricePort
+}
+
 export class DrizzleFleetDriverVehicleRepository implements FleetDriverVehicleRepositoryPort {
-  public constructor(private readonly database: Database) {}
+  private readonly database: Database
+
+  private readonly fuelPrices: FleetFuelPricePort
+
+  public constructor(dependencies: RepositoryDependencies) {
+    this.database = dependencies.database
+    this.fuelPrices = dependencies.fuelPrices
+  }
 
   public async listByDriver(input: {
     readonly companyId: string
     readonly driverId: string
   }): Promise<readonly FleetDriverVehicleLink[]> {
-    return listLiveLinks({ ...input, database: this.database })
+    return listLiveLinks({ ...input, database: this.database, fuelPrices: this.fuelPrices })
   }
 
   public async listExistingVehicleIds(input: {
@@ -86,7 +99,7 @@ export class DrizzleFleetDriverVehicleRepository implements FleetDriverVehicleRe
         )
       }
 
-      return listLiveLinks({ ...input, database: transaction })
+      return listLiveLinks({ ...input, database: transaction, fuelPrices: this.fuelPrices })
     })
   }
 }
@@ -103,6 +116,7 @@ async function listLiveLinks(input: {
   readonly companyId: string
   readonly database: Database | Transaction
   readonly driverId: string
+  readonly fuelPrices: FleetFuelPricePort
 }): Promise<readonly FleetDriverVehicleLink[]> {
   const records = await input.database
     .select({ assignment: fleetDriverVehicleAssignments, vehicle: fleetVehicles })
@@ -117,9 +131,11 @@ async function listLiveLinks(input: {
     .where(liveLinksOfDriver(input))
     .orderBy(asc(fleetDriverVehicleAssignments.assignedAt), asc(fleetVehicles.plate))
 
+  const fuelPrices = await input.fuelPrices.resolveByProduct({ companyId: input.companyId })
+
   return records.map((record) => ({
     assignedAt: record.assignment.assignedAt.toISOString(),
     id: record.assignment.id,
-    vehicle: mapVehicle(record.vehicle),
+    vehicle: mapVehicle({ fuelPrices, record: record.vehicle }),
   }))
 }

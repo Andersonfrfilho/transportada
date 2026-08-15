@@ -15,8 +15,15 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
+import {
+  DEFAULT_FUEL_PRODUCT,
+  FUEL_PRODUCT_MAX_LENGTH,
+  FUEL_PRODUCTS,
+  type FuelProduct,
+} from '../shared/fuel.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -112,9 +119,11 @@ export const fleetVehicles = pgTable(
     averageConsumption: numeric('average_consumption', { precision: 6, scale: 2 })
       .notNull()
       .default('0'),
-    costPerKilometer: numeric('cost_per_kilometer', { precision: 12, scale: 4 })
+    fuelType: varchar('fuel_type', { length: FUEL_PRODUCT_MAX_LENGTH })
+      .$type<FuelProduct>()
       .notNull()
-      .default('0'),
+      .default(DEFAULT_FUEL_PRODUCT),
+    otherCostsPerKilometer: moneyColumn('other_costs_per_kilometer').notNull().default('0'),
     acquisitionAmount: moneyColumn('acquisition_amount').notNull().default('0'),
     monthlyInstallmentAmount: moneyColumn('monthly_installment_amount').notNull().default('0'),
     annualVehicleTaxAmount: moneyColumn('annual_vehicle_tax_amount').notNull().default('0'),
@@ -176,7 +185,7 @@ export const fleetVehicles = pgTable(
     // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
     check(
       'fleet_vehicles_cost_check',
-      sql`${table.averageConsumption} >= 0 and ${table.costPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
+      sql`${table.averageConsumption} >= 0 and ${table.otherCostsPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
     ),
     check(
       'fleet_vehicles_wheel_type_check',
@@ -193,6 +202,10 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_state_check',
       sql`${table.state} ~ ${sql.raw(`'${STATE_PATTERN}'`)} and (length(${table.ownerState}) = 0 or ${table.ownerState} ~ ${sql.raw(`'${STATE_PATTERN}'`)})`,
+    ),
+    check(
+      'fleet_vehicles_fuel_type_check',
+      sql`${table.fuelType} in (${sql.raw(inList(FUEL_PRODUCTS))})`,
     ),
     check(
       'fleet_vehicles_ownership_check',
