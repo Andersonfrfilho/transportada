@@ -453,3 +453,40 @@ nenhum. `test/notification-schedules/environment.contract.ts` cobre os três ram
 ```
 bun run --cwd apps/cron-transportada test → 151 pass · 0 fail
 ```
+
+### O deploy de produção reprovou: o schema `notification` não era migrado
+
+Primeiro deploy em produção (run 31854307989, 15/08 00:46) terminou `deploy=failure` com a API em
+`FAILED`. A imagem construiu inteira; quem morreu foi o `preDeployCommand`:
+
+```
+PostgresError: relation "notification.templates" does not exist
+  code: 42P01 · routine: parserOpenTable
+  query: select "version" from "notification"."templates" where ...
+```
+
+Causa: `pre-deploy.service.ts` chamava `runDatabaseMigrations` — só as migrations de `drizzle/` — e
+logo em seguida semeava os templates. A criação do schema `notification`, que tem tabela de controle
+própria e viaja dentro do pacote, só existia dentro do `if (import.meta.main)` de
+`database-migration.service.ts`, que o `preDeployCommand` **não** executa. Os dois passos nunca
+tinham rodado juntos fora do teste.
+
+O estrago foi contido porque a ordem do pre-deploy é `migrate → provision → seed`: as 64 migrations
+da aplicação aplicaram (`drizzle.__drizzle_migrations` = 64), o seed reprovou depois, e a Railway
+manteve o contêiner anterior servindo — produção seguiu no ar o tempo todo (`/health/ready` = `ok`),
+com o banco à frente do código.
+
+Correção: `runAllDatabaseMigrations` passa a ser o único ponto que sabe o que "migrar" significa —
+`drizzle/` e depois o schema do pacote — e tanto o passo manual quanto o pre-deploy o chamam.
+
+Contrato antes da correção, e ele falhava:
+
+```
+test/database-migration/pre-deploy.contract.ts
+  · o passo de migration do pre-deploy cria o schema de notificação  (Postgres real)
+  · o entrypoint migra pelo passo que inclui o schema de notificação (estrutural)
+
+antes:  SyntaxError: Export named 'runAllDatabaseMigrations' not found
+depois: make migration-test → 70 pass · 0 fail
+        bun run check       → exit 0 (format · lint · typecheck · test · build)
+```

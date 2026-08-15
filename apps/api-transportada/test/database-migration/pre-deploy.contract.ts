@@ -5,7 +5,10 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 
+import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { NOTIFICATION_SCHEMA } from '../../src/database/notification-migration.service.js'
 import { runPreDeploy } from '../../src/database/pre-deploy.service.js'
+import { testWithPostgres, withDisposableDatabase } from './support.js'
 
 const APP_ROOT = new URL('../../', import.meta.url).pathname
 const PRE_DEPLOY_ENTRYPOINT = `${APP_ROOT}src/database/pre-deploy.service.ts`
@@ -93,6 +96,35 @@ describe('Pre-deploy da API', () => {
 
     expect(failure).toBeInstanceOf(Error)
     expect(provisioned).toBe(false)
+  })
+
+  /**
+   * O schema `notification` tem tabela de controle própria e não entra pelas migrations de
+   * `drizzle/`. Migrar só o nosso schema deixa o seed de templates escrevendo numa tabela que não
+   * existe — o pre-deploy morre e a Railway reprova o deploy inteiro, com o banco já migrado.
+   */
+  testWithPostgres('o passo de migration do pre-deploy cria o schema de notificação', async () => {
+    await withDisposableDatabase(async (database, connectionString) => {
+      await runAllDatabaseMigrations({ connectionString })
+
+      const tables = await database<Array<{ readonly table_name: string }>>`
+        select table_name
+        from information_schema.tables
+        where table_schema = ${NOTIFICATION_SCHEMA}
+        order by table_name
+      `
+
+      expect(tables.map((table) => table.table_name)).toContain('templates')
+    })
+  })
+
+  // O entrypoint tem de migrar tudo o que o seed vai encontrar; migrar só `drizzle/` foi o que
+  // derrubou o deploy de produção em 15/08.
+  test('o entrypoint migra pelo passo que inclui o schema de notificação', () => {
+    const entrypoint = readFileSync(PRE_DEPLOY_ENTRYPOINT, 'utf8')
+
+    expect(entrypoint).toContain('runAllDatabaseMigrations')
+    expect(entrypoint).not.toMatch(/\bawait runDatabaseMigrations\(/)
   })
 
   // A imagem de runtime copia só as pastas de `src` que o pre-deploy precisa. Import novo que
