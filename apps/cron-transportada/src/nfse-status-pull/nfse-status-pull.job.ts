@@ -102,7 +102,7 @@ export async function runNfseStatusPullJob(
       logger: dependencies.logger,
       status: createNfseFiscalGateway({
         config: {
-          baseUrls: settings.providerBaseUrls,
+          baseUrl: settings.providerBaseUrl,
           timeoutMilliseconds: settings.providerTimeoutMilliseconds,
         },
         fetch: globalThis.fetch,

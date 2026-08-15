@@ -112,11 +112,11 @@ jobs:
         run: .github/scripts/railway-deploy.sh deploy worker
       - name: Deploy cron
         run: .github/scripts/railway-deploy.sh deploy cron
-      # O trilho de NFS-e ainda não tem `NFSE_PROVIDER_BASE_URL_*` em produção — o endereço da
-      # prefeitura é por instalação — e sem eles o processo falha no boot a cada janela. O passo
-      # fica em staging até as duas URLs existirem lá.
+      # A Nota RP publica um servidor só, e é o de produção: não há ambiente onde exercitar a
+      # reconciliação sem mexer em nota real, e esta instalação tem um cadastro só. A NFS-e é
+      # trilho de produção por decisão (ADR-0035), não por variável esquecida.
       - name: Deploy cron-nfse
-        if: needs.target.outputs.environment == 'staging'
+        if: needs.target.outputs.environment == 'production'
         run: .github/scripts/railway-deploy.sh deploy cron-nfse
       - name: Deploy cron-notifications
         run: .github/scripts/railway-deploy.sh deploy cron-notifications

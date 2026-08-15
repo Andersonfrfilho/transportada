@@ -1,9 +1,23 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { Glob } from 'bun'
 import { describe, expect, test } from 'bun:test'
 
 import { CronConfigurationError, parseCronEnvironment } from '../src/config/environment.schema.js'
+
+const NFSE_BASE_URL = 'https://www.notarp.com.br/api/v2'
+
+const nfseEnvironment = {
+  CRON_JOB: 'nfse.status.pull',
+  ENCRYPTION_ACTIVE_KEY_ID: 'k1',
+  ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
+  NFSE_PROVIDER_BASE_URL: NFSE_BASE_URL,
+  STORAGE_ACCESS_KEY: 'access',
+  STORAGE_BUCKET: 'transportada',
+  STORAGE_ENDPOINT: 'http://localhost:59000',
+  STORAGE_SECRET_KEY: 'secret',
+} as const
 
 const validEnvironment = {
   APP_ENV: 'local',
@@ -94,6 +108,55 @@ describe('cron environment contract', () => {
     expect(() =>
       parseCronEnvironment({ ...validEnvironment, FISCAL_ENVIRONMENT: 'staging' }),
     ).toThrow(CronConfigurationError)
+  })
+
+  // A Nota RP publica um servidor só, e é o de produção (ADR-0035). O endereço continua obrigatório
+  // para este job — sem ele o ciclo bateria numa URL vazia com o segredo já aberto.
+  test('o job de NFS-e resolve o endereço único do provedor', () => {
+    expect(
+      parseCronEnvironment({ ...validEnvironment, ...nfseEnvironment }).nfseStatusPull
+        ?.providerBaseUrl,
+    ).toBe(NFSE_BASE_URL)
+  })
+
+  test('o job de NFS-e falha no boot sem endereço do provedor', () => {
+    expect(() =>
+      parseCronEnvironment({
+        ...validEnvironment,
+        ...nfseEnvironment,
+        NFSE_PROVIDER_BASE_URL: undefined,
+      }),
+    ).toThrow(CronConfigurationError)
+  })
+
+  /**
+   * `FISCAL_ENVIRONMENT` continua escolhendo ambiente de CT-e e MDF-e, onde a SEFAZ mantém
+   * homologação de verdade. Para a NFS-e não há o que escolher, e o endereço não pode voltar a
+   * depender dele por hábito.
+   */
+  test.each(['homologation', 'production'])(
+    'o ambiente fiscal %s não muda o endereço da NFS-e',
+    (fiscalEnvironment) => {
+      expect(
+        parseCronEnvironment({
+          ...validEnvironment,
+          ...nfseEnvironment,
+          FISCAL_ENVIRONMENT: fiscalEnvironment,
+        }).nfseStatusPull?.providerBaseUrl,
+      ).toBe(NFSE_BASE_URL)
+    },
+  )
+
+  // O par por ambiente fiscal prometia um isolamento que o provedor não oferece. Se o nome voltar,
+  // volta a promessa — e ninguém audita o que já parece resolvido.
+  test('o par de endereços por ambiente fiscal não reaparece no código', async () => {
+    const offenders: string[] = []
+    for await (const file of new Glob('**/*.ts').scan(`${import.meta.dir}/../src`)) {
+      const source = await Bun.file(`${import.meta.dir}/../src/${file}`).text()
+      if (source.includes('NFSE_PROVIDER_BASE_URL_')) offenders.push(file)
+    }
+
+    expect(offenders).toEqual([])
   })
 
   test('does not expose connection credentials in configuration errors', () => {

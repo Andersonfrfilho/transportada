@@ -44,8 +44,7 @@ const cronEnvironmentSchema = z.object({
   SENTRY_ENVIRONMENT: optionalText(),
   ENCRYPTION_ACTIVE_KEY_ID: optionalText(),
   ENCRYPTION_KEYRING_JSON: optionalText(),
-  NFSE_PROVIDER_BASE_URL_HOMOLOGATION: optionalUrl(),
-  NFSE_PROVIDER_BASE_URL_PRODUCTION: optionalUrl(),
+  NFSE_PROVIDER_BASE_URL: optionalUrl(),
   NFSE_PROVIDER_TIMEOUT_MS: z.coerce
     .number()
     .int()
@@ -106,24 +105,17 @@ export function parseCronEnvironment(
 function resolveNfseStatusPullEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
 ): CronNfseStatusPullEnvironment {
-  const providerBaseUrls = {
-    homologation: data.NFSE_PROVIDER_BASE_URL_HOMOLOGATION,
-    production: data.NFSE_PROVIDER_BASE_URL_PRODUCTION,
-  } as const
-
-  /** Homologação e produção juntas ou nenhuma: meia configuração emite no ambiente errado. */
-  if (
-    (providerBaseUrls.homologation === undefined) !==
-    (providerBaseUrls.production === undefined)
-  ) {
-    throw new CronConfigurationError()
-  }
-  if (providerBaseUrls[data.FISCAL_ENVIRONMENT] === undefined) throw new CronConfigurationError()
+  /**
+   * Um endereço só, e ele não vem do ambiente fiscal: a Nota RP publica um servidor, o de produção
+   * (ADR-0035). Quem separa uma instalação da outra é a credencial selada por empresa.
+   */
+  const providerBaseUrl = data.NFSE_PROVIDER_BASE_URL
+  if (providerBaseUrl === undefined) throw new CronConfigurationError()
 
   return {
     encryptionActiveKeyId: requireConfigured(data.ENCRYPTION_ACTIVE_KEY_ID),
     encryptionKeyRingJson: requireConfigured(data.ENCRYPTION_KEYRING_JSON),
-    providerBaseUrls,
+    providerBaseUrl,
     providerTimeoutMilliseconds: data.NFSE_PROVIDER_TIMEOUT_MS,
     storage: {
       accessKey: requireConfigured(data.STORAGE_ACCESS_KEY),
