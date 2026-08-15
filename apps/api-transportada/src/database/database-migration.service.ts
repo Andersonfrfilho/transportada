@@ -40,13 +40,30 @@ export async function runDatabaseMigrations({
   }
 }
 
+/**
+ * Todo schema que o arranque vai encontrar, na ordem em que precisa existir. As migrations do
+ * schema de notificações viajam dentro do pacote e têm tabela de controle própria, então rodam
+ * depois — mas rodam sempre junto: migrar só `drizzle/` deixa o seed de templates escrevendo numa
+ * tabela inexistente, e o pre-deploy morre com o banco já migrado.
+ */
+export async function runAllDatabaseMigrations({
+  connectionString,
+  migrationsFolder,
+}: RunDatabaseMigrationsParams): Promise<void> {
+  await runDatabaseMigrations(
+    migrationsFolder === undefined ? { connectionString } : { connectionString, migrationsFolder },
+  )
+  await runNotificationSchemaMigrations({ connectionString })
+}
+
 if (import.meta.main) {
   const connectionString = process.env.DATABASE_URL
   if (connectionString === undefined || connectionString.length === 0) {
     throw new Error('DATABASE_URL is required to apply database migrations')
   }
 
-  await runDatabaseMigrations({
+  // Só aqui, no passo manual: o startup da API não migra nada.
+  await runAllDatabaseMigrations({
     connectionString,
   })
 

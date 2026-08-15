@@ -6,7 +6,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { parseEnvironment } from '../config/environment.schema.js'
 import { createApiNotificationModule } from '../notification/infrastructure/notification-module.factory.js'
 import { seedNotificationTemplates } from '../notification/application/notification-template-seed.service.js'
-import { runDatabaseMigrations } from './database-migration.service.js'
+import { runAllDatabaseMigrations } from './database-migration.service.js'
 import type { ProvisionedArtifact } from './environment-provisioning.constant.js'
 import {
   isEnvironmentProvisioningConfigured,
@@ -78,7 +78,7 @@ if (import.meta.main) {
 
   const report = await runPreDeploy({
     migrate: async () => {
-      await runDatabaseMigrations({ connectionString })
+      await runAllDatabaseMigrations({ connectionString })
     },
     // Ambiente que ainda não declarou empresa não tem a quem pertencer o template.
     seedTemplates:
