@@ -76,6 +76,7 @@ function createInvoiceStore(rows: readonly InvoiceRow[]): {
               credentialId: CREDENTIAL_ID,
               envelope: { sealed: true },
               fiscalEnvironment: 'homologation' as const,
+              municipalRegistration: '12345678',
               status: 'active' as const,
             },
             invoiceId: row.invoiceId,

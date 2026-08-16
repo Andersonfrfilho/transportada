@@ -467,6 +467,7 @@ async function listCredentials(input: {
       credentialId: nfseProviderCredentials.id,
       envelope: nfseProviderCredentials.secretEnvelope,
       fiscalEnvironment: nfseProviderCredentials.fiscalEnvironment,
+      municipalRegistration: nfseProviderCredentials.municipalRegistration,
       status: nfseProviderCredentials.status,
     })
     .from(nfseProviderCredentials)
@@ -485,6 +486,7 @@ async function listCredentials(input: {
       credentialId: row.credentialId,
       envelope: row.envelope,
       fiscalEnvironment: row.fiscalEnvironment,
+      municipalRegistration: row.municipalRegistration,
       status: row.status,
     })
   }

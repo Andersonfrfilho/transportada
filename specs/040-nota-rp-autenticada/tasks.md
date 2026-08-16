@@ -24,12 +24,12 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T003** — Contrato: `nota-rp-parity.contract.ts` passa a exigir, nas **duas** cópias, que a
+- [x] **T003** — Contrato: `nota-rp-parity.contract.ts` passa a exigir, nas **duas** cópias, que a
       requisição carregue `X-AUTH-USER-TOKEN` e `X-AUTH-IM` com os valores da credencial, e que não
       exista `authorization`; mais um caso que falha se a string `Bearer` aparecer no fonte de
       qualquer um dos dois clientes.
       Verificação: vermelho.
-- [ ] **T004** — `buildHeaders` nos dois clientes (`worker-transportada/src/nfse-issuance/
+- [x] **T004** — `buildHeaders` nos dois clientes (`worker-transportada/src/nfse-issuance/
       infrastructure/nota-rp-v2.client.ts:160` e `cron-transportada/src/nfse-status-pull/
       infrastructure/nota-rp-v2.client.ts:92`), na mesma task — são cópias por valor, e meio caminho
       deixa a reconciliação cega. A inscrição municipal precisa chegar até o cliente: hoje ela não é

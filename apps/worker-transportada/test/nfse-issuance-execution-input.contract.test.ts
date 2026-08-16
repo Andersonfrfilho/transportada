@@ -62,6 +62,7 @@ function createRow(overrides?: Row): Row {
     credentialId: CREDENTIAL_ID,
     envelope: { sealed: true },
     fiscalEnvironment: 'homologation',
+    municipalRegistration: '12345678',
     payload: { serviceAmount: '100.0000' },
     providerDocumentId: PROVIDER_DOCUMENT_ID,
     ...overrides,
@@ -113,6 +114,7 @@ describe('NFS-e issuance execution input contract', () => {
         credentialId: CREDENTIAL_ID,
         envelope: { sealed: true },
         fiscalEnvironment: 'homologation',
+        municipalRegistration: '12345678',
       },
       providerDocumentId: PROVIDER_DOCUMENT_ID,
     })

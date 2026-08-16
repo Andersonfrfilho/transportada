@@ -50,6 +50,7 @@ function dueInvoice(overrides: Partial<DueNfseInvoice> = {}): DueNfseInvoice {
       credentialId: CREDENTIAL_ID,
       envelope: { sealed: true },
       fiscalEnvironment: 'homologation',
+      municipalRegistration: '12345678',
     },
     invoiceId: INVOICE_ID,
     providerDocumentId: PROVIDER_DOCUMENT_ID,

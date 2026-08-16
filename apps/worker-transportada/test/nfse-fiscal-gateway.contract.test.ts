@@ -31,6 +31,7 @@ function createCredential(
     credentialId: '00000000-0000-4000-8000-000000000002',
     envelope: { sealed: true },
     fiscalEnvironment,
+    municipalRegistration: '12345678',
   }
 }
 

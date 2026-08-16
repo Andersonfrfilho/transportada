@@ -50,6 +50,7 @@ type NotaRpStatusClientShape = {
 
 type NotaRpV2ConfigShape = {
   baseUrl: string
+  municipalRegistration: string
   timeoutMilliseconds: number
   token: string
 }
@@ -66,6 +67,9 @@ type FetchStub = (input: string, init: RequestInit) => Promise<Response>
 export const API_TOKEN = 'notarp-v2-synthetic-token-do-not-leak'
 
 export const BASE_URL = 'https://nota-rp.invalid/api/v2'
+
+/** O token identifica a conta; a inscrição municipal, qual empresa dentro dela. Os dois são exigidos. */
+export const MUNICIPAL_REGISTRATION = '12345678'
 
 export const PROVIDER_DOCUMENT_ID = '900123456'
 
@@ -175,6 +179,7 @@ export async function createNotaRpStatusClientFixture(input: {
   return module.createNotaRpStatusClient({
     config: {
       baseUrl: BASE_URL,
+      municipalRegistration: MUNICIPAL_REGISTRATION,
       timeoutMilliseconds: 8000,
       token: API_TOKEN,
       ...input.config,

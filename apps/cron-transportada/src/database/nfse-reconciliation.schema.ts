@@ -103,6 +103,7 @@ export const nfseProviderCredentials = pgTable('nfse_provider_credentials', {
   companyId: uuid('company_id').notNull(),
   provider: text().notNull(),
   fiscalEnvironment: text('fiscal_environment').$type<NfseFiscalEnvironment>().notNull(),
+  municipalRegistration: text('municipal_registration').notNull(),
   secretEnvelope: jsonb('secret_envelope').notNull(),
   status: text().$type<NfseCredentialStatus>().notNull(),
 })

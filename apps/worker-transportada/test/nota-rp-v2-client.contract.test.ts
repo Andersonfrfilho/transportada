@@ -3,9 +3,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import './nota-rp-v2/no-bearer.contract.js'
+
 import {
   API_TOKEN,
   BASE_URL,
+  MUNICIPAL_REGISTRATION,
   NOTA_RP_CAUSES,
   PROVIDER_DOCUMENT_ID,
   RPS,
@@ -347,10 +350,45 @@ describe('Nota RP v2 client — o token não vaza', () => {
     await client.fetchDocument({ kind: 'pdf', providerDocumentId: PROVIDER_DOCUMENT_ID })
 
     for (const call of calls) {
-      expect(call.headers['authorization']).toBe(`Bearer ${API_TOKEN}`)
+      expect(call.headers['x-auth-user-token']).toBe(API_TOKEN)
       expect(call.url).not.toContain(API_TOKEN)
       expect(call.body ?? '').not.toContain(API_TOKEN)
     }
+  })
+})
+
+/**
+ * A Nota RP não lê `Authorization`. Ela exige `X-AUTH-USER-TOKEN` (a conta) e `X-AUTH-IM` (qual
+ * empresa dentro dela). Este bloco existe porque a versão anterior deste arquivo **fixava o
+ * cabeçalho errado**: o teste passava, e nenhuma chamada nossa estava autenticada.
+ */
+describe('Nota RP v2 client — os dois cabeçalhos que o provedor exige', () => {
+  test('manda X-AUTH-USER-TOKEN e X-AUTH-IM em toda chamada, e não manda authorization', async () => {
+    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    await client.issue({ rps: RPS })
+    await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+    await client.fetchDocument({ kind: 'pdf', providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(calls.length).toBeGreaterThan(0)
+    for (const call of calls) {
+      expect(call.headers['x-auth-user-token']).toBe(API_TOKEN)
+      expect(call.headers['x-auth-im']).toBe(MUNICIPAL_REGISTRATION)
+      expect(call.headers['authorization']).toBeUndefined()
+    }
+  })
+
+  test('a inscrição municipal vem da credencial, não de constante do cliente', async () => {
+    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const client = await createNotaRpV2ClientFixture({
+      config: { municipalRegistration: '98765432' },
+      fetch,
+    })
+
+    await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(calls[0]?.headers['x-auth-im']).toBe('98765432')
   })
 
   // Erro de rede costuma carregar a requisição inteira na mensagem — inclusive o cabeçalho.
