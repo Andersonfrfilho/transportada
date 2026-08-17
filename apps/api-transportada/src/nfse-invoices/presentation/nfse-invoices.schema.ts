@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import {
   MAX_DESCRIPTION_MAX_LENGTH,
+  NFSE_CANCELLATION_MOTIVES,
   NFSE_SERVICE_INVOICE_STATUSES,
 } from '../../database/nfse.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
@@ -43,11 +44,13 @@ const LIST_QUERY_KEYS = new Set([
 ])
 
 /**
- * O motivo é obrigatório: a prefeitura o exige na transmissão do cancelamento, e ele fica gravado
- * na nota como o registro de por que ela saiu do ar.
+ * Dois campos porque são duas coisas: o **código** é o que a prefeitura lê na transmissão, e o
+ * **texto** é o registro de por que a nota saiu do ar, que fica na nota e na tela. Nenhum dos dois
+ * substitui o outro — texto livre no lugar do código faz a prefeitura recusar o cancelamento.
  */
 export const nfseInvoiceCancellationSchema = z
   .object({
+    cancellationMotive: z.enum(NFSE_CANCELLATION_MOTIVES),
     cancellationReason: z.string().trim().min(MIN_CANCELLATION_REASON).max(MAX_CANCELLATION_REASON),
   })
   .strict()

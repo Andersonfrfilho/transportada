@@ -1,0 +1,2 @@
+ALTER TABLE "nfse_service_invoices" ADD COLUMN "cancellation_motive" text;--> statement-breakpoint
+ALTER TABLE "nfse_service_invoices" ADD CONSTRAINT "nfse_service_invoices_cancellation_motive_check" CHECK ("cancellation_motive" is null or "cancellation_motive" in ('2', '4'));

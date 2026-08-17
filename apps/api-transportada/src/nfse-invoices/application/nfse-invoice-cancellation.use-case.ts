@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { NfseServiceInvoiceStatus } from '../../database/nfse.schema.js'
+import type {
+  NfseCancellationMotive,
+  NfseServiceInvoiceStatus,
+} from '../../database/nfse.schema.js'
 import {
   NFSE_INVOICE_ACTION,
   checkNfseInvoiceTransition,
@@ -28,6 +31,7 @@ import {
 const CANCEL_ATTEMPT_KIND = 'cancel'
 
 export type CancelNfseInvoiceInput = {
+  readonly cancellationMotive: NfseCancellationMotive
   readonly cancellationReason: string
   readonly context: NfseInvoiceCompanyContext
   readonly correlationId: string
@@ -63,6 +67,7 @@ export function createNfseInvoiceCancellationUseCase(dependencies: {
   return {
     async execute(input) {
       const requestFingerprint = createCancellationFingerprint({
+        cancellationMotive: input.cancellationMotive,
         cancellationReason: input.cancellationReason,
         invoiceId: input.invoiceId,
       })
@@ -171,6 +176,7 @@ async function requestCancellation({
     invoiceId: invoice.invoiceId,
   })
   await transaction.markCancellationRequested({
+    cancellationMotive: input.cancellationMotive,
     cancellationReason: input.cancellationReason,
     invoiceId: invoice.invoiceId,
     requestedAt: occurredAt,
@@ -187,7 +193,7 @@ async function requestCancellation({
   })
   await scheduleNfseCancellation({
     attemptId: attempt.attemptId,
-    cancellationReason: input.cancellationReason,
+    cancellationMotive: input.cancellationMotive,
     correlationId: input.correlationId,
     fiscalEnvironment: credential.fiscalEnvironment,
     invoiceId: invoice.invoiceId,

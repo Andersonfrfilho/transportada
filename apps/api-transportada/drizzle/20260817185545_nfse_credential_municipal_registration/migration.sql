@@ -1,0 +1,2 @@
+ALTER TABLE "nfse_provider_credentials" ALTER COLUMN "municipal_registration" DROP DEFAULT;--> statement-breakpoint
+ALTER TABLE "nfse_provider_credentials" ADD CONSTRAINT "nfse_provider_credentials_municipal_registration_check" CHECK (length("municipal_registration") > 0);

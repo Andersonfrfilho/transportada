@@ -75,7 +75,9 @@ export const saveCredentialSchema = z
   .object({
     apiToken: z.string().min(1).max(4096),
     fiscalEnvironment: z.enum(NFSE_FISCAL_ENVIRONMENTS),
-    municipalRegistration: z.string().trim().max(40).default(''),
+    // Vai no `X-AUTH-IM` de toda chamada: em branco o provedor responde 200 com `cadastro: null` e
+    // a credencial só se revela inválida na primeira emissão, longe daqui.
+    municipalRegistration: z.string().trim().min(1).max(40),
     status: z.enum(NFSE_CREDENTIAL_STATUSES).default('active'),
     taxId: buildTaxIdSchema(CNPJ_PATTERN),
   })

@@ -22,7 +22,8 @@ import {
 
 const CANCEL_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/${INVOICE_ID}/cancel`
 const REASON = 'Nota emitida com valor de serviço errado.'
-const BODY = { cancellationReason: REASON } as const
+const MOTIVE = '2'
+const BODY = { cancellationMotive: MOTIVE, cancellationReason: REASON } as const
 
 describe('nfse service invoice cancellation http', () => {
   /**
@@ -58,6 +59,7 @@ describe('nfse service invoice cancellation http', () => {
     await fixture.handle(invoiceRequest({ body: BODY, path: CANCEL_PATH }))
 
     expect(fixture.cancelCalls).toHaveLength(1)
+    expect(fixture.cancelCalls[0]?.cancellationMotive).toBe(MOTIVE)
     expect(fixture.cancelCalls[0]?.cancellationReason).toBe(REASON)
     expect(fixture.cancelCalls[0]?.idempotencyKey).toBe(IDEMPOTENCY_KEY)
     expect(fixture.cancelCalls[0]?.correlationId).toBe('nfse-invoices-http-correlation')
@@ -100,7 +102,49 @@ describe('nfse service invoice cancellation http', () => {
     const fixture = await createNfseInvoicesHttpFixture()
 
     const response = await fixture.handle(
-      invoiceRequest({ body: { cancellationReason: 'erro' }, path: CANCEL_PATH }),
+      invoiceRequest({ body: { ...BODY, cancellationReason: 'erro' }, path: CANCEL_PATH }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.cancelCalls).toHaveLength(0)
+  })
+
+  /** O código do motivo é o que a prefeitura lê; o texto do operador fica na nota, não no fio. */
+  test('cancelar sem o código do motivo é recusado', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({ body: { cancellationReason: REASON }, path: CANCEL_PATH }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.cancelCalls).toHaveLength(0)
+  })
+
+  test('código de motivo em texto livre é recusado', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({
+        body: { ...BODY, cancellationMotive: 'servico nao prestado' },
+        path: CANCEL_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.cancelCalls).toHaveLength(0)
+  })
+
+  /**
+   * O `1` (erro na emissão) existe no vocabulário do provedor e ele **recusa** o cancelamento
+   * pedindo substituição. Aceitá-lo aqui liberaria as NF-e e deixaria a nota esperando um retorno
+   * que nunca vem.
+   */
+  test('o código que o provedor recusa não passa da fronteira', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({ body: { ...BODY, cancellationMotive: '1' }, path: CANCEL_PATH }),
     )
 
     expect(response.status).toBe(400)

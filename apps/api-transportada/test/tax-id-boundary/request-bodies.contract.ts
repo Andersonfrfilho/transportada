@@ -51,6 +51,9 @@ const manifestBodyWithContractor = (contractorTaxId: string) => ({
 const credentialBodyWith = (taxId: string) => ({
   apiToken: 'nota-rp-token',
   fiscalEnvironment: 'homologation',
+  // Obrigatória desde a spec 040: aqui o assunto é o CNPJ, e o corpo tem de estar completo para a
+  // recusa que interessa ser a do documento, não a de campo faltando.
+  municipalRegistration: '123456',
   taxId,
 })
 

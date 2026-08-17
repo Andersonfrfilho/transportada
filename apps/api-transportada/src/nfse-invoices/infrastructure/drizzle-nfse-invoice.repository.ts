@@ -559,6 +559,7 @@ async function markCancellationRequested(
   await transaction
     .update(nfseServiceInvoices)
     .set({
+      cancellationMotive: input.cancellationMotive,
       cancellationReason: input.cancellationReason,
       status: input.status,
       updatedAt: new Date(input.requestedAt),

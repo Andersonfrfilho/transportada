@@ -28,8 +28,10 @@ import {
 
 const CORRELATION_ID = 'nfse-invoice-cancellation-correlation'
 const REASON = 'Nota emitida com valor de serviço errado.'
+const MOTIVE = '2'
 
 const CANCEL_INPUT = {
+  cancellationMotive: MOTIVE,
   cancellationReason: REASON,
   context: CONTEXT,
   correlationId: CORRELATION_ID,
@@ -74,6 +76,7 @@ describe('nfse invoice cancellation', () => {
 
     expect(recording.cancellations).toEqual([
       {
+        cancellationMotive: MOTIVE,
         cancellationReason: REASON,
         invoiceId: INVOICE_ID,
         requestedAt: NOW,
@@ -134,17 +137,37 @@ describe('nfse invoice cancellation', () => {
     expect(recording.releases).toHaveLength(1)
   })
 
-  test('o motivo entra na digital do pedido', () => {
+  /** Trocar só o código, mantendo o texto, é outro pedido: é o código que a prefeitura lê. */
+  test('a mesma chave com outro código de motivo é recusada', async () => {
+    const { recording, useCase } = createUseCase()
+
+    await useCase.execute(CANCEL_INPUT)
+
+    await expect(
+      useCase.execute({ ...CANCEL_INPUT, cancellationMotive: '4' }),
+    ).rejects.toBeInstanceOf(NfseIdempotencyKeyReusedError)
+    expect(recording.releases).toHaveLength(1)
+  })
+
+  test('o código e o texto do motivo entram na digital do pedido', () => {
     const original = createCancellationFingerprint({
+      cancellationMotive: MOTIVE,
       cancellationReason: REASON,
       invoiceId: INVOICE_ID,
     })
-    const edited = createCancellationFingerprint({
+    const editedReason = createCancellationFingerprint({
+      cancellationMotive: MOTIVE,
       cancellationReason: 'Outro motivo qualquer.',
       invoiceId: INVOICE_ID,
     })
+    const editedMotive = createCancellationFingerprint({
+      cancellationMotive: '4',
+      cancellationReason: REASON,
+      invoiceId: INVOICE_ID,
+    })
 
-    expect(original).not.toBe(edited)
+    expect(original).not.toBe(editedReason)
+    expect(original).not.toBe(editedMotive)
     expect(original).toMatch(/^[0-9a-f]{64}$/)
   })
 
