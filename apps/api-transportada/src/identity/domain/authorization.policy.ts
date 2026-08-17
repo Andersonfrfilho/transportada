@@ -42,8 +42,9 @@ export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
 export type CompanyPermission = Exclude<TransportadaPermission, 'companies.manage'>
 
 export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
-  // Instalação dedicada: o company-admin é o dono do ambiente e precisa dar entrada em nota
-  // e faturar — só o finance tinha billing.create, e o finance nem enxerga a lista de CT-e
+  // Instalação dedicada: o company-admin é o dono do ambiente e precisa dar entrada em nota,
+  // faturar e emitir a nota de serviço do que faturou — só o finance tinha billing.create, e o
+  // finance nem enxerga a lista de CT-e
   'company-admin': Object.freeze([
     'users.manage',
     'invoices.import',
@@ -63,6 +64,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.read',
     'mdfe.manage',
     'nfse.manage',
+    'nfse.issue',
+    'nfse.cancel',
     'nfse.read',
   ]),
   finance: Object.freeze([

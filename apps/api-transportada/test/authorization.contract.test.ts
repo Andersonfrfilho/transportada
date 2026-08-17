@@ -77,6 +77,8 @@ describe('authorization contract', () => {
         'mdfe.read',
         'mdfe.manage',
         'nfse.manage',
+        'nfse.issue',
+        'nfse.cancel',
         'nfse.read',
       ],
       finance: [
@@ -165,6 +167,20 @@ describe('authorization contract', () => {
       const permissions = resolveCompanyPermissions([role])
       expect(permissions.has('trip.read')).toBe(false)
       expect(permissions.has('trip.report')).toBe(false)
+    }
+  })
+
+  // Instalação dedicada: quem administra o ambiente emite a nota de serviço. A lista de perfis
+  // exige a mesma `nfse.issue` da emissão — sem ela o diálogo abria sem perfil e sem prévia.
+  test('lets the company admin issue and cancel the municipal service invoice', () => {
+    const permissions = resolveCompanyPermissions(['company-admin'])
+
+    for (const granted of ['nfse.manage', 'nfse.issue', 'nfse.cancel', 'nfse.read'] as const) {
+      expect(permissions.has(granted)).toBe(true)
+    }
+
+    for (const role of ['operator', 'finance', 'viewer', 'driver'] as const) {
+      expect(resolveCompanyPermissions([role]).has('nfse.issue')).toBe(false)
     }
   })
 
