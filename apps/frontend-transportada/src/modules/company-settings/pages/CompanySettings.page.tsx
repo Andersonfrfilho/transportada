@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import type { FreightRuleSummary } from '@/modules/freight/shared/freightClient.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import type { NfseCredentialBody } from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
@@ -46,6 +48,12 @@ import {
   type SafeCertificate,
   type ScheduledDistributionStatus,
 } from '../shared/companySettingsClient.service'
+import {
+  COMPANY_SETTINGS_TAB_IDS,
+  resolveCompanySettingsDataScope,
+  resolveCompanySettingsTab,
+  type CompanySettingsTabId,
+} from '../shared/companySettingsTabs.service'
 import {
   createCompanySettingsViewModel,
   type ActiveCertificatesByPurpose,
@@ -138,6 +146,8 @@ type NfseSettingsSection = Readonly<{
 }>
 
 type SettingsBodyProps = Readonly<{
+  activeTab: CompanySettingsTabId
+  onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
@@ -227,90 +237,139 @@ function SaveStatus({
   )
 }
 
+function CompanyTabPanel(props: SettingsBodyProps) {
+  const { t } = useTranslation('companySettings')
+  return (
+    <>
+      <section className={styles.settingsPanel} aria-labelledby="settings-title">
+        <div className={styles.sectionHeading}>
+          <p className={styles.sectionKicker}>{t('profileStep')}</p>
+          <h2 id="settings-title">{t('settingsTitle')}</h2>
+        </div>
+        <CompanySettingsForm
+          key={props.initialValue?.expectedVersion ?? 'new'}
+          disabled={props.settingsPending}
+          initialValue={props.initialValue}
+          onLookupProfile={props.onLookupProfile}
+          onSave={props.onSave}
+        />
+      </section>
+      <CompanyLogoUpload
+        disabled={props.logo.pending}
+        logo={props.logo.image}
+        onRemove={props.logo.onRemove}
+        onSubmit={props.logo.onSubmit}
+      />
+    </>
+  )
+}
+
+function DistributionTabPanel(props: SettingsBodyProps) {
+  return (
+    <>
+      <ScheduledDistributionPanel
+        disabled={props.scheduledDistribution.pending}
+        loading={props.scheduledDistribution.loading}
+        onToggle={props.scheduledDistribution.onToggle}
+        status={props.scheduledDistribution.status}
+        toggleErrorCode={props.scheduledDistribution.toggleErrorCode}
+      />
+      <DistributionCursorPanel
+        adjusted={props.distributionCursor.adjusted}
+        cursor={props.distributionCursor.cursor}
+        disabled={props.distributionCursor.pending}
+        errorCode={props.distributionCursor.errorCode}
+        loading={props.distributionCursor.loading}
+        onAdjust={props.distributionCursor.onAdjust}
+      />
+    </>
+  )
+}
+
+function NfseTabPanel(props: SettingsBodyProps) {
+  return (
+    <>
+      <NfseCredentialPanel
+        // O rascunho lê o resumo na montagem. Com a chave só no ambiente, a montagem caía
+        // enquanto a consulta ainda carregava e o que estava gravado nunca chegava ao campo.
+        key={`${props.nfse.fiscalEnvironment}:${props.nfse.credential?.id ?? 'none'}`}
+        disabled={props.nfse.credentialPending}
+        errorCode={props.nfse.credentialErrorCode}
+        fiscalEnvironment={props.nfse.fiscalEnvironment}
+        loading={props.nfse.loading}
+        onEnvironmentChange={props.nfse.onEnvironmentChange}
+        onSave={props.nfse.onCredentialSave}
+        saved={props.nfse.credentialSaved}
+        summary={props.nfse.credential}
+      />
+      <NfseEmissionProfilePanel
+        disabled={props.nfse.profilePending}
+        errorCode={props.nfse.profileErrorCode}
+        freightRules={props.nfse.freightRules}
+        loading={props.nfse.loading}
+        onSave={props.nfse.onProfileSave}
+        onStatusChange={props.nfse.onProfileStatusChange}
+        profiles={props.nfse.profiles}
+        saved={props.nfse.profileSaved}
+      />
+    </>
+  )
+}
+
+/**
+ * Cada aba monta só os painéis dela: quem entra para trocar a série do CT-e não paga pelas consultas
+ * de combustível e de NFS-e. A consulta da aba aberta é ligada em `CompanySettingsPage`, e os
+ * painéis que copiam o que está gravado para um rascunho remontam por `key` quando o dado chega —
+ * é isso que faz o campo abrir preenchido em vez de vazio sobre um cadastro existente.
+ */
+function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
+  if (tab === 'company') return <CompanyTabPanel {...props} />
+  if (tab === 'certificates')
+    return (
+      <CertificateUploadForm
+        certificates={props.certificates}
+        disabled={props.certificatePending}
+        hasFiscalProfileSaved={props.viewModel.hasFiscalProfileSaved}
+        onDelete={props.onCertificateDelete}
+        onSubmit={props.onCertificateSubmit}
+      />
+    )
+  if (tab === 'distribution') return <DistributionTabPanel {...props} />
+  if (tab === 'fuel')
+    return (
+      <FuelPricePanel
+        disabled={props.fuelPrices.pending}
+        errorCode={props.fuelPrices.errorCode}
+        loading={props.fuelPrices.loading}
+        prices={props.fuelPrices.prices}
+        saved={props.fuelPrices.saved}
+        onAdjust={props.fuelPrices.onAdjust}
+        onClear={props.fuelPrices.onClear}
+      />
+    )
+  return <NfseTabPanel {...props} />
+}
+
 function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
   if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
   const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
+  const tabs: readonly TabsItem[] = COMPANY_SETTINGS_TAB_IDS.map((id) => ({
+    id,
+    label: t(`tabs.${id}`),
+    panel: <div className={styles.primaryColumn}>{renderTabPanel(id, props)}</div>,
+  }))
   return (
     <section className={styles.workspaceDeck}>
       <div className={styles.primaryColumn}>
         <SettingsStatus status={props.viewModel.status} />
         {editable && (
-          <>
-            <section className={styles.settingsPanel} aria-labelledby="settings-title">
-              <div className={styles.sectionHeading}>
-                <p className={styles.sectionKicker}>{t('profileStep')}</p>
-                <h2 id="settings-title">{t('settingsTitle')}</h2>
-              </div>
-              <CompanySettingsForm
-                key={props.initialValue?.expectedVersion ?? 'new'}
-                disabled={props.settingsPending}
-                initialValue={props.initialValue}
-                onLookupProfile={props.onLookupProfile}
-                onSave={props.onSave}
-              />
-            </section>
-            <CompanyLogoUpload
-              disabled={props.logo.pending}
-              logo={props.logo.image}
-              onRemove={props.logo.onRemove}
-              onSubmit={props.logo.onSubmit}
-            />
-            <CertificateUploadForm
-              certificates={props.certificates}
-              disabled={props.certificatePending}
-              hasFiscalProfileSaved={props.viewModel.hasFiscalProfileSaved}
-              onDelete={props.onCertificateDelete}
-              onSubmit={props.onCertificateSubmit}
-            />
-            <ScheduledDistributionPanel
-              disabled={props.scheduledDistribution.pending}
-              loading={props.scheduledDistribution.loading}
-              onToggle={props.scheduledDistribution.onToggle}
-              status={props.scheduledDistribution.status}
-              toggleErrorCode={props.scheduledDistribution.toggleErrorCode}
-            />
-            <DistributionCursorPanel
-              adjusted={props.distributionCursor.adjusted}
-              cursor={props.distributionCursor.cursor}
-              disabled={props.distributionCursor.pending}
-              errorCode={props.distributionCursor.errorCode}
-              loading={props.distributionCursor.loading}
-              onAdjust={props.distributionCursor.onAdjust}
-            />
-            <FuelPricePanel
-              disabled={props.fuelPrices.pending}
-              errorCode={props.fuelPrices.errorCode}
-              loading={props.fuelPrices.loading}
-              prices={props.fuelPrices.prices}
-              saved={props.fuelPrices.saved}
-              onAdjust={props.fuelPrices.onAdjust}
-              onClear={props.fuelPrices.onClear}
-            />
-            <NfseCredentialPanel
-              // O rascunho lê o resumo na montagem. Com a chave só no ambiente, a montagem caía
-              // enquanto a consulta ainda carregava e o que estava gravado nunca chegava ao campo.
-              key={`${props.nfse.fiscalEnvironment}:${props.nfse.credential?.id ?? 'none'}`}
-              disabled={props.nfse.credentialPending}
-              errorCode={props.nfse.credentialErrorCode}
-              fiscalEnvironment={props.nfse.fiscalEnvironment}
-              loading={props.nfse.loading}
-              onEnvironmentChange={props.nfse.onEnvironmentChange}
-              onSave={props.nfse.onCredentialSave}
-              saved={props.nfse.credentialSaved}
-              summary={props.nfse.credential}
-            />
-            <NfseEmissionProfilePanel
-              disabled={props.nfse.profilePending}
-              errorCode={props.nfse.profileErrorCode}
-              freightRules={props.nfse.freightRules}
-              loading={props.nfse.loading}
-              onSave={props.nfse.onProfileSave}
-              onStatusChange={props.nfse.onProfileStatusChange}
-              profiles={props.nfse.profiles}
-              saved={props.nfse.profileSaved}
-            />
-          </>
+          <Tabs
+            ariaLabel={t('title')}
+            items={tabs}
+            onChange={(id) => props.onTabChange(resolveCompanySettingsTab(id))}
+            value={props.activeTab}
+          />
         )}
         {!props.canManageSettings && props.viewModel.status !== 'error' && (
           <p className={styles.permissionBoundary}>{t('readOnly')}</p>
@@ -332,6 +391,7 @@ function SettingsBody(props: SettingsBodyProps) {
 export function CompanySettingsPage() {
   useTranslation('companySettings')
   const authQuery = useAuthMeQuery()
+  const [activeTab, setActiveTab] = useState<CompanySettingsTabId>('company')
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
   const {
@@ -346,21 +406,22 @@ export function CompanySettingsPage() {
     query,
     settingsMutation,
   } = useCompanySettings({ ...(companyId === undefined ? {} : { companyId }), permissions })
+  const scope = resolveCompanySettingsDataScope(activeTab)
   const scheduledDistribution = useScheduledDistribution({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings,
+    enabled: canManageSettings && scope.scheduledDistribution,
   })
   const distributionCursor = useDistributionCursor({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings,
+    enabled: canManageSettings && scope.distributionCursor,
   })
   const fuelPrices = useFuelPrices({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings,
+    enabled: canManageSettings && scope.fuelPrices,
   })
   const nfseSettings = useNfseSettings({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings,
+    enabled: canManageSettings && scope.nfse,
   })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
@@ -380,6 +441,8 @@ export function CompanySettingsPage() {
     <main className={styles.companySettingsShell}>
       <CompanySettingsHeader environment={viewModel.environment ?? 'homologation'} />
       <SettingsBody
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         canManageSettings={canManageSettings}
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}

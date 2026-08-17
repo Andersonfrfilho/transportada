@@ -1,6 +1,13 @@
 {
   "eyebrow": "Issuer readiness",
   "title": "Fiscal settings",
+  "tabs": {
+    "company": "Company",
+    "certificates": "Certificates",
+    "distribution": "Document pull",
+    "fuel": "Fuel",
+    "nfse": "NFS-e"
+  },
   "readinessTitle": "Fiscal readiness route",
   "profileStep": "01 Profile",
   "certificateStep": "02 Credential",

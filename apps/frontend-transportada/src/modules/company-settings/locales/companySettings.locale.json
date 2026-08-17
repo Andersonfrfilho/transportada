@@ -1,6 +1,13 @@
 {
   "eyebrow": "Preparação do emitente",
   "title": "Configurações fiscais",
+  "tabs": {
+    "company": "Empresa",
+    "certificates": "Certificados",
+    "distribution": "Busca de notas",
+    "fuel": "Combustível",
+    "nfse": "NFS-e"
+  },
   "readinessTitle": "Rota de prontidão fiscal",
   "profileStep": "01 Perfil",
   "certificateStep": "02 Credencial",
