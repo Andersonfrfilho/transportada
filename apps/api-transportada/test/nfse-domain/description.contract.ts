@@ -20,7 +20,6 @@ const OVERSIZED_TEMPLATE = `${'Prestação de serviço de transporte. '.repeat(6
  */
 function buildDocument(position: number): NfseDescriptionDocument {
   return {
-    issuedAt: `2026-07-${String(((position - 1) % 28) + 1).padStart(2, '0')}T12:00:00.000Z`,
     number: String(position).padStart(9, '0'),
     series: '1',
   }
@@ -30,19 +29,16 @@ function buildDocuments(total: number): readonly NfseDescriptionDocument[] {
   return Array.from({ length: total }, (_unused, index) => buildDocument(index + 1))
 }
 
-function documentIssuedAt(issuedAt: string): NfseDescriptionDocument {
-  return { ...buildDocument(1), issuedAt }
-}
-
 function entryOf(document: NfseDescriptionDocument): string {
   return `NF-e ${document.number}/${document.series}`
 }
 
-function periodOf(documents: readonly NfseDescriptionDocument[]): string {
+function periodOf(period: string | undefined): string {
   return buildNfseDescription({
-    documents,
+    documents: buildDocuments(2),
     maxLength: MAX_LENGTH,
     municipalityName: MUNICIPALITY,
+    ...(period === undefined ? {} : { period }),
     template: '{{periodo}}',
   }).description
 }
@@ -222,79 +218,58 @@ describe('NFS-e description period contract', () => {
     expect(result.description).toBe('Entregas na cidade de Ribeirão Preto.')
   })
 
-  test('reproduces the description of the last real note', () => {
-    const documents = [
-      documentIssuedAt('2026-07-27T12:00:00.000Z'),
-      documentIssuedAt('2026-07-31T12:00:00.000Z'),
-    ]
+  test('writes the period exactly as the operator typed it', () => {
     const result = buildNfseDescription({
-      documents,
+      documents: buildDocuments(2),
       maxLength: MAX_LENGTH,
       municipalityName: MUNICIPALITY,
+      period: '27-07 a 31-07-2026',
       template: 'Entregas na cidade de {{municipio}} {{periodo}}.',
     })
 
     expect(result.description).toBe('Entregas na cidade de Ribeirão Preto 27-07 a 31-07-2026.')
   })
 
-  test('omits the year of the opening day while the year is the same', () => {
-    expect(
-      periodOf([
-        documentIssuedAt('2026-06-27T12:00:00.000Z'),
-        documentIssuedAt('2026-07-31T12:00:00.000Z'),
-      ]),
-    ).toBe('27-06 a 31-07-2026')
+  /**
+   * O texto é do operador: mês por extenso, semana, competência — o domínio não interpreta nem
+   * reformata, porque a regra de qual janela cobrar ainda não existe.
+   */
+  test('does not reformat what the operator typed', () => {
+    expect(periodOf('julho/2026')).toBe('julho/2026')
+    expect(periodOf('semana 31')).toBe('semana 31')
+    expect(periodOf('01/07/2026 a 31/07/2026')).toBe('01/07/2026 a 31/07/2026')
   })
 
-  test('spells both years out when the selection crosses the turn of the year', () => {
-    expect(
-      periodOf([
-        documentIssuedAt('2025-12-27T12:00:00.000Z'),
-        documentIssuedAt('2026-01-05T12:00:00.000Z'),
-      ]),
-    ).toBe('27-12-2025 a 05-01-2026')
+  test('leaves the space blank when the operator typed nothing', () => {
+    expect(periodOf('')).toBe('')
+    expect(periodOf(undefined)).toBe('')
   })
 
-  test('states a single day once instead of as a range', () => {
-    expect(
-      periodOf([
-        documentIssuedAt('2026-07-31T09:00:00.000Z'),
-        documentIssuedAt('2026-07-31T20:00:00.000Z'),
-      ]),
-    ).toBe('31-07-2026')
-  })
-
-  test('reads the day in São Paulo, not in UTC', () => {
-    // 01/08 01:00Z é 31/07 22:00 em São Paulo: ler em UTC jogaria a nota para o mês seguinte.
-    expect(periodOf([documentIssuedAt('2026-08-01T01:00:00.000Z')])).toBe('31-07-2026')
-  })
-
-  test('orders the ends of the period regardless of the order of the selection', () => {
-    expect(
-      periodOf([
-        documentIssuedAt('2026-07-31T12:00:00.000Z'),
-        documentIssuedAt('2026-07-15T12:00:00.000Z'),
-        documentIssuedAt('2026-07-27T12:00:00.000Z'),
-      ]),
-    ).toBe('15-07 a 31-07-2026')
-  })
-
-  test('leaves the period empty when nothing was selected', () => {
-    expect(periodOf([])).toBe('')
-  })
-
-  test('covers the whole selection even when the list of notes is truncated', () => {
-    const documents = buildDocuments(100)
+  /** A data das notas deixou de decidir o período: sem digitação não aparece dia nenhum no texto. */
+  test('never derives the period from the selected notes', () => {
     const result = buildNfseDescription({
-      documents,
+      documents: buildDocuments(30),
+      maxLength: MAX_LENGTH,
+      municipalityName: MUNICIPALITY,
+      template: 'Entregas {{periodo}}: {{quantidadeNotas}} notas.',
+    })
+
+    expect(result.description).toBe('Entregas : 30 notas.')
+    expect(result.description).not.toMatch(/\d{2}-\d{2}/u)
+  })
+
+  test('keeps the period whole even when the list of notes is truncated', () => {
+    const result = buildNfseDescription({
+      documents: buildDocuments(100),
       maxLength: 260,
       municipalityName: MUNICIPALITY,
+      period: '01-07 a 31-07-2026',
       template: 'Entregas {{periodo}}: {{notas}}.',
     })
 
     // O período é a janela do serviço prestado, não a das notas que couberam no texto.
     expect(result.omittedDocuments).toBeGreaterThan(0)
-    expect(result.description).toStartWith('Entregas 01-07 a 28-07-2026:')
+    expect(result.description).toStartWith('Entregas 01-07 a 31-07-2026:')
   })
 
   test('refuses an unknown variable that only looks like the new ones', () => {

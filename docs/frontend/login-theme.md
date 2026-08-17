@@ -117,6 +117,23 @@ tela com PKCE — sem `code_challenge` o `account-console` devolve 302 para a p�
 conferidor leria "tema ausente" em todo deploy. Contrato em
 `apps/api-transportada/test/deploy/keycloak-realm.contract.ts`.
 
+## Subindo a versão do Keycloak
+
+A imagem é pinada por tag **e** digest no `Dockerfile` e no `compose.yaml`: upgrade só acontece por
+edição deliberada. O que o upgrade ameaça é o tema — `template.ftl`, `login.ftl` e `footer.ftl` são
+cópias do `base` de uma versão específica, e cópia não recebe correção de cima. Campo novo, macro
+nova ou chave de mensagem nova ficam de fora sem erro nenhum: a tela segue com a nossa marca, passa
+no smoke do `keycloak-reconcile.sh`, e falta o que o Keycloak novo espera.
+
+`deploy/keycloak/theme/forked-from.properties` registra de qual versão as cópias saíram e quais
+templates são bifurcados. O contrato `test/deploy/keycloak-theme-fork.contract.ts` reprova enquanto o
+marcador discordar da imagem — o bump não depende de alguém lembrar. A ordem é: comparar cada
+template com o do `base` da versão nova, trazer o que mudou, e só então atualizar o marcador.
+
+As telas que **não** bifurcamos (recuperação pelo Keycloak, erro, OTP, termos) vêm do `base` com o
+nosso CSS mas com as classes dele — estilizadas pela metade. Upgrade não muda isso em nenhuma
+direção.
+
 ## Verificando uma mudança
 
 O Keycloak guarda o tema em cache mesmo em `start-dev`: depois de editar qualquer arquivo,

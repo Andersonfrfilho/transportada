@@ -74,11 +74,13 @@ describe('nfse invoice idempotency', () => {
     const ascending = createInvoiceFingerprint({
       descriptionTemplate: '',
       documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
+      period: '',
       profileId: PROFILE_ID,
     })
     const descending = createInvoiceFingerprint({
       descriptionTemplate: '',
       documentIds: [OTHER_DOCUMENT_ID, DOCUMENT_ID],
+      period: '',
       profileId: PROFILE_ID,
     })
 
@@ -90,15 +92,38 @@ describe('nfse invoice idempotency', () => {
     const original = createInvoiceFingerprint({
       descriptionTemplate: '',
       documentIds: [DOCUMENT_ID],
+      period: '',
       profileId: PROFILE_ID,
     })
     const edited = createInvoiceFingerprint({
       descriptionTemplate: 'Serviço de transporte referente às notas {{notas}}.',
       documentIds: [DOCUMENT_ID],
+      period: '',
       profileId: PROFILE_ID,
     })
 
     expect(edited).not.toBe(original)
+  })
+
+  /**
+   * O período é digitado e entra no texto que a prefeitura recebe: corrigir a janela e repetir a
+   * chave tem de ser pedido novo, não a devolução silenciosa da nota com o período errado.
+   */
+  test('período diferente é outro pedido, mesmo com os mesmos documentos', () => {
+    const original = createInvoiceFingerprint({
+      descriptionTemplate: '',
+      documentIds: [DOCUMENT_ID],
+      period: '27-07 a 31-07-2026',
+      profileId: PROFILE_ID,
+    })
+    const corrected = createInvoiceFingerprint({
+      descriptionTemplate: '',
+      documentIds: [DOCUMENT_ID],
+      period: '03-08 a 07-08-2026',
+      profileId: PROFILE_ID,
+    })
+
+    expect(corrected).not.toBe(original)
   })
 })
 

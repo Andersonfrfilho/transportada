@@ -153,6 +153,46 @@ describe('nfse service invoices http', () => {
     expect(fixture.createCalls).toHaveLength(0)
   })
 
+  /**
+   * O período é digitado pelo operador e entra no texto que a prefeitura lê: a rota o transporta
+   * como veio, sem inferir janela nenhuma a partir das notas.
+   */
+  test('o período digitado chega ao caso de uso como veio', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    await fixture.handle(
+      invoiceRequest({
+        body: { ...SELECTION, period: '03-08 a 07-08-2026' },
+        path: API_NFSE_SERVICE_INVOICES_PATH,
+      }),
+    )
+
+    expect(fixture.createCalls[0]?.period).toBe('03-08 a 07-08-2026')
+  })
+
+  test('pedido sem período não inventa um', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    await fixture.handle(invoiceRequest({ body: SELECTION, path: PREVIEW_PATH }))
+
+    expect(fixture.previewCalls[0]?.period).toBeUndefined()
+  })
+
+  /** Um teto existe porque o período entra no texto: sem ele a descrição estoura o limite do perfil. */
+  test('período acima do teto é recusado na fronteira', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({
+        body: { ...SELECTION, period: 'a'.repeat(61) },
+        path: API_NFSE_SERVICE_INVOICES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.createCalls).toHaveLength(0)
+  })
+
   test('documento fora do formato UUID é recusado', async () => {
     const fixture = await createNfseInvoicesHttpFixture()
 
