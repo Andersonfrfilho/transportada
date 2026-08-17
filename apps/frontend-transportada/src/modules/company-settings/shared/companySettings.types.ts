@@ -60,8 +60,14 @@ export type SafeCertificate = Readonly<{
   version: string
 }>
 
+export const ACTIVATION_CHANNELS = ['email', 'sms', 'whatsapp'] as const
+export type ActivationChannel = (typeof ACTIVATION_CHANNELS)[number]
+
+export type CompanyActivation = Readonly<{ channel: ActivationChannel }>
+
 export type CompanySettingsResponse = Readonly<{
   data: Readonly<{
+    activation: CompanyActivation | null
     billing: CompanySettingsUpdate['billing'] | null
     cte: (CompanySettingsUpdate['cte'] & Readonly<{ version: string }>) | null
     cteRetry: CompanySettingsUpdate['cteRetry'] | null
