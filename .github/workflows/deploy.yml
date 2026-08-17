@@ -77,9 +77,12 @@ jobs:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
     steps:
+      # Histórico completo: o diff do Keycloak compara com o commit anterior do push, que num release
+      # de cem commits está muito além de um clone raso. Com profundidade truncada o diff falhava e o
+      # passo lia a falha como "nada mudou" — foi assim que o tema de login ficou quatro dias fora.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Install Railway CLI
         run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
       - name: Deploy identity
@@ -90,12 +93,21 @@ jobs:
           else
             baseline="${{ github.event.before }}"
           fi
+          # Em `workflow_dispatch` não há `event.before`, e num push forçado ele pode ter sumido.
+          # Baseline que não dá para conferir é dúvida, e dúvida publica: pular aqui é justamente o
+          # silêncio que esconde tema novo. Alguns segundos de login fora custam menos.
+          if [ -z "$baseline" ] || ! git cat-file -e "$baseline^{commit}"; then
+            usable_baseline=false
+          else
+            usable_baseline=true
+          fi
           if [ "${{ inputs.deploy_identity }}" = "true" ]; then
             reason="pedido manual"
           elif ! .github/scripts/railway-deploy.sh has-succeeded keycloak; then
             reason="primeiro deploy do ambiente"
-          elif git diff --name-only "$baseline" HEAD 2>/dev/null \
-            | grep -q '^deploy/keycloak/'; then
+          elif [ "$usable_baseline" = "false" ]; then
+            reason="baseline indisponível em ${{ github.event_name }}: não há como saber se mudou"
+          elif git diff --name-only "$baseline" HEAD | grep -q '^deploy/keycloak/'; then
             reason="mudança em deploy/keycloak"
           else
             echo "Keycloak inalterado: deploy pulado para não derrubar o login."

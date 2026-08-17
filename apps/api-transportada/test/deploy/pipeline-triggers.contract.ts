@@ -85,3 +85,39 @@ describe('contrato de gatilho do pipeline', () => {
     expect(workflow).toMatch(/needs: \[[^\]]*\bgate\b[^\]]*\]/)
   })
 })
+
+/**
+ * O passo do Keycloak decide por diff, e por quatro dias ele decidiu errado em silêncio: o tema de
+ * login existia no repositório desde `d125958` e nenhum dos dois ambientes o servia. Duas causas, e
+ * as duas terminam na mesma linha de log — `Keycloak inalterado: deploy pulado`:
+ *
+ * 1. `fetch-depth: 2` não traz o commit de `event.before`. `git diff` contra commit ausente falha,
+ *    o `2>/dev/null` engole o erro, e o `grep` não acha nada.
+ * 2. Em `workflow_dispatch` o `event.before` **não existe**: o baseline vem vazio.
+ *
+ * O que este contrato cobra é que a ignorância não possa se disfarçar de "inalterado".
+ */
+describe('contrato do deploy de identidade', () => {
+  /** Diff precisa do commit do outro lado: com histórico truncado ele nunca está lá. */
+  test('o job de deploy clona com histórico suficiente para o diff', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).not.toContain('fetch-depth: 2')
+    expect(workflow).toContain('fetch-depth: 0')
+  })
+
+  /** Baseline inutilizável é dúvida, e dúvida publica — nunca cai no ramo do "inalterado". */
+  test('baseline ausente ou desconhecido publica em vez de pular', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toContain('baseline indisponível')
+    expect(workflow).toContain('git cat-file -e')
+  })
+
+  /** Erro de `git` não pode virar "nada mudou": o `2>/dev/null` era exatamente essa confusão. */
+  test('o diff do tema não engole a saída de erro do git', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).not.toContain('git diff --name-only "$baseline" HEAD 2>/dev/null')
+  })
+})
