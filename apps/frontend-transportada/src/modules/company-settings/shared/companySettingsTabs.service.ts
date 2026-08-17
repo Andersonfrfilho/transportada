@@ -56,8 +56,8 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
-  nfseCredential: { module: 'company-settings', source: 'nfse', tab: 'nfse' },
-  nfseProfiles: { module: 'company-settings', source: 'nfse', tab: 'nfse' },
+  nfseCredential: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
+  nfseProfiles: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
   scheduledDistribution: {
     module: 'company-settings',
     source: 'scheduledDistribution',
@@ -108,7 +108,7 @@ export function resolveSettingsDataScope(
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = ['company', 'certificates', 'distribution', 'nfse'] as const
+export const COMPANY_SETTINGS_TAB_IDS = ['company', 'certificates', 'distribution'] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

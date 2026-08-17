@@ -3,14 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
-import type { FreightRuleSummary } from '@/modules/freight/shared/freightClient.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
-import type { NfseCredentialBody } from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
-import type {
-  NfseEmissionProfile,
-  NfseFiscalEnvironment,
-  NfseProviderCredentialSummary,
-} from '@/modules/nfse-invoice/shared/nfseSettings.types'
 
 import { CertificateUploadForm } from '../components/CertificateUploadForm.component'
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
@@ -18,8 +11,6 @@ import { CompanySettingsHeader } from '../components/CompanySettingsHeader.compo
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
 import { DistributionCursorPanel } from '../components/DistributionCursorPanel.component'
-import { NfseCredentialPanel } from '../components/NfseCredentialPanel.component'
-import { NfseEmissionProfilePanel } from '../components/NfseEmissionProfilePanel.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
@@ -28,11 +19,6 @@ import {
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
-import {
-  useNfseSettings,
-  type NfseProfileSave,
-  type NfseProfileStatusToggle,
-} from '../hooks/useNfseSettings.hook'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import {
   CERTIFICATE_PURPOSES,
@@ -57,11 +43,6 @@ import {
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
 import styles from '../styles/companySettings.module.css'
-
-/** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
-function toErrorCode(error: unknown): string | undefined {
-  return error instanceof Error ? error.message : undefined
-}
 
 function toUpdate(
   data: ReturnType<typeof useCompanySettings>['query']['data'],
@@ -114,24 +95,6 @@ type DistributionCursorSection = Readonly<{
   pending: boolean
 }>
 
-type NfseSettingsSection = Readonly<{
-  credential: NfseProviderCredentialSummary | null | undefined
-  credentialErrorCode: string | undefined
-  credentialPending: boolean
-  credentialSaved: boolean
-  fiscalEnvironment: NfseFiscalEnvironment
-  freightRules: readonly FreightRuleSummary[]
-  loading: boolean
-  onCredentialSave: (body: NfseCredentialBody) => void
-  onEnvironmentChange: (environment: NfseFiscalEnvironment) => void
-  onProfileSave: (save: NfseProfileSave) => void
-  onProfileStatusChange: (toggle: NfseProfileStatusToggle) => void
-  profileErrorCode: string | undefined
-  profilePending: boolean
-  profileSaved: boolean
-  profiles: readonly NfseEmissionProfile[]
-}>
-
 type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
@@ -141,7 +104,6 @@ type SettingsBodyProps = Readonly<{
   distributionCursor: DistributionCursorSection
   initialValue: CompanySettingsUpdate | undefined
   logo: LogoSection
-  nfse: NfseSettingsSection
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
@@ -272,39 +234,9 @@ function DistributionTabPanel(props: SettingsBodyProps) {
   )
 }
 
-function NfseTabPanel(props: SettingsBodyProps) {
-  return (
-    <>
-      <NfseCredentialPanel
-        // O rascunho lê o resumo na montagem. Com a chave só no ambiente, a montagem caía
-        // enquanto a consulta ainda carregava e o que estava gravado nunca chegava ao campo.
-        key={`${props.nfse.fiscalEnvironment}:${props.nfse.credential?.id ?? 'none'}`}
-        disabled={props.nfse.credentialPending}
-        errorCode={props.nfse.credentialErrorCode}
-        fiscalEnvironment={props.nfse.fiscalEnvironment}
-        loading={props.nfse.loading}
-        onEnvironmentChange={props.nfse.onEnvironmentChange}
-        onSave={props.nfse.onCredentialSave}
-        saved={props.nfse.credentialSaved}
-        summary={props.nfse.credential}
-      />
-      <NfseEmissionProfilePanel
-        disabled={props.nfse.profilePending}
-        errorCode={props.nfse.profileErrorCode}
-        freightRules={props.nfse.freightRules}
-        loading={props.nfse.loading}
-        onSave={props.nfse.onProfileSave}
-        onStatusChange={props.nfse.onProfileStatusChange}
-        profiles={props.nfse.profiles}
-        saved={props.nfse.profileSaved}
-      />
-    </>
-  )
-}
-
 /**
  * Cada aba monta só os painéis dela: quem entra para trocar a série do CT-e não paga pelas consultas
- * de combustível e de NFS-e. A consulta da aba aberta é ligada em `CompanySettingsPage`, e os
+ * de combustível e de NFS-e, que moram em outras telas. A consulta da aba aberta é ligada em `CompanySettingsPage`, e os
  * painéis que copiam o que está gravado para um rascunho remontam por `key` quando o dado chega —
  * é isso que faz o campo abrir preenchido em vez de vazio sobre um cadastro existente.
  */
@@ -320,8 +252,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
         onSubmit={props.onCertificateSubmit}
       />
     )
-  if (tab === 'distribution') return <DistributionTabPanel {...props} />
-  return <NfseTabPanel {...props} />
+  return <DistributionTabPanel {...props} />
 }
 
 function SettingsBody(props: SettingsBodyProps) {
@@ -389,10 +320,6 @@ export function CompanySettingsPage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && scope.distributionCursor,
   })
-  const nfseSettings = useNfseSettings({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && scope.nfse,
-  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -433,27 +360,6 @@ export function CompanySettingsPage() {
           onRemove: () => logoRemoveMutation.mutateAsync(),
           onSubmit: (file) => logoMutation.mutateAsync(file),
           pending: logoMutation.isPending || logoRemoveMutation.isPending,
-        }}
-        nfse={{
-          credential: nfseSettings.credentialQuery.data,
-          credentialErrorCode: toErrorCode(nfseSettings.credentialMutation.error),
-          credentialPending: nfseSettings.credentialMutation.isPending,
-          credentialSaved: nfseSettings.credentialMutation.isSuccess,
-          fiscalEnvironment: nfseSettings.fiscalEnvironment,
-          freightRules: nfseSettings.freightRulesQuery.data ?? [],
-          loading: nfseSettings.credentialQuery.isLoading || nfseSettings.profilesQuery.isLoading,
-          onCredentialSave: (body) => nfseSettings.credentialMutation.mutate(body),
-          onEnvironmentChange: nfseSettings.setFiscalEnvironment,
-          onProfileSave: (save) => nfseSettings.profileMutation.mutate(save),
-          onProfileStatusChange: (toggle) => nfseSettings.profileStatusMutation.mutate(toggle),
-          profileErrorCode: toErrorCode(
-            nfseSettings.profileMutation.error ?? nfseSettings.profileStatusMutation.error,
-          ),
-          profilePending:
-            nfseSettings.profileMutation.isPending || nfseSettings.profileStatusMutation.isPending,
-          profileSaved:
-            nfseSettings.profileMutation.isSuccess || nfseSettings.profileStatusMutation.isSuccess,
-          profiles: nfseSettings.profilesQuery.data ?? [],
         }}
         onCertificateSubmit={(body) => certificateMutation.mutateAsync(body)}
         onCertificateDelete={(purpose) => certificateRetireMutation.mutateAsync(purpose)}

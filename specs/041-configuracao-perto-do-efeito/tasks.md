@@ -46,16 +46,16 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `sonnet` (T006 é 🧠 — é onde o prefill morde)
 
-- [ ] **T006** 🧠 — Contrato: `test/nfse-invoice/settings-tab.contract.ts` exige a aba Configuração só
+- [x] **T006** 🧠 — Contrato: `test/nfse-invoice/settings-tab.contract.ts` exige a aba Configuração só
       com `settings.manage`, e **exige o prefill**: credencial gravada e perfis existentes chegam aos
       campos quando a consulta responde depois da montagem da aba. É a asserção que o `key` do
       `NfseCredentialPanel` sustenta hoje por acidente de posição — no destino ela passa a ser
       explícita.
       Verificação: vermelho pelos dois motivos, separadamente.
-- [ ] **T007** — `NfseInvoiceWorkspacePage` ganha `Tabs` (`invoices`, `settings`), recebe os dois
+- [x] **T007** — `NfseInvoiceWorkspacePage` ganha `Tabs` (`invoices`, `settings`), recebe os dois
       painéis e o `useNfseSettings`, com rótulos nos dois pacotes de tradução.
       Verificação: T006 verde; suíte verde; `bun run build`.
-- [ ] **T008** — Remover de `company-settings` os dois painéis, o hook e a aba; atualizar serviço e
+- [x] **T008** — Remover de `company-settings` os dois painéis, o hook e a aba; atualizar serviço e
       contrato de abas.
       Verificação: app verde; lint sem import órfão.
 

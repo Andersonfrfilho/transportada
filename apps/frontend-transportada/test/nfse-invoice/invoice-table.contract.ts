@@ -525,6 +525,7 @@ describe('nfse credential form', () => {
       ...credential.EMPTY_NFSE_CREDENTIAL_DRAFT,
       apiToken: 'synthetic-provider-token',
       fiscalEnvironment: 'production',
+      municipalRegistration: '1234567',
       taxId: '11222333000181',
     })
 
