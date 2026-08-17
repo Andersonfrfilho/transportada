@@ -63,17 +63,17 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `sonnet` (T009 é 🧠 — duas permissões na mesma aba)
 
-- [ ] **T009** 🧠 — Contrato: `test/nfe-workspace/distribution-settings.contract.ts` exige que a aba
+- [x] **T009** 🧠 — Contrato: `test/nfe-workspace/distribution-settings.contract.ts` exige que a aba
       Remota siga visível com `nfe.read` sozinho, que o bloco de configuração dentro dela apareça
       **só** com `settings.manage`, e que nenhuma consulta de configuração suba sem a permissão.
       Verificação: vermelho nos três pontos.
-- [ ] **T010** — Mover `ScheduledDistributionPanel`, `DistributionCursorPanel` e os dois hooks para
+- [x] **T010** — Mover `ScheduledDistributionPanel`, `DistributionCursorPanel` e os dois hooks para
       `nfe-workspace`, dentro da aba Remota, com rótulos traduzidos.
       Verificação: T009 verde; suíte verde.
-- [ ] **T011** — Remover os dois painéis, os dois hooks e a aba de `company-settings`. O opt-in **não**
+- [x] **T011** — Remover os dois painéis, os dois hooks e a aba de `company-settings`. O opt-in **não**
       volta como espelho somente-leitura: Empresa deixa de falar de busca automática.
       Verificação: nenhuma ocorrência dos painéis em `company-settings`; app verde.
-- [ ] **T012** — Conferir que `test/companies/scheduled-distribution-parity.contract.ts` (API) segue
+- [x] **T012** — Conferir que `test/companies/scheduled-distribution-parity.contract.ts` (API) segue
       verde sem edição. Se ele precisar mudar, a mudança saiu do recorte — a paridade é de **leitura**,
       e nenhuma leitura mudou.
       Verificação: `bun run --cwd apps/api-transportada test`.
@@ -82,7 +82,7 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T013** — `CompanySettings.page.tsx` fica com Empresa e Certificados; remover do serviço de
+- [x] **T013** — `CompanySettings.page.tsx` fica com Empresa e Certificados; remover do serviço de
       abas o que sobrou, e as chaves de tradução órfãs dos quatro painéis movidos.
       Verificação: app verde; `bun run build`; contagem de painéis do módulo bate com o serviço.
 
@@ -90,10 +90,10 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T014** — `make check` na raiz e smoke responsivo (375px, 768px, 1280px) nas quatro telas
+- [x] **T014** — `make check` na raiz e smoke responsivo (375px, 768px, 1280px) nas quatro telas
       tocadas — aba nova não pode criar scroll horizontal nem barra de abas quebrada em mobile.
       Verificação: saída colada em `evidence.md`.
-- [ ] **T015** — Atualizar `CLAUDE.md`: o parágrafo de `company-settings` deixa de listar os quatro
+- [x] **T015** — Atualizar `CLAUDE.md`: o parágrafo de `company-settings` deixa de listar os quatro
       painéis, e frota, NF-e e NFS-e ganham a menção da aba de configuração e da permissão que a
       guarda. Regra do repo: contexto da I.A. atualizado ao fim de mudança de tela ou de regra.
       Verificação: diff do `CLAUDE.md` na evidência.

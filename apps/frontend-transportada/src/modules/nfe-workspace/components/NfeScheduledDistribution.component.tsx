@@ -1,19 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import { resolveIneligibilityLabelKey } from '@/modules/company-settings/shared/scheduledDistribution.constant'
+import { resolveIneligibilityLabelKey } from '../shared/scheduledDistribution.constant'
 
-import {
-  createBrowserWorkspaceNavigator,
-  navigateToCompanySettings,
-} from '../shared/companySettingsNavigation.service'
 import type { ScheduledDistributionStatus } from '../shared/nfeWorkspaceClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 
 type NfeScheduledDistributionProps = Readonly<{
-  canReachSettings: boolean
   loading: boolean
   scheduled: ScheduledDistributionStatus | undefined
 }>
@@ -50,11 +44,9 @@ function EligibilityLine({ scheduled }: Readonly<{ scheduled: ScheduledDistribut
   }
   return (
     <p className={styles.distributionWarning} role="status">
-      {/* O vocabulário de bloqueio é o da policy da API, traduzido uma vez só nas configurações. */}
+      {/* O vocabulário de bloqueio é o da policy da API, traduzido uma vez só. */}
       {t('scheduled.blocked', {
-        reason: t(resolveIneligibilityLabelKey(scheduled.ineligibilityReason), {
-          ns: 'companySettings',
-        }),
+        reason: t(resolveIneligibilityLabelKey(scheduled.ineligibilityReason)),
       })}
     </p>
   )
@@ -69,25 +61,6 @@ function LastRunLine({ scheduled }: Readonly<{ scheduled: ScheduledDistributionS
     <p className={styles.distributionMeta}>
       {t(key, { moment: formatMoment(run.startedAt), received: run.receivedCount })}
     </p>
-  )
-}
-
-function SettingsShortcut() {
-  const { t } = useTranslation('nfeWorkspace')
-  return (
-    <>
-      <p className={styles.distributionMeta}>{t('scheduled.settingsHint')}</p>
-      <div className={styles.actionRow}>
-        <button
-          className={styles.secondaryAction}
-          onClick={() => navigateToCompanySettings(createBrowserWorkspaceNavigator())}
-          type="button"
-        >
-          <Icon name="edit" />
-          {t('scheduled.settingsShortcut')}
-        </button>
-      </div>
-    </>
   )
 }
 
@@ -112,7 +85,6 @@ export function NfeScheduledDistribution(props: NfeScheduledDistributionProps) {
         </p>
       )}
       <LastRunLine scheduled={scheduled} />
-      {!scheduled.enabled && props.canReachSettings && <SettingsShortcut />}
     </section>
   )
 }

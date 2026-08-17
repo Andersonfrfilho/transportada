@@ -1,0 +1,142 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * O bloco de configuração da busca automática é um formulário, não uma tabela: as classes vêm do
+ * painel de configuração de empresa, onde os dois painéis moravam. Módulo próprio porque
+ * `nfeWorkspace.module.css` já usa `secondaryAction` e `actionRow` com a forma da barra de ações.
+ */
+
+.settingsDeck {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settingsPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-graphite) 86%, transparent),
+      color-mix(in srgb, var(--color-asphalt) 72%, transparent)
+    ),
+    color-mix(in srgb, var(--color-graphite) 65%, transparent);
+}
+
+.settingsPanel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.settingsPanel label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  color: var(--color-slate);
+}
+
+.settingsPanel input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.settingsPanel input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.settingsPanel input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldHint {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.scheduledDistributionState {
+  margin: 0;
+  color: var(--color-fog);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-6);
+  border: 1px solid var(--color-copper);
+  color: var(--color-asphalt);
+  font: inherit;
+  font-weight: 700;
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.primaryAction:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.primaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  cursor: pointer;
+}
+
+.secondaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.secondaryAction:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.formStatusError,
+.formStatusSuccess {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.formStatusError {
+  color: var(--color-alert);
+}
+
+.formStatusSuccess {
+  color: var(--color-ready);
+}

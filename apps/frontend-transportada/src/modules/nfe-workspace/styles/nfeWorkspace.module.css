@@ -554,6 +554,7 @@
 
 .tabBar {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
   margin-top: var(--space-6);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);

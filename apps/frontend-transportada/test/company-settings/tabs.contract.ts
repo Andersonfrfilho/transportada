@@ -118,7 +118,9 @@ describe('settings panel placement contract', () => {
   test('a página monta as abas a partir do serviço', async () => {
     const page = await readFile(PAGE_PATH, 'utf8')
 
-    expect(page).toContain('resolveCompanySettingsDataScope')
+    // O escopo de dados não é mais derivado aqui: sobrou uma fonte só neste módulo, e ela é lida em
+    // toda aba. Quem resolve escopo por aba agora são as telas que hospedam os painéis movidos.
     expect(page).toContain('COMPANY_SETTINGS_TAB_IDS')
+    expect(page).toContain('resolveCompanySettingsTab')
   })
 })

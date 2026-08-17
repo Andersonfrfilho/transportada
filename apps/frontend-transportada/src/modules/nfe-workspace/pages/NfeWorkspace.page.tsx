@@ -6,11 +6,16 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
+import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { DistributionCursorPanel } from '../components/DistributionCursorPanel.component'
 import { NfeDistributionControl } from '../components/NfeDistributionControl.component'
 import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
-import { canReachCompanySettings } from '../shared/companySettingsNavigation.service'
+import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
+import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
@@ -25,7 +30,13 @@ import {
 } from '../shared/nfeImportMechanism.service'
 import type { NfeDocumentListItem, NfeImportFilters } from '../shared/nfeWorkspaceClient.service'
 import { createNfeWorkspaceViewModel } from '../shared/nfeWorkspaceViewModel.service'
+import settingsStyles from '../styles/distributionSettings.module.css'
 import styles from '../styles/nfeWorkspace.module.css'
+
+/** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
+function toErrorCode(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined
+}
 
 function saveBlobAsFile(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob)
@@ -200,6 +211,16 @@ export function NfeWorkspacePage() {
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'documents' | 'imports'>('documents')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
+  const settingsScope = resolveSettingsDataScope('nfe-workspace', activeTab)
+  const scheduledDistribution = useScheduledDistribution({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.scheduledDistribution,
+  })
+  const distributionCursor = useDistributionCursor({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.distributionCursor,
+  })
 
   function fileKey(file: File): string {
     return `${file.name}:${file.size}:${file.lastModified}`
@@ -403,11 +424,34 @@ export function NfeWorkspacePage() {
 
                     {mechanismView.showsDistribution && (
                       <>
-                        <NfeScheduledDistribution
-                          canReachSettings={canReachCompanySettings(permissions)}
-                          loading={workspace.distributionStatusQuery.isLoading}
-                          scheduled={workspace.distributionStatusQuery.data?.scheduled}
-                        />
+                        {canManageSettings ? (
+                          <div className={settingsStyles.settingsDeck}>
+                            <ScheduledDistributionPanel
+                              disabled={scheduledDistribution.toggleMutation.isPending}
+                              loading={scheduledDistribution.query.isLoading}
+                              onToggle={(next) => scheduledDistribution.toggleMutation.mutate(next)}
+                              status={scheduledDistribution.query.data}
+                              toggleErrorCode={toErrorCode(
+                                scheduledDistribution.toggleMutation.error,
+                              )}
+                            />
+                            <DistributionCursorPanel
+                              adjusted={distributionCursor.adjustMutation.isSuccess}
+                              cursor={distributionCursor.query.data}
+                              disabled={distributionCursor.adjustMutation.isPending}
+                              errorCode={toErrorCode(distributionCursor.adjustMutation.error)}
+                              loading={distributionCursor.query.isLoading}
+                              onAdjust={(ultNsu) =>
+                                distributionCursor.adjustMutation.mutate(ultNsu)
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <NfeScheduledDistribution
+                            loading={workspace.distributionStatusQuery.isLoading}
+                            scheduled={workspace.distributionStatusQuery.data?.scheduled}
+                          />
+                        )}
                         <NfeDistributionControl
                           canImport={workspace.canImport}
                           onCooldownEnd={() => {

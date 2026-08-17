@@ -10,16 +10,12 @@ import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
-import { DistributionCursorPanel } from '../components/DistributionCursorPanel.component'
-import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
   EMPTY_BILLING_DEFAULTS,
   EMPTY_MDFE_DEFAULTS,
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
-import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
-import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import {
   CERTIFICATE_PURPOSES,
   type CertificatePurpose,
@@ -27,13 +23,10 @@ import {
   type CompanyLogoMetadata,
   type CompanyProfileLookup,
   type CompanySettingsUpdate,
-  type DistributionCursor,
   type SafeCertificate,
-  type ScheduledDistributionStatus,
 } from '../shared/companySettingsClient.service'
 import {
   COMPANY_SETTINGS_TAB_IDS,
-  resolveCompanySettingsDataScope,
   resolveCompanySettingsTab,
   type CompanySettingsTabId,
 } from '../shared/companySettingsTabs.service'
@@ -78,37 +71,18 @@ type LogoSection = Readonly<{
   pending: boolean
 }>
 
-type ScheduledDistributionSection = Readonly<{
-  loading: boolean
-  onToggle: (nextEnabled: boolean) => void
-  pending: boolean
-  status: ScheduledDistributionStatus | undefined
-  toggleErrorCode: string | undefined
-}>
-
-type DistributionCursorSection = Readonly<{
-  adjusted: boolean
-  cursor: DistributionCursor | undefined
-  errorCode: string | undefined
-  loading: boolean
-  onAdjust: (ultNsu: string) => void
-  pending: boolean
-}>
-
 type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
-  distributionCursor: DistributionCursorSection
   initialValue: CompanySettingsUpdate | undefined
   logo: LogoSection
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
   onSave: (input: CompanySettingsUpdate) => void
-  scheduledDistribution: ScheduledDistributionSection
   settingsErrorCode: string | undefined
   settingsPending: boolean
   settingsState: 'error' | 'idle' | 'success'
@@ -212,28 +186,6 @@ function CompanyTabPanel(props: SettingsBodyProps) {
   )
 }
 
-function DistributionTabPanel(props: SettingsBodyProps) {
-  return (
-    <>
-      <ScheduledDistributionPanel
-        disabled={props.scheduledDistribution.pending}
-        loading={props.scheduledDistribution.loading}
-        onToggle={props.scheduledDistribution.onToggle}
-        status={props.scheduledDistribution.status}
-        toggleErrorCode={props.scheduledDistribution.toggleErrorCode}
-      />
-      <DistributionCursorPanel
-        adjusted={props.distributionCursor.adjusted}
-        cursor={props.distributionCursor.cursor}
-        disabled={props.distributionCursor.pending}
-        errorCode={props.distributionCursor.errorCode}
-        loading={props.distributionCursor.loading}
-        onAdjust={props.distributionCursor.onAdjust}
-      />
-    </>
-  )
-}
-
 /**
  * Cada aba monta só os painéis dela: quem entra para trocar a série do CT-e não paga pelas consultas
  * de combustível e de NFS-e, que moram em outras telas. A consulta da aba aberta é ligada em `CompanySettingsPage`, e os
@@ -242,17 +194,15 @@ function DistributionTabPanel(props: SettingsBodyProps) {
  */
 function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
-  if (tab === 'certificates')
-    return (
-      <CertificateUploadForm
-        certificates={props.certificates}
-        disabled={props.certificatePending}
-        hasFiscalProfileSaved={props.viewModel.hasFiscalProfileSaved}
-        onDelete={props.onCertificateDelete}
-        onSubmit={props.onCertificateSubmit}
-      />
-    )
-  return <DistributionTabPanel {...props} />
+  return (
+    <CertificateUploadForm
+      certificates={props.certificates}
+      disabled={props.certificatePending}
+      hasFiscalProfileSaved={props.viewModel.hasFiscalProfileSaved}
+      onDelete={props.onCertificateDelete}
+      onSubmit={props.onCertificateSubmit}
+    />
+  )
 }
 
 function SettingsBody(props: SettingsBodyProps) {
@@ -311,15 +261,6 @@ export function CompanySettingsPage() {
     query,
     settingsMutation,
   } = useCompanySettings({ ...(companyId === undefined ? {} : { companyId }), permissions })
-  const scope = resolveCompanySettingsDataScope(activeTab)
-  const scheduledDistribution = useScheduledDistribution({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && scope.scheduledDistribution,
-  })
-  const distributionCursor = useDistributionCursor({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && scope.distributionCursor,
-  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -343,17 +284,6 @@ export function CompanySettingsPage() {
         canManageSettings={canManageSettings}
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
-        distributionCursor={{
-          adjusted: distributionCursor.adjustMutation.isSuccess,
-          cursor: distributionCursor.query.data,
-          errorCode:
-            distributionCursor.adjustMutation.error instanceof Error
-              ? distributionCursor.adjustMutation.error.message
-              : undefined,
-          loading: distributionCursor.query.isLoading,
-          onAdjust: (ultNsu) => distributionCursor.adjustMutation.mutate(ultNsu),
-          pending: distributionCursor.adjustMutation.isPending,
-        }}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
         logo={{
           image: logoQuery.data ?? null,
@@ -365,16 +295,6 @@ export function CompanySettingsPage() {
         onCertificateDelete={(purpose) => certificateRetireMutation.mutateAsync(purpose)}
         onLookupProfile={(cnpj) => lookupMutation.mutateAsync(cnpj)}
         onSave={(input) => settingsMutation.mutate(input)}
-        scheduledDistribution={{
-          loading: scheduledDistribution.query.isLoading,
-          onToggle: (nextEnabled) => scheduledDistribution.toggleMutation.mutate(nextEnabled),
-          pending: scheduledDistribution.toggleMutation.isPending,
-          status: scheduledDistribution.query.data,
-          toggleErrorCode:
-            scheduledDistribution.toggleMutation.error instanceof Error
-              ? scheduledDistribution.toggleMutation.error.message
-              : undefined,
-        }}
         settingsErrorCode={
           settingsMutation.error instanceof Error ? settingsMutation.error.message : undefined
         }
