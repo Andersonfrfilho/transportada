@@ -203,6 +203,8 @@
     "profilePlaceholder": "Escolha o perfil",
     "profileUnavailable": "Seu acesso não permite listar os perfis de emissão, e o perfil é obrigatório para emitir.",
     "forbidden": "Seu acesso permite ver a prévia, mas não emitir a nota de serviço.",
+    "period": "Período do serviço",
+    "periodHint": "Digite a janela cobrada, como ela deve sair na descrição. Em branco, sai vazia.",
     "description": "Descrição do serviço",
     "descriptionHint": "Variáveis disponíveis: {{variables}}. Sem edição, vale o modelo do perfil.",
     "loading": "Calculando a prévia de {{count}} notas",

@@ -35,6 +35,15 @@ export type NfseCredentialSubmission =
   | Readonly<{ body: NfseCredentialBody; status: 'ready' }>
   | Readonly<{ reason: NfseCredentialBlockReason; status: 'blocked' }>
 
+export const NFSE_CREDENTIAL_PRESENCE = {
+  ABSENT: 'absent',
+  INACTIVE: 'inactive',
+  READY: 'ready',
+  TOKEN_MISSING: 'tokenMissing',
+} as const
+export type NfseCredentialPresence =
+  (typeof NFSE_CREDENTIAL_PRESENCE)[keyof typeof NFSE_CREDENTIAL_PRESENCE]
+
 export const EMPTY_NFSE_CREDENTIAL_DRAFT: NfseCredentialDraft = {
   apiToken: '',
   fiscalEnvironment: 'homologation',
@@ -89,6 +98,20 @@ export function toNfseCredentialDraft(summary: unknown): NfseCredentialDraft {
     status: readStatus(summary.status),
     taxId: isString(summary.taxId) ? summary.taxId : '',
   }
+}
+
+/**
+ * O campo de situação é do formulário, não do ambiente: sem credencial nenhuma ele nasce em "Ativa",
+ * e quem lê a tela conclui que existe uma credencial ativa. Quem responde pelo ambiente é isto — a
+ * ausência, o segredo que falta e a credencial desligada são estados distintos, e os três impedem a
+ * emissão do mesmo jeito.
+ */
+export function resolveNfseCredentialPresence(summary: unknown): NfseCredentialPresence {
+  if (!isRecord(summary)) return NFSE_CREDENTIAL_PRESENCE.ABSENT
+  // Sem segredo gravado não há o que ativar: o token vem antes da situação.
+  if (summary.apiTokenConfigured !== true) return NFSE_CREDENTIAL_PRESENCE.TOKEN_MISSING
+  if (readStatus(summary.status) !== 'active') return NFSE_CREDENTIAL_PRESENCE.INACTIVE
+  return NFSE_CREDENTIAL_PRESENCE.READY
 }
 
 function readEnvironment(value: unknown): NfseFiscalEnvironment {

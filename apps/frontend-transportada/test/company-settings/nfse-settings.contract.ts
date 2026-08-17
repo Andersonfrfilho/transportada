@@ -58,6 +58,8 @@ const PANEL_LABEL_KEYS = [
   'nfseCredentialSave',
   'nfseCredentialSaved',
   'nfseCredentialError',
+  'nfseCredentialAbsent',
+  'nfseCredentialInactive',
   'nfseCredentialBlockedApiTokenRequired',
   'nfseCredentialBlockedTaxIdInvalid',
   'nfseProfileTitle',
@@ -193,6 +195,7 @@ type CredentialFormModule = {
     readonly status: 'blocked' | 'ready'
   }
   readonly EMPTY_NFSE_CREDENTIAL_DRAFT: Record<string, unknown>
+  readonly resolveNfseCredentialPresence: (summary: unknown) => string
   readonly toNfseCredentialDraft: (summary: unknown) => Record<string, unknown>
 }
 
@@ -386,6 +389,40 @@ describe('nfse credential form contract', () => {
     expect(submission.reason).toBe('apiTokenRequired')
     expect(submission.body).toBeUndefined()
   })
+
+  test('credencial ausente não é credencial ativa — o rascunho nasce ativo, o ambiente não', async () => {
+    const { EMPTY_NFSE_CREDENTIAL_DRAFT, resolveNfseCredentialPresence, toNfseCredentialDraft } =
+      await loadFutureModule<CredentialFormModule>(CREDENTIAL_FORM_MODULE)
+
+    // O campo de situação mostra `active` sem credencial nenhuma: é o padrão do formulário.
+    expect(EMPTY_NFSE_CREDENTIAL_DRAFT['status']).toBe('active')
+    expect(toNfseCredentialDraft(null)['status']).toBe('active')
+
+    for (const absent of [null, undefined, '', 0]) {
+      expect(resolveNfseCredentialPresence(absent)).toBe('absent')
+    }
+  })
+
+  test('nomeia cada estado que impede a emissão, separado do que já emite', async () => {
+    const { resolveNfseCredentialPresence } =
+      await loadFutureModule<CredentialFormModule>(CREDENTIAL_FORM_MODULE)
+
+    expect(resolveNfseCredentialPresence(CREDENTIAL_SUMMARY)).toBe('ready')
+    expect(
+      resolveNfseCredentialPresence({ ...CREDENTIAL_SUMMARY, apiTokenConfigured: false }),
+    ).toBe('tokenMissing')
+    expect(resolveNfseCredentialPresence({ ...CREDENTIAL_SUMMARY, status: 'inactive' })).toBe(
+      'inactive',
+    )
+    // Sem segredo gravado não há o que ativar: o token vem antes da situação.
+    expect(
+      resolveNfseCredentialPresence({
+        ...CREDENTIAL_SUMMARY,
+        apiTokenConfigured: false,
+        status: 'inactive',
+      }),
+    ).toBe('tokenMissing')
+  })
 })
 
 describe('nfse profile form contract', () => {
@@ -517,6 +554,32 @@ describe('nfse settings presentation contract', () => {
     ]) {
       expect(hook).toContain(method)
     }
+  })
+
+  test('o painel diz a ausência da credencial em vez de deixar o campo de situação responder', async () => {
+    const credential = await readModule(
+      'src/modules/company-settings/components/NfseCredentialPanel.component.tsx',
+    )
+
+    expect(credential).toContain('resolveNfseCredentialPresence')
+    expect(credential).toContain('nfseCredentialAbsent')
+    expect(credential).toContain('nfseCredentialInactive')
+    expect(credential).toContain('role="alert"')
+    // A frase entra antes dos campos: depois deles, quem lê "Ativa" já decidiu que existe uma.
+    const presenceAt = credential.indexOf('resolveNfseCredentialPresence(props.summary)')
+    const statusFieldAt = credential.indexOf('nfseCredentialStatusLabel')
+    expect(presenceAt).toBeGreaterThan(-1)
+    expect(presenceAt).toBeLessThan(statusFieldAt)
+  })
+
+  test('a frase de ausência nomeia o ambiente fiscal, que é o recorte da credencial', async () => {
+    const portuguese = await readLocale(
+      'src/modules/company-settings/locales/companySettings.locale.json',
+    )
+
+    const absent = String(portuguese['nfseCredentialAbsent'])
+    expect(absent).toContain('{{environment}}')
+    expect(absent).toContain('Nenhuma credencial')
   })
 
   test('o campo do token não guarda o valor digitado fora do submit', async () => {

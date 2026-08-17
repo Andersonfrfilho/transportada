@@ -14,6 +14,7 @@ import {
   selectNfseEmissionMessageKey,
   type NfseEmissionRow,
 } from '../shared/nfseEmission.service'
+import { toIssRatePercent } from '../shared/nfseProfileForm.service'
 import styles from '../styles/nfseInvoice.module.css'
 
 type NfseEmissionDialogProps = Readonly<{
@@ -55,7 +56,8 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
           )}
         </td>
         <td className={styles.amountCell}>{formatAmount(row.serviceAmount)}</td>
-        <td className={styles.amountCell}>{`${row.issRate}%`}</td>
+        {/* A API manda a alíquota como fração (`0.020000`): o percentual é o que se lê na nota. */}
+        <td className={styles.amountCell}>{`${toIssRatePercent(row.issRate)}%`}</td>
         <td className={styles.amountCell}>{formatAmount(row.issAmount)}</td>
       </tr>
     )
@@ -104,6 +106,16 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
             />
           </div>
           <label className={styles.emissionField}>
+            <span>{t('emission.period')}</span>
+            <input
+              disabled={dialog.isFormLocked}
+              onChange={(event) => dialog.setPeriod(event.target.value)}
+              type="text"
+              value={dialog.period}
+            />
+            <span className={styles.emissionHint}>{t('emission.periodHint')}</span>
+          </label>
+          <label className={styles.emissionField}>
             <span>{t('emission.description')}</span>
             <textarea
               disabled={dialog.isFormLocked}
@@ -147,12 +159,6 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
               </tbody>
             </table>
           </SkeletonGroup>
-        )}
-
-        {messageKey !== null && (
-          <p className={styles.placeholder} role="alert">
-            {t(messageKey)}
-          </p>
         )}
 
         {dialog.summary !== null && (
@@ -203,6 +209,14 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
               ))}
             </ul>
           </section>
+        )}
+
+        {/* Junto do botão que falhou: 192px acima e com a cor do texto auxiliar, ninguém a lia. */}
+        {messageKey !== null && (
+          <p className={styles.emissionAlert} role="alert">
+            <Icon name="alert" />
+            {t(messageKey)}
+          </p>
         )}
 
         <footer className={styles.emissionFooter}>

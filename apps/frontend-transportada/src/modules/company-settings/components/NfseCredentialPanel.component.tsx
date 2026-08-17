@@ -7,10 +7,12 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import {
   buildNfseCredentialSubmission,
+  resolveNfseCredentialPresence,
   toNfseCredentialDraft,
   type NfseCredentialBody,
   type NfseCredentialBlockReason,
   type NfseCredentialDraft,
+  type NfseCredentialPresence,
 } from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
 import {
   NFSE_CREDENTIAL_STATUSES,
@@ -49,6 +51,14 @@ const STATUS_LABEL_KEYS: Readonly<Record<NfseCredentialStatus, string>> = {
   inactive: 'nfseCredentialStatusInactive',
 }
 
+/** `ready` não tem frase: a credencial que emite não precisa se explicar. */
+const PRESENCE_ALERT_KEYS: Readonly<Record<NfseCredentialPresence, null | string>> = {
+  absent: 'nfseCredentialAbsent',
+  inactive: 'nfseCredentialInactive',
+  ready: null,
+  tokenMissing: 'nfseCredentialTokenMissing',
+}
+
 const TAX_ID_MAX_LENGTH = 18
 const MUNICIPAL_REGISTRATION_MAX_LENGTH = 40
 
@@ -65,19 +75,29 @@ function CredentialSkeleton(): JSX.Element {
 }
 
 function CredentialSignals({
+  environmentLabel,
+  presence,
   summary,
-}: Readonly<{ summary: NfseProviderCredentialSummary }>): JSX.Element {
+}: Readonly<{
+  environmentLabel: string
+  presence: NfseCredentialPresence
+  summary: NfseProviderCredentialSummary | null | undefined
+}>): JSX.Element {
   const { t } = useTranslation('companySettings')
+  const alertKey = PRESENCE_ALERT_KEYS[presence]
+
+  if (alertKey !== null) {
+    return (
+      <p className={styles.formStatusError} role="alert">
+        {t(alertKey, { environment: environmentLabel })}
+      </p>
+    )
+  }
+
   return (
     <>
-      <p className={styles.fieldHint}>
-        {t(
-          summary.apiTokenConfigured
-            ? 'nfseCredentialTokenConfigured'
-            : 'nfseCredentialTokenMissing',
-        )}
-      </p>
-      {summary.callbackTokenConfigured && (
+      <p className={styles.fieldHint}>{t('nfseCredentialTokenConfigured')}</p>
+      {summary?.callbackTokenConfigured === true && (
         <p className={styles.fieldHint}>{t('nfseCredentialCallbackConfigured')}</p>
       )}
     </>
@@ -90,6 +110,7 @@ export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Elemen
     toNfseCredentialDraft(props.summary),
   )
   const [blockReason, setBlockReason] = useState<NfseCredentialBlockReason | undefined>(undefined)
+  const presence = resolveNfseCredentialPresence(props.summary)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -114,9 +135,11 @@ export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Elemen
         <CredentialSkeleton />
       ) : (
         <form onSubmit={handleSubmit}>
-          {props.summary !== null && props.summary !== undefined && (
-            <CredentialSignals summary={props.summary} />
-          )}
+          <CredentialSignals
+            environmentLabel={t(ENVIRONMENT_LABEL_KEYS[props.fiscalEnvironment])}
+            presence={presence}
+            summary={props.summary}
+          />
           <div className={styles.fieldGrid}>
             <label>
               <span>{t('nfseCredentialEnvironmentLabel')}</span>

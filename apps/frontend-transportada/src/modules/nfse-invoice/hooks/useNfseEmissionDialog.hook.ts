@@ -54,10 +54,12 @@ export type UseNfseEmissionDialogResult = Readonly<{
   isFormLocked: boolean
   isOpen: boolean
   open: () => void
+  period: string
   profileId: null | string
   profileOptions: readonly NfseEmissionSelectOption[]
   selectedCount: number
   setDescription: (description: string) => void
+  setPeriod: (period: string) => void
   setProfileId: (profileId: string) => void
   status: NfseEmissionStatus
   summary: NfseEmissionSummary | null
@@ -74,6 +76,8 @@ export function useNfseEmissionDialog(
   const [isOpen, setIsOpen] = useState(false)
   const [selectedProfileId, setSelectedProfileId] = useState<null | string>(null)
   const [customDescription, setCustomDescription] = useState<null | string>(null)
+  // Nasce vazio e só o operador o preenche: nenhuma janela é derivada das notas selecionadas.
+  const [period, setPeriod] = useState('')
   const [attemptToken, setAttemptToken] = useState('')
 
   const permissions = input.companyId === undefined ? [] : input.permissions
@@ -114,6 +118,7 @@ export function useNfseEmissionDialog(
         buildNfsePreviewRequest({
           description,
           documentIds: input.documentIds,
+          period,
           profileId: profileId ?? '',
           profileTemplate,
         }),
@@ -122,6 +127,7 @@ export function useNfseEmissionDialog(
       ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
       description,
       documentIds: input.documentIds,
+      period,
       profileId,
       profileTemplate,
     }),
@@ -179,6 +185,7 @@ export function useNfseEmissionDialog(
   function open(): void {
     setSelectedProfileId(null)
     setCustomDescription(null)
+    setPeriod('')
     setAttemptToken(crypto.randomUUID())
     createMutation.reset()
     setIsOpen(true)
@@ -191,7 +198,9 @@ export function useNfseEmissionDialog(
 
   function confirm(): void {
     if (summary === null) return
-    createMutation.mutate(buildNfseCreateRequests({ description, profileTemplate, summary }))
+    createMutation.mutate(
+      buildNfseCreateRequests({ description, period, profileTemplate, summary }),
+    )
   }
 
   return {
@@ -208,10 +217,12 @@ export function useNfseEmissionDialog(
     isFormLocked: isNfseEmissionFormLocked(status),
     isOpen,
     open,
+    period,
     profileId,
     profileOptions: buildNfseProfileSelectOptions(profiles),
     selectedCount: input.documentIds.length,
     setDescription: setCustomDescription,
+    setPeriod,
     setProfileId: setSelectedProfileId,
     status,
     summary,
