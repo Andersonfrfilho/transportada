@@ -598,7 +598,7 @@
 }
 
 .formStatusError {
-  color: #ff5f57;
+  color: var(--color-alert);
 }
 
 .formStatusSuccess {

@@ -206,5 +206,7 @@ export type NfseEmissionProfileOption = Readonly<{
 export type NfseInvoiceSelection = Readonly<{
   descriptionTemplate?: string
   documentIds: readonly string[]
+  /** Janela do serviço, digitada na emissão — a API não a deriva das notas. */
+  period?: string
   profileId: string
 }>

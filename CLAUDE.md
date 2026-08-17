@@ -124,6 +124,16 @@ PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista c
 declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
 listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
 
+**O `{{periodo}}` da NFS-e é digitado, não derivado:** o domínio não calcula janela nenhuma a partir
+das notas — `buildNfseDescription` recebe `period` e o repassa como veio, e em branco a variável sai
+vazia. `nfse-period.service.ts` **não existe mais**. O campo entra no corpo de
+`POST /nfse-service-invoices` (`period`, ≤ 60 caracteres) e na digital do pedido: corrigir o período
+e repetir a chave é pedido novo, não replay. A ordem em que a regra automática pode nascer — escolher
+a data-fonte, o recorte e o que fazer com a seleção que atravessa dois recortes — está no comentário
+acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.service.ts`. No frontend o
+campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
+chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.

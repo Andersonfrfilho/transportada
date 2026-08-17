@@ -143,7 +143,8 @@ export const INVOICE_PREVIEW = {
         },
       ],
       issAmount: '13.44',
-      issRate: '2.00',
+      // Fração, como `nfse_emission_profiles.iss_rate` (0..1) sai do Postgres — não percentual.
+      issRate: '0.020000',
       listedDocuments: 1,
       omittedDocuments: 0,
       percentage: '5.00',

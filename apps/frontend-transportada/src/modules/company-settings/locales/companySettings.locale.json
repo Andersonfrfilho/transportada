@@ -199,6 +199,8 @@
   "nfseCredentialSave": "Salvar credencial",
   "nfseCredentialSaved": "Credencial salva com segurança.",
   "nfseCredentialError": "Não foi possível salvar a credencial. Código: {{code}}.",
+  "nfseCredentialAbsent": "Nenhuma credencial cadastrada em {{environment}}. Sem ela a emissão de NFS-e é recusada.",
+  "nfseCredentialInactive": "A credencial de {{environment}} está inativa. Sem ativá-la a emissão de NFS-e é recusada.",
   "nfseCredentialBlockedApiTokenRequired": "Informe o token de acesso para salvar a credencial.",
   "nfseCredentialBlockedTaxIdInvalid": "O CNPJ do prestador precisa ter 14 dígitos.",
   "nfseFiscalEnvironmentHomologation": "Homologação",

@@ -1,3 +1,4 @@
+import type { DeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { CNPJ_PATTERN, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { isRecord, isString } from './nfseInvoiceGuards.validation'
@@ -34,6 +35,15 @@ export type NfseCredentialBody = Readonly<{
 export type NfseCredentialSubmission =
   | Readonly<{ body: NfseCredentialBody; status: 'ready' }>
   | Readonly<{ reason: NfseCredentialBlockReason; status: 'blocked' }>
+
+export const NFSE_CREDENTIAL_PRESENCE = {
+  ABSENT: 'absent',
+  INACTIVE: 'inactive',
+  READY: 'ready',
+  TOKEN_MISSING: 'tokenMissing',
+} as const
+export type NfseCredentialPresence =
+  (typeof NFSE_CREDENTIAL_PRESENCE)[keyof typeof NFSE_CREDENTIAL_PRESENCE]
 
 export const EMPTY_NFSE_CREDENTIAL_DRAFT: NfseCredentialDraft = {
   apiToken: '',
@@ -89,6 +99,31 @@ export function toNfseCredentialDraft(summary: unknown): NfseCredentialDraft {
     status: readStatus(summary.status),
     taxId: isString(summary.taxId) ? summary.taxId : '',
   }
+}
+
+/**
+ * O campo de situação é do formulário, não do ambiente: sem credencial nenhuma ele nasce em "Ativa",
+ * e quem lê a tela conclui que existe uma credencial ativa. Quem responde pelo ambiente é isto — a
+ * ausência, o segredo que falta e a credencial desligada são estados distintos, e os três impedem a
+ * emissão do mesmo jeito.
+ */
+export function resolveNfseCredentialPresence(summary: unknown): NfseCredentialPresence {
+  if (!isRecord(summary)) return NFSE_CREDENTIAL_PRESENCE.ABSENT
+  // Sem segredo gravado não há o que ativar: o token vem antes da situação.
+  if (summary.apiTokenConfigured !== true) return NFSE_CREDENTIAL_PRESENCE.TOKEN_MISSING
+  if (readStatus(summary.status) !== 'active') return NFSE_CREDENTIAL_PRESENCE.INACTIVE
+  return NFSE_CREDENTIAL_PRESENCE.READY
+}
+
+/**
+ * Quem escolhe o ambiente fiscal de partida é a instalação, não um literal: abrindo sempre em
+ * homologação, a tela de produção mostrava campo vazio com credencial gravada — e campo vazio se lê
+ * como "não salvou". Só a instalação de produção nasce apontada para a credencial que emite.
+ */
+export function resolveDefaultNfseFiscalEnvironment(
+  deployment: DeploymentEnvironment,
+): NfseFiscalEnvironment {
+  return deployment === 'production' ? 'production' : 'homologation'
 }
 
 function readEnvironment(value: unknown): NfseFiscalEnvironment {

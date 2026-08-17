@@ -10,6 +10,7 @@ const ACTION_PATH = 'src/modules/nfse-invoice/components/NfseEmissionAction.comp
 const DIALOG_PATH = 'src/modules/nfse-invoice/components/NfseEmissionDialog.component.tsx'
 const HOOK_PATH = 'src/modules/nfse-invoice/hooks/useNfseEmissionDialog.hook.ts'
 const SERVICE_PATH = 'src/modules/nfse-invoice/shared/nfseEmission.service.ts'
+const STYLES_PATH = 'src/modules/nfse-invoice/styles/nfseInvoice.module.css'
 const TABLE_PATH = 'src/modules/nfe-workspace/components/NfeDocumentTable.component.tsx'
 const PT_LOCALE_PATH = 'src/modules/nfse-invoice/locales/nfseInvoice.locale.json'
 const EN_LOCALE_PATH = 'src/modules/nfse-invoice/locales/nfseInvoice.en.locale.json'
@@ -24,6 +25,9 @@ const THIRD_DOCUMENT_ID = '8a35c1d2-47b6-4f09-9c81-6e2d0b7a5f14'
 const FOURTH_DOCUMENT_ID = '5c78b0e4-19f2-4a63-8d07-2c4e9a6b3d58'
 
 const PROFILE_TEMPLATE = 'Entregas na cidade de {{municipio}} de {{periodo}}.'
+/** O período é digitado pelo operador; nada no front o deriva das notas selecionadas. */
+const TYPED_PERIOD = '03-08 a 07-08-2026'
+const OTHER_PERIOD = '27-07 a 31-07-2026'
 const CUSTOM_TEMPLATE =
   'Prestação de serviço de transporte em {{municipio}} — {{quantidadeNotas}} notas.'
 
@@ -115,7 +119,12 @@ type EmissionModule = {
   readonly NFSE_EMISSION_MAX_VISIBLE_ROWS: number
   readonly NFSE_EMISSION_PREVIEW_QUERY_KEY: string
   readonly buildNfseCreateRequests: (
-    input: Readonly<{ description: string; profileTemplate: string; summary: EmissionSummary }>,
+    input: Readonly<{
+      description: string
+      period: string
+      profileTemplate: string
+      summary: EmissionSummary
+    }>,
   ) => readonly Record<string, unknown>[]
   readonly buildNfseIdempotencyKeys: (
     input: Readonly<{ count: number; token: string }>,
@@ -125,6 +134,7 @@ type EmissionModule = {
       companyId?: string
       description: string
       documentIds: readonly string[]
+      period: string
       profileId: null | string
       profileTemplate: string
     }>,
@@ -133,6 +143,7 @@ type EmissionModule = {
     input: Readonly<{
       description: string
       documentIds: readonly string[]
+      period: string
       profileId: string
       profileTemplate: string
     }>,
@@ -260,7 +271,7 @@ describe('nfse emission preview grouping contract', () => {
       documentNumbers: ['1'],
       id: FIRST_INVOICE.takerTaxId,
       issAmount: '13.44',
-      issRate: '2.00',
+      issRate: '0.020000',
       omittedDocuments: 0,
       serviceAmount: '672.22',
       takerLegalName: FIRST_INVOICE.takerLegalName,
@@ -342,6 +353,7 @@ describe('nfse emission description contract', () => {
     const request = buildNfsePreviewRequest({
       description: PROFILE_TEMPLATE,
       documentIds: [DOCUMENT_ID],
+      period: '',
       profileId: PROFILE_ID,
       profileTemplate: PROFILE_TEMPLATE,
     })
@@ -358,6 +370,7 @@ describe('nfse emission description contract', () => {
       buildNfsePreviewRequest({
         description: CUSTOM_TEMPLATE,
         documentIds: [DOCUMENT_ID],
+        period: '',
         profileId: PROFILE_ID,
         profileTemplate: PROFILE_TEMPLATE,
       }).descriptionTemplate,
@@ -365,6 +378,7 @@ describe('nfse emission description contract', () => {
 
     const requests = buildNfseCreateRequests({
       description: CUSTOM_TEMPLATE,
+      period: '',
       profileTemplate: PROFILE_TEMPLATE,
       summary,
     })
@@ -396,6 +410,93 @@ describe('nfse emission description contract', () => {
 })
 
 /**
+ * O período é digitado na emissão, não derivado das notas: a data de emissão da NF-e não é a data da
+ * prestação, e é a da prestação que a prefeitura lê. Enquanto a regra não existir, o campo vai vazio
+ * e quem emite escreve a janela — ver `nfse-description.service.ts` na API.
+ */
+describe('nfse emission period contract', () => {
+  test('carries the typed period into the preview and into every creation', async () => {
+    const { buildNfseCreateRequests, buildNfsePreviewRequest } = await loadEmissionModule()
+    const summary = await summarize()
+
+    expect(
+      buildNfsePreviewRequest({
+        description: PROFILE_TEMPLATE,
+        documentIds: [DOCUMENT_ID],
+        period: TYPED_PERIOD,
+        profileId: PROFILE_ID,
+        profileTemplate: PROFILE_TEMPLATE,
+      }).period,
+    ).toBe(TYPED_PERIOD)
+
+    const requests = buildNfseCreateRequests({
+      description: PROFILE_TEMPLATE,
+      period: TYPED_PERIOD,
+      profileTemplate: PROFILE_TEMPLATE,
+      summary,
+    })
+    expect(requests).toHaveLength(2)
+    for (const request of requests) {
+      expect(request.period).toBe(TYPED_PERIOD)
+    }
+  })
+
+  /** Campo em branco não vira `period: ''` no corpo: a API trata ausência e vazio da mesma forma. */
+  test('omits the period from the body when the operator typed nothing', async () => {
+    const { buildNfseCreateRequests, buildNfsePreviewRequest } = await loadEmissionModule()
+    const summary = await summarize()
+    const preview = buildNfsePreviewRequest({
+      description: PROFILE_TEMPLATE,
+      documentIds: [DOCUMENT_ID],
+      period: '   ',
+      profileId: PROFILE_ID,
+      profileTemplate: PROFILE_TEMPLATE,
+    })
+
+    expect(Object.keys(preview)).not.toContain('period')
+    for (const request of buildNfseCreateRequests({
+      description: PROFILE_TEMPLATE,
+      period: '',
+      profileTemplate: PROFILE_TEMPLATE,
+      summary,
+    })) {
+      expect(Object.keys(request)).not.toContain('period')
+    }
+  })
+
+  test('opens the field empty and lets the operator type it, without deriving a window', async () => {
+    const [dialog, hook, service] = await Promise.all([
+      readApplicationFile(DIALOG_PATH),
+      readApplicationFile(HOOK_PATH),
+      readApplicationFile(SERVICE_PATH),
+    ])
+
+    expect(dialog).toContain('dialog.setPeriod')
+    expect(dialog).toContain('dialog.period')
+    expect(dialog).toContain('emission.period')
+    expect(hook).toContain('setPeriod')
+    expect(hook).toContain('period,')
+    // Nada de janela calculada: nem data de hoje, nem semana anterior, nem `Date` no meio do caminho.
+    for (const source of [hook, service]) {
+      expect(source).not.toContain('new Date(')
+      expect(source).not.toContain('setDate(')
+    }
+  })
+
+  test('publishes the period label and its hint in both languages', async () => {
+    const [portuguese, english] = await Promise.all([
+      readApplicationFile(PT_LOCALE_PATH).then((raw) => JSON.parse(raw) as Record<string, unknown>),
+      readApplicationFile(EN_LOCALE_PATH).then((raw) => JSON.parse(raw) as Record<string, unknown>),
+    ])
+
+    for (const locale of [portuguese, english]) {
+      expect(collectKeys(locale.emission, '')).toContain('period')
+      expect(collectKeys(locale.emission, '')).toContain('periodHint')
+    }
+  })
+})
+
+/**
  * A criação aceita um tomador só (`NFSE_INVOICE_CREATE_SPANS_MULTIPLE_TAKERS`): a prévia agrupa,
  * e confirmar dispara uma criação por grupo — cada nota é um documento fiscal independente.
  */
@@ -405,6 +506,7 @@ describe('nfse emission creation contract', () => {
     const summary = await summarize()
     const requests = buildNfseCreateRequests({
       description: PROFILE_TEMPLATE,
+      period: '',
       profileTemplate: PROFILE_TEMPLATE,
       summary,
     })
@@ -422,11 +524,13 @@ describe('nfse emission creation contract', () => {
       buildNfsePreviewRequest({
         description: CUSTOM_TEMPLATE,
         documentIds: [DOCUMENT_ID],
+        period: TYPED_PERIOD,
         profileId: PROFILE_ID,
         profileTemplate: PROFILE_TEMPLATE,
       }),
       ...buildNfseCreateRequests({
         description: CUSTOM_TEMPLATE,
+        period: TYPED_PERIOD,
         profileTemplate: PROFILE_TEMPLATE,
         summary,
       }),
@@ -485,6 +589,7 @@ describe('nfse emission preview freshness contract', () => {
       companyId: '3f6c9d21-84b7-4e50-9a12-7d5b0e83c467',
       description: PROFILE_TEMPLATE,
       documentIds: [DOCUMENT_ID, THIRD_DOCUMENT_ID],
+      period: TYPED_PERIOD,
       profileId: PROFILE_ID,
       profileTemplate: PROFILE_TEMPLATE,
     }
@@ -495,6 +600,8 @@ describe('nfse emission preview freshness contract', () => {
       { ...selection, documentIds: [DOCUMENT_ID] },
       { ...selection, profileId: '0c4d7e19-53a8-4b26-9f81-2e6a5c3b7d40' },
       { ...selection, description: CUSTOM_TEMPLATE },
+      // O período entra na descrição que a prefeitura lê: mudá-lo é outra prévia, não a mesma.
+      { ...selection, period: OTHER_PERIOD },
     ]) {
       expect(buildNfsePreviewQueryKey(changed)).not.toEqual(buildNfsePreviewQueryKey(selection))
     }
@@ -505,6 +612,7 @@ describe('nfse emission preview freshness contract', () => {
     const selection = {
       description: PROFILE_TEMPLATE,
       documentIds: [DOCUMENT_ID, THIRD_DOCUMENT_ID],
+      period: TYPED_PERIOD,
       profileId: PROFILE_ID,
       profileTemplate: PROFILE_TEMPLATE,
     }
@@ -762,6 +870,50 @@ describe('nfse emission dialog rendering contract', () => {
     ]) {
       expect(portugueseKeys).toContain(key)
     }
+  })
+})
+
+/**
+ * O motivo pelo qual "Emitir" não emitiu tem de ser lido junto ao botão. Com a classe de texto
+ * auxiliar e 192px acima do rodapé, a frase existia no DOM e ninguém a via — foi assim que a
+ * credencial ausente virou "o modal não fez nada".
+ */
+describe('nfse emission alert contract', () => {
+  test('gives the failure its own alert style, apart from the helper text', async () => {
+    const [dialog, styles] = await Promise.all([
+      readApplicationFile(DIALOG_PATH),
+      readApplicationFile(STYLES_PATH),
+    ])
+
+    expect(dialog).toContain('styles.emissionAlert')
+    expect(dialog).toContain('role="alert"')
+    expect(dialog).not.toMatch(/styles\.placeholder} role="alert"/)
+    expect(styles).toContain('.emissionAlert')
+    expect(styles).toContain('var(--color-alert)')
+  })
+
+  test('puts the alert beside the button that failed, not above the whole preview', async () => {
+    const dialog = await readApplicationFile(DIALOG_PATH)
+    const alertAt = dialog.indexOf('styles.emissionAlert')
+    const blocksAt = dialog.indexOf('dialog.blockGroups')
+    const footerAt = dialog.indexOf('styles.emissionFooter')
+
+    expect(alertAt).toBeGreaterThan(blocksAt)
+    expect(alertAt).toBeLessThan(footerAt)
+  })
+})
+
+/**
+ * A alíquota chega como fração (`0.020000`): imprimir o número cru com `%` mostrava `0,020000%`
+ * numa nota cuja alíquota é 2%.
+ */
+describe('nfse emission rate contract', () => {
+  test('shows the rate as percent, converting the fraction the api sends', async () => {
+    const [dialog, summary] = await Promise.all([readApplicationFile(DIALOG_PATH), summarize()])
+
+    expect(summary.rows[0]?.issRate).toBe('0.020000')
+    expect(dialog).toContain('toIssRatePercent(row.issRate)')
+    expect(dialog).not.toContain('${row.issRate}%')
   })
 })
 

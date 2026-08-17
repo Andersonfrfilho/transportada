@@ -206,6 +206,7 @@ describe('nfse invoice creation', () => {
       createInvoiceFingerprint({
         descriptionTemplate: '',
         documentIds: [DOCUMENT_ID],
+        period: '',
         profileId: PROFILE_ID,
       }),
     )
@@ -214,9 +215,34 @@ describe('nfse invoice creation', () => {
 
   /**
    * O texto que a prefeitura lê sai do perfil: o município é o da inscrição municipal, e o período
-   * é a janela das notas que a seleção cobre.
+   * é o que o operador digitou no pedido — a data das notas não o decide.
    */
-  test('a descrição escreve o município do perfil e o período das notas selecionadas', async () => {
+  test('a descrição escreve o município do perfil e o período digitado no pedido', async () => {
+    const { recording, useCase } = createUseCase({
+      documents: [
+        selectionDocument(),
+        selectionDocument({
+          documentId: OTHER_DOCUMENT_ID,
+          issuedAt: '2026-08-05T10:00:00.000Z',
+          number: '000000124',
+        }),
+      ],
+    })
+
+    await useCase.create({
+      ...CREATE_INPUT,
+      descriptionTemplate: 'Entregas na cidade de {{municipio}} {{periodo}}.',
+      documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
+      period: '03-08 a 07-08-2026',
+    })
+
+    expect(recording.invoices[0]?.description).toBe(
+      'Entregas na cidade de Ribeirão Preto 03-08 a 07-08-2026.',
+    )
+  })
+
+  /** Sem período digitado a frase fecha sem data nenhuma — o espaço fica em branco, e é isso. */
+  test('período em branco não vira a janela das notas selecionadas', async () => {
     const { recording, useCase } = createUseCase({
       documents: [
         selectionDocument(),
@@ -234,9 +260,7 @@ describe('nfse invoice creation', () => {
       documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
     })
 
-    expect(recording.invoices[0]?.description).toBe(
-      'Entregas na cidade de Ribeirão Preto 01-08 a 05-08-2026.',
-    )
+    expect(recording.invoices[0]?.description).toBe('Entregas na cidade de Ribeirão Preto .')
   })
 
   test('perfil que não é ativo não emite', async () => {

@@ -98,6 +98,42 @@ sabe o endereço do frontend. O `login.ftl` renderiza a âncora escondida e
 login antes de revelá-la. Sem `redirect_uri` legível o link continua escondido — melhor ausente do
 que apontando para lugar nenhum.
 
+## O realm não recebe o tema pelo `realm.json`
+
+`--import-realm` **ignora realm já existente**: `"loginTheme": "transportada"` só vale numa
+instalação nova. Num ambiente que já subiu, o arquivo é aprovado em review, o deploy fica verde e o
+realm continua servindo `keycloak.v2` — foi assim que o tema ficou quatro dias fora do ar nos dois
+ambientes, em 13/08/2026.
+
+Quem aplica é `.github/scripts/keycloak-reconcile.sh`, no passo `Reconciliar realm` do `deploy.yml`,
+depois de publicar o Keycloak. Ele escreve o `loginTheme` só quando difere (o realm reconciliado não
+recebe escrita à toa) e então **confere no ar**: busca a tela de login e reprova o deploy se o CSS
+referenciado não for o do nosso tema. Essa segunda metade é a que importa — realm apontando para tema
+ausente da imagem cai no padrão do Keycloak sem erro nenhum.
+
+O passe usa o service account `transportada-admin` com `manage-realm` (o realm versionado já o
+concede; nos ambientes que existiam antes o papel foi acrescentado pelo Admin API). O smoke pede a
+tela com PKCE — sem `code_challenge` o `account-console` devolve 302 para a página de erro, e o
+conferidor leria "tema ausente" em todo deploy. Contrato em
+`apps/api-transportada/test/deploy/keycloak-realm.contract.ts`.
+
+## Subindo a versão do Keycloak
+
+A imagem é pinada por tag **e** digest no `Dockerfile` e no `compose.yaml`: upgrade só acontece por
+edição deliberada. O que o upgrade ameaça é o tema — `template.ftl`, `login.ftl` e `footer.ftl` são
+cópias do `base` de uma versão específica, e cópia não recebe correção de cima. Campo novo, macro
+nova ou chave de mensagem nova ficam de fora sem erro nenhum: a tela segue com a nossa marca, passa
+no smoke do `keycloak-reconcile.sh`, e falta o que o Keycloak novo espera.
+
+`deploy/keycloak/theme/forked-from.properties` registra de qual versão as cópias saíram e quais
+templates são bifurcados. O contrato `test/deploy/keycloak-theme-fork.contract.ts` reprova enquanto o
+marcador discordar da imagem — o bump não depende de alguém lembrar. A ordem é: comparar cada
+template com o do `base` da versão nova, trazer o que mudou, e só então atualizar o marcador.
+
+As telas que **não** bifurcamos (recuperação pelo Keycloak, erro, OTP, termos) vêm do `base` com o
+nosso CSS mas com as classes dele — estilizadas pela metade. Upgrade não muda isso em nenhuma
+direção.
+
 ## Verificando uma mudança
 
 O Keycloak guarda o tema em cache mesmo em `start-dev`: depois de editar qualquer arquivo,

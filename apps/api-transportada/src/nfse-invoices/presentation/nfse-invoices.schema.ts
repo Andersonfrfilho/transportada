@@ -19,6 +19,12 @@ import type { NfseInvoiceCursor, NfseInvoiceListFilters } from '../application/n
 /** Uma nota de serviço cobre uma seleção da tela de notas; acima disso o pedido vira lote. */
 const MAX_SELECTION_DOCUMENTS = 500
 
+/**
+ * O período digitado entra no texto que a prefeitura lê e disputa espaço com a lista de notas —
+ * sem teto, uma janela escrita por extenso empurraria as notas para fora da descrição.
+ */
+const MAX_PERIOD_LENGTH = 60
+
 const CURSOR_SEPARATOR = '::'
 const CURSOR_PARTS = 2
 const DEFAULT_PAGE_LIMIT = 25
@@ -143,6 +149,7 @@ export const nfseInvoiceSelectionSchema = z
   .object({
     descriptionTemplate: z.string().min(1).max(MAX_DESCRIPTION_MAX_LENGTH).optional(),
     documentIds: z.array(z.uuid()).min(1).max(MAX_SELECTION_DOCUMENTS),
+    period: z.string().max(MAX_PERIOD_LENGTH).optional(),
     profileId: z.uuid(),
   })
   .strict()
