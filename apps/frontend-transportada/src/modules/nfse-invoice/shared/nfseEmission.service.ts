@@ -38,7 +38,13 @@ export type NfseEmissionStatus =
   | 'idle'
   | 'loading'
   | 'previewError'
+  | 'profileError'
+  | 'profileMissing'
+  | 'profileUnavailable'
   | 'ready'
+
+/** O perfil manda na prévia: sem um selecionável a requisição nem sai, e o diálogo precisa dizer por quê. */
+export type NfseEmissionProfileStatus = 'error' | 'forbidden' | 'loading' | 'missing' | 'ready'
 
 export type NfseEmissionRow = Readonly<{
   description: string
@@ -205,17 +211,43 @@ export function buildNfsePreviewQueryKey(
   ]
 }
 
+export function resolveNfseEmissionProfileStatus(
+  input: Readonly<{
+    canListProfiles: boolean
+    isError: boolean
+    isLoading: boolean
+    profileCount: number
+  }>,
+): NfseEmissionProfileStatus {
+  if (!input.canListProfiles) return 'forbidden'
+  if (input.isError) return 'error'
+  if (input.isLoading) return 'loading'
+  return input.profileCount === 0 ? 'missing' : 'ready'
+}
+
+const STATUS_BY_UNREADY_PROFILE = {
+  error: 'profileError',
+  forbidden: 'profileUnavailable',
+  loading: 'loading',
+  missing: 'profileMissing',
+} as const satisfies Record<Exclude<NfseEmissionProfileStatus, 'ready'>, NfseEmissionStatus>
+
 export function resolveNfseEmissionStatus(
   input: Readonly<{
     hasPreview: boolean
     isCreateError: boolean
     isCreating: boolean
+    isPreviewEnabled: boolean
     isPreviewError: boolean
     isPreviewFetching: boolean
+    profileStatus: NfseEmissionProfileStatus
   }>,
 ): NfseEmissionStatus {
   if (input.isCreating) return 'creating'
+  if (input.profileStatus !== 'ready') return STATUS_BY_UNREADY_PROFILE[input.profileStatus]
   if (input.isPreviewError) return 'previewError'
+  // Esqueleto só enquanto existe requisição em voo: esperar por uma prévia que não foi pedida é esperar para sempre.
+  if (!input.isPreviewEnabled) return 'idle'
   if (!input.hasPreview || input.isPreviewFetching) return 'loading'
   if (input.isCreateError) return 'createError'
   return 'ready'
@@ -241,6 +273,8 @@ export function canConfirmNfseEmission(
 export function selectNfseEmissionMessageKey(
   input: Readonly<{ errorCode: null | string; status: NfseEmissionStatus }>,
 ): null | string {
+  if (input.status === 'profileMissing') return 'emission.profileMissing'
+  if (input.status === 'profileError') return 'emission.errorProfiles'
   if (input.status !== 'createError' && input.status !== 'previewError') return null
 
   const isSpecific = input.errorCode !== null && !GENERIC_ERROR_CODES.includes(input.errorCode)

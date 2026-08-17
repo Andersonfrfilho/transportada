@@ -17,6 +17,7 @@ import {
   NFSE_EMISSION_MAX_VISIBLE_ROWS,
   NFSE_EMISSION_PREVIEW_QUERY_KEY,
   resolveNfseDescription,
+  resolveNfseEmissionProfileStatus,
   resolveNfseEmissionStatus,
   summarizeNfsePreview,
   type NfseEmissionBlockGroup,
@@ -92,12 +93,22 @@ export function useNfseEmissionDialog(
 
   const profiles = profilesQuery.data ?? []
   const profileId = selectedProfileId ?? profiles[0]?.id ?? null
+  const profileStatus = resolveNfseEmissionProfileStatus({
+    canListProfiles,
+    isError: profilesQuery.isError,
+    // `isPending` cobre o primeiro render, antes de a busca começar: sem ele "nenhum perfil" pisca.
+    isLoading: profilesQuery.isPending || profilesQuery.isFetching,
+    profileCount: profiles.length,
+  })
   const profileTemplate =
     profiles.find((profile) => profile.id === profileId)?.descriptionTemplate ?? ''
   const description = resolveNfseDescription({ custom: customDescription, profileTemplate })
 
+  // O estado do diálogo lê a mesma condição que liga a query: prévia desligada não é espera.
+  const isPreviewEnabled = isOpen && canOpen && profileId !== null && input.documentIds.length > 0
+
   const previewQuery = useQuery({
-    enabled: isOpen && canOpen && profileId !== null && input.documentIds.length > 0,
+    enabled: isPreviewEnabled,
     queryFn: () =>
       controller.previewInvoices(
         buildNfsePreviewRequest({
@@ -157,8 +168,10 @@ export function useNfseEmissionDialog(
         hasPreview: preview !== null,
         isCreateError: createMutation.isError,
         isCreating: createMutation.isPending,
+        isPreviewEnabled,
         isPreviewError: previewQuery.isError,
         isPreviewFetching: previewQuery.isFetching,
+        profileStatus,
       })
     : 'idle'
   const rows = summary?.rows ?? []
