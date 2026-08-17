@@ -115,6 +115,11 @@ jobs:
           fi
           echo "Deploy do Keycloak ($reason)."
           .github/scripts/railway-deploy.sh deploy keycloak
+      # Depois de publicar, e sempre: `--import-realm` não atualiza realm existente, então a
+      # configuração do `realm.json` só vale se alguém a aplicar. Reconciliar é barato; descobrir
+      # semanas depois que a tela de login do cliente está errada, não.
+      - name: Reconciliar realm
+        run: .github/scripts/keycloak-reconcile.sh
       # A API roda as migrations no preDeployCommand; worker e cron só sobem depois que ela conclui.
       - name: Deploy API
         run: .github/scripts/railway-deploy.sh deploy api
