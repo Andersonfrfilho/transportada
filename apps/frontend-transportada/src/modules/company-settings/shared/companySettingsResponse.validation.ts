@@ -3,7 +3,7 @@ import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
 } from './companySettings.constant'
-import { CERTIFICATE_PURPOSES } from './companySettings.types'
+import { ACTIVATION_CHANNELS, CERTIFICATE_PURPOSES } from './companySettings.types'
 import type {
   CompanyProfileLookup,
   CompanyProfileLookupResponse,
@@ -12,6 +12,7 @@ import type {
   SafeCertificate,
 } from './companySettings.types'
 
+const ACTIVATION_KEYS = ['channel']
 const BILLING_KEYS = ['bankAccount', 'bankBranch', 'bankCode', 'bankName', 'observations', 'pixKey']
 const CERTIFICATE_KEYS = ['expiresAt', 'id', 'purpose', 'status', 'validFrom', 'version']
 const CTE_KEYS = ['environment', 'nextNumber', 'series', 'version']
@@ -152,6 +153,11 @@ function isCteRetryPolicy(value: unknown): boolean {
   )
 }
 
+function isActivation(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys({ keys: ACTIVATION_KEYS, value })) return false
+  return ACTIVATION_CHANNELS.some((channel) => channel === value.channel)
+}
+
 function isBillingDefaults(value: unknown): boolean {
   if (!isRecord(value) || !hasExactKeys({ keys: BILLING_KEYS, value })) return false
   return BILLING_KEYS.every((key) => typeof value[key] === 'string')
@@ -179,9 +185,13 @@ function isFiscalProfile(value: unknown): boolean {
 export function isSettingsResponse(value: unknown): value is CompanySettingsResponse {
   if (!isRecord(value) || !hasExactKeys({ keys: ['data'], value }) || !isRecord(value.data))
     return false
-  const { billing, cte, cteRetry, mdfe, profile } = value.data
+  const { activation, billing, cte, cteRetry, mdfe, profile } = value.data
   return (
-    hasExactKeys({ keys: ['billing', 'cte', 'cteRetry', 'mdfe', 'profile'], value: value.data }) &&
+    hasExactKeys({
+      keys: ['activation', 'billing', 'cte', 'cteRetry', 'mdfe', 'profile'],
+      value: value.data,
+    }) &&
+    (activation === null || isActivation(activation)) &&
     (billing === null || isBillingDefaults(billing)) &&
     (cte === null || isCteSettings(cte)) &&
     (cteRetry === null || isCteRetryPolicy(cteRetry)) &&

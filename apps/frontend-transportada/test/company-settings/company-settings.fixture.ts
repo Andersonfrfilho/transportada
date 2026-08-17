@@ -95,6 +95,7 @@ export const BILLING_DEFAULTS = {
 
 export const COMPANY_SETTINGS_RESPONSE = {
   data: {
+    activation: { channel: 'email' },
     billing: BILLING_DEFAULTS,
     cte: {
       environment: 'production',
@@ -260,7 +261,7 @@ export const ADJUSTED_FUEL_PRICE = {
 } as const satisfies FuelPriceEntryContract
 
 export const EMPTY_COMPANY_SETTINGS_RESPONSE = {
-  data: { billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
+  data: { activation: null, billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
 } as const
 
 export function syntheticCertificateFile(): File {
