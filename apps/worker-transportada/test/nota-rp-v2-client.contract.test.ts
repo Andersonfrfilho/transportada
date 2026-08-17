@@ -17,7 +17,7 @@ import {
   cancelledData,
   createNotaRpV2ClientFixture,
   failureBody,
-  issuedData,
+  issuedBody,
   jsonResponse,
   pendingData,
   recordingFetch,
@@ -36,7 +36,7 @@ function isStableCause(value: string | undefined): boolean {
 
 describe('Nota RP v2 client — emissão', () => {
   test('publica o RPS em POST /emitir e devolve o id_nota do provedor', async () => {
-    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const { calls, fetch } = recordingFetch(() => issuedBody())
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.issue({ rps: RPS })
@@ -54,7 +54,7 @@ describe('Nota RP v2 client — emissão', () => {
   // O gateway congela o RPS; o cliente é transporte. Reescrever o corpo aqui seria uma segunda
   // fonte da verdade fiscal entre o que a empresa aprovou e o que a prefeitura recebe.
   test('transmite o RPS recebido sem acrescentar nem remover campo', async () => {
-    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const { calls, fetch } = recordingFetch(() => issuedBody())
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     await client.issue({ rps: RPS })
@@ -62,30 +62,63 @@ describe('Nota RP v2 client — emissão', () => {
     expect(JSON.parse(calls[0]?.body ?? 'null')).toEqual({ ...RPS })
   })
 
-  test('trata HTTP 200 com success:false como rejeição, com código e mensagem da prefeitura', async () => {
-    const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E101', message: 'Inscricao municipal invalida' }),
-    )
+  /**
+   * A recusa da v2 é `{success:false, message}` e nada mais — o código da prefeitura só existe no
+   * postback, dentro de `MensagemRetorno[].Codigo`. O marcador estável ocupa o lugar dele para a
+   * linha não ficar sem classificação nenhuma.
+   */
+  test('trata HTTP 200 com success:false como rejeição, com a mensagem da prefeitura', async () => {
+    const { fetch } = recordingFetch(() => failureBody({ message: 'Inscricao municipal invalida' }))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.issue({ rps: RPS })
 
     expect(outcome.status).toBe('rejected')
     expect(outcome.rejection).toMatchObject({
-      code: 'E101',
+      code: 'NOTA_RP_UNKNOWN',
       message: 'Inscricao municipal invalida',
     })
     expect(outcome.providerDocumentId).toBeUndefined()
   })
 
   test('não aceita corpo de sucesso sem id_nota', async () => {
-    const { fetch } = recordingFetch(() => successBody({}))
+    const { fetch } = recordingFetch(() => jsonResponse({ message: 'ok', success: true }))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.issue({ rps: RPS })
 
     expect(outcome.status).toBe('error')
     expect(outcome.cause).toBe('malformed_response')
+  })
+
+  /**
+   * O `id_nota` do `/emitir` é **numérico e no topo** do envelope — o `data` que exigíamos não
+   * existe nesse endpoint. Exigi-lo arquivava emissão aceita como `malformed_response`, e a nota
+   * seguia viva no provedor sem referência nenhuma do nosso lado.
+   */
+  test('lê o id_nota numérico do envelope oficial do /emitir', async () => {
+    const { fetch } = recordingFetch(() => issuedBody())
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.issue({ rps: RPS })
+
+    expect(outcome).toMatchObject({
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+      status: 'accepted',
+    })
+  })
+
+  /** Recusa de campo do próprio pedido — a mensagem é o que o operador tem para corrigir. */
+  test('devolve a mensagem da recusa de validação do pedido', async () => {
+    const { fetch } = recordingFetch(() =>
+      failureBody({ message: 'Por favor informe uma data de emissão válida' }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.issue({ rps: RPS })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.message).toBe('Por favor informe uma data de emissão válida')
   })
 })
 
@@ -135,16 +168,17 @@ describe('Nota RP v2 client — consulta', () => {
   // Ler `success:false` como "ainda processando" deixaria a nota em pending_authorization para
   // sempre, e o operador sem a rejeição que explica o que corrigir.
   test('não confunde HTTP 200 com success:false com nota ainda pendente', async () => {
-    const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E404', message: 'Nota nao localizada' }),
-    )
+    const { fetch } = recordingFetch(() => failureBody({ message: 'Nota nao localizada' }))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
 
     expect(outcome.status).not.toBe('pending')
     expect(outcome.status).toBe('rejected')
-    expect(outcome.rejection).toMatchObject({ code: 'E404' })
+    expect(outcome.rejection).toMatchObject({
+      code: 'NOTA_RP_UNKNOWN',
+      message: 'Nota nao localizada',
+    })
   })
 
   test('situação fora do vocabulário conhecido não vira autorização', async () => {
@@ -173,7 +207,7 @@ describe('Nota RP v2 client — consulta', () => {
 })
 
 describe('Nota RP v2 client — cancelamento', () => {
-  test('pede o cancelamento em POST /cancelar com o id_nota e o motivo', async () => {
+  test('pede o cancelamento em POST /cancelar-nota com id_nota e motivo', async () => {
     const { calls, fetch } = recordingFetch(() => successBody(cancelledData()))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
@@ -184,15 +218,17 @@ describe('Nota RP v2 client — cancelamento', () => {
 
     const body = JSON.parse(calls[0]?.body ?? 'null') as Record<string, unknown>
     expect(calls[0]?.method).toBe('POST')
-    expect(calls[0]?.url).toBe(`${BASE_URL}/cancelar`)
-    expect(Object.values(body)).toContain(PROVIDER_DOCUMENT_ID)
-    expect(Object.values(body)).toContain(CANCELLATION_REASON)
+    expect(calls[0]?.url).toBe(`${BASE_URL}/cancelar-nota`)
+    // Conferir por `Object.values` era cego a nome de chave — foi assim que `motivo_cancelamento` passou.
+    expect(body['id_nota']).toBe(PROVIDER_DOCUMENT_ID)
+    expect(body['motivo']).toBe(CANCELLATION_REASON)
+    expect(body).not.toHaveProperty('motivo_cancelamento')
     expect(outcome.status).toBe('accepted')
   })
 
   test('trata HTTP 200 com success:false como recusa do cancelamento', async () => {
     const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E210', message: 'Prazo de cancelamento expirado' }),
+      failureBody({ message: 'Prazo de cancelamento expirado' }),
     )
     const client = await createNotaRpV2ClientFixture({ fetch })
 
@@ -202,13 +238,16 @@ describe('Nota RP v2 client — cancelamento', () => {
     })
 
     expect(outcome.status).toBe('rejected')
-    expect(outcome.rejection).toMatchObject({ code: 'E210' })
+    expect(outcome.rejection).toMatchObject({
+      code: 'NOTA_RP_UNKNOWN',
+      message: 'Prazo de cancelamento expirado',
+    })
   })
 
   // O motivo é texto livre digitado por operador: pode carregar nome ou telefone de cliente.
   test('não devolve o motivo do cancelamento no outcome de falha', async () => {
     const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E210', message: 'Prazo de cancelamento expirado' }),
+      failureBody({ message: 'Prazo de cancelamento expirado' }),
     )
     const client = await createNotaRpV2ClientFixture({ fetch })
 
@@ -260,9 +299,7 @@ describe('Nota RP v2 client — download de XML e PDF', () => {
 
   // Sem isto, o envelope de erro em JSON seria arquivado em stored_objects como XML fiscal.
   test('trata HTTP 200 com success:false no download como falha, e não como documento', async () => {
-    const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E404', message: 'Documento indisponivel' }),
-    )
+    const { fetch } = recordingFetch(() => failureBody({ message: 'Documento indisponivel' }))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.fetchDocument({
@@ -271,7 +308,10 @@ describe('Nota RP v2 client — download de XML e PDF', () => {
     })
 
     expect(outcome.status).toBe('rejected')
-    expect(outcome.rejection).toMatchObject({ code: 'E404' })
+    expect(outcome.rejection).toMatchObject({
+      code: 'NOTA_RP_UNKNOWN',
+      message: 'Documento indisponivel',
+    })
     expect(outcome.bytes).toBeUndefined()
   })
 
@@ -342,7 +382,7 @@ describe('Nota RP v2 client — falhas de transporte', () => {
 
 describe('Nota RP v2 client — o token não vaza', () => {
   test('envia o token em cabeçalho, nunca na URL', async () => {
-    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const { calls, fetch } = recordingFetch(() => issuedBody())
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     await client.issue({ rps: RPS })
@@ -364,7 +404,7 @@ describe('Nota RP v2 client — o token não vaza', () => {
  */
 describe('Nota RP v2 client — os dois cabeçalhos que o provedor exige', () => {
   test('manda X-AUTH-USER-TOKEN e X-AUTH-IM em toda chamada, e não manda authorization', async () => {
-    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const { calls, fetch } = recordingFetch(() => issuedBody())
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     await client.issue({ rps: RPS })
@@ -380,7 +420,7 @@ describe('Nota RP v2 client — os dois cabeçalhos que o provedor exige', () =>
   })
 
   test('a inscrição municipal vem da credencial, não de constante do cliente', async () => {
-    const { calls, fetch } = recordingFetch(() => successBody(issuedData()))
+    const { calls, fetch } = recordingFetch(() => issuedBody())
     const client = await createNotaRpV2ClientFixture({
       config: { municipalRegistration: '98765432' },
       fetch,
@@ -416,9 +456,7 @@ describe('Nota RP v2 client — os dois cabeçalhos que o provedor exige', () =>
   })
 
   test('rejeição do provedor não carrega o token no outcome', async () => {
-    const { fetch } = recordingFetch(() =>
-      failureBody({ code: 'E401', message: `token ${API_TOKEN} invalido` }),
-    )
+    const { fetch } = recordingFetch(() => failureBody({ message: `token ${API_TOKEN} invalido` }))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.issue({ rps: RPS })

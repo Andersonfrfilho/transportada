@@ -15,7 +15,8 @@
   "clearFilters": "Limpar filtros",
   "tabs": {
     "vehicles": "Veículos",
-    "drivers": "Motoristas"
+    "drivers": "Motoristas",
+    "fuel": "Combustível"
   },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
@@ -236,5 +237,23 @@
   "driverVehiclesHint": "Marque os veículos que este motorista dirige — tanto os próprios dele quanto os da transportadora. O vínculo é histórico: desmarcar encerra o período, não apaga o passado.",
   "driverVehiclesEmpty": "Nenhum veículo ativo cadastrado para vincular",
   "driverOwnedVehicle": "Do motorista",
-  "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa"
+  "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa",
+  "fuelPrices": {
+    "title": "Preço do combustível",
+    "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência da ANP; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
+    "effective": "Em uso: {{price}} ({{source}}).",
+    "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência da ANP, o R$/km não é calculado para este combustível.",
+    "reference": "Referência da ANP: {{price}} — {{state}}, semana encerrada em {{week}}.",
+    "referenceMissing": "A ANP ainda não publicou referência para este combustível.",
+    "fieldLabel": "Novo preço por {{unit}}",
+    "save": "Salvar preço",
+    "clear": "Limpar ajuste",
+    "saved": "Preço salvo.",
+    "error": "Não foi possível salvar o preço. Código: {{code}}.",
+    "loadError": "Não foi possível carregar os preços de combustível.",
+    "unit": {
+      "litre": "litro",
+      "cubic-metre": "metro cúbico"
+    }
+  }
 }

@@ -54,7 +54,7 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     source: 'distributionCursor',
     tab: 'distribution',
   },
-  fuelPrices: { module: 'company-settings', source: 'fuelPrices', tab: 'fuel' },
+  fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
   nfseCredential: { module: 'company-settings', source: 'nfse', tab: 'nfse' },
   nfseProfiles: { module: 'company-settings', source: 'nfse', tab: 'nfse' },
@@ -66,7 +66,10 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   settingsForm: { module: 'company-settings', source: 'companySettings', tab: 'company' },
 }
 
-export function settingsPanelsOf(module: SettingsPanelModule, tab: string): readonly SettingsPanel[] {
+export function settingsPanelsOf(
+  module: SettingsPanelModule,
+  tab: string,
+): readonly SettingsPanel[] {
   return SETTINGS_PANELS.filter(
     (panel) =>
       SETTINGS_PANEL_PLACEMENT[panel].module === module &&
@@ -105,13 +108,7 @@ export function resolveSettingsDataScope(
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = [
-  'company',
-  'certificates',
-  'distribution',
-  'fuel',
-  'nfse',
-] as const
+export const COMPANY_SETTINGS_TAB_IDS = ['company', 'certificates', 'distribution', 'nfse'] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

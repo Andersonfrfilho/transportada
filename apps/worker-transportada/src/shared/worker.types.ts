@@ -24,6 +24,8 @@ export type EmailDeliveryEnvironment = {
  */
 export type NfseProviderEnvironment = {
   readonly baseUrl: string | undefined
+  /** Origem pública desta instalação: é dela que sai a `CallbackUrl` obrigatória do `/emitir`. */
+  readonly callbackBaseUrl: string | undefined
   readonly timeoutMilliseconds: number
 }
 

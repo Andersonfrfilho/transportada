@@ -24,3 +24,35 @@ Painéis hospedados hoje por `company-settings`, e o módulo que a 041 dá a cad
 | `nfseCredential`, `nfseProfiles`              | aba NFS-e          | `nfse-invoice`  |
 
 Consultas na abertura da tela, depois das abas: **2** (era 9).
+
+## T003 — contrato da aba Combustível (vermelho)
+
+`test/fleet/fuel-tab.contract.ts`, registrado em `test/fleet.contract.test.ts`.
+
+```
+$ bun test test/fleet.contract.test.ts
+ 95 pass
+ 7 fail
+```
+
+As sete falhas são as sete asserções da aba nova: o painel ainda morava em `company-settings`, o
+registro ainda dava `module: 'company-settings'` ao `fuelPrices`, e `fleet.locale.json` não tinha
+`tabs.fuel`.
+
+## T004/T005 — o preço do combustível mora na frota
+
+`git mv` do painel e do hook para `fleet/`, aba Combustível montada só com `settings.manage`,
+rótulos acentuados nos dois pacotes de tradução de `fleet`, e o par removido de `company-settings`
+(painel, hook, seção de props, chaves de tradução e a aba `fuel` do serviço). A metade de
+apresentação do contrato antigo virou `test/fleet/fuel-price-panel.contract.ts`; a metade de cliente
+ficou em `test/company-settings/fuel-prices.contract.ts`, onde o cliente HTTP continua morando.
+
+```
+$ bun run typecheck
+$ bun run test
+ 1298 pass
+ 0 fail
+$ bun run lint
+$ bun run build
+precache  12 entries (1399.18 KiB)
+```

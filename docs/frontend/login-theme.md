@@ -56,6 +56,14 @@ do `base`, sem editar nenhuma delas.
 O ano vem de `.now?string('yyyy')`, não do texto: um rodapé com ano fixo envelhece na virada e
 ninguém percebe. O texto é `transportadaColophon` no pacote de mensagens, com `{0}` recebendo o ano.
 
+O nome da Ada Technology é link para `https://adatechnology.com.br`, com `target="_blank"` e
+`rel="noreferrer"` — sem o `noreferrer` a aba aberta herda o `window.opener` e o caminho de volta
+para a sessão. A URL é **cópia por valor** de `ApplicationFooter.component.tsx`: o tema não importa
+código nosso, e o que guarda a paridade dos dois rodapés é
+`apps/frontend-transportada/test/design-system/application-footer.contract.ts`. O titular fica em
+`transportadaColophonHolder`, chave separada do aviso — `<a>` dentro de um `.properties` sairia
+escapado na tela, então o markup mora no FTL e o dicionário guarda só a palavra.
+
 A chamada foi movida para fora do `.panel`: o `base` a coloca dentro do cartão, onde a linha lê como
 parte do formulário. Na grade de duas colunas o `.colophon` atravessa as duas (`grid-column: 1 / -1`);
 sem isso ele cairia embaixo da marca, desalinhado do painel.

@@ -30,6 +30,8 @@ import {
 
 const XML_BYTES = new Uint8Array([0x3c, 0x6e, 0x66, 0x73, 0x65, 0x3e])
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])
+/** Marcador dos dois clientes para "recusa veio sem código" — cópia por valor, como o resto. */
+const UNKNOWN_REJECTION_CODE = 'NOTA_RP_UNKNOWN'
 
 describe('Nota RP v2 status client parity', () => {
   test('reads "processando" as pending, matching the worker client table', async () => {
@@ -115,13 +117,28 @@ describe('Nota RP v2 status client parity', () => {
   /** ADR-0029: erro de negócio chega como HTTP 200 — quem decide é o corpo, não o status. */
   test('treats HTTP 200 with success:false as a failure, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
-      fetch: recordingFetch(() => failureBody({ code: 'E001', message: 'Nota inexistente' })).fetch,
+      fetch: recordingFetch(() => failureBody({ message: 'Nota inexistente' })).fetch,
     })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
 
     expect(outcome).toEqual({
-      rejection: { code: 'E001', message: 'Nota inexistente' },
+      rejection: { code: UNKNOWN_REJECTION_CODE, message: 'Nota inexistente' },
+      status: 'rejected',
+    })
+  })
+
+  test('ignores a code field in the refusal envelope, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() =>
+        jsonResponse({ code: 'E001', message: 'Nota inexistente', success: false }),
+      ).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      rejection: { code: UNKNOWN_REJECTION_CODE, message: 'Nota inexistente' },
       status: 'rejected',
     })
   })
@@ -177,8 +194,7 @@ describe('Nota RP v2 document download parity', () => {
   /** Envelope JSON onde se esperava documento é falha — nunca byte para arquivar. */
   test('refuses a JSON envelope where bytes were expected, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
-      fetch: recordingFetch(() => failureBody({ code: 'E404', message: 'Documento indisponivel' }))
-        .fetch,
+      fetch: recordingFetch(() => failureBody({ message: 'Documento indisponivel' })).fetch,
     })
 
     const outcome = await client.fetchDocument({
@@ -187,7 +203,7 @@ describe('Nota RP v2 document download parity', () => {
     })
 
     expect(outcome).toEqual({
-      rejection: { code: 'E404', message: 'Documento indisponivel' },
+      rejection: { code: UNKNOWN_REJECTION_CODE, message: 'Documento indisponivel' },
       status: 'rejected',
     })
   })

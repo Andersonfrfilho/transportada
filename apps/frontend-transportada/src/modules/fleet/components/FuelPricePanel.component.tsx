@@ -4,20 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import type { FuelPriceEntry } from '@/modules/company-settings/shared/companySettingsClient.service'
+import {
+  formatFuelPricePerUnit,
+  toFuelPricePerUnit,
+} from '@/modules/company-settings/shared/fuelPrice.service'
 import { FUEL_PRODUCTS, type FuelProduct } from '@/modules/shared/fuel.constant'
 
 import type { FuelPriceAdjustment } from '../hooks/useFuelPrices.hook'
-import type { FuelPriceEntry } from '../shared/companySettingsClient.service'
-import {
-  FUEL_PRICE_SOURCE_LABEL_KEYS,
-  formatFuelPricePerUnit,
-  toFuelPricePerUnit,
-} from '../shared/fuelPrice.service'
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/fleet.module.css'
 
-type FuelPricePanelProps = Readonly<{
+export type FuelPricePanelProps = Readonly<{
   disabled: boolean
-  errorCode: string | undefined
+  errorCode?: string
   loading: boolean
   onAdjust: (input: FuelPriceAdjustment) => void
   onClear: (product: FuelProduct) => void
@@ -26,7 +25,7 @@ type FuelPricePanelProps = Readonly<{
 }>
 
 function useWeekFormatter(): (value: string) => string {
-  const { i18n } = useTranslation('companySettings')
+  const { i18n } = useTranslation('fleet')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
     timeZone: 'UTC',
@@ -35,9 +34,9 @@ function useWeekFormatter(): (value: string) => string {
 }
 
 function FuelPriceSkeleton() {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('fleet')
   return (
-    <SkeletonGroup label={t('fuelPricesTitle')}>
+    <SkeletonGroup label={t('fuelPrices.title')}>
       {FUEL_PRODUCTS.map((product) => (
         <Skeleton
           key={`fuel-price-skeleton-${product}`}
@@ -50,13 +49,13 @@ function FuelPriceSkeleton() {
 }
 
 function FuelPriceReferenceLine({ entry }: Readonly<{ entry: FuelPriceEntry }>) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('fleet')
   const formatWeek = useWeekFormatter()
   if (entry.reference === null)
-    return <p className={styles.fieldHint}>{t('fuelPriceReferenceMissing')}</p>
+    return <p className={styles.fieldHint}>{t('fuelPrices.referenceMissing')}</p>
   return (
     <p className={styles.fieldHint}>
-      {t('fuelPriceReference', {
+      {t('fuelPrices.reference', {
         price: formatFuelPricePerUnit(entry.reference.pricePerUnit),
         state: entry.reference.state,
         week: formatWeek(entry.reference.weekEndingOn),
@@ -74,7 +73,7 @@ function FuelPriceRow(
     product: FuelProduct
   }>,
 ) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('fleet')
   const [draft, setDraft] = useState('')
   const price = toFuelPricePerUnit(draft)
   const invalid = draft !== '' && price === null
@@ -91,16 +90,12 @@ function FuelPriceRow(
       <div className={styles.fuelPriceFacts}>
         <p className={styles.fuelPriceProduct}>{t(`fuelOption.${props.product}`)}</p>
         {props.entry?.effectivePricePerUnit == null ? (
-          <p className={styles.fieldHint}>{t('fuelPriceUnavailable')}</p>
+          <p className={styles.fieldHint}>{t('fuelPrices.unavailable')}</p>
         ) : (
-          <p className={styles.scheduledDistributionState}>
-            {t('fuelPriceEffective', {
+          <p className={styles.fuelPriceEffective}>
+            {t('fuelPrices.effective', {
               price: formatFuelPricePerUnit(props.entry.effectivePricePerUnit),
-              source: t(
-                props.entry.source === null
-                  ? 'fuelPriceSourceAnp'
-                  : FUEL_PRICE_SOURCE_LABEL_KEYS[props.entry.source],
-              ),
+              source: t(`fuelPriceSource.${props.entry.source ?? 'anp'}`),
             })}
           </p>
         )}
@@ -108,7 +103,9 @@ function FuelPriceRow(
       </div>
       <div className={styles.fuelPriceForm}>
         <label htmlFor={fieldId}>
-          {t('fuelPriceFieldLabel', { unit: t(`fuelPriceUnit.${props.entry?.unit ?? 'litre'}`) })}
+          {t('fuelPrices.fieldLabel', {
+            unit: t(`fuelPrices.unit.${props.entry?.unit ?? 'litre'}`),
+          })}
         </label>
         <input
           aria-invalid={invalid}
@@ -126,7 +123,7 @@ function FuelPriceRow(
             onClick={handleAdjust}
           >
             <Icon name="save" />
-            {t('fuelPriceSave')}
+            {t('fuelPrices.save')}
           </button>
           {props.entry?.source === 'manual' && (
             <button
@@ -136,7 +133,7 @@ function FuelPriceRow(
               onClick={() => props.onClear(props.product)}
             >
               <Icon name="refresh" />
-              {t('fuelPriceClear')}
+              {t('fuelPrices.clear')}
             </button>
           )}
         </div>
@@ -146,16 +143,16 @@ function FuelPriceRow(
 }
 
 export function FuelPricePanel(props: FuelPricePanelProps) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('fleet')
   return (
-    <section className={styles.certificateForm} aria-labelledby="fuel-prices-title">
-      <h2 id="fuel-prices-title">{t('fuelPricesTitle')}</h2>
-      <p className={styles.fieldHint}>{t('fuelPricesHint')}</p>
+    <section className={styles.panel} aria-labelledby="fuel-prices-title">
+      <h2 id="fuel-prices-title">{t('fuelPrices.title')}</h2>
+      <p className={styles.hint}>{t('fuelPrices.hint')}</p>
       {props.loading ? (
         <FuelPriceSkeleton />
       ) : props.prices === undefined ? (
-        <p className={styles.formStatusError} role="alert">
-          {t('fuelPriceLoadError')}
+        <p className={styles.fuelPriceStatusError} role="alert">
+          {t('fuelPrices.loadError')}
         </p>
       ) : (
         <div className={styles.fuelPriceList}>
@@ -172,13 +169,13 @@ export function FuelPricePanel(props: FuelPricePanelProps) {
         </div>
       )}
       {props.saved && (
-        <p className={styles.formStatusSuccess} role="status">
-          {t('fuelPriceSaved')}
+        <p className={styles.fuelPriceStatusSuccess} role="status">
+          {t('fuelPrices.saved')}
         </p>
       )}
       {props.errorCode !== undefined && (
-        <p className={styles.formStatusError} role="alert">
-          {t('fuelPriceError', { code: props.errorCode })}
+        <p className={styles.fuelPriceStatusError} role="alert">
+          {t('fuelPrices.error', { code: props.errorCode })}
         </p>
       )}
     </section>

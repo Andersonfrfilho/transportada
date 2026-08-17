@@ -555,3 +555,120 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+.fuelPriceList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.fuelPriceRow {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.fuelPriceFacts {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.fuelPriceProduct {
+  margin: 0;
+  color: var(--color-fog);
+  font-weight: 700;
+}
+
+.fuelPriceEffective {
+  margin: 0;
+  color: var(--color-fog);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.fuelPriceForm {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.fuelPriceForm input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.fuelPriceForm input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.fuelPriceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-6);
+  border: 1px solid var(--color-copper);
+  color: var(--color-asphalt);
+  font: inherit;
+  font-weight: 700;
+  background: var(--color-copper);
+  cursor: pointer;
+}
+
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  cursor: pointer;
+}
+
+.primaryAction:disabled,
+.secondaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.fuelPriceStatusError,
+.fuelPriceStatusSuccess {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.fuelPriceStatusError {
+  color: var(--color-alert);
+}
+
+.fuelPriceStatusSuccess {
+  color: var(--color-ready);
+}
+
+@media (min-width: 48rem) {
+  .fuelPriceRow {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}

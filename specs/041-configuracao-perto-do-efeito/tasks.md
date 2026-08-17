@@ -14,13 +14,13 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** — Contrato (escrito antes): `companySettingsTabs.service.ts` passa a declarar, por
+- [x] **T001** — Contrato (escrito antes): `companySettingsTabs.service.ts` passa a declarar, por
       painel, **o módulo dono** além da aba; o contrato existente
       (`test/company-settings/tabs.contract.ts`) ganha as asserções de que todo painel tem exatamente
       um módulo, de que módulo e aba são consistentes, e de que a consulta do painel é ligada pela aba
       dele em qualquer módulo.
       Verificação: `bun test test/company-settings.contract.test.ts` vermelho pelos motivos certos.
-- [ ] **T002** — Implementar o serviço com o campo de módulo, sem mover painel nenhum: Empresa
+- [x] **T002** — Implementar o serviço com o campo de módulo, sem mover painel nenhum: Empresa
       continua hospedando os quatro. É a task que separa "descrever o endereço" de "mudar o endereço",
       para o passo seguinte ser diff de tela e não de conceito.
       Verificação: T001 verde; `bun run typecheck` e `bun run test` na app.
@@ -29,16 +29,16 @@ recorte — pare e reveja.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T003** — Contrato: `test/fleet/fuel-tab.contract.ts` exige a aba Combustível na lista de abas
+- [x] **T003** — Contrato: `test/fleet/fuel-tab.contract.ts` exige a aba Combustível na lista de abas
       de Frota **apenas** com `settings.manage`, exige que o hook receba `enabled` composto de
       permissão e aba aberta, e exige que a lista de preços chegue ao painel já preenchida quando a
       consulta responde. Registrar o arquivo no `package.json` e no `test/fleet.contract.test.ts`.
       Verificação: vermelho.
-- [ ] **T004** — Mover `FuelPricePanel` e `useFuelPrices` para `fleet`, com a aba montada em
+- [x] **T004** — Mover `FuelPricePanel` e `useFuelPrices` para `fleet`, com a aba montada em
       `FleetWorkspace.page.tsx` e os rótulos nos dois pacotes de tradução de `fleet` (pt-BR
       **acentuado** — `test/shared/locale-accents.contract.ts` varre por glob).
       Verificação: T003 verde; suíte da app verde; `bun run build`.
-- [ ] **T005** — Tirar o painel, o hook e a aba de `company-settings`; atualizar o serviço de abas e o
+- [x] **T005** — Tirar o painel, o hook e a aba de `company-settings`; atualizar o serviço de abas e o
       contrato da Fase 0 para o novo dono.
       Verificação: `bun run test` da app inteira verde; nenhum import órfão (`bun run lint`).
 

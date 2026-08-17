@@ -3,14 +3,18 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
+import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
+import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useFleet } from '../hooks/useFleet.hook'
+import { useFuelPrices } from '../hooks/useFuelPrices.hook'
 import { useVehicleCatalog, type VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleColumns } from '../hooks/useVehicleColumns.hook'
 import type {
@@ -34,6 +38,19 @@ type FleetEditor =
   | Readonly<{ kind: 'vehicle'; vehicle?: FleetVehicleDetail }>
 
 type FleetWorkspace = ReturnType<typeof useFleet>
+
+type FleetTabId = 'drivers' | 'fuel' | 'vehicles'
+
+const FLEET_TAB_IDS: readonly FleetTabId[] = ['vehicles', 'drivers', 'fuel']
+
+function resolveFleetTab(id: string): FleetTabId {
+  return FLEET_TAB_IDS.find((tab) => tab === id) ?? 'vehicles'
+}
+
+/** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
+function toErrorCode(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined
+}
 
 function flipStatus(status: 'active' | 'inactive'): 'active' | 'inactive' {
   return status === 'active' ? 'inactive' : 'active'
@@ -87,7 +104,13 @@ export function FleetWorkspacePage() {
   const [vehicleFilters, setVehicleFilters] = useState<FleetVehicleFilters>({})
   const [driverFilters, setDriverFilters] = useState<FleetDriverFilters>({})
   const [editor, setEditor] = useState<FleetEditor>(null)
-  const [activeTab, setActiveTab] = useState<'drivers' | 'vehicles'>('vehicles')
+  const [activeTab, setActiveTab] = useState<FleetTabId>('vehicles')
+  const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
+  const settingsScope = resolveSettingsDataScope('fleet', activeTab)
+  const fuelPrices = useFuelPrices({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.fuelPrices,
+  })
   const workspace = useFleet({
     ...(companyId === undefined ? {} : { companyId }),
     driverFilters,
@@ -132,8 +155,27 @@ export function FleetWorkspacePage() {
   }
 
   function selectTab(id: string): void {
-    setActiveTab(id === 'drivers' ? 'drivers' : 'vehicles')
+    setActiveTab(resolveFleetTab(id))
     setEditor(null)
+  }
+
+  const fuelPriceErrorCode = toErrorCode(
+    fuelPrices.adjustMutation.error ?? fuelPrices.clearMutation.error,
+  )
+  const fuelTab: TabsItem = {
+    id: 'fuel',
+    label: t('tabs.fuel'),
+    panel: (
+      <FuelPricePanel
+        {...(fuelPriceErrorCode === undefined ? {} : { errorCode: fuelPriceErrorCode })}
+        disabled={fuelPrices.adjustMutation.isPending || fuelPrices.clearMutation.isPending}
+        loading={fuelPrices.query.isLoading}
+        prices={fuelPrices.query.data}
+        saved={fuelPrices.adjustMutation.isSuccess || fuelPrices.clearMutation.isSuccess}
+        onAdjust={(input) => fuelPrices.adjustMutation.mutate(input)}
+        onClear={(product) => fuelPrices.clearMutation.mutate(product)}
+      />
+    ),
   }
 
   const tabs: readonly TabsItem[] = [
@@ -180,6 +222,7 @@ export function FleetWorkspacePage() {
         />
       ),
     },
+    ...(canManageSettings ? [fuelTab] : []),
   ]
 
   return (

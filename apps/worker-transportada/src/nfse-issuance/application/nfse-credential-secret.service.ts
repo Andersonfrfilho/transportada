@@ -9,8 +9,11 @@ import { z } from 'zod'
  * — as apps não importam código uma da outra. O AAD tem de ser **idêntico** ao usado ao selar, ou a
  * abertura falha: `transportada:nfse-credential:v1:${companyId}:${credentialId}`.
  *
- * Só o `apiToken` sai daqui. O `callbackToken` existe no envelope selado, mas quem o compara é a
- * rota pública na API; trazê-lo para o worker seria segredo circulando sem consumidor.
+ * Os dois segredos saem daqui, e os dois têm consumidor no worker: o `apiToken` autentica a chamada,
+ * e o `callbackToken` é o que o gateway usa para montar a `CallbackUrl` obrigatória da v2 — quem o
+ * compara, do outro lado, é a rota pública da API, contra o `callback_token_sha256` da mesma linha.
+ * Nenhum dos dois atravessa a porta de emissão: o gateway abre o envelope, usa, e o plaintext morre
+ * ali.
  */
 
 const TEXT_DECODER = new TextDecoder('utf-8', { fatal: true })
@@ -38,7 +41,7 @@ export type NfseCredentialSecretService = {
     readonly companyId: string
     readonly credentialId: string
     readonly envelope: unknown
-  }) => Promise<{ readonly apiToken: string }>
+  }) => Promise<{ readonly apiToken: string; readonly callbackToken: string }>
 }
 
 export function createNfseCredentialSecretService(input: {
@@ -54,7 +57,7 @@ export function createNfseCredentialSecretService(input: {
       try {
         plaintext = await input.envelopeProvider.decrypt({ additionalAuthenticatedData, envelope })
         const parsed = secretSchema.parse(JSON.parse(TEXT_DECODER.decode(plaintext)) as unknown)
-        return { apiToken: parsed.apiToken }
+        return { apiToken: parsed.apiToken, callbackToken: parsed.callbackToken }
       } finally {
         plaintext?.fill(0)
         additionalAuthenticatedData.fill(0)

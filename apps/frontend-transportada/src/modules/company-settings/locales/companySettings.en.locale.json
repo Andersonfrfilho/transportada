@@ -5,7 +5,6 @@
     "company": "Company",
     "certificates": "Certificates",
     "distribution": "Document pull",
-    "fuel": "Fuel",
     "nfse": "NFS-e"
   },
   "readinessTitle": "Fiscal readiness route",
@@ -257,32 +256,5 @@
   "nfseIssExigibility6": "6 — Suspended by court decision",
   "nfseIssExigibility7": "7 — Suspended by administrative process",
   "nfseTaker0": "Cargo sender",
-  "nfseTaker3": "Cargo recipient",
-  "fuelPricesTitle": "Fuel price",
-  "fuelPricesHint": "Cost per kilometre comes from this price divided by the vehicle's average consumption. Without an adjustment the ANP reference applies; the value typed here replaces it until cleared.",
-  "fuelPriceEffective": "In use: {{price}} ({{source}}).",
-  "fuelPriceUnavailable": "No price in use. Without an adjustment or an ANP reference, cost per kilometre is not calculated for this fuel.",
-  "fuelPriceReference": "ANP reference: {{price}} — {{state}}, week ending {{week}}.",
-  "fuelPriceReferenceMissing": "ANP has not published a reference for this fuel yet.",
-  "fuelPriceUpdatedAt": "Updated on {{moment}}.",
-  "fuelPriceFieldLabel": "New price per {{unit}}",
-  "fuelPriceFieldHint": "Up to four decimal places. Comma or dot.",
-  "fuelPriceSave": "Save price",
-  "fuelPriceClear": "Clear adjustment",
-  "fuelPriceSaved": "Price saved.",
-  "fuelPriceError": "Could not save the price. Code: {{code}}.",
-  "fuelPriceLoadError": "Could not load fuel prices.",
-  "fuelPriceSourceAnp": "ANP reference",
-  "fuelPriceSourceManual": "company adjustment",
-  "fuelOption": {
-    "diesel-s10": "Diesel S-10",
-    "diesel-s500": "Diesel S-500",
-    "gasolina-comum": "Regular gasoline",
-    "etanol-hidratado": "Hydrous ethanol",
-    "gnv": "CNG"
-  },
-  "fuelPriceUnit": {
-    "litre": "litre",
-    "cubic-metre": "cubic metre"
-  }
+  "nfseTaker3": "Cargo recipient"
 }

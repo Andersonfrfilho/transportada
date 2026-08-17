@@ -12,11 +12,22 @@
   aqui. `alt` vazio porque o nome está escrito ao lado: anunciar a imagem repetiria a palavra no
   leitor de tela.
 -->
+<#--
+  A URL do site é cópia por valor de `ApplicationFooter.component.tsx` — o tema não importa código
+  nosso. `test/design-system/application-footer.contract.ts` no frontend é o que impede os dois
+  rodapés de apontarem para lugares diferentes. O nome do titular vem do dicionário, e só o markup
+  fica aqui: `<a>` dentro de `.properties` sairia escapado na tela.
+-->
+<#assign copyrightHolderUrl = "https://adatechnology.com.br">
+
 <#macro content>
     <footer class="colophon">
         <p>
             <img class="colophon-mark" src="${url.resourcesPath}/img/ada-technology.png" alt="" />
-            <span>${msg("transportadaColophon", .now?string('yyyy'))}</span>
+            <span>
+                ${msg("transportadaColophon", .now?string('yyyy'))}
+                <a href="${copyrightHolderUrl}" target="_blank" rel="noreferrer">${msg("transportadaColophonHolder")}</a>
+            </span>
         </p>
     </footer>
 </#macro>

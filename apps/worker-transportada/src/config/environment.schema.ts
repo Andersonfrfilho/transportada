@@ -38,6 +38,11 @@ const workerEnvironmentSchema = z
       .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+    // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
+    // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
+    // emitir sem retorno ou publicar rota que ninguém chama. Não é segredo: o segredo é o token
+    // opaco por empresa, que vive selado no envelope da credencial.
+    NFSE_CALLBACK_BASE_URL: optionalTrustedUrl('NFSE_CALLBACK_BASE_URL'),
     // Um endereço só: a Nota RP publica um servidor, e é o de produção (ADR-0035).
     NFSE_PROVIDER_BASE_URL: optionalUrl(),
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
@@ -119,6 +124,7 @@ export function parseWorkerEnvironment(
     logLevel: result.data.LOG_LEVEL,
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
+      callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
       timeoutMilliseconds: result.data.NFSE_PROVIDER_TIMEOUT_MS,
     },
     port: result.data.WORKER_PORT,
@@ -129,6 +135,29 @@ export function parseWorkerEnvironment(
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
   }
+}
+
+/**
+ * Como `optionalUrl`, mas só aceita https — ou http em localhost, para o ambiente de máquina. A v2
+ * exige callback https e suspende a integração de quem publica endereço que não responde; http em
+ * domínio público é o caminho mais curto para a suspensão. Mesma regra da API, por valor.
+ */
+function optionalTrustedUrl(key: string): z.ZodType<string | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedCallbackUrl(value), {
+      message: `${key} must be an HTTPS URL or an HTTP localhost URL`,
+    })
+    .optional()
+}
+
+function isTrustedCallbackUrl(value: string): boolean {
+  return (
+    /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[^\s]*)?$/.test(value) ||
+    /^http:\/\/localhost(?::\d{1,5})?(?:\/[^\s]*)?$/.test(value)
+  )
 }
 
 /** Vazio é o padrão e significa desligado; preenchido e torto falha o boot. */

@@ -3,12 +3,17 @@
  */
 
 /**
- * A coleção oficial da Nota RP v2 não está no repositório: o formato de fio abaixo é **inferido**
- * do ADR-0029 e da spec 032, que nomeiam `id_nota`, `success`, `Discriminacao` e `CallbackUrl` e
- * mais nada. Por isso todo corpo de resposta é montado pelas fábricas deste arquivo — quando o
- * T030 medir a API real com a credencial de produção, o acerto de nome de campo é aqui, num lugar
- * só, e nenhum `test(...)` do contrato muda: o que eles provam é semântica (200 com
- * `success:false` é falha, exceção não escapa, token não vaza), não vocabulário.
+ * O formato de fio abaixo vem da coleção oficial da v2 (`API Nota RP (v2).postman_collection.json`
+ * + `changelog (v2).md`), que chegou em 17/08/2026 e desfez a inferência anterior — ver a Fase A2
+ * de `specs/040-nota-rp-autenticada/tasks.md`. Todo corpo de resposta continua montado pelas
+ * fábricas deste arquivo: o acerto de nome de campo é aqui, num lugar só, e nenhum `test(...)` do
+ * contrato muda, porque o que eles provam é semântica (200 com `success:false` é falha, exceção não
+ * escapa, token não vaza), não vocabulário.
+ *
+ * ⚠️ O que **ainda** é inferido é a consulta: `GET /notas/` devolve corpo em forma de DataTables
+ * (`{"draw":0,"data":[],"recordsFiltered":0,"recordsTotal":0}`), sem `success`, e a coleção não
+ * mostra nota nenhuma preenchida — os nomes de campo de `authorizedData`/`rejectedData` seguem por
+ * medir.
  */
 
 export type NotaRpRejectionShape = {
@@ -111,12 +116,29 @@ export function successBody(data: Readonly<Record<string, unknown>>): Response {
   return jsonResponse({ data, success: true })
 }
 
-export function failureBody(input: { code: string; message: string }): Response {
-  return jsonResponse({ code: input.code, message: input.message, success: false })
+/**
+ * A recusa da v2 é `{success:false, message}` e nada mais — não existe campo de código no envelope
+ * síncrono. O código da prefeitura só chega no postback, dentro de `MensagemRetorno[].Codigo`.
+ */
+export function failureBody(input: { message: string }): Response {
+  return jsonResponse({ message: input.message, success: false })
 }
 
-export function issuedData(): Readonly<Record<string, unknown>> {
-  return { id_nota: PROVIDER_DOCUMENT_ID }
+/**
+ * O envelope do `/emitir` na coleção oficial da v2 — `id_nota` **no topo e numérico**, sem `data`:
+ *
+ * ```json
+ * { "success": true, "message": "Pedido de emissão enviado com sucesso!", "id_nota": 30201 }
+ * ```
+ *
+ * Exigir um objeto `data` era o que transformava emissão aceita em `malformed_response`.
+ */
+export function issuedBody(): Response {
+  return jsonResponse({
+    id_nota: Number(PROVIDER_DOCUMENT_ID),
+    message: 'Pedido de emissão enviado com sucesso!',
+    success: true,
+  })
 }
 
 export function authorizedData(): Readonly<Record<string, unknown>> {

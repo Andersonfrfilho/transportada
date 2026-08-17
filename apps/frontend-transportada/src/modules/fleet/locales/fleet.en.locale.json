@@ -15,7 +15,8 @@
   "clearFilters": "Clear filters",
   "tabs": {
     "vehicles": "Vehicles",
-    "drivers": "Drivers"
+    "drivers": "Drivers",
+    "fuel": "Fuel"
   },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",
@@ -236,5 +237,23 @@
   "driverVehiclesHint": "Check the vehicles this driver operates — both their own and the carrier ones. The link keeps history: unchecking closes the period instead of erasing the past.",
   "driverVehiclesEmpty": "No active vehicle available to link",
   "driverOwnedVehicle": "Driver owned",
-  "vehicleNotFound": "One of the selected vehicles no longer exists in this company"
+  "vehicleNotFound": "One of the selected vehicles no longer exists in this company",
+  "fuelPrices": {
+    "title": "Fuel price",
+    "hint": "Cost per kilometre comes from this price divided by the vehicle's average consumption. Without an adjustment the ANP reference applies; the value typed here replaces it until cleared.",
+    "effective": "In use: {{price}} ({{source}}).",
+    "unavailable": "No price in use. Without an adjustment or an ANP reference, cost per kilometre is not calculated for this fuel.",
+    "reference": "ANP reference: {{price}} — {{state}}, week ending {{week}}.",
+    "referenceMissing": "ANP has not published a reference for this fuel yet.",
+    "fieldLabel": "New price per {{unit}}",
+    "save": "Save price",
+    "clear": "Clear adjustment",
+    "saved": "Price saved.",
+    "error": "Could not save the price. Code: {{code}}.",
+    "loadError": "Could not load fuel prices.",
+    "unit": {
+      "litre": "litre",
+      "cubic-metre": "cubic metre"
+    }
+  }
 }

@@ -85,8 +85,9 @@ export function successBody(data: Readonly<Record<string, unknown>>): Response {
   return jsonResponse({ data, success: true })
 }
 
-export function failureBody(input: { code: string; message: string }): Response {
-  return jsonResponse({ code: input.code, message: input.message, success: false })
+/** A recusa da v2 é `{success:false, message}` e nada mais — código só existe dentro do postback. */
+export function failureBody(input: { message: string }): Response {
+  return jsonResponse({ message: input.message, success: false })
 }
 
 export function authorizedData(): Readonly<Record<string, unknown>> {

@@ -18,7 +18,6 @@ import { CompanySettingsHeader } from '../components/CompanySettingsHeader.compo
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
 import { DistributionCursorPanel } from '../components/DistributionCursorPanel.component'
-import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { NfseCredentialPanel } from '../components/NfseCredentialPanel.component'
 import { NfseEmissionProfilePanel } from '../components/NfseEmissionProfilePanel.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
@@ -29,7 +28,6 @@ import {
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
-import { useFuelPrices, type FuelPriceAdjustment } from '../hooks/useFuelPrices.hook'
 import {
   useNfseSettings,
   type NfseProfileSave,
@@ -44,7 +42,6 @@ import {
   type CompanyProfileLookup,
   type CompanySettingsUpdate,
   type DistributionCursor,
-  type FuelPriceEntry,
   type SafeCertificate,
   type ScheduledDistributionStatus,
 } from '../shared/companySettingsClient.service'
@@ -117,16 +114,6 @@ type DistributionCursorSection = Readonly<{
   pending: boolean
 }>
 
-type FuelPriceSection = Readonly<{
-  errorCode: string | undefined
-  loading: boolean
-  onAdjust: (input: FuelPriceAdjustment) => void
-  onClear: (product: FuelPriceEntry['product']) => void
-  pending: boolean
-  prices: readonly FuelPriceEntry[] | undefined
-  saved: boolean
-}>
-
 type NfseSettingsSection = Readonly<{
   credential: NfseProviderCredentialSummary | null | undefined
   credentialErrorCode: string | undefined
@@ -152,7 +139,6 @@ type SettingsBodyProps = Readonly<{
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   distributionCursor: DistributionCursorSection
-  fuelPrices: FuelPriceSection
   initialValue: CompanySettingsUpdate | undefined
   logo: LogoSection
   nfse: NfseSettingsSection
@@ -335,18 +321,6 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
       />
     )
   if (tab === 'distribution') return <DistributionTabPanel {...props} />
-  if (tab === 'fuel')
-    return (
-      <FuelPricePanel
-        disabled={props.fuelPrices.pending}
-        errorCode={props.fuelPrices.errorCode}
-        loading={props.fuelPrices.loading}
-        prices={props.fuelPrices.prices}
-        saved={props.fuelPrices.saved}
-        onAdjust={props.fuelPrices.onAdjust}
-        onClear={props.fuelPrices.onClear}
-      />
-    )
   return <NfseTabPanel {...props} />
 }
 
@@ -415,10 +389,6 @@ export function CompanySettingsPage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && scope.distributionCursor,
   })
-  const fuelPrices = useFuelPrices({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && scope.fuelPrices,
-  })
   const nfseSettings = useNfseSettings({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && scope.nfse,
@@ -456,15 +426,6 @@ export function CompanySettingsPage() {
           loading: distributionCursor.query.isLoading,
           onAdjust: (ultNsu) => distributionCursor.adjustMutation.mutate(ultNsu),
           pending: distributionCursor.adjustMutation.isPending,
-        }}
-        fuelPrices={{
-          errorCode: toErrorCode(fuelPrices.adjustMutation.error ?? fuelPrices.clearMutation.error),
-          loading: fuelPrices.query.isLoading,
-          onAdjust: (input) => fuelPrices.adjustMutation.mutate(input),
-          onClear: (product) => fuelPrices.clearMutation.mutate(product),
-          pending: fuelPrices.adjustMutation.isPending || fuelPrices.clearMutation.isPending,
-          prices: fuelPrices.query.data,
-          saved: fuelPrices.adjustMutation.isSuccess || fuelPrices.clearMutation.isSuccess,
         }}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
         logo={{

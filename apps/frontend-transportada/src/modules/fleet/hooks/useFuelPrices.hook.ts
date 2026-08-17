@@ -1,14 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
-import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
-import type { FuelProduct } from '@/modules/shared/fuel.constant'
-
 import {
   createCompanySettingsClient,
   type FuelPriceEntry,
-} from '../shared/companySettingsClient.service'
+} from '@/modules/company-settings/shared/companySettingsClient.service'
+import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
+import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import type { FuelProduct } from '@/modules/shared/fuel.constant'
 
 const FUEL_PRICES_QUERY_KEY = 'company-fuel-prices'
 

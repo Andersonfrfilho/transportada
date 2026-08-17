@@ -10,9 +10,11 @@
  * 2. **Nenhuma exceção escapa.** Exceção aqui derrubaria o consumidor antes do `markProcessed`, e
  *    a mensagem voltaria para a fila em laço.
  *
- * O vocabulário de fio (`id_nota`, `situacao`, `codigo_erro`, …) é **inferido** — a coleção oficial
- * da v2 não está no repositório (ver `## T019` em `specs/032-nota-de-servico-municipal/evidence.md`).
- * Ele está confinado a este arquivo: quando o T030 medir a API real, o acerto é aqui.
+ * A leitura do envelope segue a coleção oficial da v2, conferida na Fase A2 de
+ * `specs/040-nota-rp-autenticada/tasks.md` — a coleção não mora no repositório. Sucesso do `/emitir`
+ * traz `id_nota` numérico **no topo**; a recusa é `{success:false, message}` e nada mais.
+ * Segue **inferido** o vocabulário da consulta (`situacao`, `codigo_erro`): nenhum exemplo da
+ * coleção cobre `/notas/`, e o acerto, quando vier, é aqui.
  */
 
 const DOCUMENT_MEDIA_TYPE = {
@@ -22,7 +24,7 @@ const DOCUMENT_MEDIA_TYPE = {
 
 const JSON_MEDIA_TYPE = 'application/json'
 const REDACTED = '[REDACTED]'
-const ROUTE_CANCEL = '/cancelar'
+const ROUTE_CANCEL = '/cancelar-nota'
 const ROUTE_ISSUE = '/emitir'
 const ROUTE_STATUS = '/notas/'
 const STATUS_QUERY_PARAM = 'id_nota'
@@ -168,7 +170,7 @@ export function createNotaRpV2Client(dependencies: {
   return {
     cancel: async ({ providerDocumentId, reason }) => {
       const envelope = await requestEnvelope({
-        body: { id_nota: providerDocumentId, motivo_cancelamento: reason },
+        body: { id_nota: providerDocumentId, motivo: reason },
         method: 'POST',
         url: `${baseUrl}${ROUTE_CANCEL}`,
       })
@@ -201,7 +203,10 @@ export function createNotaRpV2Client(dependencies: {
       if (envelope.kind === 'rejected') {
         return { rejection: envelope.rejection, status: 'rejected' }
       }
-      return interpretSituation({ data: envelope.data, providerDocumentId, redact })
+      /** Aqui a nota vem dentro de `data`; no `/emitir` o envelope é raso. Cada rota com a sua forma. */
+      const data = asRecord(envelope.data['data'])
+      if (data === undefined) return { cause: 'malformed_response', status: 'error' }
+      return interpretSituation({ data, providerDocumentId, redact })
     },
 
     issue: async ({ rps }) => {
@@ -214,7 +219,7 @@ export function createNotaRpV2Client(dependencies: {
       if (envelope.kind === 'rejected') {
         return { rejection: envelope.rejection, status: 'rejected' }
       }
-      const providerDocumentId = readText(envelope.data, 'id_nota')
+      const providerDocumentId = readIdentifier(envelope.data, 'id_nota')
       if (providerDocumentId === undefined) return { cause: 'malformed_response', status: 'error' }
       return { providerDocumentId, status: 'accepted' }
     },
@@ -237,19 +242,21 @@ async function readEnvelope(input: {
     return { cause: 'malformed_response', kind: 'error' }
   }
   if (!envelope['success']) {
+    /**
+     * A recusa da v2 é `{success:false, message}` e nada mais: código de erro só existe no postback,
+     * dentro de `MensagemRetorno[].Codigo`. O nosso código é o marcador estável de "veio sem código".
+     */
     return {
       kind: 'rejected',
       rejection: {
-        code: readText(envelope, 'code') ?? UNKNOWN_REJECTION_CODE,
+        code: UNKNOWN_REJECTION_CODE,
         message: input.redact(readText(envelope, 'message') ?? ''),
       },
     }
   }
 
-  const data = asRecord(envelope['data'])
-  return data === undefined
-    ? { cause: 'malformed_response', kind: 'error' }
-    : { data, kind: 'data' }
+  /** O envelope inteiro, não um `data` interno: no `/emitir` o `id_nota` vem no topo. */
+  return { data: envelope, kind: 'data' }
 }
 
 /** Envelope JSON onde se esperava documento é falha — nunca byte para arquivar. */
@@ -341,6 +348,18 @@ function asRecord(value: unknown): Readonly<Record<string, unknown>> | undefined
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : undefined
+}
+
+/** O `id_nota` viaja como número inteiro; guardá-lo como texto é o que o resto do trilho espera. */
+function readIdentifier(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined {
+  const value = record[key]
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) ? String(value) : undefined
+  }
+  return readText(record, key)
 }
 
 function readText(record: Readonly<Record<string, unknown>>, key: string): string | undefined {
