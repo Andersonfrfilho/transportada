@@ -66,6 +66,38 @@ describe('NFS-e fiscal gateway configuration contract', () => {
   })
 
   /**
+   * A exigibilidade do ISS é escrita `ExigibilidadeISS` — a sigla em caixa alta, como no XSD da
+   * ABRASF 2.04, de onde a Nota RP tira os nomes que empresta. Escrita `ExigibilidadeIss` ela chega
+   * ao provedor como campo desconhecido, e a prefeitura devolve "Por favor informe o campo
+   * Exigibilidade ISS" com o valor preenchido do nosso lado. Chave de JSON diferencia caixa; o teste
+   * existe porque o defeito é invisível na leitura.
+   */
+  test('spells every RPS key the way the provider reads it', async () => {
+    const sent: Readonly<Record<string, unknown>>[] = []
+    const gateway = createNfseFiscalGateway({
+      config: { baseUrl: PRODUCTION_BASE_URL, timeoutMilliseconds: 15_000 },
+      createClient: () => ({
+        cancel: async () => ({ status: 'accepted' as const }),
+        fetchDocument: async () => ({ status: 'error' as const }),
+        fetchStatus: async () => ({ status: 'pending' as const }),
+        issue: async ({ rps }) => {
+          sent.push(rps)
+          return { providerDocumentId: 'nota-1', status: 'accepted' as const }
+        },
+      }),
+      fetch: rejectingFetch,
+      secretService: { decrypt: async () => ({ apiToken: 'token-sintetico' }) },
+    })
+
+    await gateway.issue({ credential: createCredential('production'), payload: PAYLOAD })
+
+    const rps = sent[0]
+    expect(rps).toBeDefined()
+    expect(rps?.['ExigibilidadeISS']).toBe(PAYLOAD.issExigibility)
+    expect(Object.keys(rps ?? {})).not.toContain('ExigibilidadeIss')
+  })
+
+  /**
    * Instalação que ainda não contratou a Nota RP não tem endereço para chamar. A causa é própria:
    * `transport_failure` mandaria o trilho tentar de novo para sempre contra uma URL vazia, e
    * `credential_unreadable` acusaria o segredo de um defeito que é de configuração.
