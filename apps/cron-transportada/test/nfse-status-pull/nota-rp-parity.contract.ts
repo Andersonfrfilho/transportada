@@ -18,6 +18,7 @@ import {
   rejectedData,
   successBody,
   throwingFetch,
+  MUNICIPAL_REGISTRATION,
 } from './fixture.js'
 
 /**
@@ -208,7 +209,7 @@ describe('Nota RP v2 document download parity', () => {
 })
 
 describe('Nota RP v2 secret hygiene', () => {
-  test('sends the token as a bearer credential and never returns it in a message', async () => {
+  test('manda os dois cabeçalhos do provedor e nunca devolve o token numa mensagem', async () => {
     const recorder = recordingFetch(() =>
       failureBody({ code: 'E500', message: `token ${API_TOKEN} recusado` }),
     )
@@ -216,7 +217,9 @@ describe('Nota RP v2 secret hygiene', () => {
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
 
-    expect(recorder.calls[0]?.headers['authorization']).toBe(`Bearer ${API_TOKEN}`)
+    expect(recorder.calls[0]?.headers['x-auth-user-token']).toBe(API_TOKEN)
+    expect(recorder.calls[0]?.headers['x-auth-im']).toBe(MUNICIPAL_REGISTRATION)
+    expect(recorder.calls[0]?.headers['authorization']).toBeUndefined()
     expect(JSON.stringify(outcome)).not.toContain(API_TOKEN)
     expect(outcome.rejection?.message).toContain('[REDACTED]')
   })

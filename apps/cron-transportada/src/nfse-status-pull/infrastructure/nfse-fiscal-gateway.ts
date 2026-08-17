@@ -52,7 +52,12 @@ export function createNfseFiscalGateway(dependencies: {
         envelope: credential.envelope,
       })
       return createClient({
-        config: { baseUrl, timeoutMilliseconds: config.timeoutMilliseconds, token: apiToken },
+        config: {
+          baseUrl,
+          municipalRegistration: credential.municipalRegistration,
+          timeoutMilliseconds: config.timeoutMilliseconds,
+          token: apiToken,
+        },
       })
     } catch {
       return 'credential_unreadable'

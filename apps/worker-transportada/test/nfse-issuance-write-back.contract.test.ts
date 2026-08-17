@@ -40,6 +40,7 @@ const CREDENTIAL = {
   credentialId: CREDENTIAL_ID,
   envelope: { sealed: true },
   fiscalEnvironment: 'homologation',
+  municipalRegistration: '12345678',
 } as const
 
 const ISSUE_ENVELOPE: NfseProcessingEnvelopeV1 = {

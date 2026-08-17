@@ -99,6 +99,7 @@ function toDueInvoice(candidate: NfseReconciliationCandidate): DueNfseInvoice {
       credentialId: credential.credentialId,
       envelope: credential.envelope,
       fiscalEnvironment: credential.fiscalEnvironment,
+      municipalRegistration: credential.municipalRegistration,
     },
     invoiceId: candidate.invoiceId,
     providerDocumentId: candidate.providerDocumentId as string,

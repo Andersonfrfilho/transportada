@@ -42,6 +42,7 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
         credentialId: nfseProviderCredentials.id,
         envelope: nfseProviderCredentials.secretEnvelope,
         fiscalEnvironment: nfseIssuanceAttempts.fiscalEnvironment,
+        municipalRegistration: nfseProviderCredentials.municipalRegistration,
         payload: nfseIssuancePayloads.payload,
         providerDocumentId: nfseServiceInvoices.providerDocumentId,
       })
@@ -90,6 +91,7 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
         credentialId: row.credentialId,
         envelope: row.envelope,
         fiscalEnvironment: row.fiscalEnvironment,
+        municipalRegistration: row.municipalRegistration,
       },
       ...(row.payload === null ? {} : { payload: row.payload }),
       ...(row.cancellationReason === null ? {} : { cancellationReason: row.cancellationReason }),

@@ -244,7 +244,9 @@
     "confirm": "Emitir",
     "creating": "Emitindo…",
     "errorPreview": "Não foi possível calcular a prévia da emissão.",
-    "errorCreate": "Não foi possível emitir as notas de serviço."
+    "errorCreate": "Não foi possível emitir as notas de serviço.",
+    "errorProfiles": "Não foi possível carregar os perfis de emissão.",
+    "profileMissing": "Nenhum perfil de emissão ativo está cadastrado. Cadastre um perfil em Configurações para emitir a nota de serviço."
   },
   "feedback": {
     "alreadyAuthorized": "Esta nota de serviço já está autorizada.",

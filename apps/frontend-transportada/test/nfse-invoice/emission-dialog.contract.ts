@@ -29,6 +29,16 @@ const CUSTOM_TEMPLATE =
 
 const FIRST_INVOICE = INVOICE_PREVIEW.invoices[0]
 
+const READY_STATUS_INPUT = {
+  hasPreview: true,
+  isCreateError: false,
+  isCreating: false,
+  isPreviewEnabled: true,
+  isPreviewError: false,
+  isPreviewFetching: false,
+  profileStatus: 'ready',
+} as const
+
 const SECOND_INVOICE = {
   ...FIRST_INVOICE,
   description: 'Entregas na cidade de Ribeirão Preto de 03-08-2026 a 07-08-2026.',
@@ -87,7 +97,18 @@ type EmissionSummary = {
   readonly totalServiceAmount: string
 }
 
-type EmissionStatus = 'createError' | 'creating' | 'idle' | 'loading' | 'previewError' | 'ready'
+type EmissionStatus =
+  | 'createError'
+  | 'creating'
+  | 'idle'
+  | 'loading'
+  | 'previewError'
+  | 'profileError'
+  | 'profileMissing'
+  | 'profileUnavailable'
+  | 'ready'
+
+type EmissionProfileStatus = 'error' | 'forbidden' | 'loading' | 'missing' | 'ready'
 
 type EmissionModule = {
   readonly NFSE_DESCRIPTION_VARIABLES: readonly string[]
@@ -135,13 +156,23 @@ type EmissionModule = {
   readonly resolveNfseDescription: (
     input: Readonly<{ custom: null | string; profileTemplate: string }>,
   ) => string
+  readonly resolveNfseEmissionProfileStatus: (
+    input: Readonly<{
+      canListProfiles: boolean
+      isError: boolean
+      isLoading: boolean
+      profileCount: number
+    }>,
+  ) => EmissionProfileStatus
   readonly resolveNfseEmissionStatus: (
     input: Readonly<{
       hasPreview: boolean
       isCreateError: boolean
       isCreating: boolean
+      isPreviewEnabled: boolean
       isPreviewError: boolean
       isPreviewFetching: boolean
+      profileStatus: EmissionProfileStatus
     }>,
   ) => EmissionStatus
   readonly selectNfseEmissionMessageKey: (
@@ -490,29 +521,92 @@ describe('nfse emission preview freshness contract', () => {
 describe('nfse emission status contract', () => {
   test('keeps the preview failure apart from the creation failure', async () => {
     const { resolveNfseEmissionStatus } = await loadEmissionModule()
-    const base = {
-      hasPreview: true,
-      isCreateError: false,
-      isCreating: false,
-      isPreviewError: false,
-      isPreviewFetching: false,
-    }
 
-    expect(resolveNfseEmissionStatus(base)).toBe('ready')
-    expect(resolveNfseEmissionStatus({ ...base, isPreviewError: true })).toBe('previewError')
-    expect(resolveNfseEmissionStatus({ ...base, isCreateError: true })).toBe('createError')
-    expect(resolveNfseEmissionStatus({ ...base, isCreateError: true, isCreating: true })).toBe(
-      'creating',
+    expect(resolveNfseEmissionStatus(READY_STATUS_INPUT)).toBe('ready')
+    expect(resolveNfseEmissionStatus({ ...READY_STATUS_INPUT, isPreviewError: true })).toBe(
+      'previewError',
     )
-    expect(resolveNfseEmissionStatus({ ...base, hasPreview: false })).toBe('loading')
-    expect(resolveNfseEmissionStatus({ ...base, isPreviewFetching: true })).toBe('loading')
+    expect(resolveNfseEmissionStatus({ ...READY_STATUS_INPUT, isCreateError: true })).toBe(
+      'createError',
+    )
+    expect(
+      resolveNfseEmissionStatus({ ...READY_STATUS_INPUT, isCreateError: true, isCreating: true }),
+    ).toBe('creating')
+    expect(resolveNfseEmissionStatus({ ...READY_STATUS_INPUT, hasPreview: false })).toBe('loading')
+    expect(resolveNfseEmissionStatus({ ...READY_STATUS_INPUT, isPreviewFetching: true })).toBe(
+      'loading',
+    )
+  })
+
+  /**
+   * Sem perfil não sai requisição de prévia: esperar por ela é esperar para sempre, e foi assim que
+   * o diálogo ficou em esqueleto eterno em produção.
+   */
+  test('never waits on a preview that was never requested', async () => {
+    const { resolveNfseEmissionStatus } = await loadEmissionModule()
+
+    expect(
+      resolveNfseEmissionStatus({
+        ...READY_STATUS_INPUT,
+        hasPreview: false,
+        isPreviewEnabled: false,
+      }),
+    ).toBe('idle')
+  })
+
+  test('names what is missing when the profile list does not produce a profile', async () => {
+    const { resolveNfseEmissionStatus } = await loadEmissionModule()
+    const waiting = { ...READY_STATUS_INPUT, hasPreview: false, isPreviewEnabled: false }
+
+    expect(resolveNfseEmissionStatus({ ...waiting, profileStatus: 'missing' })).toBe(
+      'profileMissing',
+    )
+    expect(resolveNfseEmissionStatus({ ...waiting, profileStatus: 'error' })).toBe('profileError')
+    expect(resolveNfseEmissionStatus({ ...waiting, profileStatus: 'forbidden' })).toBe(
+      'profileUnavailable',
+    )
+    // Enquanto a lista está em voo o esqueleto é honesto: existe requisição para esperar.
+    expect(resolveNfseEmissionStatus({ ...waiting, profileStatus: 'loading' })).toBe('loading')
+  })
+
+  test('separates a profile list that is empty, broken, out of reach or still loading', async () => {
+    const { resolveNfseEmissionProfileStatus } = await loadEmissionModule()
+    const base = { canListProfiles: true, isError: false, isLoading: false, profileCount: 1 }
+
+    expect(resolveNfseEmissionProfileStatus(base)).toBe('ready')
+    expect(resolveNfseEmissionProfileStatus({ ...base, profileCount: 0 })).toBe('missing')
+    expect(resolveNfseEmissionProfileStatus({ ...base, isLoading: true })).toBe('loading')
+    expect(resolveNfseEmissionProfileStatus({ ...base, isError: true })).toBe('error')
+    expect(resolveNfseEmissionProfileStatus({ ...base, canListProfiles: false })).toBe('forbidden')
+    // Permissão manda em tudo: sem ela a query nem roda, e "carregando" seria mentira.
+    expect(
+      resolveNfseEmissionProfileStatus({ ...base, canListProfiles: false, isLoading: true }),
+    ).toBe('forbidden')
+  })
+
+  test('mirrors the preview query enablement instead of guessing it', async () => {
+    const hook = await readApplicationFile(HOOK_PATH)
+
+    expect(hook).toContain('const isPreviewEnabled =')
+    expect(hook).toContain('enabled: isPreviewEnabled')
+    expect(hook).toContain('isPreviewEnabled,')
+    expect(hook).toContain('resolveNfseEmissionProfileStatus')
   })
 
   test('locks the form only while the invoices are being created', async () => {
     const { isNfseEmissionFormLocked } = await loadEmissionModule()
 
     expect(isNfseEmissionFormLocked('creating')).toBe(true)
-    for (const status of ['createError', 'idle', 'loading', 'previewError', 'ready'] as const) {
+    for (const status of [
+      'createError',
+      'idle',
+      'loading',
+      'previewError',
+      'profileError',
+      'profileMissing',
+      'profileUnavailable',
+      'ready',
+    ] as const) {
       expect(isNfseEmissionFormLocked(status)).toBe(false)
     }
   })
@@ -569,6 +663,23 @@ describe('nfse emission status contract', () => {
         status: 'createError',
       }),
     ).toBe('feedback.documentAlreadyLinked')
+  })
+
+  /** Esqueleto sem fim não diz nada; cada motivo de não haver prévia tem a sua frase. */
+  test('explains the absent profile instead of waiting silently', async () => {
+    const { selectNfseEmissionMessageKey } = await loadEmissionModule()
+
+    expect(selectNfseEmissionMessageKey({ errorCode: null, status: 'profileMissing' })).toBe(
+      'emission.profileMissing',
+    )
+    expect(selectNfseEmissionMessageKey({ errorCode: null, status: 'profileError' })).toBe(
+      'emission.errorProfiles',
+    )
+    // Quem não pode listar já lê `emission.profileUnavailable` no próprio diálogo.
+    expect(
+      selectNfseEmissionMessageKey({ errorCode: null, status: 'profileUnavailable' }),
+    ).toBeNull()
+    expect(selectNfseEmissionMessageKey({ errorCode: null, status: 'idle' })).toBeNull()
   })
 })
 
@@ -642,8 +753,10 @@ describe('nfse emission dialog rendering contract', () => {
       'description',
       'errorCreate',
       'errorPreview',
+      'errorProfiles',
       'forbidden',
       'profile',
+      'profileMissing',
       'profileUnavailable',
       'title',
     ]) {

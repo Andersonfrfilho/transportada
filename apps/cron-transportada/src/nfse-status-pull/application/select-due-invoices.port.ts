@@ -15,6 +15,7 @@ export type NfseReconciliationCredential = {
   readonly credentialId: string
   readonly envelope: unknown
   readonly fiscalEnvironment: CronFiscalEnvironment
+  readonly municipalRegistration: string
   readonly status: 'active' | 'inactive'
 }
 

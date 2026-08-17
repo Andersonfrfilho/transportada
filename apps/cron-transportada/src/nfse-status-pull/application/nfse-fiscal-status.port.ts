@@ -15,6 +15,8 @@ export type NfseCredentialAccess = {
   readonly credentialId: string
   readonly envelope: unknown
   readonly fiscalEnvironment: CronFiscalEnvironment
+  /** Vai no `X-AUTH-IM`. Não é segredo — o segredo é o token, e ele continua selado. */
+  readonly municipalRegistration: string
 }
 
 export type NfseDocumentFetchFacts =

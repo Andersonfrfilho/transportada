@@ -87,6 +87,8 @@ export type NfseCredentialAccess = {
   readonly credentialId: string
   readonly envelope: unknown
   readonly fiscalEnvironment: NfseFiscalEnvironment
+  /** Vai no `X-AUTH-IM`. Não é segredo — o segredo é o token, e ele continua selado. */
+  readonly municipalRegistration: string
 }
 
 export type NfseFiscalGatewayConfig = {
@@ -142,6 +144,7 @@ export function createNfseFiscalGateway(dependencies: {
       return createClient({
         config: {
           baseUrl,
+          municipalRegistration: credential.municipalRegistration,
           timeoutMilliseconds: config.timeoutMilliseconds,
           token: apiToken,
         },

@@ -4,6 +4,11 @@
  * A semana da ANP vai de domingo a sábado e dá nome ao arquivo — a URL é derivada, não descoberta.
  * Não há `Last-Modified` nem `HEAD` barato (403 mesmo com User-Agent de navegador): o frescor sai
  * da própria coluna de data, que chega em serial Excel de época 1899-12-30.
+ *
+ * O resumo de uma semana só existe depois de ela fechar, então resolve-se sempre a última semana
+ * **completa**. Medido em 16/08/2026: a semana corrente devolve 404 e as três anteriores, 200.
+ * Derivar a semana que contém hoje falhava em todo dia da semana, inclusive no sábado, onde a
+ * semana resolvida terminava às 23:59 daquele mesmo dia.
  */
 const DAY_IN_MILLISECONDS = 86_400_000
 const DAYS_IN_WEEK = 7
@@ -27,17 +32,23 @@ export function readExcelSerialDate(input: { readonly serial: number }): string 
   return toIsoDate(EXCEL_EPOCH_IN_MILLISECONDS + input.serial * DAY_IN_MILLISECONDS)
 }
 
+/**
+ * A última semana **completa**, nunca a que contém hoje: o resumo de uma semana só é publicado
+ * depois de ela fechar. No sábado o deslocamento é de sete dias, e não zero — a semana que termina
+ * naquele mesmo sábado ainda está correndo.
+ */
 export function resolveReferenceWeek(input: { readonly today: Date }): ReferenceWeek {
   const midnight = Date.UTC(
     input.today.getUTCFullYear(),
     input.today.getUTCMonth(),
     input.today.getUTCDate(),
   )
-  const startingAt = midnight - input.today.getUTCDay() * DAY_IN_MILLISECONDS
+  const daysSinceLastSaturday = (input.today.getUTCDay() + 1) % DAYS_IN_WEEK || DAYS_IN_WEEK
+  const endingAt = midnight - daysSinceLastSaturday * DAY_IN_MILLISECONDS
 
   return {
-    endingOn: toIsoDate(startingAt + (DAYS_IN_WEEK - 1) * DAY_IN_MILLISECONDS),
-    startingOn: toIsoDate(startingAt),
+    endingOn: toIsoDate(endingAt),
+    startingOn: toIsoDate(endingAt - (DAYS_IN_WEEK - 1) * DAY_IN_MILLISECONDS),
   }
 }
 

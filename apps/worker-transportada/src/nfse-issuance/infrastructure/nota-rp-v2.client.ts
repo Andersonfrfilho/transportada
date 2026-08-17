@@ -87,6 +87,8 @@ export type NotaRpDocumentOutcome = {
 
 export type NotaRpV2Config = {
   readonly baseUrl: string
+  /** Identifica **qual empresa** dentro da conta do token. Sem ela o provedor não sabe por quem emitir. */
+  readonly municipalRegistration: string
   readonly timeoutMilliseconds: number
   readonly token: string
 }
@@ -157,7 +159,8 @@ export function createNotaRpV2Client(dependencies: {
   }): HeadersInit {
     return {
       accept: input.accept,
-      authorization: `Bearer ${config.token}`,
+      'X-AUTH-IM': config.municipalRegistration,
+      'X-AUTH-USER-TOKEN': config.token,
       ...(input.hasBody ? { 'content-type': JSON_MEDIA_TYPE } : {}),
     }
   }
