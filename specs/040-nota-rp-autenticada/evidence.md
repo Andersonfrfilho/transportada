@@ -2,7 +2,6 @@
 
 Preenchido por task, com a saída real dos gates. Sem token, sem PII.
 
-
 ## T003 — contrato vermelho dos cabeçalhos
 
 `nota-rp-v2-client.contract.test.ts` (worker) e `nota-rp-parity.contract.ts` (cron) passaram a

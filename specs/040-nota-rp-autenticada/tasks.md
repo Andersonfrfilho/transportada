@@ -29,9 +29,10 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       exista `authorization`; mais um caso que falha se a string `Bearer` aparecer no fonte de
       qualquer um dos dois clientes.
       Verificação: vermelho.
-- [x] **T004** — `buildHeaders` nos dois clientes (`worker-transportada/src/nfse-issuance/
-      infrastructure/nota-rp-v2.client.ts:160` e `cron-transportada/src/nfse-status-pull/
-      infrastructure/nota-rp-v2.client.ts:92`), na mesma task — são cópias por valor, e meio caminho
+- [x] **T004** — `buildHeaders` nos dois clientes
+      (`worker-transportada/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts:160` e
+      `cron-transportada/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts:92`),
+      na mesma task — são cópias por valor, e meio caminho
       deixa a reconciliação cega. A inscrição municipal precisa chegar até o cliente: hoje ela não é
       lida por nenhum dos dois.
       Verificação: T003 verde.
@@ -59,8 +60,9 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       224), e o ramo condicional `callbackUrl === undefined ? {} : …` sai. Ajustar quem constrói a
       chamada.
       Verificação: T007 verde.
-- [ ] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` de produção, via `railway variables --set
-      --skip-deploys`, e confirmar que a rota de retorno passa a ser registrada. `.env.example`
+- [ ] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` de produção, via
+      `railway variables --set --skip-deploys`, e confirmar que a rota de retorno passa a ser
+      registrada. `.env.example`
       declara a variável.
       Verificação: `railway variables --kv` mostrando a chave e o boot registrando a rota.
 
