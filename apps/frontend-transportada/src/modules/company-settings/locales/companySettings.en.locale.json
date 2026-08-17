@@ -199,6 +199,8 @@
   "nfseCredentialSave": "Save credential",
   "nfseCredentialSaved": "Credential saved securely.",
   "nfseCredentialError": "The credential could not be saved. Code: {{code}}.",
+  "nfseCredentialAbsent": "No credential registered for {{environment}}. Without one, NFS-e issuance is refused.",
+  "nfseCredentialInactive": "The {{environment}} credential is inactive. Until it is activated, NFS-e issuance is refused.",
   "nfseCredentialBlockedApiTokenRequired": "Type the access token to save the credential.",
   "nfseCredentialBlockedTaxIdInvalid": "The provider tax id must have 14 digits.",
   "nfseFiscalEnvironmentHomologation": "Homologation",

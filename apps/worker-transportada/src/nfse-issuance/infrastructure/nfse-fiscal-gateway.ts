@@ -217,7 +217,9 @@ function buildRps(
     Cnae: input.cnaeCode,
     CodigoMunicipio: input.municipalityIbgeCode,
     Discriminacao: input.description,
-    ExigibilidadeIss: input.issExigibility,
+    // Sigla em caixa alta, como no XSD da ABRASF 2.04: `ExigibilidadeIss` chega como campo
+    // desconhecido e a prefeitura rejeita pedindo o campo que nós julgávamos ter mandado.
+    ExigibilidadeISS: input.issExigibility,
     IssRetido: input.issWithheld ? ISS_WITHHELD.yes : ISS_WITHHELD.no,
     ItemListaServico: input.serviceListItem,
     TomadorCnpjCpf: input.taker.taxId,

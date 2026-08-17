@@ -18,9 +18,22 @@ const EXPECTED_ROLES = [
 const ADMIN_CLIENT_ID = 'transportada-admin'
 const ADMIN_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_ADMIN_CLIENT_SECRET}'
 const REALM_MANAGEMENT_CLIENT = 'realm-management'
+const MANAGE_REALM_ROLE = 'manage-realm'
 const MANAGE_USERS_ROLE = 'manage-users'
 const LOCAL_REALM_PATH = 'realm/transportada-local-realm.json'
 const DEPLOY_REALM_PATH = 'deploy/keycloak/realm.json'
+
+/**
+ * `manage-users` é o que a API precisa em toda instalação. `manage-realm` existe só no realm
+ * publicado: `--import-realm` ignora realm que já subiu, então o passo "Reconciliar realm" do
+ * deploy aplica o `loginTheme` com esta mesma credencial — sem o papel, o tema nunca alcança um
+ * ambiente existente. O realm local não reconcilia nada, nasce do arquivo a cada container, e por
+ * isso continua no mínimo. A lista é exaustiva nos dois: papel a mais aqui é privilégio a mais lá.
+ */
+const SERVICE_ACCOUNT_CLIENT_ROLES: Readonly<Record<string, readonly string[]>> = {
+  [DEPLOY_REALM_PATH]: [MANAGE_REALM_ROLE, MANAGE_USERS_ROLE],
+  [LOCAL_REALM_PATH]: [MANAGE_USERS_ROLE],
+}
 const ENVIRONMENT_PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/
 const THEME_NAME = 'transportada'
 const THEME_ROOT = 'deploy/keycloak/theme'
@@ -90,9 +103,19 @@ async function readRealm(): Promise<KeycloakRealm> {
 }
 
 async function readEveryRealm(): Promise<readonly KeycloakRealm[]> {
-  const files = await Promise.all([LOCAL_REALM_PATH, DEPLOY_REALM_PATH].map(readProjectFile))
+  return (await readEveryRealmFile()).map((entry) => entry.realm)
+}
 
-  return files.map((file) => JSON.parse(file) as KeycloakRealm)
+async function readEveryRealmFile(): Promise<
+  readonly { readonly filePath: string; readonly realm: KeycloakRealm }[]
+> {
+  const filePaths = [LOCAL_REALM_PATH, DEPLOY_REALM_PATH]
+  const files = await Promise.all(filePaths.map(readProjectFile))
+
+  return files.map((file, index) => ({
+    filePath: filePaths[index] as string,
+    realm: JSON.parse(file) as KeycloakRealm,
+  }))
 }
 
 /**
@@ -301,8 +324,8 @@ describe('Keycloak Admin API service account contract', () => {
     }
   })
 
-  test('grants the service account manage-users from realm-management and nothing else', async () => {
-    for (const realm of await readEveryRealm()) {
+  test('grants the service account exactly the realm-management roles each realm needs', async () => {
+    for (const { filePath, realm } of await readEveryRealmFile()) {
       const serviceAccount = realm.users.find(
         (candidate) => candidate.serviceAccountClientId === ADMIN_CLIENT_ID,
       )
@@ -310,7 +333,7 @@ describe('Keycloak Admin API service account contract', () => {
       expect(serviceAccount?.username).toBe(`service-account-${ADMIN_CLIENT_ID}`)
       expect(serviceAccount?.enabled).toBe(true)
       expect(serviceAccount?.clientRoles).toEqual({
-        [REALM_MANAGEMENT_CLIENT]: [MANAGE_USERS_ROLE],
+        [REALM_MANAGEMENT_CLIENT]: SERVICE_ACCOUNT_CLIENT_ROLES[filePath] as readonly string[],
       })
       expect(serviceAccount?.realmRoles ?? []).toEqual([])
       expect(serviceAccount?.credentials ?? []).toEqual([])

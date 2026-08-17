@@ -203,6 +203,8 @@
     "profilePlaceholder": "Pick the profile",
     "profileUnavailable": "Your access cannot list emission profiles, and the profile is required to issue.",
     "forbidden": "Your access shows the preview but does not issue the service invoice.",
+    "period": "Service period",
+    "periodHint": "Type the billed window exactly as it should read in the description. Left blank, it stays empty.",
     "description": "Service description",
     "descriptionHint": "Available variables: {{variables}}. Left untouched, the profile template applies.",
     "loading": "Calculating the preview of {{count}} notes",

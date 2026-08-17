@@ -144,20 +144,32 @@ function resolveDescriptionTemplate(
   return input.description === input.profileTemplate ? null : input.description
 }
 
+/**
+ * Campo em branco não vira `period: ''` no corpo: para a API, ausente e vazio dizem a mesma coisa, e
+ * mandar a string vazia só mudaria a digital do pedido sem mudar o texto que a prefeitura lê.
+ */
+function resolvePeriod(period: string): null | string {
+  const typed = period.trim()
+  return typed.length === 0 ? null : typed
+}
+
 export function buildNfsePreviewRequest(
   input: Readonly<{
     description: string
     documentIds: readonly string[]
+    period: string
     profileId: string
     profileTemplate: string
   }>,
 ): NfseInvoiceSelection {
   const descriptionTemplate = resolveDescriptionTemplate(input)
+  const period = resolvePeriod(input.period)
 
   return {
     documentIds: uniqueDocumentIds(input.documentIds),
     profileId: input.profileId,
     ...(descriptionTemplate === null ? {} : { descriptionTemplate }),
+    ...(period === null ? {} : { period }),
   }
 }
 
@@ -168,6 +180,7 @@ export function buildNfsePreviewRequest(
 export function buildNfseCreateRequests(
   input: Readonly<{
     description: string
+    period: string
     profileTemplate: string
     summary: NfseEmissionSummary
   }>,
@@ -175,11 +188,13 @@ export function buildNfseCreateRequests(
   const profileId = input.summary.profileId
   if (profileId === null) return []
   const descriptionTemplate = resolveDescriptionTemplate(input)
+  const period = resolvePeriod(input.period)
 
   return input.summary.rows.map((row) => ({
     documentIds: row.documentIds,
     profileId,
     ...(descriptionTemplate === null ? {} : { descriptionTemplate }),
+    ...(period === null ? {} : { period }),
   }))
 }
 
@@ -198,6 +213,7 @@ export function buildNfsePreviewQueryKey(
     companyId?: string
     description: string
     documentIds: readonly string[]
+    period: string
     profileId: null | string
     profileTemplate: string
   }>,
@@ -207,6 +223,8 @@ export function buildNfsePreviewQueryKey(
     input.companyId ?? null,
     input.profileId,
     resolveDescriptionTemplate(input),
+    // O período entra na descrição que vai à prefeitura: mudá-lo é outra prévia, não a mesma.
+    resolvePeriod(input.period),
     [...uniqueDocumentIds(input.documentIds)].sort(),
   ]
 }

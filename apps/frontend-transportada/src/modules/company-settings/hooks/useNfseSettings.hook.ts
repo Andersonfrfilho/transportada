@@ -8,8 +8,12 @@ import {
   createFreightClient,
   type FreightRuleSummary,
 } from '@/modules/freight/shared/freightClient.service'
-import type { NfseCredentialBody } from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
+import {
+  type NfseCredentialBody,
+  resolveDefaultNfseFiscalEnvironment,
+} from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
 import { NFSE_EMISSION_PROFILES_QUERY_KEY } from '@/modules/nfse-invoice/shared/nfseInvoice.constant'
+import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { createNfseSettingsClient } from '@/modules/nfse-invoice/shared/nfseSettingsClient.service'
 import type {
   NfseEmissionProfileSettings,
@@ -56,7 +60,9 @@ function selectActiveRules(rules: readonly FreightRuleSummary[]): readonly Freig
 
 export function useNfseSettings(input: Readonly<{ companyId?: string; enabled: boolean }>) {
   const queryClient = useQueryClient()
-  const [fiscalEnvironment, setFiscalEnvironment] = useState<NfseFiscalEnvironment>('homologation')
+  const [fiscalEnvironment, setFiscalEnvironment] = useState<NfseFiscalEnvironment>(() =>
+    resolveDefaultNfseFiscalEnvironment(getDeploymentEnvironment()),
+  )
   const client = createSettingsClient()
   const enabled = input.enabled && input.companyId !== undefined
   const profilesKey = [NFSE_EMISSION_PROFILES_QUERY_KEY, input.companyId] as const

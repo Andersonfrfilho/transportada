@@ -45,6 +45,8 @@ export type PreviewNfseInvoiceInput = {
   readonly context: NfseInvoiceCompanyContext
   readonly descriptionTemplate?: string | undefined
   readonly documentIds: readonly string[]
+  /** Janela do serviço, digitada na emissão: o domínio não a deriva das notas (ver `nfse-description.service.ts`). */
+  readonly period?: string | undefined
   readonly profileId: string
 }
 
@@ -69,6 +71,7 @@ export function createNfseInvoiceUseCase(dependencies: {
       const requestFingerprint = createInvoiceFingerprint({
         descriptionTemplate: input.descriptionTemplate ?? '',
         documentIds: input.documentIds,
+        period: input.period ?? '',
         profileId: input.profileId,
       })
 
@@ -108,6 +111,7 @@ export function createNfseInvoiceUseCase(dependencies: {
 
       return buildNfseInvoicePreview({
         descriptionTemplate: input.descriptionTemplate,
+        period: input.period,
         profile,
         resolution,
       })
@@ -159,6 +163,7 @@ async function resolveSingleInvoice({
 
   const preview = buildNfseInvoicePreview({
     descriptionTemplate: input.descriptionTemplate,
+    period: input.period,
     profile,
     resolution,
   })
