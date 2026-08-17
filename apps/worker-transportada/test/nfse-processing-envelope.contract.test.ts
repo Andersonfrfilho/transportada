@@ -104,19 +104,18 @@ describe('NFS-e processing envelope v1 contract', () => {
   })
 
   /**
-   * O motivo do cancelamento é texto livre digitado pelo operador e já está gravado na nota, com
-   * check no banco. Ele não entra na fila: payload de mensagem carrega referência, não conteúdo
-   * (`security.md` §6). O worker lê o motivo da linha da nota na hora de transmitir.
+   * Nem o código do motivo nem o texto livre do operador entram na fila: os dois já estão gravados
+   * na nota, com check no banco, e payload de mensagem carrega referência, não conteúdo
+   * (`security.md` §6). O worker lê o código da linha da nota na hora de transmitir.
    */
-  it('refuses to carry the cancellation reason through the queue', () => {
+  it.each([
+    ['reason', { cancellationReason: 'Serviço não prestado' }],
+    ['motive code', { cancellationMotive: '2' }],
+  ])('refuses to carry the cancellation %s through the queue', (_caseName, extra) => {
     const envelope = {
       ...validEnvelope,
       type: NFSE_PROCESSING_EVENT_TYPE.INVOICE_CANCEL_REQUESTED,
-      payload: {
-        ...validEnvelope.payload,
-        attemptKind: 'cancel',
-        cancellationReason: 'Serviço não prestado',
-      },
+      payload: { ...validEnvelope.payload, attemptKind: 'cancel', ...extra },
     }
 
     expect(nfseProcessingEnvelopeV1Schema.safeParse(envelope).success).toBe(false)

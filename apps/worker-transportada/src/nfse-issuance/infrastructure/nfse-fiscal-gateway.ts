@@ -3,7 +3,10 @@
  */
 import { z } from 'zod'
 
-import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
+import type {
+  NfseCancellationMotive,
+  NfseFiscalEnvironment,
+} from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseCredentialSecretService } from '../application/nfse-credential-secret.service.js'
 import {
   createNotaRpV2Client,
@@ -103,10 +106,11 @@ export type NfseFiscalGatewayConfig = {
 }
 
 export type NfseFiscalGateway = {
+  /** O motivo é o **código** da prefeitura, nunca o texto do operador — ver `NFSE_CANCELLATION_MOTIVES`. */
   cancel(input: {
+    readonly cancellationMotive: NfseCancellationMotive
     readonly credential: NfseCredentialAccess
     readonly providerDocumentId: string
-    readonly reason: string
   }): Promise<NfseGatewayCancelOutcome>
   fetchDocument(input: {
     readonly credential: NfseCredentialAccess
@@ -151,6 +155,7 @@ export function createNfseFiscalGateway(dependencies: {
       const client = createClient({
         config: {
           baseUrl,
+          callbackToken,
           municipalRegistration: credential.municipalRegistration,
           timeoutMilliseconds: config.timeoutMilliseconds,
           token: apiToken,
@@ -163,11 +168,11 @@ export function createNfseFiscalGateway(dependencies: {
   }
 
   return {
-    cancel: async ({ credential, providerDocumentId, reason }) => {
+    cancel: async ({ cancellationMotive, credential, providerDocumentId }) => {
       const resolved = await resolveClient(credential)
       if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
-        return await resolved.client.cancel({ providerDocumentId, reason })
+        return await resolved.client.cancel({ cancellationMotive, providerDocumentId })
       } catch {
         return { cause: 'transport_failure', status: 'error' }
       }

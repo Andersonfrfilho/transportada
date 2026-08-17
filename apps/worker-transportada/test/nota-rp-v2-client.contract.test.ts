@@ -8,6 +8,8 @@ import './nota-rp-v2/no-bearer.contract.js'
 import {
   API_TOKEN,
   BASE_URL,
+  CALLBACK_TOKEN,
+  CALLBACK_URL,
   MUNICIPAL_REGISTRATION,
   NOTA_RP_CAUSES,
   PROVIDER_DOCUMENT_ID,
@@ -26,6 +28,8 @@ import {
   throwingFetch,
 } from './nota-rp-v2/fixture.js'
 
+/** `2` é "serviço não prestado" no vocabulário da v2. O `motivo` é código, e o código é string. */
+const CANCELLATION_MOTIVE = '2'
 const CANCELLATION_REASON = 'Servico nao executado — carga recusada no destino'
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
 const XML_BYTES = new TextEncoder().encode('<CompNfse><Nfse/></CompNfse>')
@@ -212,8 +216,8 @@ describe('Nota RP v2 client — cancelamento', () => {
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.cancel({
+      cancellationMotive: CANCELLATION_MOTIVE,
       providerDocumentId: PROVIDER_DOCUMENT_ID,
-      reason: CANCELLATION_REASON,
     })
 
     const body = JSON.parse(calls[0]?.body ?? 'null') as Record<string, unknown>
@@ -221,9 +225,42 @@ describe('Nota RP v2 client — cancelamento', () => {
     expect(calls[0]?.url).toBe(`${BASE_URL}/cancelar-nota`)
     // Conferir por `Object.values` era cego a nome de chave — foi assim que `motivo_cancelamento` passou.
     expect(body['id_nota']).toBe(PROVIDER_DOCUMENT_ID)
-    expect(body['motivo']).toBe(CANCELLATION_REASON)
+    expect(body['motivo']).toBe(CANCELLATION_MOTIVE)
     expect(body).not.toHaveProperty('motivo_cancelamento')
     expect(outcome.status).toBe('accepted')
+  })
+
+  /**
+   * O `motivo` é código, e a prefeitura recusa o cancelamento quando recebe texto no lugar dele —
+   * recusa que só aparece dias depois, na consulta. O texto livre do operador para na API e não
+   * chega aqui: o cliente não tem por onde recebê-lo.
+   */
+  test('o corpo leva código, nunca o texto livre do operador', async () => {
+    const { calls, fetch } = recordingFetch(() => successBody(cancelledData()))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    await client.cancel({
+      cancellationMotive: CANCELLATION_MOTIVE,
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    const body = calls[0]?.body ?? ''
+    expect(body).not.toContain(CANCELLATION_REASON)
+    expect((JSON.parse(body) as Record<string, unknown>)['motivo']).toMatch(/^[0-9]$/)
+  })
+
+  /** `id_nota` sai como veio: o provedor documenta número, e um `Number()` cego viraria `NaN`. */
+  test('o id do provedor atravessa sem conversão', async () => {
+    const { calls, fetch } = recordingFetch(() => successBody(cancelledData()))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    await client.cancel({
+      cancellationMotive: CANCELLATION_MOTIVE,
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    const body = JSON.parse(calls[0]?.body ?? 'null') as Record<string, unknown>
+    expect(body['id_nota']).toBe(PROVIDER_DOCUMENT_ID)
   })
 
   test('trata HTTP 200 com success:false como recusa do cancelamento', async () => {
@@ -233,8 +270,8 @@ describe('Nota RP v2 client — cancelamento', () => {
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.cancel({
+      cancellationMotive: CANCELLATION_MOTIVE,
       providerDocumentId: PROVIDER_DOCUMENT_ID,
-      reason: CANCELLATION_REASON,
     })
 
     expect(outcome.status).toBe('rejected')
@@ -244,7 +281,7 @@ describe('Nota RP v2 client — cancelamento', () => {
     })
   })
 
-  // O motivo é texto livre digitado por operador: pode carregar nome ou telefone de cliente.
+  /** O outcome é lido pelo write-back e vai para log: nem o código nem o id do provedor voltam nele. */
   test('não devolve o motivo do cancelamento no outcome de falha', async () => {
     const { fetch } = recordingFetch(() =>
       failureBody({ message: 'Prazo de cancelamento expirado' }),
@@ -252,11 +289,12 @@ describe('Nota RP v2 client — cancelamento', () => {
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.cancel({
+      cancellationMotive: CANCELLATION_MOTIVE,
       providerDocumentId: PROVIDER_DOCUMENT_ID,
-      reason: CANCELLATION_REASON,
     })
 
     expect(JSON.stringify(outcome)).not.toContain(CANCELLATION_REASON)
+    expect(JSON.stringify(outcome)).not.toContain(PROVIDER_DOCUMENT_ID)
   })
 })
 
@@ -365,8 +403,8 @@ describe('Nota RP v2 client — falhas de transporte', () => {
     const outcomes = [
       await client.issue({ rps: RPS }),
       await client.cancel({
+        cancellationMotive: CANCELLATION_MOTIVE,
         providerDocumentId: PROVIDER_DOCUMENT_ID,
-        reason: CANCELLATION_REASON,
       }),
       await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID }),
       await client.fetchDocument({ kind: 'xml', providerDocumentId: PROVIDER_DOCUMENT_ID }),
@@ -394,6 +432,40 @@ describe('Nota RP v2 client — o token não vaza', () => {
       expect(call.url).not.toContain(API_TOKEN)
       expect(call.body ?? '').not.toContain(API_TOKEN)
     }
+  })
+
+  /**
+   * São **dois** segredos no mesmo pedido, e o segundo é o mais fácil de esquecer: o `callbackToken`
+   * não vai em cabeçalho, vai dentro da `CallbackUrl`, no corpo do `/emitir`. Recusa de validação
+   * costuma devolver o campo recusado na `message` — e é justamente aqui que a URL é o assunto.
+   */
+  test('a recusa que devolve a CallbackUrl sai sem o token de callback', async () => {
+    const { fetch } = recordingFetch(() =>
+      failureBody({ message: `CallbackUrl invalida: ${CALLBACK_URL}` }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.issue({ rps: RPS })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.message ?? '').not.toContain(CALLBACK_TOKEN)
+  })
+
+  test('a consulta que devolve a CallbackUrl na mensagem de erro também sai redigida', async () => {
+    const { fetch } = recordingFetch(() =>
+      successBody({
+        codigo_erro: 'E999',
+        id_nota: PROVIDER_DOCUMENT_ID,
+        mensagem_erro: `Retorno nao entregue em ${CALLBACK_URL}`,
+        situacao: 'rejeitada',
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.message ?? '').not.toContain(CALLBACK_TOKEN)
   })
 })
 
@@ -442,8 +514,8 @@ describe('Nota RP v2 client — os dois cabeçalhos que o provedor exige', () =>
     const outcomes = [
       await client.issue({ rps: RPS }),
       await client.cancel({
+        cancellationMotive: CANCELLATION_MOTIVE,
         providerDocumentId: PROVIDER_DOCUMENT_ID,
-        reason: CANCELLATION_REASON,
       }),
       await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID }),
       await client.fetchDocument({ kind: 'xml', providerDocumentId: PROVIDER_DOCUMENT_ID }),

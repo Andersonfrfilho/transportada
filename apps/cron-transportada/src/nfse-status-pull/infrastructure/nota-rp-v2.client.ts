@@ -148,9 +148,14 @@ async function readEnvelope(input: {
   if (!isRecord(body)) return { cause: 'malformed_response', status: 'error' }
 
   if (body['success'] !== true) {
+    /*
+     * A recusa da v2 é `{success:false, message}` e nada mais: código de erro só existe no postback,
+     * dentro de `MensagemRetorno[].Codigo`. Ler um `code` daqui era inferência, e ela divergia do
+     * cliente do worker, que não lê.
+     */
     return {
       rejection: {
-        code: readText(body, 'code') ?? UNKNOWN_REJECTION_CODE,
+        code: UNKNOWN_REJECTION_CODE,
         message: redact(readText(body, 'message') ?? '', input.token),
       },
       status: 'rejected',

@@ -268,7 +268,11 @@ describe('NFS-e fiscal gateway configuration contract', () => {
       status: 'error',
     })
     expect(
-      await gateway.cancel({ credential, providerDocumentId: 'nota-1', reason: 'erro' }),
+      await gateway.cancel({
+        cancellationMotive: '2',
+        credential,
+        providerDocumentId: 'nota-1',
+      }),
     ).toEqual({ cause: 'provider_not_configured', status: 'error' })
     expect(await gateway.fetchStatus({ credential, providerDocumentId: 'nota-1' })).toEqual({
       cause: 'provider_not_configured',

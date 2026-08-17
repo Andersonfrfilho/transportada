@@ -56,7 +56,10 @@ export type NotaRpDocumentOutcomeShape = {
 }
 
 type NotaRpV2ClientShape = {
-  cancel(input: { providerDocumentId: string; reason: string }): Promise<NotaRpCancelOutcomeShape>
+  cancel(input: {
+    cancellationMotive: '2' | '4'
+    providerDocumentId: string
+  }): Promise<NotaRpCancelOutcomeShape>
   fetchDocument(input: {
     kind: 'pdf' | 'xml'
     providerDocumentId: string
@@ -67,6 +70,7 @@ type NotaRpV2ClientShape = {
 
 type NotaRpV2ConfigShape = {
   baseUrl: string
+  callbackToken: string
   municipalRegistration: string
   timeoutMilliseconds: number
   token: string
@@ -91,7 +95,14 @@ export const MUNICIPAL_REGISTRATION = '12345678'
 
 export const PROVIDER_DOCUMENT_ID = '900123456'
 
-export const CALLBACK_URL = 'https://transportada.invalid/public/nfse-callbacks/opaque-token'
+/**
+ * O **segundo** segredo do pedido. Ele não vai em cabeçalho: viaja dentro da `CallbackUrl`, no corpo
+ * do `/emitir`. Se ele aparecer em qualquer outcome, o contrato falha — pelo mesmo motivo que o
+ * `API_TOKEN`.
+ */
+export const CALLBACK_TOKEN = 'notarp-v2-synthetic-callback-token-do-not-leak'
+
+export const CALLBACK_URL = `https://transportada.invalid/public/nfse-callbacks/${CALLBACK_TOKEN}`
 
 /**
  * O RPS chega pronto ao cliente: quem traduz o payload congelado para o vocabulário da v2 é o
@@ -230,6 +241,7 @@ export async function createNotaRpV2ClientFixture(input: {
   return module.createNotaRpV2Client({
     config: {
       baseUrl: BASE_URL,
+      callbackToken: CALLBACK_TOKEN,
       municipalRegistration: MUNICIPAL_REGISTRATION,
       timeoutMilliseconds: 8000,
       token: API_TOKEN,

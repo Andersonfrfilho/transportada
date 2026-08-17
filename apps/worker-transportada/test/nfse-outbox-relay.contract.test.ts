@@ -101,6 +101,7 @@ describe('NFS-e outbox relay contract', () => {
     expect(published[0]?.type).toBe('transportada.nfse.invoice.cancel.requested')
     expect(published[0]?.payload.attemptKind).toBe('cancel')
     expect(JSON.stringify(published[0])).not.toContain('cancellationReason')
+    expect(JSON.stringify(published[0])).not.toContain('cancellationMotive')
     expect(() => nfseProcessingEnvelopeV1Schema.parse(published[0])).not.toThrow()
   })
 
@@ -291,6 +292,7 @@ function contaminate(entry: NfseOutboxClaimedEntry): NfseOutboxClaimedEntry {
   const contaminated: NfseOutboxClaimedEntry & { readonly payload: Record<string, string> } = {
     ...entry,
     payload: {
+      cancellationMotive: '2',
       cancellationReason: 'cliente pediu por telefone',
       takerLegalName: 'Tomador do Contrato Ltda',
     },

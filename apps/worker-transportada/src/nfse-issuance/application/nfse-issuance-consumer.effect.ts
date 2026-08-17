@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { NfseCancellationMotive } from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseProcessingEnvelopeV1 } from '../../messaging/nfse-processing-envelope.schema.js'
 import type {
   NfseCredentialAccess,
@@ -10,7 +11,7 @@ import { NfseIssuanceFatalError, NfseIssuanceRecoverableError } from './nfse-iss
 
 const CANCEL_ATTEMPT_KIND = 'cancel'
 const DEFAULT_CAUSE = 'transport_failure'
-const MISSING_CANCELLATION_REASON = 'missing_cancellation_reason'
+const MISSING_CANCELLATION_MOTIVE = 'missing_cancellation_motive'
 const MISSING_ISSUANCE_PAYLOAD = 'missing_issuance_payload'
 const MISSING_PROVIDER_DOCUMENT = 'missing_provider_document'
 const REJECTED_CAUSE = 'rejected'
@@ -24,13 +25,14 @@ export type NfseIssuanceWriteBackKey = {
 }
 
 /**
- * O que o banco entrega na hora de transmitir. O motivo do cancelamento é lido daqui, e não do
- * envelope: ele é texto livre do operador e não atravessa o broker (`security.md` §6).
+ * O que o banco entrega na hora de transmitir. O código do motivo do cancelamento é lido daqui, e
+ * não do envelope: payload de mensagem carrega referência (`security.md` §6). O texto livre do
+ * operador não chega até aqui — ele fica na nota, para a tela e a auditoria.
  *
  * O payload é o congelado na requisição de emissão — o cancelamento não congela nenhum.
  */
 export type NfseIssuanceExecutionInput = {
-  readonly cancellationReason?: string
+  readonly cancellationMotive?: NfseCancellationMotive
   readonly credential: NfseCredentialAccess
   readonly payload?: unknown
   readonly providerDocumentId?: string
@@ -118,21 +120,22 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     readonly execution: NfseIssuanceExecutionInput
     readonly key: NfseIssuanceWriteBackKey
   }): Promise<void> {
-    const { cancellationReason, credential, providerDocumentId } = input.execution
+    const { cancellationMotive, credential, providerDocumentId } = input.execution
 
     if (providerDocumentId === undefined || providerDocumentId === '') {
       throw new NfseIssuanceFatalError(MISSING_PROVIDER_DOCUMENT)
     }
-    if (cancellationReason === undefined || cancellationReason === '') {
-      throw new NfseIssuanceFatalError(MISSING_CANCELLATION_REASON)
+    /** Sem código não há pedido: a prefeitura recusa o cancelamento e a nota fica esperando. */
+    if (cancellationMotive === undefined) {
+      throw new NfseIssuanceFatalError(MISSING_CANCELLATION_MOTIVE)
     }
 
     await writeBack.recordInFlight(input.key)
 
     const outcome = await gateway.cancel({
+      cancellationMotive,
       credential,
       providerDocumentId,
-      reason: cancellationReason,
     })
 
     if (outcome.status === 'accepted') {

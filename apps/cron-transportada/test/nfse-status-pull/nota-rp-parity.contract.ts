@@ -226,9 +226,7 @@ describe('Nota RP v2 document download parity', () => {
 
 describe('Nota RP v2 secret hygiene', () => {
   test('manda os dois cabeçalhos do provedor e nunca devolve o token numa mensagem', async () => {
-    const recorder = recordingFetch(() =>
-      failureBody({ code: 'E500', message: `token ${API_TOKEN} recusado` }),
-    )
+    const recorder = recordingFetch(() => failureBody({ message: `token ${API_TOKEN} recusado` }))
     const client = await createNotaRpStatusClientFixture({ fetch: recorder.fetch })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })

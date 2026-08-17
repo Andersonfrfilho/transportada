@@ -16,6 +16,7 @@
  * Segue **inferido** o vocabulário da consulta (`situacao`, `codigo_erro`): nenhum exemplo da
  * coleção cobre `/notas/`, e o acerto, quando vier, é aqui.
  */
+import type { NfseCancellationMotive } from '../../database/nfse-issuance-execution.schema.js'
 
 const DOCUMENT_MEDIA_TYPE = {
   pdf: 'application/pdf',
@@ -89,6 +90,12 @@ export type NotaRpDocumentOutcome = {
 
 export type NotaRpV2Config = {
   readonly baseUrl: string
+  /**
+   * O **segundo** segredo do pedido. O cliente não o usa para autenticar nada: ele chega aqui só
+   * para ser redigido, porque viaja dentro da `CallbackUrl` no corpo do `/emitir` e a recusa de
+   * validação devolve o campo recusado na `message`.
+   */
+  readonly callbackToken: string
   /** Identifica **qual empresa** dentro da conta do token. Sem ela o provedor não sabe por quem emitir. */
   readonly municipalRegistration: string
   readonly timeoutMilliseconds: number
@@ -99,8 +106,8 @@ export type NotaRpFetch = (input: string, init: RequestInit) => Promise<Response
 
 export type NotaRpV2Client = {
   cancel(input: {
+    readonly cancellationMotive: NfseCancellationMotive
     readonly providerDocumentId: string
-    readonly reason: string
   }): Promise<NotaRpCancelOutcome>
   fetchDocument(input: {
     readonly kind: NotaRpDocumentKind
@@ -123,8 +130,10 @@ export function createNotaRpV2Client(dependencies: {
 }): NotaRpV2Client {
   const { config, fetch } = dependencies
   const baseUrl = config.baseUrl.replace(/\/+$/u, '')
+  /** Vazio não é segredo: cortá-lo partiria a mensagem inteira entre `[REDACTED]`. */
+  const secrets = [config.token, config.callbackToken].filter((secret) => secret.length > 0)
   const redact: Redact = (value) =>
-    config.token.length === 0 ? value : value.split(config.token).join(REDACTED)
+    secrets.reduce((redacted, secret) => redacted.split(secret).join(REDACTED), value)
 
   async function send(input: {
     readonly accept: string
@@ -168,9 +177,14 @@ export function createNotaRpV2Client(dependencies: {
   }
 
   return {
-    cancel: async ({ providerDocumentId, reason }) => {
+    /**
+     * `motivo` é código, não texto: a v2 lê `2` (serviço não prestado) e `4` (nota duplicada). Texto
+     * livre ali faz a prefeitura recusar o cancelamento, e a recusa só aparece na consulta seguinte.
+     * `id_nota` sai como veio — o provedor documenta número, e um `Number()` cego viraria `NaN`.
+     */
+    cancel: async ({ cancellationMotive, providerDocumentId }) => {
       const envelope = await requestEnvelope({
-        body: { id_nota: providerDocumentId, motivo: reason },
+        body: { id_nota: providerDocumentId, motivo: cancellationMotive },
         method: 'POST',
         url: `${baseUrl}${ROUTE_CANCEL}`,
       })

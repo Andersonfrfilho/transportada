@@ -28,8 +28,10 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
   }
 
   /**
-   * O motivo do cancelamento é lido aqui, da linha da nota, e não do envelope: texto livre do
-   * operador não atravessa o broker (`security.md` §6). `undefined` significa nada a transmitir.
+   * O código do motivo do cancelamento é lido aqui, da linha da nota, e não do envelope: payload de
+   * mensagem carrega referência (`security.md` §6). O texto livre do operador fica na nota e não é
+   * selecionado — o worker não precisa dele, e o que não sai da tabela não vaza. `undefined`
+   * significa nada a transmitir.
    */
   async load(input: {
     readonly attemptId: string
@@ -38,7 +40,7 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
   }): Promise<NfseIssuanceExecutionInput | undefined> {
     const [row] = await this.#database
       .select({
-        cancellationReason: nfseServiceInvoices.cancellationReason,
+        cancellationMotive: nfseServiceInvoices.cancellationMotive,
         credentialId: nfseProviderCredentials.id,
         envelope: nfseProviderCredentials.secretEnvelope,
         fiscalEnvironment: nfseIssuanceAttempts.fiscalEnvironment,
@@ -94,7 +96,7 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
         municipalRegistration: row.municipalRegistration,
       },
       ...(row.payload === null ? {} : { payload: row.payload }),
-      ...(row.cancellationReason === null ? {} : { cancellationReason: row.cancellationReason }),
+      ...(row.cancellationMotive === null ? {} : { cancellationMotive: row.cancellationMotive }),
       ...(row.providerDocumentId === null ? {} : { providerDocumentId: row.providerDocumentId }),
     }
   }
