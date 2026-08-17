@@ -86,33 +86,48 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
 > | `motivo_cancelamento` (texto)     | `motivo` código (`"2"`)     | campo não chega, valor errado  |
 > | cron lê `code` do corpo da recusa | recusa da v2 não tem `code` | leitura fantasma, sem paridade |
 
-- [ ] **T016** — `[NEEDS CLARIFICATION]` A tabela de códigos de `motivo` do cancelamento. A coleção
-      mostra `"2"` sem legenda e a descrição do endpoint é uma linha só; hoje mandamos o texto livre
-      que o operador digitou. Resolver junto com a sondagem da Fase 0 (a conta autenticada é a única
-      fonte) e só então mapear valor. **Bloqueia o valor, não a rota.**
-      Verificação: a tabela no `evidence.md`, com a origem.
-- [ ] **T017** — Contrato: o cancelamento bate em `/cancelar-nota` e o corpo sai com a chave `motivo`.
+- [x] **T016** — ~~`[NEEDS CLARIFICATION]`~~ **Respondida pela documentação oficial da v2**, não pela
+      sondagem: o `changelog (v2).md` traz a tabela inteira sob "Mudança no endpoint `/cancelar-nota`"
+      — `motivo` é **obrigatório** e só aceita `1`, `2` ou `4`. A tabela e o que cada código implica
+      estão no `evidence.md`. Some com a `[NEEDS CLARIFICATION]`; a **implementação** do valor virou a
+      T020, porque aqui a entrega era a tabela.
+      Continua aberto o segundo item da sondagem: o `id_nota` do exemplo oficial é **numérico**
+      (`30200`) e nós mandamos texto. A documentação não diz se a string é aceita, e `Number()` cego
+      viraria `NaN` no corpo — segue na T020, a ser confirmado contra a conta autenticada.
+      Verificação: tabela no `evidence.md`, com a origem.
+- [x] **T017** — Contrato: o cancelamento bate em `/cancelar-nota` e o corpo sai com a chave `motivo`.
       Verificação: vermelho.
-- [ ] **T018** — `ROUTE_CANCEL` e o corpo do cancelamento no cliente do worker. O **valor** continua
+- [x] **T018** — `ROUTE_CANCEL` e o corpo do cancelamento no cliente do worker. O **valor** continua
       sendo o texto do operador até a T016 fechar — trocar rota e chave já é o que separa "recusado
       pela prefeitura" de "404 em silêncio".
       Verificação: T017 verde.
-- [ ] **T019** — O cliente do cron para de ler `code` do corpo da recusa (linha 153): o envelope da
+- [x] **T019** — O cliente do cron para de ler `code` do corpo da recusa (linha 153): o envelope da
       v2 é `{success:false, message}`, e ler um campo que nunca vem é a inferência que a A2 desfez do
       outro lado. `nota-rp-parity.contract.ts` passa a cobrir a recusa sem código nas duas cópias.
-      Verificação: vermelho e depois verde nas duas apps.
+      Verificação: o contrato do cron fixa `NOTA_RP_UNKNOWN` + a `message` do provedor nos três
+      caminhos; suíte do cron 183 pass / 0 fail.
 
 ## Fase B — a inscrição municipal deixa de ser opcional
 
 > 🤖 Modelo: `sonnet` — T006 é 🧠, tem migration
 
-- [ ] **T005** — Contrato: `saveCredentialSchema` recusa corpo sem `municipalRegistration` e recusa
+- [x] **T005** — Contrato: `saveCredentialSchema` recusa corpo sem `municipalRegistration` e recusa
       string vazia; o teste de tenant-safety do schema de NFS-e continua verde.
-      Verificação: vermelho.
-- [ ] **T006** 🧠 — Tirar o `.default('')` do `saveCredentialSchema`, migration versionada pondo a
+      Verificação: vermelho — `refuses to save a credential without a municipal registration`
+      falhou com `[200, 200]` no lugar de `[400, 400]` antes da T006.
+- [x] **T006** 🧠 — Tirar o `.default('')` do `saveCredentialSchema`, migration versionada pondo a
       coluna `not null` com `rollback.sql` ao lado. Conferir antes que não há linha selada em nenhum
-      ambiente — em produção não há, e é por isso que a hora é agora.
-      Verificação: T005 verde e `make migration-test`.
+      ambiente.
+      ⚠️ Correção do enunciado: **há** credencial selada em produção — uma linha, `notarp` /
+      `production` / `active`, com inscrição de 8 caracteres, conferida no banco antes de aplicar.
+      Nenhuma em branco, e é por isso que o aperto passa sem tocar em dado. A coluna já era
+      `not null`; o que faltava era o `''` que o próprio `default` escrevia, então a migration
+      `20260817185545_nfse_credential_municipal_registration` faz `drop default` mais o
+      `check (length(...) > 0)`, e o `rollback.sql` devolve as duas coisas — a permissividade, não um
+      dado perdido.
+      Verificação: T005 verde, suíte da API 2551 pass / 15 skip / 0 fail, `make migration-test`
+      70 pass / 0 fail. Frontend acompanhou (bloqueio na tela em vez do 400 genérico):
+      `nfse-invoice.contract` 225 pass / 0 fail, `typecheck` e `lint` limpos.
 
 ## Fase C — o callback obrigatório
 
@@ -135,22 +150,84 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       valor do `API_PUBLIC_NFSE_CALLBACKS_PATH` da API.
       Verificação: T007 verde (8 pass / 0 fail), `environment.contract` 18 pass / 0 fail, suíte do
       worker 466 pass / 0 fail, `typecheck` e `lint` do worker limpos.
-- [ ] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` de produção, via
+- [ ] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` **e no `worker`** de produção, via
       `railway variables --set --skip-deploys`, e confirmar que a rota de retorno passa a ser
-      registrada. `.env.example`
-      declara a variável.
+      registrada. `.env.example` declara a variável.
+      Os dois serviços, não só a `api`: a `api` precisa dela para registrar a rota do postback e o
+      `worker` para montar a `CallbackUrl` do `/emitir`. Configurar um sem o outro é emitir sem
+      retorno ou publicar rota que ninguém chama.
+      Feito: variável gravada nos dois com
+      `https://api.fernandes-transportadora.com.br` (origem pública do serviço `api`), e conferida
+      por `railway variables --kv | grep`. **Falta** o registro da rota, que só acontece no próximo
+      deploy — `--skip-deploys` não reinicia a instância em execução.
       Verificação: `railway variables --kv` mostrando a chave e o boot registrando a rota.
 
 ## Fase D — fechamento
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T010** — `make check` nas apps tocadas, `make migration-test`, e a auditoria de go-live: o
+- [x] **T010** — `make check` nas apps tocadas, `make migration-test`, e a auditoria de go-live: o
       token não aparece em log em nenhum nível, a resposta de erro não vaza corpo do provedor, e a
       sondagem não deixou segredo em histórico de shell.
-      Verificação: saída dos gates no `evidence.md`.
-- [ ] **T011** — `docs/SECURITY.md` ganha o item datado do `X-Signature` não verificado (o postback é
+      Verificação: gates e auditoria no `evidence.md`. Os três pontos passam; a auditoria devolveu um
+      achado (a redação cobre só um dos dois segredos do pedido), que virou a T022. ⚠️ `make check`
+      fecha em `format:check` por dois arquivos da **041**, em edição por outra sessão na mesma
+      árvore — os da 040 passam.
+- [x] **T011** — `docs/SECURITY.md` ganha o item datado do `X-Signature` não verificado (o postback é
       autenticado só pelo token opaco no caminho), ao lado do rate limit que já está lá.
       `CLAUDE.md` registra que a inscrição municipal é obrigatória e que `CallbackUrl` não é
       opcional.
-      Verificação: os dois arquivos atualizados.
+      Verificação: os dois arquivos atualizados. O achado do postback ficou melhor do que "não
+      verificamos a assinatura": a coleção oficial mostra os quatro exemplos de retorno saindo com um
+      **único** cabeçalho (`Content-Type`), então **não há assinatura para verificar** — e o que
+      limita o estrago é o postback ser gatilho, com corpo não lido e 204 invariável. O `CLAUDE.md`
+      ganhou também as duas divergências ainda abertas (T020 e T021), para quem chegar depois não
+      reimplementar a partir do código.
+
+## Fase E — o que a documentação oficial abriu
+
+> 🤖 Modelo: `sonnet` — T021 é 🧠, mexe no que se arquiva como documento fiscal
+
+Duas tarefas nascidas da leitura do `changelog (v2).md`, depois que a Fase D foi escrita. Nenhuma
+delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
+
+- [x] **T020** — O `motivo` do cancelamento passa a ser código (`1` · `2` · `4`), não o texto livre
+      do operador. A porta de cancelamento deixa de receber `reason: string` e passa a receber o
+      código; o texto do operador, se houver de continuar existindo, é outro campo — os dois não
+      cabem no mesmo. Atenção ao código `1`: a própria documentação diz que ele **recusa** o
+      cancelamento pedindo para usar a substituição, então oferecê-lo na tela sem explicar isso é
+      montar um caminho que sempre falha.
+      No mesmo passo, confirmar contra a conta autenticada se o `id_nota` aceita string — sem essa
+      confirmação, **não** converter (`Number()` cego vira `NaN` no corpo).
+      Verificação: contrato vermelho antes; o corpo sai com o código e um caso negativo recusa texto
+      livre. **Entregue:** o catálogo ficou com `2` e `4` — o `1` não é oferecido, e o texto do
+      operador virou `cancellationReason`, que fica na nota e não atravessa a fronteira do provedor.
+      O `id_nota` **segue como texto**: a sondagem da conta autenticada não aconteceu, e sem ela a
+      conversão não entra. Ele volta com a T001/T002.
+- [ ] **T021** 🧠 — `/xml` e `/pdf` devolvem o documento **em base64** (changelog da v2, endpoints
+      novos). Hoje `readDocument` arquiva `arrayBuffer()` cru nas duas cópias — worker e cron —, o
+      que grava o base64 como se fosse o documento. O XML é o documento fiscal e é ele que liquida a
+      nota: arquivar texto base64 sob `application/xml` é perder o original sem nenhum erro no
+      caminho.
+      Sondar a conta autenticada **antes** de decidir a forma: falta saber se o base64 vem como
+      corpo de texto puro ou dentro de envelope JSON — e o `readDocument` de hoje trata
+      `content-type: application/json` como falha, então o segundo caso já falharia em silêncio.
+      Verificação: contrato vermelho nas duas cópias (`nota-rp-parity.contract.ts` guarda a
+      paridade); XML arquivado abre como XML.
+- [x] **T022** — A redação do cliente do worker cobre **um** dos dois segredos que viajam no pedido.
+      `redact` corta só `config.token`; o `callbackToken` vai dentro da `CallbackUrl` no corpo do
+      `/emitir`, e o cliente sequer o conhece. Se a prefeitura devolver a URL na `message` de uma
+      recusa de validação — plausível, e é justamente o caso em que a URL é o assunto —, o token de
+      callback é gravado em claro na rejeição da nota.
+      Passar o `callbackToken` para o `NotaRpV2Config` e cortar os dois. Achado da auditoria da T010;
+      não bloqueia a emissão.
+      Verificação: contrato vermelho — `message` de recusa contendo a `CallbackUrl` inteira sai com o
+      token substituído. **Feito.** Dois testes novos em `nota-rp-v2-client.contract.test.ts`, um por
+      caminho de mensagem — a recusa do `/emitir` e a `mensagem_erro` da consulta —, vermelhos antes
+      (`Received: "CallbackUrl invalida: …/notarp-v2-synthetic-callback-token-do-not-leak"`) e verdes
+      depois: `468 pass · 0 fail` no worker (eram 466). O `callbackToken` entrou no `NotaRpV2Config`
+      como campo **obrigatório**, e `redact` passou a dobrar sobre uma lista de segredos, filtrando o
+      vazio — cortar string vazia partiria a mensagem inteira entre `[REDACTED]`. A cópia do cron
+      **não** recebeu o campo, e isso é deliberado: `grep -n 'CallbackUrl\|callback'` nos dois
+      arquivos dela não devolve nada, porque ali só se consulta e se baixa documento — não há segundo
+      segredo a redigir. `typecheck` e `lint` limpos nas quatro apps.
