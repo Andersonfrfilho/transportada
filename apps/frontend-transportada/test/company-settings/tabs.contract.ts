@@ -3,12 +3,15 @@ import { describe, expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 
 import {
-  COMPANY_SETTINGS_PANELS,
-  COMPANY_SETTINGS_PANEL_SOURCE,
   COMPANY_SETTINGS_TAB_IDS,
-  COMPANY_SETTINGS_TAB_PANELS,
+  SETTINGS_PANELS,
+  SETTINGS_PANEL_MODULES,
+  SETTINGS_PANEL_PLACEMENT,
   resolveCompanySettingsDataScope,
   resolveCompanySettingsTab,
+  resolveSettingsDataScope,
+  settingsPanelsOf,
+  settingsTabsOf,
   type CompanySettingsTabId,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
 
@@ -33,54 +36,76 @@ async function readLocaleTabs(path: URL): Promise<Readonly<Record<string, string
   return typeof tabs === 'object' && tabs !== null ? (tabs as Record<string, string>) : {}
 }
 
-describe('company settings tabs contract', () => {
-  /** Painel fora de aba nenhuma some da tela; em duas abas, duplica o controle. */
-  test('cada painel pertence a exatamente uma aba', () => {
-    const placements = COMPANY_SETTINGS_TAB_IDS.flatMap((tab) => COMPANY_SETTINGS_TAB_PANELS[tab])
+describe('settings panel placement contract', () => {
+  /** Painel sem endereço some da tela; em dois endereços, duplica o controle. */
+  test('cada painel tem exatamente um módulo e uma aba', () => {
+    const addressed = SETTINGS_PANEL_MODULES.flatMap((module) =>
+      settingsTabsOf(module).flatMap((tab) => settingsPanelsOf(module, tab)),
+    )
 
-    expect([...placements].sort()).toEqual([...COMPANY_SETTINGS_PANELS].sort())
+    expect([...addressed].sort()).toEqual([...SETTINGS_PANELS].sort())
+  })
+
+  /** Aba declarada por um painel tem de aparecer na lista de abas do módulo dele. */
+  test('módulo e aba são consistentes', () => {
+    for (const panel of SETTINGS_PANELS) {
+      const { module, tab } = SETTINGS_PANEL_PLACEMENT[panel]
+      expect(settingsTabsOf(module)).toContain(tab)
+      expect(settingsPanelsOf(module, tab)).toContain(panel)
+    }
   })
 
   /**
-   * A aba aberta tem de ligar a consulta que alimenta os painéis dela: é isso que faz o campo vir
-   * preenchido quando já existe cadastro, em vez de abrir em branco e o operador regravar por cima.
+   * A aba aberta tem de ligar a consulta que alimenta os painéis dela, em **qualquer** módulo: é isso
+   * que faz o campo vir preenchido quando já existe cadastro, em vez de abrir em branco.
    */
-  test('a aba aberta liga a consulta de todos os painéis dela', () => {
-    for (const tab of COMPANY_SETTINGS_TAB_IDS) {
-      const scope = resolveCompanySettingsDataScope(tab)
-      for (const panel of COMPANY_SETTINGS_TAB_PANELS[tab]) {
-        expect(scope[COMPANY_SETTINGS_PANEL_SOURCE[panel]]).toBe(true)
+  test('a aba aberta liga a consulta de todos os painéis dela, em qualquer módulo', () => {
+    for (const module of SETTINGS_PANEL_MODULES) {
+      for (const tab of settingsTabsOf(module)) {
+        const scope = resolveSettingsDataScope(module, tab)
+        for (const panel of settingsPanelsOf(module, tab)) {
+          expect(scope[SETTINGS_PANEL_PLACEMENT[panel].source]).toBe(true)
+        }
       }
     }
   })
 
   /** Consulta ligada fora da aba dela é a montagem simultânea de volta, calada. */
   test('nenhuma aba liga consulta de painel que não hospeda', () => {
-    expect(resolveCompanySettingsDataScope('company')).toEqual({
-      companySettings: true,
-      distributionCursor: false,
-      fuelPrices: false,
-      nfse: false,
-      scheduledDistribution: false,
-    })
-    expect(resolveCompanySettingsDataScope('nfse').fuelPrices).toBe(false)
-    expect(resolveCompanySettingsDataScope('fuel').nfse).toBe(false)
-  })
-
-  /** Os sinais de certificado e o estado de gravação ficam visíveis em toda aba. */
-  test('a consulta da empresa fica ligada em qualquer aba', () => {
-    for (const tab of COMPANY_SETTINGS_TAB_IDS) {
-      expect(resolveCompanySettingsDataScope(tab).companySettings).toBe(true)
+    for (const module of SETTINGS_PANEL_MODULES) {
+      for (const tab of settingsTabsOf(module)) {
+        const hosted = new Set(
+          settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
+        )
+        const scope = resolveSettingsDataScope(module, tab)
+        for (const [source, enabled] of Object.entries(scope)) {
+          if (enabled && !hosted.has(source as keyof typeof scope)) {
+            // A única exceção declarada: os sinais de certificado e o estado de gravação ficam
+            // visíveis em toda aba do módulo de configurações.
+            expect([module, source]).toEqual(['company-settings', 'companySettings'])
+          }
+        }
+      }
     }
   })
 
   test('aba desconhecida cai na primeira', () => {
     expect(resolveCompanySettingsTab(undefined)).toBe('company')
     expect(resolveCompanySettingsTab('perfil-antigo')).toBe('company')
-    expect(resolveCompanySettingsTab('nfse')).toBe('nfse')
+    expect(resolveCompanySettingsTab('certificates')).toBe('certificates')
   })
 
-  test('toda aba tem rótulo nos dois pacotes de tradução', async () => {
+  test('a consulta da empresa fica ligada em qualquer aba de configurações', () => {
+    for (const tab of COMPANY_SETTINGS_TAB_IDS) {
+      expect(resolveCompanySettingsDataScope(tab).companySettings).toBe(true)
+    }
+  })
+
+  test('as abas de configurações declaradas são as que o registro conhece', () => {
+    expect(settingsTabsOf('company-settings')).toEqual([...COMPANY_SETTINGS_TAB_IDS])
+  })
+
+  test('toda aba de configurações tem rótulo nos dois pacotes de tradução', async () => {
     for (const path of LOCALE_PATHS) {
       const tabs = await readLocaleTabs(path)
       for (const id of COMPANY_SETTINGS_TAB_IDS) {
@@ -89,7 +114,7 @@ describe('company settings tabs contract', () => {
     }
   })
 
-  /** A página é a única consumidora — se ela parar de derivar daqui, o contrato vira decoração. */
+  /** A página é consumidora — se ela parar de derivar daqui, o contrato vira decoração. */
   test('a página monta as abas a partir do serviço', async () => {
     const page = await readFile(PAGE_PATH, 'utf8')
 
