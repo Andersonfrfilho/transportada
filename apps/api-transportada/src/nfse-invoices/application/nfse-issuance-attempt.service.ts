@@ -50,12 +50,15 @@ export function createRequestFingerprint(request: Readonly<Record<string, unknow
 export function createInvoiceFingerprint(input: {
   readonly descriptionTemplate: string
   readonly documentIds: readonly string[]
+  readonly period: string
   readonly profileId: string
 }): string {
   return createRequestFingerprint({
     descriptionTemplate: input.descriptionTemplate,
     documentIds: [...input.documentIds].sort(),
     operation: CREATE_OPERATION,
+    // O período é digitado: corrigi-lo e repetir a chave tem de ser pedido novo, não replay.
+    period: input.period,
     profileId: input.profileId,
   })
 }

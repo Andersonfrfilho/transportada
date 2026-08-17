@@ -20,6 +20,7 @@ export type NfseInvoicePreview = {
 
 export type BuildNfseInvoicePreviewParams = {
   readonly descriptionTemplate?: string | undefined
+  readonly period?: string | undefined
   readonly profile: NfseInvoiceProfile
   readonly resolution: NfseCandidateResolution
 }
@@ -30,6 +31,7 @@ export type BuildNfseInvoicePreviewParams = {
  */
 export function buildNfseInvoicePreview({
   descriptionTemplate,
+  period,
   profile,
   resolution,
 }: BuildNfseInvoicePreviewParams): NfseInvoicePreview {
@@ -38,29 +40,31 @@ export function buildNfseInvoicePreview({
   return {
     blocked: resolution.blocked,
     invoices: projectNfseInvoices(resolution.candidates).map((projection) =>
-      describeProjection({ profile, projection, template }),
+      describeProjection({ period, profile, projection, template }),
     ),
   }
 }
 
 function describeProjection({
+  period,
   profile,
   projection,
   template,
 }: {
+  readonly period: string | undefined
   readonly profile: NfseInvoiceProfile
   readonly projection: NfseProjection
   readonly template: string
 }): NfseInvoicePreviewItem {
   const description = buildNfseDescription({
     documents: projection.documents.map((document) => ({
-      issuedAt: document.issuedAt,
       number: document.number,
       series: document.series,
     })),
     maxLength: profile.descriptionMaxLength,
     municipalityName: profile.municipalityName,
     observations: profile.observations,
+    ...(period === undefined ? {} : { period }),
     template,
   })
 

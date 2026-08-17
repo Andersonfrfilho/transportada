@@ -5,7 +5,6 @@ import {
   NfseDescriptionTemplateInvalidError,
   NfseDescriptionTooLongError,
 } from './nfse-issuance.error.js'
-import { buildNfsePeriod } from './nfse-period.service.js'
 
 const VARIABLE_PATTERN = /\{\{([^{}]*)\}\}/g
 /** Quebra de linha e tabulação viram espaço: a prefeitura recebe uma linha só. */
@@ -13,7 +12,6 @@ const BLANK_RUN_PATTERN = /\s+/gu
 const ENTRY_SEPARATOR = '; '
 
 export type NfseDescriptionDocument = {
-  readonly issuedAt: string
   readonly number: string
   readonly series: string
 }
@@ -23,6 +21,7 @@ export type BuildNfseDescriptionParams = {
   readonly maxLength: number
   readonly municipalityName: string
   readonly observations?: string
+  readonly period?: string
   readonly template: string
 }
 
@@ -36,16 +35,26 @@ export type NfseDescription = {
  * A lista de notas é cortada na fronteira entre notas — nunca no meio de uma — e o excedente vira
  * resumo. `quantidadeNotas` conta a seleção inteira mesmo quando a lista foi cortada: o número que o
  * tomador lê é o número de notas que o serviço cobre.
+ *
+ * `periodo` é digitado pelo operador na emissão e sai daqui como veio — o domínio não deriva janela
+ * nenhuma. A regra automática só nasce quando a transportadora souber **qual** janela ela cobra, e
+ * a resposta não está nos dados que temos: a data de emissão da NF-e não é a data do serviço, e o
+ * período que a prefeitura lê é o da prestação. Para definir a regra é preciso, nesta ordem:
+ * 1. escolher a data-fonte (emissão da NF-e, entrega/canhoto, ou competência declarada no contrato);
+ * 2. escolher o recorte (semana seg–sex anterior à emissão, quinzena, mês de competência);
+ * 3. decidir o que fazer com a seleção que atravessa dois recortes — recusar ou cobrir os dois.
+ * Enquanto os três estiverem em aberto, digitar é mais honesto que adivinhar: o texto vai para a
+ * prefeitura e a nota é documento fiscal.
  */
 export function buildNfseDescription({
   documents,
   maxLength,
   municipalityName,
   observations,
+  period,
   template,
 }: BuildNfseDescriptionParams): NfseDescription {
   const entries = documents.map(formatEntry)
-  const period = buildNfsePeriod(documents.map((document) => document.issuedAt))
   const render = (listed: number): string =>
     renderTemplate({
       entries,
@@ -115,7 +124,7 @@ function renderTemplate({
   readonly listed: number
   readonly municipalityName: string
   readonly observations: string | undefined
-  readonly period: string
+  readonly period: string | undefined
   readonly template: string
   readonly total: number
 }): string {
@@ -123,7 +132,7 @@ function renderTemplate({
     municipio: municipalityName,
     notas: buildList({ entries: entries.slice(0, listed), omitted: total - listed }),
     observacoes: observations ?? '',
-    periodo: period,
+    periodo: period ?? '',
     quantidadeNotas: String(total),
   }
 
