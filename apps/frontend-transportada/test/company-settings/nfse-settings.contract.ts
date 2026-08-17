@@ -572,6 +572,40 @@ describe('nfse settings presentation contract', () => {
     expect(presenceAt).toBeLessThan(statusFieldAt)
   })
 
+  test('o painel abre no ambiente fiscal da instalação, não sempre em homologação', async () => {
+    const form = await loadFutureModule<{
+      resolveDefaultNfseFiscalEnvironment: (deployment: string) => string
+    }>(CREDENTIAL_FORM_MODULE)
+
+    expect(form.resolveDefaultNfseFiscalEnvironment('production')).toBe('production')
+    expect(form.resolveDefaultNfseFiscalEnvironment('staging')).toBe('homologation')
+    expect(form.resolveDefaultNfseFiscalEnvironment('local')).toBe('homologation')
+
+    const hook = await readModule('src/modules/company-settings/hooks/useNfseSettings.hook.ts')
+    expect(hook).toContain('resolveDefaultNfseFiscalEnvironment')
+    expect(hook).toContain('getDeploymentEnvironment()')
+    // Padrão literal aqui é a instalação de produção abrindo na credencial que não emite.
+    expect(hook).not.toContain("useState<NfseFiscalEnvironment>('homologation')")
+  })
+
+  test('o formulário da credencial remonta quando a credencial chega, não só quando o ambiente muda', async () => {
+    const [credential, page] = await Promise.all([
+      readModule('src/modules/company-settings/components/NfseCredentialPanel.component.tsx'),
+      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
+    ])
+
+    // O rascunho nasce do resumo uma vez só, e a chave é o que decide quando esse "uma vez" acontece:
+    // com o ambiente sozinho ele acontecia enquanto a consulta ainda carregava, e o CNPJ gravado
+    // nunca alcançava o campo. A identidade da credencial no meio disso troca a chave quando o dado
+    // chega — e não troca a cada refetch de mesmo conteúdo, que apagaria o token sendo digitado.
+    expect(credential).toContain('useState<NfseCredentialDraft>(() =>')
+    const panelAt = page.indexOf('<NfseCredentialPanel')
+    const keyAt = page.indexOf('key={`${props.nfse.fiscalEnvironment}:', panelAt)
+    expect(panelAt).toBeGreaterThan(-1)
+    expect(keyAt).toBeGreaterThan(panelAt)
+    expect(page.slice(panelAt, panelAt + 400)).toContain('props.nfse.credential?.id')
+  })
+
   test('a frase de ausência nomeia o ambiente fiscal, que é o recorte da credencial', async () => {
     const portuguese = await readLocale(
       'src/modules/company-settings/locales/companySettings.locale.json',

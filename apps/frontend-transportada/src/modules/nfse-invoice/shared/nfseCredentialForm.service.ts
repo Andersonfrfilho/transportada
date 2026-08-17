@@ -1,3 +1,4 @@
+import type { DeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { CNPJ_PATTERN, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { isRecord, isString } from './nfseInvoiceGuards.validation'
@@ -112,6 +113,17 @@ export function resolveNfseCredentialPresence(summary: unknown): NfseCredentialP
   if (summary.apiTokenConfigured !== true) return NFSE_CREDENTIAL_PRESENCE.TOKEN_MISSING
   if (readStatus(summary.status) !== 'active') return NFSE_CREDENTIAL_PRESENCE.INACTIVE
   return NFSE_CREDENTIAL_PRESENCE.READY
+}
+
+/**
+ * Quem escolhe o ambiente fiscal de partida é a instalação, não um literal: abrindo sempre em
+ * homologação, a tela de produção mostrava campo vazio com credencial gravada — e campo vazio se lê
+ * como "não salvou". Só a instalação de produção nasce apontada para a credencial que emite.
+ */
+export function resolveDefaultNfseFiscalEnvironment(
+  deployment: DeploymentEnvironment,
+): NfseFiscalEnvironment {
+  return deployment === 'production' ? 'production' : 'homologation'
 }
 
 function readEnvironment(value: unknown): NfseFiscalEnvironment {

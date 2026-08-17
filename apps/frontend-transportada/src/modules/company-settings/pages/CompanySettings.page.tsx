@@ -288,7 +288,9 @@ function SettingsBody(props: SettingsBodyProps) {
               onClear={props.fuelPrices.onClear}
             />
             <NfseCredentialPanel
-              key={props.nfse.fiscalEnvironment}
+              // O rascunho lê o resumo na montagem. Com a chave só no ambiente, a montagem caía
+              // enquanto a consulta ainda carregava e o que estava gravado nunca chegava ao campo.
+              key={`${props.nfse.fiscalEnvironment}:${props.nfse.credential?.id ?? 'none'}`}
               disabled={props.nfse.credentialPending}
               errorCode={props.nfse.credentialErrorCode}
               fiscalEnvironment={props.nfse.fiscalEnvironment}
