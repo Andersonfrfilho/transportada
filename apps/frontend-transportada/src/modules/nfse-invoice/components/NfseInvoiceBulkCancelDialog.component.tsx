@@ -4,10 +4,15 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { NfseInvoiceBulkCancelController } from '../hooks/useNfseInvoiceBulkCancel.hook'
-import { NFSE_CANCELLATION_REASON_MAX_LENGTH } from '../shared/nfseInvoice.constant'
+import {
+  NFSE_CANCELLATION_MOTIVES,
+  NFSE_CANCELLATION_REASON_MAX_LENGTH,
+  type NfseCancellationMotive,
+} from '../shared/nfseInvoice.constant'
 import { countNfseBulkCancelBlocks } from '../shared/nfseInvoiceBulkCancel.service'
 import styles from '../styles/nfseInvoice.module.css'
 
@@ -76,6 +81,24 @@ export function NfseInvoiceBulkCancelDialog({
         ) : (
           <div className={styles.emissionForm}>
             <label className={styles.emissionField}>
+              <span>{t('cancelDialog.motive')}</span>
+              <Select
+                ariaLabel={t('cancelDialog.motive')}
+                disabled={bulkCancel.isPending}
+                onChange={(value) =>
+                  bulkCancel.setCancellationMotive(value as NfseCancellationMotive)
+                }
+                options={NFSE_CANCELLATION_MOTIVES.map((motive) => ({
+                  label: t(`cancelDialog.motives.${motive}`),
+                  value: motive,
+                }))}
+                placeholder={t('cancelDialog.motivePlaceholder')}
+                value={bulkCancel.cancellationMotive}
+              />
+              <span className={styles.emissionHint}>{t('bulkCancel.motiveHint')}</span>
+            </label>
+
+            <label className={styles.emissionField}>
               <span>{t('cancelDialog.reason')}</span>
               <textarea
                 disabled={bulkCancel.isPending}
@@ -110,7 +133,7 @@ export function NfseInvoiceBulkCancelDialog({
           </button>
           <button
             className={styles.primaryAction}
-            disabled={eligibleCount === 0 || !bulkCancel.isReasonReady || bulkCancel.isPending}
+            disabled={eligibleCount === 0 || !bulkCancel.isCancelReady || bulkCancel.isPending}
             onClick={bulkCancel.confirm}
             type="button"
           >

@@ -186,6 +186,9 @@ export const SELECTION_BODY = {
 
 export const CANCELLATION_REASON = 'Serviço não prestado no período informado'
 
+/** `2` é "serviço não prestado" no vocabulário da prefeitura. O `motivo` é código, não texto. */
+export const CANCELLATION_MOTIVE = '2'
+
 /** A opção que a rota de emissão serve: três campos, nenhum parâmetro fiscal. */
 export const EMISSION_PROFILE_OPTION = {
   descriptionTemplate: 'Transporte rodoviário de cargas referente às notas {{notas}}.',

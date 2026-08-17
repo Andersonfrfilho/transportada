@@ -197,6 +197,19 @@ describe('nfse bulk cancellation rendering contract', () => {
     expect(hook).toContain('buildNfseCancellationIdempotencyKey')
   })
 
+  /** O lote leva o mesmo código para todas: escolhido uma vez, no diálogo, e não digitado. */
+  test('o lote escolhe o código do motivo do mesmo catálogo da nota avulsa', async () => {
+    const [dialog, hook] = await Promise.all([
+      readApplicationFile(DIALOG_PATH),
+      readApplicationFile(HOOK_PATH),
+    ])
+
+    expect(dialog).toContain("from '@/components/ui/select'")
+    expect(dialog).toContain('NFSE_CANCELLATION_MOTIVES')
+    expect(dialog).toContain('bulkCancel.isCancelReady')
+    expect(hook).toContain('cancellationMotive')
+  })
+
   test('o lote é sequencial de propósito: a prefeitura é um terceiro', async () => {
     const hook = await readApplicationFile(HOOK_PATH)
 

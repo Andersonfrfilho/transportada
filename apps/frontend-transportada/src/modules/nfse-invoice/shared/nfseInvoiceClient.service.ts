@@ -1,5 +1,6 @@
 import type { ArchiveFile } from '@/modules/shared/archiveDownload.service'
 
+import type { NfseCancellationMotive } from './nfseInvoice.constant'
 import {
   NFSE_EMISSION_PROFILE_OPTIONS_PATH,
   NFSE_INVOICE_ERROR,
@@ -39,7 +40,9 @@ export type NfseInvoiceListQuery = Readonly<{
   limit: number
 }>
 
+/** O código vai para a prefeitura, o texto fica no registro da nota — nenhum substitui o outro. */
 export type NfseInvoiceCancellationInput = Readonly<{
+  cancellationMotive: NfseCancellationMotive
   cancellationReason: string
   idempotencyKey: string
   invoiceId: string
@@ -221,7 +224,10 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
   return {
     async cancelInvoice(input) {
       const payload = await authorizedRequest({
-        body: JSON.stringify({ cancellationReason: input.cancellationReason }),
+        body: JSON.stringify({
+          cancellationMotive: input.cancellationMotive,
+          cancellationReason: input.cancellationReason,
+        }),
         dependencies,
         idempotencyKey: input.idempotencyKey,
         method: 'POST',
