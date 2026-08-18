@@ -38,9 +38,7 @@ function hasDocumentSignature(input: {
   readonly kind: NfseDocumentKind
 }): boolean {
   const start = skipLeadingNoise(input.bytes)
-  return DOCUMENT_SIGNATURE[input.kind].every(
-    (byte, index) => input.bytes[start + index] === byte,
-  )
+  return DOCUMENT_SIGNATURE[input.kind].every((byte, index) => input.bytes[start + index] === byte)
 }
 
 function skipLeadingNoise(bytes: Uint8Array): number {

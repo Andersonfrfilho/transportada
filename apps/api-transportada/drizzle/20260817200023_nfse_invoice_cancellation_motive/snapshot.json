@@ -2,9 +2,7 @@
   "version": "8",
   "dialect": "postgres",
   "id": "9b454f65-f480-4f6d-a17c-7afedbd9035f",
-  "prevIds": [
-    "b9d2792f-c5a8-4c72-b5fa-5dee8288b91f"
-  ],
+  "prevIds": ["b9d2792f-c5a8-4c72-b5fa-5dee8288b91f"],
   "ddl": [
     {
       "isRlsEnabled": false,
@@ -17629,14 +17627,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "external_identities_user_id_identity_users_id_fkey",
@@ -17646,14 +17640,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "membership_id"
-      ],
+      "columns": ["membership_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "membership_roles_membership_id_user_company_memberships_id_fkey",
@@ -17663,14 +17653,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_company_memberships_user_id_identity_users_id_fkey",
@@ -17680,14 +17666,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_company_memberships_company_id_companies_id_fkey",
@@ -17697,14 +17679,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "company_fiscal_profiles_company_id_companies_id_fkey",
@@ -17714,14 +17692,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "digital_certificates_company_id_companies_id_fkey",
@@ -17731,14 +17705,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "created_by_user_id"
-      ],
+      "columns": ["created_by_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "digital_certificates_created_by_user_id_identity_users_id_fkey",
@@ -17748,14 +17718,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "audit_logs_company_id_companies_id_fkey",
@@ -17765,14 +17731,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "actor_user_id"
-      ],
+      "columns": ["actor_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "audit_logs_actor_user_id_identity_users_id_fkey",
@@ -17782,16 +17744,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "audit_logs_actor_membership_fk",
@@ -17801,14 +17757,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "idempotency_records_company_id_companies_id_fkey",
@@ -17818,16 +17770,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "fiscal_sequence_id"
-      ],
+      "columns": ["company_id", "fiscal_sequence_id"],
       "schemaTo": "public",
       "tableTo": "fiscal_sequences",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fiscal_sequence_reservations_company_sequence_fk",
@@ -17837,14 +17783,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fiscal_sequences_company_id_companies_id_fkey",
@@ -17854,14 +17796,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_id_companies_id_fkey",
@@ -17871,16 +17809,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_nfe_document_fk",
@@ -17890,16 +17822,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_fk",
@@ -17909,18 +17835,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id",
-        "rule_version"
-      ],
+      "columns": ["company_id", "freight_rule_id", "rule_version"],
       "schemaTo": "public",
       "tableTo": "freight_rule_versions",
-      "columnsTo": [
-        "company_id",
-        "freight_rule_id",
-        "version"
-      ],
+      "columnsTo": ["company_id", "freight_rule_id", "version"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_version_fk",
@@ -17930,16 +17848,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_version_id"
-      ],
+      "columns": ["company_id", "freight_rule_version_id"],
       "schemaTo": "public",
       "tableTo": "freight_rule_versions",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_company_rule_version_id_fk",
@@ -17949,16 +17861,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_calculations_created_by_membership_fk",
@@ -17968,14 +17874,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_company_id_companies_id_fkey",
@@ -17985,16 +17887,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_company_rule_fk",
@@ -18004,16 +17900,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rule_versions_created_by_membership_fk",
@@ -18023,14 +17913,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rules_company_id_companies_id_fkey",
@@ -18040,16 +17926,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "freight_rules_created_by_membership_fk",
@@ -18059,14 +17939,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_addresses_company_id_companies_id_fkey",
@@ -18076,16 +17952,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "participant_id"
-      ],
+      "columns": ["company_id", "participant_id"],
       "schemaTo": "public",
       "tableTo": "nfe_participants",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_addresses_company_participant_fk",
@@ -18095,14 +17965,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_distribution_cursors_company_id_companies_id_fkey",
@@ -18112,14 +17978,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_id_companies_id_fkey",
@@ -18129,14 +17991,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "created_by_user_id"
-      ],
+      "columns": ["created_by_user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_created_by_user_id_identity_users_id_fkey",
@@ -18146,16 +18004,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_xml_object_fk",
@@ -18165,16 +18017,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id"
-      ],
+      "columns": ["company_id", "import_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_company_import_fk",
@@ -18184,16 +18030,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_documents_created_by_membership_fk",
@@ -18203,14 +18043,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_events_company_id_companies_id_fkey",
@@ -18220,16 +18056,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_events_company_xml_object_fk",
@@ -18239,14 +18069,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_id_companies_id_fkey",
@@ -18256,16 +18082,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id"
-      ],
+      "columns": ["company_id", "import_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_import_fk",
@@ -18275,16 +18095,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "source_object_id"
-      ],
+      "columns": ["company_id", "source_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_import_items_company_source_object_fk",
@@ -18321,14 +18135,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_imports_company_id_companies_id_fkey",
@@ -18338,16 +18148,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "requested_by_user_id",
-        "company_id"
-      ],
+      "columns": ["requested_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_imports_requested_by_membership_fk",
@@ -18357,14 +18161,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_participants_company_id_companies_id_fkey",
@@ -18374,16 +18174,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_participants_company_document_fk",
@@ -18393,14 +18187,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_products_company_id_companies_id_fkey",
@@ -18410,16 +18200,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_products_company_document_fk",
@@ -18429,14 +18213,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_volumes_company_id_companies_id_fkey",
@@ -18446,16 +18226,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id"
-      ],
+      "columns": ["company_id", "document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfe_volumes_company_document_fk",
@@ -18465,14 +18239,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "password_reset_delivery_outbox_company_id_companies_id_fk",
@@ -18482,16 +18252,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "request_id",
-        "company_id"
-      ],
+      "columns": ["request_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "password_reset_requests",
-      "columnsTo": [
-        "id",
-        "company_id"
-      ],
+      "columnsTo": ["id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "password_reset_delivery_outbox_request_fk",
@@ -18501,14 +18265,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "password_reset_requests_company_id_companies_id_fk",
@@ -18518,16 +18278,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "user_id",
-        "company_id"
-      ],
+      "columns": ["user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "password_reset_requests_membership_fk",
@@ -18537,14 +18291,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processed_messages_company_id_companies_id_fkey",
@@ -18554,16 +18304,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "schemaTo": "public",
       "tableTo": "processing_outbox",
-      "columnsTo": [
-        "company_id",
-        "event_id"
-      ],
+      "columnsTo": ["company_id", "event_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processed_messages_company_event_fk",
@@ -18573,14 +18317,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_jobs_company_id_companies_id_fkey",
@@ -18590,14 +18330,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_company_id_companies_id_fkey",
@@ -18607,16 +18343,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "aggregate_id"
-      ],
+      "columns": ["company_id", "aggregate_id"],
       "schemaTo": "public",
       "tableTo": "nfe_imports",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_company_aggregate_fk",
@@ -18626,16 +18356,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "processing_outbox_actor_membership_fk",
@@ -18645,14 +18369,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "stored_objects_company_id_companies_id_fkey",
@@ -18662,14 +18382,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_events_company_id_companies_id_fk",
@@ -18679,16 +18395,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_events_company_batch_fk",
@@ -18698,14 +18408,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_charges_company_id_companies_id_fk",
@@ -18715,16 +18421,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "item_id"
-      ],
+      "columns": ["company_id", "item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_charges_company_item_fk",
@@ -18734,14 +18434,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_documents_company_id_companies_id_fk",
@@ -18751,16 +18447,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "item_id"
-      ],
+      "columns": ["company_id", "item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_documents_company_item_fk",
@@ -18770,16 +18460,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_documents_company_batch_fk",
@@ -18789,16 +18473,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_item_documents_company_nfe_document_fk",
@@ -18808,14 +18486,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_items_company_id_companies_id_fk",
@@ -18825,16 +18499,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_items_company_batch_fk",
@@ -18844,16 +18512,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_items_company_nfe_document_fk",
@@ -18863,16 +18525,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_calculation_id"
-      ],
+      "columns": ["company_id", "freight_calculation_id"],
       "schemaTo": "public",
       "tableTo": "freight_calculations",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batch_items_company_freight_calculation_fk",
@@ -18882,14 +18538,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batches_company_id_companies_id_fk",
@@ -18899,16 +18551,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "operator_user_id",
-        "company_id"
-      ],
+      "columns": ["operator_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_batches_operator_membership_fk",
@@ -18918,14 +18564,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_submission_records_company_id_companies_id_fk",
@@ -18935,16 +18577,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_submission_records_company_batch_fk",
@@ -18954,14 +18590,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_fiscal_documents_company_id_companies_id_fk",
@@ -18971,16 +18603,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_fiscal_documents_company_batch_item_fk",
@@ -18990,16 +18616,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "cte_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_fiscal_documents_company_attempt_fk",
@@ -19009,16 +18629,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_fiscal_documents_company_xml_object_fk",
@@ -19028,16 +18642,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "cancellation_xml_object_id"
-      ],
+      "columns": ["company_id", "cancellation_xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_fiscal_documents_company_cancellation_xml_object_fk",
@@ -19047,14 +18655,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_attempts_company_id_companies_id_fk",
@@ -19064,16 +18668,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_attempts_company_batch_fk",
@@ -19083,16 +18681,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_attempts_company_batch_item_fk",
@@ -19102,16 +18694,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "reservation_id"
-      ],
+      "columns": ["company_id", "reservation_id"],
       "schemaTo": "public",
       "tableTo": "fiscal_sequence_reservations",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_attempts_company_reservation_fk",
@@ -19121,14 +18707,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "cte_issuance_diagnostics_company_id_companies_id_fk",
@@ -19138,14 +18720,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_events_company_id_companies_id_fk",
@@ -19155,16 +18733,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "cte_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_events_company_attempt_fk",
@@ -19174,16 +18746,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_events_company_batch_item_fk",
@@ -19193,14 +18759,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_company_id_companies_id_fk",
@@ -19210,16 +18772,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "aggregate_id"
-      ],
+      "columns": ["company_id", "aggregate_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_company_aggregate_fk",
@@ -19229,16 +18785,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_company_batch_fk",
@@ -19248,16 +18798,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_company_batch_item_fk",
@@ -19267,16 +18811,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "cte_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_company_attempt_fk",
@@ -19286,16 +18824,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_outbox_actor_membership_fk",
@@ -19305,14 +18837,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_payloads_company_id_companies_id_fk",
@@ -19322,16 +18850,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_payloads_company_batch_fk",
@@ -19341,16 +18863,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_payloads_company_batch_item_fk",
@@ -19360,16 +18876,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "cte_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_issuance_payloads_company_attempt_fk",
@@ -19379,14 +18889,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_processed_messages_company_id_companies_id_fk",
@@ -19396,14 +18902,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_retry_schedules_company_id_companies_id_fk",
@@ -19413,16 +18915,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "cte_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_retry_schedules_company_attempt_fk",
@@ -19432,16 +18928,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_retry_schedules_company_batch_item_fk",
@@ -19451,14 +18941,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_documents_company_id_companies_id_fk",
@@ -19468,16 +18954,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "billing_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_documents_company_invoice_fk",
@@ -19487,16 +18967,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "object_id"
-      ],
+      "columns": ["company_id", "object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_documents_company_object_fk",
@@ -19506,14 +18980,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_events_company_id_companies_id_fk",
@@ -19523,16 +18993,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "billing_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_events_company_invoice_fk",
@@ -19542,16 +19006,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_events_actor_membership_fk",
@@ -19561,14 +19019,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_items_company_id_companies_id_fk",
@@ -19578,16 +19032,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "billing_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_items_company_invoice_fk",
@@ -19597,16 +19045,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "cte_document_id"
-      ],
+      "columns": ["company_id", "cte_document_id"],
       "schemaTo": "public",
       "tableTo": "cte_fiscal_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_items_company_cte_document_fk",
@@ -19616,16 +19058,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id"
-      ],
+      "columns": ["company_id", "batch_id"],
       "schemaTo": "public",
       "tableTo": "cte_batches",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_items_company_batch_fk",
@@ -19635,16 +19071,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "schemaTo": "public",
       "tableTo": "cte_batch_items",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoice_items_company_batch_item_fk",
@@ -19654,14 +19084,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoices_company_id_companies_id_fk",
@@ -19671,16 +19097,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_invoices_actor_membership_fk",
@@ -19690,14 +19110,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "billing_description_templates_company_id_companies_id_fk",
@@ -19707,14 +19123,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fleet_driver_vehicle_assignments_company_id_companies_id_fk",
@@ -19724,16 +19136,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "driver_id"
-      ],
+      "columns": ["company_id", "driver_id"],
       "schemaTo": "public",
       "tableTo": "fleet_drivers",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "fleet_driver_vehicle_assignments_company_driver_fk",
@@ -19743,16 +19149,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "vehicle_id"
-      ],
+      "columns": ["company_id", "vehicle_id"],
       "schemaTo": "public",
       "tableTo": "fleet_vehicles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "fleet_driver_vehicle_assignments_company_vehicle_fk",
@@ -19762,14 +19162,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fleet_drivers_company_id_companies_id_fk",
@@ -19779,16 +19175,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "membership_id",
-        "company_id"
-      ],
+      "columns": ["membership_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "id",
-        "company_id"
-      ],
+      "columnsTo": ["id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fleet_drivers_company_membership_fk",
@@ -19798,14 +19188,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "fleet_vehicles_company_id_companies_id_fk",
@@ -19815,14 +19201,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "company_fuel_prices_company_id_companies_id_fkey",
@@ -19832,14 +19214,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_id_companies_id_fk",
@@ -19849,16 +19227,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_manifest_fk",
@@ -19868,16 +19240,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_attempt_fk",
@@ -19887,16 +19253,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_xml_object_fk",
@@ -19906,16 +19266,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "closure_xml_object_id"
-      ],
+      "columns": ["company_id", "closure_xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_closure_xml_object_fk",
@@ -19925,16 +19279,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "cancellation_xml_object_id"
-      ],
+      "columns": ["company_id", "cancellation_xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_fiscal_documents_company_cancellation_xml_object_fk",
@@ -19944,14 +19292,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_attempts_company_id_companies_id_fk",
@@ -19961,16 +19305,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_attempts_company_manifest_fk",
@@ -19980,16 +19318,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "reservation_id"
-      ],
+      "columns": ["company_id", "reservation_id"],
       "schemaTo": "public",
       "tableTo": "fiscal_sequence_reservations",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_attempts_company_reservation_fk",
@@ -19999,14 +19331,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_events_company_id_companies_id_fk",
@@ -20016,16 +19344,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_events_company_attempt_fk",
@@ -20035,16 +19357,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_events_company_manifest_fk",
@@ -20054,14 +19370,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_outbox_company_id_companies_id_fk",
@@ -20071,16 +19383,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "aggregate_id"
-      ],
+      "columns": ["company_id", "aggregate_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_outbox_company_aggregate_fk",
@@ -20090,16 +19396,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_outbox_company_manifest_fk",
@@ -20109,16 +19409,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_outbox_company_attempt_fk",
@@ -20128,16 +19422,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_outbox_actor_membership_fk",
@@ -20147,14 +19435,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_payloads_company_id_companies_id_fk",
@@ -20164,16 +19448,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_payloads_company_manifest_fk",
@@ -20183,16 +19461,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_issuance_payloads_company_attempt_fk",
@@ -20202,14 +19474,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifest_drivers_company_id_companies_id_fk",
@@ -20219,16 +19487,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "mdfe_manifest_drivers_company_manifest_fk",
@@ -20238,16 +19500,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "driver_id"
-      ],
+      "columns": ["company_id", "driver_id"],
       "schemaTo": "public",
       "tableTo": "fleet_drivers",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifest_drivers_company_driver_fk",
@@ -20257,14 +19513,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifest_items_company_id_companies_id_fk",
@@ -20274,16 +19526,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "mdfe_manifest_items_company_manifest_fk",
@@ -20293,16 +19539,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "cte_fiscal_document_id"
-      ],
+      "columns": ["company_id", "cte_fiscal_document_id"],
       "schemaTo": "public",
       "tableTo": "cte_fiscal_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifest_items_company_document_fk",
@@ -20312,14 +19552,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifest_loading_cities_company_id_companies_id_fk",
@@ -20329,16 +19565,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "schemaTo": "public",
       "tableTo": "mdfe_manifests",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "mdfe_manifest_loading_cities_company_manifest_fk",
@@ -20348,14 +19578,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifests_company_id_companies_id_fk",
@@ -20365,16 +19591,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "vehicle_id"
-      ],
+      "columns": ["company_id", "vehicle_id"],
       "schemaTo": "public",
       "tableTo": "fleet_vehicles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifests_company_vehicle_fk",
@@ -20384,16 +19604,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "trip_id"
-      ],
+      "columns": ["company_id", "trip_id"],
       "schemaTo": "public",
       "tableTo": "trips",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_manifests_company_trip_fk",
@@ -20403,14 +19617,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "mdfe_processed_messages_company_id_companies_id_fk",
@@ -20420,14 +19630,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_emission_profiles_company_id_companies_id_fk",
@@ -20437,16 +19643,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_emission_profiles_company_freight_rule_fk",
@@ -20456,16 +19656,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_emission_profiles_author_membership_fk",
@@ -20475,14 +19669,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_fiscal_documents_company_id_companies_id_fk",
@@ -20492,16 +19682,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_fiscal_documents_company_invoice_fk",
@@ -20511,16 +19695,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "nfse_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_fiscal_documents_company_attempt_fk",
@@ -20530,16 +19708,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "xml_object_id"
-      ],
+      "columns": ["company_id", "xml_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_fiscal_documents_company_xml_object_fk",
@@ -20549,16 +19721,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "pdf_object_id"
-      ],
+      "columns": ["company_id", "pdf_object_id"],
       "schemaTo": "public",
       "tableTo": "stored_objects",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_fiscal_documents_company_pdf_object_fk",
@@ -20568,14 +19734,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_attempts_company_id_companies_id_fk",
@@ -20585,16 +19747,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_attempts_company_invoice_fk",
@@ -20604,14 +19760,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_events_company_id_companies_id_fk",
@@ -20621,16 +19773,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "nfse_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_events_company_attempt_fk",
@@ -20640,16 +19786,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_events_company_invoice_fk",
@@ -20659,14 +19799,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_outbox_company_id_companies_id_fk",
@@ -20676,16 +19812,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "aggregate_id"
-      ],
+      "columns": ["company_id", "aggregate_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_outbox_company_aggregate_fk",
@@ -20695,16 +19825,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_outbox_company_invoice_fk",
@@ -20714,16 +19838,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "nfse_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_outbox_company_attempt_fk",
@@ -20733,16 +19851,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "actor_user_id",
-        "company_id"
-      ],
+      "columns": ["actor_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_outbox_actor_membership_fk",
@@ -20752,14 +19864,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_payloads_company_id_companies_id_fk",
@@ -20769,16 +19877,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_payloads_company_invoice_fk",
@@ -20788,16 +19890,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "schemaTo": "public",
       "tableTo": "nfse_issuance_attempts",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_issuance_payloads_company_attempt_fk",
@@ -20807,14 +19903,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_processed_messages_company_id_companies_id_fk",
@@ -20824,14 +19916,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_provider_credentials_company_id_companies_id_fk",
@@ -20841,14 +19929,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoice_charges_company_id_companies_id_fk",
@@ -20858,16 +19942,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "nfse_service_invoice_charges_company_invoice_fk",
@@ -20877,14 +19955,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoice_documents_company_id_companies_id_fk",
@@ -20894,16 +19968,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "schemaTo": "public",
       "tableTo": "nfse_service_invoices",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "nfse_service_invoice_documents_company_invoice_fk",
@@ -20913,16 +19981,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoice_documents_company_nfe_document_fk",
@@ -20932,14 +19994,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoices_company_id_companies_id_fk",
@@ -20949,16 +20007,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "emission_profile_id"
-      ],
+      "columns": ["company_id", "emission_profile_id"],
       "schemaTo": "public",
       "tableTo": "nfse_emission_profiles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoices_company_profile_fk",
@@ -20968,16 +20020,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "nfse_service_invoices_author_membership_fk",
@@ -20987,14 +20033,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "view_preferences_company_id_companies_id_fkey",
@@ -21004,14 +20046,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "view_preferences_user_id_identity_users_id_fkey",
@@ -21021,16 +20059,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "user_id",
-        "company_id"
-      ],
+      "columns": ["user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "view_preferences_membership_fk",
@@ -21040,14 +20072,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "company_distribution_settings_company_id_companies_id_fkey",
@@ -21057,14 +20085,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "company_logos_company_id_companies_id_fkey",
@@ -21074,14 +20098,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_emission_profile_components_company_id_companies_id_fk",
@@ -21091,16 +20111,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "profile_id"
-      ],
+      "columns": ["company_id", "profile_id"],
       "schemaTo": "public",
       "tableTo": "cte_emission_profiles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "cte_emission_profile_components_company_profile_fk",
@@ -21110,14 +20124,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_emission_profile_matchers_company_id_companies_id_fk",
@@ -21127,16 +20137,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "profile_id"
-      ],
+      "columns": ["company_id", "profile_id"],
       "schemaTo": "public",
       "tableTo": "cte_emission_profiles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "cte_emission_profile_matchers_company_profile_fk",
@@ -21146,14 +20150,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_emission_profiles_company_id_companies_id_fk",
@@ -21163,16 +20163,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id"
-      ],
+      "columns": ["company_id", "freight_rule_id"],
       "schemaTo": "public",
       "tableTo": "freight_rules",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_emission_profiles_company_freight_rule_fk",
@@ -21182,16 +20176,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "created_by_user_id",
-        "company_id"
-      ],
+      "columns": ["created_by_user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cte_emission_profiles_author_membership_fk",
@@ -21201,14 +20189,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "invitation_delivery_outbox_company_id_companies_id_fk",
@@ -21218,16 +20202,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "invitation_id",
-        "company_id"
-      ],
+      "columns": ["invitation_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_invitations",
-      "columnsTo": [
-        "id",
-        "company_id"
-      ],
+      "columnsTo": ["id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "invitation_delivery_outbox_invitation_fk",
@@ -21237,16 +20215,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "invitation_id",
-        "company_id"
-      ],
+      "columns": ["invitation_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_invitations",
-      "columnsTo": [
-        "id",
-        "company_id"
-      ],
+      "columnsTo": ["id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "user_invitation_roles_invitation_fk",
@@ -21256,14 +20228,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_invitations_company_id_companies_id_fk",
@@ -21273,16 +20241,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "user_id",
-        "company_id"
-      ],
+      "columns": ["user_id", "company_id"],
       "schemaTo": "public",
       "tableTo": "user_company_memberships",
-      "columnsTo": [
-        "user_id",
-        "company_id"
-      ],
+      "columnsTo": ["user_id", "company_id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "user_invitations_membership_fk",
@@ -21292,14 +20254,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "identity_user_profiles_user_id_identity_users_id_fkey",
@@ -21309,14 +20267,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_documents_company_id_companies_id_fk",
@@ -21326,16 +20280,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "trip_id"
-      ],
+      "columns": ["company_id", "trip_id"],
       "schemaTo": "public",
       "tableTo": "trips",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "trip_documents_company_trip_fk",
@@ -21345,16 +20293,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "nfe_document_id"],
       "schemaTo": "public",
       "tableTo": "nfe_documents",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_documents_company_nfe_document_fk",
@@ -21364,16 +20306,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_calculation_id"
-      ],
+      "columns": ["company_id", "freight_calculation_id"],
       "schemaTo": "public",
       "tableTo": "freight_calculations",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_documents_company_freight_calculation_fk",
@@ -21383,14 +20319,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_drivers_company_id_companies_id_fk",
@@ -21400,16 +20332,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "trip_id"
-      ],
+      "columns": ["company_id", "trip_id"],
       "schemaTo": "public",
       "tableTo": "trips",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "trip_drivers_company_trip_fk",
@@ -21419,16 +20345,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "driver_id"
-      ],
+      "columns": ["company_id", "driver_id"],
       "schemaTo": "public",
       "tableTo": "fleet_drivers",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_drivers_company_driver_fk",
@@ -21438,14 +20358,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trips_company_id_companies_id_fk",
@@ -21455,16 +20371,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "vehicle_id"
-      ],
+      "columns": ["company_id", "vehicle_id"],
       "schemaTo": "public",
       "tableTo": "fleet_vehicles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
+      "columnsTo": ["company_id", "id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trips_company_vehicle_fk",
@@ -21473,10 +20383,7 @@
       "table": "trips"
     },
     {
-      "columns": [
-        "membership_id",
-        "role"
-      ],
+      "columns": ["membership_id", "role"],
       "nameExplicit": true,
       "name": "membership_roles_membership_id_role_pk",
       "entityType": "pks",
@@ -21484,10 +20391,7 @@
       "table": "membership_roles"
     },
     {
-      "columns": [
-        "company_id",
-        "environment"
-      ],
+      "columns": ["company_id", "environment"],
       "nameExplicit": true,
       "name": "nfe_distribution_cursors_company_environment_pk",
       "entityType": "pks",
@@ -21495,10 +20399,7 @@
       "table": "nfe_distribution_cursors"
     },
     {
-      "columns": [
-        "company_id",
-        "product"
-      ],
+      "columns": ["company_id", "product"],
       "nameExplicit": true,
       "name": "company_fuel_prices_company_id_product_pk",
       "entityType": "pks",
@@ -21506,10 +20407,7 @@
       "table": "company_fuel_prices"
     },
     {
-      "columns": [
-        "invitation_id",
-        "role"
-      ],
+      "columns": ["invitation_id", "role"],
       "nameExplicit": true,
       "name": "user_invitation_roles_invitation_id_role_pk",
       "entityType": "pks",
@@ -21517,9 +20415,7 @@
       "table": "user_invitation_roles"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "companies_pkey",
       "schema": "public",
@@ -21527,9 +20423,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "external_identities_pkey",
       "schema": "public",
@@ -21537,9 +20431,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "identity_users_pkey",
       "schema": "public",
@@ -21547,9 +20439,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "user_company_memberships_pkey",
       "schema": "public",
@@ -21557,9 +20447,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "nameExplicit": false,
       "name": "company_fiscal_profiles_pkey",
       "schema": "public",
@@ -21567,9 +20455,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "digital_certificates_pkey",
       "schema": "public",
@@ -21577,9 +20463,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "audit_logs_pkey",
       "schema": "public",
@@ -21587,9 +20471,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fiscal_sequence_reservations_pkey",
       "schema": "public",
@@ -21597,9 +20479,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fiscal_sequences_pkey",
       "schema": "public",
@@ -21607,9 +20487,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_calculations_pkey",
       "schema": "public",
@@ -21617,9 +20495,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_rule_versions_pkey",
       "schema": "public",
@@ -21627,9 +20503,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "freight_rules_pkey",
       "schema": "public",
@@ -21637,9 +20511,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_addresses_pkey",
       "schema": "public",
@@ -21647,9 +20519,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_documents_pkey",
       "schema": "public",
@@ -21657,9 +20527,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_events_pkey",
       "schema": "public",
@@ -21667,9 +20535,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_import_items_pkey",
       "schema": "public",
@@ -21677,9 +20543,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_imports_pkey",
       "schema": "public",
@@ -21687,9 +20551,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_participants_pkey",
       "schema": "public",
@@ -21697,9 +20559,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_products_pkey",
       "schema": "public",
@@ -21707,9 +20567,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfe_volumes_pkey",
       "schema": "public",
@@ -21717,9 +20575,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "password_reset_delivery_outbox_pkey",
       "schema": "public",
@@ -21727,9 +20583,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "password_reset_requests_pkey",
       "schema": "public",
@@ -21737,9 +20591,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "processed_messages_pkey",
       "schema": "public",
@@ -21747,9 +20599,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "processing_jobs_pkey",
       "schema": "public",
@@ -21757,9 +20607,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "processing_outbox_pkey",
       "schema": "public",
@@ -21767,9 +20615,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "stored_objects_pkey",
       "schema": "public",
@@ -21777,9 +20623,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_batch_events_pkey",
       "schema": "public",
@@ -21787,9 +20631,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_batch_item_charges_pkey",
       "schema": "public",
@@ -21797,9 +20639,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_batch_item_documents_pkey",
       "schema": "public",
@@ -21807,9 +20647,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_batch_items_pkey",
       "schema": "public",
@@ -21817,9 +20655,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_batches_pkey",
       "schema": "public",
@@ -21827,9 +20663,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_submission_records_pkey",
       "schema": "public",
@@ -21837,9 +20671,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_fiscal_documents_pkey",
       "schema": "public",
@@ -21847,9 +20679,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_issuance_attempts_pkey",
       "schema": "public",
@@ -21857,9 +20687,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_issuance_diagnostics_pkey",
       "schema": "public",
@@ -21867,9 +20695,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_issuance_events_pkey",
       "schema": "public",
@@ -21877,9 +20703,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_issuance_outbox_pkey",
       "schema": "public",
@@ -21887,9 +20711,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_issuance_payloads_pkey",
       "schema": "public",
@@ -21897,9 +20719,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_processed_messages_pkey",
       "schema": "public",
@@ -21907,9 +20727,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_retry_schedules_pkey",
       "schema": "public",
@@ -21917,9 +20735,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "billing_invoice_documents_pkey",
       "schema": "public",
@@ -21927,9 +20743,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "billing_invoice_events_pkey",
       "schema": "public",
@@ -21937,9 +20751,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "billing_invoice_items_pkey",
       "schema": "public",
@@ -21947,9 +20759,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "billing_invoices_pkey",
       "schema": "public",
@@ -21957,9 +20767,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "billing_description_templates_pkey",
       "schema": "public",
@@ -21967,9 +20775,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fleet_driver_vehicle_assignments_pkey",
       "schema": "public",
@@ -21977,9 +20783,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fleet_drivers_pkey",
       "schema": "public",
@@ -21987,9 +20791,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fleet_vehicles_pkey",
       "schema": "public",
@@ -21997,9 +20799,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "fuel_price_references_pkey",
       "schema": "public",
@@ -22007,9 +20807,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_fiscal_documents_pkey",
       "schema": "public",
@@ -22017,9 +20815,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_issuance_attempts_pkey",
       "schema": "public",
@@ -22027,9 +20823,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_issuance_events_pkey",
       "schema": "public",
@@ -22037,9 +20831,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_issuance_outbox_pkey",
       "schema": "public",
@@ -22047,9 +20839,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_issuance_payloads_pkey",
       "schema": "public",
@@ -22057,9 +20847,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_manifest_drivers_pkey",
       "schema": "public",
@@ -22067,9 +20855,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_manifest_items_pkey",
       "schema": "public",
@@ -22077,9 +20863,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_manifest_loading_cities_pkey",
       "schema": "public",
@@ -22087,9 +20871,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_manifests_pkey",
       "schema": "public",
@@ -22097,9 +20879,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "mdfe_processed_messages_pkey",
       "schema": "public",
@@ -22107,9 +20887,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_emission_profiles_pkey",
       "schema": "public",
@@ -22117,9 +20895,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_fiscal_documents_pkey",
       "schema": "public",
@@ -22127,9 +20903,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_issuance_attempts_pkey",
       "schema": "public",
@@ -22137,9 +20911,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_issuance_events_pkey",
       "schema": "public",
@@ -22147,9 +20919,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_issuance_outbox_pkey",
       "schema": "public",
@@ -22157,9 +20927,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_issuance_payloads_pkey",
       "schema": "public",
@@ -22167,9 +20935,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_processed_messages_pkey",
       "schema": "public",
@@ -22177,9 +20943,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_provider_credentials_pkey",
       "schema": "public",
@@ -22187,9 +20951,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_service_invoice_charges_pkey",
       "schema": "public",
@@ -22197,9 +20959,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_service_invoice_documents_pkey",
       "schema": "public",
@@ -22207,9 +20967,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "nfse_service_invoices_pkey",
       "schema": "public",
@@ -22217,9 +20975,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "view_preferences_pkey",
       "schema": "public",
@@ -22227,9 +20983,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "nameExplicit": false,
       "name": "company_distribution_settings_pkey",
       "schema": "public",
@@ -22237,9 +20991,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "nameExplicit": false,
       "name": "company_logos_pkey",
       "schema": "public",
@@ -22247,9 +20999,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_emission_profile_components_pkey",
       "schema": "public",
@@ -22257,9 +21007,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_emission_profile_matchers_pkey",
       "schema": "public",
@@ -22267,9 +21015,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "cte_emission_profiles_pkey",
       "schema": "public",
@@ -22277,9 +21023,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "invitation_delivery_outbox_pkey",
       "schema": "public",
@@ -22287,9 +21031,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "user_invitations_pkey",
       "schema": "public",
@@ -22297,9 +21039,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "nameExplicit": false,
       "name": "identity_user_profiles_pkey",
       "schema": "public",
@@ -22307,9 +21047,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "trip_documents_pkey",
       "schema": "public",
@@ -22317,9 +21055,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "trip_drivers_pkey",
       "schema": "public",
@@ -22327,9 +21063,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "trips_pkey",
       "schema": "public",
@@ -22338,10 +21072,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "issuer",
-        "subject"
-      ],
+      "columns": ["issuer", "subject"],
       "nullsNotDistinct": false,
       "name": "external_identities_issuer_subject_unique",
       "entityType": "uniques",
@@ -22350,10 +21081,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "user_id",
-        "company_id"
-      ],
+      "columns": ["user_id", "company_id"],
       "nullsNotDistinct": false,
       "name": "user_company_memberships_user_company_unique",
       "entityType": "uniques",
@@ -22362,10 +21090,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "id",
-        "company_id"
-      ],
+      "columns": ["id", "company_id"],
       "nullsNotDistinct": false,
       "name": "user_company_memberships_id_company_id_unique",
       "entityType": "uniques",
@@ -22374,9 +21099,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "cnpj"
-      ],
+      "columns": ["cnpj"],
       "nullsNotDistinct": false,
       "name": "company_fiscal_profiles_cnpj_unique",
       "entityType": "uniques",
@@ -22385,11 +21108,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "purpose",
-        "version"
-      ],
+      "columns": ["company_id", "purpose", "version"],
       "nullsNotDistinct": false,
       "name": "digital_certificates_company_id_purpose_version_unique",
       "entityType": "uniques",
@@ -22398,10 +21117,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "digital_certificates_company_id_id_unique",
       "entityType": "uniques",
@@ -22410,11 +21126,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "operation",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "operation", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "idempotency_records_company_id_operation_idempotency_key_unique",
       "entityType": "uniques",
@@ -22423,10 +21135,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "reservation_key"
-      ],
+      "columns": ["company_id", "reservation_key"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequence_reservations_company_id_reservation_key_unique",
       "entityType": "uniques",
@@ -22435,10 +21144,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequence_reservations_company_id_id_unique",
       "entityType": "uniques",
@@ -22447,10 +21153,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "fiscal_sequence_id",
-        "number"
-      ],
+      "columns": ["fiscal_sequence_id", "number"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequence_reservations_sequence_id_number_unique",
       "entityType": "uniques",
@@ -22459,12 +21162,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "environment",
-        "model",
-        "series"
-      ],
+      "columns": ["company_id", "environment", "model", "series"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequences_company_id_environment_model_series_unique",
       "entityType": "uniques",
@@ -22473,10 +21171,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fiscal_sequences_company_id_id_unique",
       "entityType": "uniques",
@@ -22485,10 +21180,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_calculations_company_id_id_unique",
       "entityType": "uniques",
@@ -22497,10 +21189,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "freight_calculations_company_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -22509,10 +21198,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_rule_versions_company_id_id_unique",
       "entityType": "uniques",
@@ -22521,11 +21207,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "freight_rule_id",
-        "version"
-      ],
+      "columns": ["company_id", "freight_rule_id", "version"],
       "nullsNotDistinct": false,
       "name": "freight_rule_versions_company_rule_version_unique",
       "entityType": "uniques",
@@ -22534,10 +21216,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "freight_rules_company_id_id_unique",
       "entityType": "uniques",
@@ -22546,10 +21225,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "freight_rules_company_id_name_unique",
       "entityType": "uniques",
@@ -22558,10 +21234,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -22570,10 +21243,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "access_key"
-      ],
+      "columns": ["company_id", "access_key"],
       "nullsNotDistinct": false,
       "name": "nfe_documents_company_id_access_key_unique",
       "entityType": "uniques",
@@ -22582,10 +21252,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_events_company_id_id_unique",
       "entityType": "uniques",
@@ -22594,12 +21261,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "target_access_key",
-        "event_type",
-        "event_sequence"
-      ],
+      "columns": ["company_id", "target_access_key", "event_type", "event_sequence"],
       "nullsNotDistinct": false,
       "name": "nfe_events_company_access_key_type_sequence_unique",
       "entityType": "uniques",
@@ -22608,10 +21270,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_id_unique",
       "entityType": "uniques",
@@ -22620,12 +21279,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id",
-        "ordinal",
-        "attempt"
-      ],
+      "columns": ["company_id", "import_id", "ordinal", "attempt"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_import_id_ordinal_attempt_unique",
       "entityType": "uniques",
@@ -22634,13 +21288,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "import_id",
-        "source_sha256",
-        "source_entry",
-        "attempt"
-      ],
+      "columns": ["company_id", "import_id", "source_sha256", "source_entry", "attempt"],
       "nullsNotDistinct": false,
       "name": "nfe_import_items_company_id_import_id_source_attempt_unique",
       "entityType": "uniques",
@@ -22665,10 +21313,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_imports_company_id_id_unique",
       "entityType": "uniques",
@@ -22677,10 +21322,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "nfe_imports_company_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -22689,10 +21331,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfe_participants_company_id_id_unique",
       "entityType": "uniques",
@@ -22701,11 +21340,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_id",
-        "role"
-      ],
+      "columns": ["company_id", "document_id", "role"],
       "nullsNotDistinct": false,
       "name": "nfe_participants_company_document_role_unique",
       "entityType": "uniques",
@@ -22714,10 +21349,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "password_reset_delivery_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -22726,10 +21358,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "password_reset_requests_company_id_id_unique",
       "entityType": "uniques",
@@ -22738,9 +21367,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "code_hash"
-      ],
+      "columns": ["code_hash"],
       "nullsNotDistinct": false,
       "name": "password_reset_requests_code_hash_unique",
       "entityType": "uniques",
@@ -22749,10 +21376,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "processed_messages_company_id_id_unique",
       "entityType": "uniques",
@@ -22761,11 +21385,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "consumer_name",
-        "event_id"
-      ],
+      "columns": ["company_id", "consumer_name", "event_id"],
       "nullsNotDistinct": false,
       "name": "processed_messages_company_consumer_event_unique",
       "entityType": "uniques",
@@ -22774,10 +21394,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "processing_jobs_company_id_id_unique",
       "entityType": "uniques",
@@ -22786,10 +21403,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "processing_outbox_company_id_id_unique",
       "entityType": "uniques",
@@ -22798,10 +21412,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "processing_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -22810,10 +21421,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "stored_objects_company_id_id_unique",
       "entityType": "uniques",
@@ -22822,12 +21430,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "provider",
-        "bucket",
-        "object_key"
-      ],
+      "columns": ["company_id", "provider", "bucket", "object_key"],
       "nullsNotDistinct": false,
       "name": "stored_objects_company_provider_bucket_key_unique",
       "entityType": "uniques",
@@ -22836,10 +21439,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_events_company_id_id_unique",
       "entityType": "uniques",
@@ -22848,10 +21448,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_item_charges_company_id_id_unique",
       "entityType": "uniques",
@@ -22860,11 +21457,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "item_id",
-        "ordinal"
-      ],
+      "columns": ["company_id", "item_id", "ordinal"],
       "nullsNotDistinct": false,
       "name": "cte_batch_item_charges_company_item_ordinal_unique",
       "entityType": "uniques",
@@ -22873,10 +21466,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_item_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -22885,11 +21475,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "batch_id", "nfe_document_id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_item_documents_company_batch_nfe_unique",
       "entityType": "uniques",
@@ -22898,11 +21484,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "item_id",
-        "position"
-      ],
+      "columns": ["company_id", "item_id", "position"],
       "nullsNotDistinct": false,
       "name": "cte_batch_item_documents_company_item_position_unique",
       "entityType": "uniques",
@@ -22911,10 +21493,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_items_company_id_id_unique",
       "entityType": "uniques",
@@ -22923,11 +21502,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id",
-        "nfe_document_id"
-      ],
+      "columns": ["company_id", "batch_id", "nfe_document_id"],
       "nullsNotDistinct": false,
       "name": "cte_batch_items_company_id_batch_id_nfe_unique",
       "entityType": "uniques",
@@ -22936,10 +21511,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_batches_company_id_id_unique",
       "entityType": "uniques",
@@ -22948,10 +21520,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "cte_batches_company_id_name_unique",
       "entityType": "uniques",
@@ -22960,10 +21529,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "cte_batches_company_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -22972,10 +21538,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_submission_records_company_id_id_unique",
       "entityType": "uniques",
@@ -22984,11 +21547,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "batch_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "cte_submission_records_company_id_batch_id_idempotency_key_unique",
       "entityType": "uniques",
@@ -22997,10 +21556,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_fiscal_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -23009,10 +21565,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "access_key"
-      ],
+      "columns": ["company_id", "access_key"],
       "nullsNotDistinct": false,
       "name": "cte_fiscal_documents_company_access_key_unique",
       "entityType": "uniques",
@@ -23021,10 +21574,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id"
-      ],
+      "columns": ["company_id", "batch_item_id"],
       "nullsNotDistinct": false,
       "name": "cte_fiscal_documents_company_batch_item_unique",
       "entityType": "uniques",
@@ -23033,10 +21583,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_attempts_company_id_id_unique",
       "entityType": "uniques",
@@ -23045,12 +21592,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "batch_item_id",
-        "attempt_kind",
-        "request_fingerprint"
-      ],
+      "columns": ["company_id", "batch_item_id", "attempt_kind", "request_fingerprint"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_attempts_company_item_kind_fingerprint_unique",
       "entityType": "uniques",
@@ -23059,10 +21601,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_attempts_company_idempotency_key_unique",
       "entityType": "uniques",
@@ -23071,10 +21610,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_diagnostics_company_id_id_unique",
       "entityType": "uniques",
@@ -23083,10 +21619,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_events_company_id_id_unique",
       "entityType": "uniques",
@@ -23095,10 +21628,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_outbox_company_id_id_unique",
       "entityType": "uniques",
@@ -23107,10 +21637,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -23119,10 +21646,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_payloads_company_id_id_unique",
       "entityType": "uniques",
@@ -23131,10 +21655,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "nullsNotDistinct": false,
       "name": "cte_issuance_payloads_company_attempt_unique",
       "entityType": "uniques",
@@ -23143,10 +21664,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_processed_messages_company_id_id_unique",
       "entityType": "uniques",
@@ -23155,11 +21673,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "consumer_name",
-        "event_id"
-      ],
+      "columns": ["company_id", "consumer_name", "event_id"],
       "nullsNotDistinct": false,
       "name": "cte_processed_messages_company_consumer_event_unique",
       "entityType": "uniques",
@@ -23168,10 +21682,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_retry_schedules_company_id_id_unique",
       "entityType": "uniques",
@@ -23180,10 +21691,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "nullsNotDistinct": false,
       "name": "cte_retry_schedules_company_attempt_unique",
       "entityType": "uniques",
@@ -23192,10 +21700,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "billing_invoice_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -23204,12 +21709,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id",
-        "document_kind",
-        "document_version"
-      ],
+      "columns": ["company_id", "invoice_id", "document_kind", "document_version"],
       "nullsNotDistinct": false,
       "name": "billing_invoice_documents_company_invoice_kind_version_unique",
       "entityType": "uniques",
@@ -23218,10 +21718,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "billing_invoice_events_company_id_id_unique",
       "entityType": "uniques",
@@ -23230,10 +21727,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "billing_invoice_items_company_id_id_unique",
       "entityType": "uniques",
@@ -23242,11 +21736,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id",
-        "line_number"
-      ],
+      "columns": ["company_id", "invoice_id", "line_number"],
       "nullsNotDistinct": false,
       "name": "billing_invoice_items_company_invoice_line_unique",
       "entityType": "uniques",
@@ -23255,10 +21745,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "billing_invoices_company_id_id_unique",
       "entityType": "uniques",
@@ -23267,10 +21754,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_number"
-      ],
+      "columns": ["company_id", "invoice_number"],
       "nullsNotDistinct": false,
       "name": "billing_invoices_company_invoice_number_unique",
       "entityType": "uniques",
@@ -23279,10 +21763,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "billing_invoices_company_idempotency_key_unique",
       "entityType": "uniques",
@@ -23291,10 +21772,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "billing_description_templates_company_id_id_unique",
       "entityType": "uniques",
@@ -23303,10 +21781,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "billing_description_templates_company_name_unique",
       "entityType": "uniques",
@@ -23315,10 +21790,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fleet_driver_vehicle_assignments_company_id_id_unique",
       "entityType": "uniques",
@@ -23327,10 +21799,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fleet_drivers_company_id_id_unique",
       "entityType": "uniques",
@@ -23339,10 +21808,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "tax_id"
-      ],
+      "columns": ["company_id", "tax_id"],
       "nullsNotDistinct": false,
       "name": "fleet_drivers_company_id_tax_id_unique",
       "entityType": "uniques",
@@ -23351,10 +21817,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "fleet_vehicles_company_id_id_unique",
       "entityType": "uniques",
@@ -23363,10 +21826,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "plate"
-      ],
+      "columns": ["company_id", "plate"],
       "nullsNotDistinct": false,
       "name": "fleet_vehicles_company_id_plate_unique",
       "entityType": "uniques",
@@ -23375,11 +21835,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "product",
-        "state",
-        "week_ending_on"
-      ],
+      "columns": ["product", "state", "week_ending_on"],
       "nullsNotDistinct": false,
       "name": "fuel_price_references_natural_unique",
       "entityType": "uniques",
@@ -23388,10 +21844,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_fiscal_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -23400,10 +21853,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "access_key"
-      ],
+      "columns": ["company_id", "access_key"],
       "nullsNotDistinct": false,
       "name": "mdfe_fiscal_documents_company_access_key_unique",
       "entityType": "uniques",
@@ -23412,10 +21862,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id"
-      ],
+      "columns": ["company_id", "manifest_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_fiscal_documents_company_manifest_unique",
       "entityType": "uniques",
@@ -23424,10 +21871,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_attempts_company_id_id_unique",
       "entityType": "uniques",
@@ -23436,10 +21880,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_attempts_company_idempotency_key_unique",
       "entityType": "uniques",
@@ -23448,12 +21889,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "attempt_kind",
-        "request_fingerprint"
-      ],
+      "columns": ["company_id", "manifest_id", "attempt_kind", "request_fingerprint"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_attempts_company_manifest_kind_fingerprint_unique",
       "entityType": "uniques",
@@ -23462,10 +21898,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_events_company_id_id_unique",
       "entityType": "uniques",
@@ -23474,10 +21907,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_outbox_company_id_id_unique",
       "entityType": "uniques",
@@ -23486,10 +21916,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -23498,10 +21925,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_payloads_company_id_id_unique",
       "entityType": "uniques",
@@ -23510,10 +21934,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_issuance_payloads_company_attempt_unique",
       "entityType": "uniques",
@@ -23522,10 +21943,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_drivers_company_id_id_unique",
       "entityType": "uniques",
@@ -23534,11 +21952,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "driver_id"
-      ],
+      "columns": ["company_id", "manifest_id", "driver_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_drivers_company_manifest_driver_unique",
       "entityType": "uniques",
@@ -23547,11 +21961,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "position"
-      ],
+      "columns": ["company_id", "manifest_id", "position"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_drivers_company_manifest_position_unique",
       "entityType": "uniques",
@@ -23560,10 +21970,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_items_company_id_id_unique",
       "entityType": "uniques",
@@ -23572,11 +21979,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "cte_fiscal_document_id"
-      ],
+      "columns": ["company_id", "manifest_id", "cte_fiscal_document_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_items_company_manifest_document_unique",
       "entityType": "uniques",
@@ -23585,10 +21988,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_loading_cities_company_id_id_unique",
       "entityType": "uniques",
@@ -23597,11 +21997,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "city_code"
-      ],
+      "columns": ["company_id", "manifest_id", "city_code"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_loading_cities_company_manifest_city_unique",
       "entityType": "uniques",
@@ -23610,11 +22006,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "manifest_id",
-        "position"
-      ],
+      "columns": ["company_id", "manifest_id", "position"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifest_loading_cities_company_manifest_position_unique",
       "entityType": "uniques",
@@ -23623,10 +22015,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_manifests_company_id_id_unique",
       "entityType": "uniques",
@@ -23635,10 +22024,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "mdfe_processed_messages_company_id_id_unique",
       "entityType": "uniques",
@@ -23647,11 +22033,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "consumer_name",
-        "event_id"
-      ],
+      "columns": ["company_id", "consumer_name", "event_id"],
       "nullsNotDistinct": false,
       "name": "mdfe_processed_messages_company_consumer_event_unique",
       "entityType": "uniques",
@@ -23660,10 +22042,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_emission_profiles_company_id_id_unique",
       "entityType": "uniques",
@@ -23672,10 +22051,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "nfse_emission_profiles_company_id_name_unique",
       "entityType": "uniques",
@@ -23684,10 +22060,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_fiscal_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -23696,10 +22069,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id"
-      ],
+      "columns": ["company_id", "invoice_id"],
       "nullsNotDistinct": false,
       "name": "nfse_fiscal_documents_company_invoice_unique",
       "entityType": "uniques",
@@ -23708,10 +22078,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "provider_document_id"
-      ],
+      "columns": ["company_id", "provider_document_id"],
       "nullsNotDistinct": false,
       "name": "nfse_fiscal_documents_company_provider_document_unique",
       "entityType": "uniques",
@@ -23720,10 +22087,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_attempts_company_id_id_unique",
       "entityType": "uniques",
@@ -23732,10 +22096,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "idempotency_key"
-      ],
+      "columns": ["company_id", "idempotency_key"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_attempts_company_idempotency_key_unique",
       "entityType": "uniques",
@@ -23744,12 +22105,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id",
-        "attempt_kind",
-        "request_fingerprint"
-      ],
+      "columns": ["company_id", "invoice_id", "attempt_kind", "request_fingerprint"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_attempts_company_invoice_kind_fingerprint_unique",
       "entityType": "uniques",
@@ -23758,10 +22114,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_events_company_id_id_unique",
       "entityType": "uniques",
@@ -23770,10 +22123,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_outbox_company_id_id_unique",
       "entityType": "uniques",
@@ -23782,10 +22132,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -23794,10 +22141,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_payloads_company_id_id_unique",
       "entityType": "uniques",
@@ -23806,10 +22150,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "attempt_id"
-      ],
+      "columns": ["company_id", "attempt_id"],
       "nullsNotDistinct": false,
       "name": "nfse_issuance_payloads_company_attempt_unique",
       "entityType": "uniques",
@@ -23818,10 +22159,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_processed_messages_company_id_id_unique",
       "entityType": "uniques",
@@ -23830,11 +22168,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "consumer_name",
-        "event_id"
-      ],
+      "columns": ["company_id", "consumer_name", "event_id"],
       "nullsNotDistinct": false,
       "name": "nfse_processed_messages_company_consumer_event_unique",
       "entityType": "uniques",
@@ -23843,10 +22177,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_provider_credentials_company_id_id_unique",
       "entityType": "uniques",
@@ -23855,11 +22186,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "provider",
-        "fiscal_environment"
-      ],
+      "columns": ["company_id", "provider", "fiscal_environment"],
       "nullsNotDistinct": false,
       "name": "nfse_provider_credentials_company_provider_environment_unique",
       "entityType": "uniques",
@@ -23868,9 +22195,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "callback_token_sha256"
-      ],
+      "columns": ["callback_token_sha256"],
       "nullsNotDistinct": false,
       "name": "nfse_provider_credentials_callback_token_sha256_unique",
       "entityType": "uniques",
@@ -23879,10 +22204,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_service_invoice_charges_company_id_id_unique",
       "entityType": "uniques",
@@ -23891,11 +22213,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id",
-        "ordinal"
-      ],
+      "columns": ["company_id", "invoice_id", "ordinal"],
       "nullsNotDistinct": false,
       "name": "nfse_service_invoice_charges_company_invoice_ordinal_unique",
       "entityType": "uniques",
@@ -23904,10 +22222,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_service_invoice_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -23916,11 +22231,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "invoice_id",
-        "position"
-      ],
+      "columns": ["company_id", "invoice_id", "position"],
       "nullsNotDistinct": false,
       "name": "nfse_service_invoice_documents_company_invoice_position_unique",
       "entityType": "uniques",
@@ -23929,10 +22240,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "nfse_service_invoices_company_id_id_unique",
       "entityType": "uniques",
@@ -23941,11 +22249,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "user_id",
-        "view_key"
-      ],
+      "columns": ["company_id", "user_id", "view_key"],
       "nullsNotDistinct": false,
       "name": "view_preferences_company_user_view_key_unique",
       "entityType": "uniques",
@@ -23954,10 +22258,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profile_components_company_id_id_unique",
       "entityType": "uniques",
@@ -23966,11 +22267,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "profile_id",
-        "ordinal"
-      ],
+      "columns": ["company_id", "profile_id", "ordinal"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profile_components_profile_ordinal_unique",
       "entityType": "uniques",
@@ -23979,10 +22276,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profile_matchers_company_id_id_unique",
       "entityType": "uniques",
@@ -23991,11 +22285,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "tax_id",
-        "match_role"
-      ],
+      "columns": ["company_id", "tax_id", "match_role"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profile_matchers_company_tax_id_role_unique",
       "entityType": "uniques",
@@ -24004,10 +22294,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profiles_company_id_id_unique",
       "entityType": "uniques",
@@ -24016,10 +22303,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "name"
-      ],
+      "columns": ["company_id", "name"],
       "nullsNotDistinct": false,
       "name": "cte_emission_profiles_company_id_name_unique",
       "entityType": "uniques",
@@ -24028,10 +22312,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "event_id"
-      ],
+      "columns": ["company_id", "event_id"],
       "nullsNotDistinct": false,
       "name": "invitation_delivery_outbox_company_id_event_id_unique",
       "entityType": "uniques",
@@ -24040,10 +22321,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "user_invitations_company_id_id_unique",
       "entityType": "uniques",
@@ -24052,9 +22330,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "code_hash"
-      ],
+      "columns": ["code_hash"],
       "nullsNotDistinct": false,
       "name": "user_invitations_code_hash_unique",
       "entityType": "uniques",
@@ -24063,9 +22339,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "username"
-      ],
+      "columns": ["username"],
       "nullsNotDistinct": false,
       "name": "identity_user_profiles_username_key",
       "entityType": "uniques",
@@ -24074,10 +22348,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "trip_documents_company_id_id_unique",
       "entityType": "uniques",
@@ -24086,10 +22357,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "trip_drivers_company_id_id_unique",
       "entityType": "uniques",
@@ -24098,11 +22366,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "trip_id",
-        "driver_id"
-      ],
+      "columns": ["company_id", "trip_id", "driver_id"],
       "nullsNotDistinct": false,
       "name": "trip_drivers_company_trip_driver_unique",
       "entityType": "uniques",
@@ -24111,11 +22375,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "trip_id",
-        "position"
-      ],
+      "columns": ["company_id", "trip_id", "position"],
       "nullsNotDistinct": false,
       "name": "trip_drivers_company_trip_position_unique",
       "entityType": "uniques",
@@ -24124,10 +22384,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "id"
-      ],
+      "columns": ["company_id", "id"],
       "nullsNotDistinct": false,
       "name": "trips_company_id_id_unique",
       "entityType": "uniques",

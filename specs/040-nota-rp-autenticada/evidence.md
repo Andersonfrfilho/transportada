@@ -459,11 +459,11 @@ apps/cron-transportada/test/nfse-status-pull/nota-rp-parity.contract.ts:155
 
 O que mudou:
 
-| Arquivo | Mudança |
-|---|---|
-| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts` | `'not_found'` no `NotaRpCause`; `readMissingCause` |
-| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts` | idem, no `readEnvelope` |
-| `cron/src/nfse-status-pull/domain/nfse-reconciliation-outcome.policy.ts` | `'not_found'` no `NfseStatusFailureCause` |
+| Arquivo                                                                  | Mudança                                            |
+| ------------------------------------------------------------------------ | -------------------------------------------------- |
+| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts`           | `'not_found'` no `NotaRpCause`; `readMissingCause` |
+| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts`          | idem, no `readEnvelope`                            |
+| `cron/src/nfse-status-pull/domain/nfse-reconciliation-outcome.policy.ts` | `'not_found'` no `NfseStatusFailureCause`          |
 
 A política precisou da causa **porque o tipo obriga**: o gateway do cron devolve o resultado do
 cliente direto como `NfseProviderStatusFacts`, então causa nova de um lado sem causa nova do outro
@@ -518,12 +518,12 @@ apps/cron-transportada     3 fail · 186 pass
 
 O que mudou:
 
-| Arquivo | Mudança |
-|---|---|
-| `worker/src/nfse-issuance/domain/nfse-document-payload.policy.ts` | **novo** — `resolveNfseDocumentBytes`, pura, sem I/O |
-| `cron/src/nfse-status-pull/domain/nfse-document-payload.policy.ts` | cópia por valor da política |
-| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts` | `readDocument` recebe `kind` e passa pela política |
-| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts` | idem |
+| Arquivo                                                            | Mudança                                              |
+| ------------------------------------------------------------------ | ---------------------------------------------------- |
+| `worker/src/nfse-issuance/domain/nfse-document-payload.policy.ts`  | **novo** — `resolveNfseDocumentBytes`, pura, sem I/O |
+| `cron/src/nfse-status-pull/domain/nfse-document-payload.policy.ts` | cópia por valor da política                          |
+| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts`     | `readDocument` recebe `kind` e passa pela política   |
+| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts`    | idem                                                 |
 
 A política é **cópia por valor**, como o resto do trilho: as apps não importam código-fonte uma da
 outra, e o cliente do worker já passa de 200 linhas. A paridade continua sendo comportamental —
