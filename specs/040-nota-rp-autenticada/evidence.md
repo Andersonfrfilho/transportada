@@ -352,5 +352,87 @@ A cópia do cliente no cron **não** mudou, e o `grep -n 'cancel' nota-rp-v2.cli
 ali não existe `ROUTE_CANCEL` nem método de cancelamento. O cron consulta e baixa documento.
 
 O segundo item da sondagem **segue aberto**: o `id_nota` continua indo como texto. A documentação não
-diz se a string é aceita, e `Number()` cego viraria `NaN` no corpo — a conversão só entra com a
-confirmação contra a conta autenticada, junto da T001/T002.
+diz se a string é aceita, e `Number()` cego viraria `NaN` no corpo — a conversão só entra com
+confirmação. A T001/T002 tentou e **não** conseguiu confirmar: a busca da conta não devolve nota
+nenhuma e `/xml/{número da NFS-e}` responde "Nota não encontrada", porque o `id_nota` é identificador
+interno do provedor e só aparece na resposta do `/emitir`. A dependência passa a ser a **primeira
+emissão real pelo nosso worker** — ver o registro da T001/T002 abaixo.
+
+## T001 e T002 — a sondagem contra a conta autenticada
+
+Feita em 17/08/2026 contra `https://www.notarp.com.br/api/v2`, com a credencial real da conta
+(inscrição municipal `20935293`). O token entrou por variável de shell, nunca foi impresso, e a
+saída abaixo passou por um filtro que o substituiria caso aparecesse. O corpo do `cadastro` traz
+e-mail e telefone do contato — **redigidos aqui**, porque PII não vai para documento de spec.
+
+```
+### token válido, SEM X-AUTH-IM
+{"success":true,"ultima_consulta":"17/08/2026 21:05","cadastro":null}
+-- http 200
+
+### token inventado, SEM X-AUTH-IM
+{"success":false,"message":"Token inválido."}
+-- http 401
+
+### token válido, COM X-AUTH-IM
+{"success":true,"ultima_consulta":"11/08/2026 16:21","cadastro":{
+  "tipo":"PJ","status":"Ativo","emite_nfse":true,"mei":false,"simples_nacional":true,
+  "documento":"61156864000191","inscricao_municipal":"20935293",
+  "razao_social":"Afr Fernandes Transportes e Servicos Ltda",
+  "email":"[REDIGIDO]","telefone":"[REDIGIDO]",
+  "localizacao":{"cidade":"Ribeirão Preto","estado":"SP", …},
+  "cnaes":[{"codigo":"4930202", …},{"codigo":"4930201", …}],
+  "atividades":[{"codigo":"160101", …},{"codigo":"160107", …}],
+  "operacoes_permitidas":[{"codigo":"1","descricao":"Exigível"}],
+  "permite_deducoes":false, "permite_desconto_condicionado":…, "permite_tributar_fora":…}}
+-- http 200
+
+### token válido, COM X-AUTH-IM e COM X-Auth-CNPJ
+{"success":false,"message":"Esta empresa ainda não foi migrada para a versão v3 da API. Utilize a versão v2."}
+-- http 403
+```
+
+- **A premissa da spec está confirmada, e é assimétrica.** Token errado o provedor recusa na hora,
+  com `401` e mensagem — dá para validar na gravação da credencial. Inscrição municipal ausente ele
+  **não** recusa: responde `200`, `success: true`, e `cadastro: null`. É por isso que a obrigatoriedade
+  da inscrição precisou ser nossa, na fronteira inteira: o provedor não a cobra, e sem ela a
+  credencial só se revela inútil na primeira emissão, longe de onde foi gravada.
+- **O `X-Auth-CNPJ` fica fora, e não por ser inócuo.** A hipótese era "se não mudar nada, fica fora".
+  Mudou: com o cabeçalho a mesma chamada vira `403`, com o provedor dizendo que a empresa não foi
+  migrada para a v3. Mandar o CNPJ empurra a conta para um caminho que ela não tem — o cabeçalho não
+  é redundante, é quebra.
+- **`operacoes_permitidas` chega**, e para esta conta tem **um** valor: `1` — Exigível. É de lá que
+  saem os valores válidos de `ExigibilidadeISS`, e o catálogo de uma instalação não é o da outra.
+- **`ultima_consulta` mostra que o cadastro é cache do provedor** (11/08 na resposta de 17/08). Não
+  usar esse endpoint como prova de estado atual da empresa.
+
+### O que a sondagem **não** conseguiu responder
+
+A forma do `id_nota` continua desconhecida, e por isso ele **segue como texto**. Nenhuma nota da conta
+foi alcançável pela v2:
+
+```
+/notas/                                          -> 200 {"success":true,"message":"Nenhuma nota encontrada com a busca realizada."}
+/notas/?id_nota=62 · ?numero=62 · ?nfse=62       -> 200, mesma mensagem
+/notas/?data_inicial=2026-08-01&data_final=…     -> 200, mesma mensagem
+/xml/62                                          -> 200, content-type application/json, {"success":false,"message":"Nota não encontrada"}
+```
+
+A conta emitiu a nota nº 62 em 04/08/2026 (XML nacional em mãos, `verAplic NRP-1.00`), e mesmo assim a
+busca não a devolve — o `id_nota` é identificador interno do provedor, não o número da NFS-e. Ele só
+aparece na resposta do `/emitir`, então a confirmação vem da **primeira emissão real pelo nosso
+worker**, não de sondagem. Até lá, `Number()` cego viraria `NaN` no corpo.
+
+### Dois achados de brinde, que não estavam na spec
+
+- **"Nota não encontrada" não é erro para o provedor**: volta `200` com `success: true`, uma `message`
+  e **sem** a chave `data`. Nosso `fetchStatus` faz `asRecord(envelope.data['data'])` e, sem `data`,
+  devolve `cause: 'malformed_response'` — causa enganosa para o caso mais banal que existe. Vale uma
+  causa própria, para a reconciliação não confundir "não achei" com "resposta malformada".
+- **O provedor limita taxa**: a quarta busca seguida devolveu `429 Too Many Requests`. O laço
+  sequencial do cancelamento em lote, que já existia por suspeita, tem agora confirmação.
+
+O `/xml/62` também mostra que **falha na rota de documento chega como `200` + `application/json`** —
+que é exatamente o que o `readDocument` já trata como falha. O que a sondagem não viu é a resposta de
+**sucesso**, que é o objeto da T021: sem nota alcançável, não dá para saber se o base64 vem puro ou
+dentro de envelope.

@@ -7,7 +7,7 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** — Sondagem manual contra `/dados-cadastrais` com a credencial real **e** com token
+- [x] **T001** — Sondagem manual contra `/dados-cadastrais` com a credencial real **e** com token
       inventado, mandando `X-AUTH-USER-TOKEN` + `X-AUTH-IM`. Confirmar que o caminho válido passa a
       trazer `cadastro` preenchido (hoje vem `null` por falta do `X-AUTH-IM`) e que o inválido
       devolve 401. Registrar de passagem se `operacoes_permitidas` chega, porque é dela que saem os
@@ -15,10 +15,15 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       O token entra por variável de shell e **não** é impresso; a saída colada no `evidence.md` vai
       sem ele.
       Verificação: as duas saídas, lado a lado, no `evidence.md`.
-- [ ] **T002** — Com a mesma sondagem, decidir o `X-Auth-CNPJ`: mandar com e sem, e comparar. Se não
+- [x] **T002** — Com a mesma sondagem, decidir o `X-Auth-CNPJ`: mandar com e sem, e comparar. Se não
       mudar nada, fica fora e a razão vai para o `README.md` da doc no pacote fiscal, que hoje
       registra a dúvida em aberto.
       Verificação: as duas respostas no `evidence.md` e a nota atualizada no pacote.
+      Resultado: **não é inócuo, é quebra** — com o cabeçalho a mesma chamada vira `403` "empresa não
+      migrada para a v3". A nota foi para `VALIDACAO_MODELOS.md` §5 do pacote fiscal (não o
+      `README.md`: é lá que a dúvida estava registrada, como "RP bloqueado na v3"), corrigindo o
+      diagnóstico — quem provoca o 403 é o `buildHeaders` do `NotaRpNfseProvider`, que manda o CNPJ
+      incondicionalmente, e não o município.
 
 ## Fase A — os cabeçalhos
 
@@ -203,7 +208,10 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       livre. **Entregue:** o catálogo ficou com `2` e `4` — o `1` não é oferecido, e o texto do
       operador virou `cancellationReason`, que fica na nota e não atravessa a fronteira do provedor.
       O `id_nota` **segue como texto**: a sondagem da conta autenticada não aconteceu, e sem ela a
-      conversão não entra. Ele volta com a T001/T002.
+      conversão não entra. Ele volta com a T001/T002. **Atualização:** a T001/T002 aconteceu e não
+      resolveu — a busca da conta não devolve nota alguma e `/xml/{nNFSe}` diz "Nota não encontrada",
+      porque o `id_nota` é identificador interno do provedor e só aparece na resposta do `/emitir`. A
+      confirmação passa a depender da primeira emissão real pelo nosso worker.
 - [ ] **T021** 🧠 — `/xml` e `/pdf` devolvem o documento **em base64** (changelog da v2, endpoints
       novos). Hoje `readDocument` arquiva `arrayBuffer()` cru nas duas cópias — worker e cron —, o
       que grava o base64 como se fosse o documento. O XML é o documento fiscal e é ele que liquida a
@@ -214,6 +222,11 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       `content-type: application/json` como falha, então o segundo caso já falharia em silêncio.
       Verificação: contrato vermelho nas duas cópias (`nota-rp-parity.contract.ts` guarda a
       paridade); XML arquivado abre como XML.
+      **Sondagem da T001/T002:** só deu para ver a resposta de **falha** — `/xml/{nNFSe}` volta `200`
+      com `content-type: application/json` e `{"success":false,"message":"Nota não encontrada"}`, que
+      é o caminho que o `readDocument` já trata como falha. A resposta de **sucesso** continua sem
+      amostra, porque nenhuma nota da conta é alcançável sem o `id_nota` interno. Depende, como o
+      resto, da primeira emissão pelo worker.
 - [x] **T022** — A redação do cliente do worker cobre **um** dos dois segredos que viajam no pedido.
       `redact` corta só `config.token`; o `callbackToken` vai dentro da `CallbackUrl` no corpo do
       `/emitir`, e o cliente sequer o conhece. Se a prefeitura devolver a URL na `message` de uma
@@ -231,3 +244,10 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       **não** recebeu o campo, e isso é deliberado: `grep -n 'CallbackUrl\|callback'` nos dois
       arquivos dela não devolve nada, porque ali só se consulta e se baixa documento — não há segundo
       segredo a redigir. `typecheck` e `lint` limpos nas quatro apps.
+- [ ] **T023** — "Nota não encontrada" chega ao `fetchStatus` como `malformed_response`. O provedor
+      responde `200` com `success: true`, uma `message` e **sem** a chave `data`; o cliente faz
+      `asRecord(envelope.data['data'])`, não acha, e classifica como resposta malformada. É a causa
+      errada para o caso mais banal do trilho, e some no meio das falhas de contrato quando a
+      reconciliação olhar o motivo. Dar causa própria (`not_found`) nas duas cópias — worker e cron.
+      Achado da sondagem da T001/T002; não bloqueia emissão.
+      Verificação: contrato vermelho antes, nas duas cópias, com o envelope sem `data`.
