@@ -31,14 +31,27 @@ async function readWorkflow(path: URL): Promise<string> {
 
 describe('contrato de gatilho do pipeline', () => {
   /**
-   * Depois do squash-merge para main, o back-merge de main em staging não traz conteúdo novo —
-   * staging já tinha tudo. Com `staging` no gatilho de push, esse merge vazio rodava o gate inteiro
-   * e redeployava os cinco serviços: nove minutos de runner para não mudar um arquivo.
+   * Cada ambiente é publicado pelo push da branch dele. Publicar staging pelo PR era a intenção
+   * anterior e nunca executou um passo: a política de branch do ambiente casa com `refs/heads/*`, o
+   * PR roda em `refs/pull/N/merge`, e desde 08/12/2025 o GitHub avalia a regra contra o ref de
+   * execução — todo deploy de PR morria em "Branch is not allowed to deploy to staging" com zero
+   * passos, e o PR passava verde porque o gate tinha passado.
+   *
+   * O preço conhecido é o back-merge de main em staging redeployar conteúdo idêntico. É idempotente,
+   * e é o que mantém staging igual à branch staging.
    */
-  test('push só deploya main', async () => {
+  test('push publica os dois ambientes, um por branch', async () => {
     const block = triggerBlock(await readWorkflow(DEPLOY_WORKFLOW_PATH))
 
-    expect(branchesOf(block, 'push')).toEqual(['main'])
+    expect(branchesOf(block, 'push')).toEqual(['main', 'staging'])
+  })
+
+  /** Trocar o mapa de branch para ambiente publica o código errado no lugar errado, e em silêncio. */
+  test('main resolve produção e staging resolve staging', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toMatch(/= "main" \]; then\s+resolved=production/)
+    expect(workflow).toMatch(/= "staging" \]; then\s+resolved=staging/)
   })
 
   /**
@@ -53,13 +66,15 @@ describe('contrato de gatilho do pipeline', () => {
   })
 
   /**
-   * No PR de release o workflow existe só para produzir o gate. Publicar ali republicaria em staging
-   * um código que já está em staging, e é a única coisa que separa "rodar o gate" de "deployar".
+   * Em PR o workflow existe só para produzir o gate. Deploy de PR é recusado pela política de branch
+   * do ambiente e falha com zero passos — um job vermelho que não diz o que aconteceu. `base_ref`
+   * era a porta que deixava o PR mirando staging chegar até lá; ela não pode voltar.
    */
-  test('pull request mirando main roda o gate mas não publica', async () => {
+  test('pull request nenhum publica: roda o gate e para aí', async () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
-    expect(workflow).toContain("github.base_ref == 'staging'")
+    expect(workflow).toContain("if: github.event_name != 'pull_request'")
+    expect(workflow).not.toContain('github.base_ref')
   })
 
   /**
