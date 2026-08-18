@@ -38,6 +38,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # O runner do GitHub sorteia porta de origem em 32768-60999 e não reserva nenhuma
+      # (`ip_local_reserved_ports` vem vazio). Toda porta que publicamos cai dentro dessa faixa, então
+      # qualquer conexão de saída — `bun install`, download do Playwright, `docker pull` — pode ficar
+      # com uma delas e derrubar o `bind` seguinte. Aconteceu duas vezes seguidas no mesmo gate, com
+      # sintomas que não se pareciam: o Keycloak morreu em "address already in use" na 59002, e o
+      # worker do teste de SIGTERM (`WORKER_PORT` sorteado em 54000-54999) sumiu no boot.
+      # Reservá-las é dizer ao kernel para nunca sorteá-las; nenhuma delas é de saída.
+      - name: Reservar as portas da stack local
+        run: |
+          ports=51025,53000-53002,53100-53102,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
