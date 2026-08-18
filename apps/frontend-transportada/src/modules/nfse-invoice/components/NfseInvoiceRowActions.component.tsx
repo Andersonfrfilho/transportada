@@ -60,6 +60,30 @@ export function NfseInvoiceRowActions({ actions, invoice }: NfseInvoiceRowAction
           <Icon name="trash" />
         </button>
       )}
+      {state.isReissueVisible && (
+        <button
+          aria-label={t('rowActions.reissue')}
+          className={styles.iconAction}
+          disabled={!state.isReissueEnabled}
+          onClick={() => actions.openReissue(invoice)}
+          title={t('rowActions.reissue')}
+          type="button"
+        >
+          <Icon name="refresh" />
+        </button>
+      )}
+      {state.isDiscardVisible && (
+        <button
+          aria-label={t('rowActions.discard')}
+          className={styles.iconAction}
+          disabled={!state.isDiscardEnabled}
+          onClick={() => actions.openDiscard(invoice)}
+          title={t('rowActions.discard')}
+          type="button"
+        >
+          <Icon name="remove" />
+        </button>
+      )}
     </div>
   )
 }

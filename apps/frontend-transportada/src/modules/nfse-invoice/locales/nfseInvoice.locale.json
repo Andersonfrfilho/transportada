@@ -102,8 +102,10 @@
   "rowActions": {
     "cancel": "Cancelar a nota de serviço",
     "detail": "Ver o detalhe da nota de serviço",
+    "discard": "Descartar a nota de serviço",
     "downloadPdf": "Baixar o PDF da nota de serviço",
-    "downloadXml": "Baixar o XML da nota de serviço"
+    "downloadXml": "Baixar o XML da nota de serviço",
+    "reissue": "Reemitir a nota de serviço"
   },
   "detail": {
     "cancellation": "Cancelamento",
@@ -174,6 +176,37 @@
     "title": "Cancelar a nota de serviço",
     "warning": "O cancelamento é enviado à prefeitura e libera as notas fiscais vinculadas."
   },
+  "discardDialog": {
+    "back": "Voltar",
+    "close": "Fechar",
+    "confirm": "Descartar a nota",
+    "failed": "Não foi possível descartar a nota de serviço. Tente de novo em instantes.",
+    "sending": "Descartando…",
+    "title": "Descartar a nota de serviço",
+    "warning": "O descarte libera as notas fiscais vinculadas e não pode ser desfeito."
+  },
+  "reissueDialog": {
+    "back": "Voltar",
+    "cnaeCode": "CNAE",
+    "close": "Fechar",
+    "confirm": "Reemitir a nota",
+    "description": "Descrição do serviço",
+    "documentCount": "Quantidade de notas",
+    "failed": "Não foi possível reemitir a nota de serviço. Tente de novo em instantes.",
+    "issAmount": "Valor do ISS",
+    "issExigibility": "Exigibilidade do ISS",
+    "issRate": "Alíquota do ISS",
+    "issWithheld": "ISS retido pelo tomador",
+    "loading": "Carregando os dados da última emissão",
+    "municipalTaxationCode": "Código de tributação municipal",
+    "municipalityIbgeCode": "Código IBGE do município",
+    "nbsCode": "Código NBS",
+    "sending": "Reemitindo…",
+    "serviceAmount": "Valor do serviço",
+    "serviceListItem": "Item da lista de serviços",
+    "takerLegalName": "Tomador",
+    "title": "Reemitir a nota de serviço"
+  },
   "bulkExport": {
     "action": "Baixar XML e PDF",
     "empty": "Nenhuma nota da seleção tem documento arquivado.",
@@ -200,7 +233,8 @@
     "cancellation_requested": "Cancelamento solicitado",
     "rejected": "Rejeitada",
     "cancelled": "Cancelada",
-    "failed": "Falhou"
+    "failed": "Falhou",
+    "discarded": "Descartada"
   },
   "emission": {
     "action": "Emitir NFS-e",

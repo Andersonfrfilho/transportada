@@ -13,9 +13,13 @@ import type {
   NfseInvoiceDetail,
   NfseInvoiceDocument,
   NfseInvoiceDocumentKind,
+  NfseLastIssuancePayload,
 } from '../shared/nfseInvoice.types'
 import {
   buildNfseCancellationIdempotencyKey,
+  buildNfseDiscardIdempotencyKey,
+  buildNfseReissueCorrectionBody,
+  buildNfseReissueIdempotencyKey,
   readNfseDownloadUrl,
   resolveNfseRowActions,
   validateNfseCancellationReason,
@@ -63,6 +67,11 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
   const [cancellationMotive, setCancellationMotive] = useState<'' | NfseCancellationMotive>('')
   const [attemptToken, setAttemptToken] = useState('')
   const [downloadErrorCode, setDownloadErrorCode] = useState<null | string>(null)
+  const [reissueTarget, setReissueTarget] = useState<NfseInvoice | null>(null)
+  const [reissueDraft, setReissueDraft] = useState<Partial<NfseLastIssuancePayload>>({})
+  const [reissueAttemptToken, setReissueAttemptToken] = useState('')
+  const [discardTarget, setDiscardTarget] = useState<NfseInvoice | null>(null)
+  const [discardAttemptToken, setDiscardAttemptToken] = useState('')
 
   const queryClient = useQueryClient()
   const permissions = input.companyId === undefined ? [] : input.permissions
@@ -82,6 +91,13 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     enabled: detailInvoiceId !== null && controller.canReadInvoices,
     queryFn: () => controller.listInvoiceDocuments({ invoiceId: detailInvoiceId ?? '' }),
     queryKey: [NFSE_INVOICE_DOCUMENTS_QUERY_KEY, input.companyId, detailInvoiceId] as const,
+  })
+  const reissueInvoiceId = reissueTarget?.id ?? null
+  /** Mesma chave da consulta de detalhe: quem já abriu o detalhe reusa o `lastPayload` do cache. */
+  const reissueDetailQuery = useQuery<NfseInvoiceDetail>({
+    enabled: reissueInvoiceId !== null && controller.canReadInvoices,
+    queryFn: () => controller.getInvoice({ invoiceId: reissueInvoiceId ?? '' }),
+    queryKey: [NFSE_INVOICE_DETAIL_QUERY_KEY, input.companyId, reissueInvoiceId] as const,
   })
 
   const downloadMutation = useMutation({
@@ -111,6 +127,34 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     cancelMutation.reset()
   }
 
+  const reissueMutation = useMutation({
+    mutationFn: controller.reissueInvoice,
+    onSuccess: () => {
+      setReissueTarget(null)
+      setReissueDraft({})
+      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+    },
+  })
+
+  function closeReissue(): void {
+    setReissueTarget(null)
+    setReissueDraft({})
+    reissueMutation.reset()
+  }
+
+  const discardMutation = useMutation({
+    mutationFn: controller.discardInvoice,
+    onSuccess: () => {
+      setDiscardTarget(null)
+      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+    },
+  })
+
+  function closeDiscard(): void {
+    setDiscardTarget(null)
+    discardMutation.reset()
+  }
+
   return {
     cancelErrorCode: readErrorCode(cancelMutation.error),
     cancellationMotive,
@@ -131,8 +175,37 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
         invoiceId: cancelTarget.id,
       })
     },
+    closeDiscard,
+    closeReissue,
+    confirmDiscard: () => {
+      if (discardTarget === null) return
+      discardMutation.mutate({
+        idempotencyKey: buildNfseDiscardIdempotencyKey({
+          invoiceId: discardTarget.id,
+          token: discardAttemptToken,
+        }),
+        invoiceId: discardTarget.id,
+      })
+    },
+    confirmReissue: () => {
+      const lastPayload = reissueDetailQuery.data?.lastPayload
+      if (reissueTarget === null || lastPayload === null || lastPayload === undefined) return
+      reissueMutation.mutate({
+        correction: buildNfseReissueCorrectionBody({
+          edited: reissueDraft,
+          lastPayload,
+        }),
+        idempotencyKey: buildNfseReissueIdempotencyKey({
+          invoiceId: reissueTarget.id,
+          token: reissueAttemptToken,
+        }),
+        invoiceId: reissueTarget.id,
+      })
+    },
     detail: detailQuery.data ?? null,
     detailTarget,
+    discardErrorCode: readErrorCode(discardMutation.error),
+    discardTarget,
     documents: documentsQuery.data ?? [],
     downloadErrorCode,
     downloadInvoice: (invoiceId: string, kind: NfseInvoiceDocumentKind) => {
@@ -142,7 +215,10 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     isCancelPending: cancelMutation.isPending,
     isCancelReady,
     isDetailLoading: detailQuery.isLoading || documentsQuery.isLoading,
+    isDiscardPending: discardMutation.isPending,
     isDownloadPending: downloadMutation.isPending,
+    isReissueDetailLoading: reissueDetailQuery.isLoading,
+    isReissuePending: reissueMutation.isPending,
     openCancel: (invoice: NfseInvoice) => {
       setCancelTarget(invoice)
       setCancellationReason('')
@@ -151,10 +227,27 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       cancelMutation.reset()
     },
     openDetail: (invoice: NfseInvoice) => setDetailTarget({ id: invoice.id, invoice }),
+    openDiscard: (invoice: NfseInvoice) => {
+      setDiscardTarget(invoice)
+      setDiscardAttemptToken(crypto.randomUUID())
+      discardMutation.reset()
+    },
+    openReissue: (invoice: NfseInvoice) => {
+      setReissueTarget(invoice)
+      setReissueDraft({})
+      setReissueAttemptToken(crypto.randomUUID())
+      reissueMutation.reset()
+    },
     reasonBlock: reasonCheck.status === 'blocked' ? reasonCheck.reason : null,
+    reissueDraft,
+    reissueErrorCode: readErrorCode(reissueMutation.error),
+    reissueLastPayload: reissueDetailQuery.data?.lastPayload ?? null,
+    reissueTarget,
     resolveActions: (status: string): NfseRowActionState =>
       resolveNfseRowActions({ permissions, status }),
     setCancellationMotive,
     setCancellationReason,
+    setReissueField: (change: Partial<NfseLastIssuancePayload>) =>
+      setReissueDraft((previous) => ({ ...previous, ...change })),
   }
 }

@@ -255,6 +255,52 @@ export type MarkNfseInvoiceCancellationInput = {
   readonly status: NfseServiceInvoiceStatus
 }
 
+export type MarkNfseInvoiceDiscardedInput = {
+  readonly discardedAt: string
+  readonly invoiceId: string
+  readonly status: NfseServiceInvoiceStatus
+}
+
+export type MarkNfseInvoiceIssuingInput = {
+  readonly description?: string
+  readonly invoiceId: string
+  readonly issAmount?: string
+  readonly requestedAt: string
+  readonly status: NfseServiceInvoiceStatus
+}
+
+/**
+ * O RPS congelado na tentativa mais recente. É o que a reemissão reaproveita: recalcular a nota a
+ * partir das linhas devolveria outro documento, porque perfil e regra de frete mudam com o tempo.
+ * `providerConfig` fica de fora de propósito — ele é transporte, não conteúdo fiscal, e a
+ * reemissão o remonta pela credencial ativa de hoje.
+ */
+export type NfseFrozenIssuancePayload = {
+  readonly payload: Readonly<Record<string, unknown>>
+  readonly payloadSha256: string
+}
+
+/**
+ * O mesmo payload de `NfseFrozenIssuancePayload`, achatado nos campos que o diálogo de reemissão do
+ * frontend usa para pré-preencher os nove corrigíveis e mostrar o resumo somente-leitura.
+ */
+export type NfseLastIssuancePayload = {
+  readonly cnaeCode: string
+  readonly description: string
+  readonly documentCount: number
+  readonly issAmount: string
+  readonly issExigibility: string
+  readonly issRate: string
+  readonly issWithheld: boolean
+  readonly municipalTaxationCode: string
+  readonly municipalityIbgeCode: string
+  readonly nbsCode: string
+  readonly serviceAmount: string
+  readonly serviceListItem: string
+  readonly takerLegalName: string
+  readonly takerTaxId: string
+}
+
 export type AppendNfseIssuanceEventInput = {
   readonly attemptId: string
   readonly eventName: NfseIssuanceEvent
@@ -314,6 +360,10 @@ export type NfseInvoiceReaderPort = {
     readonly companyId: string
     readonly invoiceId: string
   }): Promise<readonly NfseInvoiceLinkedDocument[]>
+  findLatestPayload(input: {
+    readonly companyId: string
+    readonly invoiceId: string
+  }): Promise<NfseFrozenIssuancePayload | null>
   findProfile(input: {
     readonly companyId: string
     readonly profileId: string
@@ -342,6 +392,8 @@ export type NfseInvoiceTransactionPort = NfseInvoiceReaderPort & {
   }): Promise<NfseInvoiceCancellationTarget | null>
   linkDocuments(input: LinkNfseInvoiceDocumentsInput): Promise<void>
   markCancellationRequested(input: MarkNfseInvoiceCancellationInput): Promise<void>
+  markDiscarded(input: MarkNfseInvoiceDiscardedInput): Promise<void>
+  markIssuing(input: MarkNfseInvoiceIssuingInput): Promise<void>
   pushOutbox(input: PushNfseIssuanceOutboxInput): Promise<void>
   releaseDocumentLinks(input: ReleaseNfseInvoiceLinksInput): Promise<readonly string[]>
   savePayload(input: SaveNfseIssuancePayloadInput): Promise<void>

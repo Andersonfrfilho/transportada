@@ -200,6 +200,22 @@ describe('NFS-e write-back status guard contract', () => {
       })
     }
   })
+
+  /**
+   * Reentrega tardia não ressuscita o que o operador encerrou: nenhum `kind` de write-back pode
+   * transicionar uma fatura já `discarded`. `storedStatus` tipado como `NfseServiceInvoiceStatus`
+   * — o catálogo do worker ainda não tem `'discarded'` (T012 acrescenta), então esta atribuição
+   * não compila hoje. É esse o vermelho da task: o write-back já bloqueia por falta da entrada no
+   * catálogo, não por regra de `ALLOWED_FROM` — e é exatamente isso que T012 preserva.
+   */
+  test('never lets a late delivery resuscitate a discarded invoice', () => {
+    const discardedStatus: NfseServiceInvoiceStatus = 'discarded'
+    for (const kind of Object.values(NFSE_WRITE_BACK_KIND)) {
+      expect(resolveNfseWriteBack({ kind, storedStatus: discardedStatus })).toEqual({
+        allowed: false,
+      })
+    }
+  })
 })
 
 describe('NFS-e issuance effect contract', () => {

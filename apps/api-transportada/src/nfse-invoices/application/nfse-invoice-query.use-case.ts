@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { extractLastIssuancePayload } from '../domain/nfse-issuance-payload.mapper.js'
 import {
   NfseFiscalDocumentUnavailableError,
   NfseInvoiceNotFoundError,
@@ -16,6 +17,7 @@ import type {
   NfseInvoiceListFilters,
   NfseInvoicePage,
   NfseInvoiceRepositoryPort,
+  NfseLastIssuancePayload,
 } from './nfse-invoice.port.js'
 
 const FILE_EXTENSION: Readonly<Record<NfseFiscalDocumentKind, string>> = {
@@ -39,8 +41,12 @@ export type DownloadNfseFiscalDocumentInput = NfseInvoiceScopedInput & {
   readonly kind: NfseFiscalDocumentKind
 }
 
+export type NfseInvoiceDetailWithPayload = NfseInvoiceDetail & {
+  readonly lastPayload: NfseLastIssuancePayload | null
+}
+
 export type NfseInvoiceQueryUseCase = {
-  detail(input: NfseInvoiceScopedInput): Promise<NfseInvoiceDetail>
+  detail(input: NfseInvoiceScopedInput): Promise<NfseInvoiceDetailWithPayload>
   documents(input: NfseInvoiceScopedInput): Promise<readonly NfseInvoiceLinkedDocument[]>
   download(input: DownloadNfseFiscalDocumentInput): Promise<NfseFiscalDocumentDownload>
   list(input: ListNfseInvoicesInput): Promise<NfseInvoicePage>
@@ -53,8 +59,21 @@ export function createNfseInvoiceQueryUseCase(dependencies: {
   const { archive, repository } = dependencies
 
   return {
+    /**
+     * `lastPayload` só é buscado aqui, não em `loadDetail`: `documents()`/`download()` reusam
+     * `loadDetail` e não precisam do payload congelado, só do 404 correto.
+     */
     async detail(input) {
-      return loadDetail(repository, input)
+      const invoice = await loadDetail(repository, input)
+      const frozenPayload = await repository.findLatestPayload({
+        companyId: input.context.companyId,
+        invoiceId: input.invoiceId,
+      })
+
+      return {
+        ...invoice,
+        lastPayload: frozenPayload === null ? null : extractLastIssuancePayload(frozenPayload),
+      }
     },
 
     /** O detalhe roda antes: sem ele, uma nota de outra empresa devolveria lista vazia em vez de 404. */

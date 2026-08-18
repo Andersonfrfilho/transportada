@@ -14,8 +14,10 @@ import {
   createNfseInvoiceResponseAdapters,
   type NfseInvoiceResponseAdapters,
 } from './nfseInvoiceResponse.validation'
+import type { NfseReissueCorrection } from './nfseInvoiceRowActions.service'
 import type {
   NfseCancellationSummary,
+  NfseDiscardSummary,
   NfseDocumentDownload,
   NfseEmissionProfileOption,
   NfseInvoiceDetail,
@@ -26,6 +28,7 @@ import type {
   NfseInvoicePreview,
   NfseInvoiceSelection,
   NfseIssuanceSummary,
+  NfseReissueSummary,
 } from './nfseInvoice.types'
 
 type ClientDependencies = Readonly<{
@@ -56,11 +59,24 @@ export type NfseInvoiceExportInput = Readonly<{
   invoiceIds: readonly string[]
 }>
 
+export type NfseInvoiceDiscardInput = Readonly<{
+  idempotencyKey: string
+  invoiceId: string
+}>
+
+/** `correction` ausente ou vazia manda corpo ausente — a rota distingue "sem corpo" de `{}`. */
+export type NfseInvoiceReissueInput = Readonly<{
+  correction?: NfseReissueCorrection
+  idempotencyKey: string
+  invoiceId: string
+}>
+
 export type NfseInvoiceClient = Readonly<{
   cancelInvoice: (input: NfseInvoiceCancellationInput) => Promise<NfseCancellationSummary>
   createInvoices: (
     input: NfseInvoiceSelection & Readonly<{ idempotencyKey: string }>,
   ) => Promise<NfseIssuanceSummary>
+  discardInvoice: (input: NfseInvoiceDiscardInput) => Promise<NfseDiscardSummary>
   exportInvoices: (input: NfseInvoiceExportInput) => Promise<ArchiveFile>
   getInvoice: (input: Readonly<{ invoiceId: string }>) => Promise<NfseInvoiceDetail>
   getInvoiceDocumentUrl: (
@@ -72,6 +88,7 @@ export type NfseInvoiceClient = Readonly<{
   ) => Promise<readonly NfseInvoiceDocument[]>
   listInvoices: (input: NfseInvoiceListQuery) => Promise<NfseInvoicePage>
   previewInvoices: (input: NfseInvoiceSelection) => Promise<NfseInvoicePreview>
+  reissueInvoice: (input: NfseInvoiceReissueInput) => Promise<NfseReissueSummary>
 }>
 
 function requestError(code: string): Error {
@@ -245,6 +262,15 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
       })
       return adapters.issuanceSummaryFromApi(readEnvelopeData(payload))
     },
+    async discardInvoice(input) {
+      const payload = await authorizedRequest({
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${NFSE_SERVICE_INVOICES_PATH}/${input.invoiceId}/discard`,
+      })
+      return adapters.discardSummaryFromApi(readEnvelopeData(payload))
+    },
     async exportInvoices(input) {
       const body: Record<string, unknown> = { invoiceIds: input.invoiceIds }
       if (input.format !== undefined) body['format'] = input.format
@@ -304,6 +330,18 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
         path: NFSE_INVOICE_PREVIEW_PATH,
       })
       return adapters.previewFromApi(readEnvelopeData(payload))
+    },
+    async reissueInvoice(input) {
+      const hasCorrection =
+        input.correction !== undefined && Object.keys(input.correction).length > 0
+      const payload = await authorizedRequest({
+        ...(hasCorrection ? { body: JSON.stringify(input.correction) } : {}),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${NFSE_SERVICE_INVOICES_PATH}/${input.invoiceId}/reissue`,
+      })
+      return adapters.reissueSummaryFromApi(readEnvelopeData(payload))
     },
   }
 }

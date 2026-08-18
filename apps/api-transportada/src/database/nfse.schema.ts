@@ -68,6 +68,7 @@ export const NFSE_SERVICE_INVOICE_STATUSES = [
   'rejected',
   'cancelled',
   'failed',
+  'discarded',
 ] as const
 export type NfseServiceInvoiceStatus = (typeof NFSE_SERVICE_INVOICE_STATUSES)[number]
 

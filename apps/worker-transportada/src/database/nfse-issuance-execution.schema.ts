@@ -14,6 +14,7 @@ export type NfseServiceInvoiceStatus =
   | 'rejected'
   | 'cancelled'
   | 'failed'
+  | 'discarded'
 export type NfseAttemptKind = 'issue' | 'cancel'
 /**
  * O `motivo` do `/cancelar-nota` é **código**: `2` serviço não prestado, `4` nota duplicada. Quem

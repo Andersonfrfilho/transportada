@@ -7,6 +7,7 @@ import {
   NfseFiscalDocumentUnavailableError,
   NfseInvoiceNotFoundError,
 } from '../../src/nfse-invoices/domain/nfse-issuance.error'
+import { nfseLastIssuancePayloadResponseSchema } from '../../src/nfse-invoices/presentation/nfse-invoices.schema'
 import { API_NFSE_SERVICE_INVOICES_PATH } from '../../src/shared/api.constant'
 import {
   COMPANY_CONTEXT,
@@ -14,6 +15,7 @@ import {
   DOCUMENT_ID,
   DOWNLOAD,
   INVOICE_ID,
+  LAST_PAYLOAD,
   createNfseInvoicesHttpFixture,
   invoiceReadRequest,
 } from '../fixtures/nfse-invoices-http.fixture'
@@ -171,6 +173,22 @@ describe('nfse service invoice detail http', () => {
     expect(body.data.delivery?.status).toBe(DETAIL.delivery?.status ?? '')
     expect(body.data.delivery?.lastErrorCause).toBe(DETAIL.delivery?.lastErrorCause ?? null)
     expect(body.data.delivery?.nextAttemptAt).toBe(DETAIL.delivery?.nextAttemptAt ?? null)
+  })
+
+  /**
+   * `lastPayload` é o payload congelado da última tentativa — o que o diálogo de reemissão do
+   * frontend usa para pré-preencher (spec 042, T013/T014). A forma na resposta é validada pelo
+   * schema declarado em `nfse-invoices.schema.ts`, não só por igualdade de objeto.
+   */
+  test('o detalhe devolve o payload congelado da última tentativa em lastPayload', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(invoiceReadRequest(INVOICE_PATH))
+    const body = (await response.json()) as { data: { lastPayload: unknown } }
+    nfseLastIssuancePayloadResponseSchema.parse(body.data.lastPayload)
+
+    expect(response.status).toBe(200)
+    expect(body.data.lastPayload).toEqual(LAST_PAYLOAD)
   })
 
   /** Nota de outra empresa some: `403` já entregaria que ela existe, e o número dela é sequencial. */
