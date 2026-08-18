@@ -155,7 +155,7 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       valor do `API_PUBLIC_NFSE_CALLBACKS_PATH` da API.
       Verificação: T007 verde (8 pass / 0 fail), `environment.contract` 18 pass / 0 fail, suíte do
       worker 466 pass / 0 fail, `typecheck` e `lint` do worker limpos.
-- [ ] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` **e no `worker`** de produção, via
+- [x] **T009** — `NFSE_CALLBACK_BASE_URL` na `api` **e no `worker`** de produção, via
       `railway variables --set --skip-deploys`, e confirmar que a rota de retorno passa a ser
       registrada. `.env.example` declara a variável.
       Os dois serviços, não só a `api`: a `api` precisa dela para registrar a rota do postback e o
@@ -163,9 +163,10 @@ Contrato antes da implementação, sem exceção — foi a falta dele que deixou
       retorno ou publicar rota que ninguém chama.
       Feito: variável gravada nos dois com
       `https://api.fernandes-transportadora.com.br` (origem pública do serviço `api`), e conferida
-      por `railway variables --kv | grep`. **Falta** o registro da rota, que só acontece no próximo
-      deploy — `--skip-deploys` não reinicia a instância em execução.
-      Verificação: `railway variables --kv` mostrando a chave e o boot registrando a rota.
+      por `railway variables --kv | grep`. O registro da rota veio com o deploy de produção da PR #27.
+      Verificação: `railway variables --kv` mostrando a chave, e `POST` com token inventado na rota
+      pública de produção respondendo `204` — sem a variável a rota não é registrada e a resposta
+      seria `404`.
 
 ## Fase D — fechamento
 
