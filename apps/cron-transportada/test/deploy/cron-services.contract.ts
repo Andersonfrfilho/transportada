@@ -92,7 +92,7 @@ describe('contrato dos serviços de cron', () => {
     const matrix = (/^\s+service: \[([a-z, -]+)\]$/m.exec(workflow)?.[1] ?? '')
       .split(',')
       .map((service) => service.trim())
-    const needs = /^  deploy-services:$\s+needs: \[([^\]]+)\]/m.exec(workflow)?.[1] ?? ''
+    const needs = /^ {2}deploy-services:$\s+needs: \[([^\]]+)\]/m.exec(workflow)?.[1] ?? ''
 
     for (const { service } of CRON_SERVICES) {
       expect(matrix).toContain(service)
