@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { parseIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
-import { parseBody } from '../../http/request-parsing.service.js'
+import { parseBody, parseOptionalBody } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_NFSE_SERVICE_INVOICES_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
@@ -242,7 +242,7 @@ export function createNfseInvoiceRoutes(
       },
       method: 'POST',
       async parse({ correlationId, pathParameters, request }) {
-        await parseBody(nfseInvoiceDiscardSchema, request)
+        await parseOptionalBody(nfseInvoiceDiscardSchema, request)
         return {
           correlationId,
           idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
@@ -262,7 +262,7 @@ export function createNfseInvoiceRoutes(
       },
       method: 'POST',
       async parse({ correlationId, pathParameters, request }) {
-        const correction = await parseBody(nfseInvoiceReissueSchema, request)
+        const correction = await parseOptionalBody(nfseInvoiceReissueSchema, request)
         return {
           correction,
           correlationId,

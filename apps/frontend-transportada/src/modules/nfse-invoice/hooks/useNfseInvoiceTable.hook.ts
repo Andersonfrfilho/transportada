@@ -42,7 +42,9 @@ import {
 } from '../shared/nfseInvoiceTable.service'
 import { useNfseAdvancedFilterModel } from './useNfseAdvancedFilter.hook'
 import { useNfseInvoiceBulkCancel } from './useNfseInvoiceBulkCancel.hook'
+import { useNfseInvoiceBulkDiscard } from './useNfseInvoiceBulkDiscard.hook'
 import { useNfseInvoiceBulkExport } from './useNfseInvoiceBulkExport.hook'
+import { useNfseInvoiceBulkReissue } from './useNfseInvoiceBulkReissue.hook'
 import { useNfseInvoiceRowActions } from './useNfseInvoiceRowActions.hook'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
 
@@ -135,6 +137,16 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
     invoices: selectedInvoices,
     permissions: input.permissions,
   })
+  const bulkReissue = useNfseInvoiceBulkReissue({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    invoices: selectedInvoices,
+    permissions: input.permissions,
+  })
+  const bulkDiscard = useNfseInvoiceBulkDiscard({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    invoices: selectedInvoices,
+    permissions: input.permissions,
+  })
 
   function persistColumns(preferences: NfseInvoiceColumnPreferences): void {
     setColumnPreferences(preferences)
@@ -148,7 +160,9 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
         : countActiveNfseInvoiceFilters(filters),
     advancedFilter,
     bulkCancel,
+    bulkDiscard,
     bulkExport,
+    bulkReissue,
     canGoToPreviousPage: canGoToPreviousCursorPage(page),
     canReadInvoices: controller.canReadInvoices,
     clearFilterField: (field: NfseInvoicePillField) => {

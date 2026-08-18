@@ -469,3 +469,19 @@ export function invoiceRequest(input: {
     method: 'POST',
   })
 }
+
+/**
+ * A forma que o cliente do frontend realmente emite quando a ação não tem corpo: `POST` sem body e
+ * **sem `content-type`** — `fetch` não inventa o cabeçalho para requisição sem corpo. Montar o
+ * pedido com `{}` e `application/json`, como `invoiceRequest`, exercita um cliente que não existe.
+ */
+export function invoiceRequestWithoutBody(input: {
+  readonly idempotencyKey?: string | null
+  readonly path: string
+}): Request {
+  const headers = new Headers({ authorization: 'Bearer nfse-invoices-contract' })
+  const idempotencyKey = input.idempotencyKey === undefined ? IDEMPOTENCY_KEY : input.idempotencyKey
+  if (idempotencyKey !== null) headers.set('idempotency-key', idempotencyKey)
+
+  return new Request(`http://localhost${input.path}`, { headers, method: 'POST' })
+}

@@ -13,6 +13,7 @@ import {
   READ_ONLY_PERMISSIONS,
   createNfseInvoicesHttpFixture,
   invoiceRequest,
+  invoiceRequestWithoutBody,
 } from '../fixtures/nfse-invoices-http.fixture'
 
 const REISSUE_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/${INVOICE_ID}/reissue`
@@ -44,6 +45,20 @@ describe('nfse service invoice reissue http', () => {
     expect(body.data.payloadSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(body.data.replayed).toBe(false)
     expect(body.data.status).toBe('issuing')
+  })
+
+  /**
+   * O teste acima diz "sem corpo" mandando `{}` com `content-type` — é outro pedido. Reemitir sem
+   * correção, do jeito que o cliente monta, não leva body nem cabeçalho, e precisa ser aceito.
+   */
+  test('a reemissão sem corpo nenhum é aceita, não recusada por content-type', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(invoiceRequestWithoutBody({ path: REISSUE_PATH }))
+
+    expect(response.status).toBe(202)
+    expect(fixture.reissueCalls).toHaveLength(1)
+    expect(fixture.reissueCalls[0]?.invoiceId).toBe(INVOICE_ID)
   })
 
   test('a rota propaga chave de idempotência, correlation-id e empresa', async () => {

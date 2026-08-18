@@ -1,5 +1,6 @@
 import './nfse-invoice/bulk-cancel.contract.js'
 import './nfse-invoice/bulk-export.contract.js'
+import './nfse-invoice/bulk-reissue-discard.contract.js'
 import './nfse-invoice/client-and-controller.contract.js'
 import './nfse-invoice/detail-delivery.contract.js'
 import './nfse-invoice/detail-table-totals.contract.js'

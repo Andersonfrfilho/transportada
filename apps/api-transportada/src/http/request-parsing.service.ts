@@ -36,7 +36,29 @@ export async function parseBody<TSchema extends z.ZodType>(
   schema: TSchema,
   request: Request,
 ): Promise<z.infer<TSchema>> {
-  const result = schema.safeParse(await parseJsonBody(request))
+  return parseAgainstSchema(schema, await parseJsonBody(request))
+}
+
+/**
+ * Rota cujo corpo é vazio ou opcional. `fetch` não manda `content-type` em `POST` sem body, e
+ * exigi-lo recusava com `400` exatamente o pedido que o cliente monta — foi assim que o descarte
+ * e a reemissão sem correção nasceram quebrados. Corpo ausente vale como `{}`; corpo presente
+ * passa pelo mesmo caminho estrito de sempre, e bytes sem `content-type` continuam recusados.
+ */
+export async function parseOptionalBody<TSchema extends z.ZodType>(
+  schema: TSchema,
+  request: Request,
+): Promise<z.infer<TSchema>> {
+  if (request.headers.get('content-type') !== null) return parseBody(schema, request)
+  if ((await readRequestBytes(request)).byteLength > 0) throw invalidRequest()
+  return parseAgainstSchema(schema, {})
+}
+
+function parseAgainstSchema<TSchema extends z.ZodType>(
+  schema: TSchema,
+  value: unknown,
+): z.infer<TSchema> {
+  const result = schema.safeParse(value)
   if (!result.success) {
     throw invalidRequest(
       result.error.issues.map((issue) => ({
@@ -115,10 +137,9 @@ function concatenateChunks(chunks: readonly Uint8Array[], size: number): Uint8Ar
   return bytes
 }
 
-async function parseJsonBody(request: Request): Promise<unknown> {
-  assertJsonContentType(request.headers.get('content-type'))
+async function readRequestBytes(request: Request): Promise<Uint8Array> {
   const reader = request.body?.getReader()
-  if (reader === undefined) throw invalidRequest()
+  if (reader === undefined) return new Uint8Array(0)
   const chunks: Uint8Array[] = []
   let size = 0
   while (true) {
@@ -131,9 +152,15 @@ async function parseJsonBody(request: Request): Promise<unknown> {
     }
     chunks.push(next.value)
   }
+  return concatenateChunks(chunks, size)
+}
 
+async function parseJsonBody(request: Request): Promise<unknown> {
+  assertJsonContentType(request.headers.get('content-type'))
+  // A leitura fica fora do `try`: o 413 do corpo grande não pode ser reescrito como 400 de JSON ruim
+  const bytes = await readRequestBytes(request)
   try {
-    return JSON.parse(new TextDecoder().decode(concatenateChunks(chunks, size)))
+    return JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     throw invalidRequest()
   }

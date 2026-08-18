@@ -225,6 +225,28 @@
     "subtitle": "{{count}} authorized invoices will be cancelled, one at a time.",
     "title": "Cancel the selected service invoices"
   },
+  "bulkReissue": {
+    "action": "Reissue the selected ones",
+    "blocked": "Left out of the reissue",
+    "close": "Close",
+    "confirm": "Reissue the invoices",
+    "confirmation": "Eligible invoices will be reissued, one at a time, with no correction.",
+    "empty": "No invoice in the selection can be reissued.",
+    "result": "{{reissued}} reissued, {{failed}} failed.",
+    "subtitle": "{{count}} rejected or failed invoices will be reissued, one at a time.",
+    "title": "Reissue the selected service invoices"
+  },
+  "bulkDiscard": {
+    "action": "Discard the selected ones",
+    "blocked": "Left out of the discard",
+    "close": "Close",
+    "confirm": "Discard the invoices",
+    "empty": "No invoice in the selection can be discarded.",
+    "result": "{{discarded}} discarded, {{failed}} failed.",
+    "subtitle": "{{count}} rejected or failed invoices will be discarded, one at a time.",
+    "title": "Discard the selected service invoices",
+    "warning": "Discarding releases the linked fiscal invoices and cannot be undone."
+  },
   "status": {
     "requested": "Requested",
     "issuing": "Issuing",
@@ -311,7 +333,9 @@
     "inFlight": "There is an issuance in flight for this invoice.",
     "issRateOutOfRange": "The ISS rate is outside the accepted range.",
     "notAuthorized": "The service invoice is not authorized yet.",
+    "notDiscardable": "This service invoice cannot be discarded.",
     "notFound": "Service invoice not found.",
+    "notReissuable": "This service invoice cannot be reissued.",
     "pendingAuthorization": "The city hall has not answered about this invoice yet.",
     "profileNotActive": "The chosen emission profile is not active.",
     "readOnly": "Your current access does not allow this action.",
