@@ -49,21 +49,13 @@ export function NfseInvoiceSelectionBar({
           </p>
         )}
         {table.bulkReissue.isAllowed && (
-          <button
-            className={styles.builderAction}
-            onClick={table.bulkReissue.open}
-            type="button"
-          >
+          <button className={styles.builderAction} onClick={table.bulkReissue.open} type="button">
             <Icon name="refresh" />
             <span>{t('bulkReissue.action')}</span>
           </button>
         )}
         {table.bulkDiscard.isAllowed && (
-          <button
-            className={styles.builderAction}
-            onClick={table.bulkDiscard.open}
-            type="button"
-          >
+          <button className={styles.builderAction} onClick={table.bulkDiscard.open} type="button">
             <Icon name="remove" />
             <span>{t('bulkDiscard.action')}</span>
           </button>

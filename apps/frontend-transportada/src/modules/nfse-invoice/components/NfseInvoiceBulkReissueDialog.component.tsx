@@ -55,9 +55,7 @@ export function NfseInvoiceBulkReissueDialog({
         </header>
 
         {blockedCount > 0 && (
-          <p className={styles.emissionHint}>
-            {t('bulkReissue.blocked', { count: blockedCount })}
-          </p>
+          <p className={styles.emissionHint}>{t('bulkReissue.blocked', { count: blockedCount })}</p>
         )}
 
         {eligibleCount === 0 ? (

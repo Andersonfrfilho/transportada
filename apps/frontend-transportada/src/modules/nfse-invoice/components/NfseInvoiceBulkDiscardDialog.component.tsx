@@ -55,9 +55,7 @@ export function NfseInvoiceBulkDiscardDialog({
         </header>
 
         {blockedCount > 0 && (
-          <p className={styles.emissionHint}>
-            {t('bulkDiscard.blocked', { count: blockedCount })}
-          </p>
+          <p className={styles.emissionHint}>{t('bulkDiscard.blocked', { count: blockedCount })}</p>
         )}
 
         {eligibleCount === 0 ? (
