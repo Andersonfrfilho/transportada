@@ -545,3 +545,31 @@ cron   typecheck · lint    exit 0
 ⚠️ O `bun run typecheck` da raiz **não** fecha em zero neste momento, e não é por causa desta task:
 `api-transportada/test/nfse-invoices-http/invoice-queries.contract.ts` está em edição pela spec 042,
 na mesma árvore de trabalho. As duas apps tocadas aqui fecham limpas isoladas.
+
+## T009 — a rota de retorno registrada em produção
+
+A variável já estava gravada na `api` e no `worker` desde a task, mas `--skip-deploys` não reinicia a
+instância: quem registra a rota é o boot. O deploy veio com a PR #27 (`staging → main`, squash
+`cfe65cc`), e o run de produção fechou verde com o job `deploy` percorrendo os sete serviços —
+`identity`, realm, `api`, migrations conferidas, `worker`, `cron`, **`cron-nfse`**,
+`cron-notifications`, `cron-fuel` e `frontend`.
+
+A conferência é a própria rota, com token inventado — não há segredo envolvido, e a resposta é
+invariável por desenho:
+
+```
+POST /public/nfse-callbacks/<token inventado>  -> 204
+```
+
+`204` é a prova do registro: sem `NFSE_CALLBACK_BASE_URL` o `createNfseCallbackRoutes` devolve lista
+vazia e a mesma chamada seria `404`. Token que não casa com credencial nenhuma não dispara
+antecipação — a resposta não distingue token válido de inventado, e é isso que a torna segura de
+sondar.
+
+O run de produção precisou de dois disparos, e nenhum dos dois foi código: a primeira tentativa
+falhou em `gate / integration` no `make up`, com a porta `58080` do Keycloak ocupada no runner
+(`address already in use`), e o `deploy` ficou como `skipped`. O rerun dos jobs que falharam passou.
+
+Com isto a 040 fecha inteira. O que resta não é task: a forma do `id_nota` só se confirma na
+**primeira emissão real** pelo worker, porque o identificador é interno do provedor e só aparece na
+resposta do `/emitir` — e a Nota RP não tem homologação onde ensaiar (ADR-0035).

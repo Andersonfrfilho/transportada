@@ -28,6 +28,12 @@ function confirmCancellationFrom(
   return checkNfseInvoiceTransition({ action: NFSE_INVOICE_ACTION.confirmCancellation, status })
 }
 
+function discardFrom(
+  status: NfseServiceInvoiceStatus,
+): ReturnType<typeof checkNfseInvoiceTransition> {
+  return checkNfseInvoiceTransition({ action: NFSE_INVOICE_ACTION.discard, status })
+}
+
 describe('NFS-e invoice state contract', () => {
   test('transmits a fresh invoice and retries one the city refused', () => {
     for (const status of ['requested', 'rejected', 'failed'] as const) {
@@ -113,6 +119,58 @@ describe('NFS-e invoice state contract', () => {
       expect(cancelFrom(status)).toEqual({
         allowed: false,
         reason: NFSE_TRANSITION_BLOCK.notAuthorized,
+      })
+    }
+  })
+
+  /**
+   * Descartar existe só para o documento que nunca teve existência fiscal: a prefeitura recusou
+   * (`rejected`) ou as tentativas se esgotaram (`failed`). Autorizada se resolve por cancelamento.
+   */
+  test('discards only what never existed fiscally', () => {
+    for (const status of ['rejected', 'failed'] as const) {
+      expect(discardFrom(status)).toEqual({ allowed: true, nextStatus: 'discarded' })
+    }
+  })
+
+  test('refuses to discard anything mid-flight, pending, authorized or already settled', () => {
+    expect(discardFrom('requested')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.inFlight,
+    })
+    expect(discardFrom('issuing')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.inFlight,
+    })
+    expect(discardFrom('pending_authorization')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.pendingAuthorization,
+    })
+    expect(discardFrom('authorized')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.alreadyAuthorized,
+    })
+    expect(discardFrom('cancellation_requested')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.cancellationInFlight,
+    })
+    expect(discardFrom('cancelled')).toEqual({
+      allowed: false,
+      reason: NFSE_TRANSITION_BLOCK.alreadyCancelled,
+    })
+  })
+
+  /** `discarded` é terminal: nenhuma das quatro ações reabre uma fatura descartada. */
+  test('refuses every action over a discarded invoice', () => {
+    for (const transition of [
+      issueFrom('discarded'),
+      cancelFrom('discarded'),
+      confirmCancellationFrom('discarded'),
+      discardFrom('discarded'),
+    ]) {
+      expect(transition).toEqual({
+        allowed: false,
+        reason: NFSE_TRANSITION_BLOCK.alreadyDiscarded,
       })
     }
   })

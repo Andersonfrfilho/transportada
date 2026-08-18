@@ -14,6 +14,7 @@ import {
   CONTEXT,
   DOCUMENT_ID,
   FISCAL_DOCUMENT_LOCATION,
+  FULL_FROZEN_PAYLOAD,
   INVOICE_DETAIL,
   INVOICE_ID,
   createNfseRepositoryFixture,
@@ -111,6 +112,54 @@ describe('nfse invoice detail', () => {
       useCase.documents({ context: CONTEXT, invoiceId: INVOICE_ID }),
     ).rejects.toBeInstanceOf(NfseInvoiceNotFoundError)
     expect(recording.queries.map((query) => query.name)).toEqual(['findInvoiceDetail'])
+  })
+})
+
+describe('nfse invoice detail — payload congelado da última tentativa', () => {
+  /**
+   * `lastPayload` é o que o diálogo de reemissão do frontend usa para pré-preencher os nove campos
+   * corrigíveis e mostrar valor do serviço, valor do ISS, tomador e contagem de notas somente-leitura
+   * — o mesmo objeto que `freezeNfseIssuancePayload` gravou, sem recálculo nenhum aqui.
+   */
+  test('o detalhe devolve os campos corrigíveis e o resumo somente-leitura do payload congelado', async () => {
+    const { useCase } = createUseCase({ frozenPayload: FULL_FROZEN_PAYLOAD })
+
+    const invoice = await useCase.detail({ context: CONTEXT, invoiceId: INVOICE_ID })
+
+    expect(invoice.lastPayload).toEqual({
+      cnaeCode: '4930202',
+      description: 'Transporte rodoviário de cargas referente às notas 000000123.',
+      documentCount: 1,
+      issAmount: '42.5000',
+      issExigibility: '1',
+      issRate: '0.050000',
+      issWithheld: false,
+      municipalTaxationCode: '',
+      municipalityIbgeCode: '3543402',
+      nbsCode: '',
+      serviceAmount: '850.0000',
+      serviceListItem: '16.01',
+      takerLegalName: 'Cliente Sintético Ltda',
+      takerTaxId: '98765432000188',
+    })
+  })
+
+  /** Fatura ainda em `requested` não teve tentativa nenhuma — não há o que oferecer para reemitir. */
+  test('fatura sem tentativa ainda devolve lastPayload nulo', async () => {
+    const { useCase } = createUseCase({ frozenPayload: null })
+
+    const invoice = await useCase.detail({ context: CONTEXT, invoiceId: INVOICE_ID })
+
+    expect(invoice.lastPayload).toBeNull()
+  })
+
+  /** Buscar o payload no detalhe é leitura: abrir transação aqui prenderia conexão do pool à toa. */
+  test('buscar o payload congelado no detalhe não abre transação', async () => {
+    const { recording, useCase } = createUseCase({ frozenPayload: FULL_FROZEN_PAYLOAD })
+
+    await useCase.detail({ context: CONTEXT, invoiceId: INVOICE_ID })
+
+    expect(recording.transactionScopes).toEqual([])
   })
 })
 

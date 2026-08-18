@@ -58,6 +58,24 @@ export const INVOICE_DELIVERY = {
   updatedAt: '2026-08-11T12:05:00.000Z',
 } as const
 
+/** O payload congelado da última tentativa — as entradas do diálogo de reemissão nascem dele. */
+export const LAST_ISSUANCE_PAYLOAD = {
+  cnaeCode: '4930202',
+  description: 'Entregas na cidade de Ribeirão Preto de 27-07-2026 a 31-07-2026.',
+  documentCount: 2,
+  issAmount: '13.44',
+  issExigibility: '1',
+  issRate: '0.020000',
+  issWithheld: false,
+  municipalTaxationCode: '',
+  municipalityIbgeCode: '3543402',
+  nbsCode: '',
+  serviceAmount: '672.22',
+  serviceListItem: '16.02',
+  takerLegalName: TAKER_LEGAL_NAME,
+  takerTaxId: TAKER_TAX_ID,
+} as const
+
 export const INVOICE_DETAIL = {
   ...INVOICE_LIST_ITEM,
   cancellationReason: null,
@@ -73,6 +91,7 @@ export const INVOICE_DETAIL = {
   ],
   delivery: INVOICE_DELIVERY,
   description: 'Entregas na cidade de Ribeirão Preto de 27-07-2026 a 31-07-2026.',
+  lastPayload: LAST_ISSUANCE_PAYLOAD,
   rejectionCode: null,
   rejectionMessage: null,
   version: '1',

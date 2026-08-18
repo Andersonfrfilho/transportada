@@ -10,6 +10,7 @@ import type { NfseFiscalEnvironment } from '../../database/nfse.schema.js'
 import {
   nfseEmissionProfiles,
   nfseIssuanceAttempts,
+  nfseIssuancePayloads,
   nfseProviderCredentials,
   nfseServiceInvoiceDocuments,
 } from '../../database/nfse.schema.js'
@@ -103,4 +104,23 @@ export function buildAttemptIdempotencyFilters(input: {
     eq(nfseIssuanceAttempts.companyId, input.companyId),
     eq(nfseIssuanceAttempts.idempotencyKey, input.idempotencyKey),
   ]
+}
+
+/** O RPS congelado da tentativa mais recente — o que a reemissão retransmite sem recalcular. */
+export function buildLatestPayloadFilters(input: {
+  readonly companyId: string
+  readonly invoiceId: string
+}): readonly SQL[] {
+  return [
+    eq(nfseIssuancePayloads.companyId, input.companyId),
+    eq(nfseIssuancePayloads.invoiceId, input.invoiceId),
+  ]
+}
+
+/** Sem o `company_id` na condição, o join alcançaria a tentativa de outra empresa pelo attemptId. */
+export function buildLatestPayloadAttemptJoin(): SQL {
+  return and(
+    eq(nfseIssuanceAttempts.companyId, nfseIssuancePayloads.companyId),
+    eq(nfseIssuanceAttempts.id, nfseIssuancePayloads.attemptId),
+  )!
 }

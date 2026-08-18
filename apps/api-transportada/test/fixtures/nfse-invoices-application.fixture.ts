@@ -12,7 +12,10 @@ import type {
   CreateNfseIssuanceAttemptInput,
   LinkNfseInvoiceDocumentsInput,
   MarkNfseInvoiceCancellationInput,
+  MarkNfseInvoiceDiscardedInput,
+  MarkNfseInvoiceIssuingInput,
   NfseFiscalDocumentLocation,
+  NfseFrozenIssuancePayload,
   NfseFreightRuleVersion,
   NfseInvoiceCredential,
   NfseInvoiceDetail,
@@ -159,6 +162,44 @@ export const LINKED_DOCUMENT: NfseInvoiceLinkedDocument = {
   totalAmount: '10000.0000',
 }
 
+/** O RPS que a primeira tentativa congelou: é ele que a reemissão retransmite, com o mesmo hash. */
+export const FROZEN_PAYLOAD: NfseFrozenIssuancePayload = {
+  payload: { description: 'Servicos de transporte', serviceAmount: '10000.0000' },
+  payloadSha256: 'b'.repeat(64),
+}
+
+/**
+ * Mesma forma que `freezeNfseIssuancePayload` grava de verdade — os nove campos corrigíveis mais
+ * `serviceAmount`/`issAmount`/`taker`/`documents`, é o que o detalhe da fatura passa a expor em
+ * `lastPayload` para o diálogo de reemissão pré-preencher.
+ */
+export const FULL_FROZEN_PAYLOAD: NfseFrozenIssuancePayload = {
+  payload: {
+    cnaeCode: PROFILE.cnaeCode,
+    description: INVOICE_DETAIL.description,
+    documents: [
+      {
+        accessKey: LINKED_DOCUMENT.accessKey,
+        documentId: LINKED_DOCUMENT.documentId,
+        number: LINKED_DOCUMENT.number,
+        series: LINKED_DOCUMENT.series,
+        totalAmount: LINKED_DOCUMENT.totalAmount,
+      },
+    ],
+    issAmount: INVOICE_DETAIL.issAmount,
+    issExigibility: PROFILE.issExigibility,
+    issRate: PROFILE.issRate,
+    issWithheld: PROFILE.issWithheld,
+    municipalityIbgeCode: PROFILE.municipalityIbgeCode,
+    municipalTaxationCode: PROFILE.municipalTaxationCode,
+    nbsCode: PROFILE.nbsCode,
+    serviceAmount: INVOICE_DETAIL.serviceAmount,
+    serviceListItem: PROFILE.serviceListItem,
+    taker: { legalName: INVOICE_DETAIL.takerLegalName, taxId: INVOICE_DETAIL.takerTaxId },
+  },
+  payloadSha256: 'c'.repeat(64),
+}
+
 export const FISCAL_DOCUMENT_LOCATION: NfseFiscalDocumentLocation = {
   bucket: 'transportada-fiscal',
   key: `nfse/${COMPANY_ID}/${INVOICE_ID}.xml`,
@@ -167,12 +208,16 @@ export const FISCAL_DOCUMENT_LOCATION: NfseFiscalDocumentLocation = {
 }
 
 export type NfseRepositoryState = {
-  readonly attemptByKey: Map<string, { createdAt: string; id: string; requestFingerprint: string }>
+  readonly attemptByKey: Map<
+    string,
+    { attemptNumber: number; createdAt: string; id: string; requestFingerprint: string }
+  >
   readonly credential: NfseInvoiceCredential | null
   readonly cteBatchLinks: readonly NfseInvoiceDocumentLink[]
   readonly documents: readonly NfseSelectionDocument[]
   readonly fiscalDocumentLocation: NfseFiscalDocumentLocation | null
   readonly fiscalEnvironment: NfseFiscalEnvironment | null
+  readonly frozenPayload: NfseFrozenIssuancePayload | null
   readonly invoiceDetail: NfseInvoiceDetail | null
   readonly invoiceDocuments: readonly NfseInvoiceLinkedDocument[]
   readonly invoiceLinks: readonly NfseInvoiceDocumentLink[]
@@ -187,8 +232,10 @@ export type NfseRepositoryRecording = {
   readonly attempts: CreateNfseIssuanceAttemptInput[]
   readonly cancellations: MarkNfseInvoiceCancellationInput[]
   readonly charges: CreateNfseInvoiceChargesInput[]
+  readonly discards: MarkNfseInvoiceDiscardedInput[]
   readonly events: AppendNfseIssuanceEventInput[]
   readonly invoices: CreateNfseInvoiceRecordInput[]
+  readonly issuings: MarkNfseInvoiceIssuingInput[]
   readonly links: LinkNfseInvoiceDocumentsInput[]
   readonly outbox: PushNfseIssuanceOutboxInput[]
   readonly payloads: SaveNfseIssuancePayloadInput[]
@@ -210,6 +257,7 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     documents: [selectionDocument()],
     fiscalDocumentLocation: FISCAL_DOCUMENT_LOCATION,
     fiscalEnvironment: 'homologation',
+    frozenPayload: FULL_FROZEN_PAYLOAD,
     invoiceDetail: INVOICE_DETAIL,
     invoiceDocuments: [LINKED_DOCUMENT],
     invoiceLinks: [],
@@ -225,8 +273,10 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     attempts: [],
     cancellations: [],
     charges: [],
+    discards: [],
     events: [],
     invoices: [],
+    issuings: [],
     links: [],
     outbox: [],
     payloads: [],
@@ -264,6 +314,9 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
       recording.queries.push({ input, name: 'findInvoiceDocuments' })
       return state.invoiceDocuments
     },
+    async findLatestPayload() {
+      return state.frozenPayload
+    },
     async findProfile() {
       return state.profile
     },
@@ -285,14 +338,17 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     async createAttempt(input) {
       recording.steps.push('createAttempt')
       recording.attempts.push(input)
+      // No banco quem numera é o `max(attempt_number) + 1` do repositório; aqui, a contagem.
+      const attemptNumber = recording.attempts.length
       state.attemptByKey.set(input.idempotencyKey, {
+        attemptNumber,
         createdAt: NOW,
         id: ATTEMPT_ID,
         requestFingerprint: input.requestFingerprint,
       })
       return {
         attemptId: ATTEMPT_ID,
-        attemptNumber: 1,
+        attemptNumber,
         createdAt: NOW,
         invoiceId: input.invoiceId,
         requestFingerprint: input.requestFingerprint,
@@ -312,7 +368,7 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
       if (attempt === undefined) return null
       return {
         attemptId: attempt.id,
-        attemptNumber: 1,
+        attemptNumber: attempt.attemptNumber,
         createdAt: attempt.createdAt,
         invoiceId: INVOICE_ID,
         requestFingerprint: attempt.requestFingerprint,
@@ -329,6 +385,14 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     async markCancellationRequested(input) {
       recording.steps.push('markCancellationRequested')
       recording.cancellations.push(input)
+    },
+    async markDiscarded(input) {
+      recording.steps.push('markDiscarded')
+      recording.discards.push(input)
+    },
+    async markIssuing(input) {
+      recording.steps.push('markIssuing')
+      recording.issuings.push(input)
     },
     async pushOutbox(input) {
       recording.steps.push('pushOutbox')

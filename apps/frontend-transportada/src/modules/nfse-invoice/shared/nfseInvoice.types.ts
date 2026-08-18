@@ -7,6 +7,7 @@ export const NFSE_INVOICE_STATUSES = [
   'rejected',
   'cancelled',
   'failed',
+  'discarded',
 ] as const
 export type NfseInvoiceStatus = (typeof NFSE_INVOICE_STATUSES)[number]
 
@@ -78,12 +79,34 @@ export type NfseInvoiceDelivery = Readonly<{
   updatedAt: string
 }>
 
+/**
+ * O payload congelado da última tentativa — o que `freezeNfseIssuancePayload` gravou. Cobre os nove
+ * campos corrigíveis da reemissão e os quatro somente-leitura do resumo (spec 042, T013).
+ */
+export type NfseLastIssuancePayload = Readonly<{
+  cnaeCode: string
+  description: string
+  documentCount: number
+  issAmount: string
+  issExigibility: string
+  issRate: string
+  issWithheld: boolean
+  municipalTaxationCode: string
+  municipalityIbgeCode: string
+  nbsCode: string
+  serviceAmount: string
+  serviceListItem: string
+  takerLegalName: string
+  takerTaxId: string
+}>
+
 export type NfseInvoiceDetail = NfseInvoice &
   Readonly<{
     cancellationReason: null | string
     charges: readonly NfseInvoiceCharge[]
     delivery: null | NfseInvoiceDelivery
     description: string
+    lastPayload: NfseLastIssuancePayload | null
     rejectionCode: null | string
     rejectionMessage: null | string
     version: string
@@ -173,6 +196,23 @@ export type NfseCancellationSummary = Readonly<{
   releasedDocumentIds: readonly string[]
   replayed: boolean
   requestedAt: string
+  status: string
+}>
+
+export type NfseReissueSummary = Readonly<{
+  attemptId: string
+  attemptNumber: number
+  invoiceId: string
+  payloadSha256: string
+  replayed: boolean
+  requestedAt: string
+  status: string
+}>
+
+export type NfseDiscardSummary = Readonly<{
+  invoiceId: string
+  releasedDocumentIds: readonly string[]
+  replayed: boolean
   status: string
 }>
 

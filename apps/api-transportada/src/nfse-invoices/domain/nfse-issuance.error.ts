@@ -8,6 +8,7 @@ import type { NfseSelectionBlockReason } from './nfse-selection.policy.js'
 const BLOCK_MESSAGE: Readonly<Record<NfseTransitionBlock, string>> = {
   [NFSE_TRANSITION_BLOCK.alreadyAuthorized]: 'The service invoice is already authorized.',
   [NFSE_TRANSITION_BLOCK.alreadyCancelled]: 'The service invoice is already cancelled.',
+  [NFSE_TRANSITION_BLOCK.alreadyDiscarded]: 'The service invoice is already discarded.',
   [NFSE_TRANSITION_BLOCK.cancellationInFlight]:
     'The city already received the cancellation and has not confirmed it yet.',
   [NFSE_TRANSITION_BLOCK.inFlight]: 'The service invoice already has a request in flight.',
@@ -119,6 +120,20 @@ export class NfseCredentialMissingError extends ApiError {
     super({
       code: 'NFSE_CREDENTIAL_MISSING',
       message: 'There is no active NFS-e provider credential for the requested fiscal environment.',
+      status: UNPROCESSABLE_STATUS,
+    })
+  }
+}
+
+/**
+ * Reemitir reaproveita o RPS congelado da última tentativa. Sem ele não há o que retransmitir — e
+ * remontar a nota aqui produziria um documento diferente do que a empresa aprovou na prévia.
+ */
+export class NfseIssuancePayloadMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'NFSE_ISSUANCE_PAYLOAD_MISSING',
+      message: 'The service invoice has no frozen issuance payload to reissue.',
       status: UNPROCESSABLE_STATUS,
     })
   }

@@ -11,11 +11,17 @@ import type {
   NfseIssuanceOutboxEventType,
   NfseServiceInvoiceStatus,
 } from '../../database/nfse.schema.js'
-import { NfseIdempotencyKeyReusedError } from '../domain/nfse-issuance.error.js'
+import type { NfseInvoiceCorrectionInput } from '../domain/nfse-issuance-correction.policy.js'
+import {
+  NfseCredentialMissingError,
+  NfseFiscalSettingsMissingError,
+  NfseIdempotencyKeyReusedError,
+} from '../domain/nfse-issuance.error.js'
 import type { NfseInvoicePreviewItem } from './nfse-invoice-preview.service.js'
 import type {
   NfseInvoiceCredential,
   NfseInvoiceProfile,
+  NfseInvoiceReaderPort,
   NfseInvoiceTransactionPort,
 } from './nfse-invoice.port.js'
 
@@ -30,6 +36,7 @@ const CANCEL_ATTEMPT_KIND: NfseAttemptKind = 'cancel'
 const CANCEL_OPERATION = 'nfse.invoice.cancel'
 const CREATE_OPERATION = 'nfse.invoice.create'
 const ISSUE_ATTEMPT_KIND: NfseAttemptKind = 'issue'
+const REISSUE_OPERATION = 'nfse.invoice.reissue'
 
 export type NfseInvoiceSummary = {
   readonly attemptId: string
@@ -76,6 +83,38 @@ export function createCancellationFingerprint(input: {
     invoiceId: input.invoiceId,
     operation: CANCEL_OPERATION,
   })
+}
+
+/**
+ * A reemissão sem correção não tem campo nenhum além da nota: repetir a chave sobre a mesma nota é
+ * repetição de rede, e é isso que o replay devolve. A correção entra espalhada no objeto — nunca
+ * aninhada sob `correction` — porque `createRequestFingerprint` só ordena as chaves de fora.
+ */
+export function createReissueFingerprint(input: {
+  readonly correction?: NfseInvoiceCorrectionInput
+  readonly invoiceId: string
+}): string {
+  return createRequestFingerprint({
+    invoiceId: input.invoiceId,
+    operation: REISSUE_OPERATION,
+    ...(input.correction ?? {}),
+  })
+}
+
+/**
+ * O ambiente fiscal e a credencial ativa da empresa, na mesma leitura que toda emissão faz. Fica
+ * aqui para criação, cancelamento e reemissão lerem pela mesma porta — três cópias divergiriam.
+ */
+export async function loadNfseCredential(
+  reader: NfseInvoiceReaderPort,
+  companyId: string,
+): Promise<NfseInvoiceCredential> {
+  const fiscalEnvironment = await reader.findFiscalEnvironment({ companyId })
+  if (fiscalEnvironment === null) throw new NfseFiscalSettingsMissingError()
+
+  const credential = await reader.findActiveCredential({ companyId, fiscalEnvironment })
+  if (credential === null) throw new NfseCredentialMissingError()
+  return credential
 }
 
 export async function findReplaySummary(params: {
@@ -154,14 +193,25 @@ export function freezeNfseIssuancePayload({
     invoiceId,
     payload,
     payloadSha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex'),
-    // Sem segredo: o token continua selado na credencial e só o worker o abre para transmitir.
-    providerConfig: {
-      credentialId: credential.credentialId,
-      fiscalEnvironment: credential.fiscalEnvironment,
-      municipalRegistration: credential.municipalRegistration,
-      provider: credential.provider,
-      taxId: credential.taxId,
-    },
+    providerConfig: buildNfseProviderConfig(credential),
+  }
+}
+
+/**
+ * Sem segredo: o token continua selado na credencial e só o worker o abre para transmitir. Fica
+ * fora do `payload` — e do hash — porque é transporte, não conteúdo fiscal: a reemissão remonta
+ * este bloco pela credencial ativa de hoje, que é o que faz uma inscrição municipal corrigida
+ * valer na próxima tentativa.
+ */
+export function buildNfseProviderConfig(
+  credential: NfseInvoiceCredential,
+): Readonly<Record<string, unknown>> {
+  return {
+    credentialId: credential.credentialId,
+    fiscalEnvironment: credential.fiscalEnvironment,
+    municipalRegistration: credential.municipalRegistration,
+    provider: credential.provider,
+    taxId: credential.taxId,
   }
 }
 

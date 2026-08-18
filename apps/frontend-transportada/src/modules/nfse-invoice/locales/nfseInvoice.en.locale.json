@@ -102,8 +102,10 @@
   "rowActions": {
     "cancel": "Cancel the service invoice",
     "detail": "View the service invoice detail",
+    "discard": "Discard the service invoice",
     "downloadPdf": "Download the service invoice PDF",
-    "downloadXml": "Download the service invoice XML"
+    "downloadXml": "Download the service invoice XML",
+    "reissue": "Reissue the service invoice"
   },
   "detail": {
     "cancellation": "Cancellation",
@@ -174,6 +176,37 @@
     "title": "Cancel the service invoice",
     "warning": "The cancellation is sent to the city hall and releases the linked fiscal invoices."
   },
+  "discardDialog": {
+    "back": "Back",
+    "close": "Close",
+    "confirm": "Discard the invoice",
+    "failed": "The service invoice could not be discarded. Try again in a moment.",
+    "sending": "Discarding…",
+    "title": "Discard the service invoice",
+    "warning": "Discarding releases the linked fiscal invoices and cannot be undone."
+  },
+  "reissueDialog": {
+    "back": "Back",
+    "cnaeCode": "CNAE",
+    "close": "Close",
+    "confirm": "Reissue the invoice",
+    "description": "Service description",
+    "documentCount": "Note count",
+    "failed": "The service invoice could not be reissued. Try again in a moment.",
+    "issAmount": "ISS amount",
+    "issExigibility": "ISS exigibility",
+    "issRate": "ISS rate",
+    "issWithheld": "ISS withheld by the taker",
+    "loading": "Loading the last issuance data",
+    "municipalTaxationCode": "Municipal taxation code",
+    "municipalityIbgeCode": "Municipality IBGE code",
+    "nbsCode": "NBS code",
+    "sending": "Reissuing…",
+    "serviceAmount": "Service amount",
+    "serviceListItem": "Service list item",
+    "takerLegalName": "Taker",
+    "title": "Reissue the service invoice"
+  },
   "bulkExport": {
     "action": "Download XML and PDF",
     "empty": "No invoice in the selection has an archived document.",
@@ -200,7 +233,8 @@
     "cancellation_requested": "Cancellation requested",
     "rejected": "Rejected",
     "cancelled": "Cancelled",
-    "failed": "Failed"
+    "failed": "Failed",
+    "discarded": "Discarded"
   },
   "emission": {
     "action": "Issue service invoice",

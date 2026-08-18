@@ -30,6 +30,8 @@ import {
   buildActiveInvoiceLinkFilters,
   buildAttemptIdempotencyFilters,
   buildFiscalEnvironmentFilters,
+  buildLatestPayloadAttemptJoin,
+  buildLatestPayloadFilters,
   buildNfseProfileFilters,
 } from './nfse-invoice-issuance.query.js'
 import {
@@ -52,9 +54,12 @@ import type {
   CreateNfseIssuanceAttemptInput,
   LinkNfseInvoiceDocumentsInput,
   MarkNfseInvoiceCancellationInput,
+  MarkNfseInvoiceDiscardedInput,
+  MarkNfseInvoiceIssuingInput,
   NfseFiscalDocumentKind,
   NfseFiscalDocumentLocation,
   NfseFreightRuleVersion,
+  NfseFrozenIssuancePayload,
   NfseInvoiceCancellationTarget,
   NfseInvoiceChargeLine,
   NfseInvoiceCredential,
@@ -144,6 +149,13 @@ export class DrizzleNfseInvoiceRepository implements NfseInvoiceRepositoryPort {
     return findInvoiceDocuments(this.database, input)
   }
 
+  public findLatestPayload(input: {
+    readonly companyId: string
+    readonly invoiceId: string
+  }): Promise<NfseFrozenIssuancePayload | null> {
+    return findLatestPayload(this.database, input.companyId, input.invoiceId)
+  }
+
   public listInvoices(input: {
     readonly companyId: string
     readonly cursor: NfseInvoiceCursor | null
@@ -230,6 +242,9 @@ function createScopedTransaction(
     async findInvoiceForUpdate(input) {
       return findInvoiceForUpdate(transaction, companyId, input.invoiceId)
     },
+    async findLatestPayload(input) {
+      return findLatestPayload(transaction, input.companyId, input.invoiceId)
+    },
     async findProfile(input) {
       return findProfile(transaction, input)
     },
@@ -244,6 +259,12 @@ function createScopedTransaction(
     },
     async markCancellationRequested(input) {
       await markCancellationRequested(transaction, companyId, input)
+    },
+    async markDiscarded(input) {
+      await markDiscarded(transaction, companyId, input)
+    },
+    async markIssuing(input) {
+      await markIssuing(transaction, companyId, input)
     },
     async pushOutbox(input) {
       await pushOutbox(transaction, companyId, input)
@@ -566,6 +587,71 @@ async function markCancellationRequested(
       version: sql`${nfseServiceInvoices.version} + 1`,
     })
     .where(and(...buildInvoiceScopeFilters({ companyId, invoiceId: input.invoiceId })))
+}
+
+/**
+ * Descartar não fala com a prefeitura: não há cancelamento a registrar, só o status terminal —
+ * por isso não toca `cancellation_motive`/`cancellation_reason`, que são do fluxo de cancelamento.
+ */
+async function markDiscarded(
+  transaction: NfseTransaction,
+  companyId: string,
+  input: MarkNfseInvoiceDiscardedInput,
+): Promise<void> {
+  await transaction
+    .update(nfseServiceInvoices)
+    .set({
+      status: input.status,
+      updatedAt: new Date(input.discardedAt),
+      version: sql`${nfseServiceInvoices.version} + 1`,
+    })
+    .where(and(...buildInvoiceScopeFilters({ companyId, invoiceId: input.invoiceId })))
+}
+
+/**
+ * Reemitir devolve a nota a `issuing` e **limpa a rejeição**: o CHECK só a exige em `rejected`, e
+ * deixá-la ali mostraria "em emissão" ao lado da mensagem da recusa anterior. A trilha não se perde
+ * — o código e o texto da recusa continuam na tentativa que os recebeu.
+ */
+async function markIssuing(
+  transaction: NfseTransaction,
+  companyId: string,
+  input: MarkNfseInvoiceIssuingInput,
+): Promise<void> {
+  await transaction
+    .update(nfseServiceInvoices)
+    .set({
+      rejectionCode: null,
+      rejectionMessage: null,
+      status: input.status,
+      updatedAt: new Date(input.requestedAt),
+      version: sql`${nfseServiceInvoices.version} + 1`,
+    })
+    .where(and(...buildInvoiceScopeFilters({ companyId, invoiceId: input.invoiceId })))
+}
+
+/** A ordem é por `attempt_number`, não por data: é ele que numera as tentativas da nota. */
+async function findLatestPayload(
+  queryable: NfseQueryable,
+  companyId: string,
+  invoiceId: string,
+): Promise<NfseFrozenIssuancePayload | null> {
+  const [record] = await queryable
+    .select({
+      payload: nfseIssuancePayloads.payload,
+      payloadSha256: nfseIssuancePayloads.payloadSha256,
+    })
+    .from(nfseIssuancePayloads)
+    .innerJoin(nfseIssuanceAttempts, buildLatestPayloadAttemptJoin())
+    .where(and(...buildLatestPayloadFilters({ companyId, invoiceId })))
+    .orderBy(desc(nfseIssuanceAttempts.attemptNumber))
+    .limit(1)
+  if (record === undefined) return null
+
+  return {
+    payload: record.payload as Readonly<Record<string, unknown>>,
+    payloadSha256: record.payloadSha256,
+  }
 }
 
 async function findActiveCteBatchLinks(

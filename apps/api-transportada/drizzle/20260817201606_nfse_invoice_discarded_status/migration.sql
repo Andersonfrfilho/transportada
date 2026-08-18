@@ -1,0 +1,1 @@
+ALTER TABLE "nfse_service_invoices" DROP CONSTRAINT "nfse_service_invoices_status_check", ADD CONSTRAINT "nfse_service_invoices_status_check" CHECK ("status" in ('requested', 'issuing', 'pending_authorization', 'authorized', 'cancellation_requested', 'rejected', 'cancelled', 'failed', 'discarded'));

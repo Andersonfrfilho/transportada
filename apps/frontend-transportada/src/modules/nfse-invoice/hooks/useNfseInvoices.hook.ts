@@ -15,6 +15,7 @@ import {
 } from '../shared/nfseInvoice.constant'
 import type {
   NfseCancellationSummary,
+  NfseDiscardSummary,
   NfseDocumentDownload,
   NfseInvoiceDetail,
   NfseInvoiceDocument,
@@ -24,13 +25,16 @@ import type {
   NfseInvoicePreview,
   NfseInvoiceSelection,
   NfseIssuanceSummary,
+  NfseReissueSummary,
 } from '../shared/nfseInvoice.types'
 import {
   createNfseInvoiceClient,
   type NfseInvoiceCancellationInput,
   type NfseInvoiceClient,
+  type NfseInvoiceDiscardInput,
   type NfseInvoiceExportInput,
   type NfseInvoiceListQuery,
+  type NfseInvoiceReissueInput,
 } from '../shared/nfseInvoiceClient.service'
 
 export type NfseInvoiceController = Readonly<{
@@ -42,6 +46,7 @@ export type NfseInvoiceController = Readonly<{
   createInvoices: (
     input: NfseInvoiceSelection & Readonly<{ idempotencyKey: string }>,
   ) => Promise<NfseIssuanceSummary>
+  discardInvoice: (input: NfseInvoiceDiscardInput) => Promise<NfseDiscardSummary>
   exportInvoices: (input: NfseInvoiceExportInput) => Promise<ArchiveFile>
   getInvoice: (input: Readonly<{ invoiceId: string }>) => Promise<NfseInvoiceDetail>
   getInvoiceDocumentUrl: (
@@ -52,6 +57,7 @@ export type NfseInvoiceController = Readonly<{
   ) => Promise<readonly NfseInvoiceDocument[]>
   listInvoices: (input: NfseInvoiceListQuery) => Promise<NfseInvoicePage>
   previewInvoices: (input: NfseInvoiceSelection) => Promise<NfseInvoicePreview>
+  reissueInvoice: (input: NfseInvoiceReissueInput) => Promise<NfseReissueSummary>
 }>
 
 type ControllerInput = Readonly<{
@@ -78,6 +84,8 @@ export function createNfseInvoiceController(input: ControllerInput): NfseInvoice
     cancelInvoice: (query) => (canCancelInvoices ? input.client.cancelInvoice(query) : forbidden()),
     createInvoices: (query) =>
       canIssueInvoices ? input.client.createInvoices(query) : forbidden(),
+    discardInvoice: (query) =>
+      canCancelInvoices ? input.client.discardInvoice(query) : forbidden(),
     exportInvoices: (query) => (canReadInvoices ? input.client.exportInvoices(query) : forbidden()),
     getInvoice: (query) => (canReadInvoices ? input.client.getInvoice(query) : forbidden()),
     getInvoiceDocumentUrl: (query) =>
@@ -87,6 +95,8 @@ export function createNfseInvoiceController(input: ControllerInput): NfseInvoice
     listInvoices: (query) => (canReadInvoices ? input.client.listInvoices(query) : forbidden()),
     previewInvoices: (query) =>
       canReadInvoices ? input.client.previewInvoices(query) : forbidden(),
+    reissueInvoice: (query) =>
+      canIssueInvoices ? input.client.reissueInvoice(query) : forbidden(),
   }
 }
 
@@ -115,7 +125,15 @@ function useNfseInvoiceMutations(
       mutationFn: input.controller.createInvoices,
       onSuccess: invalidateInvoices,
     }),
+    discardInvoiceMutation: useMutation({
+      mutationFn: input.controller.discardInvoice,
+      onSuccess: invalidateInvoices,
+    }),
     previewInvoicesMutation: useMutation({ mutationFn: input.controller.previewInvoices }),
+    reissueInvoiceMutation: useMutation({
+      mutationFn: input.controller.reissueInvoice,
+      onSuccess: invalidateInvoices,
+    }),
   }
 }
 
