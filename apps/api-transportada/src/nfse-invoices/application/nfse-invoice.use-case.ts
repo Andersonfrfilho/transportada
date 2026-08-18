@@ -3,11 +3,7 @@
  */
 import type { FreightRuleSnapshot } from '../../freight-calculations/domain/freight-calculation-engine.service.js'
 import { NfseEmissionProfileNotFoundError } from '../../nfse-profiles/domain/nfse-profile.error.js'
-import {
-  NfseCredentialMissingError,
-  NfseFiscalSettingsMissingError,
-  NfseInvoiceCreateSpansMultipleTakersError,
-} from '../domain/nfse-issuance.error.js'
+import { NfseInvoiceCreateSpansMultipleTakersError } from '../domain/nfse-issuance.error.js'
 import {
   assertNoNfseBlocks,
   assertProfileIsActive,
@@ -31,6 +27,7 @@ import {
   createInvoiceFingerprint,
   findReplaySummary,
   freezeNfseIssuancePayload,
+  loadNfseCredential,
   scheduleNfseIssuance,
 } from './nfse-issuance-attempt.service.js'
 
@@ -85,7 +82,7 @@ export function createNfseInvoiceUseCase(dependencies: {
         if (replay !== null) return replay
 
         const profile = assertProfileIsActive(await loadProfile(transaction, input))
-        const credential = await loadCredential(transaction, input.context.companyId)
+        const credential = await loadNfseCredential(transaction, input.context.companyId)
         const resolved = await resolveSingleInvoice({ input, profile, reader: transaction })
 
         return persistInvoice({
@@ -129,18 +126,6 @@ async function loadProfile(
   })
   if (profile === null) throw new NfseEmissionProfileNotFoundError()
   return profile
-}
-
-async function loadCredential(
-  reader: NfseInvoiceReaderPort,
-  companyId: string,
-): Promise<NfseInvoiceCredential> {
-  const fiscalEnvironment = await reader.findFiscalEnvironment({ companyId })
-  if (fiscalEnvironment === null) throw new NfseFiscalSettingsMissingError()
-
-  const credential = await reader.findActiveCredential({ companyId, fiscalEnvironment })
-  if (credential === null) throw new NfseCredentialMissingError()
-  return credential
 }
 
 /** A criação recebe um grupo por vez: dois tomadores na mesma seleção seriam duas notas. */

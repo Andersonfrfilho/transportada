@@ -6,6 +6,7 @@ import { z } from 'zod'
 import {
   MAX_DESCRIPTION_MAX_LENGTH,
   NFSE_CANCELLATION_MOTIVES,
+  NFSE_ISS_EXIGIBILITIES,
   NFSE_SERVICE_INVOICE_STATUSES,
 } from '../../database/nfse.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
@@ -30,9 +31,15 @@ const CURSOR_SEPARATOR = '::'
 const CURSOR_PARTS = 2
 const DEFAULT_PAGE_LIMIT = 25
 const MAX_CANCELLATION_REASON = 255
+const MAX_CORRECTION_TEXT_LENGTH = 40
 const MIN_CANCELLATION_REASON = 5
+const MIN_CORRECTION_SERVICE_LIST_ITEM = 1
+const MAX_CORRECTION_SERVICE_LIST_ITEM = 20
 const PAGE_LIMIT = /^(?:[1-9]|[1-9][0-9]|100)$/
 const UUID = z.uuid()
+const CORRECTION_CNAE = /^[0-9]{7}$/
+const CORRECTION_IBGE_CITY = /^[0-9]{7}$/
+const CORRECTION_ISS_RATE = /^(?:0\.[0-9]{6}|1\.000000)$/
 
 const LIST_QUERY_KEYS = new Set([
   'createdFrom',
@@ -56,6 +63,36 @@ export const nfseInvoiceCancellationSchema = z
   .strict()
 
 export type NfseInvoiceCancellationBody = z.infer<typeof nfseInvoiceCancellationSchema>
+
+/** Descartar não tem motivo nem correção: o corpo é vazio, e `.strict()` recusa qualquer campo. */
+export const nfseInvoiceDiscardSchema = z.object({}).strict()
+
+/**
+ * Reemitir sem correção retransmite o RPS congelado tal como está — corpo ausente. Os nove campos
+ * corrigíveis da spec são todos opcionais e sem `.default()`: ausência tem de continuar distinguível
+ * de valor explícito. `serviceAmount`/`issAmount`/`taker`/`documents` não têm campo — `.strict()` é
+ * o que devolve `400` para eles, e também para `companyId`.
+ */
+export const nfseInvoiceReissueSchema = z
+  .object({
+    cnaeCode: z.string().regex(CORRECTION_CNAE).optional(),
+    description: z.string().trim().min(1).max(MAX_DESCRIPTION_MAX_LENGTH).optional(),
+    issExigibility: z.enum(NFSE_ISS_EXIGIBILITIES).optional(),
+    issRate: z.string().regex(CORRECTION_ISS_RATE).optional(),
+    issWithheld: z.boolean().optional(),
+    municipalTaxationCode: z.string().trim().max(MAX_CORRECTION_TEXT_LENGTH).optional(),
+    municipalityIbgeCode: z.string().regex(CORRECTION_IBGE_CITY).optional(),
+    nbsCode: z.string().trim().max(MAX_CORRECTION_TEXT_LENGTH).optional(),
+    serviceListItem: z
+      .string()
+      .trim()
+      .min(MIN_CORRECTION_SERVICE_LIST_ITEM)
+      .max(MAX_CORRECTION_SERVICE_LIST_ITEM)
+      .optional(),
+  })
+  .strict()
+
+export type NfseInvoiceReissueBody = z.infer<typeof nfseInvoiceReissueSchema>
 
 export function parseNfseInvoiceList(url: URL): {
   readonly cursor: NfseInvoiceCursor | null
@@ -168,3 +205,30 @@ export const nfseInvoiceExportSchema = z
   .strict()
 
 export type NfseInvoiceExportBody = z.infer<typeof nfseInvoiceExportSchema>
+
+/**
+ * O payload congelado que o detalhe expõe em `lastPayload` — mesma forma que o diálogo de
+ * reemissão do frontend usa para pré-preencher os campos corrigíveis (spec 042, T013/T014).
+ * `null` é a fatura ainda sem tentativa nenhuma.
+ */
+export const nfseLastIssuancePayloadResponseSchema = z
+  .object({
+    cnaeCode: z.string(),
+    description: z.string(),
+    documentCount: z.number(),
+    issAmount: z.string(),
+    issExigibility: z.enum(NFSE_ISS_EXIGIBILITIES),
+    issRate: z.string(),
+    issWithheld: z.boolean(),
+    municipalTaxationCode: z.string(),
+    municipalityIbgeCode: z.string(),
+    nbsCode: z.string(),
+    serviceAmount: z.string(),
+    serviceListItem: z.string(),
+    takerLegalName: z.string(),
+    takerTaxId: z.string(),
+  })
+  .strict()
+  .nullable()
+
+export type NfseLastIssuancePayloadResponse = z.infer<typeof nfseLastIssuancePayloadResponseSchema>

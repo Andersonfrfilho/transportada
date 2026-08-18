@@ -1,20 +1,21 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type {
-  NfseCancellationMotive,
-  NfseServiceInvoiceStatus,
-} from '../../database/nfse.schema.js'
+import type { NfseAttemptKind, NfseServiceInvoiceStatus } from '../../database/nfse.schema.js'
 import {
   NFSE_INVOICE_ACTION,
   checkNfseInvoiceTransition,
 } from '../domain/nfse-invoice-state.policy.js'
+import { applyNfseIssuanceCorrection } from '../domain/nfse-issuance-correction.policy.js'
+import type { NfseInvoiceCorrectionInput } from '../domain/nfse-issuance-correction.policy.js'
 import {
   NfseIdempotencyKeyReusedError,
   NfseInvoiceNotFoundError,
   NfseInvoiceTransitionBlockedError,
+  NfseIssuancePayloadMissingError,
 } from '../domain/nfse-issuance.error.js'
 import type {
+  NfseFrozenIssuancePayload,
   NfseInvoiceCancellationTarget,
   NfseInvoiceCompanyContext,
   NfseInvoiceCredential,
@@ -22,64 +23,74 @@ import type {
   NfseInvoiceTransactionPort,
 } from './nfse-invoice.port.js'
 import {
-  createCancellationFingerprint,
+  buildNfseProviderConfig,
+  createReissueFingerprint,
   loadNfseCredential,
-  scheduleNfseCancellation,
+  scheduleNfseIssuance,
 } from './nfse-issuance-attempt.service.js'
 
-const CANCEL_ATTEMPT_KIND = 'cancel'
+const ISSUE_ATTEMPT_KIND: NfseAttemptKind = 'issue'
 
-export type CancelNfseInvoiceInput = {
-  readonly cancellationMotive: NfseCancellationMotive
-  readonly cancellationReason: string
+export type { NfseInvoiceCorrectionInput }
+
+export type ReissueNfseInvoiceInput = {
   readonly context: NfseInvoiceCompanyContext
+  readonly correction?: NfseInvoiceCorrectionInput
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly invoiceId: string
 }
 
-export type NfseInvoiceCancellationSummary = {
+export type NfseInvoiceReissueSummary = {
   readonly attemptId: string
+  readonly attemptNumber: number
   readonly invoiceId: string
-  readonly releasedDocumentIds: readonly string[]
+  readonly payloadSha256: string
   readonly replayed: boolean
   readonly requestedAt: string
   readonly status: NfseServiceInvoiceStatus
 }
 
-export type NfseInvoiceCancellationUseCase = {
-  execute(input: CancelNfseInvoiceInput): Promise<NfseInvoiceCancellationSummary>
+export type NfseInvoiceReissueUseCase = {
+  execute(input: ReissueNfseInvoiceInput): Promise<NfseInvoiceReissueSummary>
 }
 
 /**
- * Cancelar devolve as NF-e na mesma transação que registra o pedido: o vínculo ganha `cancelled_at`
- * e o índice parcial único libera o documento para outra nota e para lote de CT-e. A nota vai a
- * `cancellation_requested` — quem a leva a `cancelled` é o write-back da prefeitura, que é quem
- * cancela um documento fiscal.
+ * Reemitir é a saída da nota rejeitada: uma tentativa nova sobre o **mesmo** RPS congelado, com o
+ * mesmo `payload_sha256`. Nada é recalculado — perfil e regra de frete podem ter mudado desde a
+ * prévia, e recalcular transmitiria à prefeitura um documento que ninguém aprovou.
+ *
+ * Os vínculos com as NF-e permanecem: a nota continua sendo a mesma, e devolver os documentos à
+ * seleção aqui abriria a porta para eles entrarem noutra nota enquanto esta ainda tenta.
  */
-export function createNfseInvoiceCancellationUseCase(dependencies: {
+export function createNfseInvoiceReissueUseCase(dependencies: {
   readonly now: () => Date
   readonly repository: NfseInvoiceRepositoryPort
-}): NfseInvoiceCancellationUseCase {
+}): NfseInvoiceReissueUseCase {
   const { now, repository } = dependencies
 
   return {
     async execute(input) {
-      const requestFingerprint = createCancellationFingerprint({
-        cancellationMotive: input.cancellationMotive,
-        cancellationReason: input.cancellationReason,
+      const requestFingerprint = createReissueFingerprint({
         invoiceId: input.invoiceId,
+        ...(input.correction === undefined ? {} : { correction: input.correction }),
       })
 
       return repository.transaction({ companyId: input.context.companyId }, async (transaction) => {
-        const replay = await findCancellationReplay({ input, requestFingerprint, transaction })
+        const replay = await findReissueReplay({ input, requestFingerprint, transaction })
         if (replay !== null) return replay
 
-        const { invoice, nextStatus } = await loadCancellableInvoice(transaction, input.invoiceId)
+        const { invoice, nextStatus } = await loadReissuableInvoice(transaction, input.invoiceId)
         const credential = await loadNfseCredential(transaction, input.context.companyId)
+        const frozen = await loadFrozenPayload(
+          transaction,
+          input.context.companyId,
+          invoice.invoiceId,
+        )
 
-        return requestCancellation({
+        return requestReissue({
           credential,
+          frozen,
           input,
           invoice,
           nextStatus,
@@ -92,15 +103,15 @@ export function createNfseInvoiceCancellationUseCase(dependencies: {
   }
 }
 
-async function findCancellationReplay({
+async function findReissueReplay({
   input,
   requestFingerprint,
   transaction,
 }: {
-  readonly input: CancelNfseInvoiceInput
+  readonly input: ReissueNfseInvoiceInput
   readonly requestFingerprint: string
   readonly transaction: NfseInvoiceTransactionPort
-}): Promise<NfseInvoiceCancellationSummary | null> {
+}): Promise<NfseInvoiceReissueSummary | null> {
   const attempt = await transaction.findAttemptByIdempotencyKey({
     idempotencyKey: input.idempotencyKey,
   })
@@ -109,11 +120,13 @@ async function findCancellationReplay({
 
   const invoice = await transaction.findInvoiceForUpdate({ invoiceId: attempt.invoiceId })
   if (invoice === null) throw new NfseInvoiceNotFoundError()
+  const frozen = await loadFrozenPayload(transaction, input.context.companyId, attempt.invoiceId)
 
   return {
     attemptId: attempt.attemptId,
+    attemptNumber: attempt.attemptNumber,
     invoiceId: attempt.invoiceId,
-    releasedDocumentIds: [],
+    payloadSha256: frozen.payloadSha256,
     replayed: true,
     requestedAt: attempt.createdAt,
     status: invoice.status,
@@ -121,7 +134,7 @@ async function findCancellationReplay({
 }
 
 /** O status seguinte vem da tabela de transições, nunca de um literal aqui. */
-async function loadCancellableInvoice(
+async function loadReissuableInvoice(
   transaction: NfseInvoiceTransactionPort,
   invoiceId: string,
 ): Promise<{
@@ -132,15 +145,26 @@ async function loadCancellableInvoice(
   if (invoice === null) throw new NfseInvoiceNotFoundError()
 
   const transition = checkNfseInvoiceTransition({
-    action: NFSE_INVOICE_ACTION.cancel,
+    action: NFSE_INVOICE_ACTION.issue,
     status: invoice.status,
   })
   if (!transition.allowed) throw new NfseInvoiceTransitionBlockedError(transition.reason)
   return { invoice, nextStatus: transition.nextStatus }
 }
 
-async function requestCancellation({
+async function loadFrozenPayload(
+  transaction: NfseInvoiceTransactionPort,
+  companyId: string,
+  invoiceId: string,
+): Promise<NfseFrozenIssuancePayload> {
+  const frozen = await transaction.findLatestPayload({ companyId, invoiceId })
+  if (frozen === null) throw new NfseIssuancePayloadMissingError()
+  return frozen
+}
+
+async function requestReissue({
   credential,
+  frozen,
   input,
   invoice,
   nextStatus,
@@ -149,38 +173,48 @@ async function requestCancellation({
   transaction,
 }: {
   readonly credential: NfseInvoiceCredential
-  readonly input: CancelNfseInvoiceInput
+  readonly frozen: NfseFrozenIssuancePayload
+  readonly input: ReissueNfseInvoiceInput
   readonly invoice: NfseInvoiceCancellationTarget
   readonly nextStatus: NfseServiceInvoiceStatus
   readonly now: () => Date
   readonly requestFingerprint: string
   readonly transaction: NfseInvoiceTransactionPort
-}): Promise<NfseInvoiceCancellationSummary> {
+}): Promise<NfseInvoiceReissueSummary> {
   const occurredAt = now().toISOString()
-
-  const releasedDocumentIds = await transaction.releaseDocumentLinks({
-    cancelledAt: occurredAt,
-    invoiceId: invoice.invoiceId,
+  const corrected = applyNfseIssuanceCorrection({
+    previousPayload: frozen.payload,
+    previousPayloadSha256: frozen.payloadSha256,
+    ...(input.correction === undefined ? {} : { correction: input.correction }),
   })
-  await transaction.markCancellationRequested({
-    cancellationMotive: input.cancellationMotive,
-    cancellationReason: input.cancellationReason,
+
+  await transaction.markIssuing({
     invoiceId: invoice.invoiceId,
     requestedAt: occurredAt,
     status: nextStatus,
+    ...(input.correction?.description === undefined
+      ? {}
+      : { description: input.correction.description }),
+    ...(corrected.issAmount === undefined ? {} : { issAmount: corrected.issAmount }),
   })
 
   const attempt = await transaction.createAttempt({
-    attemptKind: CANCEL_ATTEMPT_KIND,
+    attemptKind: ISSUE_ATTEMPT_KIND,
     correlationId: input.correlationId,
     fiscalEnvironment: credential.fiscalEnvironment,
     idempotencyKey: input.idempotencyKey,
     invoiceId: invoice.invoiceId,
     requestFingerprint,
   })
-  await scheduleNfseCancellation({
+  await transaction.savePayload({
     attemptId: attempt.attemptId,
-    cancellationMotive: input.cancellationMotive,
+    invoiceId: invoice.invoiceId,
+    payload: corrected.payload,
+    payloadSha256: corrected.payloadSha256,
+    providerConfig: buildNfseProviderConfig(credential),
+  })
+  await scheduleNfseIssuance({
+    attemptId: attempt.attemptId,
     correlationId: input.correlationId,
     fiscalEnvironment: credential.fiscalEnvironment,
     invoiceId: invoice.invoiceId,
@@ -192,8 +226,9 @@ async function requestCancellation({
 
   return {
     attemptId: attempt.attemptId,
+    attemptNumber: attempt.attemptNumber,
     invoiceId: invoice.invoiceId,
-    releasedDocumentIds,
+    payloadSha256: corrected.payloadSha256,
     replayed: false,
     requestedAt: occurredAt,
     status: nextStatus,

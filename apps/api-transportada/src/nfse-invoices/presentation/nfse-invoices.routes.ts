@@ -14,21 +14,30 @@ import {
 import type { NfseInvoiceCancellationSummary } from '../application/nfse-invoice-cancellation.use-case.js'
 import type { CancelNfseInvoiceInput } from '../application/nfse-invoice-cancellation.use-case.js'
 import type {
+  DiscardNfseInvoiceInput,
+  NfseInvoiceDiscardSummary,
+} from '../application/nfse-invoice-discard.use-case.js'
+import type {
   NfseInvoicePreview,
   NfseInvoicePreviewItem,
 } from '../application/nfse-invoice-preview.service.js'
 import type {
+  NfseInvoiceReissueSummary,
+  ReissueNfseInvoiceInput,
+} from '../application/nfse-invoice-reissue.use-case.js'
+import type {
   DownloadNfseFiscalDocumentInput,
   ListNfseInvoicesInput,
+  NfseInvoiceDetailWithPayload,
   NfseInvoiceScopedInput,
 } from '../application/nfse-invoice-query.use-case.js'
 import type {
   NfseFiscalDocumentDownload,
   NfseInvoiceDelivery,
-  NfseInvoiceDetail,
   NfseInvoiceLinkedDocument,
   NfseInvoiceListItem,
   NfseInvoicePage,
+  NfseLastIssuancePayload,
 } from '../application/nfse-invoice.port.js'
 import type {
   CreateNfseInvoiceInput,
@@ -37,7 +46,9 @@ import type {
 import type { NfseInvoiceSummary } from '../application/nfse-issuance-attempt.service.js'
 import {
   nfseInvoiceCancellationSchema,
+  nfseInvoiceDiscardSchema,
   nfseInvoiceExportSchema,
+  nfseInvoiceReissueSchema,
   nfseInvoiceSelectionSchema,
   parseNfseInvoiceList,
   parseUuidPathIdentifier,
@@ -45,14 +56,16 @@ import {
 
 const NFSE_READ_POLICY = { permission: 'nfse.read', scope: 'company' } as const
 const NFSE_ISSUE_POLICY = { permission: 'nfse.issue', scope: 'company' } as const
-/** Cancelar tem permissão própria: quem emite não necessariamente pode derrubar nota autorizada. */
+/** Cancelar e descartar reusam a mesma permissão: as duas encerram a fatura sem passar pela emissão. */
 const NFSE_CANCEL_POLICY = { permission: 'nfse.cancel', scope: 'company' } as const
 const CANCEL_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/cancel`
+const DISCARD_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/discard`
 const DOCUMENTS_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/documents`
 const EXPORT_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/export`
 const INVOICE_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id`
 const PDF_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/pdf`
 const PREVIEW_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/preview`
+const REISSUE_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/reissue`
 const XML_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/xml`
 
 type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: CompanyContext }
@@ -60,6 +73,9 @@ type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: Company
 type Dependencies = {
   readonly cancelNfseInvoice: {
     execute(input: TenantInput<CancelNfseInvoiceInput>): Promise<NfseInvoiceCancellationSummary>
+  }
+  readonly discardNfseInvoice: {
+    execute(input: TenantInput<DiscardNfseInvoiceInput>): Promise<NfseInvoiceDiscardSummary>
   }
   readonly exportNfseDocuments: {
     exportDocuments(input: TenantInput<NfseExportRequest>): Promise<NfseExportResult>
@@ -69,7 +85,7 @@ type Dependencies = {
     preview(input: TenantInput<PreviewNfseInvoiceInput>): Promise<NfseInvoicePreview>
   }
   readonly nfseInvoiceQuery: {
-    detail(input: TenantInput<NfseInvoiceScopedInput>): Promise<NfseInvoiceDetail>
+    detail(input: TenantInput<NfseInvoiceScopedInput>): Promise<NfseInvoiceDetailWithPayload>
     documents(
       input: TenantInput<NfseInvoiceScopedInput>,
     ): Promise<readonly NfseInvoiceLinkedDocument[]>
@@ -77,6 +93,9 @@ type Dependencies = {
       input: TenantInput<DownloadNfseFiscalDocumentInput>,
     ): Promise<NfseFiscalDocumentDownload>
     list(input: TenantInput<ListNfseInvoicesInput>): Promise<NfseInvoicePage>
+  }
+  readonly reissueNfseInvoice: {
+    execute(input: TenantInput<ReissueNfseInvoiceInput>): Promise<NfseInvoiceReissueSummary>
   }
 }
 
@@ -213,6 +232,47 @@ export function createNfseInvoiceRoutes(
       pathname: CANCEL_PATH,
       policy: NFSE_CANCEL_POLICY,
     }),
+    defineRoute<Omit<DiscardNfseInvoiceInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const summary = await dependencies.discardNfseInvoice.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeDiscard(summary) }, status: 202 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        await parseBody(nfseInvoiceDiscardSchema, request)
+        return {
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          invoiceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: DISCARD_PATH,
+      policy: NFSE_CANCEL_POLICY,
+    }),
+    defineRoute<Omit<ReissueNfseInvoiceInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const summary = await dependencies.reissueNfseInvoice.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeReissue(summary) }, status: 202 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const correction = await parseBody(nfseInvoiceReissueSchema, request)
+        return {
+          correction,
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          invoiceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: REISSUE_PATH,
+      policy: NFSE_ISSUE_POLICY,
+    }),
     createDownloadRoute({ dependencies, kind: 'xml', pathname: XML_PATH }),
     createDownloadRoute({ dependencies, kind: 'pdf', pathname: PDF_PATH }),
   ]
@@ -264,7 +324,7 @@ function serializeListItem(invoice: NfseInvoiceListItem): object {
   }
 }
 
-function serializeDetail(invoice: NfseInvoiceDetail): object {
+function serializeDetail(invoice: NfseInvoiceDetailWithPayload): object {
   return {
     ...serializeListItem(invoice),
     cancellationReason: invoice.cancellationReason,
@@ -278,9 +338,29 @@ function serializeDetail(invoice: NfseInvoiceDetail): object {
     })),
     delivery: invoice.delivery === null ? null : serializeDelivery(invoice.delivery),
     description: invoice.description,
+    lastPayload: invoice.lastPayload === null ? null : serializeLastPayload(invoice.lastPayload),
     rejectionCode: invoice.rejectionCode,
     rejectionMessage: invoice.rejectionMessage,
     version: invoice.version,
+  }
+}
+
+function serializeLastPayload(payload: NfseLastIssuancePayload): object {
+  return {
+    cnaeCode: payload.cnaeCode,
+    description: payload.description,
+    documentCount: payload.documentCount,
+    issAmount: payload.issAmount,
+    issExigibility: payload.issExigibility,
+    issRate: payload.issRate,
+    issWithheld: payload.issWithheld,
+    municipalTaxationCode: payload.municipalTaxationCode,
+    municipalityIbgeCode: payload.municipalityIbgeCode,
+    nbsCode: payload.nbsCode,
+    serviceAmount: payload.serviceAmount,
+    serviceListItem: payload.serviceListItem,
+    takerLegalName: payload.takerLegalName,
+    takerTaxId: payload.takerTaxId,
   }
 }
 
@@ -314,6 +394,28 @@ function serializeCancellation(summary: NfseInvoiceCancellationSummary): object 
     attemptId: summary.attemptId,
     invoiceId: summary.invoiceId,
     releasedDocumentIds: summary.releasedDocumentIds,
+    replayed: summary.replayed,
+    requestedAt: summary.requestedAt,
+    status: summary.status,
+  }
+}
+
+function serializeDiscard(summary: NfseInvoiceDiscardSummary): object {
+  return {
+    invoiceId: summary.invoiceId,
+    releasedDocumentIds: summary.releasedDocumentIds,
+    replayed: summary.replayed,
+    status: summary.status,
+  }
+}
+
+/** `payloadSha256` sai no corpo de propósito: é a prova de que o RPS retransmitido é o mesmo. */
+function serializeReissue(summary: NfseInvoiceReissueSummary): object {
+  return {
+    attemptId: summary.attemptId,
+    attemptNumber: summary.attemptNumber,
+    invoiceId: summary.invoiceId,
+    payloadSha256: summary.payloadSha256,
     replayed: summary.replayed,
     requestedAt: summary.requestedAt,
     status: summary.status,

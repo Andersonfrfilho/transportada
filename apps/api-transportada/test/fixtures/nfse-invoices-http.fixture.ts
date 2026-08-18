@@ -13,11 +13,13 @@ import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application
 import type { NfseExportResult } from '../../src/nfse-invoices/application/export-nfse-documents.port'
 import type { NfseInvoiceCancellationSummary } from '../../src/nfse-invoices/application/nfse-invoice-cancellation.use-case'
 import type { NfseInvoicePreview } from '../../src/nfse-invoices/application/nfse-invoice-preview.service'
+import type { NfseInvoiceReissueSummary } from '../../src/nfse-invoices/application/nfse-invoice-reissue.use-case'
+import type { NfseInvoiceDetailWithPayload } from '../../src/nfse-invoices/application/nfse-invoice-query.use-case'
 import type {
   NfseFiscalDocumentDownload,
-  NfseInvoiceDetail,
   NfseInvoiceLinkedDocument,
   NfseInvoicePage,
+  NfseLastIssuancePayload,
 } from '../../src/nfse-invoices/application/nfse-invoice.port'
 import type { NfseInvoiceSummary } from '../../src/nfse-invoices/application/nfse-issuance-attempt.service'
 
@@ -86,7 +88,25 @@ export const SUMMARY: NfseInvoiceSummary = {
   status: 'requested',
 }
 
-export const DETAIL: NfseInvoiceDetail = {
+/** Mesma forma que `freezeNfseIssuancePayload` grava — é o que `GET .../{id}` expõe em `lastPayload`. */
+export const LAST_PAYLOAD: NfseLastIssuancePayload = {
+  cnaeCode: '4930202',
+  description: 'Transporte rodoviário de cargas referente às notas 000000123.',
+  documentCount: 1,
+  issAmount: '42.50',
+  issExigibility: '1',
+  issRate: '0.050000',
+  issWithheld: false,
+  municipalTaxationCode: '',
+  municipalityIbgeCode: '3543402',
+  nbsCode: '',
+  serviceAmount: '850.00',
+  serviceListItem: '16.01',
+  takerLegalName: 'Cliente Sintético Ltda',
+  takerTaxId: '12345678000199',
+}
+
+export const DETAIL: NfseInvoiceDetailWithPayload = {
   authorizedAt: '2026-08-12T13:00:00.000Z',
   cancellationReason: null,
   cancelledAt: null,
@@ -115,6 +135,7 @@ export const DETAIL: NfseInvoiceDetail = {
   emissionProfileId: PROFILE_ID,
   id: INVOICE_ID,
   issAmount: '42.50',
+  lastPayload: LAST_PAYLOAD,
   providerNumber: '2026000123',
   rejectionCode: null,
   rejectionMessage: null,
@@ -152,6 +173,36 @@ export const CANCELLATION: NfseInvoiceCancellationSummary = {
   status: 'cancellation_requested',
 }
 
+/**
+ * O descarte não chama a prefeitura — sem viagem, sem tentativa. `NfseInvoiceDiscardSummary` é
+ * definido aqui, não importado do caso de uso: até o T005 ligar a rota de verdade, este é o
+ * contrato que o teste fixa.
+ */
+export type NfseInvoiceDiscardSummary = {
+  readonly invoiceId: string
+  readonly releasedDocumentIds: readonly string[]
+  readonly replayed: boolean
+  readonly status: 'discarded'
+}
+
+export const DISCARD: NfseInvoiceDiscardSummary = {
+  invoiceId: INVOICE_ID,
+  releasedDocumentIds: [DOCUMENT_ID],
+  replayed: false,
+  status: 'discarded',
+}
+
+/** A reemissão reaproveita o payload congelado: mesma `payloadSha256`, `attemptNumber` adiante. */
+export const REISSUE: NfseInvoiceReissueSummary = {
+  attemptId: ATTEMPT_ID,
+  attemptNumber: 2,
+  invoiceId: INVOICE_ID,
+  payloadSha256: 'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1',
+  replayed: false,
+  requestedAt: '2026-08-17T18:00:00.000Z',
+  status: 'issuing',
+}
+
 export const COMPANY_CONTEXT: CompanyContext = {
   ...NFE_COMPANY_CONTEXT,
   permissions: new Set(['nfse.read', 'nfse.issue', 'nfse.cancel']),
@@ -163,6 +214,9 @@ type InvoiceRouteDependencies = {
   readonly cancelNfseInvoice: {
     execute(input: ExecuteCall): Promise<NfseInvoiceCancellationSummary>
   }
+  readonly discardNfseInvoice: {
+    execute(input: ExecuteCall): Promise<NfseInvoiceDiscardSummary>
+  }
   readonly exportNfseDocuments: {
     exportDocuments(input: ExecuteCall): Promise<NfseExportResult>
   }
@@ -171,10 +225,13 @@ type InvoiceRouteDependencies = {
     preview(input: ExecuteCall): Promise<NfseInvoicePreview>
   }
   readonly nfseInvoiceQuery: {
-    detail(input: ExecuteCall): Promise<NfseInvoiceDetail>
+    detail(input: ExecuteCall): Promise<NfseInvoiceDetailWithPayload>
     documents(input: ExecuteCall): Promise<readonly NfseInvoiceLinkedDocument[]>
     download(input: ExecuteCall): Promise<NfseFiscalDocumentDownload>
     list(input: ExecuteCall): Promise<NfseInvoicePage>
+  }
+  readonly reissueNfseInvoice: {
+    execute(input: ExecuteCall): Promise<NfseInvoiceReissueSummary>
   }
 }
 
@@ -182,9 +239,11 @@ type CreateFixtureParams = {
   readonly cancelError?: Error
   readonly createError?: Error
   readonly detailError?: Error
+  readonly discardError?: Error
   readonly downloadError?: Error
   readonly exportError?: Error
   readonly permissions?: CompanyContext['permissions']
+  readonly reissueError?: Error
   readonly summary?: NfseInvoiceSummary
 }
 
@@ -192,21 +251,25 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   readonly cancelCalls: ExecuteCall[]
   readonly createCalls: ExecuteCall[]
   readonly detailCalls: ExecuteCall[]
+  readonly discardCalls: ExecuteCall[]
   readonly documentCalls: ExecuteCall[]
   readonly downloadCalls: ExecuteCall[]
   readonly exportCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: ExecuteCall[]
   readonly previewCalls: ExecuteCall[]
+  readonly reissueCalls: ExecuteCall[]
 }> {
   const cancelCalls: ExecuteCall[] = []
   const createCalls: ExecuteCall[] = []
   const detailCalls: ExecuteCall[] = []
+  const discardCalls: ExecuteCall[] = []
   const documentCalls: ExecuteCall[] = []
   const downloadCalls: ExecuteCall[] = []
   const exportCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
   const previewCalls: ExecuteCall[] = []
+  const reissueCalls: ExecuteCall[] = []
 
   const routes = await loadInvoiceRoutes({
     cancelNfseInvoice: {
@@ -214,6 +277,13 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
         cancelCalls.push(serializeCall(input))
         if (params.cancelError) throw params.cancelError
         return CANCELLATION
+      },
+    },
+    discardNfseInvoice: {
+      async execute(input) {
+        discardCalls.push(serializeCall(input))
+        if (params.discardError) throw params.discardError
+        return DISCARD
       },
     },
     exportNfseDocuments: {
@@ -264,6 +334,13 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
         return { items: [DETAIL], nextCursor: null }
       },
     },
+    reissueNfseInvoice: {
+      async execute(input) {
+        reissueCalls.push(serializeCall(input))
+        if (params.reissueError) throw params.reissueError
+        return REISSUE
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -282,12 +359,14 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
     cancelCalls,
     createCalls,
     detailCalls,
+    discardCalls,
     documentCalls,
     downloadCalls,
     exportCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
     previewCalls,
+    reissueCalls,
   }
 }
 

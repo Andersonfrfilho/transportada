@@ -119,9 +119,40 @@ export const NFSE_INVOICE_DETAIL_KEYS = [
   'charges',
   'delivery',
   'description',
+  'lastPayload',
   'rejectionCode',
   'rejectionMessage',
   'version',
+] as const
+
+export const NFSE_LAST_ISSUANCE_PAYLOAD_KEYS = [
+  'cnaeCode',
+  'description',
+  'documentCount',
+  'issAmount',
+  'issExigibility',
+  'issRate',
+  'issWithheld',
+  'municipalTaxationCode',
+  'municipalityIbgeCode',
+  'nbsCode',
+  'serviceAmount',
+  'serviceListItem',
+  'takerLegalName',
+  'takerTaxId',
+] as const
+
+/** Os nove campos que a reemissão pode corrigir — o resto do payload congelado é somente leitura. */
+export const NFSE_REISSUE_CORRECTABLE_KEYS = [
+  'cnaeCode',
+  'description',
+  'issExigibility',
+  'issRate',
+  'issWithheld',
+  'municipalTaxationCode',
+  'municipalityIbgeCode',
+  'nbsCode',
+  'serviceListItem',
 ] as const
 
 export const NFSE_INVOICE_DELIVERY_KEYS = [
@@ -208,6 +239,23 @@ export const NFSE_CANCELLATION_SUMMARY_KEYS = [
   'releasedDocumentIds',
   'replayed',
   'requestedAt',
+  'status',
+] as const
+
+export const NFSE_REISSUE_SUMMARY_KEYS = [
+  'attemptId',
+  'attemptNumber',
+  'invoiceId',
+  'payloadSha256',
+  'replayed',
+  'requestedAt',
+  'status',
+] as const
+
+export const NFSE_DISCARD_SUMMARY_KEYS = [
+  'invoiceId',
+  'releasedDocumentIds',
+  'replayed',
   'status',
 ] as const
 

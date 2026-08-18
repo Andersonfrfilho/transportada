@@ -62,6 +62,8 @@ import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nf
 import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
 import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
+import { createNfseInvoiceDiscardUseCase } from './nfse-invoices/application/nfse-invoice-discard.use-case.js'
+import { createNfseInvoiceReissueUseCase } from './nfse-invoices/application/nfse-invoice-reissue.use-case.js'
 import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
 import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
 import { DrizzleNfseInvoiceRepository } from './nfse-invoices/infrastructure/drizzle-nfse-invoice.repository.js'
@@ -536,6 +538,14 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: nfseInvoiceRepository,
   })
+  const discardNfseInvoice = createNfseInvoiceDiscardUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
+  const reissueNfseInvoice = createNfseInvoiceReissueUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
   const exportNfseDocuments = createExportNfseDocumentsUseCase({
     archive: createNfseArchiveGateway({ storage: storageGateway }),
     clock: () => new Date(),
@@ -838,6 +848,7 @@ function createApplicationRoutes({
     }),
     ...createNfseInvoiceRoutes({
       cancelNfseInvoice: { execute: (input) => cancelNfseInvoice.execute(input) },
+      discardNfseInvoice: { execute: (input) => discardNfseInvoice.execute(input) },
       exportNfseDocuments: {
         exportDocuments: (input) => exportNfseDocuments.exportDocuments(input),
       },
@@ -851,6 +862,7 @@ function createApplicationRoutes({
         download: (input) => nfseInvoiceQuery.download(input),
         list: (input) => nfseInvoiceQuery.list(input),
       },
+      reissueNfseInvoice: { execute: (input) => reissueNfseInvoice.execute(input) },
     }),
     ...createOperationsRoutes({
       audit: { listEvents: (input) => operations.listAuditEvents(input) },
