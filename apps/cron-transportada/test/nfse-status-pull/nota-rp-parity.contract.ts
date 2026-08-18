@@ -230,6 +230,46 @@ describe('Nota RP v2 document download parity', () => {
     })
   })
 
+  test.each([
+    ['xml', XML_BYTES, 'application/xml'],
+    ['pdf', PDF_BYTES, 'application/pdf'],
+  ] as const)(
+    'decodes a base64 %s body, matching the worker client table',
+    async (kind, bytes, contentType) => {
+      const client = await createNotaRpStatusClientFixture({
+        fetch: recordingFetch(() =>
+          binaryResponse({
+            bytes: new TextEncoder().encode(Buffer.from(bytes).toString('base64')),
+            contentType,
+          }),
+        ).fetch,
+      })
+
+      const outcome = await client.fetchDocument({ kind, providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+      expect(outcome).toEqual({ bytes, contentType, status: 'ok' })
+    },
+  )
+
+  /** Nem documento nem base64 dele: adiar é o lado seguro, porque a nota não liquida sem o XML. */
+  test('refuses a body that is neither the document nor base64 of it', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() =>
+        binaryResponse({
+          bytes: new TextEncoder().encode('documento indisponivel'),
+          contentType: 'application/xml',
+        }),
+      ).fetch,
+    })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
   test('refuses a zero-length document body', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() =>

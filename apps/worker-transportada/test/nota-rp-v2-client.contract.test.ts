@@ -394,6 +394,80 @@ describe('Nota RP v2 client — download de XML e PDF', () => {
     expect(outcome.cause).toBe('malformed_response')
     expect(outcome.bytes).toBeUndefined()
   })
+
+  // O changelog da v2 diz base64, e não há conta de homologação onde conferir antes da primeira nota.
+  test('decodifica o XML que vem em base64, para arquivar documento e não texto', async () => {
+    const { fetch } = recordingFetch(() =>
+      binaryResponse({
+        bytes: new TextEncoder().encode(Buffer.from(XML_BYTES).toString('base64')),
+        contentType: 'application/xml',
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.bytes).toEqual(XML_BYTES)
+  })
+
+  test('decodifica o PDF que vem em base64', async () => {
+    const { fetch } = recordingFetch(() =>
+      binaryResponse({
+        bytes: new TextEncoder().encode(Buffer.from(PDF_BYTES).toString('base64')),
+        contentType: 'application/pdf',
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'pdf',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.bytes).toEqual(PDF_BYTES)
+  })
+
+  // Adiar é o lado seguro: a nota não liquida sem XML, e nada errado entra no bucket.
+  test('recusa corpo que não é o documento nem base64 dele', async () => {
+    const { fetch } = recordingFetch(() =>
+      binaryResponse({
+        bytes: new TextEncoder().encode('documento indisponivel'),
+        contentType: 'application/xml',
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('error')
+    expect(outcome.cause).toBe('malformed_response')
+    expect(outcome.bytes).toBeUndefined()
+  })
+
+  test('aceita o XML cru com espaço e BOM antes da abertura', async () => {
+    const { fetch } = recordingFetch(() =>
+      binaryResponse({
+        bytes: new TextEncoder().encode(`\uFEFF\n  ${new TextDecoder().decode(XML_BYTES)}`),
+        contentType: 'application/xml',
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+  })
 })
 
 describe('Nota RP v2 client — falhas de transporte', () => {

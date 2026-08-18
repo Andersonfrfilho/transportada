@@ -17,6 +17,7 @@
  * coleção cobre `/notas/`, e o acerto, quando vier, é aqui.
  */
 import type { NfseCancellationMotive } from '../../database/nfse-issuance-execution.schema.js'
+import { resolveNfseDocumentBytes } from '../domain/nfse-document-payload.policy.js'
 
 const DOCUMENT_MEDIA_TYPE = {
   pdf: 'application/pdf',
@@ -205,6 +206,7 @@ export function createNotaRpV2Client(dependencies: {
       if (typeof sent === 'string') return { cause: sent, status: 'error' }
       return readDocument({
         fallbackContentType: DOCUMENT_MEDIA_TYPE[kind],
+        kind,
         redact,
         response: sent,
       })
@@ -277,6 +279,7 @@ async function readEnvelope(input: {
 /** Envelope JSON onde se esperava documento é falha — nunca byte para arquivar. */
 async function readDocument(input: {
   readonly fallbackContentType: string
+  readonly kind: NotaRpDocumentKind
   readonly redact: Redact
   readonly response: Response
 }): Promise<NotaRpDocumentOutcome> {
@@ -291,8 +294,12 @@ async function readDocument(input: {
   }
 
   try {
-    const bytes = new Uint8Array(await input.response.arrayBuffer())
-    if (bytes.byteLength === 0) return { cause: 'malformed_response', status: 'error' }
+    const raw = new Uint8Array(await input.response.arrayBuffer())
+    if (raw.byteLength === 0) return { cause: 'malformed_response', status: 'error' }
+
+    const bytes = resolveNfseDocumentBytes({ bytes: raw, kind: input.kind })
+    if (bytes === undefined) return { cause: 'malformed_response', status: 'error' }
+
     return { bytes, contentType: contentType ?? input.fallbackContentType, status: 'ok' }
   } catch {
     return { cause: 'malformed_response', status: 'error' }

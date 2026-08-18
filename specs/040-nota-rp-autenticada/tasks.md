@@ -212,7 +212,7 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       resolveu — a busca da conta não devolve nota alguma e `/xml/{nNFSe}` diz "Nota não encontrada",
       porque o `id_nota` é identificador interno do provedor e só aparece na resposta do `/emitir`. A
       confirmação passa a depender da primeira emissão real pelo nosso worker.
-- [ ] **T021** 🧠 — `/xml` e `/pdf` devolvem o documento **em base64** (changelog da v2, endpoints
+- [x] **T021** 🧠 — `/xml` e `/pdf` devolvem o documento **em base64** (changelog da v2, endpoints
       novos). Hoje `readDocument` arquiva `arrayBuffer()` cru nas duas cópias — worker e cron —, o
       que grava o base64 como se fosse o documento. O XML é o documento fiscal e é ele que liquida a
       nota: arquivar texto base64 sob `application/xml` é perder o original sem nenhum erro no
@@ -227,6 +227,15 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       é o caminho que o `readDocument` já trata como falha. A resposta de **sucesso** continua sem
       amostra, porque nenhuma nota da conta é alcançável sem o `id_nota` interno. Depende, como o
       resto, da primeira emissão pelo worker.
+      **Feito, e sem depender da amostra.** A guarda confere a **assinatura** do que chegou — `<`
+      abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes da abertura — e só
+      decodifica base64 quando a assinatura não bate. As duas leituras possíveis do provedor ficam
+      certas pela mesma regra, então não há mais o que medir antes da primeira nota. Corpo que não é
+      o documento nem base64 dele vira `malformed_response`, a causa que **adia**: sem o XML a nota
+      não liquida, e adiar é o lado seguro. A regra mora em `nfse-document-payload.policy.ts` —
+      pura, sem I/O, cópia por valor no worker e no cron, com a paridade guardada por comportamento
+      em `nota-rp-parity.contract.ts`. Vermelho antes nas duas cópias (3 falhas de cada lado);
+      verde em `worker 478/0` e `cron 189/0`, typecheck e lint das duas apps em zero.
 - [x] **T022** — A redação do cliente do worker cobre **um** dos dois segredos que viajam no pedido.
       `redact` corta só `config.token`; o `callbackToken` vai dentro da `CallbackUrl` no corpo do
       `/emitir`, e o cliente sequer o conhece. Se a prefeitura devolver a URL na `message` de uma

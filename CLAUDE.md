@@ -220,11 +220,16 @@ worker**: o worker monta a URL, a api registra a rota. Do outro lado, `POST
 e o estado real vem da consulta autenticada do cron. A Nota RP **não assina o postback** (achado
 datado em `docs/SECURITY.md`).
 
-⚠️ Duas coisas que a documentação oficial da v2 diz e o código ainda não faz (T020/T021 da spec 040):
-`/cancelar-nota` exige `motivo` como **código** (`1` erro na emissão — que recusa pedindo
-substituição, `2` serviço não prestado, `4` nota duplicada), e nós mandamos o texto livre do
-operador; e `/xml` e `/pdf` devolvem o documento **em base64**, enquanto `readDocument` arquiva
-`arrayBuffer()` cru nas duas cópias.
+**O cancelamento manda código, e o documento é conferido pela própria abertura.** `/cancelar-nota`
+exige `motivo` como **código**: o catálogo oferece `2` (serviço não prestado) e `4` (nota duplicada)
+— o `1` (erro na emissão) fica de fora porque o provedor o recusa pedindo substituição —, e o texto
+do operador vira `cancellationReason`, que fica na nota e não atravessa a fronteira. Já `/xml` e
+`/pdf` podem devolver o documento **em base64** (changelog da v2), e como a Nota RP não tem
+homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDocumentBytes`
+(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron) confere a **assinatura** —
+`<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes — e só decodifica
+base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
+causa que adia: sem o XML a nota não liquida.
 
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
@@ -233,8 +238,9 @@ mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda
 servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
 vocabulário no cron.
 
-⚠️ O trilho de NFS-e do cron carrega quatro **cópias por valor** do worker:
+⚠️ O trilho de NFS-e do cron carrega cinco **cópias por valor** do worker:
 `nfse-status-pull/infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+`nfse-status-pull/domain/nfse-document-payload.policy.ts`,
 `nfse-status-pull/application/nfse-credential-secret.service.ts` e
 `src/database/nfse-reconciliation.schema.ts` (mais `config/cryptographic-configuration.schema.ts`,
 cópia do parser de chaveiro). São reduções, não espelhos — aqui só se consulta e se baixa documento.

@@ -489,3 +489,59 @@ bun run lint               exit 0   (api · worker · cron · frontend)
 ```
 
 Eram 471 e 183 antes — os cinco testes novos são os dois pares de cliente mais o adiamento.
+
+## T021 — o documento é conferido pela própria abertura
+
+A v2 diz no changelog que `/xml` e `/pdf` devolvem o documento **em base64**, e o `readDocument` das
+duas cópias arquivava o corpo cru. A sondagem da T030 não alcançou uma resposta de sucesso — sem nota
+autorizada na conta, só deu para ver a falha — e a Nota RP não tem homologação onde medir antes da
+primeira nota real (ADR-0035). Medir depois seria medir com o documento fiscal do cliente.
+
+Por isso a guarda não pergunta ao provedor qual é o formato: ela confere a **assinatura** do que
+chegou. `<` abre XML, `%PDF` abre PDF; tabulação, quebra de linha, espaço e os três bytes do BOM
+passam antes da abertura. O que já abre como documento vai direto; o que não abre só é aceito se
+**decodificar** em algo que abra. As duas leituras possíveis do provedor ficam cobertas pela mesma
+regra, e nenhuma exige saber de antemão qual delas é a verdadeira.
+
+**Vermelho antes**, nas duas cópias — o corpo em base64 era arquivado como se fosse o documento:
+
+```
+apps/worker-transportada   3 fail · 475 pass
+  decodifica o XML que vem em base64 → outcome.bytes eram os bytes do base64, não os do XML
+  decodifica o PDF que vem em base64 → idem
+  recusa corpo que não é o documento nem base64 dele → status "ok" onde se esperava "error"
+
+apps/cron-transportada     3 fail · 186 pass
+  decodes a base64 xml body / a base64 pdf body → mesma divergência de bytes
+  refuses a body that is neither the document nor base64 of it → status "ok"
+```
+
+O que mudou:
+
+| Arquivo | Mudança |
+|---|---|
+| `worker/src/nfse-issuance/domain/nfse-document-payload.policy.ts` | **novo** — `resolveNfseDocumentBytes`, pura, sem I/O |
+| `cron/src/nfse-status-pull/domain/nfse-document-payload.policy.ts` | cópia por valor da política |
+| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts` | `readDocument` recebe `kind` e passa pela política |
+| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts` | idem |
+
+A política é **cópia por valor**, como o resto do trilho: as apps não importam código-fonte uma da
+outra, e o cliente do worker já passa de 200 linhas. A paridade continua sendo comportamental —
+`nota-rp-parity.contract.ts` roda a mesma tabela de corpos contra o cliente do cron.
+
+O corpo irreconhecível vira `malformed_response`, a causa que **adia**: sem o XML a nota não liquida,
+e adiar é o lado seguro. Nada de novo entra no banco — a guarda decide antes do arquivamento, e não
+há coluna nem migration nesta task.
+
+**Verde:**
+
+```
+apps/worker-transportada   478 pass · 0 fail   (Ran 478 tests across 59 files)
+apps/cron-transportada     189 pass · 0 fail   (Ran 189 tests across 8 files)
+worker typecheck · lint    exit 0
+cron   typecheck · lint    exit 0
+```
+
+⚠️ O `bun run typecheck` da raiz **não** fecha em zero neste momento, e não é por causa desta task:
+`api-transportada/test/nfse-invoices-http/invoice-queries.contract.ts` está em edição pela spec 042,
+na mesma árvore de trabalho. As duas apps tocadas aqui fecham limpas isoladas.

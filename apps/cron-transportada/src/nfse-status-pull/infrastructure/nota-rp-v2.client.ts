@@ -12,6 +12,11 @@
  *
  * Nenhuma exceção escapa: toda falha vira `status: 'error'` com causa estável.
  */
+import {
+  resolveNfseDocumentBytes,
+  type NfseDocumentKind,
+} from '../domain/nfse-document-payload.policy.js'
+
 const SITUATION = {
   authorized: 'autorizada',
   cancelled: 'cancelada',
@@ -113,7 +118,7 @@ export function createNotaRpStatusClient(dependencies: {
       })
       if (typeof response === 'string') return { cause: response, status: 'error' }
 
-      return readDocument({ contentType, response, token: config.token })
+      return readDocument({ contentType, kind, response, token: config.token })
     },
 
     async fetchStatus({ providerDocumentId }) {
@@ -222,6 +227,7 @@ function readSituation(data: Record<string, unknown>): NotaRpStatusOutcome {
 
 async function readDocument(input: {
   readonly contentType: string
+  readonly kind: NfseDocumentKind
   readonly response: Response
   readonly token: string
 }): Promise<NotaRpDocumentOutcome> {
@@ -242,8 +248,11 @@ async function readDocument(input: {
 
   if (buffer.byteLength === 0) return { cause: 'malformed_response', status: 'error' }
 
+  const bytes = resolveNfseDocumentBytes({ bytes: new Uint8Array(buffer), kind: input.kind })
+  if (bytes === undefined) return { cause: 'malformed_response', status: 'error' }
+
   return {
-    bytes: new Uint8Array(buffer),
+    bytes,
     contentType: input.response.headers.get('content-type') ?? input.contentType,
     status: 'ok',
   }
