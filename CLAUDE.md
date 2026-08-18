@@ -90,7 +90,9 @@ do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rota
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
 `ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba
 Remota e a tela de configurações não contarem histórias diferentes. A paridade é contrato
-(`test/companies/scheduled-distribution-parity.contract.ts`).
+(`test/companies/scheduled-distribution-parity.contract.ts`). No frontend a configuração mora **na
+aba Remota da tela de Notas**, junto do efeito, e não mais em configurações de empresa — ver
+"Configuração perto do efeito" abaixo.
 
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
@@ -200,6 +202,35 @@ outra é a credencial selada por empresa, não a URL. Por isso `NFSE_PROVIDER_BA
 não escolhe mais endereço de NFS-e (segue valendo para CT-e e MDF-e), e o `deploy.yml` publica
 `cron-nfse` **em produção**, não em staging.
 
+**A Nota RP não autentica só pelo token, e não emite sem endereço de retorno** (spec 040). Toda
+chamada leva **dois** cabeçalhos: `X-AUTH-USER-TOKEN` e `X-AUTH-IM`, a inscrição municipal do
+prestador. Sem o segundo o provedor responde **200 com `cadastro: null`** — a credencial parece boa e
+só se revela inválida na primeira emissão, longe de onde foi gravada. Por isso
+`municipal_registration` é obrigatória em toda a fronteira: `.min(1)` no `saveCredentialSchema`, sem
+`default` na coluna e com `check (length(...) > 0)`, e bloqueio na tela antes do 400 genérico
+(`buildNfseCredentialSubmission`).
+
+A emissão é **assíncrona** e o `CallbackUrl` https é **obrigatório** no corpo do `/emitir` — nota sem
+ele não é aceita. A URL **não atravessa a porta de emissão**: ela é montada dentro do
+`nfse-fiscal-gateway.ts` do worker, com `NFSE_CALLBACK_BASE_URL` mais o `callbackToken` opaco que sai
+do envelope selado — quem abre o envelope é o gateway, uma vez por operação, e fazer o consumidor
+montar a URL obrigaria o segredo a passar por dois lugares a mais. A variável vive na **api e no
+worker**: o worker monta a URL, a api registra a rota. Do outro lado, `POST
+/public/nfse-callbacks/{token}` é **gatilho, não fonte da verdade** — corpo não lido, 204 invariável,
+e o estado real vem da consulta autenticada do cron. A Nota RP **não assina o postback** (achado
+datado em `docs/SECURITY.md`).
+
+**O cancelamento manda código, e o documento é conferido pela própria abertura.** `/cancelar-nota`
+exige `motivo` como **código**: o catálogo oferece `2` (serviço não prestado) e `4` (nota duplicada)
+— o `1` (erro na emissão) fica de fora porque o provedor o recusa pedindo substituição —, e o texto
+do operador vira `cancellationReason`, que fica na nota e não atravessa a fronteira. Já `/xml` e
+`/pdf` podem devolver o documento **em base64** (changelog da v2), e como a Nota RP não tem
+homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDocumentBytes`
+(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron) confere a **assinatura** —
+`<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes — e só decodifica
+base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
+causa que adia: sem o XML a nota não liquida.
+
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
 vocabulário de razões, duas apps que não importam código uma da outra. Mudou a regra de um lado?
@@ -207,8 +238,9 @@ mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda
 servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
 vocabulário no cron.
 
-⚠️ O trilho de NFS-e do cron carrega quatro **cópias por valor** do worker:
+⚠️ O trilho de NFS-e do cron carrega cinco **cópias por valor** do worker:
 `nfse-status-pull/infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+`nfse-status-pull/domain/nfse-document-payload.policy.ts`,
 `nfse-status-pull/application/nfse-credential-secret.service.ts` e
 `src/database/nfse-reconciliation.schema.ts` (mais `config/cryptographic-configuration.schema.ts`,
 cópia do parser de chaveiro). São reduções, não espelhos — aqui só se consulta e se baixa documento.
@@ -240,6 +272,26 @@ Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-iss
 `freight`, `identity`, `nfe-workspace`, `operations`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com `fetch`
 injetado por dependência. Auth via `KeycloakAuthProvider`.
+
+**Configuração perto do efeito:** um painel de configuração mora na tela onde o efeito dele aparece,
+não numa tela de configurações que cresce sem fim. O endereço de cada painel é declarado uma vez em
+`company-settings/shared/companySettingsTabs.service.ts` — `SETTINGS_PANEL_PLACEMENT` mapeia painel →
+`{module, source, tab}`, e `settingsPanelsOf`, `settingsTabsOf` (ordem de declaração = ordem das abas)
+e `resolveSettingsDataScope` derivam dali. É esse registro que garante o campo **vir preenchido**:
+a tela liga a consulta com `enabled: canManageSettings && settingsScope.<source>` — permissão **e**
+aba aberta —, então abrir a aba busca o cadastro que já existe em vez de mostrar formulário em branco.
+Contrato em `test/company-settings/tabs.contract.ts`.
+
+- `company-settings` ficou com **Empresa** e **Certificados**, só.
+- A busca automática de notas (opt-in + cursor) mora na aba **Remota** de `nfe-workspace`, guardada
+  por `settings.manage`; sem a permissão a aba continua visível com o cartão somente-leitura, porque
+  ali é informação de operação. Contrato em `test/nfe-workspace/distribution-settings.contract.ts`.
+- O ajuste de preço de combustível mora na aba **Combustível** de `fleet`, e a credencial da Nota RP
+  mais os perfis de emissão na aba **Configurações** de `nfse-invoice` — as duas guardadas por
+  `settings.manage`.
+- Painel movido leva junto os rótulos: as chaves vão para o `*.locale.json` do módulo de destino, e o
+  atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
+  controle é caminho para lugar nenhum.
 
 Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, `--space-1..16`), tema
 escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em `*.module.css`.

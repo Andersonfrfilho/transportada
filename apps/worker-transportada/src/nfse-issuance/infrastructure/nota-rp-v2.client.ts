@@ -10,10 +10,14 @@
  * 2. **Nenhuma exceção escapa.** Exceção aqui derrubaria o consumidor antes do `markProcessed`, e
  *    a mensagem voltaria para a fila em laço.
  *
- * O vocabulário de fio (`id_nota`, `situacao`, `codigo_erro`, …) é **inferido** — a coleção oficial
- * da v2 não está no repositório (ver `## T019` em `specs/032-nota-de-servico-municipal/evidence.md`).
- * Ele está confinado a este arquivo: quando o T030 medir a API real, o acerto é aqui.
+ * A leitura do envelope segue a coleção oficial da v2, conferida na Fase A2 de
+ * `specs/040-nota-rp-autenticada/tasks.md` — a coleção não mora no repositório. Sucesso do `/emitir`
+ * traz `id_nota` numérico **no topo**; a recusa é `{success:false, message}` e nada mais.
+ * Segue **inferido** o vocabulário da consulta (`situacao`, `codigo_erro`): nenhum exemplo da
+ * coleção cobre `/notas/`, e o acerto, quando vier, é aqui.
  */
+import type { NfseCancellationMotive } from '../../database/nfse-issuance-execution.schema.js'
+import { resolveNfseDocumentBytes } from '../domain/nfse-document-payload.policy.js'
 
 const DOCUMENT_MEDIA_TYPE = {
   pdf: 'application/pdf',
@@ -22,7 +26,7 @@ const DOCUMENT_MEDIA_TYPE = {
 
 const JSON_MEDIA_TYPE = 'application/json'
 const REDACTED = '[REDACTED]'
-const ROUTE_CANCEL = '/cancelar'
+const ROUTE_CANCEL = '/cancelar-nota'
 const ROUTE_ISSUE = '/emitir'
 const ROUTE_STATUS = '/notas/'
 const STATUS_QUERY_PARAM = 'id_nota'
@@ -38,6 +42,7 @@ const SITUATION = {
 
 export type NotaRpCause =
   | 'malformed_response'
+  | 'not_found'
   | 'timeout'
   | 'transport_failure'
   | 'unexpected_status'
@@ -87,6 +92,12 @@ export type NotaRpDocumentOutcome = {
 
 export type NotaRpV2Config = {
   readonly baseUrl: string
+  /**
+   * O **segundo** segredo do pedido. O cliente não o usa para autenticar nada: ele chega aqui só
+   * para ser redigido, porque viaja dentro da `CallbackUrl` no corpo do `/emitir` e a recusa de
+   * validação devolve o campo recusado na `message`.
+   */
+  readonly callbackToken: string
   /** Identifica **qual empresa** dentro da conta do token. Sem ela o provedor não sabe por quem emitir. */
   readonly municipalRegistration: string
   readonly timeoutMilliseconds: number
@@ -97,8 +108,8 @@ export type NotaRpFetch = (input: string, init: RequestInit) => Promise<Response
 
 export type NotaRpV2Client = {
   cancel(input: {
+    readonly cancellationMotive: NfseCancellationMotive
     readonly providerDocumentId: string
-    readonly reason: string
   }): Promise<NotaRpCancelOutcome>
   fetchDocument(input: {
     readonly kind: NotaRpDocumentKind
@@ -121,8 +132,10 @@ export function createNotaRpV2Client(dependencies: {
 }): NotaRpV2Client {
   const { config, fetch } = dependencies
   const baseUrl = config.baseUrl.replace(/\/+$/u, '')
+  /** Vazio não é segredo: cortá-lo partiria a mensagem inteira entre `[REDACTED]`. */
+  const secrets = [config.token, config.callbackToken].filter((secret) => secret.length > 0)
   const redact: Redact = (value) =>
-    config.token.length === 0 ? value : value.split(config.token).join(REDACTED)
+    secrets.reduce((redacted, secret) => redacted.split(secret).join(REDACTED), value)
 
   async function send(input: {
     readonly accept: string
@@ -166,9 +179,14 @@ export function createNotaRpV2Client(dependencies: {
   }
 
   return {
-    cancel: async ({ providerDocumentId, reason }) => {
+    /**
+     * `motivo` é código, não texto: a v2 lê `2` (serviço não prestado) e `4` (nota duplicada). Texto
+     * livre ali faz a prefeitura recusar o cancelamento, e a recusa só aparece na consulta seguinte.
+     * `id_nota` sai como veio — o provedor documenta número, e um `Number()` cego viraria `NaN`.
+     */
+    cancel: async ({ cancellationMotive, providerDocumentId }) => {
       const envelope = await requestEnvelope({
-        body: { id_nota: providerDocumentId, motivo_cancelamento: reason },
+        body: { id_nota: providerDocumentId, motivo: cancellationMotive },
         method: 'POST',
         url: `${baseUrl}${ROUTE_CANCEL}`,
       })
@@ -188,6 +206,7 @@ export function createNotaRpV2Client(dependencies: {
       if (typeof sent === 'string') return { cause: sent, status: 'error' }
       return readDocument({
         fallbackContentType: DOCUMENT_MEDIA_TYPE[kind],
+        kind,
         redact,
         response: sent,
       })
@@ -201,7 +220,10 @@ export function createNotaRpV2Client(dependencies: {
       if (envelope.kind === 'rejected') {
         return { rejection: envelope.rejection, status: 'rejected' }
       }
-      return interpretSituation({ data: envelope.data, providerDocumentId, redact })
+      /** Aqui a nota vem dentro de `data`; no `/emitir` o envelope é raso. Cada rota com a sua forma. */
+      const data = asRecord(envelope.data['data'])
+      if (data === undefined) return { cause: readMissingCause(envelope.data), status: 'error' }
+      return interpretSituation({ data, providerDocumentId, redact })
     },
 
     issue: async ({ rps }) => {
@@ -214,7 +236,7 @@ export function createNotaRpV2Client(dependencies: {
       if (envelope.kind === 'rejected') {
         return { rejection: envelope.rejection, status: 'rejected' }
       }
-      const providerDocumentId = readText(envelope.data, 'id_nota')
+      const providerDocumentId = readIdentifier(envelope.data, 'id_nota')
       if (providerDocumentId === undefined) return { cause: 'malformed_response', status: 'error' }
       return { providerDocumentId, status: 'accepted' }
     },
@@ -237,24 +259,27 @@ async function readEnvelope(input: {
     return { cause: 'malformed_response', kind: 'error' }
   }
   if (!envelope['success']) {
+    /**
+     * A recusa da v2 é `{success:false, message}` e nada mais: código de erro só existe no postback,
+     * dentro de `MensagemRetorno[].Codigo`. O nosso código é o marcador estável de "veio sem código".
+     */
     return {
       kind: 'rejected',
       rejection: {
-        code: readText(envelope, 'code') ?? UNKNOWN_REJECTION_CODE,
+        code: UNKNOWN_REJECTION_CODE,
         message: input.redact(readText(envelope, 'message') ?? ''),
       },
     }
   }
 
-  const data = asRecord(envelope['data'])
-  return data === undefined
-    ? { cause: 'malformed_response', kind: 'error' }
-    : { data, kind: 'data' }
+  /** O envelope inteiro, não um `data` interno: no `/emitir` o `id_nota` vem no topo. */
+  return { data: envelope, kind: 'data' }
 }
 
 /** Envelope JSON onde se esperava documento é falha — nunca byte para arquivar. */
 async function readDocument(input: {
   readonly fallbackContentType: string
+  readonly kind: NotaRpDocumentKind
   readonly redact: Redact
   readonly response: Response
 }): Promise<NotaRpDocumentOutcome> {
@@ -269,8 +294,12 @@ async function readDocument(input: {
   }
 
   try {
-    const bytes = new Uint8Array(await input.response.arrayBuffer())
-    if (bytes.byteLength === 0) return { cause: 'malformed_response', status: 'error' }
+    const raw = new Uint8Array(await input.response.arrayBuffer())
+    if (raw.byteLength === 0) return { cause: 'malformed_response', status: 'error' }
+
+    const bytes = resolveNfseDocumentBytes({ bytes: raw, kind: input.kind })
+    if (bytes === undefined) return { cause: 'malformed_response', status: 'error' }
+
     return { bytes, contentType: contentType ?? input.fallbackContentType, status: 'ok' }
   } catch {
     return { cause: 'malformed_response', status: 'error' }
@@ -341,6 +370,27 @@ function asRecord(value: unknown): Readonly<Record<string, unknown>> | undefined
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : undefined
+}
+
+/** O `id_nota` viaja como número inteiro; guardá-lo como texto é o que o resto do trilho espera. */
+function readIdentifier(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined {
+  const value = record[key]
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) ? String(value) : undefined
+  }
+  return readText(record, key)
+}
+
+/**
+ * Nota inexistente vem como sucesso sem `data`, só com a `message` da busca vazia — é ausência, e
+ * não resposta quebrada. Sem mensagem alguma não há o que distinguir, e o envelope volta a ser
+ * malformado.
+ */
+function readMissingCause(envelope: Readonly<Record<string, unknown>>): NotaRpCause {
+  return readText(envelope, 'message') === undefined ? 'malformed_response' : 'not_found'
 }
 
 function readText(record: Readonly<Record<string, unknown>>, key: string): string | undefined {

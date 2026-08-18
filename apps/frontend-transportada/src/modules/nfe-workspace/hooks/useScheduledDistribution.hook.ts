@@ -7,7 +7,7 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createCompanySettingsClient,
   type ScheduledDistributionStatus,
-} from '../shared/companySettingsClient.service'
+} from '@/modules/company-settings/shared/companySettingsClient.service'
 
 const SCHEDULED_DISTRIBUTION_QUERY_KEY = 'company-scheduled-distribution'
 

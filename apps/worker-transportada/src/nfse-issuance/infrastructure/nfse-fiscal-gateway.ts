@@ -3,7 +3,10 @@
  */
 import { z } from 'zod'
 
-import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
+import type {
+  NfseCancellationMotive,
+  NfseFiscalEnvironment,
+} from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseCredentialSecretService } from '../application/nfse-credential-secret.service.js'
 import {
   createNotaRpV2Client,
@@ -29,12 +32,13 @@ import {
  * 3. **Nenhuma exceção escapa** — nem do cliente, nem da abertura do segredo, nem da tradução.
  *    Exceção aqui derrubaria o consumidor antes do `markProcessed`.
  *
- * Os nomes de campo do RPS são **inferidos** (ABRASF/Nota RP), como o resto do vocabulário de fio —
- * ver `## T019` e `## T020` em `specs/032-nota-de-servico-municipal/evidence.md`. O T030 mede contra
- * a API real; o acerto é nesta função só.
+ * Os nomes de campo do RPS saem da coleção oficial da v2 (`API Nota RP (v2).postman_collection.json`
+ * + `changelog (v2).md`), não mais de inferência — ver a Fase A2 de
+ * `specs/040-nota-rp-autenticada/tasks.md`, que lista as oito divergências que a coleção desfez.
  */
 
-const ISS_WITHHELD = { no: '2', yes: '1' } as const
+/** São Paulo, e não UTC: às 23h daqui o instante já é o dia seguinte lá, e a competência viraria. */
+const EMISSION_TIME_ZONE = 'America/Sao_Paulo'
 
 const payloadSchema = z.object({
   cnaeCode: z.string(),
@@ -93,14 +97,20 @@ export type NfseCredentialAccess = {
 
 export type NfseFiscalGatewayConfig = {
   readonly baseUrl: string | undefined
+  /**
+   * Origem pública da API, de onde sai a `CallbackUrl` obrigatória da v2. Sem ela não há emissão:
+   * o provedor recusa o pedido, e insistir gastaria tentativa por defeito de configuração.
+   */
+  readonly callbackBaseUrl: string | undefined
   readonly timeoutMilliseconds: number
 }
 
 export type NfseFiscalGateway = {
+  /** O motivo é o **código** da prefeitura, nunca o texto do operador — ver `NFSE_CANCELLATION_MOTIVES`. */
   cancel(input: {
+    readonly cancellationMotive: NfseCancellationMotive
     readonly credential: NfseCredentialAccess
     readonly providerDocumentId: string
-    readonly reason: string
   }): Promise<NfseGatewayCancelOutcome>
   fetchDocument(input: {
     readonly credential: NfseCredentialAccess
@@ -112,94 +122,126 @@ export type NfseFiscalGateway = {
     readonly providerDocumentId: string
   }): Promise<NfseGatewayStatusOutcome>
   issue(input: {
-    readonly callbackUrl?: string
     readonly credential: NfseCredentialAccess
     readonly payload: unknown
   }): Promise<NfseGatewayIssueOutcome>
 }
 
 export function createNfseFiscalGateway(dependencies: {
+  readonly clock?: () => Date
   readonly config: NfseFiscalGatewayConfig
   readonly createClient?: (input: { readonly config: NotaRpV2Config }) => NotaRpV2Client
   readonly fetch: NotaRpFetch
   readonly secretService: NfseCredentialSecretService
 }): NfseFiscalGateway {
   const { config, fetch, secretService } = dependencies
+  const clock = dependencies.clock ?? ((): Date => new Date())
   const createClient =
     dependencies.createClient ?? ((input) => createNotaRpV2Client({ config: input.config, fetch }))
 
   async function resolveClient(
     credential: NfseCredentialAccess,
-  ): Promise<NotaRpV2Client | 'credential_unreadable' | 'provider_not_configured'> {
+  ): Promise<ResolvedClient | 'credential_unreadable' | 'provider_not_configured'> {
     const { baseUrl } = config
     /** Sem endereço não há a quem pedir — e o segredo continua selado. */
     if (baseUrl === undefined || baseUrl === '') return 'provider_not_configured'
 
     try {
-      const { apiToken } = await secretService.decrypt({
+      const { apiToken, callbackToken } = await secretService.decrypt({
         companyId: credential.companyId,
         credentialId: credential.credentialId,
         envelope: credential.envelope,
       })
-      return createClient({
+      const client = createClient({
         config: {
           baseUrl,
+          callbackToken,
           municipalRegistration: credential.municipalRegistration,
           timeoutMilliseconds: config.timeoutMilliseconds,
           token: apiToken,
         },
       })
+      return { callbackToken, client }
     } catch {
       return 'credential_unreadable'
     }
   }
 
   return {
-    cancel: async ({ credential, providerDocumentId, reason }) => {
-      const client = await resolveClient(credential)
-      if (typeof client === 'string') return { cause: client, status: 'error' }
+    cancel: async ({ cancellationMotive, credential, providerDocumentId }) => {
+      const resolved = await resolveClient(credential)
+      if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
-        return await client.cancel({ providerDocumentId, reason })
+        return await resolved.client.cancel({ cancellationMotive, providerDocumentId })
       } catch {
         return { cause: 'transport_failure', status: 'error' }
       }
     },
 
     fetchDocument: async ({ credential, kind, providerDocumentId }) => {
-      const client = await resolveClient(credential)
-      if (typeof client === 'string') return { cause: client, status: 'error' }
+      const resolved = await resolveClient(credential)
+      if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
-        return await client.fetchDocument({ kind, providerDocumentId })
+        return await resolved.client.fetchDocument({ kind, providerDocumentId })
       } catch {
         return { cause: 'transport_failure', status: 'error' }
       }
     },
 
     fetchStatus: async ({ credential, providerDocumentId }) => {
-      const client = await resolveClient(credential)
-      if (typeof client === 'string') return { cause: client, status: 'error' }
+      const resolved = await resolveClient(credential)
+      if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
-        return await client.fetchStatus({ providerDocumentId })
+        return await resolved.client.fetchStatus({ providerDocumentId })
       } catch {
         return { cause: 'transport_failure', status: 'error' }
       }
     },
 
-    issue: async ({ callbackUrl, credential, payload }) => {
+    issue: async ({ credential, payload }) => {
       const parsed = payloadSchema.safeParse(payload)
       if (!parsed.success) return { cause: 'invalid_payload', status: 'error' }
 
-      const client = await resolveClient(credential)
-      if (typeof client === 'string') return { cause: client, status: 'error' }
+      const { callbackBaseUrl } = config
+      /** Sem endereço de retorno o pedido não é aceito — e o segredo continua selado. */
+      if (callbackBaseUrl === undefined || callbackBaseUrl === '') {
+        return { cause: 'provider_not_configured', status: 'error' }
+      }
+
+      const resolved = await resolveClient(credential)
+      if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
-        return await client.issue({
-          rps: buildRps({ ...(callbackUrl === undefined ? {} : { callbackUrl }), ...parsed.data }),
+        return await resolved.client.issue({
+          rps: buildRps({
+            ...parsed.data,
+            callbackUrl: buildCallbackUrl({
+              baseUrl: callbackBaseUrl,
+              token: resolved.callbackToken,
+            }),
+            issuedOn: clock(),
+          }),
         })
       } catch {
         return { cause: 'transport_failure', status: 'error' }
       }
     },
   }
+}
+
+type ResolvedClient = {
+  readonly callbackToken: string
+  readonly client: NotaRpV2Client
+}
+
+/**
+ * Cópia por valor do `API_PUBLIC_NFSE_CALLBACKS_PATH` da API (`shared/api.constant.ts`), sem o
+ * `:token`: as duas apps não importam código uma da outra, e uma URL montada com outro caminho
+ * levaria o postback do provedor a um 404 que só apareceria com a nota já emitida.
+ */
+const CALLBACK_PATH = '/public/nfse-callbacks'
+
+function buildCallbackUrl(input: { readonly baseUrl: string; readonly token: string }): string {
+  return `${input.baseUrl.replace(/\/+$/u, '')}${CALLBACK_PATH}/${input.token}`
 }
 
 type FrozenPayload = z.infer<typeof payloadSchema>
@@ -210,26 +252,51 @@ type FrozenPayload = z.infer<typeof payloadSchema>
  * primeira a divergir.
  */
 function buildRps(
-  input: FrozenPayload & { readonly callbackUrl?: string },
+  input: FrozenPayload & { readonly callbackUrl: string; readonly issuedOn: Date },
 ): Readonly<Record<string, unknown>> {
   return {
     Aliquota: input.issRate,
-    Cnae: input.cnaeCode,
+    CallbackUrl: input.callbackUrl,
+    CodigoCnae: input.cnaeCode,
     CodigoMunicipio: input.municipalityIbgeCode,
+    CpfCnpj: input.taker.taxId,
+    DataEmissao: formatEmissionDate(input.issuedOn),
     Discriminacao: input.description,
+    /** O provedor não tem o e-mail do tomador nesta emissão; pedir o envio seria pedir no vazio. */
+    EnviarEmail: false,
     // Sigla em caixa alta, como no XSD da ABRASF 2.04: `ExigibilidadeIss` chega como campo
     // desconhecido e a prefeitura rejeita pedindo o campo que nós julgávamos ter mandado.
     ExigibilidadeISS: input.issExigibility,
-    IssRetido: input.issWithheld ? ISS_WITHHELD.yes : ISS_WITHHELD.no,
-    ItemListaServico: input.serviceListItem,
-    TomadorCnpjCpf: input.taker.taxId,
-    TomadorRazaoSocial: input.taker.legalName,
-    ValorIss: input.issAmount,
+    IssRetido: input.issWithheld,
+    ItemListaServico: toServiceListItemCode(input.serviceListItem),
+    RazaoSocial: input.taker.legalName,
+    /**
+     * O ISS não vai no pedido: o provedor o calcula de `ValorServicos` × `Aliquota`, e o contrato
+     * oficial não tem `ValorIss`. Mandá-lo era abrir uma segunda fonte para o mesmo número.
+     */
     ValorServicos: input.serviceAmount,
-    ...(input.callbackUrl === undefined ? {} : { CallbackUrl: input.callbackUrl }),
+    _exterior: false,
     ...(input.municipalTaxationCode.length === 0
       ? {}
       : { CodigoTributacaoMunicipio: input.municipalTaxationCode }),
     ...(input.nbsCode.length === 0 ? {} : { CodigoNbs: input.nbsCode }),
   }
+}
+
+/**
+ * O item da lista de serviço viaja como **código**, sem a formatação `00.00` que a v2 passou a usar
+ * só no texto de descrição: `16.02` é `1602`, `01.03` é `103` (`changelog (v2).md`).
+ */
+function toServiceListItemCode(value: string): string {
+  return value.replace(/\D/gu, '').replace(/^0+(?=\d)/u, '')
+}
+
+/** `dd/mm/aaaa`, o formato do campo na coleção oficial. */
+function formatEmissionDate(issuedOn: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: EMISSION_TIME_ZONE,
+    year: 'numeric',
+  }).format(issuedOn)
 }

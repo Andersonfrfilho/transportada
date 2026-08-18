@@ -7,7 +7,7 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createCompanySettingsClient,
   type DistributionCursor,
-} from '../shared/companySettingsClient.service'
+} from '@/modules/company-settings/shared/companySettingsClient.service'
 
 const DISTRIBUTION_CURSOR_QUERY_KEY = 'company-distribution-cursor'
 

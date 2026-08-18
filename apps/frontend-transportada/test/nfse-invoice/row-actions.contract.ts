@@ -281,6 +281,20 @@ describe('nfse row actions rendering contract', () => {
     expect(detailDialog).toContain('formatAmount')
   })
 
+  /**
+   * O código do motivo é escolha, não digitação: a prefeitura lê um código, e texto livre no lugar
+   * dele faz o cancelamento ser recusado longe de quem pediu. Select do design system, e o botão só
+   * libera com o código escolhido — bloquear na tela é mais barato que o 400 genérico da API.
+   */
+  test('the cancel dialog picks the motive from the catalog, never typed', async () => {
+    const cancelDialog = await readApplicationFile(CANCEL_DIALOG_PATH)
+
+    expect(cancelDialog).toContain("from '@/components/ui/select'")
+    expect(cancelDialog).toContain('NFSE_CANCELLATION_MOTIVES')
+    expect(cancelDialog).toContain('cancelDialog.motive')
+    expect(cancelDialog).toContain('actions.isCancelReady')
+  })
+
   test('the page mounts both dialogs beside the table', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
@@ -311,6 +325,10 @@ describe('nfse row actions locale contract', () => {
       'cancelDialog.confirm',
       'cancelDialog.reasonTooShort',
       'cancelDialog.reasonTooLong',
+      'cancelDialog.motive',
+      'cancelDialog.motiveHint',
+      'cancelDialog.motives.2',
+      'cancelDialog.motives.4',
     ]
 
     for (const key of required) {

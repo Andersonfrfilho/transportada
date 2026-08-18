@@ -51,6 +51,15 @@ export const NFSE_MAX_SELECTION_DOCUMENTS = 500
 export const NFSE_CANCELLATION_REASON_MIN_LENGTH = 5
 export const NFSE_CANCELLATION_REASON_MAX_LENGTH = 255
 
+/**
+ * O `motivo` que a prefeitura lê é **código**, não texto: `2` serviço não prestado, `4` nota
+ * duplicada. O `1` (erro na emissão) existe no vocabulário dela e é o único que ela recusa, pedindo
+ * substituição da nota — a nota iria para `cancellation_requested`, liberaria as NF-e vinculadas e
+ * ficaria esperando um retorno que nunca chega. Por isso a tela não o oferece.
+ */
+export const NFSE_CANCELLATION_MOTIVES = ['2', '4'] as const
+export type NfseCancellationMotive = (typeof NFSE_CANCELLATION_MOTIVES)[number]
+
 export const NFSE_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
 export const NFSE_EMISSION_PROFILE_PAGE_SIZE = 100
 

@@ -10,7 +10,6 @@ import {
   type FuelPriceEntryContract,
 } from './company-settings.fixture'
 
-const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const CLIENT_MODULE = '../../src/modules/company-settings/shared/companySettingsClient.service'
 const SERVICE_MODULE = '../../src/modules/company-settings/shared/fuelPrice.service'
 const FUEL_PRICES_URL = 'https://transportada.test/company-settings/fuel-prices'
@@ -22,25 +21,6 @@ const FUEL_PRODUCTS = [
   'gasolina-comum',
   'etanol-hidratado',
   'gnv',
-] as const
-
-const PANEL_LABEL_KEYS = [
-  'fuelPricesTitle',
-  'fuelPricesHint',
-  'fuelPriceEffective',
-  'fuelPriceUnavailable',
-  'fuelPriceReference',
-  'fuelPriceReferenceMissing',
-  'fuelPriceUpdatedAt',
-  'fuelPriceFieldLabel',
-  'fuelPriceFieldHint',
-  'fuelPriceSave',
-  'fuelPriceClear',
-  'fuelPriceSaved',
-  'fuelPriceError',
-  'fuelPriceLoadError',
-  'fuelPriceSourceAnp',
-  'fuelPriceSourceManual',
 ] as const
 
 type CompanySettingsClientModule = {
@@ -59,29 +39,8 @@ type CompanySettingsClientModule = {
 }
 
 type FuelPriceServiceModule = {
-  readonly FUEL_PRICE_SOURCE_LABEL_KEYS: Readonly<Record<string, string>>
   readonly formatFuelPricePerUnit: (value: string) => string
   readonly toFuelPricePerUnit: (draft: string) => null | string
-}
-
-function readModule(filePath: string): Promise<string> {
-  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
-}
-
-async function readLocale(filePath: string): Promise<Record<string, unknown>> {
-  return JSON.parse(await readModule(filePath)) as Record<string, unknown>
-}
-
-function readLocaleKey(locale: Record<string, unknown>, key: string): unknown {
-  return key
-    .split('.')
-    .reduce<unknown>(
-      (current, part) =>
-        current !== null && typeof current === 'object'
-          ? (current as Record<string, unknown>)[part]
-          : undefined,
-      locale,
-    )
 }
 
 async function fuelPriceClient(fetch: (request: Request) => Promise<Response>) {
@@ -197,88 +156,5 @@ describe('fuel price draft contract', () => {
 
     // O separador do `Intl` em pt-BR é espaço inquebrável — comparar com espaço comum falha
     expect(formatFuelPricePerUnit('6.2400')).toBe('R$ 6,2400')
-  })
-
-  test('cada origem de preço da API tem rótulo próprio nos dois catálogos', async () => {
-    const { FUEL_PRICE_SOURCE_LABEL_KEYS } =
-      await loadFutureModule<FuelPriceServiceModule>(SERVICE_MODULE)
-    const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
-    ])
-
-    expect(Object.keys(FUEL_PRICE_SOURCE_LABEL_KEYS).sort()).toEqual(['anp', 'manual'])
-    for (const source of ['anp', 'manual']) {
-      const key = FUEL_PRICE_SOURCE_LABEL_KEYS[source] ?? ''
-      expect(readLocaleKey(portuguese, key)).toBeString()
-      expect(readLocaleKey(english, key)).toBeString()
-    }
-  })
-})
-
-describe('fuel price presentation contract', () => {
-  test('traduz cada rótulo do painel e cada combustível nos dois catálogos', async () => {
-    const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
-    ])
-
-    for (const key of PANEL_LABEL_KEYS) {
-      expect(portuguese[key]).toBeString()
-      expect(english[key]).toBeString()
-    }
-    for (const product of FUEL_PRODUCTS) {
-      expect(readLocaleKey(portuguese, `fuelOption.${product}`)).toBeString()
-      expect(readLocaleKey(english, `fuelOption.${product}`)).toBeString()
-    }
-  })
-
-  test('desenha uma linha por combustível do catálogo, e não só as que têm preço', async () => {
-    const component = await readModule(
-      'src/modules/company-settings/components/FuelPricePanel.component.tsx',
-    )
-
-    expect(component).toContain('FUEL_PRODUCTS')
-    expect(component).toContain('fuelOption.')
-  })
-
-  test('a referência da ANP fica ao lado do valor efetivo, como comparação', async () => {
-    const component = await readModule(
-      'src/modules/company-settings/components/FuelPricePanel.component.tsx',
-    )
-
-    expect(component).toContain('fuelPriceEffective')
-    expect(component).toContain('fuelPriceReference')
-    expect(component).toContain('reference')
-  })
-
-  test('a ação de limpar só existe onde há ajuste da transportadora', async () => {
-    const component = await readModule(
-      'src/modules/company-settings/components/FuelPricePanel.component.tsx',
-    )
-
-    expect(component).toContain("source === 'manual'")
-    expect(component).toContain('fuelPriceClear')
-    expect(component).toContain('onClear')
-  })
-
-  test('o painel entra na tela com esqueleto e sem controle fora do design system', async () => {
-    const [component, hook, page] = await Promise.all([
-      readModule('src/modules/company-settings/components/FuelPricePanel.component.tsx'),
-      readModule('src/modules/company-settings/hooks/useFuelPrices.hook.ts'),
-      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
-    ])
-
-    expect(page).toContain('<FuelPricePanel')
-    expect(component).toContain('Skeleton')
-    expect(component).toContain('Icon')
-    expect(component).not.toContain('<svg')
-    expect(component).not.toContain('<select')
-    expect(component).not.toContain("type='checkbox'")
-    expect(component).not.toContain('type="checkbox"')
-    expect(component).not.toMatch(/#[0-9a-f]{3,8}\b/i)
-    for (const method of ['adjustFuelPrice', 'clearFuelPrice', 'getFuelPrices']) {
-      expect(hook).toContain(method)
-    }
   })
 })

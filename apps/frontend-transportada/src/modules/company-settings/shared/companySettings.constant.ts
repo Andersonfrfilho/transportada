@@ -2,6 +2,9 @@
 import type { CertificatePurpose, CompanySettingsUpdate } from './companySettings.types'
 import type { PixKeyType } from './pixKeyType.service'
 
+/** A permissão que guarda a configuração — inclusive quando ela mora numa aba de outro módulo. */
+export const SETTINGS_MANAGE_PERMISSION = 'settings.manage'
+
 export const CERTIFICATE_PURPOSE_LABEL_KEYS = {
   cte: 'certificatePurposeCte',
   mdfe: 'certificatePurposeMdfe',

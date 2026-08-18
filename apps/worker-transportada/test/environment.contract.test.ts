@@ -43,6 +43,7 @@ describe('worker environment contract', () => {
       logSinkUrl: undefined,
       nfseProvider: {
         baseUrl: undefined,
+        callbackBaseUrl: undefined,
         timeoutMilliseconds: 15_000,
       },
       port: 53_002,
@@ -133,8 +134,48 @@ describe('worker environment contract', () => {
 
     expect(parsed.nfseProvider).toEqual({
       baseUrl: 'https://www.notarp.com.br/api/v2',
+      callbackBaseUrl: undefined,
       timeoutMilliseconds: 20_000,
     })
+  })
+
+  /**
+   * A mesma variável da API, com a mesma validação: o worker precisa dela para montar a
+   * `CallbackUrl` obrigatória do `/emitir`, e a API para registrar a rota que recebe o postback.
+   * Configurar uma sem a outra é emitir sem retorno ou publicar rota que ninguém chama.
+   */
+  test('lê a base pública do callback de NFS-e da instalação', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      NFSE_CALLBACK_BASE_URL: 'https://api.exemplo.com.br',
+    })
+
+    expect(parsed.nfseProvider.callbackBaseUrl).toBe('https://api.exemplo.com.br')
+  })
+
+  // A v2 exige callback https e suspende a integração de quem publica endereço que não responde:
+  // http em domínio público é o caminho mais curto para a suspensão.
+  test('recusa base de callback que não seja https, salvo localhost', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        NFSE_CALLBACK_BASE_URL: 'http://api.exemplo.com.br',
+      }),
+    ).toThrow(WorkerConfigurationError)
+
+    expect(
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        NFSE_CALLBACK_BASE_URL: 'http://localhost:53001',
+      }).nfseProvider.callbackBaseUrl,
+    ).toBe('http://localhost:53001')
+  })
+
+  test('base de callback vazia significa desligada, e não string vazia', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, NFSE_CALLBACK_BASE_URL: '   ' }).nfseProvider
+        .callbackBaseUrl,
+    ).toBeUndefined()
   })
 
   // O par por ambiente fiscal prometia um isolamento que o provedor não oferece (ADR-0035). Se o

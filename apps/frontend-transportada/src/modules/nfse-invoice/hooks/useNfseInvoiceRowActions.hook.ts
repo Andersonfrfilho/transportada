@@ -6,6 +6,7 @@ import {
   NFSE_INVOICE_DETAIL_QUERY_KEY,
   NFSE_INVOICE_DOCUMENTS_QUERY_KEY,
   NFSE_INVOICES_QUERY_KEY,
+  type NfseCancellationMotive,
 } from '../shared/nfseInvoice.constant'
 import type {
   NfseInvoice,
@@ -58,6 +59,8 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
   )
   const [cancelTarget, setCancelTarget] = useState<NfseInvoice | null>(null)
   const [cancellationReason, setCancellationReason] = useState('')
+  /** Sem padrão de propósito: qual código a prefeitura lê é escolha de quem cancela, não nossa. */
+  const [cancellationMotive, setCancellationMotive] = useState<'' | NfseCancellationMotive>('')
   const [attemptToken, setAttemptToken] = useState('')
   const [downloadErrorCode, setDownloadErrorCode] = useState<null | string>(null)
 
@@ -93,27 +96,33 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     onSuccess: () => {
       setCancelTarget(null)
       setCancellationReason('')
+      setCancellationMotive('')
       return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
     },
   })
 
   const reasonCheck = validateNfseCancellationReason(cancellationReason)
+  const isCancelReady = reasonCheck.status === 'ready' && cancellationMotive !== ''
 
   function closeCancel(): void {
     setCancelTarget(null)
     setCancellationReason('')
+    setCancellationMotive('')
     cancelMutation.reset()
   }
 
   return {
     cancelErrorCode: readErrorCode(cancelMutation.error),
+    cancellationMotive,
     cancellationReason,
     cancelTarget,
     closeCancel,
     closeDetail: () => setDetailTarget(null),
     confirmCancel: () => {
-      if (cancelTarget === null || reasonCheck.status !== 'ready') return
+      if (cancelTarget === null || cancellationMotive === '' || reasonCheck.status !== 'ready')
+        return
       cancelMutation.mutate({
+        cancellationMotive,
         cancellationReason: reasonCheck.value,
         idempotencyKey: buildNfseCancellationIdempotencyKey({
           invoiceId: cancelTarget.id,
@@ -131,12 +140,13 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       downloadMutation.mutate({ invoiceId, kind })
     },
     isCancelPending: cancelMutation.isPending,
+    isCancelReady,
     isDetailLoading: detailQuery.isLoading || documentsQuery.isLoading,
     isDownloadPending: downloadMutation.isPending,
-    isReasonReady: reasonCheck.status === 'ready',
     openCancel: (invoice: NfseInvoice) => {
       setCancelTarget(invoice)
       setCancellationReason('')
+      setCancellationMotive('')
       setAttemptToken(crypto.randomUUID())
       cancelMutation.reset()
     },
@@ -144,6 +154,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     reasonBlock: reasonCheck.status === 'blocked' ? reasonCheck.reason : null,
     resolveActions: (status: string): NfseRowActionState =>
       resolveNfseRowActions({ permissions, status }),
+    setCancellationMotive,
     setCancellationReason,
   }
 }

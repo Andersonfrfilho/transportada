@@ -8,6 +8,7 @@
 export type NfseStatusFailureCause =
   | 'credential_unreadable'
   | 'malformed_response'
+  | 'not_found'
   | 'provider_not_configured'
   | 'timeout'
   | 'transport_failure'

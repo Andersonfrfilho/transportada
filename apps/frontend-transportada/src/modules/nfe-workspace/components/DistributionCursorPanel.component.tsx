@@ -5,12 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
-import type { DistributionCursor } from '../shared/companySettingsClient.service'
+import type { DistributionCursor } from '@/modules/company-settings/shared/companySettingsClient.service'
 import {
   DISTRIBUTION_CURSOR_NSU_LENGTH,
   isDistributionCursorNsu,
-} from '../shared/distributionCursor.validation'
-import styles from '../styles/companySettings.module.css'
+} from '@/modules/company-settings/shared/distributionCursor.validation'
+import styles from '../styles/distributionSettings.module.css'
 
 type DistributionCursorPanelProps = Readonly<{
   adjusted: boolean
@@ -22,7 +22,7 @@ type DistributionCursorPanelProps = Readonly<{
 }>
 
 function useMomentFormatter(): (value: string) => string {
-  const { i18n } = useTranslation('companySettings')
+  const { i18n } = useTranslation('nfeWorkspace')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
@@ -31,7 +31,7 @@ function useMomentFormatter(): (value: string) => string {
 }
 
 function DistributionCursorSkeleton() {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
     <SkeletonGroup label={t('distributionCursorTitle')}>
       <Skeleton variant="text" width="16rem" />
@@ -43,7 +43,7 @@ function DistributionCursorSkeleton() {
 }
 
 function DistributionCursorFacts({ cursor }: Readonly<{ cursor: DistributionCursor }>) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   const formatMoment = useMomentFormatter()
   return (
     <>
@@ -85,9 +85,9 @@ function AdjustmentConfirmation(
     ultNsu: string
   }>,
 ) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
-    <div className={styles.certificateDeleteAction} role="group">
+    <div className={styles.actionRow} role="group">
       <p className={styles.formStatusError} role="status">
         {t('distributionCursorConfirm', { nsu: props.ultNsu })}
       </p>
@@ -111,7 +111,7 @@ function AdjustmentConfirmation(
 function AdjustmentForm(
   props: Readonly<{ disabled: boolean; maxNsu: string; onAdjust: (ultNsu: string) => void }>,
 ) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState<string | undefined>(undefined)
   const invalid = draft !== '' && !isDistributionCursorNsu(draft)
@@ -140,7 +140,7 @@ function AdjustmentForm(
       />
       <p className={styles.fieldHint}>{t('distributionCursorFieldHint', { nsu: props.maxNsu })}</p>
       {pending === undefined ? (
-        <div className={styles.certificateDeleteAction}>
+        <div className={styles.actionRow}>
           <button
             className={styles.primaryAction}
             disabled={props.disabled || !isDistributionCursorNsu(draft)}
@@ -164,9 +164,9 @@ function AdjustmentForm(
 }
 
 export function DistributionCursorPanel(props: DistributionCursorPanelProps) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
-    <section className={styles.certificateForm} aria-labelledby="distribution-cursor-title">
+    <section className={styles.settingsPanel} aria-labelledby="distribution-cursor-title">
       <h2 id="distribution-cursor-title">{t('distributionCursorTitle')}</h2>
       <p className={styles.fieldHint}>{t('distributionCursorHint')}</p>
       {props.loading ? (

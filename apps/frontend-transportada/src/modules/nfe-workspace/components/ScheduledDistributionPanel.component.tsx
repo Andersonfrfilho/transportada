@@ -8,8 +8,8 @@ import { resolveIneligibilityLabelKey } from '../shared/scheduledDistribution.co
 import type {
   ScheduledDistributionRun,
   ScheduledDistributionStatus,
-} from '../shared/scheduledDistribution.validation'
-import styles from '../styles/companySettings.module.css'
+} from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import styles from '../styles/distributionSettings.module.css'
 
 type ScheduledDistributionPanelProps = Readonly<{
   disabled: boolean
@@ -22,7 +22,7 @@ type ScheduledDistributionPanelProps = Readonly<{
 const FAILED_IMPORT_STATUS = 'failed'
 
 function useMomentFormatter(): (value: string) => string {
-  const { i18n } = useTranslation('companySettings')
+  const { i18n } = useTranslation('nfeWorkspace')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
@@ -31,7 +31,7 @@ function useMomentFormatter(): (value: string) => string {
 }
 
 function ScheduledDistributionSkeleton() {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
     <SkeletonGroup label={t('scheduledDistributionTitle')}>
       <Skeleton variant="text" width="14rem" />
@@ -43,7 +43,7 @@ function ScheduledDistributionSkeleton() {
 }
 
 function EligibilityLine({ status }: Readonly<{ status: ScheduledDistributionStatus }>) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   if (status.eligible)
     return <p className={styles.formStatusSuccess}>{t('scheduledDistributionReady')}</p>
   return (
@@ -56,7 +56,7 @@ function EligibilityLine({ status }: Readonly<{ status: ScheduledDistributionSta
 }
 
 function LastRunLine({ run }: Readonly<{ run: ScheduledDistributionRun | null }>) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   const formatMoment = useMomentFormatter()
   if (run === null) return <p className={styles.fieldHint}>{t('scheduledDistributionNeverRan')}</p>
   const key =
@@ -71,7 +71,7 @@ function LastRunLine({ run }: Readonly<{ run: ScheduledDistributionRun | null }>
 }
 
 function ScheduledDistributionFacts({ status }: Readonly<{ status: ScheduledDistributionStatus }>) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   const formatMoment = useMomentFormatter()
   return (
     <>
@@ -103,7 +103,7 @@ function ToggleAction(
     onToggle: (nextEnabled: boolean) => void
   }>,
 ) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
     <button
       className={props.enabled ? styles.secondaryAction : styles.primaryAction}
@@ -118,9 +118,9 @@ function ToggleAction(
 }
 
 export function ScheduledDistributionPanel(props: ScheduledDistributionPanelProps) {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfeWorkspace')
   return (
-    <section className={styles.certificateForm} aria-labelledby="scheduled-distribution-title">
+    <section className={styles.settingsPanel} aria-labelledby="scheduled-distribution-title">
       <h2 id="scheduled-distribution-title">{t('scheduledDistributionTitle')}</h2>
       <p className={styles.fieldHint}>{t('scheduledDistributionHint')}</p>
       {props.loading ? (
@@ -135,7 +135,7 @@ export function ScheduledDistributionPanel(props: ScheduledDistributionPanelProp
             {t(props.status.enabled ? 'scheduledDistributionOn' : 'scheduledDistributionOff')}
           </p>
           <ScheduledDistributionFacts status={props.status} />
-          <div className={styles.certificateDeleteAction}>
+          <div className={styles.actionRow}>
             <ToggleAction
               disabled={props.disabled}
               enabled={props.status.enabled}

@@ -1,15 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FuelPriceSource } from './fuelPrice.validation'
-
 /** A ANP publica quatro casas, e é a quarta que muda o R$/km quando o preço é dividido. */
 const PRICE_SCALE = 4
 const PRICE_DRAFT = /^(\d+)(?:[.,](\d+))?$/u
 const API_PRICE = /^(?:0|[1-9][0-9]{0,14})\.[0-9]{4}$/u
-
-export const FUEL_PRICE_SOURCE_LABEL_KEYS: Readonly<Record<FuelPriceSource, string>> = {
-  anp: 'fuelPriceSourceAnp',
-  manual: 'fuelPriceSourceManual',
-}
 
 const priceFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',

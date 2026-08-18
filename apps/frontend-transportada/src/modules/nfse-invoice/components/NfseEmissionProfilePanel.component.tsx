@@ -12,15 +12,12 @@ import {
   toNfseProfileDraft,
   type NfseProfileBlockReason,
   type NfseProfileDraft,
-} from '@/modules/nfse-invoice/shared/nfseProfileForm.service'
-import type {
-  NfseEmissionProfile,
-  NfseEmissionProfileStatus,
-} from '@/modules/nfse-invoice/shared/nfseSettings.types'
+} from '../shared/nfseProfileForm.service'
+import type { NfseEmissionProfile, NfseEmissionProfileStatus } from '../shared/nfseSettings.types'
 
 import type { NfseProfileSave, NfseProfileStatusToggle } from '../hooks/useNfseSettings.hook'
 import { NfseProfileFields } from './NfseProfileFields.component'
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/nfseSettings.module.css'
 
 type NfseEmissionProfilePanelProps = Readonly<{
   disabled: boolean
@@ -53,7 +50,7 @@ const BLOCK_REASON_LABEL_KEYS: Readonly<Record<NfseProfileBlockReason, string>> 
 }
 
 function ProfileSkeleton(): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
   return (
     <SkeletonGroup label={t('nfseProfileTitle')}>
       <Skeleton height="var(--field-height)" width="100%" />
@@ -65,7 +62,7 @@ function ProfileSkeleton(): JSX.Element {
 }
 
 export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
   const [selectedId, setSelectedId] = useState<string>(NEW_PROFILE_VALUE)
   const [draft, setDraft] = useState<NfseProfileDraft>(EMPTY_NFSE_PROFILE_DRAFT)
   const [blockReason, setBlockReason] = useState<NfseProfileBlockReason | undefined>(undefined)
@@ -104,7 +101,7 @@ export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): 
   }
 
   return (
-    <section className={styles.certificateForm} aria-labelledby="nfse-profile-title">
+    <section className={styles.settingsPanel} aria-labelledby="nfse-profile-title">
       <h2 id="nfse-profile-title">{t('nfseProfileTitle')}</h2>
       <p className={styles.fieldHint}>{t('nfseProfileHint')}</p>
       {props.loading ? (

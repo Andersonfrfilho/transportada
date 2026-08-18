@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 
 import type {
   NfseAttemptKind,
+  NfseCancellationMotive,
   NfseFiscalEnvironment,
   NfseIssuanceEvent,
   NfseIssuanceOutboxEventType,
@@ -63,11 +64,14 @@ export function createInvoiceFingerprint(input: {
   })
 }
 
+/** Os dois entram: corrigir o código ou o texto e repetir a chave é pedido novo, não replay. */
 export function createCancellationFingerprint(input: {
+  readonly cancellationMotive: NfseCancellationMotive
   readonly cancellationReason: string
   readonly invoiceId: string
 }): string {
   return createRequestFingerprint({
+    cancellationMotive: input.cancellationMotive,
     cancellationReason: input.cancellationReason,
     invoiceId: input.invoiceId,
     operation: CANCEL_OPERATION,
@@ -194,12 +198,12 @@ export async function scheduleNfseIssuance(params: ScheduleNfseIssuanceParams): 
 }
 
 export type ScheduleNfseCancellationParams = ScheduleNfseIssuanceParams & {
-  readonly cancellationReason: string
+  readonly cancellationMotive: NfseCancellationMotive
 }
 
 /**
- * O cancelamento sai pelo mesmo trilho da emissão. O motivo viaja no payload porque a prefeitura o
- * exige na transmissão, e é o mesmo texto que já ficou gravado na nota.
+ * O cancelamento sai pelo mesmo trilho da emissão. No payload vai o **código** do motivo, que é o
+ * que a prefeitura lê; o texto livre do operador fica na nota e não é registrado aqui.
  */
 export async function scheduleNfseCancellation(
   params: ScheduleNfseCancellationParams,
@@ -219,6 +223,6 @@ export async function scheduleNfseCancellation(
     correlationId: params.correlationId,
     eventType: NFSE_CANCEL_OUTBOX_EVENT,
     invoiceId: params.invoiceId,
-    payload: { cancellationReason: params.cancellationReason, invoiceId: params.invoiceId },
+    payload: { cancellationMotive: params.cancellationMotive, invoiceId: params.invoiceId },
   })
 }

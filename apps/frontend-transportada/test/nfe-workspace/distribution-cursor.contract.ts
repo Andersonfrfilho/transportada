@@ -5,7 +5,7 @@ import {
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_IDEMPOTENCY_KEY,
   loadFutureModule,
-} from './company-settings.fixture'
+} from '../company-settings/company-settings.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const CLIENT_MODULE = '../../src/modules/company-settings/shared/companySettingsClient.service'
@@ -136,8 +136,8 @@ describe('distribution cursor client contract', () => {
 describe('distribution cursor presentation contract', () => {
   test('traduz cada rótulo do painel nos dois catálogos', async () => {
     const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
     ])
 
     for (const key of PANEL_LABEL_KEYS) {
@@ -148,7 +148,7 @@ describe('distribution cursor presentation contract', () => {
 
   test('o painel mostra o intervalo abandonado e as recusas seguidas', async () => {
     const component = await readModule(
-      'src/modules/company-settings/components/DistributionCursorPanel.component.tsx',
+      'src/modules/nfe-workspace/components/DistributionCursorPanel.component.tsx',
     )
 
     expect(component).toContain('lastSkipped')
@@ -158,18 +158,18 @@ describe('distribution cursor presentation contract', () => {
 
   test('o ajuste exige confirmação antes de saltar o cursor', async () => {
     const component = await readModule(
-      'src/modules/company-settings/components/DistributionCursorPanel.component.tsx',
+      'src/modules/nfe-workspace/components/DistributionCursorPanel.component.tsx',
     )
 
     expect(component).toContain('distributionCursorConfirm')
     expect(component).toContain('distributionCursorCancel')
   })
 
-  test('o painel entra na tela de configurações com esqueleto e sem cor solta', async () => {
+  test('o painel entra na aba de importações da tela de notas com esqueleto e sem cor solta', async () => {
     const [component, hook, page] = await Promise.all([
-      readModule('src/modules/company-settings/components/DistributionCursorPanel.component.tsx'),
-      readModule('src/modules/company-settings/hooks/useDistributionCursor.hook.ts'),
-      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
+      readModule('src/modules/nfe-workspace/components/DistributionCursorPanel.component.tsx'),
+      readModule('src/modules/nfe-workspace/hooks/useDistributionCursor.hook.ts'),
+      readModule('src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx'),
     ])
 
     expect(page).toContain('<DistributionCursorPanel')

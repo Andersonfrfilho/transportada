@@ -131,6 +131,7 @@ describe('nfse service invoice schema', () => {
       'next_status_check_at',
       'authorized_at',
       'cancelled_at',
+      'cancellation_motive',
       'cancellation_reason',
       'version',
       'created_by_user_id',
@@ -164,6 +165,22 @@ describe('nfse service invoice schema', () => {
 
     expect(check).toContain('cancellation_reason')
     expect(check).toContain('cancelled_at')
+    expect(check).toContain('is null')
+  })
+
+  /**
+   * O código do motivo é do vocabulário da prefeitura, e o `1` fica de fora: o provedor o **recusa**
+   * pedindo substituição. O CHECK cobra o conjunto e tolera nulo — a nota cancelada antes da coluna
+   * existir tem o texto do operador e nenhum código, e exigi-lo recusaria a linha antiga.
+   */
+  test('accepts only the cancellation motive codes the provider honours', () => {
+    const check = checkSqlByName(requireSchemaTable('nfseServiceInvoices'))[
+      'nfse_service_invoices_cancellation_motive_check'
+    ]
+
+    expect(check).toContain("'2'")
+    expect(check).toContain("'4'")
+    expect(check).not.toContain("'1'")
     expect(check).toContain('is null')
   })
 

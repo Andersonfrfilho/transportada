@@ -5,15 +5,15 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import type { FreightRuleSummary } from '@/modules/freight/shared/freightClient.service'
-import type { NfseProfileDraft } from '@/modules/nfse-invoice/shared/nfseProfileForm.service'
+import type { NfseProfileDraft } from '../shared/nfseProfileForm.service'
 import {
   NFSE_ISS_EXIGIBILITIES,
   NFSE_TAKERS,
   type NfseIssExigibility,
   type NfseTaker,
-} from '@/modules/nfse-invoice/shared/nfseSettings.types'
+} from '../shared/nfseSettings.types'
 
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/nfseSettings.module.css'
 
 type NfseProfileFieldsProps = Readonly<{
   disabled: boolean
@@ -49,7 +49,7 @@ export function NfseProfileFields({
   freightRules,
   onChange,
 }: NfseProfileFieldsProps): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
 
   function patch(change: Partial<NfseProfileDraft>) {
     onChange({ ...draft, ...change })

@@ -331,6 +331,18 @@ a {
   text-align: center;
 }
 
+/* `a { color: inherit }` deixaria o único link do rodapé indistinguível do texto ao lado dele. */
+.application-footer a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+.application-footer a:hover {
+  color: var(--color-copper);
+  text-decoration-color: currentcolor;
+}
+
 .application-session-banner {
   width: var(--layout-width);
   margin: 0 auto var(--space-4);

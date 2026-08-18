@@ -26,7 +26,7 @@ describe('fleet workspace tabs contract', () => {
   test('opens on the vehicles tab and keeps the active tab in local state', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
-    expect(page).toContain("useState<'drivers' | 'vehicles'>('vehicles')")
+    expect(page).toContain("useState<FleetTabId>('vehicles')")
     expect(page).toContain('activeTab')
 
     const vehiclesTab = page.indexOf("id: 'vehicles'")
@@ -56,7 +56,11 @@ describe('fleet workspace tabs contract', () => {
       const tabs = locale['tabs']
 
       expect(typeof tabs).toBe('object')
-      expect(Object.keys(tabs as Record<string, unknown>).sort()).toEqual(['drivers', 'vehicles'])
+      expect(Object.keys(tabs as Record<string, unknown>).sort()).toEqual([
+        'drivers',
+        'fuel',
+        'vehicles',
+      ])
     }
 
     const page = await readApplicationFile(PAGE_PATH)

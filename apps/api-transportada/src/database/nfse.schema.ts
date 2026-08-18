@@ -71,6 +71,16 @@ export const NFSE_SERVICE_INVOICE_STATUSES = [
 ] as const
 export type NfseServiceInvoiceStatus = (typeof NFSE_SERVICE_INVOICE_STATUSES)[number]
 
+/**
+ * O `motivo` do `/cancelar-nota` da Nota RP v2 é código, não texto. O vocabulário do provedor tem
+ * `1` (erro na emissão), `2` (serviço não prestado) e `4` (nota duplicada) — não existe `3`. O `1`
+ * fica de fora de propósito: o próprio provedor **recusa** o cancelamento pedindo substituição de
+ * NFS-e, que não emitimos, e aceitá-lo aqui liberaria as NF-e e deixaria a nota esperando um
+ * retorno que nunca vem.
+ */
+export const NFSE_CANCELLATION_MOTIVES = ['2', '4'] as const
+export type NfseCancellationMotive = (typeof NFSE_CANCELLATION_MOTIVES)[number]
+
 export const NFSE_ATTEMPT_KINDS = ['issue', 'cancel'] as const
 export type NfseAttemptKind = (typeof NFSE_ATTEMPT_KINDS)[number]
 
@@ -252,7 +262,7 @@ export const nfseProviderCredentials = pgTable(
     provider: text().$type<NfseProvider>().notNull().default('notarp'),
     fiscalEnvironment: text('fiscal_environment').$type<NfseFiscalEnvironment>().notNull(),
     taxId: text('tax_id').notNull(),
-    municipalRegistration: text('municipal_registration').notNull().default(''),
+    municipalRegistration: text('municipal_registration').notNull(),
     secretEnvelope: jsonb('secret_envelope').notNull(),
     callbackTokenSha256: text('callback_token_sha256').notNull(),
     status: text().$type<NfseCredentialStatus>().notNull().default('active'),
@@ -296,6 +306,15 @@ export const nfseProviderCredentials = pgTable(
       sql`${table.callbackTokenSha256} ~ ${raw(`'${SHA256_PATTERN}'`)}`,
     ),
     check('nfse_provider_credentials_version_check', sql`${table.version} > 0`),
+    /**
+     * `not null` sozinho deixava passar a string vazia, e o padrão `''` da coluna a escrevia sem
+     * ninguém pedir. A inscrição vai no `X-AUTH-IM` de toda chamada à Nota RP: em branco o provedor
+     * responde 200 com `cadastro: null` e a credencial só se revela inválida na primeira emissão.
+     */
+    check(
+      'nfse_provider_credentials_municipal_registration_check',
+      sql`length(${table.municipalRegistration}) > 0`,
+    ),
   ],
 )
 
@@ -320,6 +339,7 @@ export const nfseServiceInvoices = pgTable(
     nextStatusCheckAt: timestamp('next_status_check_at', { withTimezone: true }),
     authorizedAt: timestamp('authorized_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancellationMotive: text('cancellation_motive').$type<NfseCancellationMotive>(),
     cancellationReason: text('cancellation_reason'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdByUserId: uuid('created_by_user_id').notNull(),
@@ -391,6 +411,15 @@ export const nfseServiceInvoices = pgTable(
     check(
       'nfse_service_invoices_cancellation_requested_check',
       sql`${table.status} <> 'cancellation_requested' or (${table.cancellationReason} is not null and ${table.cancelledAt} is null)`,
+    ),
+    /**
+     * Só o conjunto de valores, e nada de obrigatoriedade por status: a nota cancelada antes desta
+     * coluna existir tem o texto do operador e não tem código, e um CHECK que a exigisse recusaria
+     * a linha antiga. Quem cobra o código é a fronteira Zod da API e a guarda do worker.
+     */
+    check(
+      'nfse_service_invoices_cancellation_motive_check',
+      sql`${table.cancellationMotive} is null or ${table.cancellationMotive} in (${raw(inList(NFSE_CANCELLATION_MOTIVES))})`,
     ),
     // Só os estados assíncronos agendam reconciliação — os liquidados não voltam para a varredura
     check(

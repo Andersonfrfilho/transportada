@@ -5,11 +5,11 @@ import {
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_IDEMPOTENCY_KEY,
   loadFutureModule,
-} from './company-settings.fixture'
+} from '../company-settings/company-settings.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const CLIENT_MODULE = '../../src/modules/company-settings/shared/companySettingsClient.service'
-const CONSTANT_MODULE = '../../src/modules/company-settings/shared/scheduledDistribution.constant'
+const CONSTANT_MODULE = '../../src/modules/nfe-workspace/shared/scheduledDistribution.constant'
 const SCHEDULED_DISTRIBUTION_URL =
   'https://transportada.test/company-settings/scheduled-distribution'
 
@@ -179,8 +179,8 @@ describe('scheduled distribution presentation contract', () => {
     const { SCHEDULED_DISTRIBUTION_REASON_LABEL_KEYS } =
       await loadFutureModule<ScheduledDistributionConstantModule>(CONSTANT_MODULE)
     const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
     ])
 
     expect(Object.keys(SCHEDULED_DISTRIBUTION_REASON_LABEL_KEYS).sort()).toEqual(
@@ -195,8 +195,8 @@ describe('scheduled distribution presentation contract', () => {
 
   test('traduz cada rótulo do painel nos dois catálogos', async () => {
     const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+      readLocale('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
     ])
 
     for (const key of PANEL_LABEL_KEYS) {
@@ -207,20 +207,18 @@ describe('scheduled distribution presentation contract', () => {
 
   test('o painel anuncia o próximo ciclo do cron, e não só a janela da SEFAZ', async () => {
     const component = await readModule(
-      'src/modules/company-settings/components/ScheduledDistributionPanel.component.tsx',
+      'src/modules/nfe-workspace/components/ScheduledDistributionPanel.component.tsx',
     )
 
     expect(component).toContain('nextScheduledRunAt')
     expect(component).toContain('scheduledDistributionNextRun')
   })
 
-  test('o painel entra na tela de configurações com esqueleto e sem cor solta', async () => {
+  test('o painel entra na aba de importações da tela de notas com esqueleto e sem cor solta', async () => {
     const [component, hook, page] = await Promise.all([
-      readModule(
-        'src/modules/company-settings/components/ScheduledDistributionPanel.component.tsx',
-      ),
-      readModule('src/modules/company-settings/hooks/useScheduledDistribution.hook.ts'),
-      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
+      readModule('src/modules/nfe-workspace/components/ScheduledDistributionPanel.component.tsx'),
+      readModule('src/modules/nfe-workspace/hooks/useScheduledDistribution.hook.ts'),
+      readModule('src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx'),
     ])
 
     expect(page).toContain('<ScheduledDistributionPanel')

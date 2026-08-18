@@ -12,6 +12,8 @@ const INVOICE_ID = '5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d'
 const ATTEMPT_ID = '6b7c8d9e-0f1a-4b2c-8d3e-4f5a6b7c8d9e'
 const CREDENTIAL_ID = '9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b'
 const PROVIDER_DOCUMENT_ID = 'nota-rp-4711'
+/** Código do vocabulário da prefeitura. O texto livre do operador fica na nota e não vem para cá. */
+const CANCELLATION_MOTIVE = '2'
 const CANCELLATION_REASON = 'Cliente Fulano de Tal pediu por telefone'
 
 const PAYLOAD_TABLE = 'nfse_issuance_payloads'
@@ -58,6 +60,7 @@ function createDatabaseStub(row?: Row): {
 
 function createRow(overrides?: Row): Row {
   return {
+    cancellationMotive: CANCELLATION_MOTIVE,
     cancellationReason: CANCELLATION_REASON,
     credentialId: CREDENTIAL_ID,
     envelope: { sealed: true },
@@ -102,13 +105,18 @@ describe('NFS-e issuance execution input contract', () => {
     expect(joins).toContainEqual({ kind: 'inner', table: 'nfse_provider_credentials' })
   })
 
-  test('a linha sem payload entrega credencial, motivo e documento do provedor', async () => {
+  /**
+   * O que sai daqui é o **código** do motivo: é ele que vai no corpo do `/cancelar-nota`. O texto
+   * livre do operador fica na nota — trazê-lo para o worker seria carregar PII até a fronteira do
+   * provedor sem ninguém precisar dele.
+   */
+  test('a linha sem payload entrega credencial, código do motivo e documento do provedor', async () => {
     const { database } = createDatabaseStub(createRow({ payload: null }))
 
     const execution = await load({ database })
 
     expect(execution).toEqual({
-      cancellationReason: CANCELLATION_REASON,
+      cancellationMotive: CANCELLATION_MOTIVE,
       credential: {
         companyId: COMPANY_ID,
         credentialId: CREDENTIAL_ID,

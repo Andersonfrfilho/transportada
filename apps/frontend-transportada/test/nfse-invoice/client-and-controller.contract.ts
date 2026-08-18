@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   AUTHORIZED_INVOICE_LIST_ITEM,
+  CANCELLATION_MOTIVE,
   CANCELLATION_REASON,
   CANCELLATION_SUMMARY,
   DOCUMENT_DOWNLOAD,
@@ -91,6 +92,7 @@ describe('nfse invoice client contract', () => {
     ).toEqual(ISSUANCE_SUMMARY)
     expect(
       await client.cancelInvoice({
+        cancellationMotive: CANCELLATION_MOTIVE,
         cancellationReason: CANCELLATION_REASON,
         idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
         invoiceId: INVOICE_ID,
@@ -112,7 +114,30 @@ describe('nfse invoice client contract', () => {
 
     expect(cancelRequest.url).toBe(`${INVOICES_PATH}/${INVOICE_ID}/cancel`)
     expect(cancelRequest.headers.get('idempotency-key')).toBe(SYNTHETIC_IDEMPOTENCY_KEY)
-    expect(await cancelRequest.json()).toEqual({ cancellationReason: CANCELLATION_REASON })
+    /**
+     * Dois campos porque são duas coisas: o **código** é o que a prefeitura lê na transmissão, e o
+     * texto é o registro de por que a nota saiu do ar. `toEqual` no corpo inteiro é de propósito —
+     * mandar só o texto faz a prefeitura recusar o cancelamento dias depois, na consulta.
+     */
+    expect(await cancelRequest.json()).toEqual({
+      cancellationMotive: CANCELLATION_MOTIVE,
+      cancellationReason: CANCELLATION_REASON,
+    })
+  })
+
+  /**
+   * `1` (erro na emissão) existe no vocabulário da prefeitura e é o único que ela recusa, pedindo
+   * substituição da nota em vez de cancelamento — a nota iria para `cancellation_requested`,
+   * liberaria as NF-e vinculadas e ficaria esperando um retorno que nunca chega. A tela não o
+   * oferece, e é aqui que isso é cobrado.
+   */
+  test('o catálogo de motivos não oferece o código que a prefeitura recusa', async () => {
+    const constants = await loadFutureModule<{
+      readonly NFSE_CANCELLATION_MOTIVES: readonly string[]
+    }>('../../src/modules/nfse-invoice/shared/nfseInvoice.constant')
+
+    expect(constants.NFSE_CANCELLATION_MOTIVES).toEqual(['2', '4'])
+    expect(constants.NFSE_CANCELLATION_MOTIVES).not.toContain('1')
   })
 
   /** O corpo `.strict()` da API recusa campo desconhecido: a chave de idempotência é cabeçalho. */
@@ -122,6 +147,7 @@ describe('nfse invoice client contract', () => {
 
     await client.createInvoices({ ...SELECTION_BODY, idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY })
     await client.cancelInvoice({
+      cancellationMotive: CANCELLATION_MOTIVE,
       cancellationReason: CANCELLATION_REASON,
       idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
       invoiceId: INVOICE_ID,
@@ -186,6 +212,7 @@ describe('nfse invoice client contract', () => {
       idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
     } as never)
     await client.cancelInvoice({
+      cancellationMotive: CANCELLATION_MOTIVE,
       cancellationReason: CANCELLATION_REASON,
       companyId: 'forbidden-company',
       idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
@@ -215,6 +242,7 @@ describe('nfse invoice client contract', () => {
     expect(
       await client
         .cancelInvoice({
+          cancellationMotive: CANCELLATION_MOTIVE,
           cancellationReason: CANCELLATION_REASON,
           idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
           invoiceId: INVOICE_ID,
@@ -326,6 +354,7 @@ describe('nfse invoice controller contract', () => {
     expect(
       await readerOnly
         .cancelInvoice({
+          cancellationMotive: CANCELLATION_MOTIVE,
           cancellationReason: CANCELLATION_REASON,
           idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
           invoiceId: INVOICE_ID,
@@ -343,6 +372,7 @@ describe('nfse invoice controller contract', () => {
     expect(
       await issuerOnly
         .cancelInvoice({
+          cancellationMotive: CANCELLATION_MOTIVE,
           cancellationReason: CANCELLATION_REASON,
           idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
           invoiceId: INVOICE_ID,
@@ -369,6 +399,7 @@ describe('nfse invoice controller contract', () => {
     await controller.listInvoiceDocuments({ invoiceId: INVOICE_ID })
     await controller.getInvoiceDocumentUrl({ invoiceId: INVOICE_ID, kind: 'xml' })
     await controller.cancelInvoice({
+      cancellationMotive: CANCELLATION_MOTIVE,
       cancellationReason: CANCELLATION_REASON,
       idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
       invoiceId: INVOICE_ID,
@@ -555,6 +586,7 @@ type SelectionInput = Readonly<{
 type InvoiceClient = {
   cancelInvoice(
     input: Readonly<{
+      cancellationMotive: string
       cancellationReason: string
       idempotencyKey: string
       invoiceId: string

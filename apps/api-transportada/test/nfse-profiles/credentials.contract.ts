@@ -120,6 +120,33 @@ describe('NFS-e provider credential routes contract', () => {
     expect(fixture.saveCredentialCalls).toHaveLength(0)
   })
 
+  /**
+   * A inscrição municipal vai no `X-AUTH-IM` de toda chamada à Nota RP: sem ela o provedor responde
+   * 200 com `cadastro: null` e a emissão morre depois, longe daqui. Aceitá-la em branco era gravar
+   * uma credencial que só se descobre inválida na primeira nota — e o `.default('')` deixava o
+   * corpo sem o campo passar como se estivesse completo.
+   */
+  test('refuses to save a credential without a municipal registration', async () => {
+    const fixture = await createNfseProfilesHttpFixture()
+    const withoutRegistration = Object.fromEntries(
+      Object.entries(CREDENTIAL_BODY).filter(([field]) => field !== 'municipalRegistration'),
+    )
+
+    const absent = await fixture.handle(
+      jsonRequest({ body: withoutRegistration, method: 'PUT', path: '/nfse-provider-credentials' }),
+    )
+    const blank = await fixture.handle(
+      jsonRequest({
+        body: { ...CREDENTIAL_BODY, municipalRegistration: '   ' },
+        method: 'PUT',
+        path: '/nfse-provider-credentials',
+      }),
+    )
+
+    expect([absent.status, blank.status]).toEqual([400, 400])
+    expect(fixture.saveCredentialCalls).toHaveLength(0)
+  })
+
   test('denies both credential routes without settings.manage', async () => {
     const fixture = await createNfseProfilesHttpFixture({
       permissions: READ_ONLY_CONTEXT.permissions,

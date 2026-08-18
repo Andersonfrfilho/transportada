@@ -15,6 +15,11 @@ export type NfseServiceInvoiceStatus =
   | 'cancelled'
   | 'failed'
 export type NfseAttemptKind = 'issue' | 'cancel'
+/**
+ * O `motivo` do `/cancelar-nota` é **código**: `2` serviço não prestado, `4` nota duplicada. Quem
+ * cobra o conjunto é a fronteira Zod da API e o CHECK do banco — aqui a linha só é lida.
+ */
+export type NfseCancellationMotive = '2' | '4'
 export type NfseIssuanceStatus =
   | 'pending'
   | 'in_flight'
@@ -46,6 +51,7 @@ export const nfseServiceInvoices = pgTable('nfse_service_invoices', {
   nextStatusCheckAt: timestamp('next_status_check_at', { withTimezone: true }),
   authorizedAt: timestamp('authorized_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancellationMotive: text('cancellation_motive').$type<NfseCancellationMotive>(),
   cancellationReason: text('cancellation_reason'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })

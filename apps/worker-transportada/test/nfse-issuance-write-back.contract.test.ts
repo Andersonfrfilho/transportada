@@ -31,7 +31,7 @@ const EVENT_ID = '7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f'
 const ACTOR_ID = '8d9e0f1a-2b3c-4d4e-8f5a-6b7c8d9e0f1a'
 const CREDENTIAL_ID = '9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b'
 const PROVIDER_DOCUMENT_ID = 'nota-rp-4711'
-const CANCELLATION_REASON = 'Cliente Fulano de Tal pediu por telefone'
+const CANCELLATION_MOTIVE = '2'
 
 const NOW = new Date('2026-08-12T12:00:00.000Z')
 
@@ -99,7 +99,7 @@ function createEffectFixture(options?: {
   }
 
   const defaultInput: NfseIssuanceExecutionInput = {
-    cancellationReason: CANCELLATION_REASON,
+    cancellationMotive: CANCELLATION_MOTIVE,
     credential: CREDENTIAL,
     payload: { serviceAmount: '100.0000' },
     providerDocumentId: PROVIDER_DOCUMENT_ID,
@@ -275,7 +275,7 @@ describe('NFS-e issuance effect contract', () => {
   test('a cancellation runs without a frozen payload — only the issue freezes one', async () => {
     const fixture = createEffectFixture({
       input: {
-        cancellationReason: CANCELLATION_REASON,
+        cancellationMotive: CANCELLATION_MOTIVE,
         credential: CREDENTIAL,
         providerDocumentId: PROVIDER_DOCUMENT_ID,
       },
@@ -290,19 +290,24 @@ describe('NFS-e issuance effect contract', () => {
     ])
   })
 
-  test('reads the cancellation reason from the invoice row at transmission time', async () => {
+  /**
+   * O que chega ao provedor é o código, lido da linha da nota na hora de transmitir. O envelope não
+   * carrega nem o código nem o texto: payload de mensagem é referência (`security.md` §6).
+   */
+  test('reads the cancellation motive code from the invoice row at transmission time', async () => {
     const fixture = createEffectFixture()
 
     await fixture.execute(CANCEL_ENVELOPE)
 
     expect(fixture.cancelled).toEqual([
       {
+        cancellationMotive: CANCELLATION_MOTIVE,
         credential: CREDENTIAL,
         providerDocumentId: PROVIDER_DOCUMENT_ID,
-        reason: CANCELLATION_REASON,
       },
     ])
-    expect(JSON.stringify(CANCEL_ENVELOPE)).not.toContain(CANCELLATION_REASON)
+    expect(Object.keys(CANCEL_ENVELOPE.payload)).not.toContain('cancellationMotive')
+    expect(Object.keys(CANCEL_ENVELOPE.payload)).not.toContain('cancellationReason')
   })
 
   test('confirms the cancellation when the provider accepts it', async () => {
@@ -319,14 +324,15 @@ describe('NFS-e issuance effect contract', () => {
 
   test('a cancellation without a provider document is fatal, and the provider is never called', async () => {
     const fixture = createEffectFixture({
-      input: { cancellationReason: CANCELLATION_REASON, credential: CREDENTIAL, payload: {} },
+      input: { cancellationMotive: CANCELLATION_MOTIVE, credential: CREDENTIAL, payload: {} },
     })
 
     await expect(fixture.execute(CANCEL_ENVELOPE)).rejects.toBeInstanceOf(NfseIssuanceFatalError)
     expect(fixture.cancelled).toEqual([])
   })
 
-  test('a cancellation without a stored reason is fatal — the prefeitura demands one', async () => {
+  /** Sem código não há pedido: transmitir vazio faz a prefeitura recusar o cancelamento. */
+  test('a cancellation without a stored motive code is fatal — the prefeitura demands one', async () => {
     const fixture = createEffectFixture({
       input: {
         credential: CREDENTIAL,
@@ -339,7 +345,8 @@ describe('NFS-e issuance effect contract', () => {
     expect(fixture.cancelled).toEqual([])
   })
 
-  test('never leaks the cancellation reason into the write-back trail', async () => {
+  /** A trilha de escrita vai para a linha da tentativa e para o log: só referência opaca entra nela. */
+  test('never leaks the cancellation motive into the write-back trail', async () => {
     const fixture = createEffectFixture({
       cancelOutcome: { cause: 'transport_failure', status: 'error' },
     })
@@ -347,6 +354,7 @@ describe('NFS-e issuance effect contract', () => {
     await expect(fixture.execute(CANCEL_ENVELOPE)).rejects.toBeInstanceOf(
       NfseIssuanceRecoverableError,
     )
-    expect(JSON.stringify(fixture.writes)).not.toContain('Fulano')
+    expect(JSON.stringify(fixture.writes)).not.toContain('cancellationMotive')
+    expect(JSON.stringify(fixture.writes)).not.toContain('cancellationReason')
   })
 })

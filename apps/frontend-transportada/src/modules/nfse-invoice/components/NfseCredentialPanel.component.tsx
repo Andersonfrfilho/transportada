@@ -13,17 +13,17 @@ import {
   type NfseCredentialBlockReason,
   type NfseCredentialDraft,
   type NfseCredentialPresence,
-} from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
+} from '../shared/nfseCredentialForm.service'
 import {
   NFSE_CREDENTIAL_STATUSES,
   NFSE_FISCAL_ENVIRONMENTS,
   type NfseCredentialStatus,
   type NfseFiscalEnvironment,
   type NfseProviderCredentialSummary,
-} from '@/modules/nfse-invoice/shared/nfseSettings.types'
+} from '../shared/nfseSettings.types'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/nfseSettings.module.css'
 
 type NfseCredentialPanelProps = Readonly<{
   disabled: boolean
@@ -38,6 +38,7 @@ type NfseCredentialPanelProps = Readonly<{
 
 const BLOCK_REASON_LABEL_KEYS: Readonly<Record<NfseCredentialBlockReason, string>> = {
   apiTokenRequired: 'nfseCredentialBlockedApiTokenRequired',
+  municipalRegistrationRequired: 'nfseCredentialBlockedMunicipalRegistrationRequired',
   taxIdInvalid: 'nfseCredentialBlockedTaxIdInvalid',
 }
 
@@ -63,7 +64,7 @@ const TAX_ID_MAX_LENGTH = 18
 const MUNICIPAL_REGISTRATION_MAX_LENGTH = 40
 
 function CredentialSkeleton(): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
   return (
     <SkeletonGroup label={t('nfseCredentialTitle')}>
       <Skeleton height="var(--field-height)" width="100%" />
@@ -83,7 +84,7 @@ function CredentialSignals({
   presence: NfseCredentialPresence
   summary: NfseProviderCredentialSummary | null | undefined
 }>): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
   const alertKey = PRESENCE_ALERT_KEYS[presence]
 
   if (alertKey !== null) {
@@ -105,7 +106,7 @@ function CredentialSignals({
 }
 
 export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Element {
-  const { t } = useTranslation('companySettings')
+  const { t } = useTranslation('nfseInvoice')
   const [draft, setDraft] = useState<NfseCredentialDraft>(() =>
     toNfseCredentialDraft(props.summary),
   )
@@ -128,7 +129,7 @@ export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Elemen
   }
 
   return (
-    <section className={styles.certificateForm} aria-labelledby="nfse-credential-title">
+    <section className={styles.settingsPanel} aria-labelledby="nfse-credential-title">
       <h2 id="nfse-credential-title">{t('nfseCredentialTitle')}</h2>
       <p className={styles.fieldHint}>{t('nfseCredentialHint')}</p>
       {props.loading ? (

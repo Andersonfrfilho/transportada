@@ -76,6 +76,7 @@ export const PROVIDER_DOCUMENT_ID = '900123456'
 /** `cause` é classificação estável, nunca a mensagem do erro — mensagem carrega URL e cabeçalho. */
 export const NOTA_RP_CAUSES = [
   'malformed_response',
+  'not_found',
   'timeout',
   'transport_failure',
   'unexpected_status',
@@ -85,8 +86,9 @@ export function successBody(data: Readonly<Record<string, unknown>>): Response {
   return jsonResponse({ data, success: true })
 }
 
-export function failureBody(input: { code: string; message: string }): Response {
-  return jsonResponse({ code: input.code, message: input.message, success: false })
+/** A recusa da v2 é `{success:false, message}` e nada mais — código só existe dentro do postback. */
+export function failureBody(input: { message: string }): Response {
+  return jsonResponse({ message: input.message, success: false })
 }
 
 export function authorizedData(): Readonly<Record<string, unknown>> {

@@ -4,6 +4,7 @@
 import type { ChargeComponentPricing } from '../../cte-profiles/domain/charge-composition.service.js'
 import type {
   NfseAttemptKind,
+  NfseCancellationMotive,
   NfseEmissionProfileStatus,
   NfseFiscalEnvironment,
   NfseIssExigibility,
@@ -247,6 +248,7 @@ export type ReleaseNfseInvoiceLinksInput = {
 }
 
 export type MarkNfseInvoiceCancellationInput = {
+  readonly cancellationMotive: NfseCancellationMotive
   readonly cancellationReason: string
   readonly invoiceId: string
   readonly requestedAt: string

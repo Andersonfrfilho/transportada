@@ -11,14 +11,14 @@ import {
 import {
   type NfseCredentialBody,
   resolveDefaultNfseFiscalEnvironment,
-} from '@/modules/nfse-invoice/shared/nfseCredentialForm.service'
-import { NFSE_EMISSION_PROFILES_QUERY_KEY } from '@/modules/nfse-invoice/shared/nfseInvoice.constant'
+} from '../shared/nfseCredentialForm.service'
+import { NFSE_EMISSION_PROFILES_QUERY_KEY } from '../shared/nfseInvoice.constant'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
-import { createNfseSettingsClient } from '@/modules/nfse-invoice/shared/nfseSettingsClient.service'
+import { createNfseSettingsClient } from '../shared/nfseSettingsClient.service'
 import type {
   NfseEmissionProfileSettings,
   NfseFiscalEnvironment,
-} from '@/modules/nfse-invoice/shared/nfseSettings.types'
+} from '../shared/nfseSettings.types'
 
 const NFSE_CREDENTIAL_QUERY_KEY = 'nfse-provider-credential'
 const NFSE_FREIGHT_RULES_QUERY_KEY = 'nfse-freight-rules'

@@ -3,11 +3,16 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { NfseInvoiceRowActionsController } from '../hooks/useNfseInvoiceRowActions.hook'
-import { NFSE_CANCELLATION_REASON_MAX_LENGTH } from '../shared/nfseInvoice.constant'
+import {
+  NFSE_CANCELLATION_MOTIVES,
+  NFSE_CANCELLATION_REASON_MAX_LENGTH,
+  type NfseCancellationMotive,
+} from '../shared/nfseInvoice.constant'
 import styles from '../styles/nfseInvoice.module.css'
 
 type NfseInvoiceCancelDialogProps = Readonly<{
@@ -54,6 +59,22 @@ export function NfseInvoiceCancelDialog({ actions }: NfseInvoiceCancelDialogProp
 
         <div className={styles.emissionForm}>
           <label className={styles.emissionField}>
+            <span>{t('cancelDialog.motive')}</span>
+            <Select
+              ariaLabel={t('cancelDialog.motive')}
+              disabled={actions.isCancelPending}
+              onChange={(value) => actions.setCancellationMotive(value as NfseCancellationMotive)}
+              options={NFSE_CANCELLATION_MOTIVES.map((motive) => ({
+                label: t(`cancelDialog.motives.${motive}`),
+                value: motive,
+              }))}
+              placeholder={t('cancelDialog.motivePlaceholder')}
+              value={actions.cancellationMotive}
+            />
+            <span className={styles.emissionHint}>{t('cancelDialog.motiveHint')}</span>
+          </label>
+
+          <label className={styles.emissionField}>
             <span>{t('cancelDialog.reason')}</span>
             <textarea
               disabled={actions.isCancelPending}
@@ -84,7 +105,7 @@ export function NfseInvoiceCancelDialog({ actions }: NfseInvoiceCancelDialogProp
           </button>
           <button
             className={styles.primaryAction}
-            disabled={!actions.isReasonReady || actions.isCancelPending}
+            disabled={!actions.isCancelReady || actions.isCancelPending}
             onClick={actions.confirmCancel}
             type="button"
           >

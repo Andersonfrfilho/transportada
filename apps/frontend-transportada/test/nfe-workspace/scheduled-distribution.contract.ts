@@ -9,7 +9,6 @@ import {
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const CLIENT_MODULE = '../../src/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
-const NAVIGATION_MODULE = '../../src/modules/nfe-workspace/shared/companySettingsNavigation.service'
 
 const SCHEDULED_LABEL_KEYS = [
   'scheduled.title',
@@ -22,8 +21,6 @@ const SCHEDULED_LABEL_KEYS = [
   'scheduled.lastRun',
   'scheduled.lastRunFailed',
   'scheduled.neverRan',
-  'scheduled.settingsHint',
-  'scheduled.settingsShortcut',
 ] as const
 
 type ScheduledDistributionContract = Readonly<{
@@ -51,19 +48,6 @@ type NfeWorkspaceClientModule = {
       readonly scheduled: ScheduledDistributionContract
     }>
   }
-}
-
-type WorkspaceNavigatorSpy = {
-  readonly dispatchPopState: () => void
-  readonly pushPath: (path: string) => void
-  readonly rememberWorkspace: (workspace: string) => void
-}
-
-type CompanySettingsNavigationModule = {
-  readonly COMPANY_SETTINGS_ROUTE: string
-  readonly COMPANY_SETTINGS_WORKSPACE: string
-  readonly canReachCompanySettings: (permissions: readonly string[]) => boolean
-  readonly navigateToCompanySettings: (navigator: WorkspaceNavigatorSpy) => void
 }
 
 const SCHEDULED_ENABLED = {
@@ -135,36 +119,6 @@ describe('nfe scheduled distribution client contract', () => {
   })
 })
 
-describe('nfe scheduled distribution navigation contract', () => {
-  test('o atalho empurra a rota, lembra o workspace e avisa o shell', async () => {
-    const { COMPANY_SETTINGS_ROUTE, COMPANY_SETTINGS_WORKSPACE, navigateToCompanySettings } =
-      await loadFutureModule<CompanySettingsNavigationModule>(NAVIGATION_MODULE)
-    const calls: string[] = []
-
-    navigateToCompanySettings({
-      dispatchPopState: () => calls.push('popstate'),
-      pushPath: (path) => calls.push(`push:${path}`),
-      rememberWorkspace: (workspace) => calls.push(`workspace:${workspace}`),
-    })
-
-    expect(COMPANY_SETTINGS_ROUTE).toBe('/company-settings')
-    expect(COMPANY_SETTINGS_WORKSPACE).toBe('company-settings')
-    expect(calls).toEqual([
-      `push:${COMPANY_SETTINGS_ROUTE}`,
-      `workspace:${COMPANY_SETTINGS_WORKSPACE}`,
-      'popstate',
-    ])
-  })
-
-  test('só oferece o atalho a quem administra as configurações', async () => {
-    const { canReachCompanySettings } =
-      await loadFutureModule<CompanySettingsNavigationModule>(NAVIGATION_MODULE)
-
-    expect(canReachCompanySettings(['settings.manage'])).toBe(true)
-    expect(canReachCompanySettings(['invoices.read'])).toBe(false)
-  })
-})
-
 describe('nfe scheduled distribution presentation contract', () => {
   test('traduz cada rótulo do cartão nos dois catálogos', async () => {
     const [portuguese, english] = await Promise.all([
@@ -187,9 +141,7 @@ describe('nfe scheduled distribution presentation contract', () => {
     expect(page).toContain('<NfeScheduledDistribution')
     expect(card).toContain('nextScheduledRunAt')
     expect(card).toContain('resolveIneligibilityLabelKey')
-    expect(card).toContain("ns: 'companySettings'")
-    expect(card).toContain('navigateToCompanySettings')
-    expect(card).toContain('Icon')
+    expect(card).not.toContain("ns: 'companySettings'")
     expect(card).not.toContain('<svg')
     expect(card).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
   })

@@ -422,6 +422,22 @@ a:focus-visible {
   text-align: center;
 }
 
+/*
+ * O link herda o tamanho e o espaçamento do rodapé — entrar no grupo do `.panel-link` o traria de
+ * volta a 0.875rem, e o titular ficaria maior que o próprio aviso de copyright ao lado dele.
+ */
+.colophon a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--transportada-slate) 55%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+.colophon a:hover {
+  color: var(--transportada-copper);
+  text-decoration-color: currentcolor;
+}
+
 /* `inline-flex` num elemento de linha continua obedecendo ao `text-align` do rodapé. */
 .colophon p {
   display: inline-flex;

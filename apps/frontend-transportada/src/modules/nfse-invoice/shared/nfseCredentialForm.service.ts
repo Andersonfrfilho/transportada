@@ -11,6 +11,7 @@ import {
 
 export const NFSE_CREDENTIAL_BLOCK_REASON = {
   API_TOKEN_REQUIRED: 'apiTokenRequired',
+  MUNICIPAL_REGISTRATION_REQUIRED: 'municipalRegistrationRequired',
   TAX_ID_INVALID: 'taxIdInvalid',
 } as const
 export type NfseCredentialBlockReason =
@@ -71,11 +72,21 @@ export function buildNfseCredentialSubmission(
     return { reason: NFSE_CREDENTIAL_BLOCK_REASON.API_TOKEN_REQUIRED, status: 'blocked' }
   }
 
+  // Vai no `X-AUTH-IM` de toda chamada: em branco o provedor responde 200 com `cadastro: null`, e a
+  // credencial só se revela inválida na primeira emissão.
+  const municipalRegistration = draft.municipalRegistration.trim()
+  if (municipalRegistration.length === 0) {
+    return {
+      reason: NFSE_CREDENTIAL_BLOCK_REASON.MUNICIPAL_REGISTRATION_REQUIRED,
+      status: 'blocked',
+    }
+  }
+
   return {
     body: {
       apiToken,
       fiscalEnvironment: draft.fiscalEnvironment,
-      municipalRegistration: draft.municipalRegistration.trim(),
+      municipalRegistration,
       status: draft.status,
       taxId,
     },

@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, mock, test } from 'bun:test'
 
-import { SYNTHETIC_ACCESS_TOKEN, loadFutureModule } from './company-settings.fixture'
+import {
+  SYNTHETIC_ACCESS_TOKEN,
+  loadFutureModule,
+} from '../company-settings/company-settings.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const API_BASE_URL = 'https://transportada.test'
@@ -390,6 +393,27 @@ describe('nfse credential form contract', () => {
     expect(submission.body).toBeUndefined()
   })
 
+  /**
+   * A inscrição municipal vai no `X-AUTH-IM` de toda chamada à Nota RP, e desde a spec 040 a API a
+   * exige. Deixar o envio sair em branco daqui troca uma mensagem de campo por um 400 genérico —
+   * o operador lê "não foi possível salvar" sem saber o que falta.
+   */
+  test('inscrição municipal em branco é bloqueada na tela, não no 400 da API', async () => {
+    const { buildNfseCredentialSubmission, EMPTY_NFSE_CREDENTIAL_DRAFT } =
+      await loadFutureModule<CredentialFormModule>(CREDENTIAL_FORM_MODULE)
+
+    const submission = buildNfseCredentialSubmission({
+      ...EMPTY_NFSE_CREDENTIAL_DRAFT,
+      apiToken: 'token-sintetico',
+      municipalRegistration: '   ',
+      taxId: '12345678000199',
+    })
+
+    expect(submission.status).toBe('blocked')
+    expect(submission.reason).toBe('municipalRegistrationRequired')
+    expect(submission.body).toBeUndefined()
+  })
+
   test('credencial ausente não é credencial ativa — o rascunho nasce ativo, o ambiente não', async () => {
     const { EMPTY_NFSE_CREDENTIAL_DRAFT, resolveNfseCredentialPresence, toNfseCredentialDraft } =
       await loadFutureModule<CredentialFormModule>(CREDENTIAL_FORM_MODULE)
@@ -496,8 +520,8 @@ describe('nfse profile form contract', () => {
 describe('nfse settings presentation contract', () => {
   test('traduz cada rótulo dos painéis nos dois catálogos', async () => {
     const [portuguese, english] = await Promise.all([
-      readLocale('src/modules/company-settings/locales/companySettings.locale.json'),
-      readLocale('src/modules/company-settings/locales/companySettings.en.locale.json'),
+      readLocale('src/modules/nfse-invoice/locales/nfseInvoice.locale.json'),
+      readLocale('src/modules/nfse-invoice/locales/nfseInvoice.en.locale.json'),
     ])
 
     for (const key of PANEL_LABEL_KEYS) {
@@ -507,9 +531,7 @@ describe('nfse settings presentation contract', () => {
   })
 
   test('a tela diz que deixar o token em branco não apaga o segredo já gravado', async () => {
-    const portuguese = await readLocale(
-      'src/modules/company-settings/locales/companySettings.locale.json',
-    )
+    const portuguese = await readLocale('src/modules/nfse-invoice/locales/nfseInvoice.locale.json')
 
     const hint = String(portuguese['nfseCredentialTokenHint'])
     expect(hint).toContain('em branco')
@@ -518,9 +540,7 @@ describe('nfse settings presentation contract', () => {
   })
 
   test('o painel de descrição mostra as variáveis disponíveis ao operador', async () => {
-    const portuguese = await readLocale(
-      'src/modules/company-settings/locales/companySettings.locale.json',
-    )
+    const portuguese = await readLocale('src/modules/nfse-invoice/locales/nfseInvoice.locale.json')
 
     const hint = String(portuguese['nfseProfileDescriptionVariablesHint'])
     for (const variable of DESCRIPTION_VARIABLES) {
@@ -530,10 +550,10 @@ describe('nfse settings presentation contract', () => {
 
   test('os painéis entram na tela com esqueleto, design system e sem cor solta', async () => {
     const [credential, profile, hook, page] = await Promise.all([
-      readModule('src/modules/company-settings/components/NfseCredentialPanel.component.tsx'),
-      readModule('src/modules/company-settings/components/NfseEmissionProfilePanel.component.tsx'),
-      readModule('src/modules/company-settings/hooks/useNfseSettings.hook.ts'),
-      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
+      readModule('src/modules/nfse-invoice/components/NfseCredentialPanel.component.tsx'),
+      readModule('src/modules/nfse-invoice/components/NfseEmissionProfilePanel.component.tsx'),
+      readModule('src/modules/nfse-invoice/hooks/useNfseSettings.hook.ts'),
+      readModule('src/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page.tsx'),
     ])
 
     expect(page).toContain('<NfseCredentialPanel')
@@ -558,7 +578,7 @@ describe('nfse settings presentation contract', () => {
 
   test('o painel diz a ausência da credencial em vez de deixar o campo de situação responder', async () => {
     const credential = await readModule(
-      'src/modules/company-settings/components/NfseCredentialPanel.component.tsx',
+      'src/modules/nfse-invoice/components/NfseCredentialPanel.component.tsx',
     )
 
     expect(credential).toContain('resolveNfseCredentialPresence')
@@ -581,7 +601,7 @@ describe('nfse settings presentation contract', () => {
     expect(form.resolveDefaultNfseFiscalEnvironment('staging')).toBe('homologation')
     expect(form.resolveDefaultNfseFiscalEnvironment('local')).toBe('homologation')
 
-    const hook = await readModule('src/modules/company-settings/hooks/useNfseSettings.hook.ts')
+    const hook = await readModule('src/modules/nfse-invoice/hooks/useNfseSettings.hook.ts')
     expect(hook).toContain('resolveDefaultNfseFiscalEnvironment')
     expect(hook).toContain('getDeploymentEnvironment()')
     // Padrão literal aqui é a instalação de produção abrindo na credencial que não emite.
@@ -590,8 +610,8 @@ describe('nfse settings presentation contract', () => {
 
   test('o formulário da credencial remonta quando a credencial chega, não só quando o ambiente muda', async () => {
     const [credential, page] = await Promise.all([
-      readModule('src/modules/company-settings/components/NfseCredentialPanel.component.tsx'),
-      readModule('src/modules/company-settings/pages/CompanySettings.page.tsx'),
+      readModule('src/modules/nfse-invoice/components/NfseCredentialPanel.component.tsx'),
+      readModule('src/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page.tsx'),
     ])
 
     // O rascunho nasce do resumo uma vez só, e a chave é o que decide quando esse "uma vez" acontece:
@@ -600,16 +620,14 @@ describe('nfse settings presentation contract', () => {
     // chega — e não troca a cada refetch de mesmo conteúdo, que apagaria o token sendo digitado.
     expect(credential).toContain('useState<NfseCredentialDraft>(() =>')
     const panelAt = page.indexOf('<NfseCredentialPanel')
-    const keyAt = page.indexOf('key={`${props.nfse.fiscalEnvironment}:', panelAt)
+    const keyAt = page.indexOf('key={`${settings.fiscalEnvironment}:', panelAt)
     expect(panelAt).toBeGreaterThan(-1)
     expect(keyAt).toBeGreaterThan(panelAt)
-    expect(page.slice(panelAt, panelAt + 400)).toContain('props.nfse.credential?.id')
+    expect(page.slice(panelAt, panelAt + 400)).toContain('settings.credentialQuery.data?.id')
   })
 
   test('a frase de ausência nomeia o ambiente fiscal, que é o recorte da credencial', async () => {
-    const portuguese = await readLocale(
-      'src/modules/company-settings/locales/companySettings.locale.json',
-    )
+    const portuguese = await readLocale('src/modules/nfse-invoice/locales/nfseInvoice.locale.json')
 
     const absent = String(portuguese['nfseCredentialAbsent'])
     expect(absent).toContain('{{environment}}')
@@ -618,7 +636,7 @@ describe('nfse settings presentation contract', () => {
 
   test('o campo do token não guarda o valor digitado fora do submit', async () => {
     const credential = await readModule(
-      'src/modules/company-settings/components/NfseCredentialPanel.component.tsx',
+      'src/modules/nfse-invoice/components/NfseCredentialPanel.component.tsx',
     )
 
     expect(credential).not.toContain('localStorage')
