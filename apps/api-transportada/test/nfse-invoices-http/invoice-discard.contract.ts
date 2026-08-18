@@ -13,6 +13,7 @@ import {
   READ_ONLY_PERMISSIONS,
   createNfseInvoicesHttpFixture,
   invoiceRequest,
+  invoiceRequestWithoutBody,
 } from '../fixtures/nfse-invoices-http.fixture'
 
 const DISCARD_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/${INVOICE_ID}/discard`
@@ -40,6 +41,21 @@ describe('nfse service invoice discard http', () => {
     expect(body.data.releasedDocumentIds).toEqual([DOCUMENT_ID])
     expect(body.data.replayed).toBe(false)
     expect(body.data.status).toBe('discarded')
+  })
+
+  /**
+   * "Sem corpo" é o que o cliente manda de verdade — sem body e sem `content-type`. Exigir
+   * `application/json` numa rota cujo corpo é vazio recusava todo descarte em produção com `400`,
+   * e o contrato não via porque montava o pedido com `{}`.
+   */
+  test('o descarte sem corpo nenhum é aceito, não recusado por content-type', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(invoiceRequestWithoutBody({ path: DISCARD_PATH }))
+
+    expect(response.status).toBe(202)
+    expect(fixture.discardCalls).toHaveLength(1)
+    expect(fixture.discardCalls[0]?.invoiceId).toBe(INVOICE_ID)
   })
 
   test('a rota propaga chave de idempotência, correlation-id e empresa', async () => {

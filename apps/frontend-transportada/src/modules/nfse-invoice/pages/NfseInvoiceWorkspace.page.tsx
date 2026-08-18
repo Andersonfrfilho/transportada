@@ -10,6 +10,8 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { NfseCredentialPanel } from '../components/NfseCredentialPanel.component'
 import { NfseEmissionProfilePanel } from '../components/NfseEmissionProfilePanel.component'
 import { NfseInvoiceBulkCancelDialog } from '../components/NfseInvoiceBulkCancelDialog.component'
+import { NfseInvoiceBulkDiscardDialog } from '../components/NfseInvoiceBulkDiscardDialog.component'
+import { NfseInvoiceBulkReissueDialog } from '../components/NfseInvoiceBulkReissueDialog.component'
 import { NfseInvoiceCancelDialog } from '../components/NfseInvoiceCancelDialog.component'
 import { NfseInvoiceDetailDialog } from '../components/NfseInvoiceDetailDialog.component'
 import { NfseInvoiceDiscardDialog } from '../components/NfseInvoiceDiscardDialog.component'
@@ -118,6 +120,8 @@ export function NfseInvoiceWorkspacePage({
         <NfseInvoiceReissueDialog actions={table.rowActions} />
         <NfseInvoiceDiscardDialog actions={table.rowActions} />
         <NfseInvoiceBulkCancelDialog bulkCancel={table.bulkCancel} />
+        <NfseInvoiceBulkReissueDialog bulkReissue={table.bulkReissue} />
+        <NfseInvoiceBulkDiscardDialog bulkDiscard={table.bulkDiscard} />
       </>
     ),
   }
