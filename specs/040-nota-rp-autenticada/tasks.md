@@ -244,10 +244,21 @@ delas bloqueia a primeira emissão; a T021 bloqueia a **liquidação** dela.
       **não** recebeu o campo, e isso é deliberado: `grep -n 'CallbackUrl\|callback'` nos dois
       arquivos dela não devolve nada, porque ali só se consulta e se baixa documento — não há segundo
       segredo a redigir. `typecheck` e `lint` limpos nas quatro apps.
-- [ ] **T023** — "Nota não encontrada" chega ao `fetchStatus` como `malformed_response`. O provedor
+- [x] **T023** — "Nota não encontrada" chega ao `fetchStatus` como `malformed_response`. O provedor
       responde `200` com `success: true`, uma `message` e **sem** a chave `data`; o cliente faz
       `asRecord(envelope.data['data'])`, não acha, e classifica como resposta malformada. É a causa
       errada para o caso mais banal do trilho, e some no meio das falhas de contrato quando a
       reconciliação olhar o motivo. Dar causa própria (`not_found`) nas duas cópias — worker e cron.
       Achado da sondagem da T001/T002; não bloqueia emissão.
       Verificação: contrato vermelho antes, nas duas cópias, com o envelope sem `data`.
+      **Feito.** A causa `not_found` entrou nas duas cópias do cliente e no
+      `NfseStatusFailureCause` da política — é o tipo que amarra as duas pontas: o gateway do cron
+      devolve o resultado do cliente **direto** como `NfseProviderStatusFacts`, então causa nova no
+      cliente sem causa nova na política não compila. Três testes vermelhos antes: `not_found` no
+      cliente do worker, o gêmeo no `nota-rp-parity.contract.ts`, e o adiamento com a causa própria
+      no `outcome.contract.ts`. Mais dois casos negativos guardando a fronteira — envelope de sucesso
+      **sem** `data` e **sem** `message` continua `malformed_response`, que é a diferença entre
+      "não achei" e "resposta quebrada". Verde: worker `473 pass · 0 fail` (eram 471), cron
+      `186 pass · 0 fail` (eram 183). `typecheck` e `lint` limpos nas quatro apps.
+      A causa só é registrada em log (`cron_nfse_reconciliation_deferred`) — não há coluna nem check
+      no banco a migrar.

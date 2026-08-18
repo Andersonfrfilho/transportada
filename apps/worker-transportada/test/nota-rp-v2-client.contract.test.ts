@@ -197,6 +197,32 @@ describe('Nota RP v2 client — consulta', () => {
     expect(outcome.cause).toBe('malformed_response')
   })
 
+  /**
+   * Medido contra a conta autenticada: nota inexistente volta `200` com `success: true`, uma
+   * `message` e **sem** `data`. Ler isso como resposta malformada esconde o caso mais banal do
+   * trilho no meio das falhas de contrato.
+   */
+  test('nota inexistente é not_found, não resposta malformada', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ message: 'Nenhuma nota encontrada com a busca realizada.', success: true }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.status).toBe('error')
+    expect(outcome.cause).toBe('not_found')
+  })
+
+  test('envelope de sucesso sem data e sem mensagem continua malformado', async () => {
+    const { fetch } = recordingFetch(() => jsonResponse({ success: true }))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.cause).toBe('malformed_response')
+  })
+
   test('autorização sem número ou sem código de verificação é resposta malformada', async () => {
     const { fetch } = recordingFetch(() =>
       successBody({ ...authorizedData(), codigo_verificacao: '', numero_nota: '' }),

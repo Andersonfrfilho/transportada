@@ -30,6 +30,7 @@ const JSON_MEDIA_TYPE = 'application/json'
 
 export type NotaRpCause =
   | 'malformed_response'
+  | 'not_found'
   | 'timeout'
   | 'transport_failure'
   | 'unexpected_status'
@@ -163,7 +164,17 @@ async function readEnvelope(input: {
   }
 
   const data = body['data']
-  return isRecord(data) ? { data, status: 'ok' } : { cause: 'malformed_response', status: 'error' }
+  if (isRecord(data)) return { data, status: 'ok' }
+  return { cause: readMissingCause(body), status: 'error' }
+}
+
+/**
+ * Nota inexistente vem como sucesso sem `data`, só com a `message` da busca vazia — é ausência, e
+ * não resposta quebrada. Sem mensagem alguma não há o que distinguir, e o envelope volta a ser
+ * malformado.
+ */
+function readMissingCause(body: Record<string, unknown>): NotaRpCause {
+  return readText(body, 'message') === undefined ? 'malformed_response' : 'not_found'
 }
 
 function readSituation(data: Record<string, unknown>): NotaRpStatusOutcome {

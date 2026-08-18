@@ -76,6 +76,7 @@ export const PROVIDER_DOCUMENT_ID = '900123456'
 /** `cause` é classificação estável, nunca a mensagem do erro — mensagem carrega URL e cabeçalho. */
 export const NOTA_RP_CAUSES = [
   'malformed_response',
+  'not_found',
   'timeout',
   'transport_failure',
   'unexpected_status',

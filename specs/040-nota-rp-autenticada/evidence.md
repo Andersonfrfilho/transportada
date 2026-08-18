@@ -436,3 +436,56 @@ O `/xml/62` também mostra que **falha na rota de documento chega como `200` + `
 que é exatamente o que o `readDocument` já trata como falha. O que a sondagem não viu é a resposta de
 **sucesso**, que é o objeto da T021: sem nota alcançável, não dá para saber se o base64 vem puro ou
 dentro de envelope.
+
+## T023 — "nota não encontrada" ganha causa própria
+
+O achado de brinde da sondagem virou task e fechou. O provedor responde a busca vazia com `200`,
+`success: true`, uma `message` e **sem** a chave `data`; o cliente procurava `data`, não achava, e
+classificava como `malformed_response` — a causa errada para o caso mais banal do trilho, e que
+sumiria no meio das falhas de contrato quando alguém olhasse o motivo do adiamento.
+
+**Vermelho antes**, nas duas cópias:
+
+```
+apps/worker-transportada/test/nota-rp-v2-client.contract.test.ts:214
+  error: expect(received).toBe(expected)
+  Expected: "not_found"
+  Received: "malformed_response"
+
+apps/cron-transportada/test/nfse-status-pull/nota-rp-parity.contract.ts:155
+  - "cause": "not_found"
+  + "cause": "malformed_response"
+```
+
+O que mudou:
+
+| Arquivo | Mudança |
+|---|---|
+| `worker/src/nfse-issuance/infrastructure/nota-rp-v2.client.ts` | `'not_found'` no `NotaRpCause`; `readMissingCause` |
+| `cron/src/nfse-status-pull/infrastructure/nota-rp-v2.client.ts` | idem, no `readEnvelope` |
+| `cron/src/nfse-status-pull/domain/nfse-reconciliation-outcome.policy.ts` | `'not_found'` no `NfseStatusFailureCause` |
+
+A política precisou da causa **porque o tipo obriga**: o gateway do cron devolve o resultado do
+cliente direto como `NfseProviderStatusFacts`, então causa nova de um lado sem causa nova do outro
+não compila. É o mesmo seam que já amarrava `timeout` e `unexpected_status` — a paridade aqui é do
+compilador, não de disciplina.
+
+A distinção que os testes guardam é entre ausência e defeito: envelope de sucesso **sem** `data` mas
+**com** `message` é `not_found`; sem `data` e sem `message` continua `malformed_response`, porque aí
+não há o que distinguir. Dois casos negativos, um em cada cópia.
+
+Na reconciliação, `not_found` cai no adiamento que já existia (`{ cause, kind: 'defer' }`) — nunca
+autoriza, nunca rejeita, nunca liquida. Coberto por `outcome.contract.ts`. A causa só é **logada**
+(`cron_nfse_reconciliation_deferred`): não há coluna nem `check` no banco, e portanto nenhuma
+migration nesta task.
+
+**Verde:**
+
+```
+apps/worker-transportada   473 pass · 0 fail   (Ran 473 tests across 59 files)
+apps/cron-transportada     186 pass · 0 fail   (Ran 186 tests across 8 files)
+bun run typecheck          exit 0   (api · worker · cron · frontend)
+bun run lint               exit 0   (api · worker · cron · frontend)
+```
+
+Eram 471 e 183 antes — os cinco testes novos são os dois pares de cliente mais o adiamento.

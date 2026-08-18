@@ -143,6 +143,28 @@ describe('Nota RP v2 status client parity', () => {
     })
   })
 
+  test('reads a note-not-found envelope as not_found, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() =>
+        jsonResponse({ message: 'Nenhuma nota encontrada com a busca realizada.', success: true }),
+      ).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({ cause: 'not_found', status: 'error' })
+  })
+
+  test('keeps malformed_response for a success envelope with neither data nor message', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => jsonResponse({ success: true })).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
   test('classifies a non-2xx response as unexpected_status', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => jsonResponse({ success: true, data: {} }, 503)).fetch,

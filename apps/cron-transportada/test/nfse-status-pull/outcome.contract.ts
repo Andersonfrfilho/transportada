@@ -104,6 +104,16 @@ describe('NFS-e reconciliation outcome from a pending invoice', () => {
     ).toEqual({ cause: 'timeout', kind: 'defer' })
   })
 
+  /** Nota que o provedor não acha é adiamento com causa própria — nunca autorização nem rejeição. */
+  test('defers a note the provider cannot find, carrying not_found', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        provider: { cause: 'not_found', status: 'error' },
+        storedStatus: 'pending_authorization',
+      }),
+    ).toEqual({ cause: 'not_found', kind: 'defer' })
+  })
+
   test('defers an error with no cause under a stable fallback', () => {
     expect(
       resolveNfseReconciliationDecision({

@@ -41,6 +41,7 @@ const SITUATION = {
 
 export type NotaRpCause =
   | 'malformed_response'
+  | 'not_found'
   | 'timeout'
   | 'transport_failure'
   | 'unexpected_status'
@@ -219,7 +220,7 @@ export function createNotaRpV2Client(dependencies: {
       }
       /** Aqui a nota vem dentro de `data`; no `/emitir` o envelope é raso. Cada rota com a sua forma. */
       const data = asRecord(envelope.data['data'])
-      if (data === undefined) return { cause: 'malformed_response', status: 'error' }
+      if (data === undefined) return { cause: readMissingCause(envelope.data), status: 'error' }
       return interpretSituation({ data, providerDocumentId, redact })
     },
 
@@ -374,6 +375,15 @@ function readIdentifier(
     return Number.isSafeInteger(value) ? String(value) : undefined
   }
   return readText(record, key)
+}
+
+/**
+ * Nota inexistente vem como sucesso sem `data`, só com a `message` da busca vazia — é ausência, e
+ * não resposta quebrada. Sem mensagem alguma não há o que distinguir, e o envelope volta a ser
+ * malformado.
+ */
+function readMissingCause(envelope: Readonly<Record<string, unknown>>): NotaRpCause {
+  return readText(envelope, 'message') === undefined ? 'malformed_response' : 'not_found'
 }
 
 function readText(record: Readonly<Record<string, unknown>>, key: string): string | undefined {
