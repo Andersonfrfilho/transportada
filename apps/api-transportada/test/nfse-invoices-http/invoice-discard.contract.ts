@@ -58,6 +58,7 @@ describe('nfse service invoice discard http', () => {
     expect(fixture.discardCalls[0]?.invoiceId).toBe(INVOICE_ID)
   })
 
+
   test('a rota propaga chave de idempotência, correlation-id e empresa', async () => {
     const fixture = await createNfseInvoicesHttpFixture()
 

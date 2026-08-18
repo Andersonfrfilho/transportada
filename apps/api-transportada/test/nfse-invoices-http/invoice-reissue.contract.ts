@@ -61,6 +61,7 @@ describe('nfse service invoice reissue http', () => {
     expect(fixture.reissueCalls[0]?.invoiceId).toBe(INVOICE_ID)
   })
 
+
   test('a rota propaga chave de idempotência, correlation-id e empresa', async () => {
     const fixture = await createNfseInvoicesHttpFixture()
 
