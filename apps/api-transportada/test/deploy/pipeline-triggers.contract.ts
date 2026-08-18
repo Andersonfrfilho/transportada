@@ -29,6 +29,15 @@ async function readWorkflow(path: URL): Promise<string> {
   return Bun.file(path).text()
 }
 
+/** `needs: [a, b]` do job pedido → ['a', 'b']. */
+function needsOf(workflow: string, job: string): readonly string[] {
+  const matched = new RegExp(`^  ${job}:$\\s+needs: \\[([^\\]]+)\\]`, 'm').exec(workflow)
+  if (matched === null) {
+    throw new Error(`deploy.yml não tem o job "${job}" com \`needs\``)
+  }
+  return (matched[1] ?? '').split(',').map((dependency) => dependency.trim())
+}
+
 describe('contrato de gatilho do pipeline', () => {
   /**
    * Cada ambiente é publicado pelo push da branch dele. Publicar staging pelo PR era a intenção
@@ -134,5 +143,48 @@ describe('contrato do deploy de identidade', () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
     expect(workflow).not.toContain('git diff --name-only "$baseline" HEAD 2>/dev/null')
+  })
+})
+
+/**
+ * O deploy era um job só, oito serviços em fila: 646s no release de produção `32172971566`, com sete
+ * deles apenas esperando. A ordem que existe de verdade é uma: worker e crons leem tabelas que a
+ * migration da API cria, e a migration roda no `preDeployCommand` dela.
+ *
+ * O que este contrato cobra é que a paralelização não coma a ordem que importa, nem devolva em
+ * silêncio a fila que ela desfez.
+ */
+describe('contrato do grafo de deploy', () => {
+  /**
+   * Worker e crons contra um banco sem a migration é erro de coluna inexistente em produção, e o
+   * consumidor entra em crash-loop consumindo a fila. Antes isso era ordem de passo dentro de um
+   * job; agora é `needs`, e `needs` é a única coisa que segura.
+   */
+  test('worker e crons só publicam depois da API e das migrations', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(needsOf(workflow, 'deploy-services')).toContain('deploy-api')
+    expect(workflow).toContain('railway-deploy.sh assert-migrations api')
+  })
+
+  /**
+   * O frontend é bundle estático: não abre conexão com o banco e não lê tabela nenhuma. Pendurá-lo
+   * na API devolveria 147s à espera sem comprar segurança alguma — era o passo mais lento da fila.
+   */
+  test('o frontend não espera a API: ele publica junto', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(needsOf(workflow, 'deploy-frontend')).toEqual(['target', 'gate'])
+  })
+
+  /**
+   * `fail-fast` é `true` por padrão, e num deploy ele cancela os irmãos assim que um falha: metade
+   * dos serviços na versão nova, metade na antiga, e nenhum sinal de qual é qual. Falhar sozinho e
+   * deixar os outros terminarem é o único estado de onde dá para consertar.
+   */
+  test('a falha de um serviço não cancela os irmãos', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toMatch(/strategy:\s+fail-fast: false/)
   })
 })
