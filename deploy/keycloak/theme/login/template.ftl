@@ -14,7 +14,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>${msg("loginTitle",(realm.displayName!''))}</title>
+    <title>${msg("loginTitle",(realm.displayName!'TransportAdA'))}</title>
+    <#-- O ícone é cópia por valor de `apps/frontend-transportada/public/icons/`: o tema não serve
+         arquivo da app, e sem ele a aba do login abre com o desenho genérico do navegador. -->
+    <link rel="icon" href="${url.resourcesPath}/img/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png" />
     <#if properties.styles?has_content>
         <#list properties.styles?split(' ') as style>
             <link href="${url.resourcesPath}/${style}" rel="stylesheet" />

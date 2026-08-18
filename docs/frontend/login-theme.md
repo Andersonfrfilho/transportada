@@ -37,6 +37,18 @@ O `theme.properties` traduz cada uma dessas chaves para a classe do nosso CSS (`
 não passa por build, então não há como referenciar o arquivo original. **Mudou cor, fonte ou escala
 no frontend? copie aqui.** Duas paletas no mesmo fluxo leem como dois produtos.
 
+## O ícone da aba também é cópia por valor
+
+`resources/img/icon.svg` e `icon-192.png` são cópias byte a byte de
+`apps/frontend-transportada/public/icons/`, ligadas no `head` do `template.ftl`. O tema não serve
+arquivo da app, e sem a cópia a aba do login abre com o desenho genérico do navegador enquanto o
+resto do produto mostra a marca. **Mudou o ícone no frontend? copie aqui.** Contrato em
+`apps/frontend-transportada/test/design-system/login-theme-icon.contract.ts`, que compara os dois
+arquivos e cobra o `<link>` no template.
+
+O título da aba é `loginTitle` com `realm.displayName`, e o padrão é `TransportAdA` — realm cujo
+`KEYCLOAK_REALM_DISPLAY_NAME` não resolveu produziria `Entrar em ` na aba.
+
 ## O texto vive no pacote de mensagens
 
 Os realms não ligam internacionalização, então o Keycloak resolve tudo pelo pacote `en` — é por
