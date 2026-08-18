@@ -225,6 +225,28 @@
     "subtitle": "{{count}} notas autorizadas serão canceladas, uma de cada vez.",
     "title": "Cancelar as notas de serviço selecionadas"
   },
+  "bulkReissue": {
+    "action": "Reemitir as selecionadas",
+    "blocked": "Fora da reemissão",
+    "close": "Fechar",
+    "confirm": "Reemitir as notas",
+    "confirmation": "As notas elegíveis serão reemitidas, uma de cada vez, sem correção.",
+    "empty": "Nenhuma nota da seleção pode ser reemitida.",
+    "result": "{{reissued}} reemitidas, {{failed}} com falha.",
+    "subtitle": "{{count}} notas rejeitadas ou com falha serão reemitidas, uma de cada vez.",
+    "title": "Reemitir as notas de serviço selecionadas"
+  },
+  "bulkDiscard": {
+    "action": "Descartar as selecionadas",
+    "blocked": "Fora do descarte",
+    "close": "Fechar",
+    "confirm": "Descartar as notas",
+    "empty": "Nenhuma nota da seleção pode ser descartada.",
+    "result": "{{discarded}} descartadas, {{failed}} com falha.",
+    "subtitle": "{{count}} notas rejeitadas ou com falha serão descartadas, uma de cada vez.",
+    "title": "Descartar as notas de serviço selecionadas",
+    "warning": "O descarte libera as notas fiscais vinculadas e não pode ser desfeito."
+  },
   "status": {
     "requested": "Solicitada",
     "issuing": "Em emissão",
@@ -311,7 +333,9 @@
     "inFlight": "Já existe uma emissão em andamento para esta nota.",
     "issRateOutOfRange": "A alíquota de ISS está fora da faixa aceita.",
     "notAuthorized": "A nota de serviço ainda não está autorizada.",
+    "notDiscardable": "Esta nota de serviço não pode ser descartada.",
     "notFound": "Nota de serviço não encontrada.",
+    "notReissuable": "Esta nota de serviço não pode ser reemitida.",
     "pendingAuthorization": "A prefeitura ainda não respondeu sobre esta nota.",
     "profileNotActive": "O perfil de emissão escolhido não está ativo.",
     "readOnly": "Seu acesso atual não permite esta ação.",
