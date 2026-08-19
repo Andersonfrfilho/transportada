@@ -14,6 +14,7 @@ import {
   NOTA_RP_CAUSES,
   PROVIDER_DOCUMENT_ID,
   RPS,
+  authorizedByLinkData,
   authorizedData,
   binaryResponse,
   cancelledData,
@@ -266,6 +267,35 @@ describe('Nota RP v2 client — consulta', () => {
 
   test('envelope de sucesso sem data e sem mensagem continua malformado', async () => {
     const { fetch } = recordingFetch(() => jsonResponse({ success: true }))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.cause).toBe('malformed_response')
+  })
+
+  test('o corpo medido com Status "Sucesso" e código no Link vira autorização arquivável', async () => {
+    const { fetch } = recordingFetch(() => successBody(authorizedByLinkData()))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      document: {
+        authorizedAt: '2026-08-19',
+        fiscalNumber: '65',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+        verificationCode: 'C7217CD1F',
+      },
+      status: 'authorized',
+    })
+  })
+
+  test('sem o Link e sem o campo próprio, a autorização medida continua malformada', async () => {
+    const withoutLink = Object.fromEntries(
+      Object.entries(authorizedByLinkData()).filter(([field]) => field !== 'Link'),
+    )
+    const { fetch } = recordingFetch(() => successBody(withoutLink))
     const client = await createNotaRpV2ClientFixture({ fetch })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })

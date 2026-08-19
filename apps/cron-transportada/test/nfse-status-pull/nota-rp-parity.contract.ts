@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   API_TOKEN,
+  authorizedByLinkData,
   authorizedData,
   binaryResponse,
   cancelledData,
@@ -60,6 +61,37 @@ describe('Nota RP v2 status client parity', () => {
       },
       status: 'authorized',
     })
+  })
+
+  test('reads the measured "Sucesso" body as authorized, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => successBody(authorizedByLinkData())).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      document: {
+        authorizedAt: '2026-08-19',
+        fiscalNumber: '65',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+        verificationCode: 'C7217CD1F',
+      },
+      status: 'authorized',
+    })
+  })
+
+  test('refuses the measured authorization when neither the field nor the link carries the verification code, matching the worker client table', async () => {
+    const withoutLink = Object.fromEntries(
+      Object.entries(authorizedByLinkData()).filter(([field]) => field !== 'Link'),
+    )
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => successBody(withoutLink)).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
   })
 
   test('refuses an authorization without number or verification code, matching the worker client table', async () => {
