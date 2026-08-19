@@ -149,11 +149,15 @@
   "colorOption": {
     "amarela": "Yellow",
     "azul": "Blue",
+    "azul_marinho": "Navy blue",
     "bege": "Beige",
     "branca": "White",
+    "champanhe": "Champagne",
     "cinza": "Gray",
+    "creme": "Cream",
     "dourada": "Gold",
     "fantasia": "Multicolor",
+    "grafite": "Graphite",
     "grena": "Maroon",
     "laranja": "Orange",
     "marrom": "Brown",
@@ -161,6 +165,7 @@
     "preta": "Black",
     "rosa": "Pink",
     "roxa": "Purple",
+    "turquesa": "Turquoise",
     "verde": "Green",
     "vermelha": "Red"
   },

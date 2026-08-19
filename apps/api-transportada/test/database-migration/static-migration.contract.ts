@@ -120,6 +120,7 @@ describe('Drizzle migrations', () => {
       '20260817185545_nfse_credential_municipal_registration',
       '20260817200023_nfse_invoice_cancellation_motive',
       '20260817201606_nfse_invoice_discarded_status',
+      '20260819184128_fleet_vehicle_color_market_tones',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -673,7 +674,61 @@ describe('Drizzle migrations', () => {
     expect(migrationSql).toContain('DROP CONSTRAINT "fleet_vehicles_color_check"')
     expect(migrationSql).toContain('ADD CONSTRAINT "fleet_vehicles_color_check"')
     expect(migrationSql).toMatch(/UPDATE "fleet_vehicles"[\s\S]*SET "color" = ''/i)
+    // A lista é literal: a migration congelou as dezesseis do Denatran, e `VEHICLE_COLORS` cresceu
+    // depois com os tons de mercado. Lê-la daqui faria o passado seguir o presente.
+    for (const color of [
+      'amarela',
+      'azul',
+      'bege',
+      'branca',
+      'cinza',
+      'dourada',
+      'fantasia',
+      'grena',
+      'laranja',
+      'marrom',
+      'prata',
+      'preta',
+      'rosa',
+      'roxa',
+      'verde',
+      'vermelha',
+    ]) {
+      expect(migrationSql).toContain(`'${color}'`)
+    }
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Alargar a lista de cor é o inverso do estreitamento acima: nenhuma linha existente deixa de
+   * passar, então a migration não normaliza nada. Quem carrega o peso é o rollback — voltar à
+   * tabela do Denatran reprova o veículo pintado com um tom de mercado, e por isso ele zera a cor
+   * antes de recriar a constraint, na mesma transação.
+   */
+  test('widens the fleet vehicle color with the market tones and blanks them only on rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_color_market_tones'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate|update)\b/im)
+    expect(migrationSql).toContain('DROP CONSTRAINT "fleet_vehicles_color_check"')
+    expect(migrationSql).toContain('ADD CONSTRAINT "fleet_vehicles_color_check"')
     for (const color of VEHICLE_COLORS) expect(migrationSql).toContain(`'${color}'`)
+
+    expect(rollbackSql).toMatch(/UPDATE "fleet_vehicles"[\s\S]*SET "color" = ''/i)
+    for (const tone of ['azul_marinho', 'champanhe', 'creme', 'grafite', 'turquesa']) {
+      expect(rollbackSql).toContain(`'${tone}'`)
+    }
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

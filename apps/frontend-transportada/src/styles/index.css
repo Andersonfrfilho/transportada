@@ -51,15 +51,19 @@
   /* 400 × 130 mm é a placa impressa — a miniatura mantém a proporção */
   --plate-width: 10rem;
   --plate-height: 3.25rem;
-  /* Cor do veículo é a do CRLV, não a do tema: o quadrado tem de parecer a lataria */
+  /* Cor do veículo é a da lataria, não a do tema: o quadrado tem de parecer o veículo */
   --vehicle-color-amarela: #f2c200;
   --vehicle-color-azul: #2f6fd0;
+  --vehicle-color-azul_marinho: #1f3a6e;
   --vehicle-color-bege: #d8c9a3;
   --vehicle-color-branca: #f2f2f0;
+  --vehicle-color-champanhe: #e0cfa9;
   --vehicle-color-cinza: #8a9099;
+  --vehicle-color-creme: #f2e8cf;
   --vehicle-color-dourada: #c9a227;
   /* "Fantasia" é o multicor do Denatran — nenhum tom único a representa */
   --vehicle-color-fantasia: linear-gradient(135deg, #d94f4f 0%, #e0c14a 50%, #4f8fd9 100%);
+  --vehicle-color-grafite: #4a4f57;
   --vehicle-color-grena: #7b1e3a;
   --vehicle-color-laranja: #e07b2a;
   --vehicle-color-marrom: #6b4423;
@@ -67,6 +71,7 @@
   --vehicle-color-preta: #1a1c1f;
   --vehicle-color-rosa: #e58ab5;
   --vehicle-color-roxa: #6f42a5;
+  --vehicle-color-turquesa: #2fb4a8;
   --vehicle-color-verde: #2f8f4e;
   --vehicle-color-vermelha: #cc3333;
 }

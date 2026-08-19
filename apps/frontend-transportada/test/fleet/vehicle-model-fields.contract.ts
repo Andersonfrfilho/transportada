@@ -154,10 +154,11 @@ describe('fleet vehicle model fields contract', () => {
   })
 
   /**
-   * A cor do CRLV é lista fechada do Denatran. Em texto livre a mesma frota grava "branca",
-   * "BRANCO" e "prata metálico", e nenhum filtro ou relatório volta a juntá-las.
+   * Cor é lista fechada. Em texto livre a mesma frota grava "branca", "BRANCO" e "prata metálico",
+   * e nenhum filtro ou relatório volta a juntá-las. A lista é a tabela do Denatran mais os tons de
+   * mercado que ela não nomeia — cor não vai em documento fiscal, então alargar não custa nada.
    */
-  test('closes the color in the Denatran list instead of leaving it free text', async () => {
+  test('closes the color in a fixed list instead of leaving it free text', async () => {
     const { VEHICLE_COLOR } = await loadFutureModule<FleetTypesModule>(
       '../../src/modules/fleet/shared/fleet.types',
     )
@@ -171,11 +172,15 @@ describe('fleet vehicle model fields contract', () => {
     expect(VEHICLE_COLOR).toEqual([
       'amarela',
       'azul',
+      'azul_marinho',
       'bege',
       'branca',
+      'champanhe',
       'cinza',
+      'creme',
       'dourada',
       'fantasia',
+      'grafite',
       'grena',
       'laranja',
       'marrom',
@@ -183,6 +188,7 @@ describe('fleet vehicle model fields contract', () => {
       'preta',
       'rosa',
       'roxa',
+      'turquesa',
       'verde',
       'vermelha',
     ])
@@ -204,7 +210,7 @@ describe('fleet vehicle model fields contract', () => {
   })
 
   /**
-   * Dezesseis nomes de cor se leem devagar; o quadrado resolve de olho. A cor pintada é a do
+   * Vinte e um nomes de cor se leem devagar; o quadrado resolve de olho. A cor pintada é a do
    * veículo, não a do tema — por isso vive em token próprio, como as cores da placa Mercosul.
    */
   test('paints each color option with its own swatch token', async () => {

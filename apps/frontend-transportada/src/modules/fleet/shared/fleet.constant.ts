@@ -39,11 +39,15 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
 export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
   amarela: 'var(--vehicle-color-amarela)',
   azul: 'var(--vehicle-color-azul)',
+  azul_marinho: 'var(--vehicle-color-azul_marinho)',
   bege: 'var(--vehicle-color-bege)',
   branca: 'var(--vehicle-color-branca)',
+  champanhe: 'var(--vehicle-color-champanhe)',
   cinza: 'var(--vehicle-color-cinza)',
+  creme: 'var(--vehicle-color-creme)',
   dourada: 'var(--vehicle-color-dourada)',
   fantasia: 'var(--vehicle-color-fantasia)',
+  grafite: 'var(--vehicle-color-grafite)',
   grena: 'var(--vehicle-color-grena)',
   laranja: 'var(--vehicle-color-laranja)',
   marrom: 'var(--vehicle-color-marrom)',
@@ -51,6 +55,7 @@ export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
   preta: 'var(--vehicle-color-preta)',
   rosa: 'var(--vehicle-color-rosa)',
   roxa: 'var(--vehicle-color-roxa)',
+  turquesa: 'var(--vehicle-color-turquesa)',
   verde: 'var(--vehicle-color-verde)',
   vermelha: 'var(--vehicle-color-vermelha)',
 }

@@ -42,15 +42,23 @@ export type MdfeWheelType = (typeof MDFE_WHEEL_TYPES)[number]
 export const MDFE_BODY_TYPES = ['00', '01', '02', '03', '04', '05'] as const
 export type MdfeBodyType = (typeof MDFE_BODY_TYPES)[number]
 
-/** Cor do CRLV pela tabela do Denatran — texto livre misturava "PRATA", "prata" e "prata metálico". */
+/**
+ * Lista fechada — texto livre misturava "PRATA", "prata" e "prata metálico". A base é a tabela do
+ * Denatran, que é o que o CRLV imprime; os cinco tons de mercado restantes ela não nomeia. Alargar
+ * é seguro porque cor é cadastro: nenhum documento fiscal a transmite.
+ */
 export const VEHICLE_COLORS = [
   'amarela',
   'azul',
+  'azul_marinho',
   'bege',
   'branca',
+  'champanhe',
   'cinza',
+  'creme',
   'dourada',
   'fantasia',
+  'grafite',
   'grena',
   'laranja',
   'marrom',
@@ -58,6 +66,7 @@ export const VEHICLE_COLORS = [
   'preta',
   'rosa',
   'roxa',
+  'turquesa',
   'verde',
   'vermelha',
 ] as const

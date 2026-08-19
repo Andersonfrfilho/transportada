@@ -1,0 +1,1 @@
+ALTER TABLE "fleet_vehicles" DROP CONSTRAINT "fleet_vehicles_color_check", ADD CONSTRAINT "fleet_vehicles_color_check" CHECK (length("color") = 0 or "color" in ('amarela', 'azul', 'azul_marinho', 'bege', 'branca', 'champanhe', 'cinza', 'creme', 'dourada', 'fantasia', 'grafite', 'grena', 'laranja', 'marrom', 'prata', 'preta', 'rosa', 'roxa', 'turquesa', 'verde', 'vermelha'));
