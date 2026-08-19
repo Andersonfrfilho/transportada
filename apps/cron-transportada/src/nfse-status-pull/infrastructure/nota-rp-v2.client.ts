@@ -23,7 +23,7 @@ import {
 
 /** Comparado sem acento e em caixa baixa; status fora da tabela nunca vira autorização. */
 const STATUS_VOCABULARY = {
-  authorized: ['autorizada', 'autorizado', 'emitida', 'emitido', 'concluida'],
+  authorized: ['autorizada', 'autorizado', 'emitida', 'emitido', 'concluida', 'sucesso'],
   cancelled: ['cancelada', 'cancelado'],
   pending: ['processando', 'em processamento', 'pendente', 'aguardando', 'enviada', 'enviado'],
   rejected: ['falha', 'rejeitada', 'rejeitado', 'erro', 'negada'],
@@ -245,7 +245,7 @@ function readAuthorized(input: {
 }): NotaRpStatusOutcome {
   const authorizedAt = readText(input.note, 'dataemissao')
   const fiscalNumber = readText(input.note, 'nfse')
-  const verificationCode = readText(input.note, 'codigoverificacao')
+  const verificationCode = readVerificationCode(input.note)
   if (
     authorizedAt === undefined ||
     fiscalNumber === undefined ||
@@ -264,6 +264,22 @@ function readAuthorized(input: {
     },
     status: 'authorized',
   }
+}
+
+/**
+ * Medido em produção em 19/08/2026 (nota 5254907, `Status: "Sucesso"`): o corpo não traz
+ * `CodigoVerificacao` como campo próprio — o código sai como último segmento de `Link`
+ * (`.../nota/{id}/{numero}/{codigo}`), a URL pública de verificação que a prefeitura publica.
+ */
+function readVerificationCode(note: Record<string, unknown>): string | undefined {
+  const direct = readText(note, 'codigoverificacao')
+  if (direct !== undefined) return direct
+
+  const link = readText(note, 'link')
+  if (link === undefined) return undefined
+
+  const segments = link.split('/').filter((segment) => segment.length > 0)
+  return segments.at(-1)
 }
 
 /** O primeiro erro é o que o operador lê; os demais repetem o mesmo pedido de correção. */

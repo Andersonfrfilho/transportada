@@ -244,8 +244,13 @@ produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Agua
   (`normalizeKeys`) porque o corpo mistura `id_nota` com `Status` e `Nfse`. A recusa carrega **todos**
   os motivos, não só o primeiro — a 5253521 voltou com `E215` e `E227` juntos, e guardar um por vez
   custaria uma rodada de emissão fiscal por erro escondido; com mais de um, cada motivo leva o
-  código dele na mensagem. ⚠️ **A autorização segue por medir** — nenhuma nota chegou lá ainda; o
-  formato dela é o mesmo, com os campos preenchidos.
+  código dele na mensagem. **A autorização foi medida em 19/08/2026** (nota `5254907`, NFS-e nº 65):
+  ela chega como `Status: "Sucesso"` — não "Autorizada" — e **sem `CodigoVerificacao`**; o código de
+  verificação sai como último segmento de `Link`
+  (`https://notarp.com.br/nota/{id}/{numero}/{codigo}`), a URL pública que a prefeitura publica.
+  Sem os dois ajustes a nota autorizada caía em `malformed_response` de meia em meia hora, com a
+  emissão já paga do outro lado. Autorização sem número, data **ou** código de verificação (nem no
+  campo, nem no `Link`) continua sendo `malformed_response`: não há o que arquivar.
 - `Aliquota` é **percentual** no fio (`2`), fração no domínio (`0.020000`, que é o que multiplica o
   valor do serviço). Mandar a fração fez a prefeitura recusar com `E227 — Alíquota Serviços fora do
 intervalo de 2% e 5%`. A conversão é `toIssRatePercentage` no `nfse-fiscal-gateway.ts`, textual e
