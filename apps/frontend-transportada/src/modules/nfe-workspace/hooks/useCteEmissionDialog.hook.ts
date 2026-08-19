@@ -5,6 +5,10 @@ import { useMemo, useState } from 'react'
 import { getCteBatchClient } from '@/modules/cte-batch/hooks/useCteBatchWorkspace.hook'
 import type { CteBatchSummary } from '@/modules/cte-batch/shared/cteBatchClient.service'
 import { useCteProfiles } from '@/modules/cte-profiles/hooks/useCteProfiles.hook'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import {
   AUTOMATIC_PROFILE_ID,
@@ -39,7 +43,6 @@ import {
   type CteEmissionProgress,
   type CteEmissionProgressEvent,
 } from '../shared/cteEmissionQueue.service'
-import { NFE_DOCUMENTS_QUERY_KEY } from '../shared/nfeWorkspace.constant'
 import {
   canReachCteProfiles,
   createBrowserWorkspaceNavigator,
@@ -138,8 +141,9 @@ export function useCteEmissionDialog(
     void queryClient.invalidateQueries({ queryKey: [CTE_EMISSION_PREVIEW_QUERY_KEY] })
   }
 
-  function forgetNoteList(): void {
-    void queryClient.invalidateQueries({ queryKey: [NFE_DOCUMENTS_QUERY_KEY] })
+  /** Emitir prende a nota: a listagem e as prévias saem do registro de efeitos, não daqui. */
+  function forgetLinkedViews(): void {
+    void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
   }
 
   // A projeção da seleção inteira sai numa fatia por requisição, em paralelo limitado: o progresso
@@ -202,8 +206,7 @@ export function useCteEmissionDialog(
           }),
       })
       // Uma fatia que falhou não desfaz as que gravaram: os caches são refeitos de qualquer jeito.
-      forgetPreviews()
-      forgetNoteList()
+      forgetLinkedViews()
       const failure = firstErrorCode(results)
       if (failure !== null) throw new Error(failure === '' ? REQUEST_FAILED_CODE : failure)
 

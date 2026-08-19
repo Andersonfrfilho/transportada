@@ -576,8 +576,9 @@ describe('nfse emission creation contract', () => {
   test('drops the note list once the invoices exist, so the table stops offering them', async () => {
     const hook = await readApplicationFile(HOOK_PATH)
 
-    expect(hook).toContain('NFE_DOCUMENTS_QUERY_KEY')
-    expect(hook).toContain('NFSE_EMISSION_PREVIEW_QUERY_KEY')
+    // A listagem de notas e as prévias saem juntas pelo efeito do vínculo, não por chave solta aqui.
+    expect(hook).toContain('MUTATION_EFFECT.nfeDocumentLink')
+    expect(hook).toContain('invalidateMutationEffect')
     expect(hook).not.toContain("'nfe-documents'")
   })
 })

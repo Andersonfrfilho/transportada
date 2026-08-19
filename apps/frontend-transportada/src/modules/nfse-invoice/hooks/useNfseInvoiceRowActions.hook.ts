@@ -3,6 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
+
+import {
   NFSE_INVOICE_DETAIL_QUERY_KEY,
   NFSE_INVOICE_DOCUMENTS_QUERY_KEY,
   NFSE_INVOICES_QUERY_KEY,
@@ -109,11 +114,14 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
 
   const cancelMutation = useMutation({
     mutationFn: controller.cancelInvoice,
-    onSuccess: () => {
+    onSuccess: async () => {
       setCancelTarget(null)
       setCancellationReason('')
       setCancellationMotive('')
-      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] }),
+        invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
+      ])
     },
   })
 
@@ -144,9 +152,13 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
 
   const discardMutation = useMutation({
     mutationFn: controller.discardInvoice,
-    onSuccess: () => {
+    // Reemitir retransmite o mesmo RPS e não mexe no vínculo; descartar devolve a nota fiscal.
+    onSuccess: async () => {
       setDiscardTarget(null)
-      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] }),
+        invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
+      ])
     },
   })
 
