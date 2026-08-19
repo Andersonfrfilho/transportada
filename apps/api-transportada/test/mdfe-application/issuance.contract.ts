@@ -109,8 +109,8 @@ const PAYLOAD_SOURCE: MdfeIssuancePayloadSource = {
   },
   vehicle: {
     bodyType: '01',
-    capacityKg: 25000n,
-    capacityM3: 90n,
+    capacityKg: '25000.00',
+    capacityM3: '90.00',
     fleetNumber: '',
     ownerName: '',
     ownerRntrc: '',
@@ -121,7 +121,7 @@ const PAYLOAD_SOURCE: MdfeIssuancePayloadSource = {
     plate: 'ABC1D23',
     renavam: '12345678901',
     state: 'SP',
-    tareWeightKg: 9000n,
+    tareWeightKg: '9000.00',
     wheelType: '01',
   },
 }

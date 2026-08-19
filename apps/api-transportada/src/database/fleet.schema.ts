@@ -97,6 +97,8 @@ const VEHICLE_MODEL_MAX_LENGTH = 120
 const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
 
 const moneyColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
+/** Tara e capacidade em decimal: o operador digita 8.000,25 kg e o MDF-e arredonda na saída. */
+const measureColumn = (name: string) => numeric(name, { precision: 12, scale: 2 })
 
 export const fleetVehicles = pgTable(
   'fleet_vehicles',
@@ -112,9 +114,9 @@ export const fleetVehicles = pgTable(
     fleetNumber: text('fleet_number').notNull().default(''),
     role: text().$type<FleetVehicleRole>().notNull(),
     status: text().$type<FleetVehicleStatus>().notNull().default('active'),
-    tareWeightKg: bigint('tare_weight_kg', { mode: 'bigint' }).notNull().default(0n),
-    capacityKg: bigint('capacity_kg', { mode: 'bigint' }).notNull().default(0n),
-    capacityM3: bigint('capacity_m3', { mode: 'bigint' }).notNull().default(0n),
+    tareWeightKg: measureColumn('tare_weight_kg').notNull().default('0'),
+    capacityKg: measureColumn('capacity_kg').notNull().default('0'),
+    capacityM3: measureColumn('capacity_m3').notNull().default('0'),
     wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),

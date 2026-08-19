@@ -208,7 +208,7 @@ describe('fleet vehicle table contract', () => {
     const source = buildVehicle({ brand: 'Volvo', createdAt: '2026-07-28T12:00:00.000Z' })
     const older = buildVehicle({
       brand: 'Volvo',
-      capacityKilograms: '11000',
+      capacityKilograms: '11000.00',
       createdAt: '2020-01-01T00:00:00.000Z',
       id: 'vehicle-older',
     })
@@ -218,8 +218,8 @@ describe('fleet vehicle table contract', () => {
         ...toVehicleFormState(source),
         acquisitionAmount: '',
         axleCount: '0',
-        capacityKilograms: '0',
-        tareWeightKilograms: '0',
+        capacityKilograms: '',
+        tareWeightKilograms: '',
       },
       vehicles: [older, source],
     })
@@ -239,8 +239,8 @@ describe('fleet vehicle table contract', () => {
     const source = buildVehicle({ brand: 'Volvo' })
     const typed = {
       ...toVehicleFormState(source),
-      capacityKilograms: '9000',
-      tareWeightKilograms: '0',
+      capacityKilograms: '9.000,00',
+      tareWeightKilograms: '',
     }
 
     expect(resolveVehicleBrandDefaults({ state: typed, vehicles: [source] })).not.toHaveProperty(

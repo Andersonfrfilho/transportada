@@ -53,8 +53,8 @@ function readColumn(
   const { column, labels, vehicle } = input
   if (column === 'modelYear') return String(vehicle.modelYear)
   if (column === 'axleCount') return String(vehicle.axleCount)
-  if (column === 'capacityKilograms') return vehicle.capacityKilograms
-  if (column === 'tareWeightKilograms') return vehicle.tareWeightKilograms
+  if (column === 'capacityKilograms') return toSpreadsheetDecimal(vehicle.capacityKilograms)
+  if (column === 'tareWeightKilograms') return toSpreadsheetDecimal(vehicle.tareWeightKilograms)
   if (column === 'costPerKilometer') return toSpreadsheetDecimal(vehicle.costPerKilometer)
   if (column === 'monthlyFixedCost') return toSpreadsheetDecimal(vehicle.monthlyFixedCost)
   if (column === 'plate') return vehicle.plate

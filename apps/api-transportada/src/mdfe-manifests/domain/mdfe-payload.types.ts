@@ -77,8 +77,8 @@ export type MdfePayloadCompanyDefaults = {
 
 export type MdfePayloadVehicle = {
   readonly bodyType: MdfeBodyType
-  readonly capacityKg: bigint
-  readonly capacityM3: bigint
+  readonly capacityKg: string
+  readonly capacityM3: string
   readonly fleetNumber: string
   readonly ownerName: string
   readonly ownerRntrc: string
@@ -89,7 +89,7 @@ export type MdfePayloadVehicle = {
   readonly plate: string
   readonly renavam: string
   readonly state: string
-  readonly tareWeightKg: bigint
+  readonly tareWeightKg: string
   readonly wheelType: '' | MdfeWheelType
 }
 

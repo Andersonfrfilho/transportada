@@ -2,7 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
-import { maskTypedAmount } from '@/modules/shared/decimalAmount.service'
+import { maskTypedAmount, maskTypedMeasure } from '@/modules/shared/decimalAmount.service'
 
 import styles from '../styles/fleet.module.css'
 
@@ -22,6 +22,14 @@ type FleetMoneyFieldProps = Readonly<{
   scale: number
   value: string
   optional?: boolean
+}>
+
+type FleetMeasureFieldProps = Readonly<{
+  label: string
+  onChange: (value: string) => void
+  optional?: boolean
+  scale: number
+  value: string
 }>
 
 type FleetSelectFieldProps<TValue extends string> = Readonly<{
@@ -91,6 +99,34 @@ export function FleetMoneyField({
           onChange={(event) => onChange(maskTypedAmount({ scale, value: event.target.value }))}
         />
       </span>
+    </label>
+  )
+}
+
+/**
+ * Campo de medida: os dígitos entram pela esquerda, como se escreve peso, e o milhar aparece
+ * enquanto se digita. A vírgula é do operador; o ponto que separa o milhar é sempre da máscara.
+ */
+export function FleetMeasureField({
+  label,
+  onChange,
+  optional = false,
+  scale,
+  value,
+}: FleetMeasureFieldProps) {
+  const { t } = useTranslation('fleet')
+  return (
+    <label>
+      <span>
+        {label}
+        {optional ? <em className={styles.optionalMark}>{t('optionalMark')}</em> : null}
+      </span>
+      <input
+        inputMode="decimal"
+        type="text"
+        value={maskTypedMeasure({ scale, value })}
+        onChange={(event) => onChange(maskTypedMeasure({ scale, value: event.target.value }))}
+      />
     </label>
   )
 }

@@ -121,6 +121,7 @@ describe('Drizzle migrations', () => {
       '20260817200023_nfse_invoice_cancellation_motive',
       '20260817201606_nfse_invoice_discarded_status',
       '20260819184128_fleet_vehicle_color_market_tones',
+      '20260819202712_fleet_vehicle_measure_decimal',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -729,6 +730,37 @@ describe('Drizzle migrations', () => {
     for (const tone of ['azul_marinho', 'champanhe', 'creme', 'grafite', 'turquesa']) {
       expect(rollbackSql).toContain(`'${tone}'`)
     }
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Alargar a medida é o caminho fácil: todo bigint cabe em `numeric(12,2)`, e o `USING` só
+   * acrescenta as duas casas zeradas. Quem perde é o rollback — a fração que o operador digitou
+   * não tem onde morar num inteiro, e por isso ele arredonda de propósito, uma vez e sem volta.
+   */
+  test('widens tare and capacity to exact decimal with a rollback that rounds on purpose', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_measure_decimal'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate|update)\b/im)
+    for (const column of ['tare_weight_kg', 'capacity_kg', 'capacity_m3']) {
+      expect(migrationSql).toContain(`ALTER COLUMN "${column}" SET DATA TYPE numeric(12,2)`)
+      expect(rollbackSql).toContain(
+        `ALTER COLUMN "${column}" SET DATA TYPE bigint USING round("${column}")::bigint`,
+      )
+    }
+
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

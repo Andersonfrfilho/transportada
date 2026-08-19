@@ -82,8 +82,8 @@ const params = (overrides: Partial<BuildMdfePayloadParams> = {}): BuildMdfePaylo
   },
   vehicle: {
     bodyType: '02',
-    capacityKg: 25000n,
-    capacityM3: 90n,
+    capacityKg: '25000.00',
+    capacityM3: '90.00',
     fleetNumber: '',
     ownerName: '',
     ownerRntrc: '',
@@ -94,7 +94,7 @@ const params = (overrides: Partial<BuildMdfePayloadParams> = {}): BuildMdfePaylo
     plate: 'ABC1D23',
     renavam: '12345678901',
     state: 'PR',
-    tareWeightKg: 8000n,
+    tareWeightKg: '8000.00',
     wheelType: '03',
   },
   ...overrides,
@@ -187,7 +187,7 @@ describe('MDF-e payload builder', () => {
           transporterType: '',
           tripStartedAt: null,
         },
-        vehicle: { ...params().vehicle, capacityM3: 0n, renavam: '' },
+        vehicle: { ...params().vehicle, capacityM3: '0.00', renavam: '' },
       }),
     )
 
@@ -209,6 +209,32 @@ describe('MDF-e payload builder', () => {
       'tipoRodado',
       'uf',
     ])
+  })
+
+  test('rounds tare and capacity half up, the only place the measure loses its fraction', () => {
+    const payload = buildMdfePayload(
+      params({
+        vehicle: {
+          ...params().vehicle,
+          capacityKg: '25000.75',
+          capacityM3: '90.49',
+          tareWeightKg: '8000.25',
+        },
+      }),
+    )
+
+    expect(payload.veiculoTracao.tara).toBe(8000)
+    expect(payload.veiculoTracao.capacidadeKg).toBe(25001)
+    expect(payload.veiculoTracao.capacidadeM3).toBe(90)
+  })
+
+  test('omits a capacity that only exists below the rounding threshold', () => {
+    const payload = buildMdfePayload(
+      params({ vehicle: { ...params().vehicle, capacityKg: '0.00', capacityM3: '0.40' } }),
+    )
+
+    expect(payload.veiculoTracao).not.toHaveProperty('capacidadeKg')
+    expect(payload.veiculoTracao).not.toHaveProperty('capacidadeM3')
   })
 
   // Fase C: fleet_number vira <cInt> no veículo de tração — sentinela vazio, omitido do XML

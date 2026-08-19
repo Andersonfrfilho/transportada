@@ -83,6 +83,13 @@ export const VEHICLE_COST_KEYS = [
   'otherCostsPerKilometer',
 ] as const
 
+/** Tara e capacidade: decimais em pt-BR na tela, decimais na API, inteiros só na borda do MDF-e. */
+export const VEHICLE_MEASURE_KEYS = [
+  'capacityCubicMeters',
+  'capacityKilograms',
+  'tareWeightKilograms',
+] as const
+
 export const VEHICLE_BODY_KEYS = [
   ...VEHICLE_COST_KEYS,
   'axleCount',

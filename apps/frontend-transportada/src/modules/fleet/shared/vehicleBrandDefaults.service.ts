@@ -28,19 +28,19 @@ export const VEHICLE_BRAND_DEFAULT_FIELDS = [
 export type VehicleBrandDefaultField = (typeof VEHICLE_BRAND_DEFAULT_FIELDS)[number]
 
 /** Valor que o rascunho traz sozinho: preencher por cima dele não apaga escolha de ninguém. */
-const BLANK_VALUE: Readonly<Record<VehicleBrandDefaultField, string>> = {
+export const VEHICLE_BRAND_DEFAULT_BLANK: Readonly<Record<VehicleBrandDefaultField, string>> = {
   acquisitionAmount: '',
   annualInsuranceAmount: '',
   annualVehicleTaxAmount: '',
   averageConsumption: '',
   axleCount: '0',
   bodyType: '00',
-  capacityCubicMeters: '0',
-  capacityKilograms: '0',
+  capacityCubicMeters: '',
+  capacityKilograms: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   monthlyInstallmentAmount: '',
   otherCostsPerKilometer: '',
-  tareWeightKilograms: '0',
+  tareWeightKilograms: '',
 }
 
 const WHITESPACE_PATTERN = /\s+/g
@@ -102,8 +102,8 @@ export function resolveVehicleBrandDefaults(
   for (const field of VEHICLE_BRAND_DEFAULT_FIELDS) {
     const current = input.state[field]
     const candidate = sourceState[field]
-    if (current !== BLANK_VALUE[field]) continue
-    if (candidate === BLANK_VALUE[field]) continue
+    if (current !== VEHICLE_BRAND_DEFAULT_BLANK[field]) continue
+    if (candidate === VEHICLE_BRAND_DEFAULT_BLANK[field]) continue
     defaults[field] = candidate
   }
 
