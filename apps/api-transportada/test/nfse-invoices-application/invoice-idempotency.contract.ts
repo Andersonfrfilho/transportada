@@ -163,7 +163,12 @@ describe('nfse invoice preview', () => {
     })
 
     expect(preview.blocked).toEqual([
-      { documentId: OTHER_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_ALREADY_LINKED' },
+      {
+        documentId: OTHER_DOCUMENT_ID,
+        number: '000000124',
+        reason: 'NFSE_DOCUMENT_ALREADY_LINKED',
+        series: '001',
+      },
     ])
     expect(preview.invoices).toHaveLength(1)
   })

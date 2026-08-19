@@ -173,7 +173,9 @@ export type NfsePreviewInvoice = Readonly<{
  */
 export type NfsePreviewBlock = Readonly<{
   documentId: string
+  number: null | string
   reason: string
+  series: null | string
 }>
 
 export type NfseInvoicePreview = Readonly<{

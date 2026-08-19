@@ -111,7 +111,9 @@ export function createNfseInvoiceRoutes(
             data: {
               blocked: preview.blocked.map((block) => ({
                 documentId: block.documentId,
+                number: block.number,
                 reason: block.reason,
+                series: block.series,
               })),
               invoices: preview.invoices.map(serializeInvoice),
             },

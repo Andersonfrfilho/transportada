@@ -231,6 +231,31 @@ homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDo
 base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
 causa que adia: sem o XML a nota não liquida.
 
+**A consulta devolve `results[]`, e a alíquota viaja em percentual.** Duas coisas medidas em
+produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Aguardando autorização":
+
+- `GET /notas/?id_nota=` responde `{success:true, results:[nota]}`, e a nota traz `Status` (medido:
+  `"Falha"`), `Nfse`, `DataEmissao` e uma lista `Erro[]` de `{Codigo, Correcao, Mensagem}`. O
+  vocabulário anterior (`data`, `situacao`, `codigo_erro`) era **inferido e nunca existiu**: toda
+  consulta caía em `malformed_response`, e **nenhuma NFS-e liquidava** — nem autorizada nem
+  rejeitada, só adiada de meia em meia hora para sempre. Quem decide agora é o fato antes do rótulo:
+  `Erro[]` preenchida é recusa mesmo com `Status` desconhecido, e autorização sem número, data e
+  código de verificação continua sendo `malformed_response`. As chaves são lidas em caixa baixa
+  (`normalizeKeys`) porque o corpo mistura `id_nota` com `Status` e `Nfse`. A recusa carrega **todos**
+  os motivos, não só o primeiro — a 5253521 voltou com `E215` e `E227` juntos, e guardar um por vez
+  custaria uma rodada de emissão fiscal por erro escondido; com mais de um, cada motivo leva o
+  código dele na mensagem. ⚠️ **A autorização segue por medir** — nenhuma nota chegou lá ainda; o
+  formato dela é o mesmo, com os campos preenchidos.
+- `Aliquota` é **percentual** no fio (`2`), fração no domínio (`0.020000`, que é o que multiplica o
+  valor do serviço). Mandar a fração fez a prefeitura recusar com `E227 — Alíquota Serviços fora do
+intervalo de 2% e 5%`. A conversão é `toIssRatePercentage` no `nfse-fiscal-gateway.ts`, textual e
+  não aritmética: `Number` traria erro binário para dentro de campo fiscal.
+
+⚠️ `ItemListaServico` e `CodigoTributacaoMunicipio` são **cadastro**, não código: o par
+`160201`/`160101` da mesma nota foi recusado com `E215 — Item da lista de serviço incompatível com o
+código de tributação`. Quem corrige é o perfil de emissão, na aba **Configurações** de
+`nfse-invoice`.
+
 **A prefeitura não emite sem o endereço do tomador.** O RPS leva `Cep · Endereco · Numero · Bairro ·
 Cidade · Estado` (`Complemento` e `Telefone` só quando não vazios; `Cidade` é **nome** e `Estado` é
 **sigla**, não códigos IBGE), montados por `buildTakerAddressFields` no `nfse-fiscal-gateway.ts` do

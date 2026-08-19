@@ -173,7 +173,9 @@ function isBlock(value: unknown): value is NfsePreviewBlock {
   return (
     hasExactKeys(value, NFSE_PREVIEW_BLOCK_KEYS) &&
     isString(value.documentId) &&
-    isString(value.reason)
+    isNullableString(value.number) &&
+    isString(value.reason) &&
+    isNullableString(value.series)
   )
 }
 

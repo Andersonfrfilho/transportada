@@ -42,7 +42,7 @@ const PAYLOAD = {
   description: 'Transporte rodoviário de carga',
   issAmount: '10.00',
   issExigibility: '1',
-  issRate: '2.00',
+  issRate: '0.020000',
   issWithheld: false,
   municipalityIbgeCode: '3543402',
   municipalTaxationCode: '',
@@ -149,7 +149,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
     })
 
     expect(sent.rps[0]).toEqual({
-      Aliquota: '2.00',
+      Aliquota: '2',
       Bairro: 'Centro',
       CallbackUrl: CALLBACK_URL,
       Cep: '14010100',
@@ -172,6 +172,26 @@ describe('NFS-e fiscal gateway configuration contract', () => {
       ValorServicos: '500.00',
       _exterior: false,
     })
+  })
+
+  /**
+   * A alíquota é fração aqui dentro (`0.020000`, que é o que multiplica o valor do serviço) e
+   * **percentual** no fio. Mandar a fração fez a prefeitura recusar com `E227 — Alíquota Serviços
+   * fora do intervalo de 2% e 5%`, medido em produção em 18/08/2026 na nota 5253521.
+   */
+  test.each([
+    ['0.020000', '2'],
+    ['0.035000', '3.5'],
+    ['0.050000', '5'],
+  ])('sends the ISS rate %s as the percentage %s', async (issRate, expected) => {
+    const sent = captureIssuedRps()
+
+    await sent.gateway.issue({
+      credential: createCredential('production'),
+      payload: { ...PAYLOAD, issRate },
+    })
+
+    expect(sent.rps[0]?.['Aliquota']).toBe(expected)
   })
 
   /**

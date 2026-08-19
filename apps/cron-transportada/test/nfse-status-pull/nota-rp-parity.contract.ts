@@ -34,7 +34,7 @@ const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])
 const UNKNOWN_REJECTION_CODE = 'NOTA_RP_UNKNOWN'
 
 describe('Nota RP v2 status client parity', () => {
-  test('reads "processando" as pending, matching the worker client table', async () => {
+  test('reads "Processando" as pending, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => successBody(pendingData())).fetch,
     })
@@ -44,7 +44,7 @@ describe('Nota RP v2 status client parity', () => {
     expect(outcome).toEqual({ status: 'pending' })
   })
 
-  test('reads "autorizada" as an archivable document, matching the worker client table', async () => {
+  test('reads "Autorizada" as an archivable document, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => successBody(authorizedData())).fetch,
     })
@@ -64,7 +64,7 @@ describe('Nota RP v2 status client parity', () => {
 
   test('refuses an authorization without number or verification code, matching the worker client table', async () => {
     const incomplete = Object.fromEntries(
-      Object.entries(authorizedData()).filter(([field]) => field !== 'numero_nota'),
+      Object.entries(authorizedData()).filter(([field]) => field !== 'Nfse'),
     )
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => successBody(incomplete)).fetch,
@@ -75,7 +75,7 @@ describe('Nota RP v2 status client parity', () => {
     expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
   })
 
-  test('reads "rejeitada" as a rejection with code and message, matching the worker client table', async () => {
+  test('reads "Falha" as a rejection with code and message, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => successBody(rejectedData())).fetch,
     })
@@ -91,7 +91,7 @@ describe('Nota RP v2 status client parity', () => {
     })
   })
 
-  test('reads "cancelada" with its timestamp, matching the worker client table', async () => {
+  test('reads "Cancelada" with its timestamp, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => successBody(cancelledData())).fetch,
     })
@@ -106,12 +106,55 @@ describe('Nota RP v2 status client parity', () => {
 
   test('refuses an unknown situation instead of guessing authorization', async () => {
     const client = await createNotaRpStatusClientFixture({
-      fetch: recordingFetch(() => successBody({ situacao: 'em_analise' })).fetch,
+      fetch: recordingFetch(() => successBody({ Status: 'em_analise' })).fetch,
     })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
 
     expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
+  test('reads a filled Erro[] as a rejection even when the status is unknown, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() =>
+        successBody({
+          Erro: [{ Codigo: 'E215', Mensagem: 'Item da lista de servico incompativel' }],
+          Status: 'situacao_que_ninguem_viu',
+        }),
+      ).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      rejection: { code: 'E215', message: 'Item da lista de servico incompativel' },
+      status: 'rejected',
+    })
+  })
+
+  test('carries every rejection reason, not just the first, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() =>
+        successBody({
+          Erro: [
+            { Codigo: 'E215', Mensagem: 'Item da lista de servico incompativel' },
+            { Codigo: 'E227', Mensagem: 'Aliquota Servicos fora do intervalo de 2% e 5%' },
+          ],
+          Status: 'Falha',
+        }),
+      ).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      rejection: {
+        code: 'E215',
+        message:
+          'E215: Item da lista de servico incompativel · E227: Aliquota Servicos fora do intervalo de 2% e 5%',
+      },
+      status: 'rejected',
+    })
   })
 
   /** ADR-0029: erro de negócio chega como HTTP 200 — quem decide é o corpo, não o status. */
@@ -143,10 +186,14 @@ describe('Nota RP v2 status client parity', () => {
     })
   })
 
-  test('reads a note-not-found envelope as not_found, matching the worker client table', async () => {
+  test('reads an empty result set as not_found, matching the worker client table', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() =>
-        jsonResponse({ message: 'Nenhuma nota encontrada com a busca realizada.', success: true }),
+        jsonResponse({
+          message: 'Nenhuma nota encontrada com a busca realizada.',
+          results: [],
+          success: true,
+        }),
       ).fetch,
     })
 
@@ -155,7 +202,7 @@ describe('Nota RP v2 status client parity', () => {
     expect(outcome).toEqual({ cause: 'not_found', status: 'error' })
   })
 
-  test('keeps malformed_response for a success envelope with neither data nor message', async () => {
+  test('keeps malformed_response for a success envelope with neither results nor message', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() => jsonResponse({ success: true })).fetch,
     })
@@ -167,7 +214,7 @@ describe('Nota RP v2 status client parity', () => {
 
   test('classifies a non-2xx response as unexpected_status', async () => {
     const client = await createNotaRpStatusClientFixture({
-      fetch: recordingFetch(() => jsonResponse({ success: true, data: {} }, 503)).fetch,
+      fetch: recordingFetch(() => jsonResponse({ results: [], success: true }, 503)).fetch,
     })
 
     const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })

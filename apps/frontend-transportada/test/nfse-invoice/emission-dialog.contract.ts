@@ -73,8 +73,18 @@ const SECOND_INVOICE = {
 const PREVIEW = {
   blocked: [
     ...INVOICE_PREVIEW.blocked,
-    { documentId: FOURTH_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_MISSING_TAKER_NAME' },
-    { documentId: THIRD_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH' },
+    {
+      documentId: FOURTH_DOCUMENT_ID,
+      number: '4',
+      reason: 'NFSE_DOCUMENT_MISSING_TAKER_NAME',
+      series: '1',
+    },
+    {
+      documentId: THIRD_DOCUMENT_ID,
+      number: '3',
+      reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+      series: '1',
+    },
   ],
   invoices: [SECOND_INVOICE, FIRST_INVOICE],
 } as const
@@ -115,6 +125,7 @@ type EmissionStatus =
 type EmissionProfileStatus = 'error' | 'forbidden' | 'loading' | 'missing' | 'ready'
 
 type EmissionModule = {
+  readonly NFSE_BLOCK_LABEL_LIMIT: number
   readonly NFSE_DESCRIPTION_VARIABLES: readonly string[]
   readonly NFSE_EMISSION_MAX_VISIBLE_ROWS: number
   readonly NFSE_EMISSION_PREVIEW_QUERY_KEY: string
@@ -161,8 +172,13 @@ type EmissionModule = {
   ) => boolean
   readonly canOpenNfseEmission: (permissions: readonly string[]) => boolean
   readonly groupNfseBlocksByReason: (
-    blocked: readonly Readonly<{ documentId: string; reason: string }>[],
-  ) => readonly Readonly<{ documentIds: readonly string[]; reason: string }>[]
+    blocked: readonly Readonly<{
+      documentId: string
+      number: null | string
+      reason: string
+      series: null | string
+    }>[],
+  ) => readonly Readonly<{ labels: readonly string[]; reason: string; remainingCount: number }>[]
   readonly isNfseEmissionFormLocked: (status: EmissionStatus) => boolean
   readonly resolveNfseDescription: (
     input: Readonly<{ custom: null | string; profileTemplate: string }>,
@@ -205,6 +221,12 @@ async function summarize(): Promise<EmissionSummary> {
   return summarizeNfsePreview(PREVIEW)
 }
 
+/** Sem bloqueio, para isolar dimensões (permissão, status) que não são sobre a nota fora da lista. */
+async function summarizeUnblocked(): Promise<EmissionSummary> {
+  const { summarizeNfsePreview } = await loadEmissionModule()
+  return summarizeNfsePreview({ ...PREVIEW, blocked: [] })
+}
+
 function collectKeys(value: unknown, prefix: string): readonly string[] {
   if (typeof value !== 'object' || value === null) return [prefix]
   return Object.entries(value).flatMap(([key, nested]) =>
@@ -243,7 +265,7 @@ describe('nfse emission action permission contract', () => {
   /** Confirmar é `nfse.issue`; o papel que só administra a nota vê a prévia e para aí. */
   test('refuses confirmation to whoever cannot issue, even with the dialog open', async () => {
     const { canConfirmNfseEmission } = await loadEmissionModule()
-    const summary = await summarize()
+    const summary = await summarizeUnblocked()
 
     expect(
       canConfirmNfseEmission({ canIssue: true, profileId: PROFILE_ID, status: 'ready', summary }),
@@ -305,17 +327,52 @@ describe('nfse emission preview grouping contract', () => {
     expect(service).not.toMatch(/Number\(/)
   })
 
-  test('groups the blocked notes by reason, preserving first-seen order and the api vocabulary', async () => {
+  test('groups the blocked notes by reason, naming each one, preserving first-seen order', async () => {
     const { groupNfseBlocksByReason } = await loadEmissionModule()
 
     expect(groupNfseBlocksByReason(PREVIEW.blocked)).toEqual([
       {
-        documentIds: [INVOICE_PREVIEW.blocked[0].documentId, THIRD_DOCUMENT_ID],
+        labels: ['2/1', '3/1'],
         reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+        remainingCount: 0,
       },
-      { documentIds: [FOURTH_DOCUMENT_ID], reason: 'NFSE_DOCUMENT_MISSING_TAKER_NAME' },
+      { labels: ['4/1'], reason: 'NFSE_DOCUMENT_MISSING_TAKER_NAME', remainingCount: 0 },
     ])
     expect(groupNfseBlocksByReason([])).toEqual([])
+  })
+
+  /** Bloqueio `notFound` não tem número emitido: o id é o único jeito de apontar a nota. */
+  test('falls back to the document id when the block has no document number', async () => {
+    const { groupNfseBlocksByReason } = await loadEmissionModule()
+
+    expect(
+      groupNfseBlocksByReason([
+        {
+          documentId: THIRD_DOCUMENT_ID,
+          number: null,
+          reason: 'NFSE_DOCUMENT_NOT_FOUND',
+          series: null,
+        },
+      ]),
+    ).toEqual([
+      { labels: [THIRD_DOCUMENT_ID], reason: 'NFSE_DOCUMENT_NOT_FOUND', remainingCount: 0 },
+    ])
+  })
+
+  test('caps the named notes per reason and counts what stayed out of the list', async () => {
+    const { NFSE_BLOCK_LABEL_LIMIT, groupNfseBlocksByReason } = await loadEmissionModule()
+    const overflowCount = 3
+    const blocks = Array.from({ length: NFSE_BLOCK_LABEL_LIMIT + overflowCount }, (_, index) => ({
+      documentId: `${THIRD_DOCUMENT_ID}-${index}`,
+      number: String(index + 1),
+      reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+      series: '1',
+    }))
+
+    const [group] = groupNfseBlocksByReason(blocks)
+
+    expect(group?.labels).toHaveLength(NFSE_BLOCK_LABEL_LIMIT)
+    expect(group?.remainingCount).toBe(overflowCount)
   })
 
   test('renders the blocked reason with the taker rows, not instead of them', async () => {
@@ -720,9 +777,10 @@ describe('nfse emission status contract', () => {
     }
   })
 
-  test('refuses confirmation without a profile, without a preview or with everything blocked', async () => {
+  test('refuses confirmation without a profile, without a preview, with everything blocked or with any block outstanding', async () => {
     const { canConfirmNfseEmission, summarizeNfsePreview } = await loadEmissionModule()
-    const summary = await summarize()
+    const summary = await summarizeUnblocked()
+    const partiallyBlockedSummary = await summarize()
     const emptySummary = summarizeNfsePreview(EMPTY_PREVIEW)
     const base = { canIssue: true, profileId: PROFILE_ID }
 
@@ -732,6 +790,10 @@ describe('nfse emission status contract', () => {
     expect(canConfirmNfseEmission({ ...base, status: 'creating', summary })).toBe(false)
     expect(canConfirmNfseEmission({ ...base, status: 'previewError', summary })).toBe(false)
     expect(canConfirmNfseEmission({ ...base, status: 'ready', summary: emptySummary })).toBe(false)
+    // Bloqueio parcial: tomadores prontos e notas fora ao mesmo tempo — o botão continua fechado.
+    expect(
+      canConfirmNfseEmission({ ...base, status: 'ready', summary: partiallyBlockedSummary }),
+    ).toBe(false)
     // Perfil é obrigatório na API: sem ele nem a prévia sai.
     expect(canConfirmNfseEmission({ ...base, profileId: null, status: 'ready', summary })).toBe(
       false,
@@ -740,7 +802,7 @@ describe('nfse emission status contract', () => {
 
   test('lets the operator retry after a creation failure instead of locking the button', async () => {
     const { canConfirmNfseEmission } = await loadEmissionModule()
-    const summary = await summarize()
+    const summary = await summarizeUnblocked()
 
     expect(
       canConfirmNfseEmission({
