@@ -35,7 +35,7 @@ jobs:
   # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       # O runner do GitHub sorteia porta de origem em 32768-60999 e não reserva nenhuma
@@ -54,8 +54,24 @@ jobs:
           bun-version: 1.3.14
       - run: cp .env.example .env
       - run: bun install --frozen-lockfile
+      # `--with-deps` juntava duas coisas de risco muito diferente: baixar o Chromium do CDN do
+      # Playwright, que é rápido e cacheável, e virar root para `apt-get update`, que fala com
+      # espelho de distribuição. Em 19/08/2026 o espelho da Azure não respondeu (`Ign:` repetido), o
+      # apt caiu no `archive.ubuntu.com` e ficou 19 minutos parado — duas execuções seguidas comeram
+      # o teto de 20 do job com zero teste rodado, e `migration-test`, `make up`, as integrações e o
+      # smoke ficaram todos `skipped`. Separados, o binário vem do cache e só o apt precisa de teto.
+      - name: Cache do Chromium do Playwright
+        uses: actions/cache@v4
+        with:
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: ~/.cache/ms-playwright
       - name: Install Playwright Chromium
-        run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
+        run: bun run --cwd apps/frontend-transportada playwright install chromium
+      # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
+      # cancelado no fim de 20 sem dizer onde parou.
+      - name: Bibliotecas de sistema do Chromium
+        timeout-minutes: 5
+        run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
       - run: make migration-test
       - run: make up
       - name: API and worker integrations
