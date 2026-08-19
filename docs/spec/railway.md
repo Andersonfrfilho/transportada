@@ -158,6 +158,14 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 `VITE_*`, `CRON_JOB`, `FISCAL_ENVIRONMENT`, `CADENCE_MINUTES`, `PAGE_SIZE`,
 `OBJECT_STORAGE_BUCKET`/`ENDPOINT`/`REGION`/`FORCE_PATH_STYLE`.
 
+> 🚗 **`FLEET_VEHICLE_CATALOG_URL`, na `api`** (`https://brasilapi.com.br`), liga o
+> catálogo de marca/modelo por FIPE do cadastro de veículo. Sem ela a capability
+> `vehicleCatalog` fica `false` e os campos degradam para texto livre, em silêncio —
+> não há erro de boot nem de request, só o combobox nunca aparecendo. Faltou nas
+> variáveis de staging/production por ser opcional no schema; provisionar nos dois
+> ambientes com o mesmo valor do `.env` local, é um espelho público da FIPE, sem
+> segredo nenhum.
+
 > ⏱ `SCHEDULED_DISTRIBUTION_CRON`, na `api`, tem de espelhar o `deploy.cronSchedule`
 > de `deploy/cron/railway.json` — é dela que sai o "próximo ciclo automático" que a
 > tela mostra, e a API não observa o serviço de cron para descobrir isso sozinha.
