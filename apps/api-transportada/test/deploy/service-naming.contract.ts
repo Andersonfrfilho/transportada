@@ -9,6 +9,12 @@ const DEPLOY_WORKFLOW_PATH = new URL('.github/workflows/deploy.yml', REPOSITORY_
 
 /** `railway-deploy.sh deploy <serviço>` — é assim que o pipeline endereça cada serviço. */
 const PIPELINE_SERVICE_PATTERN = /railway-deploy\.sh deploy ([a-z-]+)/g
+/**
+ * `service: [worker, cron, ...]` — a matriz do `deploy-services` endereça pelo nome, um runner por
+ * serviço. Sem ler a matriz, este contrato só enxergaria os três nomes literais que sobraram, e
+ * cinco serviços passariam a publicar sem ninguém conferir se têm build declarada.
+ */
+const MATRIX_SERVICE_PATTERN = /^\s+service: \[([a-z, -]+)\]$/m
 /** Linha da tabela de build: `| `api` | ... |`. */
 const BUILD_TABLE_SERVICE_PATTERN = /^\| `([a-z-]+)`\s+\| `apps\/|^\| `([a-z-]+)`\s+\| `deploy\//gm
 /** `- api: https://<host>` na seção de domínios. */
@@ -28,6 +34,17 @@ function section(content: string, heading: string): string {
     throw new Error(`docs/spec/railway.md não tem a seção "${heading}"`)
   }
   return matched[1] ?? ''
+}
+
+/** Todo serviço que o pipeline publica: os nomes literais mais os da matriz. */
+function deployedServicesOf(workflow: string): readonly string[] {
+  const literal = [...workflow.matchAll(PIPELINE_SERVICE_PATTERN)].flatMap(([, service]) =>
+    service === undefined ? [] : [service],
+  )
+  const matched = MATRIX_SERVICE_PATTERN.exec(workflow)
+  const matrix = (matched?.[1] ?? '').split(',').map((service) => service.trim())
+
+  return [...literal, ...matrix.filter((service) => service !== '')]
 }
 
 function domainsOf(sectionContent: string): Map<string, string> {
@@ -54,9 +71,11 @@ describe('contrato de nome de serviço e de domínio', () => {
     const declared = new Set(
       [...document.matchAll(BUILD_TABLE_SERVICE_PATTERN)].map(([, apps, deploy]) => apps ?? deploy),
     )
-    const deployed = [...workflow.matchAll(PIPELINE_SERVICE_PATTERN)].map(([, service]) => service)
+    const deployed = deployedServicesOf(workflow)
 
-    expect(deployed).not.toBeEmpty()
+    // Os oito: keycloak, api e frontend por nome, e os cinco da matriz. Menos que isso é serviço
+    // que saiu do pipeline sem ninguém notar.
+    expect(deployed).toHaveLength(8)
     for (const service of deployed) {
       expect(declared).toContain(service)
     }

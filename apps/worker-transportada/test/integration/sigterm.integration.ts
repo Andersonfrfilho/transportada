@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { afterAll, describe, expect, test } from 'bun:test'
+import type { Subprocess } from 'bun'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { connect, type Channel, type ChannelModel } from 'amqplib'
 
@@ -18,6 +19,8 @@ const describeLocal = databaseUrl && rabbitMqUrl ? describe : describe.skip
  */
 const BOOT_TIMEOUT_MS = 20_000
 const TEST_TIMEOUT_MS = 40_000
+/** Cauda de log anexada à falha: o bastante para ver a exceção do boot, pouco para não afogar o CI. */
+const OUTPUT_TAIL_LENGTH = 2_000
 
 describeLocal('worker SIGTERM integration', () => {
   const queuePrefix = `transportada.local.sigterm.${crypto.randomUUID()}`
@@ -67,12 +70,7 @@ describeLocal('worker SIGTERM integration', () => {
       const errors = collectOutput(worker.stderr)
 
       try {
-        await waitFor(async () => {
-          const response = await fetch(`http://127.0.0.1:${port}/health/live`).catch(
-            () => undefined,
-          )
-          return response?.status === 200
-        }, BOOT_TIMEOUT_MS)
+        await waitForBoot({ errors, output, port, worker })
 
         const publisher = await createRabbitMqProvider({
           connection: rabbitMqUrl!,
@@ -117,7 +115,12 @@ describeLocal('worker SIGTERM integration', () => {
   )
 })
 
-function collectOutput(stream: ReadableStream<Uint8Array>) {
+type OutputCollector = {
+  read(): Promise<string>
+  completion: Promise<void>
+}
+
+function collectOutput(stream: ReadableStream<Uint8Array>): OutputCollector {
   let value = ''
   const completion = (async () => {
     for await (const chunk of stream) {
@@ -145,4 +148,57 @@ async function waitFor(
     }
     await Bun.sleep(25)
   }
+}
+
+type BootWaitParams = {
+  readonly errors: OutputCollector
+  readonly output: OutputCollector
+  readonly port: number
+  readonly worker: Subprocess
+}
+
+/**
+ * Esperar o relógio inteiro por um processo que já morreu produz sempre a mesma frase — "Condition
+ * timed out after 20000ms" — para duas causas opostas: boot lento e boot que explodiu no primeiro
+ * segundo. Foi assim que a resposta anterior a esta falha foi subir o orçamento de 5s para 20s, sem
+ * nenhuma evidência de que o tempo fosse o problema. O processo morto encerra a espera na hora, e a
+ * saída dele vai junto da falha nos dois caminhos.
+ */
+async function waitForBoot({ errors, output, port, worker }: BootWaitParams): Promise<void> {
+  const deadline = Date.now() + BOOT_TIMEOUT_MS
+
+  while (true) {
+    const response = await fetch(`http://127.0.0.1:${port}/health/live`).catch(() => undefined)
+    if (response?.status === 200) {
+      return
+    }
+    if (worker.exitCode !== null || worker.signalCode !== null) {
+      throw new Error(
+        `worker morreu durante o boot (exit ${String(worker.exitCode)}, sinal ${String(
+          worker.signalCode,
+        )})${await describeOutput({ errors, output })}`,
+      )
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `worker não respondeu /health/live em ${BOOT_TIMEOUT_MS}ms${await describeOutput({
+          errors,
+          output,
+        })}`,
+      )
+    }
+    await Bun.sleep(25)
+  }
+}
+
+async function describeOutput({
+  errors,
+  output,
+}: Pick<BootWaitParams, 'errors' | 'output'>): Promise<string> {
+  const tailOf = (value: string): string =>
+    value.length > OUTPUT_TAIL_LENGTH ? value.slice(-OUTPUT_TAIL_LENGTH) : value
+
+  return `\n--- stdout ---\n${tailOf(await output.read())}\n--- stderr ---\n${tailOf(
+    await errors.read(),
+  )}`
 }

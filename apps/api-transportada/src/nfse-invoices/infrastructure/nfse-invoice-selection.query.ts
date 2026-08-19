@@ -11,6 +11,7 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import type { NfseSelectionDocument } from '../domain/nfse-selection.policy.js'
+import type { NfsePartyAddress } from '../domain/nfse-taker-address.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -23,6 +24,7 @@ export type NfseInvoiceSelectionQuery = {
 }
 
 type PartyLocation = {
+  readonly address: NfsePartyAddress
   readonly city: string | null
   readonly legalName: string | null
   readonly state: string | null
@@ -34,7 +36,25 @@ type DocumentParties = {
   readonly sender: PartyLocation
 }
 
-const EMPTY_PARTY: PartyLocation = { city: null, legalName: null, state: null, taxId: null }
+/** Participante sem endereço no join vira endereço todo nulo, que a política recusa como incompleto. */
+const EMPTY_ADDRESS: NfsePartyAddress = {
+  city: null,
+  complement: null,
+  district: null,
+  number: null,
+  phone: null,
+  postalCode: null,
+  state: null,
+  street: null,
+}
+
+const EMPTY_PARTY: PartyLocation = {
+  address: EMPTY_ADDRESS,
+  city: null,
+  legalName: null,
+  state: null,
+  taxId: null,
+}
 const EMPTY_PARTIES: DocumentParties = { recipient: EMPTY_PARTY, sender: EMPTY_PARTY }
 const SENDER_ROLE = 'emitter'
 const RECIPIENT_ROLE = 'recipient'
@@ -73,9 +93,10 @@ export function buildNfseSelectionWeightFilters(input: NfseInvoiceSelectionQuery
 }
 
 /**
- * Espelha `cte-batch-selection.query.ts#findSelectionDocuments`, mas acrescenta a razão social das
- * partes: a nota de serviço grava `taker_legal_name` no momento da emissão, e essa razão social só
- * existe em `nfe_participants`, nunca em `cte_batch_items`.
+ * Espelha `cte-batch-selection.query.ts#findSelectionDocuments`, mas acrescenta a razão social e o
+ * endereço das partes: a nota de serviço grava `taker_legal_name` no momento da emissão, e a
+ * prefeitura recusa a nota inteira sem o endereço completo do tomador. Nada disso existe em
+ * `cte_batch_items` — só em `nfe_participants` e `nfe_addresses`.
  */
 export async function findNfseSelectionDocuments(
   queryable: NfseInvoiceSelectionQueryable,
@@ -109,10 +130,12 @@ export async function findNfseSelectionDocuments(
       grossWeight: weights.get(record.id) ?? null,
       issuedAt: record.issuedAt.toISOString(),
       number: record.number,
+      recipientAddress: recipient.address,
       recipientCity: recipient.city,
       recipientLegalName: recipient.legalName,
       recipientState: recipient.state,
       recipientTaxId: recipient.taxId,
+      senderAddress: sender.address,
       senderCity: sender.city,
       senderLegalName: sender.legalName,
       senderState: sender.state,
@@ -150,10 +173,16 @@ async function loadParties(
   const rows = await queryable
     .select({
       city: nfeAddresses.city,
+      complement: nfeAddresses.complement,
+      district: nfeAddresses.district,
       documentId: nfeParticipants.documentId,
       legalName: nfeParticipants.legalName,
+      number: nfeAddresses.number,
+      phone: nfeAddresses.phone,
+      postalCode: nfeAddresses.postalCode,
       role: nfeParticipants.role,
       state: nfeAddresses.state,
+      street: nfeAddresses.street,
       taxId: nfeParticipants.taxId,
     })
     .from(nfeParticipants)
@@ -165,6 +194,16 @@ async function loadParties(
     if (row.role !== SENDER_ROLE && row.role !== RECIPIENT_ROLE) continue
     const current = parties.get(row.documentId) ?? EMPTY_PARTIES
     const party: PartyLocation = {
+      address: {
+        city: row.city,
+        complement: row.complement,
+        district: row.district,
+        number: row.number,
+        phone: row.phone,
+        postalCode: row.postalCode,
+        state: row.state,
+        street: row.street,
+      },
       city: row.city,
       legalName: row.legalName,
       state: row.state,

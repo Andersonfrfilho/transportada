@@ -296,6 +296,7 @@
       "NFSE_DOCUMENT_ALREADY_LINKED": "Already in another service invoice.",
       "NFSE_DOCUMENT_DUPLICATED": "Sent twice in the selection.",
       "NFSE_DOCUMENT_LINKED_TO_CTE_BATCH": "Already in a waybill batch.",
+      "NFSE_DOCUMENT_MISSING_TAKER_ADDRESS": "Missing the full taker address.",
       "NFSE_DOCUMENT_MISSING_TAKER_NAME": "Missing the taker legal name.",
       "NFSE_DOCUMENT_NOT_FOUND": "Note not found."
     },
@@ -325,6 +326,7 @@
     "documentAlreadyLinked": "One of the notes already belongs to another service invoice.",
     "documentDuplicated": "The same note was sent twice in the selection.",
     "documentLinkedToCteBatch": "One of the notes already belongs to a CT-e batch.",
+    "documentMissingTakerAddress": "One of the notes carries no full taker address, and the city hall refuses the invoice without it.",
     "documentMissingTakerName": "One of the notes carries no taker legal name.",
     "documentNotFound": "One of the selected notes was not found.",
     "fiscalDocumentUnavailable": "The fiscal document is not available for download yet.",

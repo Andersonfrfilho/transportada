@@ -76,6 +76,7 @@ export const NFSE_INVOICE_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>
   NFSE_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
   NFSE_DOCUMENT_DUPLICATED: 'documentDuplicated',
   NFSE_DOCUMENT_LINKED_TO_CTE_BATCH: 'documentLinkedToCteBatch',
+  NFSE_DOCUMENT_MISSING_TAKER_ADDRESS: 'documentMissingTakerAddress',
   NFSE_DOCUMENT_MISSING_TAKER_NAME: 'documentMissingTakerName',
   NFSE_DOCUMENT_NOT_FOUND: 'documentNotFound',
   NFSE_EMISSION_PROFILE_NOT_ACTIVE: 'profileNotActive',

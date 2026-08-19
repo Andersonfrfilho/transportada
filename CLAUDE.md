@@ -231,6 +231,20 @@ homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDo
 base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
 causa que adia: sem o XML a nota não liquida.
 
+**A prefeitura não emite sem o endereço do tomador.** O RPS leva `Cep · Endereco · Numero · Bairro ·
+Cidade · Estado` (`Complemento` e `Telefone` só quando não vazios; `Cidade` é **nome** e `Estado` é
+**sigla**, não códigos IBGE), montados por `buildTakerAddressFields` no `nfse-fiscal-gateway.ts` do
+worker. Quem decide o que é endereço completo é
+`api-transportada/src/nfse-invoices/domain/nfse-taker-address.policy.ts` — cidade, bairro, número, CEP
+de oito dígitos, UF de duas letras e logradouro obrigatórios, e ela canonicaliza CEP e UF no caminho.
+Falta de endereço é bloqueio de **prévia** (`NFSE_DOCUMENT_MISSING_TAKER_ADDRESS`), pelo participante
+que o `taker` do perfil escolhe — não recusa da prefeitura com as NF-e já travadas. O endereço entra no
+payload congelado e no `payloadSha256`; `taker.address` é opcional no `payloadSchema` do worker de
+propósito, porque payload congelado antes da spec 043 precisa continuar sendo transmitido e recusado
+pela prefeitura — a causa real — em vez de morrer como `invalid_payload`, defeito nosso. Consequência:
+nota rejeitada nascida antes da 043 se **descarta e emite de novo**; reemitir retransmite o mesmo RPS
+sem endereço.
+
 ⚠️ `nfe-distribution-pull/domain/distribution-eligibility.policy.ts` é **cópia** de
 `api-transportada/src/companies/domain/distribution-eligibility.policy.ts` — mesma regra, mesmo
 vocabulário de razões, duas apps que não importam código uma da outra. Mudou a regra de um lado?

@@ -30,6 +30,7 @@ import type {
   SaveNfseIssuancePayloadInput,
 } from '../../src/nfse-invoices/application/nfse-invoice.port'
 import type { NfseSelectionDocument } from '../../src/nfse-invoices/domain/nfse-selection.policy'
+import type { NfsePartyAddress } from '../../src/nfse-invoices/domain/nfse-taker-address.policy'
 
 export const COMPANY_ID = '00000000-0000-4000-8000-0000000000d1'
 export const USER_ID = '00000000-0000-4000-8000-0000000000d2'
@@ -85,6 +86,28 @@ export const CREDENTIAL: NfseInvoiceCredential = {
   taxId: '12345678000199',
 }
 
+export const RECIPIENT_ADDRESS: NfsePartyAddress = {
+  city: 'Ribeirão Preto',
+  complement: 'Sala 12',
+  district: 'Centro',
+  number: '1500',
+  phone: '1633334444',
+  postalCode: '14010100',
+  state: 'SP',
+  street: 'Avenida Nove de Julho',
+}
+
+export const SENDER_ADDRESS: NfsePartyAddress = {
+  city: 'Campinas',
+  complement: null,
+  district: 'Cambuí',
+  number: '210',
+  phone: null,
+  postalCode: '13024000',
+  state: 'SP',
+  street: 'Rua do Depósito',
+}
+
 export function selectionDocument(
   overrides: Partial<NfseSelectionDocument> = {},
 ): NfseSelectionDocument {
@@ -94,10 +117,12 @@ export function selectionDocument(
     grossWeight: '1200.0000',
     issuedAt: '2026-08-01T10:00:00.000Z',
     number: '000000123',
+    recipientAddress: RECIPIENT_ADDRESS,
     recipientCity: 'Ribeirão Preto',
     recipientLegalName: 'Cliente Sintético Ltda',
     recipientState: 'SP',
     recipientTaxId: '98765432000188',
+    senderAddress: SENDER_ADDRESS,
     senderCity: 'Campinas',
     senderLegalName: 'Remetente Sintético Ltda',
     senderState: 'SP',

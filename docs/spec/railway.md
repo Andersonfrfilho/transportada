@@ -184,31 +184,64 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
 
 `.github/workflows/deploy.yml`:
 
-1. Pull request mirando `staging` → staging; `push` em `main` → production;
-   `workflow_dispatch` escolhe o ambiente. Branch sem ambiente não dispara o
-   workflow, e se disparar por engano o job `target` falha em vez de assumir
-   staging — `develop` é branch de trabalho, não de publicação.
-   Staging publica o código **proposto**, antes do merge: é o que o PR está
-   pedindo para promover. `push` em `staging` não dispara nada, porque depois do
-   squash-merge para `main` o back-merge de `main` em `staging` não traz
-   conteúdo novo — rodava o gate inteiro e os cinco deploys para não mudar um
-   arquivo. Dois PRs abertos ao mesmo tempo disputam o mesmo staging; abra um
-   por vez.
-2. O PR `staging → main` roda o workflow **sem publicar**: os jobs `target` e
-   `deploy` ficam de fora por `github.base_ref`, e sobra o `gate`. Não é
-   cerimônia — a proteção da `main` exige os contextos `gate / quality` e
-   `gate / integration`, e eles só existem se este workflow rodar no commit do
-   PR. Antes eles vinham do deploy do push em `staging`; sem aquele run, o PR de
-   release ficaria bloqueado para sempre.
+1. Cada ambiente é publicado pelo **push da branch dele**: `push` em `staging` →
+   staging, `push` em `main` → production; `workflow_dispatch` escolhe o
+   ambiente. Branch sem ambiente não dispara o workflow, e se disparar por
+   engano o job `target` falha em vez de assumir staging — `develop` é branch de
+   trabalho, não de publicação. Staging publica o que está **na branch
+   staging**, depois do merge do PR.
+2. **PR nenhum publica** — nem mirando `staging`, nem mirando `main`. Em PR os
+   jobs `target` e `deploy` ficam de fora por `github.event_name`, e sobra o
+   `gate`. Não é cerimônia: a proteção da `main` exige os contextos
+   `gate / quality` e `gate / integration`, e eles só existem se este workflow
+   rodar no commit do PR.
+
+   Publicar staging a partir do PR foi a intenção original e **nunca executou um
+   passo sequer**. A política de branch do GitHub Environment casa com
+   `refs/heads/*`, e o PR roda em `refs/pull/N/merge`; desde 08/12/2025 o GitHub
+   avalia a regra contra o ref de execução, não contra a branch de origem. Todo
+   deploy de PR morria em `Branch is not allowed to deploy to staging` com zero
+   passos, e o PR ainda aparecia verde porque o `gate` tinha passado. Abrir a
+   política para `refs/pull/*/merge` entregaria o `RAILWAY_TOKEN` de staging ao
+   merge ref — exatamente o que aquela mudança do GitHub fechou — e publicaria
+   um commit que não existe em branch nenhuma. O preço da troca é o back-merge
+   de `main` em `staging` redeployar conteúdo idêntico; deploy é idempotente, e
+   em troca staging passa a ser sempre o que está na branch.
+
 3. O job `gate` chama `.github/workflows/ci.yml` inteiro (format, lint,
    typecheck, test, build, migration-test, integração e smoke). Nenhum deploy
    começa antes dele passar. Por isso `ci.yml` **não tem gatilho próprio**:
    um `pull_request` nele rodaria a mesma suíte duas vezes no mesmo commit.
-4. O job `deploy` usa o GitHub Environment homônimo — é ali que production
-   ganha _required reviewers_ e a aprovação humana acontece.
-5. Ordem: keycloak (só quando muda) → api (migration no pre-deploy) → worker →
-   cron → cron-nfse → cron-notifications → cron-fuel → transportada-frontend. Os
-   crons depois da API porque leem tabelas que só a migration dela cria.
+4. Os três jobs de deploy usam o GitHub Environment homônimo. Hoje os dois ambientes têm
+   **só política de branch** (`staging` aceita `staging`, `production` aceita
+   `main`) e **nenhum _required reviewer_**: o push em `main` publica production
+   sem parar para aprovação. A aprovação humana do release é o merge do PR
+   `staging → main`, não uma parada no Environment. ⚠️ Ligar _required
+   reviewers_ em `production` é decisão em aberto.
+5. Ordem: **três frentes**, não uma fila.
+   - `deploy-api` — keycloak (só quando muda) → reconciliação do realm → api
+     (migration no `preDeployCommand`) → asserção de migrations aplicadas.
+   - `deploy-frontend` — começa junto com a API. O bundle é estático e não fala
+     com o banco: não tem migration para esperar.
+   - `deploy-services` — matriz de cinco (`worker`, `cron`, `cron-nfse`,
+     `cron-notifications`, `cron-fuel`), um runner cada, depois de
+     `deploy-api`. Eles leem tabelas que só a migration da API cria; essa é a
+     única ordem que existe.
+
+   O job único levava **646s** no release de produção `32172971566`, com sete
+   dos oito serviços apenas esperando a vez. O caminho crítico real é
+   api (75s) → cron mais lento (121s).
+
+   Três detalhes que a divisão trouxe:
+   - `fail-fast: false` na matriz. O padrão cancela os irmãos quando um falha, e
+     isso produz o pior estado possível — metade dos serviços na versão nova,
+     metade na antiga, sem sinal de qual é qual.
+   - A paralelização é por **job**, não por `&`/`wait` num job só:
+     `railway-deploy.sh` reescreve `~/.railway/config.json` a cada chamada, e
+     duas chamadas simultâneas no mesmo runner disputariam o mesmo arquivo.
+   - Cada job é um _deployment_ próprio do Environment. Se `production` ganhar
+     _required reviewers_ (item 4), passam a ser **três aprovações** por
+     release, não uma.
 
 `railway up --ci` sai quando o build termina, não quando o release sobe; por
 isso `.github/scripts/railway-deploy.sh` faz polling do status do deployment e

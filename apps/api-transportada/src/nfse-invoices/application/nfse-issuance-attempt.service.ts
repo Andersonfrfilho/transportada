@@ -185,7 +185,11 @@ export function freezeNfseIssuancePayload({
     nbsCode: profile.nbsCode,
     serviceAmount: invoice.serviceAmount,
     serviceListItem: profile.serviceListItem,
-    taker: { legalName: invoice.takerLegalName, taxId: invoice.takerTaxId },
+    taker: {
+      address: invoice.takerAddress,
+      legalName: invoice.takerLegalName,
+      taxId: invoice.takerTaxId,
+    },
   }
 
   return {

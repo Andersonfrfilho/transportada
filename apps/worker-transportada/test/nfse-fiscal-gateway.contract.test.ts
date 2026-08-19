@@ -21,6 +21,22 @@ const CALLBACK_URL = `${CALLBACK_BASE_URL}/public/nfse-callbacks/${CALLBACK_TOKE
 /** 20:30 em São Paulo do dia 17 — a mesma instante é 17/08 lá e 17/08 em UTC. */
 const CLOCK = (): Date => new Date('2026-08-17T23:30:00.000Z')
 
+/**
+ * O endereço do tomador foi o que faltou em produção: a prefeitura recusou a nota inteira com
+ * `É necessário informar o endereço completo do cliente`, e o corpo não tinha campo nenhum de
+ * endereço. Ele viaja congelado no payload, junto do resto que a empresa aprovou na prévia.
+ */
+const TAKER_ADDRESS = {
+  city: 'Ribeirão Preto',
+  complement: 'Sala 12',
+  district: 'Centro',
+  number: '1500',
+  phone: '1633334444',
+  postalCode: '14010100',
+  state: 'SP',
+  street: 'Avenida Nove de Julho',
+} as const
+
 const PAYLOAD = {
   cnaeCode: '4930202',
   description: 'Transporte rodoviário de carga',
@@ -33,7 +49,11 @@ const PAYLOAD = {
   nbsCode: '',
   serviceAmount: '500.00',
   serviceListItem: '16.02',
-  taker: { legalName: 'Tomador Exemplo', taxId: '11222333000181' },
+  taker: {
+    address: TAKER_ADDRESS,
+    legalName: 'Tomador Exemplo',
+    taxId: '11222333000181',
+  },
 } as const
 
 function createCredential(
@@ -130,20 +150,77 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     expect(sent.rps[0]).toEqual({
       Aliquota: '2.00',
+      Bairro: 'Centro',
       CallbackUrl: CALLBACK_URL,
+      Cep: '14010100',
+      Cidade: 'Ribeirão Preto',
       CodigoCnae: '4930202',
       CodigoMunicipio: '3543402',
+      Complemento: 'Sala 12',
       CpfCnpj: '11222333000181',
       DataEmissao: '17/08/2026',
       Discriminacao: 'Transporte rodoviário de carga',
+      Endereco: 'Avenida Nove de Julho',
+      Estado: 'SP',
       EnviarEmail: false,
       ExigibilidadeISS: '1',
       IssRetido: false,
       ItemListaServico: '1602',
+      Numero: '1500',
       RazaoSocial: 'Tomador Exemplo',
+      Telefone: '1633334444',
       ValorServicos: '500.00',
       _exterior: false,
     })
+  })
+
+  /**
+   * Complemento e telefone não existem em toda nota de origem: em branco eles não viajam, porque
+   * campo vazio num contrato que espera telefone é pedir recusa por um dado que não temos.
+   */
+  test('omits complement and phone when the source note has neither', async () => {
+    const sent = captureIssuedRps()
+
+    await sent.gateway.issue({
+      credential: createCredential('production'),
+      payload: {
+        ...PAYLOAD,
+        taker: { ...PAYLOAD.taker, address: { ...TAKER_ADDRESS, complement: '', phone: '' } },
+      },
+    })
+
+    expect(sent.rps[0]).not.toHaveProperty('Complemento')
+    expect(sent.rps[0]).not.toHaveProperty('Telefone')
+    expect(sent.rps[0]?.['Cep']).toBe('14010100')
+  })
+
+  /**
+   * O payload congelado antes desta mudança não tem `taker.address`, e ele **não pode** virar
+   * `invalid_payload`: a nota rejeitada em produção precisa continuar reemitível para ser
+   * descartada e refeita. Ela sai como saía — sem endereço, recusada pela prefeitura — e não
+   * morre antes de chegar lá, o que esconderia a causa real atrás de um defeito nosso.
+   */
+  test('still issues a payload frozen before the address existed', async () => {
+    const sent = captureIssuedRps()
+    const { taker, ...rest } = PAYLOAD
+
+    const outcome = await sent.gateway.issue({
+      credential: createCredential('production'),
+      payload: { ...rest, taker: { legalName: taker.legalName, taxId: taker.taxId } },
+    })
+
+    expect(outcome).toEqual({ providerDocumentId: 'nota-1', status: 'accepted' })
+    for (const field of [
+      'Bairro',
+      'Cep',
+      'Cidade',
+      'Complemento',
+      'Endereco',
+      'Estado',
+      'Numero',
+    ]) {
+      expect(sent.rps[0]).not.toHaveProperty(field)
+    }
   })
 
   /** Código de tributação e NBS são opcionais: em branco eles não viajam, preenchidos viajam. */

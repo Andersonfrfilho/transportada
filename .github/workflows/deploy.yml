@@ -1,15 +1,21 @@
 name: Deploy
 
-# Staging é o ambiente do PR: publica o código proposto antes do merge. O push em staging não
-# dispara nada — depois do squash-merge para main, o back-merge de main em staging não traz
-# conteúdo novo, e rodava o gate inteiro mais os cinco deploys para não mudar um arquivo.
+# Cada ambiente é publicado pelo push da branch dele: `staging` publica staging, `main` publica
+# produção. O PR entra aqui só pelo gate — a proteção da main exige os contextos `gate / quality` e
+# `gate / integration`, que só existem se este workflow rodar no commit do PR.
 #
-# O PR mirando main entra aqui só pelo gate: a proteção da main exige os contextos `gate / quality`
-# e `gate / integration`, que só existem se este workflow rodar no commit do PR. Ele não publica —
-# staging já está publicada pelo PR que a alimentou.
+# Publicar staging a partir do PR era a intenção original e nunca executou um passo sequer: a
+# política de branch do ambiente casa com `refs/heads/*`, e o PR roda em `refs/pull/N/merge`. Desde
+# 08/12/2025 o GitHub avalia a regra contra o ref de execução, e todo deploy de PR morria em
+# "Branch is not allowed to deploy to staging" com zero passos. Abrir a política para
+# `refs/pull/*/merge` entregaria o RAILWAY_TOKEN de staging ao merge ref — exatamente o que aquela
+# mudança fechou — e publicaria um commit que não existe em branch nenhuma.
+#
+# O preço é o back-merge de main em staging redeployar conteúdo idêntico. Deploy é idempotente, e
+# em troca staging passa a ser sempre o que está na branch staging.
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
     branches: [main, staging]
   workflow_dispatch:
@@ -40,10 +46,10 @@ env:
   RAILWAY_PROJECT_ID: 62de4c69-216a-4335-93a0-4942c6a95c54
 
 jobs:
-  # Só há ambiente a resolver quando alguém publica: no PR de release este job e o `deploy` ficam de
-  # fora, e sobra o `gate`, que é o que a proteção da main cobra.
+  # Só há ambiente a resolver quando alguém publica: em PR este job e o `deploy` ficam de fora, e
+  # sobra o `gate`, que é o que a proteção da main cobra.
   target:
-    if: github.event_name != 'pull_request' || github.base_ref == 'staging'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -53,10 +59,10 @@ jobs:
         run: |
           if [ -n "${{ inputs.environment }}" ]; then
             resolved="${{ inputs.environment }}"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            resolved=staging
           elif [ "${{ github.ref_name }}" = "main" ]; then
             resolved=production
+          elif [ "${{ github.ref_name }}" = "staging" ]; then
+            resolved=staging
           else
             # Sem fallback: branch sem ambiente falha em vez de publicar em staging por engano.
             echo "Branch '${{ github.ref_name }}' não tem ambiente. Use workflow_dispatch." >&2
@@ -68,10 +74,17 @@ jobs:
   gate:
     uses: ./.github/workflows/ci.yml
 
-  deploy:
+  # Três frentes em vez de uma fila. No release de produção `32172971566` o job único levou 646s com
+  # os oito serviços em sequência, e a dependência real é uma só: worker e crons leem tabelas que a
+  # migration da API cria. Nada mais espera nada — o frontend é bundle estático e os crons não se
+  # conhecem.
+  #
+  # O preço: cada job é um deployment próprio do Environment. Se o `production` ganhar revisor
+  # obrigatório, passam a ser três aprovações por release, não uma.
+  deploy-api:
     needs: [target, gate]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -87,12 +100,8 @@ jobs:
         run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
       - name: Deploy identity
         run: |
-          # Em PR o checkout é o merge commit: o primeiro pai é a base, e `event.before` não existe.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            baseline="$(git rev-parse HEAD^1)"
-          else
-            baseline="${{ github.event.before }}"
-          fi
+          # O baseline é o commit anterior do push. PR não chega aqui — não publica.
+          baseline="${{ github.event.before }}"
           # Em `workflow_dispatch` não há `event.before`, e num push forçado ele pode ter sumido.
           # Baseline que não dá para conferir é dúvida, e dúvida publica: pular aqui é justamente o
           # silêncio que esconde tema novo. Alguns segundos de login fora custam menos.
@@ -120,27 +129,61 @@ jobs:
       # semanas depois que a tela de login do cliente está errada, não.
       - name: Reconciliar realm
         run: .github/scripts/keycloak-reconcile.sh
-      # A API roda as migrations no preDeployCommand; worker e cron só sobem depois que ela conclui.
+      # A API roda as migrations no preDeployCommand, e é por isso que ela é o gargalo declarado:
+      # worker e crons só começam quando este job termina verde.
       - name: Deploy API
         run: .github/scripts/railway-deploy.sh deploy api
       - name: Conferir migrations aplicadas
         run: .github/scripts/railway-deploy.sh assert-migrations api
-      - name: Deploy worker
-        run: .github/scripts/railway-deploy.sh deploy worker
-      - name: Deploy cron
-        run: .github/scripts/railway-deploy.sh deploy cron
-      # A Nota RP publica um servidor só, e é o de produção: não há ambiente onde exercitar a
-      # reconciliação sem mexer em nota real, e esta instalação tem um cadastro só. A NFS-e é
-      # trilho de produção por decisão (ADR-0035), não por variável esquecida.
-      - name: Deploy cron-nfse
-        if: needs.target.outputs.environment == 'production'
-        run: .github/scripts/railway-deploy.sh deploy cron-nfse
-      - name: Deploy cron-notifications
-        run: .github/scripts/railway-deploy.sh deploy cron-notifications
-      # A referência da ANP é dado público de mercado: sem certificado, sem tenant e sem efeito
-      # fiscal. Staging coleta a mesma semana que production — é o que faz o R$/km derivado ter
-      # número para mostrar antes de production existir.
-      - name: Deploy cron-fuel
-        run: .github/scripts/railway-deploy.sh deploy cron-fuel
+
+  # O frontend é bundle estático servido por nginx: não abre conexão com o banco e não lê tabela
+  # nenhuma, então não tem por que esperar migration. Era o passo mais lento da fila (147s) e agora
+  # começa no instante zero, junto com a API.
+  deploy-frontend:
+    needs: [target, gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.target.outputs.environment }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
       - name: Deploy frontend
         run: .github/scripts/railway-deploy.sh deploy transportada-frontend
+
+  # Worker e crons consomem tabelas que a migration da API cria: `needs: deploy-api` é a única ordem
+  # que importa. Entre eles não há ordem alguma, e cada um roda no seu runner — a paralelização não
+  # cabe num job só porque `railway-deploy.sh` reescreve `~/.railway/config.json` a cada chamada, e
+  # duas chamadas simultâneas no mesmo runner disputariam o mesmo arquivo.
+  #
+  # `fail-fast: false` porque cancelar os irmãos quando um falha produz o pior estado possível:
+  # metade dos serviços na versão nova, metade na antiga, e nenhum sinal de qual é qual.
+  #
+  # A lista é literal no arquivo de propósito: é dela que o contrato de nomes lê para conferir que
+  # todo serviço publicado tem diretório de build declarado em `docs/spec/railway.md`.
+  deploy-services:
+    needs: [target, deploy-api]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.target.outputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [worker, cron, cron-nfse, cron-notifications, cron-fuel]
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      # A Nota RP publica um servidor só, e é o de produção: não há ambiente onde exercitar a
+      # reconciliação sem mexer em nota real, e esta instalação tem um cadastro só. A NFS-e é
+      # trilho de produção por decisão (ADR-0035), não por variável esquecida. Em staging o passo
+      # é pulado e o job termina verde sem publicar nada.
+      - name: Deploy ${{ matrix.service }}
+        if: matrix.service != 'cron-nfse' || needs.target.outputs.environment == 'production'
+        run: .github/scripts/railway-deploy.sh deploy "${{ matrix.service }}"

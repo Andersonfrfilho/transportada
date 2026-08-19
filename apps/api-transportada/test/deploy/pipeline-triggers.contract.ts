@@ -29,16 +29,38 @@ async function readWorkflow(path: URL): Promise<string> {
   return Bun.file(path).text()
 }
 
+/** `needs: [a, b]` do job pedido → ['a', 'b']. */
+function needsOf(workflow: string, job: string): readonly string[] {
+  const matched = new RegExp(`^  ${job}:$\\s+needs: \\[([^\\]]+)\\]`, 'm').exec(workflow)
+  if (matched === null) {
+    throw new Error(`deploy.yml não tem o job "${job}" com \`needs\``)
+  }
+  return (matched[1] ?? '').split(',').map((dependency) => dependency.trim())
+}
+
 describe('contrato de gatilho do pipeline', () => {
   /**
-   * Depois do squash-merge para main, o back-merge de main em staging não traz conteúdo novo —
-   * staging já tinha tudo. Com `staging` no gatilho de push, esse merge vazio rodava o gate inteiro
-   * e redeployava os cinco serviços: nove minutos de runner para não mudar um arquivo.
+   * Cada ambiente é publicado pelo push da branch dele. Publicar staging pelo PR era a intenção
+   * anterior e nunca executou um passo: a política de branch do ambiente casa com `refs/heads/*`, o
+   * PR roda em `refs/pull/N/merge`, e desde 08/12/2025 o GitHub avalia a regra contra o ref de
+   * execução — todo deploy de PR morria em "Branch is not allowed to deploy to staging" com zero
+   * passos, e o PR passava verde porque o gate tinha passado.
+   *
+   * O preço conhecido é o back-merge de main em staging redeployar conteúdo idêntico. É idempotente,
+   * e é o que mantém staging igual à branch staging.
    */
-  test('push só deploya main', async () => {
+  test('push publica os dois ambientes, um por branch', async () => {
     const block = triggerBlock(await readWorkflow(DEPLOY_WORKFLOW_PATH))
 
-    expect(branchesOf(block, 'push')).toEqual(['main'])
+    expect(branchesOf(block, 'push')).toEqual(['main', 'staging'])
+  })
+
+  /** Trocar o mapa de branch para ambiente publica o código errado no lugar errado, e em silêncio. */
+  test('main resolve produção e staging resolve staging', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toMatch(/= "main" \]; then\s+resolved=production/)
+    expect(workflow).toMatch(/= "staging" \]; then\s+resolved=staging/)
   })
 
   /**
@@ -53,13 +75,15 @@ describe('contrato de gatilho do pipeline', () => {
   })
 
   /**
-   * No PR de release o workflow existe só para produzir o gate. Publicar ali republicaria em staging
-   * um código que já está em staging, e é a única coisa que separa "rodar o gate" de "deployar".
+   * Em PR o workflow existe só para produzir o gate. Deploy de PR é recusado pela política de branch
+   * do ambiente e falha com zero passos — um job vermelho que não diz o que aconteceu. `base_ref`
+   * era a porta que deixava o PR mirando staging chegar até lá; ela não pode voltar.
    */
-  test('pull request mirando main roda o gate mas não publica', async () => {
+  test('pull request nenhum publica: roda o gate e para aí', async () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
-    expect(workflow).toContain("github.base_ref == 'staging'")
+    expect(workflow).toContain("if: github.event_name != 'pull_request'")
+    expect(workflow).not.toContain('github.base_ref')
   })
 
   /**
@@ -119,5 +143,48 @@ describe('contrato do deploy de identidade', () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
     expect(workflow).not.toContain('git diff --name-only "$baseline" HEAD 2>/dev/null')
+  })
+})
+
+/**
+ * O deploy era um job só, oito serviços em fila: 646s no release de produção `32172971566`, com sete
+ * deles apenas esperando. A ordem que existe de verdade é uma: worker e crons leem tabelas que a
+ * migration da API cria, e a migration roda no `preDeployCommand` dela.
+ *
+ * O que este contrato cobra é que a paralelização não coma a ordem que importa, nem devolva em
+ * silêncio a fila que ela desfez.
+ */
+describe('contrato do grafo de deploy', () => {
+  /**
+   * Worker e crons contra um banco sem a migration é erro de coluna inexistente em produção, e o
+   * consumidor entra em crash-loop consumindo a fila. Antes isso era ordem de passo dentro de um
+   * job; agora é `needs`, e `needs` é a única coisa que segura.
+   */
+  test('worker e crons só publicam depois da API e das migrations', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(needsOf(workflow, 'deploy-services')).toContain('deploy-api')
+    expect(workflow).toContain('railway-deploy.sh assert-migrations api')
+  })
+
+  /**
+   * O frontend é bundle estático: não abre conexão com o banco e não lê tabela nenhuma. Pendurá-lo
+   * na API devolveria 147s à espera sem comprar segurança alguma — era o passo mais lento da fila.
+   */
+  test('o frontend não espera a API: ele publica junto', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(needsOf(workflow, 'deploy-frontend')).toEqual(['target', 'gate'])
+  })
+
+  /**
+   * `fail-fast` é `true` por padrão, e num deploy ele cancela os irmãos assim que um falha: metade
+   * dos serviços na versão nova, metade na antiga, e nenhum sinal de qual é qual. Falhar sozinho e
+   * deixar os outros terminarem é o único estado de onde dá para consertar.
+   */
+  test('a falha de um serviço não cancela os irmãos', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(workflow).toMatch(/strategy:\s+fail-fast: false/)
   })
 })

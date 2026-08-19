@@ -82,16 +82,22 @@ describe('contrato dos serviços de cron', () => {
   /**
    * O cron lê tabelas que a migration da API cria, e só a API roda migration. Deployar o cron antes
    * dela é subir um processo que vai ao banco procurar coluna que ainda não existe.
+   *
+   * Isso já foi ordem de passo dentro de um job só. Desde que o deploy virou três frentes, quem
+   * segura é o `needs` do job da matriz — e é ele que este contrato lê. Ordem de texto no arquivo
+   * não diz mais nada: os cinco serviços da matriz rodam ao mesmo tempo, em runners diferentes.
    */
   test('os dois crons sobem depois da API', async () => {
     const workflow = await Bun.file(DEPLOY_WORKFLOW_PATH).text()
-    const ordered = [...workflow.matchAll(/railway-deploy\.sh deploy ([a-z-]+)/g)].map(
-      ([, service]) => service,
-    )
+    const matrix = (/^\s+service: \[([a-z, -]+)\]$/m.exec(workflow)?.[1] ?? '')
+      .split(',')
+      .map((service) => service.trim())
+    const needs = /^ {2}deploy-services:$\s+needs: \[([^\]]+)\]/m.exec(workflow)?.[1] ?? ''
 
     for (const { service } of CRON_SERVICES) {
-      expect(ordered).toContain(service)
-      expect(ordered.indexOf(service)).toBeGreaterThan(ordered.indexOf('api'))
+      expect(matrix).toContain(service)
     }
+    expect(needs).toContain('deploy-api')
+    expect(workflow).toContain('railway-deploy.sh deploy api')
   })
 })

@@ -22,6 +22,7 @@ import {
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
 import { NfseIssRateOutOfRangeError } from './nfse-issuance.error.js'
+import type { NfseTakerAddress } from './nfse-taker-address.policy.js'
 
 const ERROR_CODE_PREFIX = 'NFSE'
 
@@ -31,6 +32,7 @@ export type NfseProjectionDocument = {
   readonly issuedAt: string
   readonly number: string
   readonly series: string
+  readonly takerAddress: NfseTakerAddress
   readonly takerLegalName: string
   readonly takerTaxId: string
   readonly totalAmount: string
@@ -76,6 +78,7 @@ export type NfseProjection = {
   readonly percentage: string
   readonly profileId: string
   readonly serviceAmount: string
+  readonly takerAddress: NfseTakerAddress
   readonly takerLegalName: string
   readonly takerTaxId: string
 }
@@ -142,6 +145,8 @@ function projectGroup(group: CandidateGroup): NfseProjection {
     percentage: first.profile.ruleSnapshot.percentage,
     profileId: first.profile.id,
     serviceAmount: fiscalCharge.totalAmount,
+    // O grupo é o mesmo tomador — mesmo CNPJ —, então o endereço da primeira nota vale para todas.
+    takerAddress: first.document.takerAddress,
     takerLegalName: first.document.takerLegalName,
     takerTaxId: first.document.takerTaxId,
   }

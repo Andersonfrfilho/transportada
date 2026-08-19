@@ -53,6 +53,22 @@ const payloadSchema = z.object({
   serviceAmount: z.string().min(1),
   serviceListItem: z.string().min(1),
   taker: z.object({
+    /**
+     * Opcional porque payload congelado antes do endereço existir não pode virar `invalid_payload`:
+     * isso trocaria a recusa da prefeitura — a causa real — por um defeito nosso no diagnóstico.
+     */
+    address: z
+      .object({
+        city: z.string().min(1),
+        complement: z.string(),
+        district: z.string().min(1),
+        number: z.string().min(1),
+        phone: z.string(),
+        postalCode: z.string().min(1),
+        state: z.string().min(1),
+        street: z.string().min(1),
+      })
+      .optional(),
     legalName: z.string().min(1),
     taxId: z.string().min(1),
   }),
@@ -280,6 +296,31 @@ function buildRps(
       ? {}
       : { CodigoTributacaoMunicipio: input.municipalTaxationCode }),
     ...(input.nbsCode.length === 0 ? {} : { CodigoNbs: input.nbsCode }),
+    ...buildTakerAddressFields(input.taker.address),
+  }
+}
+
+/**
+ * O endereço do tomador é condição da emissão: sem ele a prefeitura recusa a nota inteira com
+ * `É necessário informar o endereço completo do cliente`, e a recusa chega assíncrona, com a nota
+ * já criada. Complemento e telefone são os únicos opcionais do contrato da v2, e vazios não viajam
+ * — campo em branco não é a mesma coisa que campo ausente.
+ */
+function buildTakerAddressFields(
+  address: FrozenPayload['taker']['address'],
+): Readonly<Record<string, unknown>> {
+  if (address === undefined) return {}
+
+  return {
+    Bairro: address.district,
+    Cep: address.postalCode,
+    /** Nome da cidade e sigla da UF, como em `cadastro.localizacao` da coleção — não códigos IBGE. */
+    Cidade: address.city,
+    Endereco: address.street,
+    Estado: address.state,
+    Numero: address.number,
+    ...(address.complement.length === 0 ? {} : { Complemento: address.complement }),
+    ...(address.phone.length === 0 ? {} : { Telefone: address.phone }),
   }
 }
 
