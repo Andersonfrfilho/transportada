@@ -2,7 +2,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { NFE_DOCUMENTS_QUERY_KEY } from '@/modules/nfe-workspace/shared/nfeWorkspace.constant'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import {
   buildNfseCreateRequests,
@@ -15,7 +18,6 @@ import {
   groupNfseBlocksByReason,
   isNfseEmissionFormLocked,
   NFSE_EMISSION_MAX_VISIBLE_ROWS,
-  NFSE_EMISSION_PREVIEW_QUERY_KEY,
   resolveNfseDescription,
   resolveNfseEmissionProfileStatus,
   resolveNfseEmissionStatus,
@@ -133,12 +135,9 @@ export function useNfseEmissionDialog(
     }),
   })
 
-  function forgetPreviews(): void {
-    void queryClient.invalidateQueries({ queryKey: [NFSE_EMISSION_PREVIEW_QUERY_KEY] })
-  }
-
-  function forgetNoteList(): void {
-    void queryClient.invalidateQueries({ queryKey: [NFE_DOCUMENTS_QUERY_KEY] })
+  /** Emitir prende a nota: a listagem e as prévias saem do registro de efeitos, não daqui. */
+  function forgetLinkedViews(): void {
+    void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
   }
 
   const createMutation = useMutation({
@@ -158,8 +157,7 @@ export function useNfseEmissionDialog(
       return summaries
     },
     onSettled: () => {
-      forgetPreviews()
-      forgetNoteList()
+      forgetLinkedViews()
     },
     onSuccess: () => {
       setIsOpen(false)

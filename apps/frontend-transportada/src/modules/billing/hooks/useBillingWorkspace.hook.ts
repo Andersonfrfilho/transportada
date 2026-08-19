@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import {
   createBillingClient,
@@ -15,7 +19,6 @@ import {
 import { createBillingDocumentDownloadController } from '../shared/billingDocumentDownload.service'
 import {
   BILLING_DOCUMENTS_QUERY_KEY,
-  BILLING_ELIGIBLE_LIST_QUERY_KEY,
   BILLING_INVOICE_LIST_QUERY_KEY,
   BILLING_INVOICE_QUERY_KEY,
 } from '../shared/billingQueryKey.constant'
@@ -100,8 +103,6 @@ export function useBillingWorkspace(
     permissions: input.companyId === undefined ? [] : input.permissions,
   })
   const queryClient = useQueryClient()
-  /** A lista de elegiveis é da tabela: aqui só invalidamos o prefixo dela após emitir/cancelar. */
-  const eligibleQueryKey = [BILLING_ELIGIBLE_LIST_QUERY_KEY, input.companyId] as const
   const invoiceQueryKey = [BILLING_INVOICE_QUERY_KEY, input.companyId, input.invoiceId] as const
   const invoiceListQueryKey = [BILLING_INVOICE_LIST_QUERY_KEY, input.companyId] as const
   const documentsQueryKey = [BILLING_DOCUMENTS_QUERY_KEY, input.companyId, input.invoiceId] as const
@@ -119,10 +120,7 @@ export function useBillingWorkspace(
   const createMutation = useMutation({
     mutationFn: controller.createInvoice,
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: eligibleQueryKey }),
-        queryClient.invalidateQueries({ queryKey: invoiceQueryKey }),
-      ])
+      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
   const updateMutation = useMutation({
@@ -145,11 +143,7 @@ export function useBillingWorkspace(
   const cancelMutation = useMutation({
     mutationFn: controller.cancelInvoice,
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: eligibleQueryKey }),
-        queryClient.invalidateQueries({ queryKey: invoiceQueryKey }),
-        queryClient.invalidateQueries({ queryKey: documentsQueryKey }),
-      ])
+      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
 
