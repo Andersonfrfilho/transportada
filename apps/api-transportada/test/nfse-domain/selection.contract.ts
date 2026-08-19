@@ -229,7 +229,12 @@ describe('NFS-e selection contract', () => {
 
     expect(selection.candidates).toEqual([])
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.linkedToCteBatch },
+      {
+        documentId: '1',
+        number: '1',
+        reason: NFSE_SELECTION_BLOCK_REASON.linkedToCteBatch,
+        series: '1',
+      },
     ])
   })
 
@@ -238,7 +243,12 @@ describe('NFS-e selection contract', () => {
     const selection = selectAll(documents, { nfseLinks: new Map([['1', 'invoice-1']]) })
 
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.alreadyLinked },
+      {
+        documentId: '1',
+        number: '1',
+        reason: NFSE_SELECTION_BLOCK_REASON.alreadyLinked,
+        series: '1',
+      },
     ])
   })
 
@@ -247,7 +257,12 @@ describe('NFS-e selection contract', () => {
     const selection = selectAll(documents)
 
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName },
+      {
+        documentId: '1',
+        number: '1',
+        reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName,
+        series: '1',
+      },
     ])
   })
 
@@ -267,7 +282,12 @@ describe('NFS-e selection contract', () => {
 
     expect(selection.candidates).toEqual([])
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress },
+      {
+        documentId: '1',
+        number: '1',
+        reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress,
+        series: '1',
+      },
     ])
   })
 
@@ -305,7 +325,7 @@ describe('NFS-e selection contract', () => {
     const selection = selectAll(documents)
 
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: 'CTE_BATCH_DOCUMENT_NOT_AUTHORIZED' },
+      { documentId: '1', number: '1', reason: 'CTE_BATCH_DOCUMENT_NOT_AUTHORIZED', series: '1' },
     ])
   })
 
@@ -320,8 +340,8 @@ describe('NFS-e selection contract', () => {
     })
 
     expect(selection.blocked).toEqual([
-      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.duplicated },
-      { documentId: '9', reason: NFSE_SELECTION_BLOCK_REASON.notFound },
+      { documentId: '1', number: '1', reason: NFSE_SELECTION_BLOCK_REASON.duplicated, series: '1' },
+      { documentId: '9', number: null, reason: NFSE_SELECTION_BLOCK_REASON.notFound, series: null },
     ])
   })
 })

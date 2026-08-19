@@ -281,6 +281,7 @@
     "totalIss": "Tax total",
     "blocked": "Notes left out",
     "blockedCount": "{{count}} notes",
+    "blockedMore": "And {{count}} more.",
     "blockReason": {
       "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Already in another waybill batch.",
       "CTE_BATCH_DOCUMENT_DUPLICATED": "Sent twice in the selection.",

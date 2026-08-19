@@ -2,7 +2,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { BILLING_INVOICE_LIST_QUERY_KEY } from '@/modules/billing/hooks/useBillingInvoiceTable.hook'
 import { getBillingClient } from '@/modules/billing/hooks/useBillingWorkspace.hook'
 import {
   collectBillableCtesForBatches,
@@ -10,6 +9,10 @@ import {
   type BillingBatchCteGroup,
 } from '@/modules/billing/shared/billingBatchSelection.service'
 import type { BillingPreviewGroup } from '@/modules/billing/shared/billingClient.service'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 import {
   BILLING_DUE_DATE_ERROR,
   resolveBillingProgress,
@@ -19,7 +22,6 @@ import {
   type BillingGroupOutcome,
 } from '@/modules/billing/shared/billingFromSelection.service'
 
-import { COMPANY_CTE_ITEMS_QUERY_KEY } from '../queries/cteBatchItems.query'
 import type { BillableCte } from '../shared/cteBatchBilling.service'
 
 const CTE_BILLING_PREVIEW_QUERY_KEY = 'cte-billing-preview'
@@ -90,10 +92,7 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
       }),
     onSuccess: async (results) => {
       setOutcomes(results)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEMS_QUERY_KEY] }),
-        queryClient.invalidateQueries({ queryKey: [BILLING_INVOICE_LIST_QUERY_KEY] }),
-      ])
+      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
 

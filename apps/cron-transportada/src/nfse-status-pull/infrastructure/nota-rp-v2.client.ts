@@ -8,7 +8,11 @@
  * outro.
  *
  * ADR-0029: erro de negócio chega como HTTP 200 com `success:false` — quem decide é o corpo.
- * O formato de fio segue inferido até o T030 medir a API real.
+ *
+ * A consulta foi **medida em produção** em 19/08/2026: `{success:true, results:[nota]}`, e a nota
+ * traz `Status`, `Nfse`, `DataEmissao` e `Erro[]` de `{Codigo, Mensagem}`. O vocabulário anterior
+ * (`data`, `situacao`) era inferido e nunca existiu — toda consulta virava `malformed_response` e
+ * nenhuma NFS-e liquidava.
  *
  * Nenhuma exceção escapa: toda falha vira `status: 'error'` com causa estável.
  */
@@ -17,12 +21,17 @@ import {
   type NfseDocumentKind,
 } from '../domain/nfse-document-payload.policy.js'
 
-const SITUATION = {
-  authorized: 'autorizada',
-  cancelled: 'cancelada',
-  pending: 'processando',
-  rejected: 'rejeitada',
+/** Comparado sem acento e em caixa baixa; status fora da tabela nunca vira autorização. */
+const STATUS_VOCABULARY = {
+  authorized: ['autorizada', 'autorizado', 'emitida', 'emitido', 'concluida'],
+  cancelled: ['cancelada', 'cancelado'],
+  pending: ['processando', 'em processamento', 'pendente', 'aguardando', 'enviada', 'enviado'],
+  rejected: ['falha', 'rejeitada', 'rejeitado', 'erro', 'negada'],
 } as const
+
+const RESULTS_FIELD = 'results'
+/** `Nfse: "0"` é a nota que ainda não ganhou número — presença aqui não é autorização. */
+const ABSENT_FISCAL_NUMBER = '0'
 
 const DOCUMENT_MEDIA_TYPE = {
   pdf: 'application/pdf',
@@ -130,7 +139,7 @@ export function createNotaRpStatusClient(dependencies: {
 
       const envelope = await readEnvelope({ response, token: config.token })
       if (envelope.status !== 'ok') return envelope
-      return readSituation(envelope.data)
+      return readNote({ envelope: envelope.data, providerDocumentId, token: config.token })
     },
   }
 }
@@ -168,61 +177,154 @@ async function readEnvelope(input: {
     }
   }
 
-  const data = body['data']
-  if (isRecord(data)) return { data, status: 'ok' }
-  return { cause: readMissingCause(body), status: 'error' }
+  return { data: body, status: 'ok' }
 }
 
 /**
- * Nota inexistente vem como sucesso sem `data`, só com a `message` da busca vazia — é ausência, e
- * não resposta quebrada. Sem mensagem alguma não há o que distinguir, e o envelope volta a ser
- * malformado.
+ * Nota inexistente vem como sucesso com `results` vazia, ou só com a `message` da busca vazia — é
+ * ausência, e não resposta quebrada. Sem lista e sem mensagem não há o que distinguir.
  */
 function readMissingCause(body: Record<string, unknown>): NotaRpCause {
+  if (Array.isArray(body[RESULTS_FIELD])) return 'not_found'
   return readText(body, 'message') === undefined ? 'malformed_response' : 'not_found'
 }
 
-function readSituation(data: Record<string, unknown>): NotaRpStatusOutcome {
-  const situation = readText(data, 'situacao')
+function readNote(input: {
+  readonly envelope: Record<string, unknown>
+  readonly providerDocumentId: string
+  readonly token: string
+}): NotaRpStatusOutcome {
+  const results = input.envelope[RESULTS_FIELD]
+  if (!Array.isArray(results)) return { cause: readMissingCause(input.envelope), status: 'error' }
 
-  if (situation === SITUATION.pending) return { status: 'pending' }
+  const first = results.find((entry) => isRecord(entry))
+  if (!isRecord(first)) return { cause: readMissingCause(input.envelope), status: 'error' }
 
-  if (situation === SITUATION.authorized) {
-    const authorizedAt = readText(data, 'data_emissao')
-    const fiscalNumber = readText(data, 'numero_nota')
-    const verificationCode = readText(data, 'codigo_verificacao')
-    const providerDocumentId = readText(data, 'id_nota')
-    if (
-      authorizedAt === undefined ||
-      fiscalNumber === undefined ||
-      verificationCode === undefined ||
-      providerDocumentId === undefined
-    ) {
-      return { cause: 'malformed_response', status: 'error' }
-    }
-    return {
-      document: { authorizedAt, fiscalNumber, providerDocumentId, verificationCode },
-      status: 'authorized',
-    }
-  }
+  return interpretNote({ ...input, note: normalizeKeys(first) })
+}
 
-  if (situation === SITUATION.rejected) {
-    const code = readText(data, 'codigo_erro')
-    const message = readText(data, 'mensagem_erro')
-    return code === undefined || message === undefined
-      ? { cause: 'malformed_response', status: 'error' }
-      : { rejection: { code, message }, status: 'rejected' }
-  }
+function interpretNote(input: {
+  readonly note: Record<string, unknown>
+  readonly providerDocumentId: string
+  readonly token: string
+}): NotaRpStatusOutcome {
+  const status = normalizeStatus(readText(input.note, 'status') ?? '')
+  const rejection = readRejection(input)
 
-  if (situation === SITUATION.cancelled) {
-    const cancelledAt = readText(data, 'data_cancelamento')
+  /** A recusa da prefeitura vem em `Erro[]`, e ela vale mesmo se o `Status` for desconhecido. */
+  if (rejection !== undefined) return { rejection, status: 'rejected' }
+
+  if (matches('pending', status)) return { status: 'pending' }
+
+  if (matches('cancelled', status)) {
+    const cancelledAt = readText(input.note, 'datacancelamento')
     return cancelledAt === undefined
       ? { status: 'cancelled' }
       : { cancelledAt, status: 'cancelled' }
   }
 
-  /** Situação desconhecida nunca vira autorização por otimismo. */
+  if (matches('rejected', status)) {
+    return {
+      rejection: {
+        code: UNKNOWN_REJECTION_CODE,
+        message: redact(readText(input.note, 'mensagem') ?? status, input.token),
+      },
+      status: 'rejected',
+    }
+  }
+
+  if (matches('authorized', status)) return readAuthorized(input)
+
   return { cause: 'malformed_response', status: 'error' }
+}
+
+/** Autorização sem número, data ou código de verificação não é autorização arquivável. */
+function readAuthorized(input: {
+  readonly note: Record<string, unknown>
+  readonly providerDocumentId: string
+}): NotaRpStatusOutcome {
+  const authorizedAt = readText(input.note, 'dataemissao')
+  const fiscalNumber = readText(input.note, 'nfse')
+  const verificationCode = readText(input.note, 'codigoverificacao')
+  if (
+    authorizedAt === undefined ||
+    fiscalNumber === undefined ||
+    fiscalNumber === ABSENT_FISCAL_NUMBER ||
+    verificationCode === undefined
+  ) {
+    return { cause: 'malformed_response', status: 'error' }
+  }
+
+  return {
+    document: {
+      authorizedAt,
+      fiscalNumber,
+      providerDocumentId: readText(input.note, 'id_nota') ?? input.providerDocumentId,
+      verificationCode,
+    },
+    status: 'authorized',
+  }
+}
+
+/** O primeiro erro é o que o operador lê; os demais repetem o mesmo pedido de correção. */
+function readRejection(input: {
+  readonly note: Record<string, unknown>
+  readonly token: string
+}): NotaRpRejection | undefined {
+  const errors = input.note['erro']
+  if (!Array.isArray(errors)) return undefined
+
+  const entries = errors.filter((entry) => isRecord(entry)).map((entry) => normalizeKeys(entry))
+  const [first] = entries
+  if (first === undefined) return undefined
+
+  return {
+    code: readText(first, 'codigo') ?? UNKNOWN_REJECTION_CODE,
+    message: redact(describeRejection(entries), input.token),
+  }
+}
+
+/**
+ * A nota 5253521 voltou recusada por dois motivos ao mesmo tempo (`E215` e `E227`). Guardar só o
+ * primeiro custa uma rodada de emissão fiscal por erro escondido. Com um erro só a mensagem sai
+ * limpa, porque ela já viaja ao lado do `code`; com mais de um, cada motivo leva o código dele.
+ */
+function describeRejection(entries: readonly Record<string, unknown>[]): string {
+  const [first] = entries
+  if (first === undefined) return ''
+  if (entries.length === 1) return readText(first, 'mensagem') ?? ''
+
+  return entries
+    .map((entry) => {
+      const message = readText(entry, 'mensagem') ?? ''
+      const code = readText(entry, 'codigo')
+      return code === undefined ? message : `${code}: ${message}`
+    })
+    .filter((described) => described.length > 0)
+    .join(' · ')
+}
+
+function matches(vocabulary: keyof typeof STATUS_VOCABULARY, status: string): boolean {
+  return STATUS_VOCABULARY[vocabulary].some((known) => known === status)
+}
+
+/** `"Falha"`, `"AUTORIZADA"` e `"Cancelada"` são o mesmo campo com a caixa de quem digitou. */
+function normalizeStatus(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * A consulta mistura caixas no mesmo corpo (`id_nota` ao lado de `Status` e `Nfse`). Ler por chave
+ * normalizada tira a grafia do caminho crítico.
+ */
+function normalizeKeys(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [key.toLowerCase(), value]),
+  )
 }
 
 async function readDocument(input: {
