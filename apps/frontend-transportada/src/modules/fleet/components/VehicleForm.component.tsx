@@ -25,14 +25,23 @@ type VehicleFormProps = Readonly<{
   onCancel: () => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
+  vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
 }>
 
-export function VehicleForm({ catalog, onCancel, onCreate, onUpdate, vehicle }: VehicleFormProps) {
+export function VehicleForm({
+  catalog,
+  onCancel,
+  onCreate,
+  onUpdate,
+  vehicle,
+  vehicles,
+}: VehicleFormProps) {
   const { t } = useTranslation('fleet')
   const form = useVehicleForm({
     onCreate,
     onUpdate,
+    vehicles,
     ...(vehicle === undefined ? {} : { vehicle }),
   })
 

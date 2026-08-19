@@ -2,22 +2,37 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 
+import type { VehicleTableController } from '../hooks/useVehicleTable.hook'
 import {
   readFleetVehicleColumnValue,
   type FleetVehicleColumnKey,
 } from '../shared/fleetVehicleTable.service'
 import type { FleetVehicleDetail } from '../shared/fleet.types'
 import { isVehicleIncompleteForMdfe } from '../shared/vehicleCompleteness.service'
+import type { VehicleSortColumn } from '../shared/vehicleTable.service'
 import styles from '../styles/fleet.module.css'
+
+/** Coluna fixa da tabela: o rótulo dela não vive no menu de colunas, mas a ordenação é a mesma. */
+const FIXED_COLUMN_LABEL_KEY = {
+  capacityKilograms: 'columnCapacity',
+  ownership: 'columnOwnership',
+  plate: 'columnPlate',
+  role: 'columnRole',
+  status: 'columnStatus',
+} as const
+type FixedColumn = keyof typeof FIXED_COLUMN_LABEL_KEY
+
+const SORT_INDICATOR = { ascending: '▲', descending: '▼', none: '' } as const
 
 type VehicleListProps = Readonly<{
   canManageFleet: boolean
   columns: readonly FleetVehicleColumnKey[]
   onEdit: (vehicle: FleetVehicleDetail) => void
   onToggleStatus: (vehicle: FleetVehicleDetail) => void
-  vehicles: readonly FleetVehicleDetail[]
+  table: VehicleTableController
 }>
 
 export function VehicleList({
@@ -25,31 +40,74 @@ export function VehicleList({
   columns,
   onEdit,
   onToggleStatus,
-  vehicles,
+  table,
 }: VehicleListProps) {
   const { t } = useTranslation('fleet')
+
+  function sortState(column: VehicleSortColumn): 'ascending' | 'descending' | 'none' {
+    if (table.sort === null || table.sort.column !== column) return 'none'
+    return table.sort.direction === 'asc' ? 'ascending' : 'descending'
+  }
+
+  function sortLabel(column: VehicleSortColumn): string {
+    if (table.sort === null || table.sort.column !== column) return t('sort.none')
+    return table.sort.direction === 'asc' ? t('sort.asc') : t('sort.desc')
+  }
+
+  function renderHeader(column: VehicleSortColumn, label: string) {
+    return (
+      <th aria-sort={sortState(column)} key={column} scope="col">
+        <button
+          className={styles.sortButton}
+          onClick={() => table.toggleSort(column)}
+          type="button"
+        >
+          {label}
+          <span aria-hidden="true" className={styles.sortIndicator}>
+            {SORT_INDICATOR[sortState(column)]}
+          </span>
+          <span className={styles.srOnly}>{sortLabel(column)}</span>
+        </button>
+      </th>
+    )
+  }
+
+  function renderFixedHeader(column: FixedColumn) {
+    return renderHeader(column, t(FIXED_COLUMN_LABEL_KEY[column]))
+  }
 
   return (
     <div className={styles.tableScroll}>
       <table className={styles.fleetTable}>
         <thead>
           <tr>
-            <th scope="col">{t('columnPlate')}</th>
-            <th scope="col">{t('columnRole')}</th>
-            <th scope="col">{t('columnOwnership')}</th>
-            {columns.map((column) => (
-              <th key={column} scope="col">
-                {t(`columns.${column}`)}
-              </th>
-            ))}
-            <th scope="col">{t('columnCapacity')}</th>
-            <th scope="col">{t('columnStatus')}</th>
+            <th scope="col">
+              <Checkbox
+                ariaLabel={t('vehicleSelection.selectAll')}
+                checked={table.selectionState === 'all'}
+                indeterminate={table.selectionState === 'partial'}
+                onChange={table.toggleAllVisible}
+              />
+            </th>
+            {renderFixedHeader('plate')}
+            {renderFixedHeader('role')}
+            {renderFixedHeader('ownership')}
+            {columns.map((column) => renderHeader(column, t(`columns.${column}`)))}
+            {renderFixedHeader('capacityKilograms')}
+            {renderFixedHeader('status')}
             {canManageFleet ? <th scope="col">{t('columnActions')}</th> : null}
           </tr>
         </thead>
         <tbody>
-          {vehicles.map((vehicle) => (
-            <tr key={vehicle.id}>
+          {table.vehicles.map((vehicle) => (
+            <tr aria-selected={table.isSelected(vehicle.id)} key={vehicle.id}>
+              <td>
+                <Checkbox
+                  ariaLabel={t('vehicleSelection.select', { plate: vehicle.plate })}
+                  checked={table.isSelected(vehicle.id)}
+                  onChange={() => table.toggleVehicle(vehicle.id)}
+                />
+              </td>
               <td>{vehicle.plate}</td>
               <td>{t(`roleOption.${vehicle.role}`)}</td>
               <td>{t(`ownershipOption.${vehicle.ownership}`)}</td>

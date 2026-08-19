@@ -23,6 +23,9 @@ export const FLEET_VERSION_CONFLICT_ERROR = [
 
 export const FLEET_PAGE_SIZE = 25
 
+/** Teto de segurança do laço de cursor da tabela de veículos — frota real não chega perto. */
+export const FLEET_VEHICLE_LOAD_LIMIT = 2000
+
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',

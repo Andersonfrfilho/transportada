@@ -9,9 +9,10 @@ import {
   formatFuelPricePerUnit,
   resolveFuelLabelKeys,
   summarizeTypedVehicleCosts,
+  VEHICLE_COST_FIELD_SCALE,
 } from '../shared/fleetVehicleCost.service'
 import styles from '../styles/fleet.module.css'
-import { FleetField, FleetSelectField } from './FleetField.component'
+import { FleetField, FleetMoneyField, FleetSelectField } from './FleetField.component'
 
 type VehicleCostFieldsProps = Readonly<{
   costsUpdatedAt: null | string
@@ -37,35 +38,31 @@ export function VehicleCostFields({
     <fieldset className={styles.fieldGroup}>
       <legend>{t('vehicleCostLegend')}</legend>
       <div className={styles.fieldGrid}>
-        <FleetField
+        <FleetMoneyField
           optional
-          inputMode="numeric"
           label={t('acquisitionAmount')}
-          maxLength={16}
+          scale={VEHICLE_COST_FIELD_SCALE.acquisitionAmount.form}
           value={state.acquisitionAmount}
           onChange={(acquisitionAmount) => onChange({ acquisitionAmount })}
         />
-        <FleetField
+        <FleetMoneyField
           optional
-          inputMode="numeric"
           label={t('monthlyInstallmentAmount')}
-          maxLength={16}
+          scale={VEHICLE_COST_FIELD_SCALE.monthlyInstallmentAmount.form}
           value={state.monthlyInstallmentAmount}
           onChange={(monthlyInstallmentAmount) => onChange({ monthlyInstallmentAmount })}
         />
-        <FleetField
+        <FleetMoneyField
           optional
-          inputMode="numeric"
           label={t('annualVehicleTaxAmount')}
-          maxLength={16}
+          scale={VEHICLE_COST_FIELD_SCALE.annualVehicleTaxAmount.form}
           value={state.annualVehicleTaxAmount}
           onChange={(annualVehicleTaxAmount) => onChange({ annualVehicleTaxAmount })}
         />
-        <FleetField
+        <FleetMoneyField
           optional
-          inputMode="numeric"
           label={t('annualInsuranceAmount')}
-          maxLength={16}
+          scale={VEHICLE_COST_FIELD_SCALE.annualInsuranceAmount.form}
           value={state.annualInsuranceAmount}
           onChange={(annualInsuranceAmount) => onChange({ annualInsuranceAmount })}
         />
@@ -84,11 +81,10 @@ export function VehicleCostFields({
           value={state.averageConsumption}
           onChange={(averageConsumption) => onChange({ averageConsumption })}
         />
-        <FleetField
+        <FleetMoneyField
           optional
-          inputMode="numeric"
           label={t('otherCostsPerKilometer')}
-          maxLength={12}
+          scale={VEHICLE_COST_FIELD_SCALE.otherCostsPerKilometer.form}
           value={state.otherCostsPerKilometer}
           onChange={(otherCostsPerKilometer) => onChange({ otherCostsPerKilometer })}
         />

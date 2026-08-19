@@ -13,6 +13,11 @@ const AMOUNT_PATTERN = /^-?\d+(?:\.\d+)?$/
 const TYPED_AMOUNT_PATTERN = /^(?:\d+|\d*\.\d+)$/
 const WHITESPACE_PATTERN = /\s/g
 const GROUP_SEPARATOR_PATTERN = /\./g
+const NON_DIGIT_PATTERN = /\D/g
+const LEADING_ZERO_PATTERN = /^0+/
+const GROUP_POSITION_PATTERN = /\B(?=(?:\d{3})+(?!\d))/g
+/** Teto de dígitos da digitação: acima disso o campo deixa de ser dinheiro e vira erro de colagem. */
+const TYPED_AMOUNT_MAX_DIGITS = 15
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' })
 
 type ScaledAmount = {
@@ -68,6 +73,24 @@ export function toTypedAmount(input: ScaledAmountInput): string {
   if (amount.units === 0n) return ''
 
   return toDecimalString(rescaleHalfUp(amount, input.scale), input.scale).replace('.', ',')
+}
+
+/**
+ * Máscara de digitação em moeda: os dígitos entram pela direita, na escala do campo, e o milhar
+ * aparece enquanto se digita. Sem ela `120000` e `12000` são a mesma linha de pixels, e o zero a
+ * mais só é descoberto no relatório. É idempotente — reaplicar sobre a saída devolve a saída.
+ */
+export function maskTypedAmount(input: ScaledAmountInput): string {
+  const digits = input.value.replace(NON_DIGIT_PATTERN, '').slice(0, TYPED_AMOUNT_MAX_DIGITS)
+  const significant = digits.replace(LEADING_ZERO_PATTERN, '')
+  if (significant === '') return ''
+
+  const padded = significant.padStart(input.scale + 1, '0')
+  const integerPart = padded.slice(0, padded.length - input.scale)
+  const fractionPart = padded.slice(padded.length - input.scale)
+  const grouped = integerPart.replace(GROUP_POSITION_PATTERN, '.')
+
+  return input.scale === 0 ? grouped : `${grouped},${fractionPart}`
 }
 
 /** Divisão exata na escala pedida, arredondando meio para cima como o domínio da API. */

@@ -196,10 +196,10 @@
   },
   "vehicleCostLegend": "Vehicle costs",
   "vehicleCostHint": "Values used in freight pricing. Leave blank whatever the carrier has not measured yet — no field is required.",
-  "acquisitionAmount": "Acquisition amount (BRL)",
-  "monthlyInstallmentAmount": "Monthly installment (BRL)",
-  "annualVehicleTaxAmount": "Annual vehicle tax (BRL)",
-  "annualInsuranceAmount": "Annual insurance (BRL)",
+  "acquisitionAmount": "Acquisition amount",
+  "monthlyInstallmentAmount": "Monthly instalment",
+  "annualVehicleTaxAmount": "Annual vehicle tax",
+  "annualInsuranceAmount": "Annual insurance",
   "fuelType": "Fuel",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
@@ -216,8 +216,8 @@
     "litre": "Fuel price (BRL/litre)",
     "cubic-metre": "Fuel price (BRL/m³)"
   },
-  "otherCostsPerKilometer": "Other costs per kilometer (BRL)",
-  "costPerKilometer": "Cost per kilometer (BRL)",
+  "otherCostsPerKilometer": "Other costs per kilometre",
+  "costPerKilometer": "Cost per kilometre",
   "fuelCostPerKilometer": "Fuel per kilometer",
   "fuelPriceSource": {
     "anp": "ANP reference",
@@ -260,5 +260,52 @@
       "litre": "litre",
       "cubic-metre": "cubic metre"
     }
+  },
+  "currencyPrefix": "R$",
+  "sort": {
+    "asc": "Sorted ascending",
+    "desc": "Sorted descending",
+    "none": "Not sorted"
+  },
+  "vehicleFilters": {
+    "axleCount": "Axles",
+    "brand": "Brand",
+    "color": "Colour",
+    "fuelType": "Fuel",
+    "modelYear": "Model year",
+    "ownership": "Ownership",
+    "removeFilter": "Remove the {{field}} filter",
+    "role": "Role",
+    "shownOfTotal": "{{shown}} of {{total}} vehicles",
+    "status": "Status",
+    "title": "Filters"
+  },
+  "vehicleSelection": {
+    "activate": "Activate ({{count}})",
+    "clear": "Clear selection",
+    "copied": "Plates copied",
+    "copyPlates": "Copy plates ({{count}})",
+    "count": "{{count}} vehicle selected",
+    "count_other": "{{count}} vehicles selected",
+    "deactivate": "Deactivate ({{count}})",
+    "export": "Export selection ({{count}})",
+    "select": "Select vehicle with plate {{plate}}",
+    "selectAll": "Select every vehicle in the list"
+  },
+  "vehicleExport": {
+    "axleCount": "Axles",
+    "brand": "Brand",
+    "capacityKilograms": "Capacity (kg)",
+    "color": "Colour",
+    "costPerKilometer": "Cost per kilometre",
+    "fuelType": "Fuel",
+    "model": "Model",
+    "modelYear": "Model year",
+    "monthlyFixedCost": "Monthly fixed cost",
+    "ownership": "Ownership",
+    "plate": "Plate",
+    "role": "Role",
+    "status": "Status",
+    "tareWeightKilograms": "Tare (kg)"
   }
 }

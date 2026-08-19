@@ -196,10 +196,10 @@
   },
   "vehicleCostLegend": "Custos do veículo",
   "vehicleCostHint": "Valores usados no cálculo do frete. Deixe em branco o que a transportadora ainda não apurou — nenhum campo é obrigatório.",
-  "acquisitionAmount": "Valor de aquisição (R$)",
-  "monthlyInstallmentAmount": "Prestação mensal (R$)",
-  "annualVehicleTaxAmount": "IPVA anual (R$)",
-  "annualInsuranceAmount": "Seguro anual (R$)",
+  "acquisitionAmount": "Valor de aquisição",
+  "monthlyInstallmentAmount": "Prestação mensal",
+  "annualVehicleTaxAmount": "IPVA anual",
+  "annualInsuranceAmount": "Seguro anual",
   "fuelType": "Combustível",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
@@ -216,8 +216,8 @@
     "litre": "Preço do combustível (R$/litro)",
     "cubic-metre": "Preço do combustível (R$/m³)"
   },
-  "otherCostsPerKilometer": "Outros custos por quilômetro (R$)",
-  "costPerKilometer": "Custo por quilômetro (R$)",
+  "otherCostsPerKilometer": "Outros custos por quilômetro",
+  "costPerKilometer": "Custo por quilômetro",
   "fuelCostPerKilometer": "Combustível por quilômetro",
   "fuelPriceSource": {
     "anp": "Referência ANP",
@@ -260,5 +260,52 @@
       "litre": "litro",
       "cubic-metre": "metro cúbico"
     }
+  },
+  "currencyPrefix": "R$",
+  "sort": {
+    "asc": "Ordenado do menor para o maior",
+    "desc": "Ordenado do maior para o menor",
+    "none": "Sem ordenação"
+  },
+  "vehicleFilters": {
+    "axleCount": "Eixos",
+    "brand": "Marca",
+    "color": "Cor",
+    "fuelType": "Combustível",
+    "modelYear": "Ano do modelo",
+    "ownership": "Propriedade",
+    "removeFilter": "Remover o filtro {{field}}",
+    "role": "Função",
+    "shownOfTotal": "{{shown}} de {{total}} veículos",
+    "status": "Situação",
+    "title": "Filtros"
+  },
+  "vehicleSelection": {
+    "activate": "Ativar ({{count}})",
+    "clear": "Limpar seleção",
+    "copied": "Placas copiadas",
+    "copyPlates": "Copiar placas ({{count}})",
+    "count": "{{count}} veículo selecionado",
+    "count_other": "{{count}} veículos selecionados",
+    "deactivate": "Desativar ({{count}})",
+    "export": "Exportar seleção ({{count}})",
+    "select": "Selecionar o veículo de placa {{plate}}",
+    "selectAll": "Selecionar todos os veículos da lista"
+  },
+  "vehicleExport": {
+    "axleCount": "Eixos",
+    "brand": "Marca",
+    "capacityKilograms": "Capacidade (kg)",
+    "color": "Cor",
+    "costPerKilometer": "Custo por quilômetro",
+    "fuelType": "Combustível",
+    "model": "Modelo",
+    "modelYear": "Ano do modelo",
+    "monthlyFixedCost": "Custo fixo mensal",
+    "ownership": "Propriedade",
+    "plate": "Placa",
+    "role": "Função",
+    "status": "Situação",
+    "tareWeightKilograms": "Tara (kg)"
   }
 }
