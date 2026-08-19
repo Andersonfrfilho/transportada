@@ -254,7 +254,13 @@ intervalo de 2% e 5%`. A conversão é `toIssRatePercentage` no `nfse-fiscal-gat
 ⚠️ `ItemListaServico` e `CodigoTributacaoMunicipio` são **cadastro**, não código: o par
 `160201`/`160101` da mesma nota foi recusado com `E215 — Item da lista de serviço incompatível com o
 código de tributação`. Quem corrige é o perfil de emissão, na aba **Configurações** de
-`nfse-invoice`.
+`nfse-invoice`. **Quem diz o par válido é o próprio provedor**, não a tabela da LC 116:
+`GET /dados-cadastrais` (com os dois cabeçalhos) devolve `cadastro.atividades`, a lista de
+atividades que a prefeitura registrou para aquele prestador — medido em 19/08/2026 nesta conta:
+`160101` "16.01.01 - Transporte de Natureza Municipal" e `160107` "16.02 - Transporte de Cargas".
+`CodigoTributacaoMunicipio` é o **código** da atividade (`160107`) e `ItemListaServico` é o item da
+LC 116 que a descrição dela anuncia, sem formatação (`1602`). Um `ItemListaServico` de seis dígitos
+é sinal de que o código municipal foi digitado no campo errado.
 
 **A prefeitura não emite sem o endereço do tomador.** O RPS leva `Cep · Endereco · Numero · Bairro ·
 Cidade · Estado` (`Complemento` e `Telefone` só quando não vazios; `Cidade` é **nome** e `Estado` é
