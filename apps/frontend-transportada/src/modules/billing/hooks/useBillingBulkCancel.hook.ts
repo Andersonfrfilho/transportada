@@ -2,6 +2,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
+
 import type { BillingClient, BillingInvoiceSummary } from '../shared/billingClient.service'
 import {
   cancelBillingInvoices,
@@ -11,7 +16,6 @@ import {
   type BillingCancelOutcome,
   type BillingCancelReasonError,
 } from '../shared/billingBulkCancel.service'
-import { BILLING_INVOICE_LIST_QUERY_KEY } from '../shared/billingQueryKey.constant'
 
 export type BillingBulkCancelController = ReturnType<typeof useBillingBulkCancel>
 
@@ -49,7 +53,8 @@ export function useBillingBulkCancel(input: UseBillingBulkCancelInput) {
       }),
     onSuccess: async (results) => {
       setOutcomes(results)
-      await queryClient.invalidateQueries({ queryKey: [BILLING_INVOICE_LIST_QUERY_KEY] })
+      // A fatura cancelada devolve o CT-e: elegíveis e a coluna "Faturado" mudam com a lista.
+      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
       // Só depois da lista voltar do servidor a seleção perde sentido — antes disso o operador
       // ainda está lendo quais faturas saíram.
       if (results.every((outcome) => outcome.errorCode === undefined)) input.onCancelled()

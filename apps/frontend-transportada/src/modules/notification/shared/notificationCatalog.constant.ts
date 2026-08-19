@@ -12,8 +12,11 @@ import type {
  */
 export const NOTIFICATION_SETTINGS_CHANNEL_IDS = ['inbox', 'email'] as const
 
+/** Rota do workspace de notificações; a navegação manual de `main.tsx` casa por prefixo. */
+export const NOTIFICATION_WORKSPACE_HREF = '/notificacoes'
+
 /** Sub-rota do workspace de notificações; a navegação manual de `main.tsx` casa por este valor. */
-export const NOTIFICATION_SETTINGS_HREF = '/notificacoes/preferencias'
+export const NOTIFICATION_SETTINGS_HREF = `${NOTIFICATION_WORKSPACE_HREF}/preferencias`
 
 export const NOTIFICATION_SETTINGS_CATEGORY_IDS = [
   'cte-batch',

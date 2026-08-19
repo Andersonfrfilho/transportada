@@ -257,8 +257,9 @@ describe('billing from cte selection contract', () => {
     expect(hook).toContain('submitBillingGroups')
     expect(hook).toContain('validateBillingDueDate')
     expect(hook).toContain('previewInvoice')
-    expect(hook).toContain('COMPANY_CTE_ITEMS_QUERY_KEY')
-    expect(hook).toContain('BILLING_INVOICE_LIST_QUERY_KEY')
+    // Reservar o CT-e mexe na fatura, nos elegíveis e na coluna \"Faturado\": é um efeito, não três chaves.
+    expect(hook).toContain('MUTATION_EFFECT.billingInvoiceItem')
+    expect(hook).toContain('invalidateMutationEffect')
     /** O modal não pode montar requisição HTTP na mão — quem fala com a API é o client do módulo. */
     expect(hook).not.toContain('fetch(')
   })

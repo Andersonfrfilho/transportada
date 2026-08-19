@@ -10,10 +10,10 @@
  * contrato muda, porque o que eles provam é semântica (200 com `success:false` é falha, exceção não
  * escapa, token não vaza), não vocabulário.
  *
- * ⚠️ O que **ainda** é inferido é a consulta: `GET /notas/` devolve corpo em forma de DataTables
- * (`{"draw":0,"data":[],"recordsFiltered":0,"recordsTotal":0}`), sem `success`, e a coleção não
- * mostra nota nenhuma preenchida — os nomes de campo de `authorizedData`/`rejectedData` seguem por
- * medir.
+ * A consulta foi **medida em produção** em 19/08/2026 (nota 5253521): `{success:true, results:[nota]}`,
+ * com `Status`, `Nfse`, `DataEmissao` e `Erro[]` de `{Codigo, Correcao, Mensagem}`. O que segue por
+ * medir é só a **autorização**: `authorizedData` monta o mesmo formato com o número e o código de
+ * verificação preenchidos, porque nota autorizada nenhuma passou por aqui ainda.
  */
 
 export type NotaRpRejectionShape = {
@@ -124,8 +124,9 @@ export const NOTA_RP_CAUSES = [
   'unexpected_status',
 ] as const
 
-export function successBody(data: Readonly<Record<string, unknown>>): Response {
-  return jsonResponse({ data, success: true })
+/** A consulta devolve a nota dentro de `results[]` — ver o cabeçalho deste arquivo. */
+export function successBody(note: Readonly<Record<string, unknown>>): Response {
+  return jsonResponse({ results: [note], success: true })
 }
 
 /**
@@ -155,32 +156,57 @@ export function issuedBody(): Response {
 
 export function authorizedData(): Readonly<Record<string, unknown>> {
   return {
-    codigo_verificacao: 'VER-0001',
-    data_emissao: '2026-08-12T13:45:00.000Z',
+    CodigoVerificacao: 'VER-0001',
+    DataEmissao: '2026-08-12T13:45:00.000Z',
+    Erro: [],
+    Nfse: '4321',
+    Status: 'Autorizada',
     id_nota: PROVIDER_DOCUMENT_ID,
-    numero_nota: '4321',
-    situacao: 'autorizada',
+  }
+}
+
+/**
+ * Corpo medido em produção em 19/08/2026 (nota 5254907, a primeira autorizada de verdade): o
+ * `Status` é `"Sucesso"` e não existe `CodigoVerificacao` — o código sai no fim de `Link`.
+ */
+export function authorizedByLinkData(): Readonly<Record<string, unknown>> {
+  return {
+    DataEmissao: '2026-08-19',
+    Erro: [],
+    Link: 'https://notarp.com.br/nota/20935293/65/C7217CD1F',
+    Nfse: '65',
+    Status: 'Sucesso',
+    id_nota: PROVIDER_DOCUMENT_ID,
   }
 }
 
 export function pendingData(): Readonly<Record<string, unknown>> {
-  return { id_nota: PROVIDER_DOCUMENT_ID, situacao: 'processando' }
+  return { Erro: [], Nfse: '0', Status: 'Processando', id_nota: PROVIDER_DOCUMENT_ID }
 }
 
+/** Corpo medido em produção em 19/08/2026: a recusa da prefeitura vem em `Erro[]`. */
 export function rejectedData(): Readonly<Record<string, unknown>> {
   return {
-    codigo_erro: 'E320',
+    Erro: [
+      {
+        Codigo: 'E320',
+        Correcao: 'Consulte o Manual da NFS-e.',
+        Mensagem: 'Item da lista de servicos incompativel com o CNAE informado',
+      },
+    ],
+    Nfse: '0',
+    Status: 'Falha',
     id_nota: PROVIDER_DOCUMENT_ID,
-    mensagem_erro: 'Item da lista de servicos incompativel com o CNAE informado',
-    situacao: 'rejeitada',
   }
 }
 
 export function cancelledData(): Readonly<Record<string, unknown>> {
   return {
-    data_cancelamento: '2026-08-12T18:00:00.000Z',
+    DataCancelamento: '2026-08-12T18:00:00.000Z',
+    Erro: [],
+    Nfse: '4321',
+    Status: 'Cancelada',
     id_nota: PROVIDER_DOCUMENT_ID,
-    situacao: 'cancelada',
   }
 }
 

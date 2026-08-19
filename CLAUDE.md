@@ -224,12 +224,50 @@ datado em `docs/SECURITY.md`).
 exige `motivo` como **código**: o catálogo oferece `2` (serviço não prestado) e `4` (nota duplicada)
 — o `1` (erro na emissão) fica de fora porque o provedor o recusa pedindo substituição —, e o texto
 do operador vira `cancellationReason`, que fica na nota e não atravessa a fronteira. Já `/xml` e
-`/pdf` podem devolver o documento **em base64** (changelog da v2), e como a Nota RP não tem
-homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDocumentBytes`
-(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron) confere a **assinatura** —
-`<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes — e só decodifica
-base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
-causa que adia: sem o XML a nota não liquida.
+`/pdf` devolvem o documento **dentro de um envelope JSON** — medido em produção em 19/08/2026
+(nota `5254907`): `application/json` com `{success:true, base64_file}`, e o corpo cru nunca aparece.
+`readDocument` abre o envelope e entrega o `base64_file` a `resolveNfseDocumentBytes`
+(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron), que confere a
+**assinatura** — `<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes —
+e decodifica base64 quando ela não bate. Recusar o envelope inteiro, como antes, adiava para sempre
+a nota **já autorizada**: o status liquidava e o download não. Corpo que não é o documento nem
+base64 dele vira `malformed_response`, a causa que adia: sem o XML a nota não liquida.
+
+**A consulta devolve `results[]`, e a alíquota viaja em percentual.** Duas coisas medidas em
+produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Aguardando autorização":
+
+- `GET /notas/?id_nota=` responde `{success:true, results:[nota]}`, e a nota traz `Status` (medido:
+  `"Falha"`), `Nfse`, `DataEmissao` e uma lista `Erro[]` de `{Codigo, Correcao, Mensagem}`. O
+  vocabulário anterior (`data`, `situacao`, `codigo_erro`) era **inferido e nunca existiu**: toda
+  consulta caía em `malformed_response`, e **nenhuma NFS-e liquidava** — nem autorizada nem
+  rejeitada, só adiada de meia em meia hora para sempre. Quem decide agora é o fato antes do rótulo:
+  `Erro[]` preenchida é recusa mesmo com `Status` desconhecido, e autorização sem número, data e
+  código de verificação continua sendo `malformed_response`. As chaves são lidas em caixa baixa
+  (`normalizeKeys`) porque o corpo mistura `id_nota` com `Status` e `Nfse`. A recusa carrega **todos**
+  os motivos, não só o primeiro — a 5253521 voltou com `E215` e `E227` juntos, e guardar um por vez
+  custaria uma rodada de emissão fiscal por erro escondido; com mais de um, cada motivo leva o
+  código dele na mensagem. **A autorização foi medida em 19/08/2026** (nota `5254907`, NFS-e nº 65):
+  ela chega como `Status: "Sucesso"` — não "Autorizada" — e **sem `CodigoVerificacao`**; o código de
+  verificação sai como último segmento de `Link`
+  (`https://notarp.com.br/nota/{id}/{numero}/{codigo}`), a URL pública que a prefeitura publica.
+  Sem os dois ajustes a nota autorizada caía em `malformed_response` de meia em meia hora, com a
+  emissão já paga do outro lado. Autorização sem número, data **ou** código de verificação (nem no
+  campo, nem no `Link`) continua sendo `malformed_response`: não há o que arquivar.
+- `Aliquota` é **percentual** no fio (`2`), fração no domínio (`0.020000`, que é o que multiplica o
+  valor do serviço). Mandar a fração fez a prefeitura recusar com `E227 — Alíquota Serviços fora do
+intervalo de 2% e 5%`. A conversão é `toIssRatePercentage` no `nfse-fiscal-gateway.ts`, textual e
+  não aritmética: `Number` traria erro binário para dentro de campo fiscal.
+
+⚠️ `ItemListaServico` e `CodigoTributacaoMunicipio` são **cadastro**, não código: o par
+`160201`/`160101` da mesma nota foi recusado com `E215 — Item da lista de serviço incompatível com o
+código de tributação`. Quem corrige é o perfil de emissão, na aba **Configurações** de
+`nfse-invoice`. **Quem diz o par válido é o próprio provedor**, não a tabela da LC 116:
+`GET /dados-cadastrais` (com os dois cabeçalhos) devolve `cadastro.atividades`, a lista de
+atividades que a prefeitura registrou para aquele prestador — medido em 19/08/2026 nesta conta:
+`160101` "16.01.01 - Transporte de Natureza Municipal" e `160107` "16.02 - Transporte de Cargas".
+`CodigoTributacaoMunicipio` é o **código** da atividade (`160107`) e `ItemListaServico` é o item da
+LC 116 que a descrição dela anuncia, sem formatação (`1602`). Um `ItemListaServico` de seis dígitos
+é sinal de que o código municipal foi digitado no campo errado.
 
 **A prefeitura não emite sem o endereço do tomador.** O RPS leva `Cep · Endereco · Numero · Bairro ·
 Cidade · Estado` (`Complemento` e `Telefone` só quando não vazios; `Cidade` é **nome** e `Estado` é
@@ -377,6 +415,16 @@ renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conte�
 antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
 trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
 contrato em `test/design-system/skeleton.contract.ts`.
+
+Toda mutação que mexe num **vínculo** dispara um efeito de
+`shared/mutationInvalidation.service.ts` (`invalidateMutationEffect`), nunca uma lista de chaves
+montada à mão — e nenhum hook importa a chave de consulta de outro módulo para invalidá-la. O
+alcance mora num lugar só porque era rederivado em dez hooks: todo caminho que _cria_ o vínculo
+invalidava os dois lados, e todo caminho que o _solta_ nasceu invalidando só o seu — descartar a
+NFS-e devolvia a nota no banco e a tabela seguia com o `cteBlockReason` da consulta anterior, nota
+impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocumentLink` e
+`billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
+em `test/shared/mutation-invalidation.contract.ts`.
 
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
 varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra

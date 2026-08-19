@@ -136,7 +136,14 @@ export const INVOICE_DOCUMENTS = [
 ] as const
 
 export const INVOICE_PREVIEW = {
-  blocked: [{ documentId: SECOND_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH' }],
+  blocked: [
+    {
+      documentId: SECOND_DOCUMENT_ID,
+      number: '2',
+      reason: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+      series: '1',
+    },
+  ],
   invoices: [
     {
       adjustments: [{ amount: '672.22', type: 'minimum_amount' }],

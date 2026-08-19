@@ -1,34 +1,54 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import { describePlateCharacters } from '../shared/fleetPlate.service'
+import { cn } from '@/lib/utils'
+
+import {
+  PLATE_STANDARD,
+  describePlateGroups,
+  describePlateStandard,
+} from '../shared/fleetPlate.service'
 import styles from '../styles/fleet.module.css'
 
-type PlateThumbnailProps = Readonly<{ plate: string }>
+type PlateThumbnailProps = Readonly<{
+  plate: string
+  state?: string
+}>
 
-export function PlateThumbnail({ plate }: PlateThumbnailProps) {
+function renderCharacters(characters: readonly string[], group: string) {
+  return characters.map((character, position) => (
+    <span
+      className={character === '' ? styles.plateCharacterEmpty : styles.plateCharacter}
+      key={`${group}-${position}`}
+    >
+      {character}
+    </span>
+  ))
+}
+
+export function PlateThumbnail({ plate, state = '' }: PlateThumbnailProps) {
   const { t } = useTranslation('fleet')
-  const characters = describePlateCharacters(plate)
+  const isLegacy = describePlateStandard(plate) === PLATE_STANDARD.LEGACY
+  const { prefix, suffix } = describePlateGroups(plate)
 
   return (
-    // Espelho do campo ao lado: anunciar de novo faria o leitor de tela ler a placa duas vezes
-    <div aria-hidden="true" className={styles.plate}>
-      <div className={styles.plateBand}>
-        <span className={styles.plateBloc}>{t('plateBloc')}</span>
-        <span className={styles.plateCountry}>{t('plateCountry')}</span>
-        <span className={styles.plateFlag} />
-      </div>
+    <div aria-hidden="true" className={cn(styles.plate, isLegacy && styles.plateLegacy)}>
+      {isLegacy ? (
+        <div className={cn(styles.plateBand, styles.plateLegacyBand)}>
+          <span className={styles.plateOrigin}>{state}</span>
+        </div>
+      ) : (
+        <div className={styles.plateBand}>
+          <span className={styles.plateBloc}>{t('plateBloc')}</span>
+          <span className={styles.plateCountry}>{t('plateCountry')}</span>
+          <span className={styles.plateFlag} />
+        </div>
+      )}
       <div className={styles.plateBody}>
-        <span className={styles.plateCountryCode}>{t('plateCountryCode')}</span>
+        {isLegacy ? null : <span className={styles.plateCountryCode}>{t('plateCountryCode')}</span>}
         <div className={styles.plateCharacters}>
-          {characters.map((character, position) => (
-            <span
-              className={character === '' ? styles.plateCharacterEmpty : styles.plateCharacter}
-              key={position}
-            >
-              {character}
-            </span>
-          ))}
+          <div className={styles.plateGroup}>{renderCharacters(prefix, 'prefix')}</div>
+          {isLegacy ? <span className={styles.plateSeparator} /> : null}
+          <div className={styles.plateGroup}>{renderCharacters(suffix, 'suffix')}</div>
         </div>
       </div>
     </div>

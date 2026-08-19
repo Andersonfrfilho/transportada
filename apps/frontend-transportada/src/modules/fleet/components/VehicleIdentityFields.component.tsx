@@ -30,7 +30,7 @@ export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFields
           value={state.plate}
           onChange={(plate) => onChange({ plate: toPlateInput(plate) })}
         />
-        <PlateThumbnail plate={state.plate} />
+        <PlateThumbnail plate={state.plate} state={state.state} />
       </div>
       <div className={styles.fieldGrid}>
         <FleetField

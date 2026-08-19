@@ -31,7 +31,12 @@ describe('nfse service invoices http', () => {
     const response = await fixture.handle(invoiceRequest({ body: SELECTION, path: PREVIEW_PATH }))
     const body = (await response.json()) as {
       data: {
-        blocked: readonly { documentId: string; reason: string }[]
+        blocked: readonly {
+          documentId: string
+          number: null | string
+          reason: string
+          series: null | string
+        }[]
         invoices: readonly { profileId: string; serviceAmount: string }[]
       }
     }
@@ -41,7 +46,12 @@ describe('nfse service invoices http', () => {
     expect(body.data.invoices[0]?.profileId).toBe(PROFILE_ID)
     expect(body.data.invoices[0]?.serviceAmount).toBe('850.00')
     expect(body.data.blocked).toEqual([
-      { documentId: BLOCKED_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_ALREADY_LINKED' },
+      {
+        documentId: BLOCKED_DOCUMENT_ID,
+        number: '000000456',
+        reason: 'NFSE_DOCUMENT_ALREADY_LINKED',
+        series: '001',
+      },
     ])
   })
 

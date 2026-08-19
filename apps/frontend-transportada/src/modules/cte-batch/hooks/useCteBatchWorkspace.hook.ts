@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import {
   createCteBatchClient,
@@ -109,9 +113,15 @@ export function useCteBatchWorkspace(
     mutationFn: controller.createBatch,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
   })
+  // O lote cancelado sai do recorte de vínculo ativo: todas as notas dele voltam a ser livres.
   const cancelBatchMutation = useMutation({
     mutationFn: controller.cancelBatch,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
+        invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
+      ])
+    },
   })
 
   return {

@@ -63,7 +63,7 @@ describe('fleet plate thumbnail contract', () => {
 
     expect(identity).toContain('<PlateThumbnail')
     expect(identity.indexOf('<PlateThumbnail')).toBeGreaterThan(identity.indexOf("t('plate')"))
-    expect(thumbnail).toContain('describePlateCharacters')
+    expect(thumbnail).toContain('describePlateGroups')
     // A miniatura repete o que o campo já anuncia: dois anúncios do mesmo dado é ruído no leitor
     expect(thumbnail).toContain('aria-hidden="true"')
     // Desenho é CSS: SVG cru fora do design system é proibido
@@ -86,6 +86,8 @@ describe('fleet plate thumbnail contract', () => {
       '--color-plate-flag-green',
       '--color-plate-flag-yellow',
       '--color-plate-ink',
+      '--color-plate-legacy-band',
+      '--color-plate-legacy-surface',
       '--color-plate-surface',
       '--font-plate',
       '--plate-height',
@@ -97,6 +99,72 @@ describe('fleet plate thumbnail contract', () => {
 
     // As cores da placa são do documento oficial, não do tema: ficam no :root e não em cada módulo
     expect(fleetStyles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  test('reads the standard from the fifth position and holds Mercosul while it is not typed', async () => {
+    const { describePlateStandard } = await loadFutureModule<FleetPlateModule>(
+      '../../src/modules/fleet/shared/fleetPlate.service',
+    )
+
+    expect(describePlateStandard('abc1d23')).toBe('mercosul')
+    expect(describePlateStandard('abc1234')).toBe('legacy')
+    expect(describePlateStandard('abc-1234')).toBe('legacy')
+    expect(describePlateStandard('abc1')).toBe('mercosul')
+    expect(describePlateStandard('')).toBe('mercosul')
+  })
+
+  test('splits the plate between the three first positions and the rest', async () => {
+    const { describePlateGroups } = await loadFutureModule<FleetPlateModule>(
+      '../../src/modules/fleet/shared/fleetPlate.service',
+    )
+
+    expect(describePlateGroups('abc1d23')).toEqual({
+      prefix: ['A', 'B', 'C'],
+      suffix: ['1', 'D', '2', '3'],
+    })
+    expect(describePlateGroups('ab')).toEqual({
+      prefix: ['A', 'B', ''],
+      suffix: ['', '', '', ''],
+    })
+  })
+
+  test('separates the two groups instead of printing seven evenly spaced characters', async () => {
+    const [thumbnail, fleetStyles] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/PlateThumbnail.component.tsx'),
+      readApplicationFile('src/modules/fleet/styles/fleet.module.css'),
+    ])
+
+    expect(thumbnail).toContain('describePlateGroups')
+    expect(thumbnail).toContain('plateGroup')
+    expect(fleetStyles).toContain('.plateGroup {')
+  })
+
+  test('draws the old standard with its own body, band and separator', async () => {
+    const [thumbnail, fleetStyles] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/PlateThumbnail.component.tsx'),
+      readApplicationFile('src/modules/fleet/styles/fleet.module.css'),
+    ])
+
+    expect(thumbnail).toContain('describePlateStandard')
+    expect(thumbnail).toContain('plateLegacy')
+    expect(thumbnail).toContain('plateSeparator')
+    expect(thumbnail).not.toContain('<svg')
+
+    for (const rule of ['.plateLegacy {', '.plateLegacyBand {', '.plateSeparator {']) {
+      expect(fleetStyles).toContain(rule)
+    }
+  })
+
+  test('keeps the Mercosul marks out of the old standard', async () => {
+    const thumbnail = await readApplicationFile(
+      'src/modules/fleet/components/PlateThumbnail.component.tsx',
+    )
+
+    const blocPosition = thumbnail.indexOf("t('plateBloc')")
+    const legacyPosition = thumbnail.indexOf('isLegacy')
+
+    expect(legacyPosition).toBeGreaterThanOrEqual(0)
+    expect(legacyPosition).toBeLessThan(blocPosition)
   })
 
   test('prints the plate wording in both dictionaries without translating it', async () => {
@@ -120,5 +188,10 @@ describe('fleet plate thumbnail contract', () => {
 
 type FleetPlateModule = {
   readonly describePlateCharacters: (value: string) => readonly string[]
+  readonly describePlateGroups: (value: string) => {
+    readonly prefix: readonly string[]
+    readonly suffix: readonly string[]
+  }
+  readonly describePlateStandard: (value: string) => string
   readonly toPlateInput: (value: string) => string
 }

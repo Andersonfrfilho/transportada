@@ -14,6 +14,7 @@ import {
   NOTA_RP_CAUSES,
   PROVIDER_DOCUMENT_ID,
   RPS,
+  authorizedByLinkData,
   authorizedData,
   binaryResponse,
   cancelledData,
@@ -187,7 +188,7 @@ describe('Nota RP v2 client — consulta', () => {
 
   test('situação fora do vocabulário conhecido não vira autorização', async () => {
     const { fetch } = recordingFetch(() =>
-      successBody({ id_nota: PROVIDER_DOCUMENT_ID, situacao: 'situacao_que_ninguem_viu' }),
+      successBody({ Status: 'situacao_que_ninguem_viu', id_nota: PROVIDER_DOCUMENT_ID }),
     )
     const client = await createNotaRpV2ClientFixture({ fetch })
 
@@ -195,6 +196,56 @@ describe('Nota RP v2 client — consulta', () => {
 
     expect(outcome.status).toBe('error')
     expect(outcome.cause).toBe('malformed_response')
+  })
+
+  /**
+   * A recusa é o fato; o `Status` é só o rótulo dela. A nota 5253521 voltou com `Erro[]` cheia, e
+   * ler o rótulo antes do fato deixaria a recusa disfarçada de resposta malformada — o trilho
+   * adiaria a nota de meia em meia hora para sempre em vez de liquidá-la.
+   */
+  test('recusa em Erro[] vale mesmo com Status fora do vocabulário', async () => {
+    const { fetch } = recordingFetch(() =>
+      successBody({
+        Erro: [{ Codigo: 'E215', Mensagem: 'Item da lista de servico incompativel' }],
+        Status: 'situacao_que_ninguem_viu',
+        id_nota: PROVIDER_DOCUMENT_ID,
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      rejection: { code: 'E215', message: 'Item da lista de servico incompativel' },
+      status: 'rejected',
+    })
+  })
+
+  /**
+   * A nota 5253521 foi recusada por **dois** motivos ao mesmo tempo (`E215` e `E227`). Guardar só o
+   * primeiro faz o operador corrigir o cadastro, reemitir e descobrir o segundo no ciclo seguinte —
+   * uma rodada de emissão fiscal por erro escondido.
+   */
+  test('recusa com mais de um erro carrega todos, não só o primeiro', async () => {
+    const { fetch } = recordingFetch(() =>
+      successBody({
+        Erro: [
+          { Codigo: 'E215', Mensagem: 'Item da lista de servico incompativel' },
+          { Codigo: 'E227', Mensagem: 'Aliquota Servicos fora do intervalo de 2% e 5%' },
+        ],
+        Status: 'Falha',
+        id_nota: PROVIDER_DOCUMENT_ID,
+      }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.code).toBe('E215')
+    expect(outcome.rejection?.message).toBe(
+      'E215: Item da lista de servico incompativel · E227: Aliquota Servicos fora do intervalo de 2% e 5%',
+    )
   })
 
   /**
@@ -223,9 +274,38 @@ describe('Nota RP v2 client — consulta', () => {
     expect(outcome.cause).toBe('malformed_response')
   })
 
+  test('o corpo medido com Status "Sucesso" e código no Link vira autorização arquivável', async () => {
+    const { fetch } = recordingFetch(() => successBody(authorizedByLinkData()))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      document: {
+        authorizedAt: '2026-08-19',
+        fiscalNumber: '65',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+        verificationCode: 'C7217CD1F',
+      },
+      status: 'authorized',
+    })
+  })
+
+  test('sem o Link e sem o campo próprio, a autorização medida continua malformada', async () => {
+    const withoutLink = Object.fromEntries(
+      Object.entries(authorizedByLinkData()).filter(([field]) => field !== 'Link'),
+    )
+    const { fetch } = recordingFetch(() => successBody(withoutLink))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome.cause).toBe('malformed_response')
+  })
+
   test('autorização sem número ou sem código de verificação é resposta malformada', async () => {
     const { fetch } = recordingFetch(() =>
-      successBody({ ...authorizedData(), codigo_verificacao: '', numero_nota: '' }),
+      successBody({ ...authorizedData(), CodigoVerificacao: '', Nfse: '' }),
     )
     const client = await createNotaRpV2ClientFixture({ fetch })
 
@@ -452,6 +532,58 @@ describe('Nota RP v2 client — download de XML e PDF', () => {
     expect(outcome.bytes).toBeUndefined()
   })
 
+  /*
+   * Medido em produção em 19/08/2026 (nota 5254907, já autorizada): `/xml` e `/pdf` respondem
+   * `application/json` com `{success:true, base64_file}` — o documento cru nunca chega. Sem abrir
+   * o envelope, a nota autorizada era adiada de cinco em cinco minutos com o XML do outro lado.
+   */
+  test('abre o envelope medido com base64_file e devolve o XML como documento', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ base64_file: Buffer.from(XML_BYTES).toString('base64'), success: true }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.contentType).toBe('application/xml')
+    expect(outcome.bytes).toEqual(XML_BYTES)
+  })
+
+  test('abre o envelope medido com base64_file e devolve o PDF como documento', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ base64_file: Buffer.from(PDF_BYTES).toString('base64'), success: true }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'pdf',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.contentType).toBe('application/pdf')
+    expect(outcome.bytes).toEqual(PDF_BYTES)
+  })
+
+  // Envelope de sucesso sem o documento dentro não tem byte para arquivar: adiar é o lado seguro.
+  test('recusa envelope de sucesso sem base64_file', async () => {
+    const { fetch } = recordingFetch(() => jsonResponse({ success: true }))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('error')
+    expect(outcome.cause).toBe('malformed_response')
+    expect(outcome.bytes).toBeUndefined()
+  })
+
   test('aceita o XML cru com espaço e BOM antes da abertura', async () => {
     const { fetch } = recordingFetch(() =>
       binaryResponse({
@@ -554,10 +686,9 @@ describe('Nota RP v2 client — o token não vaza', () => {
   test('a consulta que devolve a CallbackUrl na mensagem de erro também sai redigida', async () => {
     const { fetch } = recordingFetch(() =>
       successBody({
-        codigo_erro: 'E999',
+        Erro: [{ Codigo: 'E999', Mensagem: `Retorno nao entregue em ${CALLBACK_URL}` }],
+        Status: 'Falha',
         id_nota: PROVIDER_DOCUMENT_ID,
-        mensagem_erro: `Retorno nao entregue em ${CALLBACK_URL}`,
-        situacao: 'rejeitada',
       }),
     )
     const client = await createNotaRpV2ClientFixture({ fetch })
