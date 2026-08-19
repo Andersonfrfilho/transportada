@@ -16,6 +16,7 @@ import {
   type NfseSelectionProfile,
   selectNfseCandidates,
 } from '../../src/nfse-invoices/domain/nfse-selection.policy.js'
+import type { NfsePartyAddress } from '../../src/nfse-invoices/domain/nfse-taker-address.policy.js'
 
 const ISSUED_AT = '2026-08-01T12:00:00.000Z'
 const SENDER_TAX_ID = '11111111000191'
@@ -64,6 +65,28 @@ const PROFILE: NfseSelectionProfile = {
   taker: '3',
 }
 
+const RECIPIENT_ADDRESS: NfsePartyAddress = {
+  city: 'Ribeirão Preto',
+  complement: 'Sala 12',
+  district: 'Centro',
+  number: '1500',
+  phone: '1633334444',
+  postalCode: '14010100',
+  state: 'SP',
+  street: 'Avenida Nove de Julho',
+}
+
+const SENDER_ADDRESS: NfsePartyAddress = {
+  city: 'São Paulo',
+  complement: null,
+  district: 'Brás',
+  number: '210',
+  phone: null,
+  postalCode: '03042000',
+  state: 'SP',
+  street: 'Rua do Depósito',
+}
+
 function buildDocument(
   overrides: Partial<NfseSelectionDocument> & { readonly documentId: string },
 ): NfseSelectionDocument {
@@ -72,10 +95,12 @@ function buildDocument(
     grossWeight: '120.0000',
     issuedAt: ISSUED_AT,
     number: '1',
+    recipientAddress: RECIPIENT_ADDRESS,
     recipientCity: 'Ribeirão Preto',
     recipientLegalName: 'Comércio Destinatário LTDA',
     recipientState: 'SP',
     recipientTaxId: RECIPIENT_TAX_ID,
+    senderAddress: SENDER_ADDRESS,
     senderCity: 'São Paulo',
     senderLegalName: 'Indústria Remetente LTDA',
     senderState: 'SP',
@@ -224,6 +249,55 @@ describe('NFS-e selection contract', () => {
     expect(selection.blocked).toEqual([
       { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName },
     ])
+  })
+
+  /**
+   * O endereço do tomador é o que a prefeitura recusou em produção. Bloquear na prévia é o que
+   * separa "esta nota não pode entrar" de uma nota emitida, rejeitada e presa: reemitir retransmite
+   * o mesmo RPS congelado, então a falta descoberta lá custa descarte e nova emissão.
+   */
+  test('refuses a taker without a complete address, which the city requires', () => {
+    const documents = [
+      buildDocument({
+        documentId: '1',
+        recipientAddress: { ...RECIPIENT_ADDRESS, postalCode: null },
+      }),
+    ]
+    const selection = selectAll(documents)
+
+    expect(selection.candidates).toEqual([])
+    expect(selection.blocked).toEqual([
+      { documentId: '1', reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress },
+    ])
+  })
+
+  /** O endereço que viaja é o do tomador que o perfil escolheu, não o da outra ponta da carga. */
+  test('carries the address of the taker the profile picks', () => {
+    const documents = [buildDocument({ documentId: '1' })]
+
+    const recipientTaker = selectAll(documents)
+    expect(recipientTaker.candidates[0]?.document.takerAddress).toEqual({
+      city: 'Ribeirão Preto',
+      complement: 'Sala 12',
+      district: 'Centro',
+      number: '1500',
+      phone: '1633334444',
+      postalCode: '14010100',
+      state: 'SP',
+      street: 'Avenida Nove de Julho',
+    })
+
+    const senderTaker = selectAll(documents, { profile: { ...PROFILE, taker: '0' } })
+    expect(senderTaker.candidates[0]?.document.takerAddress).toEqual({
+      city: 'São Paulo',
+      complement: '',
+      district: 'Brás',
+      number: '210',
+      phone: '',
+      postalCode: '03042000',
+      state: 'SP',
+      street: 'Rua do Depósito',
+    })
   })
 
   test('reports ineligibility in the same vocabulary the CT-e selection uses', () => {

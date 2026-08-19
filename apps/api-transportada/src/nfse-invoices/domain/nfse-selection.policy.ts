@@ -8,11 +8,13 @@ import {
 } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
 import type { NfseTaker } from '../../database/nfse.schema.js'
 import type { NfseProjectionCandidate, NfseProjectionProfile } from './nfse-projection.service.js'
+import { type NfsePartyAddress, resolveNfseTakerAddress } from './nfse-taker-address.policy.js'
 
 export const NFSE_SELECTION_BLOCK_REASON = {
   alreadyLinked: 'NFSE_DOCUMENT_ALREADY_LINKED',
   duplicated: 'NFSE_DOCUMENT_DUPLICATED',
   linkedToCteBatch: 'NFSE_DOCUMENT_LINKED_TO_CTE_BATCH',
+  missingTakerAddress: 'NFSE_DOCUMENT_MISSING_TAKER_ADDRESS',
   missingTakerName: 'NFSE_DOCUMENT_MISSING_TAKER_NAME',
   notFound: 'NFSE_DOCUMENT_NOT_FOUND',
 } as const
@@ -30,7 +32,9 @@ export type NfseSelectionDocument = EligibilityDocument & {
   readonly documentId: string
   readonly issuedAt: string
   readonly number: string
+  readonly recipientAddress: NfsePartyAddress | null
   readonly recipientLegalName: string | null
+  readonly senderAddress: NfsePartyAddress | null
   readonly senderLegalName: string | null
   readonly series: string
 }
@@ -105,6 +109,14 @@ export function selectNfseCandidates({
       continue
     }
 
+    const takerAddress = resolveNfseTakerAddress(
+      profile.taker === '0' ? document.senderAddress : document.recipientAddress,
+    )
+    if (takerAddress === null) {
+      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress })
+      continue
+    }
+
     candidates.push({
       document: {
         accessKey: document.accessKey,
@@ -112,6 +124,7 @@ export function selectNfseCandidates({
         issuedAt: document.issuedAt,
         number: document.number,
         series: document.series,
+        takerAddress,
         takerLegalName: taker.legalName,
         takerTaxId: taker.taxId,
         totalAmount: eligibility.chargeable.totalAmount,

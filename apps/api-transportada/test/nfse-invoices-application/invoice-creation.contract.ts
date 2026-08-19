@@ -160,6 +160,35 @@ describe('nfse invoice creation', () => {
     expect(payload?.payloadSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
+  /**
+   * A prefeitura recusa a nota inteira sem o endereço do tomador, e a recusa chega assíncrona com a
+   * nota já criada — reemitir retransmite este mesmo payload. Ou o endereço entra aqui, no
+   * congelamento, ou não entra nunca.
+   */
+  test('o payload congelado carrega o endereço do tomador que o perfil escolheu', async () => {
+    const { recording, useCase } = createUseCase()
+
+    await useCase.create(CREATE_INPUT)
+
+    const payload = recording.payloads[0]?.payload as {
+      readonly taker: Readonly<Record<string, unknown>>
+    }
+    expect(payload.taker).toEqual({
+      address: {
+        city: 'Ribeirão Preto',
+        complement: 'Sala 12',
+        district: 'Centro',
+        number: '1500',
+        phone: '1633334444',
+        postalCode: '14010100',
+        state: 'SP',
+        street: 'Avenida Nove de Julho',
+      },
+      legalName: 'Cliente Sintético Ltda',
+      taxId: '98765432000188',
+    })
+  })
+
   /** Token da prefeitura fica selado na credencial: o payload guarda só o ponteiro para ela. */
   test('nem o payload nem o providerConfig carregam segredo', async () => {
     const { recording, useCase } = createUseCase()

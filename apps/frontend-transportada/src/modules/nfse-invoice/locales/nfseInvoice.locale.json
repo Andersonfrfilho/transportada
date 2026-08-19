@@ -296,6 +296,7 @@
       "NFSE_DOCUMENT_ALREADY_LINKED": "Já está em outra nota de serviço.",
       "NFSE_DOCUMENT_DUPLICATED": "Enviada duas vezes na seleção.",
       "NFSE_DOCUMENT_LINKED_TO_CTE_BATCH": "Já está em um lote de CT-e.",
+      "NFSE_DOCUMENT_MISSING_TAKER_ADDRESS": "Sem o endereço completo do tomador.",
       "NFSE_DOCUMENT_MISSING_TAKER_NAME": "Sem a razão social do tomador.",
       "NFSE_DOCUMENT_NOT_FOUND": "Nota não encontrada."
     },
@@ -325,6 +326,7 @@
     "documentAlreadyLinked": "Uma das notas já está em outra nota de serviço.",
     "documentDuplicated": "A mesma nota foi enviada duas vezes na seleção.",
     "documentLinkedToCteBatch": "Uma das notas já está em um lote de CT-e.",
+    "documentMissingTakerAddress": "Uma das notas não traz o endereço completo do tomador, e a prefeitura recusa a nota sem ele.",
     "documentMissingTakerName": "Uma das notas não traz a razão social do tomador.",
     "documentNotFound": "Uma das notas selecionadas não foi encontrada.",
     "fiscalDocumentUnavailable": "O documento fiscal ainda não está disponível para download.",
