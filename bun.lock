@@ -72,7 +72,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/notification-client": "0.1.0-rc.2",
-        "@adatechnology/notification-ui": "0.1.0-rc.2",
+        "@adatechnology/notification-ui": "0.1.0-rc.3",
         "@radix-ui/react-slot": "1.2.4",
         "@tanstack/react-query": "5.90.20",
         "class-variance-authority": "0.7.1",
@@ -153,7 +153,7 @@
 
     "@adatechnology/notification-module": ["@adatechnology/notification-module@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/module-http": "0.1.0-rc.1", "@adatechnology/notification-contracts": "0.1.0-rc.2", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-J1RWGC1Hh6KZFUed4QCYl6/H0XrTAaZR96yjbU3xl+ebhJJ5cK2j0rXShdFWtHn9epq4GFyF1ky0xchQs1Qx/Q=="],
 
-    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-client": "0.1.0-rc.2", "@adatechnology/notification-contracts": "0.1.0-rc.2", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-OG4jwCfll1E34pwnfTZ4YWOiOToGdbTVjxwtBRkFPEam1dFOEgJvDKFuLyg0F1VRHo17uMcBSA/WN+ZslF1qRw=="],
+    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/notification-client": "0.1.0-rc.2", "@adatechnology/notification-contracts": "0.1.0-rc.2", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-6Bph6gwhjfIyEoezZIAoI67uDCA/qzNds1/bvpEgmMjZhx7AJlwxGlxf7wVC2aZj9Ax6q07COcrGDTXRcGIMHw=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
 
