@@ -132,7 +132,11 @@ describe('cached vehicle catalog gateway contract', () => {
       Promise.resolve({ items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }),
     )
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger: noopLogger, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 - 1)
@@ -144,7 +148,11 @@ describe('cached vehicle catalog gateway contract', () => {
   test('goes back to the provider once the 24 hour cache expires', async () => {
     const { port, state } = createFakeInner(() => Promise.resolve({ items: [], source: 'fipe' }))
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger: noopLogger, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 + 1)
@@ -158,7 +166,11 @@ describe('cached vehicle catalog gateway contract', () => {
       throw new FleetVehicleCatalogFailedError()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger: noopLogger, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     const first = await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 59_000)
@@ -199,7 +211,11 @@ describe('cached vehicle catalog gateway contract', () => {
       throw new FleetVehicleCatalogFailedError()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger: noopLogger, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 61_000)
@@ -212,7 +228,11 @@ describe('cached vehicle catalog gateway contract', () => {
     const { port, state } = createFakeInner(() =>
       Promise.resolve({ items: [{ label: 'UNO', value: '5986' }], source: 'fipe' }),
     )
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger: noopLogger, now: () => new Date() })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => new Date(),
+    })
 
     await gateway.listModels({ ...CAR, brand: '102' })
     await gateway.listModels({ ...CAR, brand: '103' })
