@@ -268,6 +268,7 @@ export function bootstrap(): Bun.Server<undefined> {
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
+      logger,
       scheduledDistributionCron: config.scheduledDistributionCron,
       vehicleCatalog: config.vehicleCatalog,
     }),
@@ -393,6 +394,7 @@ type CreateApplicationRoutesParams = {
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
+  readonly logger: ApiLogger
   readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
@@ -403,6 +405,7 @@ function createApplicationRoutes({
   environment,
   idempotencyHmacKey,
   keycloak,
+  logger,
   scheduledDistributionCron,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -491,6 +494,7 @@ function createApplicationRoutes({
             configuration: vehicleCatalog,
             fetch: (target, init) => fetch(target, init),
           }),
+          logger,
         })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
