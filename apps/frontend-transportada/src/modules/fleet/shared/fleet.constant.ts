@@ -23,6 +23,9 @@ export const FLEET_VERSION_CONFLICT_ERROR = [
 
 export const FLEET_PAGE_SIZE = 25
 
+/** Teto de segurança do laço de cursor da tabela de veículos — frota real não chega perto. */
+export const FLEET_VEHICLE_LOAD_LIMIT = 2000
+
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',
@@ -39,11 +42,15 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
 export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
   amarela: 'var(--vehicle-color-amarela)',
   azul: 'var(--vehicle-color-azul)',
+  azul_marinho: 'var(--vehicle-color-azul_marinho)',
   bege: 'var(--vehicle-color-bege)',
   branca: 'var(--vehicle-color-branca)',
+  champanhe: 'var(--vehicle-color-champanhe)',
   cinza: 'var(--vehicle-color-cinza)',
+  creme: 'var(--vehicle-color-creme)',
   dourada: 'var(--vehicle-color-dourada)',
   fantasia: 'var(--vehicle-color-fantasia)',
+  grafite: 'var(--vehicle-color-grafite)',
   grena: 'var(--vehicle-color-grena)',
   laranja: 'var(--vehicle-color-laranja)',
   marrom: 'var(--vehicle-color-marrom)',
@@ -51,6 +58,7 @@ export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
   preta: 'var(--vehicle-color-preta)',
   rosa: 'var(--vehicle-color-rosa)',
   roxa: 'var(--vehicle-color-roxa)',
+  turquesa: 'var(--vehicle-color-turquesa)',
   verde: 'var(--vehicle-color-verde)',
   vermelha: 'var(--vehicle-color-vermelha)',
 }
@@ -73,6 +81,13 @@ export const VEHICLE_COST_KEYS = [
   'averageConsumption',
   'monthlyInstallmentAmount',
   'otherCostsPerKilometer',
+] as const
+
+/** Tara e capacidade: decimais em pt-BR na tela, decimais na API, inteiros só na borda do MDF-e. */
+export const VEHICLE_MEASURE_KEYS = [
+  'capacityCubicMeters',
+  'capacityKilograms',
+  'tareWeightKilograms',
 ] as const
 
 export const VEHICLE_BODY_KEYS = [

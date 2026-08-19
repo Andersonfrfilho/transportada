@@ -15,6 +15,7 @@ import type {
   FleetVehicleFormState,
 } from './fleet.types'
 import { toVehicleCostBody, toVehicleCostFormState } from './fleetVehicleCost.service'
+import { toVehicleMeasureBody, toVehicleMeasureFormState } from './fleetVehicleMeasure.service'
 
 const OWN_OWNERSHIP = 'own'
 const UNAVAILABLE_CATALOG_SOURCE: FleetVehicleCatalogSource = 'unavailable'
@@ -32,8 +33,8 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   axleCount: '0',
   bodyType: '00',
   brand: '',
-  capacityCubicMeters: '0',
-  capacityKilograms: '0',
+  capacityCubicMeters: '',
+  capacityKilograms: '',
   color: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
@@ -51,7 +52,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   renavam: '',
   role: TRACTION_ROLE,
   state: '',
-  tareWeightKilograms: '0',
+  tareWeightKilograms: '',
   wheelType: '',
 }
 
@@ -107,8 +108,6 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     axleCount: String(vehicle.axleCount),
     bodyType: vehicle.bodyType,
     brand: vehicle.brand,
-    capacityCubicMeters: vehicle.capacityCubicMeters,
-    capacityKilograms: vehicle.capacityKilograms,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
@@ -124,9 +123,9 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     renavam: vehicle.renavam,
     role: vehicle.role,
     state: vehicle.state,
-    tareWeightKilograms: vehicle.tareWeightKilograms,
     wheelType: vehicle.wheelType,
     ...toVehicleCostFormState(vehicle),
+    ...toVehicleMeasureFormState(vehicle),
   }
 }
 
@@ -147,16 +146,6 @@ export function applyVehicleBrand(
   brand: string,
 ): FleetVehicleFormState {
   return { ...state, brand, model: '' }
-}
-
-/**
- * O nome é o valor da opção, não o código: marca e modelo são texto no cadastro, no CRLV e no
- * MDF-e, e um código FIPE gravado ali sai como "103" no lugar de "Volvo".
- */
-export function toVehicleCatalogOptions(
-  items: readonly FleetVehicleCatalogOption[] | undefined,
-): readonly Readonly<{ label: string; value: string }>[] {
-  return (items ?? []).map((option) => ({ label: option.name, value: option.name }))
 }
 
 /** O endpoint de modelos é indexado por código FIPE; o formulário só conhece o nome escolhido. */
@@ -218,8 +207,6 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     axleCount: Number(normalizeUnsignedInteger(state.axleCount)),
     bodyType: state.bodyType,
     brand: state.brand,
-    capacityCubicMeters: normalizeUnsignedInteger(state.capacityCubicMeters),
-    capacityKilograms: normalizeUnsignedInteger(state.capacityKilograms),
     color: state.color,
     fleetNumber: state.fleetNumber,
     fuelType: state.fuelType,
@@ -239,9 +226,9 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     renavam: normalizeDigits(state.renavam),
     role: state.role,
     state: state.state.toUpperCase(),
-    tareWeightKilograms: normalizeUnsignedInteger(state.tareWeightKilograms),
     wheelType: state.role === TRACTION_ROLE ? state.wheelType : '',
     ...toVehicleCostBody(state),
+    ...toVehicleMeasureBody(state),
   }
 }
 

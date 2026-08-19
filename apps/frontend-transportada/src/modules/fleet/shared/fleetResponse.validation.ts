@@ -85,8 +85,8 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isUnsignedIntegerNumber(value.axleCount) &&
     isOneOf(value.bodyType, FLEET_ENUMS.bodyType) &&
     isString(value.brand) &&
-    isUnsignedIntegerString(value.capacityCubicMeters) &&
-    isUnsignedIntegerString(value.capacityKilograms) &&
+    isDecimalString(value.capacityCubicMeters) &&
+    isDecimalString(value.capacityKilograms) &&
     isString(value.color) &&
     isNullableDecimalString(value.costPerKilometer) &&
     isCostBreakdown(value.costPerKilometerBreakdown) &&
@@ -107,7 +107,7 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isOneOf(value.role, FLEET_ENUMS.role) &&
     isString(value.state) &&
     isOneOf(value.status, FLEET_ENUMS.vehicleStatus) &&
-    isUnsignedIntegerString(value.tareWeightKilograms) &&
+    isDecimalString(value.tareWeightKilograms) &&
     isString(value.updatedAt) &&
     isUnsignedIntegerString(value.version) &&
     (value.wheelType === '' || isOneOf(value.wheelType, FLEET_ENUMS.wheelType))

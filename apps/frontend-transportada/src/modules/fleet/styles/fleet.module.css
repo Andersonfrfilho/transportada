@@ -96,7 +96,8 @@
 
 @media (min-width: 40rem) {
   .filterBar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    align-items: end;
   }
 }
 
@@ -429,6 +430,14 @@
   font-style: normal;
 }
 
+/* Terceiro trilho do subgrid do campo: a volta para a lista e o aviso dividem a mesma linha. */
+.catalogFieldFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 .fieldHint {
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.72rem;
@@ -708,4 +717,125 @@
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     align-items: start;
   }
+}
+
+.counter {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.filterPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.filterPanelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.chipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 0;
+  border: 0;
+}
+
+.chip {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.chipActive {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+  color: var(--color-copper);
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.moneyField {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.moneyPrefix {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size);
+  border-right: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.moneyField input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  text-align: right;
+  background: none;
 }

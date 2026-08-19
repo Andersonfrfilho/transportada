@@ -9,6 +9,7 @@ import {
   FLEET_MANAGE_PERMISSION,
   FLEET_PAGE_SIZE,
   FLEET_READ_PERMISSION,
+  FLEET_VEHICLE_LOAD_LIMIT,
 } from '../shared/fleet.constant'
 import type {
   FleetCapabilities,
@@ -91,6 +92,30 @@ export function getFleetClient(): FleetClient {
 
 type FleetQueryKey = readonly [string, string | undefined, string]
 
+/**
+ * A tabela ordena, filtra e soma sobre a frota inteira, então ela precisa da frota inteira: com uma
+ * página só, "ordenar por R$/km" ordenaria os 25 primeiros e mentiria sobre o resto. O teto existe
+ * para que cursor que não anda não vire laço infinito, não para recortar frota de verdade.
+ */
+async function loadEveryVehicle(
+  input: Readonly<{ controller: FleetController; filters: FleetVehicleFilters }>,
+): Promise<FleetVehiclePage> {
+  const items: FleetVehicleDetail[] = []
+  let cursor: null | string = null
+
+  do {
+    const page: FleetVehiclePage = await input.controller.listVehicles({
+      cursor,
+      filters: input.filters,
+      limit: FLEET_PAGE_SIZE,
+    })
+    items.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor !== null && items.length < FLEET_VEHICLE_LOAD_LIMIT)
+
+  return { items, nextCursor: null }
+}
+
 function useFleetQueries(
   input: Readonly<{
     controller: FleetController
@@ -103,11 +128,7 @@ function useFleetQueries(
   const vehiclesQuery = useQuery({
     enabled: input.controller.canReadFleet,
     queryFn: () =>
-      input.controller.listVehicles({
-        cursor: null,
-        filters: input.vehicleFilters,
-        limit: FLEET_PAGE_SIZE,
-      }),
+      loadEveryVehicle({ controller: input.controller, filters: input.vehicleFilters }),
     queryKey: input.vehiclesKey,
   })
   const driversQuery = useQuery({

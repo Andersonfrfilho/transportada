@@ -42,15 +42,23 @@ export type MdfeWheelType = (typeof MDFE_WHEEL_TYPES)[number]
 export const MDFE_BODY_TYPES = ['00', '01', '02', '03', '04', '05'] as const
 export type MdfeBodyType = (typeof MDFE_BODY_TYPES)[number]
 
-/** Cor do CRLV pela tabela do Denatran — texto livre misturava "PRATA", "prata" e "prata metálico". */
+/**
+ * Lista fechada — texto livre misturava "PRATA", "prata" e "prata metálico". A base é a tabela do
+ * Denatran, que é o que o CRLV imprime; os cinco tons de mercado restantes ela não nomeia. Alargar
+ * é seguro porque cor é cadastro: nenhum documento fiscal a transmite.
+ */
 export const VEHICLE_COLORS = [
   'amarela',
   'azul',
+  'azul_marinho',
   'bege',
   'branca',
+  'champanhe',
   'cinza',
+  'creme',
   'dourada',
   'fantasia',
+  'grafite',
   'grena',
   'laranja',
   'marrom',
@@ -58,6 +66,7 @@ export const VEHICLE_COLORS = [
   'preta',
   'rosa',
   'roxa',
+  'turquesa',
   'verde',
   'vermelha',
 ] as const
@@ -88,6 +97,8 @@ const VEHICLE_MODEL_MAX_LENGTH = 120
 const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
 
 const moneyColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
+/** Tara e capacidade em decimal: o operador digita 8.000,25 kg e o MDF-e arredonda na saída. */
+const measureColumn = (name: string) => numeric(name, { precision: 12, scale: 2 })
 
 export const fleetVehicles = pgTable(
   'fleet_vehicles',
@@ -103,9 +114,9 @@ export const fleetVehicles = pgTable(
     fleetNumber: text('fleet_number').notNull().default(''),
     role: text().$type<FleetVehicleRole>().notNull(),
     status: text().$type<FleetVehicleStatus>().notNull().default('active'),
-    tareWeightKg: bigint('tare_weight_kg', { mode: 'bigint' }).notNull().default(0n),
-    capacityKg: bigint('capacity_kg', { mode: 'bigint' }).notNull().default(0n),
-    capacityM3: bigint('capacity_m3', { mode: 'bigint' }).notNull().default(0n),
+    tareWeightKg: measureColumn('tare_weight_kg').notNull().default('0'),
+    capacityKg: measureColumn('capacity_kg').notNull().default('0'),
+    capacityM3: measureColumn('capacity_m3').notNull().default('0'),
     wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),

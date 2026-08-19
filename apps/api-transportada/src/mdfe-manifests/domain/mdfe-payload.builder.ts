@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import {
+  formatScaledDecimal,
+  parseScaledDecimal,
+  roundDecimalToInteger,
+} from '../../shared/decimal.service.js'
 import { normalizeRntrc } from '../../shared/rntrc.service.js'
 
 import {
@@ -147,16 +151,19 @@ function buildTractionVehicle(
 ): MdfePayloadTractionVehicle {
   if (vehicle.wheelType === '') throw new MdfePayloadMissingWheelTypeError(vehicle.plate)
 
+  const capacidadeKg = roundDecimalToInteger(vehicle.capacityKg)
+  const capacidadeM3 = roundDecimalToInteger(vehicle.capacityM3)
+
   return {
     condutores,
     placa: vehicle.plate,
-    tara: Number(vehicle.tareWeightKg),
+    tara: Number(roundDecimalToInteger(vehicle.tareWeightKg)),
     tipoCarroceria: vehicle.bodyType,
     tipoRodado: vehicle.wheelType,
     uf: vehicle.state,
     ...(vehicle.renavam.length > 0 ? { renavam: vehicle.renavam } : {}),
-    ...(vehicle.capacityKg > 0n ? { capacidadeKg: Number(vehicle.capacityKg) } : {}),
-    ...(vehicle.capacityM3 > 0n ? { capacidadeM3: Number(vehicle.capacityM3) } : {}),
+    ...(capacidadeKg > 0n ? { capacidadeKg: Number(capacidadeKg) } : {}),
+    ...(capacidadeM3 > 0n ? { capacidadeM3: Number(capacidadeM3) } : {}),
     ...(vehicle.fleetNumber.length > 0 ? { codigoInterno: vehicle.fleetNumber } : {}),
     ...(vehicle.ownership === 'own' ? {} : { proprietario: buildOwner(vehicle) }),
   }

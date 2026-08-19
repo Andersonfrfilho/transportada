@@ -426,6 +426,17 @@ impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocu
 `billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
 em `test/shared/mutation-invalidation.contract.ts`.
 
+**Marca e modelo do veículo têm saída da lista, e a frota realimenta a lista.** O catálogo FIPE não
+tem implemento, marca regional nem cavalo antigo: `VehicleCatalogField.component.tsx` acrescenta a
+opção **"Outro — digitar"** (`VEHICLE_CATALOG_OTHER_VALUE`, sentinela que nunca é gravada — escolhê-la
+limpa o campo e abre a digitação, com "Escolher da lista" para voltar). O que foi digitado à mão volta
+como opção na próxima vez: `buildVehicleCatalogChoices` soma catálogo + marcas/modelos já cadastrados
+na frota + o valor gravado na ficha aberta, deduplicados por `normalizeVehicleCatalogName` — a mesma
+dobra que `vehicleBrandDefaults.service.ts` usa para herdar ficha técnica, senão a lista mostraria
+"Randon" e "RANDON" separadas enquanto a herança as trataria como uma marca só. Lista vazia abre
+digitável direto; carregando e bloqueado por rodado seguem como select. Contrato em
+`test/fleet/vehicle-catalog-other.contract.ts`.
+
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
 varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).

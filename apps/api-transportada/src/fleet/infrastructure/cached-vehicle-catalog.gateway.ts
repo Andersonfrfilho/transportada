@@ -1,6 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { describeErrorForLog } from '../../logging/error-descriptor.service.js'
+import { safeLogError } from '../../logging/safe-logger.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type {
   FleetVehicleCatalogPort,
   ListVehicleCatalogBrandsInput,
@@ -20,6 +23,7 @@ type CacheEntry = {
 /** Decorador de cache em memória: TTL longo no sucesso, curto na falha — nunca deixa o erro escapar. */
 export function createCachedVehicleCatalogGateway(dependencies: {
   readonly gateway: FleetVehicleCatalogPort
+  readonly logger: ApiLogger
   readonly now?: () => Date
 }): FleetVehicleCatalogPort {
   const cache = new Map<string, CacheEntry>()
@@ -40,9 +44,14 @@ export function createCachedVehicleCatalogGateway(dependencies: {
     const cached = cache.get(key)
     if (cached !== undefined && cached.expiresAt > nowMilliseconds) return cached.result
 
-    const result = await invoke().catch(
-      (): VehicleCatalogResult => ({ items: [], source: 'unavailable' }),
-    )
+    const result = await invoke().catch((error: unknown): VehicleCatalogResult => {
+      safeLogError({
+        logger: dependencies.logger,
+        message: 'fleet.vehicle_catalog.fetch_failed',
+        metadata: { segment, ...describeErrorForLog(error) },
+      })
+      return { items: [], source: 'unavailable' }
+    })
     const ttl =
       result.source === 'unavailable' ? FAILURE_TTL_MILLISECONDS : SUCCESS_TTL_MILLISECONDS
     cache.set(key, { expiresAt: nowMilliseconds + ttl, result })

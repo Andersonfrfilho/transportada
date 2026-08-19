@@ -8,6 +8,7 @@ import { createFipeVehicleCatalogGateway } from '../../src/fleet/infrastructure/
 import { FleetVehicleCatalogFailedError } from '../../src/fleet/domain/fleet.error.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import type { FleetVehicleCatalogPort } from '../../src/fleet/application/fleet-vehicle-catalog.port.js'
+import type { ApiLogger } from '../../src/shared/api.types.js'
 
 const BASE_URL = 'https://fipe.example.test'
 const BRAND_CODE = '102'
@@ -103,6 +104,12 @@ describe('fipe vehicle catalog gateway contract', () => {
 })
 
 describe('cached vehicle catalog gateway contract', () => {
+  const noopLogger: ApiLogger = {
+    error: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+  }
+
   function createFakeInner(
     respond: () => Promise<{ items: readonly { label: string; value: string }[]; source: 'fipe' }>,
   ): { state: { calls: number }; port: FleetVehicleCatalogPort } {
@@ -125,7 +132,11 @@ describe('cached vehicle catalog gateway contract', () => {
       Promise.resolve({ items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }),
     )
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 - 1)
@@ -137,7 +148,11 @@ describe('cached vehicle catalog gateway contract', () => {
   test('goes back to the provider once the 24 hour cache expires', async () => {
     const { port, state } = createFakeInner(() => Promise.resolve({ items: [], source: 'fipe' }))
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 + 1)
@@ -151,7 +166,11 @@ describe('cached vehicle catalog gateway contract', () => {
       throw new FleetVehicleCatalogFailedError()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     const first = await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 59_000)
@@ -162,12 +181,41 @@ describe('cached vehicle catalog gateway contract', () => {
     expect(state.calls).toBe(1)
   })
 
+  test('logs the provider failure once, without leaking its message', async () => {
+    const { port } = createFakeInner(() => {
+      throw new FleetVehicleCatalogFailedError()
+    })
+    const logs: { message: string; metadata?: Record<string, unknown> }[] = []
+    const logger: ApiLogger = {
+      error: (message, metadata) => {
+        logs.push({ message, ...(metadata === undefined ? {} : { metadata }) })
+      },
+      info: () => undefined,
+      warn: () => undefined,
+    }
+    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger })
+
+    await gateway.listBrands(TRUCK)
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0]?.message).toBe('fleet.vehicle_catalog.fetch_failed')
+    expect(logs[0]?.metadata).toEqual({
+      segment: 'caminhoes',
+      errorName: 'ApiError',
+      sqlState: 'FLEET_VEHICLE_CATALOG_FAILED',
+    })
+  })
+
   test('retries the provider once the 60 second failure cache expires', async () => {
     const { port, state } = createFakeInner(() => {
       throw new FleetVehicleCatalogFailedError()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, now: () => clock })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
 
     await gateway.listBrands(TRUCK)
     clock = new Date(clock.getTime() + 61_000)
@@ -180,7 +228,11 @@ describe('cached vehicle catalog gateway contract', () => {
     const { port, state } = createFakeInner(() =>
       Promise.resolve({ items: [{ label: 'UNO', value: '5986' }], source: 'fipe' }),
     )
-    const gateway = createCachedVehicleCatalogGateway({ gateway: port, now: () => new Date() })
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => new Date(),
+    })
 
     await gateway.listModels({ ...CAR, brand: '102' })
     await gateway.listModels({ ...CAR, brand: '103' })

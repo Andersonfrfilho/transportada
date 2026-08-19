@@ -2,97 +2,44 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Select } from '@/components/ui/select'
-
 import { Button } from '@/components/ui/button'
+import { CountBadge } from '@/components/ui/count-badge'
 import { Icon } from '@/components/ui/icon'
 
 import type { VehicleColumnsController } from '../hooks/useVehicleColumns.hook'
-import type {
-  FleetVehicleDetail,
-  FleetVehicleFilters,
-  FleetVehicleRole,
-  FleetVehicleStatus,
-} from '../shared/fleet.types'
-import { cleanFleetFilters } from '../shared/fleetFilters.service'
+import type { VehicleTableController } from '../hooks/useVehicleTable.hook'
+import type { FleetVehicleDetail } from '../shared/fleet.types'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
 import styles from '../styles/fleet.module.css'
 import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import { VehicleColumnsMenu } from './VehicleColumnsMenu.component'
+import { VehicleFilters } from './VehicleFilters.component'
 import { VehicleList } from './VehicleList.component'
+import { VehicleSelectionBar, type VehicleStatusChange } from './VehicleSelectionBar.component'
 
-const VEHICLE_COLUMN_COUNT = 5
+/** Seleção, placa, função, propriedade, capacidade e situação: o que a tabela mostra sempre. */
+const VEHICLE_FIXED_COLUMN_COUNT = 6
 
 type VehiclePanelProps = Readonly<{
   actions: Readonly<{
+    onChangeStatus: (input: VehicleStatusChange) => void
     onEdit: (vehicle: FleetVehicleDetail) => void
     onNew: () => void
     onToggleStatus: (vehicle: FleetVehicleDetail) => void
   }>
   canManageFleet: boolean
   columns: VehicleColumnsController
-  filters: Readonly<{
-    onChange: (value: FleetVehicleFilters) => void
-    value: FleetVehicleFilters
-  }>
-  view: Readonly<{ status: FleetViewStatus; vehicles?: readonly FleetVehicleDetail[] }>
+  isUpdatingStatus: boolean
+  table: VehicleTableController
+  view: Readonly<{ status: FleetViewStatus }>
 }>
 
-function VehicleFilterBar({ filters }: Pick<VehiclePanelProps, 'filters'>) {
-  const { t } = useTranslation('fleet')
-  const patch = (values: Partial<FleetVehicleFilters>): void =>
-    filters.onChange(cleanFleetFilters({ ...filters.value, ...values }))
-
-  return (
-    <div className={styles.filterBar}>
-      <label>
-        <span>{t('filterPlate')}</span>
-        <input
-          type="search"
-          value={filters.value.plateContains ?? ''}
-          onChange={(event) => patch({ plateContains: event.target.value })}
-        />
-      </label>
-      <label>
-        <span>{t('filterRole')}</span>
-        <Select
-          ariaLabel={t('filterRole')}
-          clearable
-          compact
-          options={[
-            { label: t('roleOption.traction'), value: 'traction' },
-            { label: t('roleOption.trailer'), value: 'trailer' },
-          ]}
-          placeholder={t('filterAny')}
-          value={filters.value.roleEq ?? ''}
-          onChange={(value) => patch({ roleEq: value as FleetVehicleRole })}
-        />
-      </label>
-      <label>
-        <span>{t('filterStatus')}</span>
-        <Select
-          ariaLabel={t('filterStatus')}
-          clearable
-          compact
-          options={[
-            { label: t('status.active'), value: 'active' },
-            { label: t('status.inactive'), value: 'inactive' },
-          ]}
-          placeholder={t('filterAny')}
-          value={filters.value.statusEq ?? ''}
-          onChange={(value) => patch({ statusEq: value as FleetVehicleStatus })}
-        />
-      </label>
-    </div>
-  )
-}
-
-function VehiclePanelBody({ actions, canManageFleet, columns, filters, view }: VehiclePanelProps) {
+function VehiclePanelBody({ actions, canManageFleet, columns, table, view }: VehiclePanelProps) {
   const { t } = useTranslation('fleet')
   const status = view.status
-  const columnCount = VEHICLE_COLUMN_COUNT + columns.visibleColumns.length
+  const columnCount = VEHICLE_FIXED_COLUMN_COUNT + columns.visibleColumns.length
 
   if (status === 'loading') {
     return (
@@ -104,22 +51,21 @@ function VehiclePanelBody({ actions, canManageFleet, columns, filters, view }: V
   }
   if (status === 'error' || status === 'forbidden') return null
 
-  const vehicles = view.vehicles ?? []
-  if (vehicles.length > 0) {
+  if (table.vehicles.length > 0) {
     return (
       <VehicleList
         canManageFleet={canManageFleet}
         columns={columns.visibleColumns}
-        vehicles={vehicles}
+        table={table}
         onEdit={actions.onEdit}
         onToggleStatus={actions.onToggleStatus}
       />
     )
   }
-  if (Object.keys(cleanFleetFilters(filters.value)).length > 0) {
+  if (table.totalCount > 0) {
     return (
       <FleetEmptyState
-        action={{ icon: 'close', label: t('clearFilters'), onAction: () => filters.onChange({}) }}
+        action={{ icon: 'close', label: t('clearFilters'), onAction: table.clearFilters }}
         description={t('filtersEmptyHint')}
         title={t('filtersEmptyTitle')}
       />
@@ -132,7 +78,7 @@ function VehiclePanelBody({ actions, canManageFleet, columns, filters, view }: V
 
 export function VehiclePanel(props: VehiclePanelProps) {
   const { t } = useTranslation('fleet')
-  const { actions, canManageFleet, columns, filters, view } = props
+  const { actions, canManageFleet, columns, isUpdatingStatus, table } = props
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 
   return (
@@ -140,6 +86,17 @@ export function VehiclePanel(props: VehiclePanelProps) {
       <div className={styles.panelHeading}>
         <h2 id="fleet-vehicles-title">{t('vehiclesTitle')}</h2>
         <div className={styles.panelActions}>
+          <button
+            aria-expanded={table.isFilterPanelOpen}
+            aria-label={t('vehicleFilters.title')}
+            className={table.isFilterPanelOpen ? styles.iconActionActive : styles.iconAction}
+            title={t('vehicleFilters.title')}
+            type="button"
+            onClick={() => table.setFilterPanelOpen(!table.isFilterPanelOpen)}
+          >
+            <Icon name="filter" />
+            <CountBadge count={table.activeFilterCount} />
+          </button>
           <span className={styles.columnsMenuWrap}>
             <button
               aria-expanded={isColumnsMenuOpen}
@@ -161,8 +118,14 @@ export function VehiclePanel(props: VehiclePanelProps) {
           ) : null}
         </div>
       </div>
-      <VehicleFilterBar filters={filters} />
-      <FleetStatusHint status={view.status} />
+      <VehicleFilters table={table} />
+      <VehicleSelectionBar
+        canManageFleet={canManageFleet}
+        isUpdatingStatus={isUpdatingStatus}
+        onChangeStatus={actions.onChangeStatus}
+        table={table}
+      />
+      <FleetStatusHint status={props.view.status} />
       <VehiclePanelBody {...props} />
     </section>
   )

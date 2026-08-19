@@ -18,15 +18,24 @@ export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIP)[number]
 export const MDFE_WHEEL_TYPE = ['01', '02', '03', '04', '05', '06'] as const
 export type MdfeWheelType = (typeof MDFE_WHEEL_TYPE)[number]
 
-/** A cor do CRLV é fechada no Denatran: texto livre gerava "prata metálico" e "PRATA" na mesma frota. */
+/**
+ * Lista fechada — texto livre gerava "prata metálico" e "PRATA" na mesma frota. A base é a tabela
+ * do Denatran, que é o que o CRLV imprime; `azul_marinho`, `champanhe`, `creme`, `grafite` e
+ * `turquesa` são tons de mercado que ela não nomeia. Alargar é seguro porque cor aqui é cadastro
+ * nosso: nenhum documento fiscal a transmite — o MDF-e leva tpRod e tpCar, não a cor.
+ */
 export const VEHICLE_COLOR = [
   'amarela',
   'azul',
+  'azul_marinho',
   'bege',
   'branca',
+  'champanhe',
   'cinza',
+  'creme',
   'dourada',
   'fantasia',
+  'grafite',
   'grena',
   'laranja',
   'marrom',
@@ -34,6 +43,7 @@ export const VEHICLE_COLOR = [
   'preta',
   'rosa',
   'roxa',
+  'turquesa',
   'verde',
   'vermelha',
 ] as const

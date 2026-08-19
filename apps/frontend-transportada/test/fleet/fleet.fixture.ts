@@ -143,8 +143,8 @@ export const VEHICLE_BODY = {
   axleCount: 3,
   bodyType: '00',
   brand: 'Marca Sintetica',
-  capacityCubicMeters: '90',
-  capacityKilograms: '27000',
+  capacityCubicMeters: '90.00',
+  capacityKilograms: '27000.00',
   color: 'branca',
   fleetNumber: '101',
   fuelType: 'diesel-s10',
@@ -158,7 +158,7 @@ export const VEHICLE_BODY = {
   renavam: '12345678901',
   role: 'traction',
   state: 'SP',
-  tareWeightKilograms: '8000',
+  tareWeightKilograms: '8000.00',
   wheelType: '03',
 } as const satisfies FleetVehicleBodyContract
 
@@ -293,8 +293,8 @@ export const VEHICLE_DRAFT_BODY = {
   axleCount: 0,
   bodyType: '00',
   brand: '',
-  capacityCubicMeters: '0',
-  capacityKilograms: '0',
+  capacityCubicMeters: '0.00',
+  capacityKilograms: '0.00',
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
@@ -306,7 +306,7 @@ export const VEHICLE_DRAFT_BODY = {
   renavam: '',
   role: 'traction',
   state: '',
-  tareWeightKilograms: '0',
+  tareWeightKilograms: '0.00',
   wheelType: '',
 } as const satisfies FleetVehicleBodyContract
 
