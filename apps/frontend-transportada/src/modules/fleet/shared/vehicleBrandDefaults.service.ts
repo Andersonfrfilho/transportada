@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { DEFAULT_FUEL_PRODUCT } from '../../shared/fuel.constant'
 import { toVehicleFormState } from './fleetForm.service'
+import { normalizeVehicleCatalogName } from './vehicleCatalogChoices.service'
 import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
 
 /**
@@ -43,12 +44,6 @@ export const VEHICLE_BRAND_DEFAULT_BLANK: Readonly<Record<VehicleBrandDefaultFie
   tareWeightKilograms: '',
 }
 
-const WHITESPACE_PATTERN = /\s+/g
-
-function normalizeBrand(value: string): string {
-  return value.trim().toUpperCase().replace(WHITESPACE_PATTERN, ' ')
-}
-
 /** O mais recente é o que reflete a prática de hoje: contrato antigo tem preço e seguro de antes. */
 function pickMostRecent(vehicles: readonly FleetVehicleDetail[]): FleetVehicleDetail | undefined {
   return vehicles.reduce<FleetVehicleDetail | undefined>(
@@ -66,15 +61,18 @@ function findSourceVehicle(
     vehicles: readonly FleetVehicleDetail[]
   }>,
 ): FleetVehicleDetail | undefined {
-  const brand = normalizeBrand(input.brand)
+  const brand = normalizeVehicleCatalogName(input.brand)
   if (brand === '') return undefined
 
   const sameBrand = input.vehicles.filter(
-    (vehicle) => vehicle.role === input.role && normalizeBrand(vehicle.brand) === brand,
+    (vehicle) =>
+      vehicle.role === input.role && normalizeVehicleCatalogName(vehicle.brand) === brand,
   )
-  const model = normalizeBrand(input.model)
+  const model = normalizeVehicleCatalogName(input.model)
   const sameModel =
-    model === '' ? [] : sameBrand.filter((vehicle) => normalizeBrand(vehicle.model) === model)
+    model === ''
+      ? []
+      : sameBrand.filter((vehicle) => normalizeVehicleCatalogName(vehicle.model) === model)
 
   return pickMostRecent(sameModel.length > 0 ? sameModel : sameBrand)
 }

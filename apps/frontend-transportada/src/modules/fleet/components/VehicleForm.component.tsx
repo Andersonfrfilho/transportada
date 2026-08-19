@@ -40,6 +40,7 @@ export function VehicleForm({
   const { t } = useTranslation('fleet')
   const form = useVehicleForm({
     onCreate,
+    onSaved: onCancel,
     onUpdate,
     vehicles,
     ...(vehicle === undefined ? {} : { vehicle }),
@@ -54,7 +55,12 @@ export function VehicleForm({
     <form className={styles.panel} onSubmit={handleSubmit}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
       <VehicleIdentityFields state={form.state} onChange={form.patch} />
-      <VehicleModelFields catalog={catalog} state={form.state} onChange={form.patch} />
+      <VehicleModelFields
+        catalog={catalog}
+        state={form.state}
+        vehicles={vehicles}
+        onChange={form.patch}
+      />
       <VehicleOperationFields state={form.state} onChange={form.patch} />
       <VehicleOwnerFields state={form.state} onChange={form.patch} />
       <VehicleCostFields

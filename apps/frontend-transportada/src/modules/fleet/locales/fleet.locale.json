@@ -141,6 +141,8 @@
   "brand": "Marca",
   "brandCatalogWheelTypeHint": "Escolha o tipo de rodado na identificação do veículo para carregar as marcas.",
   "brandCatalogUnavailableHint": "Catálogo de marcas indisponível agora. Digite a marca como está no CRLV.",
+  "catalogOtherOption": "Outro — digitar",
+  "catalogBackToList": "Escolher da lista",
   "model": "Modelo",
   "modelYear": "Ano do modelo",
   "axleCount": "Quantidade de eixos",

@@ -148,16 +148,6 @@ export function applyVehicleBrand(
   return { ...state, brand, model: '' }
 }
 
-/**
- * O nome é o valor da opção, não o código: marca e modelo são texto no cadastro, no CRLV e no
- * MDF-e, e um código FIPE gravado ali sai como "103" no lugar de "Volvo".
- */
-export function toVehicleCatalogOptions(
-  items: readonly FleetVehicleCatalogOption[] | undefined,
-): readonly Readonly<{ label: string; value: string }>[] {
-  return (items ?? []).map((option) => ({ label: option.name, value: option.name }))
-}
-
 /** O endpoint de modelos é indexado por código FIPE; o formulário só conhece o nome escolhido. */
 export function resolveVehicleCatalogCode(
   input: Readonly<{ items: readonly FleetVehicleCatalogOption[] | undefined; name: string }>,

@@ -430,6 +430,14 @@
   font-style: normal;
 }
 
+/* Terceiro trilho do subgrid do campo: a volta para a lista e o aviso dividem a mesma linha. */
+.catalogFieldFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 .fieldHint {
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.72rem;

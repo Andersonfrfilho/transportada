@@ -13,6 +13,7 @@ import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.serv
 
 type UseVehicleFormInput = Readonly<{
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  onSaved: () => void
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   /** A frota carregada é a fonte da ficha técnica que a marca repete — o catálogo FIPE não a tem. */
   vehicles: readonly FleetVehicleDetail[]
@@ -38,7 +39,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const { onCreate, onUpdate, vehicle, vehicles } = input
+  const { onCreate, onSaved, onUpdate, vehicle, vehicles } = input
 
   function patch(values: Partial<FleetVehicleFormState>): void {
     setFeedbackKey(null)
@@ -62,7 +63,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
             status: vehicle.status,
             vehicleId: vehicle.id,
           }))
-      setFeedbackKey('saved')
+      onSaved()
     } catch (error) {
       setFeedbackKey(resolveFeedbackKey(error, 'saveError'))
     } finally {

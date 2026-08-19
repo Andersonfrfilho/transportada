@@ -141,6 +141,8 @@
   "brand": "Brand",
   "brandCatalogWheelTypeHint": "Pick the wheel type in the vehicle identification to load the brands.",
   "brandCatalogUnavailableHint": "Brand catalog is unavailable right now. Type the brand as printed on the CRLV.",
+  "catalogOtherOption": "Other — type it",
+  "catalogBackToList": "Pick from the list",
   "model": "Model",
   "modelYear": "Model year",
   "axleCount": "Axle count",
