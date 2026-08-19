@@ -30,8 +30,8 @@ export const CREATE_VEHICLE_BODY = {
   axleCount: 0,
   bodyType: '00',
   brand: '',
-  capacityCubicMeters: '90',
-  capacityKilograms: '27000',
+  capacityCubicMeters: '90.00',
+  capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
@@ -45,7 +45,7 @@ export const CREATE_VEHICLE_BODY = {
   renavam: '12345678901',
   role: 'traction',
   state: 'SP',
-  tareWeightKilograms: '8000',
+  tareWeightKilograms: '8000.00',
   wheelType: '03',
 } as const
 

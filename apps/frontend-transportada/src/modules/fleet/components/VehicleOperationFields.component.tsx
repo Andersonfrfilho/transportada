@@ -2,8 +2,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
+import { VEHICLE_MEASURE_FIELD_SCALE } from '../shared/fleetVehicleMeasure.service'
 import styles from '../styles/fleet.module.css'
-import { FleetField, FleetSelectField } from './FleetField.component'
+import { FleetMeasureField, FleetSelectField } from './FleetField.component'
 
 type VehicleOperationFieldsProps = Readonly<{
   onChange: (values: Partial<FleetVehicleFormState>) => void
@@ -24,24 +25,21 @@ export function VehicleOperationFields({ onChange, state }: VehicleOperationFiel
           value={state.bodyType}
           onChange={(bodyType) => onChange({ bodyType })}
         />
-        <FleetField
-          inputMode="numeric"
+        <FleetMeasureField
           label={t('tareWeightKilograms')}
-          maxLength={9}
+          scale={VEHICLE_MEASURE_FIELD_SCALE.tareWeightKilograms.form}
           value={state.tareWeightKilograms}
           onChange={(tareWeightKilograms) => onChange({ tareWeightKilograms })}
         />
-        <FleetField
-          inputMode="numeric"
+        <FleetMeasureField
           label={t('capacityKilograms')}
-          maxLength={9}
+          scale={VEHICLE_MEASURE_FIELD_SCALE.capacityKilograms.form}
           value={state.capacityKilograms}
           onChange={(capacityKilograms) => onChange({ capacityKilograms })}
         />
-        <FleetField
-          inputMode="numeric"
+        <FleetMeasureField
           label={t('capacityCubicMeters')}
-          maxLength={6}
+          scale={VEHICLE_MEASURE_FIELD_SCALE.capacityCubicMeters.form}
           value={state.capacityCubicMeters}
           onChange={(capacityCubicMeters) => onChange({ capacityCubicMeters })}
         />

@@ -62,15 +62,15 @@ describe('fleet vehicle schema', () => {
     ])
   })
 
-  test('keeps weights and volumes integral, as the MDF-e layout transmits them', () => {
+  test('keeps weights and volumes in exact decimal, integral only at the MDF-e boundary', () => {
     expect(columnSqlTypes(fleetVehicles)).toMatchObject({
       axle_count: 'integer',
-      capacity_kg: 'bigint',
-      capacity_m3: 'bigint',
+      capacity_kg: 'numeric(12, 2)',
+      capacity_m3: 'numeric(12, 2)',
       company_id: 'uuid',
       id: 'uuid',
       model_year: 'integer',
-      tare_weight_kg: 'bigint',
+      tare_weight_kg: 'numeric(12, 2)',
       version: 'bigint',
     })
   })

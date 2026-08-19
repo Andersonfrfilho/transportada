@@ -26,8 +26,8 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   axleCount: 0,
   bodyType: '00',
   brand: '',
-  capacityCubicMeters: '90',
-  capacityKilograms: '27000',
+  capacityCubicMeters: '90.00',
+  capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
@@ -41,7 +41,7 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   renavam: '12345678901',
   role: 'traction',
   state: 'SP',
-  tareWeightKilograms: '8000',
+  tareWeightKilograms: '8000.00',
   wheelType: '03',
 }
 

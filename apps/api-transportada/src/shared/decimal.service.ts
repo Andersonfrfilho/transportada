@@ -7,6 +7,8 @@ const HALF_UP_DIVISOR = 2n
 export const MONEY_SCALE = 4n
 /** SEFAZ accepts two decimal places in every monetary field of the CT-e layout. */
 export const FISCAL_MONEY_SCALE = 2n
+/** Tara e capacidade do veículo: duas casas no cadastro, inteiro só na borda do MDF-e. */
+export const MEASURE_SCALE = 2n
 export const PERCENTAGE_SCALE = 6n
 export const PERCENTAGE_FACTOR = 10n ** PERCENTAGE_SCALE
 
@@ -66,17 +68,27 @@ export function isDecimalString(value: unknown): value is string {
   return typeof value === 'string' && DECIMAL_PATTERN.test(value)
 }
 
-/** O driver do Postgres come as casas zeradas de `numeric`; a resposta HTTP sempre fecha em centavos. */
+/** O driver do Postgres come as casas zeradas de `numeric`; a resposta HTTP sempre fecha na escala. */
+export function formatDecimalAtScale(value: string, scale: bigint): string {
+  return formatScaledDecimal(rescaleToScale(value, scale), scale)
+}
+
 export function formatFiscalMoney(value: string): string {
+  return formatDecimalAtScale(value, FISCAL_MONEY_SCALE)
+}
+
+/** Único lugar onde a medida perde a fração: o layout do MDF-e só aceita inteiro em tara e capacidade. */
+export function roundDecimalToInteger(value: string): bigint {
+  return rescaleToScale(value, 0n)
+}
+
+function rescaleToScale(value: string, scale: bigint): bigint {
   const [integerPart = '0', fractionalPart = ''] = value.split('.', 2)
-  return formatScaledDecimal(
-    rescaleHalfUp({
-      fromScale: BigInt(fractionalPart.length),
-      toScale: FISCAL_MONEY_SCALE,
-      value: BigInt(`${integerPart}${fractionalPart}`),
-    }),
-    FISCAL_MONEY_SCALE,
-  )
+  return rescaleHalfUp({
+    fromScale: BigInt(fractionalPart.length),
+    toScale: scale,
+    value: BigInt(`${integerPart}${fractionalPart}`),
+  })
 }
 
 export function divideHalfUp(dividend: bigint, divisor: bigint): bigint {

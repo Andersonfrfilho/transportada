@@ -9,10 +9,14 @@ import type {
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
+import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.service'
 
 type UseVehicleFormInput = Readonly<{
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  onSaved: () => void
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
+  /** A frota carregada é a fonte da ficha técnica que a marca repete — o catálogo FIPE não a tem. */
+  vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
 }>
 
@@ -35,11 +39,16 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const { onCreate, onUpdate, vehicle } = input
+  const { onCreate, onSaved, onUpdate, vehicle, vehicles } = input
 
   function patch(values: Partial<FleetVehicleFormState>): void {
     setFeedbackKey(null)
-    setState((previous) => ({ ...previous, ...values }))
+    setState((previous) => {
+      const next = { ...previous, ...values }
+      if (values.brand === undefined && values.model === undefined) return next
+      // Os padrões entram por baixo do que já foi digitado: eles só alcançam campo ainda em branco
+      return { ...next, ...resolveVehicleBrandDefaults({ state: next, vehicles }) }
+    })
   }
 
   async function submit(): Promise<void> {
@@ -54,7 +63,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
             status: vehicle.status,
             vehicleId: vehicle.id,
           }))
-      setFeedbackKey('saved')
+      onSaved()
     } catch (error) {
       setFeedbackKey(resolveFeedbackKey(error, 'saveError'))
     } finally {

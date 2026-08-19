@@ -12,16 +12,18 @@ import { DriverPanel } from '../components/DriverPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
+import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
 import { useVehicleCatalog, type VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleColumns } from '../hooks/useVehicleColumns.hook'
+import { useVehicleTable } from '../hooks/useVehicleTable.hook'
 import type {
   FleetDriverDetail,
   FleetDriverFilters,
   FleetVehicleDetail,
-  FleetVehicleFilters,
+  FleetVehicleStatus,
 } from '../shared/fleet.types'
 import {
   toDriverBody,
@@ -61,12 +63,14 @@ function FleetEditorPanel({
   editor,
   onClose,
   vehicleCatalog,
+  vehicles,
   workspace,
 }: Readonly<{
   driverVehicles: DriverVehiclesController
   editor: FleetEditor
   onClose: () => void
   vehicleCatalog: VehicleCatalogController
+  vehicles: readonly FleetVehicleDetail[]
   workspace: FleetWorkspace
 }>) {
   if (editor === null || !workspace.viewModel.canManageFleet) return null
@@ -80,6 +84,7 @@ function FleetEditorPanel({
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
+        vehicles={vehicles}
       />
     )
   }
@@ -101,7 +106,6 @@ export function FleetWorkspacePage() {
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
-  const [vehicleFilters, setVehicleFilters] = useState<FleetVehicleFilters>({})
   const [driverFilters, setDriverFilters] = useState<FleetDriverFilters>({})
   const [editor, setEditor] = useState<FleetEditor>(null)
   const [activeTab, setActiveTab] = useState<FleetTabId>('vehicles')
@@ -115,13 +119,14 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     driverFilters,
     permissions,
-    vehicleFilters,
   })
   const vehicleCatalog = useVehicleCatalog({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
   })
   const vehicleColumns = useVehicleColumns()
+  const vehicles = workspace.viewModel.vehicles ?? []
+  const vehicleTable = useVehicleTable(vehicles)
   const driverVehicles = useDriverVehicles({
     ...(companyId === undefined ? {} : { companyId }),
     ...(editor?.kind === 'driver' && editor.driver !== undefined
@@ -136,13 +141,18 @@ export function FleetWorkspacePage() {
       ? 'error'
       : workspace.viewModel.status
 
-  function toggleVehicleStatus(vehicle: FleetVehicleDetail): void {
+  function setVehicleStatus(vehicle: FleetVehicleDetail, status: FleetVehicleStatus): void {
     workspace.updateVehicleMutation.mutate({
       ...toVehicleBody(toVehicleFormState(vehicle)),
       expectedVersion: vehicle.version,
-      status: flipStatus(vehicle.status),
+      status,
       vehicleId: vehicle.id,
     })
+  }
+
+  function changeVehicleStatus(input: VehicleStatusChange): void {
+    for (const vehicle of input.vehicles) setVehicleStatus(vehicle, input.status)
+    vehicleTable.clearSelection()
   }
 
   function toggleDriverStatus(driver: FleetDriverDetail): void {
@@ -185,19 +195,16 @@ export function FleetWorkspacePage() {
       panel: (
         <VehiclePanel
           actions={{
+            onChangeStatus: changeVehicleStatus,
             onEdit: (vehicle) => setEditor({ kind: 'vehicle', vehicle }),
             onNew: () => setEditor({ kind: 'vehicle' }),
-            onToggleStatus: toggleVehicleStatus,
+            onToggleStatus: (vehicle) => setVehicleStatus(vehicle, flipStatus(vehicle.status)),
           }}
           canManageFleet={canManageFleet}
           columns={vehicleColumns}
-          filters={{ onChange: setVehicleFilters, value: vehicleFilters }}
-          view={{
-            status,
-            ...(workspace.viewModel.vehicles === undefined
-              ? {}
-              : { vehicles: workspace.viewModel.vehicles }),
-          }}
+          isUpdatingStatus={workspace.updateVehicleMutation.isPending}
+          table={vehicleTable}
+          view={{ status }}
         />
       ),
     },
@@ -238,6 +245,7 @@ export function FleetWorkspacePage() {
           driverVehicles={driverVehicles}
           editor={editor}
           vehicleCatalog={vehicleCatalog}
+          vehicles={vehicles}
           workspace={workspace}
           onClose={() => setEditor(null)}
         />

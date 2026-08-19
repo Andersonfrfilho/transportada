@@ -23,6 +23,7 @@ const AXLE_COUNT_MIN = 2
 const CONSUMPTION_DECIMAL = /^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{2})$/
 const COST_PER_KILOMETER_DECIMAL = /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{4})$/
 const CPF = /^[0-9]{11}$/
+const MEASURE_DECIMAL = /^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{2})$/
 const MODEL_YEAR_MAX = 2100
 const MODEL_YEAR_MIN = 1900
 const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
@@ -35,7 +36,6 @@ const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RENAVAM = /^[0-9]{9,11}$/
 const STATE = /^[A-Z]{2}$/
 const TRACTION_ROLE = 'traction'
-const UNSIGNED_BIGINT = /^(?:0|[1-9][0-9]{0,18})$/
 const VEHICLE_BRAND_MAX_LENGTH = 60
 const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
 const VEHICLE_MODEL_MAX_LENGTH = 120
@@ -72,8 +72,8 @@ const vehicleFieldsSchema = z.object({
   axleCount: optionalRangedInteger(AXLE_COUNT_MIN, AXLE_COUNT_MAX),
   bodyType: z.enum(MDFE_BODY_TYPES),
   brand: z.string().trim().max(VEHICLE_BRAND_MAX_LENGTH),
-  capacityCubicMeters: z.string().regex(UNSIGNED_BIGINT),
-  capacityKilograms: z.string().regex(UNSIGNED_BIGINT),
+  capacityCubicMeters: z.string().regex(MEASURE_DECIMAL),
+  capacityKilograms: z.string().regex(MEASURE_DECIMAL),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
@@ -87,7 +87,7 @@ const vehicleFieldsSchema = z.object({
   renavam: optionalDigits(RENAVAM),
   role: z.enum(FLEET_VEHICLE_ROLES),
   state: z.string().regex(STATE),
-  tareWeightKilograms: z.string().regex(UNSIGNED_BIGINT),
+  tareWeightKilograms: z.string().regex(MEASURE_DECIMAL),
   wheelType: z.literal('').or(z.enum(MDFE_WHEEL_TYPES)),
 })
 

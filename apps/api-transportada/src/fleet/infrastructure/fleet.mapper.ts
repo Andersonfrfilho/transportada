@@ -7,6 +7,7 @@ import type {
   MdfeOwnerTaxRegime,
 } from '../../database/fleet.schema.js'
 import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
+import { MEASURE_SCALE, formatDecimalAtScale } from '../../shared/decimal.service.js'
 import type { FuelProduct } from '../../shared/fuel.constant.js'
 import type {
   FleetDriver,
@@ -43,8 +44,8 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     axleCount: record.axleCount,
     bodyType: record.bodyType,
     brand: record.brand,
-    capacityCubicMeters: record.capacityM3.toString(),
-    capacityKilograms: record.capacityKg.toString(),
+    capacityCubicMeters: formatDecimalAtScale(record.capacityM3, MEASURE_SCALE),
+    capacityKilograms: formatDecimalAtScale(record.capacityKg, MEASURE_SCALE),
     color: record.color,
     costPerKilometer: derived?.total ?? null,
     costPerKilometerBreakdown: derived?.breakdown ?? null,
@@ -79,7 +80,7 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     role: record.role,
     state: record.state,
     status: record.status,
-    tareWeightKilograms: record.tareWeightKg.toString(),
+    tareWeightKilograms: formatDecimalAtScale(record.tareWeightKg, MEASURE_SCALE),
     updatedAt: record.updatedAt.toISOString(),
     version: record.version.toString(),
     wheelType: record.wheelType,
@@ -108,8 +109,8 @@ export function toVehicleColumns(
     axleCount: vehicle.axleCount,
     bodyType: vehicle.bodyType,
     brand: vehicle.brand,
-    capacityKg: BigInt(vehicle.capacityKilograms),
-    capacityM3: BigInt(vehicle.capacityCubicMeters),
+    capacityKg: vehicle.capacityKilograms,
+    capacityM3: vehicle.capacityCubicMeters,
     color: vehicle.color,
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
@@ -127,7 +128,7 @@ export function toVehicleColumns(
     renavam: vehicle.renavam,
     role: vehicle.role,
     state: vehicle.state,
-    tareWeightKg: BigInt(vehicle.tareWeightKilograms),
+    tareWeightKg: vehicle.tareWeightKilograms,
     wheelType: vehicle.wheelType,
   }
 }

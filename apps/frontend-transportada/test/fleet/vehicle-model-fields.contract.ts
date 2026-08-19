@@ -50,19 +50,22 @@ describe('fleet vehicle model fields contract', () => {
   })
 
   test('keeps the catalog name in the form and resolves the code only for the next query', async () => {
-    const { resolveVehicleCatalogCode, toVehicleCatalogOptions } =
-      await loadFutureModule<FleetFormModule>('../../src/modules/fleet/shared/fleetForm.service')
+    const { resolveVehicleCatalogCode } = await loadFutureModule<FleetFormModule>(
+      '../../src/modules/fleet/shared/fleetForm.service',
+    )
+    const { buildVehicleCatalogChoices } = await loadFutureModule<CatalogChoicesModule>(
+      '../../src/modules/fleet/shared/vehicleCatalogChoices.service',
+    )
     const brands = [
       { code: '102', name: 'Scania' },
       { code: '103', name: 'Volvo' },
     ]
 
     // O cadastro e o MDF-e leem a marca como texto: gravar '103' entrega o código FIPE ao fiscal
-    expect(toVehicleCatalogOptions(brands)).toEqual([
+    expect(buildVehicleCatalogChoices({ catalog: brands, registered: [], selected: '' })).toEqual([
       { label: 'Scania', value: 'Scania' },
       { label: 'Volvo', value: 'Volvo' },
     ])
-    expect(toVehicleCatalogOptions(undefined)).toEqual([])
 
     // O endpoint de modelos espera o código, e ele sai do nome escolhido
     expect(resolveVehicleCatalogCode({ items: brands, name: 'Volvo' })).toBe('103')
@@ -76,9 +79,10 @@ describe('fleet vehicle model fields contract', () => {
     )
 
     expect(modelFields).toContain('resolveVehicleCatalogCode')
-    expect(modelFields).toContain('toVehicleCatalogOptions')
+    expect(modelFields).toContain('buildVehicleCatalogChoices')
     // `brand: state.brand` mandava o nome a um parâmetro de código: a lista de modelos voltava vazia
-    expect(modelFields).not.toContain('brand: state.brand')
+    expect(modelFields).toContain('catalog.listModels({ brand: brandCode')
+    expect(modelFields).not.toMatch(/listModels\([^)]*brand: state\.brand/)
   })
 
   test('decides free text versus catalog by capability and role', async () => {
@@ -127,15 +131,16 @@ describe('fleet vehicle model fields contract', () => {
   })
 
   test('says why the list is empty instead of leaving the select silent', async () => {
-    const modelFields = await readApplicationFile(
-      'src/modules/fleet/components/VehicleModelFields.component.tsx',
-    )
+    const [modelFields, catalogField] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/VehicleModelFields.component.tsx'),
+      readApplicationFile('src/modules/fleet/components/VehicleCatalogField.component.tsx'),
+    ])
 
     expect(modelFields).toContain('resolveVehicleCatalogFieldMode')
     expect(modelFields).toContain("t('brandCatalogWheelTypeHint')")
     expect(modelFields).toContain("t('brandCatalogUnavailableHint')")
     // Carregamento tem forma: select vazio durante a busca é indistinguível de catálogo sem marcas
-    expect(modelFields).toContain('Skeleton')
+    expect(catalogField).toContain('Skeleton')
     // Provedor fora do ar chega como resposta 200 com source 'unavailable', não como rejeição
     expect(modelFields).toContain('hasVehicleCatalogFailure')
     expect(modelFields).toContain('isError')
@@ -148,16 +153,18 @@ describe('fleet vehicle model fields contract', () => {
     )
 
     expect(modelFields).toContain('VEHICLE_CATALOG_FIELD_MODE.TEXT')
-    expect(modelFields).toContain('FleetField')
     expect(modelFields).toContain("label={t('brand')}")
     expect(modelFields).toContain("label={t('model')}")
+    // Sem catálogo o campo não fica mudo: a frota cadastrada segue listada, com escape para digitar
+    expect(modelFields).toContain('readRegisteredVehicleBrands')
   })
 
   /**
-   * A cor do CRLV é lista fechada do Denatran. Em texto livre a mesma frota grava "branca",
-   * "BRANCO" e "prata metálico", e nenhum filtro ou relatório volta a juntá-las.
+   * Cor é lista fechada. Em texto livre a mesma frota grava "branca", "BRANCO" e "prata metálico",
+   * e nenhum filtro ou relatório volta a juntá-las. A lista é a tabela do Denatran mais os tons de
+   * mercado que ela não nomeia — cor não vai em documento fiscal, então alargar não custa nada.
    */
-  test('closes the color in the Denatran list instead of leaving it free text', async () => {
+  test('closes the color in a fixed list instead of leaving it free text', async () => {
     const { VEHICLE_COLOR } = await loadFutureModule<FleetTypesModule>(
       '../../src/modules/fleet/shared/fleet.types',
     )
@@ -171,11 +178,15 @@ describe('fleet vehicle model fields contract', () => {
     expect(VEHICLE_COLOR).toEqual([
       'amarela',
       'azul',
+      'azul_marinho',
       'bege',
       'branca',
+      'champanhe',
       'cinza',
+      'creme',
       'dourada',
       'fantasia',
+      'grafite',
       'grena',
       'laranja',
       'marrom',
@@ -183,6 +194,7 @@ describe('fleet vehicle model fields contract', () => {
       'preta',
       'rosa',
       'roxa',
+      'turquesa',
       'verde',
       'vermelha',
     ])
@@ -204,7 +216,7 @@ describe('fleet vehicle model fields contract', () => {
   })
 
   /**
-   * Dezesseis nomes de cor se leem devagar; o quadrado resolve de olho. A cor pintada é a do
+   * Vinte e um nomes de cor se leem devagar; o quadrado resolve de olho. A cor pintada é a do
    * veículo, não a do tema — por isso vive em token próprio, como as cores da placa Mercosul.
    */
   test('paints each color option with its own swatch token', async () => {
@@ -264,6 +276,16 @@ describe('fleet vehicle model fields contract', () => {
 
 type FleetVehicleFormStateContract = Record<string, unknown>
 
+type CatalogChoicesModule = {
+  readonly buildVehicleCatalogChoices: (
+    input: Readonly<{
+      catalog: readonly Readonly<{ code: string; name: string }>[] | undefined
+      registered: readonly string[]
+      selected: string
+    }>,
+  ) => readonly Readonly<{ label: string; value: string }>[]
+}
+
 type FleetTypesModule = {
   readonly VEHICLE_COLOR: readonly string[]
 }
@@ -298,9 +320,6 @@ type FleetFormModule = {
       wheelType: string
     }>,
   ) => string
-  readonly toVehicleCatalogOptions: (
-    items: readonly Readonly<{ code: string; name: string }>[] | undefined,
-  ) => readonly Readonly<{ label: string; value: string }>[]
   readonly toVehicleFormState: (
     vehicle: Record<string, unknown>,
   ) => Readonly<{ color: string }> & Record<string, unknown>

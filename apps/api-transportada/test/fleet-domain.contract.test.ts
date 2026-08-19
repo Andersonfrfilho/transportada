@@ -3,3 +3,4 @@
  */
 import './fleet-domain/vehicle-catalog-segment.contract.js'
 import './fleet-domain/vehicle-cost.contract.js'
+import './fleet-domain/vehicle-measure.contract.js'

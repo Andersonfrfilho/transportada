@@ -25,14 +25,24 @@ type VehicleFormProps = Readonly<{
   onCancel: () => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
+  vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
 }>
 
-export function VehicleForm({ catalog, onCancel, onCreate, onUpdate, vehicle }: VehicleFormProps) {
+export function VehicleForm({
+  catalog,
+  onCancel,
+  onCreate,
+  onUpdate,
+  vehicle,
+  vehicles,
+}: VehicleFormProps) {
   const { t } = useTranslation('fleet')
   const form = useVehicleForm({
     onCreate,
+    onSaved: onCancel,
     onUpdate,
+    vehicles,
     ...(vehicle === undefined ? {} : { vehicle }),
   })
 
@@ -45,7 +55,12 @@ export function VehicleForm({ catalog, onCancel, onCreate, onUpdate, vehicle }: 
     <form className={styles.panel} onSubmit={handleSubmit}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
       <VehicleIdentityFields state={form.state} onChange={form.patch} />
-      <VehicleModelFields catalog={catalog} state={form.state} onChange={form.patch} />
+      <VehicleModelFields
+        catalog={catalog}
+        state={form.state}
+        vehicles={vehicles}
+        onChange={form.patch}
+      />
       <VehicleOperationFields state={form.state} onChange={form.patch} />
       <VehicleOwnerFields state={form.state} onChange={form.patch} />
       <VehicleCostFields
