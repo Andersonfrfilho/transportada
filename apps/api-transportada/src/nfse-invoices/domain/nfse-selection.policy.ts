@@ -45,7 +45,9 @@ export type NfseSelectionProfile = NfseProjectionProfile & {
 
 export type NfseSelectionBlock = {
   readonly documentId: string
+  readonly number: string | null
   readonly reason: NfseSelectionBlockReason
+  readonly series: string | null
 }
 
 export type NfseSelection = {
@@ -80,32 +82,58 @@ export function selectNfseCandidates({
 
   for (const documentId of documentIds) {
     if (seen.has(documentId)) {
-      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.duplicated })
+      const duplicate = documentsById.get(documentId)
+      blocked.push({
+        documentId,
+        number: duplicate?.number ?? null,
+        reason: NFSE_SELECTION_BLOCK_REASON.duplicated,
+        series: duplicate?.series ?? null,
+      })
       continue
     }
     seen.add(documentId)
 
     const document = documentsById.get(documentId)
     if (document === undefined) {
-      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.notFound })
+      blocked.push({
+        documentId,
+        number: null,
+        reason: NFSE_SELECTION_BLOCK_REASON.notFound,
+        series: null,
+      })
       continue
     }
 
     const eligibility = checkDocumentEligibility(document)
     if (eligibility.reason !== undefined) {
-      blocked.push({ documentId, reason: eligibility.reason })
+      blocked.push({
+        documentId,
+        number: document.number,
+        reason: eligibility.reason,
+        series: document.series,
+      })
       continue
     }
 
     const linkReason = resolveLinkBlockReason({ cteBatchLinks, documentId, nfseLinks })
     if (linkReason !== undefined) {
-      blocked.push({ documentId, reason: linkReason })
+      blocked.push({
+        documentId,
+        number: document.number,
+        reason: linkReason,
+        series: document.series,
+      })
       continue
     }
 
     const taker = resolveTaker({ document, taker: profile.taker })
     if (taker === null) {
-      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName })
+      blocked.push({
+        documentId,
+        number: document.number,
+        reason: NFSE_SELECTION_BLOCK_REASON.missingTakerName,
+        series: document.series,
+      })
       continue
     }
 
@@ -113,7 +141,12 @@ export function selectNfseCandidates({
       profile.taker === '0' ? document.senderAddress : document.recipientAddress,
     )
     if (takerAddress === null) {
-      blocked.push({ documentId, reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress })
+      blocked.push({
+        documentId,
+        number: document.number,
+        reason: NFSE_SELECTION_BLOCK_REASON.missingTakerAddress,
+        series: document.series,
+      })
       continue
     }
 

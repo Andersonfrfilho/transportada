@@ -203,8 +203,11 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
             <ul className={styles.emissionBlocks}>
               {dialog.blockGroups.map((group) => (
                 <li key={group.reason}>
-                  {t(`emission.blockReason.${group.reason}`, { defaultValue: group.reason })} —{' '}
-                  {t('emission.blockedCount', { count: group.documentIds.length })}
+                  {t(`emission.blockReason.${group.reason}`, { defaultValue: group.reason })}
+                  {' — '}
+                  {group.labels.join(', ')}
+                  {group.remainingCount > 0 &&
+                    ` ${t('emission.blockedMore', { count: group.remainingCount })}`}
                 </li>
               ))}
             </ul>
