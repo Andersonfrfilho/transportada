@@ -1,6 +1,7 @@
 {
   "title": "Notificações",
   "subtitle": "Avisos do sistema para você, e a escolha de por onde recebê-los.",
+  "settingsLink": "Preferências",
   "bellLabel": "Abrir notificações",
   "empty": "Nada por aqui ainda. Os avisos aparecem assim que o sistema tiver algo a contar.",
   "settings": {
