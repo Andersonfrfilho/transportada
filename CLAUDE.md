@@ -403,6 +403,16 @@ antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa 
 trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
 contrato em `test/design-system/skeleton.contract.ts`.
 
+Toda mutação que mexe num **vínculo** dispara um efeito de
+`shared/mutationInvalidation.service.ts` (`invalidateMutationEffect`), nunca uma lista de chaves
+montada à mão — e nenhum hook importa a chave de consulta de outro módulo para invalidá-la. O
+alcance mora num lugar só porque era rederivado em dez hooks: todo caminho que _cria_ o vínculo
+invalidava os dois lados, e todo caminho que o _solta_ nasceu invalidando só o seu — descartar a
+NFS-e devolvia a nota no banco e a tabela seguia com o `cteBlockReason` da consulta anterior, nota
+impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocumentLink` e
+`billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
+em `test/shared/mutation-invalidation.contract.ts`.
+
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`
 varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e falha se achar palavra
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).

@@ -476,10 +476,12 @@ describe('CT-e emission dialog projection freshness contract', () => {
       'src/modules/nfe-workspace/hooks/useNfeWorkspace.hook.ts',
     )
 
-    expect(hook).toContain('NFE_DOCUMENTS_QUERY_KEY')
-    expect(hook).toContain('invalidateQueries({ queryKey: [NFE_DOCUMENTS_QUERY_KEY] })')
+    // O alcance é do registro de efeitos, não do hook: quem mexe no vínculo dispara o efeito dele.
+    expect(hook).toContain('MUTATION_EFFECT.nfeDocumentLink')
+    expect(hook).toContain('invalidateMutationEffect')
     // Uma chave, uma declaração: cada cópia do literal é uma invalidação que erra o alvo.
     expect(hook).not.toContain("'nfe-documents'")
+    expect(hook).not.toContain('NFE_DOCUMENTS_QUERY_KEY')
     expect(workspaceHook).not.toContain("= 'nfe-documents'")
     expect(workspaceHook).toContain('NFE_DOCUMENTS_QUERY_KEY')
   })
