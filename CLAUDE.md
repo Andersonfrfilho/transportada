@@ -224,12 +224,14 @@ datado em `docs/SECURITY.md`).
 exige `motivo` como **código**: o catálogo oferece `2` (serviço não prestado) e `4` (nota duplicada)
 — o `1` (erro na emissão) fica de fora porque o provedor o recusa pedindo substituição —, e o texto
 do operador vira `cancellationReason`, que fica na nota e não atravessa a fronteira. Já `/xml` e
-`/pdf` podem devolver o documento **em base64** (changelog da v2), e como a Nota RP não tem
-homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDocumentBytes`
-(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron) confere a **assinatura** —
-`<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes — e só decodifica
-base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
-causa que adia: sem o XML a nota não liquida.
+`/pdf` devolvem o documento **dentro de um envelope JSON** — medido em produção em 19/08/2026
+(nota `5254907`): `application/json` com `{success:true, base64_file}`, e o corpo cru nunca aparece.
+`readDocument` abre o envelope e entrega o `base64_file` a `resolveNfseDocumentBytes`
+(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron), que confere a
+**assinatura** — `<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes —
+e decodifica base64 quando ela não bate. Recusar o envelope inteiro, como antes, adiava para sempre
+a nota **já autorizada**: o status liquidava e o download não. Corpo que não é o documento nem
+base64 dele vira `malformed_response`, a causa que adia: sem o XML a nota não liquida.
 
 **A consulta devolve `results[]`, e a alíquota viaja em percentual.** Duas coisas medidas em
 produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Aguardando autorização":
@@ -244,8 +246,13 @@ produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Agua
   (`normalizeKeys`) porque o corpo mistura `id_nota` com `Status` e `Nfse`. A recusa carrega **todos**
   os motivos, não só o primeiro — a 5253521 voltou com `E215` e `E227` juntos, e guardar um por vez
   custaria uma rodada de emissão fiscal por erro escondido; com mais de um, cada motivo leva o
-  código dele na mensagem. ⚠️ **A autorização segue por medir** — nenhuma nota chegou lá ainda; o
-  formato dela é o mesmo, com os campos preenchidos.
+  código dele na mensagem. **A autorização foi medida em 19/08/2026** (nota `5254907`, NFS-e nº 65):
+  ela chega como `Status: "Sucesso"` — não "Autorizada" — e **sem `CodigoVerificacao`**; o código de
+  verificação sai como último segmento de `Link`
+  (`https://notarp.com.br/nota/{id}/{numero}/{codigo}`), a URL pública que a prefeitura publica.
+  Sem os dois ajustes a nota autorizada caía em `malformed_response` de meia em meia hora, com a
+  emissão já paga do outro lado. Autorização sem número, data **ou** código de verificação (nem no
+  campo, nem no `Link`) continua sendo `malformed_response`: não há o que arquivar.
 - `Aliquota` é **percentual** no fio (`2`), fração no domínio (`0.020000`, que é o que multiplica o
   valor do serviço). Mandar a fração fez a prefeitura recusar com `E227 — Alíquota Serviços fora do
 intervalo de 2% e 5%`. A conversão é `toIssRatePercentage` no `nfse-fiscal-gateway.ts`, textual e

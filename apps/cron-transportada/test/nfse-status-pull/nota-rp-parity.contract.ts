@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   API_TOKEN,
+  authorizedByLinkData,
   authorizedData,
   binaryResponse,
   cancelledData,
@@ -60,6 +61,37 @@ describe('Nota RP v2 status client parity', () => {
       },
       status: 'authorized',
     })
+  })
+
+  test('reads the measured "Sucesso" body as authorized, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => successBody(authorizedByLinkData())).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({
+      document: {
+        authorizedAt: '2026-08-19',
+        fiscalNumber: '65',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+        verificationCode: 'C7217CD1F',
+      },
+      status: 'authorized',
+    })
+  })
+
+  test('refuses the measured authorization when neither the field nor the link carries the verification code, matching the worker client table', async () => {
+    const withoutLink = Object.fromEntries(
+      Object.entries(authorizedByLinkData()).filter(([field]) => field !== 'Link'),
+    )
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => successBody(withoutLink)).fetch,
+    })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
   })
 
   test('refuses an authorization without number or verification code, matching the worker client table', async () => {
@@ -307,6 +339,43 @@ describe('Nota RP v2 document download parity', () => {
           contentType: 'application/xml',
         }),
       ).fetch,
+    })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
+  /**
+   * Medido em produção em 19/08/2026 (nota 5254907, já autorizada): `/xml` e `/pdf` respondem
+   * `application/json` com `{success:true, base64_file}` — o documento cru nunca chega. Sem abrir
+   * o envelope, a nota autorizada era adiada de cinco em cinco minutos com o XML do outro lado.
+   */
+  test.each([
+    ['xml', XML_BYTES, 'application/xml'],
+    ['pdf', PDF_BYTES, 'application/pdf'],
+  ] as const)(
+    'opens the measured %s envelope carrying base64_file, matching the worker client table',
+    async (kind, bytes, contentType) => {
+      const client = await createNotaRpStatusClientFixture({
+        fetch: recordingFetch(() =>
+          jsonResponse({ base64_file: Buffer.from(bytes).toString('base64'), success: true }),
+        ).fetch,
+      })
+
+      const outcome = await client.fetchDocument({ kind, providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+      expect(outcome).toEqual({ bytes, contentType, status: 'ok' })
+    },
+  )
+
+  /** Envelope de sucesso sem o documento dentro é falha: não há byte para arquivar. */
+  test('refuses a success envelope without base64_file, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => jsonResponse({ success: true })).fetch,
     })
 
     const outcome = await client.fetchDocument({

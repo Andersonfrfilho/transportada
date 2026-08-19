@@ -103,6 +103,21 @@ export function authorizedData(): Readonly<Record<string, unknown>> {
   }
 }
 
+/**
+ * Corpo medido em produção em 19/08/2026 (nota 5254907, a primeira autorizada de verdade): o
+ * `Status` é `"Sucesso"` e não existe `CodigoVerificacao` — o código sai no fim de `Link`.
+ */
+export function authorizedByLinkData(): Readonly<Record<string, unknown>> {
+  return {
+    DataEmissao: '2026-08-19',
+    Erro: [],
+    Link: 'https://notarp.com.br/nota/20935293/65/C7217CD1F',
+    Nfse: '65',
+    Status: 'Sucesso',
+    id_nota: PROVIDER_DOCUMENT_ID,
+  }
+}
+
 export function pendingData(): Readonly<Record<string, unknown>> {
   return { Erro: [], Nfse: '0', Status: 'Processando', id_nota: PROVIDER_DOCUMENT_ID }
 }
