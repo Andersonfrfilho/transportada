@@ -29,6 +29,7 @@ const STATUS_VOCABULARY = {
   rejected: ['falha', 'rejeitada', 'rejeitado', 'erro', 'negada'],
 } as const
 
+const DOCUMENT_FILE_FIELD = 'base64_file'
 const RESULTS_FIELD = 'results'
 /** `Nfse: "0"` é a nota que ainda não ganhou número — presença aqui não é autorização. */
 const ABSENT_FISCAL_NUMBER = '0'
@@ -349,12 +350,20 @@ async function readDocument(input: {
   readonly response: Response
   readonly token: string
 }): Promise<NotaRpDocumentOutcome> {
-  /** Envelope JSON onde se esperava documento é falha, nunca byte para arquivar. */
+  /**
+   * O documento chega **dentro de um envelope JSON**: medido em produção em 19/08/2026 (nota
+   * 5254907), `/xml` e `/pdf` respondem `application/json` com `{success:true, base64_file}`, e o
+   * corpo cru nunca aparece. Recusar o envelope inteiro adiava para sempre a nota já autorizada.
+   */
   if ((input.response.headers.get('content-type') ?? '').includes(JSON_MEDIA_TYPE)) {
     const envelope = await readEnvelope({ response: input.response, token: input.token })
-    return envelope.status === 'rejected'
-      ? envelope
-      : { cause: 'malformed_response', status: 'error' }
+    if (envelope.status === 'rejected') return envelope
+    if (envelope.status !== 'ok') return { cause: 'malformed_response', status: 'error' }
+    return readEnvelopedDocument({
+      contentType: input.contentType,
+      envelope: envelope.data,
+      kind: input.kind,
+    })
   }
 
   let buffer: ArrayBuffer
@@ -374,6 +383,24 @@ async function readDocument(input: {
     contentType: input.response.headers.get('content-type') ?? input.contentType,
     status: 'ok',
   }
+}
+
+/** O documento vem em base64 dentro de `base64_file`; a assinatura ainda decide se é documento. */
+function readEnvelopedDocument(input: {
+  readonly contentType: string
+  readonly envelope: Record<string, unknown>
+  readonly kind: NfseDocumentKind
+}): NotaRpDocumentOutcome {
+  const encoded = readText(normalizeKeys(input.envelope), DOCUMENT_FILE_FIELD)
+  if (encoded === undefined) return { cause: 'malformed_response', status: 'error' }
+
+  const bytes = resolveNfseDocumentBytes({
+    bytes: new TextEncoder().encode(encoded),
+    kind: input.kind,
+  })
+  if (bytes === undefined) return { cause: 'malformed_response', status: 'error' }
+
+  return { bytes, contentType: input.contentType, status: 'ok' }
 }
 
 function classifyTransportError(error: unknown): NotaRpCause {

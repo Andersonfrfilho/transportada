@@ -349,6 +349,43 @@ describe('Nota RP v2 document download parity', () => {
     expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
   })
 
+  /**
+   * Medido em produção em 19/08/2026 (nota 5254907, já autorizada): `/xml` e `/pdf` respondem
+   * `application/json` com `{success:true, base64_file}` — o documento cru nunca chega. Sem abrir
+   * o envelope, a nota autorizada era adiada de cinco em cinco minutos com o XML do outro lado.
+   */
+  test.each([
+    ['xml', XML_BYTES, 'application/xml'],
+    ['pdf', PDF_BYTES, 'application/pdf'],
+  ] as const)(
+    'opens the measured %s envelope carrying base64_file, matching the worker client table',
+    async (kind, bytes, contentType) => {
+      const client = await createNotaRpStatusClientFixture({
+        fetch: recordingFetch(() =>
+          jsonResponse({ base64_file: Buffer.from(bytes).toString('base64'), success: true }),
+        ).fetch,
+      })
+
+      const outcome = await client.fetchDocument({ kind, providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+      expect(outcome).toEqual({ bytes, contentType, status: 'ok' })
+    },
+  )
+
+  /** Envelope de sucesso sem o documento dentro é falha: não há byte para arquivar. */
+  test('refuses a success envelope without base64_file, matching the worker client table', async () => {
+    const client = await createNotaRpStatusClientFixture({
+      fetch: recordingFetch(() => jsonResponse({ success: true })).fetch,
+    })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
   test('refuses a zero-length document body', async () => {
     const client = await createNotaRpStatusClientFixture({
       fetch: recordingFetch(() =>

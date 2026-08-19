@@ -532,6 +532,58 @@ describe('Nota RP v2 client — download de XML e PDF', () => {
     expect(outcome.bytes).toBeUndefined()
   })
 
+  /*
+   * Medido em produção em 19/08/2026 (nota 5254907, já autorizada): `/xml` e `/pdf` respondem
+   * `application/json` com `{success:true, base64_file}` — o documento cru nunca chega. Sem abrir
+   * o envelope, a nota autorizada era adiada de cinco em cinco minutos com o XML do outro lado.
+   */
+  test('abre o envelope medido com base64_file e devolve o XML como documento', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ base64_file: Buffer.from(XML_BYTES).toString('base64'), success: true }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.contentType).toBe('application/xml')
+    expect(outcome.bytes).toEqual(XML_BYTES)
+  })
+
+  test('abre o envelope medido com base64_file e devolve o PDF como documento', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ base64_file: Buffer.from(PDF_BYTES).toString('base64'), success: true }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'pdf',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.contentType).toBe('application/pdf')
+    expect(outcome.bytes).toEqual(PDF_BYTES)
+  })
+
+  // Envelope de sucesso sem o documento dentro não tem byte para arquivar: adiar é o lado seguro.
+  test('recusa envelope de sucesso sem base64_file', async () => {
+    const { fetch } = recordingFetch(() => jsonResponse({ success: true }))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchDocument({
+      kind: 'xml',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome.status).toBe('error')
+    expect(outcome.cause).toBe('malformed_response')
+    expect(outcome.bytes).toBeUndefined()
+  })
+
   test('aceita o XML cru com espaço e BOM antes da abertura', async () => {
     const { fetch } = recordingFetch(() =>
       binaryResponse({

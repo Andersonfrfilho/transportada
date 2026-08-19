@@ -224,12 +224,14 @@ datado em `docs/SECURITY.md`).
 exige `motivo` como **código**: o catálogo oferece `2` (serviço não prestado) e `4` (nota duplicada)
 — o `1` (erro na emissão) fica de fora porque o provedor o recusa pedindo substituição —, e o texto
 do operador vira `cancellationReason`, que fica na nota e não atravessa a fronteira. Já `/xml` e
-`/pdf` podem devolver o documento **em base64** (changelog da v2), e como a Nota RP não tem
-homologação onde medir, `readDocument` não pergunta o formato: `resolveNfseDocumentBytes`
-(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron) confere a **assinatura** —
-`<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes — e só decodifica
-base64 quando ela não bate. Corpo que não é o documento nem base64 dele vira `malformed_response`, a
-causa que adia: sem o XML a nota não liquida.
+`/pdf` devolvem o documento **dentro de um envelope JSON** — medido em produção em 19/08/2026
+(nota `5254907`): `application/json` com `{success:true, base64_file}`, e o corpo cru nunca aparece.
+`readDocument` abre o envelope e entrega o `base64_file` a `resolveNfseDocumentBytes`
+(`nfse-document-payload.policy.ts`, cópia por valor no worker e no cron), que confere a
+**assinatura** — `<` abre XML, `%PDF` abre PDF, com espaço, quebra de linha e BOM tolerados antes —
+e decodifica base64 quando ela não bate. Recusar o envelope inteiro, como antes, adiava para sempre
+a nota **já autorizada**: o status liquidava e o download não. Corpo que não é o documento nem
+base64 dele vira `malformed_response`, a causa que adia: sem o XML a nota não liquida.
 
 **A consulta devolve `results[]`, e a alíquota viaja em percentual.** Duas coisas medidas em
 produção em 18–19/08/2026, contra a nota `5253521`, que ficou presa em "Aguardando autorização":
