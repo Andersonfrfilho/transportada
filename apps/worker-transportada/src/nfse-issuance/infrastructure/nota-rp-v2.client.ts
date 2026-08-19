@@ -51,6 +51,7 @@ const STATUS_VOCABULARY = {
   rejected: ['falha', 'rejeitada', 'rejeitado', 'erro', 'negada'],
 } as const
 
+const DOCUMENT_FILE_FIELD = 'base64_file'
 const RESULTS_FIELD = 'results'
 /** `Nfse: "0"` é a nota que ainda não ganhou número — presença aqui não é autorização. */
 const ABSENT_FISCAL_NUMBER = '0'
@@ -305,13 +306,20 @@ async function readDocument(input: {
   readonly response: Response
 }): Promise<NotaRpDocumentOutcome> {
   const contentType = input.response.headers.get('content-type')
+  /**
+   * O documento chega **dentro de um envelope JSON**: medido em produção em 19/08/2026 (nota
+   * 5254907), `/xml` e `/pdf` respondem `application/json` com `{success:true, base64_file}`, e o
+   * corpo cru nunca aparece. Recusar o envelope inteiro adiava para sempre a nota já autorizada.
+   */
   if ((contentType ?? '').toLowerCase().includes('json')) {
     const envelope = await readEnvelope(input)
     if (envelope.kind === 'rejected') return { rejection: envelope.rejection, status: 'rejected' }
-    return {
-      cause: envelope.kind === 'error' ? envelope.cause : 'malformed_response',
-      status: 'error',
-    }
+    if (envelope.kind === 'error') return { cause: envelope.cause, status: 'error' }
+    return readEnvelopedDocument({
+      contentType: input.fallbackContentType,
+      envelope: envelope.data,
+      kind: input.kind,
+    })
   }
 
   try {
@@ -325,6 +333,24 @@ async function readDocument(input: {
   } catch {
     return { cause: 'malformed_response', status: 'error' }
   }
+}
+
+/** O documento vem em base64 dentro de `base64_file`; a assinatura ainda decide se é documento. */
+function readEnvelopedDocument(input: {
+  readonly contentType: string
+  readonly envelope: Readonly<Record<string, unknown>>
+  readonly kind: NotaRpDocumentKind
+}): NotaRpDocumentOutcome {
+  const encoded = readText(normalizeKeys(input.envelope), DOCUMENT_FILE_FIELD)
+  if (encoded === undefined) return { cause: 'malformed_response', status: 'error' }
+
+  const bytes = resolveNfseDocumentBytes({
+    bytes: new TextEncoder().encode(encoded),
+    kind: input.kind,
+  })
+  if (bytes === undefined) return { cause: 'malformed_response', status: 'error' }
+
+  return { bytes, contentType: input.contentType, status: 'ok' }
 }
 
 function interpretNote(input: {
