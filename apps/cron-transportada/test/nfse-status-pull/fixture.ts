@@ -82,8 +82,9 @@ export const NOTA_RP_CAUSES = [
   'unexpected_status',
 ] as const
 
-export function successBody(data: Readonly<Record<string, unknown>>): Response {
-  return jsonResponse({ data, success: true })
+/** A consulta devolve a nota dentro de `results[]` — ver o cabeçalho deste arquivo. */
+export function successBody(note: Readonly<Record<string, unknown>>): Response {
+  return jsonResponse({ results: [note], success: true })
 }
 
 /** A recusa da v2 é `{success:false, message}` e nada mais — código só existe dentro do postback. */
@@ -93,32 +94,42 @@ export function failureBody(input: { message: string }): Response {
 
 export function authorizedData(): Readonly<Record<string, unknown>> {
   return {
-    codigo_verificacao: 'VER-0001',
-    data_emissao: '2026-08-12T13:45:00.000Z',
+    CodigoVerificacao: 'VER-0001',
+    DataEmissao: '2026-08-12T13:45:00.000Z',
+    Erro: [],
+    Nfse: '4321',
+    Status: 'Autorizada',
     id_nota: PROVIDER_DOCUMENT_ID,
-    numero_nota: '4321',
-    situacao: 'autorizada',
   }
 }
 
 export function pendingData(): Readonly<Record<string, unknown>> {
-  return { id_nota: PROVIDER_DOCUMENT_ID, situacao: 'processando' }
+  return { Erro: [], Nfse: '0', Status: 'Processando', id_nota: PROVIDER_DOCUMENT_ID }
 }
 
+/** Corpo medido em produção em 19/08/2026: a recusa da prefeitura vem em `Erro[]`. */
 export function rejectedData(): Readonly<Record<string, unknown>> {
   return {
-    codigo_erro: 'E320',
+    Erro: [
+      {
+        Codigo: 'E320',
+        Correcao: 'Consulte o Manual da NFS-e.',
+        Mensagem: 'Item da lista de servicos incompativel com o CNAE informado',
+      },
+    ],
+    Nfse: '0',
+    Status: 'Falha',
     id_nota: PROVIDER_DOCUMENT_ID,
-    mensagem_erro: 'Item da lista de servicos incompativel com o CNAE informado',
-    situacao: 'rejeitada',
   }
 }
 
 export function cancelledData(): Readonly<Record<string, unknown>> {
   return {
-    data_cancelamento: '2026-08-12T18:00:00.000Z',
+    DataCancelamento: '2026-08-12T18:00:00.000Z',
+    Erro: [],
+    Nfse: '4321',
+    Status: 'Cancelada',
     id_nota: PROVIDER_DOCUMENT_ID,
-    situacao: 'cancelada',
   }
 }
 
