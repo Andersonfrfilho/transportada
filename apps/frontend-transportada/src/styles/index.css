@@ -44,6 +44,9 @@
   --color-plate-flag-yellow: #ffdf00;
   --color-plate-ink: #16181c;
   --color-plate-surface: #eef0f2;
+  /* Padrão anterior a 2018: corpo cinza e faixa azul com a origem, sem bloco e sem bandeira */
+  --color-plate-legacy-band: #12379b;
+  --color-plate-legacy-surface: #c6cad0;
   --font-plate: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   /* 400 × 130 mm é a placa impressa — a miniatura mantém a proporção */
   --plate-width: 10rem;
