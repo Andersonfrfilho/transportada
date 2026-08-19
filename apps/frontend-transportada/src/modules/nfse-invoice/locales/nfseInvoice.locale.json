@@ -281,6 +281,7 @@
     "totalIss": "Total do ISS",
     "blocked": "Notas fora da emissão",
     "blockedCount": "{{count}} notas",
+    "blockedMore": "E mais {{count}}.",
     "blockReason": {
       "CTE_BATCH_DOCUMENT_ALREADY_LINKED": "Já está em outro lote de CT-e.",
       "CTE_BATCH_DOCUMENT_DUPLICATED": "Enviada duas vezes na seleção.",

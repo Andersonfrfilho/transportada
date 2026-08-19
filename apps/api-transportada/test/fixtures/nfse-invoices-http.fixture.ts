@@ -38,7 +38,14 @@ export const IDEMPOTENCY_KEY = 'nfse-invoice-contract-key-0001'
 export const EXPORT_FILE_NAME = 'nfse-documentos-20260813-093840.zip'
 
 export const PREVIEW: NfseInvoicePreview = {
-  blocked: [{ documentId: BLOCKED_DOCUMENT_ID, reason: 'NFSE_DOCUMENT_ALREADY_LINKED' }],
+  blocked: [
+    {
+      documentId: BLOCKED_DOCUMENT_ID,
+      number: '000000456',
+      reason: 'NFSE_DOCUMENT_ALREADY_LINKED',
+      series: '001',
+    },
+  ],
   invoices: [
     {
       adjustments: [{ amount: '150.0000', type: 'minimum_amount' }],

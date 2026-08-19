@@ -8,6 +8,10 @@ import {
   useCteIssuanceStatus,
 } from '@/modules/cte-issuance/hooks/useCteIssuanceStatus.hook'
 import { createCteDocumentDownloadController } from '@/modules/cte-issuance/shared/cteDocumentDownload.service'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import { createCteBatchDrafts } from '../shared/cteBatchDraft.service'
 import { CTE_BATCH_ITEM_STATUS, type CteBatchItem } from '../shared/cteBatchItem.types'
@@ -83,10 +87,12 @@ export function useCteBatchItems(input: UseCteBatchItemsInput) {
         return Promise.reject(new Error('CTE_BATCH_ITEM_UNAVAILABLE'))
       return batchController.removeItem({ batchId: input.batchId, itemId: item.id })
     },
+    // Tirar o item do lote solta a nota fiscal dele: ela volta a ser selecionável na listagem.
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [CTE_BATCH_ITEMS_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [CTE_BATCHES_QUERY_KEY] }),
+        invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
       ])
     },
   })

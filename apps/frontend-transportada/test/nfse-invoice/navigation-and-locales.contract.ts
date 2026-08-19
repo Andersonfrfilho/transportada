@@ -161,6 +161,19 @@ describe('nfse invoice locales contract', () => {
     }
   })
 
+  /** A razão traduzida é contrato, não `defaultValue` cortesia: toda razão de bloqueio tem verbete. */
+  test('covers every block reason the emission preview can return', async () => {
+    const [portuguese, english] = await Promise.all([
+      readLocale(PT_LOCALE_PATH),
+      readLocale(EN_LOCALE_PATH),
+    ])
+
+    for (const reason of API_ERROR_CODES.filter((code) => code.startsWith('NFSE_DOCUMENT_'))) {
+      expect(flattenKeys(portuguese)).toContain(`emission.blockReason.${reason}`)
+      expect(flattenKeys(english)).toContain(`emission.blockReason.${reason}`)
+    }
+  })
+
   /** O tomador é dado de cliente: nome e CNPJ entram por variável, nunca como exemplo no texto. */
   test('keeps taker data out of the published strings', async () => {
     const portuguese = JSON.stringify(await readLocale(PT_LOCALE_PATH))

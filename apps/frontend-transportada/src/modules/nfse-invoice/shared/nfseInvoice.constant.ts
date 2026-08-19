@@ -187,7 +187,7 @@ export const NFSE_INVOICE_DOCUMENT_KEYS = [
 ] as const
 
 export const NFSE_PREVIEW_KEYS = ['blocked', 'invoices'] as const
-export const NFSE_PREVIEW_BLOCK_KEYS = ['documentId', 'reason'] as const
+export const NFSE_PREVIEW_BLOCK_KEYS = ['documentId', 'number', 'reason', 'series'] as const
 
 export const NFSE_PREVIEW_INVOICE_KEYS = [
   'adjustments',

@@ -18,6 +18,9 @@ export const NFSE_EMISSION_PREVIEW_QUERY_KEY = 'nfse-emission-preview'
 /** Dezenas de milhares de linhas no DOM travam a janela; o restante vira contagem no rodapé. */
 export const NFSE_EMISSION_MAX_VISIBLE_ROWS = 50
 
+/** Acima disto a lista nomeada vira "e mais N": indica problema de dado, não de mensagem. */
+export const NFSE_BLOCK_LABEL_LIMIT = 10
+
 /** Vocabulário do motor de descrição da API: o que não está aqui sai como `{{variavel}}` cru. */
 export const NFSE_DESCRIPTION_VARIABLES = [
   'municipio',
@@ -61,8 +64,9 @@ export type NfseEmissionRow = Readonly<{
 }>
 
 export type NfseEmissionBlockGroup = Readonly<{
-  documentIds: readonly string[]
+  labels: readonly string[]
   reason: string
+  remainingCount: number
 }>
 
 export type NfseEmissionSummary = Readonly<{
@@ -116,18 +120,27 @@ export function summarizeNfsePreview(preview: NfseInvoicePreview): NfseEmissionS
   }
 }
 
+/** Nota sem número (bloqueio `notFound`) precisa aparecer mesmo assim — o id vira o rótulo. */
+function toBlockLabel(block: NfsePreviewBlock): string {
+  return block.number === null ? block.documentId : `${block.number}/${block.series}`
+}
+
 export function groupNfseBlocksByReason(
   blocked: readonly NfsePreviewBlock[],
 ): readonly NfseEmissionBlockGroup[] {
-  const documentIdsByReason = new Map<string, string[]>()
+  const labelsByReason = new Map<string, string[]>()
 
   for (const block of blocked) {
-    const documentIds = documentIdsByReason.get(block.reason)
-    if (documentIds === undefined) documentIdsByReason.set(block.reason, [block.documentId])
-    else documentIds.push(block.documentId)
+    const labels = labelsByReason.get(block.reason)
+    if (labels === undefined) labelsByReason.set(block.reason, [toBlockLabel(block)])
+    else labels.push(toBlockLabel(block))
   }
 
-  return [...documentIdsByReason].map(([reason, documentIds]) => ({ documentIds, reason }))
+  return [...labelsByReason].map(([reason, labels]) => ({
+    labels: labels.slice(0, NFSE_BLOCK_LABEL_LIMIT),
+    reason,
+    remainingCount: Math.max(0, labels.length - NFSE_BLOCK_LABEL_LIMIT),
+  }))
 }
 
 /** Campo apagado é escolha do operador: só a ausência de edição devolve o modelo do perfil. */
@@ -285,6 +298,8 @@ export function canConfirmNfseEmission(
 ): boolean {
   if (!input.canIssue || input.profileId === null) return false
   if (input.summary === null || input.summary.rows.length === 0) return false
+  // Bloqueio na prévia é o que a seção nomeada mostra: o botão não pode prometer o que ela recusa.
+  if (input.summary.blockedCount > 0) return false
   return input.status === 'ready' || input.status === 'createError'
 }
 

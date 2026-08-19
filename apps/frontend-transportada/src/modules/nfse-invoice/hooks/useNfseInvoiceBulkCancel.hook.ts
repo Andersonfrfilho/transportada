@@ -3,6 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
+
+import {
   NFSE_INVOICES_QUERY_KEY,
   type NfseCancellationMotive,
 } from '../shared/nfseInvoice.constant'
@@ -77,9 +82,11 @@ export function useNfseInvoiceBulkCancel(input: UseNfseInvoiceBulkCancelInput) {
 
       return outcomes
     },
-    onSuccess: (outcomes) => {
+    // Cancelar solta a nota fiscal: sem o efeito, a tabela de notas segue com o bloqueio antigo.
+    onSuccess: async (outcomes) => {
       setSummary(summarizeNfseBulkCancellation(outcomes))
-      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+      await queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+      await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
     },
   })
 
