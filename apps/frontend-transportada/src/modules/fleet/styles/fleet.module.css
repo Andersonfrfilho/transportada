@@ -325,13 +325,20 @@
 
 .plateCharacters {
   display: flex;
-  gap: 0.04em;
+  gap: 0.2em;
   align-items: center;
   justify-content: center;
   color: var(--color-plate-ink);
   font-size: 1.4rem;
   font-weight: 700;
   line-height: 1;
+}
+
+/* Na placa impressa as tres primeiras posicoes ficam separadas do resto */
+.plateGroup {
+  display: flex;
+  gap: 0.04em;
+  align-items: center;
 }
 
 /* Os sete caracteres ocupam quase toda a largura, como na placa impressa */
@@ -347,6 +354,36 @@
   width: 78%;
   border-bottom: 2px solid color-mix(in srgb, var(--color-plate-ink) 22%, transparent);
   content: '';
+}
+
+/* Onde o Mercosul só afasta os blocos, o padrão antigo imprime o hífen entre eles */
+.plateSeparator {
+  width: 0.32em;
+  height: 0.1em;
+  background: var(--color-plate-ink);
+}
+
+/* Padrão anterior a 2018: corpo cinza, sem bloco econômico, sem bandeira e sem código do país */
+.plateLegacy {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-plate-legacy-surface) 75%, white 25%),
+    color-mix(in srgb, var(--color-plate-legacy-surface) 85%, var(--color-plate-ink) 15%)
+  );
+}
+
+.plateLegacyBand {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  background: var(--color-plate-legacy-band);
+}
+
+/* A faixa do padrão antigo carrega a origem do emplacamento, não o bloco econômico */
+.plateOrigin {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
 }
 
 .skeletonTable {
