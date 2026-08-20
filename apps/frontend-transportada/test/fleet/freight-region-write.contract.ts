@@ -45,15 +45,6 @@ function clientWith(
   })
 }
 
-/** Espera a chamada falhar e devolve a mensagem: chamada que resolve é falha do teste, não sucesso. */
-async function failureOf(call: Promise<unknown>): Promise<string> {
-  const outcome: unknown = await call.then(() => undefined).catch((cause: unknown) => cause)
-  if (!(outcome instanceof Error)) {
-    throw new Error('a chamada resolveu, e devia ter falhado')
-  }
-  return outcome.message
-}
-
 function respond(request: Request): Promise<Response> {
   if (request.url === `${REGIONS_PATH}/import`) {
     return Promise.resolve(Response.json({ data: { created: 29, deactivated: 1, updated: 2 } }))
