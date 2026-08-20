@@ -357,6 +357,13 @@ Todo campo (`input`, `textarea`, gatilho de select) tira altura, padding e corpo
 inventa altura própria. Detalhes em `docs/frontend/fields.md`, contrato em
 `test/design-system/field-metrics.contract.ts`.
 
+Todo campo de data usa `@/components/ui/date-picker` (uma data) ou `@/components/ui/date-range-picker`
+(período) — o campo de data nativo é **proibido** em `src/**/*.tsx` fora de `src/components/ui/` e o
+contrato `test/design-system/date-picker.contract.ts` falha se algum reaparecer. Módulo com invólucro
+próprio de campo publica o dele ao lado do de texto (`FleetDateField`, `ProfileDateField`) em vez de
+aceitar um `type` que escolhe entre texto e data — era por esse `type` que o nativo entrava. Regra na
+seção "Data é calendário" de `docs/frontend/fields.md`.
+
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.

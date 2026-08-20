@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readdir } from 'node:fs/promises'
 import { describe, expect, test } from 'bun:test'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
@@ -22,6 +23,11 @@ function readApplicationFile(filePath: string): Promise<string> {
 
 async function loadCalendarService(): Promise<CalendarServiceModule> {
   return await import('@/components/ui/calendar.service')
+}
+
+async function listSourceComponents(): Promise<readonly string[]> {
+  const entries = await readdir(new URL('src', APPLICATION_ROOT), { recursive: true })
+  return entries.filter((entry) => entry.endsWith('.tsx')).map((entry) => `src/${entry}`)
 }
 
 describe('design system date picker contract', () => {
@@ -69,6 +75,37 @@ describe('design system date picker contract', () => {
     const component = await readApplicationFile(DATE_PICKER_PATH)
 
     expect(component).toMatch(/onChange\(iso\)[\s\S]{0,80}setOpen\(false\)/)
+  })
+
+  /**
+   * O campo nativo muda de forma em cada navegador, não aceita os tokens do produto e ignora o
+   * feriado que o calendário nosso marca — é o mesmo motivo que tirou o `<select>` nativo daqui.
+   */
+  test('forbids the native date input everywhere outside the design system', async () => {
+    const components = await listSourceComponents()
+    const offenders = []
+
+    for (const filePath of components) {
+      if (filePath.startsWith('src/components/ui/')) continue
+      const source = await readApplicationFile(filePath)
+      if (/type=(["'])date\1/.test(source)) offenders.push(filePath)
+    }
+
+    expect(offenders).toEqual([])
+    expect(components.length).toBeGreaterThan(20)
+  })
+
+  test('documents the rule where the other field rules live', async () => {
+    const fields = await Bun.file(
+      new URL('../../../../docs/frontend/fields.md', import.meta.url),
+    ).text()
+    const claude = await Bun.file(new URL('../../../../CLAUDE.md', import.meta.url)).text()
+
+    expect(fields).toContain('components/ui/date-picker')
+    expect(fields).toContain('components/ui/date-range-picker')
+    expect(fields).toContain('FleetDateField')
+    expect(fields).toContain('ProfileDateField')
+    expect(claude).toContain('test/design-system/date-picker.contract.ts')
   })
 
   test('keeps the single date picker on the shared calendar skin and tokens', async () => {

@@ -96,3 +96,25 @@ Qualquer outro valor literal de `min-height` em seletor de `input`/`textarea` de
 6. o campo do modal de emissão de CT-e usa a métrica cheia, ao lado dos selects;
 7. as barras de filtro e a moldura de busca usam a métrica compacta;
 8. esta página existe e o `CLAUDE.md` aponta para ela.
+
+## Data é calendário, nunca campo nativo
+
+Todo campo de data usa `@/components/ui/date-picker` (uma data) ou
+`@/components/ui/date-range-picker` (período). O campo de data nativo do navegador é **proibido**
+em `src/**/*.tsx` fora de `src/components/ui/`, e
+`test/design-system/date-picker.contract.ts` falha se algum reaparecer.
+
+O motivo é o mesmo que tirou o `<select>` nativo daqui: o controle nativo é desenhado pelo sistema
+operacional, então muda de forma e de idioma entre navegadores, não aceita `--field-height` nem
+`--field-padding`, e não sabe marcar o feriado que `brazilianHoliday.service.ts` marca — no
+faturamento a data de vencimento cair em feriado é informação, não detalhe.
+
+Módulo que tem shell próprio de campo publica o seu invólucro ao lado do de texto, em vez de
+aceitar um `type` que escolhe entre texto e data — foi assim que o campo nativo entrou na frota e
+nos perfis de CT-e:
+
+- `fleet` → `FleetDateField` em `components/FleetField.component.tsx`
+- `cte-profiles` → `ProfileDateField` em `components/ProfileField.component.tsx`
+
+Os rótulos do calendário (limpar, mês anterior, próximo mês, `placeholder`) vivem no
+`*.locale.json` do módulo, sob a chave `dateField`.

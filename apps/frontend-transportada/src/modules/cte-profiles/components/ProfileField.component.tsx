@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
 
 import styles from '../styles/cteProfiles.module.css'
@@ -12,7 +13,13 @@ type ProfileFieldProps = Readonly<{
   label: string
   maxLength?: number
   onChange: (value: string) => void
-  type?: 'date' | 'text'
+  value: string
+}>
+
+type ProfileDateFieldProps = Readonly<{
+  isWide?: boolean
+  label: string
+  onChange: (value: string) => void
   value: string
 }>
 
@@ -36,7 +43,6 @@ export function ProfileField({
   label,
   maxLength = 120,
   onChange,
-  type = 'text',
   value,
 }: ProfileFieldProps) {
   return (
@@ -45,9 +51,36 @@ export function ProfileField({
       <input
         inputMode={inputMode}
         maxLength={maxLength}
-        type={type}
+        type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
+/**
+ * Data é calendário, não campo de data nativo: o nativo muda de forma em cada navegador e
+ * ignora os tokens do produto.
+ */
+export function ProfileDateField({
+  isWide = false,
+  label,
+  onChange,
+  value,
+}: ProfileDateFieldProps) {
+  const { t } = useTranslation('cteProfiles')
+  return (
+    <label className={isWide ? styles.wideField : undefined}>
+      <span>{label}</span>
+      <DatePicker
+        ariaLabel={label}
+        clearLabel={t('dateField.clear')}
+        nextMonthLabel={t('dateField.nextMonth')}
+        placeholder={t('dateField.placeholder')}
+        previousMonthLabel={t('dateField.previousMonth')}
+        value={value}
+        onChange={onChange}
       />
     </label>
   )
