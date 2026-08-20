@@ -4,7 +4,7 @@
 import { ApiError } from '../../shared/api.error.js'
 
 /** A forma impressa na coluna NUM ROTA: família, ponto, três dígitos. */
-const REGION_CODE_PATTERN = /^([0-9])\.(00[0-3])$/
+export const REGION_CODE_PATTERN = /^([0-9])\.(00[0-3])$/
 const WHITESPACE_PATTERN = /\s+/g
 
 /** Família `0` é a matriz — saída, não zona. Por isso ela não entra na contagem acumulativa. */

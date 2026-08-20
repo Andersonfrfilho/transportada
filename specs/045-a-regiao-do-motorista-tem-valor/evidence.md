@@ -123,3 +123,55 @@ Decisões que o contrato fixa:
   dariam duas verdades para a mesma pergunta.
 - `listExistingRegionIds` responde quais ids são desta empresa em vez de deixar o `23503` da FK
   virar 500: cobertura apontando para rota de outro tenant é 422 de fronteira, não defeito nosso.
+
+## T006 — Rotas de região
+
+Vermelho antes da implementação:
+
+```
+$ bun test ./test/freight-regions-http.contract.test.ts
+0 pass · 12 fail
+error: Cannot find module '../../src/freight-regions/presentation/freight-region.routes.js'
+```
+
+Depois de escrever schema, use case e rotas:
+
+```
+$ bun test ./test/freight-regions-http.contract.test.ts
+12 pass · 0 fail · 33 expect() calls
+
+$ bun run --cwd apps/api-transportada test
+2648 pass · 15 skip · 1 fail · 10867 expect() calls (110 arquivos)
+
+$ bun run typecheck   # verde
+$ bun run lint        # verde
+```
+
+⚠️ A única falha da suíte é `test/database-migration/static-migration.contract.ts:54` e **não é
+desta task**: a lista fixa de migrations não conhece `20260820002947_fleet_driver_address_and_dates`,
+migration ainda não versionada do trabalho em curso de endereço/datas do motorista. Nenhum arquivo
+de T006 aparece nesse contrato.
+
+Entrypoint `test/freight-regions-http.contract.test.ts` acrescentado ao `test` do `package.json` —
+sem isso ele não roda no gate.
+
+Decisões que o contrato fixa:
+
+- **`GET` é `fleet.read`, escrita é `settings.manage`.** A tabela de rotas é cadastro de
+  configuração, mas quem preenche a cobertura do motorista é o `operator`, que não tem
+  `settings.manage`: uma leitura sob a permissão de configuração entregaria um campo de região
+  permanentemente vazio para quem mais precisa dele. O contrato de autorização prova os dois lados
+  com um contexto que só tem `fleet.read`/`fleet.manage`.
+- **`PUT`, não `PATCH`.** Cidades e valores são substituídos inteiros pelo repositório; cidade
+  retirada da tabela do cliente tem de deixar de valer no mesmo passo, e o vocabulário de `PATCH`
+  descreveria outra coisa.
+- **A zona não entra no corpo.** `strict()` recusa `zone`, e o mapper a deriva do código impresso —
+  uma rota `1.002` cadastrada como zona 1 não contradiz constraint nenhuma e passaria a valer como
+  preço.
+- **Cidade repetida e classe repetida são 400, não 500.** As duas unicidades do banco
+  (`freight_region_cities_region_city_unique`,
+  `freight_region_driver_rates_region_class_unique`) ganharam `refine` na fronteira, com a mesma
+  dobra da escrita — `'  barretos '/'sp'` colide com `'Barretos'/'SP'` antes de chegar ao Postgres.
+- **UF é normalizada antes de ser validada** (`transform` e só então `refine`): a planilha do
+  cliente traz `sp` em caixa baixa, e recusá-la seria recusar pelo motivo errado.
+- Dinheiro entra com quatro casas obrigatórias (`812.4500`); `'1086.12'` é 400.

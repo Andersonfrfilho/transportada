@@ -46,9 +46,13 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T006** — Rotas de região.
-      `GET/POST/PUT/DELETE /freight-regions` sob `settings.manage`, escopo `company`. Valor por
-      classe no mesmo corpo. Zod `strict()`.
+- [x] **T006** — Rotas de região.
+      `POST/PUT/DELETE /freight-regions` sob `settings.manage`, escopo `company`; `GET` sob
+      `fleet.read`. Valor por classe no mesmo corpo. Zod `strict()`.
+      A permissão de leitura desceu de propósito: a cobertura do motorista mora no formulário da
+      frota, e exigir `settings.manage` para listar deixaria o campo de região em branco justo para
+      o `operator`, que é quem cadastra motorista. Escrever na tabela de rotas continua sendo
+      configuração.
       **Aceite:** `freight-regions-http` verde.
 
 - [ ] **T007** — Cobertura do motorista.

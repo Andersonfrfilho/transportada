@@ -17,6 +17,7 @@ export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-pri
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
+export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'

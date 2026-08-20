@@ -99,3 +99,8 @@ export type FleetDriverRegionRepositoryPort = {
     readonly entries: readonly FleetDriverRegionEntry[]
   }): Promise<readonly FleetDriverRegionCoverage[]>
 }
+
+export type FreightRegionCompanyContext = {
+  readonly companyId: string
+  readonly userId: string
+}

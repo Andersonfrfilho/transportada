@@ -127,6 +127,9 @@ import {
 } from './freight/infrastructure/drizzle-freight.repository'
 import { createFreightRoutes } from './freight/presentation/freight.routes'
 import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
+import { createFreightRegionsUseCase } from './freight-regions/application/freight-regions.use-case'
+import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
+import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
 import { AuthenticationService } from './identity/application/authentication.service'
@@ -428,6 +431,7 @@ function createApplicationRoutes({
     fuelPrices: fleetFuelPriceGateway,
   })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
+  const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
     database,
     fuelPrices: fleetFuelPriceGateway,
@@ -478,6 +482,7 @@ function createApplicationRoutes({
     unitOfWork: freightSimulationRepository,
   })
   const fleetVehicles = createFleetVehiclesUseCase({ repository: fleetVehicleRepository })
+  const freightRegions = createFreightRegionsUseCase({ repository: freightRegionRepository })
   const fleetDrivers = createFleetDriversUseCase({ repository: fleetDriverRepository })
   const fleetDriverVehicles = createFleetDriverVehiclesUseCase({
     driverRepository: fleetDriverRepository,
@@ -720,6 +725,12 @@ function createApplicationRoutes({
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createFreightRegionRoutes({
+      createRegion: { execute: (input) => freightRegions.create(input) },
+      deleteRegion: { execute: (input) => freightRegions.delete(input) },
+      listRegions: { execute: (input) => freightRegions.list(input) },
+      updateRegion: { execute: (input) => freightRegions.update(input) },
+    }),
     ...createMdfeManifestRoutes({
       createManifest: { execute: (input) => mdfeManifests.create(input) },
       discardManifest: { execute: (input) => mdfeManifests.discard(input) },
