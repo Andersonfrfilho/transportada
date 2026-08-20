@@ -91,12 +91,12 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T013** — Painel e permissão.
+- [x] **T013** — Painel e permissão.
       `FreightRegionPanel` hospeda criar, importar e o mapa; sem `settings.manage` a aba mostra
       tabela e mapa e nenhum botão de escrita.
       **Aceite:** `company-settings/tabs` verde e contrato de permissão da aba verde.
 
-- [ ] **T014** — Locales.
+- [x] **T014** — Locales.
       Verbetes nos dois idiomas, pt-BR acentuado.
       **Aceite:** `locale-accents` verde.
 

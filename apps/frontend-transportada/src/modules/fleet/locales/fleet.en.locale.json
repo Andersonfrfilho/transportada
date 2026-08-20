@@ -491,9 +491,11 @@
     "inactive": "Inactive"
   },
   "regions": {
-    "emptyHint": "The freight table arrives through the region import, not through row by row typing.",
+    "emptyHint": "Register the first zone through the form or bring the whole table in through the import.",
     "emptyTitle": "No route registered",
     "hint": "Each class amount is what the carrier pays the driver for the trip — it is not the price charged to the customer.",
+    "import": "Import table",
+    "newRegion": "New zone",
     "notInformed": "Not informed",
     "title": "Regions and amounts"
   }

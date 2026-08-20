@@ -51,19 +51,51 @@ describe('fleet freight region tab contract', () => {
     expect(hook).toContain('export function useFreightRegions')
   })
 
-  /** Aba ausente, não desabilitada: quem não pode configurar não vê que a configuração existe. */
-  test('a aba de regiões só entra na lista com settings.manage', async () => {
+  /**
+   * A 045 escondia a aba inteira sem `settings.manage`, e a 047 a abre: ler região é `fleet.read`
+   * — é a cobertura que o formulário de motorista consulta —, e quem cuida da frota sem administrar
+   * configuração ainda precisa ver em que zona a cidade caiu. O que a permissão guarda é a escrita,
+   * e aba escondida não poderia mostrar tabela nem mapa a esse operador.
+   */
+  test('a aba de regiões abre para quem lê a frota, e a escrita é que pede settings.manage', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
     expect(page).toContain('SETTINGS_MANAGE_PERMISSION')
-    expect(page).toContain('...(canManageSettings ? [regionsTab] : [])')
+    expect(page).toContain('canManageSettings={canManageSettings}')
+    expect(page).not.toContain('...(canManageSettings ? [regionsTab] : [])')
   })
 
-  test('o hook recebe permissão e aba aberta no mesmo enabled', async () => {
+  test('a consulta da tabela sobe pela aba aberta, sem pedir permissão de escrita', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
     expect(page).toContain("resolveSettingsDataScope('fleet', activeTab)")
-    expect(page).toContain('enabled: canManageSettings && settingsScope.freightRegions')
+    expect(page).toContain('enabled: settingsScope.freightRegions')
+    expect(page).not.toContain('enabled: canManageSettings && settingsScope.freightRegions')
+  })
+
+  test('o painel hospeda criar, importar e o mapa', async () => {
+    const panel = await readApplicationFile(PANEL_PATH)
+
+    expect(panel).toContain('FreightRegionForm')
+    expect(panel).toContain('FreightRegionImportDialog')
+    expect(panel).toContain('FreightRegionMap')
+  })
+
+  /** Sem a permissão sobram tabela e mapa: nenhum botão de escrita, nem a coluna que edita a linha. */
+  test('sem settings.manage o painel não desenha ação de escrita', async () => {
+    const panel = await readApplicationFile(PANEL_PATH)
+
+    expect(panel).toContain('function FreightRegionWriteActions')
+    expect(panel).toContain('if (!canManageSettings) return null')
+    expect(panel).toContain('canManageSettings ? { onEdit: editRegion }')
+  })
+
+  /** Clicar no município só faz sentido se o clique cair na zona aberta no formulário. */
+  test('com uma zona em edição o mapa recebe as cidades do formulário', async () => {
+    const panel = await readApplicationFile(PANEL_PATH)
+
+    expect(panel).toContain('cities={form.state.cities}')
+    expect(panel).toContain('form.patch({ cities })')
   })
 
   test('as regiões chegam ao painel vindas da consulta', async () => {

@@ -125,7 +125,7 @@ export function FleetWorkspacePage() {
   })
   const freightRegions = useFreightRegions({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && settingsScope.freightRegions,
+    enabled: settingsScope.freightRegions,
   })
   const workspace = useFleet({
     ...(companyId === undefined ? {} : { companyId }),
@@ -207,11 +207,18 @@ export function FleetWorkspacePage() {
     ),
   }
 
+  /** Aba aberta para quem lê a frota: a cobertura é o que o formulário de motorista consulta. */
   const regionsTab: TabsItem = {
     id: 'regions',
     label: t('tabs.regions'),
     panel: (
       <FreightRegionPanel
+        actions={{
+          onCreate: (body) => freightRegions.createMutation.mutateAsync(body),
+          onUpdate: (input) => freightRegions.updateMutation.mutateAsync(input),
+        }}
+        canManageSettings={canManageSettings}
+        companyId={companyId}
         loading={freightRegions.query.isLoading}
         regions={freightRegions.query.data}
       />
@@ -260,7 +267,7 @@ export function FleetWorkspacePage() {
       ),
     },
     ...(canManageSettings ? [fuelTab] : []),
-    ...(canManageSettings ? [regionsTab] : []),
+    regionsTab,
   ]
 
   return (

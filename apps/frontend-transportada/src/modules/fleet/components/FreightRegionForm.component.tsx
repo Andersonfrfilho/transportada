@@ -7,37 +7,25 @@ import { Icon } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
 
-import { useFreightRegionForm } from '../hooks/useFreightRegionForm.hook'
-import type {
-  FreightRegion,
-  FreightRegionBodyInput,
-  FreightRegionUpdateInput,
-} from '../shared/freightRegion.types'
+import type { FreightRegionFormController } from '../hooks/useFreightRegionForm.hook'
+import type { FreightRegion } from '../shared/freightRegion.types'
 import styles from '../styles/fleet.module.css'
 import { FleetField, FleetMoneyField } from './FleetField.component'
 import { FreightRegionCityField } from './FreightRegionCityField.component'
 
+/**
+ * O controlador vem de fora porque o mapa ao lado escreve na mesma zona: clicar num município
+ * acrescenta cidade à zona aberta aqui. Formulário dono do próprio estado deixaria o mapa cego.
+ */
 type FreightRegionFormProps = Readonly<{
+  form: FreightRegionFormController
   onCancel: () => void
-  onCreate: (body: FreightRegionBodyInput) => Promise<unknown>
-  onUpdate: (input: FreightRegionUpdateInput) => Promise<unknown>
   region?: FreightRegion
 }>
 
 /** O valor da classe é o que a transportadora paga ao motorista pela viagem, não o frete cobrado. */
-export function FreightRegionForm({
-  onCancel,
-  onCreate,
-  onUpdate,
-  region,
-}: FreightRegionFormProps) {
+export function FreightRegionForm({ form, onCancel, region }: FreightRegionFormProps) {
   const { t } = useTranslation('fleet')
-  const form = useFreightRegionForm({
-    onCreate,
-    onSaved: onCancel,
-    onUpdate,
-    ...(region === undefined ? {} : { region }),
-  })
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

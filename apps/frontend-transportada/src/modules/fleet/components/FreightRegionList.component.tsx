@@ -1,22 +1,27 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
 
 import type { FreightRegionColumnKey } from '../shared/freightRegionColumns.service'
 import { readFreightRegionColumnValue } from '../shared/freightRegionColumns.service'
+import type { FreightRegion } from '../shared/freightRegion.types'
 import type { FreightRegionSortColumn } from '../shared/freightRegionTable.service'
 import type { FreightRegionTableController } from '../hooks/useFreightRegionTable.hook'
 import styles from '../styles/fleet.module.css'
 
 const SORT_INDICATOR = { ascending: '▲', descending: '▼', none: '' } as const
 
+/** `onEdit` ausente é a leitura sem `settings.manage`: a coluna de ação nem se desenha. */
 type FreightRegionListProps = Readonly<{
   columns: readonly FreightRegionColumnKey[]
+  onEdit?: (region: FreightRegion) => void
   table: FreightRegionTableController
 }>
 
-export function FreightRegionList({ columns, table }: FreightRegionListProps) {
+export function FreightRegionList({ columns, onEdit, table }: FreightRegionListProps) {
   const { t } = useTranslation('fleet')
 
   function sortState(column: FreightRegionSortColumn): 'ascending' | 'descending' | 'none' {
@@ -57,6 +62,7 @@ export function FreightRegionList({ columns, table }: FreightRegionListProps) {
                 </button>
               </th>
             ))}
+            {onEdit === undefined ? null : <th scope="col">{t('columnActions')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -79,6 +85,16 @@ export function FreightRegionList({ columns, table }: FreightRegionListProps) {
                   })}
                 </td>
               ))}
+              {onEdit === undefined ? null : (
+                <td>
+                  <div className={styles.rowActions}>
+                    <Button size="sm" type="button" variant="ghost" onClick={() => onEdit(region)}>
+                      <Icon name="edit" />
+                      {t('edit')}
+                    </Button>
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

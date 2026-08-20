@@ -491,9 +491,11 @@
     "inactive": "Inativa"
   },
   "regions": {
-    "emptyHint": "A tabela de frete entra pela importação de regiões, não pelo cadastro linha a linha.",
+    "emptyHint": "Cadastre a primeira zona pelo formulário ou traga a tabela inteira por importação.",
     "emptyTitle": "Nenhuma rota cadastrada",
     "hint": "O valor de cada classe é o que a transportadora paga ao motorista pela viagem — não é o preço cobrado do cliente.",
+    "import": "Importar tabela",
+    "newRegion": "Nova zona",
     "notInformed": "Não informado",
     "title": "Regiões e valores"
   }
