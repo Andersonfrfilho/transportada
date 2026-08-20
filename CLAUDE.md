@@ -60,10 +60,11 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `fleet`, `freight`,
-`freight-calculations`, `freight-rules`, `identity`, `nfe-documents`, `nfe-imports`, `operations`,
-`storage`, `health`.
-Transversais: `config`, `database`, `http`, `logging`, `server`, `shared`.
+Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
+`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
+`operations`, `storage`, `trips`, `view-preferences`, `health`.
+Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
@@ -172,6 +173,37 @@ publicação semanal da ANP é dado público de mercado, idêntico para toda emp
 PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista como exceção
 declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
 listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
+
+**A região do motorista é o que a transportadora paga, não o que ela cobra:**
+`freight_region_driver_rates.driver_amount` é custo — o valor do agregado por viagem naquela rota e
+naquela classe de veículo. Ele não entra em `freight-rules`, `freight_calculations` nem no CT-e, e
+misturar os dois faria a tabela do motorista virar preço de frete sem ninguém decidir isso.
+
+A zona é **acumulativa dentro da família**: `parseRegionCode('1.002')` dá `{family: '1', zone: 3}`, e
+quem cobre a zona 3 cobre a 1 e a 2 da mesma família; a matriz (`0.001`, zona 0) cobre só a si. A
+cobertura do motorista mistura granularidade de propósito — `scope: 'region'` para a zona inteira e
+`scope: 'city'` para a cidade solta —, e as duas metades do CHECK são ditas na fronteira
+(`FLEET_DRIVER_REGION_CITY_REQUIRED` e `..._CITY_UNEXPECTED`).
+
+⚠️ A unicidade da cidade é `(company_id, region_id, city, state)`, **nunca** `(company_id, city)`: na
+planilha real do cliente `BARRINHA/SP` aparece em duas rotas, e a chave estreita mataria a
+importação na primeira tentativa. Célula de valor zerada **não vira linha** — zero ali é ausência de
+preço para aquela classe naquela rota, e `0.0000` diria que a transportadora paga zero.
+
+A classe de frete (`fleet_vehicles.freight_class`, catálogo `FREIGHT_VEHICLE_CLASSES`) é do veículo
+que **traciona**: implemento manda `''`, do mesmo jeito que já fazia com o rodado. O tipo de rodado
+do MDF-e só **sugere** (`01→truck`, `02→toco`, `04→van`, `05→utility`) — VUC e 3/4 não existem no
+rodado, e `03`/`06` não nomeiam classe nenhuma. A sugestão corrige a que ela mesma pôs e nunca
+sobrescreve escolha manual (`vehicleFreightClass.service.ts`); ler ela do rodado direto poria o
+veículo na linha errada da tabela.
+
+A tabela do cliente entra por `POST /freight-regions/import` (`settings.manage`), **nunca** por seed
+em `src/`: o produto é genérico (ADR-0021) e a planilha é de uma transportadora. Reimportar o mesmo
+arquivo devolve `{0, 0, 0}`; rota ausente do arquivo vai a `inactive`, nunca é apagada; arquivo de
+rotas vazio é recusado (`FREIGHT_REGION_IMPORT_EMPTY`), porque inativaria a tabela inteira à qual os
+motoristas estão ligados. `scripts/freight-region-import.py` faz a chamada (dry-run por padrão).
+Ler região é `fleet.read`, não `settings.manage`: a cobertura mora no formulário da frota, e é o
+`operator` quem cadastra motorista.
 
 **O `{{periodo}}` da NFS-e é digitado, não derivado:** o domínio não calcula janela nenhuma a partir
 das notas — `buildNfseDescription` recebe `period` e o repassa como veio, e em branco a variável sai
@@ -367,8 +399,9 @@ manual em `src/main.tsx` (`pushState` + `popstate` + `sessionStorage`). **Sem Ta
 `tailwind-merge`/`clsx`/`cva` estão no package.json mas não são usados; `cn()` é reimplementado em
 `src/lib/utils.ts`; validação é type guard manual em `*.validation.ts`.
 
-Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`, `foundation`,
-`freight`, `identity`, `nfe-workspace`, `operations`, `shared`. `shared/` concentra client HTTP +
+Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`,
+`cte-profiles`, `fleet`, `foundation`, `freight`, `identity`, `mdfe-manifest`, `nfe-workspace`,
+`nfse-invoice`, `notification`, `operations`, `trip`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com `fetch`
 injetado por dependência. Auth via `KeycloakAuthProvider`.
 
@@ -385,9 +418,9 @@ Contrato em `test/company-settings/tabs.contract.ts`.
 - A busca automática de notas (opt-in + cursor) mora na aba **Remota** de `nfe-workspace`, guardada
   por `settings.manage`; sem a permissão a aba continua visível com o cartão somente-leitura, porque
   ali é informação de operação. Contrato em `test/nfe-workspace/distribution-settings.contract.ts`.
-- O ajuste de preço de combustível mora na aba **Combustível** de `fleet`, e a credencial da Nota RP
-  mais os perfis de emissão na aba **Configurações** de `nfse-invoice` — as duas guardadas por
-  `settings.manage`.
+- O ajuste de preço de combustível mora na aba **Combustível** de `fleet`, a tabela de frete na aba
+  **Regiões** do mesmo módulo, e a credencial da Nota RP mais os perfis de emissão na aba
+  **Configurações** de `nfse-invoice` — todas guardadas por `settings.manage`.
 - Painel movido leva junto os rótulos: as chaves vão para o `*.locale.json` do módulo de destino, e o
   atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
   controle é caminho para lugar nenhum.
