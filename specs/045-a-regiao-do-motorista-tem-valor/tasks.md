@@ -112,7 +112,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T014** — Dados do cliente e gates.
+- [x] **T014** — Dados do cliente e gates.
       Importar `specs/045-.../data/regioes.csv` + `valores.csv` no ambiente do cliente pela rota de
       importação (não por seed em `src/`). `make check`, `make migration-test`, `evidence.md`.
       **Aceite:** tudo verde, evidência escrita.

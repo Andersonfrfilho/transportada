@@ -431,3 +431,67 @@ ausente cai no português —, mas o inglês da tela de notas é português. Fic
 tradução é trabalho de outra spec.
 
 Nenhuma variável de ambiente nova — nem em staging, nem em produção.
+
+## T014 — Dados do cliente e gates
+
+```
+$ make check            # exit 0
+  api 490 pass · 0 fail
+  cron 196 pass · 0 fail
+  frontend 1449 pass · 0 fail
+  worker verde; quatro builds, incluindo o precache do PWA
+
+$ make migration-test   # exit 0
+  73 pass · 0 fail · 825 expect() em 6 arquivos [11.75s]
+```
+
+### A planilha do cliente passa no parser de verdade
+
+Os dois CSVs de `data/` foram rodados pelo `parseFreightRegionCsv` da API (não por leitura à mão):
+
+```json
+{ "regionCount": 29, "cityCount": 83, "rateCount": 146,
+  "withoutRates": [], "duplicatedCity": ["BARRINHA/SP"] }
+```
+
+Três coisas que esse resultado prova:
+
+1. **Nenhuma rota sem valor** (`withoutRates` vazio) — as duas metades do arquivo se costuram pelo
+   código impresso da rota, e nenhuma ficou órfã.
+2. **`BARRINHA/SP` aparece em duas rotas.** É exatamente o caso que fez a unicidade da cidade ser
+   `(company_id, region_id, city, state)` na T003. Com `(company_id, city)` a importação do cliente
+   morreria na primeira tentativa.
+3. **146 valores, não 174.** `awk` contou 28 células zeradas em `valores.csv`, e 29 × 6 − 28 = 146:
+   zero é ausência de preço para aquela classe naquela rota, e não vira linha. Uma linha `0.0000`
+   diria que a transportadora paga zero, que é outra afirmação.
+
+### A carga no ambiente do cliente é passo humano
+
+`scripts/freight-region-import.py` faz a chamada, no molde dos outros scripts operacionais do
+repositório (dry-run por padrão, `--apply` para escrever):
+
+```
+$ export TRANSPORTADA_TOKEN='<bearer de usuário com settings.manage>'
+$ ./scripts/freight-region-import.py production --apply
+```
+
+Sem `--apply` ele só confere os arquivos e não abre conexão nenhuma:
+
+```
+$ ./scripts/freight-region-import.py local
+local: 29 rotas, 83 cidades, 29 linhas de valor
+sem --apply: nada foi enviado
+```
+
+O envio em si **não foi executado por mim**: é ação para fora, contra o ambiente do cliente, e
+precisa de um bearer que vale por qualquer escrita de configuração da empresa. O token entra por
+variável de ambiente e nunca é impresso, nem no caminho de erro.
+
+A carga não entrou como seed em `src/`: o produto é genérico (ADR-0021) e a tabela de frete é de
+uma transportadora. Ela chega pela rota autenticada, com `companyId` vindo do contexto — que é o
+que impede a planilha de um cliente cair no ambiente de outro.
+
+Reimportar é seguro: a chave natural é o código da rota, e o resumo volta `{0, 0, 0}` quando nada
+mudou (contrato de idempotência da T009). Rota ausente do arquivo vai a `inactive`, nunca some.
+
+Nenhuma variável de ambiente nova — nem em staging, nem em produção.
