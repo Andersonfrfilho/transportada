@@ -5,6 +5,68 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-20 — endereço do motorista sai do navegador para quatro terceiros, sem CSP para conter
+
+**Onde:** `frontend-transportada`, `fleet/shared/driverAddress.service.ts` e
+`fleet/hooks/useDriverAddressLookup.hook.ts` (formulário de motorista e cadastro rápido).
+
+**O que é:** o preenchimento de endereço consulta quatro provedores públicos direto do navegador do
+operador — `brasilapi.com.br` e `viacep.com.br` pelo CEP, `photon.komoot.io` e
+`nominatim.openstreetmap.org` pela busca textual — e o mapa é um `iframe` de
+`openstreetmap.org/export/embed.html` com a coordenada na URL. O que viaja é **dado pessoal de
+pessoa física** (CEP e endereço residencial do motorista, digitados na tela), e viaja **na query
+string**, que é exatamente o que o §8 do baseline proíbe. São quatro operadores sem contrato, sem
+DPA e fora do inventário de tratamento — e o `Referer` entrega de quebra a origem da instalação do
+cliente.
+
+Um quinto destino sai do mesmo formulário e **não** carrega dado pessoal: a lista de municípios do
+IBGE (`brasilapi.com.br/api/ibge/municipios/v1/{UF}`, em `fleet/shared/municipality.service.ts`)
+manda só a sigla do estado. Ele não é achado de LGPD; entra aqui porque a CSP que faltar precisa
+enumerá-lo também, senão publicar a diretiva quebra o select de cidade.
+
+Não há **CSP nenhuma no repositório** (`rg 'connect-src|Content-Security-Policy'` não devolve nada),
+o que é violação autônoma do §3 e o que faz este achado ser sem teto: nada na borda declara para
+onde o bundle pode falar, então qualquer destino novo — nosso ou de dependência comprometida — sai
+sem obstáculo.
+
+A política de uso do Nominatim ainda pede no máximo 1 req/s e um `User-Agent`/`Referer`
+identificável. `User-Agent` é cabeçalho proibido ao `fetch` do navegador: **não temos como cumprir
+essa metade** de dentro da página.
+
+**O que já limita o estrago:** a busca é debounced (400ms na textual, 900ms na geocodificação), sai
+só a partir de cinco caracteres, é cancelada por `AbortSignal` a cada tecla e pede no máximo seis
+resultados; nenhuma resposta é logada; e a chamada parte do navegador do operador, não do servidor,
+então o endereço não passa pela nossa infraestrutura a caminho do terceiro.
+
+**O que falta:** decidir por ADR se a consulta continua no navegador ou vira proxy na API — o proxy
+resolve as três coisas de uma vez (um destino só no CSP, `User-Agent` identificável, teto de 1 req/s
+compartilhado) ao custo de nos tornar o operador do dado; publicar a CSP com `connect-src` enumerando
+o que sobrar, mais `frame-src` para o mapa; e inventariar os provedores no registro de tratamento.
+Enquanto não houver decisão, isto é transferência de dado pessoal a terceiro sem base registrada.
+
+**Origem:** auditoria de lacunas do cadastro de motorista (spec de endereço, ainda sem
+`spec.md`/`evidence.md`).
+
+### 2026-08-20 — data de nascimento do motorista em claro, contra o §5
+
+**Onde:** `fleet_drivers.birth_date` (`api-transportada/src/database/fleet.schema.ts`).
+
+**O que é:** o §5 do baseline manda criptografar campo sensível em repouso e nomeia data de
+nascimento entre eles, com chave de aplicação separada da chave do banco. A coluna é `date` em
+claro. `license_number` (CNH, onze dígitos) e o endereço residencial estão na mesma situação, e o
+`tax_id` do motorista — CPF — já estava, desde antes desta feature.
+
+**O que já limita o estrago:** a tabela é por empresa, toda query filtra `company_id`, o banco não
+tem exposição pública e o acesso é só pela rede interna; nenhum destes campos vai para log, e
+nenhum aparece em nome de objeto no bucket. O backup é criptografado antes do upload.
+
+**O que falta:** a decisão consciente que o §5 exige — criptografar as colunas de pessoa física do
+motorista (`birth_date`, `license_number`, `tax_id`, endereço) com chave de aplicação, ou registrar
+por ADR por que a instalação dedicada e a rede fechada bastam neste produto. Hoje não há nem uma nem
+outra: o campo nasceu em claro por omissão, e é isso que este item corrige ao ficar escrito.
+
+**Origem:** auditoria de lacunas do cadastro de motorista.
+
 ### 2026-08-17 — postback de NFS-e sem assinatura, autenticado só pelo token do caminho
 
 **Onde:** `POST /public/nfse-callbacks/{token}` (`api-transportada`, módulo `nfse-callbacks`).

@@ -98,6 +98,41 @@ tornar o campo opcional obrigaria o frontend a tratá-lo como ausente para sempr
 continua escolhível, e sem `users.manage` o campo volta a ser digitável — quem cuida da frota sem
 administrar usuários ainda precisa cadastrar motorista.
 
+**A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
+`license_number`, `license_expires_at` e o endereço residencial existem na tabela e no formulário,
+mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Duas consequências que ficam
+escritas para não serem redescobertas:
+
+- A CNH é **única por empresa, mas só quando preenchida**: o índice
+  `fleet_drivers_company_license_number_unique` é parcial (`where length(license_number) > 0`),
+  porque o campo é opcional e string vazia não é colisão. `fleet_drivers_license_number_check` aceita
+  vazio ou onze dígitos, e `fleet_drivers_dates_check` põe piso em `birth_date` e
+  `license_expires_at` — data digitada errada por um século não entra.
+- O aviso de CNH a vencer **não existe**: `NOTIFICATION_TEMPLATE_KEY` tem três chaves
+  (`BILLING_INVOICE_DUE`, `CTE_BATCH_ISSUANCE_FAILED`, `NFSE_INVOICE_REJECTED`) e nenhuma é de
+  habilitação. O texto de ajuda do campo prometia o aviso; hoje diz que a data fica registrada para
+  consulta. Implementar o trilho é feature com spec própria (chave nova + agendamento + cron).
+
+⚠️ O endereço do motorista é preenchido por **quatro provedores públicos consultados do navegador**
+(`fleet/shared/driverAddress.service.ts`): BrasilAPI e ViaCEP disputam o CEP por `Promise.any` — o
+primeiro que responder vence —, Photon e Nominatim atendem a busca textual por `Promise.allSettled`,
+porque provedor fora do ar deve entregar menos resultado, não erro. O mapa é `iframe` do
+OpenStreetMap com a coordenada na URL. Debounce de 400ms na busca textual e 900ms na
+geocodificação, mínimo de cinco caracteres, `AbortSignal` por tecla. **Isso manda dado pessoal para
+terceiro sem contrato e não há CSP no repositório** — achado datado em `docs/SECURITY.md`, junto do
+`birth_date` em claro; a decisão (proxy na API ou allowlist declarada) é ADR pendente.
+
+**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, quinto destino
+externo do formulário, e o único que não leva dado pessoal — só a sigla do estado). Sem UF escolhida
+o campo é digitável: município só é único dentro do estado, e um select com os 5.570 do país é pior
+que o teclado. Duas grafias mandam em lugares diferentes, de propósito: `toMunicipalityLabel`
+uniformiza a caixa (o IBGE devolve em caixa alta e o provedor de CEP em caixa mista, e sem uma
+grafia só a mesma cidade viraria duas linhas), enquanto `buildMunicipalityChoices` deixa **o que já
+está gravado** vencer a grafia do IBGE — ao contrário do catálogo de veículo, porque o gatilho do
+select casa a opção pelo valor e trocar a grafia deixaria o campo mostrando o placeholder com cidade
+preenchida. Provedor fora do ar devolve lista vazia e o campo volta a ser digitável; cadastro não
+para por isso.
+
 **Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
 `ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba

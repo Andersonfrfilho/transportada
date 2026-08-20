@@ -262,7 +262,7 @@
   "driverMembershipHint": "Who will sign in on the driver app. Leave it empty when there is no access yet.",
   "driverBirthDate": "Date of birth",
   "driverLicenseExpiresAt": "License expiry",
-  "driverLicenseExpiresAtHint": "The date the license expires. Storing it here is what allows warning before the driver goes out with an expired license.",
+  "driverLicenseExpiresAtHint": "The date the license expires. It stays on the record for lookup — the automatic expiry warning does not exist yet.",
   "driverAddressLegend": "Driver address",
   "driverAddressHint": "Start with the postal code: it fills the address in and leaves only the number to type. Without one at hand, search by address in the field beside it and pick from the list.",
   "driverAddressPostalCode": "Postal code",

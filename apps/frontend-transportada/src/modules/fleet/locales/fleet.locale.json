@@ -262,7 +262,7 @@
   "driverMembershipUnset": "Sem usuário",
   "driverBirthDate": "Data de nascimento",
   "driverLicenseExpiresAt": "Validade da CNH",
-  "driverLicenseExpiresAtHint": "Data em que a habilitação vence. Guardar aqui é o que permite avisar antes de o motorista rodar com CNH vencida.",
+  "driverLicenseExpiresAtHint": "Data em que a habilitação vence. Fica registrada na ficha para consulta — o aviso automático de vencimento ainda não existe.",
   "driverAddressLegend": "Endereço do motorista",
   "driverAddressHint": "Comece pelo CEP: com ele o endereço vem preenchido e sobra digitar o número. Sem CEP em mãos, busque pelo endereço no campo ao lado e escolha na lista.",
   "driverAddressPostalCode": "CEP",
