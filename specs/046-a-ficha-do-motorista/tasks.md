@@ -63,7 +63,7 @@
       **Aceite:** `test/fleet/address-map-removed.contract.ts` — falha se um dos símbolos ou um dos
       dois destinos voltar ao bundle, e falha também se um dos três que ficaram desaparecer.
 
-- [ ] **T008** — 🧠 CSP com `connect-src`/`frame-src`, depois de T007-A.
+- [x] **T008** — 🧠 CSP com `connect-src`/`frame-src`, depois de T007-A.
       Requisito autônomo do §3 do baseline: hoje não há CSP em lugar nenhum do repositório. Depois da
       ADR-0037 a lista fecha em três destinos mais a origem do Keycloak, e o `frame-src` vira `'none'`
       — o `iframe` do mapa era o único do bundle (`checkLoginIframe: false`). A lista de municípios do

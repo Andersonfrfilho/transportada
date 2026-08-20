@@ -546,6 +546,22 @@ Herda de `base` (não de `keycloak.v2`, que arrasta o PatternFly) e reescreve `t
 não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra completa em
 `docs/frontend/login-theme.md`.
 
+**A CSP nasce no build, e o servidor não sobe sem ela.** `VITE_API_URL` e `VITE_KEYCLOAK_URL` são
+inlinadas no bundle e **não existem** no contêiner que serve o `dist` — o estágio de runtime do
+`Dockerfile` copia só `dist` e `server.ts`, e `server.ts` não pode importar de `src/`. Então a
+diretiva tem fonte única em `shared/contentSecurityPolicy.service.ts`, o plugin
+`transportada-content-security-policy` do `vite.config.ts` emite `dist/content-security-policy.txt`, e
+o `server.ts` lê o arquivo **fail-closed** (`FRONTEND_MISSING_CONTENT_SECURITY_POLICY`): publicar sem
+cabeçalho é a única falha que não quebra nada visível. Destino externo novo entra **nesse**
+`connect-src` — nunca numa segunda diretiva, que não soma (a primeira ocorrência vence).
+`'unsafe-inline'` existe **só** em `style-src`, pelo atributo `style` da camada flutuante que nonce
+não cobre — `style-src-attr` é ignorado pelo Safari < 15.4 e quebraria todo select no iPhone —, e o
+servidor de **dev** ganha `'unsafe-inline'` no `script-src` porque o `@vitejs/plugin-react` injeta o
+preâmbulo do react-refresh inline. O contrato
+`test/shared/content-security-policy.contract.ts` varre `src/**/*.{ts,tsx,css,json}` por origem
+`https://` e falha se alguma não estiver no `connect-src` nem em `NON_FETCH_ORIGIN` (origem que o
+bundle nomeia mas nunca busca, hoje só o link do rodapé).
+
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 

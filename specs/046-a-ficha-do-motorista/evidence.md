@@ -105,8 +105,66 @@ $ bun run --cwd apps/frontend-transportada test
 1480 pass · 0 fail · 9018 expect() calls · 18 arquivos
 ```
 
-## T008–T009
+## T008 — CSP
 
-Abertas. As duas dependem de ADR/decisão, e ADR não escrito não tem gate. O que existe hoje são os
-achados datados em `docs/SECURITY.md` (2026-08-20) — o de CSP, que a ADR-0037 destravou e encolheu
-para três destinos mais a origem do Keycloak, e o de criptografia em repouso.
+A diretiva é composta no **build**, não no runtime, e o motivo é medido: `VITE_API_URL` e
+`VITE_KEYCLOAK_URL` são inlinadas no bundle e não existem no contêiner que serve o `dist` — o estágio
+de runtime do `Dockerfile` copia só `dist` e `server.ts`, e `server.ts` não pode importar de `src/`.
+Daí a costura: `src/modules/shared/contentSecurityPolicy.service.ts` é a fonte única, o plugin
+`transportada-content-security-policy` emite `dist/content-security-policy.txt` no `generateBundle`, e
+o `server.ts` lê o arquivo antes de montar `SECURITY_HEADERS`.
+
+O que se serve, verificado com `bun server.ts` sobre o `dist` recém-construído:
+
+```
+Content-Security-Policy: default-src 'self'; base-uri 'self'; connect-src 'self'
+  http://localhost:53000 http://localhost:58080 https://brasilapi.com.br
+  https://photon.komoot.io https://viacep.com.br; font-src 'self'; form-action 'self';
+  frame-ancestors 'none'; frame-src 'none'; img-src 'self'; manifest-src 'self';
+  object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self'
+```
+
+Fail-closed provado por experimento, não por leitura: apagado o `dist/content-security-policy.txt`, o
+boot levanta `FRONTEND_MISSING_CONTENT_SECURITY_POLICY` e **não sobe servidor nenhum**. Publicar sem
+cabeçalho é o único fim inaceitável, porque não quebra nada visível.
+
+Quatro decisões que só se enxergam errando, e cada erro derrubava a aplicação em vez de protegê-la:
+
+- `style-src 'self' 'unsafe-inline'` — a camada flutuante posiciona painel por **atributo** `style`,
+  que nonce não cobre. `style-src-attr` seria cirúrgico, mas o Safari < 15.4 o ignora e cairia no
+  `style-src` restritivo: todo select e todo calendário quebrariam calados no iPhone. A folga é de
+  estilo e só de estilo — `script-src 'self'`, sem `unsafe-eval`.
+- A política de dev é **construída**, não concatenada: diretiva duplicada não soma, a primeira
+  ocorrência vence. A única diferença é `'unsafe-inline'` no `script-src`, pelo preâmbulo inline do
+  react-refresh que o `@vitejs/plugin-react` injeta; sem ela o `make dev` abre tela branca.
+- Origem ausente não derruba o build — o job `quality` do CI roda `bun run build` sem `.env`. Origem
+  declarada e ilegível derruba na hora, em vez de publicar diretiva mais estreita do que se pediu.
+- `frame-src`/`frame-ancestors`/`object-src` em `'none'`: o `iframe` do mapa saiu pela ADR-0037 e o
+  Keycloak roda com `checkLoginIframe: false`. Não há moldura no bundle, e é isso que a diretiva diz.
+
+O aceite não confia em lista escrita à mão. `collectSourceOrigins` varre `src/**/*.{ts,tsx,css,json}`
+por origem `https://` e cobra cada uma no `connect-src` ou em `NON_FETCH_ORIGIN`; hoje ela acha
+quatro — `brasilapi.com.br`, `photon.komoot.io`, `viacep.com.br` e `adatechnology.com.br` (link do
+rodapé, nunca buscado). Foi essa varredura que provou o que a suspeita não sabia: a lista de
+municípios do IBGE anda **pela BrasilAPI** (`municipality.service.ts:10`), então a diretiva já está
+completa e não falta origem do `servicodados.ibge.gov.br`. A 047 T012 acrescenta a malha ao **mesmo**
+`connect-src` quando o mapa nascer.
+
+```
+$ bun test ./test/shared.contract.test.ts --test-name-pattern "policy"
+8 pass · 0 fail
+
+$ bun run build
+dist/content-security-policy.txt   0.38 kB
+
+$ bun run format         (todos os arquivos "unchanged")
+$ bun run typecheck      (sem saída — quatro apps)
+$ bun run lint           (sem saída — quatro apps)
+$ bun run --cwd apps/frontend-transportada test
+1505 pass · 0 fail · 9125 expect() calls · 18 arquivos
+```
+
+## T009
+
+Aberta. Depende de decisão, e ADR não escrito não tem gate. O achado de criptografia em repouso segue
+datado em `docs/SECURITY.md` (2026-08-20).

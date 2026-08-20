@@ -109,10 +109,12 @@ Nenhuma bloqueia o que já está em produção; todas três precisam de ADR ante
    mapa, não o preenchimento — o mapa saiu, o Nominatim saiu por política que o navegador não deixa
    cumprir, a consulta de CEP (oito dígitos, sem identificador) ficou, e **não** há proxy, porque
    hoje o endereço não passa pela nossa infraestrutura e o proxy nos daria essa passagem de graça.
-2. **CSP.** Não existe nenhuma no repositório. Publicá-la é requisito autônomo do §3 do baseline.
-   Depois da ADR-0037 a lista fecha em `brasilapi.com.br`, `viacep.com.br`, `photon.komoot.io` e a
-   origem do Keycloak, com `frame-src 'none'`. A lista de municípios do IBGE precisa entrar nela mesmo
-   sem ser PII, senão publicar a diretiva quebra o select de cidade.
+2. ~~**CSP.**~~ Publicada em T008, requisito autônomo do §3 do baseline. Ela nasce no **build**, e não
+   no runtime, porque as origens da API e do Keycloak são inlinadas no bundle e não existem no
+   contêiner que serve o `dist`; o `server.ts` lê o arquivo emitido e se recusa a subir sem ele.
+   `connect-src` fecha em `brasilapi.com.br`, `viacep.com.br`, `photon.komoot.io`, a API e o Keycloak,
+   com `frame-src 'none'`. A lista de municípios do IBGE **já estava coberta**: ela anda pela
+   BrasilAPI, e foi a varredura de origens do contrato que mostrou isso — não a lista escrita à mão.
 3. **Criptografia em repouso.** `birth_date`, `license_number` e endereço em claro contra o §5 do
    baseline — ou criptografar com chave de aplicação, ou registrar por ADR por que instalação
    dedicada e rede fechada bastam. Hoje não há nem uma nem outra. Achado em `docs/SECURITY.md`,

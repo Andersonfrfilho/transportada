@@ -59,10 +59,22 @@ digitado** — mais a lista do IBGE, que leva só a sigla do estado. O endereço
 `apps/frontend-transportada/test/fleet/address-map-removed.contract.ts` falha se algum dos símbolos
 ou dos dois destinos voltar ao bundle.
 
-**O que falta:** publicar a CSP, que agora fecha em três destinos mais a origem do Keycloak, com
-`frame-src 'none'` (T008); e inventariar no registro de tratamento o que sobrou — o termo digitado
-indo ao Photon e o CEP indo aos dois provedores. O achado **encolheu**, não fechou: continua sendo
-transferência a provedor sem contrato, com muito menos dado e ainda sem CSP.
+**Executado (spec 046, T008):** a CSP existe e é servida em toda resposta. Ela é composta no
+**build** — `VITE_API_URL` e `VITE_KEYCLOAK_URL` são inlinadas no bundle e não existem no contêiner
+que serve o `dist` —, sai por `dist/content-security-policy.txt` e o `server.ts` **não sobe** sem o
+arquivo (`FRONTEND_MISSING_CONTENT_SECURITY_POLICY`), porque publicar sem cabeçalho é a única falha
+que não quebra nada visível. `connect-src` enumera os três destinos mais a API e o Keycloak;
+`frame-src`, `frame-ancestors` e `object-src` são `'none'`; `script-src 'self'` sem `unsafe-eval`. A
+folga de `'unsafe-inline'` existe **só** em `style-src`, pelo atributo `style` da camada flutuante que
+nonce não cobre (`style-src-attr` é ignorado pelo Safari < 15.4 e quebraria todo select no iPhone).
+O contrato `test/shared/content-security-policy.contract.ts` varre `src/**` por origem `https://` e
+falha se alguma não estiver na diretiva ou declarada como nunca buscada — destino novo em qualquer
+módulo cai ali.
+
+**O que falta:** inventariar no registro de tratamento o que sobrou — o termo digitado indo ao Photon
+e o CEP indo aos dois provedores. O achado **encolheu duas vezes**, e não fechou: a borda agora
+declara para onde o bundle pode falar, mas continua sendo transferência de dado pessoal a provedor
+sem contrato e fora do inventário.
 
 **Origem:** auditoria de lacunas do cadastro de motorista (spec de endereço, ainda sem
 `spec.md`/`evidence.md`).
