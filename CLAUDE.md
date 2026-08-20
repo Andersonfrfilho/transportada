@@ -210,9 +210,12 @@ A tabela do cliente entra por `POST /freight-regions/import` (`settings.manage`)
 em `src/`: o produto é genérico (ADR-0021) e a planilha é de uma transportadora. Reimportar o mesmo
 arquivo devolve `{0, 0, 0}`; rota ausente do arquivo vai a `inactive`, nunca é apagada; arquivo de
 rotas vazio é recusado (`FREIGHT_REGION_IMPORT_EMPTY`), porque inativaria a tabela inteira à qual os
-motoristas estão ligados. `scripts/freight-region-import.py` faz a chamada (dry-run por padrão).
-Ler região é `fleet.read`, não `settings.manage`: a cobertura mora no formulário da frota, e é o
-`operator` quem cadastra motorista. ADR-0038.
+motoristas estão ligados. `scripts/freight-region-import.py` **deixou de ser o único caminho**: o
+diálogo da aba Regiões manda os dois arquivos como texto para a mesma rota, byte a byte como o
+cliente exportou — quem decide o que é linha válida continua sendo o parser da API, senão a tela e o
+script discordariam de qual célula zerada vira preço. Ler região é `fleet.read`, não
+`settings.manage`: a cobertura mora no formulário da frota, e é o `operator` quem cadastra motorista.
+ADR-0038.
 
 **O `{{periodo}}` da NFS-e é digitado, não derivado:** o domínio não calcula janela nenhuma a partir
 das notas — `buildNfseDescription` recebe `period` e o repassa como veio, e em branco a variável sai
@@ -427,12 +430,33 @@ Contrato em `test/company-settings/tabs.contract.ts`.
 - A busca automática de notas (opt-in + cursor) mora na aba **Remota** de `nfe-workspace`, guardada
   por `settings.manage`; sem a permissão a aba continua visível com o cartão somente-leitura, porque
   ali é informação de operação. Contrato em `test/nfe-workspace/distribution-settings.contract.ts`.
-- O ajuste de preço de combustível mora na aba **Combustível** de `fleet`, a tabela de frete na aba
-  **Regiões** do mesmo módulo, e a credencial da Nota RP mais os perfis de emissão na aba
-  **Configurações** de `nfse-invoice` — todas guardadas por `settings.manage`.
+- O ajuste de preço de combustível mora na aba **Combustível** de `fleet` e a credencial da Nota RP
+  mais os perfis de emissão na aba **Configurações** de `nfse-invoice` — as duas guardadas por
+  `settings.manage`.
+- A tabela de frete mora na aba **Regiões** de `fleet`, e ali a permissão guarda **a escrita, não a
+  aba**: sem `settings.manage` sobram a tabela e o mapa, e nenhum botão. Ler região é `fleet.read`
+  porque a cobertura é o que o formulário de motorista consulta, e quem cuida da frota sem
+  administrar configuração ainda precisa ver em que zona a cidade caiu — aba escondida não mostraria
+  nem uma coisa nem outra. Por isso a consulta desta aba liga só com `settingsScope.freightRegions`,
+  sem o `canManageSettings` que as outras exigem. Contrato em `test/fleet/regions-tab.contract.ts`.
 - Painel movido leva junto os rótulos: as chaves vão para o `*.locale.json` do módulo de destino, e o
   atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
   controle é caminho para lugar nenhum.
+
+**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, sexto
+destino externo do módulo — `https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na
+qualidade mínima e recortada por município). Ao contrário do endereço do motorista, aqui **não há
+`iframe` nem imagem remota**: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
+nada de terceiro renderiza dentro da nossa tela — e a malha não leva dado pessoal, só a sigla do
+estado. Município com ilha ou enclave vira **um** caminho fechado: desenhar anel por anel pintaria a
+mesma cidade em duas cores quando a zona mudasse. Cidade gravada sem polígono na malha (grafia que o
+IBGE não reconhece, cidade de outra UF) é **nomeada fora do mapa**, nunca escondida — zona vista pela
+metade é pior que zona vista inteira com um aviso ao lado —, e o casamento é pela dobra de
+`normalizeVehicleCatalogName`, não pela grafia, para `BARRINHA/SP` da planilha casar com `Barrinha`
+do IBGE. Com uma zona aberta no formulário, clicar no município acrescenta a cidade e clicar de novo
+a retira, **pela grafia gravada**: pela do IBGE a cidade importada seria impossível de desmarcar.
+Por isso `useFreightRegionForm` mora no `FreightRegionEditorDeck`, acima do formulário e do mapa —
+os dois escrevem na mesma lista de cidades, e trocar a zona em edição é remontagem por `key`.
 
 Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, `--space-1..16`), tema
 escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em `*.module.css`.
