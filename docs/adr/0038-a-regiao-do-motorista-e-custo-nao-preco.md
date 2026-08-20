@@ -1,4 +1,4 @@
-# ADR 0037 — A região do motorista é custo, e a tabela do cliente é cadastro
+# ADR 0038 — A região do motorista é custo, e a tabela do cliente é cadastro
 
 - Status: aceito
 - Data: 2026-08-20

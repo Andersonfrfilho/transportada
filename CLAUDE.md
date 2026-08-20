@@ -203,7 +203,7 @@ arquivo devolve `{0, 0, 0}`; rota ausente do arquivo vai a `inactive`, nunca é 
 rotas vazio é recusado (`FREIGHT_REGION_IMPORT_EMPTY`), porque inativaria a tabela inteira à qual os
 motoristas estão ligados. `scripts/freight-region-import.py` faz a chamada (dry-run por padrão).
 Ler região é `fleet.read`, não `settings.manage`: a cobertura mora no formulário da frota, e é o
-`operator` quem cadastra motorista. ADR-0037.
+`operator` quem cadastra motorista. ADR-0038.
 
 **O `{{periodo}}` da NFS-e é digitado, não derivado:** o domínio não calcula janela nenhuma a partir
 das notas — `buildNfseDescription` recebe `period` e o repassa como veio, e em branco a variável sai
