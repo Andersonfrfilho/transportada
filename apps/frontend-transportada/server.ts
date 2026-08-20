@@ -8,8 +8,24 @@ const DEFAULT_PORT = 8080
 const IMMUTABLE_ASSET_PREFIX = '/assets/'
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 const REVALIDATE_CACHE_CONTROL = 'no-cache'
+const CONTENT_SECURITY_POLICY_PATH = 'content-security-policy.txt'
+
+// A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
+// chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
+// seria a falha silenciosa que este arquivo existe para impedir.
+const contentSecurityPolicyFile = Bun.file(
+  new URL(CONTENT_SECURITY_POLICY_PATH, DISTRIBUTION_DIRECTORY),
+)
+if (!(await contentSecurityPolicyFile.exists())) {
+  throw new Error('FRONTEND_MISSING_CONTENT_SECURITY_POLICY')
+}
+const contentSecurityPolicy = (await contentSecurityPolicyFile.text()).trim()
+if (contentSecurityPolicy === '') {
+  throw new Error('FRONTEND_EMPTY_CONTENT_SECURITY_POLICY')
+}
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  'Content-Security-Policy': contentSecurityPolicy,
   'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Content-Type-Options': 'nosniff',

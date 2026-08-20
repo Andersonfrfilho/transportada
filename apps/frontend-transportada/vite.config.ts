@@ -2,8 +2,14 @@ import { resolve } from 'node:path'
 
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 
+import {
+  CONTENT_SECURITY_POLICY_FILE_NAME,
+  buildContentSecurityPolicy,
+} from './src/modules/shared/contentSecurityPolicy.service'
+
+const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy'
 const PWA_ICON_PATH = '/icons/icon-192.png'
 const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
@@ -15,10 +21,60 @@ const API_PROXY = {
   },
 }
 
+/**
+ * A CSP nasce aqui porque é aqui que as origens existem: `VITE_API_URL` e `VITE_KEYCLOAK_URL` são
+ * inlinadas no bundle e não chegam ao contêiner que serve o `dist`. O arquivo emitido é o contrato
+ * entre o build e o `server.ts`, que se recusa a subir sem ele.
+ */
+function contentSecurityPolicyPlugin(): Plugin {
+  let servedPolicy = ''
+  let developmentPolicy = ''
+
+  return {
+    name: 'transportada-content-security-policy',
+    configResolved(config) {
+      // `config.env` é `Record<string, any>`: a leitura passa por aqui para a origem chegar tipada
+      // ao construtor, e não como `any` que atravessa a fronteira sem ninguém olhar.
+      const readEnvironment = (name: string): string | undefined => {
+        const value: unknown = config.env[name]
+        return typeof value === 'string' ? value : undefined
+      }
+      const origins = {
+        apiBaseUrl: readEnvironment('VITE_API_URL'),
+        keycloakUrl: readEnvironment('VITE_KEYCLOAK_URL'),
+      }
+      servedPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: false })
+      developmentPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: true })
+    },
+    // Diretiva que só existe em produção quebra em produção. Dev e preview servem a mesma, e é por
+    // isso que um destino esquecido no `connect-src` aparece no `make dev`, não no cliente.
+    configureServer(server) {
+      server.middlewares.use((_request, response, next) => {
+        response.setHeader(CONTENT_SECURITY_POLICY_HEADER, developmentPolicy)
+        next()
+      })
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((_request, response, next) => {
+        response.setHeader(CONTENT_SECURITY_POLICY_HEADER, servedPolicy)
+        next()
+      })
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: CONTENT_SECURITY_POLICY_FILE_NAME,
+        source: servedPolicy,
+      })
+    },
+  }
+}
+
 export default defineConfig({
   envDir: resolve(import.meta.dirname, '../..'),
   plugins: [
     react(),
+    contentSecurityPolicyPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },

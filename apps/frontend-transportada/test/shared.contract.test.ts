@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './shared/alphanumeric-tax-id.contract.js'
+import './shared/content-security-policy.contract.js'
 import './shared/decimal-amount.contract.js'
 import './shared/deployment-environment.contract.js'
 import './shared/filter-pill-values.contract.js'
