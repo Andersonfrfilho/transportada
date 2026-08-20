@@ -63,9 +63,11 @@
       `settings.manage`.
       **Aceite:** contrato de fronteira verde.
 
-- [ ] **T008** — Classe de frete no veículo.
-      `freightClass` entra em `POST`/`PUT` de veículo e na listagem. Sugestão pelo rodado é do
-      frontend; a API aceita vazio.
+- [x] **T008** — Classe de frete no veículo.
+      `freightClass` entra em `POST`/`PATCH` de veículo e na listagem. Sugestão pelo rodado é do
+      frontend; a API aceita vazio e recusa valor fora da tabela.
+      A atualização de veículo desta API é `PATCH`, não `PUT` — o texto original dizia `PUT`, e o
+      roteador não casa o método errado: responderia 404, não 405.
       **Aceite:** `fleet-http` verde.
 
 - [ ] **T009** — Importação.

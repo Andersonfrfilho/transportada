@@ -229,3 +229,42 @@ Decisões que o contrato fixa:
   para saber se ele existe.
 - Identificador de motorista fora do uuid canônico **não casa rota** (404): é o roteador que
   recusa, antes de qualquer parse — o contrato registra isso para ninguém "consertar" para 400.
+
+## T008 — Classe de frete no veículo
+
+```
+$ bun test ./test/fleet-http.contract.test.ts
+49 pass · 0 fail · 159 expect() calls
+
+$ bun run --cwd apps/api-transportada test
+2663 pass · 15 skip · 1 fail · 10908 expect() calls (111 arquivos)
+
+$ bun run typecheck   # verde
+$ bun run format      # verde
+```
+
+⚠️ A falha é a mesma de T006 e T007 — `test/database-migration/static-migration.contract.ts` sem
+`20260820002947_fleet_driver_address_and_dates`, migration ainda não versionada de outro trabalho.
+`bun run lint` também acusa um erro fora desta feature, em
+`frontend-transportada/src/modules/fleet/shared/driverAddress.service.ts`, arquivo **não rastreado**
+do mesmo trabalho pendente. Nada de T008 entra em nenhum dos dois.
+
+Esta task **não mudou `src/`**: a coluna `fleet_vehicles.freight_class`, o campo na porta, o mapper,
+o `serializeVehicle` e o `z.literal('').or(z.enum(FREIGHT_VEHICLE_CLASSES))` do schema de request já
+tinham nascido no T003, junto da migration. O que faltava era a prova de fronteira — e ela é o que
+impede alguém de tirar o campo do corpo achando que ele é derivado do rodado.
+
+Decisões que o contrato fixa:
+
+- **Classe de frete não é `tipoRodado`.** A tabela da SEFAZ não tem VUC nem 3/4, e é exatamente aí
+  que os dois se separam: o rodado descreve o veículo para o fisco, a classe casa o veículo com a
+  coluna da tabela do cliente. O teste percorre criar → atualizar → listar com `vuc` e
+  `three_quarter`, nenhum dos dois expressável em rodado.
+- **Vazio é valor legítimo, e não é "não informado".** Cavalo mecânico e "Outros" não têm classe na
+  tabela do cliente; obrigar o campo faria a tela inventar uma. A sugestão pelo rodado é do
+  frontend (T012) — a API aceita `''` e não corrige ninguém.
+- **Classe fora da tabela é 400 e não chega ao caso de uso.** `carreta` parece plausível e não é uma
+  das colunas; o contrato prova que o `createVehicleCalls` fica vazio, senão a recusa seria só do
+  banco, tarde e como 500.
+- **A atualização é `PATCH`.** O `tasks.md` dizia `PUT`; o roteador não casa método trocado e
+  devolveria 404. Corrigido no texto da task para o T012 não sair procurando uma rota que não existe.
