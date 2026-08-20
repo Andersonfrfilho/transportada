@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FleetVehicleCatalogOption, FleetVehicleDetail } from './fleet.types'
+import {
+  FLEET_FIELD_ENTRY_MODE,
+  type FleetFieldEntryMode,
+  type FleetVehicleCatalogOption,
+  type FleetVehicleDetail,
+} from './fleet.types'
 
 export type VehicleCatalogChoice = Readonly<{ label: string; value: string }>
 
@@ -9,10 +14,9 @@ export type VehicleCatalogChoice = Readonly<{ label: string; value: string }>
  */
 export const VEHICLE_CATALOG_OTHER_VALUE = '__outro__'
 
-export const VEHICLE_CATALOG_ENTRY_MODE = { LIST: 'list', TEXT: 'text' } as const
+export const VEHICLE_CATALOG_ENTRY_MODE = FLEET_FIELD_ENTRY_MODE
 
-export type VehicleCatalogEntryMode =
-  (typeof VEHICLE_CATALOG_ENTRY_MODE)[keyof typeof VEHICLE_CATALOG_ENTRY_MODE]
+export type VehicleCatalogEntryMode = FleetFieldEntryMode
 
 const WHITESPACE_PATTERN = /\s+/g
 

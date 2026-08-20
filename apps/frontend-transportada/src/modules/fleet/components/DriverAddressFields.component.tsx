@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { DriverAddressLookupController } from '../hooks/useDriverAddressLookup.hook'
 import { BRAZIL_STATE, type FleetDriverFormState } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
+import { DriverCityField } from './DriverCityField.component'
 import { FleetField, FleetSelectField } from './FleetField.component'
 
 type DriverAddressFieldsProps = Readonly<{
@@ -76,12 +77,6 @@ export function DriverAddressFields({ lookup, onChange, state }: DriverAddressFi
           value={state.addressDistrict}
           onChange={(addressDistrict) => onChange({ addressDistrict })}
         />
-        <FleetField
-          label={t('driverAddressCity')}
-          optional
-          value={state.addressCity}
-          onChange={(addressCity) => onChange({ addressCity })}
-        />
         <FleetSelectField
           clearable
           label={t('driverAddressState')}
@@ -90,6 +85,14 @@ export function DriverAddressFields({ lookup, onChange, state }: DriverAddressFi
           placeholder={t('driverAddressStateUnset')}
           value={state.addressState}
           onChange={(addressState) => onChange({ addressState })}
+        />
+        <DriverCityField
+          choices={lookup.cityChoices}
+          hasState={lookup.hasCityState}
+          isLoading={lookup.isLoadingCities}
+          label={t('driverAddressCity')}
+          value={state.addressCity}
+          onChange={(addressCity) => onChange({ addressCity })}
         />
       </div>
       {lookup.mapUrl === null ? null : (

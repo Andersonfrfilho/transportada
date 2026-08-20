@@ -94,6 +94,15 @@ export type BrazilState = (typeof BRAZIL_STATE)[number]
 export const FLEET_DRIVER_STATUS = ['active', 'inactive'] as const
 export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUS)[number]
 
+/**
+ * Campo de lista fechada que precisa de saída: `list` escolhe da lista, `text` digita. Catálogo de
+ * veículo e município compartilham o vocabulário — dois nomes para o mesmo par abriria a porta para
+ * um lado chamar de `manual` o que o outro chama de `text`.
+ */
+export const FLEET_FIELD_ENTRY_MODE = { LIST: 'list', TEXT: 'text' } as const
+export type FleetFieldEntryMode =
+  (typeof FLEET_FIELD_ENTRY_MODE)[keyof typeof FLEET_FIELD_ENTRY_MODE]
+
 export type FleetVehicleOwner = Readonly<{
   name: string
   rntrc: string

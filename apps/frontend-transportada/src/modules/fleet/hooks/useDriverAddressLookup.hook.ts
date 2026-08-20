@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -16,6 +17,13 @@ import {
   searchAddress,
 } from '../shared/driverAddress.service'
 import type { FleetDriverFormState } from '../shared/fleet.types'
+import type { MunicipalityChoice } from '../shared/municipality.service'
+import {
+  MUNICIPALITY_QUERY_KEY,
+  MUNICIPALITY_STALE_TIME_MS,
+  buildMunicipalityChoices,
+  listMunicipalities,
+} from '../shared/municipality.service'
 
 const SEARCH_DEBOUNCE_MS = 400
 const LOCATE_DEBOUNCE_MS = 900
@@ -29,6 +37,9 @@ type UseDriverAddressLookupInput = Readonly<{
 export type DriverAddressLookupController = Readonly<{
   changePostalCode: (value: string) => void
   changeSearchTerm: (value: string) => void
+  cityChoices: readonly MunicipalityChoice[]
+  hasCityState: boolean
+  isLoadingCities: boolean
   isSearching: boolean
   mapUrl: null | string
   searchTerm: string
@@ -108,6 +119,22 @@ export function useDriverAddressLookup(
 
   const { addressCity, addressDistrict, addressNumber, addressState, addressStreet } = state
   const canLocate = addressStreet !== '' && addressCity !== ''
+
+  const municipalityQuery = useQuery({
+    enabled: addressState !== '',
+    queryFn: ({ signal }) =>
+      listMunicipalities({ fetch: fetchImplementation, signal, state: addressState }),
+    queryKey: [MUNICIPALITY_QUERY_KEY, addressState],
+    staleTime: MUNICIPALITY_STALE_TIME_MS,
+  })
+  const cityChoices = useMemo(
+    () =>
+      buildMunicipalityChoices({
+        municipalities: municipalityQuery.data ?? [],
+        selected: addressCity,
+      }),
+    [addressCity, municipalityQuery.data],
+  )
 
   useEffect(() => {
     if (!canLocate) {
@@ -206,6 +233,9 @@ export function useDriverAddressLookup(
   return {
     changePostalCode,
     changeSearchTerm,
+    cityChoices,
+    hasCityState: addressState !== '',
+    isLoadingCities: municipalityQuery.isLoading,
     isSearching,
     mapUrl: point === null ? null : buildMapEmbedUrl(point),
     searchTerm,
