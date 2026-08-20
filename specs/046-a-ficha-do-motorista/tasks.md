@@ -70,14 +70,22 @@
       IBGE entra na diretiva mesmo não sendo PII, senão o select de cidade quebra ao publicá-la.
       **Aceite:** contrato que falha se um destino externo do bundle não estiver na diretiva.
 
-- [ ] **T009** — 🧠 ADR: criptografia em repouso dos campos de pessoa física do motorista.
-      `birth_date`, `license_number`, `tax_id` e endereço em claro contra o §5. Ou criptografar com
-      chave de aplicação separada da do banco, ou registrar por que a instalação dedicada basta.
-      Decidir **antes** de o MDF-e passar a ler esses campos: com leitor, migrar para coluna
-      criptografada deixa de ser mudança de uma app só.
+- [x] **T009** — 🧠 ADR: criptografia em repouso dos campos de pessoa física do motorista.
+      `docs/adr/0039-a-ficha-do-motorista-se-criptografa-onde-ninguem-le.md`, **status `aceito`**.
+      Decide: envelope A256GCM único para `birth_date`, `license_number`, endereço e telefone —
+      justamente por não terem leitor, é o momento mais barato que vai existir; índice cego com HMAC
+      para a unicidade da CNH; `tax_id`, `linked_tax_id`, `name` e `license_expires_at` ficam em
+      claro, cada um com o motivo escrito. A janela que esta task pedia ("decidir antes de o MDF-e
+      ler") **já estava fechada para o CPF**: `mdfe-payload.builder.ts:72` o lê hoje, e ele está em
+      claro no payload congelado e no XML preservado.
 
 ## Fora deste `tasks.md`
 
 O aviso de CNH a vencer (chave nova em `NOTIFICATION_TEMPLATE_KEY`, agendamento, cron) é feature
 própria. O texto de ajuda que o prometia foi corrigido em `87d1067` — campo não promete o que o
 produto não faz.
+
+**Executar a ADR-0039** também é spec própria, e não tem um "T009-A" aqui de propósito: migração de
+expansão, passo de backfill que sela pela aplicação, índice cego, contração **destrutiva com
+aprovação humana** e os contratos de teste não caberiam como apêndice de uma task de decisão. A T007-A
+existiu porque executar a ADR-0037 era **remoção**, de uma app só.

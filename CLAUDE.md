@@ -101,7 +101,7 @@ administrar usuários ainda precisa cadastrar motorista.
 
 **A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
 `license_number`, `license_expires_at` e o endereço residencial existem na tabela e no formulário,
-mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Duas consequências que ficam
+mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Três consequências que ficam
 escritas para não serem redescobertas:
 
 - A CNH é **única por empresa, mas só quando preenchida**: o índice
@@ -113,6 +113,15 @@ escritas para não serem redescobertas:
   (`BILLING_INVOICE_DUE`, `CTE_BATCH_ISSUANCE_FAILED`, `NFSE_INVOICE_REJECTED`) e nenhuma é de
   habilitação. O texto de ajuda do campo prometia o aviso; hoje diz que a data fica registrada para
   consulta. Implementar o trilho é feature com spec própria (chave nova + agendamento + cron).
+- **A ADR-0039 já decidiu criptografar esses campos, e ainda não foi executada.** Envelope A256GCM
+  único para `birth_date`, `license_number`, endereço e telefone, AAD
+  `transportada:fleet-driver:v1:${companyId}:${driverId}`, e índice cego com HMAC para a CNH seguir
+  única por empresa — decidido **porque** não há leitor, que é o que torna a mudança barata. Quem for
+  escrever leitor para um desses campos passa a ter de abrir envelope: confira a ADR antes.
+  `tax_id`, `linked_tax_id`, `name` e `license_expires_at` ficam em claro por decisão registrada — o
+  CPF porque `mdfe-payload.builder.ts:72` já o lê e ele está em claro no payload congelado
+  (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
+  consulta.
 
 ⚠️ O endereço do motorista é preenchido por **quatro provedores públicos consultados do navegador**
 (`fleet/shared/driverAddress.service.ts`): BrasilAPI e ViaCEP disputam o CEP por `Promise.any` — o

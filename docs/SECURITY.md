@@ -92,10 +92,30 @@ claro. `license_number` (CNH, onze dígitos) e o endereço residencial estão na
 tem exposição pública e o acesso é só pela rede interna; nenhum destes campos vai para log, e
 nenhum aparece em nome de objeto no bucket. O backup é criptografado antes do upload.
 
-**O que falta:** a decisão consciente que o §5 exige — criptografar as colunas de pessoa física do
-motorista (`birth_date`, `license_number`, `tax_id`, endereço) com chave de aplicação, ou registrar
-por ADR por que a instalação dedicada e a rede fechada bastam neste produto. Hoje não há nem uma nem
-outra: o campo nasceu em claro por omissão, e é isso que este item corrige ao ficar escrito.
+**Decisão (2026-08-20):** a **ADR-0039** decidiu, status `aceito`, e **não está executada**. A leitura
+coluna por coluna mostrou que a tabela não tem uma resposta só, e que o campo mais sensível é o único
+que não dá para proteger: `birth_date`, `license_number`, o endereço e o telefone vão para um envelope
+A256GCM único, com AAD por motorista e índice cego com HMAC para a CNH continuar única por empresa —
+justamente porque **não têm leitor**, e por isso é o momento mais barato que vai existir.
+`tax_id` fica em claro por decisão: `mdfe-payload.builder.ts:72` já o lê, e o mesmo CPF está em claro
+em `mdfe_issuance_payloads.payload`, comprometido por `payload_sha256`, e no XML que o produto
+preserva — criptografá-lo protegeria o motorista que nunca entrou em manifesto e cobraria a unicidade,
+o CHECK e o caminho de outra app. `name` (busca por trecho) e `license_expires_at` (a data que o aviso
+de CNH vai varrer) ficam em claro por serem o que se consulta.
+
+**O que a ADR não promete:** o chaveiro vive no ambiente da própria API. Isto defende **leitura do
+banco sem a aplicação** — credencial somente-leitura vazada, Adminer ou Metabase mal configurado,
+`pg_dump` indevido, backup restaurado em outro lugar —, que é a ameaça que o §5 descreve ao pedir
+chave separada da do banco. Não defende aplicação comprometida.
+
+**O que falta:** executar. Migração de expansão, backfill que sela pela aplicação, índice cego e
+contração — que é **destrutiva** e exige aprovação humana, com `rollback.sql` que devolve as colunas e
+não os valores. É spec própria. Até ela existir, as colunas seguem em claro: o achado saiu de "sem
+decisão" para "decidido e pendente", e não fechou.
+
+**Lacuna que este achado revelou e não resolve:** **não existe rotação de chave neste repositório**,
+para nenhum envelope — nem para as credenciais de NFS-e. O `keyId` deixa a porta aberta; re-selar
+linha não está escrito.
 
 **Origem:** auditoria de lacunas do cadastro de motorista.
 

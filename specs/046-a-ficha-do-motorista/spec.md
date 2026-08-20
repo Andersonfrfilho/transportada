@@ -28,7 +28,7 @@ resto do endereço.
   existir foi defeito corrigido em `87d1067`.
 - **Consumo dos campos novos.** Nada além do próprio CRUD lê `birth_date`, `license_number`,
   `license_expires_at` ou endereço. O MDF-e não passou a levá-los.
-- **Criptografia em repouso.** Ver "Decisões abertas".
+- **Criptografia em repouso.** Decidida pela ADR-0039, **não executada** aqui — ver a decisão 3.
 
 ## Histórias priorizadas
 
@@ -115,7 +115,11 @@ Nenhuma bloqueia o que já está em produção; todas três precisam de ADR ante
    `connect-src` fecha em `brasilapi.com.br`, `viacep.com.br`, `photon.komoot.io`, a API e o Keycloak,
    com `frame-src 'none'`. A lista de municípios do IBGE **já estava coberta**: ela anda pela
    BrasilAPI, e foi a varredura de origens do contrato que mostrou isso — não a lista escrita à mão.
-3. **Criptografia em repouso.** `birth_date`, `license_number` e endereço em claro contra o §5 do
-   baseline — ou criptografar com chave de aplicação, ou registrar por ADR por que instalação
-   dedicada e rede fechada bastam. Hoje não há nem uma nem outra. Achado em `docs/SECURITY.md`,
-   2026-08-20.
+3. ~~**Criptografia em repouso.**~~ Decidida pela **ADR-0039** (status `aceito`): `birth_date`,
+   `license_number`, endereço e telefone vão para um envelope A256GCM **porque não têm leitor** — é o
+   momento mais barato que vai existir, e a leitura coluna por coluna mostrou que a tabela não tem uma
+   resposta só. `tax_id` fica em claro por decisão registrada: ele **já tem leitor** (o MDF-e), e o
+   mesmo CPF está em claro no payload congelado, comprometido por hash, e no XML preservado —
+   criptografá-lo protegeria o motorista que nunca rodou e cobraria a unicidade, o CHECK e o caminho
+   de outra app. `name` e `license_expires_at` ficam em claro por serem o que se consulta. Executar é
+   spec própria: a contração é destrutiva.

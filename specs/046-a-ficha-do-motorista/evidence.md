@@ -164,7 +164,34 @@ $ bun run --cwd apps/frontend-transportada test
 1505 pass · 0 fail · 9125 expect() calls · 18 arquivos
 ```
 
-## T009
+## T009 — ADR-0039
 
-Aberta. Depende de decisão, e ADR não escrito não tem gate. O achado de criptografia em repouso segue
-datado em `docs/SECURITY.md` (2026-08-20).
+Escrita e aceita: `docs/adr/0039-a-ficha-do-motorista-se-criptografa-onde-ninguem-le.md`. ADR não tem
+gate de teste, e desta vez **não há um T009-A para produzir um**: a execução é spec própria, porque a
+contração é destrutiva e pede aprovação humana.
+
+O que a decisão tem de verificável é a leitura que a produziu, e ela está registrada porque contraria
+a premissa da própria task:
+
+```
+$ grep -n "cpf: driver.taxId" src/mdfe-manifests/domain/mdfe-payload.builder.ts
+72:    cpf: driver.taxId,
+
+$ grep -n "ilike\|statusEq" src/fleet/infrastructure/drizzle-fleet-driver.repository.ts
+102:  eq(fleetDrivers.status, input.filters.statusEq),
+105:  ilike(fleetDrivers.name, `%${input.filters.nameContains}%`),
+```
+
+A primeira linha fecha a janela que a T009 pedia: "decidir **antes** de o MDF-e passar a ler esses
+campos" — para o CPF o leitor **já existe**, e o mesmo valor está em claro em
+`mdfe_issuance_payloads.payload`, coluna `jsonb` comprometida por `payload_sha256`, e no XML que o
+produto preserva. Criptografar `fleet_drivers.tax_id` protegeria o motorista que nunca entrou em
+manifesto, e cobraria o `unique(company_id, tax_id)`, o CHECK de onze dígitos e a abertura do envelope
+no caminho do MDF-e.
+
+A segunda mostra o outro lado: a listagem de motorista filtra `statusEq` e `ilike(name)`, e nada mais.
+`birth_date`, `license_number`, endereço e telefone não são filtrados por consulta nenhuma e não têm
+consumidor nenhum — é por isso que criptografá-los agora é o mais barato que vai ficar, e é o
+argumento que decidiu a T009 a favor de criptografar em vez de registrar a dispensa.
+
+Nenhum arquivo de código mudou nesta task; não há gate para rodar.
