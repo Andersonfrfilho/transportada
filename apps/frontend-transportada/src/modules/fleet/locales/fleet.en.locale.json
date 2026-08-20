@@ -441,6 +441,29 @@
     "rateHint": "Leave the class blank when it does not serve the route — a zeroed amount says the same and is not stored.",
     "rateLegend": "Amount paid to the driver by class"
   },
+  "regionImport": {
+    "blocked": {
+      "rates_required": "Pick the rates file too: without it the import cannot tell what the driver is paid.",
+      "regions_required": "Pick the routes file. It is what says which routes and cities exist."
+    },
+    "busy": "Importing…",
+    "created": "{{count}} route created",
+    "created_plural": "{{count}} routes created",
+    "deactivated": "{{count}} route deactivated",
+    "deactivated_plural": "{{count}} routes deactivated",
+    "failed": "The import did not go through. Check the columns of both files and try again.",
+    "hint": "Both files go up together: the routes file says which routes and cities exist, the rates file says what each class is paid. A route missing from the file is deactivated, never deleted.",
+    "picked": "Picked: {{name}}",
+    "rates": "Rates file",
+    "ratesHint": "One row per route, with one column per vehicle class.",
+    "regions": "Routes file",
+    "regionsHint": "One row per city, with the route code, the region name and the state.",
+    "submit": "Import",
+    "summaryTitle": "What changed",
+    "title": "Import the freight table",
+    "updated": "{{count}} route updated",
+    "updated_plural": "{{count}} routes updated"
+  },
   "regionSelection": {
     "clear": "Clear selection",
     "copied": "Cities copied",

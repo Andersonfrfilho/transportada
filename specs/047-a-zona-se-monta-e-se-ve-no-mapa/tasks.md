@@ -47,13 +47,13 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T007** — Contrato da importação.
+- [x] **T007** — Contrato da importação.
       `test/fleet/freight-region-import.contract.ts`: os dois arquivos viram `{regions, rates}` como
       texto; o resumo `{created, updated, deactivated}` é exibido; arquivo faltando bloqueia o envio
       antes do 400.
       **Aceite:** vermelho registrado.
 
-- [ ] **T008** — `FreightRegionImportDialog.component.tsx`.
+- [x] **T008** — `FreightRegionImportDialog.component.tsx`.
       Seletor dos dois arquivos, envio e resumo. Diálogo, não página.
       **Aceite:** T007 verde.
 

@@ -992,3 +992,50 @@
   padding-left: var(--space-4);
   font-size: 0.85rem;
 }
+
+.importField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.importField input[type='file'] {
+  width: 100%;
+  min-width: 0;
+  padding: var(--field-padding);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 42%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.importField input[type='file']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.importSummary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.importSummary strong {
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.importSummary ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 0.85rem;
+}

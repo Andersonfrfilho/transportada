@@ -441,6 +441,29 @@
     "rateHint": "Deixe em branco a classe que não atende a rota — valor zerado diz a mesma coisa e não é gravado.",
     "rateLegend": "Valor pago ao motorista por classe"
   },
+  "regionImport": {
+    "blocked": {
+      "rates_required": "Escolha também o arquivo de valores: sem ele a importação não sabe quanto o motorista recebe.",
+      "regions_required": "Escolha o arquivo de rotas. Ele é o que diz quais rotas e cidades existem."
+    },
+    "busy": "Importando…",
+    "created": "{{count}} rota criada",
+    "created_plural": "{{count}} rotas criadas",
+    "deactivated": "{{count}} rota inativada",
+    "deactivated_plural": "{{count}} rotas inativadas",
+    "failed": "A importação não passou. Confira as colunas dos dois arquivos e tente de novo.",
+    "hint": "Os dois arquivos sobem juntos: o de rotas diz quais rotas e cidades existem, o de valores diz quanto cada classe recebe. Rota que não estiver no arquivo é inativada, nunca apagada.",
+    "picked": "Escolhido: {{name}}",
+    "rates": "Arquivo de valores",
+    "ratesHint": "Uma linha por rota, com uma coluna por classe de veículo.",
+    "regions": "Arquivo de rotas",
+    "regionsHint": "Uma linha por cidade, com o código da rota, o nome da região e a UF.",
+    "submit": "Importar",
+    "summaryTitle": "O que mudou",
+    "title": "Importar tabela de frete",
+    "updated": "{{count}} rota atualizada",
+    "updated_plural": "{{count}} rotas atualizadas"
+  },
   "regionSelection": {
     "clear": "Limpar seleção",
     "copied": "Cidades copiadas",

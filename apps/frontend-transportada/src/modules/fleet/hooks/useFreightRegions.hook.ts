@@ -10,7 +10,7 @@ import type {
 } from '../shared/freightRegion.types'
 import { getFleetClient } from './useFleet.hook'
 
-const FREIGHT_REGIONS_QUERY_KEY = 'freight-regions'
+export const FREIGHT_REGIONS_QUERY_KEY = 'freight-regions'
 
 type ListFreightRegionPage = (
   input: Readonly<{ cursor: null | string; limit: number }>,
