@@ -21,7 +21,7 @@ import {
   type NfseFiscalEnvironment,
   type NfseProviderCredentialSummary,
 } from '../shared/nfseSettings.types'
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatCnpj, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import styles from '../styles/nfseSettings.module.css'
 
@@ -176,7 +176,7 @@ export function NfseCredentialPanel(props: NfseCredentialPanelProps): JSX.Elemen
                 onChange={(event) =>
                   setDraft({ ...draft, taxId: normalizeTaxId(event.target.value) })
                 }
-                value={draft.taxId}
+                value={formatCnpj(draft.taxId)}
               />
             </label>
             <label>

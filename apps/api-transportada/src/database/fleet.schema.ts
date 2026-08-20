@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import {
   bigint,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -94,6 +95,18 @@ const DRIVER_NAME_MAX_LENGTH = 60
 const PLATE_PATTERN = '^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$'
 
 const STATE_PATTERN = '^[A-Z]{2}$'
+
+const POSTAL_CODE_PATTERN = '^[0-9]{8}$'
+/**
+ * Data mínima para nascimento e validade de CNH. O teto seria `current_date`, mas função volátil em
+ * CHECK quebra o restore do dump — quem recusa data futura de nascimento é o Zod da fronteira.
+ */
+const DRIVER_DATE_FLOOR = '1900-01-01'
+const DRIVER_STREET_MAX_LENGTH = 120
+const DRIVER_ADDRESS_NUMBER_MAX_LENGTH = 20
+const DRIVER_COMPLEMENT_MAX_LENGTH = 60
+const DRIVER_DISTRICT_MAX_LENGTH = 60
+const DRIVER_CITY_MAX_LENGTH = 60
 
 /** Marca livre — a FIPE não cobre implemento, e o operador digita quando o catálogo falha. */
 const VEHICLE_BRAND_MAX_LENGTH = 60
@@ -267,7 +280,16 @@ export const fleetDrivers = pgTable(
     taxId: text('tax_id').notNull(),
     linkedTaxId: text('linked_tax_id').notNull().default(''),
     licenseNumber: text('license_number').notNull().default(''),
+    licenseExpiresAt: date('license_expires_at'),
+    birthDate: date('birth_date'),
     phone: text().notNull().default(''),
+    postalCode: text('postal_code').notNull().default(''),
+    street: text().notNull().default(''),
+    number: text().notNull().default(''),
+    complement: text().notNull().default(''),
+    district: text().notNull().default(''),
+    city: text().notNull().default(''),
+    state: text().notNull().default(''),
     status: text().$type<FleetDriverStatus>().notNull().default('active'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -293,6 +315,10 @@ export const fleetDrivers = pgTable(
     uniqueIndex('fleet_drivers_company_membership_unique')
       .on(table.companyId, table.membershipId)
       .where(sql`${table.membershipId} is not null`),
+    // Parcial porque a CNH é opcional: dois motoristas sem habilitação cadastrada não colidem
+    uniqueIndex('fleet_drivers_company_license_number_unique')
+      .on(table.companyId, table.licenseNumber)
+      .where(sql`length(${table.licenseNumber}) > 0`),
     index('fleet_drivers_company_status_name_idx').on(table.companyId, table.status, table.name),
     check('fleet_drivers_tax_id_check', sql`${table.taxId} ~ '^[0-9]{11}$'`),
     // O condutor do MDF-e é sempre pessoa física — o CNPJ do autônomo acompanha o CPF, nunca o substitui
@@ -311,6 +337,22 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_phone_check',
       sql`length(${table.phone}) = 0 or ${table.phone} ~ '^[0-9]{10,11}$'`,
+    ),
+    check(
+      'fleet_drivers_dates_check',
+      sql`(${table.birthDate} is null or ${table.birthDate} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.licenseExpiresAt} is null or ${table.licenseExpiresAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)})`,
+    ),
+    check(
+      'fleet_drivers_postal_code_check',
+      sql`length(${table.postalCode}) = 0 or ${table.postalCode} ~ ${sql.raw(`'${POSTAL_CODE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_address_state_check',
+      sql`length(${table.state}) = 0 or ${table.state} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_address_length_check',
+      sql`length(${table.street}) <= ${sql.raw(String(DRIVER_STREET_MAX_LENGTH))} and length(${table.number}) <= ${sql.raw(String(DRIVER_ADDRESS_NUMBER_MAX_LENGTH))} and length(${table.complement}) <= ${sql.raw(String(DRIVER_COMPLEMENT_MAX_LENGTH))} and length(${table.district}) <= ${sql.raw(String(DRIVER_DISTRICT_MAX_LENGTH))} and length(${table.city}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))}`,
     ),
     check(
       'fleet_drivers_status_check',

@@ -72,7 +72,20 @@ export const UPDATE_VEHICLE_BODY = {
   status: 'active',
 } as const
 
+export const EMPTY_DRIVER_ADDRESS = {
+  city: '',
+  complement: '',
+  district: '',
+  number: '',
+  postalCode: '',
+  state: '',
+  street: '',
+} as const
+
 export const CREATE_DRIVER_BODY = {
+  address: EMPTY_DRIVER_ADDRESS,
+  birthDate: null,
+  licenseExpiresAt: null,
   licenseNumber: '12345678901',
   linkedTaxId: '',
   membershipId: null,

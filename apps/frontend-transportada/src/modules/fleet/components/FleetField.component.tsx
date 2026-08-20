@@ -13,6 +13,7 @@ type FleetFieldProps = Readonly<{
   maxLength?: number
   onChange: (value: string) => void
   optional?: boolean
+  type?: 'date' | 'text'
   value: string
 }>
 
@@ -49,6 +50,7 @@ export function FleetField({
   maxLength = 120,
   onChange,
   optional = false,
+  type = 'text',
   value,
 }: FleetFieldProps) {
   const { t } = useTranslation('fleet')
@@ -61,7 +63,7 @@ export function FleetField({
       <input
         inputMode={inputMode}
         maxLength={maxLength}
-        type="text"
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

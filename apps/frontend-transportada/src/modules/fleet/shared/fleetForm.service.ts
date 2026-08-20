@@ -57,6 +57,15 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
 }
 
 const EMPTY_DRIVER_FORM: FleetDriverFormState = {
+  addressCity: '',
+  addressComplement: '',
+  addressDistrict: '',
+  addressNumber: '',
+  addressPostalCode: '',
+  addressState: '',
+  addressStreet: '',
+  birthDate: '',
+  licenseExpiresAt: '',
   licenseNumber: '',
   linkedTaxId: '',
   membershipId: '',
@@ -131,6 +140,15 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
 
 export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormState {
   return {
+    addressCity: driver.address.city,
+    addressComplement: driver.address.complement,
+    addressDistrict: driver.address.district,
+    addressNumber: driver.address.number,
+    addressPostalCode: driver.address.postalCode,
+    addressState: driver.address.state,
+    addressStreet: driver.address.street,
+    birthDate: driver.birthDate ?? '',
+    licenseExpiresAt: driver.licenseExpiresAt ?? '',
     licenseNumber: driver.licenseNumber,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId ?? '',
@@ -234,6 +252,17 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
 
 export function toDriverBody(state: FleetDriverFormState): FleetDriverBody {
   return {
+    address: {
+      city: state.addressCity,
+      complement: state.addressComplement,
+      district: state.addressDistrict,
+      number: state.addressNumber,
+      postalCode: normalizeDigits(state.addressPostalCode),
+      state: state.addressState.toUpperCase(),
+      street: state.addressStreet,
+    },
+    birthDate: state.birthDate === '' ? null : state.birthDate,
+    licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
     licenseNumber: normalizeDigits(state.licenseNumber),
     linkedTaxId: normalizeTaxId(state.linkedTaxId),
     membershipId: state.membershipId === '' ? null : state.membershipId,

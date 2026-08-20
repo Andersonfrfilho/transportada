@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatCnpj, formatCpf, normalizeTaxId } from '@/modules/shared/taxId.service'
 
+import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
 import { useDriverForm } from '../hooks/useDriverForm.hook'
 import type {
   FleetDriverBody,
@@ -18,6 +19,7 @@ import type {
 } from '../shared/fleet.types'
 import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
+import { DriverAddressFields } from './DriverAddressFields.component'
 import { FleetField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
@@ -42,6 +44,7 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
     vehicles: { links: vehicles.links, replace: vehicles.replace },
     ...(driver === undefined ? {} : { driver }),
   })
+  const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -63,14 +66,14 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
           <FleetField
             inputMode="numeric"
             label={t('driverTaxId')}
-            maxLength={11}
-            value={form.state.taxId}
-            onChange={(taxId) => form.patch({ taxId })}
+            maxLength={14}
+            value={formatCpf(form.state.taxId)}
+            onChange={(taxId) => form.patch({ taxId: normalizeTaxId(taxId) })}
           />
           <FleetField
             label={t('driverLinkedTaxId')}
-            maxLength={14}
-            value={form.state.linkedTaxId}
+            maxLength={18}
+            value={formatCnpj(form.state.linkedTaxId)}
             onChange={(linkedTaxId) => form.patch({ linkedTaxId: normalizeTaxId(linkedTaxId) })}
           />
           <FleetField
@@ -93,10 +96,26 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
             value={form.state.membershipId}
             onChange={(membershipId) => form.patch({ membershipId })}
           />
+          <FleetField
+            label={t('driverBirthDate')}
+            optional
+            type="date"
+            value={form.state.birthDate}
+            onChange={(birthDate) => form.patch({ birthDate })}
+          />
+          <FleetField
+            hint={t('driverLicenseExpiresAtHint')}
+            label={t('driverLicenseExpiresAt')}
+            optional
+            type="date"
+            value={form.state.licenseExpiresAt}
+            onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
+          />
         </div>
         <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
         <p className={styles.hint}>{t('driverMembershipHint')}</p>
       </fieldset>
+      <DriverAddressFields lookup={addressLookup} state={form.state} onChange={form.patch} />
       <fieldset className={styles.fieldGroup}>
         <legend>{t('driverVehiclesLegend')}</legend>
         <p className={styles.hint}>{t('driverVehiclesHint')}</p>

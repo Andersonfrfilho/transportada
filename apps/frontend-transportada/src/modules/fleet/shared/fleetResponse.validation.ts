@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  DRIVER_ADDRESS_KEYS,
   DRIVER_DETAIL_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
   FLEET_CAPABILITY_KEYS,
@@ -114,12 +115,24 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
   )
 }
 
+function isDriverAddress(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, DRIVER_ADDRESS_KEYS) &&
+    hasEveryKey(value, DRIVER_ADDRESS_KEYS) &&
+    DRIVER_ADDRESS_KEYS.every((key) => isString(value[key]))
+  )
+}
+
 function isDriver(value: unknown): value is FleetDriverDetail {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_DETAIL_KEYS) || !hasEveryKey(value, DRIVER_DETAIL_KEYS)) {
     return false
   }
   return (
+    isDriverAddress(value.address) &&
+    isNullableString(value.birthDate) &&
+    isNullableString(value.licenseExpiresAt) &&
     isString(value.createdAt) &&
     isString(value.id) &&
     isString(value.licenseNumber) &&

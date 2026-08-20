@@ -123,6 +123,7 @@ describe('Drizzle migrations', () => {
       '20260819184128_fleet_vehicle_color_market_tones',
       '20260819202712_fleet_vehicle_measure_decimal',
       '20260820000830_freight_regions_and_vehicle_freight_class',
+      '20260820002947_fleet_driver_address_and_dates',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

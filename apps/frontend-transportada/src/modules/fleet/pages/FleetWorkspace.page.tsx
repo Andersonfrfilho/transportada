@@ -81,8 +81,10 @@ function FleetEditorPanel({
         key={editor.vehicle?.id ?? 'new-vehicle'}
         {...(editor.vehicle === undefined ? {} : { vehicle: editor.vehicle })}
         catalog={vehicleCatalog}
+        drivers={workspace.viewModel.drivers ?? []}
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
+        onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
         vehicles={vehicles}
       />

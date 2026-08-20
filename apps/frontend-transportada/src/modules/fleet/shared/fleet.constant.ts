@@ -27,6 +27,7 @@ export const FLEET_PAGE_SIZE = 25
 export const FLEET_VEHICLE_LOAD_LIMIT = 2000
 
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
+  FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',
   FLEET_DRIVER_TAX_ID_TAKEN: 'taxIdTaken',
@@ -154,7 +155,20 @@ export const VEHICLE_FORM_KEYS = [
 
 export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const
 
+export const DRIVER_ADDRESS_KEYS = [
+  'city',
+  'complement',
+  'district',
+  'number',
+  'postalCode',
+  'state',
+  'street',
+] as const
+
 export const DRIVER_BODY_KEYS = [
+  'address',
+  'birthDate',
+  'licenseExpiresAt',
   'licenseNumber',
   'linkedTaxId',
   'membershipId',
@@ -163,7 +177,24 @@ export const DRIVER_BODY_KEYS = [
   'taxId',
 ] as const
 
-export const DRIVER_FORM_KEYS = DRIVER_BODY_KEYS
+/** O formulário achata o endereço com prefixo, como o do veículo faz com o proprietário. */
+export const DRIVER_FORM_KEYS = [
+  'addressCity',
+  'addressComplement',
+  'addressDistrict',
+  'addressNumber',
+  'addressPostalCode',
+  'addressState',
+  'addressStreet',
+  'birthDate',
+  'licenseExpiresAt',
+  'licenseNumber',
+  'linkedTaxId',
+  'membershipId',
+  'name',
+  'phone',
+  'taxId',
+] as const
 
 export const DRIVER_DETAIL_KEYS = [
   ...DRIVER_BODY_KEYS,

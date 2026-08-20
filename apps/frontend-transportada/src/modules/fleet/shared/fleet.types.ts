@@ -207,7 +207,21 @@ export type FleetVehicleCatalogBrandsInput = Readonly<{
 export type FleetVehicleCatalogModelsInput = FleetVehicleCatalogBrandsInput &
   Readonly<{ brand: string }>
 
+/** Endereço parcial é cadastro em andamento: cada campo vazio é ausência, não erro. */
+export type FleetDriverAddress = Readonly<{
+  city: string
+  complement: string
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
 export type FleetDriverBody = Readonly<{
+  address: FleetDriverAddress
+  birthDate: null | string
+  licenseExpiresAt: null | string
   licenseNumber: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   linkedTaxId: string
@@ -283,7 +297,17 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     wheelType: '' | MdfeWheelType
   }>
 
+/** Datas viajam como string vazia no formulário: `null` é o que o corpo da API recebe. */
 export type FleetDriverFormState = Readonly<{
+  addressCity: string
+  addressComplement: string
+  addressDistrict: string
+  addressNumber: string
+  addressPostalCode: string
+  addressState: string
+  addressStreet: string
+  birthDate: string
+  licenseExpiresAt: string
   licenseNumber: string
   linkedTaxId: string
   membershipId: string

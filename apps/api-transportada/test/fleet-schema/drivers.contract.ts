@@ -31,7 +31,16 @@ describe('fleet driver schema', () => {
       'tax_id',
       'linked_tax_id',
       'license_number',
+      'license_expires_at',
+      'birth_date',
       'phone',
+      'postal_code',
+      'street',
+      'number',
+      'complement',
+      'district',
+      'city',
+      'state',
       'status',
       'version',
       'created_at',
@@ -45,10 +54,14 @@ describe('fleet driver schema', () => {
     })
   })
 
-  // Motorista sem login roda o MDF-e inteiro — o vínculo com identidade chega depois
-  test('leaves the login link nullable and requires every other column', () => {
+  // Motorista sem login roda o MDF-e inteiro — o vínculo com identidade chega depois.
+  // As duas datas são nulas quando ausentes: coluna `date` não tem a string vazia que
+  // serve de ausência para os campos de texto opcionais.
+  test('leaves the login link and the two dates nullable, and requires every other column', () => {
+    const nullable = ['membership_id', 'license_expires_at', 'birth_date']
+
     expect(requiredColumnNames(fleetDrivers)).toEqual(
-      columnNames(fleetDrivers).filter((column) => column !== 'membership_id'),
+      columnNames(fleetDrivers).filter((column) => !nullable.includes(column)),
     )
   })
 
@@ -100,6 +113,36 @@ describe('fleet driver schema', () => {
     expect(checks.fleet_drivers_license_number_check).toContain('= 0')
     expect(checks.fleet_drivers_phone_check).toContain("~ '^[0-9]{10,11}$'")
     expect(checks.fleet_drivers_phone_check).toContain('= 0')
+  })
+
+  // A CNH é opcional, mas duas fichas não podem reivindicar a mesma habilitação
+  test('lets at most one driver hold a given license number', () => {
+    const licenseUnique = getTableConfig(fleetDrivers).indexes.find(
+      (tableIndex) => tableIndex.config.name === 'fleet_drivers_company_license_number_unique',
+    )
+
+    expect(licenseUnique?.config.unique).toBeTrue()
+    expect(
+      licenseUnique?.config.columns.map((column) => ('name' in column ? column.name : '')),
+    ).toEqual(['company_id', 'license_number'])
+    expect(
+      licenseUnique?.config.where === undefined
+        ? undefined
+        : dialect.sqlToQuery(licenseUnique.config.where).sql,
+    ).toBe(`length("fleet_drivers"."license_number") > 0`)
+  })
+
+  // O piso é data fixa, não `current_date`: função volátil em CHECK quebraria o restore do dump
+  test('floors both dates and shapes the optional address', () => {
+    const checks = checkSqlByName(fleetDrivers)
+
+    expect(checks.fleet_drivers_dates_check).toContain("date '1900-01-01'")
+    expect(checks.fleet_drivers_dates_check).not.toContain('current_date')
+    expect(checks.fleet_drivers_postal_code_check).toContain("~ '^[0-9]{8}$'")
+    expect(checks.fleet_drivers_postal_code_check).toContain('= 0')
+    expect(checks.fleet_drivers_address_state_check).toContain("~ '^[A-Z]{2}$'")
+    expect(checks.fleet_drivers_address_state_check).toContain('= 0')
+    expect(checks.fleet_drivers_address_length_check).toContain('<= 120')
   })
 
   test('starts the optimistic lock at a positive version', () => {

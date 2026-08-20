@@ -98,7 +98,21 @@ export type FleetVehiclePage = {
   readonly nextCursor: string | null
 }
 
+/** Endereço opcional e parcialmente preenchível: campo em branco é ausência, não erro. */
+export type FleetDriverAddress = {
+  readonly city: string
+  readonly complement: string
+  readonly district: string
+  readonly number: string
+  readonly postalCode: string
+  readonly state: string
+  readonly street: string
+}
+
 export type FleetDriverInput = {
+  readonly address: FleetDriverAddress
+  readonly birthDate: string | null
+  readonly licenseExpiresAt: string | null
   readonly licenseNumber: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   readonly linkedTaxId: string

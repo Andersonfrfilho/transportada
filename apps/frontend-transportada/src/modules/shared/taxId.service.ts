@@ -29,3 +29,60 @@ export function hasValidCnpjCharacterSet(value: string): boolean {
     position < CNPJ_BASE_LENGTH ? /[A-Z0-9]/u.test(character) : /[0-9]/u.test(character),
   )
 }
+
+const CPF_LENGTH = 11
+
+type TaxIdMaskGroup = Readonly<{ end: number; separator: string; start: number }>
+
+/** CPF é só dígito — grupo fixo 3-3-3-2, sem a ressalva de posição que o CNPJ alfanumérico exige. */
+const CPF_GROUPS: readonly TaxIdMaskGroup[] = [
+  { end: 3, separator: '', start: 0 },
+  { end: 6, separator: '.', start: 3 },
+  { end: 9, separator: '.', start: 6 },
+  { end: 11, separator: '-', start: 9 },
+]
+
+/**
+ * Máscara por posição, não por classe de caractere: a base do CNPJ alfanumérico tem letra, e um
+ * `\d` no lugar errado deixaria de mascarar o documento inteiro.
+ */
+const CNPJ_GROUPS: readonly TaxIdMaskGroup[] = [
+  { end: 2, separator: '', start: 0 },
+  { end: 5, separator: '.', start: 2 },
+  { end: 8, separator: '.', start: 5 },
+  { end: 12, separator: '/', start: 8 },
+  { end: 14, separator: '-', start: 12 },
+]
+
+function formatByGroups(document: string, groups: readonly TaxIdMaskGroup[]): string {
+  let masked = ''
+  for (const group of groups) {
+    const part = document.slice(group.start, group.end)
+    if (part === '') break
+    masked += masked === '' ? part : `${group.separator}${part}`
+  }
+  return masked
+}
+
+/** Acima do tamanho legal a máscara sairia do lugar e esconderia o excesso — melhor exibir cru. */
+export function formatCpf(value: string): string {
+  const document = normalizeTaxId(value)
+  if (document.length > CPF_LENGTH) return document
+  return formatByGroups(document, CPF_GROUPS)
+}
+
+/** Acima do tamanho legal a máscara sairia do lugar e esconderia o excesso — melhor exibir cru. */
+export function formatCnpj(value: string): string {
+  const document = normalizeTaxId(value)
+  if (document.length > CNPJ_LENGTH) return document
+  return formatByGroups(document, CNPJ_GROUPS)
+}
+
+/**
+ * Campo que aceita pessoa ou empresa: decide o formato pelo tamanho já digitado, porque CPF
+ * completo (11) nunca é prefixo válido de CNPJ (12 na base) — não há ambiguidade no corte.
+ */
+export function formatTaxId(value: string): string {
+  const document = normalizeTaxId(value)
+  return document.length <= CPF_LENGTH ? formatCpf(document) : formatCnpj(document)
+}

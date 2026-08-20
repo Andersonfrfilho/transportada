@@ -66,6 +66,16 @@ export class FleetDriverTaxIdTakenError extends ApiError {
   }
 }
 
+export class FleetDriverLicenseNumberTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_LICENSE_NUMBER_TAKEN',
+      message: 'Another driver of this company already uses the license number',
+      status: 409,
+    })
+  }
+}
+
 export class FleetDriverMembershipTakenError extends ApiError {
   public constructor() {
     super({

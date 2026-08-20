@@ -115,6 +115,70 @@ describe('fleet drivers http contract', () => {
     expect(fixture.createDriverCalls).toEqual([])
   })
 
+  // Endereço parcial é cadastro em andamento, não erro: só a forma de cada campo é cobrada
+  test('accepts a partially filled address and both optional dates', async () => {
+    const fixture = await createFleetHttpFixture()
+    const driver = {
+      ...CREATE_DRIVER_BODY,
+      address: { ...CREATE_DRIVER_BODY.address, city: 'Campinas', postalCode: '13010000' },
+      birthDate: '1984-03-12',
+      licenseExpiresAt: '2030-09-30',
+    }
+
+    const response = await fixture.handle(
+      jsonRequest({ body: driver, method: 'POST', path: FLEET_DRIVERS_PATH }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createDriverCalls).toEqual([
+      { context: COMPANY_CONTEXT, correlationId: 'fleet-http-correlation', driver },
+    ])
+  })
+
+  test('rejects a postal code with a mask and a state that is not a two letter code', async () => {
+    const fixture = await createFleetHttpFixture()
+    const bodies = [
+      {
+        ...CREATE_DRIVER_BODY,
+        address: { ...CREATE_DRIVER_BODY.address, postalCode: '13010-000' },
+      },
+      { ...CREATE_DRIVER_BODY, address: { ...CREATE_DRIVER_BODY.address, state: 'Sao Paulo' } },
+    ]
+
+    for (const body of bodies) {
+      const response = await fixture.handle(
+        jsonRequest({ body, method: 'POST', path: FLEET_DRIVERS_PATH }),
+      )
+
+      expect(response.status).toBe(400)
+      expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+    }
+    expect(fixture.createDriverCalls).toEqual([])
+  })
+
+  // Nascer amanhã é erro de digitação; validade de CNH no futuro é o caso normal
+  test('refuses a birth date in the future but keeps a future license expiry', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const refused = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, birthDate: '2999-01-01' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+    const accepted = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, licenseExpiresAt: '2999-01-01' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(refused.status).toBe(400)
+    expect(accepted.status).toBe(201)
+  })
+
   test('links the driver to a membership on update and forwards the expected version', async () => {
     const fixture = await createFleetHttpFixture()
 

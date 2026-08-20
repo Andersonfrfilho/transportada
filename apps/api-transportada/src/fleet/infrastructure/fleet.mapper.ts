@@ -137,8 +137,19 @@ export function toVehicleColumns(
 
 export function mapDriver(record: DriverRecord): FleetDriver {
   return {
+    address: {
+      city: record.city,
+      complement: record.complement,
+      district: record.district,
+      number: record.number,
+      postalCode: record.postalCode,
+      state: record.state,
+      street: record.street,
+    },
+    birthDate: record.birthDate,
     createdAt: record.createdAt.toISOString(),
     id: record.id,
+    licenseExpiresAt: record.licenseExpiresAt,
     licenseNumber: record.licenseNumber,
     linkedTaxId: record.linkedTaxId,
     membershipId: record.membershipId,
@@ -155,11 +166,20 @@ export function toDriverColumns(
   driver: FleetDriverInput,
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
+    birthDate: driver.birthDate,
+    city: driver.address.city,
+    complement: driver.address.complement,
+    district: driver.address.district,
+    licenseExpiresAt: driver.licenseExpiresAt,
     licenseNumber: driver.licenseNumber,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
     name: driver.name,
+    number: driver.address.number,
     phone: driver.phone,
+    postalCode: driver.address.postalCode,
+    state: driver.address.state,
+    street: driver.address.street,
     taxId: driver.taxId,
   }
 }
