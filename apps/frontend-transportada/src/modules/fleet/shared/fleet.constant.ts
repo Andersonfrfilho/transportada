@@ -20,7 +20,14 @@ export const FLEET_ERROR = {
 export const FLEET_VERSION_CONFLICT_ERROR = [
   'FLEET_VEHICLE_VERSION_CONFLICT',
   'FLEET_DRIVER_VERSION_CONFLICT',
+  'FREIGHT_REGION_VERSION_CONFLICT',
 ] as const
+
+/**
+ * O mesmo padrão do CHECK de `freight_regions.code` e do Zod da rota. Conferir aqui não substitui a
+ * API — evita que a pessoa descubra o formato do código por um 400 sem campo apontado.
+ */
+export const FREIGHT_REGION_CODE_PATTERN = /^[0-9]\.00[0-3]$/
 
 export const FLEET_PAGE_SIZE = 25
 

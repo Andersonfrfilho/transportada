@@ -4,7 +4,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** — Contrato do formulário de zona.
+- [x] **T001** — Contrato do formulário de zona.
       `test/fleet/freight-region-form.contract.ts`: grade das seis classes; classe sem valor **não**
       vira entrada em `rates`; código fora de `^[0-9]\.00[0-3]$` é recusado antes do envio; cidade
       repetida dentro da zona é recusada; `expectedVersion` em conflito vira mensagem.
