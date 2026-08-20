@@ -30,12 +30,12 @@
       `05→utility`) e deixa `03`/`06` vazios. `rollback.sql` ao lado.
       **Aceite:** `make migration-test` verde.
 
-- [ ] **T004** — Contrato de tenant.
+- [x] **T004** — Contrato de tenant.
       `test/freight-regions-schema/tenant-safety.contract.ts`: as quatro tabelas novas filtram por
       `company_id`, e a mesma cidade existe em duas regiões da mesma empresa sem violar constraint.
       **Aceite:** suíte verde, e vermelha se o filtro for removido.
 
-- [ ] **T005** — Repositórios Drizzle.
+- [x] **T005** — Repositórios Drizzle.
       `drizzle-freight-region.repository.ts` e `drizzle-fleet-driver-region.repository.ts`.
       Leitura de região traz cidades e valores em **uma** consulta por página, nunca por linha.
       **Aceite:** contratos de repositório verdes.
