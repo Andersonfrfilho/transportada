@@ -15,6 +15,7 @@ import type {
 } from '../shared/freightRegion.types'
 import styles from '../styles/fleet.module.css'
 import { FleetField, FleetMoneyField } from './FleetField.component'
+import { FreightRegionCityField } from './FreightRegionCityField.component'
 
 type FreightRegionFormProps = Readonly<{
   onCancel: () => void
@@ -60,6 +61,10 @@ export function FreightRegionForm({
           onChange={(name) => form.patch({ name })}
         />
       </div>
+      <FreightRegionCityField
+        cities={form.state.cities}
+        onChange={(cities) => form.patch({ cities })}
+      />
       <fieldset className={styles.fieldGroup}>
         <legend>{t('regionForm.rateLegend')}</legend>
         <small className={styles.fieldHint}>{t('regionForm.rateHint')}</small>

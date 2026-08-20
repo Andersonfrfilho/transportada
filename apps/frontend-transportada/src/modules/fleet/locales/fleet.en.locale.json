@@ -381,6 +381,26 @@
     "toco": "Single axle truck",
     "truck": "Truck"
   },
+  "regionCities": {
+    "clear": "Clear cities",
+    "duplicated": "Already in the zone: {{cities}}",
+    "hint": "Pick from the IBGE list or paste the spreadsheet column. Both doors store the IBGE spelling.",
+    "legend": "Cities in the zone",
+    "listUnavailable": "The IBGE list did not answer. Paste the names below — they are stored with the spelling you type.",
+    "paste": "Paste a city list",
+    "pasteHint": "One city per line, or separated by comma or semicolon.",
+    "pastePlaceholder": "BARRETOS\nBARRINHA\nCOLINA",
+    "pasteSubmit": "Add from the pasted list",
+    "remove": "Remove {{city}}/{{state}} from the zone",
+    "search": "Search a city",
+    "searchPlaceholder": "Type to filter",
+    "searchUnset": "Pick a city",
+    "state": "State",
+    "stateFirst": "Pick the state first: a city name is unique only within a state.",
+    "stateUnset": "Pick the state",
+    "unmatched": "Not recognised",
+    "unmatchedHint": "These names matched no IBGE row and were not stored. Check the spelling or pick from the list."
+  },
   "regionColumns": {
     "code": "Route",
     "name": "Region",

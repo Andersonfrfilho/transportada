@@ -36,7 +36,7 @@
       A dobra num lugar só: caixa alta, sem acento, sem pontuação, espaço único. Sem I/O.
       **Aceite:** T004 verde na parte da dobra.
 
-- [ ] **T006** — `FreightRegionCityField.component.tsx`.
+- [x] **T006** — `FreightRegionCityField.component.tsx`.
       Busca na lista do IBGE (`municipality.service.ts`, cache compartilhado) e área de colagem;
       cidades como pílulas removíveis de `@/components/ui/filter-pills`; bloco de não reconhecidas.
       **Aceite:** T004 verde.

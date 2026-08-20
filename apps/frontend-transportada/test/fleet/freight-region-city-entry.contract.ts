@@ -151,3 +151,81 @@ describe('freight region city entry contract', () => {
     expect(foldRegionCityName('MOGI-MIRIM')).toBe(foldRegionCityName('mogi mirim'))
   })
 })
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readApplicationFile(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
+const REGION_CITY_KEYS = [
+  'clear',
+  'duplicated',
+  'hint',
+  'legend',
+  'listUnavailable',
+  'paste',
+  'pasteHint',
+  'pastePlaceholder',
+  'pasteSubmit',
+  'remove',
+  'search',
+  'searchPlaceholder',
+  'searchUnset',
+  'state',
+  'stateFirst',
+  'stateUnset',
+  'unmatched',
+  'unmatchedHint',
+] as const
+
+describe('freight region city field contract', () => {
+  /** O componente é declarativo: a consulta do IBGE e todo o estado moram no hook. */
+  test('a busca do IBGE mora no hook, não no componente', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useFreightRegionCities.hook.ts')
+    const field = await readApplicationFile(
+      'src/modules/fleet/components/FreightRegionCityField.component.tsx',
+    )
+
+    expect(hook).toContain('useQuery')
+    expect(hook).toContain('listMunicipalities')
+    expect(hook).toContain('MUNICIPALITY_QUERY_KEY')
+    expect(hook).toContain('resolveRegionCityEntry')
+    expect(field).not.toContain('useQuery')
+    expect(field).not.toContain('listMunicipalities')
+  })
+
+  /** Pílula removível é do design system: cidade acrescentada por engano sai num clique. */
+  test('as cidades da zona saem como pílulas do design system', async () => {
+    const field = await readApplicationFile(
+      'src/modules/fleet/components/FreightRegionCityField.component.tsx',
+    )
+
+    expect(field).toContain("from '@/components/ui/filter-pills'")
+    expect(field).toContain('<FilterPills')
+    expect(field).toContain('regionCities.unmatched')
+  })
+
+  test('o formulário da zona hospeda o campo de cidade', async () => {
+    const form = await readApplicationFile(
+      'src/modules/fleet/components/FreightRegionForm.component.tsx',
+    )
+
+    expect(form).toContain('<FreightRegionCityField')
+    expect(form).toContain('cities={form.state.cities}')
+  })
+
+  test('os verbetes existem nos dois idiomas', async () => {
+    const ptBr = (await Bun.file(
+      new URL('src/modules/fleet/locales/fleet.locale.json', APPLICATION_ROOT),
+    ).json()) as { regionCities: Record<string, unknown> }
+    const english = (await Bun.file(
+      new URL('src/modules/fleet/locales/fleet.en.locale.json', APPLICATION_ROOT),
+    ).json()) as { regionCities: Record<string, unknown> }
+
+    for (const key of REGION_CITY_KEYS) {
+      expect(typeof ptBr.regionCities[key]).toBe('string')
+      expect(typeof english.regionCities[key]).toBe('string')
+    }
+  })
+})

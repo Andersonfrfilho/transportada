@@ -381,6 +381,26 @@
     "toco": "Toco",
     "truck": "Truck"
   },
+  "regionCities": {
+    "clear": "Limpar cidades",
+    "duplicated": "Já estavam na zona: {{cities}}",
+    "hint": "Escolha da lista do IBGE ou cole a coluna da planilha. As duas portas gravam a grafia do IBGE.",
+    "legend": "Cidades da zona",
+    "listUnavailable": "A lista do IBGE não respondeu. Cole os nomes abaixo — eles entram com a grafia que você escrever.",
+    "paste": "Colar lista de cidades",
+    "pasteHint": "Uma cidade por linha, ou separadas por vírgula ou ponto e vírgula.",
+    "pastePlaceholder": "BARRETOS\nBARRINHA\nCOLINA",
+    "pasteSubmit": "Acrescentar da lista colada",
+    "remove": "Remover {{city}}/{{state}} da zona",
+    "search": "Buscar cidade",
+    "searchPlaceholder": "Digite para filtrar",
+    "searchUnset": "Escolha uma cidade",
+    "state": "UF",
+    "stateFirst": "Escolha a UF primeiro: cidade só é única dentro do estado.",
+    "stateUnset": "Escolha a UF",
+    "unmatched": "Não reconhecidas",
+    "unmatchedHint": "Esses nomes não casaram com nenhuma linha do IBGE e não foram gravados. Confira a grafia ou escolha da lista."
+  },
   "regionColumns": {
     "code": "Rota",
     "name": "Região",
