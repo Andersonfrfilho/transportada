@@ -175,6 +175,12 @@
   "fleetNumber": "Número da frota",
   "fleetNumberHint": "Numeração interna da transportadora. Vai no MDF-e quando preenchida.",
   "optionalMark": "(opcional)",
+  "dateField": {
+    "clear": "Limpar data",
+    "nextMonth": "Próximo mês",
+    "placeholder": "dd/mm/aaaa",
+    "previousMonth": "Mês anterior"
+  },
   "vehicleOperationLegend": "Capacidade e operação",
   "tareWeightKilograms": "Tara (kg)",
   "capacityKilograms": "Capacidade (kg)",
@@ -276,6 +282,24 @@
   "driverVehiclesHint": "Marque os veículos que este motorista dirige — tanto os próprios dele quanto os da transportadora. O vínculo é histórico: desmarcar encerra o período, não apaga o passado.",
   "driverVehiclesEmpty": "Nenhum veículo ativo cadastrado para vincular",
   "driverOwnedVehicle": "Do motorista",
+  "driverCoverage": {
+    "legend": "Regiões que o motorista atende",
+    "hint": "Some a zona inteira quando ele roda toda a rota, ou escolha cidades soltas quando ele atende só parte dela. A zona inteira substitui as cidades soltas daquela rota.",
+    "region": "Rota",
+    "regionPlaceholder": "Escolha a rota",
+    "regionSearch": "Buscar rota",
+    "regionsEmpty": "Nenhuma rota cadastrada",
+    "city": "Cidade da rota",
+    "cityPlaceholder": "Escolha a cidade",
+    "citySearch": "Buscar cidade",
+    "citiesEmpty": "Esta rota não tem cidade cadastrada",
+    "addRegion": "Adicionar a rota inteira",
+    "empty": "Nenhuma região escolhida — o motorista fica sem cobertura.",
+    "remove": "Remover cobertura",
+    "clear": "Limpar cobertura",
+    "zonePill": "Rota inteira",
+    "cityPill": "Cidade"
+  },
   "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa",
   "fuelPrices": {
     "title": "Preço do combustível",

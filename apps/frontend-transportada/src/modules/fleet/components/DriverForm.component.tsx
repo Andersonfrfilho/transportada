@@ -9,18 +9,22 @@ import { formatCnpj, formatCpf, normalizeTaxId } from '@/modules/shared/taxId.se
 
 import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
 import { useDriverForm } from '../hooks/useDriverForm.hook'
+import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
   FleetDriverBody,
   FleetDriverDetail,
   FleetDriverVehicleLink,
   FleetDriverVersionInput,
+  FleetReplaceDriverRegionsInput,
   FleetReplaceDriverVehiclesInput,
   FleetVehicleDetail,
 } from '../shared/fleet.types'
+import type { FreightRegion } from '../shared/freightRegion.types'
 import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
-import { FleetField } from './FleetField.component'
+import { DriverCoverageFields } from './DriverCoverageFields.component'
+import { FleetDateField, FleetField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
   links: readonly FleetDriverVehicleLink[]
@@ -28,19 +32,34 @@ type DriverVehiclesInput = Readonly<{
   replace: (input: FleetReplaceDriverVehiclesInput) => Promise<unknown>
 }>
 
+type DriverRegionsInput = Readonly<{
+  coverage: readonly FleetDriverCoverage[]
+  regions: readonly FreightRegion[]
+  replace: (input: FleetReplaceDriverRegionsInput) => Promise<unknown>
+}>
+
 type DriverFormProps = Readonly<{
   driver?: FleetDriverDetail
   onCancel: () => void
   onCreate: (body: FleetDriverBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  regions: DriverRegionsInput
   vehicles: DriverVehiclesInput
 }>
 
-export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: DriverFormProps) {
+export function DriverForm({
+  driver,
+  onCancel,
+  onCreate,
+  onUpdate,
+  regions,
+  vehicles,
+}: DriverFormProps) {
   const { t } = useTranslation('fleet')
   const form = useDriverForm({
     onCreate,
     onUpdate,
+    regions: { coverage: regions.coverage, replace: regions.replace },
     vehicles: { links: vehicles.links, replace: vehicles.replace },
     ...(driver === undefined ? {} : { driver }),
   })
@@ -96,18 +115,16 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
             value={form.state.membershipId}
             onChange={(membershipId) => form.patch({ membershipId })}
           />
-          <FleetField
+          <FleetDateField
             label={t('driverBirthDate')}
             optional
-            type="date"
             value={form.state.birthDate}
             onChange={(birthDate) => form.patch({ birthDate })}
           />
-          <FleetField
+          <FleetDateField
             hint={t('driverLicenseExpiresAtHint')}
             label={t('driverLicenseExpiresAt')}
             optional
-            type="date"
             value={form.state.licenseExpiresAt}
             onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
           />
@@ -142,6 +159,7 @@ export function DriverForm({ driver, onCancel, onCreate, onUpdate, vehicles }: D
           </ul>
         )}
       </fieldset>
+      <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
       {form.feedbackKey === null ? null : (
         <p className={styles.feedback} role="status">
           {t(form.feedbackKey)}

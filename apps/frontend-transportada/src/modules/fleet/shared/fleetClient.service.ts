@@ -9,16 +9,19 @@ import {
   OWNER_KEYS,
   VEHICLE_BODY_KEYS,
 } from './fleet.constant'
+import type { FleetDriverCoverage } from './driverCoverage.service'
 import type {
   FleetCapabilities,
   FleetDriverBody,
   FleetDriverDetail,
   FleetDriverFilters,
   FleetDriverPage,
+  FleetDriverRegionsInput,
   FleetDriverVehicleLink,
   FleetDriverVehiclesInput,
   FleetDriverVersionInput,
   FleetListInput,
+  FleetReplaceDriverRegionsInput,
   FleetReplaceDriverVehiclesInput,
   FleetVehicleBody,
   FleetVehicleDetail,
@@ -40,12 +43,16 @@ export type FleetClient = Readonly<{
   createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listFreightRegions: (input: FleetListInput<FreightRegionFilters>) => Promise<FreightRegionPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
+  replaceDriverRegions: (
+    input: FleetReplaceDriverRegionsInput,
+  ) => Promise<readonly FleetDriverCoverage[]>
   replaceDriverVehicles: (
     input: FleetReplaceDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
@@ -102,6 +109,10 @@ async function authorizedRequest(
     fetch: input.dependencies.fetch,
     request: new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
   })
+}
+
+function driverRegionsPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/regions`
 }
 
 function driverVehiclesPath(driverId: string): string {
@@ -171,6 +182,14 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
       })
       return adapters.capabilitiesFromApi(readEnvelopeData(response))
     },
+    async listDriverRegions(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: driverRegionsPath(input.driverId),
+      })
+      return adapters.driverCoverageListFromApi(response)
+    },
     async listDriverVehicles(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -215,6 +234,15 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_VEHICLES_PATH}?${search}`,
       })
       return adapters.vehicleListFromApi(response)
+    },
+    async replaceDriverRegions(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ entries: input.entries }),
+        dependencies,
+        method: 'PUT',
+        path: driverRegionsPath(input.driverId),
+      })
+      return adapters.driverCoverageListFromApi(response)
     },
     async replaceDriverVehicles(input) {
       const response = await authorizedRequest({

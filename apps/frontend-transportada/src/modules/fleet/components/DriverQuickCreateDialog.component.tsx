@@ -18,7 +18,7 @@ import type {
 import { createDriverDraft, toDriverBody } from '../shared/fleetForm.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
-import { FleetField } from './FleetField.component'
+import { FleetDateField, FleetField } from './FleetField.component'
 
 type DriverQuickCreateDialogProps = Readonly<{
   onClose: () => void
@@ -124,18 +124,16 @@ export function DriverQuickCreateDialog({
                 value={state.membershipId}
                 onChange={(membershipId) => patch({ membershipId })}
               />
-              <FleetField
+              <FleetDateField
                 label={t('driverBirthDate')}
                 optional
-                type="date"
                 value={state.birthDate}
                 onChange={(birthDate) => patch({ birthDate })}
               />
-              <FleetField
+              <FleetDateField
                 hint={t('driverLicenseExpiresAtHint')}
                 label={t('driverLicenseExpiresAt')}
                 optional
-                type="date"
                 value={state.licenseExpiresAt}
                 onChange={(licenseExpiresAt) => patch({ licenseExpiresAt })}
               />

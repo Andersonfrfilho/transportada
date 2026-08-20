@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   DRIVER_ADDRESS_KEYS,
+  DRIVER_COVERAGE_KEYS,
   DRIVER_DETAIL_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
   FLEET_CAPABILITY_KEYS,
@@ -14,6 +15,7 @@ import {
   VEHICLE_FUEL_PRICE_KEYS,
 } from './fleet.constant'
 import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freightClass.constant'
+import { DRIVER_COVERAGE_SCOPES, type FleetDriverCoverage } from './driverCoverage.service'
 import type { FreightRegion, FreightRegionPage } from './freightRegion.types'
 import { FREIGHT_REGION_STATUS } from './freightRegion.types'
 import type {
@@ -211,6 +213,24 @@ function isDriverVehicleLink(value: unknown): value is FleetDriverVehicleLink {
   )
 }
 
+/** Zona não carrega cidade e cidade sem cidade não cobre nada — as duas metades do CHECK. */
+function isDriverCoverage(value: unknown): value is FleetDriverCoverage {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, DRIVER_COVERAGE_KEYS) || !hasEveryKey(value, DRIVER_COVERAGE_KEYS)) {
+    return false
+  }
+  const isCityScope = value.scope === 'city'
+  return (
+    (isCityScope ? isString(value.city) : value.city === null) &&
+    (isCityScope ? isString(value.state) : value.state === null) &&
+    isString(value.code) &&
+    isString(value.name) &&
+    isString(value.regionId) &&
+    isOneOf(value.scope, DRIVER_COVERAGE_SCOPES) &&
+    isUnsignedIntegerNumber(value.zone)
+  )
+}
+
 function isCapabilities(value: unknown): value is FleetCapabilities {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, FLEET_CAPABILITY_KEYS) || !hasEveryKey(value, FLEET_CAPABILITY_KEYS)) {
@@ -268,6 +288,13 @@ export function createFleetResponseAdapters() {
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
       return readPage(input, driverFromApi)
+    },
+    driverCoverageListFromApi(input: unknown): readonly FleetDriverCoverage[] {
+      if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
+      return input.data.map((item) => {
+        if (!isDriverCoverage(item)) throw invalid()
+        return item
+      })
     },
     driverVehicleListFromApi(input: unknown): readonly FleetDriverVehicleLink[] {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()

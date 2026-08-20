@@ -92,7 +92,7 @@
       `docs/frontend/data-tables.md`.
       **Aceite:** `company-settings/tabs` e contrato da tabela verdes.
 
-- [ ] **T011** — Cobertura no formulário de motorista.
+- [x] **T011** — Cobertura no formulário de motorista.
       Campo somando zonas e cidades soltas, com pílulas removíveis de
       `@/components/ui/filter-pills`.
       **Aceite:** contrato do formulário verde.

@@ -14,6 +14,7 @@ import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
+import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
@@ -61,6 +62,7 @@ function flipStatus(status: 'active' | 'inactive'): 'active' | 'inactive' {
 }
 
 function FleetEditorPanel({
+  driverRegions,
   driverVehicles,
   editor,
   onClose,
@@ -68,6 +70,7 @@ function FleetEditorPanel({
   vehicles,
   workspace,
 }: Readonly<{
+  driverRegions: DriverRegionsController
   driverVehicles: DriverVehiclesController
   editor: FleetEditor
   onClose: () => void
@@ -100,6 +103,7 @@ function FleetEditorPanel({
       onCancel={onClose}
       onCreate={(body) => workspace.createDriverMutation.mutateAsync(body)}
       onUpdate={(input) => workspace.updateDriverMutation.mutateAsync(input)}
+      regions={driverRegions}
       vehicles={driverVehicles}
     />
   )
@@ -135,6 +139,13 @@ export function FleetWorkspacePage() {
   const vehicleColumns = useVehicleColumns()
   const vehicles = workspace.viewModel.vehicles ?? []
   const vehicleTable = useVehicleTable(vehicles)
+  const driverRegions = useDriverRegions({
+    ...(companyId === undefined ? {} : { companyId }),
+    ...(editor?.kind === 'driver' && editor.driver !== undefined
+      ? { driverId: editor.driver.id }
+      : {}),
+    permissions,
+  })
   const driverVehicles = useDriverVehicles({
     ...(companyId === undefined ? {} : { companyId }),
     ...(editor?.kind === 'driver' && editor.driver !== undefined
@@ -262,6 +273,7 @@ export function FleetWorkspacePage() {
       <section className={styles.workspaceDeck} data-editor-open={editor !== null}>
         <Tabs ariaLabel={t('title')} items={tabs} onChange={selectTab} value={activeTab} />
         <FleetEditorPanel
+          driverRegions={driverRegions}
           driverVehicles={driverVehicles}
           editor={editor}
           vehicleCatalog={vehicleCatalog}

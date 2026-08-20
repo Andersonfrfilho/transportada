@@ -175,6 +175,12 @@
   "fleetNumber": "Fleet number",
   "fleetNumberHint": "Carrier internal numbering. Sent in the MDF-e when filled in.",
   "optionalMark": "(optional)",
+  "dateField": {
+    "clear": "Clear date",
+    "nextMonth": "Next month",
+    "placeholder": "dd/mm/yyyy",
+    "previousMonth": "Previous month"
+  },
   "vehicleOperationLegend": "Capacity and operation",
   "tareWeightKilograms": "Tare weight (kg)",
   "capacityKilograms": "Capacity (kg)",
@@ -276,6 +282,24 @@
   "driverVehiclesHint": "Check the vehicles this driver operates — both their own and the carrier ones. The link keeps history: unchecking closes the period instead of erasing the past.",
   "driverVehiclesEmpty": "No active vehicle available to link",
   "driverOwnedVehicle": "Driver owned",
+  "driverCoverage": {
+    "legend": "Regions this driver covers",
+    "hint": "Add the whole zone when the driver runs the entire route, or pick single cities when they cover only part of it. The whole zone replaces the loose cities of that route.",
+    "region": "Route",
+    "regionPlaceholder": "Pick the route",
+    "regionSearch": "Search route",
+    "regionsEmpty": "No route registered",
+    "city": "Route city",
+    "cityPlaceholder": "Pick the city",
+    "citySearch": "Search city",
+    "citiesEmpty": "This route has no city registered",
+    "addRegion": "Add the whole route",
+    "empty": "No region picked — the driver has no coverage.",
+    "remove": "Remove coverage",
+    "clear": "Clear coverage",
+    "zonePill": "Whole route",
+    "cityPill": "City"
+  },
   "vehicleNotFound": "One of the selected vehicles no longer exists in this company",
   "fuelPrices": {
     "title": "Fuel price",

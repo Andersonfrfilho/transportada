@@ -11,16 +11,19 @@ import {
   FLEET_READ_PERMISSION,
   FLEET_VEHICLE_LOAD_LIMIT,
 } from '../shared/fleet.constant'
+import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
   FleetCapabilities,
   FleetDriverBody,
   FleetDriverDetail,
   FleetDriverFilters,
   FleetDriverPage,
+  FleetDriverRegionsInput,
   FleetDriverVehicleLink,
   FleetDriverVehiclesInput,
   FleetDriverVersionInput,
   FleetListInput,
+  FleetReplaceDriverRegionsInput,
   FleetReplaceDriverVehiclesInput,
   FleetVehicleBody,
   FleetVehicleDetail,
@@ -40,11 +43,15 @@ export type FleetController = Readonly<{
   createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
+  replaceDriverRegions: (
+    input: FleetReplaceDriverRegionsInput,
+  ) => Promise<readonly FleetDriverCoverage[]>
   replaceDriverVehicles: (
     input: FleetReplaceDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
@@ -71,10 +78,14 @@ export function createFleetController(input: ControllerInput): FleetController {
     createDriver: (body) => (canManageFleet ? input.client.createDriver(body) : forbidden()),
     createVehicle: (body) => (canManageFleet ? input.client.createVehicle(body) : forbidden()),
     getFleetCapabilities: () => (canReadFleet ? input.client.getFleetCapabilities() : forbidden()),
+    listDriverRegions: (query) =>
+      canReadFleet ? input.client.listDriverRegions(query) : forbidden(),
     listDriverVehicles: (query) =>
       canReadFleet ? input.client.listDriverVehicles(query) : forbidden(),
     listDrivers: (query) => (canReadFleet ? input.client.listDrivers(query) : forbidden()),
     listVehicles: (query) => (canReadFleet ? input.client.listVehicles(query) : forbidden()),
+    replaceDriverRegions: (body) =>
+      canManageFleet ? input.client.replaceDriverRegions(body) : forbidden(),
     replaceDriverVehicles: (body) =>
       canManageFleet ? input.client.replaceDriverVehicles(body) : forbidden(),
     updateDriver: (body) => (canManageFleet ? input.client.updateDriver(body) : forbidden()),

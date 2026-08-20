@@ -93,6 +93,16 @@ export const VEHICLE_FUEL_PRICE_KEYS = ['pricePerUnit', 'source', 'unit', 'weekE
 
 export const DRIVER_VEHICLE_LINK_KEYS = ['assignedAt', 'id', 'ownedByDriver', 'vehicle'] as const
 
+export const DRIVER_COVERAGE_KEYS = [
+  'city',
+  'code',
+  'name',
+  'regionId',
+  'scope',
+  'state',
+  'zone',
+] as const
+
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
 

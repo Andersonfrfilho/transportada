@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
 /** A origem do preço efetivo: a série pública da ANP ou o ajuste da própria transportadora. */
 export const FLEET_FUEL_PRICE_SOURCE = ['anp', 'manual'] as const
@@ -253,6 +254,13 @@ export type FleetDriverVehiclesInput = Readonly<{ driverId: string }>
 export type FleetReplaceDriverVehiclesInput = Readonly<{
   driverId: string
   vehicleIds: readonly string[]
+}>
+
+export type FleetDriverRegionsInput = Readonly<{ driverId: string }>
+
+export type FleetReplaceDriverRegionsInput = Readonly<{
+  driverId: string
+  entries: readonly FleetDriverCoverageEntry[]
 }>
 
 export type FleetDriverVersionInput = Readonly<{

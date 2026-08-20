@@ -345,3 +345,38 @@ Cinco decisões que a implementação cobrou e o aceite não escrevia:
    que é o que faz o painel abrir preenchido em vez de vazio.
 
 Nenhuma variável de ambiente nova — nem em staging, nem em produção.
+
+## T011 — Cobertura no formulário de motorista
+
+```
+$ bun test ./test/fleet/driver-coverage.contract.ts   # vermelho na abertura, 9 testes
+$ bun run --cwd apps/frontend-transportada test        # 1439 pass · 0 fail · 7702 expect()
+$ bunx tsc --noEmit                                    # limpo em fleet
+$ bun run format
+```
+
+O contrato `test/fleet/driver-coverage.contract.ts` foi escrito vermelho antes da implementação e
+entrou em `test/fleet.contract.test.ts`.
+
+Quatro decisões que a implementação cobrou:
+
+1. **A chave da cobertura é byte a byte a da API** — `${regionId}:${scope}:${cidade normalizada}`,
+   em `driverCoverage.service.ts`. Inventar uma chave só do cliente faria a tela aceitar duas
+   coberturas que o `PUT` devolve como 400, e o operador leria "erro ao salvar" sem nada na tela
+   dizendo o que estava repetido.
+2. **A zona inteira recolhe as cidades soltas daquela rota**, e cidade de rota já zonada não vira
+   linha nova. Guardar as duas formas mandaria uma cobertura que diz a mesma coisa duas vezes.
+3. **`toDriverCoverageEntries` omite a chave `city`**, não manda `undefined`: com
+   `exactOptionalPropertyTypes` a chave presente com `undefined` vira `city` no JSON, e a API
+   responde `FLEET_DRIVER_REGION_CITY_UNEXPECTED` para uma zona que não tem cidade nenhuma.
+4. **Os mutadores viajam num `DriverCoverageController`** exposto por `useDriverForm`, para
+   `DriverCoverageFields` ficar em dois props — `react.md` corta em cinco, e adicionar cidade,
+   adicionar zona, remover e limpar soltos já seriam quatro.
+
+O gate da raiz (`bun run lint`, `bunx tsc --noEmit`) estava vermelho em `cte-profiles` e
+`nfe-workspace` por uma migração de `input type="date"` para `DatePicker` em curso na mesma árvore,
+fora desta feature. A parte dela que toca `fleet` (`FleetField`, `DriverQuickCreateDialog` e as
+chaves `dateField`) veio junto neste commit por compartilhar `DriverForm.component.tsx` e os dois
+`*.locale.json`.
+
+Nenhuma variável de ambiente nova — nem em staging, nem em produção.
