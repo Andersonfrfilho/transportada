@@ -26,13 +26,13 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T004** — Contrato da entrada de cidade.
+- [x] **T004** — Contrato da entrada de cidade.
       `test/fleet/freight-region-city-entry.contract.ts`: busca e colagem produzem o mesmo nome
       canônico; `MOGI-MIRIM`, `mogi mirim` e `Mogi Mirim` casam com a mesma linha do IBGE; nome sem
       correspondência volta **nomeado** e não é gravado.
       **Aceite:** vermelho registrado.
 
-- [ ] **T005** — `shared/regionCityName.service.ts`.
+- [x] **T005** — `shared/regionCityName.service.ts`.
       A dobra num lugar só: caixa alta, sem acento, sem pontuação, espaço único. Sem I/O.
       **Aceite:** T004 verde na parte da dobra.
 

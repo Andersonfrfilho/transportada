@@ -9,7 +9,7 @@ import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
 import type { FreightVehicleClass } from '@/modules/shared/freightClass.constant'
 
 import { FREIGHT_REGION_CODE_PATTERN } from './fleet.constant'
-import { foldRegionCityName } from './regionCityName.service'
+import { cityKeyOf } from './regionCityName.service'
 import type {
   FreightRegion,
   FreightRegionCity,
@@ -72,10 +72,6 @@ export function toFreightRegionForm(region: FreightRegion): FreightRegionFormSta
     rates,
     status: region.status,
   }
-}
-
-export function cityKeyOf(city: FreightRegionCity): string {
-  return `${foldRegionCityName(city.city)}/${city.state.trim().toUpperCase()}`
 }
 
 /**
