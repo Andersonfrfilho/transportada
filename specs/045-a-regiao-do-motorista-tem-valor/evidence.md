@@ -307,3 +307,41 @@ o resumo não pode dizer que gravou o que não gravou.
 `listAll` no repositório lê a empresa inteira em **três** consultas (rotas, cidades, valores),
 contadas no teste de integração. Paginar aqui daria diff parcial: rota fora da página seria lida
 como rota ausente do arquivo e inativada sem motivo.
+
+## T010 — Aba **Regiões** na frota
+
+```
+$ bun run --cwd apps/frontend-transportada test
+1429 pass · 0 fail · 7640 expect() calls (18 arquivos)
+
+$ bun run typecheck   # quatro apps
+$ bun run lint        # quatro apps
+$ bun run format:check
+$ bun run --cwd apps/frontend-transportada build   # ✓ built in 2.02s
+```
+
+Os dois contratos que o aceite pedia (`test/fleet/regions-tab.contract.ts` e
+`test/fleet/region-table.contract.ts`, escritos vermelhos na abertura da fase) fecharam verdes
+dentro de `test/fleet.contract.test.ts`, junto de `company-settings/tabs`.
+
+Cinco decisões que a implementação cobrou e o aceite não escrevia:
+
+1. **A aba puxa a tabela inteira, não uma página.** `loadEveryFreightRegion` percorre o cursor até
+   o fim (teto de `FREIGHT_REGION_LOAD_LIMIT`, para cursor que não anda não virar laço). Com uma
+   página só, "ordenar pelo valor do truck" ordenaria as 25 primeiras rotas e mentiria sobre o
+   resto — e é o valor que o operador vem conferir aqui.
+2. **Ordenar e filtrar é no cliente.** Consequência da decisão acima e do tamanho real do dado:
+   29 rotas, 83 cidades. Trazer `sortBy` para a rota HTTP seria contrato novo para uma tabela que
+   cabe na memória do navegador.
+3. **Classe sem linha de valor é "Não informado", nunca R$ 0,00** — e vai para o fim da ordenação
+   nas duas direções. Zero não entra no banco (T009), então célula vazia é falta de cadastro; um
+   `0,00` na tela diria que a transportadora paga nada por aquela rota.
+4. **A ação em massa não muda status.** Exporta a seleção em CSV (`;`, vírgula decimal e BOM — o
+   que o Excel pt-BR abre sem assistente) e copia a lista de cidades, uma por linha, que é o que se
+   cola na conversa de quem vai combinar a viagem. Editor de rota não entra na 045: o caminho do
+   dado é a importação.
+5. **A aba entra na lista só com `settings.manage`** — ausente, não desabilitada. A consulta sobe
+   com `enabled: canManageSettings && settingsScope.freightRegions`: permissão **e** aba aberta,
+   que é o que faz o painel abrir preenchido em vez de vazio.
+
+Nenhuma variável de ambiente nova — nem em staging, nem em produção.

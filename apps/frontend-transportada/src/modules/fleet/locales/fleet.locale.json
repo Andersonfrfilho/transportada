@@ -16,7 +16,8 @@
   "tabs": {
     "vehicles": "Veículos",
     "drivers": "Motoristas",
-    "fuel": "Combustível"
+    "fuel": "Combustível",
+    "regions": "Regiões"
   },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
@@ -340,5 +341,57 @@
     "role": "Função",
     "status": "Situação",
     "tareWeightKilograms": "Tara (kg)"
+  },
+  "freightClass": {
+    "utility": "Utilitário",
+    "van": "Van",
+    "vuc": "VUC",
+    "three_quarter": "3/4",
+    "toco": "Toco",
+    "truck": "Truck"
+  },
+  "regionColumns": {
+    "code": "Rota",
+    "name": "Região",
+    "zone": "Zona",
+    "cities": "Cidades",
+    "status": "Situação",
+    "utility": "Utilitário",
+    "van": "Van",
+    "vuc": "VUC",
+    "three_quarter": "3/4",
+    "toco": "Toco",
+    "truck": "Truck"
+  },
+  "regionFilters": {
+    "city": "Cidade",
+    "class": "Classe",
+    "query": "Rota ou região",
+    "removeFilter": "Remover o filtro {{field}}",
+    "shownOfTotal": "{{shown}} de {{total}} rotas",
+    "status": "Situação",
+    "title": "Filtros",
+    "zone": "Zona"
+  },
+  "regionSelection": {
+    "clear": "Limpar seleção",
+    "copied": "Cidades copiadas",
+    "copyCities": "Copiar cidades ({{count}})",
+    "count": "{{count}} rota selecionada",
+    "count_other": "{{count}} rotas selecionadas",
+    "export": "Exportar seleção ({{count}})",
+    "select": "Selecionar a rota {{code}}",
+    "selectAll": "Selecionar todas as rotas da lista"
+  },
+  "regionStatus": {
+    "active": "Ativa",
+    "inactive": "Inativa"
+  },
+  "regions": {
+    "emptyHint": "A tabela de frete entra pela importação de regiões, não pelo cadastro linha a linha.",
+    "emptyTitle": "Nenhuma rota cadastrada",
+    "hint": "O valor de cada classe é o que a transportadora paga ao motorista pela viagem — não é o preço cobrado do cliente.",
+    "notInformed": "Não informado",
+    "title": "Regiões e valores"
   }
 }

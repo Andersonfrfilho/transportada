@@ -764,6 +764,13 @@
   font-size: 0.78rem;
 }
 
+.panelHint {
+  margin: 0;
+  max-width: 60ch;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.85rem;
+}
+
 .filterPanel {
   display: grid;
   gap: var(--space-3);

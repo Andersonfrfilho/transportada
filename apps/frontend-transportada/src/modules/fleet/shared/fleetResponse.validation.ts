@@ -5,11 +5,17 @@ import {
   DRIVER_VEHICLE_LINK_KEYS,
   FLEET_CAPABILITY_KEYS,
   FLEET_ERROR,
+  FREIGHT_REGION_CITY_KEYS,
+  FREIGHT_REGION_KEYS,
+  FREIGHT_REGION_RATE_KEYS,
   OWNER_KEYS,
   VEHICLE_COST_BREAKDOWN_KEYS,
   VEHICLE_DETAIL_KEYS,
   VEHICLE_FUEL_PRICE_KEYS,
 } from './fleet.constant'
+import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freightClass.constant'
+import type { FreightRegion, FreightRegionPage } from './freightRegion.types'
+import { FREIGHT_REGION_STATUS } from './freightRegion.types'
 import type {
   FleetCapabilities,
   FleetDriverDetail,
@@ -70,6 +76,48 @@ function isFuelPrice(value: unknown): boolean {
     isOneOf(value.source, FLEET_ENUMS.fuelPriceSource) &&
     isOneOf(value.unit, FLEET_ENUMS.fuelUnit) &&
     isNullableString(value.weekEndingOn)
+  )
+}
+
+function isRegionCity(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, FREIGHT_REGION_CITY_KEYS) &&
+    hasEveryKey(value, FREIGHT_REGION_CITY_KEYS) &&
+    isString(value.city) &&
+    isString(value.state)
+  )
+}
+
+/** O valor pago ao motorista chega como decimal string; número binário aqui é resposta inválida. */
+function isRegionRate(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, FREIGHT_REGION_RATE_KEYS) &&
+    hasEveryKey(value, FREIGHT_REGION_RATE_KEYS) &&
+    isDecimalString(value.driverAmount) &&
+    isOneOf(value.freightClass, FREIGHT_VEHICLE_CLASSES)
+  )
+}
+
+function isFreightRegion(value: unknown): value is FreightRegion {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, FREIGHT_REGION_KEYS) || !hasEveryKey(value, FREIGHT_REGION_KEYS)) {
+    return false
+  }
+  return (
+    Array.isArray(value.cities) &&
+    value.cities.every(isRegionCity) &&
+    isString(value.code) &&
+    isString(value.createdAt) &&
+    isString(value.id) &&
+    isString(value.name) &&
+    Array.isArray(value.rates) &&
+    value.rates.every(isRegionRate) &&
+    isOneOf(value.status, FREIGHT_REGION_STATUS) &&
+    isString(value.updatedAt) &&
+    isUnsignedIntegerString(value.version) &&
+    isUnsignedIntegerNumber(value.zone)
   )
 }
 
@@ -225,6 +273,12 @@ export function createFleetResponseAdapters() {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
       return input.data.map((item) => {
         if (!isDriverVehicleLink(item)) throw invalid()
+        return item
+      })
+    },
+    freightRegionListFromApi(input: unknown): FreightRegionPage {
+      return readPage(input, (item) => {
+        if (!isFreightRegion(item)) throw invalid()
         return item
       })
     },

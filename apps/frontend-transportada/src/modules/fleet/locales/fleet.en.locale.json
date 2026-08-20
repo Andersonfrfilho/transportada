@@ -16,7 +16,8 @@
   "tabs": {
     "vehicles": "Vehicles",
     "drivers": "Drivers",
-    "fuel": "Fuel"
+    "fuel": "Fuel",
+    "regions": "Regions"
   },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",
@@ -340,5 +341,57 @@
     "role": "Role",
     "status": "Status",
     "tareWeightKilograms": "Tare (kg)"
+  },
+  "freightClass": {
+    "utility": "Utility",
+    "van": "Van",
+    "vuc": "City truck (VUC)",
+    "three_quarter": "Three quarter",
+    "toco": "Single axle truck",
+    "truck": "Truck"
+  },
+  "regionColumns": {
+    "code": "Route",
+    "name": "Region",
+    "zone": "Zone",
+    "cities": "Cities",
+    "status": "Status",
+    "utility": "Utility",
+    "van": "Van",
+    "vuc": "City truck (VUC)",
+    "three_quarter": "Three quarter",
+    "toco": "Single axle truck",
+    "truck": "Truck"
+  },
+  "regionFilters": {
+    "city": "City",
+    "class": "Class",
+    "query": "Route or region",
+    "removeFilter": "Remove the {{field}} filter",
+    "shownOfTotal": "{{shown}} of {{total}} routes",
+    "status": "Status",
+    "title": "Filters",
+    "zone": "Zone"
+  },
+  "regionSelection": {
+    "clear": "Clear selection",
+    "copied": "Cities copied",
+    "copyCities": "Copy cities ({{count}})",
+    "count": "{{count}} route selected",
+    "count_other": "{{count}} routes selected",
+    "export": "Export selection ({{count}})",
+    "select": "Select route {{code}}",
+    "selectAll": "Select every route on the list"
+  },
+  "regionStatus": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "regions": {
+    "emptyHint": "The freight table arrives through the region import, not through row by row typing.",
+    "emptyTitle": "No route registered",
+    "hint": "Each class amount is what the carrier pays the driver for the trip — it is not the price charged to the customer.",
+    "notInformed": "Not informed",
+    "title": "Regions and amounts"
   }
 }

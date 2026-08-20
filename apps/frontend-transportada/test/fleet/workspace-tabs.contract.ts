@@ -59,6 +59,7 @@ describe('fleet workspace tabs contract', () => {
       expect(Object.keys(tabs as Record<string, unknown>).sort()).toEqual([
         'drivers',
         'fuel',
+        'regions',
         'vehicles',
       ])
     }

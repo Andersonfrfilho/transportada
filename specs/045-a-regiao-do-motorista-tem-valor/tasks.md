@@ -86,7 +86,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T010** — Aba **Regiões** em `fleet`.
+- [x] **T010** — Aba **Regiões** em `fleet`.
       Registro em `SETTINGS_PANEL_PLACEMENT`, guarda `settings.manage`, consulta com
       `enabled: canManageSettings && settingsScope.<source>`. Tabela seguindo
       `docs/frontend/data-tables.md`.

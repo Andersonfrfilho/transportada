@@ -5,6 +5,7 @@ import {
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
   FLEET_VEHICLES_PATH,
+  FREIGHT_REGIONS_PATH,
   OWNER_KEYS,
   VEHICLE_BODY_KEYS,
 } from './fleet.constant'
@@ -26,6 +27,7 @@ import type {
   FleetVehicleVersionInput,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
+import type { FreightRegionFilters, FreightRegionPage } from './freightRegion.types'
 import { createFleetResponseAdapters } from './fleetResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -42,6 +44,7 @@ export type FleetClient = Readonly<{
     input: FleetDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
+  listFreightRegions: (input: FleetListInput<FreightRegionFilters>) => Promise<FreightRegionPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
   replaceDriverVehicles: (
     input: FleetReplaceDriverVehiclesInput,
@@ -187,6 +190,18 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_DRIVERS_PATH}?${search}`,
       })
       return adapters.driverListFromApi(response)
+    },
+    async listFreightRegions(input) {
+      const search = buildSearch(input, {
+        cityContains: input.filters?.cityContains,
+        statusEq: input.filters?.statusEq,
+      })
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${FREIGHT_REGIONS_PATH}?${search}`,
+      })
+      return adapters.freightRegionListFromApi(response)
     },
     async listVehicles(input) {
       const search = buildSearch(input, {

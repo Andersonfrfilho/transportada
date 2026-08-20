@@ -30,7 +30,7 @@ describe('fleet fuel price tab contract', () => {
       source: 'fuelPrices',
       tab: 'fuel',
     })
-    expect(settingsTabsOf('fleet')).toEqual(['fuel'])
+    expect(settingsTabsOf('fleet')).toEqual(['fuel', 'regions'])
     expect(settingsPanelsOf('fleet', 'fuel')).toEqual(['fuelPrices'])
   })
 

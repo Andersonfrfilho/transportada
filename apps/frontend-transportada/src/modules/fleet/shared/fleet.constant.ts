@@ -6,6 +6,7 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
+export const FREIGHT_REGIONS_PATH = '/freight-regions'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
@@ -25,6 +26,26 @@ export const FLEET_PAGE_SIZE = 25
 
 /** Teto de segurança do laço de cursor da tabela de veículos — frota real não chega perto. */
 export const FLEET_VEHICLE_LOAD_LIMIT = 2000
+
+/** A tabela de frete impressa do cliente tem dezenas de rotas; o teto existe para o laço, não para ela. */
+export const FREIGHT_REGION_LOAD_LIMIT = 2000
+
+export const FREIGHT_REGION_CITY_KEYS = ['city', 'state'] as const
+
+export const FREIGHT_REGION_RATE_KEYS = ['driverAmount', 'freightClass'] as const
+
+export const FREIGHT_REGION_KEYS = [
+  'cities',
+  'code',
+  'createdAt',
+  'id',
+  'name',
+  'rates',
+  'status',
+  'updatedAt',
+  'version',
+  'zone',
+] as const
 
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
