@@ -74,6 +74,16 @@
   --vehicle-color-turquesa: #2fb4a8;
   --vehicle-color-verde: #2f8f4e;
   --vehicle-color-vermelha: #cc3333;
+  /*
+   * Zona é distância da base, e a rampa diz isso sozinha: frio perto, quente longe. A matriz é a
+   * zona 0 e a família publica até a 4 — cinco tons, um por zona, porque a paleta curta pintaria a
+   * zona de cima com a cor de município sem rota.
+   */
+  --color-zone-0: #4a86b8;
+  --color-zone-1: #4aa8a0;
+  --color-zone-2: #7bb85a;
+  --color-zone-3: #d9b13c;
+  --color-zone-4: #d9603c;
 }
 
 * {

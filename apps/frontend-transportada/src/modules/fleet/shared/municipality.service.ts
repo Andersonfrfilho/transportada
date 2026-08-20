@@ -16,6 +16,10 @@ export const MUNICIPALITY_QUERY_KEY = 'fleet-municipalities'
 
 export type MunicipalityChoice = Readonly<{ label: string; value: string }>
 
+export type MunicipalityIdentity = Readonly<{ code: string; name: string }>
+
+export const MUNICIPALITY_IDENTITY_QUERY_KEY = 'fleet-municipality-identities'
+
 export type MunicipalityLookupInput = Readonly<{
   fetch: typeof globalThis.fetch
   signal: AbortSignal
@@ -68,15 +72,26 @@ export function normalizeMunicipalityName(value: string): string {
     .replace(WHITESPACE_PATTERN, ' ')
 }
 
+function readMunicipalityName(entry: Record<string, unknown>): string {
+  const name = entry['nome']
+  return isString(name) && name.trim() !== '' ? toMunicipalityLabel(name.trim()) : ''
+}
+
+/** O provedor publica o código como texto, mas número é resposta válida de JSON para o mesmo campo. */
+function readMunicipalityCode(entry: Record<string, unknown>): string {
+  const code = entry['codigo_ibge']
+  if (typeof code === 'number') return Number.isInteger(code) ? String(code) : ''
+  return isString(code) ? code.trim() : ''
+}
+
 async function readMunicipalityNames(response: Response): Promise<readonly string[]> {
   const payload: unknown = await response.json()
   if (!Array.isArray(payload)) return []
 
   return payload
     .filter((entry): entry is Record<string, unknown> => isRecord(entry))
-    .map((entry) => (isString(entry['nome']) ? entry['nome'].trim() : ''))
+    .map(readMunicipalityName)
     .filter((name) => name !== '')
-    .map((name) => toMunicipalityLabel(name))
     .sort((left, right) => left.localeCompare(right, 'pt-BR'))
 }
 
@@ -94,6 +109,30 @@ export async function listMunicipalities(
   const response = await input.fetch(`${IBGE_MUNICIPALITY_URL}/${state}`, { signal: input.signal })
   if (!response.ok) throw new Error('FLEET_MUNICIPALITY_REQUEST_FAILED')
   return await readMunicipalityNames(response)
+}
+
+/**
+ * O mapa casa polígono com cidade pelo código do IBGE, e a zona guarda nome. O código vem da mesma
+ * lista que já alimenta o campo de cidade — buscá-lo de outro provedor abriria uma segunda tabela de
+ * município, e duas tabelas discordam. Por isso é irmã de `listMunicipalities`, e não uma troca do
+ * retorno dela: o formulário de motorista precisa só do nome, e mudar a forma dele não pagaria nada.
+ */
+export async function listMunicipalityIdentities(
+  input: MunicipalityLookupInput,
+): Promise<readonly MunicipalityIdentity[]> {
+  const state = input.state.trim().toUpperCase()
+  if (!BRAZIL_STATE.some((candidate) => candidate === state)) return []
+
+  const response = await input.fetch(`${IBGE_MUNICIPALITY_URL}/${state}`, { signal: input.signal })
+  if (!response.ok) throw new Error('FLEET_MUNICIPALITY_REQUEST_FAILED')
+
+  const payload: unknown = await response.json()
+  if (!Array.isArray(payload)) return []
+
+  return payload
+    .filter(isRecord)
+    .map((entry) => ({ code: readMunicipalityCode(entry), name: readMunicipalityName(entry) }))
+    .filter((identity) => identity.code !== '' && identity.name !== '')
 }
 
 /**

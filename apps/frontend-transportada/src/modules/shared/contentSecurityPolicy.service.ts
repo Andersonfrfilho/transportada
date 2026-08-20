@@ -17,6 +17,9 @@ export const CONTENT_SECURITY_POLICY_FILE_NAME = 'content-security-policy.txt'
 export const EXTERNAL_CONNECT_ORIGIN = [
   'https://brasilapi.com.br',
   'https://photon.komoot.io',
+  // Malha de município do IBGE, desenhada no mapa da zona. Diferente dos outros destinos, este não
+  // leva dado pessoal: sai a sigla da UF e volta geometria pública.
+  'https://servicodados.ibge.gov.br',
   'https://viacep.com.br',
 ] as const
 

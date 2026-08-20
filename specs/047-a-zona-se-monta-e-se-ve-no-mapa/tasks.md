@@ -63,14 +63,14 @@
 
 > 🤖 Modelo: `sonnet` (T010 é 🧠 — a projeção e o corte de viewBox merecem `opus` se o desenho sair torto)
 
-- [ ] **T009** — Contrato do mapa.
+- [x] **T009** — Contrato do mapa.
       `test/fleet/freight-region-map.contract.ts`: polígono casa com a cidade por `codarea`; cidade
       sem polígono aparece nomeada como "fora do mapa"; clicar num município com zona em edição
       acrescenta e remove; falha da malha não derruba a listagem. **E falha se o componente
       contiver `iframe`, `<img>` de origem externa ou `dangerouslySetInnerHTML`.**
       **Aceite:** vermelho registrado.
 
-- [ ] **T010** — 🧠 `shared/ibgeMesh.service.ts`.
+- [x] **T010** — 🧠 `shared/ibgeMesh.service.ts`.
       Busca da malha por UF (`qualidade=minima`, `intrarregiao=municipio`), guard do GeoJSON e
       projeção dos anéis em atributo `d`. Uma UF por vez, sob demanda, cacheada pelo TanStack Query.
       **Aceite:** T009 verde na parte de casamento e projeção.
@@ -80,7 +80,7 @@
       esqueleto (`docs/frontend/loading.md`), estado de falha visível.
       **Aceite:** T009 verde.
 
-- [ ] **T012** — CSP.
+- [x] **T012** — CSP.
       Conferir que `https://servicodados.ibge.gov.br` está no `connect-src` publicado pela T008 da 046. Se a 046 já tiver publicado sem ele, acrescentar ali — **nunca** escrever uma segunda
       diretiva.
       **Aceite:** o contrato de CSP da 046 verde com o destino novo.
