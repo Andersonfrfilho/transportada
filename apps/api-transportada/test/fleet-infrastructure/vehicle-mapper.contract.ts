@@ -31,6 +31,7 @@ const RECORD: VehicleRecord = {
   costsUpdatedAt: null,
   createdAt: TIMESTAMP,
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   id: '00000000-0000-4000-8000-000000000911',
   model: '',

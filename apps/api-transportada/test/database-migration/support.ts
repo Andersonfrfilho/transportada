@@ -27,6 +27,9 @@ export const FISCAL_TABLES = [
 
 export const FREIGHT_TABLES = [
   'freight_calculations',
+  'freight_region_cities',
+  'freight_region_driver_rates',
+  'freight_regions',
   'freight_rule_versions',
   'freight_rules',
 ] as const
@@ -82,6 +85,7 @@ export const OPERATIONS_TABLES = ['processing_jobs'] as const
 export const FLEET_TABLES = [
   'fleet_vehicles',
   'fleet_drivers',
+  'fleet_driver_regions',
   'fleet_driver_vehicle_assignments',
 ] as const
 

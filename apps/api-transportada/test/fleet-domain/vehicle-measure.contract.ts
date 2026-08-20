@@ -23,6 +23,7 @@ const VEHICLE_BODY = {
   capacityKilograms: '27000.75',
   color: 'branca',
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: 'FH 540',
   modelYear: 2024,

@@ -13,6 +13,7 @@ import {
   MDFE_WHEEL_TYPES,
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
+import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
 import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
@@ -76,6 +77,8 @@ const vehicleFieldsSchema = z.object({
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
+  // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
+  freightClass: z.literal('').or(z.enum(FREIGHT_VEHICLE_CLASSES)),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),

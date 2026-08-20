@@ -19,6 +19,11 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import {
+  FREIGHT_VEHICLE_CLASS_MAX_LENGTH,
+  FREIGHT_VEHICLE_CLASSES,
+  type FreightVehicleClass,
+} from '../shared/freight-class.constant.js'
+import {
   DEFAULT_FUEL_PRODUCT,
   FUEL_PRODUCT_MAX_LENGTH,
   FUEL_PRODUCTS,
@@ -120,6 +125,11 @@ export const fleetVehicles = pgTable(
     wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),
+    // Classe comercial da tabela de frete — não é o `tipoRodado` do MDF-e, que não tem VUC nem 3/4
+    freightClass: varchar('freight_class', { length: FREIGHT_VEHICLE_CLASS_MAX_LENGTH })
+      .$type<FreightVehicleClass | ''>()
+      .notNull()
+      .default(''),
     state: text().notNull(),
     ownership: text().$type<FleetVehicleOwnership>().notNull().default('own'),
     ownerTaxId: text('owner_tax_id').notNull().default(''),
@@ -201,6 +211,11 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_wheel_type_check',
       sql`(${table.role} = 'traction') = (${table.wheelType} in (${sql.raw(inList(MDFE_WHEEL_TYPES))}))`,
+    ),
+    // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
+    check(
+      'fleet_vehicles_freight_class_check',
+      sql`length(${table.freightClass}) = 0 or ${table.freightClass} in (${sql.raw(inList(FREIGHT_VEHICLE_CLASSES))})`,
     ),
     check(
       'fleet_vehicles_body_type_check',

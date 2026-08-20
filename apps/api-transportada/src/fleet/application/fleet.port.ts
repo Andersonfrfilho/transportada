@@ -10,6 +10,7 @@ import type {
   MdfeOwnerTaxRegime,
   MdfeWheelType,
 } from '../../database/fleet.schema.js'
+import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
 import type {
   EffectiveFuelPrice,
@@ -42,6 +43,7 @@ export type FleetVehicleInput = {
   readonly capacityKilograms: string
   readonly color: string
   readonly fleetNumber: string
+  readonly freightClass: '' | FreightVehicleClass
   readonly fuelType: FuelProduct
   readonly model: string
   readonly modelYear: number

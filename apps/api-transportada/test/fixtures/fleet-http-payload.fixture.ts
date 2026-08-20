@@ -34,6 +34,7 @@ export const CREATE_VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,

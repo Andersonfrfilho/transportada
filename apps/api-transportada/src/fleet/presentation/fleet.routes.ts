@@ -272,6 +272,7 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     costsUpdatedAt: vehicle.costsUpdatedAt,
     createdAt: vehicle.createdAt,
     fleetNumber: vehicle.fleetNumber,
+    freightClass: vehicle.freightClass,
     fuelPrice: vehicle.fuelPrice === null ? null : { ...vehicle.fuelPrice },
     fuelType: vehicle.fuelType,
     id: vehicle.id,

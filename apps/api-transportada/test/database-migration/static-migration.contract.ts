@@ -122,6 +122,7 @@ describe('Drizzle migrations', () => {
       '20260817201606_nfse_invoice_discarded_status',
       '20260819184128_fleet_vehicle_color_market_tones',
       '20260819202712_fleet_vehicle_measure_decimal',
+      '20260820000830_freight_regions_and_vehicle_freight_class',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -876,5 +877,70 @@ describe('Drizzle migrations', () => {
     expect(mainSource).not.toContain('db:migrate')
     expect(migrationSource).toContain(`const MIGRATIONS_SCHEMA = 'drizzle'`)
     expect(migrationSource).not.toContain('DRIZZLE_MIGRATIONS_SCHEMA')
+  })
+
+  /**
+   * A tabela de frete é cadastro da empresa, e o pagamento ao motorista é custo: as quatro tabelas
+   * nascem com `company_id` e a classe do veículo nasce preenchida pelo rodado onde as duas tabelas
+   * coincidem — deixar a frota inteira em branco obrigaria a redigitar veículo por veículo.
+   */
+  test('versions the freight regions and the vehicle freight class as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_freight_regions_and_vehicle_freight_class'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    for (const table of [
+      'freight_regions',
+      'freight_region_cities',
+      'freight_region_driver_rates',
+      'fleet_driver_regions',
+    ]) {
+      expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+      expect(migrationSql).toContain(
+        `ALTER TABLE "${table}" ADD CONSTRAINT "${table}_company_id_companies_id_fk"`,
+      )
+    }
+    // Chave natural da importação: reimportar a tabela do cliente atualiza, nunca duplica rota
+    expect(migrationSql).toContain('CONSTRAINT "freight_regions_company_id_code_unique"')
+    // ⚠️ BARRINHA/SP está em duas rotas com preços diferentes — cidade única por empresa recusaria
+    expect(migrationSql).toContain(
+      'CONSTRAINT "freight_region_cities_region_city_unique" UNIQUE("company_id","region_id","city","state")',
+    )
+    expect(migrationSql).toContain(
+      'ALTER TABLE "fleet_vehicles" ADD COLUMN "freight_class" varchar(20)',
+    )
+    expect(migrationSql).toContain('fleet_vehicles_freight_class_check')
+    // Cavalo mecânico e "Outros" ficam em branco: é onde VUC e 3/4 se escondem, e chutar põe preço errado
+    expect(migrationSql).toMatch(
+      /UPDATE "fleet_vehicles" SET "freight_class" = CASE "wheel_type"[\s\S]*WHEN '01' THEN 'truck'[\s\S]*WHEN '02' THEN 'toco'[\s\S]*WHEN '04' THEN 'van'[\s\S]*WHEN '05' THEN 'utility'[\s\S]*ELSE ''[\s\S]*END;/,
+    )
+
+    // O caminho de volta derruba o filho antes do pai — sem CASCADE, que arrastaria o que não é dele
+    const dropOrder = [
+      'fleet_driver_regions',
+      'freight_region_cities',
+      'freight_region_driver_rates',
+      'freight_regions',
+    ].map((table) => rollbackSql.indexOf(`DROP TABLE IF EXISTS "${table}"`))
+    for (const position of dropOrder) {
+      expect(position).toBeGreaterThan(0)
+    }
+    expect(dropOrder.indexOf(Math.max(...dropOrder))).toBe(dropOrder.length - 1)
+    expect(rollbackSql).toContain(
+      'ALTER TABLE "fleet_vehicles" DROP COLUMN IF EXISTS "freight_class"',
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
   })
 })
