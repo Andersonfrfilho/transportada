@@ -95,15 +95,6 @@ export function DriverAddressFields({ lookup, onChange, state }: DriverAddressFi
           onChange={(addressCity) => onChange({ addressCity })}
         />
       </div>
-      {lookup.mapUrl === null ? null : (
-        <iframe
-          className={styles.addressMap}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          src={lookup.mapUrl}
-          title={t('driverAddressMapTitle')}
-        />
-      )}
     </fieldset>
   )
 }

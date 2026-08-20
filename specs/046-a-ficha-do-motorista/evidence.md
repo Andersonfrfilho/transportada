@@ -76,8 +76,37 @@ $ bun run test
 2690 pass · 15 skip · 0 fail · 10979 expect() calls · 112 arquivos
 ```
 
-## T007–T009
+## T007 — ADR-0037
 
-Abertas. Nenhuma evidência a registrar — as três dependem de ADR, e ADR não escrito não tem gate. O
-que existe hoje são os dois achados datados em `docs/SECURITY.md` (2026-08-20), que é onde a decisão
-pendente fica visível em vez de sumir no histórico de conversa.
+Escrita e aceita: `docs/adr/0037-o-endereco-do-motorista-nao-sai-inteiro-do-navegador.md`, status
+`aceito`. ADR não tem gate de teste; o que ela produziu de verificável é o T007-A abaixo.
+
+## T007-A — executar a ADR-0037
+
+Mudança de **remoção**: saíram `buildMapEmbedUrl`, `locateAddress`, `GeoPoint`, `toPoint`,
+`toCoordinate`, `MAP_SPAN_DEGREES`, `LOCATE_DEBOUNCE_MS`, o estado `point`, o `runLocate`, o `mapUrl`
+do controlador, o `iframe` de `DriverAddressFields.component.tsx`, a classe `.addressMap`, a chave
+`driverAddressMapTitle` nos dois dicionários e o provedor Nominatim inteiro.
+
+**Não houve vermelho antes.** Nenhum teste existente referenciava um dos símbolos removidos
+(`rg -n 'toStateCode|Nominatim|GeoPoint|mapUrl|\.point' src test` só devolvia `src`), então não havia
+suíte para ficar vermelha com a remoção. O contrato-guarda nasceu junto com ela, e o que ele guarda é
+o futuro: falha se um símbolo ou um dos dois destinos voltar, e falha também se um dos três destinos
+que ficaram desaparecer — remoção sem guarda volta na próxima mão que quiser um mapa.
+
+```
+$ bun test test/fleet.contract.test.ts
+209 pass · 0 fail · 3272 expect() calls
+
+$ bun run format         (todos os arquivos "unchanged")
+$ bun run typecheck      (sem saída — quatro apps)
+$ bun run lint           (sem saída — quatro apps)
+$ bun run --cwd apps/frontend-transportada test
+1480 pass · 0 fail · 9018 expect() calls · 18 arquivos
+```
+
+## T008–T009
+
+Abertas. As duas dependem de ADR/decisão, e ADR não escrito não tem gate. O que existe hoje são os
+achados datados em `docs/SECURITY.md` (2026-08-20) — o de CSP, que a ADR-0037 destravou e encolheu
+para três destinos mais a origem do Keycloak, e o de criptografia em repouso.

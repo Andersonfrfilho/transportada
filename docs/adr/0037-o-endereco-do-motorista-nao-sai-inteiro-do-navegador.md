@@ -1,6 +1,6 @@
 # ADR 0037 — O endereço do motorista não sai inteiro do navegador, e não há proxy
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-08-20
 - Decisores: mantenedor do projeto e revisão Opus
 - Fecha a decisão 1 da spec 046 (T007) e destrava a CSP (T008)

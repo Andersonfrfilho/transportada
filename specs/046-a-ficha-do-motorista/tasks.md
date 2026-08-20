@@ -51,17 +51,17 @@
 > 🤖 Modelo: `opus` 🧠 — as três são decisão estrutural, não implementação.
 
 - [x] **T007** — 🧠 ADR: consulta de endereço no navegador ou proxy na API.
-      `docs/adr/0037-o-endereco-do-motorista-nao-sai-inteiro-do-navegador.md`, **status `proposto`**.
+      `docs/adr/0037-o-endereco-do-motorista-nao-sai-inteiro-do-navegador.md`, **status `aceito`**.
       Decide: sai o mapa (e com ele a geocodificação de confirmação, que era o que mandava o endereço
       inteiro), sai o Nominatim (política que o navegador não deixa cumprir), ficam a consulta de CEP
-      e o Photon, **não** há proxy. ⏳ Aceitar antes de T007-A.
+      e o Photon, **não** há proxy.
 
-- [ ] **T007-A** — Executar a ADR-0037 depois de aceita.
+- [x] **T007-A** — Executar a ADR-0037.
       Saem `buildMapEmbedUrl`, `locateAddress`, `GeoPoint`, `point`, `toPoint`, `toCoordinate`,
       `MAP_SPAN_DEGREES`, `LOCATE_DEBOUNCE_MS`, o `iframe` de `DriverAddressFields.component.tsx` e
       o provedor Nominatim.
-      **Aceite:** contrato-guarda no molde de `plate-lookup-removed.contract.ts` — falha se um dos
-      símbolos ou um dos dois destinos voltar ao bundle.
+      **Aceite:** `test/fleet/address-map-removed.contract.ts` — falha se um dos símbolos ou um dos
+      dois destinos voltar ao bundle, e falha também se um dos três que ficaram desaparecer.
 
 - [ ] **T008** — 🧠 CSP com `connect-src`/`frame-src`, depois de T007-A.
       Requisito autônomo do §3 do baseline: hoje não há CSP em lugar nenhum do repositório. Depois da

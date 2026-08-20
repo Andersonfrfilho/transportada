@@ -4,18 +4,15 @@ import { POSTAL_CODE_LENGTH, stripPostalCode } from '@/modules/shared/postalCode
 import { BRAZIL_STATE } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
 
-export type GeoPoint = Readonly<{ latitude: number; longitude: number }>
-
 /**
- * Um endereço resolvido por um provedor externo, já no vocabulário do formulário. `point` é o que
- * o mapa consome; provedor de CEP sem coordenada devolve `null` e o mapa fica de fora.
+ * Um endereço resolvido por um provedor externo, já no vocabulário do formulário. Sem coordenada:
+ * a ADR-0037 tirou o mapa, e com ele a única coisa que consumia latitude e longitude.
  */
 export type AddressSuggestion = Readonly<{
   city: string
   district: string
   label: string
   number: string
-  point: GeoPoint | null
   postalCode: string
   state: string
   street: string
@@ -30,21 +27,15 @@ export type AddressLookupInput = Readonly<{
 const BRASIL_API_CEP_URL = 'https://brasilapi.com.br/api/cep/v2'
 const VIA_CEP_URL = 'https://viacep.com.br/ws'
 const PHOTON_URL = 'https://photon.komoot.io/api'
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
 
 export const ADDRESS_SUGGESTION_LIMIT = 6
 
 /** Termo curto casa com meia cidade: a busca só sai depois que há endereço reconhecível. */
 export const ADDRESS_SEARCH_MINIMUM_LENGTH = 5
 
-const NOMINATIM_STATE_KEY = 'ISO3166-2-lvl4'
-const NOMINATIM_STATE_PREFIX = 'BR-'
-const NOMINATIM_CITY_KEYS = ['city', 'town', 'village', 'municipality'] as const
-const NOMINATIM_DISTRICT_KEYS = ['suburb', 'neighbourhood', 'city_district'] as const
-
 /**
- * Photon devolve a UF pelo nome ("São Paulo"), e a API só aceita duas letras. O mapa é dado de
- * domínio, não texto de tela: traduzir isto no `*.locale.json` faria a sigla depender do idioma.
+ * Photon devolve a UF pelo nome ("São Paulo"), e a API só aceita duas letras. Esta tabela é dado de
+ * domínio, não texto de tela: traduzi-la no `*.locale.json` faria a sigla depender do idioma.
  */
 const STATE_CODE_BY_NAME: Readonly<Record<string, string>> = {
   acre: 'AC',
@@ -93,21 +84,6 @@ function readRecord(value: unknown): Readonly<Record<string, unknown>> {
   return isRecord(value) ? value : {}
 }
 
-/** `Number('')` é zero, e zero é uma coordenada válida no Atlântico — string vazia não é número. */
-function toCoordinate(value: unknown): null | number {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (!isString(value) || value.trim() === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function toPoint(latitude: unknown, longitude: unknown): GeoPoint | null {
-  const parsedLatitude = toCoordinate(latitude)
-  const parsedLongitude = toCoordinate(longitude)
-  if (parsedLatitude === null || parsedLongitude === null) return null
-  return { latitude: parsedLatitude, longitude: parsedLongitude }
-}
-
 function withoutAccents(value: string): string {
   return value.normalize('NFD').replace(/\p{M}/gu, '')
 }
@@ -115,9 +91,6 @@ function withoutAccents(value: string): string {
 export function toStateCode(value: string): string {
   const trimmed = value.trim()
   const upper = withoutAccents(trimmed).toUpperCase()
-  if (upper.startsWith(NOMINATIM_STATE_PREFIX)) {
-    return upper.slice(NOMINATIM_STATE_PREFIX.length)
-  }
   if (BRAZIL_STATE.some((state) => state === upper)) return upper
   return STATE_CODE_BY_NAME[withoutAccents(trimmed).toLowerCase()] ?? ''
 }
@@ -148,12 +121,10 @@ async function readJson(
 
 function fromBrasilApi(payload: unknown): AddressSuggestion | null {
   if (!isRecord(payload)) return null
-  const coordinates = readRecord(readRecord(payload.location).coordinates)
   return buildSuggestion({
     city: readText(payload, 'city'),
     district: readText(payload, 'neighborhood'),
     number: '',
-    point: toPoint(coordinates.latitude, coordinates.longitude),
     postalCode: stripPostalCode(readText(payload, 'cep')),
     state: toStateCode(readText(payload, 'state')),
     street: readText(payload, 'street'),
@@ -167,7 +138,6 @@ function fromViaCep(payload: unknown): AddressSuggestion | null {
     city: readText(payload, 'localidade'),
     district: readText(payload, 'bairro'),
     number: '',
-    point: null,
     postalCode: stripPostalCode(readText(payload, 'cep')),
     state: toStateCode(readText(payload, 'uf')),
     street: readText(payload, 'logradouro'),
@@ -177,31 +147,14 @@ function fromViaCep(payload: unknown): AddressSuggestion | null {
 function fromPhotonFeature(feature: unknown): AddressSuggestion | null {
   if (!isRecord(feature)) return null
   const properties = readRecord(feature.properties)
-  const [longitude, latitude] = toList(feature.geometry, 'coordinates')
   const street = readFirstText(properties, ['street', 'name'])
   return buildSuggestion({
     city: readFirstText(properties, ['city', 'town', 'village', 'county']),
     district: readFirstText(properties, ['district', 'suburb']),
     number: readText(properties, 'housenumber'),
-    point: toPoint(latitude, longitude),
     postalCode: stripPostalCode(readText(properties, 'postcode')),
     state: toStateCode(readText(properties, 'state')),
     street,
-  })
-}
-
-function fromNominatimPlace(place: unknown): AddressSuggestion | null {
-  if (!isRecord(place)) return null
-  const address = readRecord(place.address)
-  const stateSource = readText(address, NOMINATIM_STATE_KEY)
-  return buildSuggestion({
-    city: readFirstText(address, NOMINATIM_CITY_KEYS),
-    district: readFirstText(address, NOMINATIM_DISTRICT_KEYS),
-    number: readText(address, 'house_number'),
-    point: toPoint(place.lat, place.lon),
-    postalCode: stripPostalCode(readText(address, 'postcode')),
-    state: toStateCode(stateSource === '' ? readText(address, 'state') : stateSource),
-    street: readFirstText(address, ['road', 'pedestrian', 'footway']),
   })
 }
 
@@ -250,17 +203,6 @@ function buildPhotonUrl(term: string): string {
   return `${PHOTON_URL}?${query.toString()}`
 }
 
-function buildNominatimUrl(term: string): string {
-  const query = new URLSearchParams({
-    addressdetails: '1',
-    countrycodes: 'br',
-    format: 'jsonv2',
-    limit: String(ADDRESS_SUGGESTION_LIMIT),
-    q: term,
-  })
-  return `${NOMINATIM_URL}?${query.toString()}`
-}
-
 function dedupe(suggestions: readonly AddressSuggestion[]): readonly AddressSuggestion[] {
   const seen = new Set<string>()
   const unique: AddressSuggestion[] = []
@@ -274,8 +216,9 @@ function dedupe(suggestions: readonly AddressSuggestion[]): readonly AddressSugg
 }
 
 /**
- * Dois provedores gratuitos e sem chave, porque um só cobre mal: o Photon acha rua por prefixo e
- * o Nominatim acha o número da casa. Provedor fora do ar não cancela a busca — só entrega menos.
+ * Um provedor só, e é o Photon: o Nominatim saiu pela ADR-0037, porque a política dele pede um
+ * `User-Agent` identificável que o `fetch` do navegador não deixa mandar. O `Promise.allSettled`
+ * sobre uma lista de um continua sendo o certo — provedor fora do ar entrega menos, nunca erro.
  */
 export async function searchAddress(
   input: AddressLookupInput,
@@ -287,9 +230,6 @@ export async function searchAddress(
     readJson({ fetch, signal, url: buildPhotonUrl(term) }).then((payload) =>
       toList(payload, 'features').map(fromPhotonFeature),
     ),
-    readJson({ fetch, signal, url: buildNominatimUrl(term) }).then((payload) =>
-      toList(payload, 'results').map(fromNominatimPlace),
-    ),
   ])
   const suggestions = responses.flatMap((response) =>
     response.status === 'fulfilled' ? response.value : [],
@@ -297,41 +237,4 @@ export async function searchAddress(
   return dedupe(
     suggestions.filter((suggestion): suggestion is AddressSuggestion => suggestion !== null),
   )
-}
-
-/**
- * O ViaCEP não devolve coordenada, e ele ganha a corrida do CEP metade das vezes: sem este passo
- * o mapa apareceria ou não conforme qual provedor respondeu primeiro.
- */
-export async function locateAddress(
-  input: Readonly<{
-    fetch: typeof globalThis.fetch
-    signal: AbortSignal
-    suggestion: AddressSuggestion
-  }>,
-): Promise<GeoPoint | null> {
-  const { suggestion } = input
-  if (suggestion.point !== null) return suggestion.point
-  const term = [suggestion.street, suggestion.district, suggestion.city, suggestion.state]
-    .filter((part) => part !== '')
-    .join(', ')
-  if (term === '') return null
-  const results = await searchAddress({ fetch: input.fetch, signal: input.signal, term })
-  return results.find((result) => result.point !== null)?.point ?? null
-}
-
-const MAP_SPAN_DEGREES = 0.004
-
-/** Mapa por iframe do OpenStreetMap: sem dependência nova, sem chave e sem custo. */
-export function buildMapEmbedUrl(point: GeoPoint): string {
-  const west = point.longitude - MAP_SPAN_DEGREES
-  const east = point.longitude + MAP_SPAN_DEGREES
-  const south = point.latitude - MAP_SPAN_DEGREES
-  const north = point.latitude + MAP_SPAN_DEGREES
-  const query = new URLSearchParams({
-    bbox: `${String(west)},${String(south)},${String(east)},${String(north)}`,
-    layer: 'mapnik',
-    marker: `${String(point.latitude)},${String(point.longitude)}`,
-  })
-  return `https://www.openstreetmap.org/export/embed.html?${query.toString()}`
 }

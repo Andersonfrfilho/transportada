@@ -104,11 +104,11 @@ cadastrar motorista.
 
 Nenhuma bloqueia o que já está em produção; todas três precisam de ADR antes de virar código.
 
-1. ~~**Consulta externa: navegador ou proxy na API?**~~ Decidida pela **ADR-0037** (status
-   `proposto`): o que mandava o endereço inteiro era a geocodificação que alimentava o mapa, não o
-   preenchimento — o mapa sai, o Nominatim sai por política que o navegador não deixa cumprir, a
-   consulta de CEP (oito dígitos, sem identificador) fica, e **não** há proxy, porque hoje o endereço
-   não passa pela nossa infraestrutura e o proxy nos daria essa passagem de graça.
+1. ~~**Consulta externa: navegador ou proxy na API?**~~ Decidida pela **ADR-0037** (status `aceito`)
+   e executada em T007-A: o que mandava o endereço inteiro era a geocodificação que alimentava o
+   mapa, não o preenchimento — o mapa saiu, o Nominatim saiu por política que o navegador não deixa
+   cumprir, a consulta de CEP (oito dígitos, sem identificador) ficou, e **não** há proxy, porque
+   hoje o endereço não passa pela nossa infraestrutura e o proxy nos daria essa passagem de graça.
 2. **CSP.** Não existe nenhuma no repositório. Publicá-la é requisito autônomo do §3 do baseline.
    Depois da ADR-0037 a lista fecha em `brasilapi.com.br`, `viacep.com.br`, `photon.komoot.io` e a
    origem do Keycloak, com `frame-src 'none'`. A lista de municípios do IBGE precisa entrar nela mesmo

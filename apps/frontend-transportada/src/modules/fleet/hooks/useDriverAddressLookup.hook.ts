@@ -8,11 +8,9 @@ import {
   stripPostalCode,
 } from '@/modules/shared/postalCode.service'
 
-import type { AddressSuggestion, GeoPoint } from '../shared/driverAddress.service'
+import type { AddressSuggestion } from '../shared/driverAddress.service'
 import {
   ADDRESS_SEARCH_MINIMUM_LENGTH,
-  buildMapEmbedUrl,
-  locateAddress,
   lookupPostalCode,
   searchAddress,
 } from '../shared/driverAddress.service'
@@ -26,7 +24,6 @@ import {
 } from '../shared/municipality.service'
 
 const SEARCH_DEBOUNCE_MS = 400
-const LOCATE_DEBOUNCE_MS = 900
 
 type UseDriverAddressLookupInput = Readonly<{
   fetch?: typeof globalThis.fetch
@@ -41,7 +38,6 @@ export type DriverAddressLookupController = Readonly<{
   hasCityState: boolean
   isLoadingCities: boolean
   isSearching: boolean
-  mapUrl: null | string
   searchTerm: string
   selectSuggestion: (suggestion: AddressSuggestion) => void
   statusKey: null | string
@@ -111,14 +107,11 @@ export function useDriverAddressLookup(
   const [suggestions, setSuggestions] = useState<readonly AddressSuggestion[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [statusKey, setStatusKey] = useState<null | string>(null)
-  const [point, setPoint] = useState<GeoPoint | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const runPostalCode = useGuardedRequest()
   const runSearch = useGuardedRequest()
-  const runLocate = useGuardedRequest()
 
-  const { addressCity, addressDistrict, addressNumber, addressState, addressStreet } = state
-  const canLocate = addressStreet !== '' && addressCity !== ''
+  const { addressCity, addressState } = state
 
   const municipalityQuery = useQuery({
     enabled: addressState !== '',
@@ -135,45 +128,6 @@ export function useDriverAddressLookup(
       }),
     [addressCity, municipalityQuery.data],
   )
-
-  useEffect(() => {
-    if (!canLocate) {
-      setPoint(null)
-      return
-    }
-    const timer = setTimeout(() => {
-      runLocate(
-        (signal) =>
-          locateAddress({
-            fetch: fetchImplementation,
-            signal,
-            suggestion: {
-              city: addressCity,
-              district: addressDistrict,
-              label: '',
-              number: addressNumber,
-              point: null,
-              postalCode: '',
-              state: addressState,
-              street: addressStreet,
-            },
-          }),
-        setPoint,
-      )
-    }, LOCATE_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [
-    addressCity,
-    addressDistrict,
-    addressNumber,
-    addressState,
-    addressStreet,
-    canLocate,
-    fetchImplementation,
-    runLocate,
-  ])
 
   useEffect(() => {
     const term = searchTerm.trim()
@@ -227,7 +181,6 @@ export function useDriverAddressLookup(
     setSuggestions([])
     setSearchTerm('')
     setStatusKey(null)
-    if (suggestion.point !== null) setPoint(suggestion.point)
   }
 
   return {
@@ -237,7 +190,6 @@ export function useDriverAddressLookup(
     hasCityState: addressState !== '',
     isLoadingCities: municipalityQuery.isLoading,
     isSearching,
-    mapUrl: point === null ? null : buildMapEmbedUrl(point),
     searchTerm,
     selectSuggestion,
     statusKey,

@@ -544,13 +544,6 @@
   outline-offset: 2px;
 }
 
-/* Altura por proporção: mapa com altura fixa em rem quebra no celular e vira faixa. */
-.addressMap {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
-}
-
 .formActions {
   display: flex;
   flex-wrap: wrap;

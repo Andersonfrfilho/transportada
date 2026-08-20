@@ -10,7 +10,8 @@ some — muda para "Fechado" com a data e o que passou a valer.
 **Onde:** `frontend-transportada`, `fleet/shared/driverAddress.service.ts` e
 `fleet/hooks/useDriverAddressLookup.hook.ts` (formulário de motorista e cadastro rápido).
 
-**O que é:** o preenchimento de endereço consulta quatro provedores públicos direto do navegador do
+**O que é** (como estava quando foi achado; o estado de hoje está em "Decisão", abaixo)**:** o
+preenchimento de endereço consultava quatro provedores públicos direto do navegador do
 operador — `brasilapi.com.br` e `viacep.com.br` pelo CEP, `photon.komoot.io` e
 `nominatim.openstreetmap.org` pela busca textual — e o mapa é um `iframe` de
 `openstreetmap.org/export/embed.html` com a coordenada na URL. O que viaja é **dado pessoal de
@@ -33,26 +34,35 @@ A política de uso do Nominatim ainda pede no máximo 1 req/s e um `User-Agent`/
 identificável. `User-Agent` é cabeçalho proibido ao `fetch` do navegador: **não temos como cumprir
 essa metade** de dentro da página.
 
-**O que já limita o estrago:** a busca é debounced (400ms na textual, 900ms na geocodificação), sai
-só a partir de cinco caracteres, é cancelada por `AbortSignal` a cada tecla e pede no máximo seis
-resultados; nenhuma resposta é logada; e a chamada parte do navegador do operador, não do servidor,
-então o endereço não passa pela nossa infraestrutura a caminho do terceiro.
+**O que já limita o estrago:** a busca é debounced (400ms), sai só a partir de cinco caracteres, é
+cancelada por `AbortSignal` a cada tecla e pede no máximo seis resultados; nenhuma resposta é logada;
+e a chamada parte do navegador do operador, não do servidor, então o endereço não passa pela nossa
+infraestrutura a caminho do terceiro.
 
-**Decisão (2026-08-20):** a **ADR-0037** decidiu, status `proposto`. A leitura campo por campo mostrou
-que não é um trilho, são quatro com exposição muito diferente: a consulta de CEP manda **oito
-dígitos** e nada mais, enquanto quem mandava o endereço residencial inteiro era `locateAddress` — e
-ela existe **para o mapa**, não para preencher o formulário, que já está preenchido quando ela roda.
-Então: sai o mapa (com o `iframe`, a coordenada e a geocodificação de confirmação), sai o Nominatim
-(a política pede `User-Agent`, cabeçalho proibido ao `fetch` — termo que não temos como cumprir de
-dentro da página), ficam a consulta de CEP com os dois provedores, o Photon e a lista do IBGE. **Não
+**Decisão (2026-08-20):** a **ADR-0037** decidiu, status `aceito`, e está **executada**. A leitura
+campo por campo mostrou que não é um trilho, são quatro com exposição muito diferente: a consulta de
+CEP manda **oito dígitos** e nada mais, enquanto quem mandava o endereço residencial inteiro era
+`locateAddress` — e ela existe **para o mapa**, não para preencher o formulário, que já está
+preenchido quando ela roda. Então: saiu o mapa (com o `iframe`, a coordenada e a geocodificação de
+confirmação), saiu o Nominatim (a política pede `User-Agent`, cabeçalho proibido ao `fetch` — termo
+que não temos como cumprir de dentro da página), ficaram a consulta de CEP com os dois provedores, o
+Photon e a lista do IBGE. **Não
 há proxy:** hoje a requisição parte do navegador do operador e o endereço não passa pela nossa
 infraestrutura; o proxy inverteria isso, criando superfície de PII onde não existe nenhuma, e pediria
 um limitador que esta API não tem.
 
-**O que falta:** aceitar a ADR-0037 e executá-la (spec 046, T007-A); publicar a CSP, que depois dela
-fecha em três destinos mais a origem do Keycloak, com `frame-src 'none'` (T008); e inventariar no
-registro de tratamento o que sobrar — o termo digitado indo ao Photon. O achado **encolhe** com isso,
-não fecha: continua sendo transferência a provedor sem contrato, com muito menos dado e com CSP.
+**Executado (spec 046, T007-A):** saíram o mapa, o `iframe`, a coordenada, a geocodificação de
+confirmação e o provedor Nominatim. Sobraram três destinos com dado pessoal — `brasilapi.com.br` e
+`viacep.com.br` recebendo **oito dígitos de CEP**, e `photon.komoot.io` recebendo o **termo
+digitado** — mais a lista do IBGE, que leva só a sigla do estado. O endereço residencial completo
+**não sai mais do navegador**. O contrato-guarda
+`apps/frontend-transportada/test/fleet/address-map-removed.contract.ts` falha se algum dos símbolos
+ou dos dois destinos voltar ao bundle.
+
+**O que falta:** publicar a CSP, que agora fecha em três destinos mais a origem do Keycloak, com
+`frame-src 'none'` (T008); e inventariar no registro de tratamento o que sobrou — o termo digitado
+indo ao Photon e o CEP indo aos dois provedores. O achado **encolheu**, não fechou: continua sendo
+transferência a provedor sem contrato, com muito menos dado e ainda sem CSP.
 
 **Origem:** auditoria de lacunas do cadastro de motorista (spec de endereço, ainda sem
 `spec.md`/`evidence.md`).

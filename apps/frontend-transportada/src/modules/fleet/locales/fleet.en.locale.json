@@ -280,7 +280,6 @@
   "driverAddressCityUnset": "No city",
   "driverAddressState": "State",
   "driverAddressStateUnset": "No state",
-  "driverAddressMapTitle": "Map of the given address",
   "addressSearchEmpty": "No address found for this text.",
   "addressLookupPending": "Looking up the postal code…",
   "addressLookupFound": "Address filled in from the postal code. Check the number and the complement.",
