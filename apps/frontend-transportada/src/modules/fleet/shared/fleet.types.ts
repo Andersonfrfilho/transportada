@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { FreightVehicleClass } from '../../shared/freightClass.constant'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
 import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
@@ -142,6 +143,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    /** Vazio é legítimo: cavalo mecânico e implemento não estão na tabela de frete do cliente. */
+    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: number
@@ -288,6 +291,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     capacityKilograms: string
     color: '' | VehicleColor
     fleetNumber: string
+    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: string

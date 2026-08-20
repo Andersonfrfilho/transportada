@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
+
 import {
   BRAZIL_STATE,
   FLEET_VEHICLE_ROLE,
@@ -66,10 +68,22 @@ export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFields
             onChange={(wheelType) => onChange({ wheelType })}
           />
         ) : null}
+        {state.role === 'traction' ? (
+          <FleetSelectField
+            clearable
+            label={t('freightClassField')}
+            optionLabelKey="freightClass"
+            options={FREIGHT_VEHICLE_CLASSES}
+            placeholder={t('freightClassUnset')}
+            value={state.freightClass}
+            onChange={(freightClass) => onChange({ freightClass })}
+          />
+        ) : null}
       </div>
       {state.role === 'traction' && state.wheelType === '' ? (
         <p className={styles.hint}>{t('wheelTypeRequiredHint')}</p>
       ) : null}
+      {state.role === 'traction' ? <p className={styles.hint}>{t('freightClassHint')}</p> : null}
     </fieldset>
   )
 }

@@ -91,6 +91,9 @@
   "wheelType": "Tipo de rodado",
   "wheelTypeUnset": "Não informado",
   "wheelTypeRequiredHint": "Sem o tipo de rodado, o MDF-e não pode ser emitido para este veículo.",
+  "freightClassField": "Classe de frete",
+  "freightClassUnset": "Não informada",
+  "freightClassHint": "É a coluna da tabela de frete que paga este veículo. O tipo de rodado sugere a classe, mas VUC e 3/4 não existem no rodado do MDF-e — nesses casos escolha à mão.",
   "vehicleIncomplete": "Incompleto para MDF-e",
   "stateOption": {
     "AC": "AC — Acre",

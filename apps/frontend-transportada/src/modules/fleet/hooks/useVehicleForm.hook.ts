@@ -10,6 +10,7 @@ import type {
 } from '../shared/fleet.types'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
 import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.service'
+import { suggestFreightClass } from '../shared/vehicleFreightClass.service'
 
 type UseVehicleFormInput = Readonly<{
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
@@ -44,7 +45,19 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   function patch(values: Partial<FleetVehicleFormState>): void {
     setFeedbackKey(null)
     setState((previous) => {
-      const next = { ...previous, ...values }
+      const patched = { ...previous, ...values }
+      // Trocar o rodado corrige a classe que ele mesmo sugeriu; a escolhida à mão fica
+      const next =
+        values.wheelType === undefined
+          ? patched
+          : {
+              ...patched,
+              freightClass: suggestFreightClass({
+                current: previous.freightClass,
+                nextWheelType: values.wheelType,
+                previousWheelType: previous.wheelType,
+              }),
+            }
       if (values.brand === undefined && values.model === undefined) return next
       // Os padrões entram por baixo do que já foi digitado: eles só alcançam campo ainda em branco
       return { ...next, ...resolveVehicleBrandDefaults({ state: next, vehicles }) }

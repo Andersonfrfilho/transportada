@@ -91,6 +91,9 @@
   "wheelType": "Wheel type",
   "wheelTypeUnset": "Not set",
   "wheelTypeRequiredHint": "Without the wheel type, the MDF-e cannot be issued for this vehicle.",
+  "freightClassField": "Freight class",
+  "freightClassUnset": "Not set",
+  "freightClassHint": "It is the freight table column that pays this vehicle. The wheel type suggests the class, but VUC and 3/4 do not exist in the MDF-e wheel type — pick those by hand.",
   "vehicleIncomplete": "Incomplete for MDF-e",
   "stateOption": {
     "AC": "AC — Acre",

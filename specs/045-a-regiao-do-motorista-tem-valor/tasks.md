@@ -97,7 +97,7 @@
       `@/components/ui/filter-pills`.
       **Aceite:** contrato do formulário verde.
 
-- [ ] **T012** — Classe de frete no formulário de veículo.
+- [x] **T012** — Classe de frete no formulário de veículo.
       Select ao lado de **Tipo de rodado**, valor sugerido pelo rodado e editável, dica dizendo por
       que VUC e 3/4 não estão no rodado.
       **Aceite:** contrato do formulário verde.

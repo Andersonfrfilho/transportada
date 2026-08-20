@@ -380,3 +380,33 @@ chaves `dateField`) veio junto neste commit por compartilhar `DriverForm.compone
 `*.locale.json`.
 
 Nenhuma variável de ambiente nova — nem em staging, nem em produção.
+
+## T012 — Classe de frete no formulário de veículo
+
+```
+$ bun test ./test/fleet/vehicle-freight-class.contract.ts   # 1 pass · 8 fail na abertura
+$ bun test ./test/fleet/vehicle-freight-class.contract.ts   # 9 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada test              # 1449 pass · 0 fail · 7744 expect()
+$ bunx tsc --noEmit                                          # limpo
+$ bun run lint                                               # limpo
+$ bun run format
+```
+
+O campo faltava mais do que o aceite dizia: `createVehicleSchema` é `strict()` e pede
+`freightClass` no corpo desde a T008, então **cadastrar veículo pela tela vinha voltando 400** — o
+frontend não mandava a chave. A T012 fecha esse buraco junto com o campo.
+
+Quatro decisões:
+
+1. **A sugestão não decide.** `suggestFreightClass` preenche a classe vazia e corrige a que ela
+   mesma sugeriu (rodado `01` → `02` troca truck por toco), mas não toca no que foi escolhido à
+   mão. VUC e 3/4 só entram assim: eles não existem no rodado do MDF-e.
+2. **A tabela `FREIGHT_CLASS_BY_WHEEL_TYPE` cobre só o que tem tradução exata** —
+   `01→truck`, `02→toco`, `04→van`, `05→utility`, a mesma da migration da T003. Cavalo mecânico
+   (`03`) e "Outros" (`06`) ficam vazios: adivinhar poria o veículo na linha errada da tabela.
+3. **A regra mora no `patch` do `useVehicleForm`**, não no componente do select — é um caminho só
+   para toda troca de rodado, venha do formulário completo ou do diálogo rápido.
+4. **Implemento não carrega classe**: `toVehicleBody` manda `''` quando o papel é `trailer`, do
+   mesmo jeito que já fazia com o rodado. Quem puxa frete é o veículo de tração.
+
+Nenhuma variável de ambiente nova — nem em staging, nem em produção.

@@ -144,6 +144,7 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isNullableString(value.costsUpdatedAt) &&
     isString(value.createdAt) &&
     isString(value.fleetNumber) &&
+    (value.freightClass === '' || isOneOf(value.freightClass, FREIGHT_VEHICLE_CLASSES)) &&
     (value.fuelPrice === null || isFuelPrice(value.fuelPrice)) &&
     isOneOf(value.fuelType, FLEET_ENUMS.fuelType) &&
     isString(value.id) &&

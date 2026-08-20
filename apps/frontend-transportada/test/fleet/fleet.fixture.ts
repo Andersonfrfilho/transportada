@@ -55,6 +55,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    freightClass: '' | 'three_quarter' | 'toco' | 'truck' | 'utility' | 'van' | 'vuc'
     fuelType: FleetVehicleFuelProductContract
     model: string
     modelYear: number
@@ -160,6 +161,7 @@ export const VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: 'branca',
   fleetNumber: '101',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: 'Modelo Sintetico',
   modelYear: 2020,
@@ -334,6 +336,7 @@ export const VEHICLE_DRAFT_BODY = {
   capacityKilograms: '0.00',
   color: '',
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
