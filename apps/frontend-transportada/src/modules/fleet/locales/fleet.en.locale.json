@@ -464,6 +464,18 @@
     "updated": "{{count}} route updated",
     "updated_plural": "{{count}} routes updated"
   },
+  "regionMap": {
+    "empty": "Pick a state to draw the map of its routes.",
+    "failed": "The IBGE mesh did not answer. The table is still complete — only the drawing is missing.",
+    "hint": "Every municipality is painted by the zone of the route claiming it. A city claimed by two routes is painted by the first and named by all of them on hover.",
+    "legendTitle": "Legend",
+    "outsideHint": "These names are on the table but matched no municipality of the chosen state. They may belong to another state or be misspelled.",
+    "outsideTitle": "Off the map",
+    "state": "Map state",
+    "title": "Route map",
+    "unassigned": "No route",
+    "zone": "Zone {{zone}}"
+  },
   "regionSelection": {
     "clear": "Clear selection",
     "copied": "Cities copied",

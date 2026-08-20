@@ -66,8 +66,7 @@ function toRingCandidates(value: unknown): readonly unknown[] {
 function readRings(geometry: unknown): readonly (readonly Point[])[] {
   if (!isRecord(geometry)) return []
   const rings = toRingCandidates(geometry['coordinates'])
-  const candidates =
-    geometry['type'] === 'MultiPolygon' ? rings.flatMap(toRingCandidates) : rings
+  const candidates = geometry['type'] === 'MultiPolygon' ? rings.flatMap(toRingCandidates) : rings
 
   return candidates.map(readRing).filter((ring): ring is readonly Point[] => ring !== null)
 }
@@ -80,7 +79,10 @@ function readFeatures(payload: unknown): readonly MeshFeature[] {
 
   return payload['features']
     .filter(isRecord)
-    .map((feature) => ({ code: readCode(feature['properties']), rings: readRings(feature['geometry']) }))
+    .map((feature) => ({
+      code: readCode(feature['properties']),
+      rings: readRings(feature['geometry']),
+    }))
     .filter((feature) => feature.code !== '' && feature.rings.length > 0)
 }
 
@@ -135,12 +137,7 @@ function toViewBox(extent: Extent, scale: number): string {
   const left = extent.lowestLongitude * scale
   const top = -extent.highestLatitude
 
-  return [
-    left,
-    top,
-    extent.highestLongitude * scale - left,
-    -extent.lowestLatitude - top,
-  ]
+  return [left, top, extent.highestLongitude * scale - left, -extent.lowestLatitude - top]
     .map((value) => round(value))
     .join(' ')
 }
@@ -150,9 +147,7 @@ export function projectStateMesh(payload: unknown): StateMesh {
   if (features.length === 0) return EMPTY_STATE_MESH
 
   const extent = toExtent(features)
-  const scale = Math.cos(
-    (((extent.lowestLatitude + extent.highestLatitude) / 2) * Math.PI) / 180,
-  )
+  const scale = Math.cos((((extent.lowestLatitude + extent.highestLatitude) / 2) * Math.PI) / 180)
   const shapes = features.map((feature) => ({
     code: feature.code,
     path: toPath(feature.rings, scale),

@@ -75,7 +75,7 @@
       projeção dos anéis em atributo `d`. Uma UF por vez, sob demanda, cacheada pelo TanStack Query.
       **Aceite:** T009 verde na parte de casamento e projeção.
 
-- [ ] **T011** — `useFreightRegionMap.hook.ts` e `FreightRegionMap.component.tsx`.
+- [x] **T011** — `useFreightRegionMap.hook.ts` e `FreightRegionMap.component.tsx`.
       Cor por zona vinda dos tokens de `styles/index.css`, legenda, estado de carregamento com
       esqueleto (`docs/frontend/loading.md`), estado de falha visível.
       **Aceite:** T009 verde.

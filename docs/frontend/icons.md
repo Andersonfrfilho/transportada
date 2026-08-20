@@ -7,8 +7,15 @@ Todo ícone da aplicação vem de `@/components/ui/icon`. Nenhum módulo desenha
 `<svg` é **proibido** em `src/**/*.tsx` fora de `src/components/ui/`. O contrato
 `test/design-system/icon.contract.ts` falha se algum reaparecer.
 
-A única exceção é `src/components/ui/checkbox.tsx`: o "check" não é ícone de ação, é o glifo do
-próprio controle, com peso de traço maior (2.2 contra 1.8) para ler bem dentro de uma caixa de 1rem.
+São duas exceções, as duas declaradas em lista nomeada no próprio contrato:
+
+- `src/components/ui/checkbox.tsx` (`CONTROL_GLYPH_PATHS`): o "check" não é ícone de ação, é o glifo
+  do próprio controle, com peso de traço maior (2.2 contra 1.8) para ler bem dentro de uma caixa de
+  1rem.
+- `src/components/ui/vector-map.tsx` (`DATA_GEOMETRY_PATHS`): o `d` de cada forma chega como **dado**
+  em tempo de execução — a malha de município do IBGE —, e por isso não há geometria para declarar em
+  `ICON_PATHS`. Desenho novo que dependa de dado vindo da rede entra nessa lista, não no conjunto de
+  ícones; desenho que se possa declarar continua sendo ícone.
 
 ## Como usar
 

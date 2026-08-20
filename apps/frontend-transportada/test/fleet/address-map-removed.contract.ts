@@ -72,7 +72,12 @@ describe('driver address map removal contract', () => {
     }
   })
 
-  test('names no map in either dictionary', async () => {
+  /**
+   * O que a ADR-0037 tirou foi o mapa **do endereço do motorista** — `iframe` de terceiro sobre dado
+   * pessoal. O mapa das rotas é desenho nosso sobre geometria pública, e por isso o verbete dele é
+   * permitido: a guarda é por nome de seção, não pela palavra "mapa".
+   */
+  test('names no address map in either dictionary', async () => {
     const [ptLocale, enLocale] = await Promise.all([
       readModuleFile('locales/fleet.locale.json'),
       readModuleFile('locales/fleet.en.locale.json'),
@@ -80,7 +85,9 @@ describe('driver address map removal contract', () => {
 
     for (const locale of [ptLocale, enLocale]) {
       const dictionary = JSON.parse(locale) as Record<string, unknown>
-      expect(Object.keys(dictionary).filter((key) => key.includes('Map'))).toEqual([])
+      const sections = Object.keys(dictionary)
+      expect(sections.filter((key) => key.includes('addressMap'))).toEqual([])
+      expect(sections.filter((key) => key.includes('Map'))).toEqual(['regionMap'])
     }
   })
 })

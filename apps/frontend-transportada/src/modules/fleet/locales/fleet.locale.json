@@ -464,6 +464,18 @@
     "updated": "{{count}} rota atualizada",
     "updated_plural": "{{count}} rotas atualizadas"
   },
+  "regionMap": {
+    "empty": "Escolha uma UF para desenhar o mapa das rotas dela.",
+    "failed": "A malha do IBGE não respondeu. A tabela continua completa — só o desenho ficou de fora.",
+    "hint": "Cada município é pintado pela zona da rota que o reivindica. Cidade reivindicada por duas rotas é pintada pela primeira e nomeada por todas ao passar o cursor.",
+    "legendTitle": "Legenda",
+    "outsideHint": "Esses nomes estão na tabela mas não casaram com nenhum município da UF escolhida. Podem ser de outro estado ou estar com a grafia trocada.",
+    "outsideTitle": "Fora do mapa",
+    "state": "UF do mapa",
+    "title": "Mapa das rotas",
+    "unassigned": "Sem rota",
+    "zone": "Zona {{zone}}"
+  },
   "regionSelection": {
     "clear": "Limpar seleção",
     "copied": "Cidades copiadas",

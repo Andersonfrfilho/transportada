@@ -1039,3 +1039,90 @@
   padding-left: var(--space-4);
   font-size: 0.85rem;
 }
+
+.mapPanel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.mapPanel h3 {
+  margin: 0;
+  color: var(--color-fog);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* O desenho é largo, e o estado alto (Bahia, Minas) estouraria a dobra sem um teto de altura. */
+.mapDrawing {
+  max-height: 26rem;
+}
+
+.mapLegend {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.mapLegend strong {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mapLegend ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.mapLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * A cor da zona é atributo, não estilo em linha: o `data-zone` casa com o mesmo token que pinta o
+ * polígono, e a legenda não pode divergir do desenho por descuido de uma das duas listas.
+ */
+.mapLegendSwatch {
+  display: inline-block;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  border-radius: var(--space-1);
+}
+
+.mapLegendSwatch[data-zone='0'] {
+  background: var(--color-zone-0);
+}
+
+.mapLegendSwatch[data-zone='1'] {
+  background: var(--color-zone-1);
+}
+
+.mapLegendSwatch[data-zone='2'] {
+  background: var(--color-zone-2);
+}
+
+.mapLegendSwatch[data-zone='3'] {
+  background: var(--color-zone-3);
+}
+
+.mapLegendSwatch[data-zone='4'] {
+  background: var(--color-zone-4);
+}
+
+.mapLegendSwatch[data-zone='unassigned'] {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  background: var(--color-asphalt);
+}

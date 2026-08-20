@@ -301,7 +301,11 @@ describe('freight region map contract', () => {
       municipalities: [MOGI_MIRIM],
       regions: [
         region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }], status: 'inactive' }),
-        region({ cities: [{ city: 'Cidade Sem Malha', state: 'SP' }], id: 'r2', status: 'inactive' }),
+        region({
+          cities: [{ city: 'Cidade Sem Malha', state: 'SP' }],
+          id: 'r2',
+          status: 'inactive',
+        }),
       ],
       state: 'SP',
     })

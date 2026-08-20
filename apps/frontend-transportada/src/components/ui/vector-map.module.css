@@ -1,0 +1,29 @@
+.root {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/*
+ * A divisa é traço de tela, não de mapa: `non-scaling-stroke` mantém a espessura em pixel enquanto o
+ * `viewBox` está em grau, senão a linha some no estado grande e engorda no pequeno.
+ */
+.shape {
+  stroke: color-mix(in srgb, var(--color-graphite) 70%, transparent);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  stroke: var(--color-fog);
+  stroke-width: 1.4;
+}
+
+.selected {
+  stroke: var(--color-fog);
+  stroke-width: 1.8;
+}
