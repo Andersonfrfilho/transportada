@@ -450,8 +450,13 @@ $ make migration-test   # exit 0
 Os dois CSVs de `data/` foram rodados pelo `parseFreightRegionCsv` da API (não por leitura à mão):
 
 ```json
-{ "regionCount": 29, "cityCount": 83, "rateCount": 146,
-  "withoutRates": [], "duplicatedCity": ["BARRINHA/SP"] }
+{
+  "regionCount": 29,
+  "cityCount": 83,
+  "rateCount": 146,
+  "withoutRates": [],
+  "duplicatedCity": ["BARRINHA/SP"]
+}
 ```
 
 Três coisas que esse resultado prova:
