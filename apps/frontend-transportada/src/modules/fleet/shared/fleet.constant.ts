@@ -54,6 +54,12 @@ export const FREIGHT_REGION_KEYS = [
   'zone',
 ] as const
 
+export const FREIGHT_REGION_BODY_KEYS = ['cities', 'code', 'name', 'rates'] as const
+
+export const FREIGHT_REGION_IMPORT_KEYS = ['rates', 'regions'] as const
+
+export const FREIGHT_REGION_IMPORT_SUMMARY_KEYS = ['created', 'deactivated', 'updated'] as const
+
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',

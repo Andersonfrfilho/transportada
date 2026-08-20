@@ -10,7 +10,7 @@
       repetida dentro da zona é recusada; `expectedVersion` em conflito vira mensagem.
       **Aceite:** vermelho registrado.
 
-- [ ] **T002** — Cliente HTTP.
+- [x] **T002** — Cliente HTTP.
       `createFreightRegion`, `updateFreightRegion`, `deleteFreightRegion` e `importFreightRegions`
       em `shared/fleetClient.service.ts`, com o `fetch` injetado dos demais; guard do resumo de
       importação em `fleetResponse.validation.ts`.

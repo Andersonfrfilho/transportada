@@ -7,6 +7,7 @@ import {
   FLEET_CAPABILITY_KEYS,
   FLEET_ERROR,
   FREIGHT_REGION_CITY_KEYS,
+  FREIGHT_REGION_IMPORT_SUMMARY_KEYS,
   FREIGHT_REGION_KEYS,
   FREIGHT_REGION_RATE_KEYS,
   OWNER_KEYS,
@@ -16,7 +17,11 @@ import {
 } from './fleet.constant'
 import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freightClass.constant'
 import { DRIVER_COVERAGE_SCOPES, type FleetDriverCoverage } from './driverCoverage.service'
-import type { FreightRegion, FreightRegionPage } from './freightRegion.types'
+import type {
+  FreightRegion,
+  FreightRegionImportSummary,
+  FreightRegionPage,
+} from './freightRegion.types'
 import { FREIGHT_REGION_STATUS } from './freightRegion.types'
 import type {
   FleetCapabilities,
@@ -120,6 +125,17 @@ function isFreightRegion(value: unknown): value is FreightRegion {
     isString(value.updatedAt) &&
     isUnsignedIntegerString(value.version) &&
     isUnsignedIntegerNumber(value.zone)
+  )
+}
+
+function isImportSummary(value: unknown): value is FreightRegionImportSummary {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, FREIGHT_REGION_IMPORT_SUMMARY_KEYS) &&
+    hasEveryKey(value, FREIGHT_REGION_IMPORT_SUMMARY_KEYS) &&
+    isUnsignedIntegerNumber(value.created) &&
+    isUnsignedIntegerNumber(value.deactivated) &&
+    isUnsignedIntegerNumber(value.updated)
   )
 }
 
@@ -303,6 +319,14 @@ export function createFleetResponseAdapters() {
         if (!isDriverVehicleLink(item)) throw invalid()
         return item
       })
+    },
+    freightRegionFromApi(input: unknown): FreightRegion {
+      if (!isFreightRegion(input)) throw invalid()
+      return input
+    },
+    freightRegionImportSummaryFromApi(input: unknown): FreightRegionImportSummary {
+      if (!isImportSummary(input)) throw invalid()
+      return input
     },
     freightRegionListFromApi(input: unknown): FreightRegionPage {
       return readPage(input, (item) => {

@@ -5,6 +5,8 @@ import {
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
   FLEET_VEHICLES_PATH,
+  FREIGHT_REGION_BODY_KEYS,
+  FREIGHT_REGION_IMPORT_KEYS,
   FREIGHT_REGIONS_PATH,
   OWNER_KEYS,
   VEHICLE_BODY_KEYS,
@@ -30,7 +32,16 @@ import type {
   FleetVehicleVersionInput,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
-import type { FreightRegionFilters, FreightRegionPage } from './freightRegion.types'
+import type {
+  FreightRegion,
+  FreightRegionBodyInput,
+  FreightRegionDeleteInput,
+  FreightRegionFilters,
+  FreightRegionImportInput,
+  FreightRegionImportSummary,
+  FreightRegionPage,
+  FreightRegionUpdateInput,
+} from './freightRegion.types'
 import { createFleetResponseAdapters } from './fleetResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -41,8 +52,11 @@ type ClientDependencies = Readonly<{
 
 export type FleetClient = Readonly<{
   createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
+  createFreightRegion: (input: FreightRegionBodyInput) => Promise<FreightRegion>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  deleteFreightRegion: (input: FreightRegionDeleteInput) => Promise<void>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  importFreightRegions: (input: FreightRegionImportInput) => Promise<FreightRegionImportSummary>
   listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
@@ -57,6 +71,7 @@ export type FleetClient = Readonly<{
     input: FleetReplaceDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
   updateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  updateFreightRegion: (input: FreightRegionUpdateInput) => Promise<FreightRegion>
   updateVehicle: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
 }>
 
@@ -81,6 +96,11 @@ async function requestJson(
     throw requestError(FLEET_ERROR.REQUEST_FAILED)
   }
   const rawBody = await response.text()
+  // `DELETE /freight-regions/{id}` responde 204 sem corpo: ler JSON dele derrubaria o que deu certo.
+  if (rawBody.length === 0) {
+    if (!response.ok) throw requestError(FLEET_ERROR.REQUEST_FAILED)
+    return undefined
+  }
   let payload: unknown
   try {
     payload = JSON.parse(rawBody) as unknown
@@ -95,7 +115,7 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
-    method: 'GET' | 'PATCH' | 'POST' | 'PUT'
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
   }>,
 ): Promise<unknown> {
@@ -109,6 +129,10 @@ async function authorizedRequest(
     fetch: input.dependencies.fetch,
     request: new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
   })
+}
+
+function freightRegionPath(regionId: string): string {
+  return `${FREIGHT_REGIONS_PATH}/${regionId}`
 }
 
 function driverRegionsPath(driverId: string): string {
@@ -165,6 +189,15 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
       })
       return adapters.driverFromApi(readEnvelopeData(response))
     },
+    async createFreightRegion(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(pickKeys(input, FREIGHT_REGION_BODY_KEYS)),
+        dependencies,
+        method: 'POST',
+        path: FREIGHT_REGIONS_PATH,
+      })
+      return adapters.freightRegionFromApi(readEnvelopeData(response))
+    },
     async createVehicle(input) {
       const response = await authorizedRequest({
         body: JSON.stringify(cleanVehicleBody(input)),
@@ -174,6 +207,13 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
       })
       return adapters.vehicleFromApi(readEnvelopeData(response))
     },
+    async deleteFreightRegion(input) {
+      await authorizedRequest({
+        dependencies,
+        method: 'DELETE',
+        path: freightRegionPath(input.regionId),
+      })
+    },
     async getFleetCapabilities() {
       const response = await authorizedRequest({
         dependencies,
@@ -181,6 +221,15 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: FLEET_CAPABILITIES_PATH,
       })
       return adapters.capabilitiesFromApi(readEnvelopeData(response))
+    },
+    async importFreightRegions(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(pickKeys(input, FREIGHT_REGION_IMPORT_KEYS)),
+        dependencies,
+        method: 'POST',
+        path: `${FREIGHT_REGIONS_PATH}/import`,
+      })
+      return adapters.freightRegionImportSummaryFromApi(readEnvelopeData(response))
     },
     async listDriverRegions(input) {
       const response = await authorizedRequest({
@@ -265,6 +314,19 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_DRIVERS_PATH}/${input.driverId}`,
       })
       return adapters.driverFromApi(readEnvelopeData(response))
+    },
+    async updateFreightRegion(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          ...pickKeys(input, FREIGHT_REGION_BODY_KEYS),
+          expectedVersion: input.expectedVersion,
+          status: input.status,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: freightRegionPath(input.regionId),
+      })
+      return adapters.freightRegionFromApi(readEnvelopeData(response))
     },
     async updateVehicle(input) {
       const response = await authorizedRequest({

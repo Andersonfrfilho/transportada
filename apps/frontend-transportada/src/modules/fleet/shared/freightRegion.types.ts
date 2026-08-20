@@ -35,3 +35,28 @@ export type FreightRegionFilters = Readonly<{
   cityContains?: string
   statusEq?: FreightRegionStatus
 }>
+
+export type FreightRegionBodyInput = Readonly<{
+  cities: readonly FreightRegionCity[]
+  code: string
+  name: string
+  rates: readonly FreightRegionDriverRate[]
+}>
+
+export type FreightRegionUpdateInput = FreightRegionBodyInput &
+  Readonly<{
+    expectedVersion: string
+    regionId: string
+    status: FreightRegionStatus
+  }>
+
+export type FreightRegionDeleteInput = Readonly<{ regionId: string }>
+
+/** As duas metades da planilha do cliente, texto puro — o mesmo corpo que a rota de importação lê. */
+export type FreightRegionImportInput = Readonly<{ rates: string; regions: string }>
+
+export type FreightRegionImportSummary = Readonly<{
+  created: number
+  deactivated: number
+  updated: number
+}>
