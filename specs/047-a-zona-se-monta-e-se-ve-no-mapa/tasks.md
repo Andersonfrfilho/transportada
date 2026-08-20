@@ -100,7 +100,7 @@
       Verbetes nos dois idiomas, pt-BR acentuado.
       **Aceite:** `locale-accents` verde.
 
-- [ ] **T015** — Gates.
+- [x] **T015** — Gates.
       `make check`, evidência em `evidence.md` com a prova de que a tabela do cliente sobe pela tela
       (não pelo script) e o desenho fecha.
       **Aceite:** tudo verde, evidência escrita.
