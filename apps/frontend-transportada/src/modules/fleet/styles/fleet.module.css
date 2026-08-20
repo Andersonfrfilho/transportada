@@ -170,6 +170,14 @@
   }
 }
 
+/* As seis classes são a fileira da tabela impressa: quanto mais couber lado a lado, mais a tela
+   parece com o papel que o operador confere. */
+@media (min-width: 60rem) {
+  .rateGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .fieldGrid label,
 .filterBar label,
 .plateRow label,

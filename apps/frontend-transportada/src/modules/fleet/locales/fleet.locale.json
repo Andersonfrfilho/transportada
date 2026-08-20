@@ -404,6 +404,23 @@
     "title": "Filtros",
     "zone": "Zona"
   },
+  "regionForm": {
+    "code": "Código da rota",
+    "codeHint": "Família e zona, como 1.000 para a matriz da família 1 e 1.002 para a zona 3.",
+    "codeInvalid": "O código da rota está fora do padrão",
+    "codeTaken": "Já existe uma rota com esse código",
+    "editRegion": "Editar rota",
+    "error": {
+      "city_duplicated": "A mesma cidade aparece duas vezes nesta rota",
+      "code_invalid": "O código precisa ter o formato família.00zona, como 1.002",
+      "name_required": "Informe o nome da rota"
+    },
+    "name": "Nome da rota",
+    "newRegion": "Nova rota",
+    "notFound": "A rota não existe mais",
+    "rateHint": "Deixe em branco a classe que não atende a rota — valor zerado diz a mesma coisa e não é gravado.",
+    "rateLegend": "Valor pago ao motorista por classe"
+  },
   "regionSelection": {
     "clear": "Limpar seleção",
     "copied": "Cidades copiadas",

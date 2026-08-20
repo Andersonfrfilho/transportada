@@ -404,6 +404,23 @@
     "title": "Filters",
     "zone": "Zone"
   },
+  "regionForm": {
+    "code": "Route code",
+    "codeHint": "Family and zone, such as 1.000 for the family 1 matrix and 1.002 for zone 3.",
+    "codeInvalid": "The route code is out of the expected format",
+    "codeTaken": "A route with this code already exists",
+    "editRegion": "Edit route",
+    "error": {
+      "city_duplicated": "The same city appears twice in this route",
+      "code_invalid": "The code must follow family.00zone, such as 1.002",
+      "name_required": "Enter the route name"
+    },
+    "name": "Route name",
+    "newRegion": "New route",
+    "notFound": "The route no longer exists",
+    "rateHint": "Leave the class blank when it does not serve the route — a zeroed amount says the same and is not stored.",
+    "rateLegend": "Amount paid to the driver by class"
+  },
   "regionSelection": {
     "clear": "Clear selection",
     "copied": "Cities copied",

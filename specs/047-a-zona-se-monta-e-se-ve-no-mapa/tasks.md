@@ -16,7 +16,7 @@
       importação em `fleetResponse.validation.ts`.
       **Aceite:** contrato de resposta verde, incluindo corpo inesperado recusado.
 
-- [ ] **T003** — `useFreightRegionForm.hook.ts` e `FreightRegionForm.component.tsx`.
+- [x] **T003** — `useFreightRegionForm.hook.ts` e `FreightRegionForm.component.tsx`.
       Campos, grade de preço, submissão e invalidação. Componente declarativo; toda a lógica no hook.
       **Aceite:** T001 verde.
 

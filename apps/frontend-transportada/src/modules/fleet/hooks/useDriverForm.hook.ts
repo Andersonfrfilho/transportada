@@ -1,7 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
 
-import { FLEET_FEEDBACK_KEY_BY_ERROR } from '../shared/fleet.constant'
 import {
   addCityCoverage,
   addRegionCoverage,
@@ -20,6 +19,7 @@ import type {
 } from '../shared/fleet.types'
 import type { FreightRegion, FreightRegionCity } from '../shared/freightRegion.types'
 import { toSelectedVehicleIds, toggleVehicleSelection } from '../shared/driverVehicles.service'
+import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createDriverDraft, toDriverBody, toDriverFormState } from '../shared/fleetForm.service'
 
 type UseDriverFormInput = Readonly<{
@@ -54,11 +54,6 @@ export type DriverFormController = Readonly<{
   submit: () => Promise<void>
   toggleVehicle: (vehicleId: string) => void
 }>
-
-function resolveFeedbackKey(error: unknown): string {
-  const code = error instanceof Error ? error.message : ''
-  return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? 'saveError'
-}
 
 export function useDriverForm(input: UseDriverFormInput): DriverFormController {
   const [state, setState] = useState<FleetDriverFormState>(() =>
@@ -120,7 +115,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       }
       setFeedbackKey('saved')
     } catch (error) {
-      setFeedbackKey(resolveFeedbackKey(error))
+      setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
     }

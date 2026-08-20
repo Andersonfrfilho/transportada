@@ -71,6 +71,10 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   FLEET_VEHICLE_PLATE_TAKEN: 'plateTaken',
   FLEET_VEHICLE_VERSION_CONFLICT: 'versionConflict',
+  FREIGHT_REGION_CODE_INVALID: 'regionForm.codeInvalid',
+  FREIGHT_REGION_CODE_TAKEN: 'regionForm.codeTaken',
+  FREIGHT_REGION_NOT_FOUND: 'regionForm.notFound',
+  FREIGHT_REGION_VERSION_CONFLICT: 'versionConflict',
 }
 
 /** O tom real do CRLV vive em `:root`; aqui só o caminho até ele, para nenhum módulo pintar cor crua. */

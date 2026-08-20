@@ -1,13 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
 
-import { FLEET_FEEDBACK_KEY_BY_ERROR } from '../shared/fleet.constant'
 import type {
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFormState,
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
+import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
 import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.service'
 import { suggestFreightClass } from '../shared/vehicleFreightClass.service'
@@ -28,11 +28,6 @@ export type VehicleFormController = Readonly<{
   state: FleetVehicleFormState
   submit: () => Promise<void>
 }>
-
-function resolveFeedbackKey(error: unknown, fallbackKey: string): string {
-  const code = error instanceof Error ? error.message : ''
-  return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? fallbackKey
-}
 
 export function useVehicleForm(input: UseVehicleFormInput): VehicleFormController {
   const [state, setState] = useState<FleetVehicleFormState>(() =>
@@ -78,7 +73,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
           }))
       onSaved()
     } catch (error) {
-      setFeedbackKey(resolveFeedbackKey(error, 'saveError'))
+      setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
     }

@@ -9,12 +9,12 @@ import { formatCnpj, formatCpf, normalizeTaxId } from '@/modules/shared/taxId.se
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
-import { FLEET_FEEDBACK_KEY_BY_ERROR } from '../shared/fleet.constant'
 import type {
   FleetDriverBody,
   FleetDriverDetail,
   FleetDriverFormState,
 } from '../shared/fleet.types'
+import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createDriverDraft, toDriverBody } from '../shared/fleetForm.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
@@ -26,11 +26,6 @@ type DriverQuickCreateDialogProps = Readonly<{
   onCreate: (body: FleetDriverBody) => Promise<FleetDriverDetail>
   onCreated: (driver: FleetDriverDetail) => void
 }>
-
-function resolveFeedbackKey(error: unknown): string {
-  const code = error instanceof Error ? error.message : ''
-  return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? 'saveError'
-}
 
 export function DriverQuickCreateDialog({
   onClose,
@@ -57,7 +52,7 @@ export function DriverQuickCreateDialog({
       const driver = await onCreate(toDriverBody(state))
       onCreated(driver)
     } catch (error) {
-      setFeedbackKey(resolveFeedbackKey(error))
+      setFeedbackKey(resolveFleetFeedbackKey(error))
       setIsSaving(false)
     }
   }
