@@ -410,3 +410,24 @@ Quatro decisões:
    mesmo jeito que já fazia com o rodado. Quem puxa frete é o veículo de tração.
 
 Nenhuma variável de ambiente nova — nem em staging, nem em produção.
+
+## T013 — Locales
+
+```
+$ bun test ./test/shared/locale-accents.contract.ts   # 2 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada test        # 1449 pass · 0 fail
+```
+
+Os verbetes da feature entraram nos dois idiomas conforme cada painel foi ficando pronto
+(`freightRegions*` e `regionColumns` na T010, `driverCoverage` na T011, `freightClass*` na T012).
+A conferência de fechamento comparou chave a chave, achatando os dois arquivos:
+`fleet.locale.json` e `fleet.en.locale.json` têm **o mesmo conjunto de chaves**, sem sobra dos dois
+lados.
+
+⚠️ **Achado fora do escopo da 045:** `nfeWorkspace.en.locale.json` está 130 chaves atrás do
+`nfeWorkspace.locale.json` (a tabela de notas inteira, o construtor de filtro avançado e o
+importador). Não quebra a tela — `i18n.service.ts` declara `fallbackLng: 'pt-BR'`, então a chave
+ausente cai no português —, mas o inglês da tela de notas é português. Fica registrado aqui; a
+tradução é trabalho de outra spec.
+
+Nenhuma variável de ambiente nova — nem em staging, nem em produção.

@@ -102,7 +102,7 @@
       que VUC e 3/4 não estão no rodado.
       **Aceite:** contrato do formulário verde.
 
-- [ ] **T013** — Locales.
+- [x] **T013** — Locales.
       Verbetes nos dois idiomas, pt-BR acentuado.
       **Aceite:** `locale-accents` verde.
 
