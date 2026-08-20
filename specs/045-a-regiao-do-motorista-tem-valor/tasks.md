@@ -55,9 +55,12 @@
       configuração.
       **Aceite:** `freight-regions-http` verde.
 
-- [ ] **T007** — Cobertura do motorista.
+- [x] **T007** — Cobertura do motorista.
       `GET/PUT /fleet/drivers/{id}/regions`, lista misturando `scope: 'region'` e `scope: 'city'`.
-      `city` sem cidade é 400 com código próprio.
+      `city` sem cidade é 400 `FLEET_DRIVER_REGION_CITY_REQUIRED`; zona **com** cidade é 400
+      `FLEET_DRIVER_REGION_CITY_UNEXPECTED` — as duas metades do CHECK da tabela, ditas na
+      fronteira. Cobertura é dado da frota: ler é `fleet.read`, escrever é `fleet.manage`, sem
+      `settings.manage`.
       **Aceite:** contrato de fronteira verde.
 
 - [ ] **T008** — Classe de frete no veículo.

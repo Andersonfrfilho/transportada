@@ -42,7 +42,9 @@ const regionFieldsSchema = z.object({
   cities: z
     .array(citySchema)
     .refine(
-      (value) => new Set(value.map((entry) => `${normalizeRegionCity(entry.city)}/${entry.state}`)).size === value.length,
+      (value) =>
+        new Set(value.map((entry) => `${normalizeRegionCity(entry.city)}/${entry.state}`)).size ===
+        value.length,
       'cities must be unique',
     ),
   code: z.string().regex(REGION_CODE_PATTERN),

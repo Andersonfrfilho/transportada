@@ -104,3 +104,8 @@ export type FreightRegionCompanyContext = {
   readonly companyId: string
   readonly userId: string
 }
+
+/** Só o que esta rota precisa saber da frota: o motorista é desta empresa? */
+export type FleetDriverExistencePort = {
+  exists(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
+}

@@ -225,9 +225,7 @@ describe('freight regions http authorization contract', () => {
   test('lets whoever manages the fleet read the table without rewriting it', async () => {
     const fixture = await createFreightRegionHttpFixture({ permissions: FLEET_ONLY_PERMISSIONS })
 
-    const listed = await fixture.handle(
-      jsonRequest({ method: 'GET', path: FREIGHT_REGIONS_PATH }),
-    )
+    const listed = await fixture.handle(jsonRequest({ method: 'GET', path: FREIGHT_REGIONS_PATH }))
     const created = await fixture.handle(
       jsonRequest({ body: CREATE_REGION_BODY, method: 'POST', path: FREIGHT_REGIONS_PATH }),
     )

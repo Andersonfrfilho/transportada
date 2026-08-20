@@ -175,3 +175,57 @@ Decisões que o contrato fixa:
 - **UF é normalizada antes de ser validada** (`transform` e só então `refine`): a planilha do
   cliente traz `sp` em caixa baixa, e recusá-la seria recusar pelo motivo errado.
 - Dinheiro entra com quatro casas obrigatórias (`812.4500`); `'1086.12'` é 400.
+
+## T007 — Cobertura do motorista
+
+Vermelho antes da implementação:
+
+```
+$ bun test ./test/fleet-driver-regions-http.contract.test.ts
+0 pass · 13 fail
+error: Cannot find module '../../src/freight-regions/presentation/fleet-driver-region.routes.js'
+```
+
+Depois de escrever a política, o schema, o caso de uso e as rotas:
+
+```
+$ bun test ./test/fleet-driver-regions-http.contract.test.ts
+13 pass · 0 fail · 31 expect() calls
+
+$ bun run --cwd apps/api-transportada test
+2661 pass · 15 skip · 1 fail · 10898 expect() calls (111 arquivos)
+
+$ bun run typecheck   # verde
+$ bun run lint        # verde
+$ bun run format      # reescreveu três arquivos do T006 que tinham escapado do prettier
+```
+
+⚠️ A falha continua sendo a mesma de T006 — `test/database-migration/static-migration.contract.ts`
+sem `20260820002947_fleet_driver_address_and_dates`, migration ainda não versionada de outro
+trabalho. Nada de T007 entra nesse contrato.
+
+Decisões que o contrato fixa:
+
+- **Cobertura é dado da frota, não da tabela de preços.** Ler é `fleet.read`, escrever é
+  `fleet.manage`, e `settings.manage` não entra: quem cadastra motorista atribui onde ele roda; quem
+  muda o valor da rota é que precisa da permissão de configuração. O contrato prova os dois lados
+  com um contexto que só tem `fleet.read`.
+- **As duas metades do CHECK `fleet_driver_regions_city_check` são ditas na fronteira, com código
+  próprio cada uma.** Cidade sem cidade é `FLEET_DRIVER_REGION_CITY_REQUIRED`; zona carregando
+  cidade é `FLEET_DRIVER_REGION_CITY_UNEXPECTED`. Deixar o `23514` do Postgres chegar viraria 500
+  genérico, sem dizer qual das duas linhas está errada. Por isso cidade e UF são **opcionais no
+  Zod** e obrigatórias na política: exigi-las no schema devolveria o 400 genérico e perderia o
+  código.
+- **Zona com cidade é recusa, não faxina.** O mapper apaga a cidade da linha de zona porque o banco
+  exige, mas aceitar o corpo e apagar em silêncio guardaria uma cobertura diferente da que o
+  operador pediu.
+- **`PUT` substitui a cobertura inteira**, e lista vazia é operação legítima: motorista que deixou
+  de rodar em qualquer rota é lista vazia, não rota ausente.
+- **Motorista de outra empresa é 404 (`FLEET_DRIVER_NOT_FOUND`) e rota de outra empresa é 422
+  (`FREIGHT_REGION_UNKNOWN`)** — as duas perguntadas antes da escrita, senão as FKs devolveriam
+  `23503` como 500 e o vazamento de tenant viraria defeito nosso.
+- O caso de uso conhece a frota por uma porta de uma pergunta só (`FleetDriverExistencePort`), não
+  pelo repositório inteiro de motoristas: o módulo de regiões não precisa saber o que é um motorista
+  para saber se ele existe.
+- Identificador de motorista fora do uuid canônico **não casa rota** (404): é o roteador que
+  recusa, antes de qualquer parse — o contrato registra isso para ninguém "consertar" para 400.

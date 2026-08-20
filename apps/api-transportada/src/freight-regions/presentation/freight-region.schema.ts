@@ -27,9 +27,7 @@ export async function parseCreateRegionRequest(request: Request): Promise<Freigh
   return parseBody(createRegionSchema, request)
 }
 
-export async function parseUpdateRegionRequest(
-  request: Request,
-): Promise<UpdateFreightRegionBody> {
+export async function parseUpdateRegionRequest(request: Request): Promise<UpdateFreightRegionBody> {
   return parseBody(updateRegionSchema, request)
 }
 

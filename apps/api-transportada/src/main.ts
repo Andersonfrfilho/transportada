@@ -128,7 +128,10 @@ import {
 import { createFreightRoutes } from './freight/presentation/freight.routes'
 import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
 import { createFreightRegionsUseCase } from './freight-regions/application/freight-regions.use-case'
+import { createFleetDriverRegionsUseCase } from './freight-regions/application/fleet-driver-regions.use-case'
+import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
+import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
@@ -432,6 +435,7 @@ function createApplicationRoutes({
   })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
+  const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
     database,
     fuelPrices: fleetFuelPriceGateway,
@@ -483,6 +487,12 @@ function createApplicationRoutes({
   })
   const fleetVehicles = createFleetVehiclesUseCase({ repository: fleetVehicleRepository })
   const freightRegions = createFreightRegionsUseCase({ repository: freightRegionRepository })
+  const fleetDriverRegions = createFleetDriverRegionsUseCase({
+    drivers: {
+      exists: async (input) => (await fleetDriverRepository.findById(input)) !== null,
+    },
+    repository: fleetDriverRegionRepository,
+  })
   const fleetDrivers = createFleetDriversUseCase({ repository: fleetDriverRepository })
   const fleetDriverVehicles = createFleetDriverVehiclesUseCase({
     driverRepository: fleetDriverRepository,
@@ -725,6 +735,10 @@ function createApplicationRoutes({
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createFleetDriverRegionRoutes({
+      listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
+      replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },

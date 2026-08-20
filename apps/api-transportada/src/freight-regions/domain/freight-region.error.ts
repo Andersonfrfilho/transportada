@@ -39,3 +39,25 @@ export class FreightRegionUnknownError extends ApiError {
     })
   }
 }
+
+/** Cobertura de cidade sem cidade é linha que não cobre nada — o CHECK da tabela diz o mesmo. */
+export class FleetDriverRegionCityRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_REGION_CITY_REQUIRED',
+      message: 'City coverage requires a city and a two letter UF',
+      status: 400,
+    })
+  }
+}
+
+/** Zona com cidade é zona disfarçada: apagar a cidade em silêncio guardaria outra cobertura. */
+export class FleetDriverRegionCityUnexpectedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_REGION_CITY_UNEXPECTED',
+      message: 'Zone coverage must not carry a city',
+      status: 400,
+    })
+  }
+}
