@@ -50,14 +50,24 @@
 
 > 🤖 Modelo: `opus` 🧠 — as três são decisão estrutural, não implementação.
 
-- [ ] **T007** — 🧠 ADR: consulta de endereço no navegador ou proxy na API.
-      Decide o destino do dado pessoal do motorista e destrava T008. Achado em `docs/SECURITY.md`
-      (2026-08-20). **Não implementar antes do ADR** — a escolha errada é caminho de volta caro.
+- [x] **T007** — 🧠 ADR: consulta de endereço no navegador ou proxy na API.
+      `docs/adr/0037-o-endereco-do-motorista-nao-sai-inteiro-do-navegador.md`, **status `proposto`**.
+      Decide: sai o mapa (e com ele a geocodificação de confirmação, que era o que mandava o endereço
+      inteiro), sai o Nominatim (política que o navegador não deixa cumprir), ficam a consulta de CEP
+      e o Photon, **não** há proxy. ⏳ Aceitar antes de T007-A.
 
-- [ ] **T008** — 🧠 CSP com `connect-src`/`frame-src`, depois de T007.
-      Requisito autônomo do §3 do baseline: hoje não há CSP em lugar nenhum do repositório. A lista
-      de municípios do IBGE entra na diretiva mesmo não sendo PII, senão o select de cidade quebra ao
-      publicá-la.
+- [ ] **T007-A** — Executar a ADR-0037 depois de aceita.
+      Saem `buildMapEmbedUrl`, `locateAddress`, `GeoPoint`, `point`, `toPoint`, `toCoordinate`,
+      `MAP_SPAN_DEGREES`, `LOCATE_DEBOUNCE_MS`, o `iframe` de `DriverAddressFields.component.tsx` e
+      o provedor Nominatim.
+      **Aceite:** contrato-guarda no molde de `plate-lookup-removed.contract.ts` — falha se um dos
+      símbolos ou um dos dois destinos voltar ao bundle.
+
+- [ ] **T008** — 🧠 CSP com `connect-src`/`frame-src`, depois de T007-A.
+      Requisito autônomo do §3 do baseline: hoje não há CSP em lugar nenhum do repositório. Depois da
+      ADR-0037 a lista fecha em três destinos mais a origem do Keycloak, e o `frame-src` vira `'none'`
+      — o `iframe` do mapa era o único do bundle (`checkLoginIframe: false`). A lista de municípios do
+      IBGE entra na diretiva mesmo não sendo PII, senão o select de cidade quebra ao publicá-la.
       **Aceite:** contrato que falha se um destino externo do bundle não estiver na diretiva.
 
 - [ ] **T009** — 🧠 ADR: criptografia em repouso dos campos de pessoa física do motorista.

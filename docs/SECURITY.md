@@ -38,11 +38,21 @@ só a partir de cinco caracteres, é cancelada por `AbortSignal` a cada tecla e 
 resultados; nenhuma resposta é logada; e a chamada parte do navegador do operador, não do servidor,
 então o endereço não passa pela nossa infraestrutura a caminho do terceiro.
 
-**O que falta:** decidir por ADR se a consulta continua no navegador ou vira proxy na API — o proxy
-resolve as três coisas de uma vez (um destino só no CSP, `User-Agent` identificável, teto de 1 req/s
-compartilhado) ao custo de nos tornar o operador do dado; publicar a CSP com `connect-src` enumerando
-o que sobrar, mais `frame-src` para o mapa; e inventariar os provedores no registro de tratamento.
-Enquanto não houver decisão, isto é transferência de dado pessoal a terceiro sem base registrada.
+**Decisão (2026-08-20):** a **ADR-0037** decidiu, status `proposto`. A leitura campo por campo mostrou
+que não é um trilho, são quatro com exposição muito diferente: a consulta de CEP manda **oito
+dígitos** e nada mais, enquanto quem mandava o endereço residencial inteiro era `locateAddress` — e
+ela existe **para o mapa**, não para preencher o formulário, que já está preenchido quando ela roda.
+Então: sai o mapa (com o `iframe`, a coordenada e a geocodificação de confirmação), sai o Nominatim
+(a política pede `User-Agent`, cabeçalho proibido ao `fetch` — termo que não temos como cumprir de
+dentro da página), ficam a consulta de CEP com os dois provedores, o Photon e a lista do IBGE. **Não
+há proxy:** hoje a requisição parte do navegador do operador e o endereço não passa pela nossa
+infraestrutura; o proxy inverteria isso, criando superfície de PII onde não existe nenhuma, e pediria
+um limitador que esta API não tem.
+
+**O que falta:** aceitar a ADR-0037 e executá-la (spec 046, T007-A); publicar a CSP, que depois dela
+fecha em três destinos mais a origem do Keycloak, com `frame-src 'none'` (T008); e inventariar no
+registro de tratamento o que sobrar — o termo digitado indo ao Photon. O achado **encolhe** com isso,
+não fecha: continua sendo transferência a provedor sem contrato, com muito menos dado e com CSP.
 
 **Origem:** auditoria de lacunas do cadastro de motorista (spec de endereço, ainda sem
 `spec.md`/`evidence.md`).

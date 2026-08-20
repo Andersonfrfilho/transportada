@@ -104,13 +104,15 @@ cadastrar motorista.
 
 Nenhuma bloqueia o que já está em produção; todas três precisam de ADR antes de virar código.
 
-1. **Consulta externa: navegador ou proxy na API?** Hoje o endereço do motorista sai do navegador do
-   operador para quatro provedores públicos sem contrato, na query string. O proxy resolve CSP,
-   `User-Agent` identificável e teto de 1 req/s de uma vez — ao custo de nos tornar o operador do
-   dado. Achado em `docs/SECURITY.md`, 2026-08-20.
-2. **CSP.** Não existe nenhuma no repositório. Publicá-la é requisito autônomo do §3 do baseline, e
-   o `connect-src` depende da decisão 1. A lista de municípios do IBGE precisa entrar nela mesmo sem
-   ser PII, senão publicar a diretiva quebra o select de cidade.
+1. ~~**Consulta externa: navegador ou proxy na API?**~~ Decidida pela **ADR-0037** (status
+   `proposto`): o que mandava o endereço inteiro era a geocodificação que alimentava o mapa, não o
+   preenchimento — o mapa sai, o Nominatim sai por política que o navegador não deixa cumprir, a
+   consulta de CEP (oito dígitos, sem identificador) fica, e **não** há proxy, porque hoje o endereço
+   não passa pela nossa infraestrutura e o proxy nos daria essa passagem de graça.
+2. **CSP.** Não existe nenhuma no repositório. Publicá-la é requisito autônomo do §3 do baseline.
+   Depois da ADR-0037 a lista fecha em `brasilapi.com.br`, `viacep.com.br`, `photon.komoot.io` e a
+   origem do Keycloak, com `frame-src 'none'`. A lista de municípios do IBGE precisa entrar nela mesmo
+   sem ser PII, senão publicar a diretiva quebra o select de cidade.
 3. **Criptografia em repouso.** `birth_date`, `license_number` e endereço em claro contra o §5 do
    baseline — ou criptografar com chave de aplicação, ou registrar por ADR por que instalação
    dedicada e rede fechada bastam. Hoje não há nem uma nem outra. Achado em `docs/SECURITY.md`,
