@@ -13,6 +13,8 @@ export type PendingInvitationSummary =
 export type CompanyUserRecord = {
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */
+  readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly pendingInvitation: PendingInvitationSummary
@@ -45,6 +47,10 @@ export type UpdateCompanyUserProfileInput = {
   readonly username?: string
 }
 
+export type CreateInvitedUserResult = {
+  readonly membershipId: string
+}
+
 export type ListCompanyUsersInput = {
   readonly companyId: string
   readonly cursor: string | null
@@ -52,7 +58,7 @@ export type ListCompanyUsersInput = {
 }
 
 export type CompanyUserRepositoryPort = {
-  readonly createInvitedUser: (input: CreateInvitedUserInput) => Promise<void>
+  readonly createInvitedUser: (input: CreateInvitedUserInput) => Promise<CreateInvitedUserResult>
   readonly findByUserId: (input: {
     readonly companyId: string
     readonly userId: string

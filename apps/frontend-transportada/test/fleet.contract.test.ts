@@ -2,6 +2,7 @@
 import './fleet/client-and-queries.contract.js'
 import './fleet/driver-coverage.contract.js'
 import './fleet/driver-city-select.contract.js'
+import './fleet/driver-membership-select.contract.js'
 import './fleet/driver-vehicles.contract.js'
 import './fleet/fuel-price-panel.contract.js'
 import './fleet/fuel-tab.contract.js'

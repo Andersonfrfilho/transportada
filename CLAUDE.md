@@ -86,6 +86,18 @@ depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "
 do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
 — não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
 
+**A pessoa e o vínculo dela são chaves diferentes:** `CompanyUserView.id` é o usuário e
+`membershipId` é o `user_company_memberships.id` — e é o **vínculo** que o motorista da frota
+referencia. As sete rotas de `/company-users` publicam os dois lado a lado (todas sob `users.manage`,
+escopo `company`), porque sem o vínculo o operador só tinha o caminho de digitar o UUID de 36
+caracteres no formulário de motorista. `toCompanyUserView` é o único ponto de conversão, e
+`createInvitedUser` devolve `{ membershipId }` para o convite montar a view sem inventar chave —
+tornar o campo opcional obrigaria o frontend a tratá-lo como ausente para sempre. No frontend o campo
+é o select `DriverMembershipField`, alimentado por `identity/queries/useCompanyUsers.query.ts`
+(`limit=100`, cursor até dez páginas): vínculo suspenso não é oferecido, o que já está gravado
+continua escolhível, e sem `users.manage` o campo volta a ser digitável — quem cuida da frota sem
+administrar usuários ainda precisa cadastrar motorista.
+
 **Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
 `ScheduledDistributionStatus` que `GET /nfe-imports/distribution` devolve em `scheduled`, para a aba

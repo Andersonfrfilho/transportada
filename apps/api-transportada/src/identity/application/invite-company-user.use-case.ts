@@ -77,7 +77,7 @@ export function createInviteCompanyUserUseCase({
         username: userId,
       })
 
-      await repository.createInvitedUser({
+      const { membershipId } = await repository.createInvitedUser({
         companyId: context.companyId,
         contactAddress: contact,
         contactChannel: channel,
@@ -119,6 +119,7 @@ export function createInviteCompanyUserUseCase({
       return toCompanyUserView({
         contactAddress: contact,
         contactChannel: channel,
+        membershipId,
         membershipStatus: 'active',
         name,
         pendingInvitation: { expiresAt: plan.expiresAt },

@@ -11,6 +11,12 @@ export type CompanyUserView = {
   readonly contact: { readonly channel: ContactChannel; readonly masked: string }
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
+  /**
+   * O `id` acima é a pessoa; este é o vínculo dela com a empresa, e são chaves diferentes. Quem
+   * referencia vínculo — o motorista da frota — precisa deste, e sem publicá-lo o operador só
+   * tinha o caminho de digitar o UUID à mão.
+   */
+  readonly membershipId: string
   readonly name: string
   readonly roles: readonly CompanyRole[]
   readonly status: CompanyUserStatus
@@ -20,6 +26,7 @@ export type CompanyUserView = {
 type CompanyUserViewSource = {
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly pendingInvitation: { readonly expiresAt: Date } | undefined
@@ -100,6 +107,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
       masked: maskContactAddress({ channel: source.contactChannel, value: source.contactAddress }),
     },
     id: source.userId,
+    membershipId: source.membershipId,
     name: source.name,
     roles: source.roles,
     status,

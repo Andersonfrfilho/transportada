@@ -24,6 +24,7 @@ import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
+import { DriverMembershipField } from './DriverMembershipField.component'
 import { FleetDateField, FleetField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
@@ -109,9 +110,7 @@ export function DriverForm({
             value={form.state.phone}
             onChange={(phone) => form.patch({ phone })}
           />
-          <FleetField
-            label={t('driverMembership')}
-            maxLength={36}
+          <DriverMembershipField
             value={form.state.membershipId}
             onChange={(membershipId) => form.patch({ membershipId })}
           />

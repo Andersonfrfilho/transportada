@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { toCompanyUserView } from '../../src/identity/domain/company-user.policy.js'
 import {
   CHANGE_STATUS_BODY,
   COMPANY_CONTEXT,
@@ -15,6 +16,7 @@ import {
   REPLACE_ROLES_BODY,
   responseApiError,
   responseData,
+  TARGET_MEMBERSHIP_ID,
   TARGET_USER_ID,
   UPDATE_PROFILE_BODY,
   UPDATED_CONTACT,
@@ -34,6 +36,28 @@ describe('rotas de administração de usuários — listagem', () => {
     expect(fixture.listCalls[0]?.['context']).toMatchObject({
       companyId: COMPANY_CONTEXT.companyId,
     })
+  })
+
+  /**
+   * `id` é a pessoa e `membershipId` é o vínculo dela com a empresa: são chaves diferentes, e é o
+   * vínculo que o motorista da frota referencia. Publicar só uma delas obrigava a digitar o UUID.
+   */
+  test('publica o vínculo ao lado da pessoa, com chaves distintas', () => {
+    const view = toCompanyUserView({
+      contactAddress: 'pessoa@empresa.test',
+      contactChannel: 'email',
+      membershipId: TARGET_MEMBERSHIP_ID,
+      membershipStatus: 'active',
+      name: 'Pessoa Convidada',
+      pendingInvitation: undefined,
+      roles: ['fiscal'],
+      userId: TARGET_USER_ID,
+      username: TARGET_USER_ID,
+    })
+
+    expect(view.membershipId).toBe(TARGET_MEMBERSHIP_ID)
+    expect(view.id).toBe(TARGET_USER_ID)
+    expect(view.membershipId).not.toBe(view.id)
   })
 
   test('mostra contato mascarado e nunca o endereço em claro', async () => {
