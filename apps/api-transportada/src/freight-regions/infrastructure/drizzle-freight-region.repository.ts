@@ -164,6 +164,35 @@ export class DrizzleFreightRegionRepository implements FreightRegionRepositoryPo
     }
   }
 
+  /**
+   * A importação compara o arquivo inteiro com o cadastro inteiro: paginar aqui daria diff parcial,
+   * e rota fora da página seria lida como rota que sumiu do arquivo — inativada sem motivo.
+   */
+  public async listAll(input: { readonly companyId: string }): Promise<readonly FreightRegion[]> {
+    const records = await this.database
+      .select()
+      .from(freightRegions)
+      .where(eq(freightRegions.companyId, input.companyId))
+      .orderBy(asc(freightRegions.code))
+    if (records.length === 0) return []
+
+    const regionIds = records.map((record) => record.id)
+    const [cities, rates] = await Promise.all([
+      this.readCities(input.companyId, regionIds),
+      this.readRates(input.companyId, regionIds),
+    ])
+    const citiesByRegion = groupByRegion(cities)
+    const ratesByRegion = groupByRegion(rates)
+
+    return records.map((record) =>
+      mapRegion({
+        cities: citiesByRegion.get(record.id) ?? [],
+        rates: ratesByRegion.get(record.id) ?? [],
+        record,
+      }),
+    )
+  }
+
   public async update(input: {
     readonly companyId: string
     readonly expectedVersion: string

@@ -8,7 +8,12 @@
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_FREIGHT_REGIONS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
-import type { FreightRegion, FreightRegionPage } from '../application/freight-region.port.js'
+import type {
+  FreightRegion,
+  FreightRegionImportSummary,
+  FreightRegionInput,
+  FreightRegionPage,
+} from '../application/freight-region.port.js'
 import type {
   CreateFreightRegionInput,
   DeleteFreightRegionInput,
@@ -17,12 +22,14 @@ import type {
 } from '../application/freight-regions.use-case.js'
 import {
   parseCreateRegionRequest,
+  parseImportRegionsRequest,
   parseRegionList,
   parseUpdateRegionRequest,
   parseUuidPathIdentifier,
 } from './freight-region.schema.js'
 
 const REGION_PATH = `${API_FREIGHT_REGIONS_PATH}/:id`
+const REGION_IMPORT_PATH = `${API_FREIGHT_REGIONS_PATH}/import`
 const REGION_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const REGION_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 
@@ -34,6 +41,12 @@ type Dependencies = {
   }
   readonly deleteRegion: {
     execute(input: TenantInput<DeleteFreightRegionInput>): Promise<void>
+  }
+  readonly importRegions: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly regions: readonly FreightRegionInput[]
+    }): Promise<FreightRegionImportSummary>
   }
   readonly listRegions: {
     execute(input: TenantInput<ListFreightRegionsInput>): Promise<FreightRegionPage>
@@ -70,6 +83,23 @@ export function createFreightRegionRoutes(
         return { correlationId, region: await parseCreateRegionRequest(request) }
       },
       pathname: API_FREIGHT_REGIONS_PATH,
+      policy: REGION_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly regions: readonly FreightRegionInput[] }>({
+      async handle({ context, input }): Promise<Response> {
+        const summary = await dependencies.importRegions.execute({
+          context: context.scope,
+          regions: input.regions,
+        })
+        return jsonResponse({ body: { data: summary }, status: 200 })
+      },
+      // 200, não 201: a importação reconcilia a tabela inteira; o que ela devolve é o resumo do
+      // que mudou, e não há um recurso novo para apontar
+      method: 'POST',
+      async parse({ request }) {
+        return { regions: await parseImportRegionsRequest(request) }
+      },
+      pathname: REGION_IMPORT_PATH,
       policy: REGION_MANAGE_POLICY,
     }),
     defineRoute<Omit<UpdateFreightRegionInput, 'context'>>({

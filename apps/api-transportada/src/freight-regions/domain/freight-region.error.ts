@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import type { ApiErrorDetail } from '../../shared/api.types.js'
 
 export class FreightRegionNotFoundError extends ApiError {
   public constructor() {
@@ -57,6 +58,32 @@ export class FleetDriverRegionCityUnexpectedError extends ApiError {
     super({
       code: 'FLEET_DRIVER_REGION_CITY_UNEXPECTED',
       message: 'Zone coverage must not carry a city',
+      status: 400,
+    })
+  }
+}
+
+/** O arquivo é do cliente: o motivo da recusa tem de dizer a linha, senão não há como corrigir. */
+export class FreightRegionImportInvalidError extends ApiError {
+  public constructor(details: readonly ApiErrorDetail[]) {
+    super({
+      code: 'FREIGHT_REGION_IMPORT_INVALID',
+      details,
+      message: 'Freight region file could not be read',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Arquivo sem nenhuma rota inativaria a tabela inteira, e é a tabela que o motorista está ligado.
+ * Upload que veio vazio é upload errado — não é a transportadora deixando de atender tudo.
+ */
+export class FreightRegionImportEmptyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FREIGHT_REGION_IMPORT_EMPTY',
+      message: 'Freight region file carries no route',
       status: 400,
     })
   }

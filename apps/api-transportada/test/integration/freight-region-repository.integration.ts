@@ -113,6 +113,33 @@ describe('freight region repository integration', () => {
     })
   })
 
+  /**
+   * A importação compara o arquivo inteiro com o cadastro inteiro, e faz isso em três consultas —
+   * não uma por rota. Rota de outra empresa aqui dentro seria inativada pelo arquivo desta.
+   */
+  testWithPostgres('reads every region of the company for the import diff', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = await seedCompany(database)
+      const otherCompanyId = await seedCompany(database)
+      const counted = countingDatabase(database.db)
+      const repository = new DrizzleFreightRegionRepository(counted.database)
+
+      for (const region of [BARRETOS_ZONE_ONE, JABOTICABAL_ZONE_ONE, FRANCA_ZONE_TWO]) {
+        await repository.create({ companyId, region })
+      }
+      await repository.create({ companyId: otherCompanyId, region: BARRETOS_ZONE_ONE })
+
+      counted.reset()
+      const regions = await repository.listAll({ companyId })
+
+      expect(regions.map((region) => region.code)).toEqual(['1.000', '5.000', '7.001'])
+      expect(regions.find((region) => region.code === '1.000')?.cities).toHaveLength(
+        BARRETOS_ZONE_ONE.cities.length,
+      )
+      expect(counted.selects()).toBe(3)
+    })
+  })
+
   testWithPostgres('never reads a region of another company', async () => {
     await withDisposableDatabase(async (database) => {
       const companyId = await seedCompany(database)

@@ -61,6 +61,8 @@ export type FreightRegionRepositoryPort = {
     readonly filters?: FreightRegionFilters
     readonly limit: number
   }): Promise<FreightRegionPage>
+  /** A importação compara o arquivo inteiro com o cadastro inteiro — paginar aqui seria diff parcial. */
+  listAll(input: { readonly companyId: string }): Promise<readonly FreightRegion[]>
   update(input: {
     readonly companyId: string
     readonly expectedVersion: string
@@ -68,6 +70,18 @@ export type FreightRegionRepositoryPort = {
     readonly regionId: string
     readonly status: FreightRegionStatus
   }): Promise<FreightRegion | null>
+}
+
+/** A importação lê e escreve rota; não apaga nem busca por id. O tipo diz isso à fronteira. */
+export type FreightRegionImportPort = Pick<
+  FreightRegionRepositoryPort,
+  'create' | 'listAll' | 'update'
+>
+
+export type FreightRegionImportSummary = {
+  readonly created: number
+  readonly deactivated: number
+  readonly updated: number
 }
 
 /** `region` cobre a zona e as abaixo dela; `city` cobre uma cidade só, dentro da mesma rota. */

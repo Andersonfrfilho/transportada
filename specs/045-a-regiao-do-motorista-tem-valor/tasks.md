@@ -70,10 +70,14 @@
       roteador não casa o método errado: responderia 404, não 405.
       **Aceite:** `fleet-http` verde.
 
-- [ ] **T009** — Importação.
+- [x] **T009** — Importação.
       `POST /freight-regions/import`: CSV, chave natural, resumo `{created, updated, deactivated}`.
       Reimportar o mesmo arquivo devolve `created: 0`. Região ausente do arquivo vai a `inactive`,
       nunca é apagada.
+      O resumo foi além do aceite literal: reimportar devolve `{0, 0, 0}` — a rota que não mudou
+      não sobe nem de versão. `created: 0` sozinho passaria com 29 updates cegos.
+      Arquivo de rotas vazio é recusado (`FREIGHT_REGION_IMPORT_EMPTY`): inativaria a tabela
+      inteira, que é a que o motorista está ligado.
       **Aceite:** contrato de idempotência verde.
 
 ---

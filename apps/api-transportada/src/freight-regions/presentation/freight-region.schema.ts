@@ -11,9 +11,14 @@ import {
   readListQuery,
   readPaging,
 } from '../../http/request-parsing.service.js'
-import type { FreightRegionFilters } from '../application/freight-region.port.js'
+import type {
+  FreightRegionFilters,
+  FreightRegionInput,
+} from '../application/freight-region.port.js'
+import { parseFreightRegionCsv } from '../domain/freight-region-csv.parser.js'
 import {
   createRegionSchema,
+  importRegionsSchema,
   updateRegionSchema,
   type FreightRegionFields,
   type UpdateFreightRegionBody,
@@ -29,6 +34,13 @@ export async function parseCreateRegionRequest(request: Request): Promise<Freigh
 
 export async function parseUpdateRegionRequest(request: Request): Promise<UpdateFreightRegionBody> {
   return parseBody(updateRegionSchema, request)
+}
+
+/** O CSV é lido aqui, na fronteira: o caso de uso recebe rota, nunca o formato da planilha. */
+export async function parseImportRegionsRequest(
+  request: Request,
+): Promise<readonly FreightRegionInput[]> {
+  return parseFreightRegionCsv(await parseBody(importRegionsSchema, request))
 }
 
 export function parseRegionList(url: URL): {

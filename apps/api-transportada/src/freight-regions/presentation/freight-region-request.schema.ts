@@ -72,3 +72,14 @@ export const updateRegionSchema = regionFieldsSchema
     status: z.enum(FREIGHT_REGION_STATUSES),
   })
   .strict()
+
+/**
+ * O corpo é o arquivo do cliente em duas metades, texto puro. `strict()` recusa separador,
+ * codificação e afins: uma forma só de ler a planilha, senão o que foi importado depende do envio.
+ */
+export const importRegionsSchema = z
+  .object({
+    rates: z.string(),
+    regions: z.string(),
+  })
+  .strict()

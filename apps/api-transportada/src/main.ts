@@ -128,6 +128,7 @@ import {
 import { createFreightRoutes } from './freight/presentation/freight.routes'
 import { createFreightRulesUseCase } from './freight-rules/application/freight-rules.use-case'
 import { createFreightRegionsUseCase } from './freight-regions/application/freight-regions.use-case'
+import { createImportFreightRegionsUseCase } from './freight-regions/application/import-freight-regions.use-case'
 import { createFleetDriverRegionsUseCase } from './freight-regions/application/fleet-driver-regions.use-case'
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
@@ -487,6 +488,9 @@ function createApplicationRoutes({
   })
   const fleetVehicles = createFleetVehiclesUseCase({ repository: fleetVehicleRepository })
   const freightRegions = createFreightRegionsUseCase({ repository: freightRegionRepository })
+  const freightRegionImport = createImportFreightRegionsUseCase({
+    repository: freightRegionRepository,
+  })
   const fleetDriverRegions = createFleetDriverRegionsUseCase({
     drivers: {
       exists: async (input) => (await fleetDriverRepository.findById(input)) !== null,
@@ -742,6 +746,7 @@ function createApplicationRoutes({
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },
+      importRegions: { execute: (input) => freightRegionImport.import(input) },
       listRegions: { execute: (input) => freightRegions.list(input) },
       updateRegion: { execute: (input) => freightRegions.update(input) },
     }),

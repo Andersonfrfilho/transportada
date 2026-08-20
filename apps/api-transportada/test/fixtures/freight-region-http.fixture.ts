@@ -6,6 +6,7 @@ import { appliedMigrations } from './health.fixture'
 import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application.fixture'
 import type {
   FreightRegion,
+  FreightRegionImportSummary,
   FreightRegionPage,
 } from '../../src/freight-regions/application/freight-region.port'
 import { HealthService } from '../../src/health/health.service'
@@ -22,6 +23,7 @@ type ExecuteCall = Record<string, unknown>
 type RouteDependencies = {
   readonly createRegion: { execute(input: ExecuteCall): Promise<FreightRegion> }
   readonly deleteRegion: { execute(input: ExecuteCall): Promise<void> }
+  readonly importRegions: { execute(input: ExecuteCall): Promise<FreightRegionImportSummary> }
   readonly listRegions: { execute(input: ExecuteCall): Promise<FreightRegionPage> }
   readonly updateRegion: { execute(input: ExecuteCall): Promise<FreightRegion> }
 }
@@ -29,6 +31,7 @@ type RouteDependencies = {
 type CreateFixtureParams = {
   readonly createRegionError?: Error
   readonly deleteRegionError?: Error
+  readonly importRegionsError?: Error
   readonly permissions?: CompanyContext['permissions']
 }
 
@@ -78,6 +81,22 @@ export const REGION: FreightRegion = {
 
 export const REGION_PAGE: FreightRegionPage = { items: [REGION], nextCursor: null }
 
+export const IMPORT_SUMMARY: FreightRegionImportSummary = { created: 2, deactivated: 1, updated: 3 }
+
+/** As duas metades do arquivo do cliente: uma linha por cidade, uma linha de valores por rota. */
+export const IMPORT_REGIONS_CSV = [
+  'code,name,zone,city,state',
+  '1.000,BARRETOS,1,BARRETOS,SP',
+  '1.000,BARRETOS,1,BARRINHA,SP',
+].join('\n')
+
+export const IMPORT_RATES_CSV = [
+  'code,utility,van,vuc,three_quarter,toco,truck',
+  '1.000,0.00,540.00,621.00,695.52,848.53,1086.12',
+].join('\n')
+
+export const IMPORT_BODY = { rates: IMPORT_RATES_CSV, regions: IMPORT_REGIONS_CSV } as const
+
 export const COMPANY_CONTEXT: CompanyContext = {
   ...NFE_COMPANY_CONTEXT,
   permissions: new Set(['fleet.read', 'fleet.manage', 'settings.manage']),
@@ -93,11 +112,13 @@ export async function createFreightRegionHttpFixture(params: CreateFixtureParams
   readonly createRegionCalls: ExecuteCall[]
   readonly deleteRegionCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
+  readonly importRegionCalls: ExecuteCall[]
   readonly listRegionCalls: ExecuteCall[]
   readonly updateRegionCalls: ExecuteCall[]
 }> {
   const createRegionCalls: ExecuteCall[] = []
   const deleteRegionCalls: ExecuteCall[] = []
+  const importRegionCalls: ExecuteCall[] = []
   const listRegionCalls: ExecuteCall[] = []
   const updateRegionCalls: ExecuteCall[] = []
 
@@ -113,6 +134,13 @@ export async function createFreightRegionHttpFixture(params: CreateFixtureParams
       async execute(input) {
         deleteRegionCalls.push(structuredClone(input))
         if (params.deleteRegionError) throw params.deleteRegionError
+      },
+    },
+    importRegions: {
+      async execute(input) {
+        importRegionCalls.push(structuredClone(input))
+        if (params.importRegionsError) throw params.importRegionsError
+        return IMPORT_SUMMARY
       },
     },
     listRegions: {
@@ -145,6 +173,7 @@ export async function createFreightRegionHttpFixture(params: CreateFixtureParams
     createRegionCalls,
     deleteRegionCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
+    importRegionCalls,
     listRegionCalls,
     updateRegionCalls,
   }

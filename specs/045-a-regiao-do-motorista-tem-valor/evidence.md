@@ -268,3 +268,42 @@ Decisões que o contrato fixa:
   banco, tarde e como 500.
 - **A atualização é `PATCH`.** O `tasks.md` dizia `PUT`; o roteador não casa método trocado e
   devolveria 404. Corrigido no texto da task para o T012 não sair procurando uma rota que não existe.
+
+## T009 — Importação da tabela do cliente
+
+Vermelho antes: `bun test ./test/freight-regions-import.contract.test.ts` falhou com
+`Cannot find module '.../freight-region-csv.parser.js'` antes da implementação existir.
+
+Verde depois: 19 testes de `freight-regions-import` (parser + caso de uso), 18 de
+`freight-regions-http` (a importação entrou na suíte que já existia), 10 de
+`freight-region-repository.integration` com Postgres descartável, e a suíte inteira da API em
+2689 pass / 0 fail.
+
+Quatro decisões que o aceite não pedia e o arquivo do cliente cobrou:
+
+1. **O resumo mede mudança, não passagem.** Reimportar o mesmo arquivo devolve
+   `{created: 0, deactivated: 0, updated: 0}` e não escreve nada — nem sobe versão. O aceite
+   literal (`created: 0`) passaria com 29 updates cegos, e cada um deles é uma versão nova numa
+   tabela que a tela mostra por data de alteração.
+2. **Arquivo de rotas vazio é recusado**, não é "a transportadora parou de atender tudo". Sem essa
+   guarda, um upload trocado inativaria as 29 rotas e deixaria todo motorista ligado a rota morta.
+   A checagem vem **antes** da leitura de valores: com a lista vazia todo valor é órfão, e
+   "código sem rota" seria uma verdade que esconde a que importa.
+3. **Zero não vira valor.** `0,00` na planilha é classe que não roda aquela rota; guardar
+   `0.0000` diria que a transportadora paga nada por ela, e a tela ofereceria utilitário para
+   Barretos. Dos 174 pares (29 rotas × 6 classes), 28 são zero e ficam de fora — 146 valores.
+4. **Vírgula decimal é recusada, não adivinhada.** `1.086,12` e `1.086` são o mesmo texto até o
+   fim do campo; escolher um dos dois erra por um fator de mil em valor de pagamento.
+
+Medido contra o arquivo real do cliente (`data/regioes.csv` + `data/valores.csv`, pelo próprio
+parser): **29 rotas, 83 cidades, 146 valores**. `0.001` (Ribeirão Preto, a matriz) sai com as seis
+classes; `7.003` (Franca, zona 3) sai com cinco — não há utilitário para lá.
+
+A escrita é **uma transação por rota**, não uma pelo arquivo. Ciclo interrompido no meio se corrige
+reimportando, porque o diff é sobre o estado e não sobre o que já foi gravado. Escrita perdida por
+versão (edição concorrente durante a importação) aborta com `FREIGHT_REGION_VERSION_CONFLICT` —
+o resumo não pode dizer que gravou o que não gravou.
+
+`listAll` no repositório lê a empresa inteira em **três** consultas (rotas, cidades, valores),
+contadas no teste de integração. Paginar aqui daria diff parcial: rota fora da página seria lida
+como rota ausente do arquivo e inativada sem motivo.
