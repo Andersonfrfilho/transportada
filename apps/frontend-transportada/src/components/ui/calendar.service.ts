@@ -59,3 +59,40 @@ export function formatMonthTitle(view: ViewMonth): string {
 export function formatIsoDisplay(value: string): string {
   return DISPLAY_FORMATTER.format(new Date(`${value}T00:00:00`))
 }
+
+const MINIMUM_YEAR_OFFSET = 100
+const MAXIMUM_YEAR_OFFSET = 20
+const MINIMUM_YEAR = new Date().getFullYear() - MINIMUM_YEAR_OFFSET
+const MAXIMUM_YEAR = new Date().getFullYear() + MAXIMUM_YEAR_OFFSET
+
+export function isoToDisplayDate(value: string): string {
+  if (value.length < 10) return ''
+  return `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}`
+}
+
+/** A data é digitada por dígito: a barra entra sozinha para o ano não ser lido como dia. */
+export function maskTypedDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+/** Só data que existe de fato vira ISO — 31/02 e 00/00 voltam nulas em vez de virar outro mês. */
+export function parseDisplayDate(display: string): string | null {
+  const digits = display.replace(/\D/g, '')
+  if (digits.length !== 8) return null
+  const day = Number(digits.slice(0, 2))
+  const month = Number(digits.slice(2, 4))
+  const year = Number(digits.slice(4, 8))
+  if (month < 1 || month > 12 || day < 1 || year < MINIMUM_YEAR || year > MAXIMUM_YEAR) return null
+  if (day > new Date(year, month, 0).getDate()) return null
+  return toIsoDate(year, month - 1, day)
+}
+
+/** Do mais recente para o mais antigo: data de nascimento e validade de CNH ficam perto do topo. */
+export function buildYearChoices(): readonly number[] {
+  const years: number[] = []
+  for (let year = MAXIMUM_YEAR; year >= MINIMUM_YEAR; year -= 1) years.push(year)
+  return years
+}

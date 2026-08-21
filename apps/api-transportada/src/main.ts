@@ -106,7 +106,12 @@ import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/driz
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.routes'
+import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
+import { DrizzlePostalCodeRepository } from './addresses/infrastructure/drizzle-postal-code.repository.js'
+import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.gateway.js'
+import { createPostalCodeRoutes } from './addresses/presentation/postal-code.routes.js'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
 import { createMdfeManifestsUseCase } from './mdfe-manifests/application/mdfe-manifests.use-case'
@@ -276,6 +281,7 @@ export function bootstrap(): Bun.Server<undefined> {
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
       logger,
+      postalCodeProviders: config.postalCodeProviders,
       scheduledDistributionCron: config.scheduledDistributionCron,
       vehicleCatalog: config.vehicleCatalog,
     }),
@@ -402,6 +408,7 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
+  readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
@@ -413,6 +420,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   logger,
+  postalCodeProviders,
   scheduledDistributionCron,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -497,7 +505,6 @@ function createApplicationRoutes({
     },
     repository: fleetDriverRegionRepository,
   })
-  const fleetDrivers = createFleetDriversUseCase({ repository: fleetDriverRepository })
   const fleetDriverVehicles = createFleetDriverVehiclesUseCase({
     driverRepository: fleetDriverRepository,
     repository: fleetDriverVehicleRepository,
@@ -516,6 +523,15 @@ function createApplicationRoutes({
           logger,
           successTtlMilliseconds: vehicleCatalog.cacheHours * 60 * 60 * 1000,
         })
+  // A escada da busca de CEP: as tabelas da instalação correm em paralelo, e os dois provedores
+  // públicos só são chamados quando a casa não soube o endereço inteiro (ADR pendente da spec 050)
+  const lookupPostalCode = createLookupPostalCodeUseCase({
+    directory: new DrizzlePostalCodeRepository(database),
+    provider: createPostalCodeGateway({
+      configuration: postalCodeProviders,
+      fetch: (target, init) => fetch(target, init),
+    }),
+  })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -651,6 +667,12 @@ function createApplicationRoutes({
     outbox: invitationDeliveryOutbox,
     repository: companyUserRepository,
   })
+  // Depois do convite: cadastrar motorista abre o usuário dele, então a frota depende da identidade
+  const fleetDrivers = createFleetDriversUseCase({
+    account: inviteCompanyUser,
+    contacts: createIdentityContactDirectoryGateway({ identity: identityAccessGateway }),
+    repository: fleetDriverRepository,
+  })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
   const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
     envelopeProvider: invitationCodeSecret,
@@ -729,6 +751,7 @@ function createApplicationRoutes({
     ...createFleetRoutes({
       createDriver: { execute: (input) => fleetDrivers.create(input) },
       createVehicle: { execute: (input) => fleetVehicles.create(input) },
+      driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
       driverVehicles: {
         list: (input) => fleetDriverVehicles.list(input),
         replace: (input) => fleetDriverVehicles.replace(input),
@@ -740,6 +763,7 @@ function createApplicationRoutes({
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },

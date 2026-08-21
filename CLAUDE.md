@@ -60,8 +60,8 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
-`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+Módulos: `addresses`, `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`,
+`freight`, `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
 `operations`, `storage`, `trips`, `view-preferences`, `health`.
 Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
@@ -123,17 +123,30 @@ escritas para não serem redescobertas:
   (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
   consulta.
 
-⚠️ O endereço do motorista é preenchido por **quatro provedores públicos consultados do navegador**
-(`fleet/shared/driverAddress.service.ts`): BrasilAPI e ViaCEP disputam o CEP por `Promise.any` — o
-primeiro que responder vence —, Photon e Nominatim atendem a busca textual por `Promise.allSettled`,
-porque provedor fora do ar deve entregar menos resultado, não erro. O mapa é `iframe` do
-OpenStreetMap com a coordenada na URL. Debounce de 400ms na busca textual e 900ms na
-geocodificação, mínimo de cinco caracteres, `AbortSignal` por tecla. **Isso manda dado pessoal para
-terceiro sem contrato e não há CSP no repositório** — achado datado em `docs/SECURITY.md`, junto do
-`birth_date` em claro; a decisão (proxy na API ou allowlist declarada) é ADR pendente.
+**O CEP vem de casa, e a busca textual é a que ainda sai do navegador.** O CEP passa por
+`GET /postal-codes/{cep}` (`addresses.read`, escopo `company`), que consulta **primeiro as nossas
+tabelas** — `nfe_addresses`, `fleet_drivers`, `company_fiscal_profiles` e os dois CEPs de
+`mdfe_manifests`, cinco consultas em corrida com `company_id` no `where` de cada uma — e só chama a
+BrasilAPI e, se ela falhar, o ViaCEP quando a base não sabe. `Promise.race` cru seria o erro: ele
+resolve com a primeira consulta a terminar, que costuma ser a origem que não achou nada; quem vence é
+a primeira sugestão **completa**, e as parciais (só UF, o que o CEP de município devolve) ficam
+guardadas para o caso de o provedor também falhar. A sugestão tem quatro campos e **nunca** `number`
+nem `complement` — com eles, quem tem `addresses.read` varreria a base de motoristas oito dígitos por
+vez. Ninguém souber o CEP é `404`, e `404` não desabilita campo, não limpa o que está lá e não
+bloqueia envio: **o operador digita**. O hook é `shared/usePostalCodeLookup.hook.ts`, e os três
+formulários de CEP usam o mesmo — motorista, empresa e lotação do MDF-e. ADR-0040.
 
-**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, quinto destino
-externo do formulário, e o único que não leva dado pessoal — só a sigla do estado). Sem UF escolhida
+⚠️ A **busca textual** de rua continua saindo do navegador
+(`fleet/shared/driverAddress.service.ts`): um provedor só, o Photon, por `Promise.allSettled` sobre
+uma lista de um — provedor fora do ar entrega menos resultado, nunca erro. O Nominatim saiu pela
+ADR-0037 (a política dele pede um `User-Agent` que o `fetch` do navegador não manda), e com ele saiu
+o `iframe` do OpenStreetMap: hoje a CSP declara `frame-src 'none'`. Debounce de 400ms, mínimo de
+cinco caracteres, `AbortSignal` por tecla. **O termo digitado ainda vai a terceiro sem contrato** —
+achado em `docs/SECURITY.md` que encolheu três vezes e não fechou, junto do `birth_date` em claro.
+
+**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, servida pela
+BrasilAPI, e o destino externo do formulário que não leva dado pessoal — sai só a sigla do estado,
+enquanto o Photon leva o termo digitado). Sem UF escolhida
 o campo é digitável: município só é único dentro do estado, e um select com os 5.570 do país é pior
 que o teclado. Duas grafias mandam em lugares diferentes, de propósito: `toMunicipalityLabel`
 uniformiza a caixa (o IBGE devolve em caixa alta e o provedor de CEP em caixa mista, e sem uma
@@ -199,12 +212,34 @@ planilha real do cliente `BARRINHA/SP` aparece em duas rotas, e a chave estreita
 importação na primeira tentativa. Célula de valor zerada **não vira linha** — zero ali é ausência de
 preço para aquela classe naquela rota, e `0.0000` diria que a transportadora paga zero.
 
-A classe de frete (`fleet_vehicles.freight_class`, catálogo `FREIGHT_VEHICLE_CLASSES`) é do veículo
-que **traciona**: implemento manda `''`, do mesmo jeito que já fazia com o rodado. O tipo de rodado
-do MDF-e só **sugere** (`01→truck`, `02→toco`, `04→van`, `05→utility`) — VUC e 3/4 não existem no
-rodado, e `03`/`06` não nomeiam classe nenhuma. A sugestão corrige a que ela mesma pôs e nunca
-sobrescreve escolha manual (`vehicleFreightClass.service.ts`); ler ela do rodado direto poria o
-veículo na linha errada da tabela.
+**O veículo tem um tipo só, e os dois campos fiscais saem dele.** `fleet_vehicles.vehicle_type`
+(catálogo `VEHICLE_TYPES`: `motorcycle · car · utility · van · vuc · three_quarter · toco · truck ·
+tractor_unit · other`, na ordem das colunas da tabela de frete impressa, da mais leve para a mais
+pesada) substituiu o par `wheel_type` + `freight_class`, e os dois CHECKs antigos caíram com eles.
+Eram dois selects vizinhos perguntando a mesma coisa ao operador — e a moto e o carro da frota real
+não cabiam em nenhum dos dois catálogos.
+
+A derivação mora em `api-transportada/src/shared/vehicle-type.constant.ts`, um lugar só:
+`resolveMdfeWheelType` dá o `tpRod` do MDF-e (`truck→01`, `toco→02`, `tractor_unit→03`, `van→04`,
+`utility→05`, e **`car`/`motorcycle`/`other`/`three_quarter`/`vuc`→`06` — Outros**, porque o rodado da
+SEFAZ não os nomeia) e `resolveVehicleFreightClass` dá a coluna da tabela (`car`, `motorcycle`,
+`other` e `tractor_unit` mandam `''` — cavalo mecânico não é linha da planilha do cliente). O tipo é
+de quem **traciona**: implemento manda `''`, e o CHECK
+`fleet_vehicles_vehicle_type_check` amarra as duas metades (`(role = 'traction') = (vehicle_type in
+(…))`), como o `wheel_type_check` fazia antes dele.
+
+⚠️ `VEHICLE_TYPES` é **cópia por valor** na API e no frontend — o bundle não carrega código da API,
+o mesmo caso de `FUEL_TYPES`. A ordem faz parte do contrato, e quem a guarda é
+`api-transportada/test/fleet-domain/vehicle-type.contract.ts` de um lado e
+`frontend-transportada/test/shared/vehicle-type-catalog.contract.ts` do outro. Mudou produto ou ordem
+de um lado? mude dos dois.
+
+Com um campo só não há o que sugerir: `vehicleFreightClass.service.ts` e a regra que corrigia a
+classe a partir do rodado saíram inteiras. `fleet_vehicles.wheel_type` **não existe mais** — a
+migration `20260821153330_fleet_vehicle_type` converte o dado antigo (a classe vence quando
+preenchida; senão o rodado é traduzido) e derruba as duas colunas, com `rollback.sql` que as devolve
+sem os valores. `freight_region_driver_rates.freight_class` é outra coisa e **continua**: ali a classe
+é a chave da coluna da tabela de preço, não um campo do veículo.
 
 A tabela do cliente entra por `POST /freight-regions/import` (`settings.manage`), **nunca** por seed
 em `src/`: o produto é genérico (ADR-0021) e a planilha é de uma transportadora. Reimportar o mesmo
@@ -443,10 +478,11 @@ Contrato em `test/company-settings/tabs.contract.ts`.
   atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
   controle é caminho para lugar nenhum.
 
-**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, sexto
-destino externo do módulo — `https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na
-qualidade mínima e recortada por município). Ao contrário do endereço do motorista, aqui **não há
-`iframe` nem imagem remota**: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
+**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, o
+quarto e último destino externo do módulo, ao lado do Photon e das duas rotas da BrasilAPI —
+`https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na qualidade mínima e recortada por
+município). Aqui **não há `iframe` nem imagem remota** — como no endereço do motorista desde a
+ADR-0037: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
 nada de terceiro renderiza dentro da nossa tela — e a malha não leva dado pessoal, só a sigla do
 estado. Município com ilha ou enclave vira **um** caminho fechado: desenhar anel por anel pintaria a
 mesma cidade em duas cores quando a zona mudasse. Cidade gravada sem polígono na malha (grafia que o
@@ -554,7 +590,7 @@ como opção na próxima vez: `buildVehicleCatalogChoices` soma catálogo + marc
 na frota + o valor gravado na ficha aberta, deduplicados por `normalizeVehicleCatalogName` — a mesma
 dobra que `vehicleBrandDefaults.service.ts` usa para herdar ficha técnica, senão a lista mostraria
 "Randon" e "RANDON" separadas enquanto a herança as trataria como uma marca só. Lista vazia abre
-digitável direto; carregando e bloqueado por rodado seguem como select. Contrato em
+digitável direto; carregando e bloqueado por falta do tipo do veículo seguem como select. Contrato em
 `test/fleet/vehicle-catalog-other.contract.ts`.
 
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`

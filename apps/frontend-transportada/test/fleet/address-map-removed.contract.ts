@@ -30,12 +30,11 @@ const FORBIDDEN_NEEDLE = [
   'toCoordinate',
 ] as const
 
-/** O CEP e a busca textual continuam: o que saiu foi a geocodificação do endereço já resolvido. */
-const REQUIRED_DESTINATION = [
-  'https://brasilapi.com.br/api/cep/v2',
-  'https://photon.komoot.io/api',
-  'https://viacep.com.br/ws',
-] as const
+/**
+ * Sobrou a busca textual: a geocodificação saiu com o mapa, e o CEP passou a ser servido pela nossa
+ * rota — quem guarda a ausência dos dois provedores é `test/shared/postal-code-lookup.contract.ts`.
+ */
+const REQUIRED_DESTINATION = ['https://photon.komoot.io/api'] as const
 
 async function listFleetModuleFiles(): Promise<readonly string[]> {
   const glob = new Bun.Glob('**/*.{css,json,ts,tsx}')
@@ -64,7 +63,7 @@ describe('driver address map removal contract', () => {
     }
   })
 
-  test('keeps the three destinations that survived the ADR', async () => {
+  test('keeps the destination that survived the ADR', async () => {
     const service = await readModuleFile('shared/driverAddress.service.ts')
 
     for (const destination of REQUIRED_DESTINATION) {

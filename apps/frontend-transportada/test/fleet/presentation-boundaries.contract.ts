@@ -5,7 +5,6 @@ import {
   DRIVER_DRAFT_BODY,
   LINKED_COMPANY_TAX_ID,
   loadFutureModule,
-  MEMBERSHIP_ID,
   VEHICLE_DRAFT_BODY,
   VEHICLE_OWNER,
 } from './fleet.fixture'
@@ -49,14 +48,18 @@ describe('fleet presentation boundary contract', () => {
     )
   })
 
-  test('submits the wheel type only for traction vehicles', async () => {
+  test('submits the vehicle type only for traction vehicles', async () => {
     const { createVehicleDraft, toVehicleBody } = await loadFutureModule<FleetFormModule>(
       '../../src/modules/fleet/shared/fleetForm.service',
     )
     const state = createVehicleDraft()
 
-    expect(toVehicleBody({ ...state, role: 'traction', wheelType: '03' }).wheelType).toBe('03')
-    expect(toVehicleBody({ ...state, role: 'trailer', wheelType: '03' }).wheelType).toBe('')
+    expect(
+      toVehicleBody({ ...state, role: 'traction', vehicleType: 'tractor_unit' }).vehicleType,
+    ).toBe('tractor_unit')
+    expect(
+      toVehicleBody({ ...state, role: 'trailer', vehicleType: 'tractor_unit' }).vehicleType,
+    ).toBe('')
   })
 
   test('submits the owner group only when the vehicle is not the carrier own', async () => {
@@ -95,16 +98,6 @@ describe('fleet presentation boundary contract', () => {
     expect(toVehicleBody(state).owner?.rntrc).toBe('058151044')
   })
 
-  test('links the driver to a company membership only when one is chosen', async () => {
-    const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
-      '../../src/modules/fleet/shared/fleetForm.service',
-    )
-    const state = createDriverDraft()
-
-    expect(toDriverBody({ ...state, membershipId: '' }).membershipId).toBe(null)
-    expect(toDriverBody({ ...state, membershipId: MEMBERSHIP_ID }).membershipId).toBe(MEMBERSHIP_ID)
-  })
-
   // O autônomo fatura pelo CNPJ próprio, mas o condutor do MDF-e continua sendo o CPF
   test('sends the linked company tax id beside the mandatory cpf, without the mask', async () => {
     const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
@@ -117,6 +110,34 @@ describe('fleet presentation boundary contract', () => {
       LINKED_COMPANY_TAX_ID,
     )
     expect(toDriverBody({ ...state, taxId: '529.982.247-25' }).taxId).toBe('52998224725')
+  })
+
+  // A razão social pende do CNPJ: sem o vínculo ela não descreve empresa nenhuma, e a API a recusa
+  test('drops the linked legal name when the company tax id is empty', async () => {
+    const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
+      '../../src/modules/fleet/shared/fleetForm.service',
+    )
+    const state = { ...createDriverDraft(), linkedLegalName: 'Transportes Silva ME' }
+
+    expect(toDriverBody({ ...state, linkedTaxId: '' }).linkedLegalName).toBe('')
+    expect(toDriverBody({ ...state, linkedTaxId: LINKED_COMPANY_TAX_ID }).linkedLegalName).toBe(
+      'Transportes Silva ME',
+    )
+  })
+
+  test('sends the driver contact and ANTT fields the mobile app and the MDF-e will read', async () => {
+    const { createDriverDraft, toDriverBody } = await loadFutureModule<FleetFormModule>(
+      '../../src/modules/fleet/shared/fleetForm.service',
+    )
+    const state = createDriverDraft()
+
+    expect(toDriverBody({ ...state, email: '  jose@transportes.com.br ' }).email).toBe(
+      'jose@transportes.com.br',
+    )
+    expect(toDriverBody({ ...state, rntrc: '058.151.044' }).rntrc).toBe('058151044')
+    expect(toDriverBody({ ...state, anttCategory: '1' }).anttCategory).toBe('1')
+    // Categoria fora do catálogo da ANTT vira ausência: o CHECK do banco só conhece 0, 1 e 2
+    expect(toDriverBody({ ...state, anttCategory: '9' }).anttCategory).toBe('')
   })
 
   test('normalizes plate, tax id and integer fields typed by the operator', async () => {
@@ -136,11 +157,19 @@ type FleetVehicleFormState = Record<string, unknown> &
   Readonly<{
     ownership: 'aggregate' | 'own' | 'third_party'
     role: 'traction' | 'trailer'
-    wheelType: string
+    vehicleType: string
   }>
 
 type FleetDriverFormState = Record<string, unknown> &
-  Readonly<{ linkedTaxId: string; membershipId: string; taxId: string }>
+  Readonly<{
+    anttCategory: string
+    email: string
+    linkedLegalName: string
+    linkedTaxId: string
+    profile: 'aggregate' | 'driver'
+    rntrc: string
+    taxId: string
+  }>
 
 type FleetFormModule = {
   readonly createDriverDraft: (input?: Record<string, unknown>) => FleetDriverFormState
@@ -149,12 +178,15 @@ type FleetFormModule = {
   readonly normalizePlate: (value: string) => string
   readonly normalizeUnsignedInteger: (value: string) => string
   readonly toDriverBody: (state: FleetDriverFormState) => Readonly<{
+    anttCategory: string
+    email: string
+    linkedLegalName: string
     linkedTaxId: string
-    membershipId: null | string
+    rntrc: string
     taxId: string
   }>
   readonly toVehicleBody: (state: FleetVehicleFormState) => Readonly<{
     owner: null | Record<string, unknown>
-    wheelType: string
+    vehicleType: string
   }>
 }

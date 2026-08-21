@@ -56,6 +56,7 @@ describe('tenant context contract', () => {
       'cte.read',
       'operations.read',
       'view-preferences.manage',
+      'addresses.read',
       'fleet.read',
       'mdfe.read',
       'mdfe.manage',

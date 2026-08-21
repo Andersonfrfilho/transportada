@@ -9,13 +9,17 @@ import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
 import type {
   FleetDriverBody,
+  FleetDriverCreateBody,
   FleetDriverDetail,
+  FleetDriverVersionInput,
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
+import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
 import { resolveFormFuelPrice } from '../shared/fleetVehicleCost.service'
 import styles from '../styles/fleet.module.css'
+import { FleetFeedback } from './FleetFeedback.component'
 import { VehicleCostFields } from './VehicleCostFields.component'
 import { VehicleIdentityFields } from './VehicleIdentityFields.component'
 import { VehicleModelFields } from './VehicleModelFields.component'
@@ -27,7 +31,8 @@ type VehicleFormProps = Readonly<{
   drivers: readonly FleetDriverDetail[]
   onCancel: () => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
-  onCreateDriver: (body: FleetDriverBody) => Promise<FleetDriverDetail>
+  onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
+  onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
@@ -39,6 +44,7 @@ export function VehicleForm({
   onCancel,
   onCreate,
   onCreateDriver,
+  onUpdateDriver,
   onUpdate,
   vehicle,
   vehicles,
@@ -73,6 +79,7 @@ export function VehicleForm({
         state={form.state}
         onChange={form.patch}
         onCreateDriver={onCreateDriver}
+        onUpdateDriver={onUpdateDriver}
       />
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
@@ -81,11 +88,15 @@ export function VehicleForm({
         onChange={form.patch}
       />
       {form.feedbackKey === null ? null : (
-        <p className={styles.feedback} role="status">
+        <FleetFeedback isError={isFleetFeedbackError(form.feedbackKey)}>
           {t(form.feedbackKey)}
-        </p>
+        </FleetFeedback>
       )}
       <div className={styles.formActions}>
+        <Button type="button" variant="ghost" onClick={form.clear}>
+          <Icon name="trash" />
+          {t('clearForm')}
+        </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           <Icon name="close" />
           {t('cancel')}

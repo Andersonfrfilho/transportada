@@ -7,6 +7,7 @@ import {
   roundDecimalToInteger,
 } from '../../shared/decimal.service.js'
 import { normalizeRntrc } from '../../shared/rntrc.service.js'
+import { resolveMdfeWheelType } from '../../shared/vehicle-type.constant.js'
 
 import {
   MdfePayloadEmptySelectionError,
@@ -149,7 +150,9 @@ function buildTractionVehicle(
   vehicle: MdfePayloadVehicle,
   condutores: readonly MdfePayloadCondutor[],
 ): MdfePayloadTractionVehicle {
-  if (vehicle.wheelType === '') throw new MdfePayloadMissingWheelTypeError(vehicle.plate)
+  // `tpRod` sai do tipo do veículo; sem tipo não há o que enviar, e a SEFAZ rejeita o campo vazio
+  const tipoRodado = resolveMdfeWheelType(vehicle.vehicleType)
+  if (tipoRodado === '') throw new MdfePayloadMissingWheelTypeError(vehicle.plate)
 
   const capacidadeKg = roundDecimalToInteger(vehicle.capacityKg)
   const capacidadeM3 = roundDecimalToInteger(vehicle.capacityM3)
@@ -159,7 +162,7 @@ function buildTractionVehicle(
     placa: vehicle.plate,
     tara: Number(roundDecimalToInteger(vehicle.tareWeightKg)),
     tipoCarroceria: vehicle.bodyType,
-    tipoRodado: vehicle.wheelType,
+    tipoRodado,
     uf: vehicle.state,
     ...(vehicle.renavam.length > 0 ? { renavam: vehicle.renavam } : {}),
     ...(capacidadeKg > 0n ? { capacidadeKg: Number(capacidadeKg) } : {}),

@@ -44,7 +44,7 @@ export function createCachedVehicleCatalogGateway(dependencies: {
     input: {
       readonly brand?: string
       readonly role: ListVehicleCatalogBrandsInput['role']
-      readonly wheelType: ListVehicleCatalogBrandsInput['wheelType']
+      readonly vehicleType: ListVehicleCatalogBrandsInput['vehicleType']
     },
     invoke: () => Promise<VehicleCatalogResult>,
   ): Promise<VehicleCatalogResult> {

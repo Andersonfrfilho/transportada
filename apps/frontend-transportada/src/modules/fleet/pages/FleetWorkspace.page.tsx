@@ -86,10 +86,11 @@ function FleetEditorPanel({
         key={editor.vehicle?.id ?? 'new-vehicle'}
         {...(editor.vehicle === undefined ? {} : { vehicle: editor.vehicle })}
         catalog={vehicleCatalog}
-        drivers={workspace.viewModel.drivers ?? []}
+        drivers={workspace.viewModel.driverDirectory ?? []}
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
         onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
+        onUpdateDriver={(input) => workspace.updateDriverMutation.mutateAsync(input)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
         vehicles={vehicles}
       />
@@ -179,6 +180,8 @@ export function FleetWorkspacePage() {
       ...toDriverBody(toDriverFormState(driver)),
       driverId: driver.id,
       expectedVersion: driver.version,
+      // O vínculo não passa pelo formulário: quem o reenvia é a ficha carregada
+      membershipId: driver.membershipId,
       status: flipStatus(driver.status),
     })
   }

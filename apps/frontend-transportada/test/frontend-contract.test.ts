@@ -215,6 +215,7 @@ describe('frontend foundation contract', () => {
           'operations.read',
           'audit.read',
           'view-preferences.manage',
+          'addresses.read',
           'fleet.read',
           'fleet.manage',
           'mdfe.read',

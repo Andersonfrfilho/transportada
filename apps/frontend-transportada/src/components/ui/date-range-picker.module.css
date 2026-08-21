@@ -146,3 +146,77 @@
 .actionIcon {
   flex: 0 0 auto;
 }
+
+/* O campo aceita digitação: sem isto o valor viria de um botão, e 1985 estaria a 400 cliques. */
+.dateInput {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  background: transparent;
+}
+
+.dateInput:focus-visible {
+  outline: none;
+}
+
+.calendarTitleAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  color: var(--color-fog);
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+}
+
+.yearGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.yearOption {
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.yearOption:hover {
+  background: color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.yearOptionSelected {
+  color: var(--color-asphalt);
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+/* Dentro do campo o botão não repete a moldura: a borda do campo já é a moldura. */
+.dateInputAction {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  color: var(--color-slate);
+  cursor: pointer;
+  background: transparent;
+}
+
+.dateInputAction:hover {
+  color: var(--color-copper);
+}

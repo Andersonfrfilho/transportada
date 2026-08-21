@@ -4,6 +4,7 @@ import type { VehicleColor } from './fleet.types'
 export const FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
+export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'
@@ -34,8 +35,13 @@ export const FLEET_PAGE_SIZE = 25
 /** Teto de segurança do laço de cursor da tabela de veículos — frota real não chega perto. */
 export const FLEET_VEHICLE_LOAD_LIMIT = 2000
 
+/** O formulário de veículo precisa do proprietário na lista, e ele pode estar na página cinco. */
+export const FLEET_DRIVER_LOAD_LIMIT = 2000
+
 /** A tabela de frete impressa do cliente tem dezenas de rotas; o teto existe para o laço, não para ela. */
 export const FREIGHT_REGION_LOAD_LIMIT = 2000
+
+export const DRIVER_AVAILABILITY_KEYS = ['emailTaken', 'licenseNumberTaken', 'taxIdTaken'] as const
 
 export const FREIGHT_REGION_CITY_KEYS = ['city', 'state'] as const
 
@@ -61,7 +67,12 @@ export const FREIGHT_REGION_IMPORT_KEYS = ['rates', 'regions'] as const
 export const FREIGHT_REGION_IMPORT_SUMMARY_KEYS = ['created', 'deactivated', 'updated'] as const
 
 export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
+  // O convite abre o usuário no Keycloak, e é de lá que vem o e-mail repetido
+  COMPANY_USER_CONTACT_TAKEN: 'emailTaken',
+  FLEET_DRIVER_CONTACT_REQUIRED: 'contactRequired',
+  FLEET_DRIVER_EMAIL_TAKEN: 'emailTaken',
   FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
+  FLEET_DRIVER_NOT_FOUND: 'driverNotFound',
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',
   FLEET_DRIVER_TAX_ID_TAKEN: 'taxIdTaken',
@@ -148,7 +159,6 @@ export const VEHICLE_BODY_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
-  'freightClass',
   'fuelType',
   'model',
   'modelYear',
@@ -159,7 +169,7 @@ export const VEHICLE_BODY_KEYS = [
   'role',
   'state',
   'tareWeightKilograms',
-  'wheelType',
+  'vehicleType',
 ] as const
 
 export const VEHICLE_DETAIL_KEYS = [
@@ -185,7 +195,6 @@ export const VEHICLE_FORM_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
-  'freightClass',
   'fuelType',
   'model',
   'modelYear',
@@ -200,7 +209,7 @@ export const VEHICLE_FORM_KEYS = [
   'role',
   'state',
   'tareWeightKilograms',
-  'wheelType',
+  'vehicleType',
 ] as const
 
 export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const
@@ -217,13 +226,55 @@ export const DRIVER_ADDRESS_KEYS = [
 
 export const DRIVER_BODY_KEYS = [
   'address',
+  'anttCategory',
+  'birthCity',
   'birthDate',
+  'birthState',
+  'email',
+  'fatherName',
+  'firstLicenseAt',
+  'licenseCategory',
   'licenseExpiresAt',
+  'licenseIssuedCity',
+  'licenseIssuedState',
   'licenseNumber',
+  'linkedLegalName',
   'linkedTaxId',
   'membershipId',
+  'motherName',
   'name',
+  'nationality',
   'phone',
+  'rntrc',
+  'taxId',
+] as const
+
+/**
+ * O vínculo nasce do usuário que a criação abre, não do formulário: a API recusa `membershipId` no
+ * POST e não recebe `profile` no PATCH.
+ */
+export const DRIVER_CREATE_BODY_KEYS = [
+  'address',
+  'anttCategory',
+  'birthCity',
+  'birthDate',
+  'birthState',
+  'email',
+  'fatherName',
+  'firstLicenseAt',
+  'licenseCategory',
+  'licenseExpiresAt',
+  'licenseIssuedCity',
+  'licenseIssuedState',
+  'licenseNumber',
+  'linkedLegalName',
+  'linkedTaxId',
+  'motherName',
+  'name',
+  'nationality',
+  'phone',
+  'profile',
+  'rntrc',
   'taxId',
 ] as const
 
@@ -236,13 +287,27 @@ export const DRIVER_FORM_KEYS = [
   'addressPostalCode',
   'addressState',
   'addressStreet',
+  'anttCategory',
+  'birthCity',
   'birthDate',
+  'birthState',
+  'email',
+  'fatherName',
+  'firstLicenseAt',
+  'licenseCategory',
   'licenseExpiresAt',
+  'licenseIssuedCity',
+  'licenseIssuedState',
   'licenseNumber',
+  'linkedLegalName',
   'linkedTaxId',
-  'membershipId',
+  'motherName',
   'name',
+  'nationality',
   'phone',
+  'profile',
+  'rntrc',
+  'surname',
   'taxId',
 ] as const
 

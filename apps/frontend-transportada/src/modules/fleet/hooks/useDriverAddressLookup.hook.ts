@@ -1,19 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import {
-  POSTAL_CODE_LENGTH,
-  formatPostalCode,
-  stripPostalCode,
-} from '@/modules/shared/postalCode.service'
+import { formatPostalCode } from '@/modules/shared/postalCode.service'
+import type { PostalCodeClient } from '@/modules/shared/postalCodeClient.service'
+import { useGuardedRequest } from '@/modules/shared/useGuardedRequest.hook'
+import type { PostalCodeLookupStatus } from '@/modules/shared/usePostalCodeLookup.hook'
+import { usePostalCodeLookup } from '@/modules/shared/usePostalCodeLookup.hook'
 
 import type { AddressSuggestion } from '../shared/driverAddress.service'
-import {
-  ADDRESS_SEARCH_MINIMUM_LENGTH,
-  lookupPostalCode,
-  searchAddress,
-} from '../shared/driverAddress.service'
+import { ADDRESS_SEARCH_MINIMUM_LENGTH, searchAddress } from '../shared/driverAddress.service'
 import type { FleetDriverFormState } from '../shared/fleet.types'
 import type { MunicipalityChoice } from '../shared/municipality.service'
 import {
@@ -25,9 +21,26 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 400
 
+/** Os quatro campos que o CEP sabe preencher, no vocabulário deste formulário. */
+const POSTAL_CODE_FIELDS = {
+  city: 'addressCity',
+  district: 'addressDistrict',
+  state: 'addressState',
+  street: 'addressStreet',
+} as const
+
+/** O status do CEP é o mesmo dos três formulários; o rótulo continua sendo desta tela. */
+const POSTAL_CODE_STATUS_KEY: Readonly<Record<PostalCodeLookupStatus, null | string>> = {
+  found: 'addressLookupFound',
+  idle: null,
+  missing: 'addressLookupMissing',
+  pending: 'addressLookupPending',
+}
+
 type UseDriverAddressLookupInput = Readonly<{
   fetch?: typeof globalThis.fetch
   patch: (values: Partial<FleetDriverFormState>) => void
+  postalCodeClient?: PostalCodeClient
   state: FleetDriverFormState
 }>
 
@@ -43,43 +56,6 @@ export type DriverAddressLookupController = Readonly<{
   statusKey: null | string
   suggestions: readonly AddressSuggestion[]
 }>
-
-type GuardedRequest = <TResult>(
-  perform: (signal: AbortSignal) => Promise<TResult>,
-  accept: (result: TResult) => void,
-) => void
-
-/**
- * O provedor mais lento é o que responde por último, não o que foi pedido por último: sem o número
- * de sequência o CEP anterior sobrescreve o atual, e quem digitou vê o endereço do vizinho.
- */
-function useGuardedRequest(): GuardedRequest {
-  const sequence = useRef(0)
-  const controller = useRef<AbortController | null>(null)
-
-  useEffect(
-    () => () => {
-      controller.current?.abort()
-    },
-    [],
-  )
-
-  return useCallback((perform, accept) => {
-    controller.current?.abort()
-    const current = new AbortController()
-    controller.current = current
-    sequence.current += 1
-    const ticket = sequence.current
-    void perform(current.signal)
-      .then((result) => {
-        if (ticket !== sequence.current) return
-        accept(result)
-      })
-      .catch(() => {
-        /* Provedor fora do ar ou pedido abortado não é erro de cadastro: o campo segue digitável. */
-      })
-  }, [])
-}
 
 /** Campo que o provedor não soube preencher fica como está: sugestão parcial não apaga o digitado. */
 function toAddressPatch(suggestion: AddressSuggestion): Partial<FleetDriverFormState> {
@@ -106,10 +82,14 @@ export function useDriverAddressLookup(
   )
   const [suggestions, setSuggestions] = useState<readonly AddressSuggestion[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [statusKey, setStatusKey] = useState<null | string>(null)
+  const [searchStatusKey, setSearchStatusKey] = useState<null | string>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const runPostalCode = useGuardedRequest()
   const runSearch = useGuardedRequest()
+  const postalCode = usePostalCodeLookup<FleetDriverFormState>({
+    ...(input.postalCodeClient === undefined ? {} : { client: input.postalCodeClient }),
+    fields: POSTAL_CODE_FIELDS,
+    patch,
+  })
 
   const { addressCity, addressState } = state
 
@@ -143,7 +123,7 @@ export function useDriverAddressLookup(
         (found) => {
           setSuggestions(found)
           setIsSearching(false)
-          setStatusKey(found.length === 0 ? 'addressSearchEmpty' : null)
+          setSearchStatusKey(found.length === 0 ? 'addressSearchEmpty' : null)
         },
       )
     }, SEARCH_DEBOUNCE_MS)
@@ -154,25 +134,13 @@ export function useDriverAddressLookup(
 
   function changePostalCode(value: string): void {
     patch({ addressPostalCode: formatPostalCode(value) })
-    setStatusKey(null)
-    const digits = stripPostalCode(value)
-    if (digits.length !== POSTAL_CODE_LENGTH) return
-    setStatusKey('addressLookupPending')
-    runPostalCode(
-      (signal) => lookupPostalCode({ fetch: fetchImplementation, signal, term: digits }),
-      (suggestion) => {
-        if (suggestion === null) {
-          setStatusKey('addressLookupMissing')
-          return
-        }
-        patch(toAddressPatch(suggestion))
-        setStatusKey('addressLookupFound')
-      },
-    )
+    setSearchStatusKey(null)
+    postalCode.lookup(value)
   }
 
   function changeSearchTerm(value: string): void {
-    setStatusKey(null)
+    setSearchStatusKey(null)
+    postalCode.reset()
     setSearchTerm(value)
   }
 
@@ -180,7 +148,8 @@ export function useDriverAddressLookup(
     patch(toAddressPatch(suggestion))
     setSuggestions([])
     setSearchTerm('')
-    setStatusKey(null)
+    setSearchStatusKey(null)
+    postalCode.reset()
   }
 
   return {
@@ -192,7 +161,7 @@ export function useDriverAddressLookup(
     isSearching,
     searchTerm,
     selectSuggestion,
-    statusKey,
+    statusKey: POSTAL_CODE_STATUS_KEY[postalCode.status] ?? searchStatusKey,
     suggestions,
   }
 }

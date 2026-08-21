@@ -34,7 +34,6 @@ export const CREATE_VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
-  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
@@ -47,7 +46,7 @@ export const CREATE_VEHICLE_BODY = {
   role: 'traction',
   state: 'SP',
   tareWeightKilograms: '8000.00',
-  wheelType: '03',
+  vehicleType: 'tractor_unit',
 } as const
 
 export const CREATE_TRAILER_BODY = {
@@ -55,7 +54,7 @@ export const CREATE_TRAILER_BODY = {
   bodyType: '01',
   plate: 'XYZ9A88',
   role: 'trailer',
-  wheelType: '',
+  vehicleType: '',
 } as const
 
 export const THIRD_PARTY_OWNER_BODY = {
@@ -82,22 +81,47 @@ export const EMPTY_DRIVER_ADDRESS = {
   street: '',
 } as const
 
-export const CREATE_DRIVER_BODY = {
+export const DRIVER_FIELDS = {
   address: EMPTY_DRIVER_ADDRESS,
+  anttCategory: '',
+  birthCity: 'Ribeirao Preto',
   birthDate: null,
+  birthState: 'SP',
+  email: 'jose.silva@example.com',
+  fatherName: 'Antonio da Silva',
+  licenseCategory: 'E',
+  firstLicenseAt: null,
   licenseExpiresAt: null,
+  licenseIssuedCity: 'Ribeirao Preto',
+  licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedLegalName: '',
   linkedTaxId: '',
-  membershipId: null,
+  motherName: 'Maria da Silva',
   name: 'Jose da Silva',
+  nationality: 'Brasileira',
   phone: '11988887777',
+  rntrc: '',
   taxId: '12345678901',
 } as const
+
+/** O vínculo nasce com o usuário que a criação abre, então `membershipId` não é campo do POST. */
+export const CREATE_DRIVER_BODY = { ...DRIVER_FIELDS, profile: 'driver' } as const
+
+/** A resposta da conferência prévia: um booleano por campo único, sem dizer de quem é a colisão. */
+export const DRIVER_AVAILABILITY = {
+  emailTaken: true,
+  licenseNumberTaken: false,
+  taxIdTaken: true,
+} as const
+
+/** O que a aplicação entrega ao repositório: o vínculo já resolvido, e nenhum perfil. */
+export const DRIVER_INPUT = { ...DRIVER_FIELDS, membershipId: null } as const
 
 export const LINKED_COMPANY_TAX_ID = '12345678000195'
 
 export const UPDATE_DRIVER_BODY = {
-  ...CREATE_DRIVER_BODY,
+  ...DRIVER_FIELDS,
   expectedVersion: '1',
   membershipId: MEMBERSHIP_ID,
   status: 'active',
@@ -141,7 +165,7 @@ export const OTHER_COSTS_ONLY_VEHICLE: FleetVehicle = {
 }
 
 export const DRIVER: FleetDriver = {
-  ...CREATE_DRIVER_BODY,
+  ...DRIVER_INPUT,
   createdAt: '2026-07-28T12:00:00.000Z',
   id: DRIVER_ID,
   status: 'active',

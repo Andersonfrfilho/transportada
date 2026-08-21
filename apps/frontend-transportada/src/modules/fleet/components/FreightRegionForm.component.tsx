@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils'
 import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
 
 import type { FreightRegionFormController } from '../hooks/useFreightRegionForm.hook'
+import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
 import type { FreightRegion } from '../shared/freightRegion.types'
 import styles from '../styles/fleet.module.css'
+import { FleetFeedback } from './FleetFeedback.component'
 import { FleetField, FleetMoneyField } from './FleetField.component'
 import { FreightRegionCityField } from './FreightRegionCityField.component'
 
@@ -70,16 +72,16 @@ export function FreightRegionForm({ form, onCancel, region }: FreightRegionFormP
         </div>
       </fieldset>
       {form.errors.length === 0 ? null : (
-        <ul className={styles.feedback} role="alert">
+        <ul className={cn(styles.feedback, styles.feedbackError)} role="alert">
           {form.errors.map((error) => (
             <li key={error}>{t(`regionForm.error.${error}`)}</li>
           ))}
         </ul>
       )}
       {form.feedbackKey === null ? null : (
-        <p className={styles.feedback} role="status">
+        <FleetFeedback isError={isFleetFeedbackError(form.feedbackKey)}>
           {t(form.feedbackKey)}
-        </p>
+        </FleetFeedback>
       )}
       <div className={styles.formActions}>
         <Button type="button" variant="ghost" onClick={onCancel}>

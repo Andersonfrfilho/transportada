@@ -11,9 +11,15 @@ type DriverAddressFieldsProps = Readonly<{
   lookup: DriverAddressLookupController
   onChange: (values: Partial<FleetDriverFormState>) => void
   state: FleetDriverFormState
+  stateTriggerRef?: (element: HTMLButtonElement | null) => void
 }>
 
-export function DriverAddressFields({ lookup, onChange, state }: DriverAddressFieldsProps) {
+export function DriverAddressFields({
+  lookup,
+  onChange,
+  state,
+  stateTriggerRef,
+}: DriverAddressFieldsProps) {
   const { t } = useTranslation('fleet')
 
   return (
@@ -83,6 +89,7 @@ export function DriverAddressFields({ lookup, onChange, state }: DriverAddressFi
           optionLabelKey="stateOption"
           options={BRAZIL_STATE}
           placeholder={t('driverAddressStateUnset')}
+          {...(stateTriggerRef === undefined ? {} : { triggerRef: stateTriggerRef })}
           value={state.addressState}
           onChange={(addressState) => onChange({ addressState })}
         />

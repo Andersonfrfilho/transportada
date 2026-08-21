@@ -1,10 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
-import type { FleetDriverBodyContract, FleetVehicleBodyContract } from './fleet.fixture'
+import type {
+  FleetDriverBodyContract,
+  FleetDriverCreateBodyContract,
+  FleetVehicleBodyContract,
+} from './fleet.fixture'
 import {
   AGGREGATE_VEHICLE_BODY,
   DRIVER_BODY,
+  DRIVER_CREATE_BODY,
   DRIVER_DETAIL,
   DRIVER_ID,
   DRIVER_PAGE,
@@ -49,7 +54,7 @@ describe('fleet client contract', () => {
         limit: 50,
       }),
     ).toEqual(DRIVER_PAGE)
-    expect(await client.createDriver(DRIVER_BODY)).toEqual(DRIVER_DETAIL)
+    expect(await client.createDriver(DRIVER_CREATE_BODY)).toEqual(DRIVER_DETAIL)
     expect(
       await client.updateDriver({
         ...DRIVER_BODY,
@@ -107,7 +112,7 @@ describe('fleet client contract', () => {
 
     expect(createDriverRequest.url).toBe(DRIVERS_PATH)
     expect(createDriverRequest.method).toBe('POST')
-    expect(await createDriverRequest.json()).toEqual(DRIVER_BODY)
+    expect(await createDriverRequest.json()).toEqual(DRIVER_CREATE_BODY)
 
     expect(updateDriverRequest.url).toBe(`${DRIVERS_PATH}/${DRIVER_ID}`)
     expect(updateDriverRequest.method).toBe('PATCH')
@@ -127,7 +132,7 @@ describe('fleet client contract', () => {
       companyId: 'forbidden-company',
       owner: { ...AGGREGATE_VEHICLE_BODY.owner, companyId: 'forbidden-company' },
     } as never)
-    await client.createDriver({ ...DRIVER_BODY, companyId: 'forbidden-company' } as never)
+    await client.createDriver({ ...DRIVER_CREATE_BODY, companyId: 'forbidden-company' } as never)
 
     const [createVehicleRequest, createDriverRequest] = requests
     if (createVehicleRequest === undefined || createDriverRequest === undefined) {
@@ -248,7 +253,7 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
 }
 
 type FleetClient = {
-  createDriver(input: FleetDriverBodyContract): Promise<unknown>
+  createDriver(input: FleetDriverCreateBodyContract): Promise<unknown>
   createVehicle(input: FleetVehicleBodyContract): Promise<unknown>
   listDrivers(input: {
     readonly cursor: null | string

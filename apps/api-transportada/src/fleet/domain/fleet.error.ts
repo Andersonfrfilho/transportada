@@ -99,12 +99,37 @@ export class FleetDriverLicenseNumberTakenError extends ApiError {
   }
 }
 
+/**
+ * O e-mail é o login do usuário que o motorista abre, e o provedor de identidade o quer único no
+ * realm. A mensagem não diz de quem é o e-mail: isso enumeraria usuário de outra empresa.
+ */
+export class FleetDriverEmailTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_EMAIL_TAKEN',
+      message: 'Another user already uses the e-mail',
+      status: 409,
+    })
+  }
+}
+
 export class FleetDriverMembershipTakenError extends ApiError {
   public constructor() {
     super({
       code: 'FLEET_DRIVER_MEMBERSHIP_TAKEN',
       message: 'Another driver of this company already uses the membership',
       status: 409,
+    })
+  }
+}
+
+/** O usuário do motorista recebe o código por e-mail ou WhatsApp: sem um dos dois não há convite. */
+export class FleetDriverContactRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_CONTACT_REQUIRED',
+      message: 'Driver needs an e-mail or a phone to receive the invitation',
+      status: 422,
     })
   }
 }

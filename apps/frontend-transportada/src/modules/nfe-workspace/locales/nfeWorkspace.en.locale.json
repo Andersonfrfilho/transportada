@@ -91,7 +91,9 @@
     "blockedCount_other": "{{count}} blocked out of the selection",
     "fields": {
       "cteIssued": "CT-e"
-    }
+    },
+    "chooseYear": "Choose the year",
+    "openCalendar": "Open calendar"
   },
   "documentStatus": {
     "authorized": "Authorized",

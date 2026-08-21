@@ -91,7 +91,7 @@ export function createFleetCatalogClient(dependencies: ClientDependencies): Flee
 
   return {
     async listVehicleCatalogBrands(input) {
-      const search = buildCatalogSearch({ role: input.role, wheelType: input.wheelType })
+      const search = buildCatalogSearch({ role: input.role, vehicleType: input.vehicleType })
       const response = await authorizedRequest({
         dependencies,
         path: `${FLEET_VEHICLE_CATALOG_BRANDS_PATH}?${search}`,
@@ -102,7 +102,7 @@ export function createFleetCatalogClient(dependencies: ClientDependencies): Flee
       const search = buildCatalogSearch({
         brand: input.brand,
         role: input.role,
-        wheelType: input.wheelType,
+        vehicleType: input.vehicleType,
       })
       const response = await authorizedRequest({
         dependencies,

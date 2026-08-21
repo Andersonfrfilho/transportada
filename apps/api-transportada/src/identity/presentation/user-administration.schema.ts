@@ -15,12 +15,20 @@ import { COMPANY_USER_API_STATUSES } from '../application/change-company-user-st
 
 const COMPANY_USER_LIST_QUERY_KEYS = new Set(['cursor', 'limit'])
 
+/** `membership_roles` tem PK `(membership_id, role)`: papel repetido viraria 500 na escrita. */
+function buildCompanyRolesSchema() {
+  return z
+    .array(z.enum(COMPANY_ROLES))
+    .min(1)
+    .transform((roles) => [...new Set(roles)])
+}
+
 export const inviteCompanyUserSchema = z
   .object({
     channel: z.enum(CONTACT_CHANNELS),
     contact: z.string().min(1),
     name: z.string().min(1),
-    roles: z.array(z.enum(COMPANY_ROLES)).min(1),
+    roles: buildCompanyRolesSchema(),
   })
   .strict()
 export type InviteCompanyUserBody = z.infer<typeof inviteCompanyUserSchema>
@@ -47,9 +55,7 @@ export const updateCompanyUserProfileSchema = z
   })
 export type UpdateCompanyUserProfileBody = z.infer<typeof updateCompanyUserProfileSchema>
 
-export const replaceCompanyUserRolesSchema = z
-  .object({ roles: z.array(z.enum(COMPANY_ROLES)).min(1) })
-  .strict()
+export const replaceCompanyUserRolesSchema = z.object({ roles: buildCompanyRolesSchema() }).strict()
 export type ReplaceCompanyUserRolesBody = z.infer<typeof replaceCompanyUserRolesSchema>
 
 export async function parseInviteCompanyUserRequest(

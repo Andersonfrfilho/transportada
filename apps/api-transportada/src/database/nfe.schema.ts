@@ -6,6 +6,7 @@ import {
   bigint,
   check,
   foreignKey,
+  index,
   integer,
   jsonb,
   numeric,
@@ -404,6 +405,10 @@ export const nfeAddresses = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    // A origem mais rica de CEP da instalação, e a que mais cresce: sem índice a sugestão varre a tabela
+    index('nfe_addresses_company_postal_code_idx')
+      .on(table.companyId, table.postalCode)
+      .where(sql`${table.postalCode} is not null`),
   ],
 )
 

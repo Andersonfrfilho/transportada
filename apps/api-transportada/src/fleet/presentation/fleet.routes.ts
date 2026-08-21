@@ -14,7 +14,9 @@ import type {
   ReplaceFleetDriverVehiclesInput,
 } from '../application/fleet-driver-vehicles.use-case.js'
 import type {
+  CheckFleetDriverAvailabilityInput,
   CreateFleetDriverInput,
+  FleetDriverAvailability,
   ListFleetDriversInput,
   UpdateFleetDriverInput,
 } from '../application/fleet-drivers.use-case.js'
@@ -33,6 +35,7 @@ import type {
 import {
   parseCreateDriverRequest,
   parseCreateVehicleRequest,
+  parseDriverAvailability,
   parseDriverList,
   parseReplaceDriverVehiclesRequest,
   parseUpdateDriverRequest,
@@ -41,6 +44,7 @@ import {
   parseVehicleList,
 } from './fleet.schema.js'
 
+const DRIVER_AVAILABILITY_PATH = `${API_FLEET_DRIVERS_PATH}/availability`
 const DRIVER_PATH = `${API_FLEET_DRIVERS_PATH}/:id`
 const DRIVER_VEHICLES_PATH = `${API_FLEET_DRIVERS_PATH}/:id/vehicles`
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
@@ -55,6 +59,9 @@ type Dependencies = {
   }
   readonly createVehicle: {
     execute(input: TenantInput<CreateFleetVehicleInput>): Promise<FleetVehicle>
+  }
+  readonly driverAvailability: {
+    execute(input: TenantInput<CheckFleetDriverAvailabilityInput>): Promise<FleetDriverAvailability>
   }
   readonly driverVehicles: {
     list(
@@ -152,6 +159,23 @@ export function createFleetRoutes(
       pathname: API_FLEET_DRIVERS_PATH,
       policy: FLEET_READ_POLICY,
     }),
+    /**
+     * A colisão de campo único é conferida antes do envio: o operador a vê no campo, e não depois
+     * de preencher a ficha inteira. Ela é conveniência — quem decide é a constraint, no `INSERT`.
+     */
+    defineRoute<Omit<CheckFleetDriverAvailabilityInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const availability = await dependencies.driverAvailability.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: availability }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseDriverAvailability(new URL(request.url)),
+      pathname: DRIVER_AVAILABILITY_PATH,
+      policy: FLEET_MANAGE_POLICY,
+    }),
     defineRoute<Omit<CreateFleetDriverInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const driver = await dependencies.createDriver.execute({ context: context.scope, ...input })
@@ -159,7 +183,8 @@ export function createFleetRoutes(
       },
       method: 'POST',
       async parse({ correlationId, request }) {
-        return { correlationId, driver: await parseCreateDriverRequest(request) }
+        const { profile, ...driver } = await parseCreateDriverRequest(request)
+        return { correlationId, driver, profile }
       },
       pathname: API_FLEET_DRIVERS_PATH,
       policy: FLEET_MANAGE_POLICY,
@@ -232,15 +257,28 @@ function pageResponse(data: readonly object[], nextCursor: string | null): Respo
 function serializeDriver(driver: FleetDriver): object {
   return {
     address: driver.address,
+    anttCategory: driver.anttCategory,
+    licenseCategory: driver.licenseCategory,
+    birthCity: driver.birthCity,
     birthDate: driver.birthDate,
+    birthState: driver.birthState,
     createdAt: driver.createdAt,
+    email: driver.email,
+    fatherName: driver.fatherName,
+    firstLicenseAt: driver.firstLicenseAt,
     id: driver.id,
     licenseExpiresAt: driver.licenseExpiresAt,
+    licenseIssuedCity: driver.licenseIssuedCity,
+    licenseIssuedState: driver.licenseIssuedState,
     licenseNumber: driver.licenseNumber,
+    linkedLegalName: driver.linkedLegalName,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
+    motherName: driver.motherName,
     name: driver.name,
+    nationality: driver.nationality,
     phone: driver.phone,
+    rntrc: driver.rntrc,
     status: driver.status,
     taxId: driver.taxId,
     updatedAt: driver.updatedAt,
@@ -275,7 +313,6 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     costsUpdatedAt: vehicle.costsUpdatedAt,
     createdAt: vehicle.createdAt,
     fleetNumber: vehicle.fleetNumber,
-    freightClass: vehicle.freightClass,
     fuelPrice: vehicle.fuelPrice === null ? null : { ...vehicle.fuelPrice },
     fuelType: vehicle.fuelType,
     id: vehicle.id,
@@ -293,7 +330,7 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     status: vehicle.status,
     tareWeightKilograms: vehicle.tareWeightKilograms,
     updatedAt: vehicle.updatedAt,
+    vehicleType: vehicle.vehicleType,
     version: vehicle.version,
-    wheelType: vehicle.wheelType,
   }
 }

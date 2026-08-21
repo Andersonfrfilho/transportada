@@ -66,6 +66,7 @@ function createHarness() {
     readonly userId: string
   }[] = []
   const channelCalls: string[] = []
+  const membershipsCreated: { readonly roles: readonly string[] | undefined }[] = []
 
   const dependencies = {
     channel: {
@@ -106,7 +107,9 @@ function createHarness() {
       },
     },
     repository: {
-      createInvitedUser() {
+      createInvitedUser(input: { readonly roles?: readonly string[] }) {
+        membershipsCreated.push({ roles: input.roles })
+
         return Promise.resolve({ membershipId: 'vinculo-de-teste' })
       },
       async findByUserId() {
@@ -115,7 +118,7 @@ function createHarness() {
     },
   }
 
-  return { channelCalls, dependencies, invitationsCreated, outbox }
+  return { channelCalls, dependencies, invitationsCreated, membershipsCreated, outbox }
 }
 
 const INVITE_INPUT = {
@@ -200,6 +203,27 @@ describe('convite enfileira a entrega em vez de enviar', () => {
     })
 
     expect(created?.codeHash).toBe(hashInvitationCode(code))
+  })
+})
+
+describe('o papel do convite entra no vínculo', () => {
+  test('a criação do vínculo recebe os papéis do convite', async () => {
+    const harness = createHarness()
+    const useCase = createInviteCompanyUserUseCase(harness.dependencies as never)
+
+    await useCase.execute(INVITE_INPUT)
+
+    expect(harness.membershipsCreated).toHaveLength(1)
+    expect(harness.membershipsCreated[0]?.roles).toEqual(INVITE_INPUT.roles)
+  })
+
+  test('o papel de motorista chega ao vínculo como qualquer outro', async () => {
+    const harness = createHarness()
+    const useCase = createInviteCompanyUserUseCase(harness.dependencies as never)
+
+    await useCase.execute({ ...INVITE_INPUT, roles: ['aggregate' as const] })
+
+    expect(harness.membershipsCreated[0]?.roles).toEqual(['aggregate'])
   })
 })
 

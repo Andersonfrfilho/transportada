@@ -62,7 +62,7 @@ describe('trip repository integration', () => {
           plate: 'ABC1D23',
           role: 'traction',
           state: 'SP',
-          wheelType: '03',
+          vehicleType: 'tractor_unit',
         })
         await database.db.insert(fleetDrivers).values([
           { companyId, id: driverOneId, name: 'Motorista Um', taxId: '11111111111' },

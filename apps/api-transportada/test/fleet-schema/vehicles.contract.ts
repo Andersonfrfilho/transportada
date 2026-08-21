@@ -38,10 +38,9 @@ describe('fleet vehicle schema', () => {
       'tare_weight_kg',
       'capacity_kg',
       'capacity_m3',
-      'wheel_type',
       'body_type',
       'axle_count',
-      'freight_class',
+      'vehicle_type',
       'state',
       'ownership',
       'owner_tax_id',
@@ -147,12 +146,14 @@ describe('fleet vehicle schema', () => {
     })
   })
 
-  // tpRod só existe no veicTracao — enviar rodado num reboque é rejeição
-  test('requires the wheel type exactly on the traction vehicle', () => {
-    const check = checkSqlByName(fleetVehicles).fleet_vehicles_wheel_type_check
+  // `tpRod` e a classe de frete saem daqui — reboque não escolhe tipo, e tração escolhe um da lista
+  test('requires the vehicle type exactly on the traction vehicle', () => {
+    const check = checkSqlByName(fleetVehicles).fleet_vehicles_vehicle_type_check
 
     expect(check).toContain("'traction'")
-    expect(check).toContain("in ('01', '02', '03', '04', '05', '06')")
+    expect(check).toContain("'motorcycle'")
+    expect(check).toContain("'car'")
+    expect(check).toContain("'tractor_unit'")
   })
 
   test('keeps tare and capacity non-negative', () => {

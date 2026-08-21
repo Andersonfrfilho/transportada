@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   DRIVER_BODY_KEYS,
+  DRIVER_CREATE_BODY_KEYS,
+  DRIVER_AVAILABILITY_PATH,
   FLEET_CAPABILITIES_PATH,
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
@@ -14,7 +16,10 @@ import {
 import type { FleetDriverCoverage } from './driverCoverage.service'
 import type {
   FleetCapabilities,
+  FleetDriverAvailability,
+  FleetDriverAvailabilityInput,
   FleetDriverBody,
+  FleetDriverCreateBody,
   FleetDriverDetail,
   FleetDriverFilters,
   FleetDriverPage,
@@ -51,7 +56,8 @@ type ClientDependencies = Readonly<{
 }>
 
 export type FleetClient = Readonly<{
-  createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
+  checkDriverAvailability: (input: FleetDriverAvailabilityInput) => Promise<FleetDriverAvailability>
+  createDriver: (input: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   createFreightRegion: (input: FreightRegionBodyInput) => Promise<FreightRegion>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   deleteFreightRegion: (input: FreightRegionDeleteInput) => Promise<void>
@@ -117,6 +123,7 @@ async function authorizedRequest(
     dependencies: ClientDependencies
     method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
+    signal?: AbortSignal
   }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
@@ -124,6 +131,8 @@ async function authorizedRequest(
   if (input.body !== undefined) headers['content-type'] = 'application/json'
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  // Tecla nova cancela a conferência anterior: resposta atrasada pintaria campo já corrigido
+  if (input.signal !== undefined) requestInit.signal = input.signal
 
   return requestJson({
     fetch: input.dependencies.fetch,
@@ -133,6 +142,20 @@ async function authorizedRequest(
 
 function freightRegionPath(regionId: string): string {
   return `${FREIGHT_REGIONS_PATH}/${regionId}`
+}
+
+/**
+ * A conferência prévia manda só o que está preenchido: campo em branco é ausência, e mandá-lo vazio
+ * faria a rota comparar o nada com a tabela inteira.
+ */
+function driverAvailabilityPath(input: FleetDriverAvailabilityInput): string {
+  const search = new URLSearchParams()
+  if (input.driverId !== null) search.set('driverId', input.driverId)
+  if (input.email !== '') search.set('email', input.email)
+  if (input.licenseNumber !== '') search.set('licenseNumber', input.licenseNumber)
+  if (input.taxId !== '') search.set('taxId', input.taxId)
+  const query = search.toString()
+  return query === '' ? DRIVER_AVAILABILITY_PATH : `${DRIVER_AVAILABILITY_PATH}?${query}`
 }
 
 function driverRegionsPath(driverId: string): string {
@@ -180,9 +203,18 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
   const adapters = createFleetResponseAdapters()
 
   return {
+    async checkDriverAvailability(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: driverAvailabilityPath(input),
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.driverAvailabilityFromApi(readEnvelopeData(response))
+    },
     async createDriver(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify(pickKeys(input, DRIVER_BODY_KEYS)),
+        body: JSON.stringify(pickKeys(input, DRIVER_CREATE_BODY_KEYS)),
         dependencies,
         method: 'POST',
         path: FLEET_DRIVERS_PATH,

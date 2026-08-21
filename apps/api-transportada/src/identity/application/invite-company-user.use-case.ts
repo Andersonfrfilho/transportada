@@ -83,6 +83,7 @@ export function createInviteCompanyUserUseCase({
         contactChannel: channel,
         issuer,
         name,
+        roles,
         subject,
         userId,
         username: userId,

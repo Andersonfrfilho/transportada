@@ -21,5 +21,101 @@
   "resetCodeSent": "Se o usuário existir, o código já está a caminho do contato cadastrado. Ele vale por 15 minutos.",
   "resetRejected": "Não foi possível concluir a recuperação. Confira o código e a senha e tente novamente.",
   "resetDone": "Senha alterada. Você já pode entrar com a nova senha.",
-  "resetBackToLogin": "Voltar para o login"
+  "resetBackToLogin": "Voltar para o login",
+  "users": {
+    "kicker": "Identidade",
+    "title": "Usuários do sistema",
+    "intro": "Quem entra nesta instalação, com que papéis e por qual contato o convite chega. O acesso é criado desabilitado: a pessoa recebe um código e escolhe a própria senha.",
+    "listTitle": "Acessos da empresa",
+    "loading": "Carregando os usuários",
+    "empty": "Nenhum usuário cadastrado além do seu acesso.",
+    "forbidden": "Só quem administra usuários vê esta lista. Peça a permissão a um administrador da empresa.",
+    "invite": "Convidar usuário",
+    "columnName": "Nome",
+    "columnContact": "Contato",
+    "columnRoles": "Papéis",
+    "columnStatus": "Situação",
+    "columnActions": "Ações",
+    "edit": "Editar",
+    "resend": "Reenviar",
+    "resendSucceeded": "Convite reenviado. O código anterior deixou de valer.",
+    "activate": "Reativar",
+    "suspend": "Suspender",
+    "remove": "Remover",
+    "copyMembershipId": "Copiar o identificador do vínculo",
+    "firstPage": "Primeira",
+    "previousPage": "Anterior",
+    "nextPage": "Próxima",
+    "channel": {
+      "email": "E-mail",
+      "sms": "SMS",
+      "whatsapp": "WhatsApp"
+    },
+    "role": {
+      "company-admin": "Administrador",
+      "finance": "Financeiro",
+      "fiscal": "Fiscal",
+      "operator": "Operação",
+      "viewer": "Consulta",
+      "driver": "Motorista",
+      "aggregate": "Agregado"
+    },
+    "status": {
+      "invited": "Convidado",
+      "active": "Ativo",
+      "suspended": "Suspenso"
+    },
+    "inviteDialog": {
+      "title": "Convidar usuário",
+      "intro": "O acesso nasce desabilitado e sem senha. O código de ativação vai pelo canal escolhido.",
+      "close": "Fechar o convite",
+      "name": "Nome completo",
+      "channel": "Canal do convite",
+      "contact": "Contato",
+      "contactHint": "E-mail, ou telefone com DDD quando o canal for SMS ou WhatsApp.",
+      "roles": "Papéis",
+      "rolesHint": "Ao menos um papel. O papel decide o que a pessoa enxerga no sistema.",
+      "cancel": "Cancelar",
+      "confirm": "Enviar convite",
+      "sending": "Enviando…"
+    },
+    "editDialog": {
+      "title": "Editar usuário",
+      "close": "Fechar a edição",
+      "name": "Nome completo",
+      "username": "Login",
+      "usernameHint": "Minúsculas, sem espaço e sem acento; ponto, hífen e sublinhado são aceitos.",
+      "usernameInvalid": "Login fora do formato aceito: de 3 a 60 caracteres, começando por letra ou número.",
+      "channel": "Canal do contato",
+      "contact": "Novo contato",
+      "contactHint": "O contato guardado aparece mascarado na lista; preencha só para substituí-lo.",
+      "contactRequired": "Trocar o canal exige informar o contato correspondente.",
+      "email": "E-mail de acesso",
+      "emailHint": "É o e-mail do login. Alterá-lo pede nova verificação e não muda o canal do convite.",
+      "roles": "Papéis",
+      "rolesHint": "A lista de papéis é substituída por inteiro pelo que estiver marcado aqui.",
+      "cancel": "Cancelar",
+      "confirm": "Salvar",
+      "saving": "Salvando…"
+    },
+    "removeDialog": {
+      "title": "Remover o acesso",
+      "close": "Fechar a remoção",
+      "warning": "O vínculo com a empresa é desfeito e a pessoa perde o acesso a esta instalação. O histórico do que ela registrou é preservado.",
+      "cancel": "Cancelar",
+      "confirm": "Remover",
+      "removing": "Removendo…"
+    },
+    "errors": {
+      "default": "Não foi possível concluir a operação. Tente de novo.",
+      "COMPANY_USERS_FORBIDDEN": "Seu acesso não administra usuários desta empresa.",
+      "COMPANY_USERS_REQUEST_FAILED": "A API não respondeu. Verifique a conexão e tente de novo.",
+      "COMPANY_USERS_RESPONSE_INVALID": "A resposta da API veio em formato inesperado.",
+      "COMPANY_USER_NOT_FOUND": "Este usuário não pertence mais à empresa. Atualize a lista.",
+      "COMPANY_USER_CONTACT_TAKEN": "Já existe um acesso com este contato.",
+      "USERNAME_ALREADY_TAKEN": "Este login já está em uso.",
+      "IDENTITY_SUBJECT_NOT_FOUND": "O acesso não tem identidade no provedor de login. Convide a pessoa de novo.",
+      "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador."
+    }
+  }
 }

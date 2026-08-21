@@ -8,10 +8,13 @@ import { maskTypedAmount, maskTypedMeasure } from '@/modules/shared/decimalAmoun
 import styles from '../styles/fleet.module.css'
 
 type FleetFieldProps = Readonly<{
+  error?: string | undefined
   hint?: string
+  inputRef?: ((element: HTMLInputElement | null) => void) | undefined
   inputMode?: 'numeric' | 'text'
   label: string
   maxLength?: number
+  onBlur?: () => void
   onChange: (value: string) => void
   optional?: boolean
   value: string
@@ -48,19 +51,28 @@ type FleetSelectFieldProps<TValue extends string> = Readonly<{
   optionLabelKey: string
   options: readonly TValue[]
   placeholder?: string
+  triggerRef?: (element: HTMLButtonElement | null) => void
   value: TValue
 }>
 
+/**
+ * A mensagem de erro é do campo, e é o próprio campo que a liga ao `input`: texto solto ao lado não
+ * é anunciado pelo leitor de tela, e o operador não sabe qual dos campos únicos é o repetido.
+ */
 export function FleetField({
+  error,
   hint,
   inputMode = 'text',
+  inputRef,
   label,
   maxLength = 120,
+  onBlur,
   onChange,
   optional = false,
   value,
 }: FleetFieldProps) {
   const { t } = useTranslation('fleet')
+  const errorId = error === undefined ? undefined : `${toFieldId(label)}-error`
   return (
     <label>
       <span>
@@ -68,15 +80,32 @@ export function FleetField({
         {optional ? <em className={styles.optionalMark}>{t('optionalMark')}</em> : null}
       </span>
       <input
+        aria-invalid={error === undefined ? undefined : true}
+        {...(errorId === undefined ? {} : { 'aria-describedby': errorId })}
         inputMode={inputMode}
         maxLength={maxLength}
+        ref={inputRef}
         type="text"
         value={value}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
       />
+      {errorId === undefined ? null : (
+        <small className={styles.fieldError} id={errorId} role="alert">
+          {error}
+        </small>
+      )}
       {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>
   )
+}
+
+/** O rótulo é o que distingue um campo do outro nesta tela; o id sai dele, sem acento nem espaço. */
+function toFieldId(label: string): string {
+  return `fleet-field-${label
+    .normalize('NFD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .toLowerCase()}`
 }
 
 /**
@@ -99,7 +128,9 @@ export function FleetDateField({
       </span>
       <DatePicker
         ariaLabel={label}
+        chooseYearLabel={t('dateField.chooseYear')}
         clearLabel={t('dateField.clear')}
+        openCalendarLabel={t('dateField.openCalendar')}
         nextMonthLabel={t('dateField.nextMonth')}
         placeholder={t('dateField.placeholder')}
         previousMonthLabel={t('dateField.previousMonth')}
@@ -179,6 +210,7 @@ export function FleetSelectField<TValue extends string>({
   optionLabelKey,
   options,
   placeholder,
+  triggerRef,
   value,
 }: FleetSelectFieldProps<TValue>) {
   const { t } = useTranslation('fleet')
@@ -193,6 +225,7 @@ export function FleetSelectField<TValue extends string>({
           value: option,
         }))}
         {...(placeholder === undefined ? {} : { placeholder })}
+        {...(triggerRef === undefined ? {} : { triggerRef })}
         value={value}
         onChange={(next) => onChange(next as TValue)}
       />

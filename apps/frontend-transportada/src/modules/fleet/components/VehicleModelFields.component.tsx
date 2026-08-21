@@ -41,15 +41,15 @@ export function VehicleModelFields({
   const catalogInput = {
     role: state.role,
     vehicleCatalogEnabled: catalog.canUseCatalog,
-    wheelType: state.wheelType,
+    vehicleType: state.vehicleType,
   }
   const shouldQueryCatalog =
     resolveVehicleCatalogFieldMode({ ...catalogInput, hasCatalogFailure: false }) ===
     VEHICLE_CATALOG_FIELD_MODE.LIST
   const brandsQuery = useQuery({
     enabled: shouldQueryCatalog,
-    queryFn: () => catalog.listBrands({ role: state.role, wheelType: state.wheelType }),
-    queryKey: [VEHICLE_CATALOG_BRANDS_QUERY_KEY, state.role, state.wheelType],
+    queryFn: () => catalog.listBrands({ role: state.role, vehicleType: state.vehicleType }),
+    queryKey: [VEHICLE_CATALOG_BRANDS_QUERY_KEY, state.role, state.vehicleType],
   })
   const brandCode = resolveVehicleCatalogCode({
     items: brandsQuery.data?.items,
@@ -58,8 +58,8 @@ export function VehicleModelFields({
   const modelsQuery = useQuery({
     enabled: shouldQueryCatalog && brandCode !== '',
     queryFn: () =>
-      catalog.listModels({ brand: brandCode, role: state.role, wheelType: state.wheelType }),
-    queryKey: [VEHICLE_CATALOG_MODELS_QUERY_KEY, state.role, state.wheelType, brandCode],
+      catalog.listModels({ brand: brandCode, role: state.role, vehicleType: state.vehicleType }),
+    queryKey: [VEHICLE_CATALOG_MODELS_QUERY_KEY, state.role, state.vehicleType, brandCode],
   })
   const hasCatalogFailure = hasVehicleCatalogFailure({
     isError: brandsQuery.isError,
@@ -82,7 +82,7 @@ export function VehicleModelFields({
   })
 
   function resolveBrandHint(): string | undefined {
-    if (isBlocked) return t('brandCatalogWheelTypeHint')
+    if (isBlocked) return t('brandCatalogVehicleTypeHint')
     if (mode === VEHICLE_CATALOG_FIELD_MODE.TEXT && hasCatalogFailure) {
       return t('brandCatalogUnavailableHint')
     }
@@ -108,7 +108,7 @@ export function VehicleModelFields({
           disabled={isBlocked}
           isCatalogUnavailable={hasCatalogFailure}
           isLoading={isListing && brandsQuery.isLoading}
-          key={`${state.role}:${state.wheelType}`}
+          key={`${state.role}:${state.vehicleType}`}
           label={t('brand')}
           value={state.brand}
           {...(brandHint === undefined ? {} : { hint: brandHint })}

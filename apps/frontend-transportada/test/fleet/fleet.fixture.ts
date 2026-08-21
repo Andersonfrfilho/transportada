@@ -55,7 +55,6 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     capacityKilograms: string
     color: string
     fleetNumber: string
-    freightClass: '' | 'three_quarter' | 'toco' | 'truck' | 'utility' | 'van' | 'vuc'
     fuelType: FleetVehicleFuelProductContract
     model: string
     modelYear: number
@@ -66,7 +65,18 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     role: 'traction' | 'trailer'
     state: string
     tareWeightKilograms: string
-    wheelType: '' | '01' | '02' | '03' | '04' | '05' | '06'
+    vehicleType:
+      | ''
+      | 'car'
+      | 'motorcycle'
+      | 'other'
+      | 'three_quarter'
+      | 'toco'
+      | 'tractor_unit'
+      | 'truck'
+      | 'utility'
+      | 'van'
+      | 'vuc'
   }>
 
 export type FleetVehicleDetailContract = FleetVehicleBodyContract &
@@ -95,15 +105,32 @@ export type FleetDriverAddressContract = Readonly<{
 
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
+  anttCategory: '' | '0' | '1' | '2'
+  birthCity: string
   birthDate: null | string
+  birthState: string
+  email: string
+  fatherName: string
+  firstLicenseAt: null | string
+  licenseCategory: '' | 'A' | 'AB' | 'AC' | 'ACC' | 'AD' | 'AE' | 'B' | 'C' | 'D' | 'E'
   licenseExpiresAt: null | string
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  linkedLegalName: string
   linkedTaxId: string
   membershipId: null | string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  rntrc: string
   taxId: string
 }>
+
+/** O perfil é o papel que a criação concede, e o vínculo nasce com ela: nenhum dos dois se digita. */
+export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membershipId'> &
+  Readonly<{ profile: 'aggregate' | 'driver' }>
 
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
@@ -161,7 +188,6 @@ export const VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: 'branca',
   fleetNumber: '101',
-  freightClass: '',
   fuelType: 'diesel-s10',
   model: 'Modelo Sintetico',
   modelYear: 2020,
@@ -174,7 +200,7 @@ export const VEHICLE_BODY = {
   role: 'traction',
   state: 'SP',
   tareWeightKilograms: '8000.00',
-  wheelType: '03',
+  vehicleType: 'tractor_unit',
 } as const satisfies FleetVehicleBodyContract
 
 export const AGGREGATE_VEHICLE_BODY = {
@@ -184,7 +210,7 @@ export const AGGREGATE_VEHICLE_BODY = {
   ownership: 'aggregate',
   plate: 'XYZ9A88',
   role: 'trailer',
-  wheelType: '',
+  vehicleType: '',
 } as const satisfies FleetVehicleBodyContract
 
 export const LINKED_COMPANY_TAX_ID = '12345678000195'
@@ -212,15 +238,53 @@ export const DRIVER_ADDRESS = {
 
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
+  anttCategory: '',
+  birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
+  birthState: 'SP',
+  email: '',
+  fatherName: 'Antônio da Silva',
+  firstLicenseAt: '2008-03-14',
+  licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
+  licenseIssuedCity: 'Campinas',
+  licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedLegalName: '',
   linkedTaxId: '',
   membershipId: null,
+  motherName: 'Maria da Silva',
   name: 'Jose da Silva',
+  nationality: 'Brasileira',
   phone: '11988887777',
+  rntrc: '',
   taxId: '12345678901',
 } as const satisfies FleetDriverBodyContract
+
+export const DRIVER_CREATE_BODY = {
+  address: DRIVER_ADDRESS,
+  anttCategory: '',
+  birthCity: 'Ribeirão Preto',
+  birthDate: '1985-04-12',
+  birthState: 'SP',
+  email: '',
+  fatherName: 'Antônio da Silva',
+  firstLicenseAt: '2008-03-14',
+  licenseCategory: 'E',
+  licenseExpiresAt: '2030-04-12',
+  licenseIssuedCity: 'Campinas',
+  licenseIssuedState: 'SP',
+  licenseNumber: '12345678901',
+  linkedLegalName: '',
+  linkedTaxId: '',
+  motherName: 'Maria da Silva',
+  name: 'Jose da Silva',
+  nationality: 'Brasileira',
+  phone: '11988887777',
+  profile: 'driver',
+  rntrc: '',
+  taxId: '12345678901',
+} as const satisfies FleetDriverCreateBodyContract
 
 export const VEHICLE_COSTS_UPDATED_AT = '2026-07-28T12:00:00.000Z'
 
@@ -336,7 +400,6 @@ export const VEHICLE_DRAFT_BODY = {
   capacityKilograms: '0.00',
   color: '',
   fleetNumber: '',
-  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
@@ -347,7 +410,7 @@ export const VEHICLE_DRAFT_BODY = {
   role: 'traction',
   state: '',
   tareWeightKilograms: '0.00',
-  wheelType: '',
+  vehicleType: '',
 } as const satisfies FleetVehicleBodyContract
 
 export const INCOMPLETE_TRACTION_VEHICLE_ID = '00000000-0000-4000-8000-000000000914'
@@ -355,7 +418,7 @@ export const INCOMPLETE_TRACTION_VEHICLE_ID = '00000000-0000-4000-8000-000000000
 export const INCOMPLETE_TRACTION_VEHICLE_BODY = {
   ...VEHICLE_BODY,
   plate: 'INC1M23',
-  wheelType: '',
+  vehicleType: '',
 } as const satisfies FleetVehicleBodyContract
 
 export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
@@ -372,15 +435,27 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
 
 export const DRIVER_DRAFT_BODY = {
   address: DRIVER_ADDRESS_DRAFT,
+  anttCategory: '',
+  birthCity: '',
   birthDate: null,
+  birthState: '',
+  email: '',
+  fatherName: '',
+  firstLicenseAt: null,
+  licenseCategory: '',
   licenseExpiresAt: null,
+  licenseIssuedCity: '',
+  licenseIssuedState: '',
   licenseNumber: '',
+  linkedLegalName: '',
   linkedTaxId: '',
-  membershipId: null,
+  motherName: '',
   name: '',
+  nationality: '',
   phone: '',
+  rntrc: '',
   taxId: '',
-} as const satisfies FleetDriverBodyContract
+} as const satisfies Omit<FleetDriverBodyContract, 'membershipId'>
 
 export async function loadFutureModule<TModule>(modulePath: string): Promise<TModule> {
   return (await import(modulePath)) as TModule

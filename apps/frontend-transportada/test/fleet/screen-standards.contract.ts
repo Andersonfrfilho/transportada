@@ -294,8 +294,8 @@ describe('fleet screen standards contract', () => {
     expect(identity).not.toContain("t('ownership')")
 
     expect(operation).toContain("t('capacityKilograms')")
-    // Função e rodado ficam na identificação: o catálogo de marca e modelo depende deles
-    expect(identity).toContain("t('wheelType')")
+    // Função e tipo ficam na identificação: o catálogo de marca e modelo depende deles
+    expect(identity).toContain("t('vehicleType')")
     expect(ownership.indexOf("t('ownership')")).toBeGreaterThan(-1)
     expect(ownership.indexOf("t('ownerName')")).toBeGreaterThan(ownership.indexOf("t('ownership')"))
   })
@@ -330,6 +330,27 @@ describe('fleet screen standards contract', () => {
     }
     expect(typeof pt['vehicleStateUnset']).toBe('string')
     expect(typeof en['vehicleStateUnset']).toBe('string')
+  })
+
+  // Em blocos irmãos o atalho de cadastro cai sozinho na linha: os dois dividem uma fileira só
+  test('keeps the driver picker and the new-driver shortcut on one row', async () => {
+    const [ownership, stylesheet] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/VehicleOwnerFields.component.tsx'),
+      readApplicationFile(FLEET_STYLES_PATH),
+    ])
+
+    const rowIndex = ownership.indexOf('styles.driverPickerRow')
+    expect(rowIndex).toBeGreaterThan(-1)
+    expect(ownership.indexOf('<SearchableSelect')).toBeGreaterThan(rowIndex)
+    expect(ownership.indexOf("t('ownerDriverCreateButton')")).toBeGreaterThan(rowIndex)
+    expect(ownership).not.toContain('styles.formActions')
+
+    const rowRules = listRules(stylesheet).filter((rule) => rule.selector === '.driverPickerRow')
+    const declarations = rowRules.map((rule) => rule.body).join('\n')
+
+    expect(declarations).toContain('display: grid')
+    expect(declarations).toContain('grid-template-columns: minmax(0, 1fr) auto')
+    expect(declarations).toContain('align-items: end')
   })
 })
 

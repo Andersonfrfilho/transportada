@@ -95,7 +95,7 @@ const params = (overrides: Partial<BuildMdfePayloadParams> = {}): BuildMdfePaylo
     renavam: '12345678901',
     state: 'PR',
     tareWeightKg: '8000.00',
-    wheelType: '03',
+    vehicleType: 'tractor_unit',
   },
   ...overrides,
 })
@@ -393,7 +393,7 @@ describe('MDF-e payload builder', () => {
     )
     expect(() => buildMdfePayload(params({ drivers: [] }))).toThrow(MdfePayloadMissingDriverError)
     expect(() =>
-      buildMdfePayload(params({ vehicle: { ...params().vehicle, wheelType: '' } })),
+      buildMdfePayload(params({ vehicle: { ...params().vehicle, vehicleType: '' } })),
     ).toThrow(MdfePayloadMissingWheelTypeError)
     expect(() =>
       buildMdfePayload(params({ vehicle: { ...params().vehicle, ownership: 'third_party' } })),

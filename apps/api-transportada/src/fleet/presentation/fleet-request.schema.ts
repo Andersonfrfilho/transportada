@@ -10,14 +10,15 @@ import {
   FLEET_VEHICLE_STATUSES,
   MDFE_BODY_TYPES,
   MDFE_OWNER_TAX_REGIMES,
-  MDFE_WHEEL_TYPES,
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
-import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
 import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
+import { LICENSE_CATEGORIES } from '../../shared/license-category.constant.js'
+import { FLEET_DRIVER_PROFILES } from '../domain/fleet-driver-profile.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import { VEHICLE_TYPES } from '../../shared/vehicle-type.constant.js'
 
 const AXLE_COUNT_MAX = 9
 const AXLE_COUNT_MIN = 2
@@ -27,9 +28,13 @@ const CPF = /^[0-9]{11}$/
 const DATE_LENGTH = 10
 const DRIVER_ADDRESS_NUMBER_MAX_LENGTH = 20
 const DRIVER_CITY_MAX_LENGTH = 60
+const DRIVER_NATIONALITY_MAX_LENGTH = 40
 const DRIVER_COMPLEMENT_MAX_LENGTH = 60
 const DRIVER_DISTRICT_MAX_LENGTH = 60
 const DRIVER_STREET_MAX_LENGTH = 120
+/** Gêmeo do `fleet_drivers_email_check`: forma, não existência — o endereço só se prova no envio. */
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const EMAIL_MAX_LENGTH = 254
 const POSTAL_CODE = /^[0-9]{8}$/
 const MEASURE_DECIMAL = /^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{2})$/
 const MODEL_YEAR_MAX = 2100
@@ -97,8 +102,6 @@ const vehicleFieldsSchema = z.object({
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
-  // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
-  freightClass: z.literal('').or(z.enum(FREIGHT_VEHICLE_CLASSES)),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
@@ -111,7 +114,7 @@ const vehicleFieldsSchema = z.object({
   role: z.enum(FLEET_VEHICLE_ROLES),
   state: z.string().regex(STATE),
   tareWeightKilograms: z.string().regex(MEASURE_DECIMAL),
-  wheelType: z.literal('').or(z.enum(MDFE_WHEEL_TYPES)),
+  vehicleType: z.literal('').or(z.enum(VEHICLE_TYPES)),
 })
 
 const driverAddressSchema = z
@@ -128,19 +131,34 @@ const driverAddressSchema = z
 
 const driverFieldsSchema = z.object({
   address: driverAddressSchema,
+  anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
+  licenseCategory: z.literal('').or(z.enum(LICENSE_CATEGORIES)),
   // Teto no Zod, e não em CHECK: `current_date` é função volátil e quebraria o restore do dump
+  birthCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
   birthDate: optionalPastDate(),
+  birthState: z.literal('').or(z.string().regex(STATE)),
+  email: z.literal('').or(z.string().trim().max(EMAIL_MAX_LENGTH).regex(EMAIL)),
+  // A primeira habilitação já aconteceu: data futura ali é digitação errada, não cadastro
+  fatherName: z.string().trim().max(NAME_MAX_LENGTH),
+  firstLicenseAt: optionalPastDate(),
   licenseExpiresAt: optionalDate(),
+  licenseIssuedCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
+  licenseIssuedState: z.literal('').or(z.string().regex(STATE)),
   licenseNumber: optionalDigits(CPF),
+  linkedLegalName: z.string().trim().max(NAME_MAX_LENGTH),
   linkedTaxId: buildOptionalTaxIdSchema(CNPJ_PATTERN),
   membershipId: z.uuid().nullable(),
+  motherName: z.string().trim().max(NAME_MAX_LENGTH),
   name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
+  nationality: z.string().trim().max(DRIVER_NATIONALITY_MAX_LENGTH),
   phone: optionalDigits(PHONE),
+  rntrc: optionalDigits(RNTRC_INPUT),
   taxId: z.string().regex(CPF),
 })
 
 export const plateSchema = z.string().regex(PLATE)
 
+export type DriverAvailabilityQuery = z.infer<typeof driverAvailabilitySchema>
 export type FleetVehicleFields = z.infer<typeof vehicleFieldsSchema>
 export type FleetDriverFields = z.infer<typeof driverFieldsSchema>
 
@@ -154,7 +172,28 @@ export const updateVehicleSchema = vehicleFieldsSchema
   .strict()
   .superRefine(assertVehicleRules)
 
-export const createDriverSchema = driverFieldsSchema.strict()
+/**
+ * O vínculo não é campo do POST: ele nasce do usuário que a criação abre. O que o operador escolhe
+ * é o perfil desse usuário, e ele sai do corpo antes de a ficha chegar à aplicação.
+ */
+export const createDriverSchema = driverFieldsSchema
+  .omit({ membershipId: true })
+  .extend({ profile: z.enum(FLEET_DRIVER_PROFILES) })
+  .strict()
+  .superRefine(assertDriverRules)
+
+/**
+ * A conferência prévia do formulário: cada campo único é opcional aqui, porque ela é consultada
+ * enquanto se digita — campo em branco é ausência, não pedido malformado.
+ */
+export const driverAvailabilitySchema = z
+  .object({
+    driverId: z.uuid().nullable(),
+    email: z.literal('').or(z.string().trim().max(EMAIL_MAX_LENGTH).regex(EMAIL)),
+    licenseNumber: optionalDigits(CPF),
+    taxId: optionalDigits(CPF),
+  })
+  .strict()
 
 export const replaceDriverVehiclesSchema = z
   .object({
@@ -170,11 +209,26 @@ export const updateDriverSchema = driverFieldsSchema
     status: z.enum(FLEET_DRIVER_STATUSES),
   })
   .strict()
+  .superRefine(assertDriverRules)
+
+function assertDriverRules(
+  value: { readonly linkedLegalName: string; readonly linkedTaxId: string },
+  context: z.RefinementCtx,
+): void {
+  // A metade contrária fica solta: ficha antiga tem CNPJ e não tem razão social, e ninguém a inventa
+  if (value.linkedLegalName !== '' && value.linkedTaxId === '') {
+    context.addIssue({
+      code: 'custom',
+      message: 'linkedLegalName requires linkedTaxId',
+      path: ['linkedLegalName'],
+    })
+  }
+}
 
 function assertVehicleRules(value: FleetVehicleFields, context: z.RefinementCtx): void {
-  // tpRod só existe no veicTracao — rodado em reboque é rejeição na SEFAZ
-  if ((value.role === TRACTION_ROLE) !== (value.wheelType !== '')) {
-    context.addIssue({ code: 'custom', message: 'wheelType belongs to traction vehicles only' })
+  // O tipo é do que traciona: `tpRod` em reboque é rejeição na SEFAZ, e ele sai daqui
+  if ((value.role === TRACTION_ROLE) !== (value.vehicleType !== '')) {
+    context.addIssue({ code: 'custom', message: 'vehicleType belongs to traction vehicles only' })
   }
   // O grupo <prop> é tudo-ou-nada e proibido quando o veículo é do próprio emitente
   if ((value.ownership === OWN_OWNERSHIP) !== (value.owner === null)) {

@@ -13,6 +13,7 @@ import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application
 import {
   CORRELATION_ID,
   DRIVER,
+  DRIVER_AVAILABILITY,
   DRIVER_PAGE,
   DRIVER_VEHICLE_ASSIGNMENTS,
   FRONTEND_ORIGIN,
@@ -26,6 +27,9 @@ type ExecuteCall = Record<string, unknown>
 
 type RouteDependencies = {
   readonly createDriver: { execute(input: ExecuteCall): Promise<typeof DRIVER> }
+  readonly driverAvailability: {
+    execute(input: ExecuteCall): Promise<typeof DRIVER_AVAILABILITY>
+  }
   readonly createVehicle: { execute(input: ExecuteCall): Promise<typeof VEHICLE> }
   readonly listDrivers: { execute(input: ExecuteCall): Promise<typeof DRIVER_PAGE> }
   readonly listVehicles: { execute(input: ExecuteCall): Promise<typeof VEHICLE_PAGE> }
@@ -59,6 +63,7 @@ export const READ_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set(['fl
 export async function createFleetHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly createDriverCalls: ExecuteCall[]
   readonly createVehicleCalls: ExecuteCall[]
+  readonly driverAvailabilityCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listDriverCalls: ExecuteCall[]
   readonly listDriverVehicleCalls: ExecuteCall[]
@@ -69,6 +74,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
 }> {
   const createDriverCalls: ExecuteCall[] = []
   const createVehicleCalls: ExecuteCall[] = []
+  const driverAvailabilityCalls: ExecuteCall[] = []
   const listDriverCalls: ExecuteCall[] = []
   const listDriverVehicleCalls: ExecuteCall[] = []
   const listVehicleCalls: ExecuteCall[] = []
@@ -89,6 +95,12 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
       async execute(input) {
         createVehicleCalls.push(structuredClone(input))
         return vehicle
+      },
+    },
+    driverAvailability: {
+      async execute(input) {
+        driverAvailabilityCalls.push(structuredClone(input))
+        return DRIVER_AVAILABILITY
       },
     },
     driverVehicles: {
@@ -147,6 +159,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   return {
     createDriverCalls,
     createVehicleCalls,
+    driverAvailabilityCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listDriverCalls,
     listDriverVehicleCalls,

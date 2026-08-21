@@ -8,7 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
 import { describeDriverCoveragePills } from '../shared/driverCoverage.service'
-import type { DriverCoverageController } from '../hooks/useDriverForm.hook'
+import type { DriverCoverageController } from '../hooks/useDriverCoverage.hook'
 import type { FreightRegion } from '../shared/freightRegion.types'
 import styles from '../styles/fleet.module.css'
 

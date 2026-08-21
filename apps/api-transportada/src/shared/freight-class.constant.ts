@@ -1,15 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { MdfeWheelType } from '../database/fleet.schema.js'
-
 /**
- * Classe comercial do veículo — as seis colunas da tabela de frete.
+ * Classe comercial do veículo — as seis colunas da tabela de frete, e nada além delas: o cabeçalho
+ * do arquivo que o cliente exporta é esta lista, então acrescentar valor aqui recusa a planilha que
+ * já roda hoje.
  *
- * ⚠️ Não confundir com `tipoRodado` (`MdfeWheelType`), que é código da SEFAZ e vai para dentro do
- * XML do MDF-e. A tabela da SEFAZ não tem VUC/VLC nem 3/4, e inventar `07`/`08` lá faz o documento
- * ser rejeitado na transmissão. As duas convivem: o rodado descreve o eixo, a classe descreve o
- * que se paga.
+ * ⚠️ Não é o que o operador escolhe no cadastro — lá o campo é `VEHICLE_TYPES`, mais largo, e a
+ * classe sai dele por `resolveVehicleFreightClass`. Veículo que não é coluna desta tabela (moto,
+ * carro, cavalo mecânico) tem classe vazia, e é assim que ele não recebe preço que ninguém decidiu.
  */
 export const FREIGHT_VEHICLE_CLASSES = [
   'utility',
@@ -23,22 +22,3 @@ export const FREIGHT_VEHICLE_CLASSES = [
 export type FreightVehicleClass = (typeof FREIGHT_VEHICLE_CLASSES)[number]
 
 export const FREIGHT_VEHICLE_CLASS_MAX_LENGTH = 20
-
-/**
- * O que as duas tabelas dizem igual. Cavalo mecânico (`03`) e "Outros" (`06`) ficam de fora de
- * propósito: é onde o VUC e o 3/4 se escondem hoje, e escolher por eles poria valor de pagamento
- * errado no cadastro sem ninguém saber.
- */
-const CLASS_BY_WHEEL_TYPE: Readonly<Partial<Record<MdfeWheelType, FreightVehicleClass>>> = {
-  '01': 'truck',
-  '02': 'toco',
-  '04': 'van',
-  '05': 'utility',
-}
-
-export function resolveVehicleFreightClass(
-  wheelType: MdfeWheelType | '',
-): '' | FreightVehicleClass {
-  if (wheelType === '') return ''
-  return CLASS_BY_WHEEL_TYPE[wheelType] ?? ''
-}

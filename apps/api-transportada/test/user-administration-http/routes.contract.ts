@@ -118,6 +118,22 @@ describe('rotas de administração de usuários — convite', () => {
     expect(response.status).toBe(400)
     expect(fixture.inviteCalls).toEqual([])
   })
+
+  /** `membership_roles` tem PK `(membership_id, role)`: papel repetido no corpo seria 500. */
+  test('papel repetido no corpo chega uma vez só ao caso de uso', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...INVITE_BODY, roles: ['fiscal', 'operator', 'fiscal'] },
+        method: 'POST',
+        path: COMPANY_USERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.inviteCalls[0]?.roles).toEqual(['fiscal', 'operator'])
+  })
 })
 
 describe('rotas de administração de usuários — reenvio de código', () => {
@@ -176,6 +192,21 @@ describe('rotas de administração de usuários — situação e perfis', () => 
       roles: [...REPLACE_ROLES_BODY.roles],
       userId: TARGET_USER_ID,
     })
+  })
+
+  test('papel repetido na substituição chega uma vez só ao caso de uso', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['operator', 'fiscal', 'operator'] },
+        method: 'PUT',
+        path: `${USER_PATH}/roles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.replaceRolesCalls[0]?.roles).toEqual(['operator', 'fiscal'])
   })
 })
 

@@ -14,6 +14,7 @@ import type {
   MdfeInsuranceResponsibility,
   MdfeTransporterType,
 } from '../../database/mdfe.schema.js'
+import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 
 export type MdfePayloadDocument = {
   readonly accessKey: string
@@ -90,7 +91,7 @@ export type MdfePayloadVehicle = {
   readonly renavam: string
   readonly state: string
   readonly tareWeightKg: string
-  readonly wheelType: '' | MdfeWheelType
+  readonly vehicleType: '' | VehicleType
 }
 
 export type BuildMdfePayloadParams = {

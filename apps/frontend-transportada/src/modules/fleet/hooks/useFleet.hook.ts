@@ -5,6 +5,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import {
+  FLEET_DRIVER_LOAD_LIMIT,
   FLEET_ERROR,
   FLEET_MANAGE_PERMISSION,
   FLEET_PAGE_SIZE,
@@ -15,6 +16,7 @@ import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
   FleetCapabilities,
   FleetDriverBody,
+  FleetDriverCreateBody,
   FleetDriverDetail,
   FleetDriverFilters,
   FleetDriverPage,
@@ -40,7 +42,7 @@ const FLEET_DRIVERS_QUERY_KEY = 'fleet-drivers'
 export type FleetController = Readonly<{
   canManageFleet: boolean
   canReadFleet: boolean
-  createDriver: (input: FleetDriverBody) => Promise<FleetDriverDetail>
+  createDriver: (input: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   getFleetCapabilities: () => Promise<FleetCapabilities>
   listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
@@ -108,6 +110,25 @@ type FleetQueryKey = readonly [string, string | undefined, string]
  * página só, "ordenar por R$/km" ordenaria os 25 primeiros e mentiria sobre o resto. O teto existe
  * para que cursor que não anda não vire laço infinito, não para recortar frota de verdade.
  */
+async function loadEveryDriver(
+  input: Readonly<{ controller: FleetController; filters: FleetDriverFilters }>,
+): Promise<FleetDriverPage> {
+  const items: FleetDriverDetail[] = []
+  let cursor: null | string = null
+
+  do {
+    const page: FleetDriverPage = await input.controller.listDrivers({
+      cursor,
+      filters: input.filters,
+      limit: FLEET_PAGE_SIZE,
+    })
+    items.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor !== null && items.length < FLEET_DRIVER_LOAD_LIMIT)
+
+  return { items, nextCursor: null }
+}
+
 async function loadEveryVehicle(
   input: Readonly<{ controller: FleetController; filters: FleetVehicleFilters }>,
 ): Promise<FleetVehiclePage> {
@@ -130,6 +151,7 @@ async function loadEveryVehicle(
 function useFleetQueries(
   input: Readonly<{
     controller: FleetController
+    directoryKey: FleetQueryKey
     driverFilters: FleetDriverFilters
     driversKey: FleetQueryKey
     vehicleFilters: FleetVehicleFilters
@@ -144,27 +166,34 @@ function useFleetQueries(
   })
   const driversQuery = useQuery({
     enabled: input.controller.canReadFleet,
-    queryFn: () =>
-      input.controller.listDrivers({
-        cursor: null,
-        filters: input.driverFilters,
-        limit: FLEET_PAGE_SIZE,
-      }),
+    queryFn: () => loadEveryDriver({ controller: input.controller, filters: input.driverFilters }),
     queryKey: input.driversKey,
   })
-  return { driversQuery, vehiclesQuery }
+  /**
+   * O formulário de veículo escolhe o proprietário na lista inteira: o filtro da aba Motoristas
+   * recortaria justo o motorista que falta completar. Sem filtro ativo a chave é a mesma da aba, e
+   * o React Query serve as duas com uma requisição só.
+   */
+  const directoryQuery = useQuery({
+    enabled: input.controller.canReadFleet,
+    queryFn: () => loadEveryDriver({ controller: input.controller, filters: {} }),
+    queryKey: input.directoryKey,
+  })
+  return { directoryQuery, driversQuery, vehiclesQuery }
 }
 
 function useFleetMutations(
   input: Readonly<{
+    companyId?: string
     controller: FleetController
-    driversKey: FleetQueryKey
     vehiclesKey: FleetQueryKey
   }>,
 ) {
   const queryClient = useQueryClient()
   const invalidateVehicles = () => queryClient.invalidateQueries({ queryKey: input.vehiclesKey })
-  const invalidateDrivers = () => queryClient.invalidateQueries({ queryKey: input.driversKey })
+  /** Prefixo, não chave exata: a aba filtrada e o diretório do formulário são duas entradas do cache. */
+  const invalidateDrivers = () =>
+    queryClient.invalidateQueries({ queryKey: [FLEET_DRIVERS_QUERY_KEY, input.companyId] })
 
   return {
     createDriverMutation: useMutation({
@@ -216,15 +245,24 @@ export function useFleet(
     input.companyId,
     JSON.stringify(driverFilters),
   ] as const
+  const directoryKey = [FLEET_DRIVERS_QUERY_KEY, input.companyId, JSON.stringify({})] as const
   const queries = useFleetQueries({
     controller,
+    directoryKey,
     driverFilters,
     driversKey,
     vehicleFilters,
     vehiclesKey,
   })
-  const mutations = useFleetMutations({ controller, driversKey, vehiclesKey })
+  const mutations = useFleetMutations({
+    ...(input.companyId === undefined ? {} : { companyId: input.companyId }),
+    controller,
+    vehiclesKey,
+  })
   const viewModel = createFleetViewModel({
+    ...(queries.directoryQuery.data === undefined
+      ? {}
+      : { driverDirectory: queries.directoryQuery.data }),
     ...(queries.driversQuery.data === undefined ? {} : { drivers: queries.driversQuery.data }),
     ...(queries.vehiclesQuery.data === undefined ? {} : { vehicles: queries.vehiclesQuery.data }),
     permissions,

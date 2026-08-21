@@ -66,6 +66,7 @@ describe('Trip backfill migration', () => {
           const authorizedManifestId = crypto.randomUUID()
 
           await database`insert into companies (id, status) values (${companyId}, 'active')`
+          // Esquema histórico: aqui `vehicle_type` ainda não existe — a fusão vem depois, na linha 111
           await database`
             insert into fleet_vehicles (id, company_id, plate, role, wheel_type, state)
             values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', '03', 'SP')
@@ -172,8 +173,8 @@ describe('Trip backfill migration', () => {
           values (${crypto.randomUUID()}, ${companyId}, ${userId}, 'active')
         `
         await database`
-          insert into fleet_vehicles (id, company_id, plate, role, wheel_type, state)
-          values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', '03', 'SP')
+          insert into fleet_vehicles (id, company_id, plate, role, vehicle_type, state)
+          values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', 'tractor_unit', 'SP')
         `
         await database`
           insert into nfe_imports (

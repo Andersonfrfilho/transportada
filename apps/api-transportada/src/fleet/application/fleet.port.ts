@@ -8,10 +8,12 @@ import type {
   FleetVehicleStatus,
   MdfeBodyType,
   MdfeOwnerTaxRegime,
-  MdfeWheelType,
 } from '../../database/fleet.schema.js'
-import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
+import type { CompanyRole } from '../../database/identity.schema.js'
+import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
+import type { LicenseCategory } from '../../shared/license-category.constant.js'
+import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 import type {
   EffectiveFuelPrice,
   FuelPriceSource,
@@ -43,7 +45,6 @@ export type FleetVehicleInput = {
   readonly capacityKilograms: string
   readonly color: string
   readonly fleetNumber: string
-  readonly freightClass: '' | FreightVehicleClass
   readonly fuelType: FuelProduct
   readonly model: string
   readonly modelYear: number
@@ -56,7 +57,7 @@ export type FleetVehicleInput = {
   readonly role: FleetVehicleRole
   readonly state: string
   readonly tareWeightKilograms: string
-  readonly wheelType: MdfeWheelType | ''
+  readonly vehicleType: VehicleType | ''
 }
 
 /** O preço que sustentou a derivação, para a tela explicar o número em vez de só exibi-lo. */
@@ -111,14 +112,33 @@ export type FleetDriverAddress = {
 
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
+  /** tpProp do MDF-e quando este motorista é o proprietário do veículo. */
+  readonly anttCategory: MdfeOwnerTaxRegime | ''
+  readonly licenseCategory: LicenseCategory | ''
+  readonly birthCity: string
   readonly birthDate: string | null
+  /** UF da naturalidade; a cidade pode existir sem ela em ficha antiga. */
+  readonly birthState: string
+  readonly email: string
+  /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
+  readonly fatherName: string
+  /** Data da primeira habilitação — o que a carteira imprime como "1ª habilitação". */
+  readonly firstLicenseAt: string | null
   readonly licenseExpiresAt: string | null
+  /** Município do DETRAN que emitiu a carteira, com a UF ao lado. */
+  readonly licenseIssuedCity: string
+  readonly licenseIssuedState: string
   readonly licenseNumber: string
+  /** Razão social do CNPJ acima; é o nome que o MDF-e leva quando o proprietário é a empresa. */
+  readonly linkedLegalName: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   readonly linkedTaxId: string
   readonly membershipId: string | null
+  readonly motherName: string
   readonly name: string
+  readonly nationality: string
   readonly phone: string
+  readonly rntrc: string
   readonly taxId: string
 }
 
@@ -191,11 +211,46 @@ export type FleetDriverVehicleRepositoryPort = {
   }): Promise<readonly FleetDriverVehicleLink[]>
 }
 
+/**
+ * O convite do módulo de identidade visto de dentro da frota: só o vínculo interessa aqui, e é por
+ * ele que a ficha do motorista aponta para o usuário que acabou de nascer.
+ */
+export type FleetDriverAccountPort = {
+  execute(input: {
+    readonly channel: ContactChannel
+    readonly contact: string
+    readonly context: { readonly companyId: string }
+    readonly correlationId: string
+    readonly name: string
+    readonly roles: readonly CompanyRole[]
+  }): Promise<{ readonly membershipId: string }>
+}
+
+/** O que já está tomado na tabela, por campo — a ficha aberta fica fora do recorte. */
+export type FleetDriverDocumentConflicts = {
+  readonly licenseNumber: boolean
+  readonly taxId: boolean
+}
+
+/**
+ * O e-mail é único no provedor de identidade, não na tabela: quem sabe da colisão é ele, e é por
+ * isso que a frota pergunta em vez de consultar a própria coluna.
+ */
+export type FleetDriverContactDirectoryPort = {
+  isEmailTaken(input: { readonly email: string }): Promise<boolean>
+}
+
 export type FleetDriverRepositoryPort = {
   create(input: {
     readonly companyId: string
     readonly driver: FleetDriverInput
   }): Promise<FleetDriver>
+  findDocumentConflicts(input: {
+    readonly companyId: string
+    readonly driverId: string | null
+    readonly licenseNumber: string
+    readonly taxId: string
+  }): Promise<FleetDriverDocumentConflicts>
   findById(input: {
     readonly companyId: string
     readonly driverId: string

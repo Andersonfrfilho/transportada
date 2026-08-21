@@ -37,6 +37,14 @@ const FISCAL_ROLLBACK_ORDER = [
   'company_fiscal_profiles',
 ] as const
 
+const POSTAL_CODE_INDEX_NAMES = [
+  'nfe_addresses_company_postal_code_idx',
+  'fleet_drivers_company_postal_code_idx',
+  'company_fiscal_profiles_company_postal_code_idx',
+  'mdfe_manifests_company_loading_postal_code_idx',
+  'mdfe_manifests_company_discharge_postal_code_idx',
+] as const
+
 const readMigrationFile = (directory: string, file: string): Promise<string> =>
   Bun.file(join(migrationsDirectory.pathname, directory, file)).text()
 
@@ -124,6 +132,13 @@ describe('Drizzle migrations', () => {
       '20260819202712_fleet_vehicle_measure_decimal',
       '20260820000830_freight_regions_and_vehicle_freight_class',
       '20260820002947_fleet_driver_address_and_dates',
+      '20260821153330_fleet_vehicle_type',
+      '20260821170031_fleet_driver_antt_contact',
+      '20260821173515_identity_aggregate_role',
+      '20260821201036_fleet_driver_license_category',
+      '20260821205503_fleet_driver_first_license',
+      '20260821212505_addresses_postal_code_index',
+      '20260821214357_fleet_driver_personal_details',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -937,6 +952,171 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toContain(
       'ALTER TABLE "fleet_vehicles" DROP COLUMN IF EXISTS "freight_class"',
     )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Aqui a migration é destrutiva de propósito — as duas colunas viram uma —, e o que salva o dado é
+   * a ordem: o drizzle gera o `ADD` e os dois `DROP` colados, sem backfill nenhum entre eles.
+   */
+  test('versions the vehicle type merge with the backfill ahead of both drops', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_type'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).toContain(
+      'ALTER TABLE "fleet_vehicles" ADD COLUMN "vehicle_type" varchar(20)',
+    )
+    // A classe digitada à mão vence o rodado sugerido: é ela que diz VUC e 3/4, que o rodado não nomeia
+    expect(migrationSql).toMatch(
+      /UPDATE "fleet_vehicles" SET "vehicle_type" = CASE[\s\S]*WHEN length\("freight_class"\) > 0 THEN "freight_class"[\s\S]*WHEN "wheel_type" = '01' THEN 'truck'[\s\S]*WHEN "wheel_type" = '06' THEN 'other'[\s\S]*ELSE ''[\s\S]*END;/,
+    )
+    const backfillPosition = migrationSql.indexOf('UPDATE "fleet_vehicles" SET "vehicle_type"')
+    for (const column of ['wheel_type', 'freight_class']) {
+      const dropPosition = migrationSql.indexOf(
+        `ALTER TABLE "fleet_vehicles" DROP COLUMN "${column}"`,
+      )
+      expect(dropPosition).toBeGreaterThan(backfillPosition)
+    }
+    expect(migrationSql).toContain('CONSTRAINT "fleet_vehicles_vehicle_type_check"')
+    expect(migrationSql).toContain("'motorcycle'")
+    expect(migrationSql).toContain("'car'")
+
+    // Volta recuperável: o rodado e a classe se reconstroem do tipo, e o CHECK antigo volta com eles
+    expect(rollbackSql).toContain('ADD COLUMN IF NOT EXISTS "wheel_type"')
+    expect(rollbackSql).toContain('ADD COLUMN IF NOT EXISTS "freight_class"')
+    expect(rollbackSql).toContain('CONSTRAINT "fleet_vehicles_wheel_type_check"')
+    expect(rollbackSql).toContain('CONSTRAINT "fleet_vehicles_freight_class_check"')
+    expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "vehicle_type"')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the driver contact and ANTT fields as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_driver_antt_contact'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const column of ['linked_legal_name', 'email', 'rntrc', 'antt_category']) {
+      expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+      expect(migrationSql).toContain(`"fleet_drivers_${column}_check"`)
+    }
+    // A razão social pende do CNPJ, e não o contrário: ficha antiga tem CNPJ e nunca teve razão social
+    expect(migrationSql).toContain('length("linked_legal_name") = 0 or length("linked_tax_id") > 0')
+    // Mesma forma do RNTRC do proprietário do veículo, para o `~` e o Zod não divergirem
+    expect(migrationSql).toContain('"rntrc" ~ \'^0?[0-9]{8}$\'')
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+  test('versions the CNH category as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_driver_license_category'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('ADD COLUMN "license_category"')
+    expect(migrationSql).toContain('"fleet_drivers_license_category_check"')
+    // Ficha cadastrada antes deste campo não tem categoria, e ninguém a inventa numa migration
+    expect(migrationSql).toContain('length("license_category") = 0')
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+  test('versions the first-licence date as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_driver_first_license'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('ADD COLUMN "first_license_at"')
+    // O CHECK das datas é refeito na mesma instrução que o derruba: a tabela nunca fica sem piso
+    expect(migrationSql).toContain(
+      'DROP CONSTRAINT "fleet_drivers_dates_check", ADD CONSTRAINT "fleet_drivers_dates_check"',
+    )
+    expect(migrationSql).toContain('"first_license_at" >= date \'1900-01-01\'')
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    // O rollback devolve o CHECK às duas datas que ele cobria — largar a tabela sem ele é pior
+    expect(rollbackSql).toContain('ADD CONSTRAINT "fleet_drivers_dates_check"')
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions one postal code index per address origin, partial where the column admits empty', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_addresses_postal_code_index'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    // Nenhuma origem tinha índice por CEP: a consulta da sugestão nasceria varrendo a tabela toda
+    for (const indexName of POSTAL_CODE_INDEX_NAMES) {
+      expect(migrationSql).toContain(`CREATE INDEX "${indexName}"`)
+      expect(rollbackSql).toContain(`DROP INDEX IF EXISTS "${indexName}"`)
+    }
+    // O `where` não é otimização: a coluna admite vazio, e CEP vazio não é endereço de ninguém
+    expect(migrationSql).toContain(
+      'ON "fleet_drivers" ("company_id","postal_code") WHERE length("postal_code") > 0',
+    )
+    expect(migrationSql).toContain(
+      'ON "mdfe_manifests" ("company_id","loading_postal_code") WHERE length("loading_postal_code") > 0',
+    )
+    expect(migrationSql).toContain(
+      'ON "mdfe_manifests" ("company_id","discharge_postal_code") WHERE length("discharge_postal_code") > 0',
+    )
+    // `nfe_addresses` admite nulo em vez de vazio, e a coluna do perfil fiscal não admite nenhum dos dois
+    expect(migrationSql).toContain(
+      'ON "nfe_addresses" ("company_id","postal_code") WHERE "postal_code" is not null',
+    )
+    expect(migrationSql).toMatch(
+      /ON "company_fiscal_profiles" \("company_id","postal_code"\);\s*(--|$)/,
+    )
+
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

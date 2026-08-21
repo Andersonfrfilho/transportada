@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
+import { useProfilePostalCodeLookup } from '../hooks/useProfilePostalCodeLookup.hook'
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import {
   describeCompanySettingsFieldError,
@@ -67,9 +68,9 @@ function ProfileTextField(
     definition: FieldDefinition
     error: CompanySettingsFieldError | undefined
     lookupPending?: boolean | undefined
-    lookupStatus?: CompanyProfileFieldsProps['lookupStatus'] | undefined
     onChange: CompanyProfileFieldsProps['onChange']
     onLookupCnpj?: CompanyProfileFieldsProps['onLookupCnpj'] | undefined
+    statusKey?: null | string | undefined
     value: string
   }>,
 ) {
@@ -113,12 +114,17 @@ function ProfileTextField(
         {describeCompanySettingsFieldError({ error: props.error, translate: t })}
       </span>
     )
+  const statusMessage =
+    props.statusKey === undefined || props.statusKey === null ? null : (
+      <span className={styles.fieldHint}>{t(props.statusKey)}</span>
+    )
   if (field !== 'cnpj') {
     return (
       <label>
         <span>{t(field)}</span>
         {input}
         {errorMessage}
+        {statusMessage}
       </label>
     )
   }
@@ -139,11 +145,7 @@ function ProfileTextField(
         </button>
       </div>
       {errorMessage}
-      {props.lookupStatus !== 'idle' && (
-        <span className={styles.fieldHint}>
-          {t(props.lookupStatus === 'error' ? 'lookupError' : 'lookupSuccess')}
-        </span>
-      )}
+      {statusMessage}
     </label>
   )
 }
@@ -196,7 +198,20 @@ export function CompanyProfileFields({
   profile,
 }: CompanyProfileFieldsProps) {
   const { t } = useTranslation('companySettings')
+  const postalCode = useProfilePostalCodeLookup({ onChange })
   const errorByField = new Map((errors ?? []).map((error) => [error.field, error]))
+  const cnpjStatusKey = () => {
+    if (lookupStatus === 'idle') return null
+    return lookupStatus === 'error' ? 'lookupError' : 'lookupSuccess'
+  }
+  const statusKeyOf = (field: TextField): null | string | undefined => {
+    if (field === 'cnpj') return cnpjStatusKey()
+    if (field === 'postalCode') return postalCode.statusKey
+    return undefined
+  }
+  const changePostalCode: CompanyProfileFieldsProps['onChange'] = (input) => {
+    postalCode.changePostalCode(input.value)
+  }
   return (
     <fieldset className={styles.fieldGroup} disabled={disabled}>
       <legend>{t('profileLegend')}</legend>
@@ -208,9 +223,9 @@ export function CompanyProfileFields({
             error={errorByField.get(definition.field)}
             key={definition.field}
             lookupPending={definition.field === 'cnpj' ? lookupPending : undefined}
-            lookupStatus={definition.field === 'cnpj' ? lookupStatus : undefined}
-            onChange={onChange}
+            onChange={definition.field === 'postalCode' ? changePostalCode : onChange}
             onLookupCnpj={definition.field === 'cnpj' ? onLookupCnpj : undefined}
+            statusKey={statusKeyOf(definition.field)}
             value={profile[definition.field]}
           />
         ))}

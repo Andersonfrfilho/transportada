@@ -79,6 +79,7 @@ const server = startApiServer({
     nfseCallbackBaseUrl: undefined,
     notificationWebhookSecret: undefined,
     port: 0,
+    postalCodeProviders: { brasilApiUrl: undefined, viaCepUrl: undefined },
     scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: undefined,
     sentryDsn: undefined,

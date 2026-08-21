@@ -1,14 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
+import { VEHICLE_TYPES } from '@/modules/shared/vehicleType.constant'
 
-import {
-  BRAZIL_STATE,
-  FLEET_VEHICLE_ROLE,
-  MDFE_WHEEL_TYPE,
-  type FleetVehicleFormState,
-} from '../shared/fleet.types'
+import { BRAZIL_STATE, FLEET_VEHICLE_ROLE, type FleetVehicleFormState } from '../shared/fleet.types'
 import { toPlateInput } from '../shared/fleetPlate.service'
 import styles from '../styles/fleet.module.css'
 import { FleetField, FleetSelectField } from './FleetField.component'
@@ -60,30 +55,20 @@ export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFields
         {state.role === 'traction' ? (
           <FleetSelectField
             clearable
-            label={t('wheelType')}
-            optionLabelKey="wheelTypeOption"
-            options={MDFE_WHEEL_TYPE}
-            placeholder={t('wheelTypeUnset')}
-            value={state.wheelType}
-            onChange={(wheelType) => onChange({ wheelType })}
-          />
-        ) : null}
-        {state.role === 'traction' ? (
-          <FleetSelectField
-            clearable
-            label={t('freightClassField')}
-            optionLabelKey="freightClass"
-            options={FREIGHT_VEHICLE_CLASSES}
-            placeholder={t('freightClassUnset')}
-            value={state.freightClass}
-            onChange={(freightClass) => onChange({ freightClass })}
+            label={t('vehicleType')}
+            optionLabelKey="vehicleTypeOption"
+            options={VEHICLE_TYPES}
+            placeholder={t('vehicleTypeUnset')}
+            value={state.vehicleType}
+            onChange={(vehicleType) => onChange({ vehicleType })}
           />
         ) : null}
       </div>
-      {state.role === 'traction' && state.wheelType === '' ? (
-        <p className={styles.hint}>{t('wheelTypeRequiredHint')}</p>
+      {state.role === 'traction' ? (
+        <p className={styles.hint}>
+          {state.vehicleType === '' ? t('vehicleTypeRequiredHint') : t('vehicleTypeHint')}
+        </p>
       ) : null}
-      {state.role === 'traction' ? <p className={styles.hint}>{t('freightClassHint')}</p> : null}
     </fieldset>
   )
 }

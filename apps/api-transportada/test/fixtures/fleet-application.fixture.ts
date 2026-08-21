@@ -3,12 +3,21 @@
  */
 import type {
   FleetDriver,
+  FleetDriverAccountPort,
+  FleetDriverContactDirectoryPort,
+  FleetDriverDocumentConflicts,
   FleetDriverRepositoryPort,
   FleetDriverVehicleRepositoryPort,
   FleetVehicle,
   FleetVehicleRepositoryPort,
 } from '../../src/fleet/application/fleet.port'
-import { COMPANY_ID, DRIVER, DRIVER_VEHICLE_LINKS, VEHICLE } from './fleet-http-payload.fixture'
+import {
+  COMPANY_ID,
+  DRIVER,
+  DRIVER_VEHICLE_LINKS,
+  MEMBERSHIP_ID,
+  VEHICLE,
+} from './fleet-http-payload.fixture'
 
 export const FLEET_CONTEXT = { companyId: COMPANY_ID, userId: DRIVER.id } as const
 
@@ -22,9 +31,15 @@ type DriverVehicleRepositoryParams = {
 }
 
 type DriverRepositoryParams = {
+  readonly conflicts?: FleetDriverDocumentConflicts
   readonly current?: FleetDriver | null
   readonly membershipBelongs?: boolean
   readonly updated?: FleetDriver | null
+}
+
+const NO_DOCUMENT_CONFLICT: FleetDriverDocumentConflicts = {
+  licenseNumber: false,
+  taxId: false,
 }
 
 export function createVehicleRepositoryStub(params: VehicleRepositoryParams = {}): {
@@ -92,23 +107,64 @@ export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositor
   }
 }
 
+export function createDriverAccountStub(): {
+  readonly account: FleetDriverAccountPort
+  readonly calls: unknown[]
+} {
+  const calls: unknown[] = []
+
+  return {
+    account: {
+      async execute(input) {
+        calls.push(structuredClone(input))
+        return { membershipId: MEMBERSHIP_ID }
+      },
+    },
+    calls,
+  }
+}
+
+export function createDriverContactDirectoryStub(params: { readonly emailTaken?: boolean } = {}): {
+  readonly calls: unknown[]
+  readonly contacts: FleetDriverContactDirectoryPort
+} {
+  const calls: unknown[] = []
+
+  return {
+    calls,
+    contacts: {
+      async isEmailTaken(input) {
+        calls.push(structuredClone(input))
+        return params.emailTaken ?? false
+      },
+    },
+  }
+}
+
 export function createDriverRepositoryStub(params: DriverRepositoryParams = {}): {
+  readonly conflictCalls: unknown[]
   readonly createCalls: unknown[]
   readonly membershipCalls: unknown[]
   readonly repository: FleetDriverRepositoryPort
   readonly updateCalls: unknown[]
 } {
+  const conflictCalls: unknown[] = []
   const createCalls: unknown[] = []
   const membershipCalls: unknown[] = []
   const updateCalls: unknown[] = []
 
   return {
+    conflictCalls,
     createCalls,
     membershipCalls,
     repository: {
       async create(input) {
         createCalls.push(structuredClone(input))
         return DRIVER
+      },
+      async findDocumentConflicts(input) {
+        conflictCalls.push(structuredClone(input))
+        return params.conflicts ?? NO_DOCUMENT_CONFLICT
       },
       async findById() {
         return params.current === undefined ? DRIVER : params.current

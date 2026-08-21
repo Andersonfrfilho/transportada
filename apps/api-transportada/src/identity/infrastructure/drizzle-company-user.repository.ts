@@ -71,6 +71,15 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         status: 'active',
         userId: input.userId,
       })
+
+      if (input.roles.length > 0) {
+        await transaction.insert(membershipRoles).values(
+          input.roles.map((role) => ({
+            membershipId,
+            role,
+          })),
+        )
+      }
       await transaction.insert(identityUserProfiles).values({
         contactAddress: input.contactAddress,
         contactChannel: input.contactChannel,

@@ -45,6 +45,14 @@ export type ApiEnvironment = {
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined
   readonly port: number
+  /**
+   * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
+   * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.
+   */
+  readonly postalCodeProviders: {
+    readonly brasilApiUrl: string | undefined
+    readonly viaCepUrl: string | undefined
+  }
   /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
   readonly scheduledDistributionCron: string
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   DRIVER_BODY,
+  DRIVER_CREATE_BODY,
   DRIVER_DETAIL,
   DRIVER_ID,
   DRIVER_PAGE,
@@ -52,7 +53,7 @@ describe('fleet permissions and states contract', () => {
         .catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'FLEET_FORBIDDEN' }))
     expect(
-      await readOnlyController.createDriver(DRIVER_BODY).catch((caught: unknown) => caught),
+      await readOnlyController.createDriver(DRIVER_CREATE_BODY).catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'FLEET_FORBIDDEN' }))
     expect(
       await readOnlyController
@@ -72,7 +73,7 @@ describe('fleet permissions and states contract', () => {
     })
     expect(controller.canManageFleet).toBe(true)
     await controller.createVehicle(VEHICLE_BODY)
-    await controller.createDriver(DRIVER_BODY)
+    await controller.createDriver(DRIVER_CREATE_BODY)
     expect(client.mutationCount).toBe(2)
   })
 
@@ -161,7 +162,7 @@ type DriverVersionInput = Readonly<{
 }>
 
 type FleetClient = {
-  createDriver(input: typeof DRIVER_BODY): Promise<unknown>
+  createDriver(input: typeof DRIVER_CREATE_BODY): Promise<unknown>
   createVehicle(input: typeof VEHICLE_BODY): Promise<unknown>
   listDrivers(input: ListInput): Promise<unknown>
   listVehicles(input: ListInput): Promise<unknown>
@@ -176,7 +177,7 @@ type FleetHookModule = {
   }) => {
     readonly canManageFleet: boolean
     readonly canReadFleet: boolean
-    readonly createDriver: (input: typeof DRIVER_BODY) => Promise<unknown>
+    readonly createDriver: (input: typeof DRIVER_CREATE_BODY) => Promise<unknown>
     readonly createVehicle: (input: typeof VEHICLE_BODY) => Promise<unknown>
     readonly listDrivers: (input: ListInput) => Promise<unknown>
     readonly listVehicles: (input: ListInput) => Promise<unknown>

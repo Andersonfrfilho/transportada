@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FreightVehicleClass } from '../../shared/freightClass.constant'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+import type { VehicleType } from '../../shared/vehicleType.constant'
 import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
 /** A origem do preço efetivo: a série pública da ANP ou o ajuste da própria transportadora. */
@@ -15,10 +15,6 @@ export type FleetVehicleStatus = (typeof FLEET_VEHICLE_STATUS)[number]
 
 export const FLEET_VEHICLE_OWNERSHIP = ['own', 'aggregate', 'third_party'] as const
 export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIP)[number]
-
-/** tpRod — 01 truck, 02 toco, 03 cavalo mecânico, 04 VAN, 05 utilitário, 06 outros. */
-export const MDFE_WHEEL_TYPE = ['01', '02', '03', '04', '05', '06'] as const
-export type MdfeWheelType = (typeof MDFE_WHEEL_TYPE)[number]
 
 /**
  * Lista fechada — texto livre gerava "prata metálico" e "PRATA" na mesma frota. A base é a tabela
@@ -58,6 +54,14 @@ export type MdfeBodyType = (typeof MDFE_BODY_TYPE)[number]
 /** tpProp — 0 TAC agregado, 1 TAC independente, 2 outros. */
 export const MDFE_OWNER_TAX_REGIME = ['0', '1', '2'] as const
 export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIME)[number]
+
+/**
+ * Categoria da CNH, no catálogo do CONTRAN. Cópia por valor do que a API valida — o bundle não
+ * carrega código dela —, e a ordem é a da carteira: da mais leve para a mais pesada, com as
+ * combinadas logo depois da simples que elas somam.
+ */
+export const LICENSE_CATEGORIES = ['ACC', 'A', 'B', 'AB', 'C', 'AC', 'D', 'AD', 'E', 'AE'] as const
+export type LicenseCategory = (typeof LICENSE_CATEGORIES)[number]
 
 /** A UF é fechada em 27, e é o que a API valida: `/^[A-Z]{2}$/` aceita 'XX' que não existe. */
 export const BRAZIL_STATE = [
@@ -152,8 +156,6 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     capacityKilograms: string
     color: string
     fleetNumber: string
-    /** Vazio é legítimo: cavalo mecânico e implemento não estão na tabela de frete do cliente. */
-    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: number
@@ -164,7 +166,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     role: FleetVehicleRole
     state: string
     tareWeightKilograms: string
-    wheelType: '' | MdfeWheelType
+    /** Vazio é legítimo só no implemento: é a tração que tem tipo, e o `tpRod` sai dele. */
+    vehicleType: '' | VehicleType
   }>
 
 export type FleetVehicleDetail = FleetVehicleBody &
@@ -214,7 +217,7 @@ export type FleetVehicleCatalogResult = Readonly<{
 
 export type FleetVehicleCatalogBrandsInput = Readonly<{
   role: FleetVehicleRole
-  wheelType: '' | MdfeWheelType
+  vehicleType: '' | VehicleType
 }>
 
 export type FleetVehicleCatalogModelsInput = FleetVehicleCatalogBrandsInput &
@@ -233,16 +236,50 @@ export type FleetDriverAddress = Readonly<{
 
 export type FleetDriverBody = Readonly<{
   address: FleetDriverAddress
+  /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
+  anttCategory: '' | MdfeOwnerTaxRegime
+  /** Naturalidade; a cidade pode existir sem a UF em ficha antiga, e nenhuma exige a outra. */
+  birthCity: string
   birthDate: null | string
+  birthState: string
+  email: string
+  /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
+  fatherName: string
+  /** Data da primeira habilitação — o que a carteira imprime como "1ª habilitação". */
+  firstLicenseAt: null | string
+  /** Categoria da CNH; vazia enquanto a ficha não a declara. */
+  licenseCategory: '' | LicenseCategory
   licenseExpiresAt: null | string
+  /** Município do DETRAN que emitiu a carteira, com a UF ao lado. */
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  /** Razão social da empresa do motorista; pende do CNPJ, e a metade contrária fica solta. */
+  linkedLegalName: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   linkedTaxId: string
   membershipId: null | string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  rntrc: string
   taxId: string
 }>
+
+/**
+ * O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da empresa. Cópia por
+ * valor do catálogo da API: o bundle não carrega código dela, e a paridade é contrato de teste.
+ */
+export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver'] as const
+export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
+
+/**
+ * O vínculo não vem do formulário de criação: ele nasce do usuário que a criação abre. O que o
+ * operador escolhe é o perfil desse usuário, e a API o recusa em qualquer outro corpo.
+ */
+export type FleetDriverCreateBody = Omit<FleetDriverBody, 'membershipId'> &
+  Readonly<{ profile: FleetDriverProfile }>
 
 export type FleetDriverDetail = FleetDriverBody &
   Readonly<{
@@ -269,6 +306,22 @@ export type FleetReplaceDriverVehiclesInput = Readonly<{
 }>
 
 export type FleetDriverRegionsInput = Readonly<{ driverId: string }>
+
+/** A resposta da conferência prévia: um booleano por campo único, sem dizer de quem é a colisão. */
+export type FleetDriverAvailability = Readonly<{
+  emailTaken: boolean
+  licenseNumberTaken: boolean
+  taxIdTaken: boolean
+}>
+
+export type FleetDriverAvailabilityInput = Readonly<{
+  /** A ficha aberta não colide consigo mesma; no cadastro novo ainda não há id. */
+  driverId: null | string
+  email: string
+  licenseNumber: string
+  signal?: AbortSignal
+  taxId: string
+}>
 
 export type FleetReplaceDriverRegionsInput = Readonly<{
   driverId: string
@@ -300,7 +353,6 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     capacityKilograms: string
     color: '' | VehicleColor
     fleetNumber: string
-    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: string
@@ -315,7 +367,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     role: FleetVehicleRole
     state: string
     tareWeightKilograms: string
-    wheelType: '' | MdfeWheelType
+    vehicleType: '' | VehicleType
   }>
 
 /** Datas viajam como string vazia no formulário: `null` é o que o corpo da API recebe. */
@@ -327,13 +379,29 @@ export type FleetDriverFormState = Readonly<{
   addressPostalCode: string
   addressState: string
   addressStreet: string
+  anttCategory: string
+  birthCity: string
   birthDate: string
+  birthState: string
+  email: string
+  fatherName: string
+  firstLicenseAt: string
+  licenseCategory: string
   licenseExpiresAt: string
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  linkedLegalName: string
   linkedTaxId: string
-  membershipId: string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  /** Só a criação o usa: a ficha carregada não o traz, porque a API não devolve papel de usuário. */
+  profile: FleetDriverProfile
+  rntrc: string
+  /** Só do formulário: a API guarda um nome só, e o corpo junta as duas partes de volta. */
+  surname: string
   taxId: string
 }>
 

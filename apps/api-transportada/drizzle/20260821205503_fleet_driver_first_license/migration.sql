@@ -1,0 +1,2 @@
+ALTER TABLE "fleet_drivers" ADD COLUMN "first_license_at" date;--> statement-breakpoint
+ALTER TABLE "fleet_drivers" DROP CONSTRAINT "fleet_drivers_dates_check", ADD CONSTRAINT "fleet_drivers_dates_check" CHECK (("birth_date" is null or "birth_date" >= date '1900-01-01') and ("license_expires_at" is null or "license_expires_at" >= date '1900-01-01') and ("first_license_at" is null or "first_license_at" >= date '1900-01-01'));

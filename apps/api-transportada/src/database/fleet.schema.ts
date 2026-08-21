@@ -20,17 +20,18 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import {
-  FREIGHT_VEHICLE_CLASS_MAX_LENGTH,
-  FREIGHT_VEHICLE_CLASSES,
-  type FreightVehicleClass,
-} from '../shared/freight-class.constant.js'
-import {
   DEFAULT_FUEL_PRODUCT,
   FUEL_PRODUCT_MAX_LENGTH,
   FUEL_PRODUCTS,
   type FuelProduct,
 } from '../shared/fuel.constant.js'
+import { LICENSE_CATEGORIES, type LicenseCategory } from '../shared/license-category.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
+import {
+  VEHICLE_TYPE_MAX_LENGTH,
+  VEHICLE_TYPES,
+  type VehicleType,
+} from '../shared/vehicle-type.constant.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -91,6 +92,13 @@ export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUSES)[number]
 /** xNome do condutor cabe em 60 caracteres no layout 3.00. */
 const DRIVER_NAME_MAX_LENGTH = 60
 
+/**
+ * Guarda de forma, não de existência: o endereço só é conferido de verdade no envio. O teto de 254
+ * é o mesmo que a fronteira de identidade aplica, porque este e-mail nasce o login do motorista.
+ */
+const EMAIL_PATTERN = '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'
+const EMAIL_MAX_LENGTH = 254
+
 /** Mercosul (AAA1A23) e o formato antigo (AAA1234) cabem no mesmo padrão, sempre sem separador. */
 const PLATE_PATTERN = '^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$'
 
@@ -107,6 +115,9 @@ const DRIVER_ADDRESS_NUMBER_MAX_LENGTH = 20
 const DRIVER_COMPLEMENT_MAX_LENGTH = 60
 const DRIVER_DISTRICT_MAX_LENGTH = 60
 const DRIVER_CITY_MAX_LENGTH = 60
+
+/** "Brasileira" e as gentílicas mais longas cabem folgado; o campo é digitado, não é catálogo. */
+const DRIVER_NATIONALITY_MAX_LENGTH = 40
 
 /** Marca livre — a FIPE não cobre implemento, e o operador digita quando o catálogo falha. */
 const VEHICLE_BRAND_MAX_LENGTH = 60
@@ -135,12 +146,11 @@ export const fleetVehicles = pgTable(
     tareWeightKg: measureColumn('tare_weight_kg').notNull().default('0'),
     capacityKg: measureColumn('capacity_kg').notNull().default('0'),
     capacityM3: measureColumn('capacity_m3').notNull().default('0'),
-    wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),
-    // Classe comercial da tabela de frete — não é o `tipoRodado` do MDF-e, que não tem VUC nem 3/4
-    freightClass: varchar('freight_class', { length: FREIGHT_VEHICLE_CLASS_MAX_LENGTH })
-      .$type<FreightVehicleClass | ''>()
+    // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação
+    vehicleType: varchar('vehicle_type', { length: VEHICLE_TYPE_MAX_LENGTH })
+      .$type<VehicleType | ''>()
       .notNull()
       .default(''),
     state: text().notNull(),
@@ -221,14 +231,10 @@ export const fleetVehicles = pgTable(
       'fleet_vehicles_cost_check',
       sql`${table.averageConsumption} >= 0 and ${table.otherCostsPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
     ),
+    // Implemento não tem tipo: quem traciona é que é moto, VAN ou cavalo mecânico
     check(
-      'fleet_vehicles_wheel_type_check',
-      sql`(${table.role} = 'traction') = (${table.wheelType} in (${sql.raw(inList(MDFE_WHEEL_TYPES))}))`,
-    ),
-    // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
-    check(
-      'fleet_vehicles_freight_class_check',
-      sql`length(${table.freightClass}) = 0 or ${table.freightClass} in (${sql.raw(inList(FREIGHT_VEHICLE_CLASSES))})`,
+      'fleet_vehicles_vehicle_type_check',
+      sql`(${table.role} = 'traction') = (${table.vehicleType} in (${sql.raw(inList(VEHICLE_TYPES))}))`,
     ),
     check(
       'fleet_vehicles_body_type_check',
@@ -279,10 +285,23 @@ export const fleetDrivers = pgTable(
     name: text().notNull(),
     taxId: text('tax_id').notNull(),
     linkedTaxId: text('linked_tax_id').notNull().default(''),
+    linkedLegalName: text('linked_legal_name').notNull().default(''),
     licenseNumber: text('license_number').notNull().default(''),
+    licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
+    firstLicenseAt: date('first_license_at'),
     birthDate: date('birth_date'),
+    nationality: text().notNull().default(''),
+    birthCity: text('birth_city').notNull().default(''),
+    birthState: text('birth_state').notNull().default(''),
+    fatherName: text('father_name').notNull().default(''),
+    motherName: text('mother_name').notNull().default(''),
+    licenseIssuedCity: text('license_issued_city').notNull().default(''),
+    licenseIssuedState: text('license_issued_state').notNull().default(''),
+    email: text().notNull().default(''),
     phone: text().notNull().default(''),
+    rntrc: text().notNull().default(''),
+    anttCategory: text('antt_category').$type<MdfeOwnerTaxRegime | ''>().notNull().default(''),
     postalCode: text('postal_code').notNull().default(''),
     street: text().notNull().default(''),
     number: text().notNull().default(''),
@@ -320,6 +339,10 @@ export const fleetDrivers = pgTable(
       .on(table.companyId, table.licenseNumber)
       .where(sql`length(${table.licenseNumber}) > 0`),
     index('fleet_drivers_company_status_name_idx').on(table.companyId, table.status, table.name),
+    // Parcial porque a coluna admite vazio: CEP em branco não é endereço de ninguém
+    index('fleet_drivers_company_postal_code_idx')
+      .on(table.companyId, table.postalCode)
+      .where(sql`length(${table.postalCode}) > 0`),
     check('fleet_drivers_tax_id_check', sql`${table.taxId} ~ '^[0-9]{11}$'`),
     // O condutor do MDF-e é sempre pessoa física — o CNPJ do autônomo acompanha o CPF, nunca o substitui
     check(
@@ -329,6 +352,28 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_name_check',
       sql`length(${table.name}) > 0 and length(${table.name}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))}`,
+    ),
+    // Razão social sem CNPJ não tem dono. A metade contrária fica solta de propósito: ficha
+    // cadastrada antes deste campo tem CNPJ e não tem razão social, e ninguém a inventa numa migration.
+    check(
+      'fleet_drivers_linked_legal_name_check',
+      sql`length(${table.linkedLegalName}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))} and (length(${table.linkedLegalName}) = 0 or length(${table.linkedTaxId}) > 0)`,
+    ),
+    check(
+      'fleet_drivers_email_check',
+      sql`length(${table.email}) = 0 or (length(${table.email}) <= ${sql.raw(String(EMAIL_MAX_LENGTH))} and ${table.email} ~ ${sql.raw(`'${EMAIL_PATTERN}'`)})`,
+    ),
+    check(
+      'fleet_drivers_rntrc_check',
+      sql`length(${table.rntrc}) = 0 or ${table.rntrc} ~ ${sql.raw(`'${RNTRC_INPUT_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_license_category_check',
+      sql`length(${table.licenseCategory}) = 0 or ${table.licenseCategory} in (${sql.raw(inList(LICENSE_CATEGORIES))})`,
+    ),
+    check(
+      'fleet_drivers_antt_category_check',
+      sql`length(${table.anttCategory}) = 0 or ${table.anttCategory} in (${sql.raw(inList(MDFE_OWNER_TAX_REGIMES))})`,
     ),
     check(
       'fleet_drivers_license_number_check',
@@ -340,11 +385,25 @@ export const fleetDrivers = pgTable(
     ),
     check(
       'fleet_drivers_dates_check',
-      sql`(${table.birthDate} is null or ${table.birthDate} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.licenseExpiresAt} is null or ${table.licenseExpiresAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)})`,
+      sql`(${table.birthDate} is null or ${table.birthDate} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.licenseExpiresAt} is null or ${table.licenseExpiresAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.firstLicenseAt} is null or ${table.firstLicenseAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)})`,
     ),
     check(
       'fleet_drivers_postal_code_check',
       sql`length(${table.postalCode}) = 0 or ${table.postalCode} ~ ${sql.raw(`'${POSTAL_CODE_PATTERN}'`)}`,
+    ),
+    // A UF da naturalidade e a do DETRAN emissor seguem o padrão da UF do endereço; nenhuma das
+    // duas exige a outra metade preenchida — ficha antiga tem cidade e não tem estado.
+    check(
+      'fleet_drivers_birth_state_check',
+      sql`length(${table.birthState}) = 0 or ${table.birthState} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_license_issued_state_check',
+      sql`length(${table.licenseIssuedState}) = 0 or ${table.licenseIssuedState} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_personal_length_check',
+      sql`length(${table.nationality}) <= ${sql.raw(String(DRIVER_NATIONALITY_MAX_LENGTH))} and length(${table.birthCity}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))} and length(${table.fatherName}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))} and length(${table.motherName}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))} and length(${table.licenseIssuedCity}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))}`,
     ),
     check(
       'fleet_drivers_address_state_check',

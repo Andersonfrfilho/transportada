@@ -59,6 +59,7 @@ export type IconName =
   | 'workspace-notification'
   | 'workspace-operations'
   | 'workspace-trip'
+  | 'workspace-users'
 
 export type IconSize = 'md' | 'sm'
 
@@ -161,6 +162,12 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
+  'workspace-users': [
+    'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+    'M3 20v-1.5C3 15.9 5.7 14 9 14s6 1.9 6 4.5V20',
+    'M16 5.5a3 3 0 0 1 0 6',
+    'M17.5 14c2 .6 3.5 2 3.5 4v2',
+  ],
 }
 
 /** O tipo gerado para CSS Module devolve `string | undefined`; `cn` já lida com a ausência. */

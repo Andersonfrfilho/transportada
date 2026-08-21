@@ -2,14 +2,18 @@
 import { useState } from 'react'
 
 import {
-  addCityCoverage,
-  addRegionCoverage,
-  removeDriverCoverage,
-  toDriverCoverageEntries,
-  type FleetDriverCoverage,
-} from '../shared/driverCoverage.service'
+  clearFormDraft,
+  readFormDraft,
+  resolveFormDraftStorage,
+  writeFormDraft,
+} from '@/modules/shared/formDraft.service'
+
+import { DRIVER_FORM_KEYS } from '../shared/fleet.constant'
+
+import { toDriverCoverageEntries, type FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
   FleetDriverBody,
+  FleetDriverCreateBody,
   FleetDriverDetail,
   FleetDriverFormState,
   FleetDriverVehicleLink,
@@ -17,15 +21,26 @@ import type {
   FleetReplaceDriverRegionsInput,
   FleetReplaceDriverVehiclesInput,
 } from '../shared/fleet.types'
-import type { FreightRegion, FreightRegionCity } from '../shared/freightRegion.types'
 import { toSelectedVehicleIds, toggleVehicleSelection } from '../shared/driverVehicles.service'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
-import { createDriverDraft, toDriverBody, toDriverFormState } from '../shared/fleetForm.service'
+import {
+  createDriverDraft,
+  toDriverBody,
+  toDriverCreateBody,
+  toDriverFormState,
+} from '../shared/fleetForm.service'
+import { useDriverCoverage, type DriverCoverageController } from './useDriverCoverage.hook'
 
 type UseDriverFormInput = Readonly<{
   driver?: FleetDriverDetail
-  onCreate: (body: FleetDriverBody) => Promise<FleetDriverDetail>
+  onCreate: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  /** O 409 de colisão tem campo dono; quem o ancora lá é o controlador de unicidade da tela. */
+  onSaveError?: (error: unknown) => void
+  /** Quem abriu a ficha de fora precisa da versão gravada — é dela que o veículo tira o dono. */
+  onSaved?: (driver: FleetDriverDetail) => void
+  /** Ficha aberta em diálogo tem rascunho próprio: ela nasce de outra tela e some com ela. */
+  storageKey?: string
   regions?: Readonly<{
     coverage: readonly FleetDriverCoverage[]
     replace: (input: FleetReplaceDriverRegionsInput) => Promise<unknown>
@@ -36,15 +51,10 @@ type UseDriverFormInput = Readonly<{
   }>
 }>
 
-export type DriverCoverageController = Readonly<{
-  addCity: (input: Readonly<{ city: FreightRegionCity; region: FreightRegion }>) => void
-  addRegion: (region: FreightRegion) => void
-  clear: () => void
-  entries: readonly FleetDriverCoverage[]
-  remove: (key: string) => void
-}>
+const DRIVER_DRAFT_STORAGE_KEY = 'transportada.fleet.driver-draft'
 
 export type DriverFormController = Readonly<{
+  clear: () => void
   coverage: DriverCoverageController
   feedbackKey: null | string
   isSaving: boolean
@@ -56,35 +66,52 @@ export type DriverFormController = Readonly<{
 }>
 
 export function useDriverForm(input: UseDriverFormInput): DriverFormController {
+  // O rascunho é do cadastro novo: sobre ficha carregada ele apagaria o que está gravado
+  const storage = input.driver === undefined ? resolveFormDraftStorage() : null
+  const storageKey = input.storageKey ?? DRIVER_DRAFT_STORAGE_KEY
   const [state, setState] = useState<FleetDriverFormState>(() =>
-    input.driver === undefined ? createDriverDraft() : toDriverFormState(input.driver),
+    input.driver === undefined
+      ? createDriverDraft(
+          readFormDraft({
+            fields: DRIVER_FORM_KEYS,
+            storage,
+            storageKey,
+          }),
+        )
+      : toDriverFormState(input.driver),
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [selection, setSelection] = useState<null | readonly string[]>(null)
-  const [coverageDraft, setCoverageDraft] = useState<null | readonly FleetDriverCoverage[]>(null)
-  const { driver, onCreate, onUpdate, regions, vehicles } = input
+  const { driver, onCreate, onSaveError, onSaved, onUpdate, regions, vehicles } = input
   // `null` significa "o operador ainda não mexeu": a marcação acompanha os vínculos que chegarem.
   const selectedVehicleIds = selection ?? toSelectedVehicleIds(vehicles?.links ?? [])
-  const coverageEntries = coverageDraft ?? regions?.coverage ?? []
-
-  function changeCoverage(next: readonly FleetDriverCoverage[]): void {
-    setFeedbackKey(null)
-    setCoverageDraft(next)
-  }
-
-  const coverage: DriverCoverageController = {
-    addCity: ({ city, region }) =>
-      changeCoverage(addCityCoverage({ city, coverage: coverageEntries, region })),
-    addRegion: (region) => changeCoverage(addRegionCoverage({ coverage: coverageEntries, region })),
-    clear: () => changeCoverage([]),
-    entries: coverageEntries,
-    remove: (key) => changeCoverage(removeDriverCoverage(coverageEntries, key)),
-  }
+  const coverage = useDriverCoverage({
+    onChange: () => setFeedbackKey(null),
+    saved: regions?.coverage ?? [],
+  })
 
   function patch(values: Partial<FleetDriverFormState>): void {
     setFeedbackKey(null)
-    setState((previous) => ({ ...previous, ...values }))
+    setState((previous) => {
+      const next = { ...previous, ...values }
+      writeFormDraft({
+        draft: next,
+        fields: DRIVER_FORM_KEYS,
+        storage,
+        storageKey,
+      })
+      return next
+    })
+  }
+
+  /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
+  function clear(): void {
+    setFeedbackKey(null)
+    setSelection([])
+    coverage.clear()
+    clearFormDraft({ storage, storageKey })
+    setState(createDriverDraft())
   }
 
   function toggleVehicle(vehicleId: string): void {
@@ -93,15 +120,16 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
   }
 
   async function submit(): Promise<void> {
-    const body = toDriverBody(state)
     setIsSaving(true)
     try {
+      // O vínculo não é campo do formulário: na edição quem o reenvia é a ficha carregada
       const saved = await (driver === undefined
-        ? onCreate(body)
+        ? onCreate(toDriverCreateBody(state))
         : onUpdate({
-            ...body,
+            ...toDriverBody(state),
             driverId: driver.id,
             expectedVersion: driver.version,
+            membershipId: driver.membershipId,
             status: driver.status,
           }))
       if (vehicles !== undefined) {
@@ -110,11 +138,14 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       if (regions !== undefined) {
         await regions.replace({
           driverId: saved.id,
-          entries: toDriverCoverageEntries(coverageEntries),
+          entries: toDriverCoverageEntries(coverage.entries),
         })
       }
+      clearFormDraft({ storage, storageKey })
       setFeedbackKey('saved')
+      onSaved?.(saved)
     } catch (error) {
+      onSaveError?.(error)
       setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
@@ -122,6 +153,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
   }
 
   return {
+    clear,
     coverage,
     feedbackKey,
     isSaving,

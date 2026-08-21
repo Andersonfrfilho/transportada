@@ -47,9 +47,11 @@ export function DueDateField({ invalid, onChange, value }: DueDateFieldProps): J
       <div className={styles.controls}>
         <DatePicker
           ariaLabel={t('dueDate.date')}
+          chooseYearLabel={t('dueDate.chooseYear')}
           clearLabel={t('dueDate.clear')}
           nextMonthLabel={t('dueDate.nextMonth')}
           onChange={onChange}
+          openCalendarLabel={t('dueDate.openCalendar')}
           placeholder={t('dueDate.datePlaceholder')}
           previousMonthLabel={t('dueDate.previousMonth')}
           value={value}

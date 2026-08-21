@@ -5,6 +5,35 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-21 — a rota de CEP chama provedor externo sem limitador de requisição
+
+**Onde:** `api-transportada`, `addresses/presentation/postal-code.routes.ts` e
+`addresses/infrastructure/postal-code.gateway.ts` (`GET /postal-codes/{cep}`).
+
+**O que é:** a rota é autenticada (`addresses.read`, escopo `company`) e, quando as nossas tabelas não
+sabem o CEP, chama a BrasilAPI e, se ela falhar, o ViaCEP. **Esta API não tem limitador de requisição
+nenhum**, então um cliente em laço vira uma chamada externa por requisição, com a nossa infraestrutura
+como origem em vez do navegador do operador — o que é exatamente o que a ADR-0037 apontou como preço
+do proxy ("pediria um limitador de taxa que esta API não tem"). É o §3 do baseline, que manda limitar
+"qualquer rota que dispare custo externo".
+
+**O que já limita o estrago:** a rota exige token com `addresses.read` (fora de `finance`, `viewer`,
+`driver` e `aggregate`) e resolve o tenant antes de tocar no domínio, então não há caminho anônimo; só
+chega ao provedor **o que a base não souber**, e a base tende a saber cada vez mais; o campo da tela é
+debounced e cancelado por `AbortSignal` a cada tecla; o `AbortSignal` e o timeout do gateway impedem
+que uma resposta pendurada acumule requisição; e a resposta sai com `cache-control: no-store`, sem
+nada logado do endereço.
+
+**O que falta:** um limitador na borda — por empresa e por usuário autenticado, mais duro nesta rota
+por ela disparar custo externo. É o **mesmo limitador ausente** dos dois achados abaixo
+(recuperação de senha e o de 2026-08-13); não são três problemas, é um, cobrado em três lugares. Um
+cache curto de CEP por empresa reduziria a chamada externa, mas não substitui o teto.
+
+**Decisão:** **ADR-0040**, item 5 — a rota sobe assim, com o achado datado. O saldo é positivo (o
+volume de transferência ao provedor cai) e o preço está escrito em vez de descoberto depois.
+
+**Origem:** spec 050, T7.2.
+
 ### 2026-08-20 — endereço do motorista sai do navegador para quatro terceiros, sem CSP para conter
 
 **Onde:** `frontend-transportada`, `fleet/shared/driverAddress.service.ts` e
@@ -71,10 +100,22 @@ O contrato `test/shared/content-security-policy.contract.ts` varre `src/**` por 
 falha se alguma não estiver na diretiva ou declarada como nunca buscada — destino novo em qualquer
 módulo cai ali.
 
-**O que falta:** inventariar no registro de tratamento o que sobrou — o termo digitado indo ao Photon
-e o CEP indo aos dois provedores. O achado **encolheu duas vezes**, e não fechou: a borda agora
-declara para onde o bundle pode falar, mas continua sendo transferência de dado pessoal a provedor
-sem contrato e fora do inventário.
+**Executado (spec 050, T6.1–T6.4):** o CEP **não sai mais do navegador**. Ele passa por
+`GET /postal-codes/{cep}` (`addresses.read`, escopo `company`), que consulta primeiro as nossas quatro
+tabelas de endereço — `nfe_addresses`, `fleet_drivers`, `company_fiscal_profiles` e os dois CEPs de
+`mdfe_manifests`, cinco consultas em corrida, `company_id` no `where` de cada uma — e só chama a
+BrasilAPI e o ViaCEP quando a base não sabe. Todo acerto local é uma transferência a terceiro que não
+acontece, e é a primeira redução deste achado que é **medida** em vez de declarada.
+`viacep.com.br` saiu do `connect-src`; `brasilapi.com.br` ficou pelo cadastro por CNPJ e pela lista de
+municípios do IBGE, que continuam saindo do navegador. **ADR-0040** — que reverte, para o CEP e só
+para ele, o "não há proxy" do item 5 da ADR-0037: o proxy volta porque o navegador não lê as nossas
+tabelas, não como remédio de privacidade.
+
+**O que falta:** inventariar no registro de tratamento o que sobrou — o termo digitado indo ao Photon,
+e o CEP indo aos dois provedores **quando a base não souber**. O achado **encolheu três vezes**, e não
+fechou: a borda declara para onde o bundle pode falar e o volume caiu, mas o caminho ao provedor sem
+contrato continua existindo, agora com a nossa infraestrutura como origem (ver o achado de
+2026-08-21, no topo).
 
 **Origem:** auditoria de lacunas do cadastro de motorista (spec de endereço, ainda sem
 `spec.md`/`evidence.md`).

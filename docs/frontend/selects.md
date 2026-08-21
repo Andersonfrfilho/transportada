@@ -44,9 +44,17 @@ Para exibir texto o componente **não** traduz nada: monte `options` já com o l
 | `compact`     | não         | altura e fonte reduzidas, para barras de filtro e paginação                                                        |
 | `disabled`    | não         | desabilita o gatilho; um `fieldset[disabled]` ao redor já desabilita sozinho                                       |
 | `align`       | não         | `'end'` alinha a lista pela direita, para gatilhos no fim da linha                                                 |
+| `triggerRef`  | não         | recebe o `<button>` do gatilho, para quem precisa dar foco nele de fora                                            |
 
 `SelectOption` é exportado junto e deve ser o tipo usado para listas de opções, em vez de tipos
 locais por módulo.
+
+`triggerRef` existe para uma coisa só: **um aviso de outra tela levar o olho até este campo**. É por
+ele que o erro de proprietário do veículo abre a ficha do motorista já com a UF em foco. A referência
+interna continua sendo a nossa — o `close()` devolve o foco ao gatilho —, e o callback do chamador é
+composto por cima dela; passe um callback estável (`useRef`/`useCallback`), senão o React solta e
+religa a referência a cada render. O gatilho é um `<button>`, então quem o recebe deve tipar
+`HTMLButtonElement | null`, nunca `HTMLSelectElement`.
 
 ## Quadrado de cor
 

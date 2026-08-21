@@ -2,12 +2,22 @@
 import { DEFAULT_FUEL_PRODUCT } from '@/modules/shared/fuel.constant'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
+import { joinDriverName, splitDriverName } from './driverName.service'
 import { DRIVER_FORM_KEYS, FLEET_ERROR, VEHICLE_FORM_KEYS } from './fleet.constant'
-import { VEHICLE_COLOR, type VehicleColor } from './fleet.types'
+import {
+  LICENSE_CATEGORIES,
+  type LicenseCategory,
+  MDFE_OWNER_TAX_REGIME,
+  type MdfeOwnerTaxRegime,
+  VEHICLE_COLOR,
+  type VehicleColor,
+} from './fleet.types'
 import type {
   FleetDriverBody,
+  FleetDriverCreateBody,
   FleetDriverDetail,
   FleetDriverFormState,
+  FleetDriverProfile,
   FleetVehicleBody,
   FleetVehicleCatalogOption,
   FleetVehicleCatalogSource,
@@ -24,6 +34,8 @@ const TRAILER_ROLE = 'trailer'
 const NON_ALPHANUMERIC_PATTERN = /[^0-9A-Z]/g
 const NON_DIGIT_PATTERN = /[^0-9]/g
 const LEADING_ZERO_PATTERN = /^0+(?=[0-9])/
+/** O motorista dirige o próprio veículo ou o da empresa — é o perfil que serve a mais frotas. */
+const DEFAULT_DRIVER_PROFILE: FleetDriverProfile = 'driver'
 
 export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   acquisitionAmount: '',
@@ -37,7 +49,6 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   capacityKilograms: '',
   color: '',
   fleetNumber: '',
-  freightClass: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   model: '',
   modelYear: '0',
@@ -54,7 +65,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   role: TRACTION_ROLE,
   state: '',
   tareWeightKilograms: '',
-  wheelType: '',
+  vehicleType: '',
 }
 
 const EMPTY_DRIVER_FORM: FleetDriverFormState = {
@@ -65,13 +76,27 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   addressPostalCode: '',
   addressState: '',
   addressStreet: '',
+  anttCategory: '',
+  birthCity: '',
   birthDate: '',
+  birthState: '',
+  email: '',
+  fatherName: '',
+  firstLicenseAt: '',
+  licenseCategory: '',
   licenseExpiresAt: '',
+  licenseIssuedCity: '',
+  licenseIssuedState: '',
   licenseNumber: '',
+  linkedLegalName: '',
   linkedTaxId: '',
-  membershipId: '',
+  motherName: '',
   name: '',
+  nationality: '',
   phone: '',
+  profile: DEFAULT_DRIVER_PROFILE,
+  rntrc: '',
+  surname: '',
   taxId: '',
 }
 
@@ -120,7 +145,6 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
-    freightClass: vehicle.freightClass,
     fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
@@ -134,13 +158,14 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     renavam: vehicle.renavam,
     role: vehicle.role,
     state: vehicle.state,
-    wheelType: vehicle.wheelType,
+    vehicleType: vehicle.vehicleType,
     ...toVehicleCostFormState(vehicle),
     ...toVehicleMeasureFormState(vehicle),
   }
 }
 
 export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormState {
+  const nameParts = splitDriverName(driver.name)
   return {
     addressCity: driver.address.city,
     addressComplement: driver.address.complement,
@@ -149,13 +174,28 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     addressPostalCode: driver.address.postalCode,
     addressState: driver.address.state,
     addressStreet: driver.address.street,
+    anttCategory: driver.anttCategory,
+    birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
+    birthState: driver.birthState,
+    email: driver.email,
+    fatherName: driver.fatherName,
+    firstLicenseAt: driver.firstLicenseAt ?? '',
+    licenseCategory: driver.licenseCategory,
     licenseExpiresAt: driver.licenseExpiresAt ?? '',
+    licenseIssuedCity: driver.licenseIssuedCity,
+    licenseIssuedState: driver.licenseIssuedState,
     licenseNumber: driver.licenseNumber,
+    linkedLegalName: driver.linkedLegalName,
     linkedTaxId: driver.linkedTaxId,
-    membershipId: driver.membershipId ?? '',
-    name: driver.name,
+    motherName: driver.motherName,
+    name: nameParts.givenName,
+    nationality: driver.nationality,
     phone: driver.phone,
+    // A ficha carregada não traz perfil: a API não devolve papel de usuário, e editar não o reenvia
+    profile: DEFAULT_DRIVER_PROFILE,
+    rntrc: driver.rntrc,
+    surname: nameParts.surname,
     taxId: driver.taxId,
   }
 }
@@ -202,8 +242,8 @@ export function hasVehicleCatalogFailure(
 }
 
 /**
- * O segmento do provedor vem do rodado, e o rodado é escolhido no bloco seguinte do formulário:
- * sem ele a lista chega vazia, e vazia sem motivo é lida como carregamento que nunca termina.
+ * O segmento do provedor vem do tipo do veículo, escolhido no bloco anterior do formulário: sem ele
+ * a lista chega vazia, e vazia sem motivo é lida como carregamento que nunca termina.
  * Provedor fora do ar volta para texto livre — catálogo é conveniência, não autoridade.
  */
 export function resolveVehicleCatalogFieldMode(
@@ -211,13 +251,13 @@ export function resolveVehicleCatalogFieldMode(
     hasCatalogFailure: boolean
     role: string
     vehicleCatalogEnabled: boolean
-    wheelType: string
+    vehicleType: string
   }>,
 ): VehicleCatalogFieldMode {
   const { BLOCKED, LIST, TEXT } = VEHICLE_CATALOG_FIELD_MODE
   if (!canUseVehicleCatalogFields(input)) return TEXT
   if (input.hasCatalogFailure) return TEXT
-  if (input.wheelType === '') return BLOCKED
+  if (input.vehicleType === '') return BLOCKED
   return LIST
 }
 
@@ -229,8 +269,6 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     brand: state.brand,
     color: state.color,
     fleetNumber: state.fleetNumber,
-    // A classe é do veículo que traciona: implemento não puxa frete, e guardá-la nele mente na tabela
-    freightClass: state.role === TRACTION_ROLE ? state.freightClass : '',
     fuelType: state.fuelType,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
@@ -248,13 +286,24 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     renavam: normalizeDigits(state.renavam),
     role: state.role,
     state: state.state.toUpperCase(),
-    wheelType: state.role === TRACTION_ROLE ? state.wheelType : '',
+    // O tipo é do veículo que traciona: implemento não puxa frete, e guardá-lo nele mente na tabela
+    vehicleType: state.role === TRACTION_ROLE ? state.vehicleType : '',
     ...toVehicleCostBody(state),
     ...toVehicleMeasureBody(state),
   }
 }
 
-export function toDriverBody(state: FleetDriverFormState): FleetDriverBody {
+/** Categoria fora do catálogo vira ausência: o CHECK do banco só conhece os três códigos da ANTT. */
+function toLicenseCategory(value: string): '' | LicenseCategory {
+  return LICENSE_CATEGORIES.find((category) => category === value) ?? ''
+}
+
+function toAnttCategory(value: string): '' | MdfeOwnerTaxRegime {
+  return MDFE_OWNER_TAX_REGIME.find((category) => category === value) ?? ''
+}
+
+/** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
+export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
   return {
     address: {
       city: state.addressCity,
@@ -265,13 +314,31 @@ export function toDriverBody(state: FleetDriverFormState): FleetDriverBody {
       state: state.addressState.toUpperCase(),
       street: state.addressStreet,
     },
+    anttCategory: toAnttCategory(state.anttCategory),
+    birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,
+    birthState: state.birthState.toUpperCase(),
+    email: state.email.trim(),
+    fatherName: state.fatherName,
+    firstLicenseAt: state.firstLicenseAt === '' ? null : state.firstLicenseAt,
+    licenseCategory: toLicenseCategory(state.licenseCategory),
     licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
+    licenseIssuedCity: state.licenseIssuedCity,
+    licenseIssuedState: state.licenseIssuedState.toUpperCase(),
     licenseNumber: normalizeDigits(state.licenseNumber),
+    // Razão social sem CNPJ é recusada pela API: sem o vínculo ela não descreve empresa nenhuma
+    linkedLegalName: state.linkedTaxId === '' ? '' : state.linkedLegalName,
     linkedTaxId: normalizeTaxId(state.linkedTaxId),
-    membershipId: state.membershipId === '' ? null : state.membershipId,
-    name: state.name,
+    motherName: state.motherName,
+    name: joinDriverName({ givenName: state.name, surname: state.surname }),
+    nationality: state.nationality,
     phone: normalizeDigits(state.phone),
+    rntrc: normalizeDigits(state.rntrc),
     taxId: normalizeDigits(state.taxId),
   }
+}
+
+/** A criação abre o usuário do sistema, e o perfil é o papel que ela concede. */
+export function toDriverCreateBody(state: FleetDriverFormState): FleetDriverCreateBody {
+  return { ...toDriverBody(state), profile: state.profile }
 }

@@ -9,6 +9,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useFreightRegionImport } from '../hooks/useFreightRegionImport.hook'
 import styles from '../styles/fleet.module.css'
+import { FleetFeedback } from './FleetFeedback.component'
 
 type FreightRegionImportDialogProps = Readonly<{
   companyId: string | undefined
@@ -81,14 +82,10 @@ export function FreightRegionImportDialog({ companyId, onClose }: FreightRegionI
           onPick={importer.pickRates}
         />
         {importer.blockReason === null ? null : (
-          <p className={styles.feedback} role="status">
-            {t(`regionImport.blocked.${importer.blockReason}`)}
-          </p>
+          <FleetFeedback isError>{t(`regionImport.blocked.${importer.blockReason}`)}</FleetFeedback>
         )}
         {importer.feedbackKey === null ? null : (
-          <p className={styles.feedback} role="status">
-            {t('regionImport.failed')}
-          </p>
+          <FleetFeedback isError>{t('regionImport.failed')}</FleetFeedback>
         )}
         {summary === null ? null : (
           <div className={styles.importSummary} role="status">

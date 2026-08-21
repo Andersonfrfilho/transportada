@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -36,6 +37,7 @@ type SelectProps = Readonly<{
   emptyLabel?: string
   placeholder?: string
   searchPlaceholder?: string
+  triggerRef?: (element: HTMLButtonElement | null) => void
 }>
 
 const OPENING_KEYS = ['ArrowDown', 'ArrowUp', 'Enter', ' '] as const
@@ -77,12 +79,21 @@ export function Select({
   options,
   placeholder = '',
   searchPlaceholder,
+  triggerRef,
   value,
 }: SelectProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const triggerReference = useRef<HTMLButtonElement>(null)
+  /** O chamador precisa do gatilho para dar foco a ele; a referência interna continua sendo a nossa. */
+  const setTrigger = useCallback(
+    (element: HTMLButtonElement | null) => {
+      triggerReference.current = element
+      triggerRef?.(element)
+    },
+    [triggerRef],
+  )
   const listReference = useRef<HTMLUListElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const baseId = useId()
@@ -206,7 +217,7 @@ export function Select({
         className={joinClassNames(styles.trigger, compact && styles.triggerCompact)}
         disabled={disabled}
         onClick={() => (isOpen ? setIsOpen(false) : open())}
-        ref={triggerReference}
+        ref={setTrigger}
         type="button"
       >
         <span className={styles.selection}>

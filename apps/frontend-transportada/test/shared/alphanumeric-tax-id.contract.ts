@@ -283,7 +283,10 @@ describe('alphanumeric cnpj nfse credential contract', () => {
 describe('alphanumeric cnpj field contract', () => {
   test.each([
     ['../../src/modules/fleet/components/DriverForm.component.tsx', 'driverLinkedTaxId'],
-    ['../../src/modules/fleet/components/VehicleOwnerFields.component.tsx', 'ownerTaxId'],
+    [
+      '../../src/modules/fleet/components/DriverQuickCreateDialog.component.tsx',
+      'driverLinkedTaxId',
+    ],
     ['../../src/modules/cte-profiles/components/CteProfileMatcherFields.component.tsx', 'taxId'],
   ])('%s mantém o limite mascarado e libera a letra', async (path, labelKey) => {
     const element = fieldElement(await readSource(path), labelKey)

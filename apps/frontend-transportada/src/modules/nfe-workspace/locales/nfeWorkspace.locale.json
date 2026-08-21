@@ -248,7 +248,9 @@
       "series": "Série",
       "status": "Status",
       "totalAmount": "Valor"
-    }
+    },
+    "chooseYear": "Escolher o ano",
+    "openCalendar": "Abrir calendário"
   },
   "documentStatus": {
     "authorized": "Autorizada",

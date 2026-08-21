@@ -14,6 +14,7 @@ export type FleetViewStatus = 'empty' | 'error' | 'forbidden' | 'loading' | 'rea
 export type FleetViewModel = Readonly<{
   canManageFleet: boolean
   canReadFleet: boolean
+  driverDirectory?: readonly FleetDriverDetail[]
   drivers?: readonly FleetDriverDetail[]
   nextDriverCursor?: null | string
   nextVehicleCursor?: null | string
@@ -22,6 +23,7 @@ export type FleetViewModel = Readonly<{
 }>
 
 type ViewModelInput = Readonly<{
+  driverDirectory?: FleetDriverPage
   drivers?: FleetDriverPage
   permissions: readonly string[]
   status: FleetQueryStatus
@@ -44,6 +46,7 @@ export function createFleetViewModel(input: ViewModelInput): FleetViewModel {
 
   return {
     ...permissionsView,
+    driverDirectory: (input.driverDirectory ?? input.drivers).items,
     drivers: input.drivers.items,
     nextDriverCursor: input.drivers.nextCursor,
     nextVehicleCursor: input.vehicles.nextCursor,

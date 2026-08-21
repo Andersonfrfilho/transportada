@@ -6,8 +6,13 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import type { KeycloakAdminClient } from '@adatechnology/keycloak-admin'
+import {
+  KEYCLOAK_ADMIN_ERROR_CODE,
+  KeycloakAdminError,
+  type KeycloakAdminClient,
+} from '@adatechnology/keycloak-admin'
 
+import { ApiError } from '../../src/shared/api.error.js'
 import { createIdentityAccessGateway } from '../../src/identity/infrastructure/keycloak-admin.gateway.js'
 
 const CONFIG = {
@@ -21,15 +26,16 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 
 type Call = { readonly name: string; readonly params: Record<string, unknown> }
 
-function createClientFake() {
+function createClientFake(params: { readonly createUserError?: Error } = {}) {
   const calls: Call[] = []
   const record = (name: string, params: unknown): void => {
     calls.push({ name, params: params as Record<string, unknown> })
   }
 
   const client: KeycloakAdminClient = {
-    async createUser(params) {
-      record('createUser', params)
+    async createUser(input) {
+      record('createUser', input)
+      if (params.createUserError !== undefined) throw params.createUserError
       return { id: SUBJECT }
     },
     async deleteUser(params) {
@@ -145,5 +151,43 @@ describe('gateway do Admin API — edição, remoção e senha temporária', () 
       name: 'findUserByEmail',
       params: { email: 'pessoa@empresa.test' },
     })
+  })
+})
+
+describe('gateway do Admin API — contato já usado', () => {
+  /**
+   * O e-mail é único no realm, e quem descobre a colisão é o Keycloak. Sem esta tradução o 409 do
+   * Admin API chega ao cliente como 500 genérico, e o formulário não tem em que campo se ancorar.
+   */
+  test('traduz o usuário já existente em erro de domínio 409', async () => {
+    const { gateway } = createClientFake({
+      createUserError: new KeycloakAdminError({
+        code: KEYCLOAK_ADMIN_ERROR_CODE.USER_ALREADY_EXISTS,
+        context: {},
+        message: 'User exists with same email',
+        status: 409,
+      }),
+    })
+
+    const failure = await gateway
+      .createUser({ email: 'pessoa@empresa.test', enabled: false, username: 'pessoa' })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ApiError)
+    expect((failure as ApiError).status).toBe(409)
+    expect((failure as ApiError).code).toBe('COMPANY_USER_CONTACT_TAKEN')
+    // A mensagem não diz de quem é o e-mail: isso enumeraria usuário de outra empresa
+    expect((failure as ApiError).message).not.toContain('pessoa@empresa.test')
+  })
+
+  test('deixa passar a falha que não é colisão de contato', async () => {
+    const failure = new Error('rede fora do ar')
+    const { gateway } = createClientFake({ createUserError: failure })
+
+    const caught = await gateway
+      .createUser({ email: 'pessoa@empresa.test', enabled: false, username: 'pessoa' })
+      .catch((error: unknown) => error)
+
+    expect(caught).toBe(failure)
   })
 })

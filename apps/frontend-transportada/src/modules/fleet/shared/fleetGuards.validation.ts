@@ -1,14 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { FUEL_PRODUCTS, FUEL_UNITS } from '../../shared/fuel.constant'
+import { VEHICLE_TYPES } from '../../shared/vehicleType.constant'
 import {
   FLEET_DRIVER_STATUS,
   FLEET_FUEL_PRICE_SOURCE,
   FLEET_VEHICLE_OWNERSHIP,
   FLEET_VEHICLE_ROLE,
   FLEET_VEHICLE_STATUS,
+  LICENSE_CATEGORIES,
   MDFE_BODY_TYPE,
   MDFE_OWNER_TAX_REGIME,
-  MDFE_WHEEL_TYPE,
 } from './fleet.types'
 
 const UNSIGNED_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/
@@ -64,9 +65,10 @@ export const FLEET_ENUMS = {
   fuelPriceSource: FLEET_FUEL_PRICE_SOURCE,
   fuelType: FUEL_PRODUCTS,
   fuelUnit: FUEL_UNITS,
+  licenseCategory: LICENSE_CATEGORIES,
   ownership: FLEET_VEHICLE_OWNERSHIP,
   role: FLEET_VEHICLE_ROLE,
   taxRegime: MDFE_OWNER_TAX_REGIME,
   vehicleStatus: FLEET_VEHICLE_STATUS,
-  wheelType: MDFE_WHEEL_TYPE,
+  vehicleType: VEHICLE_TYPES,
 } as const
