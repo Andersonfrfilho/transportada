@@ -69,6 +69,12 @@ export const SSE_CONTENT_TYPE = 'text/event-stream'
 export const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export const INVALID_LOG_PATHNAME = '<invalid>'
 export const UNMATCHED_LOG_PATHNAME = '<unmatched>'
+/**
+ * Segmento dinâmico de rota (`:vehicleId`). O roteador o usa para casar a requisição, e o log de
+ * acesso para nomear a rota que respondeu — duas leituras do mesmo padrão têm de ser uma só, ou o
+ * log passa a dizer `<unmatched>` para caminho que o roteador serviu.
+ */
+export const PATH_PARAMETER_SEGMENT_PATTERN = /^:[A-Za-z][A-Za-z0-9]*$/
 
 export const HTTP_ERROR = {
   internal: {

@@ -18,9 +18,11 @@ import {
   HTTP_ERROR,
   HTTP_GET_METHOD,
   JSON_CONTENT_TYPE,
+  PATH_PARAMETER_SEGMENT_PATTERN,
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
+import { resolveLogPathname } from './request-path.service'
 
 type RouteAuthorizationPort = {
   authorize(
@@ -121,6 +123,13 @@ export type HttpRouter = {
    */
   allowedMethods(pathname: string): readonly string[]
   handle(request: RouterRequest): Promise<Response>
+  /**
+   * Nome da rota que respondeu, para o log de acesso. Quem sabe quais rotas existem é o roteador —
+   * uma allowlist paralela de caminho literal envelhece calada e chama de `<unmatched>` rota viva.
+   * O valor devolvido é sempre um template registrado, nunca o caminho pedido: identificador e
+   * token continuam fora do log.
+   */
+  logPathname(pathname: string): string
 }
 
 const METHOD_ORDER = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
@@ -152,9 +161,13 @@ export function createRouter({
   tenantContext,
 }: CreateRouterParams): HttpRouter {
   const moduleCandidates = toModuleCandidates(moduleRouter)
+  const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
   return Object.freeze({
     allowedMethods(pathname: string): readonly string[] {
       return collectAllowedMethods({ anonymousRoutes, moduleCandidates, pathname, routes })
+    },
+    logPathname(pathname: string): string {
+      return resolveLogPathname({ pathname, templates: logTemplates })
     },
     async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
@@ -249,6 +262,34 @@ function toModuleCandidates(moduleRouter: ModuleFetchRouter | undefined): Dynami
     pathParameterFormat: 'raw' as const,
     pathname: `${NOTIFICATION_ROUTES_BASE_PATH}${route.path}`,
   }))
+}
+
+type CollectLogTemplatesParams = {
+  readonly anonymousRoutes: readonly RegisteredAnonymousRoute[]
+  readonly moduleCandidates: readonly DynamicRouteCandidate[]
+  readonly routes: readonly RegisteredRouterRoute[]
+}
+
+/**
+ * Saúde e `/auth/me` não estão em `routes` — são atendidos dentro do `handle` —, e mesmo assim
+ * precisam se nomear no log. Um caminho serve várias rotas (uma por método), e o log guarda o
+ * caminho, não o método: por isso o conjunto é deduplicado.
+ */
+function collectLogTemplates({
+  anonymousRoutes,
+  moduleCandidates,
+  routes,
+}: CollectLogTemplatesParams): readonly string[] {
+  return [
+    ...new Set([
+      API_AUTH_ME_PATH,
+      API_LIVE_PATH,
+      API_READY_PATH,
+      ...anonymousRoutes.map((route) => route.pathname),
+      ...routes.map((route) => route.pathname),
+      ...moduleCandidates.map((candidate) => candidate.pathname),
+    ]),
+  ]
 }
 
 type CollectAllowedMethodsParams = {
@@ -367,7 +408,7 @@ type PathParameterSegment = {
 
 function findParameterSegments(routeSegments: readonly string[]): readonly PathParameterSegment[] {
   return routeSegments.flatMap((segment, index) => {
-    if (!/^:[A-Za-z][A-Za-z0-9]*$/.test(segment)) return []
+    if (!PATH_PARAMETER_SEGMENT_PATTERN.test(segment)) return []
     return [{ index, name: segment.slice(1) }]
   })
 }

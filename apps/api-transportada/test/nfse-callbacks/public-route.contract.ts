@@ -156,8 +156,20 @@ describe('nfse callback public route contract', () => {
     expect(fixture.logs.length).toBeGreaterThan(0)
   })
 
-  test('o caminho do callback nunca entra na allowlist de log — o token viraria log', () => {
-    expect(resolveLogPathname(`${CALLBACK_PATH_PREFIX}/${CALLBACK_TOKEN}`)).toBe('<unmatched>')
-    expect(resolveLogPathname(API_PUBLIC_NFSE_CALLBACKS_PATH)).toBe('<unmatched>')
+  /**
+   * O log nomeia a rota pelo template, não pelo caminho pedido: `:token` diz onde a requisição bateu
+   * e o segredo continua de fora. Devolver o caminho literal é o que jamais pode acontecer.
+   */
+  test('o log nomeia o callback pelo template, e o token nunca aparece nele', () => {
+    const templates = [API_PUBLIC_NFSE_CALLBACKS_PATH]
+
+    expect(
+      resolveLogPathname({ pathname: `${CALLBACK_PATH_PREFIX}/${CALLBACK_TOKEN}`, templates }),
+    ).toBe(API_PUBLIC_NFSE_CALLBACKS_PATH)
+    expect(
+      resolveLogPathname({ pathname: `${CALLBACK_PATH_PREFIX}/${CALLBACK_TOKEN}`, templates }),
+    ).not.toContain(CALLBACK_TOKEN)
+    // Sem o segmento do token não é rota nenhuma
+    expect(resolveLogPathname({ pathname: CALLBACK_PATH_PREFIX, templates })).toBe('<unmatched>')
   })
 })

@@ -35,6 +35,7 @@ function createHarness(response: Response): Harness {
   const router: HttpRouter = {
     allowedMethods: () => ['GET'],
     handle: async () => response,
+    logPathname: (pathname) => pathname,
   }
 
   return {
