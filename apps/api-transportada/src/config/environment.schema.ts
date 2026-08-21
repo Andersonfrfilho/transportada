@@ -74,6 +74,9 @@ const environmentSchema = z.object({
       message: 'PROVISION_COMPANY_ID must be a valid UUID',
     })
     .optional(),
+  // Marca e modelo da FIPE mudam em escala de mês, daí o padrão de trinta dias. Zero desliga o
+  // cache — é a saída para depurar contra o provedor de verdade, e não contra a memória do processo.
+  FLEET_VEHICLE_CATALOG_CACHE_HOURS: z.coerce.number().int().min(0).max(8_760).default(720),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -160,7 +163,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     vehicleCatalog:
       parsed.FLEET_VEHICLE_CATALOG_URL === undefined
         ? null
-        : { url: parsed.FLEET_VEHICLE_CATALOG_URL },
+        : {
+            cacheHours: parsed.FLEET_VEHICLE_CATALOG_CACHE_HOURS,
+            url: parsed.FLEET_VEHICLE_CATALOG_URL,
+          },
   }
 }
 

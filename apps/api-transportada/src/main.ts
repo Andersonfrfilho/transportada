@@ -514,6 +514,7 @@ function createApplicationRoutes({
             fetch: (target, init) => fetch(target, init),
           }),
           logger,
+          successTtlMilliseconds: vehicleCatalog.cacheHours * 60 * 60 * 1000,
         })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
