@@ -239,15 +239,18 @@
     "diesel-s500": "Diesel S-500",
     "gasolina-comum": "Gasolina comum",
     "etanol-hidratado": "Etanol hidratado",
-    "gnv": "GNV"
+    "gnv": "GNV",
+    "eletrico": "Elétrico"
   },
   "consumptionByUnit": {
     "litre": "Consumo médio (km/l)",
-    "cubic-metre": "Consumo médio (km/m³)"
+    "cubic-metre": "Consumo médio (km/m³)",
+    "kilowatt-hour": "Consumo médio (km/kWh)"
   },
   "fuelPriceByUnit": {
     "litre": "Preço do combustível (R$/litro)",
-    "cubic-metre": "Preço do combustível (R$/m³)"
+    "cubic-metre": "Preço do combustível (R$/m³)",
+    "kilowatt-hour": "Preço da energia (R$/kWh)"
   },
   "otherCostsPerKilometer": "Outros custos por quilômetro",
   "costPerKilometer": "Custo por quilômetro",
@@ -365,9 +368,9 @@
     "title": "Preço do combustível",
     "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência da ANP; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
     "effective": "Em uso: {{price}} ({{source}}).",
-    "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência da ANP, o R$/km não é calculado para este combustível.",
+    "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência pública, o R$/km não é calculado para este combustível.",
     "reference": "Referência da ANP: {{price}} — {{state}}, semana encerrada em {{week}}.",
-    "referenceMissing": "A ANP ainda não publicou referência para este combustível.",
+    "referenceMissing": "Ainda não há referência pública publicada para este combustível.",
     "fieldLabel": "Novo preço por {{unit}}",
     "save": "Salvar preço",
     "clear": "Limpar ajuste",
@@ -376,7 +379,8 @@
     "loadError": "Não foi possível carregar os preços de combustível.",
     "unit": {
       "litre": "litro",
-      "cubic-metre": "metro cúbico"
+      "cubic-metre": "metro cúbico",
+      "kilowatt-hour": "quilowatt-hora"
     }
   },
   "currencyPrefix": "R$",

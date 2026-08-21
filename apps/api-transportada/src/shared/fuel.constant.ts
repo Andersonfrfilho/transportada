@@ -3,9 +3,13 @@
  */
 
 /**
- * Catálogo da ANP. A unidade é atributo do produto, não coluna: o GNV é vendido em metro cúbico e
- * os outros quatro em litro, e guardá-la por linha abriria a porta para duas linhas do mesmo
- * produto discordarem entre si.
+ * O que o veículo consome, com o preço publicado por unidade. Os cinco primeiros são o catálogo da
+ * ANP; `eletrico` não está na planilha dela — a tarifa de energia é da ANEEL, e enquanto ela não é
+ * coletada o preço vem do ajuste manual da empresa, como qualquer outro produto sem referência.
+ *
+ * A unidade é atributo do produto, não coluna: o GNV é vendido em metro cúbico, a energia em
+ * quilowatt-hora e os quatro líquidos em litro, e guardá-la por linha abriria a porta para duas
+ * linhas do mesmo produto discordarem entre si.
  */
 export const FUEL_TYPES = [
   { product: 'diesel-s10', unit: 'litre' },
@@ -13,6 +17,7 @@ export const FUEL_TYPES = [
   { product: 'gasolina-comum', unit: 'litre' },
   { product: 'etanol-hidratado', unit: 'litre' },
   { product: 'gnv', unit: 'cubic-metre' },
+  { product: 'eletrico', unit: 'kilowatt-hour' },
 ] as const
 
 export type FuelType = (typeof FUEL_TYPES)[number]

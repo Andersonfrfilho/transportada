@@ -139,6 +139,7 @@ describe('Drizzle migrations', () => {
       '20260821205503_fleet_driver_first_license',
       '20260821212505_addresses_postal_code_index',
       '20260821214357_fleet_driver_personal_details',
+      '20260821232908_fuel_catalog_energy',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1116,6 +1117,45 @@ describe('Drizzle migrations', () => {
     expect(migrationSql).toMatch(
       /ON "company_fiscal_profiles" \("company_id","postal_code"\);\s*(--|$)/,
     )
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * O elétrico entra nos três CHECKs de uma vez. Deixar um de fora deixaria o operador escolher o
+   * produto no veículo e ser recusado pelo banco ao gravar o preço dele, com a mesma tela.
+   */
+  test('teaches the three fuel checks the energy, each rebuilt in the statement that drops it', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fuel_catalog_energy'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    for (const [table, constraint] of [
+      ['fleet_vehicles', 'fleet_vehicles_fuel_type_check'],
+      ['fuel_price_references', 'fuel_price_references_product_check'],
+      ['company_fuel_prices', 'company_fuel_prices_product_check'],
+    ]) {
+      // O CHECK é refeito na mesma instrução que o derruba: a tabela nunca fica sem catálogo
+      expect(migrationSql).toContain(
+        `ALTER TABLE "${table}" DROP CONSTRAINT "${constraint}", ADD CONSTRAINT "${constraint}"`,
+      )
+      expect(rollbackSql).toContain(`ADD CONSTRAINT "${constraint}"`)
+    }
+    expect(migrationSql.match(/'eletrico'/g)).toHaveLength(3)
+    // O caminho de volta é o catálogo de cinco produtos da ANP, e nenhum deles é energia
+    expect(rollbackSql.match(/'eletrico'/g)).toBeNull()
+    expect(rollbackSql.match(/'gnv'/g)).toHaveLength(3)
 
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)

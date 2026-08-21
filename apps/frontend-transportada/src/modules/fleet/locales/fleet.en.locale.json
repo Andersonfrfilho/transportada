@@ -239,15 +239,18 @@
     "diesel-s500": "Diesel S-500",
     "gasolina-comum": "Regular gasoline",
     "etanol-hidratado": "Hydrous ethanol",
-    "gnv": "CNG"
+    "gnv": "CNG",
+    "eletrico": "Electric"
   },
   "consumptionByUnit": {
     "litre": "Average consumption (km/l)",
-    "cubic-metre": "Average consumption (km/m³)"
+    "cubic-metre": "Average consumption (km/m³)",
+    "kilowatt-hour": "Average consumption (km/kWh)"
   },
   "fuelPriceByUnit": {
     "litre": "Fuel price (BRL/litre)",
-    "cubic-metre": "Fuel price (BRL/m³)"
+    "cubic-metre": "Fuel price (BRL/m³)",
+    "kilowatt-hour": "Energy price (BRL/kWh)"
   },
   "otherCostsPerKilometer": "Other costs per kilometre",
   "costPerKilometer": "Cost per kilometre",
@@ -364,9 +367,9 @@
     "title": "Fuel price",
     "hint": "Cost per kilometre comes from this price divided by the vehicle's average consumption. Without an adjustment the ANP reference applies; the value typed here replaces it until cleared.",
     "effective": "In use: {{price}} ({{source}}).",
-    "unavailable": "No price in use. Without an adjustment or an ANP reference, cost per kilometre is not calculated for this fuel.",
+    "unavailable": "No price in use. Without an adjustment or a public reference, cost per kilometre is not calculated for this fuel.",
     "reference": "ANP reference: {{price}} — {{state}}, week ending {{week}}.",
-    "referenceMissing": "ANP has not published a reference for this fuel yet.",
+    "referenceMissing": "There is no published public reference for this fuel yet.",
     "fieldLabel": "New price per {{unit}}",
     "save": "Save price",
     "clear": "Clear adjustment",
@@ -375,7 +378,8 @@
     "loadError": "Could not load fuel prices.",
     "unit": {
       "litre": "litre",
-      "cubic-metre": "cubic metre"
+      "cubic-metre": "cubic metre",
+      "kilowatt-hour": "kilowatt-hour"
     }
   },
   "currencyPrefix": "R$",

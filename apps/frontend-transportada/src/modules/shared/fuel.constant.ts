@@ -3,7 +3,8 @@
 /**
  * Cópia por valor do catálogo da API: o bundle não carrega código de lá, e
  * `test/shared/fuel-catalog.contract.ts` é o que garante que os dois não divergem. A unidade é
- * atributo do produto — o GNV é vendido em metro cúbico e os outros quatro em litro.
+ * atributo do produto — o GNV é vendido em metro cúbico, a energia em quilowatt-hora e os quatro
+ * líquidos em litro.
  */
 export const FUEL_TYPES = [
   { product: 'diesel-s10', unit: 'litre' },
@@ -11,6 +12,7 @@ export const FUEL_TYPES = [
   { product: 'gasolina-comum', unit: 'litre' },
   { product: 'etanol-hidratado', unit: 'litre' },
   { product: 'gnv', unit: 'cubic-metre' },
+  { product: 'eletrico', unit: 'kilowatt-hour' },
 ] as const
 
 export type FuelType = (typeof FUEL_TYPES)[number]

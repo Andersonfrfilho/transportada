@@ -23,8 +23,9 @@ const DIESEL_REFERENCE = {
 }
 
 /**
- * O corpo carrega os cinco produtos do catálogo mesmo sem preço nenhum: a tela desenha as cinco
- * linhas sem adivinhar quais faltam, e o GNV sem referência aparece com tudo nulo em vez de sumir.
+ * O corpo carrega os seis produtos do catálogo mesmo sem preço nenhum: a tela desenha as seis
+ * linhas sem adivinhar quais faltam, e o produto sem referência publicada — o GNV, que a ANP não
+ * cobre por UF, e a energia, cuja tarifa ainda não é buscada — aparece com tudo nulo em vez de sumir.
  */
 const EXPECTED_PRICES = [
   {
@@ -79,10 +80,18 @@ const EXPECTED_PRICES = [
     unit: 'cubic-metre',
     updatedAt: null,
   },
+  {
+    effectivePricePerUnit: null,
+    product: 'eletrico',
+    reference: null,
+    source: null,
+    unit: 'kilowatt-hour',
+    updatedAt: null,
+  },
 ] as const
 
 describe('GET /company-settings/fuel-prices HTTP contract', () => {
-  test('answers the five catalog products in order, with unit, source, reference and timestamp', async () => {
+  test('answers the six catalog products in order, with unit, source, reference and timestamp', async () => {
     const fixture = await createFuelPriceHttpFixture()
 
     const response = await fixture.handle(listPricesRequest({ origin: FRONTEND_ORIGIN }))
@@ -99,7 +108,7 @@ describe('GET /company-settings/fuel-prices HTTP contract', () => {
     )
   })
 
-  test('keeps answering the five products when the company has no price at all', async () => {
+  test('keeps answering the six products when the company has no price at all', async () => {
     const fixture = await createFuelPriceHttpFixture({ adjustments: [], references: [] })
 
     const response = await fixture.handle(listPricesRequest())
@@ -112,6 +121,7 @@ describe('GET /company-settings/fuel-prices HTTP contract', () => {
       'gasolina-comum',
       'etanol-hidratado',
       'gnv',
+      'eletrico',
     ])
     expect(body.data).toEqual(
       body.data.map((entry) => ({

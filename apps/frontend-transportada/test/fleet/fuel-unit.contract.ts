@@ -66,8 +66,12 @@ describe('fleet fuel unit contract', () => {
 
     expect(readNestedLabel(pt, 'consumptionByUnit.litre')).toContain('km/l')
     expect(readNestedLabel(pt, 'consumptionByUnit.cubic-metre')).toContain('km/m³')
+    // O elétrico não tem litro nenhum: o painel do posto dele é a conta de luz, medida em kWh
+    expect(readNestedLabel(pt, 'consumptionByUnit.kilowatt-hour')).toContain('km/kWh')
     expect(readNestedLabel(pt, 'fuelPriceByUnit.litre')).toContain('litro')
     expect(readNestedLabel(pt, 'fuelPriceByUnit.cubic-metre')).toContain('m³')
+    expect(readNestedLabel(pt, 'fuelPriceByUnit.kilowatt-hour')).toContain('R$/kWh')
+    expect(readNestedLabel(pt, 'fuelPriceByUnit.kilowatt-hour')).not.toContain('litro')
     // "litro" solto no rótulo do metro cúbico é o erro que este contrato existe para pegar
     expect(readNestedLabel(pt, 'consumptionByUnit.cubic-metre')).not.toContain('km/l ')
     expect(readNestedLabel(pt, 'fuelPriceByUnit.cubic-metre')).not.toContain('litro')
