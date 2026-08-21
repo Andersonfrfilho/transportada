@@ -46,6 +46,8 @@ const RECORD: VehicleRecord = {
   plate: 'ABC1D23',
   renavam: '12345678901',
   role: 'traction',
+  secondaryAverageConsumption: '0.00',
+  secondaryFuelType: '',
   state: 'SP',
   status: 'active',
   tareWeightKg: '8000.00',

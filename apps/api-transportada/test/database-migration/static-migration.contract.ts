@@ -140,6 +140,7 @@ describe('Drizzle migrations', () => {
       '20260821212505_addresses_postal_code_index',
       '20260821214357_fleet_driver_personal_details',
       '20260821232908_fuel_catalog_energy',
+      '20260821233830_fleet_vehicle_secondary_fuel',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1156,6 +1157,54 @@ describe('Drizzle migrations', () => {
     // O caminho de volta é o catálogo de cinco produtos da ANP, e nenhum deles é energia
     expect(rollbackSql.match(/'eletrico'/g)).toBeNull()
     expect(rollbackSql.match(/'gnv'/g)).toHaveLength(3)
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * O segundo tanque é aditivo: o `ADD COLUMN` com default deixa toda ficha já gravada com um
+   * combustível só, que é o que ela sempre disse. Só o custo é refeito, e na instrução que o derruba.
+   */
+  test('adds the second tank without touching the fleet already registered', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_secondary_fuel'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain(
+      `ALTER TABLE "fleet_vehicles" ADD COLUMN "secondary_fuel_type" varchar(20) DEFAULT '' NOT NULL`,
+    )
+    expect(migrationSql).toContain(
+      `ALTER TABLE "fleet_vehicles" ADD COLUMN "secondary_average_consumption" numeric(6,2) DEFAULT '0' NOT NULL`,
+    )
+    // As duas metades do CHECK: consumo órfão de um lado, produto repetido do outro
+    expect(migrationSql).toContain(
+      'ADD CONSTRAINT "fleet_vehicles_secondary_fuel_check" CHECK (case when length("secondary_fuel_type") = 0 then "secondary_average_consumption" = 0',
+    )
+    expect(migrationSql).toContain('"secondary_fuel_type" <> "fuel_type"')
+    expect(migrationSql).toContain(
+      'ALTER TABLE "fleet_vehicles" DROP CONSTRAINT "fleet_vehicles_cost_check", ADD CONSTRAINT "fleet_vehicles_cost_check"',
+    )
+
+    // O custo volta a nomear cinco campos antes de a coluna sair; sair pela coluna levaria o CHECK inteiro
+    const restoredCostCheck = rollbackSql.indexOf('ADD CONSTRAINT "fleet_vehicles_cost_check"')
+    const droppedColumn = rollbackSql.indexOf(
+      'DROP COLUMN IF EXISTS "secondary_average_consumption"',
+    )
+    expect(restoredCostCheck).toBeGreaterThan(0)
+    expect(droppedColumn).toBeGreaterThan(restoredCostCheck)
+    expect(rollbackSql).not.toContain('"secondary_average_consumption" >= 0')
+    expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "secondary_fuel_type"')
 
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
