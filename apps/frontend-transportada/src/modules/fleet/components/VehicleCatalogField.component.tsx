@@ -11,6 +11,7 @@ import {
   VEHICLE_CATALOG_ENTRY_MODE,
   VEHICLE_CATALOG_OTHER_VALUE,
   type VehicleCatalogChoice,
+  type VehicleCatalogEntryMode,
 } from '../shared/vehicleCatalogChoices.service'
 import styles from '../styles/fleet.module.css'
 
@@ -20,6 +21,8 @@ type VehicleCatalogFieldProps = Readonly<{
   choices: readonly VehicleCatalogChoice[]
   disabled: boolean
   hint?: string
+  /** Provedor fora do ar: o que sobra na lista é a frota, e o campo não finge ser o catálogo. */
+  isCatalogUnavailable: boolean
   isLoading: boolean
   label: string
   onChange: (value: string) => void
@@ -37,23 +40,25 @@ export function VehicleCatalogField({
   choices,
   disabled,
   hint,
+  isCatalogUnavailable,
   isLoading,
   label,
   onChange,
   value,
 }: VehicleCatalogFieldProps) {
   const { t } = useTranslation('fleet')
-  const [isTyping, setIsTyping] = useState(false)
+  const [override, setOverride] = useState<VehicleCatalogEntryMode | undefined>(undefined)
   const mode = resolveVehicleCatalogEntryMode({
     choiceCount: choices.length,
+    isCatalogUnavailable,
     isDisabled: disabled,
     isLoading,
-    isTyping,
+    ...(override === undefined ? {} : { override }),
   })
 
   function handleSelect(next: string): void {
     if (next === VEHICLE_CATALOG_OTHER_VALUE) {
-      setIsTyping(true)
+      setOverride(VEHICLE_CATALOG_ENTRY_MODE.TEXT)
       onChange('')
       return
     }
@@ -61,7 +66,7 @@ export function VehicleCatalogField({
   }
 
   function handleBackToList(): void {
-    setIsTyping(false)
+    setOverride(VEHICLE_CATALOG_ENTRY_MODE.LIST)
     onChange('')
   }
 
@@ -98,7 +103,7 @@ export function VehicleCatalogField({
   }
 
   function renderFooter(): ReactNode {
-    const canReturn = isTyping && choices.length > 0
+    const canReturn = mode === VEHICLE_CATALOG_ENTRY_MODE.TEXT && choices.length > 0
     if (!canReturn && hint === undefined) return null
 
     return (
