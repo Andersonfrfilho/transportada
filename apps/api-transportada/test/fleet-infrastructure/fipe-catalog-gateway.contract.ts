@@ -136,6 +136,79 @@ describe('fipe vehicle catalog gateway contract', () => {
     expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(200)
   })
 
+  /**
+   * Defeito medido em staging: a BrasilAPI devolveu 500 duas vezes seguidas para `carros`, o rodado
+   * VAN ficou sem marca nenhuma e o operador não tinha o que escolher. O mesmo pedido respondeu 200
+   * minutos depois — era piscar do provedor, e uma tentativa só o transformava em campo vazio.
+   */
+  test('a 500 do provedor é tentado de novo, e a segunda resposta vale', async () => {
+    let attempts = 0
+    const { calls, gateway } = createGateway({
+      respond: () => {
+        attempts += 1
+        return Promise.resolve(
+          attempts === 1
+            ? new Response('boom', { status: 500 })
+            : Response.json([{ nome: 'Acura', valor: '1' }]),
+        )
+      },
+    })
+
+    const result = await gateway.listBrands(CAR)
+
+    expect(calls).toHaveLength(2)
+    expect(result).toEqual({ items: [{ label: 'Acura', value: '1' }], source: 'fipe' })
+  })
+
+  test('a falha de rede também é tentada de novo', async () => {
+    let attempts = 0
+    const { calls, gateway } = createGateway({
+      respond: () => {
+        attempts += 1
+        if (attempts === 1) return Promise.reject(new Error('socket hang up'))
+        return Promise.resolve(Response.json([{ nome: 'Acura', valor: '1' }]))
+      },
+    })
+
+    const result = await gateway.listBrands(CAR)
+
+    expect(calls).toHaveLength(2)
+    expect(result.items).toHaveLength(1)
+  })
+
+  // 429 é o provedor pedindo para parar: repetir na hora é desobedecer, e ele responde 429 de novo.
+  test('um 429 não é tentado de novo', async () => {
+    const { calls, gateway } = createGateway({
+      respond: () => Promise.resolve(new Response('slow down', { status: 429 })),
+    })
+
+    await gateway.listBrands(TRUCK).catch(() => undefined)
+
+    expect(calls).toHaveLength(1)
+  })
+
+  test('um corpo malformado não é tentado de novo — repetir devolve o mesmo corpo', async () => {
+    const { calls, gateway } = createGateway({
+      respond: () => Promise.resolve(Response.json({ mensagem: 'nada aqui' })),
+    })
+
+    await gateway.listBrands(TRUCK).catch(() => undefined)
+
+    expect(calls).toHaveLength(1)
+  })
+
+  test('desiste depois de três tentativas e propaga a falha do provedor', async () => {
+    const { calls, gateway } = createGateway({
+      respond: () => Promise.resolve(new Response('boom', { status: 503 })),
+    })
+
+    const failure = await gateway.listBrands(CAR).catch((error: unknown) => error)
+
+    expect(calls).toHaveLength(3)
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('provider_status')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(503)
+  })
+
   test('the error never carries the provider body nor the catalog url', async () => {
     const { gateway } = createGateway({
       respond: () => Promise.resolve(new Response('rate limited by cloudflare', { status: 429 })),
