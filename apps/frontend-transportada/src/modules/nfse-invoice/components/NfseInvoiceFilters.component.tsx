@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { NfseInvoiceTableController } from '../hooks/useNfseInvoiceTable.hook'
 import { NFSE_INVOICE_STATUSES } from '../shared/nfseInvoice.types'
@@ -52,7 +52,7 @@ export function NfseInvoiceFilters({ table }: NfseInvoiceFiltersProps): JSX.Elem
                 }
                 placeholder={t('filters.takerTaxIdPlaceholder')}
                 type="text"
-                value={table.filters.takerTaxId}
+                value={formatTaxId(table.filters.takerTaxId)}
               />
             </label>
             <label>

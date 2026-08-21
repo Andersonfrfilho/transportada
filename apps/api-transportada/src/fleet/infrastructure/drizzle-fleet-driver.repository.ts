@@ -15,6 +15,7 @@ import type {
   FleetDriverRepositoryPort,
 } from '../application/fleet.port.js'
 import {
+  FleetDriverLicenseNumberTakenError,
   FleetDriverMembershipTakenError,
   FleetDriverTaxIdTakenError,
 } from '../domain/fleet.error.js'
@@ -24,6 +25,7 @@ import { mapDriver, toDriverColumns } from './fleet.mapper.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const ACTIVE_MEMBERSHIP_STATUS = 'active'
+const LICENSE_NUMBER_CONSTRAINT = 'fleet_drivers_company_license_number_unique'
 const MEMBERSHIP_CONSTRAINT = 'fleet_drivers_company_membership_unique'
 const TAX_ID_CONSTRAINT = 'fleet_drivers_company_id_tax_id_unique'
 
@@ -153,6 +155,7 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     const constraint = violatedUniqueConstraint(error)
     if (constraint === TAX_ID_CONSTRAINT) throw new FleetDriverTaxIdTakenError()
     if (constraint === MEMBERSHIP_CONSTRAINT) throw new FleetDriverMembershipTakenError()
+    if (constraint === LICENSE_NUMBER_CONSTRAINT) throw new FleetDriverLicenseNumberTakenError()
     throw error
   }
 }

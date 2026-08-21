@@ -30,6 +30,7 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,

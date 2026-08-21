@@ -148,4 +148,21 @@ describe('modular router contract', () => {
     expect(notFoundError).toMatchObject({ code: 'NOT_FOUND', status: 404 })
     expect(fixture.events).toEqual(['authenticate', 'tenant', 'authenticate'])
   })
+
+  /**
+   * Quem sabe quais rotas existem é o roteador — uma allowlist paralela de caminho literal envelhece
+   * calada e devolve `<unmatched>` para rota viva. Saúde e `/auth/me` não estão em `routes`: são
+   * atendidos dentro do `handle`, e mesmo assim precisam se nomear no log.
+   */
+  test('names every route it serves for the access log, and only those', () => {
+    const fixture = createRouterFixture()
+
+    expect(fixture.router.logPathname(ROUTER_PROTECTED_PATH)).toBe(ROUTER_PROTECTED_PATH)
+    expect(fixture.router.logPathname('/health/live')).toBe('/health/live')
+    expect(fixture.router.logPathname('/health/ready')).toBe('/health/ready')
+    expect(fixture.router.logPathname('/auth/me')).toBe('/auth/me')
+    expect(fixture.router.logPathname('/unknown')).toBe('<unmatched>')
+    // Resolver o caminho para o log não custa autenticação nem consulta de tenant
+    expect(fixture.events).toEqual([])
+  })
 })

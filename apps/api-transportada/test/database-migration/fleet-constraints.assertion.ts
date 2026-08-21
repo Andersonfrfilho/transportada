@@ -121,6 +121,36 @@ export async function assertFleetConstraints(
     'fleet_drivers_company_membership_fk',
   )
 
+  // A CNH é opcional: os dois motoristas acima entraram sem habilitação e não colidiram
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, license_number)
+    values (${companyId}, 'Motorista Habilitado', '22233344455', '55566677788')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, license_number)
+      values (${companyId}, 'Motorista Com CNH Repetida', '33344455566', '55566677788')
+    `,
+    '23505',
+    'fleet_drivers_company_license_number_unique',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, postal_code)
+      values (${companyId}, 'Motorista Com CEP Torto', '44455566677', '1234-567')
+    `,
+    '23514',
+    'fleet_drivers_postal_code_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, birth_date)
+      values (${companyId}, 'Motorista Ancestral', '55566677788', '1899-12-31')
+    `,
+    '23514',
+    'fleet_drivers_dates_check',
+  )
+
   await database`
     insert into fleet_driver_vehicle_assignments (id, company_id, driver_id, vehicle_id)
     values (${assignmentId}, ${companyId}, ${driverId}, ${vehicleId})

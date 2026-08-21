@@ -130,10 +130,15 @@ describe('fleet vehicle catalog "other" contract', () => {
   /** Select com uma opção só ("Outro") é escolha falsa: sem nome nenhum o campo já abre digitável. */
   test('opens typing straight away when there is nothing to list', async () => {
     const { resolveVehicleCatalogEntryMode } = await loadChoices()
-    const listed = { choiceCount: 3, isDisabled: false, isLoading: false, isTyping: false }
+    const listed = {
+      choiceCount: 3,
+      isCatalogUnavailable: false,
+      isDisabled: false,
+      isLoading: false,
+    }
 
     expect(resolveVehicleCatalogEntryMode(listed)).toBe('list')
-    expect(resolveVehicleCatalogEntryMode({ ...listed, isTyping: true })).toBe('text')
+    expect(resolveVehicleCatalogEntryMode({ ...listed, override: 'text' })).toBe('text')
     expect(resolveVehicleCatalogEntryMode({ ...listed, choiceCount: 0 })).toBe('text')
     // Carregando e bloqueado por rodado continuam sendo lista: o motivo já está dito na tela
     expect(resolveVehicleCatalogEntryMode({ ...listed, choiceCount: 0, isLoading: true })).toBe(
@@ -142,6 +147,43 @@ describe('fleet vehicle catalog "other" contract', () => {
     expect(resolveVehicleCatalogEntryMode({ ...listed, choiceCount: 0, isDisabled: true })).toBe(
       'list',
     )
+  })
+
+  /**
+   * Defeito visto em produção: o provedor piscou, sobraram as 2 marcas já cadastradas na frota, e o
+   * campo continuou com cara de select normal — a lista curta passou por lista completa, e o aviso
+   * embaixo não desmente uma forma de controle que diz "escolha aqui".
+   */
+  test('does not dress a dead catalog as a normal list', async () => {
+    const { resolveVehicleCatalogEntryMode } = await loadChoices()
+    const degraded = {
+      choiceCount: 2,
+      isCatalogUnavailable: true,
+      isDisabled: false,
+      isLoading: false,
+    }
+
+    expect(resolveVehicleCatalogEntryMode(degraded)).toBe('text')
+    // O que a frota já tem não se perde: o operador pede a lista e ela aparece
+    expect(resolveVehicleCatalogEntryMode({ ...degraded, override: 'list' })).toBe('list')
+    // Catálogo vivo com poucas marcas continua sendo lista
+    expect(resolveVehicleCatalogEntryMode({ ...degraded, isCatalogUnavailable: false })).toBe(
+      'list',
+    )
+  })
+
+  /** A volta à lista é do modo, não do clique: sem isso o catálogo caído esconde a frota cadastrada. */
+  test('offers the fleet list back whenever the field is typing with names in hand', async () => {
+    const [field, modelFields] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/VehicleCatalogField.component.tsx'),
+      readApplicationFile('src/modules/fleet/components/VehicleModelFields.component.tsx'),
+    ])
+
+    expect(field).toContain('isCatalogUnavailable')
+    expect(field).not.toContain('isTyping')
+    expect(field).toMatch(/canReturn\s*=\s*mode === VEHICLE_CATALOG_ENTRY_MODE\.TEXT/)
+    // Os dois campos degradam juntos: marca digitável com modelo em select é meia verdade
+    expect(modelFields.match(/isCatalogUnavailable=\{hasCatalogFailure\}/g)).toHaveLength(2)
   })
 
   /**
@@ -210,9 +252,10 @@ type CatalogChoicesModule = {
   readonly resolveVehicleCatalogEntryMode: (
     input: Readonly<{
       choiceCount: number
+      isCatalogUnavailable: boolean
       isDisabled: boolean
       isLoading: boolean
-      isTyping: boolean
+      override?: string
     }>,
   ) => string
 }

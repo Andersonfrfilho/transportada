@@ -9,6 +9,12 @@ const DESIGN_SYSTEM_PREFIX = 'src/components/ui/'
 /** Glifo do próprio controle, com peso de traço maior que o de ícone de ação. */
 const CONTROL_GLYPH_PATHS: readonly string[] = ['src/components/ui/checkbox.tsx']
 
+/**
+ * Desenho cujo `d` chega como **dado** em tempo de execução — malha de município, e o que vier depois.
+ * Não pode morar em `ICON_PATHS`: não há geometria para declarar antes de a resposta chegar.
+ */
+const DATA_GEOMETRY_PATHS: readonly string[] = ['src/components/ui/vector-map.tsx']
+
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
 }
@@ -47,7 +53,7 @@ describe('design system icon contract', () => {
     expect(components.length).toBeGreaterThan(20)
   })
 
-  test('keeps the design system itself on the shared set, except the checkbox glyph', async () => {
+  test('keeps the design system itself on the shared set, except the control glyph and data geometry', async () => {
     const components = await listSourceComponents()
     const offenders: string[] = []
 
@@ -55,6 +61,7 @@ describe('design system icon contract', () => {
       if (!filePath.startsWith(DESIGN_SYSTEM_PREFIX)) continue
       if (filePath === ICON_COMPONENT_PATH) continue
       if (CONTROL_GLYPH_PATHS.includes(filePath)) continue
+      if (DATA_GEOMETRY_PATHS.includes(filePath)) continue
       const source = await readApplicationFile(filePath)
       if (source.includes('<svg')) offenders.push(filePath)
     }

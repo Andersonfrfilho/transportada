@@ -54,6 +54,8 @@ export type ApiEnvironment = {
   readonly sentryEnvironment: string
   /** Catálogo de marca/modelo FIPE; `null` desliga o recurso — campos viram texto livre. */
   readonly vehicleCatalog: {
+    /** Janela do cache em memória; `0` pede ao provedor a cada chamada. */
+    readonly cacheHours: number
     readonly url: string
   } | null
 }

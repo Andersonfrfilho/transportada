@@ -52,6 +52,7 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     costsUpdatedAt: record.costsUpdatedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     fleetNumber: record.fleetNumber,
+    freightClass: record.freightClass,
     fuelPrice,
     fuelType: record.fuelType,
     id: record.id,
@@ -113,6 +114,7 @@ export function toVehicleColumns(
     capacityM3: vehicle.capacityCubicMeters,
     color: vehicle.color,
     fleetNumber: vehicle.fleetNumber,
+    freightClass: vehicle.freightClass,
     fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: vehicle.modelYear,
@@ -135,8 +137,19 @@ export function toVehicleColumns(
 
 export function mapDriver(record: DriverRecord): FleetDriver {
   return {
+    address: {
+      city: record.city,
+      complement: record.complement,
+      district: record.district,
+      number: record.number,
+      postalCode: record.postalCode,
+      state: record.state,
+      street: record.street,
+    },
+    birthDate: record.birthDate,
     createdAt: record.createdAt.toISOString(),
     id: record.id,
+    licenseExpiresAt: record.licenseExpiresAt,
     licenseNumber: record.licenseNumber,
     linkedTaxId: record.linkedTaxId,
     membershipId: record.membershipId,
@@ -153,11 +166,20 @@ export function toDriverColumns(
   driver: FleetDriverInput,
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
+    birthDate: driver.birthDate,
+    city: driver.address.city,
+    complement: driver.address.complement,
+    district: driver.address.district,
+    licenseExpiresAt: driver.licenseExpiresAt,
     licenseNumber: driver.licenseNumber,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
     name: driver.name,
+    number: driver.address.number,
     phone: driver.phone,
+    postalCode: driver.address.postalCode,
+    state: driver.address.state,
+    street: driver.address.street,
     taxId: driver.taxId,
   }
 }

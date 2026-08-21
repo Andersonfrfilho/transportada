@@ -497,6 +497,79 @@ describe('fleet vehicles http contract', () => {
     expect(response.status).toBe(409)
     expect((await responseApiError(response)).code).toBe('FLEET_VEHICLE_VERSION_CONFLICT')
   })
+
+  /**
+   * A classe de frete é o que casa o veículo com a coluna da tabela do cliente. Ela não é o
+   * `tipoRodado`: a tabela da SEFAZ não tem VUC nem 3/4, e é justamente ali que os dois se separam.
+   */
+  test('carries the freight class through create, update and listing', async () => {
+    const vucVehicle = { ...VEHICLE, freightClass: 'vuc' } as const
+
+    const createFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
+    const createResponse = await createFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, freightClass: 'vuc' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(createResponse.status).toBe(201)
+    expect(await responseData(createResponse)).toMatchObject({ freightClass: 'vuc' })
+    expect(createFixture.createVehicleCalls[0]).toMatchObject({
+      vehicle: { freightClass: 'vuc' },
+    })
+
+    const updateFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
+    const updateResponse = await updateFixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_VEHICLE_BODY, freightClass: 'three_quarter' },
+        method: 'PATCH',
+        path: VEHICLE_PATH,
+      }),
+    )
+
+    expect(updateResponse.status).toBe(200)
+    expect(updateFixture.updateVehicleCalls[0]).toMatchObject({
+      vehicle: { freightClass: 'three_quarter' },
+    })
+
+    const listFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
+    const listResponse = await listFixture.handle(
+      jsonRequest({ method: 'GET', path: FLEET_VEHICLES_PATH }),
+    )
+
+    expect(listResponse.status).toBe(200)
+    expect(await responseData<readonly { readonly freightClass: string }[]>(listResponse)).toEqual([
+      expect.objectContaining({ freightClass: 'vuc' }),
+    ])
+  })
+
+  // Cavalo mecânico e "Outros" não têm classe no rodado: a sugestão é da tela, o vazio é legítimo
+  test('accepts an empty freight class and refuses one outside the table', async () => {
+    const blankFixture = await createFleetHttpFixture()
+    const blankResponse = await blankFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, freightClass: '' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(blankResponse.status).toBe(201)
+
+    const invalidFixture = await createFleetHttpFixture()
+    const invalidResponse = await invalidFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, freightClass: 'carreta' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(invalidResponse.status).toBe(400)
+    expect(invalidFixture.createVehicleCalls).toEqual([])
+  })
 })
 
 function bodyWithoutFuelType(): unknown {

@@ -17,6 +17,7 @@ export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-pri
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
+export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
@@ -68,6 +69,12 @@ export const SSE_CONTENT_TYPE = 'text/event-stream'
 export const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 export const INVALID_LOG_PATHNAME = '<invalid>'
 export const UNMATCHED_LOG_PATHNAME = '<unmatched>'
+/**
+ * Segmento dinâmico de rota (`:vehicleId`). O roteador o usa para casar a requisição, e o log de
+ * acesso para nomear a rota que respondeu — duas leituras do mesmo padrão têm de ser uma só, ou o
+ * log passa a dizer `<unmatched>` para caminho que o roteador serviu.
+ */
+export const PATH_PARAMETER_SEGMENT_PATTERN = /^:[A-Za-z][A-Za-z0-9]*$/
 
 export const HTTP_ERROR = {
   internal: {

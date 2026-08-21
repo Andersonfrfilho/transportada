@@ -47,6 +47,12 @@
   "maximumAmount": "Teto por CT-e (R$)",
   "validFrom": "Vigência a partir de",
   "validUntil": "Vigência até",
+  "dateField": {
+    "clear": "Limpar data",
+    "nextMonth": "Próximo mês",
+    "placeholder": "dd/mm/aaaa",
+    "previousMonth": "Mês anterior"
+  },
   "componentsLegend": "Componentes adicionais",
   "componentsEmpty": "Nenhum componente adicional neste perfil.",
   "addComponent": "Adicionar componente",

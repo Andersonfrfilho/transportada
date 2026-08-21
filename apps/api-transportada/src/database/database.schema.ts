@@ -16,6 +16,12 @@ import {
   fiscalSequences,
   idempotencyRecords,
 } from './fiscal.schema.js'
+import {
+  fleetDriverRegions,
+  freightRegionCities,
+  freightRegionDriverRates,
+  freightRegions,
+} from './freight-region.schema.js'
 import { freightCalculations, freightRules, freightRuleVersions } from './freight.schema.js'
 import {
   nfeAddresses,
@@ -97,6 +103,7 @@ export * from './company-fuel-prices.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './freight-region.schema.js'
 export * from './freight.schema.js'
 export * from './mdfe.schema.js'
 export * from './nfse.schema.js'
@@ -128,10 +135,14 @@ export const databaseSchema = {
   externalIdentities,
   fiscalSequenceReservations,
   fiscalSequences,
+  fleetDriverRegions,
   fleetDriverVehicleAssignments,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
+  freightRegionCities,
+  freightRegionDriverRates,
+  freightRegions,
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,

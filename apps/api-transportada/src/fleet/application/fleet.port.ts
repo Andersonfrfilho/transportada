@@ -10,6 +10,7 @@ import type {
   MdfeOwnerTaxRegime,
   MdfeWheelType,
 } from '../../database/fleet.schema.js'
+import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
 import type {
   EffectiveFuelPrice,
@@ -42,6 +43,7 @@ export type FleetVehicleInput = {
   readonly capacityKilograms: string
   readonly color: string
   readonly fleetNumber: string
+  readonly freightClass: '' | FreightVehicleClass
   readonly fuelType: FuelProduct
   readonly model: string
   readonly modelYear: number
@@ -96,7 +98,21 @@ export type FleetVehiclePage = {
   readonly nextCursor: string | null
 }
 
+/** Endereço opcional e parcialmente preenchível: campo em branco é ausência, não erro. */
+export type FleetDriverAddress = {
+  readonly city: string
+  readonly complement: string
+  readonly district: string
+  readonly number: string
+  readonly postalCode: string
+  readonly state: string
+  readonly street: string
+}
+
 export type FleetDriverInput = {
+  readonly address: FleetDriverAddress
+  readonly birthDate: string | null
+  readonly licenseExpiresAt: string | null
   readonly licenseNumber: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   readonly linkedTaxId: string

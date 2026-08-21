@@ -8,7 +8,10 @@ import type {
   VehicleCatalogItem,
   VehicleCatalogResult,
 } from '../application/fleet-vehicle-catalog.port.js'
-import { FleetVehicleCatalogFailedError } from '../domain/fleet.error.js'
+import {
+  FLEET_VEHICLE_CATALOG_FAILURE,
+  FleetVehicleCatalogFailedError,
+} from '../domain/fleet.error.js'
 import { resolveVehicleCatalogSegment } from '../domain/vehicle-catalog-segment.policy.js'
 
 const ACCEPT_HEADER = 'application/json'
@@ -33,8 +36,8 @@ export function createFipeVehicleCatalogGateway(dependencies: {
       if (segment === 'none') return { items: [], source: 'none' }
 
       const target = `${dependencies.configuration.url}/api/fipe/marcas/v1/${segment}`
-      const payload = await fetchJson({ fetch: dependencies.fetch, target })
-      return { items: mapBrands(payload), source: 'fipe' }
+      const entries = await fetchRecords({ fetch: dependencies.fetch, target })
+      return { items: mapBrands(entries), source: 'fipe' }
     },
 
     async listModels(input: ListVehicleCatalogModelsInput): Promise<VehicleCatalogResult> {
@@ -42,38 +45,45 @@ export function createFipeVehicleCatalogGateway(dependencies: {
       if (segment === 'none') return { items: [], source: 'none' }
 
       const target = `${dependencies.configuration.url}/api/fipe/veiculos/v1/${segment}/${input.brand}`
-      const payload = await fetchJson({ fetch: dependencies.fetch, target })
-      return { items: mapModels(payload), source: 'fipe' }
+      const entries = await fetchRecords({ fetch: dependencies.fetch, target })
+      return { items: mapModels(entries), source: 'fipe' }
     },
   }
 }
 
-function mapBrands(payload: unknown): readonly VehicleCatalogItem[] {
-  return asRecordArray(payload).map((entry) => ({
+function mapBrands(entries: readonly Record<string, unknown>[]): readonly VehicleCatalogItem[] {
+  return entries.map((entry) => ({
     label: String((entry as FipeBrand).nome ?? ''),
     value: String((entry as FipeBrand).valor ?? ''),
   }))
 }
 
-function mapModels(payload: unknown): readonly VehicleCatalogItem[] {
-  return asRecordArray(payload).map((entry) => ({
+function mapModels(entries: readonly Record<string, unknown>[]): readonly VehicleCatalogItem[] {
+  return entries.map((entry) => ({
     label: String((entry as FipeModel).modelo ?? ''),
     value: String((entry as FipeModel).valor ?? ''),
   }))
 }
 
-function asRecordArray(payload: unknown): readonly Record<string, unknown>[] {
-  if (!Array.isArray(payload)) throw new FleetVehicleCatalogFailedError()
-  return payload as readonly Record<string, unknown>[]
-}
-
-async function fetchJson(input: {
+async function fetchRecords(input: {
   readonly fetch: Fetch
   readonly target: string
-}): Promise<unknown> {
+}): Promise<readonly Record<string, unknown>[]> {
   const response = await request(input)
-  if (!response.ok) throw new FleetVehicleCatalogFailedError()
-  return readJson(response)
+  if (!response.ok) {
+    throw new FleetVehicleCatalogFailedError({
+      failure: FLEET_VEHICLE_CATALOG_FAILURE.PROVIDER_STATUS,
+      providerStatus: response.status,
+    })
+  }
+  const payload = await readJson(response)
+  if (!Array.isArray(payload)) {
+    throw new FleetVehicleCatalogFailedError({
+      failure: FLEET_VEHICLE_CATALOG_FAILURE.MALFORMED_BODY,
+      providerStatus: response.status,
+    })
+  }
+  return payload as readonly Record<string, unknown>[]
 }
 
 async function request(input: {
@@ -86,7 +96,10 @@ async function request(input: {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS),
     })
   } catch {
-    throw new FleetVehicleCatalogFailedError()
+    // Sem resposta não há código a atribuir: rede caída, DNS e o prazo estourado caem todos aqui.
+    throw new FleetVehicleCatalogFailedError({
+      failure: FLEET_VEHICLE_CATALOG_FAILURE.TRANSPORT,
+    })
   }
 }
 
@@ -94,6 +107,9 @@ async function readJson(response: Response): Promise<unknown> {
   try {
     return await response.json()
   } catch {
-    throw new FleetVehicleCatalogFailedError()
+    throw new FleetVehicleCatalogFailedError({
+      failure: FLEET_VEHICLE_CATALOG_FAILURE.MALFORMED_BODY,
+      providerStatus: response.status,
+    })
   }
 }

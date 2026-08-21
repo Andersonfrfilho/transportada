@@ -37,6 +37,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   capacityKilograms: '',
   color: '',
   fleetNumber: '',
+  freightClass: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   model: '',
   modelYear: '0',
@@ -57,6 +58,15 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
 }
 
 const EMPTY_DRIVER_FORM: FleetDriverFormState = {
+  addressCity: '',
+  addressComplement: '',
+  addressDistrict: '',
+  addressNumber: '',
+  addressPostalCode: '',
+  addressState: '',
+  addressStreet: '',
+  birthDate: '',
+  licenseExpiresAt: '',
   licenseNumber: '',
   linkedTaxId: '',
   membershipId: '',
@@ -110,6 +120,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
+    freightClass: vehicle.freightClass,
     fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
@@ -131,6 +142,15 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
 
 export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormState {
   return {
+    addressCity: driver.address.city,
+    addressComplement: driver.address.complement,
+    addressDistrict: driver.address.district,
+    addressNumber: driver.address.number,
+    addressPostalCode: driver.address.postalCode,
+    addressState: driver.address.state,
+    addressStreet: driver.address.street,
+    birthDate: driver.birthDate ?? '',
+    licenseExpiresAt: driver.licenseExpiresAt ?? '',
     licenseNumber: driver.licenseNumber,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId ?? '',
@@ -209,6 +229,8 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     brand: state.brand,
     color: state.color,
     fleetNumber: state.fleetNumber,
+    // A classe é do veículo que traciona: implemento não puxa frete, e guardá-la nele mente na tabela
+    freightClass: state.role === TRACTION_ROLE ? state.freightClass : '',
     fuelType: state.fuelType,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
@@ -234,6 +256,17 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
 
 export function toDriverBody(state: FleetDriverFormState): FleetDriverBody {
   return {
+    address: {
+      city: state.addressCity,
+      complement: state.addressComplement,
+      district: state.addressDistrict,
+      number: state.addressNumber,
+      postalCode: normalizeDigits(state.addressPostalCode),
+      state: state.addressState.toUpperCase(),
+      street: state.addressStreet,
+    },
+    birthDate: state.birthDate === '' ? null : state.birthDate,
+    licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
     licenseNumber: normalizeDigits(state.licenseNumber),
     linkedTaxId: normalizeTaxId(state.linkedTaxId),
     membershipId: state.membershipId === '' ? null : state.membershipId,

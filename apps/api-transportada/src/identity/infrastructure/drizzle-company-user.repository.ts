@@ -21,6 +21,7 @@ import type {
   CompanyUserRecord,
   CompanyUserRepositoryPort,
   CreateInvitedUserInput,
+  CreateInvitedUserResult,
   ListCompanyUsersInput,
   UpdateCompanyUserProfileInput,
 } from '../application/company-user.port.js'
@@ -54,7 +55,8 @@ const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   public constructor(private readonly database: Database) {}
 
-  public async createInvitedUser(input: CreateInvitedUserInput): Promise<void> {
+  public async createInvitedUser(input: CreateInvitedUserInput): Promise<CreateInvitedUserResult> {
+    const membershipId = crypto.randomUUID()
     await this.database.transaction(async (transaction) => {
       await transaction.insert(identityUsers).values({ id: input.userId, status: 'active' })
       await transaction.insert(externalIdentities).values({
@@ -65,7 +67,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       })
       await transaction.insert(userCompanyMemberships).values({
         companyId: input.companyId,
-        id: crypto.randomUUID(),
+        id: membershipId,
         status: 'active',
         userId: input.userId,
       })
@@ -77,6 +79,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         username: input.username,
       })
     })
+    return { membershipId }
   }
 
   public async findByUserId(input: {
@@ -342,6 +345,7 @@ function toRecord(
   return {
     contactAddress: row.contactAddress,
     contactChannel: row.contactChannel,
+    membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
     name: row.name,
     pendingInvitation: expiresAt === undefined ? undefined : { expiresAt },

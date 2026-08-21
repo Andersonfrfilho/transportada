@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { FreightVehicleClass } from '../../shared/freightClass.constant'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
 /** A origem do preço efetivo: a série pública da ANP ou o ajuste da própria transportadora. */
 export const FLEET_FUEL_PRICE_SOURCE = ['anp', 'manual'] as const
@@ -92,6 +94,15 @@ export type BrazilState = (typeof BRAZIL_STATE)[number]
 export const FLEET_DRIVER_STATUS = ['active', 'inactive'] as const
 export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUS)[number]
 
+/**
+ * Campo de lista fechada que precisa de saída: `list` escolhe da lista, `text` digita. Catálogo de
+ * veículo e município compartilham o vocabulário — dois nomes para o mesmo par abriria a porta para
+ * um lado chamar de `manual` o que o outro chama de `text`.
+ */
+export const FLEET_FIELD_ENTRY_MODE = { LIST: 'list', TEXT: 'text' } as const
+export type FleetFieldEntryMode =
+  (typeof FLEET_FIELD_ENTRY_MODE)[keyof typeof FLEET_FIELD_ENTRY_MODE]
+
 export type FleetVehicleOwner = Readonly<{
   name: string
   rntrc: string
@@ -141,6 +152,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    /** Vazio é legítimo: cavalo mecânico e implemento não estão na tabela de frete do cliente. */
+    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: number
@@ -207,7 +220,21 @@ export type FleetVehicleCatalogBrandsInput = Readonly<{
 export type FleetVehicleCatalogModelsInput = FleetVehicleCatalogBrandsInput &
   Readonly<{ brand: string }>
 
+/** Endereço parcial é cadastro em andamento: cada campo vazio é ausência, não erro. */
+export type FleetDriverAddress = Readonly<{
+  city: string
+  complement: string
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
 export type FleetDriverBody = Readonly<{
+  address: FleetDriverAddress
+  birthDate: null | string
+  licenseExpiresAt: null | string
   licenseNumber: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   linkedTaxId: string
@@ -241,6 +268,13 @@ export type FleetReplaceDriverVehiclesInput = Readonly<{
   vehicleIds: readonly string[]
 }>
 
+export type FleetDriverRegionsInput = Readonly<{ driverId: string }>
+
+export type FleetReplaceDriverRegionsInput = Readonly<{
+  driverId: string
+  entries: readonly FleetDriverCoverageEntry[]
+}>
+
 export type FleetDriverVersionInput = Readonly<{
   driverId: string
   expectedVersion: string
@@ -266,6 +300,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     capacityKilograms: string
     color: '' | VehicleColor
     fleetNumber: string
+    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: string
@@ -283,7 +318,17 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     wheelType: '' | MdfeWheelType
   }>
 
+/** Datas viajam como string vazia no formulário: `null` é o que o corpo da API recebe. */
 export type FleetDriverFormState = Readonly<{
+  addressCity: string
+  addressComplement: string
+  addressDistrict: string
+  addressNumber: string
+  addressPostalCode: string
+  addressState: string
+  addressStreet: string
+  birthDate: string
+  licenseExpiresAt: string
   licenseNumber: string
   linkedTaxId: string
   membershipId: string

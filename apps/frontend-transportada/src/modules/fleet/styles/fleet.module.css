@@ -170,6 +170,14 @@
   }
 }
 
+/* As seis classes são a fileira da tabela impressa: quanto mais couber lado a lado, mais a tela
+   parece com o papel que o operador confere. */
+@media (min-width: 60rem) {
+  .rateGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .fieldGrid label,
 .filterBar label,
 .plateRow label,
@@ -513,6 +521,37 @@
   font-size: 0.7rem;
 }
 
+.addressSuggestionList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.addressSuggestionList button {
+  width: 100%;
+  min-height: var(--control-height-compact);
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size-compact);
+  text-align: left;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  cursor: pointer;
+}
+
+.addressSuggestionList button:hover {
+  border-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
+}
+
+.addressSuggestionList button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
 .formActions {
   display: flex;
   flex-wrap: wrap;
@@ -726,6 +765,13 @@
   font-size: 0.78rem;
 }
 
+.panelHint {
+  margin: 0;
+  max-width: 60ch;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.85rem;
+}
+
 .filterPanel {
   display: grid;
   gap: var(--space-3);
@@ -827,6 +873,56 @@
   border-right: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
 }
 
+.driverDialogOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.driverDialog {
+  display: grid;
+  gap: var(--space-5);
+  width: min(48rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.driverDialogHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.driverDialogHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+@media (width <= 40rem) {
+  .driverDialogOverlay {
+    padding: 0;
+  }
+
+  .driverDialog {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border: none;
+  }
+}
+
 .moneyField input {
   flex: 1;
   min-width: 0;
@@ -838,4 +934,195 @@
   font-size: var(--field-font-size);
   text-align: right;
   background: none;
+}
+
+.cityPasteField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.cityPasteField textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  resize: vertical;
+}
+
+.cityPasteField textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.cityPasteActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cityUnmatched {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 32%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.cityUnmatched strong {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cityUnmatched ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 0.85rem;
+}
+
+.importField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.importField input[type='file'] {
+  width: 100%;
+  min-width: 0;
+  padding: var(--field-padding);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 42%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.importField input[type='file']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.importSummary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.importSummary strong {
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.importSummary ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 0.85rem;
+}
+
+.mapPanel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.mapPanel h3 {
+  margin: 0;
+  color: var(--color-fog);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* O desenho é largo, e o estado alto (Bahia, Minas) estouraria a dobra sem um teto de altura. */
+.mapDrawing {
+  max-height: 26rem;
+}
+
+.mapLegend {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.mapLegend strong {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mapLegend ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.mapLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * A cor da zona é atributo, não estilo em linha: o `data-zone` casa com o mesmo token que pinta o
+ * polígono, e a legenda não pode divergir do desenho por descuido de uma das duas listas.
+ */
+.mapLegendSwatch {
+  display: inline-block;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  border-radius: var(--space-1);
+}
+
+.mapLegendSwatch[data-zone='0'] {
+  background: var(--color-zone-0);
+}
+
+.mapLegendSwatch[data-zone='1'] {
+  background: var(--color-zone-1);
+}
+
+.mapLegendSwatch[data-zone='2'] {
+  background: var(--color-zone-2);
+}
+
+.mapLegendSwatch[data-zone='3'] {
+  background: var(--color-zone-3);
+}
+
+.mapLegendSwatch[data-zone='4'] {
+  background: var(--color-zone-4);
+}
+
+.mapLegendSwatch[data-zone='unassigned'] {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  background: var(--color-asphalt);
 }

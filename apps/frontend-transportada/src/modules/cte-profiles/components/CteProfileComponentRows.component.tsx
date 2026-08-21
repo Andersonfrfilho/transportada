@@ -11,7 +11,7 @@ import {
   type ProfileFormState,
 } from '../shared/cteProfilesForm.service'
 import styles from '../styles/cteProfiles.module.css'
-import { ProfileField, ProfileSelectField } from './ProfileField.component'
+import { ProfileDateField, ProfileField, ProfileSelectField } from './ProfileField.component'
 
 type CteProfileComponentRowsProps = Readonly<{
   components: readonly ComponentFormRow[]
@@ -69,15 +69,13 @@ export function CteProfileComponentRows({ components, onChange }: CteProfileComp
                 onChange={(rate) => replaceRow(index, { rate })}
               />
             )}
-            <ProfileField
+            <ProfileDateField
               label={t('validFrom')}
-              type="date"
               value={row.validFrom}
               onChange={(validFrom) => replaceRow(index, { validFrom })}
             />
-            <ProfileField
+            <ProfileDateField
               label={t('validUntil')}
-              type="date"
               value={row.validUntil}
               onChange={(validUntil) => replaceRow(index, { validUntil })}
             />

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { ProfileFormState } from '../shared/cteProfilesForm.service'
 import styles from '../styles/cteProfiles.module.css'
-import { ProfileField } from './ProfileField.component'
+import { ProfileDateField, ProfileField } from './ProfileField.component'
 
 type CteProfileChargeFieldsProps = Readonly<{
   onChange: (patch: Partial<ProfileFormState>) => void
@@ -42,15 +42,13 @@ export function CteProfileChargeFields({ onChange, state }: CteProfileChargeFiel
           value={state.maximumAmount}
           onChange={(maximumAmount) => onChange({ maximumAmount })}
         />
-        <ProfileField
+        <ProfileDateField
           label={t('validFrom')}
-          type="date"
           value={state.validFrom}
           onChange={(validFrom) => onChange({ validFrom })}
         />
-        <ProfileField
+        <ProfileDateField
           label={t('validUntil')}
-          type="date"
           value={state.validUntil}
           onChange={(validUntil) => onChange({ validUntil })}
         />

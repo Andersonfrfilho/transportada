@@ -5,6 +5,7 @@ import { describe, expect } from 'bun:test'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
+import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
@@ -74,6 +75,7 @@ describe('Drizzle migration integration', () => {
         await assertInvitationConstraints(database, identityFixture)
         await assertFiscalConstraints(database, identityFixture)
         const fleetFixture = await assertFleetConstraints(database, identityFixture)
+        await assertFreightRegionConstraints(database, identityFixture, fleetFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
         await assertTripConstraints(database, identityFixture, fleetFixture)
         await assertRntrcRollbackRefusesNinePositions({

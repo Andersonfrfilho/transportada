@@ -140,7 +140,7 @@ type CompanyUserRepositoryFakeOptions = {
 export type CompanyUserRepositoryFake = {
   readonly removeMembershipCalls: { readonly userId: string }[]
   readonly setMembershipStatusCalls: { readonly status: MembershipStatus }[]
-  createInvitedUser(input: Record<string, unknown>): Promise<void>
+  createInvitedUser(input: Record<string, unknown>): Promise<{ readonly membershipId: string }>
   findByUserId(input: { readonly userId: string }): Promise<CompanyUserRecord | undefined>
   findIdentitySubject(input: { readonly userId: string }): Promise<string | undefined>
   listActiveMembershipCompanyIds(input: { readonly userId: string }): Promise<readonly string[]>
@@ -160,11 +160,14 @@ export function createCompanyUserRepositoryFake(
   return {
     removeMembershipCalls,
     setMembershipStatusCalls,
-    async createInvitedUser() {},
+    createInvitedUser() {
+      return Promise.resolve({ membershipId: 'vinculo-de-teste' })
+    },
     async findByUserId({ userId }) {
       return {
         contactAddress: 'pessoa@empresa.test',
         contactChannel: channel,
+        membershipId: 'vinculo-de-teste',
         membershipStatus: options.membershipStatus ?? 'active',
         name: 'Pessoa de Teste',
         pendingInvitation: undefined,

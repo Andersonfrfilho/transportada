@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { CTE_PROFILE_MATCH_ROLE, type CteProfileMatcher } from '../shared/cteProfiles.types'
 import type { ProfileFormState } from '../shared/cteProfilesForm.service'
@@ -44,8 +44,8 @@ export function CteProfileMatcherFields({ matchers, onChange }: CteProfileMatche
             />
             <ProfileField
               label={t('taxId')}
-              maxLength={14}
-              value={matcher.taxId}
+              maxLength={18}
+              value={formatTaxId(matcher.taxId)}
               onChange={(taxId) => replaceMatcher(index, { taxId: normalizeTaxId(taxId) })}
             />
           </div>

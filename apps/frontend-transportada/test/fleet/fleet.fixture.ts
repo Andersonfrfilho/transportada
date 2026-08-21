@@ -55,6 +55,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     capacityKilograms: string
     color: string
     fleetNumber: string
+    freightClass: '' | 'three_quarter' | 'toco' | 'truck' | 'utility' | 'van' | 'vuc'
     fuelType: FleetVehicleFuelProductContract
     model: string
     modelYear: number
@@ -82,7 +83,20 @@ export type FleetVehicleDetailContract = FleetVehicleBodyContract &
     version: string
   }>
 
+export type FleetDriverAddressContract = Readonly<{
+  city: string
+  complement: string
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
 export type FleetDriverBodyContract = Readonly<{
+  address: FleetDriverAddressContract
+  birthDate: null | string
+  licenseExpiresAt: null | string
   licenseNumber: string
   linkedTaxId: string
   membershipId: null | string
@@ -147,6 +161,7 @@ export const VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: 'branca',
   fleetNumber: '101',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: 'Modelo Sintetico',
   modelYear: 2020,
@@ -174,7 +189,31 @@ export const AGGREGATE_VEHICLE_BODY = {
 
 export const LINKED_COMPANY_TAX_ID = '12345678000195'
 
+/** Endereço em branco é legítimo: a API exige o objeto, não o conteúdo. */
+export const DRIVER_ADDRESS_DRAFT = {
+  city: '',
+  complement: '',
+  district: '',
+  number: '',
+  postalCode: '',
+  state: '',
+  street: '',
+} as const satisfies FleetDriverAddressContract
+
+export const DRIVER_ADDRESS = {
+  city: 'Sao Paulo',
+  complement: 'Apto 42',
+  district: 'Centro',
+  number: '1000',
+  postalCode: '01310930',
+  state: 'SP',
+  street: 'Avenida Paulista',
+} as const satisfies FleetDriverAddressContract
+
 export const DRIVER_BODY = {
+  address: DRIVER_ADDRESS,
+  birthDate: '1985-04-12',
+  licenseExpiresAt: '2030-04-12',
   licenseNumber: '12345678901',
   linkedTaxId: '',
   membershipId: null,
@@ -297,6 +336,7 @@ export const VEHICLE_DRAFT_BODY = {
   capacityKilograms: '0.00',
   color: '',
   fleetNumber: '',
+  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
@@ -331,6 +371,9 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
 } as const satisfies FleetVehicleDetailContract
 
 export const DRIVER_DRAFT_BODY = {
+  address: DRIVER_ADDRESS_DRAFT,
+  birthDate: null,
+  licenseExpiresAt: null,
   licenseNumber: '',
   linkedTaxId: '',
   membershipId: null,

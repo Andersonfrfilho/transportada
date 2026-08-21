@@ -3,7 +3,21 @@ import { expect, test } from 'bun:test'
 import { readdir } from 'node:fs/promises'
 
 export const databaseUrl = process.env.DRIZZLE_TEST_DATABASE_URL
-export const testWithPostgres = databaseUrl === undefined ? test.skip : test
+
+/**
+ * Cada teste com Postgres cria um banco descartável e reaplica a pasta `drizzle/` inteira, hoje com
+ * mais de setenta migrations. No padrão de 5s do bun o gate passava ou falhava pela carga da máquina,
+ * não pelo código: `db:test` roda seis arquivos, e o quarto teste do resolvedor de destinatário
+ * estourava sozinho. O teto sobe com a quantidade de migrations — a folga é deliberada.
+ */
+const POSTGRES_TEST_TIMEOUT_MS = 60_000
+
+type PostgresTest = (name: string, body: () => Promise<void> | void, timeout?: number) => void
+
+export const testWithPostgres: PostgresTest =
+  databaseUrl === undefined
+    ? (name, body) => test.skip(name, body)
+    : (name, body, timeout = POSTGRES_TEST_TIMEOUT_MS) => test(name, body, timeout)
 export const migrationsDirectory = new URL('../../drizzle/', import.meta.url)
 export const DESTRUCTIVE_MIGRATION_PATTERN =
   /^\s*(drop|delete|truncate)\b|^\s*alter\s+table\b[^;]*\bdrop\b/im
@@ -27,6 +41,9 @@ export const FISCAL_TABLES = [
 
 export const FREIGHT_TABLES = [
   'freight_calculations',
+  'freight_region_cities',
+  'freight_region_driver_rates',
+  'freight_regions',
   'freight_rule_versions',
   'freight_rules',
 ] as const
@@ -82,6 +99,7 @@ export const OPERATIONS_TABLES = ['processing_jobs'] as const
 export const FLEET_TABLES = [
   'fleet_vehicles',
   'fleet_drivers',
+  'fleet_driver_regions',
   'fleet_driver_vehicle_assignments',
 ] as const
 

@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FleetVehicleCatalogOption, FleetVehicleDetail } from './fleet.types'
+import {
+  FLEET_FIELD_ENTRY_MODE,
+  type FleetFieldEntryMode,
+  type FleetVehicleCatalogOption,
+  type FleetVehicleDetail,
+} from './fleet.types'
 
 export type VehicleCatalogChoice = Readonly<{ label: string; value: string }>
 
@@ -9,10 +14,9 @@ export type VehicleCatalogChoice = Readonly<{ label: string; value: string }>
  */
 export const VEHICLE_CATALOG_OTHER_VALUE = '__outro__'
 
-export const VEHICLE_CATALOG_ENTRY_MODE = { LIST: 'list', TEXT: 'text' } as const
+export const VEHICLE_CATALOG_ENTRY_MODE = FLEET_FIELD_ENTRY_MODE
 
-export type VehicleCatalogEntryMode =
-  (typeof VEHICLE_CATALOG_ENTRY_MODE)[keyof typeof VEHICLE_CATALOG_ENTRY_MODE]
+export type VehicleCatalogEntryMode = FleetFieldEntryMode
 
 const WHITESPACE_PATTERN = /\s+/g
 
@@ -68,19 +72,26 @@ export function buildVehicleCatalogChoices(
  * Lista vazia não é escolha: sem nome no catálogo e sem nome na frota o campo já abre digitável, em
  * vez de oferecer um select com a opção "Outro" sozinha. Carregando e bloqueado por rodado seguem
  * como lista — o motivo de estarem vazios já está dito ao lado do campo.
+ *
+ * Catálogo caído também abre digitável, mesmo com nome em mão: o que sobra são as marcas já
+ * cadastradas na frota, e um select de duas linhas passa por lista completa — o aviso embaixo não
+ * desmente a forma do controle. A lista continua a um clique pelo `override`.
  */
 export function resolveVehicleCatalogEntryMode(
   input: Readonly<{
     choiceCount: number
+    isCatalogUnavailable: boolean
     isDisabled: boolean
     isLoading: boolean
-    isTyping: boolean
+    /** Escolha explícita do operador; vence a forma que a tela escolheria sozinha. */
+    override?: VehicleCatalogEntryMode
   }>,
 ): VehicleCatalogEntryMode {
   const { LIST, TEXT } = VEHICLE_CATALOG_ENTRY_MODE
   if (input.isLoading || input.isDisabled) return LIST
-  if (input.isTyping) return TEXT
-  return input.choiceCount === 0 ? TEXT : LIST
+  if (input.override !== undefined) return input.override
+  if (input.choiceCount === 0 || input.isCatalogUnavailable) return TEXT
+  return LIST
 }
 
 /** A primeira grafia manda: ela é a do catálogo, ou a mais antiga da frota. */

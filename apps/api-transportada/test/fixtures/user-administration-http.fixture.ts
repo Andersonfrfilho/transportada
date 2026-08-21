@@ -65,10 +65,13 @@ export const UPDATE_PROFILE_BODY = {
 
 export const CHANGE_STATUS_BODY = { status: 'suspended' } as const
 
+export const TARGET_MEMBERSHIP_ID = '5b1a4a1e-1a0c-4f4a-9d1a-2f0c7d3b5e11'
+
 export const COMPANY_USER = {
   contact: { channel: 'email', masked: 'c***@e***.test' },
   id: TARGET_USER_ID,
   invitation: { expiresAt: '2026-08-06T12:00:00.000Z', status: 'pending' },
+  membershipId: TARGET_MEMBERSHIP_ID,
   name: 'Pessoa Convidada',
   roles: ['fiscal'],
   status: 'invited',

@@ -285,10 +285,10 @@ describe('alphanumeric cnpj field contract', () => {
     ['../../src/modules/fleet/components/DriverForm.component.tsx', 'driverLinkedTaxId'],
     ['../../src/modules/fleet/components/VehicleOwnerFields.component.tsx', 'ownerTaxId'],
     ['../../src/modules/cte-profiles/components/CteProfileMatcherFields.component.tsx', 'taxId'],
-  ])('%s mantém o limite de catorze e libera a letra', async (path, labelKey) => {
+  ])('%s mantém o limite mascarado e libera a letra', async (path, labelKey) => {
     const element = fieldElement(await readSource(path), labelKey)
 
-    expect(element).toContain('maxLength={14}')
+    expect(element).toContain('maxLength={18}')
     expect(element).not.toContain('inputMode="numeric"')
   })
 

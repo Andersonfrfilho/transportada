@@ -106,6 +106,7 @@ export function VehicleModelFields({
         <VehicleCatalogField
           choices={brandChoices}
           disabled={isBlocked}
+          isCatalogUnavailable={hasCatalogFailure}
           isLoading={isListing && brandsQuery.isLoading}
           key={`${state.role}:${state.wheelType}`}
           label={t('brand')}
@@ -116,6 +117,7 @@ export function VehicleModelFields({
         <VehicleCatalogField
           choices={modelChoices}
           disabled={isBlocked || state.brand === ''}
+          isCatalogUnavailable={hasCatalogFailure}
           isLoading={isListing && state.brand !== '' && modelsQuery.isLoading}
           key={state.brand}
           label={t('model')}

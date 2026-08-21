@@ -41,6 +41,7 @@ describe('fleet vehicle schema', () => {
       'wheel_type',
       'body_type',
       'axle_count',
+      'freight_class',
       'state',
       'ownership',
       'owner_tax_id',

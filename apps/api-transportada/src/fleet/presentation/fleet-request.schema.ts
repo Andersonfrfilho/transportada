@@ -13,6 +13,7 @@ import {
   MDFE_WHEEL_TYPES,
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
+import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
 import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
@@ -23,6 +24,13 @@ const AXLE_COUNT_MIN = 2
 const CONSUMPTION_DECIMAL = /^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{2})$/
 const COST_PER_KILOMETER_DECIMAL = /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{4})$/
 const CPF = /^[0-9]{11}$/
+const DATE_LENGTH = 10
+const DRIVER_ADDRESS_NUMBER_MAX_LENGTH = 20
+const DRIVER_CITY_MAX_LENGTH = 60
+const DRIVER_COMPLEMENT_MAX_LENGTH = 60
+const DRIVER_DISTRICT_MAX_LENGTH = 60
+const DRIVER_STREET_MAX_LENGTH = 120
+const POSTAL_CODE = /^[0-9]{8}$/
 const MEASURE_DECIMAL = /^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{2})$/
 const MODEL_YEAR_MAX = 2100
 const MODEL_YEAR_MIN = 1900
@@ -47,6 +55,19 @@ const FUEL_PRODUCTS_TUPLE = FUEL_TYPES.map(({ product }) => product) as [
 ]
 
 const optionalDigits = (pattern: RegExp) => z.literal('').or(z.string().regex(pattern))
+
+/** Data ausente é `null`: coluna `date` não tem string vazia como o `text` dos campos opcionais. */
+const optionalDate = () => z.iso.date().nullable()
+
+const optionalPastDate = () =>
+  optionalDate().refine(
+    (value) => value === null || value <= today(),
+    'date must not be in the future',
+  )
+
+function today(): string {
+  return new Date().toISOString().slice(0, DATE_LENGTH)
+}
 
 const optionalRangedInteger = (min: number, max: number) =>
   z
@@ -76,6 +97,8 @@ const vehicleFieldsSchema = z.object({
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
+  // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
+  freightClass: z.literal('').or(z.enum(FREIGHT_VEHICLE_CLASSES)),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
@@ -91,7 +114,23 @@ const vehicleFieldsSchema = z.object({
   wheelType: z.literal('').or(z.enum(MDFE_WHEEL_TYPES)),
 })
 
+const driverAddressSchema = z
+  .object({
+    city: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
+    complement: z.string().trim().max(DRIVER_COMPLEMENT_MAX_LENGTH),
+    district: z.string().trim().max(DRIVER_DISTRICT_MAX_LENGTH),
+    number: z.string().trim().max(DRIVER_ADDRESS_NUMBER_MAX_LENGTH),
+    postalCode: optionalDigits(POSTAL_CODE),
+    state: z.literal('').or(z.string().regex(STATE)),
+    street: z.string().trim().max(DRIVER_STREET_MAX_LENGTH),
+  })
+  .strict()
+
 const driverFieldsSchema = z.object({
+  address: driverAddressSchema,
+  // Teto no Zod, e não em CHECK: `current_date` é função volátil e quebraria o restore do dump
+  birthDate: optionalPastDate(),
+  licenseExpiresAt: optionalDate(),
   licenseNumber: optionalDigits(CPF),
   linkedTaxId: buildOptionalTaxIdSchema(CNPJ_PATTERN),
   membershipId: z.uuid().nullable(),

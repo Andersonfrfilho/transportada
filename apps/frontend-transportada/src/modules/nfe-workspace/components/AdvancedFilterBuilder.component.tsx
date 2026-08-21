@@ -2,6 +2,7 @@
 import { Fragment, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DatePicker } from '@/components/ui/date-picker'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
@@ -150,14 +151,14 @@ export function AdvancedFilterBuilder({
         )
       }
       return (
-        <input
-          aria-label={t('documents.builder.value')}
-          className={styles.filterInput}
-          onChange={(event) =>
-            onUpdateCondition(group.id, condition.id, { value: event.target.value })
-          }
-          type="date"
+        <DatePicker
+          ariaLabel={t('documents.builder.value')}
+          clearLabel={t('documents.clearAll')}
+          nextMonthLabel={t('documents.nextMonth')}
+          placeholder={t('documents.datePlaceholder')}
+          previousMonthLabel={t('documents.previousMonth')}
           value={condition.value}
+          onChange={(value) => onUpdateCondition(group.id, condition.id, { value })}
         />
       )
     }

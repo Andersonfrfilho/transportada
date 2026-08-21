@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
 import { maskTypedAmount, maskTypedMeasure } from '@/modules/shared/decimalAmount.service'
 
@@ -11,6 +12,14 @@ type FleetFieldProps = Readonly<{
   inputMode?: 'numeric' | 'text'
   label: string
   maxLength?: number
+  onChange: (value: string) => void
+  optional?: boolean
+  value: string
+}>
+
+type FleetDateFieldProps = Readonly<{
+  hint?: string
+  label: string
   onChange: (value: string) => void
   optional?: boolean
   value: string
@@ -64,6 +73,38 @@ export function FleetField({
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+      />
+      {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
+    </label>
+  )
+}
+
+/**
+ * Data é calendário, não campo de data nativo: o nativo muda de forma em cada navegador e
+ * ignora os tokens do produto.
+ */
+export function FleetDateField({
+  hint,
+  label,
+  onChange,
+  optional = false,
+  value,
+}: FleetDateFieldProps) {
+  const { t } = useTranslation('fleet')
+  return (
+    <label>
+      <span>
+        {label}
+        {optional ? <em className={styles.optionalMark}>{t('optionalMark')}</em> : null}
+      </span>
+      <DatePicker
+        ariaLabel={label}
+        clearLabel={t('dateField.clear')}
+        nextMonthLabel={t('dateField.nextMonth')}
+        placeholder={t('dateField.placeholder')}
+        previousMonthLabel={t('dateField.previousMonth')}
+        value={value}
+        onChange={onChange}
       />
       {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>

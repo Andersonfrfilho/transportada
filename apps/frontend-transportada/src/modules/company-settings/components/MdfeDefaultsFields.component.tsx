@@ -2,7 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatCnpj, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 import styles from '../styles/companySettings.module.css'
@@ -19,7 +19,7 @@ const BANK_BRANCH_MAX_LENGTH = 10
 const BANK_CODE_MAX_LENGTH = 3
 const INSURANCE_POLICY_MAX_LENGTH = 20
 const INSURER_NAME_MAX_LENGTH = 60
-const INSURER_TAX_ID_MAX_LENGTH = 14
+const INSURER_TAX_ID_MAX_LENGTH = 18
 const PIX_KEY_MAX_LENGTH = 77
 const RESPONSIBILITY_OPTIONS = ['', '1', '2'] as const
 
@@ -66,7 +66,7 @@ export function MdfeDefaultsFields({ disabled, mdfe, onChange }: MdfeDefaultsFie
           <input
             maxLength={INSURER_TAX_ID_MAX_LENGTH}
             type="text"
-            value={mdfe.insurerTaxId}
+            value={formatCnpj(mdfe.insurerTaxId)}
             onChange={(event) =>
               onChange({ ...mdfe, insurerTaxId: normalizeTaxId(event.target.value) })
             }

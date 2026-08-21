@@ -231,8 +231,11 @@ function pageResponse(data: readonly object[], nextCursor: string | null): Respo
 
 function serializeDriver(driver: FleetDriver): object {
   return {
+    address: driver.address,
+    birthDate: driver.birthDate,
     createdAt: driver.createdAt,
     id: driver.id,
+    licenseExpiresAt: driver.licenseExpiresAt,
     licenseNumber: driver.licenseNumber,
     linkedTaxId: driver.linkedTaxId,
     membershipId: driver.membershipId,
@@ -272,6 +275,7 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     costsUpdatedAt: vehicle.costsUpdatedAt,
     createdAt: vehicle.createdAt,
     fleetNumber: vehicle.fleetNumber,
+    freightClass: vehicle.freightClass,
     fuelPrice: vehicle.fuelPrice === null ? null : { ...vehicle.fuelPrice },
     fuelType: vehicle.fuelType,
     id: vehicle.id,

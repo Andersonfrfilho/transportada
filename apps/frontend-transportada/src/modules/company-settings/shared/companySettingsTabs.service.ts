@@ -7,6 +7,7 @@ export const SETTINGS_PANELS = [
   'scheduledDistribution',
   'distributionCursor',
   'fuelPrices',
+  'freightRegions',
   'nfseCredential',
   'nfseProfiles',
 ] as const
@@ -25,6 +26,7 @@ export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 export type SettingsDataSource =
   | 'companySettings'
   | 'distributionCursor'
+  | 'freightRegions'
   | 'fuelPrices'
   | 'nfse'
   | 'scheduledDistribution'
@@ -50,6 +52,7 @@ export type SettingsPanelPlacement = Readonly<{
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
+  freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
   nfseCredential: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
@@ -98,6 +101,7 @@ export function resolveSettingsDataScope(
   return {
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     distributionCursor: sources.has('distributionCursor'),
+    freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
     nfse: sources.has('nfse'),
     scheduledDistribution: sources.has('scheduledDistribution'),

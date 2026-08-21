@@ -8,6 +8,8 @@ import { Icon } from '@/components/ui/icon'
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
 import type {
+  FleetDriverBody,
+  FleetDriverDetail,
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleVersionInput,
@@ -22,8 +24,10 @@ import { VehicleOwnerFields } from './VehicleOwnerFields.component'
 
 type VehicleFormProps = Readonly<{
   catalog: VehicleCatalogController
+  drivers: readonly FleetDriverDetail[]
   onCancel: () => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  onCreateDriver: (body: FleetDriverBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
@@ -31,8 +35,10 @@ type VehicleFormProps = Readonly<{
 
 export function VehicleForm({
   catalog,
+  drivers,
   onCancel,
   onCreate,
+  onCreateDriver,
   onUpdate,
   vehicle,
   vehicles,
@@ -62,7 +68,12 @@ export function VehicleForm({
         onChange={form.patch}
       />
       <VehicleOperationFields state={form.state} onChange={form.patch} />
-      <VehicleOwnerFields state={form.state} onChange={form.patch} />
+      <VehicleOwnerFields
+        drivers={drivers}
+        state={form.state}
+        onChange={form.patch}
+        onCreateDriver={onCreateDriver}
+      />
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
         fuelPrice={resolveFormFuelPrice({ selectedFuelType: form.state.fuelType, vehicle })}

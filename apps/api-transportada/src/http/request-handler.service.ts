@@ -14,7 +14,7 @@ import { ApiError } from '../shared/api.error'
 import type { ApiLogger, RequestTimeoutPort } from '../shared/api.types'
 import { applyCorsHeaders, handleCorsPreflight } from './cors.service'
 import type { HttpRouter } from './router.service'
-import { isNoStorePath, resolveLogPathname } from './request-path.service'
+import { isNoStorePath } from './request-path.service'
 import { parseCorrelationId, parseRequestMetadata } from './request.schema'
 import { createErrorResponse, createServerErrorHandler } from './response.service'
 
@@ -93,7 +93,7 @@ async function handleRequest({
   logRequestCompletion({
     correlationId,
     logger: dependencies.logger,
-    pathname: resolveLogPathname(requestPathname),
+    pathname: dependencies.router.logPathname(requestPathname),
     request,
     response,
     startedAt,

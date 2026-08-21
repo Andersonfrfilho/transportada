@@ -16,7 +16,13 @@ const TRUCK = { role: 'traction', wheelType: '01' } as const
 const CAR = { role: 'traction', wheelType: '04' } as const
 const TRAILER = { role: 'trailer', wheelType: '' } as const
 
+const THIRTY_DAYS_MILLISECONDS = 30 * 24 * 60 * 60 * 1000
+
 type FetchCall = { readonly init: RequestInit | undefined; readonly url: string }
+
+function transportFailure(): FleetVehicleCatalogFailedError {
+  return new FleetVehicleCatalogFailedError({ failure: 'transport' })
+}
 
 function createGateway(
   input: Readonly<{ respond?: (call: FetchCall) => Promise<Response>; url?: string }> = {},
@@ -68,7 +74,7 @@ describe('fipe vehicle catalog gateway contract', () => {
     expect(result).toEqual({ items: [], source: 'none' })
   })
 
-  test('turns a 429 from the provider into a typed gateway error', async () => {
+  test('turns a 429 from the provider into a typed gateway error carrying the status', async () => {
     const { gateway } = createGateway({
       respond: () => Promise.resolve(new Response('slow down', { status: 429 })),
     })
@@ -78,9 +84,12 @@ describe('fipe vehicle catalog gateway contract', () => {
     expect(failure).toBeInstanceOf(ApiError)
     expect((failure as ApiError).code).toBe('FLEET_VEHICLE_CATALOG_FAILED')
     expect((failure as ApiError).status).toBe(502)
+    expect(failure).toBeInstanceOf(FleetVehicleCatalogFailedError)
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('provider_status')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(429)
   })
 
-  test('turns a 500 from the provider into the same typed gateway error', async () => {
+  test('a 500 is the same error with a different status — 429 and 500 stay apart', async () => {
     const { gateway } = createGateway({
       respond: () => Promise.resolve(new Response('boom', { status: 500 })),
     })
@@ -88,6 +97,8 @@ describe('fipe vehicle catalog gateway contract', () => {
     const failure = await gateway.listBrands(TRUCK).catch((error: unknown) => error)
 
     expect((failure as ApiError).code).toBe('FLEET_VEHICLE_CATALOG_FAILED')
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('provider_status')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(500)
   })
 
   // Simula o que um fetch real faz quando o AbortSignal.timeout dispara, sem esperar o prazo real
@@ -99,7 +110,42 @@ describe('fipe vehicle catalog gateway contract', () => {
 
     expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal)
     expect(failure).toBeInstanceOf(ApiError)
-    expect((failure as ApiError).code).toBe('FLEET_VEHICLE_CATALOG_FAILED')
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('transport')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBeUndefined()
+  })
+
+  test('a body that is not a list of records is a malformed body, not a transport failure', async () => {
+    const { gateway } = createGateway({
+      respond: () => Promise.resolve(Response.json({ mensagem: 'nada aqui' })),
+    })
+
+    const failure = await gateway.listBrands(TRUCK).catch((error: unknown) => error)
+
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('malformed_body')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(200)
+  })
+
+  test('a 200 that is not JSON is a malformed body too', async () => {
+    const { gateway } = createGateway({
+      respond: () => Promise.resolve(new Response('<html>manutenção</html>', { status: 200 })),
+    })
+
+    const failure = await gateway.listBrands(TRUCK).catch((error: unknown) => error)
+
+    expect((failure as FleetVehicleCatalogFailedError).failure).toBe('malformed_body')
+    expect((failure as FleetVehicleCatalogFailedError).providerStatus).toBe(200)
+  })
+
+  test('the error never carries the provider body nor the catalog url', async () => {
+    const { gateway } = createGateway({
+      respond: () => Promise.resolve(new Response('rate limited by cloudflare', { status: 429 })),
+    })
+
+    const failure = await gateway.listBrands(TRUCK).catch((error: unknown) => error)
+    const serialized = `${(failure as Error).message} ${JSON.stringify(failure)}`
+
+    expect(serialized).not.toContain('cloudflare')
+    expect(serialized).not.toContain(BASE_URL)
   })
 })
 
@@ -127,7 +173,7 @@ describe('cached vehicle catalog gateway contract', () => {
     return { port, state }
   }
 
-  test('serves a successful answer from cache within the 24 hour window', async () => {
+  test('serves a successful answer from cache for a month — marca e modelo não mudam', async () => {
     const { port, state } = createFakeInner(() =>
       Promise.resolve({ items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }),
     )
@@ -139,13 +185,13 @@ describe('cached vehicle catalog gateway contract', () => {
     })
 
     await gateway.listBrands(TRUCK)
-    clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 - 1)
+    clock = new Date(clock.getTime() + THIRTY_DAYS_MILLISECONDS - 1)
     await gateway.listBrands(TRUCK)
 
     expect(state.calls).toBe(1)
   })
 
-  test('goes back to the provider once the 24 hour cache expires', async () => {
+  test('goes back to the provider once the month expires', async () => {
     const { port, state } = createFakeInner(() => Promise.resolve({ items: [], source: 'fipe' }))
     let clock = new Date('2026-01-01T00:00:00.000Z')
     const gateway = createCachedVehicleCatalogGateway({
@@ -155,7 +201,44 @@ describe('cached vehicle catalog gateway contract', () => {
     })
 
     await gateway.listBrands(TRUCK)
-    clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 + 1)
+    clock = new Date(clock.getTime() + THIRTY_DAYS_MILLISECONDS + 1)
+    await gateway.listBrands(TRUCK)
+
+    expect(state.calls).toBe(2)
+  })
+
+  test('honours a shorter window when the environment configures one', async () => {
+    const { port, state } = createFakeInner(() => Promise.resolve({ items: [], source: 'fipe' }))
+    let clock = new Date('2026-01-01T00:00:00.000Z')
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+      successTtlMilliseconds: 60 * 60 * 1000,
+    })
+
+    await gateway.listBrands(TRUCK)
+    clock = new Date(clock.getTime() + 60 * 60 * 1000 - 1)
+    await gateway.listBrands(TRUCK)
+    clock = new Date(clock.getTime() + 2)
+    await gateway.listBrands(TRUCK)
+
+    expect(state.calls).toBe(2)
+  })
+
+  // Janela zero é o modo de depuração: o provedor responde a cada chamada, e o último bom
+  // resultado continua guardado para cobrir uma falha.
+  test('a zero window asks the provider every time', async () => {
+    const { port, state } = createFakeInner(() => Promise.resolve({ items: [], source: 'fipe' }))
+    const clock = new Date('2026-01-01T00:00:00.000Z')
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+      successTtlMilliseconds: 0,
+    })
+
+    await gateway.listBrands(TRUCK)
     await gateway.listBrands(TRUCK)
 
     expect(state.calls).toBe(2)
@@ -163,7 +246,7 @@ describe('cached vehicle catalog gateway contract', () => {
 
   test('caches a provider failure for 60 seconds instead of hammering it', async () => {
     const { port, state } = createFakeInner(() => {
-      throw new FleetVehicleCatalogFailedError()
+      throw transportFailure()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
     const gateway = createCachedVehicleCatalogGateway({
@@ -181,9 +264,69 @@ describe('cached vehicle catalog gateway contract', () => {
     expect(state.calls).toBe(1)
   })
 
-  test('logs the provider failure once, without leaking its message', async () => {
+  /**
+   * Este é o defeito visto em produção: um piscar do provedor derrubava a lista de 29 marcas para
+   * as 2 já cadastradas na frota, e a tela ficava assim por 60 segundos sem nada dizer.
+   */
+  test('a provider blip serves the last good answer instead of an empty list', async () => {
+    let shouldFail = false
+    const state = { calls: 0 }
+    const port: FleetVehicleCatalogPort = {
+      listBrands: async () => {
+        state.calls += 1
+        if (shouldFail) throw transportFailure()
+        return { items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }
+      },
+      listModels: async () => ({ items: [], source: 'fipe' }),
+    }
+    let clock = new Date('2026-01-01T00:00:00.000Z')
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
+
+    const good = await gateway.listBrands(TRUCK)
+    shouldFail = true
+    clock = new Date(clock.getTime() + THIRTY_DAYS_MILLISECONDS + 1)
+    const duringBlip = await gateway.listBrands(TRUCK)
+
+    expect(good.items).toHaveLength(1)
+    expect(duringBlip).toEqual(good)
+    expect(state.calls).toBe(2)
+  })
+
+  test('the stale answer is served for 60 seconds only, then the provider is tried again', async () => {
+    let shouldFail = false
+    const state = { calls: 0 }
+    const port: FleetVehicleCatalogPort = {
+      listBrands: async () => {
+        state.calls += 1
+        if (shouldFail) throw transportFailure()
+        return { items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }
+      },
+      listModels: async () => ({ items: [], source: 'fipe' }),
+    }
+    let clock = new Date('2026-01-01T00:00:00.000Z')
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger: noopLogger,
+      now: () => clock,
+    })
+
+    await gateway.listBrands(TRUCK)
+    shouldFail = true
+    clock = new Date(clock.getTime() + THIRTY_DAYS_MILLISECONDS + 1)
+    await gateway.listBrands(TRUCK)
+    clock = new Date(clock.getTime() + 61_000)
+    await gateway.listBrands(TRUCK)
+
+    expect(state.calls).toBe(3)
+  })
+
+  test('logs the failure cause and the provider status, without leaking its message', async () => {
     const { port } = createFakeInner(() => {
-      throw new FleetVehicleCatalogFailedError()
+      throw new FleetVehicleCatalogFailedError({ failure: 'provider_status', providerStatus: 429 })
     })
     const logs: { message: string; metadata?: Record<string, unknown> }[] = []
     const logger: ApiLogger = {
@@ -200,15 +343,73 @@ describe('cached vehicle catalog gateway contract', () => {
     expect(logs).toHaveLength(1)
     expect(logs[0]?.message).toBe('fleet.vehicle_catalog.fetch_failed')
     expect(logs[0]?.metadata).toEqual({
-      segment: 'caminhoes',
       errorName: 'ApiError',
+      failure: 'provider_status',
+      providerStatus: 429,
+      segment: 'caminhoes',
+      servedStale: false,
       sqlState: 'FLEET_VEHICLE_CATALOG_FAILED',
+    })
+  })
+
+  test('the log says when a stale answer covered the failure', async () => {
+    let shouldFail = false
+    const port: FleetVehicleCatalogPort = {
+      listBrands: async () => {
+        if (shouldFail) throw transportFailure()
+        return { items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' }
+      },
+      listModels: async () => ({ items: [], source: 'fipe' }),
+    }
+    const logs: { message: string; metadata?: Record<string, unknown> }[] = []
+    const logger: ApiLogger = {
+      error: (message, metadata) => {
+        logs.push({ message, ...(metadata === undefined ? {} : { metadata }) })
+      },
+      info: () => undefined,
+      warn: () => undefined,
+    }
+    let clock = new Date('2026-01-01T00:00:00.000Z')
+    const gateway = createCachedVehicleCatalogGateway({
+      gateway: port,
+      logger,
+      now: () => clock,
+    })
+
+    await gateway.listBrands(TRUCK)
+    shouldFail = true
+    clock = new Date(clock.getTime() + THIRTY_DAYS_MILLISECONDS + 1)
+    await gateway.listBrands(TRUCK)
+
+    expect(logs[0]?.metadata).toMatchObject({ failure: 'transport', servedStale: true })
+  })
+
+  test('an unknown failure shape still logs, with no cause invented for it', async () => {
+    const { port } = createFakeInner(() => {
+      throw new Error('boom')
+    })
+    const logs: { message: string; metadata?: Record<string, unknown> }[] = []
+    const logger: ApiLogger = {
+      error: (message, metadata) => {
+        logs.push({ message, ...(metadata === undefined ? {} : { metadata }) })
+      },
+      info: () => undefined,
+      warn: () => undefined,
+    }
+    const gateway = createCachedVehicleCatalogGateway({ gateway: port, logger })
+
+    await gateway.listBrands(TRUCK)
+
+    expect(logs[0]?.metadata).toEqual({
+      errorName: 'Error',
+      segment: 'caminhoes',
+      servedStale: false,
     })
   })
 
   test('retries the provider once the 60 second failure cache expires', async () => {
     const { port, state } = createFakeInner(() => {
-      throw new FleetVehicleCatalogFailedError()
+      throw transportFailure()
     })
     let clock = new Date('2026-01-01T00:00:00.000Z')
     const gateway = createCachedVehicleCatalogGateway({

@@ -9,12 +9,15 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
+import { FreightRegionPanel } from '../components/FreightRegionPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
+import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useFleet } from '../hooks/useFleet.hook'
+import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
 import { useVehicleCatalog, type VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleColumns } from '../hooks/useVehicleColumns.hook'
@@ -41,9 +44,9 @@ type FleetEditor =
 
 type FleetWorkspace = ReturnType<typeof useFleet>
 
-type FleetTabId = 'drivers' | 'fuel' | 'vehicles'
+type FleetTabId = 'drivers' | 'fuel' | 'regions' | 'vehicles'
 
-const FLEET_TAB_IDS: readonly FleetTabId[] = ['vehicles', 'drivers', 'fuel']
+const FLEET_TAB_IDS: readonly FleetTabId[] = ['vehicles', 'drivers', 'fuel', 'regions']
 
 function resolveFleetTab(id: string): FleetTabId {
   return FLEET_TAB_IDS.find((tab) => tab === id) ?? 'vehicles'
@@ -59,6 +62,7 @@ function flipStatus(status: 'active' | 'inactive'): 'active' | 'inactive' {
 }
 
 function FleetEditorPanel({
+  driverRegions,
   driverVehicles,
   editor,
   onClose,
@@ -66,6 +70,7 @@ function FleetEditorPanel({
   vehicles,
   workspace,
 }: Readonly<{
+  driverRegions: DriverRegionsController
   driverVehicles: DriverVehiclesController
   editor: FleetEditor
   onClose: () => void
@@ -81,8 +86,10 @@ function FleetEditorPanel({
         key={editor.vehicle?.id ?? 'new-vehicle'}
         {...(editor.vehicle === undefined ? {} : { vehicle: editor.vehicle })}
         catalog={vehicleCatalog}
+        drivers={workspace.viewModel.drivers ?? []}
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
+        onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
         vehicles={vehicles}
       />
@@ -96,6 +103,7 @@ function FleetEditorPanel({
       onCancel={onClose}
       onCreate={(body) => workspace.createDriverMutation.mutateAsync(body)}
       onUpdate={(input) => workspace.updateDriverMutation.mutateAsync(input)}
+      regions={driverRegions}
       vehicles={driverVehicles}
     />
   )
@@ -115,6 +123,10 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.fuelPrices,
   })
+  const freightRegions = useFreightRegions({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: settingsScope.freightRegions,
+  })
   const workspace = useFleet({
     ...(companyId === undefined ? {} : { companyId }),
     driverFilters,
@@ -127,6 +139,13 @@ export function FleetWorkspacePage() {
   const vehicleColumns = useVehicleColumns()
   const vehicles = workspace.viewModel.vehicles ?? []
   const vehicleTable = useVehicleTable(vehicles)
+  const driverRegions = useDriverRegions({
+    ...(companyId === undefined ? {} : { companyId }),
+    ...(editor?.kind === 'driver' && editor.driver !== undefined
+      ? { driverId: editor.driver.id }
+      : {}),
+    permissions,
+  })
   const driverVehicles = useDriverVehicles({
     ...(companyId === undefined ? {} : { companyId }),
     ...(editor?.kind === 'driver' && editor.driver !== undefined
@@ -188,6 +207,24 @@ export function FleetWorkspacePage() {
     ),
   }
 
+  /** Aba aberta para quem lê a frota: a cobertura é o que o formulário de motorista consulta. */
+  const regionsTab: TabsItem = {
+    id: 'regions',
+    label: t('tabs.regions'),
+    panel: (
+      <FreightRegionPanel
+        actions={{
+          onCreate: (body) => freightRegions.createMutation.mutateAsync(body),
+          onUpdate: (input) => freightRegions.updateMutation.mutateAsync(input),
+        }}
+        canManageSettings={canManageSettings}
+        companyId={companyId}
+        loading={freightRegions.query.isLoading}
+        regions={freightRegions.query.data}
+      />
+    ),
+  }
+
   const tabs: readonly TabsItem[] = [
     {
       id: 'vehicles',
@@ -230,6 +267,7 @@ export function FleetWorkspacePage() {
       ),
     },
     ...(canManageSettings ? [fuelTab] : []),
+    regionsTab,
   ]
 
   return (
@@ -242,6 +280,7 @@ export function FleetWorkspacePage() {
       <section className={styles.workspaceDeck} data-editor-open={editor !== null}>
         <Tabs ariaLabel={t('title')} items={tabs} onChange={selectTab} value={activeTab} />
         <FleetEditorPanel
+          driverRegions={driverRegions}
           driverVehicles={driverVehicles}
           editor={editor}
           vehicleCatalog={vehicleCatalog}

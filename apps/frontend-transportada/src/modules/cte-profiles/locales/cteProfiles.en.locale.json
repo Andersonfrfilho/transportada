@@ -47,6 +47,12 @@
   "maximumAmount": "Cap per CT-e (BRL)",
   "validFrom": "Valid from",
   "validUntil": "Valid until",
+  "dateField": {
+    "clear": "Clear date",
+    "nextMonth": "Next month",
+    "placeholder": "dd/mm/yyyy",
+    "previousMonth": "Previous month"
+  },
   "componentsLegend": "Additional components",
   "componentsEmpty": "No additional component in this profile.",
   "addComponent": "Add component",

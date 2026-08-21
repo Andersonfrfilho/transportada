@@ -106,7 +106,9 @@ function createHarness() {
       },
     },
     repository: {
-      async createInvitedUser() {},
+      createInvitedUser() {
+        return Promise.resolve({ membershipId: 'vinculo-de-teste' })
+      },
       async findByUserId() {
         return { userId: 'existente' }
       },

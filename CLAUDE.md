@@ -60,10 +60,11 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `fleet`, `freight`,
-`freight-calculations`, `freight-rules`, `identity`, `nfe-documents`, `nfe-imports`, `operations`,
-`storage`, `health`.
-Transversais: `config`, `database`, `http`, `logging`, `server`, `shared`.
+Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
+`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
+`operations`, `storage`, `trips`, `view-preferences`, `health`.
+Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
@@ -85,6 +86,62 @@ não ao usuário como no convite, porque a mesma pessoa abre vários pedidos. O 
 depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "Esqueci minha senha"
 do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
 — não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
+
+**A pessoa e o vínculo dela são chaves diferentes:** `CompanyUserView.id` é o usuário e
+`membershipId` é o `user_company_memberships.id` — e é o **vínculo** que o motorista da frota
+referencia. As sete rotas de `/company-users` publicam os dois lado a lado (todas sob `users.manage`,
+escopo `company`), porque sem o vínculo o operador só tinha o caminho de digitar o UUID de 36
+caracteres no formulário de motorista. `toCompanyUserView` é o único ponto de conversão, e
+`createInvitedUser` devolve `{ membershipId }` para o convite montar a view sem inventar chave —
+tornar o campo opcional obrigaria o frontend a tratá-lo como ausente para sempre. No frontend o campo
+é o select `DriverMembershipField`, alimentado por `identity/queries/useCompanyUsers.query.ts`
+(`limit=100`, cursor até dez páginas): vínculo suspenso não é oferecido, o que já está gravado
+continua escolhível, e sem `users.manage` o campo volta a ser digitável — quem cuida da frota sem
+administrar usuários ainda precisa cadastrar motorista.
+
+**A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
+`license_number`, `license_expires_at` e o endereço residencial existem na tabela e no formulário,
+mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Três consequências que ficam
+escritas para não serem redescobertas:
+
+- A CNH é **única por empresa, mas só quando preenchida**: o índice
+  `fleet_drivers_company_license_number_unique` é parcial (`where length(license_number) > 0`),
+  porque o campo é opcional e string vazia não é colisão. `fleet_drivers_license_number_check` aceita
+  vazio ou onze dígitos, e `fleet_drivers_dates_check` põe piso em `birth_date` e
+  `license_expires_at` — data digitada errada por um século não entra.
+- O aviso de CNH a vencer **não existe**: `NOTIFICATION_TEMPLATE_KEY` tem três chaves
+  (`BILLING_INVOICE_DUE`, `CTE_BATCH_ISSUANCE_FAILED`, `NFSE_INVOICE_REJECTED`) e nenhuma é de
+  habilitação. O texto de ajuda do campo prometia o aviso; hoje diz que a data fica registrada para
+  consulta. Implementar o trilho é feature com spec própria (chave nova + agendamento + cron).
+- **A ADR-0039 já decidiu criptografar esses campos, e ainda não foi executada.** Envelope A256GCM
+  único para `birth_date`, `license_number`, endereço e telefone, AAD
+  `transportada:fleet-driver:v1:${companyId}:${driverId}`, e índice cego com HMAC para a CNH seguir
+  única por empresa — decidido **porque** não há leitor, que é o que torna a mudança barata. Quem for
+  escrever leitor para um desses campos passa a ter de abrir envelope: confira a ADR antes.
+  `tax_id`, `linked_tax_id`, `name` e `license_expires_at` ficam em claro por decisão registrada — o
+  CPF porque `mdfe-payload.builder.ts:72` já o lê e ele está em claro no payload congelado
+  (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
+  consulta.
+
+⚠️ O endereço do motorista é preenchido por **quatro provedores públicos consultados do navegador**
+(`fleet/shared/driverAddress.service.ts`): BrasilAPI e ViaCEP disputam o CEP por `Promise.any` — o
+primeiro que responder vence —, Photon e Nominatim atendem a busca textual por `Promise.allSettled`,
+porque provedor fora do ar deve entregar menos resultado, não erro. O mapa é `iframe` do
+OpenStreetMap com a coordenada na URL. Debounce de 400ms na busca textual e 900ms na
+geocodificação, mínimo de cinco caracteres, `AbortSignal` por tecla. **Isso manda dado pessoal para
+terceiro sem contrato e não há CSP no repositório** — achado datado em `docs/SECURITY.md`, junto do
+`birth_date` em claro; a decisão (proxy na API ou allowlist declarada) é ADR pendente.
+
+**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, quinto destino
+externo do formulário, e o único que não leva dado pessoal — só a sigla do estado). Sem UF escolhida
+o campo é digitável: município só é único dentro do estado, e um select com os 5.570 do país é pior
+que o teclado. Duas grafias mandam em lugares diferentes, de propósito: `toMunicipalityLabel`
+uniformiza a caixa (o IBGE devolve em caixa alta e o provedor de CEP em caixa mista, e sem uma
+grafia só a mesma cidade viraria duas linhas), enquanto `buildMunicipalityChoices` deixa **o que já
+está gravado** vencer a grafia do IBGE — ao contrário do catálogo de veículo, porque o gatilho do
+select casa a opção pelo valor e trocar a grafia deixaria o campo mostrando o placeholder com cidade
+preenchida. Provedor fora do ar devolve lista vazia e o campo volta a ser digitável; cadastro não
+para por isso.
 
 **Busca automática de notas:** `GET`/`PUT`/`DELETE /company-settings/scheduled-distribution`
 (`settings.manage`, escopo `company`) leem e alternam o opt-in; o corpo é o mesmo
@@ -125,6 +182,40 @@ publicação semanal da ANP é dado público de mercado, idêntico para toda emp
 PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista como exceção
 declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
 listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
+
+**A região do motorista é o que a transportadora paga, não o que ela cobra:**
+`freight_region_driver_rates.driver_amount` é custo — o valor do agregado por viagem naquela rota e
+naquela classe de veículo. Ele não entra em `freight-rules`, `freight_calculations` nem no CT-e, e
+misturar os dois faria a tabela do motorista virar preço de frete sem ninguém decidir isso.
+
+A zona é **acumulativa dentro da família**: `parseRegionCode('1.002')` dá `{family: '1', zone: 3}`, e
+quem cobre a zona 3 cobre a 1 e a 2 da mesma família; a matriz (`0.001`, zona 0) cobre só a si. A
+cobertura do motorista mistura granularidade de propósito — `scope: 'region'` para a zona inteira e
+`scope: 'city'` para a cidade solta —, e as duas metades do CHECK são ditas na fronteira
+(`FLEET_DRIVER_REGION_CITY_REQUIRED` e `..._CITY_UNEXPECTED`).
+
+⚠️ A unicidade da cidade é `(company_id, region_id, city, state)`, **nunca** `(company_id, city)`: na
+planilha real do cliente `BARRINHA/SP` aparece em duas rotas, e a chave estreita mataria a
+importação na primeira tentativa. Célula de valor zerada **não vira linha** — zero ali é ausência de
+preço para aquela classe naquela rota, e `0.0000` diria que a transportadora paga zero.
+
+A classe de frete (`fleet_vehicles.freight_class`, catálogo `FREIGHT_VEHICLE_CLASSES`) é do veículo
+que **traciona**: implemento manda `''`, do mesmo jeito que já fazia com o rodado. O tipo de rodado
+do MDF-e só **sugere** (`01→truck`, `02→toco`, `04→van`, `05→utility`) — VUC e 3/4 não existem no
+rodado, e `03`/`06` não nomeiam classe nenhuma. A sugestão corrige a que ela mesma pôs e nunca
+sobrescreve escolha manual (`vehicleFreightClass.service.ts`); ler ela do rodado direto poria o
+veículo na linha errada da tabela.
+
+A tabela do cliente entra por `POST /freight-regions/import` (`settings.manage`), **nunca** por seed
+em `src/`: o produto é genérico (ADR-0021) e a planilha é de uma transportadora. Reimportar o mesmo
+arquivo devolve `{0, 0, 0}`; rota ausente do arquivo vai a `inactive`, nunca é apagada; arquivo de
+rotas vazio é recusado (`FREIGHT_REGION_IMPORT_EMPTY`), porque inativaria a tabela inteira à qual os
+motoristas estão ligados. `scripts/freight-region-import.py` **deixou de ser o único caminho**: o
+diálogo da aba Regiões manda os dois arquivos como texto para a mesma rota, byte a byte como o
+cliente exportou — quem decide o que é linha válida continua sendo o parser da API, senão a tela e o
+script discordariam de qual célula zerada vira preço. Ler região é `fleet.read`, não
+`settings.manage`: a cobertura mora no formulário da frota, e é o `operator` quem cadastra motorista.
+ADR-0038.
 
 **O `{{periodo}}` da NFS-e é digitado, não derivado:** o domínio não calcula janela nenhuma a partir
 das notas — `buildNfseDescription` recebe `period` e o repassa como veio, e em branco a variável sai
@@ -320,8 +411,9 @@ manual em `src/main.tsx` (`pushState` + `popstate` + `sessionStorage`). **Sem Ta
 `tailwind-merge`/`clsx`/`cva` estão no package.json mas não são usados; `cn()` é reimplementado em
 `src/lib/utils.ts`; validação é type guard manual em `*.validation.ts`.
 
-Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`, `foundation`,
-`freight`, `identity`, `nfe-workspace`, `operations`, `shared`. `shared/` concentra client HTTP +
+Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`,
+`cte-profiles`, `fleet`, `foundation`, `freight`, `identity`, `mdfe-manifest`, `nfe-workspace`,
+`nfse-invoice`, `notification`, `operations`, `trip`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com `fetch`
 injetado por dependência. Auth via `KeycloakAuthProvider`.
 
@@ -338,12 +430,33 @@ Contrato em `test/company-settings/tabs.contract.ts`.
 - A busca automática de notas (opt-in + cursor) mora na aba **Remota** de `nfe-workspace`, guardada
   por `settings.manage`; sem a permissão a aba continua visível com o cartão somente-leitura, porque
   ali é informação de operação. Contrato em `test/nfe-workspace/distribution-settings.contract.ts`.
-- O ajuste de preço de combustível mora na aba **Combustível** de `fleet`, e a credencial da Nota RP
+- O ajuste de preço de combustível mora na aba **Combustível** de `fleet` e a credencial da Nota RP
   mais os perfis de emissão na aba **Configurações** de `nfse-invoice` — as duas guardadas por
   `settings.manage`.
+- A tabela de frete mora na aba **Regiões** de `fleet`, e ali a permissão guarda **a escrita, não a
+  aba**: sem `settings.manage` sobram a tabela e o mapa, e nenhum botão. Ler região é `fleet.read`
+  porque a cobertura é o que o formulário de motorista consulta, e quem cuida da frota sem
+  administrar configuração ainda precisa ver em que zona a cidade caiu — aba escondida não mostraria
+  nem uma coisa nem outra. Por isso a consulta desta aba liga só com `settingsScope.freightRegions`,
+  sem o `canManageSettings` que as outras exigem. Contrato em `test/fleet/regions-tab.contract.ts`.
 - Painel movido leva junto os rótulos: as chaves vão para o `*.locale.json` do módulo de destino, e o
   atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
   controle é caminho para lugar nenhum.
+
+**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, sexto
+destino externo do módulo — `https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na
+qualidade mínima e recortada por município). Ao contrário do endereço do motorista, aqui **não há
+`iframe` nem imagem remota**: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
+nada de terceiro renderiza dentro da nossa tela — e a malha não leva dado pessoal, só a sigla do
+estado. Município com ilha ou enclave vira **um** caminho fechado: desenhar anel por anel pintaria a
+mesma cidade em duas cores quando a zona mudasse. Cidade gravada sem polígono na malha (grafia que o
+IBGE não reconhece, cidade de outra UF) é **nomeada fora do mapa**, nunca escondida — zona vista pela
+metade é pior que zona vista inteira com um aviso ao lado —, e o casamento é pela dobra de
+`normalizeVehicleCatalogName`, não pela grafia, para `BARRINHA/SP` da planilha casar com `Barrinha`
+do IBGE. Com uma zona aberta no formulário, clicar no município acrescenta a cidade e clicar de novo
+a retira, **pela grafia gravada**: pela do IBGE a cidade importada seria impossível de desmarcar.
+Por isso `useFreightRegionForm` mora no `FreightRegionEditorDeck`, acima do formulário e do mapa —
+os dois escrevem na mesma lista de cidades, e trocar a zona em edição é remontagem por `key`.
 
 Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, `--space-1..16`), tema
 escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em `*.module.css`.
@@ -356,6 +469,13 @@ Todo campo (`input`, `textarea`, gatilho de select) tira altura, padding e corpo
 `--field-height`/`--field-padding`/`--field-font-size` (e suas variantes `*-compact`) — nenhum módulo
 inventa altura própria. Detalhes em `docs/frontend/fields.md`, contrato em
 `test/design-system/field-metrics.contract.ts`.
+
+Todo campo de data usa `@/components/ui/date-picker` (uma data) ou `@/components/ui/date-range-picker`
+(período) — o campo de data nativo é **proibido** em `src/**/*.tsx` fora de `src/components/ui/` e o
+contrato `test/design-system/date-picker.contract.ts` falha se algum reaparecer. Módulo com invólucro
+próprio de campo publica o dele ao lado do de texto (`FleetDateField`, `ProfileDateField`) em vez de
+aceitar um `type` que escolhe entre texto e data — era por esse `type` que o nativo entrava. Regra na
+seção "Data é calendário" de `docs/frontend/fields.md`.
 
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
@@ -458,6 +578,22 @@ Herda de `base` (não de `keycloak.v2`, que arrasta o PatternFly) e reescreve `t
 `login.ftl`; os tokens de design são **cópia por valor** de `src/styles/index.css`, porque o tema
 não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra completa em
 `docs/frontend/login-theme.md`.
+
+**A CSP nasce no build, e o servidor não sobe sem ela.** `VITE_API_URL` e `VITE_KEYCLOAK_URL` são
+inlinadas no bundle e **não existem** no contêiner que serve o `dist` — o estágio de runtime do
+`Dockerfile` copia só `dist` e `server.ts`, e `server.ts` não pode importar de `src/`. Então a
+diretiva tem fonte única em `shared/contentSecurityPolicy.service.ts`, o plugin
+`transportada-content-security-policy` do `vite.config.ts` emite `dist/content-security-policy.txt`, e
+o `server.ts` lê o arquivo **fail-closed** (`FRONTEND_MISSING_CONTENT_SECURITY_POLICY`): publicar sem
+cabeçalho é a única falha que não quebra nada visível. Destino externo novo entra **nesse**
+`connect-src` — nunca numa segunda diretiva, que não soma (a primeira ocorrência vence).
+`'unsafe-inline'` existe **só** em `style-src`, pelo atributo `style` da camada flutuante que nonce
+não cobre — `style-src-attr` é ignorado pelo Safari < 15.4 e quebraria todo select no iPhone —, e o
+servidor de **dev** ganha `'unsafe-inline'` no `script-src` porque o `@vitejs/plugin-react` injeta o
+preâmbulo do react-refresh inline. O contrato
+`test/shared/content-security-policy.contract.ts` varre `src/**/*.{ts,tsx,css,json}` por origem
+`https://` e falha se alguma não estiver no `connect-src` nem em `NON_FETCH_ORIGIN` (origem que o
+bundle nomeia mas nunca busca, hoje só o link do rodapé).
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
