@@ -160,7 +160,6 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isNullableString(value.costsUpdatedAt) &&
     isString(value.createdAt) &&
     isString(value.fleetNumber) &&
-    (value.freightClass === '' || isOneOf(value.freightClass, FREIGHT_VEHICLE_CLASSES)) &&
     (value.fuelPrice === null || isFuelPrice(value.fuelPrice)) &&
     isOneOf(value.fuelType, FLEET_ENUMS.fuelType) &&
     isString(value.id) &&
@@ -178,7 +177,7 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isDecimalString(value.tareWeightKilograms) &&
     isString(value.updatedAt) &&
     isUnsignedIntegerString(value.version) &&
-    (value.wheelType === '' || isOneOf(value.wheelType, FLEET_ENUMS.wheelType))
+    (value.vehicleType === '' || isOneOf(value.vehicleType, FLEET_ENUMS.vehicleType))
   )
 }
 

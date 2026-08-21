@@ -148,7 +148,6 @@ export const VEHICLE_BODY_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
-  'freightClass',
   'fuelType',
   'model',
   'modelYear',
@@ -159,7 +158,7 @@ export const VEHICLE_BODY_KEYS = [
   'role',
   'state',
   'tareWeightKilograms',
-  'wheelType',
+  'vehicleType',
 ] as const
 
 export const VEHICLE_DETAIL_KEYS = [
@@ -185,7 +184,6 @@ export const VEHICLE_FORM_KEYS = [
   'capacityKilograms',
   'color',
   'fleetNumber',
-  'freightClass',
   'fuelType',
   'model',
   'modelYear',
@@ -200,7 +198,7 @@ export const VEHICLE_FORM_KEYS = [
   'role',
   'state',
   'tareWeightKilograms',
-  'wheelType',
+  'vehicleType',
 ] as const
 
 export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const

@@ -10,14 +10,13 @@ import {
   FLEET_VEHICLE_STATUSES,
   MDFE_BODY_TYPES,
   MDFE_OWNER_TAX_REGIMES,
-  MDFE_WHEEL_TYPES,
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
-import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
 import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import { VEHICLE_TYPES } from '../../shared/vehicle-type.constant.js'
 
 const AXLE_COUNT_MAX = 9
 const AXLE_COUNT_MIN = 2
@@ -97,8 +96,6 @@ const vehicleFieldsSchema = z.object({
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
-  // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
-  freightClass: z.literal('').or(z.enum(FREIGHT_VEHICLE_CLASSES)),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
@@ -111,7 +108,7 @@ const vehicleFieldsSchema = z.object({
   role: z.enum(FLEET_VEHICLE_ROLES),
   state: z.string().regex(STATE),
   tareWeightKilograms: z.string().regex(MEASURE_DECIMAL),
-  wheelType: z.literal('').or(z.enum(MDFE_WHEEL_TYPES)),
+  vehicleType: z.literal('').or(z.enum(VEHICLE_TYPES)),
 })
 
 const driverAddressSchema = z
@@ -172,9 +169,9 @@ export const updateDriverSchema = driverFieldsSchema
   .strict()
 
 function assertVehicleRules(value: FleetVehicleFields, context: z.RefinementCtx): void {
-  // tpRod só existe no veicTracao — rodado em reboque é rejeição na SEFAZ
-  if ((value.role === TRACTION_ROLE) !== (value.wheelType !== '')) {
-    context.addIssue({ code: 'custom', message: 'wheelType belongs to traction vehicles only' })
+  // O tipo é do que traciona: `tpRod` em reboque é rejeição na SEFAZ, e ele sai daqui
+  if ((value.role === TRACTION_ROLE) !== (value.vehicleType !== '')) {
+    context.addIssue({ code: 'custom', message: 'vehicleType belongs to traction vehicles only' })
   }
   // O grupo <prop> é tudo-ou-nada e proibido quando o veículo é do próprio emitente
   if ((value.ownership === OWN_OWNERSHIP) !== (value.owner === null)) {

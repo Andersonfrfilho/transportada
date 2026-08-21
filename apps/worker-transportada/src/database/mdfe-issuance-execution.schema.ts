@@ -151,23 +151,3 @@ export const mdfeFiscalDocuments = pgTable('mdfe_fiscal_documents', {
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })
-
-export const fleetVehicles = pgTable('fleet_vehicles', {
-  id: uuid().primaryKey(),
-  companyId: uuid('company_id').notNull(),
-  plate: text().notNull(),
-  renavam: text().notNull(),
-  role: text().notNull(),
-  tareWeightKg: numeric('tare_weight_kg', { precision: 12, scale: 2 }).notNull(),
-  capacityKg: numeric('capacity_kg', { precision: 12, scale: 2 }).notNull(),
-  capacityM3: numeric('capacity_m3', { precision: 12, scale: 2 }).notNull(),
-  wheelType: text('wheel_type').notNull(),
-  bodyType: text('body_type').notNull(),
-  state: text().notNull(),
-  ownership: text().notNull(),
-  ownerTaxId: text('owner_tax_id').notNull(),
-  ownerName: text('owner_name').notNull(),
-  ownerState: text('owner_state').notNull(),
-  ownerRntrc: text('owner_rntrc').notNull(),
-  ownerTaxRegime: text('owner_tax_regime').notNull(),
-})

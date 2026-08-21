@@ -88,12 +88,10 @@
     "traction": "Tração",
     "trailer": "Reboque"
   },
-  "wheelType": "Tipo de rodado",
-  "wheelTypeUnset": "Não informado",
-  "wheelTypeRequiredHint": "Sem o tipo de rodado, o MDF-e não pode ser emitido para este veículo.",
-  "freightClassField": "Classe de frete",
-  "freightClassUnset": "Não informada",
-  "freightClassHint": "É a coluna da tabela de frete que paga este veículo. O tipo de rodado sugere a classe, mas VUC e 3/4 não existem no rodado do MDF-e — nesses casos escolha à mão.",
+  "vehicleType": "Tipo do veículo",
+  "vehicleTypeUnset": "Não informado",
+  "vehicleTypeRequiredHint": "Sem o tipo do veículo, o MDF-e não pode ser emitido e a tabela de frete não sabe qual coluna paga este veículo.",
+  "vehicleTypeHint": "É o que decide a coluna da tabela de frete e o tipo de rodado do MDF-e.",
   "vehicleIncomplete": "Incompleto para MDF-e",
   "stateOption": {
     "AC": "AC — Acre",
@@ -124,13 +122,17 @@
     "SP": "SP — São Paulo",
     "TO": "TO — Tocantins"
   },
-  "wheelTypeOption": {
-    "01": "01 — Truck",
-    "02": "02 — Toco",
-    "03": "03 — Cavalo mecânico",
-    "04": "04 — VAN",
-    "05": "05 — Utilitário",
-    "06": "06 — Outros"
+  "vehicleTypeOption": {
+    "motorcycle": "Moto",
+    "car": "Carro",
+    "utility": "Utilitário",
+    "van": "VAN",
+    "vuc": "VUC",
+    "three_quarter": "3/4",
+    "toco": "Toco",
+    "truck": "Truck",
+    "tractor_unit": "Cavalo mecânico",
+    "other": "Outro"
   },
   "bodyType": "Tipo de carroceria",
   "bodyTypeOption": {
@@ -143,7 +145,7 @@
   },
   "vehicleModelLegend": "Marca e modelo",
   "brand": "Marca",
-  "brandCatalogWheelTypeHint": "Escolha o tipo de rodado na identificação do veículo para carregar as marcas.",
+  "brandCatalogVehicleTypeHint": "Escolha o tipo do veículo na identificação para carregar as marcas.",
   "brandCatalogUnavailableHint": "Catálogo de marcas indisponível agora. Digite a marca como está no CRLV.",
   "catalogOtherOption": "Outro — digitar",
   "catalogBackToList": "Escolher da lista",

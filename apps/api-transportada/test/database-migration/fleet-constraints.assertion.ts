@@ -25,8 +25,8 @@ export async function assertFleetConstraints(
 
   await database`insert into companies (id, status) values (${otherCompanyId}, 'active')`
   await database`
-    insert into fleet_vehicles (id, company_id, plate, role, wheel_type, state)
-    values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', '03', 'SP')
+    insert into fleet_vehicles (id, company_id, plate, role, vehicle_type, state)
+    values (${vehicleId}, ${companyId}, 'ABC1D23', 'traction', 'tractor_unit', 'SP')
   `
   await database`
     insert into fleet_vehicles (id, company_id, plate, role, body_type, state)
@@ -35,29 +35,29 @@ export async function assertFleetConstraints(
 
   await expectQueryToFail(
     database`
-      insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
-      values (${companyId}, 'ABC1D23', 'traction', '03', 'SP')
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+      values (${companyId}, 'ABC1D23', 'traction', 'tractor_unit', 'SP')
     `,
     '23505',
     'fleet_vehicles_company_id_plate_unique',
   )
   await database`
-    insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
-    values (${otherCompanyId}, 'ABC1D23', 'traction', '03', 'SP')
+    insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+    values (${otherCompanyId}, 'ABC1D23', 'traction', 'tractor_unit', 'SP')
   `
 
   await expectQueryToFail(
     database`
-      insert into fleet_vehicles (company_id, plate, role, wheel_type, state)
-      values (${companyId}, 'QQQ1B11', 'trailer', '03', 'SP')
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+      values (${companyId}, 'QQQ1B11', 'trailer', 'tractor_unit', 'SP')
     `,
     '23514',
-    'fleet_vehicles_wheel_type_check',
+    'fleet_vehicles_vehicle_type_check',
   )
   await expectQueryToFail(
     database`
-      insert into fleet_vehicles (company_id, plate, role, wheel_type, state, ownership, owner_tax_id)
-      values (${companyId}, 'QQQ1B11', 'traction', '03', 'SP', 'own', '12345678000195')
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state, ownership, owner_tax_id)
+      values (${companyId}, 'QQQ1B11', 'traction', 'tractor_unit', 'SP', 'own', '12345678000195')
     `,
     '23514',
     'fleet_vehicles_owner_check',
@@ -66,20 +66,20 @@ export async function assertFleetConstraints(
   // O cadastro aceita o registro como o certificado da ANTT o imprime; nove dígitos sem o zero, não.
   await database`
     insert into fleet_vehicles (
-      company_id, plate, role, wheel_type, state, ownership,
+      company_id, plate, role, vehicle_type, state, ownership,
       owner_tax_id, owner_name, owner_state, owner_rntrc, owner_tax_regime
     ) values (
-      ${companyId}, 'RNT1A11', 'traction', '03', 'SP', 'third_party',
+      ${companyId}, 'RNT1A11', 'traction', 'tractor_unit', 'SP', 'third_party',
       '12345678000195', 'Transportes Parceiros', 'SC', '058151044', '0'
     )
   `
   await expectQueryToFail(
     database`
       insert into fleet_vehicles (
-        company_id, plate, role, wheel_type, state, ownership,
+        company_id, plate, role, vehicle_type, state, ownership,
         owner_tax_id, owner_name, owner_state, owner_rntrc, owner_tax_regime
       ) values (
-        ${companyId}, 'RNT2A22', 'traction', '03', 'SP', 'third_party',
+        ${companyId}, 'RNT2A22', 'traction', 'tractor_unit', 'SP', 'third_party',
         '12345678000195', 'Transportes Parceiros', 'SC', '581510441', '0'
       )
     `,

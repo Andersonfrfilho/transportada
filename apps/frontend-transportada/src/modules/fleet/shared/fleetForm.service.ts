@@ -37,7 +37,6 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   capacityKilograms: '',
   color: '',
   fleetNumber: '',
-  freightClass: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   model: '',
   modelYear: '0',
@@ -54,7 +53,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   role: TRACTION_ROLE,
   state: '',
   tareWeightKilograms: '',
-  wheelType: '',
+  vehicleType: '',
 }
 
 const EMPTY_DRIVER_FORM: FleetDriverFormState = {
@@ -120,7 +119,6 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
-    freightClass: vehicle.freightClass,
     fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
@@ -134,7 +132,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     renavam: vehicle.renavam,
     role: vehicle.role,
     state: vehicle.state,
-    wheelType: vehicle.wheelType,
+    vehicleType: vehicle.vehicleType,
     ...toVehicleCostFormState(vehicle),
     ...toVehicleMeasureFormState(vehicle),
   }
@@ -202,8 +200,8 @@ export function hasVehicleCatalogFailure(
 }
 
 /**
- * O segmento do provedor vem do rodado, e o rodado é escolhido no bloco seguinte do formulário:
- * sem ele a lista chega vazia, e vazia sem motivo é lida como carregamento que nunca termina.
+ * O segmento do provedor vem do tipo do veículo, escolhido no bloco anterior do formulário: sem ele
+ * a lista chega vazia, e vazia sem motivo é lida como carregamento que nunca termina.
  * Provedor fora do ar volta para texto livre — catálogo é conveniência, não autoridade.
  */
 export function resolveVehicleCatalogFieldMode(
@@ -211,13 +209,13 @@ export function resolveVehicleCatalogFieldMode(
     hasCatalogFailure: boolean
     role: string
     vehicleCatalogEnabled: boolean
-    wheelType: string
+    vehicleType: string
   }>,
 ): VehicleCatalogFieldMode {
   const { BLOCKED, LIST, TEXT } = VEHICLE_CATALOG_FIELD_MODE
   if (!canUseVehicleCatalogFields(input)) return TEXT
   if (input.hasCatalogFailure) return TEXT
-  if (input.wheelType === '') return BLOCKED
+  if (input.vehicleType === '') return BLOCKED
   return LIST
 }
 
@@ -229,8 +227,6 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     brand: state.brand,
     color: state.color,
     fleetNumber: state.fleetNumber,
-    // A classe é do veículo que traciona: implemento não puxa frete, e guardá-la nele mente na tabela
-    freightClass: state.role === TRACTION_ROLE ? state.freightClass : '',
     fuelType: state.fuelType,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
@@ -248,7 +244,8 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     renavam: normalizeDigits(state.renavam),
     role: state.role,
     state: state.state.toUpperCase(),
-    wheelType: state.role === TRACTION_ROLE ? state.wheelType : '',
+    // O tipo é do veículo que traciona: implemento não puxa frete, e guardá-lo nele mente na tabela
+    vehicleType: state.role === TRACTION_ROLE ? state.vehicleType : '',
     ...toVehicleCostBody(state),
     ...toVehicleMeasureBody(state),
   }

@@ -122,7 +122,7 @@ const PAYLOAD_SOURCE: MdfeIssuancePayloadSource = {
     renavam: '12345678901',
     state: 'SP',
     tareWeightKg: '9000.00',
-    wheelType: '01',
+    vehicleType: 'truck',
   },
 }
 

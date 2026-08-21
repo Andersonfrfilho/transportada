@@ -2,5 +2,5 @@
 import type { FleetVehicleBody } from './fleet.types'
 
 export function isVehicleIncompleteForMdfe(vehicle: FleetVehicleBody): boolean {
-  return vehicle.role === 'traction' && vehicle.wheelType === ''
+  return vehicle.role === 'traction' && vehicle.vehicleType === ''
 }

@@ -139,17 +139,17 @@ export async function assertFreightRegionConstraints(
     'fleet_driver_regions_city_check',
   )
 
-  // A classe comercial do veículo é fechada, e vazia é legítima — cavalo mecânico não tem classe
+  // O tipo do veículo é catálogo fechado — a classe da tabela de frete sai dele, e nome de fora não entra
   await expectQueryToFail(
     database`
-      insert into fleet_vehicles (company_id, plate, role, wheel_type, state, freight_class)
-      values (${companyId}, 'FRT1A11', 'traction', '03', 'SP', 'carreta')
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+      values (${companyId}, 'FRT1A11', 'traction', 'carreta', 'SP')
     `,
     '23514',
-    'fleet_vehicles_freight_class_check',
+    'fleet_vehicles_vehicle_type_check',
   )
   await database`
-    insert into fleet_vehicles (company_id, plate, role, wheel_type, state, freight_class)
-    values (${companyId}, 'FRT1A11', 'traction', '03', 'SP', '')
+    insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+    values (${companyId}, 'FRT1A11', 'trailer', '', 'SP')
   `
 }

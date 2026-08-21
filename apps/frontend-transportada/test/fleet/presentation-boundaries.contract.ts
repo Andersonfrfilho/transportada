@@ -49,14 +49,18 @@ describe('fleet presentation boundary contract', () => {
     )
   })
 
-  test('submits the wheel type only for traction vehicles', async () => {
+  test('submits the vehicle type only for traction vehicles', async () => {
     const { createVehicleDraft, toVehicleBody } = await loadFutureModule<FleetFormModule>(
       '../../src/modules/fleet/shared/fleetForm.service',
     )
     const state = createVehicleDraft()
 
-    expect(toVehicleBody({ ...state, role: 'traction', wheelType: '03' }).wheelType).toBe('03')
-    expect(toVehicleBody({ ...state, role: 'trailer', wheelType: '03' }).wheelType).toBe('')
+    expect(
+      toVehicleBody({ ...state, role: 'traction', vehicleType: 'tractor_unit' }).vehicleType,
+    ).toBe('tractor_unit')
+    expect(
+      toVehicleBody({ ...state, role: 'trailer', vehicleType: 'tractor_unit' }).vehicleType,
+    ).toBe('')
   })
 
   test('submits the owner group only when the vehicle is not the carrier own', async () => {
@@ -136,7 +140,7 @@ type FleetVehicleFormState = Record<string, unknown> &
   Readonly<{
     ownership: 'aggregate' | 'own' | 'third_party'
     role: 'traction' | 'trailer'
-    wheelType: string
+    vehicleType: string
   }>
 
 type FleetDriverFormState = Record<string, unknown> &
@@ -155,6 +159,6 @@ type FleetFormModule = {
   }>
   readonly toVehicleBody: (state: FleetVehicleFormState) => Readonly<{
     owner: null | Record<string, unknown>
-    wheelType: string
+    vehicleType: string
   }>
 }

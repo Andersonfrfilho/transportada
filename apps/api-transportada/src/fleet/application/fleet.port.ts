@@ -8,10 +8,9 @@ import type {
   FleetVehicleStatus,
   MdfeBodyType,
   MdfeOwnerTaxRegime,
-  MdfeWheelType,
 } from '../../database/fleet.schema.js'
-import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
+import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 import type {
   EffectiveFuelPrice,
   FuelPriceSource,
@@ -43,7 +42,6 @@ export type FleetVehicleInput = {
   readonly capacityKilograms: string
   readonly color: string
   readonly fleetNumber: string
-  readonly freightClass: '' | FreightVehicleClass
   readonly fuelType: FuelProduct
   readonly model: string
   readonly modelYear: number
@@ -56,7 +54,7 @@ export type FleetVehicleInput = {
   readonly role: FleetVehicleRole
   readonly state: string
   readonly tareWeightKilograms: string
-  readonly wheelType: MdfeWheelType | ''
+  readonly vehicleType: VehicleType | ''
 }
 
 /** O preço que sustentou a derivação, para a tela explicar o número em vez de só exibi-lo. */

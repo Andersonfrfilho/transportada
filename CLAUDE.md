@@ -199,12 +199,34 @@ planilha real do cliente `BARRINHA/SP` aparece em duas rotas, e a chave estreita
 importação na primeira tentativa. Célula de valor zerada **não vira linha** — zero ali é ausência de
 preço para aquela classe naquela rota, e `0.0000` diria que a transportadora paga zero.
 
-A classe de frete (`fleet_vehicles.freight_class`, catálogo `FREIGHT_VEHICLE_CLASSES`) é do veículo
-que **traciona**: implemento manda `''`, do mesmo jeito que já fazia com o rodado. O tipo de rodado
-do MDF-e só **sugere** (`01→truck`, `02→toco`, `04→van`, `05→utility`) — VUC e 3/4 não existem no
-rodado, e `03`/`06` não nomeiam classe nenhuma. A sugestão corrige a que ela mesma pôs e nunca
-sobrescreve escolha manual (`vehicleFreightClass.service.ts`); ler ela do rodado direto poria o
-veículo na linha errada da tabela.
+**O veículo tem um tipo só, e os dois campos fiscais saem dele.** `fleet_vehicles.vehicle_type`
+(catálogo `VEHICLE_TYPES`: `motorcycle · car · utility · van · vuc · three_quarter · toco · truck ·
+tractor_unit · other`, na ordem das colunas da tabela de frete impressa, da mais leve para a mais
+pesada) substituiu o par `wheel_type` + `freight_class`, e os dois CHECKs antigos caíram com eles.
+Eram dois selects vizinhos perguntando a mesma coisa ao operador — e a moto e o carro da frota real
+não cabiam em nenhum dos dois catálogos.
+
+A derivação mora em `api-transportada/src/shared/vehicle-type.constant.ts`, um lugar só:
+`resolveMdfeWheelType` dá o `tpRod` do MDF-e (`truck→01`, `toco→02`, `tractor_unit→03`, `van→04`,
+`utility→05`, e **`car`/`motorcycle`/`other`/`three_quarter`/`vuc`→`06` — Outros**, porque o rodado da
+SEFAZ não os nomeia) e `resolveVehicleFreightClass` dá a coluna da tabela (`car`, `motorcycle`,
+`other` e `tractor_unit` mandam `''` — cavalo mecânico não é linha da planilha do cliente). O tipo é
+de quem **traciona**: implemento manda `''`, e o CHECK
+`fleet_vehicles_vehicle_type_check` amarra as duas metades (`(role = 'traction') = (vehicle_type in
+(…))`), como o `wheel_type_check` fazia antes dele.
+
+⚠️ `VEHICLE_TYPES` é **cópia por valor** na API e no frontend — o bundle não carrega código da API,
+o mesmo caso de `FUEL_TYPES`. A ordem faz parte do contrato, e quem a guarda é
+`api-transportada/test/fleet-domain/vehicle-type.contract.ts` de um lado e
+`frontend-transportada/test/shared/vehicle-type-catalog.contract.ts` do outro. Mudou produto ou ordem
+de um lado? mude dos dois.
+
+Com um campo só não há o que sugerir: `vehicleFreightClass.service.ts` e a regra que corrigia a
+classe a partir do rodado saíram inteiras. `fleet_vehicles.wheel_type` **não existe mais** — a
+migration `20260821153330_fleet_vehicle_type` converte o dado antigo (a classe vence quando
+preenchida; senão o rodado é traduzido) e derruba as duas colunas, com `rollback.sql` que as devolve
+sem os valores. `freight_region_driver_rates.freight_class` é outra coisa e **continua**: ali a classe
+é a chave da coluna da tabela de preço, não um campo do veículo.
 
 A tabela do cliente entra por `POST /freight-regions/import` (`settings.manage`), **nunca** por seed
 em `src/`: o produto é genérico (ADR-0021) e a planilha é de uma transportadora. Reimportar o mesmo
@@ -554,7 +576,7 @@ como opção na próxima vez: `buildVehicleCatalogChoices` soma catálogo + marc
 na frota + o valor gravado na ficha aberta, deduplicados por `normalizeVehicleCatalogName` — a mesma
 dobra que `vehicleBrandDefaults.service.ts` usa para herdar ficha técnica, senão a lista mostraria
 "Randon" e "RANDON" separadas enquanto a herança as trataria como uma marca só. Lista vazia abre
-digitável direto; carregando e bloqueado por rodado seguem como select. Contrato em
+digitável direto; carregando e bloqueado por falta do tipo do veículo seguem como select. Contrato em
 `test/fleet/vehicle-catalog-other.contract.ts`.
 
 Texto pt-BR nos `*.locale.json` vai **acentuado**. O contrato `test/shared/locale-accents.contract.ts`

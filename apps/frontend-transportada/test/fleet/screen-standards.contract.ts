@@ -294,8 +294,8 @@ describe('fleet screen standards contract', () => {
     expect(identity).not.toContain("t('ownership')")
 
     expect(operation).toContain("t('capacityKilograms')")
-    // Função e rodado ficam na identificação: o catálogo de marca e modelo depende deles
-    expect(identity).toContain("t('wheelType')")
+    // Função e tipo ficam na identificação: o catálogo de marca e modelo depende deles
+    expect(identity).toContain("t('vehicleType')")
     expect(ownership.indexOf("t('ownership')")).toBeGreaterThan(-1)
     expect(ownership.indexOf("t('ownerName')")).toBeGreaterThan(ownership.indexOf("t('ownership')"))
   })

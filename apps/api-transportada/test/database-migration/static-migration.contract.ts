@@ -124,6 +124,7 @@ describe('Drizzle migrations', () => {
       '20260819202712_fleet_vehicle_measure_decimal',
       '20260820000830_freight_regions_and_vehicle_freight_class',
       '20260820002947_fleet_driver_address_and_dates',
+      '20260821153330_fleet_vehicle_type',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -937,6 +938,51 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toContain(
       'ALTER TABLE "fleet_vehicles" DROP COLUMN IF EXISTS "freight_class"',
     )
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Aqui a migration é destrutiva de propósito — as duas colunas viram uma —, e o que salva o dado é
+   * a ordem: o drizzle gera o `ADD` e os dois `DROP` colados, sem backfill nenhum entre eles.
+   */
+  test('versions the vehicle type merge with the backfill ahead of both drops', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_fleet_vehicle_type'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).toContain(
+      'ALTER TABLE "fleet_vehicles" ADD COLUMN "vehicle_type" varchar(20)',
+    )
+    // A classe digitada à mão vence o rodado sugerido: é ela que diz VUC e 3/4, que o rodado não nomeia
+    expect(migrationSql).toMatch(
+      /UPDATE "fleet_vehicles" SET "vehicle_type" = CASE[\s\S]*WHEN length\("freight_class"\) > 0 THEN "freight_class"[\s\S]*WHEN "wheel_type" = '01' THEN 'truck'[\s\S]*WHEN "wheel_type" = '06' THEN 'other'[\s\S]*ELSE ''[\s\S]*END;/,
+    )
+    const backfillPosition = migrationSql.indexOf('UPDATE "fleet_vehicles" SET "vehicle_type"')
+    for (const column of ['wheel_type', 'freight_class']) {
+      const dropPosition = migrationSql.indexOf(
+        `ALTER TABLE "fleet_vehicles" DROP COLUMN "${column}"`,
+      )
+      expect(dropPosition).toBeGreaterThan(backfillPosition)
+    }
+    expect(migrationSql).toContain('CONSTRAINT "fleet_vehicles_vehicle_type_check"')
+    expect(migrationSql).toContain("'motorcycle'")
+    expect(migrationSql).toContain("'car'")
+
+    // Volta recuperável: o rodado e a classe se reconstroem do tipo, e o CHECK antigo volta com eles
+    expect(rollbackSql).toContain('ADD COLUMN IF NOT EXISTS "wheel_type"')
+    expect(rollbackSql).toContain('ADD COLUMN IF NOT EXISTS "freight_class"')
+    expect(rollbackSql).toContain('CONSTRAINT "fleet_vehicles_wheel_type_check"')
+    expect(rollbackSql).toContain('CONSTRAINT "fleet_vehicles_freight_class_check"')
+    expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "vehicle_type"')
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

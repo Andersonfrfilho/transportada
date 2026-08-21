@@ -52,7 +52,6 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     costsUpdatedAt: record.costsUpdatedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     fleetNumber: record.fleetNumber,
-    freightClass: record.freightClass,
     fuelPrice,
     fuelType: record.fuelType,
     id: record.id,
@@ -83,8 +82,8 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     status: record.status,
     tareWeightKilograms: formatDecimalAtScale(record.tareWeightKg, MEASURE_SCALE),
     updatedAt: record.updatedAt.toISOString(),
+    vehicleType: record.vehicleType,
     version: record.version.toString(),
-    wheelType: record.wheelType,
   }
 }
 
@@ -114,7 +113,6 @@ export function toVehicleColumns(
     capacityM3: vehicle.capacityCubicMeters,
     color: vehicle.color,
     fleetNumber: vehicle.fleetNumber,
-    freightClass: vehicle.freightClass,
     fuelType: vehicle.fuelType,
     model: vehicle.model,
     modelYear: vehicle.modelYear,
@@ -131,7 +129,7 @@ export function toVehicleColumns(
     role: vehicle.role,
     state: vehicle.state,
     tareWeightKg: vehicle.tareWeightKilograms,
-    wheelType: vehicle.wheelType,
+    vehicleType: vehicle.vehicleType,
   }
 }
 

@@ -15,17 +15,17 @@ function readApplicationFile(filePath: string): Promise<string> {
 }
 
 describe('fleet vehicle completeness contract', () => {
-  // Veiculo de tracao sem rodado continua salvavel — bloquear quebraria o cadastro rapido por placa
-  test('never blocks saving a traction vehicle without a wheel type', async () => {
+  // Veiculo de tracao sem tipo continua salvavel — bloquear quebraria o cadastro rapido por placa
+  test('never blocks saving a traction vehicle without a vehicle type', async () => {
     const { EMPTY_VEHICLE_FORM, toVehicleBody } = await loadFutureModule<FleetFormModule>(
       '../../src/modules/fleet/shared/fleetForm.service',
     )
 
-    expect(EMPTY_VEHICLE_FORM.wheelType).toBe('')
-    expect(toVehicleBody({ ...EMPTY_VEHICLE_FORM, role: 'traction' }).wheelType).toBe('')
+    expect(EMPTY_VEHICLE_FORM.vehicleType).toBe('')
+    expect(toVehicleBody({ ...EMPTY_VEHICLE_FORM, role: 'traction' }).vehicleType).toBe('')
   })
 
-  test('keeps an empty wheel type empty when loading a vehicle into the form', async () => {
+  test('keeps an empty vehicle type empty when loading a vehicle into the form', async () => {
     const { toVehicleFormState } = await loadFutureModule<FleetFormModule>(
       '../../src/modules/fleet/shared/fleetForm.service',
     )
@@ -39,10 +39,10 @@ describe('fleet vehicle completeness contract', () => {
       version: '1',
     })
 
-    expect(state.wheelType).toBe('')
+    expect(state.vehicleType).toBe('')
   })
 
-  test('flags only a traction vehicle without a wheel type as incomplete for the MDF-e', async () => {
+  test('flags only a traction vehicle without a vehicle type as incomplete for the MDF-e', async () => {
     const { isVehicleIncompleteForMdfe } = await loadFutureModule<FleetCompletenessModule>(
       '../../src/modules/fleet/shared/vehicleCompleteness.service',
     )
@@ -54,7 +54,7 @@ describe('fleet vehicle completeness contract', () => {
     ).toBe(false)
   })
 
-  test('lets the wheel type field be cleared and hints that it is required to issue the MDF-e', async () => {
+  test('lets the vehicle type field be cleared and hints that it is required to issue the MDF-e', async () => {
     const [fleetField, identityFields, ptLocale, enLocale] = await Promise.all([
       readApplicationFile('src/modules/fleet/components/FleetField.component.tsx'),
       readApplicationFile('src/modules/fleet/components/VehicleIdentityFields.component.tsx'),
@@ -65,13 +65,13 @@ describe('fleet vehicle completeness contract', () => {
     expect(fleetField).toContain('clearable')
     expect(fleetField).toContain('placeholder')
     expect(identityFields).toContain('clearable')
-    expect(identityFields).toContain("t('wheelTypeUnset')")
-    expect(identityFields).toContain("t('wheelTypeRequiredHint')")
-    expect(identityFields).toContain("state.wheelType === ''")
+    expect(identityFields).toContain("t('vehicleTypeUnset')")
+    expect(identityFields).toContain("t('vehicleTypeRequiredHint')")
+    expect(identityFields).toContain("state.vehicleType === ''")
 
     for (const locale of [ptLocale, enLocale]) {
       const dictionary = JSON.parse(locale) as Record<string, unknown>
-      for (const key of ['wheelTypeUnset', 'wheelTypeRequiredHint', 'vehicleIncomplete']) {
+      for (const key of ['vehicleTypeUnset', 'vehicleTypeRequiredHint', 'vehicleIncomplete']) {
         expect(typeof dictionary[key]).toBe('string')
       }
     }
@@ -94,7 +94,7 @@ type FleetFormModule = {
   readonly toVehicleBody: (state: FleetVehicleFormStateContract) => FleetVehicleBodyContract
   readonly toVehicleFormState: (
     vehicle: Record<string, unknown>,
-  ) => FleetVehicleFormStateContract & { wheelType: string }
+  ) => FleetVehicleFormStateContract & { vehicleType: string }
 }
 
 type FleetCompletenessModule = {

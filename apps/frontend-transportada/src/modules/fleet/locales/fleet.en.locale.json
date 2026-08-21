@@ -88,12 +88,10 @@
     "traction": "Traction",
     "trailer": "Trailer"
   },
-  "wheelType": "Wheel type",
-  "wheelTypeUnset": "Not set",
-  "wheelTypeRequiredHint": "Without the wheel type, the MDF-e cannot be issued for this vehicle.",
-  "freightClassField": "Freight class",
-  "freightClassUnset": "Not set",
-  "freightClassHint": "It is the freight table column that pays this vehicle. The wheel type suggests the class, but VUC and 3/4 do not exist in the MDF-e wheel type — pick those by hand.",
+  "vehicleType": "Vehicle type",
+  "vehicleTypeUnset": "Not set",
+  "vehicleTypeRequiredHint": "Without the vehicle type, the MDF-e cannot be issued and the freight table cannot tell which column pays this vehicle.",
+  "vehicleTypeHint": "It decides the freight table column and the MDF-e wheel type.",
   "vehicleIncomplete": "Incomplete for MDF-e",
   "stateOption": {
     "AC": "AC — Acre",
@@ -124,13 +122,17 @@
     "SP": "SP — São Paulo",
     "TO": "TO — Tocantins"
   },
-  "wheelTypeOption": {
-    "01": "01 — Truck",
-    "02": "02 — Toco",
-    "03": "03 — Tractor unit",
-    "04": "04 — Van",
-    "05": "05 — Utility",
-    "06": "06 — Others"
+  "vehicleTypeOption": {
+    "motorcycle": "Motorcycle",
+    "car": "Car",
+    "utility": "Utility",
+    "van": "Van",
+    "vuc": "VUC",
+    "three_quarter": "3/4",
+    "toco": "Toco",
+    "truck": "Truck",
+    "tractor_unit": "Tractor unit",
+    "other": "Other"
   },
   "bodyType": "Body type",
   "bodyTypeOption": {
@@ -143,7 +145,7 @@
   },
   "vehicleModelLegend": "Brand and model",
   "brand": "Brand",
-  "brandCatalogWheelTypeHint": "Pick the wheel type in the vehicle identification to load the brands.",
+  "brandCatalogVehicleTypeHint": "Pick the vehicle type in the identification block to load the brands.",
   "brandCatalogUnavailableHint": "Brand catalog is unavailable right now. Type the brand as printed on the CRLV.",
   "catalogOtherOption": "Other — type it",
   "catalogBackToList": "Pick from the list",

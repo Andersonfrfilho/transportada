@@ -8,7 +8,6 @@ import {
   normalizeRegionCity,
   parseRegionCode,
 } from '../../src/freight-regions/domain/region-coverage.policy.js'
-import { resolveVehicleFreightClass } from '../../src/shared/freight-class.constant.js'
 
 describe('freight region coverage policy', () => {
   test('reads the family and the zone out of the printed route code', () => {
@@ -50,20 +49,5 @@ describe('freight region coverage policy', () => {
   test('folds city names by one rule', () => {
     expect(normalizeRegionCity('  são  joaquim da barra ')).toBe('SÃO JOAQUIM DA BARRA')
     expect(normalizeRegionCity('Matão')).toBe('MATÃO')
-  })
-
-  /**
-   * ⚠️ `tipoRodado` é código da SEFAZ e vai para dentro do MDF-e: VUC/VLC e 3/4 não existem lá. O
-   * rodado sugere as quatro classes que coincidem, e cala nas outras — chutar TRUCK para todo
-   * cavalo mecânico poria valor de pagamento errado no cadastro sem ninguém saber.
-   */
-  test('suggests the freight class from the wheel type only where the two tables agree', () => {
-    expect(resolveVehicleFreightClass('01')).toBe('truck')
-    expect(resolveVehicleFreightClass('02')).toBe('toco')
-    expect(resolveVehicleFreightClass('04')).toBe('van')
-    expect(resolveVehicleFreightClass('05')).toBe('utility')
-    expect(resolveVehicleFreightClass('03')).toBe('')
-    expect(resolveVehicleFreightClass('06')).toBe('')
-    expect(resolveVehicleFreightClass('')).toBe('')
   })
 })

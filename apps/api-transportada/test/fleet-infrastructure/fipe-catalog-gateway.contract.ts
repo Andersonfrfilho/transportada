@@ -12,9 +12,11 @@ import type { ApiLogger } from '../../src/shared/api.types.js'
 
 const BASE_URL = 'https://fipe.example.test'
 const BRAND_CODE = '102'
-const TRUCK = { role: 'traction', wheelType: '01' } as const
-const CAR = { role: 'traction', wheelType: '04' } as const
-const TRAILER = { role: 'trailer', wheelType: '' } as const
+const TRUCK = { role: 'traction', vehicleType: 'truck' } as const
+const CAR = { role: 'traction', vehicleType: 'car' } as const
+const MOTORCYCLE = { role: 'traction', vehicleType: 'motorcycle' } as const
+const VAN = { role: 'traction', vehicleType: 'van' } as const
+const TRAILER = { role: 'trailer', vehicleType: '' } as const
 
 const THIRTY_DAYS_MILLISECONDS = 30 * 24 * 60 * 60 * 1000
 
@@ -43,7 +45,7 @@ function createGateway(
 }
 
 describe('fipe vehicle catalog gateway contract', () => {
-  test('lists brands for a truck wheel type from the trucks segment', async () => {
+  test('lists brands for a truck from the trucks segment', async () => {
     const { calls, gateway } = createGateway({
       respond: () => Promise.resolve(Response.json([{ nome: 'AGRALE', valor: BRAND_CODE }])),
     })
@@ -54,7 +56,7 @@ describe('fipe vehicle catalog gateway contract', () => {
     expect(result).toEqual({ items: [{ label: 'AGRALE', value: BRAND_CODE }], source: 'fipe' })
   })
 
-  test('lists models for a car wheel type from the cars segment', async () => {
+  test('lists models for a car from the cars segment', async () => {
     const { calls, gateway } = createGateway({
       respond: () => Promise.resolve(Response.json([{ modelo: 'UNO', valor: '5986' }])),
     })
@@ -63,6 +65,18 @@ describe('fipe vehicle catalog gateway contract', () => {
 
     expect(calls[0]?.url).toBe(`${BASE_URL}/api/fipe/veiculos/v1/carros/${BRAND_CODE}`)
     expect(result).toEqual({ items: [{ label: 'UNO', value: '5986' }], source: 'fipe' })
+  })
+
+  // A moto tem tabela própria na FIPE: pedir a marca dela em `carros` devolve lista sem Honda CG.
+  test('lists brands for a motorcycle from the motorcycles segment', async () => {
+    const { calls, gateway } = createGateway({
+      respond: () => Promise.resolve(Response.json([{ nome: 'HONDA', valor: '80' }])),
+    })
+
+    const result = await gateway.listBrands(MOTORCYCLE)
+
+    expect(calls[0]?.url).toBe(`${BASE_URL}/api/fipe/marcas/v1/motos`)
+    expect(result).toEqual({ items: [{ label: 'HONDA', value: '80' }], source: 'fipe' })
   })
 
   test('never calls the provider for a trailer, which has no catalog coverage', async () => {
@@ -137,8 +151,8 @@ describe('fipe vehicle catalog gateway contract', () => {
   })
 
   /**
-   * Defeito medido em staging: a BrasilAPI devolveu 500 duas vezes seguidas para `carros`, o rodado
-   * VAN ficou sem marca nenhuma e o operador não tinha o que escolher. O mesmo pedido respondeu 200
+   * Defeito medido em staging: a BrasilAPI devolveu 500 duas vezes seguidas para `carros`, a VAN
+   * ficou sem marca nenhuma e o operador não tinha o que escolher. O mesmo pedido respondeu 200
    * minutos depois — era piscar do provedor, e uma tentativa só o transformava em campo vazio.
    */
   test('a 500 do provedor é tentado de novo, e a segunda resposta vale', async () => {
@@ -154,7 +168,7 @@ describe('fipe vehicle catalog gateway contract', () => {
       },
     })
 
-    const result = await gateway.listBrands(CAR)
+    const result = await gateway.listBrands(VAN)
 
     expect(calls).toHaveLength(2)
     expect(result).toEqual({ items: [{ label: 'Acura', value: '1' }], source: 'fipe' })
@@ -170,7 +184,7 @@ describe('fipe vehicle catalog gateway contract', () => {
       },
     })
 
-    const result = await gateway.listBrands(CAR)
+    const result = await gateway.listBrands(VAN)
 
     expect(calls).toHaveLength(2)
     expect(result.items).toHaveLength(1)

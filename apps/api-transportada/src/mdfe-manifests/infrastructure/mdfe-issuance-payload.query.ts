@@ -99,7 +99,7 @@ async function loadManifestAndVehicle(
       transporterType: mdfeManifests.transporterType,
       tripStartedAt: mdfeManifests.tripStartedAt,
       vehicleState: fleetVehicles.state,
-      wheelType: fleetVehicles.wheelType,
+      vehicleType: fleetVehicles.vehicleType,
     })
     .from(mdfeManifests)
     .innerJoin(
@@ -152,7 +152,7 @@ async function loadManifestAndVehicle(
       renavam: record.renavam,
       state: record.vehicleState,
       tareWeightKg: record.tareWeightKg,
-      wheelType: record.wheelType,
+      vehicleType: record.vehicleType,
     },
   }
 }

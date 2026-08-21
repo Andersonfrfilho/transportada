@@ -34,7 +34,6 @@ export const CREATE_VEHICLE_BODY = {
   capacityKilograms: '27000.00',
   color: '',
   fleetNumber: '',
-  freightClass: '',
   fuelType: 'diesel-s10',
   model: '',
   modelYear: 0,
@@ -47,7 +46,7 @@ export const CREATE_VEHICLE_BODY = {
   role: 'traction',
   state: 'SP',
   tareWeightKilograms: '8000.00',
-  wheelType: '03',
+  vehicleType: 'tractor_unit',
 } as const
 
 export const CREATE_TRAILER_BODY = {
@@ -55,7 +54,7 @@ export const CREATE_TRAILER_BODY = {
   bodyType: '01',
   plate: 'XYZ9A88',
   role: 'trailer',
-  wheelType: '',
+  vehicleType: '',
 } as const
 
 export const THIRD_PARTY_OWNER_BODY = {

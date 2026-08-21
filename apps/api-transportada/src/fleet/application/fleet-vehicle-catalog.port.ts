@@ -1,7 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { FleetVehicleRole, MdfeWheelType } from '../../database/fleet.schema.js'
+import type { FleetVehicleRole } from '../../database/fleet.schema.js'
+import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 
 export type VehicleCatalogItem = {
   readonly label: string
@@ -17,7 +18,7 @@ export type VehicleCatalogResult = {
 
 export type ListVehicleCatalogBrandsInput = {
   readonly role: FleetVehicleRole
-  readonly wheelType: MdfeWheelType | ''
+  readonly vehicleType: VehicleType | ''
 }
 
 export type ListVehicleCatalogModelsInput = ListVehicleCatalogBrandsInput & {

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FreightVehicleClass } from '../../shared/freightClass.constant'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+import type { VehicleType } from '../../shared/vehicleType.constant'
 import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
 /** A origem do preço efetivo: a série pública da ANP ou o ajuste da própria transportadora. */
@@ -15,10 +15,6 @@ export type FleetVehicleStatus = (typeof FLEET_VEHICLE_STATUS)[number]
 
 export const FLEET_VEHICLE_OWNERSHIP = ['own', 'aggregate', 'third_party'] as const
 export type FleetVehicleOwnership = (typeof FLEET_VEHICLE_OWNERSHIP)[number]
-
-/** tpRod — 01 truck, 02 toco, 03 cavalo mecânico, 04 VAN, 05 utilitário, 06 outros. */
-export const MDFE_WHEEL_TYPE = ['01', '02', '03', '04', '05', '06'] as const
-export type MdfeWheelType = (typeof MDFE_WHEEL_TYPE)[number]
 
 /**
  * Lista fechada — texto livre gerava "prata metálico" e "PRATA" na mesma frota. A base é a tabela
@@ -152,8 +148,6 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     capacityKilograms: string
     color: string
     fleetNumber: string
-    /** Vazio é legítimo: cavalo mecânico e implemento não estão na tabela de frete do cliente. */
-    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: number
@@ -164,7 +158,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     role: FleetVehicleRole
     state: string
     tareWeightKilograms: string
-    wheelType: '' | MdfeWheelType
+    /** Vazio é legítimo só no implemento: é a tração que tem tipo, e o `tpRod` sai dele. */
+    vehicleType: '' | VehicleType
   }>
 
 export type FleetVehicleDetail = FleetVehicleBody &
@@ -214,7 +209,7 @@ export type FleetVehicleCatalogResult = Readonly<{
 
 export type FleetVehicleCatalogBrandsInput = Readonly<{
   role: FleetVehicleRole
-  wheelType: '' | MdfeWheelType
+  vehicleType: '' | VehicleType
 }>
 
 export type FleetVehicleCatalogModelsInput = FleetVehicleCatalogBrandsInput &
@@ -300,7 +295,6 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     capacityKilograms: string
     color: '' | VehicleColor
     fleetNumber: string
-    freightClass: '' | FreightVehicleClass
     fuelType: FuelProduct
     model: string
     modelYear: string
@@ -315,7 +309,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     role: FleetVehicleRole
     state: string
     tareWeightKilograms: string
-    wheelType: '' | MdfeWheelType
+    vehicleType: '' | VehicleType
   }>
 
 /** Datas viajam como string vazia no formulário: `null` é o que o corpo da API recebe. */

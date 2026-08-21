@@ -20,17 +20,17 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import {
-  FREIGHT_VEHICLE_CLASS_MAX_LENGTH,
-  FREIGHT_VEHICLE_CLASSES,
-  type FreightVehicleClass,
-} from '../shared/freight-class.constant.js'
-import {
   DEFAULT_FUEL_PRODUCT,
   FUEL_PRODUCT_MAX_LENGTH,
   FUEL_PRODUCTS,
   type FuelProduct,
 } from '../shared/fuel.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
+import {
+  VEHICLE_TYPE_MAX_LENGTH,
+  VEHICLE_TYPES,
+  type VehicleType,
+} from '../shared/vehicle-type.constant.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -135,12 +135,11 @@ export const fleetVehicles = pgTable(
     tareWeightKg: measureColumn('tare_weight_kg').notNull().default('0'),
     capacityKg: measureColumn('capacity_kg').notNull().default('0'),
     capacityM3: measureColumn('capacity_m3').notNull().default('0'),
-    wheelType: text('wheel_type').$type<MdfeWheelType | ''>().notNull().default(''),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),
-    // Classe comercial da tabela de frete — não é o `tipoRodado` do MDF-e, que não tem VUC nem 3/4
-    freightClass: varchar('freight_class', { length: FREIGHT_VEHICLE_CLASS_MAX_LENGTH })
-      .$type<FreightVehicleClass | ''>()
+    // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação
+    vehicleType: varchar('vehicle_type', { length: VEHICLE_TYPE_MAX_LENGTH })
+      .$type<VehicleType | ''>()
       .notNull()
       .default(''),
     state: text().notNull(),
@@ -221,14 +220,10 @@ export const fleetVehicles = pgTable(
       'fleet_vehicles_cost_check',
       sql`${table.averageConsumption} >= 0 and ${table.otherCostsPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
     ),
+    // Implemento não tem tipo: quem traciona é que é moto, VAN ou cavalo mecânico
     check(
-      'fleet_vehicles_wheel_type_check',
-      sql`(${table.role} = 'traction') = (${table.wheelType} in (${sql.raw(inList(MDFE_WHEEL_TYPES))}))`,
-    ),
-    // Vazio é legítimo: cavalo mecânico e "Outros" não têm classe derivável do rodado
-    check(
-      'fleet_vehicles_freight_class_check',
-      sql`length(${table.freightClass}) = 0 or ${table.freightClass} in (${sql.raw(inList(FREIGHT_VEHICLE_CLASSES))})`,
+      'fleet_vehicles_vehicle_type_check',
+      sql`(${table.role} = 'traction') = (${table.vehicleType} in (${sql.raw(inList(VEHICLE_TYPES))}))`,
     ),
     check(
       'fleet_vehicles_body_type_check',

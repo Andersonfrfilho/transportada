@@ -22,22 +22,22 @@ describe('fleet vehicle model fields contract', () => {
     expect(operationIndex).toBeGreaterThan(modelIndex)
   })
 
-  test('asks for role and wheel type before the model block that depends on them', async () => {
+  test('asks for role and vehicle type before the model block that depends on them', async () => {
     const [identity, operation, ptLocale] = await Promise.all([
       readApplicationFile('src/modules/fleet/components/VehicleIdentityFields.component.tsx'),
       readApplicationFile('src/modules/fleet/components/VehicleOperationFields.component.tsx'),
       readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),
     ])
 
-    // O rodado resolve o segmento do catálogo: pedi-lo depois da marca é pedir para bloquear a lista
+    // O tipo resolve o segmento do catálogo: pedi-lo depois da marca é pedir para bloquear a lista
     expect(identity).toContain("t('role')")
-    expect(identity).toContain("t('wheelType')")
+    expect(identity).toContain("t('vehicleType')")
     expect(operation).not.toContain("t('role')")
-    expect(operation).not.toContain("t('wheelType')")
+    expect(operation).not.toContain("t('vehicleType')")
 
     // O aviso não manda o operador para outro bloco: o campo está acima, na mesma tela
     const dictionary = JSON.parse(ptLocale) as Record<string, string>
-    expect(dictionary['brandCatalogWheelTypeHint']).not.toContain('Capacidade')
+    expect(dictionary['brandCatalogVehicleTypeHint']).not.toContain('Capacidade')
   })
 
   test('clears the model when the brand changes', async () => {
@@ -105,12 +105,12 @@ describe('fleet vehicle model fields contract', () => {
       hasCatalogFailure: false,
       role: 'traction',
       vehicleCatalogEnabled: true,
-      wheelType: '01',
+      vehicleType: 'truck',
     }
 
     expect(resolveVehicleCatalogFieldMode(listed)).toBe('list')
-    // Sem rodado o provedor não tem segmento: a lista vem vazia, e vazia sem motivo lê como falha
-    expect(resolveVehicleCatalogFieldMode({ ...listed, wheelType: '' })).toBe('blocked')
+    // Sem o tipo o provedor não tem segmento: a lista vem vazia, e vazia sem motivo lê como falha
+    expect(resolveVehicleCatalogFieldMode({ ...listed, vehicleType: '' })).toBe('blocked')
     // Decisão 4 da spec 035: provedor indisponível nunca impede cadastrar veículo
     expect(resolveVehicleCatalogFieldMode({ ...listed, hasCatalogFailure: true })).toBe('text')
     expect(resolveVehicleCatalogFieldMode({ ...listed, role: 'trailer' })).toBe('text')
@@ -126,7 +126,7 @@ describe('fleet vehicle model fields contract', () => {
     expect(hasVehicleCatalogFailure({ isError: false, source: 'unavailable' })).toBe(true)
     expect(hasVehicleCatalogFailure({ isError: true, source: undefined })).toBe(true)
     expect(hasVehicleCatalogFailure({ isError: false, source: 'fipe' })).toBe(false)
-    // Sem rodado o segmento não existe: é lista bloqueada, não provedor fora do ar
+    // Sem o tipo o segmento não existe: é lista bloqueada, não provedor fora do ar
     expect(hasVehicleCatalogFailure({ isError: false, source: 'none' })).toBe(false)
   })
 
@@ -137,7 +137,7 @@ describe('fleet vehicle model fields contract', () => {
     ])
 
     expect(modelFields).toContain('resolveVehicleCatalogFieldMode')
-    expect(modelFields).toContain("t('brandCatalogWheelTypeHint')")
+    expect(modelFields).toContain("t('brandCatalogVehicleTypeHint')")
     expect(modelFields).toContain("t('brandCatalogUnavailableHint')")
     // Carregamento tem forma: select vazio durante a busca é indistinguível de catálogo sem marcas
     expect(catalogField).toContain('Skeleton')
@@ -262,7 +262,7 @@ describe('fleet vehicle model fields contract', () => {
         'vehicleModelLegend',
         'brand',
         'brandCatalogUnavailableHint',
-        'brandCatalogWheelTypeHint',
+        'brandCatalogVehicleTypeHint',
         'model',
         'modelYear',
         'color',
@@ -317,7 +317,7 @@ type FleetFormModule = {
       hasCatalogFailure: boolean
       role: string
       vehicleCatalogEnabled: boolean
-      wheelType: string
+      vehicleType: string
     }>,
   ) => string
   readonly toVehicleFormState: (

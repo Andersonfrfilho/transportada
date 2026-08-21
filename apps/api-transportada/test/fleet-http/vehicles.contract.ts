@@ -186,12 +186,12 @@ describe('fleet vehicles http contract', () => {
     expect(blankResponse.status).toBe(201)
   })
 
-  // tpRod só existe no veicTracao — deixar passar aqui vira rejeição na SEFAZ depois
-  test('refuses a trailer carrying a wheel type and a traction without one', async () => {
+  // O `tpRod` sai do tipo, e ele só existe no veicTracao — deixar passar aqui vira rejeição na SEFAZ
+  test('refuses a trailer carrying a vehicle type and a traction without one', async () => {
     const trailerFixture = await createFleetHttpFixture()
     const trailerResponse = await trailerFixture.handle(
       jsonRequest({
-        body: { ...CREATE_TRAILER_BODY, wheelType: '03' },
+        body: { ...CREATE_TRAILER_BODY, vehicleType: 'tractor_unit' },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
       }),
@@ -204,7 +204,7 @@ describe('fleet vehicles http contract', () => {
     const tractionFixture = await createFleetHttpFixture()
     const tractionResponse = await tractionFixture.handle(
       jsonRequest({
-        body: { ...CREATE_VEHICLE_BODY, wheelType: '' },
+        body: { ...CREATE_VEHICLE_BODY, vehicleType: '' },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
       }),
@@ -499,31 +499,31 @@ describe('fleet vehicles http contract', () => {
   })
 
   /**
-   * A classe de frete é o que casa o veículo com a coluna da tabela do cliente. Ela não é o
-   * `tipoRodado`: a tabela da SEFAZ não tem VUC nem 3/4, e é justamente ali que os dois se separam.
+   * O tipo é um campo só, e é ele que casa o veículo com a coluna da tabela do cliente. VUC e 3/4 não
+   * existem no `tipoRodado` da SEFAZ — quem os nomeia é o tipo, e o rodado sai dele por derivação.
    */
-  test('carries the freight class through create, update and listing', async () => {
-    const vucVehicle = { ...VEHICLE, freightClass: 'vuc' } as const
+  test('carries the vehicle type through create, update and listing', async () => {
+    const vucVehicle = { ...VEHICLE, vehicleType: 'vuc' } as const
 
     const createFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
     const createResponse = await createFixture.handle(
       jsonRequest({
-        body: { ...CREATE_VEHICLE_BODY, freightClass: 'vuc' },
+        body: { ...CREATE_VEHICLE_BODY, vehicleType: 'vuc' },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
       }),
     )
 
     expect(createResponse.status).toBe(201)
-    expect(await responseData(createResponse)).toMatchObject({ freightClass: 'vuc' })
+    expect(await responseData(createResponse)).toMatchObject({ vehicleType: 'vuc' })
     expect(createFixture.createVehicleCalls[0]).toMatchObject({
-      vehicle: { freightClass: 'vuc' },
+      vehicle: { vehicleType: 'vuc' },
     })
 
     const updateFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
     const updateResponse = await updateFixture.handle(
       jsonRequest({
-        body: { ...UPDATE_VEHICLE_BODY, freightClass: 'three_quarter' },
+        body: { ...UPDATE_VEHICLE_BODY, vehicleType: 'three_quarter' },
         method: 'PATCH',
         path: VEHICLE_PATH,
       }),
@@ -531,7 +531,7 @@ describe('fleet vehicles http contract', () => {
 
     expect(updateResponse.status).toBe(200)
     expect(updateFixture.updateVehicleCalls[0]).toMatchObject({
-      vehicle: { freightClass: 'three_quarter' },
+      vehicle: { vehicleType: 'three_quarter' },
     })
 
     const listFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
@@ -540,28 +540,31 @@ describe('fleet vehicles http contract', () => {
     )
 
     expect(listResponse.status).toBe(200)
-    expect(await responseData<readonly { readonly freightClass: string }[]>(listResponse)).toEqual([
-      expect.objectContaining({ freightClass: 'vuc' }),
+    expect(await responseData<readonly { readonly vehicleType: string }[]>(listResponse)).toEqual([
+      expect.objectContaining({ vehicleType: 'vuc' }),
     ])
   })
 
-  // Cavalo mecânico e "Outros" não têm classe no rodado: a sugestão é da tela, o vazio é legítimo
-  test('accepts an empty freight class and refuses one outside the table', async () => {
-    const blankFixture = await createFleetHttpFixture()
-    const blankResponse = await blankFixture.handle(
-      jsonRequest({
-        body: { ...CREATE_VEHICLE_BODY, freightClass: '' },
-        method: 'POST',
-        path: FLEET_VEHICLES_PATH,
-      }),
-    )
+  // Moto e carro entraram no catálogo e vão ao MDF-e como `06`; nome de fora do catálogo não entra
+  test('accepts the types the SEFAZ list does not name and refuses one outside the catalog', async () => {
+    for (const vehicleType of ['motorcycle', 'car'] as const) {
+      const fixture = await createFleetHttpFixture({ vehicle: { ...VEHICLE, vehicleType } })
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...CREATE_VEHICLE_BODY, vehicleType },
+          method: 'POST',
+          path: FLEET_VEHICLES_PATH,
+        }),
+      )
 
-    expect(blankResponse.status).toBe(201)
+      expect(response.status).toBe(201)
+      expect(fixture.createVehicleCalls[0]).toMatchObject({ vehicle: { vehicleType } })
+    }
 
     const invalidFixture = await createFleetHttpFixture()
     const invalidResponse = await invalidFixture.handle(
       jsonRequest({
-        body: { ...CREATE_VEHICLE_BODY, freightClass: 'carreta' },
+        body: { ...CREATE_VEHICLE_BODY, vehicleType: 'carreta' },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
       }),
