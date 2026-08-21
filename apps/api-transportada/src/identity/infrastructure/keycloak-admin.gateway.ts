@@ -3,9 +3,13 @@
  */
 import {
   createKeycloakAdminClient,
+  isKeycloakAdminError,
+  KEYCLOAK_ADMIN_ERROR_CODE,
   type KeycloakAdminClient,
   type KeycloakAdminConfig,
 } from '@adatechnology/keycloak-admin'
+
+import { DuplicateContactError } from '../domain/company-user.error.js'
 
 import type {
   BootstrapIdentityGatewayPort,
@@ -117,17 +121,19 @@ export function createIdentityAccessGateway(
 
   return {
     async createUser(input): Promise<CreateIdentityUserResult> {
-      const created = await client.createUser({
-        ...omitUndefined({
-          attributes: input.attributes,
-          firstName: input.firstName,
-          lastName: input.lastName,
+      const created = await guardContact(() =>
+        client.createUser({
+          ...omitUndefined({
+            attributes: input.attributes,
+            firstName: input.firstName,
+            lastName: input.lastName,
+          }),
+          email: input.email,
+          emailVerified: false,
+          enabled: input.enabled,
+          username: input.username,
         }),
-        email: input.email,
-        emailVerified: false,
-        enabled: input.enabled,
-        username: input.username,
-      })
+      )
       return { subject: created.id }
     },
     async deleteUser({ userId }): Promise<void> {
@@ -152,6 +158,20 @@ export function createIdentityAccessGateway(
     async updateUser({ user, userId }): Promise<void> {
       await client.updateUser({ user, userId })
     },
+  }
+}
+
+/**
+ * O e-mail é único no realm, e quem descobre a colisão é o Keycloak. Sem esta tradução o 409 dele
+ * chega ao cliente como 500 genérico, e o formulário não tem em que campo ancorar a mensagem.
+ */
+async function guardContact<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (isKeycloakAdminError(error) && error.code === KEYCLOAK_ADMIN_ERROR_CODE.USER_ALREADY_EXISTS)
+      throw new DuplicateContactError()
+    throw error
   }
 }
 

@@ -8,6 +8,10 @@ const DATE_PICKER_PATH = 'src/components/ui/date-picker.tsx'
 const RANGE_PICKER_PATH = 'src/components/ui/date-range-picker.tsx'
 
 type CalendarServiceModule = Readonly<{
+  buildYearChoices: () => readonly number[]
+  isoToDisplayDate: (value: string) => string
+  maskTypedDate: (value: string) => string
+  parseDisplayDate: (display: string) => string | null
   buildMonthCells: (view: Readonly<{ month: number; year: number }>) => readonly (number | null)[]
   isoToViewMonth: (value: string) => Readonly<{ month: number; year: number }> | null
   shiftViewMonth: (
@@ -115,5 +119,36 @@ describe('design system date picker contract', () => {
     expect(component).toContain("from './date-range-picker.module.css'")
     expect(component).toContain('SELECT_TRIGGER_CLASS_NAMES')
     expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  /**
+   * Data de nascimento fica a mais de quatrocentos cliques do mês de hoje: sem digitação e sem
+   * escolha de ano, o campo obrigava a percorrer o calendário mês a mês até 1985.
+   */
+  test('accepts a typed date and offers the year without walking month by month', async () => {
+    const { buildYearChoices, isoToDisplayDate, maskTypedDate, parseDisplayDate } =
+      await loadCalendarService()
+
+    expect(maskTypedDate('1')).toBe('1')
+    expect(maskTypedDate('1503')).toBe('15/03')
+    expect(maskTypedDate('15031985')).toBe('15/03/1985')
+    expect(maskTypedDate('15/03/1985999')).toBe('15/03/1985')
+    expect(parseDisplayDate('15/03/1985')).toBe('1985-03-15')
+    expect(parseDisplayDate('31/02/1985')).toBeNull()
+    expect(parseDisplayDate('00/03/1985')).toBeNull()
+    expect(parseDisplayDate('15/03/198')).toBeNull()
+    expect(isoToDisplayDate('1985-03-15')).toBe('15/03/1985')
+    expect(isoToDisplayDate('')).toBe('')
+
+    const years = buildYearChoices()
+    const currentYear = new Date().getFullYear()
+    expect(years[0]).toBe(currentYear + 20)
+    expect(years.at(-1)).toBe(currentYear - 100)
+    expect(years).toContain(1985)
+
+    const component = await readApplicationFile(DATE_PICKER_PATH)
+    expect(component).toContain('maskTypedDate')
+    expect(component).toContain('buildYearChoices')
+    expect(component).toContain('onChange={(event) => handleTyping(event.target.value)}')
   })
 })

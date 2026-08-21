@@ -23,6 +23,8 @@ export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
+/** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
+export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'

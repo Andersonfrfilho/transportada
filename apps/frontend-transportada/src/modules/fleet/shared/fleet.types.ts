@@ -55,6 +55,14 @@ export type MdfeBodyType = (typeof MDFE_BODY_TYPE)[number]
 export const MDFE_OWNER_TAX_REGIME = ['0', '1', '2'] as const
 export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIME)[number]
 
+/**
+ * Categoria da CNH, no catálogo do CONTRAN. Cópia por valor do que a API valida — o bundle não
+ * carrega código dela —, e a ordem é a da carteira: da mais leve para a mais pesada, com as
+ * combinadas logo depois da simples que elas somam.
+ */
+export const LICENSE_CATEGORIES = ['ACC', 'A', 'B', 'AB', 'C', 'AC', 'D', 'AD', 'E', 'AE'] as const
+export type LicenseCategory = (typeof LICENSE_CATEGORIES)[number]
+
 /** A UF é fechada em 27, e é o que a API valida: `/^[A-Z]{2}$/` aceita 'XX' que não existe. */
 export const BRAZIL_STATE = [
   'AC',
@@ -228,16 +236,50 @@ export type FleetDriverAddress = Readonly<{
 
 export type FleetDriverBody = Readonly<{
   address: FleetDriverAddress
+  /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
+  anttCategory: '' | MdfeOwnerTaxRegime
+  /** Naturalidade; a cidade pode existir sem a UF em ficha antiga, e nenhuma exige a outra. */
+  birthCity: string
   birthDate: null | string
+  birthState: string
+  email: string
+  /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
+  fatherName: string
+  /** Data da primeira habilitação — o que a carteira imprime como "1ª habilitação". */
+  firstLicenseAt: null | string
+  /** Categoria da CNH; vazia enquanto a ficha não a declara. */
+  licenseCategory: '' | LicenseCategory
   licenseExpiresAt: null | string
+  /** Município do DETRAN que emitiu a carteira, com a UF ao lado. */
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  /** Razão social da empresa do motorista; pende do CNPJ, e a metade contrária fica solta. */
+  linkedLegalName: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
   linkedTaxId: string
   membershipId: null | string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  rntrc: string
   taxId: string
 }>
+
+/**
+ * O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da empresa. Cópia por
+ * valor do catálogo da API: o bundle não carrega código dela, e a paridade é contrato de teste.
+ */
+export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver'] as const
+export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
+
+/**
+ * O vínculo não vem do formulário de criação: ele nasce do usuário que a criação abre. O que o
+ * operador escolhe é o perfil desse usuário, e a API o recusa em qualquer outro corpo.
+ */
+export type FleetDriverCreateBody = Omit<FleetDriverBody, 'membershipId'> &
+  Readonly<{ profile: FleetDriverProfile }>
 
 export type FleetDriverDetail = FleetDriverBody &
   Readonly<{
@@ -264,6 +306,22 @@ export type FleetReplaceDriverVehiclesInput = Readonly<{
 }>
 
 export type FleetDriverRegionsInput = Readonly<{ driverId: string }>
+
+/** A resposta da conferência prévia: um booleano por campo único, sem dizer de quem é a colisão. */
+export type FleetDriverAvailability = Readonly<{
+  emailTaken: boolean
+  licenseNumberTaken: boolean
+  taxIdTaken: boolean
+}>
+
+export type FleetDriverAvailabilityInput = Readonly<{
+  /** A ficha aberta não colide consigo mesma; no cadastro novo ainda não há id. */
+  driverId: null | string
+  email: string
+  licenseNumber: string
+  signal?: AbortSignal
+  taxId: string
+}>
 
 export type FleetReplaceDriverRegionsInput = Readonly<{
   driverId: string
@@ -321,13 +379,29 @@ export type FleetDriverFormState = Readonly<{
   addressPostalCode: string
   addressState: string
   addressStreet: string
+  anttCategory: string
+  birthCity: string
   birthDate: string
+  birthState: string
+  email: string
+  fatherName: string
+  firstLicenseAt: string
+  licenseCategory: string
   licenseExpiresAt: string
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  linkedLegalName: string
   linkedTaxId: string
-  membershipId: string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  /** Só a criação o usa: a ficha carregada não o traz, porque a API não devolve papel de usuário. */
+  profile: FleetDriverProfile
+  rntrc: string
+  /** Só do formulário: a API guarda um nome só, e o corpo junta as duas partes de volta. */
+  surname: string
   taxId: string
 }>
 

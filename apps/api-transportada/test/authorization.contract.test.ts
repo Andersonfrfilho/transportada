@@ -43,6 +43,7 @@ describe('authorization contract', () => {
       'operations.read',
       'audit.read',
       'view-preferences.manage',
+      'addresses.read',
       'fleet.read',
       'fleet.manage',
       'mdfe.read',
@@ -72,6 +73,7 @@ describe('authorization contract', () => {
         'operations.read',
         'audit.read',
         'view-preferences.manage',
+        'addresses.read',
         'fleet.read',
         'fleet.manage',
         'mdfe.read',
@@ -103,6 +105,7 @@ describe('authorization contract', () => {
         'cte.read',
         'operations.read',
         'view-preferences.manage',
+        'addresses.read',
         'fleet.read',
         'mdfe.read',
         'mdfe.manage',
@@ -124,6 +127,7 @@ describe('authorization contract', () => {
         'cte.read',
         'operations.read',
         'view-preferences.manage',
+        'addresses.read',
         'fleet.read',
         'fleet.manage',
         'mdfe.read',
@@ -141,28 +145,33 @@ describe('authorization contract', () => {
         'nfse.read',
       ],
       driver: ['trip.read', 'trip.report'],
+      aggregate: ['trip.read', 'trip.report'],
     })
   })
 
-  // O motorista é o menor conjunto do sistema — nota, CT-e, faturamento e frota ficam fora
-  test('grants the driver role only its own trip permissions', () => {
-    const permissions = resolveCompanyPermissions(['driver'])
+  // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota
+  // ficam fora. O agregado se distingue do motorista pelo veículo que ele traz, não por permissão.
+  test('grants the field roles only their own trip permissions', () => {
+    for (const role of ['driver', 'aggregate'] as const) {
+      const permissions = resolveCompanyPermissions([role])
 
-    expect([...permissions]).toEqual(['trip.read', 'trip.report'])
-    for (const denied of [
-      'invoices.read',
-      'cte.read',
-      'billing.read',
-      'fleet.read',
-      'mdfe.read',
-      'operations.read',
-      'view-preferences.manage',
-    ] as const) {
-      expect(permissions.has(denied)).toBe(false)
+      expect([...permissions]).toEqual(['trip.read', 'trip.report'])
+      for (const denied of [
+        'invoices.read',
+        'cte.read',
+        'billing.read',
+        'fleet.read',
+        'mdfe.read',
+        'operations.read',
+        'view-preferences.manage',
+        'addresses.read',
+      ] as const) {
+        expect(permissions.has(denied)).toBe(false)
+      }
     }
   })
 
-  test('keeps trip permissions exclusive to the driver role', () => {
+  test('keeps trip permissions exclusive to the field roles', () => {
     for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
       const permissions = resolveCompanyPermissions([role])
       expect(permissions.has('trip.read')).toBe(false)
@@ -179,13 +188,34 @@ describe('authorization contract', () => {
       expect(permissions.has(granted)).toBe(true)
     }
 
-    for (const role of ['operator', 'finance', 'viewer', 'driver'] as const) {
+    for (const role of ['operator', 'finance', 'viewer', 'driver', 'aggregate'] as const) {
       expect(resolveCompanyPermissions([role]).has('nfse.issue')).toBe(false)
     }
   })
 
+  // A consulta de CEP serve três formulários guardados por permissões diferentes (`fleet.manage`,
+  // `settings.manage`, `mdfe.manage`), e a política de rota admite uma permissão só. `addresses.read`
+  // é dela, concedida a quem já consegue escrever endereço em alguma das três telas — nem um papel
+  // além disso: quem não preenche endereço não ganha capacidade nova.
+  test('grants the address lookup to the roles that can write an address', () => {
+    for (const role of ['company-admin', 'fiscal', 'operator'] as const) {
+      expect(resolveCompanyPermissions([role]).has('addresses.read')).toBe(true)
+    }
+
+    for (const role of ['finance', 'viewer', 'driver', 'aggregate'] as const) {
+      expect(resolveCompanyPermissions([role]).has('addresses.read')).toBe(false)
+    }
+  })
+
   test('restricts the MDF-e fiscal events to the fiscal role', () => {
-    for (const role of ['company-admin', 'operator', 'viewer', 'finance', 'driver'] as const) {
+    for (const role of [
+      'company-admin',
+      'operator',
+      'viewer',
+      'finance',
+      'driver',
+      'aggregate',
+    ] as const) {
       const permissions = resolveCompanyPermissions([role])
       expect(permissions.has('mdfe.issue')).toBe(false)
       expect(permissions.has('mdfe.close')).toBe(false)
@@ -227,6 +257,7 @@ describe('authorization contract', () => {
       'cte.read',
       'operations.read',
       'view-preferences.manage',
+      'addresses.read',
       'fleet.read',
       'mdfe.read',
       'mdfe.manage',

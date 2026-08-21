@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, lt, or } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, or } from 'drizzle-orm'
 
 import { fleetDrivers, userCompanyMemberships } from '../../database/database.schema.js'
 import type { FleetDriverStatus } from '../../database/fleet.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
   FleetDriver,
+  FleetDriverDocumentConflicts,
   FleetDriverFilters,
   FleetDriverInput,
   FleetDriverPage,
@@ -45,6 +46,43 @@ export class DrizzleFleetDriverRepository implements FleetDriverRepositoryPort {
     })
     if (record === undefined) throw new Error('FLEET_DRIVER_CREATE_FAILED')
     return mapDriver(record)
+  }
+
+  /**
+   * A conferência prévia do formulário, num acesso só. Ela não decide nada: entre esta leitura e o
+   * `INSERT` cabe outra escrita, e quem recusa a colisão de verdade é o índice único.
+   */
+  public async findDocumentConflicts(input: {
+    readonly companyId: string
+    readonly driverId: string | null
+    readonly licenseNumber: string
+    readonly taxId: string
+  }): Promise<FleetDriverDocumentConflicts> {
+    const wanted = [
+      input.taxId === '' ? undefined : eq(fleetDrivers.taxId, input.taxId),
+      input.licenseNumber === '' ? undefined : eq(fleetDrivers.licenseNumber, input.licenseNumber),
+    ].filter((match) => match !== undefined)
+    if (wanted.length === 0) return { licenseNumber: false, taxId: false }
+
+    const records = await this.database
+      .select({ licenseNumber: fleetDrivers.licenseNumber, taxId: fleetDrivers.taxId })
+      .from(fleetDrivers)
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          // A ficha aberta não colide consigo mesma
+          input.driverId === null ? undefined : ne(fleetDrivers.id, input.driverId),
+          or(...wanted),
+        ),
+      )
+      .limit(wanted.length)
+
+    return {
+      licenseNumber:
+        input.licenseNumber !== '' &&
+        records.some((record) => record.licenseNumber === input.licenseNumber),
+      taxId: input.taxId !== '' && records.some((record) => record.taxId === input.taxId),
+    }
   }
 
   public async findById(input: {

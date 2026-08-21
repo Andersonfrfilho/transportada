@@ -446,6 +446,13 @@
   align-items: center;
 }
 
+/* O erro do campo fica sob ele, dentro do rótulo: é o que o `aria-describedby` do input aponta. */
+.fieldError {
+  color: var(--color-alert);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .fieldHint {
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.72rem;
@@ -458,7 +465,9 @@
   font-size: 0.8rem;
 }
 
-.costSummary {
+/* O proprietário do veículo é derivado do motorista escolhido, e se lê como o resumo de custo. */
+.costSummary,
+.ownerSummary {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
@@ -466,7 +475,8 @@
   background: color-mix(in srgb, var(--color-slate) 8%, transparent);
 }
 
-.costSummary h3 {
+.costSummary h3,
+.ownerSummary h3 {
   margin: 0;
   color: var(--color-copper);
   font-family: var(--font-utility);
@@ -475,7 +485,8 @@
   text-transform: uppercase;
 }
 
-.costSummary dl {
+.costSummary dl,
+.ownerSummary dl {
   display: grid;
   gap: var(--space-3);
   margin: 0;
@@ -483,23 +494,27 @@
 }
 
 @media (min-width: 40rem) {
-  .costSummary dl {
+  .costSummary dl,
+  .ownerSummary dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.costSummary dt {
+.costSummary dt,
+.ownerSummary dt {
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.72rem;
 }
 
-.costSummary dd {
+.costSummary dd,
+.ownerSummary dd {
   margin: 0;
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
 }
 
-.costSummary p {
+.costSummary p,
+.ownerSummary p {
   margin: 0;
 }
 
@@ -559,9 +574,35 @@
   justify-content: flex-end;
 }
 
+/* Fileira própria: o atalho de cadastro é do select, não do formulário — em `.formActions` ele
+   virava bloco irmão e caía sozinho na linha. */
+.driverPickerRow {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+@media (min-width: 40rem) {
+  .driverPickerRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+
 .feedback {
   margin: 0;
   font-size: 0.85rem;
+}
+
+/* Falha de gravação some no meio do formulário quando tem a cor do texto comum. */
+.feedbackError {
+  color: var(--color-alert);
+  font-weight: 600;
+}
+
+.feedbackSuccess {
+  color: var(--color-ready);
 }
 
 .iconAction {

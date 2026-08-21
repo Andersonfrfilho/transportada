@@ -211,6 +211,13 @@ export const mdfeManifests = pgTable(
       table.status,
       table.createdAt,
     ),
+    // Origem parcial de CEP: o manifesto responde a UF de carregamento e de descarga, nunca o logradouro
+    index('mdfe_manifests_company_loading_postal_code_idx')
+      .on(table.companyId, table.loadingPostalCode)
+      .where(sql`length(${table.loadingPostalCode}) > 0`),
+    index('mdfe_manifests_company_discharge_postal_code_idx')
+      .on(table.companyId, table.dischargePostalCode)
+      .where(sql`length(${table.dischargePostalCode}) > 0`),
     check(
       'mdfe_manifests_status_check',
       sql`${table.status} in (${raw(inList(MDFE_MANIFEST_STATUSES))})`,

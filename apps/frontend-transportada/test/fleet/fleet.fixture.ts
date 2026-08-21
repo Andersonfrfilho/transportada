@@ -105,15 +105,32 @@ export type FleetDriverAddressContract = Readonly<{
 
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
+  anttCategory: '' | '0' | '1' | '2'
+  birthCity: string
   birthDate: null | string
+  birthState: string
+  email: string
+  fatherName: string
+  firstLicenseAt: null | string
+  licenseCategory: '' | 'A' | 'AB' | 'AC' | 'ACC' | 'AD' | 'AE' | 'B' | 'C' | 'D' | 'E'
   licenseExpiresAt: null | string
+  licenseIssuedCity: string
+  licenseIssuedState: string
   licenseNumber: string
+  linkedLegalName: string
   linkedTaxId: string
   membershipId: null | string
+  motherName: string
   name: string
+  nationality: string
   phone: string
+  rntrc: string
   taxId: string
 }>
+
+/** O perfil é o papel que a criação concede, e o vínculo nasce com ela: nenhum dos dois se digita. */
+export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membershipId'> &
+  Readonly<{ profile: 'aggregate' | 'driver' }>
 
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
@@ -221,15 +238,53 @@ export const DRIVER_ADDRESS = {
 
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
+  anttCategory: '',
+  birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
+  birthState: 'SP',
+  email: '',
+  fatherName: 'Antônio da Silva',
+  firstLicenseAt: '2008-03-14',
+  licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
+  licenseIssuedCity: 'Campinas',
+  licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedLegalName: '',
   linkedTaxId: '',
   membershipId: null,
+  motherName: 'Maria da Silva',
   name: 'Jose da Silva',
+  nationality: 'Brasileira',
   phone: '11988887777',
+  rntrc: '',
   taxId: '12345678901',
 } as const satisfies FleetDriverBodyContract
+
+export const DRIVER_CREATE_BODY = {
+  address: DRIVER_ADDRESS,
+  anttCategory: '',
+  birthCity: 'Ribeirão Preto',
+  birthDate: '1985-04-12',
+  birthState: 'SP',
+  email: '',
+  fatherName: 'Antônio da Silva',
+  firstLicenseAt: '2008-03-14',
+  licenseCategory: 'E',
+  licenseExpiresAt: '2030-04-12',
+  licenseIssuedCity: 'Campinas',
+  licenseIssuedState: 'SP',
+  licenseNumber: '12345678901',
+  linkedLegalName: '',
+  linkedTaxId: '',
+  motherName: 'Maria da Silva',
+  name: 'Jose da Silva',
+  nationality: 'Brasileira',
+  phone: '11988887777',
+  profile: 'driver',
+  rntrc: '',
+  taxId: '12345678901',
+} as const satisfies FleetDriverCreateBodyContract
 
 export const VEHICLE_COSTS_UPDATED_AT = '2026-07-28T12:00:00.000Z'
 
@@ -380,15 +435,27 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
 
 export const DRIVER_DRAFT_BODY = {
   address: DRIVER_ADDRESS_DRAFT,
+  anttCategory: '',
+  birthCity: '',
   birthDate: null,
+  birthState: '',
+  email: '',
+  fatherName: '',
+  firstLicenseAt: null,
+  licenseCategory: '',
   licenseExpiresAt: null,
+  licenseIssuedCity: '',
+  licenseIssuedState: '',
   licenseNumber: '',
+  linkedLegalName: '',
   linkedTaxId: '',
-  membershipId: null,
+  motherName: '',
   name: '',
+  nationality: '',
   phone: '',
+  rntrc: '',
   taxId: '',
-} as const satisfies FleetDriverBodyContract
+} as const satisfies Omit<FleetDriverBodyContract, 'membershipId'>
 
 export async function loadFutureModule<TModule>(modulePath: string): Promise<TModule> {
   return (await import(modulePath)) as TModule

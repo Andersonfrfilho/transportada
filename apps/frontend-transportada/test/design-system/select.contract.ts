@@ -238,6 +238,7 @@ describe('design system select contract', () => {
     expect(rule).toContain('<select')
     expect(rule).toContain('SELECT_SEARCH_THRESHOLD')
     expect(rule).toContain('swatch')
+    expect(rule).toContain('triggerRef')
     expect(projectContext).toContain('docs/frontend/selects.md')
   })
 })

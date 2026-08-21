@@ -35,7 +35,9 @@
     "previousMonth": "Mês anterior",
     "term": "Prazo de vencimento",
     "termOption": "{{days}} dias",
-    "termPlaceholder": "Prazo"
+    "termPlaceholder": "Prazo",
+    "chooseYear": "Escolher o ano",
+    "openCalendar": "Abrir calendário"
   },
   "eligible": {
     "title": "CT-e elegíveis",

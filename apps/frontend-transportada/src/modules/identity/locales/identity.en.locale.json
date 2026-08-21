@@ -21,5 +21,101 @@
   "resetCodeSent": "If the username exists, the code is on its way to the registered contact. It is valid for 15 minutes.",
   "resetRejected": "Could not finish the reset. Check the code and the password and try again.",
   "resetDone": "Password changed. You can sign in with the new password.",
-  "resetBackToLogin": "Back to sign in"
+  "resetBackToLogin": "Back to sign in",
+  "users": {
+    "kicker": "Identity",
+    "title": "System users",
+    "intro": "Who signs in to this installation, with which roles, and where the invitation is delivered. Accounts are created disabled: the person receives a code and chooses their own password.",
+    "listTitle": "Company accounts",
+    "loading": "Loading users",
+    "empty": "No user besides your own account.",
+    "forbidden": "Only accounts that manage users can see this list. Ask a company administrator for the permission.",
+    "invite": "Invite user",
+    "columnName": "Name",
+    "columnContact": "Contact",
+    "columnRoles": "Roles",
+    "columnStatus": "Status",
+    "columnActions": "Actions",
+    "edit": "Edit",
+    "resend": "Resend",
+    "resendSucceeded": "Invitation resent. The previous code no longer works.",
+    "activate": "Reactivate",
+    "suspend": "Suspend",
+    "remove": "Remove",
+    "copyMembershipId": "Copy the membership identifier",
+    "firstPage": "First",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "channel": {
+      "email": "E-mail",
+      "sms": "SMS",
+      "whatsapp": "WhatsApp"
+    },
+    "role": {
+      "company-admin": "Administrator",
+      "finance": "Finance",
+      "fiscal": "Fiscal",
+      "operator": "Operations",
+      "viewer": "Viewer",
+      "driver": "Driver",
+      "aggregate": "Aggregate"
+    },
+    "status": {
+      "invited": "Invited",
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "inviteDialog": {
+      "title": "Invite user",
+      "intro": "The account starts disabled and without a password. The activation code is sent through the chosen channel.",
+      "close": "Close the invitation",
+      "name": "Full name",
+      "channel": "Invitation channel",
+      "contact": "Contact",
+      "contactHint": "E-mail, or a phone number with area code when the channel is SMS or WhatsApp.",
+      "roles": "Roles",
+      "rolesHint": "At least one role. The role decides what the person can see.",
+      "cancel": "Cancel",
+      "confirm": "Send invitation",
+      "sending": "Sending…"
+    },
+    "editDialog": {
+      "title": "Edit user",
+      "close": "Close the editor",
+      "name": "Full name",
+      "username": "Login",
+      "usernameHint": "Lowercase, no spaces or accents; dot, hyphen and underscore are accepted.",
+      "usernameInvalid": "Login outside the accepted format: 3 to 60 characters, starting with a letter or digit.",
+      "channel": "Contact channel",
+      "contact": "New contact",
+      "contactHint": "The stored contact is masked in the list; fill this only to replace it.",
+      "contactRequired": "Changing the channel requires the matching contact.",
+      "email": "Sign-in e-mail",
+      "emailHint": "This is the login e-mail. Changing it requires verification again and does not change the invitation channel.",
+      "roles": "Roles",
+      "rolesHint": "The role list is replaced entirely by whatever is checked here.",
+      "cancel": "Cancel",
+      "confirm": "Save",
+      "saving": "Saving…"
+    },
+    "removeDialog": {
+      "title": "Remove the account",
+      "close": "Close the removal",
+      "warning": "The company membership is dropped and the person loses access to this installation. The history of what they recorded is preserved.",
+      "cancel": "Cancel",
+      "confirm": "Remove",
+      "removing": "Removing…"
+    },
+    "errors": {
+      "default": "The operation could not be completed. Try again.",
+      "COMPANY_USERS_FORBIDDEN": "Your account does not manage users for this company.",
+      "COMPANY_USERS_REQUEST_FAILED": "The API did not answer. Check the connection and try again.",
+      "COMPANY_USERS_RESPONSE_INVALID": "The API answered in an unexpected format.",
+      "COMPANY_USER_NOT_FOUND": "This user no longer belongs to the company. Refresh the list.",
+      "COMPANY_USER_CONTACT_TAKEN": "An account with this contact already exists.",
+      "USERNAME_ALREADY_TAKEN": "This login is already taken.",
+      "IDENTITY_SUBJECT_NOT_FOUND": "The account has no identity in the login provider. Invite the person again.",
+      "SELF_MEMBERSHIP_REMOVAL": "Nobody removes their own account. Ask another administrator."
+    }
+  }
 }

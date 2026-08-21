@@ -16,6 +16,9 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const FIELDS_PATH = 'src/modules/fleet/components/DriverCoverageFields.component.tsx'
 const FORM_PATH = 'src/modules/fleet/components/DriverForm.component.tsx'
 const HOOK_PATH = 'src/modules/fleet/hooks/useDriverRegions.hook.ts'
+const COVERAGE_HOOK_PATH = 'src/modules/fleet/hooks/useDriverCoverage.hook.ts'
+const DRIVER_FORM_HOOK_PATH = 'src/modules/fleet/hooks/useDriverForm.hook.ts'
+const QUICK_CREATE_PATH = 'src/modules/fleet/components/DriverQuickCreateDialog.component.tsx'
 
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
@@ -217,5 +220,27 @@ describe('fleet driver coverage contract', () => {
     expect(fields).toContain("from '@/components/ui/select'")
     expect(form).toContain('<DriverCoverageFields')
     expect(hook).toContain('export function useDriverRegions')
+  })
+
+  /**
+   * O cadastro rápido nasce do formulário do veículo, e é onde o agregado é cadastrado de fato:
+   * sem a cobertura ali, quem cadastra pelo atalho tem de reabrir a ficha só para dizer a zona.
+   */
+  test('o cadastro rápido pergunta a zona, e grava a cobertura depois de criar o motorista', async () => {
+    const dialog = await readApplicationFile(QUICK_CREATE_PATH)
+    const coverageHook = await readApplicationFile(COVERAGE_HOOK_PATH)
+    const driverFormHook = await readApplicationFile(DRIVER_FORM_HOOK_PATH)
+
+    expect(coverageHook).toContain('export function useDriverCoverage')
+    expect(coverageHook).toContain('export type DriverCoverageController')
+    // Um controlador só para os dois formulários: a marcação da zona não é regra duplicada
+    expect(driverFormHook).toContain('useDriverCoverage(')
+    expect(driverFormHook).toContain('toDriverCoverageEntries(')
+    expect(dialog).toContain('useDriverForm({')
+    expect(dialog).toContain('<DriverCoverageFields')
+    // A cobertura é vínculo: ela só pode ser gravada depois de o motorista existir
+    expect(driverFormHook.indexOf('regions.replace(')).toBeGreaterThan(
+      driverFormHook.indexOf('await (driver === undefined'),
+    )
   })
 })

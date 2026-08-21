@@ -35,7 +35,9 @@
     "previousMonth": "Previous month",
     "term": "Payment term",
     "termOption": "{{days}} days",
-    "termPlaceholder": "Term"
+    "termPlaceholder": "Term",
+    "chooseYear": "Choose the year",
+    "openCalendar": "Open calendar"
   },
   "eligible": {
     "title": "Eligible CT-es",

@@ -1,0 +1,2 @@
+ALTER TABLE "fleet_drivers" ADD COLUMN "license_category" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "fleet_drivers" ADD CONSTRAINT "fleet_drivers_license_category_check" CHECK (length("license_category") = 0 or "license_category" in ('ACC', 'A', 'B', 'AB', 'C', 'AC', 'D', 'AD', 'E', 'AE'));

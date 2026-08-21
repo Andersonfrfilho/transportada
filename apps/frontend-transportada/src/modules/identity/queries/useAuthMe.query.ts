@@ -15,6 +15,7 @@ const COMPANY_ROLES = [
   'operator',
   'viewer',
   'driver',
+  'aggregate',
 ] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
@@ -35,6 +36,7 @@ const COMPANY_PERMISSIONS = [
   'operations.read',
   'audit.read',
   'view-preferences.manage',
+  'addresses.read',
   'fleet.read',
   'fleet.manage',
   'mdfe.read',

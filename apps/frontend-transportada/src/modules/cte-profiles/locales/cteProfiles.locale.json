@@ -51,7 +51,9 @@
     "clear": "Limpar data",
     "nextMonth": "Próximo mês",
     "placeholder": "dd/mm/aaaa",
-    "previousMonth": "Mês anterior"
+    "previousMonth": "Mês anterior",
+    "chooseYear": "Escolher o ano",
+    "openCalendar": "Abrir calendário"
   },
   "componentsLegend": "Componentes adicionais",
   "componentsEmpty": "Nenhum componente adicional neste perfil.",

@@ -75,7 +75,9 @@ export function ProfileDateField({
       <span>{label}</span>
       <DatePicker
         ariaLabel={label}
+        chooseYearLabel={t('dateField.chooseYear')}
         clearLabel={t('dateField.clear')}
+        openCalendarLabel={t('dateField.openCalendar')}
         nextMonthLabel={t('dateField.nextMonth')}
         placeholder={t('dateField.placeholder')}
         previousMonthLabel={t('dateField.previousMonth')}

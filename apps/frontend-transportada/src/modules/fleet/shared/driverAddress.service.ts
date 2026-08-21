@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { POSTAL_CODE_LENGTH, stripPostalCode } from '@/modules/shared/postalCode.service'
+import { stripPostalCode } from '@/modules/shared/postalCode.service'
 
 import { BRAZIL_STATE } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
@@ -24,8 +24,6 @@ export type AddressLookupInput = Readonly<{
   term: string
 }>
 
-const BRASIL_API_CEP_URL = 'https://brasilapi.com.br/api/cep/v2'
-const VIA_CEP_URL = 'https://viacep.com.br/ws'
 const PHOTON_URL = 'https://photon.komoot.io/api'
 
 export const ADDRESS_SUGGESTION_LIMIT = 6
@@ -119,31 +117,6 @@ async function readJson(
   return (await response.json()) as unknown
 }
 
-function fromBrasilApi(payload: unknown): AddressSuggestion | null {
-  if (!isRecord(payload)) return null
-  return buildSuggestion({
-    city: readText(payload, 'city'),
-    district: readText(payload, 'neighborhood'),
-    number: '',
-    postalCode: stripPostalCode(readText(payload, 'cep')),
-    state: toStateCode(readText(payload, 'state')),
-    street: readText(payload, 'street'),
-  })
-}
-
-/** O ViaCEP responde 200 com `{"erro": true}` para CEP inexistente — o status não acusa nada. */
-function fromViaCep(payload: unknown): AddressSuggestion | null {
-  if (!isRecord(payload) || payload.erro !== undefined) return null
-  return buildSuggestion({
-    city: readText(payload, 'localidade'),
-    district: readText(payload, 'bairro'),
-    number: '',
-    postalCode: stripPostalCode(readText(payload, 'cep')),
-    state: toStateCode(readText(payload, 'uf')),
-    street: readText(payload, 'logradouro'),
-  })
-}
-
 function fromPhotonFeature(feature: unknown): AddressSuggestion | null {
   if (!isRecord(feature)) return null
   const properties = readRecord(feature.properties)
@@ -167,31 +140,6 @@ function toList(payload: unknown, key: string): readonly unknown[] {
 /** `Array.isArray` sobre `unknown` estreita para `any[]`, e o `any` vaza para quem desestrutura. */
 function isList(value: unknown): value is readonly unknown[] {
   return Array.isArray(value)
-}
-
-/** Rejeitar o vazio é o que faz `Promise.any` seguir para o provedor seguinte em vez de parar aqui. */
-async function required(promise: Promise<AddressSuggestion | null>): Promise<AddressSuggestion> {
-  const suggestion = await promise
-  if (suggestion === null) throw new Error('ADDRESS_LOOKUP_EMPTY')
-  return suggestion
-}
-
-export async function lookupPostalCode(
-  input: AddressLookupInput,
-): Promise<AddressSuggestion | null> {
-  const digits = stripPostalCode(input.term)
-  if (digits.length !== POSTAL_CODE_LENGTH) return null
-  const { fetch, signal } = input
-  try {
-    return await Promise.any([
-      required(
-        readJson({ fetch, signal, url: `${BRASIL_API_CEP_URL}/${digits}` }).then(fromBrasilApi),
-      ),
-      required(readJson({ fetch, signal, url: `${VIA_CEP_URL}/${digits}/json/` }).then(fromViaCep)),
-    ])
-  } catch {
-    return null
-  }
 }
 
 function buildPhotonUrl(term: string): string {

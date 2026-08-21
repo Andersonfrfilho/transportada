@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import {
   MdfeManifestDriverDuplicatedError,
   MdfeManifestDriverNotAvailableError,
@@ -52,7 +53,8 @@ export async function resolveManifestCrew(input: {
     if (driver.status !== 'active') throw new MdfeManifestDriverNotAvailableError()
     return {
       driverId,
-      driverName: driver.name,
+      // O condutor entra no MDF-e com a grafia do nome: a forma canônica é do banco, não do XML
+      driverName: toDisplayPersonName(driver.name),
       driverTaxId: driver.taxId,
       position: index + 1,
     }

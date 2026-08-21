@@ -3,6 +3,7 @@
  */
 import {
   hasFilter,
+  invalidRequest,
   optionalFilter,
   parseBody,
   parseContains,
@@ -16,9 +17,12 @@ import {
   FLEET_VEHICLE_STATUSES,
 } from '../../database/fleet.schema.js'
 import type { FleetDriverFilters, FleetVehicleFilters } from '../application/fleet.port.js'
+import type { FleetDriverProfile } from '../domain/fleet-driver-profile.constant.js'
 import {
   createDriverSchema,
   createVehicleSchema,
+  driverAvailabilitySchema,
+  type DriverAvailabilityQuery,
   replaceDriverVehiclesSchema,
   updateDriverSchema,
   updateVehicleSchema,
@@ -26,6 +30,7 @@ import {
   type FleetVehicleFields,
 } from './fleet-request.schema.js'
 
+const DRIVER_AVAILABILITY_QUERY_KEYS = new Set(['driverId', 'email', 'licenseNumber', 'taxId'])
 const DRIVER_QUERY_KEYS = new Set(['cursor', 'limit', 'nameContains', 'statusEq'])
 const VEHICLE_QUERY_KEYS = new Set(['cursor', 'limit', 'plateContains', 'roleEq', 'statusEq'])
 
@@ -55,12 +60,31 @@ export async function parseUpdateVehicleRequest(request: Request): Promise<Updat
   return parseBody(updateVehicleSchema, request)
 }
 
-export async function parseCreateDriverRequest(request: Request): Promise<FleetDriverFields> {
+/** O vínculo não vem do corpo, e o perfil vem: é o papel do usuário que a criação abre. */
+export type CreateDriverBody = Omit<FleetDriverFields, 'membershipId'> & {
+  readonly profile: FleetDriverProfile
+}
+
+export async function parseCreateDriverRequest(request: Request): Promise<CreateDriverBody> {
   return parseBody(createDriverSchema, request)
 }
 
 export async function parseUpdateDriverRequest(request: Request): Promise<UpdateDriverBody> {
   return parseBody(updateDriverSchema, request)
+}
+
+export type { DriverAvailabilityQuery }
+
+export function parseDriverAvailability(url: URL): DriverAvailabilityQuery {
+  const parameters = readListQuery(url, DRIVER_AVAILABILITY_QUERY_KEYS)
+  const parsed = driverAvailabilitySchema.safeParse({
+    driverId: parameters.get('driverId'),
+    email: parameters.get('email') ?? '',
+    licenseNumber: parameters.get('licenseNumber') ?? '',
+    taxId: parameters.get('taxId') ?? '',
+  })
+  if (!parsed.success) throw invalidRequest()
+  return parsed.data
 }
 
 export async function parseReplaceDriverVehiclesRequest(

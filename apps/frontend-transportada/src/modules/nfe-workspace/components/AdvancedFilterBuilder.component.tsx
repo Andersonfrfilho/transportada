@@ -153,8 +153,10 @@ export function AdvancedFilterBuilder({
       return (
         <DatePicker
           ariaLabel={t('documents.builder.value')}
+          chooseYearLabel={t('documents.chooseYear')}
           clearLabel={t('documents.clearAll')}
           nextMonthLabel={t('documents.nextMonth')}
+          openCalendarLabel={t('documents.openCalendar')}
           placeholder={t('documents.datePlaceholder')}
           previousMonthLabel={t('documents.previousMonth')}
           value={condition.value}

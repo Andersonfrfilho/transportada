@@ -51,7 +51,9 @@
     "clear": "Clear date",
     "nextMonth": "Next month",
     "placeholder": "dd/mm/yyyy",
-    "previousMonth": "Previous month"
+    "previousMonth": "Previous month",
+    "chooseYear": "Choose the year",
+    "openCalendar": "Open calendar"
   },
   "componentsLegend": "Additional components",
   "componentsEmpty": "No additional component in this profile.",

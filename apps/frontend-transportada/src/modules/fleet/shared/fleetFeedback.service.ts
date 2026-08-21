@@ -11,3 +11,10 @@ export function resolveFleetFeedbackKey(error: unknown): string {
   const code = error instanceof Error ? error.message : ''
   return FLEET_FEEDBACK_KEY_BY_ERROR[code] ?? FLEET_SAVE_ERROR_KEY
 }
+
+/** Gravou é a única boa notícia do módulo; todo o resto é falha, e falha se lê em vermelho. */
+const FLEET_SUCCESS_FEEDBACK_KEYS: readonly string[] = ['saved']
+
+export function isFleetFeedbackError(feedbackKey: string): boolean {
+  return !FLEET_SUCCESS_FEEDBACK_KEYS.includes(feedbackKey)
+}

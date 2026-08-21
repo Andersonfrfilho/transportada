@@ -1,0 +1,5 @@
+CREATE INDEX "company_fiscal_profiles_company_postal_code_idx" ON "company_fiscal_profiles" ("company_id","postal_code");--> statement-breakpoint
+CREATE INDEX "nfe_addresses_company_postal_code_idx" ON "nfe_addresses" ("company_id","postal_code") WHERE "postal_code" is not null;--> statement-breakpoint
+CREATE INDEX "fleet_drivers_company_postal_code_idx" ON "fleet_drivers" ("company_id","postal_code") WHERE length("postal_code") > 0;--> statement-breakpoint
+CREATE INDEX "mdfe_manifests_company_loading_postal_code_idx" ON "mdfe_manifests" ("company_id","loading_postal_code") WHERE length("loading_postal_code") > 0;--> statement-breakpoint
+CREATE INDEX "mdfe_manifests_company_discharge_postal_code_idx" ON "mdfe_manifests" ("company_id","discharge_postal_code") WHERE length("discharge_postal_code") > 0;

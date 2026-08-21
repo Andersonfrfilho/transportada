@@ -26,6 +26,7 @@ import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
+import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import {
   getKeycloakAuthProvider,
@@ -84,6 +85,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'notification'
     | 'operations'
     | 'trip'
+    | 'users'
   label: string
 }>
 
@@ -103,6 +105,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
+  { href: '/usuarios', key: 'users', label: 'Usuários' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -133,7 +136,9 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   {
     key: 'administration',
     label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => ['company-settings'].includes(key)),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['company-settings', 'users'].includes(key),
+    ),
   },
 ]
 
@@ -161,6 +166,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/freight') return 'freight'
+  if (window.location.pathname === '/usuarios') return 'users'
 
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
@@ -174,7 +180,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'notification' ||
     storedWorkspace === 'operations' ||
     storedWorkspace === 'freight' ||
-    storedWorkspace === 'trip'
+    storedWorkspace === 'trip' ||
+    storedWorkspace === 'users'
   ) {
     return storedWorkspace
   }
@@ -222,6 +229,8 @@ function resolvePage(
       return <OperationsDashboardPage />
     case 'freight':
       return <FreightWorkspacePage />
+    case 'users':
+      return <UserAdministrationPage />
     default:
       return <NfeWorkspacePage />
   }
@@ -247,7 +256,7 @@ function ApplicationShell(): ReactNode {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
-    administration: currentWorkspace === 'company-settings',
+    administration: currentWorkspace === 'company-settings' || currentWorkspace === 'users',
     fiscal: [
       'nfe',
       'freight',

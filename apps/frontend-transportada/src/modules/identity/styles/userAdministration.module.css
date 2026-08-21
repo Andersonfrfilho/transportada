@@ -1,0 +1,336 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.shell {
+  width: var(--layout-width);
+  margin: 0 auto;
+  padding: var(--space-5) 0 var(--space-16);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-graphite) 90%, transparent),
+    color-mix(in srgb, var(--color-asphalt) 82%, transparent)
+  );
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.intro {
+  max-width: 44rem;
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tableScroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.userTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.userTable th,
+.userTable td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.userTable th {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.userTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
+}
+
+.primaryCell {
+  display: block;
+  color: var(--color-fog);
+}
+
+.secondaryCell {
+  display: block;
+  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  font-size: 0.75rem;
+}
+
+.roleList {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.statusActive {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.statusInvited {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+  color: var(--color-copper);
+}
+
+.statusSuspended {
+  border-color: color-mix(in srgb, var(--color-alert) 55%, transparent);
+  color: var(--color-alert);
+}
+
+.actionsCell {
+  width: 1%;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.feedback {
+  margin: 0;
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-alert);
+  color: var(--color-alert);
+  font-size: 0.85rem;
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
+.emptyState {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 24%, transparent);
+  color: color-mix(in srgb, var(--color-slate) 85%, transparent);
+  font-size: 0.85rem;
+}
+
+.skeletonStack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.skeletonRow {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-5);
+  width: min(46rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.dialogHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+.dialogFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.fieldGrid {
+  display: grid;
+  gap: var(--space-3);
+  align-items: end;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.field > span:first-child {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.field input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.fieldHint {
+  display: block;
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.roleGroup {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.roleGroup legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roleOptions {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+@media (width <= 40rem) {
+  .overlay {
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border: none;
+  }
+
+  .skeletonRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

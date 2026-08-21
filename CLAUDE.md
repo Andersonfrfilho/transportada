@@ -60,8 +60,8 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
-`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+Módulos: `addresses`, `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`,
+`freight`, `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
 `operations`, `storage`, `trips`, `view-preferences`, `health`.
 Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
@@ -123,17 +123,30 @@ escritas para não serem redescobertas:
   (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
   consulta.
 
-⚠️ O endereço do motorista é preenchido por **quatro provedores públicos consultados do navegador**
-(`fleet/shared/driverAddress.service.ts`): BrasilAPI e ViaCEP disputam o CEP por `Promise.any` — o
-primeiro que responder vence —, Photon e Nominatim atendem a busca textual por `Promise.allSettled`,
-porque provedor fora do ar deve entregar menos resultado, não erro. O mapa é `iframe` do
-OpenStreetMap com a coordenada na URL. Debounce de 400ms na busca textual e 900ms na
-geocodificação, mínimo de cinco caracteres, `AbortSignal` por tecla. **Isso manda dado pessoal para
-terceiro sem contrato e não há CSP no repositório** — achado datado em `docs/SECURITY.md`, junto do
-`birth_date` em claro; a decisão (proxy na API ou allowlist declarada) é ADR pendente.
+**O CEP vem de casa, e a busca textual é a que ainda sai do navegador.** O CEP passa por
+`GET /postal-codes/{cep}` (`addresses.read`, escopo `company`), que consulta **primeiro as nossas
+tabelas** — `nfe_addresses`, `fleet_drivers`, `company_fiscal_profiles` e os dois CEPs de
+`mdfe_manifests`, cinco consultas em corrida com `company_id` no `where` de cada uma — e só chama a
+BrasilAPI e, se ela falhar, o ViaCEP quando a base não sabe. `Promise.race` cru seria o erro: ele
+resolve com a primeira consulta a terminar, que costuma ser a origem que não achou nada; quem vence é
+a primeira sugestão **completa**, e as parciais (só UF, o que o CEP de município devolve) ficam
+guardadas para o caso de o provedor também falhar. A sugestão tem quatro campos e **nunca** `number`
+nem `complement` — com eles, quem tem `addresses.read` varreria a base de motoristas oito dígitos por
+vez. Ninguém souber o CEP é `404`, e `404` não desabilita campo, não limpa o que está lá e não
+bloqueia envio: **o operador digita**. O hook é `shared/usePostalCodeLookup.hook.ts`, e os três
+formulários de CEP usam o mesmo — motorista, empresa e lotação do MDF-e. ADR-0040.
 
-**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, quinto destino
-externo do formulário, e o único que não leva dado pessoal — só a sigla do estado). Sem UF escolhida
+⚠️ A **busca textual** de rua continua saindo do navegador
+(`fleet/shared/driverAddress.service.ts`): um provedor só, o Photon, por `Promise.allSettled` sobre
+uma lista de um — provedor fora do ar entrega menos resultado, nunca erro. O Nominatim saiu pela
+ADR-0037 (a política dele pede um `User-Agent` que o `fetch` do navegador não manda), e com ele saiu
+o `iframe` do OpenStreetMap: hoje a CSP declara `frame-src 'none'`. Debounce de 400ms, mínimo de
+cinco caracteres, `AbortSignal` por tecla. **O termo digitado ainda vai a terceiro sem contrato** —
+achado em `docs/SECURITY.md` que encolheu três vezes e não fechou, junto do `birth_date` em claro.
+
+**A cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`, servida pela
+BrasilAPI, e o destino externo do formulário que não leva dado pessoal — sai só a sigla do estado,
+enquanto o Photon leva o termo digitado). Sem UF escolhida
 o campo é digitável: município só é único dentro do estado, e um select com os 5.570 do país é pior
 que o teclado. Duas grafias mandam em lugares diferentes, de propósito: `toMunicipalityLabel`
 uniformiza a caixa (o IBGE devolve em caixa alta e o provedor de CEP em caixa mista, e sem uma
@@ -465,10 +478,11 @@ Contrato em `test/company-settings/tabs.contract.ts`.
   atalho que apontava para a tela de origem é retirado — atalho para tela que não hospeda mais o
   controle é caminho para lugar nenhum.
 
-**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, sexto
-destino externo do módulo — `https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na
-qualidade mínima e recortada por município). Ao contrário do endereço do motorista, aqui **não há
-`iframe` nem imagem remota**: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
+**O mapa da zona é desenho nosso, e a malha vem do IBGE** (`fleet/shared/ibgeMesh.service.ts`, o
+quarto e último destino externo do módulo, ao lado do Photon e das duas rotas da BrasilAPI —
+`https://servicodados.ibge.gov.br/api/v3/malhas/estados`, por UF, na qualidade mínima e recortada por
+município). Aqui **não há `iframe` nem imagem remota** — como no endereço do motorista desde a
+ADR-0037: o SVG é primitivo do design system e a cor da zona sai dos tokens, então
 nada de terceiro renderiza dentro da nossa tela — e a malha não leva dado pessoal, só a sigla do
 estado. Município com ilha ou enclave vira **um** caminho fechado: desenhar anel por anel pintaria a
 mesma cidade em duas cores quando a zona mudasse. Cidade gravada sem polígono na malha (grafia que o

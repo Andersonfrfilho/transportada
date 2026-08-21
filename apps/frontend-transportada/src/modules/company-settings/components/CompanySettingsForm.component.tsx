@@ -56,10 +56,11 @@ export function CompanySettingsForm({
       value: string
     }>,
   ) => {
-    setSettings({
-      ...settings,
-      profile: { ...settings.profile, [input.field]: input.value },
-    })
+    // Atualizador, não cópia: o CEP escreve quatro campos em sequência, e a cópia guardaria só o último.
+    setSettings((current) => ({
+      ...current,
+      profile: { ...current.profile, [input.field]: input.value },
+    }))
     if (input.field === 'cnpj') setLookupStatus('idle')
   }
   const applyLookup = (profile: CompanyProfileLookup) => {

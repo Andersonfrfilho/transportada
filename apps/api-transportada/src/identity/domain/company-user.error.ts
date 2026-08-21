@@ -34,6 +34,21 @@ export class DuplicateUsernameError extends ApiError {
 }
 
 /**
+ * O contato do convite é o e-mail do usuário no provedor de identidade, e lá ele é único. Como no
+ * login já usado, a mensagem não diz de quem é o e-mail.
+ */
+export class DuplicateContactError extends ApiError {
+  public constructor() {
+    super({
+      code: 'COMPANY_USER_CONTACT_TAKEN',
+      message: 'Contact is already taken.',
+      status: 409,
+    })
+    this.name = 'DuplicateContactError'
+  }
+}
+
+/**
  * Vínculo na aplicação sem identidade externa correspondente é estado inconsistente: falha alto,
  * porque continuar significaria mudar o banco sem que o provedor de identidade acompanhe.
  */

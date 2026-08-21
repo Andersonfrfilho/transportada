@@ -23,6 +23,9 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'operations.read',
   'audit.read',
   'view-preferences.manage',
+  // Consultar CEP serve três formulários com permissões diferentes, e a política de rota admite
+  // uma só — daí a permissão própria, dada a quem já escreve endereço em alguma dessas telas
+  'addresses.read',
   'fleet.read',
   'fleet.manage',
   'mdfe.read',
@@ -59,6 +62,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'operations.read',
     'audit.read',
     'view-preferences.manage',
+    'addresses.read',
     'fleet.read',
     'fleet.manage',
     'mdfe.read',
@@ -90,6 +94,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.read',
     'operations.read',
     'view-preferences.manage',
+    'addresses.read',
     'fleet.read',
     'mdfe.read',
     'mdfe.manage',
@@ -111,6 +116,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cte.read',
     'operations.read',
     'view-preferences.manage',
+    'addresses.read',
     'fleet.read',
     'fleet.manage',
     'mdfe.read',
@@ -129,6 +135,9 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   ]),
   // O motorista é papel de campo: só a própria viagem, nada de nota, CT-e, faturamento ou frota
   driver: Object.freeze(['trip.read', 'trip.report']),
+  // O agregado dirige o veículo dele; o motorista, o dele ou o da empresa. Na tela isso muda
+  // que campo o cadastro exige, não o que a conta pode ler — daí o mesmo par de permissões.
+  aggregate: Object.freeze(['trip.read', 'trip.report']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

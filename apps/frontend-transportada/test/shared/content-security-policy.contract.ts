@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   CONTENT_SECURITY_POLICY_FILE_NAME,
+  EXTERNAL_CONNECT_ORIGIN,
   NON_FETCH_ORIGIN,
   buildContentSecurityPolicy,
 } from '../../src/modules/shared/contentSecurityPolicy.service.js'
@@ -12,6 +13,8 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const API_BASE_URL = 'https://api.exemplo.com.br'
 const KEYCLOAK_URL = 'https://identidade.exemplo.com.br/auth'
 const ORIGIN_PATTERN = /https:\/\/[a-z0-9.-]+/gu
+/** O arquivo que declara a diretiva nomeia toda origem dela: contá-lo faria a varredura se auto-provar. */
+const DECLARATION_PATH = 'modules/shared/contentSecurityPolicy.service.ts'
 
 const SERVED_POLICY = buildContentSecurityPolicy({
   allowsInlineScript: false,
@@ -32,13 +35,16 @@ function directiveOf(policy: string, name: string): string {
  * que o bundle realmente nomeia. Endereço novo em qualquer módulo cai aqui, e a única saída é
  * decidir — entra no `connect-src` ou entra em `NON_FETCH_ORIGIN` como origem que nunca é buscada.
  */
-async function collectSourceOrigins(): Promise<readonly string[]> {
+async function collectSourceOrigins(
+  input: Readonly<{ skipsDeclaration: boolean }> = { skipsDeclaration: false },
+): Promise<readonly string[]> {
   const origins = new Set<string>()
   const glob = new Bun.Glob('**/*.{ts,tsx,css,json}')
 
   for await (const relativePath of glob.scan({
     cwd: fileURLToPath(new URL('src', APPLICATION_ROOT)),
   })) {
+    if (input.skipsDeclaration && relativePath === DECLARATION_PATH) continue
     const content = await Bun.file(
       fileURLToPath(new URL(`src/${relativePath}`, APPLICATION_ROOT)),
     ).text()
@@ -61,6 +67,20 @@ describe('content security policy', () => {
       const isDeclared =
         connectSource.includes(origin) || (NON_FETCH_ORIGIN as readonly string[]).includes(origin)
       expect(`${origin}:${isDeclared}`).toBe(`${origin}:true`)
+    }
+  })
+
+  /**
+   * A outra direção da mesma varredura, e a que faltava: destino que saiu do bundle tem de sair da
+   * diretiva. Origem órfã não quebra nada visível — ela só continua permitindo uma saída que ninguém
+   * mais usa, que é exatamente o que a diretiva existe para negar.
+   */
+  test('carries no origin the bundle stopped fetching', async () => {
+    const namedOrigins = await collectSourceOrigins({ skipsDeclaration: true })
+
+    for (const origin of EXTERNAL_CONNECT_ORIGIN) {
+      const isNamed = namedOrigins.some((named) => named === origin)
+      expect(`${origin}:${isNamed}`).toBe(`${origin}:true`)
     }
   })
 
@@ -110,7 +130,7 @@ describe('content security policy', () => {
     })
 
     expect(directiveOf(policy, 'connect-src')).toContain("'self'")
-    expect(policy).toContain('https://viacep.com.br')
+    expect(policy).toContain('https://photon.komoot.io')
   })
 
   test('refuses a declared origin it cannot read, instead of shipping a narrower directive', () => {

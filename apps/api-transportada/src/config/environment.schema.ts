@@ -98,6 +98,25 @@ const environmentSchema = z.object({
       message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Terceiro degrau da busca de CEP: só é consultado quando o banco da instalação não soube o
+  // endereço inteiro. Vazio desliga aquele provedor — os dois vazios deixam a escada terminar em
+  // casa, e o operador digita. Nenhum dos dois pede token: BrasilAPI e ViaCEP são públicos.
+  POSTAL_CODE_BRASIL_API_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'POSTAL_CODE_BRASIL_API_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
+  POSTAL_CODE_VIA_CEP_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'POSTAL_CODE_VIA_CEP_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo. Expressão que a
   // política não sabe resolver derruba o boot: melhor não subir do que servir data inventada.
   SCHEDULED_DISTRIBUTION_CRON: z
@@ -156,6 +175,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     port: parsed.APP_PORT,
+    postalCodeProviders: {
+      brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,
+      viaCepUrl: parsed.POSTAL_CODE_VIA_CEP_URL,
+    },
     scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: parsed.LOG_SINK_URL,
     sentryDsn: parsed.SENTRY_DSN,

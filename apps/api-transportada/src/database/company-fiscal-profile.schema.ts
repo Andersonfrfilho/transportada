@@ -2,7 +2,17 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
-import { bigint, check, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core'
 
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
@@ -108,6 +118,8 @@ export const companyFiscalProfiles = pgTable(
   },
   (table) => [
     unique('company_fiscal_profiles_cnpj_unique').on(table.cnpj),
+    // Único índice de CEP sem `where`: aqui a coluna é notNull e o endereço do emitente sempre existe
+    index('company_fiscal_profiles_company_postal_code_idx').on(table.companyId, table.postalCode),
     check(
       'company_fiscal_profiles_activation_channel_check',
       sql`${table.activationChannel} in (${ACTIVATION_CHANNEL_LIST})`,

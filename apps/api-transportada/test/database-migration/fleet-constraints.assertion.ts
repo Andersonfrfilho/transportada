@@ -151,6 +151,113 @@ export async function assertFleetConstraints(
     'fleet_drivers_dates_check',
   )
 
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, first_license_at)
+      values (${companyId}, 'Motorista Habilitado Cedo Demais', '55566677799', '1899-12-31')
+    `,
+    '23514',
+    'fleet_drivers_dates_check',
+  )
+
+  // A razão social pende do CNPJ; a metade contrária fica solta, e é o que a ficha antiga tem
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_tax_id, linked_legal_name)
+    values (${companyId}, 'Motorista Agregado', '66677788899', '12345678000195', 'Agregado Transportes')
+  `
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_tax_id)
+    values (${companyId}, 'Motorista Sem Razao Social', '77788899900', '98765432000188')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_legal_name)
+      values (${companyId}, 'Motorista Sem CNPJ', '88899900011', 'Razao Sem Dono')
+    `,
+    '23514',
+    'fleet_drivers_linked_legal_name_check',
+  )
+
+  // O e-mail é o login do motorista no app de entregas; a guarda é de forma, não de existência
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, email)
+    values (${companyId}, 'Motorista Com Email', '99900011122', 'jose.silva@example.com')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, email)
+      values (${companyId}, 'Motorista Com Email Torto', '10020030044', 'jose.silva')
+    `,
+    '23514',
+    'fleet_drivers_email_check',
+  )
+
+  // O RNTRC do motorista tem a mesma forma do RNTRC do proprietário do veículo, acima
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, rntrc, antt_category)
+    values (${companyId}, 'Motorista Com ANTT', '11122233355', '058151044', '0')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, rntrc)
+      values (${companyId}, 'Motorista Com RNTRC Torto', '22233344466', '581510441')
+    `,
+    '23514',
+    'fleet_drivers_rntrc_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, antt_category)
+      values (${companyId}, 'Motorista Com Categoria Inventada', '33344455577', '9')
+    `,
+    '23514',
+    'fleet_drivers_antt_category_check',
+  )
+
+  // A categoria da CNH é a lista do CONTRAN: 'F' não existe, e 'E' é a que puxa carreta
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, license_category)
+    values (${companyId}, 'Motorista Com CNH E', '44455566688', 'E')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, license_category)
+      values (${companyId}, 'Motorista Com CNH Inventada', '55566677799', 'F')
+    `,
+    '23514',
+    'fleet_drivers_license_category_check',
+  )
+
+  // Naturalidade e local de emissão da CNH guardam UF, não nome de estado por extenso
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, nationality, birth_city, birth_state, license_issued_city, license_issued_state)
+    values (${companyId}, 'Motorista Com Naturalidade', '66677788800', 'Brasileira', 'Barrinha', 'SP', 'Ribeirao Preto', 'SP')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, birth_state)
+      values (${companyId}, 'Motorista Com UF Por Extenso', '77788899911', 'Sao Paulo')
+    `,
+    '23514',
+    'fleet_drivers_birth_state_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, license_issued_state)
+      values (${companyId}, 'Motorista Com DETRAN Por Extenso', '88899900022', 'Sao Paulo')
+    `,
+    '23514',
+    'fleet_drivers_license_issued_state_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, mother_name)
+      values (${companyId}, 'Motorista Com Filiacao Longa', '99900011133', ${'M'.repeat(61)})
+    `,
+    '23514',
+    'fleet_drivers_personal_length_check',
+  )
+
   await database`
     insert into fleet_driver_vehicle_assignments (id, company_id, driver_id, vehicle_id)
     values (${assignmentId}, ${companyId}, ${driverId}, ${vehicleId})

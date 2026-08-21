@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   DRIVER_ADDRESS_KEYS,
+  DRIVER_AVAILABILITY_KEYS,
   DRIVER_COVERAGE_KEYS,
   DRIVER_DETAIL_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
@@ -25,6 +26,7 @@ import type {
 import { FREIGHT_REGION_STATUS } from './freightRegion.types'
 import type {
   FleetCapabilities,
+  FleetDriverAvailability,
   FleetDriverDetail,
   FleetDriverPage,
   FleetDriverVehicleLink,
@@ -197,15 +199,21 @@ function isDriver(value: unknown): value is FleetDriverDetail {
   }
   return (
     isDriverAddress(value.address) &&
+    (value.anttCategory === '' || isOneOf(value.anttCategory, FLEET_ENUMS.taxRegime)) &&
     isNullableString(value.birthDate) &&
+    (value.licenseCategory === '' || isOneOf(value.licenseCategory, FLEET_ENUMS.licenseCategory)) &&
+    isNullableString(value.firstLicenseAt) &&
     isNullableString(value.licenseExpiresAt) &&
     isString(value.createdAt) &&
+    isString(value.email) &&
     isString(value.id) &&
     isString(value.licenseNumber) &&
+    isString(value.linkedLegalName) &&
     isString(value.linkedTaxId) &&
     isNullableString(value.membershipId) &&
     isString(value.name) &&
     isString(value.phone) &&
+    isString(value.rntrc) &&
     isOneOf(value.status, FLEET_ENUMS.driverStatus) &&
     isString(value.taxId) &&
     isString(value.updatedAt) &&
@@ -230,6 +238,15 @@ function isDriverVehicleLink(value: unknown): value is FleetDriverVehicleLink {
 }
 
 /** Zona não carrega cidade e cidade sem cidade não cobre nada — as duas metades do CHECK. */
+function isDriverAvailability(value: unknown): value is FleetDriverAvailability {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, DRIVER_AVAILABILITY_KEYS) &&
+    hasEveryKey(value, DRIVER_AVAILABILITY_KEYS) &&
+    DRIVER_AVAILABILITY_KEYS.every((key) => typeof value[key] === 'boolean')
+  )
+}
+
 function isDriverCoverage(value: unknown): value is FleetDriverCoverage {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_COVERAGE_KEYS) || !hasEveryKey(value, DRIVER_COVERAGE_KEYS)) {
@@ -299,6 +316,10 @@ export function createFleetResponseAdapters() {
     },
     catalogResultFromApi(input: unknown): FleetVehicleCatalogResult {
       if (!isCatalogResult(input)) throw invalid()
+      return input
+    },
+    driverAvailabilityFromApi(input: unknown): FleetDriverAvailability {
+      if (!isDriverAvailability(input)) throw invalid()
       return input
     },
     driverFromApi,

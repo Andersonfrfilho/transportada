@@ -34,6 +34,8 @@ export type CreateInvitedUserInput = {
   readonly contactChannel: ContactChannel
   readonly issuer: string
   readonly name: string
+  /** Papéis do convite: o vínculo nasce com eles, senão o convidado autentica sem permissão. */
+  readonly roles: readonly CompanyRole[]
   readonly subject: string
   readonly userId: string
   readonly username: string

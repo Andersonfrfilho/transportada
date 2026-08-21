@@ -7,6 +7,7 @@ import {
   FLEET_VEHICLE_OWNERSHIP,
   FLEET_VEHICLE_ROLE,
   FLEET_VEHICLE_STATUS,
+  LICENSE_CATEGORIES,
   MDFE_BODY_TYPE,
   MDFE_OWNER_TAX_REGIME,
 } from './fleet.types'
@@ -64,6 +65,7 @@ export const FLEET_ENUMS = {
   fuelPriceSource: FLEET_FUEL_PRICE_SOURCE,
   fuelType: FUEL_PRODUCTS,
   fuelUnit: FUEL_UNITS,
+  licenseCategory: LICENSE_CATEGORIES,
   ownership: FLEET_VEHICLE_OWNERSHIP,
   role: FLEET_VEHICLE_ROLE,
   taxRegime: MDFE_OWNER_TAX_REGIME,
