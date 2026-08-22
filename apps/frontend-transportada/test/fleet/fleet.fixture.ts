@@ -7,6 +7,7 @@ export const VEHICLE_ID = '00000000-0000-4000-8000-000000000911'
 export const DRIVER_ID = '00000000-0000-4000-8000-000000000912'
 export const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000902'
 export const DRIVER_OWNED_VEHICLE_ID = '00000000-0000-4000-8000-000000000913'
+export const FLEX_VEHICLE_ID = '00000000-0000-4000-8000-000000000915'
 export const LINK_ID = '00000000-0000-4000-8000-000000000921'
 export const OWNED_LINK_ID = '00000000-0000-4000-8000-000000000922'
 
@@ -21,6 +22,7 @@ export type FleetVehicleOwnerContract = Readonly<{
 export type FleetVehicleFuelProductContract =
   | 'diesel-s10'
   | 'diesel-s500'
+  | 'eletrico'
   | 'etanol-hidratado'
   | 'gasolina-comum'
   | 'gnv'
@@ -32,17 +34,20 @@ export type FleetVehicleCostFieldsContract = Readonly<{
   averageConsumption: string
   monthlyInstallmentAmount: string
   otherCostsPerKilometer: string
+  secondaryAverageConsumption: string
 }>
 
 export type FleetVehicleCostBreakdownContract = Readonly<{
   fuel?: string
   otherCosts?: string
+  primaryFuel?: string
+  secondaryFuel?: string
 }>
 
 export type FleetVehicleFuelPriceContract = Readonly<{
   pricePerUnit: string
   source: 'anp' | 'manual'
-  unit: 'cubic-metre' | 'litre'
+  unit: 'cubic-metre' | 'kilowatt-hour' | 'litre'
   weekEndingOn: null | string
 }>
 
@@ -63,6 +68,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     plate: string
     renavam: string
     role: 'traction' | 'trailer'
+    secondaryFuelType: '' | FleetVehicleFuelProductContract
     state: string
     tareWeightKilograms: string
     vehicleType:
@@ -88,6 +94,7 @@ export type FleetVehicleDetailContract = FleetVehicleBodyContract &
     fuelPrice: FleetVehicleFuelPriceContract | null
     id: string
     monthlyFixedCost: null | string
+    secondaryFuelPrice: FleetVehicleFuelPriceContract | null
     status: 'active' | 'inactive'
     updatedAt: string
     version: string
@@ -174,6 +181,7 @@ export const VEHICLE_COST_DRAFT = {
   averageConsumption: '0.00',
   monthlyInstallmentAmount: '0.0000',
   otherCostsPerKilometer: '0.0000',
+  secondaryAverageConsumption: '0.00',
 } as const satisfies FleetVehicleCostFieldsContract
 
 export const VEHICLE_BODY = {
@@ -198,6 +206,8 @@ export const VEHICLE_BODY = {
   plate: 'ABC1D23',
   renavam: '12345678901',
   role: 'traction',
+  secondaryAverageConsumption: '0.00',
+  secondaryFuelType: '',
   state: 'SP',
   tareWeightKilograms: '8000.00',
   vehicleType: 'tractor_unit',
@@ -310,6 +320,7 @@ export const VEHICLE_DERIVED_COSTS = {
   costPerKilometer: VEHICLE_COST_PER_KILOMETER,
   costPerKilometerBreakdown: VEHICLE_COST_BREAKDOWN,
   fuelPrice: VEHICLE_FUEL_PRICE,
+  secondaryFuelPrice: null,
 } as const
 
 export const VEHICLE_DETAIL = {
@@ -332,6 +343,40 @@ export const NO_COSTS_VEHICLE_DETAIL = {
   costsUpdatedAt: null,
   fuelPrice: null,
   monthlyFixedCost: null,
+} as const satisfies FleetVehicleDetailContract
+
+/** Etanol é o segundo tanque do flex, e o preço dele é o do produto dele — nunca o do primeiro. */
+export const VEHICLE_SECONDARY_FUEL_PRICE = {
+  pricePerUnit: '4.2000',
+  source: 'anp',
+  unit: 'litre',
+  weekEndingOn: '2026-07-25',
+} as const satisfies FleetVehicleFuelPriceContract
+
+/** 5,48 ÷ 12 dá 0,4567 e 4,20 ÷ 8 dá 0,5250: a parcela de combustível é a média, 0,4909. */
+export const FLEX_COST_BREAKDOWN = {
+  fuel: '0.4909',
+  otherCosts: '0.5000',
+  primaryFuel: '0.4567',
+  secondaryFuel: '0.5250',
+} as const satisfies FleetVehicleCostBreakdownContract
+
+export const FLEX_VEHICLE_BODY = {
+  ...VEHICLE_BODY,
+  averageConsumption: '12.00',
+  fuelType: 'gasolina-comum',
+  plate: 'FLX1A23',
+  secondaryAverageConsumption: '8.00',
+  secondaryFuelType: 'etanol-hidratado',
+} as const satisfies FleetVehicleBodyContract
+
+export const FLEX_VEHICLE_DETAIL = {
+  ...VEHICLE_DETAIL,
+  ...FLEX_VEHICLE_BODY,
+  costPerKilometer: '0.9909',
+  costPerKilometerBreakdown: FLEX_COST_BREAKDOWN,
+  id: FLEX_VEHICLE_ID,
+  secondaryFuelPrice: VEHICLE_SECONDARY_FUEL_PRICE,
 } as const satisfies FleetVehicleDetailContract
 
 export const DRIVER_DETAIL = {
@@ -408,6 +453,7 @@ export const VEHICLE_DRAFT_BODY = {
   plate: '',
   renavam: '',
   role: 'traction',
+  secondaryFuelType: '',
   state: '',
   tareWeightKilograms: '0.00',
   vehicleType: '',

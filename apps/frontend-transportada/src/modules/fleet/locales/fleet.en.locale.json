@@ -55,6 +55,7 @@
     "modelYear": "Model year",
     "axleCount": "Axles",
     "color": "Color",
+    "fuelArrangement": "Fuel",
     "costPerKilometer": "Cost per km",
     "monthlyFixedCost": "Monthly fixed cost"
   },
@@ -234,6 +235,13 @@
   "annualVehicleTaxAmount": "Annual vehicle tax",
   "annualInsuranceAmount": "Annual insurance",
   "fuelType": "Fuel",
+  "secondaryFuelType": "Second fuel",
+  "secondaryFuelNone": "None — a single tank",
+  "fuelArrangement": {
+    "flex": "Flex",
+    "hybrid": "Hybrid"
+  },
+  "fuelArrangementTitle": "Fuel arrangement",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
     "diesel-s500": "Diesel S-500",
@@ -255,6 +263,8 @@
   "otherCostsPerKilometer": "Other costs per kilometre",
   "costPerKilometer": "Cost per kilometre",
   "fuelCostPerKilometer": "Fuel per kilometer",
+  "primaryFuelCostPerKilometer": "First fuel per kilometer",
+  "secondaryFuelCostPerKilometer": "Second fuel per kilometer",
   "fuelPriceSource": {
     "anp": "ANP reference",
     "manual": "Carrier adjustment"
@@ -420,6 +430,8 @@
     "color": "Colour",
     "costPerKilometer": "Cost per kilometre",
     "fuelType": "Fuel",
+    "secondaryFuelType": "Second fuel",
+    "fuelArrangement": "Fuel",
     "model": "Model",
     "modelYear": "Model year",
     "monthlyFixedCost": "Monthly fixed cost",

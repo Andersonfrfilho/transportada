@@ -205,3 +205,62 @@ $ bun run typecheck    # quatro apps, limpo
 $ bun run lint         # quatro apps, limpo
 $ bun run format:check # limpo
 ```
+
+## T6 — o par no formulário, e o nome que ele ganha
+
+O arranjo tem **três** valores, e não os quatro que a task nomeia: `flex` · `hybrid` · `single`.
+Tanque único é nomeado **pelo próprio produto** — um veículo elétrico lê "Elétrico" porque a chave
+resolvida é `fuelOption.eletrico`, e um `fuelArrangement.single` diria "Um combustível" numa coluna
+já chamada Combustível. Por isso `fuelArrangement.single` **não existe** nos dicionários, e o
+contrato afirma que ele é `undefined`. Híbrido é o par com energia de um dos lados — o vocabulário
+de quem compra caminhão; o resto é flex.
+
+```
+$ bun test test/fleet.contract.test.ts
+(pass) reads the arrangement from the pair and calls the single tank by the product it burns
+(pass) names flex and hybrid in both dictionaries and leaves the single tank to the fuel catalogue
+(pass) offers every product but the primary as the second tank
+(pass) clears the second consumption when the product leaves and the pair when the two collide
+(pass) shows the arrangement as a column of the fleet table, hidden like the other derived ones
+(pass) sorts the arrangement column by the label the operator reads
+(pass) exports the arrangement and the second product beside the first
+(pass) carries the second pair through the vehicle body without inventing a product
+ 371 pass · 0 fail · 5025 expect() calls
+```
+
+As três tabelas de `TWO_TANK_CASES` são cópia literal da `vehicle-cost.contract.ts` da API, como a
+T4 previu: a média da tela e a do domínio são a mesma conta, e o terceiro caso fixa o dígito ímpar
+(`1.37005` → `1.3701`).
+
+`resolveSecondaryFuelDefaults` diz as duas metades do CHECK do banco **no formulário**, antes do 400
+da T5. Ela lê só o estado resolvido, sem o anterior: aplicar duas vezes dá o mesmo campo limpo. No
+`patch` ela roda **depois** dos defaults de marca e de tipo — trocar o primário para o produto que
+já está no secundário deixaria os dois tanques com o mesmo combustível, que não é flex.
+
+O preço do segundo tanque é casado **pelo produto dele** (`resolveSecondaryFormFuelPrice`): sem
+isso, trocar o par sem salvar dividiria o etanol pelo preço da gasolina que ainda estava na ficha.
+
+A ficha mostra as duas parcelas **só quando existem as duas** — a média não bate com nenhuma das
+notas do posto, e é isso que ela explica. Com um tanque só, repetir o valor ao lado de `fuel` não
+diria nada.
+
+A coluna nova nasce **oculta**, como as outras derivadas, e ordena pela chave de tradução, não pelo
+rótulo — assim a ordem é a mesma nos dois idiomas. A exportação leva `secondaryFuelType` **e**
+`fuelArrangement`: o rótulo sozinho perde quais dois combustíveis o veículo bebe.
+
+✅ O aviso da T5 fecha aqui: o formulário manda o par, e salvar veículo pela tela voltou a funcionar.
+A porta de entrada é o guarda de resposta do frontend, que exige o **conjunto exato** de chaves —
+`secondaryFuelType`, `secondaryAverageConsumption` e `secondaryFuelPrice` entraram nas listas de
+`fleet.constant.ts` junto com os dois predicados de `fleetResponse.validation.ts`; sem eles a tela
+inteira recusaria o 200 da T5.
+
+## Gate — T6
+
+```
+$ bun run --cwd apps/frontend-transportada test   1726 pass · 0 fail · 11549 expect()
+$ bun run --cwd apps/api-transportada test        2837 pass · 15 skip · 0 fail · 11579 expect()
+$ bun run --cwd apps/frontend-transportada build  # dist + service worker
+$ bun run typecheck    # quatro apps, limpo
+$ bun run lint         # quatro apps, limpo
+$ bun run format:check # limpo
+```

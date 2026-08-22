@@ -11,6 +11,10 @@ import {
   summarizeTypedVehicleCosts,
   VEHICLE_COST_FIELD_SCALE,
 } from '../shared/fleetVehicleCost.service'
+import {
+  listSecondaryFuelOptions,
+  resolveFuelArrangementLabelKey,
+} from '../shared/fuelArrangement.service'
 import styles from '../styles/fleet.module.css'
 import { FleetField, FleetMoneyField, FleetSelectField } from './FleetField.component'
 
@@ -18,6 +22,7 @@ type VehicleCostFieldsProps = Readonly<{
   costsUpdatedAt: null | string
   fuelPrice: FleetVehicleFuelPrice | null
   onChange: (values: Partial<FleetVehicleFormState>) => void
+  secondaryFuelPrice: FleetVehicleFuelPrice | null
   state: FleetVehicleFormState
 }>
 
@@ -25,13 +30,17 @@ export function VehicleCostFields({
   costsUpdatedAt,
   fuelPrice,
   onChange,
+  secondaryFuelPrice,
   state,
 }: VehicleCostFieldsProps) {
   const { i18n, t } = useTranslation('fleet')
   const fuelLabels = resolveFuelLabelKeys(state.fuelType)
+  const secondaryFuelLabels =
+    state.secondaryFuelType === '' ? null : resolveFuelLabelKeys(state.secondaryFuelType)
   const summary = summarizeTypedVehicleCosts({
     fields: state,
     fuelPricePerUnit: fuelPrice?.pricePerUnit ?? null,
+    secondaryFuelPricePerUnit: secondaryFuelPrice?.pricePerUnit ?? null,
   })
 
   return (
@@ -81,6 +90,25 @@ export function VehicleCostFields({
           value={state.averageConsumption}
           onChange={(averageConsumption) => onChange({ averageConsumption })}
         />
+        <FleetSelectField
+          clearable
+          label={t('secondaryFuelType')}
+          optionLabelKey="fuelOption"
+          options={listSecondaryFuelOptions(state.fuelType)}
+          placeholder={t('secondaryFuelNone')}
+          value={state.secondaryFuelType}
+          onChange={(secondaryFuelType) => onChange({ secondaryFuelType })}
+        />
+        {secondaryFuelLabels === null ? null : (
+          <FleetField
+            optional
+            inputMode="numeric"
+            label={t(secondaryFuelLabels.averageConsumption)}
+            maxLength={8}
+            value={state.secondaryAverageConsumption}
+            onChange={(secondaryAverageConsumption) => onChange({ secondaryAverageConsumption })}
+          />
+        )}
         <FleetMoneyField
           optional
           label={t('otherCostsPerKilometer')}
@@ -101,6 +129,10 @@ export function VehicleCostFields({
             <dd>{summary.costPerKilometer ?? t('costNotInformed')}</dd>
           </div>
           <div>
+            <dt>{t('fuelArrangementTitle')}</dt>
+            <dd>{t(resolveFuelArrangementLabelKey(state))}</dd>
+          </div>
+          <div>
             <dt>{t('fuelCostPerKilometer')}</dt>
             <dd>{summary.fuelCostPerKilometer ?? t('costNotInformed')}</dd>
           </div>
@@ -108,6 +140,20 @@ export function VehicleCostFields({
             <dt>{t('otherCostsPerKilometer')}</dt>
             <dd>{summary.otherCostsPerKilometer ?? t('costNotInformed')}</dd>
           </div>
+          {summary.primaryFuelCostPerKilometer === null ||
+          summary.secondaryFuelCostPerKilometer === null ? null : (
+            <>
+              {/* A média não bate com nenhuma das duas notas do posto: as parcelas são o que a explica */}
+              <div>
+                <dt>{t('primaryFuelCostPerKilometer')}</dt>
+                <dd>{summary.primaryFuelCostPerKilometer}</dd>
+              </div>
+              <div>
+                <dt>{t('secondaryFuelCostPerKilometer')}</dt>
+                <dd>{summary.secondaryFuelCostPerKilometer}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>{t(fuelLabels.fuelPricePerUnit)}</dt>
             <dd>
@@ -118,6 +164,18 @@ export function VehicleCostFields({
                   )}`}
             </dd>
           </div>
+          {secondaryFuelLabels === null ? null : (
+            <div>
+              <dt>{t(secondaryFuelLabels.fuelPricePerUnit)}</dt>
+              <dd>
+                {secondaryFuelPrice === null
+                  ? t('fuelPriceUnavailable')
+                  : `${formatFuelPricePerUnit(secondaryFuelPrice.pricePerUnit)} · ${t(
+                      `fuelPriceSource.${secondaryFuelPrice.source}`,
+                    )}`}
+              </dd>
+            </div>
+          )}
         </dl>
         {fuelPrice === null || fuelPrice.weekEndingOn === null ? null : (
           <p className={styles.fieldHint}>

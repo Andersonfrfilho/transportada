@@ -33,6 +33,7 @@ describe('fleet vehicle columns contract', () => {
       'modelYear',
       'axleCount',
       'color',
+      'fuelArrangement',
       'costPerKilometer',
       'monthlyFixedCost',
     ])
@@ -41,6 +42,7 @@ describe('fleet vehicle columns contract', () => {
       brand: true,
       color: false,
       costPerKilometer: false,
+      fuelArrangement: false,
       model: true,
       modelYear: false,
       monthlyFixedCost: false,
@@ -74,6 +76,7 @@ describe('fleet vehicle columns contract', () => {
       'modelYear',
       'axleCount',
       'color',
+      'fuelArrangement',
       'costPerKilometer',
       'monthlyFixedCost',
     ])
@@ -107,6 +110,7 @@ describe('fleet vehicle columns contract', () => {
       expect(typeof columns?.modelYear).toBe('string')
       expect(typeof columns?.axleCount).toBe('string')
       expect(typeof columns?.color).toBe('string')
+      expect(typeof columns?.fuelArrangement).toBe('string')
       expect(typeof column?.moveUp).toBe('string')
       expect(typeof column?.moveDown).toBe('string')
     }
@@ -132,6 +136,7 @@ type FleetVehicleColumnKeyContract =
   | 'brand'
   | 'color'
   | 'costPerKilometer'
+  | 'fuelArrangement'
   | 'model'
   | 'modelYear'
   | 'monthlyFixedCost'

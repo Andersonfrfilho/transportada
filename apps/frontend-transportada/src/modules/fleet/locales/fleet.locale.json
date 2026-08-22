@@ -55,6 +55,7 @@
     "modelYear": "Ano do modelo",
     "axleCount": "Eixos",
     "color": "Cor",
+    "fuelArrangement": "Combustível",
     "costPerKilometer": "Custo por km",
     "monthlyFixedCost": "Custo fixo mensal"
   },
@@ -234,6 +235,13 @@
   "annualVehicleTaxAmount": "IPVA anual",
   "annualInsuranceAmount": "Seguro anual",
   "fuelType": "Combustível",
+  "secondaryFuelType": "Segundo combustível",
+  "secondaryFuelNone": "Nenhum — um tanque só",
+  "fuelArrangement": {
+    "flex": "Flex",
+    "hybrid": "Híbrido"
+  },
+  "fuelArrangementTitle": "Arranjo de combustível",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
     "diesel-s500": "Diesel S-500",
@@ -255,6 +263,8 @@
   "otherCostsPerKilometer": "Outros custos por quilômetro",
   "costPerKilometer": "Custo por quilômetro",
   "fuelCostPerKilometer": "Combustível por quilômetro",
+  "primaryFuelCostPerKilometer": "Primeiro combustível por quilômetro",
+  "secondaryFuelCostPerKilometer": "Segundo combustível por quilômetro",
   "fuelPriceSource": {
     "anp": "Referência ANP",
     "manual": "Ajuste da transportadora"
@@ -421,6 +431,8 @@
     "color": "Cor",
     "costPerKilometer": "Custo por quilômetro",
     "fuelType": "Combustível",
+    "secondaryFuelType": "Segundo combustível",
+    "fuelArrangement": "Combustível",
     "model": "Modelo",
     "modelYear": "Ano do modelo",
     "monthlyFixedCost": "Custo fixo mensal",

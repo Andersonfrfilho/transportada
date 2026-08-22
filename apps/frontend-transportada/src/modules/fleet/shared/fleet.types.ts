@@ -123,12 +123,20 @@ export type FleetVehicleCostFields = Readonly<{
   averageConsumption: string
   monthlyInstallmentAmount: string
   otherCostsPerKilometer: string
+  /** Consumo do segundo tanque; zero enquanto não houver produto secundário. */
+  secondaryAverageConsumption: string
 }>
 
-/** Parcela zerada fica de fora: `'0.0000'` diria custo zero, e o que houve foi não ter informado. */
+/**
+ * Parcela zerada fica de fora: `'0.0000'` diria custo zero, e o que houve foi não ter informado.
+ * `primaryFuel` e `secondaryFuel` só aparecem com as duas parcelas — com uma só, `fuel` já é ela, e
+ * repetir o valor ao lado não diria nada.
+ */
 export type FleetVehicleCostBreakdown = Readonly<{
   fuel?: string
   otherCosts?: string
+  primaryFuel?: string
+  secondaryFuel?: string
 }>
 
 /** Preço efetivo do combustível do veículo, com a origem e a semana de referência da ANP. */
@@ -145,6 +153,9 @@ export type FleetVehicleCostSummary = Readonly<{
   fuelCostPerKilometer: null | string
   monthlyFixedCost: null | string
   otherCostsPerKilometer: null | string
+  /** As duas parcelas por trás da média, para o operador conferir contra as notas do posto. */
+  primaryFuelCostPerKilometer: null | string
+  secondaryFuelCostPerKilometer: null | string
 }>
 
 export type FleetVehicleBody = FleetVehicleCostFields &
@@ -164,6 +175,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     plate: string
     renavam: string
     role: FleetVehicleRole
+    /** Vazio é um tanque só; preenchido, é sempre diferente de `fuelType`. */
+    secondaryFuelType: '' | FuelProduct
     state: string
     tareWeightKilograms: string
     /** Vazio é legítimo só no implemento: é a tração que tem tipo, e o `tpRod` sai dele. */
@@ -181,6 +194,7 @@ export type FleetVehicleDetail = FleetVehicleBody &
     id: string
     /** Derivado pela API — prestação + (IPVA + seguro) ÷ 12. */
     monthlyFixedCost: null | string
+    secondaryFuelPrice: FleetVehicleFuelPrice | null
     status: FleetVehicleStatus
     updatedAt: string
     version: string
@@ -365,6 +379,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     plate: string
     renavam: string
     role: FleetVehicleRole
+    secondaryFuelType: '' | FuelProduct
     state: string
     tareWeightKilograms: string
     vehicleType: '' | VehicleType
