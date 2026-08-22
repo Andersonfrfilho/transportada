@@ -44,6 +44,8 @@ export const CREATE_VEHICLE_BODY = {
   plate: 'ABC1D23',
   renavam: '12345678901',
   role: 'traction',
+  secondaryAverageConsumption: '0.00',
+  secondaryFuelType: '',
   state: 'SP',
   tareWeightKilograms: '8000.00',
   vehicleType: 'tractor_unit',
@@ -136,6 +138,7 @@ export const VEHICLE: FleetVehicle = {
   fuelPrice: null,
   id: VEHICLE_ID,
   monthlyFixedCost: null,
+  secondaryFuelPrice: null,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
   version: '1',
@@ -154,6 +157,26 @@ export const DERIVED_COST_VEHICLE: FleetVehicle = {
     weekEndingOn: '2026-08-08',
   },
   otherCostsPerKilometer: '0.5000',
+}
+
+/** Flex: os dois tanques com preço, e a parcela de combustível do R$/km é a média das duas. */
+export const TWO_TANK_VEHICLE: FleetVehicle = {
+  ...DERIVED_COST_VEHICLE,
+  costPerKilometer: '0.9909',
+  costPerKilometerBreakdown: {
+    fuel: '0.4909',
+    otherCosts: '0.5000',
+    primaryFuel: '0.4567',
+    secondaryFuel: '0.5250',
+  },
+  secondaryAverageConsumption: '8.00',
+  secondaryFuelPrice: {
+    pricePerUnit: '4.2000',
+    source: 'anp',
+    unit: 'litre',
+    weekEndingOn: '2026-08-08',
+  },
+  secondaryFuelType: 'etanol-hidratado',
 }
 
 /** Sem consumo informado: a parcela de combustível não existe e é omitida da composição. */

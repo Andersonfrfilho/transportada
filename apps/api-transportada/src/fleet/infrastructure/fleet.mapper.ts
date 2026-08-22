@@ -31,10 +31,21 @@ type MapVehicleParams = {
 
 export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehicle {
   const fuelPrice = mapFuelPrice(fuelPrices.get(record.fuelType))
+  // Os dois preços saem da mesma tabela da empresa, que o repositório resolve uma vez por página
+  const secondaryFuelPrice =
+    record.secondaryFuelType === '' ? null : mapFuelPrice(fuelPrices.get(record.secondaryFuelType))
   const derived = deriveCostPerKilometer({
     averageConsumption: record.averageConsumption,
     fuelPricePerUnit: fuelPrice?.pricePerUnit ?? null,
     otherCostsPerKilometer: record.otherCostsPerKilometer,
+    ...(record.secondaryFuelType === ''
+      ? {}
+      : {
+          secondaryFuel: {
+            averageConsumption: record.secondaryAverageConsumption,
+            pricePerUnit: secondaryFuelPrice?.pricePerUnit ?? null,
+          },
+        }),
   })
 
   return {
@@ -79,6 +90,9 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     plate: record.plate,
     renavam: record.renavam,
     role: record.role,
+    secondaryAverageConsumption: record.secondaryAverageConsumption,
+    secondaryFuelPrice,
+    secondaryFuelType: record.secondaryFuelType,
     state: record.state,
     status: record.status,
     tareWeightKilograms: formatDecimalAtScale(record.tareWeightKg, MEASURE_SCALE),
@@ -128,6 +142,8 @@ export function toVehicleColumns(
     plate: vehicle.plate,
     renavam: vehicle.renavam,
     role: vehicle.role,
+    secondaryAverageConsumption: vehicle.secondaryAverageConsumption,
+    secondaryFuelType: vehicle.secondaryFuelType,
     state: vehicle.state,
     tareWeightKg: vehicle.tareWeightKilograms,
     vehicleType: vehicle.vehicleType,

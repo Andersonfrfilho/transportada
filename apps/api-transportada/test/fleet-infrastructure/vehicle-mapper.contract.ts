@@ -65,6 +65,24 @@ const DIESEL_PRICE: EffectiveFuelPrice = {
   updatedAt: TIMESTAMP,
 }
 
+const GASOLINE_PRICE: EffectiveFuelPrice = {
+  effectivePricePerUnit: '6.0000',
+  product: 'gasolina-comum',
+  reference: null,
+  source: 'manual',
+  unit: 'litre',
+  updatedAt: TIMESTAMP,
+}
+
+const ETHANOL_PRICE: EffectiveFuelPrice = {
+  effectivePricePerUnit: '4.2000',
+  product: 'etanol-hidratado',
+  reference: { pricePerUnit: '4.2000', state: 'SP', weekEndingOn: '2026-08-08' },
+  source: 'anp',
+  unit: 'litre',
+  updatedAt: null,
+}
+
 const GNV_PRICE: EffectiveFuelPrice = {
   effectivePricePerUnit: '4.0000',
   product: 'gnv',
@@ -78,6 +96,20 @@ const FUEL_PRICES: ReadonlyMap<FuelProduct, EffectiveFuelPrice> = new Map([
   ['diesel-s10', DIESEL_PRICE],
   ['gnv', GNV_PRICE],
 ])
+
+/** O flex tem os dois produtos com preço; o etanol fica fora da tabela acima de propósito. */
+const FLEX_FUEL_PRICES: ReadonlyMap<FuelProduct, EffectiveFuelPrice> = new Map([
+  ...FUEL_PRICES,
+  ['etanol-hidratado', ETHANOL_PRICE],
+  ['gasolina-comum', GASOLINE_PRICE],
+])
+
+const FLEX_RECORD: VehicleRecord = {
+  ...RECORD,
+  fuelType: 'gasolina-comum',
+  secondaryAverageConsumption: '8.00',
+  secondaryFuelType: 'etanol-hidratado',
+}
 
 describe('fleet vehicle mapper cost contract', () => {
   test('derives the cost per kilometer from the effective price of the vehicle fuel', () => {
@@ -115,6 +147,57 @@ describe('fleet vehicle mapper cost contract', () => {
     expect(vehicle.fuelPrice).toBeNull()
     expect(vehicle.costPerKilometer).toBe('0.5000')
     expect(vehicle.costPerKilometerBreakdown).toEqual({ otherCosts: '0.5000' })
+  })
+
+  /**
+   * O flex bebe dos dois tanques, e os dois preços saem da mesma tabela da empresa — a que o
+   * repositório resolve uma vez por listagem. Aqui a conferência é a junção: cada tanque com o
+   * preço do produto dele, e a parcela de combustível como média das duas.
+   */
+  test('averages the two tanks, each priced by its own product', () => {
+    const vehicle = mapVehicle({
+      fuelPrices: FLEX_FUEL_PRICES,
+      record: FLEX_RECORD,
+    })
+
+    expect(vehicle.fuelPrice?.pricePerUnit).toBe('6.0000')
+    expect(vehicle.secondaryFuelPrice).toEqual({
+      pricePerUnit: '4.2000',
+      source: 'anp',
+      unit: 'litre',
+      weekEndingOn: '2026-08-08',
+    })
+    expect(vehicle.costPerKilometerBreakdown).toEqual({
+      fuel: '0.5125',
+      otherCosts: '0.5000',
+      primaryFuel: '0.5000',
+      secondaryFuel: '0.5250',
+    })
+    expect(vehicle.costPerKilometer).toBe('1.0125')
+  })
+
+  test('keeps the single tank arithmetic when the second product has no price in the company', () => {
+    const vehicle = mapVehicle({
+      fuelPrices: FUEL_PRICES,
+      record: {
+        ...RECORD,
+        secondaryAverageConsumption: '8.00',
+        secondaryFuelType: 'gasolina-comum',
+      },
+    })
+
+    // Dividir por dois aqui cortaria o custo do veículo pela metade enquanto falta o segundo preço
+    expect(vehicle.secondaryFuelPrice).toBeNull()
+    expect(vehicle.costPerKilometerBreakdown).toEqual({ fuel: '0.4567', otherCosts: '0.5000' })
+    expect(vehicle.costPerKilometer).toBe('0.9567')
+  })
+
+  test('nulls the second price on the vehicle with a single tank', () => {
+    const vehicle = mapVehicle({ fuelPrices: FUEL_PRICES, record: RECORD })
+
+    expect(vehicle.secondaryFuelPrice).toBeNull()
+    expect(vehicle.secondaryFuelType).toBe('')
+    expect(vehicle.secondaryAverageConsumption).toBe('0.00')
   })
 
   test('nulls the derived trio when neither consumption nor other costs are informed', () => {

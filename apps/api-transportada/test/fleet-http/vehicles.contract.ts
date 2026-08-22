@@ -14,6 +14,7 @@ import {
   responseApiError,
   responseData,
   THIRD_PARTY_OWNER_BODY,
+  TWO_TANK_VEHICLE,
   UPDATE_VEHICLE_BODY,
   VEHICLE,
   VEHICLE_ID,
@@ -415,6 +416,119 @@ describe('fleet vehicles http contract', () => {
 
     expect(acceptedResponse.status).toBe(201)
     expect(acceptedFixture.createVehicleCalls[0]).toMatchObject({ vehicle: { fuelType: 'gnv' } })
+  })
+
+  test('carries the second tank through create and update', async () => {
+    const twoTankFields = {
+      averageConsumption: '12.00',
+      secondaryAverageConsumption: '8.00',
+      secondaryFuelType: 'etanol-hidratado',
+    } as const
+
+    const createFixture = await createFleetHttpFixture()
+    const createResponse = await createFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, ...twoTankFields },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(createResponse.status).toBe(201)
+    expect(createFixture.createVehicleCalls[0]).toMatchObject({ vehicle: { ...twoTankFields } })
+
+    const updateFixture = await createFleetHttpFixture()
+    const updateResponse = await updateFixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_VEHICLE_BODY, ...twoTankFields },
+        method: 'PATCH',
+        path: VEHICLE_PATH,
+      }),
+    )
+
+    expect(updateResponse.status).toBe(200)
+    expect(updateFixture.updateVehicleCalls[0]).toMatchObject({ vehicle: { ...twoTankFields } })
+  })
+
+  /**
+   * O CHECK do banco diz o mesmo, mas diria como 500: a fronteira é onde o operador ouve "não" com
+   * o campo apontado. Produto repetido não é flex — é o mesmo combustível entrando duas vezes na
+   * média —, e consumo sem produto é número órfão que puxaria o R$/km para baixo.
+   */
+  test.each([
+    ['a second tank repeating the primary product', { secondaryFuelType: 'diesel-s10' }],
+    [
+      'a secondary consumption without a secondary product',
+      { secondaryAverageConsumption: '8.00' },
+    ],
+    ['a secondary product outside the catalogue', { secondaryFuelType: 'glp' }],
+    [
+      'a coarser secondary consumption scale',
+      { secondaryFuelType: 'gnv', secondaryAverageConsumption: '8' },
+    ],
+  ])('refuses %s', async (_description, invalidFields) => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, ...invalidFields },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+    expect(fixture.createVehicleCalls).toEqual([])
+  })
+
+  test('accepts the second product with no consumption yet, as the first one already is', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_VEHICLE_BODY, secondaryFuelType: 'etanol-hidratado' },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createVehicleCalls[0]).toMatchObject({
+      vehicle: { secondaryAverageConsumption: '0.00', secondaryFuelType: 'etanol-hidratado' },
+    })
+  })
+
+  test('serializes the second price beside the first and names the two parcels of the average', async () => {
+    const fixture = await createFleetHttpFixture({ vehicle: TWO_TANK_VEHICLE })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: FLEET_VEHICLES_PATH }))
+
+    expect(response.status).toBe(200)
+    const [listed] = await responseData<readonly Record<string, unknown>[]>(response)
+    expect(listed).toMatchObject({
+      costPerKilometer: '0.9909',
+      costPerKilometerBreakdown: {
+        fuel: '0.4909',
+        otherCosts: '0.5000',
+        primaryFuel: '0.4567',
+        secondaryFuel: '0.5250',
+      },
+      secondaryFuelPrice: { pricePerUnit: '4.2000', source: 'anp', unit: 'litre' },
+      secondaryFuelType: 'etanol-hidratado',
+    })
+  })
+
+  test('nulls the second price on the vehicle that drinks from a single tank', async () => {
+    const fixture = await createFleetHttpFixture({ vehicle: DERIVED_COST_VEHICLE })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: FLEET_VEHICLES_PATH }))
+
+    expect(response.status).toBe(200)
+    const [listed] = await responseData<readonly Record<string, unknown>[]>(response)
+    expect(listed).toMatchObject({ secondaryFuelPrice: null, secondaryFuelType: '' })
+    // A média de uma parcela só não é média de nada, e repetir o valor não diria nada à tela
+    expect(Object.keys(listed?.costPerKilometerBreakdown as object)).toEqual(['fuel', 'otherCosts'])
   })
 
   test('accepts otherCostsPerKilometer on the four-decimal scale and refuses a coarser one', async () => {

@@ -141,10 +141,63 @@ preenchido gravaria `costs_updated_at` nulo, dizendo que nenhum custo foi inform
 resolver os dois preços por veículo. A tabela `TWO_TANK_CASES` é a que o contrato do frontend copia
 na T6, como a `ROUNDING_CASES` ao lado dela.
 
+## T5 — a fronteira resolve dois preços
+
+Os dois campos entraram no corpo como obrigatórios, ao lado de `fuelType`: nada de `default` no Zod,
+porque corpo sem o campo cairia em `''` e **apagaria** o segundo tanque de uma ficha já configurada
+— o 400 é mais barato que a perda silenciosa.
+
+As duas metades do CHECK do banco viraram recusa de fronteira em `assertVehicleRules`, com o campo
+apontado. O banco diria o mesmo, mas como 500: a `runGuarded` só traduz a colisão de placa.
+
+```
+$ bun test ./test/fleet-http.contract.test.ts
+(pass) carries the second tank through create and update
+(pass) refuses a second tank repeating the primary product
+(pass) refuses a secondary consumption without a secondary product
+(pass) refuses a second product outside the catalogue
+(pass) refuses a coarser secondary consumption scale
+(pass) accepts the second product with no consumption yet, as the first one already is
+(pass) serializes the second price beside the first and names the two parcels of the average
+(pass) nulls the second price on the vehicle that drinks from a single tank
+```
+
+O mapeador é onde a junção acontece, e o contrato dele confere cada tanque com o preço **do produto
+dele** — gasolina a `6.0000` sobre `12.00` e etanol a `4.2000` sobre `8.00` dão `0.5000` e `0.5250`,
+média `0.5125`:
+
+```
+$ bun test ./test/fleet-infrastructure.contract.test.ts
+(pass) averages the two tanks, each priced by its own product
+(pass) keeps the single tank arithmetic when the second product has no price in the company
+(pass) nulls the second price on the vehicle with a single tank
+```
+
+`secondaryFuelPrice` é nulo quando não há segundo tanque, e também quando há produto sem preço na
+empresa — a energia antes da tarifa da ANEEL (T7–T9) é exatamente esse caso, e ali a conta continua
+sendo a de um tanque só.
+
+Nenhuma consulta a mais por linha: o `CompanyFuelPriceGateway` já devolvia a tabela inteira da
+empresa, e o mapeador só ganhou um segundo `.get()` no mesmo `Map`. A guarda é empírica, com o
+gateway real embrulhado num contador:
+
+```
+$ DRIZZLE_TEST_DATABASE_URL=… bun test ./test/integration/fleet-vehicle-repository.integration.ts
+(pass) round-trips the second tank and bumps costsUpdatedAt by its consumption
+(pass) resolves the company fuel table once for a whole page of vehicles     # counter.calls === 1
+ 4 pass · 0 fail
+```
+
+O `costsUpdatedAt` do `update` passou a olhar os dois campos novos: trocar de etanol para GNV muda o
+R$/km e não mudava a data.
+
+⚠️ O formulário ainda não manda o par, e o corpo é `.strict()` com os dois campos obrigatórios —
+salvar veículo pela tela só volta a funcionar na T6, que é a próxima. As duas tasks fecham juntas.
+
 ## Gate
 
 ```
-$ bun run --cwd apps/api-transportada test        2826 pass · 15 skip · 0 fail · 11546 expect()
+$ bun run --cwd apps/api-transportada test        2837 pass · 15 skip · 0 fail · 11579 expect()
 $ bun run --cwd apps/cron-transportada test        197 pass ·  0 fail ·   360 expect()
 $ bun run --cwd apps/frontend-transportada test   1708 pass ·  0 fail
 $ make migration-test                               80 pass ·  0 fail

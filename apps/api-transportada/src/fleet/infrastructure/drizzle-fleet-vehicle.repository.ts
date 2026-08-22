@@ -136,6 +136,11 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
             ne(fleetVehicles.annualInsuranceAmount, input.vehicle.annualInsuranceAmount),
             ne(fleetVehicles.annualVehicleTaxAmount, input.vehicle.annualVehicleTaxAmount),
             ne(fleetVehicles.averageConsumption, input.vehicle.averageConsumption),
+            ne(fleetVehicles.secondaryFuelType, input.vehicle.secondaryFuelType),
+            ne(
+              fleetVehicles.secondaryAverageConsumption,
+              input.vehicle.secondaryAverageConsumption,
+            ),
             ne(fleetVehicles.otherCostsPerKilometer, input.vehicle.otherCostsPerKilometer),
             ne(fleetVehicles.monthlyInstallmentAmount, input.vehicle.monthlyInstallmentAmount),
           )} then now() else ${fleetVehicles.costsUpdatedAt} end`,

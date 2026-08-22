@@ -55,6 +55,9 @@ export type FleetVehicleInput = {
   readonly plate: string
   readonly renavam: string
   readonly role: FleetVehicleRole
+  readonly secondaryAverageConsumption: string
+  /** Vazio é "um tanque só": o par preenchido é o flex, e com `eletrico` de um lado é o híbrido. */
+  readonly secondaryFuelType: FuelProduct | ''
   readonly state: string
   readonly tareWeightKilograms: string
   readonly vehicleType: VehicleType | ''
@@ -76,6 +79,7 @@ export type FleetVehicle = FleetVehicleInput & {
   readonly fuelPrice: FleetVehicleFuelPrice | null
   readonly id: string
   readonly monthlyFixedCost: string | null
+  readonly secondaryFuelPrice: FleetVehicleFuelPrice | null
   readonly status: FleetVehicleStatus
   readonly updatedAt: string
   readonly version: string
