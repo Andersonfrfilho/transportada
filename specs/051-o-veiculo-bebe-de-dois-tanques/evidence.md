@@ -559,3 +559,64 @@ $ bun run lint                                      # quatro apps, limpo
 $ bun run format:check                              # limpo
 $ bun run build                                     # quatro apps, PWA gerado
 ```
+
+## T10 — as duas agências entram no ambiente do cron de combustível
+
+`ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS` já existiam no `environment.schema.ts` do cron desde a T8 e já
+eram exigidas no boot do job. O que faltava era o outro lado: **elas não estavam no `.env.example`
+nem no `docs/spec/railway.md`**. Variável exigida no boot e ausente do exemplo é a que ninguém
+provisiona — `make bootstrap` monta um `.env` que não sobe o job, e no painel a falta só apareceria
+no primeiro ciclo, que é **sábado, uma vez por semana**.
+
+O contrato novo é `test/deploy/fuel-price-environment.contract.ts`, registrado em
+`test/deploy.contract.test.ts` (o `package.json` do cron já listava esse entrypoint). Quatro fatos:
+
+- O `.env.example` inteiro, mais `CRON_JOB=fuel.price.pull`, resolve `fuelPricePull` com as duas
+  bases e as duas esperas — sem nada a acrescentar à mão.
+- As duas esperas são **declaradas**, não deixadas para o padrão do schema.
+- O destino externo é declarado **onde a app o busca**: a base sai da variável, e nenhum `.ts` de
+  `apps/cron-transportada/src/` guarda o host `dadosabertos.aneel.gov.br`. Host escrito no código
+  sobreviveria à variável apagada no painel e transformaria configuração faltando em coleta
+  silenciosa contra a ANEEL.
+- O `railway.md` nomeia `cron-fuel` e as quatro variáveis das duas agências.
+
+`FISCAL_ENVIRONMENT` entrou junto, e não é escopo alargado por gosto: ela é **obrigatória sem padrão**
+no schema do cron e não existia no `.env.example`. Sem ela nenhum job de cron sobe a partir do `.env`
+que o `make bootstrap` gera — foi o primeiro contrato desta task que a encontrou, e deixá-la de fora
+manteria o exemplo incapaz de subir o job que a task acabou de configurar.
+
+⚠️ **Nenhum script do repositório escreve variável no painel da Railway** — `railway-deploy.sh` só
+publica. Provisionar em `cron-fuel` é passo manual, e foi executado em **22/08/2026** pela CLI, nos
+dois ambientes:
+
+```
+$ railway variables --service cron-fuel --environment {staging,production} --skip-deploys \
+    --set ANEEL_BASE_URL=https://dadosabertos.aneel.gov.br --set ANEEL_TIMEOUT_MS=15000
+$ railway variables list --service cron-fuel --environment staging     # as quatro presentes
+$ railway variables list --service cron-fuel --environment production  # as quatro presentes
+```
+
+`--skip-deploys` é deliberado: o `cron-fuel` que está no ar ainda é o de antes da T8 e não lê a
+ANEEL. Quem passa a exigir as variáveis é o deploy que levar este código — e é para ele que elas já
+estão lá. Redeployar o binário antigo só para aplicar variável que ele ignora seria um ciclo de
+coleta sem motivo. As duas da ANP e `FISCAL_ENVIRONMENT` já estavam nos dois ambientes.
+
+```
+$ bun test ./test/deploy.contract.test.ts   # RED antes: 4 pass · 4 fail
+$ bun test ./test/deploy.contract.test.ts   # 8 pass · 0 fail
+```
+
+## Gate — T10
+
+```
+$ bun run --cwd apps/api-transportada test          # 2880 pass · 15 skip · 0 fail
+$ bun run --cwd apps/worker-transportada test       # 490 pass · 0 fail
+$ bun run --cwd apps/cron-transportada test         # 215 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada test     # 1739 pass · 0 fail
+$ DATABASE_URL=… bun test ./test/integration/company-energy-repository.integration.ts \
+    ./test/integration/fuel-price-repository.integration.ts   # 14 pass · 0 fail
+$ bun run typecheck                                 # quatro apps, limpo
+$ bun run lint                                      # quatro apps, limpo
+$ bun run format:check                              # limpo
+$ bun run build                                     # quatro apps, PWA gerado
+```
