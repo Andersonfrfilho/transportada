@@ -16,6 +16,7 @@ import {
   isDistributionCursorResponse,
   type DistributionCursor,
 } from './distributionCursor.validation'
+import { isEnergySettingsResponse, type EnergySettings } from './energySettings.validation'
 import type { FuelProduct } from '../../shared/fuel.constant'
 import {
   isFuelPriceListResponse,
@@ -54,6 +55,7 @@ const COMPANY_LOGO_PATH = '/company-settings/logo'
 const COMPANY_SCHEDULED_DISTRIBUTION_PATH = '/company-settings/scheduled-distribution'
 const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
+const COMPANY_ENERGY_PATH = '/company-settings/energy'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -75,6 +77,7 @@ class CompanySettingsRequestError extends Error {
 
 export type { ScheduledDistributionStatus } from './scheduledDistribution.validation'
 export type { DistributionCursor, DistributionCursorSkip } from './distributionCursor.validation'
+export type { EnergyDistributor, EnergySettings } from './energySettings.validation'
 export type {
   EnergyTariff,
   FuelPriceEntry,
@@ -87,10 +90,15 @@ export type CompanySettingsClient = Readonly<{
   adjustFuelPrice: (
     input: Readonly<{ pricePerUnit: string; product: FuelProduct }>,
   ) => Promise<FuelPriceEntry>
+  chooseEnergyDistributor: (
+    input: Readonly<{ adjustmentFactor: string; distributorCode: string }>,
+  ) => Promise<EnergySettings>
+  clearEnergyDistributor: () => Promise<void>
   clearFuelPrice: (product: FuelProduct) => Promise<void>
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getDistributionCursor: () => Promise<DistributionCursor>
+  getEnergySettings: () => Promise<EnergySettings>
   getFuelPrices: () => Promise<readonly FuelPriceEntry[]>
   getLogo: () => Promise<CompanyLogoImage | null>
   getScheduledDistribution: () => Promise<ScheduledDistributionStatus>
@@ -492,16 +500,75 @@ async function clearFuelPrice(
   if (!response.ok) throw requestError(readErrorCode(await response.text()))
 }
 
+async function readEnergySettings(dependencies: ClientDependencies): Promise<EnergySettings> {
+  const response = await getRequest({ dependencies, path: COMPANY_ENERGY_PATH })
+  if (!isEnergySettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+async function chooseEnergyDistributor(
+  input: Readonly<{
+    adjustmentFactor: string
+    dependencies: ClientDependencies
+    distributorCode: string
+  }>,
+): Promise<EnergySettings> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(`${input.dependencies.apiBaseUrl}${COMPANY_ENERGY_PATH}`, {
+      body: JSON.stringify({
+        adjustmentFactor: input.adjustmentFactor,
+        distributorCode: input.distributorCode,
+      }),
+      cache: 'no-store',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      method: 'PUT',
+    }),
+  })
+  if (!isEnergySettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+/** Como a limpeza do preço, responde 204 sem corpo: pedir JSON viraria sucesso em erro de formato. */
+async function clearEnergyDistributor(dependencies: ClientDependencies): Promise<void> {
+  const accessToken = await dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await dependencies.fetch(
+      new Request(`${dependencies.apiBaseUrl}${COMPANY_ENERGY_PATH}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'DELETE',
+      }),
+    )
+  } catch {
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
+  }
+  if (!response.ok) throw requestError(readErrorCode(await response.text()))
+}
+
 export const createCompanySettingsClient: CompanySettingsClientFactory = (dependencies) => ({
   adjustDistributionCursor: (ultNsu) =>
     requestDistributionCursor({ body: { ultNsu }, dependencies, method: 'PUT' }),
   adjustFuelPrice: (input) =>
     adjustFuelPrice({ dependencies, pricePerUnit: input.pricePerUnit, product: input.product }),
+  chooseEnergyDistributor: (input) =>
+    chooseEnergyDistributor({
+      adjustmentFactor: input.adjustmentFactor,
+      dependencies,
+      distributorCode: input.distributorCode,
+    }),
+  clearEnergyDistributor: () => clearEnergyDistributor(dependencies),
   clearFuelPrice: (product) => clearFuelPrice({ dependencies, product }),
   disableScheduledDistribution: () =>
     requestScheduledDistribution({ dependencies, method: 'DELETE' }),
   enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),
   getDistributionCursor: () => requestDistributionCursor({ dependencies, method: 'GET' }),
+  getEnergySettings: () => readEnergySettings(dependencies),
   getFuelPrices: () => readFuelPrices(dependencies),
   getLogo: () => readLogo(dependencies),
   getScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'GET' }),

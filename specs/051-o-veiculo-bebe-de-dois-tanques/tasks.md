@@ -47,3 +47,11 @@
   de "sem impostos" na tela. Aceite: `test/companies/fuel-price-policy.contract.ts`.
 - **T10** — `ANEEL_BASE_URL`/`ANEEL_TIMEOUT_MS` no `.env.example` e nos dois ambientes do deploy do
   cron de combustível, e o destino externo declarado onde a app o busca.
+- **T11** — A escolha da distribuidora, que hoje não tem caminho de escrita:
+  `GET`/`PUT`/`DELETE /company-settings/energy` (`settings.manage`, escopo `company`) e o painel na
+  aba **Combustível** da frota, ao lado do preço que ele decide. A distribuidora é **escolhida de uma
+  lista**, nunca digitada — a lista sai das distribuidoras que a coleta já publicou, e o que já está
+  gravado continua escolhível mesmo com a vigência fechada, como no catálogo de veículo e no
+  município. Código fora da lista é `422`, não linha órfã que nunca vira preço. Aceite:
+  `test/companies/company-energy.contract.ts`, `test/integration/company-energy-repository.integration.ts`
+  e `test/fleet/energy-settings-panel.contract.ts`.

@@ -397,6 +397,21 @@
       "kilowatt-hour": "quilowatt-hora"
     }
   },
+  "energySettings": {
+    "title": "Energia elétrica",
+    "hint": "O preço do quilowatt-hora do veículo elétrico sai da tarifa homologada da ANEEL para a distribuidora escolhida aqui, multiplicada pelo fator de ajuste.",
+    "distributorLabel": "Distribuidora",
+    "distributorPlaceholder": "Escolha a distribuidora",
+    "factorLabel": "Fator de ajuste",
+    "factorHint": "A tarifa homologada é seca: sem imposto e sem bandeira tarifária. O fator multiplica a tarifa até o valor que a conta de luz cobra — 1,0000 mantém a tarifa como publicada.",
+    "save": "Salvar distribuidora",
+    "clear": "Limpar distribuidora",
+    "saved": "Distribuidora salva.",
+    "error": "Não foi possível salvar a distribuidora. Código: {{code}}.",
+    "loadError": "Não foi possível carregar a configuração de energia.",
+    "emptyCatalog": "Nenhuma tarifa publicada ainda: a coleta da ANEEL roda uma vez por semana e é ela que preenche esta lista.",
+    "unchosen": "Sem distribuidora escolhida, o R$/km do veículo elétrico não é calculado."
+  },
   "currencyPrefix": "R$",
   "sort": {
     "asc": "Ordenado do menor para o maior",

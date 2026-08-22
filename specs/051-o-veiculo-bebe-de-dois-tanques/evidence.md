@@ -444,8 +444,8 @@ seguiria para o R$/km de todo veículo elétrico da frota. A conta inteira é `b
 
 Com a linha real da CERAÇÁ (`567,8000 + 227,7000 = 795,5000` R$/MWh):
 
-| fator | efetivo |
-|---|---|
+| fator    | efetivo  |
+| -------- | -------- |
 | `1.0000` | `0.7955` |
 | `1.2500` | `0.9944` |
 | `1.3500` | `1.0739` |
@@ -495,6 +495,65 @@ $ bun run --cwd apps/api-transportada test:integration  # 128 pass · 0 fail (.e
 $ bun run --cwd apps/worker-transportada test       # 490 pass · 0 fail
 $ bun run --cwd apps/cron-transportada test         # 211 pass · 0 fail
 $ bun run --cwd apps/frontend-transportada test     # 1731 pass · 0 fail
+$ bun run typecheck                                 # quatro apps, limpo
+$ bun run lint                                      # quatro apps, limpo
+$ bun run format:check                              # limpo
+$ bun run build                                     # quatro apps, PWA gerado
+```
+
+## T11 — a escolha da distribuidora ganha caminho de escrita
+
+`GET`/`PUT`/`DELETE /company-settings/energy` (`settings.manage`, escopo `company`) e o painel
+**Energia elétrica** na aba Combustível da frota, ao lado do preço que ele decide.
+
+**Sem a rota, a T8 e a T9 eram trilho sem gatilho.** A coleta gravava tarifa e o preço efetivo sabia
+lê-la, mas `company_energy_settings` não tinha nenhum `INSERT` fora do teste: o ramo `aneel` do preço
+do elétrico era inalcançável em produção. A busca que provou isso foi por caminho de escrita da
+tabela, não por rota ausente — rota que não existe não aparece em grep de rota.
+
+**A lista é a única entrada, e ela nunca perde a escolha gravada.** `listDistributors()` devolve uma
+linha por distribuidora (`selectDistinctOn` pelo código, vigência mais recente primeiro) e **inclui
+vigência fechada**: a próxima homologação republica a distribuidora, e escondê-la obrigaria o
+operador a esperar a coleta para configurar o que ele já sabe. Quando a distribuidora escolhida sumiu
+da publicação — fusão, troca de sigla —, `resolveCompanyEnergySettings` a devolve na lista com
+`taxId: null`, como `buildVehicleCatalogChoices` e `buildMunicipalityChoices` fazem: sem isso o select
+mostraria o placeholder com uma escolha salva atrás dele.
+
+**Código fora da lista é `422`, não linha órfã.** Gravar em silêncio produziria uma tela dizendo
+"distribuidora configurada" com o preço do elétrico indisponível para sempre — o pior dos dois
+estados, porque nada falha. A checagem usa o catálogo já buscado; não há segunda consulta.
+
+**O fator tem um dígito inteiro só.** `^[0-9]\.[0-9]{4}$` mais `> 0` na fronteira: imposto e bandeira
+quase dobram a tarifa seca, então `10,0000` é dedo trocado, não configuração. O CHECK do banco cobra
+só `> 0` — a fronteira é que sabe a ordem de grandeza. A caixa sobe no schema **antes** do `refine`,
+porque o CHECK exige `= upper(...)` e o formulário manda o que o operador digitou: sem o `transform`
+antes, a minúscula viraria 500.
+
+**O painel avisa que a tarifa é seca.** `factorHint` diz "sem imposto e sem bandeira tarifária" ao
+lado do campo, pelo mesmo motivo da T9: `1,0000` parece preço final, e o R$/km do elétrico nasceria
+abaixo do que a frota paga.
+
+**A rota entrou na allowlist do `no-store`.** `isNoStorePath` é lista explícita: sem o caminho novo
+ali, o 403 e o 500 da rota sairiam cacheáveis. Os quatro testes que falhavam eram esses.
+
+```
+$ bun test test/companies.contract.test.ts                              # RED antes: 122 pass · 11 fail
+$ bun test test/companies.contract.test.ts                              # 133 pass · 0 fail
+$ bun test ./test/integration/company-energy-repository.integration.ts  # RED antes: 0 pass · 8 fail
+$ bun test ./test/integration/company-energy-repository.integration.ts  # 8 pass · 0 fail
+$ bun test test/fleet.contract.test.ts                                  # RED antes: 373 pass · 8 fail
+$ bun test test/fleet.contract.test.ts                                  # 381 pass · 0 fail
+```
+
+## Gate — T11
+
+```
+$ bun run --cwd apps/api-transportada test          # 2895 pass · 15 skip · 0 fail
+$ bun run --cwd apps/worker-transportada test       # 490 pass · 0 fail
+$ bun run --cwd apps/cron-transportada test         # 211 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada test     # 1739 pass · 0 fail
+$ DATABASE_URL=… bun test ./test/integration/company-energy-repository.integration.ts \
+    ./test/integration/fuel-price-repository.integration.ts   # 14 pass · 0 fail
 $ bun run typecheck                                 # quatro apps, limpo
 $ bun run lint                                      # quatro apps, limpo
 $ bun run format:check                              # limpo

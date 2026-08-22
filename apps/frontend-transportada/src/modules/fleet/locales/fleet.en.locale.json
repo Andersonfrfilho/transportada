@@ -396,6 +396,21 @@
       "kilowatt-hour": "kilowatt-hour"
     }
   },
+  "energySettings": {
+    "title": "Electricity",
+    "hint": "The kilowatt-hour price of an electric vehicle comes from the ANEEL tariff of the distributor chosen here, multiplied by the adjustment factor.",
+    "distributorLabel": "Distributor",
+    "distributorPlaceholder": "Choose the distributor",
+    "factorLabel": "Adjustment factor",
+    "factorHint": "The published tariff is dry: no taxes and no tariff flag. The factor multiplies it up to what the electricity bill charges — 1.0000 keeps the tariff as published.",
+    "save": "Save distributor",
+    "clear": "Clear distributor",
+    "saved": "Distributor saved.",
+    "error": "The distributor could not be saved. Code: {{code}}.",
+    "loadError": "The energy settings could not be loaded.",
+    "emptyCatalog": "No tariff has been published yet: the ANEEL collection runs once a week and it is what fills this list.",
+    "unchosen": "Without a chosen distributor, the R$/km of an electric vehicle is not calculated."
+  },
   "currencyPrefix": "R$",
   "sort": {
     "asc": "Sorted ascending",
