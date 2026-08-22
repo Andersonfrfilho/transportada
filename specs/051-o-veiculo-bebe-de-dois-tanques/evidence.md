@@ -264,3 +264,69 @@ $ bun run typecheck    # quatro apps, limpo
 $ bun run lint         # quatro apps, limpo
 $ bun run format:check # limpo
 ```
+
+## T7 — a tarifa pública e a escolha que é da empresa
+
+Duas tabelas na mesma migration (`20260822011127_energy_tariff_reference`), pelo mesmo par que o
+combustível já tem: uma referência pública e um ajuste por empresa.
+
+**`energy_tariff_references` é pública de propósito.** Sem `company_id` e sem chave estrangeira
+nenhuma — a tarifa homologada da ANEEL é dado de mercado por distribuidora, idêntico para toda
+empresa da instalação, sem PII e sem efeito fiscal, exatamente como o preço da ANP. A ausência é
+assertada em `test/fleet-schema/tenant-safety.contract.ts`, ao lado da exceção já declarada do ANP:
+se a tabela ganhar tenant um dia, é o contrato que cobra a decisão, não o esquecimento.
+
+**As duas parcelas ficam como publicadas, e a unidade está no nome da coluna.**
+`tusd_per_megawatt_hour` e `te_per_megawatt_hour` guardam R$/MWh em `numeric(19,4)`, que é o que a
+ANEEL publica. Não há coluna de preço derivado: o efetivo é `(TUSD + TE) ÷ 1000 × fator`, e T9 o
+calcula — gravá-lo aqui seria uma segunda verdade sobre o mesmo número, das que divergem em silêncio.
+A unidade no nome é a mesma guarda do catálogo de combustível: uma linha de MWh lida como kWh entra
+no banco sem reclamar de nada e sai mil vezes menor na tela.
+
+**O recorte entra na chave natural mesmo com uma linha só hoje.** A chave é
+`(distributor_code, subgroup, modality, effective_from)` — hoje todo registro é `B3`/`Convencional`,
+e é justamente por isso que o subgrupo precisa estar ali: sem ele, uma coleta futura de outro
+subgrupo sobrescreveria a tarifa em uso, e a troca não apareceria em lugar nenhum. É também a
+idempotência do ciclo de T8: reexecutar a mesma vigência não duplica linha.
+
+Os CHECKs dizem o que a coleta não pode inventar: código da distribuidora não vazio **e em caixa
+alta** (`= upper(...)`, a forma canônica, como o CNPJ), nome não vazio, subgrupo e modalidade não
+vazios, `effective_to >= effective_from`, e parcela `>= 0` com a **soma** `> 0` — parcela zerada
+existe no dado real, par zerado não é tarifa nenhuma.
+
+**`company_energy_settings` é a metade que é da empresa.** `company_id` é a chave primária: uma linha
+por empresa, e trocar de concessionária é um `UPDATE`, não uma linha nova. O fator é
+`numeric(6,4)` com default `1.0000` — a tarifa homologada é seca (sem ICMS, sem PIS/COFINS, sem
+bandeira), e sem declaração não acrescentamos imposto que não medimos; a tela dirá isso em T9.
+A chave estrangeira aponta para `companies` com `restrict`/`cascade`, como a do ajuste de
+combustível, e é assertada no mesmo contrato de tenant.
+
+⚠️ **A distribuidora casa por código, não por chave estrangeira.** A referência nasce vazia — só a
+primeira coleta do cron a preenche —, e uma FK faria a empresa não poder escolher a concessionária
+antes de a ANEEL ter sido lida uma vez. É o mesmo arranjo de `fleet_vehicles.fuel_type` com o
+catálogo: relação por valor, guardada por CHECK, não por referência.
+
+O rollback derruba as duas na ordem inversa — a escolha antes da referência —, com o guard de hash
+e `deleted_migrations <> 1` de sempre. Nota para quem vier: `readBusinessTables` da integração
+filtra por uma allowlist que não inclui tabelas auxiliares (as duas do combustível também estão
+fora), então quem prova a criação é o journal e quem prova a queda é o próprio `rollback.sql` rodando
+sem erro dentro da transação — o `DROP` errado explodiria ali.
+
+```
+$ bun test test/fleet-schema.contract.test.ts       # 56 pass · 0 fail · 210 expect()
+$ bun test test/database-migration.contract.test.ts # 49 pass · 4 skip · 0 fail
+$ make migration-test                               # 81 pass · 0 fail · 1005 expect()
+```
+
+## Gate — T7
+
+```
+$ bun run --cwd apps/api-transportada test       # 2847 pass · 15 skip · 0 fail · 11629 expect()
+$ bun run --cwd apps/frontend-transportada test  # 1726 pass · 0 fail · 11549 expect()
+$ bun run --cwd apps/worker-transportada test    #  490 pass · 0 fail
+$ bun run --cwd apps/cron-transportada test      #  197 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada build # dist + service worker
+$ bun run typecheck    # quatro apps, limpo
+$ bun run lint         # quatro apps, limpo
+$ bun run format:check # limpo
+```

@@ -141,6 +141,7 @@ describe('Drizzle migrations', () => {
       '20260821214357_fleet_driver_personal_details',
       '20260821232908_fuel_catalog_energy',
       '20260821233830_fleet_vehicle_secondary_fuel',
+      '20260822011127_energy_tariff_reference',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1205,6 +1206,45 @@ describe('Drizzle migrations', () => {
     expect(droppedColumn).toBeGreaterThan(restoredCostCheck)
     expect(rollbackSql).not.toContain('"secondary_average_consumption" >= 0')
     expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "secondary_fuel_type"')
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+  /**
+   * A tarifa é pública e a escolha é da empresa: duas tabelas na mesma migration, uma sem
+   * `company_id` de propósito e a outra ancorada no tenant. O rollback derruba as duas na ordem
+   * inversa — a escolha antes da referência, para nenhuma linha ficar apontando para o vazio.
+   */
+  test('creates the public tariff beside the choice that is the company own', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_energy_tariff_reference'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(migrationSql).toContain('CREATE TABLE "energy_tariff_references"')
+    expect(migrationSql).toContain('CREATE TABLE "company_energy_settings"')
+    expect(migrationSql).toContain('"tusd_per_megawatt_hour" numeric(19,4) NOT NULL')
+    expect(migrationSql).toContain('"te_per_megawatt_hour" numeric(19,4) NOT NULL')
+    expect(migrationSql).toContain(`"adjustment_factor" numeric(6,4) DEFAULT '1.0000' NOT NULL`)
+    expect(migrationSql).toContain('"energy_tariff_references_natural_unique"')
+    // A referência pública não alcança empresa nenhuma; só a escolha tem a chave estrangeira
+    expect(migrationSql).toContain(
+      'ALTER TABLE "company_energy_settings" ADD CONSTRAINT "company_energy_settings_company_id_companies_id_fkey"',
+    )
+    expect(migrationSql).not.toContain('"energy_tariff_references_company_id"')
+
+    const droppedSettings = rollbackSql.indexOf('DROP TABLE IF EXISTS "company_energy_settings"')
+    const droppedReferences = rollbackSql.indexOf('DROP TABLE IF EXISTS "energy_tariff_references"')
+    expect(droppedSettings).toBeGreaterThan(0)
+    expect(droppedReferences).toBeGreaterThan(droppedSettings)
 
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)

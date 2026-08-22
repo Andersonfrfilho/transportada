@@ -4,7 +4,9 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  companyEnergySettings,
   companyFuelPrices,
+  energyTariffReferences,
   fleetDriverVehicleAssignments,
   fleetDrivers,
   fleetVehicles,
@@ -50,6 +52,14 @@ describe('fleet tenant safety', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+    expect(foreignKeys(companyEnergySettings)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'company_energy_settings_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
   })
 
   /**
@@ -59,6 +69,15 @@ describe('fleet tenant safety', () => {
   test('keeps the public reference tenant-less on purpose, and unable to reach a company', () => {
     expect(columnNames(fuelPriceReferences)).not.toContain('company_id')
     expect(foreignKeys(fuelPriceReferences)).toEqual([])
+  })
+
+  /**
+   * A tarifa homologada da ANEEL é o mesmo caso: pública por distribuidora, sem PII e sem efeito
+   * fiscal. A escolha da distribuidora é que é da empresa, e ela mora na outra tabela.
+   */
+  test('keeps the published tariff tenant-less on purpose, and unable to reach a company', () => {
+    expect(columnNames(energyTariffReferences)).not.toContain('company_id')
+    expect(foreignKeys(energyTariffReferences)).toEqual([])
   })
 
   // Um motorista de outra empresa não pode herdar o login desta — o vínculo passa pelo tenant
