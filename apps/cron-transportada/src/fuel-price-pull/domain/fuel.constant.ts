@@ -8,8 +8,9 @@
 
 /**
  * O que o veículo consome, com o preço publicado por unidade. Os cinco primeiros são o catálogo da
- * ANP; `eletrico` não está na planilha dela — a tarifa de energia é da ANEEL, e enquanto ela não é
- * coletada o preço vem do ajuste manual da empresa, como qualquer outro produto sem referência.
+ * ANP; `eletrico` não está na planilha dela — a tarifa de energia é da ANEEL, e é a segunda metade
+ * deste mesmo job que a coleta, na tabela `energy_tariff_references`. O preço efetivo do kWh não sai
+ * daqui: ele é resolvido na API, a partir da distribuidora que a empresa escolheu.
  *
  * A unidade é atributo do produto, não coluna: o GNV é vendido em metro cúbico, a energia em
  * quilowatt-hora e os quatro líquidos em litro, e guardá-la por linha abriria a porta para duas

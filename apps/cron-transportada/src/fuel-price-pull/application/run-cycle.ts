@@ -2,12 +2,17 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Um ciclo de coleta do preço de referência: uma instância segura o advisory lock, baixa a semana
- * da ANP e grava o que falta. A semana indisponível não é meia gravação — é `failedCount` 1, o
- * código de saída 1 do processo, e a referência anterior intacta.
+ * da ANP e a tarifa homologada da ANEEL, e grava o que falta. A semana indisponível não é meia
+ * gravação — é `failedCount` 1, o código de saída 1 do processo, e a referência anterior intacta.
+ *
+ * As duas metades cabem no mesmo job de propósito: um deploy, uma janela e **um** advisory lock.
+ * Cada uma falha por si — o litro coletado não é descartado porque o kWh não veio, e vice-versa,
+ * senão um provedor fora do ar levaria junto a coleta que deu certo.
  */
 import type { CronLogger } from '../../config/cron.types.js'
 import type { AdvisoryLockPort } from '../../nfe-distribution-pull/application/advisory-lock.port.js'
 
+import type { PullEnergyTariffUseCase } from './pull-energy-tariff.use-case.js'
 import type { PullFuelReferenceUseCase } from './pull-fuel-reference.use-case.js'
 
 export type FuelPriceIneligibleCounts = {
@@ -25,6 +30,7 @@ export type FuelPricePullCycleResult = {
 
 export type FuelPricePullCycleDependencies = {
   readonly correlationId: string
+  readonly energyUseCase: PullEnergyTariffUseCase
   readonly jobId: string
   readonly lock: AdvisoryLockPort
   readonly logger: CronLogger
@@ -59,9 +65,48 @@ export async function runFuelPricePullCycle(
   }
 
   try {
-    return await pullWeeklyReference(dependencies)
+    const [weekly, tariff] = [
+      await pullWeeklyReference(dependencies),
+      await pullCurrentTariff(dependencies),
+    ]
+
+    return {
+      acquiredLock: true,
+      eligibleCount: weekly.eligibleCount + tariff.eligibleCount,
+      enqueuedCount: weekly.enqueuedCount + tariff.enqueuedCount,
+      failedCount: weekly.failedCount + tariff.failedCount,
+      ineligibleCounts: {
+        discardedRows:
+          weekly.ineligibleCounts.discardedRows + tariff.ineligibleCounts.discardedRows,
+      },
+      skippedCount: weekly.skippedCount + tariff.skippedCount,
+    }
   } finally {
     await dependencies.lock.release({ lockKey })
+  }
+}
+
+async function pullCurrentTariff(
+  dependencies: FuelPricePullCycleDependencies,
+): Promise<FuelPricePullCycleResult> {
+  try {
+    const pull = await dependencies.energyUseCase.execute({ now: dependencies.now })
+
+    return {
+      acquiredLock: true,
+      eligibleCount: pull.tariffCount,
+      enqueuedCount: pull.writtenCount,
+      failedCount: 0,
+      ineligibleCounts: { discardedRows: pull.discardedRows },
+      skippedCount: 0,
+    }
+  } catch (error) {
+    dependencies.logger.error('cron_cycle_energy_tariff_pull_failed', {
+      correlationId: dependencies.correlationId,
+      error: error instanceof Error ? error.message : 'unknown',
+    })
+
+    return createEmptyResult({ acquiredLock: true, failedCount: 1 })
   }
 }
 

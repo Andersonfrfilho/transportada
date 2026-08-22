@@ -39,8 +39,11 @@
 
 - **T7** 🧠 — Tabela `energy_tariff_references` (pública, sem `company_id`, exceção declarada no
   contrato de tenant) e `company_energy_settings` (distribuidora + fator). Migrations + rollback.
-- **T8** — Cron `energy.price.pull`: CKAN datastore, filtro por vigência e subgrupo, gravação
-  idempotente pela chave natural. Aceite: `test/energy-price-pull/*.contract.ts`.
-- **T9** — Preço efetivo do `eletrico` = `ajuste ?? (TUSD+TE) × fator`, origem `aneel`, aviso de
-  "sem impostos" na tela. Aceite: `test/companies/fuel-price-policy.contract.ts`.
-- **T10** — Deploy do `cron-energy` e destino externo declarado onde a app o busca.
+- **T8** — A tarifa entra na **segunda metade do job `fuel.price.pull` que já existe**, não num cron
+  novo: um deploy, uma janela, um advisory lock. Datastore CKAN da ANEEL, recorte B3 · Convencional ·
+  Tarifa de Aplicação · `DscDetalhe` fora do SCEE, só o que está vigente no dia, gravação idempotente
+  pela chave natural. Aceite: `test/fuel-price-pull/aneel-*.contract.ts`.
+- **T9** — Preço efetivo do `eletrico` = `ajuste ?? (TUSD+TE) ÷ 1000 × fator`, origem `aneel`, aviso
+  de "sem impostos" na tela. Aceite: `test/companies/fuel-price-policy.contract.ts`.
+- **T10** — `ANEEL_BASE_URL`/`ANEEL_TIMEOUT_MS` no `.env.example` e nos dois ambientes do deploy do
+  cron de combustível, e o destino externo declarado onde a app o busca.

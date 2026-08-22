@@ -330,3 +330,107 @@ $ bun run typecheck    # quatro apps, limpo
 $ bun run lint         # quatro apps, limpo
 $ bun run format:check # limpo
 ```
+
+## T7 corrigida — a coluna que não tinha fonte
+
+Antes de escrever a coleta, o recurso da ANEEL foi medido de verdade, e o campo `NomAgente` — a
+razão social que `energy_tariff_references.distributor_name` guardaria — **não existe**. O recurso
+`fcf2906c-7c32-4b9b-a637-054e7a5234f4` publica dezessete campos, e o que acompanha a sigla é o CNPJ
+(`NumCNPJDistribuidora`). A coluna foi trocada por `distributor_tax_id text`, com CHECK do CNPJ
+alfanumérico, e o CHECK do código passou a exigir caixa alta **e** documento válido no mesmo lugar.
+
+A sigla continua sendo a chave porque é ela que sai impressa na conta de luz, e porque sigla e CNPJ
+**não são um-para-um** na própria fonte: `RGE` aparece com dois CNPJs, e o CNPJ `53859112000169`
+aparece com duas siglas.
+
+A migration `20260822011127_energy_tariff_reference` foi **corrigida no lugar**, não por uma segunda
+migration: ela está commitada e não está aplicada em ambiente nenhum. `rollback.sql` foi preservado
+palavra por palavra, só com o hash do guard atualizado para o novo `migration.sql`
+(`0852a047…`), que é o `shasum -a 256` do arquivo.
+
+```
+$ bun run db:check                                  # limpo
+$ bun test test/fleet-schema.contract.test.ts       # 56 pass · 0 fail · 211 expect()
+$ bun test test/database-migration.contract.test.ts # 49 pass · 4 skip · 0 fail
+```
+
+## T8 — a tarifa entra no job que já existe
+
+O usuário decidiu o desenho: _"vc deveria deixar junto do que já existe hoje que busca preço de
+combustível"_. Então não há `cron-energy`. A coleta da ANEEL é a **segunda metade** de
+`fuel.price.pull` — um deploy, uma janela, **um** advisory lock. O litro e o kWh são o mesmo
+catálogo (`eletrico` é membro de `FUEL_TYPES`), e duas janelas dariam duas chances de a mesma
+instalação colher metade do preço.
+
+**Cada metade falha por si.** `runFuelPricePullCycle` roda as duas dentro do mesmo lock, cada uma no
+seu `try`, e soma os contadores. A ANEEL fora do ar não descarta o litro já gravado, e a semana da
+ANP indisponível não impede a tarifa de entrar — `failedCount` 1 leva o processo a sair com código 1
+de qualquer jeito, que é o sinal de que alguém precisa olhar, mas o que deu certo fica gravado.
+
+### O recorte, medido antes de existir código
+
+`datastore_search_sql` responde **400** nesta instância — então o recorte vai como `filters` (casamento
+exato) e a agregação é nossa. Medições de 21/08/2026 contra o recurso ao vivo:
+
+| O que                                   | Medido                                 |
+| --------------------------------------- | -------------------------------------- |
+| Recurso inteiro                         | 324.609 registros                      |
+| B3 · Convencional · Tarifa de Aplicação | 2.668 linhas                           |
+| Com `DscDetalhe = 'Não se aplica'`      | **2.082 linhas**                       |
+| Distribuidoras vigentes em 21/08/2026   | **99**                                 |
+| Linhas descartadas                      | 19, **todas** de sigla `Não Informado` |
+| Tempo do ciclo de coleta                | 1,1 s, 3 páginas                       |
+
+⚠️ **O quarto filtro não é enfeite.** As 586 linhas de `SCEE` — a compensação da geração distribuída
+— publicam a TE do fio B, uma ordem de grandeza abaixo: `34,37` contra `337,39` na mesma linha da
+EDP ES. Sem `DscDetalhe` no filtro, o kWh do veículo elétrico entraria dez vezes menor e **nada
+reclamaria** — nem CHECK, nem tipo, nem tela.
+
+As 19 linhas descartadas foram conferidas uma a uma: todas são `Não Informado`, todas com vigência
+entre 2011 e 2016, nenhuma corrente. Linha torta é descartada e **contada**, nunca fatal — uma sigla
+de sucata não pode custar as outras 99 distribuidoras do ciclo.
+
+### O que a fonte ensinou, e virou regra
+
+- **A vigência se sobrepõe.** Ceraçá e CEA têm duas linhas cobrindo 21/08/2026 cada. Vence o
+  `effective_from` mais recente que cobre o dia: a retificação é publicada depois, com o mesmo fim.
+- **A chave natural não é única na fonte.** Sete pares `(sigla, início)` saem repetidos com `DscREH`
+  diferente — retificação da mesma vigência, com valor corrigido. Por isso o gateway faz **upsert**,
+  não `onConflictDoNothing`: ignorar o conflito congelaria a tarifa errada até a vigência seguinte.
+- **A sigla vem em caixa mista** em sete distribuidoras (`Ceraçá`, `Neoenergia PE`, `CPFL Santa
+Cruz`, …). Sem uma grafia só, a mesma concessionária viraria duas linhas e a escolha da empresa
+  apontaria para a que não foi coletada nesta semana.
+- **O valor é vírgula decimal, e existe a forma sem parte inteira** (`,38`). `readCommaDecimal`
+  devolve o `0` da frente e delega ao `readCellDecimal` que já lia a célula da ANP — mesma régua,
+  mesma escala 4, mesmo arredondamento meio-para-cima em `bigint`. `Number` traria ruído binário
+  para dentro de campo de dinheiro.
+- **A unidade varia no recurso** (`kW` em linhas de demanda). Dentro do recorte todas as 2.082 vieram
+  em `MWh`, e é a única que o domínio sabe ler; qualquer outra é descartada em vez de lida como se
+  fosse megawatt-hora.
+
+**Página recusada aborta a coleta inteira.** Meia série gravada seria tarifa faltando para metade das
+distribuidoras, e a tela mostraria preço sem dizer que está incompleto — `ANEEL_TARIFF_UNAVAILABLE`
+no HTTP torto, `ANEEL_MALFORMED_RESPONSE` no corpo que não é o envelope do datastore.
+
+**As duas agências são obrigatórias no boot do job.** `ANEEL_BASE_URL` e `ANP_BASE_URL` são exigidas
+juntas quando `CRON_JOB` é `fuel.price.pull` — variável opcional no schema faria a metade esquecida
+virar tela sem preço, em silêncio. Os outros três deploys de cron continuam subindo sem nenhuma das
+duas. A declaração nos ambientes é T10.
+
+```
+$ bun test test/fuel-price-pull.contract.test.ts  # RED antes: 3 fail + 1 error de módulo
+$ bun run --cwd apps/cron-transportada test       # 211 pass · 0 fail · 389 expect()
+$ bun run typecheck                               # quatro apps, limpo
+$ bun run lint                                    # quatro apps, limpo
+$ bun run format:check                            # limpo
+```
+
+Coleta ao vivo, contra o recurso real:
+
+```
+$ bun run scratchpad/aneel-live.ts
+{ "elapsedMs": 1132, "discardedRows": 19, "tariffCount": 99,
+  "sample": [{ "distributorCode": "CERAÇÁ", "distributorTaxId": "09364804000144",
+               "effectiveFrom": "2026-01-01", "effectiveTo": "2026-09-29",
+               "tusdPerMegawattHour": "567.8000", "tePerMegawattHour": "227.7000" }] }
+```
