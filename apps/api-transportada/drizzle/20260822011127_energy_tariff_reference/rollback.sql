@@ -14,7 +14,7 @@ DECLARE
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
     WHERE "name" = '20260822011127_energy_tariff_reference'
-      AND "hash" = '1d919a4c57536ae2f8c44d76269a3a665a68e3b449d571364b53fd8dabbb2ad1';
+      AND "hash" = '0852a04732b51a7d0dca4e29afcfaeaa77c7a9eb12c06729297aed8b312afeea';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

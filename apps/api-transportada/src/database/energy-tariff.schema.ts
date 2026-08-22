@@ -7,6 +7,7 @@ import {
   date,
   numeric,
   pgTable,
+  text,
   timestamp,
   unique,
   uuid,
@@ -15,10 +16,12 @@ import {
 
 import {
   ENERGY_DISTRIBUTOR_CODE_MAX_LENGTH,
-  ENERGY_DISTRIBUTOR_NAME_MAX_LENGTH,
   ENERGY_TARIFF_MODALITY_MAX_LENGTH,
   ENERGY_TARIFF_SUBGROUP_MAX_LENGTH,
 } from '../shared/energy-tariff.constant.js'
+const raw = (value: string): ReturnType<typeof sql.raw> => sql.raw(value)
+
+const CNPJ_PATTERN = '^[A-Z0-9]{12}[0-9]{2}$'
 
 /**
  * Tarifa homologada pela ANEEL: dado público por distribuidora, idêntico para toda empresa da
@@ -33,9 +36,7 @@ export const energyTariffReferences = pgTable(
     distributorCode: varchar('distributor_code', {
       length: ENERGY_DISTRIBUTOR_CODE_MAX_LENGTH,
     }).notNull(),
-    distributorName: varchar('distributor_name', {
-      length: ENERGY_DISTRIBUTOR_NAME_MAX_LENGTH,
-    }).notNull(),
+    distributorTaxId: text('distributor_tax_id').notNull(),
     subgroup: varchar({ length: ENERGY_TARIFF_SUBGROUP_MAX_LENGTH }).notNull(),
     modality: varchar({ length: ENERGY_TARIFF_MODALITY_MAX_LENGTH }).notNull(),
     effectiveFrom: date('effective_from').notNull(),
@@ -54,7 +55,7 @@ export const energyTariffReferences = pgTable(
     ),
     check(
       'energy_tariff_references_distributor_check',
-      sql`length(${table.distributorCode}) > 0 and ${table.distributorCode} = upper(${table.distributorCode}) and length(${table.distributorName}) > 0`,
+      sql`length(${table.distributorCode}) > 0 and ${table.distributorCode} = upper(${table.distributorCode}) and ${table.distributorTaxId} ~ ${raw(`'${CNPJ_PATTERN}'`)}`,
     ),
     check(
       'energy_tariff_references_scope_check',

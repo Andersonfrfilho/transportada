@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "46f8979b-059d-4e3a-a955-e4d8ce0e17d7",
+  "id": "5b50feb4-888e-453c-abfe-0c9e51d5e8af",
   "prevIds": ["7da608b3-1fb9-46dd-b984-aef63d65d9ea"],
   "ddl": [
     {
@@ -10157,14 +10157,14 @@
       "table": "energy_tariff_references"
     },
     {
-      "type": "varchar(160)",
+      "type": "text",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "distributor_name",
+      "name": "distributor_tax_id",
       "entityType": "columns",
       "schema": "public",
       "table": "energy_tariff_references"
@@ -25476,7 +25476,7 @@
       "table": "company_fuel_prices"
     },
     {
-      "value": "length(\"distributor_code\") > 0 and \"distributor_code\" = upper(\"distributor_code\") and length(\"distributor_name\") > 0",
+      "value": "length(\"distributor_code\") > 0 and \"distributor_code\" = upper(\"distributor_code\") and \"distributor_tax_id\" ~ '^[A-Z0-9]{12}[0-9]{2}$'",
       "name": "energy_tariff_references_distributor_check",
       "entityType": "checks",
       "schema": "public",

@@ -26,7 +26,7 @@ describe('energy tariff reference schema', () => {
     expect(columnNames(energyTariffReferences)).toEqual([
       'id',
       'distributor_code',
-      'distributor_name',
+      'distributor_tax_id',
       'subgroup',
       'modality',
       'effective_from',
@@ -46,7 +46,7 @@ describe('energy tariff reference schema', () => {
     expect(columnSqlTypes(energyTariffReferences)).toMatchObject({
       collected_at: 'timestamp with time zone',
       distributor_code: 'varchar(40)',
-      distributor_name: 'varchar(160)',
+      distributor_tax_id: 'text',
       effective_from: 'date',
       effective_to: 'date',
       modality: 'varchar(20)',
@@ -78,11 +78,19 @@ describe('energy tariff reference schema', () => {
     expect(checks.energy_tariff_references_parcel_check).toContain('> 0')
   })
 
-  test('refuses a vigência that ends before it starts, and a distributor without a name', () => {
+  /**
+   * A ANEEL não publica razão social: o que vem na linha é a sigla (`SigAgente`, medida em caixa
+   * mista em sete delas) e o CNPJ (`NumCNPJDistribuidora`). A sigla é a escolha do operador porque é
+   * ela que sai na conta de luz, canonicalizada em caixa alta para a mesma distribuidora não virar
+   * duas; o CNPJ vem junto como identificação, e não é a chave porque sigla e CNPJ não são um-para-um
+   * no histórico da própria fonte.
+   */
+  test('refuses a vigência that ends before it starts, and a distributor without a document', () => {
     const checks = checkSqlByName(energyTariffReferences)
 
     expect(checks.energy_tariff_references_period_check).toContain('>=')
     expect(checks.energy_tariff_references_distributor_check).toContain('upper(')
+    expect(checks.energy_tariff_references_distributor_check).toContain('[A-Z0-9]{12}[0-9]{2}')
     expect(checks.energy_tariff_references_scope_check).toContain('length(')
   })
 })
