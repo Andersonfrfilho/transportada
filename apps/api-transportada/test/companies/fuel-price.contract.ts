@@ -10,6 +10,7 @@ import {
   COMPANY_ID,
   COMPANY_STATE,
   createFuelPriceHttpFixture,
+  ENERGY_TARIFF,
   FRONTEND_ORIGIN,
   FUEL_PRICES_PATH,
   listPricesRequest,
@@ -25,7 +26,11 @@ const DIESEL_REFERENCE = {
 /**
  * O corpo carrega os seis produtos do catálogo mesmo sem preço nenhum: a tela desenha as seis
  * linhas sem adivinhar quais faltam, e o produto sem referência publicada — o GNV, que a ANP não
- * cobre por UF, e a energia, cuja tarifa ainda não é buscada — aparece com tudo nulo em vez de sumir.
+ * cobre por UF — aparece com tudo nulo em vez de sumir.
+ *
+ * A energia é o único que responde `aneel`, e ela carrega a tarifa ao lado do preço pela mesma razão
+ * que os outros carregam a referência: o que a ANEEL homologou é seco, e a tela precisa das duas
+ * parcelas e do fator para dizer isso em vez de apresentar o número como se fosse o da conta.
  */
 const EXPECTED_PRICES = [
   {
@@ -33,6 +38,7 @@ const EXPECTED_PRICES = [
     product: 'diesel-s10',
     reference: DIESEL_REFERENCE,
     source: 'manual',
+    tariff: null,
     unit: 'litre',
     updatedAt: ADJUSTED_AT.toISOString(),
   },
@@ -45,6 +51,7 @@ const EXPECTED_PRICES = [
       weekEndingOn: REFERENCE_WEEK_ENDING_ON,
     },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: null,
   },
@@ -57,6 +64,7 @@ const EXPECTED_PRICES = [
       weekEndingOn: REFERENCE_WEEK_ENDING_ON,
     },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: null,
   },
@@ -69,6 +77,7 @@ const EXPECTED_PRICES = [
       weekEndingOn: REFERENCE_WEEK_ENDING_ON,
     },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: null,
   },
@@ -77,14 +86,16 @@ const EXPECTED_PRICES = [
     product: 'gnv',
     reference: null,
     source: null,
+    tariff: null,
     unit: 'cubic-metre',
     updatedAt: null,
   },
   {
-    effectivePricePerUnit: null,
+    effectivePricePerUnit: '0.7955',
     product: 'eletrico',
     reference: null,
-    source: null,
+    source: 'aneel',
+    tariff: ENERGY_TARIFF,
     unit: 'kilowatt-hour',
     updatedAt: null,
   },
@@ -109,7 +120,11 @@ describe('GET /company-settings/fuel-prices HTTP contract', () => {
   })
 
   test('keeps answering the six products when the company has no price at all', async () => {
-    const fixture = await createFuelPriceHttpFixture({ adjustments: [], references: [] })
+    const fixture = await createFuelPriceHttpFixture({
+      adjustments: [],
+      energy: null,
+      references: [],
+    })
 
     const response = await fixture.handle(listPricesRequest())
     const body = (await response.json()) as { readonly data: readonly { product: string }[] }
@@ -129,6 +144,7 @@ describe('GET /company-settings/fuel-prices HTTP contract', () => {
         effectivePricePerUnit: null,
         reference: null,
         source: null,
+        tariff: null,
         updatedAt: null,
       })),
     )
@@ -150,6 +166,7 @@ describe('PUT /company-settings/fuel-prices/{product} HTTP contract', () => {
         product: 'diesel-s10',
         reference: DIESEL_REFERENCE,
         source: 'manual',
+        tariff: null,
         unit: 'litre',
         updatedAt: ADJUSTED_AT.toISOString(),
       },
@@ -174,6 +191,7 @@ describe('PUT /company-settings/fuel-prices/{product} HTTP contract', () => {
       product: 'gnv',
       reference: null,
       source: 'manual',
+      tariff: null,
       unit: 'cubic-metre',
       updatedAt: ADJUSTED_AT.toISOString(),
     })
@@ -241,6 +259,7 @@ describe('DELETE /company-settings/fuel-prices/{product} HTTP contract', () => {
       product: 'diesel-s10',
       reference: DIESEL_REFERENCE,
       source: 'anp',
+      tariff: null,
       unit: 'litre',
       updatedAt: null,
     })

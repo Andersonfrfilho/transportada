@@ -434,3 +434,69 @@ $ bun run scratchpad/aneel-live.ts
                "effectiveFrom": "2026-01-01", "effectiveTo": "2026-09-29",
                "tusdPerMegawattHour": "567.8000", "tePerMegawattHour": "227.7000" }] }
 ```
+
+## T9 — o preço do kWh, e de onde ele diz que veio
+
+`(TUSD + TE) ÷ 1000 × fator`, com **um** arredondamento só. Dividir por mil e só então multiplicar
+fecharia a quarta casa duas vezes sobre o mesmo número, e o tique perdido no meio não volta — ele
+seguiria para o R$/km de todo veículo elétrico da frota. A conta inteira é `bigint`:
+`divideHalfUp(perMegawattHour × fator, 1000 × 10⁴)`.
+
+Com a linha real da CERAÇÁ (`567,8000 + 227,7000 = 795,5000` R$/MWh):
+
+| fator | efetivo |
+|---|---|
+| `1.0000` | `0.7955` |
+| `1.2500` | `0.9944` |
+| `1.3500` | `1.0739` |
+
+**A tarifa é da energia, e não se empresta.** `energyTariffOf` casa pelo **produto**
+(`ELECTRIC_FUEL_PRODUCT`), não pela unidade: se um dia outro produto for vendido em kWh, quem decide
+a origem da referência continua sendo o produto. Diesel com tarifa da ANEEL do lado seria preço de
+quilowatt-hora impresso como preço de litro.
+
+**A ordem das origens não mudou:** ajuste da empresa vence a tarifa, que vence a referência da ANP.
+O ajuste manual **não esconde** a tarifa — ela continua no corpo, porque é contra ela que o operador
+confere o número que digitou. Sem tarifa e sem ajuste, o elétrico é `unavailable`, como o GNV sem
+referência.
+
+**`FuelPriceFacts.energy` é obrigatório, não opcional.** Sob `exactOptionalPropertyTypes` o campo
+requerido faz o compilador nomear cada construção — foi ele que apontou as quatro fixtures e o
+repositório. Opcional, a tela degradaria em silêncio.
+
+**A leitura fixa o recorte que a coleta grava.** `B3 · Convencional` entra no `join`, porque o
+recorte está na chave natural e a mesma distribuidora publica linha em mais de um subgrupo: a do
+SCEE traz a TE do fio B, uma ordem de grandeza abaixo, e lida como tarifa comum o kWh do veículo
+entraria dez vezes menor sem nada reclamar. Vigência vencida não é preço de hoje, e duas vigentes ao
+mesmo tempo existem na virada da homologação — vence a que começou por último.
+
+**O guard de chaves exatas do frontend andou junto.** `tariff` na lista de chaves e `aneel` nas
+origens: sem os dois, a resposta 200 válida derrubaria a tela inteira de combustível. A tarifa é
+validada parcela por parcela — meia tarifa desenharia número que não veio.
+
+**O aviso de imposto anda colado ao número.** A tarifa homologada é seca — sem ICMS, sem PIS/COFINS
+e sem bandeira. É contra a conta de luz que o operador vai conferi-la, e é ali que a diferença
+aparece; número que se apresenta como final sem ser é pior que número ausente.
+
+```
+$ bun test test/companies.contract.test.ts        # RED antes: 96 pass · 11 fail
+$ bun test test/companies.contract.test.ts        # 107 pass · 0 fail · 298 expect()
+$ bun test test/integration/fuel-price-repository.integration.ts   # RED antes: 0 pass · 6 fail
+$ bun test test/integration/fuel-price-repository.integration.ts   # 6 pass · 0 fail
+$ bun test test/company-settings.contract.test.ts test/fleet.contract.test.ts   # RED antes: 531 pass · 6 fail
+$ bun test test/company-settings.contract.test.ts test/fleet.contract.test.ts   # 537 pass · 0 fail
+```
+
+## Gate — T9
+
+```
+$ bun run --cwd apps/api-transportada test          # 2864 pass · 15 skip · 0 fail
+$ bun run --cwd apps/api-transportada test:integration  # 128 pass · 0 fail (.env completo)
+$ bun run --cwd apps/worker-transportada test       # 490 pass · 0 fail
+$ bun run --cwd apps/cron-transportada test         # 211 pass · 0 fail
+$ bun run --cwd apps/frontend-transportada test     # 1731 pass · 0 fail
+$ bun run typecheck                                 # quatro apps, limpo
+$ bun run lint                                      # quatro apps, limpo
+$ bun run format:check                              # limpo
+$ bun run build                                     # quatro apps, PWA gerado
+```

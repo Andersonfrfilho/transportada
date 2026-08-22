@@ -267,7 +267,8 @@
   "secondaryFuelCostPerKilometer": "Segundo combustível por quilômetro",
   "fuelPriceSource": {
     "anp": "Referência ANP",
-    "manual": "Ajuste da transportadora"
+    "manual": "Ajuste da transportadora",
+    "aneel": "Tarifa ANEEL"
   },
   "fuelPriceWeek": "Semana de referência encerrada em",
   "fuelPriceUnavailable": "Sem preço para este combustível",
@@ -376,7 +377,7 @@
   "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa",
   "fuelPrices": {
     "title": "Preço do combustível",
-    "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência da ANP; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
+    "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência pública — a da ANP para quem queima combustível, a da ANEEL para o elétrico; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
     "effective": "Em uso: {{price}} ({{source}}).",
     "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência pública, o R$/km não é calculado para este combustível.",
     "reference": "Referência da ANP: {{price}} — {{state}}, semana encerrada em {{week}}.",
@@ -387,6 +388,9 @@
     "saved": "Preço salvo.",
     "error": "Não foi possível salvar o preço. Código: {{code}}.",
     "loadError": "Não foi possível carregar os preços de combustível.",
+    "tariff": "Tarifa da {{distributor}}: TUSD {{tusd}} + TE {{te}} por MWh, vigente de {{from}} a {{to}}.",
+    "tariffMissing": "Ainda não há tarifa publicada para a distribuidora escolhida.",
+    "taxFree": "A tarifa homologada é seca: sem ICMS, sem PIS/COFINS e sem bandeira. Ajuste o preço aqui para chegar ao que a conta de luz cobra.",
     "unit": {
       "litre": "litro",
       "cubic-metre": "metro cúbico",

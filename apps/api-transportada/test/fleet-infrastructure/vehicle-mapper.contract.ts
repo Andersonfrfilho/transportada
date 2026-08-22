@@ -61,6 +61,7 @@ const DIESEL_PRICE: EffectiveFuelPrice = {
   product: 'diesel-s10',
   reference: { pricePerUnit: '5.2000', state: 'SP', weekEndingOn: '2026-08-08' },
   source: 'manual',
+  tariff: null,
   unit: 'litre',
   updatedAt: TIMESTAMP,
 }
@@ -70,6 +71,7 @@ const GASOLINE_PRICE: EffectiveFuelPrice = {
   product: 'gasolina-comum',
   reference: null,
   source: 'manual',
+  tariff: null,
   unit: 'litre',
   updatedAt: TIMESTAMP,
 }
@@ -79,6 +81,7 @@ const ETHANOL_PRICE: EffectiveFuelPrice = {
   product: 'etanol-hidratado',
   reference: { pricePerUnit: '4.2000', state: 'SP', weekEndingOn: '2026-08-08' },
   source: 'anp',
+  tariff: null,
   unit: 'litre',
   updatedAt: null,
 }
@@ -88,6 +91,7 @@ const GNV_PRICE: EffectiveFuelPrice = {
   product: 'gnv',
   reference: { pricePerUnit: '4.0000', state: 'SP', weekEndingOn: '2026-08-08' },
   source: 'anp',
+  tariff: null,
   unit: 'cubic-metre',
   updatedAt: null,
 }

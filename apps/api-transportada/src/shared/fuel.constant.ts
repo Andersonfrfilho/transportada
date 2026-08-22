@@ -3,9 +3,9 @@
  */
 
 /**
- * O que o veículo consome, com o preço publicado por unidade. Os cinco primeiros são o catálogo da
- * ANP; `eletrico` não está na planilha dela — a tarifa de energia é da ANEEL, e enquanto ela não é
- * coletada o preço vem do ajuste manual da empresa, como qualquer outro produto sem referência.
+ * O que o veículo consome, com o preço publicado por unidade. Os cinco primeiros são a planilha
+ * semanal da ANP, por UF; `eletrico` não está nela — a tarifa de energia é homologada pela ANEEL,
+ * a chave dela é a distribuidora e não o estado, e quem a coleta é a segunda metade do mesmo job.
  *
  * A unidade é atributo do produto, não coluna: o GNV é vendido em metro cúbico, a energia em
  * quilowatt-hora e os quatro líquidos em litro, e guardá-la por linha abriria a porta para duas
@@ -33,3 +33,10 @@ export const FUEL_UNIT_BY_PRODUCT = Object.fromEntries(
 export const FUEL_PRODUCT_MAX_LENGTH = 20
 
 export const DEFAULT_FUEL_PRODUCT: FuelProduct = 'diesel-s10'
+
+/**
+ * O único produto do catálogo cujo preço não vem da ANP. Ele é nomeado aqui, e não comparado por
+ * unidade, porque a unidade é consequência: se um dia outro produto for vendido em kWh, quem decide
+ * a origem da referência continua sendo o produto.
+ */
+export const ELECTRIC_FUEL_PRODUCT: FuelProduct = 'eletrico'

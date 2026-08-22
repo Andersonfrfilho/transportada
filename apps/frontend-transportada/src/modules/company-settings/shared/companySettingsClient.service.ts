@@ -75,7 +75,12 @@ class CompanySettingsRequestError extends Error {
 
 export type { ScheduledDistributionStatus } from './scheduledDistribution.validation'
 export type { DistributionCursor, DistributionCursorSkip } from './distributionCursor.validation'
-export type { FuelPriceEntry, FuelPriceReference, FuelPriceSource } from './fuelPrice.validation'
+export type {
+  EnergyTariff,
+  FuelPriceEntry,
+  FuelPriceReference,
+  FuelPriceSource,
+} from './fuelPrice.validation'
 
 export type CompanySettingsClient = Readonly<{
   adjustDistributionCursor: (ultNsu: string) => Promise<DistributionCursor>

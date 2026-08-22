@@ -19,3 +19,19 @@ export const ENERGY_TARIFF_MODALITY_MAX_LENGTH = 20
  * não medimos, e número que se apresenta como final sem ser seria pior que número ausente.
  */
 export const DEFAULT_ENERGY_ADJUSTMENT_FACTOR = '1.0000'
+
+/**
+ * A ANEEL homologa em R$/MWh e o veículo consome em kWh. A conversão é de unidade, não de moeda:
+ * ela mora ao lado da tarifa para o preço efetivo não ser derivado de um mil solto no domínio.
+ */
+export const KILOWATT_HOURS_PER_MEGAWATT_HOUR = 1000n
+
+/**
+ * O recorte que a coleta grava, copiado por valor do cron: ele entra na chave natural da tabela, e a
+ * mesma distribuidora publica linha em mais de um subgrupo. Sem fixá-lo na leitura, a linha do SCEE
+ * — que traz a TE do fio B, uma ordem de grandeza abaixo — passaria por tarifa comum e o kWh do
+ * veículo entraria dez vezes menor sem nada reclamar.
+ */
+export const ENERGY_TARIFF_SUBGROUP = 'B3'
+
+export const ENERGY_TARIFF_MODALITY = 'Convencional'

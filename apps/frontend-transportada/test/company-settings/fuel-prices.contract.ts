@@ -3,6 +3,7 @@ import { describe, expect, mock, test } from 'bun:test'
 
 import {
   ADJUSTED_FUEL_PRICE,
+  ENERGY_TARIFF,
   FUEL_PRICE_ENTRIES,
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_IDEMPOTENCY_KEY,
@@ -14,13 +15,14 @@ const CLIENT_MODULE = '../../src/modules/company-settings/shared/companySettings
 const SERVICE_MODULE = '../../src/modules/company-settings/shared/fuelPrice.service'
 const FUEL_PRICES_URL = 'https://transportada.test/company-settings/fuel-prices'
 
-/** O catálogo da tela é o mesmo da API: cinco produtos, a unidade presa ao produto. */
+/** O catálogo da tela é o mesmo da API: seis produtos, a unidade presa ao produto. */
 const FUEL_PRODUCTS = [
   'diesel-s10',
   'diesel-s500',
   'gasolina-comum',
   'etanol-hidratado',
   'gnv',
+  'eletrico',
 ] as const
 
 type CompanySettingsClientModule = {
@@ -112,6 +114,48 @@ describe('fuel price client contract', () => {
     const fetch = mock(() =>
       Promise.resolve(
         Response.json({ data: [{ ...FUEL_PRICE_ENTRIES[0], product: 'diesel-s1000' }] }),
+      ),
+    )
+
+    expect((await fuelPriceClient(fetch)).getFuelPrices()).rejects.toThrow(
+      'COMPANY_SETTINGS_RESPONSE_INVALID',
+    )
+  })
+
+  /**
+   * O guard é de chaves exatas: campo novo na resposta que ele não conhece derruba a tela inteira
+   * com 200 no fio. A tarifa da ANEEL é esse campo, e o elétrico é a linha que a carrega.
+   */
+  test('aceita a tarifa da ANEEL ao lado do preço do elétrico', async () => {
+    const fetch = mock(() => Promise.resolve(Response.json({ data: FUEL_PRICE_ENTRIES })))
+
+    const prices = await (await fuelPriceClient(fetch)).getFuelPrices()
+    const electric = prices.find((price) => price.product === 'eletrico')
+
+    expect(electric?.source).toBe('aneel')
+    expect(electric?.tariff).toEqual(ENERGY_TARIFF)
+    expect(electric?.unit).toBe('kilowatt-hour')
+    expect(prices.filter((price) => price.tariff !== null)).toHaveLength(1)
+  })
+
+  test('recusa uma tarifa pela metade em vez de desenhar parcela que não veio', async () => {
+    const fetch = mock(() =>
+      Promise.resolve(
+        Response.json({
+          data: [{ ...FUEL_PRICE_ENTRIES[5], tariff: { ...ENERGY_TARIFF, tePerMegawattHour: '' } }],
+        }),
+      ),
+    )
+
+    expect((await fuelPriceClient(fetch)).getFuelPrices()).rejects.toThrow(
+      'COMPANY_SETTINGS_RESPONSE_INVALID',
+    )
+  })
+
+  test('recusa uma origem de preço que a tela não sabe nomear', async () => {
+    const fetch = mock(() =>
+      Promise.resolve(
+        Response.json({ data: [{ ...FUEL_PRICE_ENTRIES[0], source: 'aneelzinha' }] }),
       ),
     )
 
