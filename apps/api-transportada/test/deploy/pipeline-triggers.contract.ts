@@ -174,7 +174,8 @@ describe('contrato do grafo de deploy', () => {
   test('o frontend não espera a API: ele publica junto', async () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
-    expect(needsOf(workflow, 'deploy-frontend')).toEqual(['target', 'gate'])
+    expect(needsOf(workflow, 'deploy-frontend')).toEqual(['target', 'changes', 'gate'])
+    expect(needsOf(workflow, 'deploy-frontend')).not.toContain('deploy-api')
   })
 
   /**

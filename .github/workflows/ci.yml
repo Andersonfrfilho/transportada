@@ -5,6 +5,11 @@ name: CI
 # commit — quality e integration, com Playwright, migration-test e docker compose.
 on:
   workflow_call:
+    inputs:
+      apps:
+        description: JSON com as apps que o commit alterou; a suíte roda só nelas.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,20 +21,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  quality:
+  # Uma app por runner, e só as que o commit tocou. Antes era um job só rodando lint, typecheck,
+  # test e build das quatro em sequência — quatro vezes o `bun install`, quatro vezes o `tsc`, e um
+  # PR de frontend pagando pela suíte da API. As apps não importam código-fonte umas das outras
+  # (não existe `packages/`), então nada aqui compartilha estado com o job ao lado.
+  #
+  # `apps` chega vazio quando o commit só mexeu em `docs/` ou `specs/`: matriz sem valor é erro de
+  # sintaxe no GitHub, por isso o `if` — e o `quality` abaixo continua reportando verde.
+  quality-app:
+    if: inputs.apps != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(inputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      # O lockfile é da raiz e o workspace é um só: instalar tudo é o que o `--frozen-lockfile`
+      # sabe fazer, e é o que o build da app espera encontrar em `node_modules`.
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/${{ matrix.app }} lint
+      - run: bun run --cwd apps/${{ matrix.app }} typecheck
+      - run: bun run --cwd apps/${{ matrix.app }} test
+      - run: bun run --cwd apps/${{ matrix.app }} build
+
+  # É **este** nome que a proteção da main exige como `gate / quality`, e é por isso que ele existe
+  # separado da matriz: com matriz os contextos viram `gate / quality (api)`, um nome por app, e a
+  # regra de proteção passaria a esperar checks cujo conjunto muda a cada commit — PR que não toca
+  # na API travaria para sempre esperando `gate / quality (api)`.
+  #
+  # `always()` porque um job pulado não é uma falha, e um job vermelho precisa chegar aqui para ser
+  # reprovado: sem ele, matriz vermelha com `fail-fast: false` deixaria este job simplesmente não
+  # rodar, e o contexto exigido nunca reportaria.
+  quality:
+    if: always()
+    needs: quality-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      # Prettier varre o repositório inteiro, incluindo `docs/`, `specs/` e os próprios workflows:
+      # não é de app nenhuma, e recortá-lo por app deixaria markdown e YAML sem formatação conferida.
       - run: bun run format:check
-      - run: bun run lint
-      - run: bun run typecheck
-      - run: bun run test
-      - run: bun run build
+      - name: Conferir a matriz
+        run: |
+          result='${{ needs.quality-app.result }}'
+          # `skipped` é o caso legítimo de commit que não tocou em app alguma. `failure` e
+          # `cancelled` reprovam: quem decide o verde do gate é este passo, não o `fail-fast`.
+          case "$result" in
+            success|skipped) echo "quality-app: $result" ;;
+            *) echo "::error::quality-app terminou em $result"; exit 1 ;;
+          esac
 
   # Sem `needs: quality`. Os dois jobs partem do mesmo commit e não trocam artefato, então rodam
   # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
