@@ -99,6 +99,7 @@ function serializeFuelPrice(price: EffectiveFuelPrice): Record<string, unknown> 
     product: price.product,
     reference: price.reference,
     source: price.source,
+    tariff: price.tariff,
     unit: price.unit,
     updatedAt: price.updatedAt?.toISOString() ?? null,
   }

@@ -10,6 +10,7 @@ import type {
   FuelReferenceRecord,
 } from '../../src/fuel-price-pull/application/fuel-reference.port.js'
 import type { FuelSeriesPort } from '../../src/fuel-price-pull/application/fuel-series.port.js'
+import type { PullEnergyTariffUseCase } from '../../src/fuel-price-pull/application/pull-energy-tariff.use-case.js'
 import { createPullFuelReferenceUseCase } from '../../src/fuel-price-pull/application/pull-fuel-reference.use-case.js'
 import { runFuelPricePullCycle } from '../../src/fuel-price-pull/application/run-cycle.js'
 import { parseAnpWeeklyWorkbook } from '../../src/fuel-price-pull/infrastructure/anp-series.client.js'
@@ -76,7 +77,33 @@ function createFailingSeries(): FuelSeriesPort {
   }
 }
 
+function createEnergyUseCase(
+  result: {
+    readonly discardedRows: number
+    readonly tariffCount: number
+    readonly writtenCount: number
+  } = {
+    discardedRows: 0,
+    tariffCount: 0,
+    writtenCount: 0,
+  },
+): PullEnergyTariffUseCase & { calls: number } {
+  const recorded = {
+    calls: 0,
+    execute: () => {
+      recorded.calls += 1
+      return Promise.resolve(result)
+    },
+  }
+  return recorded
+}
+
+function createFailingEnergyUseCase(): PullEnergyTariffUseCase {
+  return { execute: () => Promise.reject(new Error('ANEEL_TARIFF_UNAVAILABLE')) }
+}
+
 function runCycle(input: {
+  readonly energyUseCase?: PullEnergyTariffUseCase
   readonly gateway: FuelReferenceGatewayPort
   readonly lock: AdvisoryLockPort
   readonly series: FuelSeriesPort
@@ -84,6 +111,7 @@ function runCycle(input: {
   const logger = createLogger()
   return runFuelPricePullCycle({
     correlationId: '00000000-0000-4000-8000-0000000000f1',
+    energyUseCase: input.energyUseCase ?? createEnergyUseCase(),
     jobId: JOB_ID,
     lock: input.lock,
     logger,
@@ -228,6 +256,71 @@ describe('fuel price pull cycle', () => {
     expect(gateway.written).toEqual(
       expected.map((reference) => ({ ...reference, weekEndingOn: '2026-08-15' })),
     )
+  })
+
+  /**
+   * As duas metades do combustível — o litro da ANP e o kWh da ANEEL — cabem no mesmo job de
+   * propósito: um deploy, uma janela e **um** advisory lock. Duas janelas dariam duas chances de a
+   * mesma instalação colher metade do preço.
+   */
+  test('collects both halves under the one lock, and releases it once', async () => {
+    const energyUseCase = createEnergyUseCase({
+      discardedRows: 2,
+      tariffCount: 100,
+      writtenCount: 100,
+    })
+    const gateway = createGateway()
+    const lock = createLock(true)
+    const result = await runCycle({
+      energyUseCase,
+      gateway,
+      lock,
+      series: createSeries([GNV_ROW]),
+    })
+
+    expect(energyUseCase.calls).toBe(1)
+    expect(result).toMatchObject({
+      acquiredLock: true,
+      eligibleCount: 101,
+      enqueuedCount: 101,
+      failedCount: 0,
+    })
+    expect(result.ineligibleCounts).toMatchObject({ discardedRows: 2 })
+    expect(lock.releases).toEqual([`cron:${JOB_ID}`])
+  })
+
+  test('the tariff being unavailable does not discard the litre already collected', async () => {
+    const gateway = createGateway()
+    const lock = createLock(true)
+    const result = await runCycle({
+      energyUseCase: createFailingEnergyUseCase(),
+      gateway,
+      lock,
+      series: createSeries([GNV_ROW]),
+    })
+
+    expect(result.failedCount).toBe(1)
+    expect(result.enqueuedCount).toBe(1)
+    expect(gateway.written).toHaveLength(1)
+    expect(lock.releases).toEqual([`cron:${JOB_ID}`])
+  })
+
+  test('the ANP week being unavailable still lets the tariff be collected', async () => {
+    const energyUseCase = createEnergyUseCase({
+      discardedRows: 0,
+      tariffCount: 100,
+      writtenCount: 100,
+    })
+    const result = await runCycle({
+      energyUseCase,
+      gateway: createGateway(),
+      lock: createLock(true),
+      series: createFailingSeries(),
+    })
+
+    expect(result.failedCount).toBe(1)
+    expect(result.enqueuedCount).toBe(100)
+    expect(energyUseCase.calls).toBe(1)
   })
 
   test('a product missing from the file does not sink the ones that came', async () => {

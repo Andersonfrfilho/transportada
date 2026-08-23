@@ -132,6 +132,7 @@ describe('fleet vehicle cost fields contract', () => {
       'modelYear',
       'axleCount',
       'color',
+      'fuelArrangement',
       'costPerKilometer',
       'monthlyFixedCost',
     ])
@@ -182,7 +183,7 @@ describe('fleet vehicle cost fields contract', () => {
     ).toBe(COLOR_LABEL)
   })
 
-  test('renders the cost block last in the form, with the six fields and the read summary', async () => {
+  test('renders the cost block last in the form, with the two tanks and the read summary', async () => {
     const [form, costFields] = await Promise.all([
       readApplicationFile('src/modules/fleet/components/VehicleForm.component.tsx'),
       readApplicationFile('src/modules/fleet/components/VehicleCostFields.component.tsx'),
@@ -214,6 +215,15 @@ describe('fleet vehicle cost fields contract', () => {
     for (const field of ['averageConsumption', 'fuelType']) {
       expect(costFields).toContain(`{ ${field} }`)
     }
+    // O segundo tanque é um par, e o consumo dele só existe com o produto escolhido
+    for (const field of ['secondaryFuelType', 'secondaryAverageConsumption']) {
+      expect(costFields).toContain(`{ ${field} }`)
+    }
+    expect(costFields).toContain('listSecondaryFuelOptions(state.fuelType)')
+    expect(costFields).toContain('resolveFuelArrangementLabelKey(state)')
+    // As duas parcelas explicam a média, que não bate com nenhuma das notas do posto
+    expect(costFields).toContain('summary.primaryFuelCostPerKilometer')
+    expect(costFields).toContain('summary.secondaryFuelCostPerKilometer')
     expect(costFields).toContain('summarizeTypedVehicleCosts')
     expect(costFields).toContain("t('costNotInformed')")
     expect(costFields).toContain('costsUpdatedAt')
@@ -254,6 +264,8 @@ describe('fleet vehicle cost fields contract', () => {
         'monthlyFixedCost',
         'monthlyInstallmentAmount',
         'otherCostsPerKilometer',
+        'primaryFuelCostPerKilometer',
+        'secondaryFuelCostPerKilometer',
         'vehicleCostLegend',
         'vehicleCostHint',
       ]) {
@@ -298,6 +310,7 @@ type FleetVehicleColumnKeyContract =
   | 'brand'
   | 'color'
   | 'costPerKilometer'
+  | 'fuelArrangement'
   | 'model'
   | 'modelYear'
   | 'monthlyFixedCost'

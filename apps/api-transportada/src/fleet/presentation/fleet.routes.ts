@@ -326,6 +326,10 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     plate: vehicle.plate,
     renavam: vehicle.renavam,
     role: vehicle.role,
+    secondaryAverageConsumption: vehicle.secondaryAverageConsumption,
+    secondaryFuelPrice:
+      vehicle.secondaryFuelPrice === null ? null : { ...vehicle.secondaryFuelPrice },
+    secondaryFuelType: vehicle.secondaryFuelType,
     state: vehicle.state,
     status: vehicle.status,
     tareWeightKilograms: vehicle.tareWeightKilograms,

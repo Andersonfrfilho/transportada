@@ -18,6 +18,7 @@ import type {
 } from '../shared/fleet.types'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
+import { resolveSecondaryFuelDefaults } from '../shared/fuelArrangement.service'
 import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.service'
 import { listIncompleteVehicleOwnerFields } from '../shared/vehicleOwner.service'
 import { resolveVehicleTypeDefaults } from '../shared/vehicleTypeAxles.service'
@@ -74,13 +75,16 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
       const typeDefaults =
         next.vehicleType === previous.vehicleType ? {} : resolveVehicleTypeDefaults(next)
       const resolved = { ...next, ...brandDefaults, ...typeDefaults }
+      // O par de combustíveis é corrigido depois dos outros defaults: trocar o primário para o
+      // produto do secundário deixaria os dois tanques com o mesmo combustível
+      const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
       writeFormDraft({
-        draft: resolved,
+        draft: corrected,
         fields: VEHICLE_FORM_KEYS,
         storage,
         storageKey: VEHICLE_DRAFT_STORAGE_KEY,
       })
-      return resolved
+      return corrected
     })
   }
 

@@ -9,6 +9,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
+import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
 import { FreightRegionPanel } from '../components/FreightRegionPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
@@ -16,6 +17,7 @@ import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
 import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
+import { useEnergySettings } from '../hooks/useEnergySettings.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
@@ -124,6 +126,10 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.fuelPrices,
   })
+  const energySettings = useEnergySettings({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.fuelPrices,
+  })
   const freightRegions = useFreightRegions({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: settingsScope.freightRegions,
@@ -194,19 +200,35 @@ export function FleetWorkspacePage() {
   const fuelPriceErrorCode = toErrorCode(
     fuelPrices.adjustMutation.error ?? fuelPrices.clearMutation.error,
   )
+  const energyErrorCode = toErrorCode(
+    energySettings.chooseMutation.error ?? energySettings.clearMutation.error,
+  )
   const fuelTab: TabsItem = {
     id: 'fuel',
     label: t('tabs.fuel'),
     panel: (
-      <FuelPricePanel
-        {...(fuelPriceErrorCode === undefined ? {} : { errorCode: fuelPriceErrorCode })}
-        disabled={fuelPrices.adjustMutation.isPending || fuelPrices.clearMutation.isPending}
-        loading={fuelPrices.query.isLoading}
-        prices={fuelPrices.query.data}
-        saved={fuelPrices.adjustMutation.isSuccess || fuelPrices.clearMutation.isSuccess}
-        onAdjust={(input) => fuelPrices.adjustMutation.mutate(input)}
-        onClear={(product) => fuelPrices.clearMutation.mutate(product)}
-      />
+      <>
+        <FuelPricePanel
+          {...(fuelPriceErrorCode === undefined ? {} : { errorCode: fuelPriceErrorCode })}
+          disabled={fuelPrices.adjustMutation.isPending || fuelPrices.clearMutation.isPending}
+          loading={fuelPrices.query.isLoading}
+          prices={fuelPrices.query.data}
+          saved={fuelPrices.adjustMutation.isSuccess || fuelPrices.clearMutation.isSuccess}
+          onAdjust={(input) => fuelPrices.adjustMutation.mutate(input)}
+          onClear={(product) => fuelPrices.clearMutation.mutate(product)}
+        />
+        <EnergySettingsPanel
+          {...(energyErrorCode === undefined ? {} : { errorCode: energyErrorCode })}
+          disabled={
+            energySettings.chooseMutation.isPending || energySettings.clearMutation.isPending
+          }
+          loading={energySettings.query.isLoading}
+          saved={energySettings.chooseMutation.isSuccess || energySettings.clearMutation.isSuccess}
+          settings={energySettings.query.data}
+          onChoose={(input) => energySettings.chooseMutation.mutate(input)}
+          onClear={() => energySettings.clearMutation.mutate()}
+        />
+      </>
     ),
   }
 

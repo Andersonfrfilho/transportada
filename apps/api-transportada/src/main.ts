@@ -23,6 +23,11 @@ import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-
 import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
 import { createFuelPriceRoutes } from './companies/presentation/fuel-price.routes.js'
+import { createChooseEnergyDistributorUseCase } from './companies/application/choose-energy-distributor.use-case.js'
+import { createClearEnergyDistributorUseCase } from './companies/application/clear-energy-distributor.use-case.js'
+import { createGetCompanyEnergyUseCase } from './companies/application/get-company-energy.use-case.js'
+import { DrizzleCompanyEnergyRepository } from './companies/infrastructure/drizzle-company-energy.repository.js'
+import { createCompanyEnergyRoutes } from './companies/presentation/company-energy.routes.js'
 import { createAdjustDistributionCursorUseCase } from './companies/application/adjust-distribution-cursor.use-case.js'
 import { createGetDistributionCursorUseCase } from './companies/application/get-distribution-cursor.use-case.js'
 import { DrizzleDistributionCursorRepository } from './companies/infrastructure/drizzle-distribution-cursor.repository.js'
@@ -430,6 +435,7 @@ function createApplicationRoutes({
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
+  const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -720,6 +726,11 @@ function createApplicationRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
+    }),
+    ...createCompanyEnergyRoutes({
+      choose: createChooseEnergyDistributorUseCase({ energy: companyEnergyRepository }),
+      clear: createClearEnergyDistributorUseCase({ energy: companyEnergyRepository }),
+      getSettings: createGetCompanyEnergyUseCase({ energy: companyEnergyRepository }),
     }),
     ...createDistributionCursorRoutes({
       adjust: createAdjustDistributionCursorUseCase({

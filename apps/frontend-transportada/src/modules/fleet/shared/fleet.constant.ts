@@ -115,7 +115,12 @@ export const VEHICLE_COLOR_SWATCH: Readonly<Record<VehicleColor, string>> = {
 
 export const OWNER_KEYS = ['name', 'rntrc', 'state', 'taxId', 'taxRegime'] as const
 
-export const VEHICLE_COST_BREAKDOWN_KEYS = ['fuel', 'otherCosts'] as const
+export const VEHICLE_COST_BREAKDOWN_KEYS = [
+  'fuel',
+  'otherCosts',
+  'primaryFuel',
+  'secondaryFuel',
+] as const
 
 export const VEHICLE_FUEL_PRICE_KEYS = ['pricePerUnit', 'source', 'unit', 'weekEndingOn'] as const
 
@@ -141,6 +146,7 @@ export const VEHICLE_COST_KEYS = [
   'averageConsumption',
   'monthlyInstallmentAmount',
   'otherCostsPerKilometer',
+  'secondaryAverageConsumption',
 ] as const
 
 /** Tara e capacidade: decimais em pt-BR na tela, decimais na API, inteiros só na borda do MDF-e. */
@@ -167,6 +173,7 @@ export const VEHICLE_BODY_KEYS = [
   'plate',
   'renavam',
   'role',
+  'secondaryFuelType',
   'state',
   'tareWeightKilograms',
   'vehicleType',
@@ -181,6 +188,7 @@ export const VEHICLE_DETAIL_KEYS = [
   'fuelPrice',
   'id',
   'monthlyFixedCost',
+  'secondaryFuelPrice',
   'status',
   'updatedAt',
   'version',
@@ -207,6 +215,7 @@ export const VEHICLE_FORM_KEYS = [
   'plate',
   'renavam',
   'role',
+  'secondaryFuelType',
   'state',
   'tareWeightKilograms',
   'vehicleType',

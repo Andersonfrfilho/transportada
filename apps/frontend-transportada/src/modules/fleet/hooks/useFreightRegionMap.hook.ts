@@ -7,6 +7,7 @@ import type { FreightRegionMapModel } from '../shared/freightRegionMap.service'
 import {
   buildFreightRegionMap,
   FREIGHT_REGION_ZONE_FILL,
+  resolveDefaultMapState,
   toggleRegionMapCity,
 } from '../shared/freightRegionMap.service'
 import {
@@ -58,7 +59,13 @@ function buildLegend(model: FreightRegionMapModel): readonly number[] {
  */
 export function useFreightRegionMap(input: FreightRegionMapInputProps): FreightRegionMapEntry {
   const { cities, fetch: injectedFetch, onChange, regions } = input
-  const [state, setState] = useState(() => cities?.[0]?.state ?? '')
+  const [chosenState, setChosenState] = useState('')
+  const defaultState = useMemo(
+    () => cities?.[0]?.state ?? resolveDefaultMapState(regions),
+    [cities, regions],
+  )
+  // Derivado, não copiado no mount: em leitura as rotas chegam depois do primeiro render.
+  const state = chosenState === '' ? defaultState : chosenState
   const fetchImplementation = useMemo(
     () => injectedFetch ?? globalThis.fetch.bind(globalThis),
     [injectedFetch],
@@ -100,7 +107,7 @@ export function useFreightRegionMap(input: FreightRegionMapInputProps): FreightR
   )
 
   return {
-    changeState: setState,
+    changeState: setChosenState,
     hasFailed: meshQuery.isError || municipalityQuery.isError,
     isEditing: onChange !== undefined,
     isLoading: meshQuery.isLoading || municipalityQuery.isLoading,

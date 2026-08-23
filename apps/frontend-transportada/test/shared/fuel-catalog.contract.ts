@@ -13,6 +13,7 @@ const CATALOG = [
   { product: 'gasolina-comum', unit: 'litre' },
   { product: 'etanol-hidratado', unit: 'litre' },
   { product: 'gnv', unit: 'cubic-metre' },
+  { product: 'eletrico', unit: 'kilowatt-hour' },
 ] as const
 
 describe('frontend fuel catalog', () => {
@@ -20,11 +21,12 @@ describe('frontend fuel catalog', () => {
     expect(FUEL_TYPES).toEqual(CATALOG)
   })
 
-  // A tela rotula "R$/m³" e "km/m³" a partir da unidade — nenhum rótulo escreve "litro" literal
+  // A tela rotula "R$/m³", "km/m³" e "km/kWh" a partir da unidade — nenhum rótulo escreve "litro" literal
   test('gives the screen a unit to label with, per product', () => {
     for (const entry of FUEL_TYPES) {
-      expect(['cubic-metre', 'litre']).toContain(entry.unit)
+      expect(['cubic-metre', 'kilowatt-hour', 'litre']).toContain(entry.unit)
     }
     expect(FUEL_TYPES.find((entry) => entry.product === 'gnv')?.unit).toBe('cubic-metre')
+    expect(FUEL_TYPES.find((entry) => entry.product === 'eletrico')?.unit).toBe('kilowatt-hour')
   })
 })

@@ -17,7 +17,10 @@ import type {
   FleetVehicleVersionInput,
 } from '../shared/fleet.types'
 import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
-import { resolveFormFuelPrice } from '../shared/fleetVehicleCost.service'
+import {
+  resolveFormFuelPrice,
+  resolveSecondaryFormFuelPrice,
+} from '../shared/fleetVehicleCost.service'
 import styles from '../styles/fleet.module.css'
 import { FleetFeedback } from './FleetFeedback.component'
 import { VehicleCostFields } from './VehicleCostFields.component'
@@ -84,6 +87,10 @@ export function VehicleForm({
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
         fuelPrice={resolveFormFuelPrice({ selectedFuelType: form.state.fuelType, vehicle })}
+        secondaryFuelPrice={resolveSecondaryFormFuelPrice({
+          selectedFuelType: form.state.secondaryFuelType,
+          vehicle,
+        })}
         state={form.state}
         onChange={form.patch}
       />

@@ -62,6 +62,8 @@ import { billingDescriptionTemplates } from './billing-description-template.sche
 import { fleetDriverVehicleAssignments, fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
+import { energyTariffReferences } from './energy-tariff.schema.js'
+import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
   mdfeIssuanceAttempts,
@@ -99,7 +101,9 @@ import { userInvitationRoles, userInvitations } from './user-invitation.schema.j
 import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { tripDocuments, tripDrivers, trips } from './trip.schema.js'
 
+export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
+export * from './energy-tariff.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fuel-reference.schema.js'
@@ -128,10 +132,12 @@ export const databaseSchema = {
   auditLogs,
   companies,
   companyDistributionSettings,
+  companyEnergySettings,
   companyFiscalProfiles,
   companyFuelPrices,
   companyLogos,
   digitalCertificates,
+  energyTariffReferences,
   externalIdentities,
   fiscalSequenceReservations,
   fiscalSequences,

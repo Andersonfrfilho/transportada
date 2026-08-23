@@ -12,6 +12,7 @@ import {
 import {
   FREIGHT_REGION_ZONE_FILL,
   buildFreightRegionMap,
+  resolveDefaultMapState,
   resolveZoneFill,
   toggleRegionMapCity,
 } from '../../src/modules/fleet/shared/freightRegionMap.service'
@@ -388,6 +389,85 @@ const MAP_KEYS = [
   'unassigned',
   'zone',
 ] as const
+
+describe('freight region default state contract', () => {
+  /** A aba abria em branco e o operador escolhia o mesmo estado toda vez: a UF sai da própria carga. */
+  test('o mapa abre na UF com mais cidade ativa', () => {
+    const state = resolveDefaultMapState([
+      region({ cities: [{ city: 'Uberaba', state: 'MG' }], code: '9.000', id: 'region-mg' }),
+      region({
+        cities: [
+          { city: 'Barretos', state: 'SP' },
+          { city: 'Pontal', state: 'SP' },
+        ],
+        code: '1.000',
+        id: 'region-sp',
+      }),
+    ])
+
+    expect(state).toBe('SP')
+  })
+
+  /**
+   * Rota inativa não pinta (`buildFreightRegionMap`), então também não escolhe a UF: abrir onde nada
+   * é desenhado é o mesmo mapa vazio de antes, com outro nome.
+   */
+  test('rota inativa não decide a UF de abertura', () => {
+    const state = resolveDefaultMapState([
+      region({
+        cities: [
+          { city: 'Uberaba', state: 'MG' },
+          { city: 'Uberlândia', state: 'MG' },
+        ],
+        code: '9.000',
+        id: 'region-mg',
+        status: 'inactive',
+      }),
+      region({ cities: [{ city: 'Barretos', state: 'SP' }], code: '1.000', id: 'region-sp' }),
+    ])
+
+    expect(state).toBe('SP')
+  })
+
+  /** Empate sem desempate abriria em telas diferentes para a mesma carga. */
+  test('o empate desempata pela sigla', () => {
+    const state = resolveDefaultMapState([
+      region({ cities: [{ city: 'Uberaba', state: 'MG' }], code: '9.000', id: 'region-mg' }),
+      region({ cities: [{ city: 'Barretos', state: 'SP' }], code: '1.000', id: 'region-sp' }),
+    ])
+
+    expect(state).toBe('MG')
+  })
+
+  test('a sigla gravada com espaço ou caixa baixa conta para a mesma UF', () => {
+    const state = resolveDefaultMapState([
+      region({
+        cities: [
+          { city: 'Barretos', state: ' sp ' },
+          { city: 'Pontal', state: 'SP' },
+        ],
+        code: '1.000',
+        id: 'region-sp',
+      }),
+    ])
+
+    expect(state).toBe('SP')
+  })
+
+  /** Sem carga não há o que abrir: a tela segue pedindo a UF em vez de chutar uma. */
+  test('sem rota ativa com cidade a UF fica vazia', () => {
+    expect(resolveDefaultMapState([])).toBe('')
+    expect(resolveDefaultMapState([region({ cities: [] })])).toBe('')
+  })
+
+  /** A escolha do operador vence a derivação, senão trocar de UF no select não faria nada. */
+  test('a UF escolhida vence a derivada, e a derivação mora no serviço', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useFreightRegionMap.hook.ts')
+
+    expect(hook).toContain('resolveDefaultMapState')
+    expect(hook).not.toContain("useState(() => cities?.[0]?.state ?? '')")
+  })
+})
 
 describe('freight region map component contract', () => {
   /**
