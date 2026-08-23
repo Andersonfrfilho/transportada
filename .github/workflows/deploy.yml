@@ -30,6 +30,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_all:
+        description: Publicar todos os serviços, mesmo os que o diff não marcou
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -71,8 +76,61 @@ jobs:
           echo "environment=$resolved" >>"$GITHUB_OUTPUT"
           echo "Ambiente alvo: $resolved"
 
+  # Quais serviços o commit mexeu. Roda também em PR — é ele que diz ao gate quais apps testar.
+  #
+  # Produção nunca filtra. Ter os sete serviços comprovadamente saídos do mesmo commit vale mais que
+  # os minutos economizados: sem isso, "os serviços estão em `abc123`" vira sete perguntas separadas
+  # justamente quando algo quebra. Em staging e no gate de PR o filtro é ganho puro.
+  #
+  # ⚠️ O frontend inlina `VITE_*` no bundle por `ARG` de build. Mudar `VITE_API_URL` no painel da
+  # Railway exige rebuild e **não mexe em arquivo nenhum** — o diff pularia, e o bundle ficaria
+  # apontando para a URL antiga sem nada indicando isso. Para esse caso existe o `force_all`.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.detect.outputs.api }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+      worker: ${{ steps.detect.outputs.worker }}
+      cron: ${{ steps.detect.outputs.cron }}
+      apps: ${{ steps.apps.outputs.apps }}
+    steps:
+      # Mesmo motivo do job da API: o diff de um release compara com o commit anterior do push, que
+      # num release de cem commits está muito além de um clone raso.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          # Em PR o baseline é a base do PR, não `event.before` — que ali aponta para outra coisa.
+          # Em `workflow_dispatch` não existe baseline: o script cai no ramo que publica tudo.
+          BASELINE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          FORCE_ALL: ${{ (inputs.force_all || github.ref_name == 'main') && 'true' || 'false' }}
+        run: .github/scripts/changed-targets.sh
+      # O gate recebe nomes de diretório de `apps/`, não os nomes de serviço da Railway.
+      - id: apps
+        env:
+          API: ${{ steps.detect.outputs.api }}
+          WORKER: ${{ steps.detect.outputs.worker }}
+          CRON: ${{ steps.detect.outputs.cron }}
+          FRONTEND: ${{ steps.detect.outputs.frontend }}
+        run: |
+          selected=()
+          # `if` em vez de `flag && push`: o runner roda o passo com `-e`, e um `&&` cujo teste é
+          # falso devolve 1 — o passo morreria justamente no commit que não mexe na app.
+          if [ "$API" = true ]; then selected+=('"api-transportada"'); fi
+          if [ "$WORKER" = true ]; then selected+=('"worker-transportada"'); fi
+          if [ "$CRON" = true ]; then selected+=('"cron-transportada"'); fi
+          if [ "$FRONTEND" = true ]; then selected+=('"frontend-transportada"'); fi
+          apps="[$(IFS=,; echo "${selected[*]-}")]"
+          echo "apps=$apps" >>"$GITHUB_OUTPUT"
+          echo "Apps no gate: $apps"
+
   gate:
+    needs: changes
     uses: ./.github/workflows/ci.yml
+    with:
+      apps: ${{ needs.changes.outputs.apps }}
 
   # Três frentes em vez de uma fila. No release de produção `32172971566` o job único levou 646s com
   # os oito serviços em sequência, e a dependência real é uma só: worker e crons leem tabelas que a
@@ -82,7 +140,8 @@ jobs:
   # O preço: cada job é um deployment próprio do Environment. Se o `production` ganhar revisor
   # obrigatório, passam a ser três aprovações por release, não uma.
   deploy-api:
-    needs: [target, gate]
+    needs: [target, changes, gate]
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
@@ -140,7 +199,8 @@ jobs:
   # nenhuma, então não tem por que esperar migration. Era o passo mais lento da fila (147s) e agora
   # começa no instante zero, junto com a API.
   deploy-frontend:
-    needs: [target, gate]
+    needs: [target, changes, gate]
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
@@ -165,7 +225,18 @@ jobs:
   # A lista é literal no arquivo de propósito: é dela que o contrato de nomes lê para conferir que
   # todo serviço publicado tem diretório de build declarado em `docs/spec/railway.md`.
   deploy-services:
-    needs: [target, deploy-api]
+    needs: [target, changes, deploy-api]
+    # ⚠️ `needs: deploy-api` sozinho tem uma armadilha: job pulado propaga o `skipped` para quem
+    # depende dele, então API inalterada + worker alterado deixaria o worker sem publicar, em
+    # silêncio. `always()` desliga essa propagação — e obriga a conferir falha e cancelamento na
+    # mão, porque `always()` também ignora esses. A ordem que importa continua de pé: se a API
+    # publicou, foi antes; se falhou, ninguém sobe contra um banco sem a migration.
+    if: >-
+      always()
+      && needs.target.result == 'success'
+      && needs.deploy-api.result != 'failure'
+      && needs.deploy-api.result != 'cancelled'
+      && (needs.changes.outputs.worker == 'true' || needs.changes.outputs.cron == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
@@ -184,6 +255,12 @@ jobs:
       # reconciliação sem mexer em nota real, e esta instalação tem um cadastro só. A NFS-e é
       # trilho de produção por decisão (ADR-0035), não por variável esquecida. Em staging o passo
       # é pulado e o job termina verde sem publicar nada.
+      # Duas guardas em série. A primeira é a da Nota RP, que não tem homologação. A segunda é o
+      # filtro: `worker` é uma app, e os quatro crons são outra — mesmo Dockerfile, mesma imagem, e
+      # só a variável `CRON_JOB` os separa, então mexer num trilho publica os quatro.
       - name: Deploy ${{ matrix.service }}
-        if: matrix.service != 'cron-nfse' || needs.target.outputs.environment == 'production'
+        if: >-
+          (matrix.service != 'cron-nfse' || needs.target.outputs.environment == 'production')
+          && (matrix.service == 'worker' && needs.changes.outputs.worker == 'true'
+          || matrix.service != 'worker' && needs.changes.outputs.cron == 'true')
         run: .github/scripts/railway-deploy.sh deploy "${{ matrix.service }}"
