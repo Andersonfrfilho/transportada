@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
@@ -53,6 +54,7 @@ export function VehicleForm({
   vehicles,
 }: VehicleFormProps) {
   const { t } = useTranslation('fleet')
+  const panelRef = useRevealedPanel<HTMLFormElement>()
   const form = useVehicleForm({
     onCreate,
     onSaved: onCancel,
@@ -67,7 +69,7 @@ export function VehicleForm({
   }
 
   return (
-    <form className={styles.panel} onSubmit={handleSubmit}>
+    <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
       <VehicleIdentityFields state={form.state} onChange={form.patch} />
       <VehicleModelFields
