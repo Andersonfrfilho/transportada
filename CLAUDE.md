@@ -572,6 +572,17 @@ antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa 
 trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
 contrato em `test/design-system/skeleton.contract.ts`.
 
+Todo painel que nasce por clique do operador — os quatro editores inline: `FreightRegionForm`,
+`VehicleForm`, `DriverForm` e `CteProfileForm` — chama `useRevealedPanel`
+(`shared/useRevealedPanel.hook.ts`), que rola até ele (`block: 'start'`, instantâneo sob
+`prefers-reduced-motion`) e foca o primeiro campo com `preventScroll`. Esses formulários são
+renderizados **depois** da lista que os abre: com a tabela cheia o painel montava duas telas abaixo
+do botão, e quem clicava em "Nova zona" concluía que nada tinha acontecido — o `<form>` estava no
+DOM, que é por isso que a conferência por DOM não pegou. A margem do topo é a regra global
+`[data-revealed-panel]` em `src/styles/index.css`, nunca CSS de módulo. Painel sempre visível e
+formulário em diálogo (que já tem `useModalDialog`) ficam de fora. Regra em
+`docs/frontend/panels.md`, contrato em `test/design-system/panel-reveal.contract.ts`.
+
 Toda mutação que mexe num **vínculo** dispara um efeito de
 `shared/mutationInvalidation.service.ts` (`invalidateMutationEffect`), nunca uma lista de chaves
 montada à mão — e nenhum hook importa a chave de consulta de outro módulo para invalidá-la. O
