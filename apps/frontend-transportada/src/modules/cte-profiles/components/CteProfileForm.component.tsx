@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import { useCteProfileForm } from '../hooks/useCteProfileForm.hook'
 import type {
@@ -27,6 +28,7 @@ type CteProfileFormProps = Readonly<{
 
 export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CteProfileFormProps) {
   const { t } = useTranslation('cteProfiles')
+  const panelRef = useRevealedPanel<HTMLFormElement>()
   const form = useCteProfileForm({
     onCreate,
     onUpdate,
@@ -39,7 +41,7 @@ export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CtePro
   }
 
   return (
-    <form className={styles.panel} onSubmit={handleSubmit}>
+    <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{profile === undefined ? t('newProfile') : t('edit')}</h2>
       <CteProfileIdentityFields state={form.state} onChange={form.patch} />
       <CteProfileChargeFields state={form.state} onChange={form.patch} />

@@ -828,6 +828,11 @@ button:has(svg) {
   gap: var(--space-2);
 }
 
+/* Painel revelado ao abrir não encosta na borda de cima da janela. */
+[data-revealed-panel] {
+  scroll-margin-block-start: var(--space-4);
+}
+
 /* Botão de ícone quadrado cresce para caber a contagem ao lado do ícone, em vez de espremê-la. */
 button:has([data-count-badge]) {
   width: auto;

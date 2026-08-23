@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { formatCnpj, formatCpf, normalizeTaxId } from '@/modules/shared/taxId.service'
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import { useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
@@ -69,6 +70,7 @@ export function DriverForm({
   vehicles,
 }: DriverFormProps) {
   const { t } = useTranslation('fleet')
+  const panelRef = useRevealedPanel<HTMLFormElement>()
   const uniqueness = useDriverUniqueness(driver === undefined ? {} : { driverId: driver.id })
   const form = useDriverForm({
     onCreate,
@@ -98,7 +100,7 @@ export function DriverForm({
   }
 
   return (
-    <form className={styles.panel} onSubmit={handleSubmit}>
+    <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{driver === undefined ? t('newDriver') : t('editDriver')}</h2>
       <fieldset className={styles.fieldGroup}>
         <legend>{t('driverIdentityLegend')}</legend>

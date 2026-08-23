@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import { FREIGHT_VEHICLE_CLASSES } from '@/modules/shared/freightClass.constant'
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { FreightRegionFormController } from '../hooks/useFreightRegionForm.hook'
 import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
@@ -28,6 +29,7 @@ type FreightRegionFormProps = Readonly<{
 /** O valor da classe é o que a transportadora paga ao motorista pela viagem, não o frete cobrado. */
 export function FreightRegionForm({ form, onCancel, region }: FreightRegionFormProps) {
   const { t } = useTranslation('fleet')
+  const panelRef = useRevealedPanel<HTMLFormElement>()
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -35,7 +37,7 @@ export function FreightRegionForm({ form, onCancel, region }: FreightRegionFormP
   }
 
   return (
-    <form className={styles.panel} onSubmit={handleSubmit}>
+    <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{region === undefined ? t('regionForm.newRegion') : t('regionForm.editRegion')}</h2>
       <div className={styles.fieldGrid}>
         <FleetField
