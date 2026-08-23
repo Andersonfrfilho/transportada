@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FleetVehicleDetail } from './fleet.types'
+import { resolveFuelArrangementLabelKey } from './fuelArrangement.service'
 
 /** A ordem da lista é a ordem das colunas do arquivo. */
 export const VEHICLE_EXPORT_COLUMNS = [
@@ -12,6 +13,8 @@ export const VEHICLE_EXPORT_COLUMNS = [
   'axleCount',
   'color',
   'fuelType',
+  'secondaryFuelType',
+  'fuelArrangement',
   'capacityKilograms',
   'tareWeightKilograms',
   'costPerKilometer',
@@ -57,6 +60,10 @@ function readColumn(
   if (column === 'tareWeightKilograms') return toSpreadsheetDecimal(vehicle.tareWeightKilograms)
   if (column === 'costPerKilometer') return toSpreadsheetDecimal(vehicle.costPerKilometer)
   if (column === 'monthlyFixedCost') return toSpreadsheetDecimal(vehicle.monthlyFixedCost)
+  // O arranjo não é campo do veículo: ele é lido do par, e a chave inteira vai para a tradução
+  if (column === 'fuelArrangement') {
+    return labels.translateValue({ column, value: resolveFuelArrangementLabelKey(vehicle) })
+  }
   if (column === 'plate') return vehicle.plate
   if (column === 'brand') return vehicle.brand
   if (column === 'model') return vehicle.model

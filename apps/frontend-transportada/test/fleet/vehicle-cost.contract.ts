@@ -116,18 +116,30 @@ describe('fleet vehicle cost per kilometer contract', () => {
       summarizeVehicleCosts({
         fields: VEHICLE_BODY,
         fuelPricePerUnit: VEHICLE_FUEL_PRICE.pricePerUnit,
+        secondaryFuelPricePerUnit: null,
       }),
     ).toEqual({
       costPerKilometer: currencyFormatter.format(Number(VEHICLE_COST_PER_KILOMETER)),
       fuelCostPerKilometer: currencyFormatter.format(Number(VEHICLE_COST_BREAKDOWN.fuel)),
       monthlyFixedCost: currencyFormatter.format(Number(VEHICLE_MONTHLY_FIXED_COST)),
       otherCostsPerKilometer: currencyFormatter.format(Number(VEHICLE_COST_BREAKDOWN.otherCosts)),
+      // Um tanque só: as parcelas ficam de fora, porque a média não é média de nada
+      primaryFuelCostPerKilometer: null,
+      secondaryFuelCostPerKilometer: null,
     })
-    expect(summarizeVehicleCosts({ fields: VEHICLE_COST_DRAFT, fuelPricePerUnit: null })).toEqual({
+    expect(
+      summarizeVehicleCosts({
+        fields: VEHICLE_COST_DRAFT,
+        fuelPricePerUnit: null,
+        secondaryFuelPricePerUnit: null,
+      }),
+    ).toEqual({
       costPerKilometer: null,
       fuelCostPerKilometer: null,
       monthlyFixedCost: null,
       otherCostsPerKilometer: null,
+      primaryFuelCostPerKilometer: null,
+      secondaryFuelCostPerKilometer: null,
     })
   })
 
@@ -153,15 +165,22 @@ describe('fleet vehicle cost per kilometer contract', () => {
       fuelCostPerKilometer: null,
       monthlyFixedCost: null,
       otherCostsPerKilometer: null,
+      primaryFuelCostPerKilometer: null,
+      secondaryFuelCostPerKilometer: null,
     }
 
     expect(
-      summarizeTypedVehicleCosts({ fields: EMPTY_VEHICLE_FORM, fuelPricePerUnit: null }),
+      summarizeTypedVehicleCosts({
+        fields: EMPTY_VEHICLE_FORM,
+        fuelPricePerUnit: null,
+        secondaryFuelPricePerUnit: null,
+      }),
     ).toEqual(empty)
     expect(
       summarizeTypedVehicleCosts({
         fields: { ...EMPTY_VEHICLE_FORM, otherCostsPerKilometer: '1,' },
         fuelPricePerUnit: null,
+        secondaryFuelPricePerUnit: null,
       }),
     ).toEqual(empty)
     // Meio preço também não derruba: o valor chega da consulta, mas o consumo ainda está pela metade
@@ -169,6 +188,7 @@ describe('fleet vehicle cost per kilometer contract', () => {
       summarizeTypedVehicleCosts({
         fields: { ...EMPTY_VEHICLE_FORM, averageConsumption: '2,' },
         fuelPricePerUnit: VEHICLE_FUEL_PRICE.pricePerUnit,
+        secondaryFuelPricePerUnit: null,
       }),
     ).toEqual(empty)
 
@@ -182,6 +202,7 @@ describe('fleet vehicle cost per kilometer contract', () => {
         otherCostsPerKilometer: '0,5000',
       },
       fuelPricePerUnit: VEHICLE_FUEL_PRICE.pricePerUnit,
+      secondaryFuelPricePerUnit: null,
     })
 
     // O separador que o `Intl` põe depois de "R$" é espaço não separável, não espaço comum
@@ -206,6 +227,8 @@ type FleetVehicleCostSummaryContract = Readonly<{
   fuelCostPerKilometer: null | string
   monthlyFixedCost: null | string
   otherCostsPerKilometer: null | string
+  primaryFuelCostPerKilometer: null | string
+  secondaryFuelCostPerKilometer: null | string
 }>
 
 type FleetVehicleFormStateContract = Record<string, string>
@@ -221,10 +244,12 @@ type FleetCostModule = {
   readonly summarizeTypedVehicleCosts: (input: {
     readonly fields: FleetVehicleFormStateContract
     readonly fuelPricePerUnit: null | string
+    readonly secondaryFuelPricePerUnit: null | string
   }) => FleetVehicleCostSummaryContract
   readonly summarizeVehicleCosts: (input: {
     readonly fields: FleetVehicleCostFieldsContract
     readonly fuelPricePerUnit: null | string
+    readonly secondaryFuelPricePerUnit: null | string
   }) => FleetVehicleCostSummaryContract
 }
 

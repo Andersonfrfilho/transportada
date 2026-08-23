@@ -50,6 +50,8 @@ describe('fleet vehicle schema', () => {
       'owner_tax_regime',
       'average_consumption',
       'fuel_type',
+      'secondary_fuel_type',
+      'secondary_average_consumption',
       'other_costs_per_kilometer',
       'acquisition_amount',
       'monthly_installment_amount',

@@ -17,20 +17,22 @@ const CATALOG = [
   { product: 'gasolina-comum', unit: 'litre' },
   { product: 'etanol-hidratado', unit: 'litre' },
   { product: 'gnv', unit: 'cubic-metre' },
+  { product: 'eletrico', unit: 'kilowatt-hour' },
 ] as const
 
 describe('fuel catalog', () => {
-  test('lists the five ANP products in order, each declaring its unit', () => {
+  test('lists the five ANP products and the energy, in order, each declaring its unit', () => {
     expect(FUEL_TYPES).toEqual(CATALOG)
   })
 
-  // O GNV é vendido em metro cúbico, e é por isso que a unidade é atributo do produto
-  test('sells the four liquids by the litre and the gas by the cubic metre', () => {
+  // Três unidades, e é por isso que ela é atributo do produto: litro, metro cúbico e quilowatt-hora
+  test('sells the four liquids by the litre, the gas by the cubic metre, the energy by the kWh', () => {
     const unitByProduct = Object.fromEntries(FUEL_TYPES.map((entry) => [entry.product, entry.unit]))
 
     expect(unitByProduct).toEqual({
       'diesel-s10': 'litre',
       'diesel-s500': 'litre',
+      eletrico: 'kilowatt-hour',
       'etanol-hidratado': 'litre',
       'gasolina-comum': 'litre',
       gnv: 'cubic-metre',

@@ -195,18 +195,39 @@ export const DUAL_PURPOSE_CERTIFICATES_RESPONSE = {
   page: { nextCursor: null },
 } as const satisfies DigitalCertificatesResponseContract
 
+export type EnergyTariffContract = Readonly<{
+  adjustmentFactor: string
+  distributorCode: string
+  effectiveFrom: string
+  effectiveTo: string
+  tePerMegawattHour: string
+  tusdPerMegawattHour: string
+}>
+
 export type FuelPriceEntryContract = Readonly<{
   effectivePricePerUnit: string | null
   product: string
   reference: Readonly<{ pricePerUnit: string; state: string; weekEndingOn: string }> | null
-  source: 'anp' | 'manual' | null
-  unit: 'cubic-metre' | 'litre'
+  source: 'aneel' | 'anp' | 'manual' | null
+  tariff: EnergyTariffContract | null
+  unit: 'cubic-metre' | 'kilowatt-hour' | 'litre'
   updatedAt: string | null
 }>
 
+/** Linha vigente da CERAÇÁ medida na ANEEL em 21/08/2026, B3 · Convencional, em R$/MWh. */
+export const ENERGY_TARIFF = {
+  adjustmentFactor: '1.0000',
+  distributorCode: 'CERACA',
+  effectiveFrom: '2026-01-01',
+  effectiveTo: '2026-09-29',
+  tePerMegawattHour: '227.7000',
+  tusdPerMegawattHour: '567.8000',
+} as const satisfies EnergyTariffContract
+
 /**
- * A API devolve os cinco produtos do catálogo mesmo sem preço — é o que permite a tela desenhar a
- * linha faltante em vez de adivinhar quais sumiram.
+ * A API devolve os seis produtos do catálogo mesmo sem preço — é o que permite a tela desenhar a
+ * linha faltante em vez de adivinhar quais sumiram. O elétrico é o único que não vem da ANP: o
+ * preço dele nasce da tarifa da ANEEL, e ela viaja ao lado como a referência dos outros cinco.
  */
 export const FUEL_PRICE_ENTRIES = [
   {
@@ -214,6 +235,7 @@ export const FUEL_PRICE_ENTRIES = [
     product: 'diesel-s10',
     reference: { pricePerUnit: '6.2400', state: 'SP', weekEndingOn: '2026-07-25' },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: '2026-07-26T03:00:00.000Z',
   },
@@ -222,6 +244,7 @@ export const FUEL_PRICE_ENTRIES = [
     product: 'diesel-s500',
     reference: { pricePerUnit: '6.0100', state: 'SP', weekEndingOn: '2026-07-25' },
     source: 'manual',
+    tariff: null,
     unit: 'litre',
     updatedAt: '2026-07-28T12:00:00.000Z',
   },
@@ -230,6 +253,7 @@ export const FUEL_PRICE_ENTRIES = [
     product: 'gasolina-comum',
     reference: { pricePerUnit: '6.4900', state: 'SP', weekEndingOn: '2026-07-25' },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: '2026-07-26T03:00:00.000Z',
   },
@@ -238,6 +262,7 @@ export const FUEL_PRICE_ENTRIES = [
     product: 'etanol-hidratado',
     reference: { pricePerUnit: '4.1500', state: 'SP', weekEndingOn: '2026-07-25' },
     source: 'anp',
+    tariff: null,
     unit: 'litre',
     updatedAt: '2026-07-26T03:00:00.000Z',
   },
@@ -246,7 +271,17 @@ export const FUEL_PRICE_ENTRIES = [
     product: 'gnv',
     reference: null,
     source: null,
+    tariff: null,
     unit: 'cubic-metre',
+    updatedAt: null,
+  },
+  {
+    effectivePricePerUnit: '0.7955',
+    product: 'eletrico',
+    reference: null,
+    source: 'aneel',
+    tariff: ENERGY_TARIFF,
+    unit: 'kilowatt-hour',
     updatedAt: null,
   },
 ] as const satisfies readonly FuelPriceEntryContract[]
@@ -256,6 +291,7 @@ export const ADJUSTED_FUEL_PRICE = {
   product: 'gnv',
   reference: null,
   source: 'manual',
+  tariff: null,
   unit: 'cubic-metre',
   updatedAt: '2026-08-14T09:00:00.000Z',
 } as const satisfies FuelPriceEntryContract

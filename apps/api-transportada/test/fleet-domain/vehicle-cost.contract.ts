@@ -23,6 +23,17 @@ const ROUNDING_CASES = [
   ['1.0000', '3.00', '0.0001', '0.3333', '0.3334'],
 ] as const
 
+/**
+ * O veículo de dois tanques. Também **copiada literalmente** para o contrato do frontend, pelo mesmo
+ * motivo: a média é o número que o operador confere, e ela é a que mais parece errada quando erra.
+ */
+const TWO_TANK_CASES = [
+  // preço e consumo do primário, preço e consumo do secundário, parcela primária, secundária, média
+  ['5.4800', '12.00', '4.2000', '8.00', '0.4567', '0.5250', '0.4909'],
+  ['6.1230', '3.00', '0.7500', '2.00', '2.0410', '0.3750', '1.2080'],
+  ['5.4801', '4.00', '5.4802', '4.00', '1.3700', '1.3701', '1.3701'],
+] as const
+
 describe('vehicle cost policy contract', () => {
   test('derives the monthly fixed cost as installment plus tax and insurance over twelve months', () => {
     const monthlyFixedCost = deriveMonthlyFixedCost({
@@ -171,5 +182,120 @@ describe('vehicle cost policy contract', () => {
         otherCostsPerKilometer: '0.0000',
       }),
     ).toBeNull()
+  })
+
+  test.each(TWO_TANK_CASES)(
+    'averages %s over %s with %s over %s as %s and %s, giving %s',
+    (
+      fuelPricePerUnit,
+      averageConsumption,
+      secondaryPricePerUnit,
+      secondaryConsumption,
+      primaryFuel,
+      secondaryFuel,
+      fuel,
+    ) => {
+      const derived = deriveCostPerKilometer({
+        averageConsumption,
+        fuelPricePerUnit,
+        otherCostsPerKilometer: '0.0000',
+        secondaryFuel: {
+          averageConsumption: secondaryConsumption,
+          pricePerUnit: secondaryPricePerUnit,
+        },
+      })
+
+      expect(derived).toEqual({ breakdown: { fuel, primaryFuel, secondaryFuel }, total: fuel })
+    },
+  )
+
+  // A média é o que entra na soma; as duas parcelas ficam ao lado para o número ter de onde vir
+  test('names both tanks in the breakdown and adds only the average to the other costs', () => {
+    const derived = deriveCostPerKilometer({
+      averageConsumption: '12.00',
+      fuelPricePerUnit: '5.4800',
+      otherCostsPerKilometer: '0.5000',
+      secondaryFuel: { averageConsumption: '8.00', pricePerUnit: '4.2000' },
+    })
+
+    expect(derived).toEqual({
+      breakdown: {
+        fuel: '0.4909',
+        otherCosts: '0.5000',
+        primaryFuel: '0.4567',
+        secondaryFuel: '0.5250',
+      },
+      total: '0.9909',
+    })
+  })
+
+  // Sem segundo tanque a conta é a de sempre: dividir por dois cortaria o custo do veículo ao meio
+  test('keeps the single tank arithmetic when there is no second tank at all', () => {
+    const derived = deriveCostPerKilometer({
+      averageConsumption: '12.00',
+      fuelPricePerUnit: '5.4800',
+      otherCostsPerKilometer: '0.0000',
+    })
+
+    expect(derived).toEqual({ breakdown: { fuel: '0.4567' }, total: '0.4567' })
+  })
+
+  /**
+   * O tanque secundário está no cadastro, mas ainda não há o que dividir: a energia sem tarifa e o
+   * consumo em branco são o estado normal de uma ficha recém-preenchida. Meia parcela ali faria o
+   * veículo parecer metade do preço enquanto ninguém completa o cadastro.
+   */
+  test.each([
+    ['no price', { averageConsumption: '8.00', pricePerUnit: null }],
+    ['no consumption', { averageConsumption: '0.00', pricePerUnit: '4.2000' }],
+  ])('leaves the average out when the second tank has %s', (_case, secondaryFuel) => {
+    const derived = deriveCostPerKilometer({
+      averageConsumption: '12.00',
+      fuelPricePerUnit: '5.4800',
+      otherCostsPerKilometer: '0.0000',
+      secondaryFuel,
+    })
+
+    expect(derived).toEqual({ breakdown: { fuel: '0.4567' }, total: '0.4567' })
+    expect(derived?.breakdown).not.toHaveProperty('primaryFuel')
+    expect(derived?.breakdown).not.toHaveProperty('secondaryFuel')
+  })
+
+  // O híbrido sem preço de diesel ainda anda com o segundo tanque, e é ele que responde sozinho
+  test('answers with the second tank alone when the first one has no parcel', () => {
+    const derived = deriveCostPerKilometer({
+      averageConsumption: '12.00',
+      fuelPricePerUnit: null,
+      otherCostsPerKilometer: '0.0000',
+      secondaryFuel: { averageConsumption: '8.00', pricePerUnit: '4.2000' },
+    })
+
+    expect(derived).toEqual({ breakdown: { fuel: '0.5250' }, total: '0.5250' })
+  })
+
+  test('returns null when neither tank has a parcel and there are no other costs', () => {
+    expect(
+      deriveCostPerKilometer({
+        averageConsumption: '12.00',
+        fuelPricePerUnit: null,
+        otherCostsPerKilometer: '0.0000',
+        secondaryFuel: { averageConsumption: '8.00', pricePerUnit: null },
+      }),
+    ).toBeNull()
+  })
+
+  // O consumo do segundo tanque é custo informado; sem ele a ficha ficaria com a data de custo vazia
+  test('reports informed costs when only the second tank consumption is filled', () => {
+    expect(
+      hasInformedCosts({
+        acquisitionAmount: '0.0000',
+        annualInsuranceAmount: '0.0000',
+        annualVehicleTaxAmount: '0.0000',
+        averageConsumption: '0.00',
+        monthlyInstallmentAmount: '0.0000',
+        otherCostsPerKilometer: '0.0000',
+        secondaryAverageConsumption: '8.00',
+      }),
+    ).toBe(true)
   })
 })

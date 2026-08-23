@@ -23,6 +23,7 @@ import { VEHICLE_TYPES } from '../../shared/vehicle-type.constant.js'
 const AXLE_COUNT_MAX = 9
 const AXLE_COUNT_MIN = 2
 const CONSUMPTION_DECIMAL = /^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{2})$/
+const NO_CONSUMPTION = '0.00'
 const COST_PER_KILOMETER_DECIMAL = /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{4})$/
 const CPF = /^[0-9]{11}$/
 const DATE_LENGTH = 10
@@ -112,6 +113,8 @@ const vehicleFieldsSchema = z.object({
   plate: z.string().regex(PLATE),
   renavam: optionalDigits(RENAVAM),
   role: z.enum(FLEET_VEHICLE_ROLES),
+  secondaryAverageConsumption: z.string().regex(CONSUMPTION_DECIMAL),
+  secondaryFuelType: z.literal('').or(z.enum(FUEL_PRODUCTS_TUPLE)),
   state: z.string().regex(STATE),
   tareWeightKilograms: z.string().regex(MEASURE_DECIMAL),
   vehicleType: z.literal('').or(z.enum(VEHICLE_TYPES)),
@@ -233,5 +236,21 @@ function assertVehicleRules(value: FleetVehicleFields, context: z.RefinementCtx)
   // O grupo <prop> é tudo-ou-nada e proibido quando o veículo é do próprio emitente
   if ((value.ownership === OWN_OWNERSHIP) !== (value.owner === null)) {
     context.addIssue({ code: 'custom', message: 'owner is required unless the vehicle is own' })
+  }
+  // Produto repetido não é flex: é o mesmo combustível entrando duas vezes na média do R$/km
+  if (value.secondaryFuelType !== '' && value.secondaryFuelType === value.fuelType) {
+    context.addIssue({
+      code: 'custom',
+      message: 'secondaryFuelType must differ from fuelType',
+      path: ['secondaryFuelType'],
+    })
+  }
+  // Consumo de tanque que não existe é número órfão, e ele puxaria a média para baixo
+  if (value.secondaryFuelType === '' && value.secondaryAverageConsumption !== NO_CONSUMPTION) {
+    context.addIssue({
+      code: 'custom',
+      message: 'secondaryAverageConsumption requires a secondaryFuelType',
+      path: ['secondaryAverageConsumption'],
+    })
   }
 }

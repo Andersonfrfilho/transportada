@@ -9,7 +9,11 @@ import {
   formatFuelPricePerUnit,
   toFuelPricePerUnit,
 } from '@/modules/company-settings/shared/fuelPrice.service'
-import { FUEL_PRODUCTS, type FuelProduct } from '@/modules/shared/fuel.constant'
+import {
+  ELECTRIC_FUEL_PRODUCT,
+  FUEL_PRODUCTS,
+  type FuelProduct,
+} from '@/modules/shared/fuel.constant'
 
 import type { FuelPriceAdjustment } from '../hooks/useFuelPrices.hook'
 import styles from '../styles/fleet.module.css'
@@ -24,7 +28,7 @@ export type FuelPricePanelProps = Readonly<{
   saved: boolean
 }>
 
-function useWeekFormatter(): (value: string) => string {
+function useDayFormatter(): (value: string) => string {
   const { i18n } = useTranslation('fleet')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
@@ -48,9 +52,35 @@ function FuelPriceSkeleton() {
   )
 }
 
+/**
+ * A tarifa homologada é seca — sem ICMS, sem PIS/COFINS e sem bandeira. O aviso anda junto do
+ * número porque é contra a conta de luz que o operador vai conferi-lo, e ali a diferença aparece.
+ */
+function FuelPriceTariffLine({ entry }: Readonly<{ entry: FuelPriceEntry }>) {
+  const { t } = useTranslation('fleet')
+  const formatDay = useDayFormatter()
+  if (entry.tariff === null)
+    return <p className={styles.fieldHint}>{t('fuelPrices.tariffMissing')}</p>
+  return (
+    <>
+      <p className={styles.fieldHint}>
+        {t('fuelPrices.tariff', {
+          distributor: entry.tariff.distributorCode,
+          from: formatDay(entry.tariff.effectiveFrom),
+          te: formatFuelPricePerUnit(entry.tariff.tePerMegawattHour),
+          to: formatDay(entry.tariff.effectiveTo),
+          tusd: formatFuelPricePerUnit(entry.tariff.tusdPerMegawattHour),
+        })}
+      </p>
+      <p className={styles.fieldHint}>{t('fuelPrices.taxFree')}</p>
+    </>
+  )
+}
+
 function FuelPriceReferenceLine({ entry }: Readonly<{ entry: FuelPriceEntry }>) {
   const { t } = useTranslation('fleet')
-  const formatWeek = useWeekFormatter()
+  const formatDay = useDayFormatter()
+  if (entry.product === ELECTRIC_FUEL_PRODUCT) return <FuelPriceTariffLine entry={entry} />
   if (entry.reference === null)
     return <p className={styles.fieldHint}>{t('fuelPrices.referenceMissing')}</p>
   return (
@@ -58,7 +88,7 @@ function FuelPriceReferenceLine({ entry }: Readonly<{ entry: FuelPriceEntry }>) 
       {t('fuelPrices.reference', {
         price: formatFuelPricePerUnit(entry.reference.pricePerUnit),
         state: entry.reference.state,
-        week: formatWeek(entry.reference.weekEndingOn),
+        week: formatDay(entry.reference.weekEndingOn),
       })}
     </p>
   )

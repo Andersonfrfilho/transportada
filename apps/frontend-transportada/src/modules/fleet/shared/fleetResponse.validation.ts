@@ -174,6 +174,9 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isString(value.plate) &&
     isString(value.renavam) &&
     isOneOf(value.role, FLEET_ENUMS.role) &&
+    isDecimalString(value.secondaryAverageConsumption) &&
+    (value.secondaryFuelPrice === null || isFuelPrice(value.secondaryFuelPrice)) &&
+    (value.secondaryFuelType === '' || isOneOf(value.secondaryFuelType, FLEET_ENUMS.fuelType)) &&
     isString(value.state) &&
     isOneOf(value.status, FLEET_ENUMS.vehicleStatus) &&
     isDecimalString(value.tareWeightKilograms) &&

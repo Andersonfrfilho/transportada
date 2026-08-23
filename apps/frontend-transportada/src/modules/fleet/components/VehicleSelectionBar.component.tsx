@@ -26,8 +26,12 @@ const EXPORT_VALUE_KEY_PREFIX: Readonly<Partial<Record<VehicleExportColumn, stri
   fuelType: 'fuelOption',
   ownership: 'ownershipOption',
   role: 'roleOption',
+  secondaryFuelType: 'fuelOption',
   status: 'status',
 }
+
+/** A coluna do arranjo devolve a chave inteira: ela alterna entre dois grupos por linha. */
+const EXPORT_TRANSLATED_KEY_COLUMNS: readonly VehicleExportColumn[] = ['fuelArrangement']
 
 export type VehicleStatusChange = Readonly<{
   status: FleetVehicleStatus
@@ -63,8 +67,10 @@ export function VehicleSelectionBar({
           VEHICLE_EXPORT_COLUMNS.map((column) => [column, t(`vehicleExport.${column}`)]),
         ) as Record<VehicleExportColumn, string>,
         translateValue: ({ column, value }) => {
+          if (value === '') return value
+          if (EXPORT_TRANSLATED_KEY_COLUMNS.includes(column)) return t(value)
           const prefix = EXPORT_VALUE_KEY_PREFIX[column]
-          if (prefix === undefined || value === '') return value
+          if (prefix === undefined) return value
           return t(`${prefix}.${value}`)
         },
       },

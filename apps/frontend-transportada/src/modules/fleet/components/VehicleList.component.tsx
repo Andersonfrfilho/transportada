@@ -12,6 +12,7 @@ import {
 } from '../shared/fleetVehicleTable.service'
 import type { FleetVehicleDetail } from '../shared/fleet.types'
 import { formatVehicleMeasure } from '../shared/fleetVehicleMeasure.service'
+import { resolveFuelArrangementLabelKey } from '../shared/fuelArrangement.service'
 import { isVehicleIncompleteForMdfe } from '../shared/vehicleCompleteness.service'
 import type { VehicleSortColumn } from '../shared/vehicleTable.service'
 import styles from '../styles/fleet.module.css'
@@ -117,6 +118,7 @@ export function VehicleList({
                   {readFleetVehicleColumnValue({
                     colorLabel: vehicle.color === '' ? '' : t(`colorOption.${vehicle.color}`),
                     column,
+                    fuelArrangementLabel: t(resolveFuelArrangementLabelKey(vehicle)),
                     notInformedLabel: t('costNotInformed'),
                     vehicle,
                   })}

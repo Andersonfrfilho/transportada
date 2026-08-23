@@ -44,6 +44,13 @@ const cronEnvironmentSchema = z.object({
   LOG_SINK_URL: optionalUrl(),
   SENTRY_DSN: optionalUrl(),
   SENTRY_ENVIRONMENT: optionalText(),
+  ANEEL_BASE_URL: optionalUrl(),
+  ANEEL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS)
+    .default(CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS),
   ANP_BASE_URL: optionalUrl(),
   ANP_TIMEOUT_MS: z.coerce
     .number()
@@ -111,16 +118,19 @@ export function parseCronEnvironment(
 }
 
 /**
- * A coleta não tem o que fazer sem o endereço da ANP, e não existe padrão razoável para ele: o
- * domínio da agência muda sem avisar, e chutar um faria o ciclo falhar toda semana em silêncio.
- * O preço é dado público — aqui não há segredo nenhum, só endereço e tempo de espera.
+ * A coleta não tem o que fazer sem os endereços das duas agências, e não existe padrão razoável
+ * para nenhum deles: o domínio muda sem avisar, e chutar um faria o ciclo falhar toda semana em
+ * silêncio. Variável opcional aqui seria pior: a metade esquecida viraria tela sem preço, sem nada
+ * quebrar no boot. Preço e tarifa são dado público — não há segredo, só endereço e espera.
  */
 function resolveFuelPricePullEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
 ): CronFuelPricePullEnvironment {
   return {
-    baseUrl: requireConfigured(data.ANP_BASE_URL),
-    timeoutMilliseconds: data.ANP_TIMEOUT_MS,
+    aneelBaseUrl: requireConfigured(data.ANEEL_BASE_URL),
+    aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
+    anpBaseUrl: requireConfigured(data.ANP_BASE_URL),
+    anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
   }
 }
 

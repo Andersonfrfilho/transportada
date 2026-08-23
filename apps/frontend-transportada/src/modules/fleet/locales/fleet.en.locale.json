@@ -55,6 +55,7 @@
     "modelYear": "Model year",
     "axleCount": "Axles",
     "color": "Color",
+    "fuelArrangement": "Fuel",
     "costPerKilometer": "Cost per km",
     "monthlyFixedCost": "Monthly fixed cost"
   },
@@ -234,27 +235,40 @@
   "annualVehicleTaxAmount": "Annual vehicle tax",
   "annualInsuranceAmount": "Annual insurance",
   "fuelType": "Fuel",
+  "secondaryFuelType": "Second fuel",
+  "secondaryFuelNone": "None — a single tank",
+  "fuelArrangement": {
+    "flex": "Flex",
+    "hybrid": "Hybrid"
+  },
+  "fuelArrangementTitle": "Fuel arrangement",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
     "diesel-s500": "Diesel S-500",
     "gasolina-comum": "Regular gasoline",
     "etanol-hidratado": "Hydrous ethanol",
-    "gnv": "CNG"
+    "gnv": "CNG",
+    "eletrico": "Electric"
   },
   "consumptionByUnit": {
     "litre": "Average consumption (km/l)",
-    "cubic-metre": "Average consumption (km/m³)"
+    "cubic-metre": "Average consumption (km/m³)",
+    "kilowatt-hour": "Average consumption (km/kWh)"
   },
   "fuelPriceByUnit": {
     "litre": "Fuel price (BRL/litre)",
-    "cubic-metre": "Fuel price (BRL/m³)"
+    "cubic-metre": "Fuel price (BRL/m³)",
+    "kilowatt-hour": "Energy price (BRL/kWh)"
   },
   "otherCostsPerKilometer": "Other costs per kilometre",
   "costPerKilometer": "Cost per kilometre",
   "fuelCostPerKilometer": "Fuel per kilometer",
+  "primaryFuelCostPerKilometer": "First fuel per kilometer",
+  "secondaryFuelCostPerKilometer": "Second fuel per kilometer",
   "fuelPriceSource": {
     "anp": "ANP reference",
-    "manual": "Carrier adjustment"
+    "manual": "Carrier adjustment",
+    "aneel": "ANEEL tariff"
   },
   "fuelPriceWeek": "Reference week ending on",
   "fuelPriceUnavailable": "No price for this fuel",
@@ -362,21 +376,40 @@
   "vehicleNotFound": "One of the selected vehicles no longer exists in this company",
   "fuelPrices": {
     "title": "Fuel price",
-    "hint": "Cost per kilometre comes from this price divided by the vehicle's average consumption. Without an adjustment the ANP reference applies; the value typed here replaces it until cleared.",
+    "hint": "Cost per kilometre comes from this price divided by the vehicle's average consumption. Without an adjustment the public reference applies — ANP for fuels, ANEEL for electricity; the value typed here replaces it until cleared.",
     "effective": "In use: {{price}} ({{source}}).",
-    "unavailable": "No price in use. Without an adjustment or an ANP reference, cost per kilometre is not calculated for this fuel.",
+    "unavailable": "No price in use. Without an adjustment or a public reference, cost per kilometre is not calculated for this fuel.",
     "reference": "ANP reference: {{price}} — {{state}}, week ending {{week}}.",
-    "referenceMissing": "ANP has not published a reference for this fuel yet.",
+    "referenceMissing": "There is no published public reference for this fuel yet.",
     "fieldLabel": "New price per {{unit}}",
     "save": "Save price",
     "clear": "Clear adjustment",
     "saved": "Price saved.",
     "error": "Could not save the price. Code: {{code}}.",
     "loadError": "Could not load fuel prices.",
+    "tariff": "{{distributor}} tariff: TUSD {{tusd}} + TE {{te}} per MWh, in force from {{from}} to {{to}}.",
+    "tariffMissing": "There is no published tariff for the chosen distributor yet.",
+    "taxFree": "The approved tariff is dry: no ICMS, no PIS/COFINS and no flag surcharge. Adjust the price here to reach what the electricity bill charges.",
     "unit": {
       "litre": "litre",
-      "cubic-metre": "cubic metre"
+      "cubic-metre": "cubic metre",
+      "kilowatt-hour": "kilowatt-hour"
     }
+  },
+  "energySettings": {
+    "title": "Electricity",
+    "hint": "The kilowatt-hour price of an electric vehicle comes from the ANEEL tariff of the distributor chosen here, multiplied by the adjustment factor.",
+    "distributorLabel": "Distributor",
+    "distributorPlaceholder": "Choose the distributor",
+    "factorLabel": "Adjustment factor",
+    "factorHint": "The published tariff is dry: no taxes and no tariff flag. The factor multiplies it up to what the electricity bill charges — 1.0000 keeps the tariff as published.",
+    "save": "Save distributor",
+    "clear": "Clear distributor",
+    "saved": "Distributor saved.",
+    "error": "The distributor could not be saved. Code: {{code}}.",
+    "loadError": "The energy settings could not be loaded.",
+    "emptyCatalog": "No tariff has been published yet: the ANEEL collection runs once a week and it is what fills this list.",
+    "unchosen": "Without a chosen distributor, the R$/km of an electric vehicle is not calculated."
   },
   "currencyPrefix": "R$",
   "sort": {
@@ -416,6 +449,8 @@
     "color": "Colour",
     "costPerKilometer": "Cost per kilometre",
     "fuelType": "Fuel",
+    "secondaryFuelType": "Second fuel",
+    "fuelArrangement": "Fuel",
     "model": "Model",
     "modelYear": "Model year",
     "monthlyFixedCost": "Monthly fixed cost",

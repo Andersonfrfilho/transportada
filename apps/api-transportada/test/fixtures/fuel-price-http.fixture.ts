@@ -17,6 +17,7 @@ import type { AuthenticatedContext, CompanyContext } from '../../src/identity/do
 import {
   resolveEffectiveFuelPrices,
   type EffectiveFuelPrice,
+  type EnergyTariff,
   type FuelPriceAdjustmentRow,
   type FuelPriceReferenceRow,
 } from '../../src/companies/domain/fuel-price.policy'
@@ -43,6 +44,16 @@ export const REFERENCES: readonly FuelPriceReferenceRow[] = [
 export const ADJUSTMENTS: readonly FuelPriceAdjustmentRow[] = [
   { pricePerUnit: '5.8000', product: 'diesel-s10', updatedAt: ADJUSTED_AT },
 ]
+
+/** Linha vigente da CERAÇÁ medida na ANEEL em 21/08/2026, B3 · Convencional, em R$/MWh. */
+export const ENERGY_TARIFF: EnergyTariff = {
+  adjustmentFactor: '1.0000',
+  distributorCode: 'CERACA',
+  effectiveFrom: '2026-01-01',
+  effectiveTo: '2026-09-29',
+  tePerMegawattHour: '227.7000',
+  tusdPerMegawattHour: '567.8000',
+}
 
 type AdjustCall = {
   readonly companyId: string
@@ -71,6 +82,7 @@ type RouteDependencies = {
 
 type CreateFixtureParams = {
   readonly adjustments?: readonly FuelPriceAdjustmentRow[]
+  readonly energy?: EnergyTariff | null
   readonly listError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly references?: readonly FuelPriceReferenceRow[]
@@ -78,6 +90,7 @@ type CreateFixtureParams = {
 
 export async function createFuelPriceHttpFixture({
   adjustments = ADJUSTMENTS,
+  energy = ENERGY_TARIFF,
   listError,
   permissions = COMPANY_CONTEXT.permissions,
   references = REFERENCES,
@@ -91,6 +104,7 @@ export async function createFuelPriceHttpFixture({
   const resolve = (): readonly EffectiveFuelPrice[] =>
     resolveEffectiveFuelPrices({
       adjustments: [...store.values()],
+      energy,
       references,
       state: COMPANY_STATE,
     })

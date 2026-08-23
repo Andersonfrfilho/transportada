@@ -8,11 +8,14 @@ import type { CronFiscalEnvironment, CronJob } from './cron.constant.js'
 
 /**
  * Configuração exclusiva do trilho de coleta do preço de referência. Só é resolvida quando
- * `CRON_JOB` é o job da ANP — os outros deploys continuam subindo sem endereço nenhum da agência.
+ * `CRON_JOB` é o job de combustível — os outros deploys continuam subindo sem endereço nenhum de
+ * agência. São **duas** agências no mesmo job: a ANP publica o litro e a ANEEL, o megawatt-hora.
  */
 export type CronFuelPricePullEnvironment = {
-  readonly baseUrl: string
-  readonly timeoutMilliseconds: number
+  readonly aneelBaseUrl: string
+  readonly aneelTimeoutMilliseconds: number
+  readonly anpBaseUrl: string
+  readonly anpTimeoutMilliseconds: number
 }
 
 /**

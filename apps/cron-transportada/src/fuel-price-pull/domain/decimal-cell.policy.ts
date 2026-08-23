@@ -48,3 +48,22 @@ export function readCellDecimal(input: { readonly text: string }): string {
 
   return formatScaled({ scale: Number(PRICE_SCALE), value: scaled })
 }
+
+/**
+ * A ANEEL publica o valor como texto em pt-BR, e há forma com a parte inteira ausente (`,38`), que
+ * o `0` da frente devolve ao vocabulário da célula da planilha. É o mesmo arredondamento e a mesma
+ * escala — o preço da energia e o preço do litro entram no banco pela mesma régua.
+ */
+const COMMA_DECIMAL_PATTERN = /^([0-9]*),([0-9]+)$/
+
+export function readCommaDecimal(input: { readonly text: string }): string {
+  const match = COMMA_DECIMAL_PATTERN.exec(input.text.trim())
+
+  if (!match) {
+    throw new Error('ANEEL_INVALID_TARIFF')
+  }
+
+  const [, whole = '', fraction = ''] = match
+
+  return readCellDecimal({ text: `${whole === '' ? '0' : whole}.${fraction}` })
+}
