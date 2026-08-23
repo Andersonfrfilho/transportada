@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+/**
+ * ⚠️ Cópia por valor do catálogo da API — as apps não importam código umas das outras. A paridade é
+ * assertada em `test/job-catalog/catalog.contract.ts`, não suposta.
+ */
+
 /** A batida do agendador. É o piso de granularidade de toda rotina — nada corre mais fino que ela. */
 export const JOB_TICK_INTERVAL_SECONDS = 300
 

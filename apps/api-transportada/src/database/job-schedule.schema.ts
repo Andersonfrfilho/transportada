@@ -20,6 +20,7 @@ import {
   JOB_EXECUTION_ORIGIN_MAX_LENGTH,
   JOB_EXECUTION_ORIGINS,
   JOB_OUTCOME_MAX_LENGTH,
+  JOB_TICK_INTERVAL_SECONDS,
   SCHEDULED_JOB_MAX_LENGTH,
   SCHEDULED_JOBS,
   type JobExecutionOrigin,
@@ -29,7 +30,7 @@ import { companies, identityUsers, userCompanyMemberships } from './identity.sch
 import { inList } from './schema-check.constant.js'
 
 /** A batida do cron é o piso de granularidade: nada abaixo dela seria janela que nunca vence. */
-export const JOB_SCHEDULE_MINIMUM_INTERVAL_SECONDS = 300
+export const JOB_SCHEDULE_MINIMUM_INTERVAL_SECONDS = JOB_TICK_INTERVAL_SECONDS
 
 /**
  * O relógio das rotinas, uma linha por rotina. A cadência é **da instalação** e por isso a tabela

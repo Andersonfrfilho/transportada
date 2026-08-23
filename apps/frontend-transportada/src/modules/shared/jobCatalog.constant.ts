@@ -1,5 +1,8 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
 /**
- * Copyright (c) 2026 Ada Technology. MIT License.
+ * ⚠️ Cópia por valor do catálogo da API: o bundle não carrega código de lá, e
+ * `test/shared/job-catalog.contract.ts` é o que garante que os dois não divergem.
  */
 
 /** A batida do agendador. É o piso de granularidade de toda rotina — nada corre mais fino que ela. */
@@ -41,10 +44,6 @@ export type JobWrapperOutcome = (typeof JOB_WRAPPER_OUTCOMES)[number]
  * código não é validado por CHECK no banco de propósito: a coluna é uma só para as quatro rotinas, e
  * um CHECK sobre a união dos quatro vocabulários aceitaria `anp_unreachable` numa execução de
  * notificação — cobraria uma migration por palavra nova sem impedir o único erro que importa.
- *
- * ⚠️ Cópia por valor na API, no worker, no cron e no frontend — quatro apps que não importam código
- * umas das outras. Mudou aqui? mude nas quatro, e os `test/job-catalog/catalog.contract.ts` de cada
- * lado é que guardam a paridade.
  */
 export const JOB_CATALOG = [
   {
@@ -111,14 +110,9 @@ export type JobOutcome = JobWrapperOutcome | JobFailureOutcome
 
 export const SCHEDULED_JOBS: readonly ScheduledJob[] = JOB_CATALOG.map((entry) => entry.job)
 
-export const SCHEDULED_JOB_MAX_LENGTH = 40
-
 /** Origem da execução: o ciclo que venceu, ou o operador que apertou o botão antes da hora. */
 export const JOB_EXECUTION_ORIGINS = ['schedule', 'manual'] as const
 export type JobExecutionOrigin = (typeof JOB_EXECUTION_ORIGINS)[number]
-
-export const JOB_EXECUTION_ORIGIN_MAX_LENGTH = 10
-export const JOB_OUTCOME_MAX_LENGTH = 40
 
 function indexByJob<TValue>(
   select: (entry: JobCatalogEntry) => TValue,
