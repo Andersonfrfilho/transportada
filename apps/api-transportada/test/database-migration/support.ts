@@ -94,7 +94,13 @@ export const BILLING_TABLES = [
   'billing_invoices',
 ] as const
 
-export const OPERATIONS_TABLES = ['processing_jobs'] as const
+export const OPERATIONS_TABLES = [
+  'processing_jobs',
+  'job_schedules',
+  'job_executions',
+  'fuel_price_references',
+  'energy_tariff_references',
+] as const
 
 export const FLEET_TABLES = [
   'fleet_vehicles',
