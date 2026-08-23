@@ -33,6 +33,8 @@ const VEHICLE_BODY = {
   plate: 'AAA1B11',
   renavam: '',
   role: 'traction',
+  secondaryAverageConsumption: '0.00',
+  secondaryFuelType: '',
   state: 'SP',
   tareWeightKilograms: '8000.25',
   vehicleType: 'truck',

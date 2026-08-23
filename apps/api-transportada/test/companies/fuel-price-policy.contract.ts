@@ -4,16 +4,32 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  resolveEffectiveFuelPrice,
   resolveEffectiveFuelPrices,
+  type EnergyTariff,
   type FuelPriceFacts,
 } from '../../src/companies/domain/fuel-price.policy.js'
 import { FUEL_TYPES } from '../../src/shared/fuel.constant.js'
 
 const UPDATED_AT = new Date('2026-08-14T12:00:00.000Z')
 
+/** Medida na ANEEL em 21/08/2026: a linha vigente da CERAÇÁ, B3 · Convencional, em R$/MWh. */
+function tariff(overrides: Partial<EnergyTariff> = {}): EnergyTariff {
+  return {
+    adjustmentFactor: '1.0000',
+    distributorCode: 'CERACA',
+    effectiveFrom: '2026-01-01',
+    effectiveTo: '2026-09-29',
+    tePerMegawattHour: '227.7000',
+    tusdPerMegawattHour: '567.8000',
+    ...overrides,
+  }
+}
+
 function facts(overrides: Partial<FuelPriceFacts> = {}): FuelPriceFacts {
   return {
     adjustments: [],
+    energy: null,
     references: [],
     state: 'SP',
     ...overrides,
@@ -42,6 +58,7 @@ describe('effective fuel price policy contract', () => {
       expect(entry.source).toBeNull()
       expect(entry.updatedAt).toBeNull()
       expect(entry.reference).toBeNull()
+      expect(entry.tariff).toBeNull()
     }
   })
 
@@ -66,6 +83,7 @@ describe('effective fuel price policy contract', () => {
       source: 'anp',
       updatedAt: null,
       reference: { state: 'SP', pricePerUnit: '6.1230', weekEndingOn: '2026-08-08' },
+      tariff: null,
     })
   })
 
@@ -91,6 +109,7 @@ describe('effective fuel price policy contract', () => {
       source: 'manual',
       updatedAt: UPDATED_AT,
       reference: { state: 'SP', pricePerUnit: '6.1230', weekEndingOn: '2026-08-08' },
+      tariff: null,
     })
   })
 
@@ -108,6 +127,7 @@ describe('effective fuel price policy contract', () => {
       source: 'manual',
       updatedAt: UPDATED_AT,
       reference: null,
+      tariff: null,
     })
   })
 
@@ -199,5 +219,96 @@ describe('effective fuel price policy contract', () => {
 
     expect(priceOf(result, 'diesel-s10')?.effectivePricePerUnit).toBe('6.3400')
     expect(priceOf(result, 'diesel-s10')?.reference?.weekEndingOn).toBe('2026-08-08')
+  })
+})
+
+/**
+ * A energia não tem semana da ANP nem UF: a chave é a distribuidora, a tarifa é publicada em R$/MWh
+ * e é seca — sem ICMS, sem PIS/COFINS e sem bandeira. O que a transforma no que a conta cobra é o
+ * fator que a empresa declara, e é por isso que ele entra na conta e não numa segunda coluna.
+ */
+describe('effective energy price contract', () => {
+  test('turns the two published parcels into the unit the vehicle consumes', () => {
+    const result = resolveEffectiveFuelPrices(facts({ energy: tariff() }))
+
+    expect(priceOf(result, 'eletrico')).toEqual({
+      product: 'eletrico',
+      unit: 'kilowatt-hour',
+      effectivePricePerUnit: '0.7955',
+      source: 'aneel',
+      updatedAt: null,
+      reference: null,
+      tariff: tariff(),
+    })
+  })
+
+  /**
+   * Uma divisão só, arredondada uma vez: dividir por mil e depois multiplicar arredondaria o mesmo
+   * número duas vezes, e o tique perdido no meio não volta para o R$/km do veículo.
+   */
+  test('applies the declared factor over the sum, rounding once', () => {
+    const result = resolveEffectiveFuelPrices(
+      facts({ energy: tariff({ adjustmentFactor: '1.2500' }) }),
+    )
+
+    expect(priceOf(result, 'eletrico')?.effectivePricePerUnit).toBe('0.9944')
+  })
+
+  test('keeps the factor of one as the price the ANEEL published', () => {
+    const dry = resolveEffectiveFuelPrices(facts({ energy: tariff() }))
+    const raised = resolveEffectiveFuelPrices(
+      facts({ energy: tariff({ adjustmentFactor: '1.3500' }) }),
+    )
+
+    expect(dry.find((entry) => entry.product === 'eletrico')?.effectivePricePerUnit).toBe('0.7955')
+    expect(raised.find((entry) => entry.product === 'eletrico')?.effectivePricePerUnit).toBe(
+      '1.0739',
+    )
+  })
+
+  test('lets the adjustment win over the tariff, and keeps the tariff visible', () => {
+    const result = resolveEffectiveFuelPrices(
+      facts({
+        adjustments: [{ product: 'eletrico', pricePerUnit: '0.8900', updatedAt: UPDATED_AT }],
+        energy: tariff(),
+      }),
+    )
+
+    expect(priceOf(result, 'eletrico')).toEqual({
+      product: 'eletrico',
+      unit: 'kilowatt-hour',
+      effectivePricePerUnit: '0.8900',
+      source: 'manual',
+      updatedAt: UPDATED_AT,
+      reference: null,
+      tariff: tariff(),
+    })
+  })
+
+  // Sem distribuidora escolhida, ou com a escolhida ainda sem coleta, não há o que apresentar
+  test('reports the electric product as uninformed while there is no tariff', () => {
+    const result = resolveEffectiveFuelPrices(facts())
+
+    expect(priceOf(result, 'eletrico')?.effectivePricePerUnit).toBeNull()
+    expect(priceOf(result, 'eletrico')?.source).toBeNull()
+    expect(priceOf(result, 'eletrico')?.tariff).toBeNull()
+  })
+
+  test('never lends the tariff to a product that burns litres', () => {
+    const result = resolveEffectiveFuelPrices(facts({ energy: tariff() }))
+
+    for (const entry of result) {
+      if (entry.product === 'eletrico') continue
+      expect(entry.tariff).toBeNull()
+      expect(entry.source).not.toBe('aneel')
+    }
+  })
+
+  test('answers the single product read with the same tariff the list carries', () => {
+    const entry = resolveEffectiveFuelPrice({ ...facts({ energy: tariff() }), product: 'eletrico' })
+
+    expect(entry.effectivePricePerUnit).toBe('0.7955')
+    expect(entry.source).toBe('aneel')
+    expect(entry.tariff).toEqual(tariff())
   })
 })

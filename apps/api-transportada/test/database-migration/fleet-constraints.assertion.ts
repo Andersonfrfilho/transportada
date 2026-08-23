@@ -87,6 +87,71 @@ export async function assertFleetConstraints(
     'fleet_vehicles_owner_rntrc_check',
   )
 
+  // O flex tem dois tanques, e o segundo tem consumo próprio — o carro não faz km/l de gasolina no etanol
+  await database`
+    insert into fleet_vehicles (
+      company_id, plate, role, vehicle_type, state,
+      fuel_type, average_consumption, secondary_fuel_type, secondary_average_consumption
+    ) values (
+      ${companyId}, 'FLX1A11', 'traction', 'car', 'SP',
+      'gasolina-comum', '12.50', 'etanol-hidratado', '8.70'
+    )
+  `
+  // Tanque secundário informado sem consumo é a ficha pela metade, e ela entra: 0 é "não informado"
+  await database`
+    insert into fleet_vehicles (
+      company_id, plate, role, vehicle_type, state, fuel_type, secondary_fuel_type
+    ) values (
+      ${companyId}, 'FLX2A22', 'traction', 'car', 'SP', 'gasolina-comum', 'eletrico'
+    )
+  `
+  // Dois tanques do mesmo produto não são dois tanques: é o mesmo combustível contado duas vezes
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (
+        company_id, plate, role, vehicle_type, state, fuel_type, secondary_fuel_type
+      ) values (
+        ${companyId}, 'FLX3A33', 'traction', 'car', 'SP', 'gasolina-comum', 'gasolina-comum'
+      )
+    `,
+    '23514',
+    'fleet_vehicles_secondary_fuel_check',
+  )
+  // Consumo de um tanque que não existe é número órfão, e ele entraria na média do R$/km
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (
+        company_id, plate, role, vehicle_type, state, secondary_average_consumption
+      ) values (
+        ${companyId}, 'FLX4A44', 'traction', 'car', 'SP', '9.10'
+      )
+    `,
+    '23514',
+    'fleet_vehicles_secondary_fuel_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (
+        company_id, plate, role, vehicle_type, state, secondary_fuel_type
+      ) values (
+        ${companyId}, 'FLX5A55', 'traction', 'car', 'SP', 'querosene'
+      )
+    `,
+    '23514',
+    'fleet_vehicles_secondary_fuel_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (
+        company_id, plate, role, vehicle_type, state, fuel_type, secondary_fuel_type, secondary_average_consumption
+      ) values (
+        ${companyId}, 'FLX6A66', 'traction', 'car', 'SP', 'gasolina-comum', 'etanol-hidratado', '-1.00'
+      )
+    `,
+    '23514',
+    'fleet_vehicles_cost_check',
+  )
+
   await database`
     insert into fleet_drivers (id, company_id, membership_id, name, tax_id)
     values (${driverId}, ${companyId}, ${membershipId}, 'Motorista Titular', '12345678901')

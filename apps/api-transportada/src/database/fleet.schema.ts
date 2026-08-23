@@ -167,6 +167,17 @@ export const fleetVehicles = pgTable(
       .$type<FuelProduct>()
       .notNull()
       .default(DEFAULT_FUEL_PRODUCT),
+    // Vazio é "um tanque só": o flex é o par preenchido, e o híbrido é o par com `eletrico` de um lado
+    secondaryFuelType: varchar('secondary_fuel_type', { length: FUEL_PRODUCT_MAX_LENGTH })
+      .$type<FuelProduct | ''>()
+      .notNull()
+      .default(''),
+    secondaryAverageConsumption: numeric('secondary_average_consumption', {
+      precision: 6,
+      scale: 2,
+    })
+      .notNull()
+      .default('0'),
     otherCostsPerKilometer: moneyColumn('other_costs_per_kilometer').notNull().default('0'),
     acquisitionAmount: moneyColumn('acquisition_amount').notNull().default('0'),
     monthlyInstallmentAmount: moneyColumn('monthly_installment_amount').notNull().default('0'),
@@ -229,7 +240,7 @@ export const fleetVehicles = pgTable(
     // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
     check(
       'fleet_vehicles_cost_check',
-      sql`${table.averageConsumption} >= 0 and ${table.otherCostsPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
+      sql`${table.averageConsumption} >= 0 and ${table.secondaryAverageConsumption} >= 0 and ${table.otherCostsPerKilometer} >= 0 and ${table.acquisitionAmount} >= 0 and ${table.monthlyInstallmentAmount} >= 0 and ${table.annualVehicleTaxAmount} >= 0 and ${table.annualInsuranceAmount} >= 0`,
     ),
     // Implemento não tem tipo: quem traciona é que é moto, VAN ou cavalo mecânico
     check(
@@ -251,6 +262,11 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_fuel_type_check',
       sql`${table.fuelType} in (${sql.raw(inList(FUEL_PRODUCTS))})`,
+    ),
+    // Consumo do segundo tanque sem o segundo produto é número órfão, e ele entraria na média do R$/km
+    check(
+      'fleet_vehicles_secondary_fuel_check',
+      sql`case when length(${table.secondaryFuelType}) = 0 then ${table.secondaryAverageConsumption} = 0 else ${table.secondaryFuelType} in (${sql.raw(inList(FUEL_PRODUCTS))}) and ${table.secondaryFuelType} <> ${table.fuelType} end`,
     ),
     check(
       'fleet_vehicles_ownership_check',

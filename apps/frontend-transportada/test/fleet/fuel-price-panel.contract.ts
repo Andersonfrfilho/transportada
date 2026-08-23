@@ -6,13 +6,14 @@ const PANEL_PATH = 'src/modules/fleet/components/FuelPricePanel.component.tsx'
 const HOOK_PATH = 'src/modules/fleet/hooks/useFuelPrices.hook.ts'
 const PAGE_PATH = 'src/modules/fleet/pages/FleetWorkspace.page.tsx'
 
-/** O catálogo da tela é o mesmo da API: cinco produtos, a unidade presa ao produto. */
+/** O catálogo da tela é o mesmo da API: seis produtos, a unidade presa ao produto. */
 const FUEL_PRODUCTS = [
   'diesel-s10',
   'diesel-s500',
   'gasolina-comum',
   'etanol-hidratado',
   'gnv',
+  'eletrico',
 ] as const
 
 const PANEL_LABEL_KEYS = [
@@ -28,6 +29,9 @@ const PANEL_LABEL_KEYS = [
   'saved',
   'error',
   'loadError',
+  'tariff',
+  'tariffMissing',
+  'taxFree',
 ] as const
 
 function readModule(filePath: string): Promise<string> {
@@ -52,8 +56,8 @@ describe('fuel price presentation contract', () => {
 
       for (const key of PANEL_LABEL_KEYS) expect(fuelPrices[key]).toBeString()
       for (const product of FUEL_PRODUCTS) expect(fuelOption[product]).toBeString()
-      for (const source of ['anp', 'manual']) expect(fuelPriceSource[source]).toBeString()
-      for (const unit of ['litre', 'cubic-metre'])
+      for (const source of ['aneel', 'anp', 'manual']) expect(fuelPriceSource[source]).toBeString()
+      for (const unit of ['litre', 'cubic-metre', 'kilowatt-hour'])
         expect((fuelPrices['unit'] as Record<string, unknown>)[unit]).toBeString()
     }
   })
@@ -79,6 +83,25 @@ describe('fuel price presentation contract', () => {
     expect(component).toContain("source === 'manual'")
     expect(component).toContain('fuelPrices.clear')
     expect(component).toContain('onClear')
+  })
+
+  /**
+   * A tarifa homologada é seca — sem ICMS, sem PIS/COFINS e sem bandeira. Número que se apresenta
+   * como o da conta de luz sem ser é pior que número ausente: o operador confere contra a fatura,
+   * acha a diferença e passa a desconfiar do R$/km da frota inteira.
+   */
+  test('a tarifa da ANEEL diz de que distribuidora veio e que não tem imposto', async () => {
+    const component = await readModule(PANEL_PATH)
+
+    expect(component).toContain('fuelPrices.tariff')
+    expect(component).toContain('fuelPrices.taxFree')
+    expect(component).toContain('tariff')
+  })
+
+  test('a linha sem tarifa nem referência não fica muda', async () => {
+    const component = await readModule(PANEL_PATH)
+
+    expect(component).toContain('fuelPrices.tariffMissing')
   })
 
   test('o painel entra na tela com esqueleto e sem controle fora do design system', async () => {

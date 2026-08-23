@@ -104,7 +104,8 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   nota elegível sem ninguém passando para pegá-la, e a autorização da prefeitura
   esperaria o tique inteiro para virar XML arquivado. É o serviço que exige o
   bloco `NFSE_*` de configuração — sem ele o boot falha, de propósito.
-- **cron-fuel**: `CRON_JOB=fuel.price.pull`, o resumo semanal de preço da ANP (ADR-0033). O tique é
+- **cron-fuel**: `CRON_JOB=fuel.price.pull`, o resumo semanal de preço da ANP (ADR-0033) e a
+  tarifa homologada de energia da ANEEL, coletados pelo mesmo ciclo. O tique é
   `0 9 * * 6` — **sábado, 09:00 UTC (06:00 no Brasil)**, e o dia não é preferência. A semana da ANP
   vai de domingo a sábado e dá nome ao arquivo; `resolveReferenceWeek` deriva a URL da semana que
   contém o dia de hoje. Rodando no sábado, pede a semana que fecha naquele dia — publicada na
@@ -173,6 +174,15 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 > forma derruba o boot em vez de servir data inventada. Mudou a cadência do cron?
 > mude a variável junto. No painel da Railway o valor vai **sem aspas** — elas só
 > existem no `.env.example` porque o CI faz `. ./.env` e `*` solto vira glob.
+
+> ⛽ **`ANP_BASE_URL`, `ANP_TIMEOUT_MS`, `ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS`, na `cron-fuel`**
+> (`https://www.gov.br/anp/...` e `https://dadosabertos.aneel.gov.br`), são os dois destinos
+> externos do job de preço — litro e kWh saem do mesmo ciclo, e o schema exige as **quatro** no
+> boot dele: falta de uma derruba o deploy em vez de gravar meia série. Provisionar nos dois
+> ambientes com o mesmo valor do `.env.example`; são bases públicas, sem token e sem segredo, e o
+> `cron-fuel` sobe em staging e em production. Nenhum script do repositório escreve variável no
+> painel — `railway-deploy.sh` só publica —, então este passo é manual por ambiente. Sem elas o
+> serviço nem chega a rodar um ciclo, e o próximo é só no sábado seguinte.
 
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de

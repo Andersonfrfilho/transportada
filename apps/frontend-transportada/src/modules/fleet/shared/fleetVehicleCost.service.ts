@@ -29,17 +29,29 @@ type CostPerKilometerFields = Pick<
   'averageConsumption' | 'otherCostsPerKilometer'
 >
 
+/**
+ * O segundo tanque vem aninhado, irmão de `fuelPricePerUnit` e fora dos campos de custo: o objeto
+ * diz "um tanque ou dois" no tipo, e dois campos soltos deixariam o preço chegar sem o consumo dele.
+ */
+type SecondaryFuelInput = Readonly<{
+  averageConsumption: string
+  pricePerUnit: null | string
+}>
+
 type DeriveCostPerKilometerInput = Readonly<{
   fields: CostPerKilometerFields
   fuelPricePerUnit: null | string
+  secondaryFuel?: SecondaryFuelInput
 }>
 
 type SummarizeVehicleCostsInput = Readonly<{
   fields: FleetVehicleCostFields
   fuelPricePerUnit: null | string
+  secondaryFuelPricePerUnit: null | string
 }>
 
 const MONTHS_PER_YEAR = 12
+const PARCELS_IN_A_PAIR = 2
 const MONEY_SCALE = 4
 const MONEY_FORM_SCALE = 2
 const CONSUMPTION_SCALE = 2
@@ -55,6 +67,8 @@ const EMPTY_SUMMARY: FleetVehicleCostSummary = {
   fuelCostPerKilometer: null,
   monthlyFixedCost: null,
   otherCostsPerKilometer: null,
+  primaryFuelCostPerKilometer: null,
+  secondaryFuelCostPerKilometer: null,
 }
 
 /** O preço da referência tem quatro casas, e a quarta é a que muda o R$/km ao dividir. */
@@ -74,6 +88,7 @@ export const VEHICLE_COST_FIELD_SCALE: Readonly<
   averageConsumption: CONSUMPTION_SCALES,
   monthlyInstallmentAmount: MONEY_SCALES,
   otherCostsPerKilometer: COST_PER_KILOMETER_SCALES,
+  secondaryAverageConsumption: CONSUMPTION_SCALES,
 }
 
 function toApiAmount(fields: FleetVehicleCostFields, key: FleetVehicleCostKey): string {
@@ -93,6 +108,7 @@ export function toVehicleCostBody(fields: FleetVehicleCostFields): FleetVehicleC
     averageConsumption: toApiAmount(fields, 'averageConsumption'),
     monthlyInstallmentAmount: toApiAmount(fields, 'monthlyInstallmentAmount'),
     otherCostsPerKilometer: toApiAmount(fields, 'otherCostsPerKilometer'),
+    secondaryAverageConsumption: toApiAmount(fields, 'secondaryAverageConsumption'),
   }
 }
 
@@ -104,6 +120,7 @@ export function toVehicleCostFormState(fields: FleetVehicleCostFields): FleetVeh
     averageConsumption: toFormAmount(fields, 'averageConsumption'),
     monthlyInstallmentAmount: toFormAmount(fields, 'monthlyInstallmentAmount'),
     otherCostsPerKilometer: toFormAmount(fields, 'otherCostsPerKilometer'),
+    secondaryAverageConsumption: toFormAmount(fields, 'secondaryAverageConsumption'),
   }
 }
 
@@ -137,17 +154,26 @@ export function deriveMonthlyFixedCost(fields: FleetVehicleCostFields): null | s
 export function deriveCostPerKilometer(
   input: DeriveCostPerKilometerInput,
 ): DerivedCostPerKilometer | null {
-  const fuel = deriveFuelParcel(input)
+  const primaryFuel = deriveFuelParcel({
+    averageConsumption: input.fields.averageConsumption,
+    pricePerUnit: input.fuelPricePerUnit,
+  })
+  const secondaryFuel =
+    input.secondaryFuel === undefined ? null : deriveFuelParcel(input.secondaryFuel)
+  const fuel = averageFuelParcels(primaryFuel, secondaryFuel)
   const otherCosts = isZeroAmount(input.fields.otherCostsPerKilometer)
     ? null
     : input.fields.otherCostsPerKilometer
 
   if (fuel === null && otherCosts === null) return null
 
+  const drinksFromBothTanks = primaryFuel !== null && secondaryFuel !== null
+
   return {
     breakdown: {
       ...(fuel === null ? {} : { fuel }),
       ...(otherCosts === null ? {} : { otherCosts }),
+      ...(drinksFromBothTanks ? { primaryFuel, secondaryFuel } : {}),
     },
     total: sumScaledAmounts([fuel ?? ZERO_MONEY, otherCosts ?? ZERO_MONEY]),
   }
@@ -182,19 +208,50 @@ export function resolveFormFuelPrice(
   return input.vehicle.fuelType === input.selectedFuelType ? input.vehicle.fuelPrice : null
 }
 
+/**
+ * O preço do segundo tanque é o do produto **dele**: casar pelo produto salvo é o que impede o
+ * etanol ser dividido pelo preço da gasolina depois de trocar o par sem salvar.
+ */
+export function resolveSecondaryFormFuelPrice(
+  input: Readonly<{
+    selectedFuelType: '' | FuelProduct
+    vehicle:
+      | Readonly<{
+          secondaryFuelPrice: FleetVehicleFuelPrice | null
+          secondaryFuelType: '' | FuelProduct
+        }>
+      | undefined
+  }>,
+): FleetVehicleFuelPrice | null {
+  if (input.vehicle === undefined || input.selectedFuelType === '') return null
+
+  return input.vehicle.secondaryFuelType === input.selectedFuelType
+    ? input.vehicle.secondaryFuelPrice
+    : null
+}
+
 export function formatFuelPricePerUnit(value: string): string {
   return fuelPriceFormatter.format(toNumericLiteral(value))
 }
 
 export function summarizeVehicleCosts(input: SummarizeVehicleCostsInput): FleetVehicleCostSummary {
   const monthlyFixedCost = deriveMonthlyFixedCost(input.fields)
-  const costPerKilometer = deriveCostPerKilometer(input)
+  const costPerKilometer = deriveCostPerKilometer({
+    fields: input.fields,
+    fuelPricePerUnit: input.fuelPricePerUnit,
+    secondaryFuel: {
+      averageConsumption: input.fields.secondaryAverageConsumption,
+      pricePerUnit: input.secondaryFuelPricePerUnit,
+    },
+  })
 
   return {
     costPerKilometer: costPerKilometer === null ? null : formatAmount(costPerKilometer.total),
     fuelCostPerKilometer: formatParcel(costPerKilometer?.breakdown.fuel),
     monthlyFixedCost: monthlyFixedCost === null ? null : formatAmount(monthlyFixedCost),
     otherCostsPerKilometer: formatParcel(costPerKilometer?.breakdown.otherCosts),
+    primaryFuelCostPerKilometer: formatParcel(costPerKilometer?.breakdown.primaryFuel),
+    secondaryFuelCostPerKilometer: formatParcel(costPerKilometer?.breakdown.secondaryFuel),
   }
 }
 
@@ -210,22 +267,40 @@ export function summarizeTypedVehicleCosts(
     return summarizeVehicleCosts({
       fields: toVehicleCostBody(input.fields),
       fuelPricePerUnit: input.fuelPricePerUnit,
+      secondaryFuelPricePerUnit: input.secondaryFuelPricePerUnit,
     })
   } catch {
     return EMPTY_SUMMARY
   }
 }
 
-function deriveFuelParcel(input: DeriveCostPerKilometerInput): null | string {
-  if (input.fuelPricePerUnit === null) return null
+function deriveFuelParcel(input: SecondaryFuelInput): null | string {
+  if (input.pricePerUnit === null) return null
 
   const parcel = divideScaledAmounts({
-    dividend: input.fuelPricePerUnit,
-    divisor: input.fields.averageConsumption,
+    dividend: input.pricePerUnit,
+    divisor: input.averageConsumption,
     scale: MONEY_SCALE,
   })
 
   return parcel === null || isZeroAmount(parcel) ? null : parcel
+}
+
+/**
+ * A média, e não o rateio: a proporção real é quanto o veículo rodou com cada tanque, e ninguém
+ * registra isso — pedi-la ao operador seria pedir um número que ele também estimaria. Com uma
+ * parcela só a conta é a de hoje: dividir por dois ali cortaria o custo do veículo pela metade
+ * enquanto o segundo tanque ainda não tem preço nem consumo.
+ */
+function averageFuelParcels(primary: null | string, secondary: null | string): null | string {
+  if (primary === null) return secondary
+  if (secondary === null) return primary
+
+  return divideAmount({
+    divisor: PARCELS_IN_A_PAIR,
+    scale: MONEY_SCALE,
+    value: sumScaledAmounts([primary, secondary]),
+  })
 }
 
 function formatParcel(value: string | undefined): null | string {

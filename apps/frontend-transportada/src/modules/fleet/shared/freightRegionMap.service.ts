@@ -58,6 +58,31 @@ export function resolveZoneFill(zone: null | number): string {
   return FREIGHT_REGION_ZONE_FILL[zone ?? -1] ?? UNASSIGNED_FILL
 }
 
+/**
+ * A UF de abertura sai da própria carga: a aba abria em branco e o operador escolhia o mesmo estado
+ * toda vez. Só rota ativa conta, pelo mesmo recorte de `buildFreightRegionMap` — abrir numa UF onde
+ * nada é pintado é o mapa vazio de antes com outro nome. Empate desempata pela sigla, senão a mesma
+ * carga abriria em telas diferentes.
+ */
+export function resolveDefaultMapState(regions: readonly FreightRegion[]): string {
+  const totalByState = new Map<string, number>()
+  for (const region of regions) {
+    if (region.status !== 'active') continue
+    for (const city of region.cities) {
+      const state = city.state.trim().toUpperCase()
+      if (state === '') continue
+      totalByState.set(state, (totalByState.get(state) ?? 0) + 1)
+    }
+  }
+
+  const ranked = [...totalByState.entries()].sort(
+    ([leftState, leftTotal], [rightState, rightTotal]) =>
+      rightTotal - leftTotal || leftState.localeCompare(rightState),
+  )
+
+  return ranked[0]?.[0] ?? ''
+}
+
 function toCodeByFold(municipalities: readonly MunicipalityIdentity[]): Map<string, string> {
   const codes = new Map<string, string>()
   for (const municipality of municipalities) {

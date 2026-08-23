@@ -55,6 +55,7 @@
     "modelYear": "Ano do modelo",
     "axleCount": "Eixos",
     "color": "Cor",
+    "fuelArrangement": "Combustível",
     "costPerKilometer": "Custo por km",
     "monthlyFixedCost": "Custo fixo mensal"
   },
@@ -234,27 +235,40 @@
   "annualVehicleTaxAmount": "IPVA anual",
   "annualInsuranceAmount": "Seguro anual",
   "fuelType": "Combustível",
+  "secondaryFuelType": "Segundo combustível",
+  "secondaryFuelNone": "Nenhum — um tanque só",
+  "fuelArrangement": {
+    "flex": "Flex",
+    "hybrid": "Híbrido"
+  },
+  "fuelArrangementTitle": "Arranjo de combustível",
   "fuelOption": {
     "diesel-s10": "Diesel S-10",
     "diesel-s500": "Diesel S-500",
     "gasolina-comum": "Gasolina comum",
     "etanol-hidratado": "Etanol hidratado",
-    "gnv": "GNV"
+    "gnv": "GNV",
+    "eletrico": "Elétrico"
   },
   "consumptionByUnit": {
     "litre": "Consumo médio (km/l)",
-    "cubic-metre": "Consumo médio (km/m³)"
+    "cubic-metre": "Consumo médio (km/m³)",
+    "kilowatt-hour": "Consumo médio (km/kWh)"
   },
   "fuelPriceByUnit": {
     "litre": "Preço do combustível (R$/litro)",
-    "cubic-metre": "Preço do combustível (R$/m³)"
+    "cubic-metre": "Preço do combustível (R$/m³)",
+    "kilowatt-hour": "Preço da energia (R$/kWh)"
   },
   "otherCostsPerKilometer": "Outros custos por quilômetro",
   "costPerKilometer": "Custo por quilômetro",
   "fuelCostPerKilometer": "Combustível por quilômetro",
+  "primaryFuelCostPerKilometer": "Primeiro combustível por quilômetro",
+  "secondaryFuelCostPerKilometer": "Segundo combustível por quilômetro",
   "fuelPriceSource": {
     "anp": "Referência ANP",
-    "manual": "Ajuste da transportadora"
+    "manual": "Ajuste da transportadora",
+    "aneel": "Tarifa ANEEL"
   },
   "fuelPriceWeek": "Semana de referência encerrada em",
   "fuelPriceUnavailable": "Sem preço para este combustível",
@@ -363,21 +377,40 @@
   "vehicleNotFound": "Um dos veículos selecionados não existe mais nesta empresa",
   "fuelPrices": {
     "title": "Preço do combustível",
-    "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência da ANP; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
+    "hint": "O custo por quilômetro sai deste preço dividido pelo consumo médio do veículo. Sem ajuste, vale a referência pública — a da ANP para quem queima combustível, a da ANEEL para o elétrico; o valor digitado aqui passa a valer no lugar dela até ser limpo.",
     "effective": "Em uso: {{price}} ({{source}}).",
-    "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência da ANP, o R$/km não é calculado para este combustível.",
+    "unavailable": "Sem preço em uso. Enquanto não houver ajuste nem referência pública, o R$/km não é calculado para este combustível.",
     "reference": "Referência da ANP: {{price}} — {{state}}, semana encerrada em {{week}}.",
-    "referenceMissing": "A ANP ainda não publicou referência para este combustível.",
+    "referenceMissing": "Ainda não há referência pública publicada para este combustível.",
     "fieldLabel": "Novo preço por {{unit}}",
     "save": "Salvar preço",
     "clear": "Limpar ajuste",
     "saved": "Preço salvo.",
     "error": "Não foi possível salvar o preço. Código: {{code}}.",
     "loadError": "Não foi possível carregar os preços de combustível.",
+    "tariff": "Tarifa da {{distributor}}: TUSD {{tusd}} + TE {{te}} por MWh, vigente de {{from}} a {{to}}.",
+    "tariffMissing": "Ainda não há tarifa publicada para a distribuidora escolhida.",
+    "taxFree": "A tarifa homologada é seca: sem ICMS, sem PIS/COFINS e sem bandeira. Ajuste o preço aqui para chegar ao que a conta de luz cobra.",
     "unit": {
       "litre": "litro",
-      "cubic-metre": "metro cúbico"
+      "cubic-metre": "metro cúbico",
+      "kilowatt-hour": "quilowatt-hora"
     }
+  },
+  "energySettings": {
+    "title": "Energia elétrica",
+    "hint": "O preço do quilowatt-hora do veículo elétrico sai da tarifa homologada da ANEEL para a distribuidora escolhida aqui, multiplicada pelo fator de ajuste.",
+    "distributorLabel": "Distribuidora",
+    "distributorPlaceholder": "Escolha a distribuidora",
+    "factorLabel": "Fator de ajuste",
+    "factorHint": "A tarifa homologada é seca: sem imposto e sem bandeira tarifária. O fator multiplica a tarifa até o valor que a conta de luz cobra — 1,0000 mantém a tarifa como publicada.",
+    "save": "Salvar distribuidora",
+    "clear": "Limpar distribuidora",
+    "saved": "Distribuidora salva.",
+    "error": "Não foi possível salvar a distribuidora. Código: {{code}}.",
+    "loadError": "Não foi possível carregar a configuração de energia.",
+    "emptyCatalog": "Nenhuma tarifa publicada ainda: a coleta da ANEEL roda uma vez por semana e é ela que preenche esta lista.",
+    "unchosen": "Sem distribuidora escolhida, o R$/km do veículo elétrico não é calculado."
   },
   "currencyPrefix": "R$",
   "sort": {
@@ -417,6 +450,8 @@
     "color": "Cor",
     "costPerKilometer": "Custo por quilômetro",
     "fuelType": "Combustível",
+    "secondaryFuelType": "Segundo combustível",
+    "fuelArrangement": "Combustível",
     "model": "Modelo",
     "modelYear": "Ano do modelo",
     "monthlyFixedCost": "Custo fixo mensal",

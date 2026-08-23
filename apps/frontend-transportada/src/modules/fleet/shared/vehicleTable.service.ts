@@ -7,6 +7,7 @@ import type {
   FleetVehicleRole,
   FleetVehicleStatus,
 } from './fleet.types'
+import { resolveFuelArrangementLabelKey } from './fuelArrangement.service'
 
 export const VEHICLE_SORT_COLUMNS = [
   'plate',
@@ -17,6 +18,7 @@ export const VEHICLE_SORT_COLUMNS = [
   'modelYear',
   'axleCount',
   'color',
+  'fuelArrangement',
   'costPerKilometer',
   'monthlyFixedCost',
   'capacityKilograms',
@@ -136,6 +138,13 @@ function compareByColumn(
 ): number {
   if (column === 'modelYear') return left.modelYear - right.modelYear
   if (column === 'axleCount') return left.axleCount - right.axleCount
+  // O arranjo é derivado do par e traduzido na tela: ordenar pela chave mantém a ordem estável
+  if (column === 'fuelArrangement') {
+    return textCollator.compare(
+      resolveFuelArrangementLabelKey(left),
+      resolveFuelArrangementLabelKey(right),
+    )
+  }
   if (column === 'capacityKilograms') {
     return compareScaledAmounts(left.capacityKilograms, right.capacityKilograms)
   }

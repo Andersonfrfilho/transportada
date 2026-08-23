@@ -15,6 +15,7 @@ export const FLEET_VEHICLE_COLUMN_KEYS = [
   'modelYear',
   'axleCount',
   'color',
+  'fuelArrangement',
   'costPerKilometer',
   'monthlyFixedCost',
 ] as const
@@ -27,6 +28,7 @@ const DEFAULT_HIDDEN_COLUMNS: readonly FleetVehicleColumnKey[] = [
   'modelYear',
   'axleCount',
   'color',
+  'fuelArrangement',
   'costPerKilometer',
   'monthlyFixedCost',
 ]
@@ -68,17 +70,19 @@ export function readFleetVehicleColumnValue(
   input: Readonly<{
     colorLabel: string
     column: FleetVehicleColumnKey
+    fuelArrangementLabel: string
     notInformedLabel: string
     vehicle: FleetVehicleDetail
   }>,
 ): string {
-  const { colorLabel, column, notInformedLabel, vehicle } = input
+  const { colorLabel, column, fuelArrangementLabel, notInformedLabel, vehicle } = input
   if (column === 'brand') return vehicle.brand
   if (column === 'model') return vehicle.model
   if (column === 'modelYear') return String(vehicle.modelYear)
   if (column === 'axleCount') return String(vehicle.axleCount)
   // A cor é slug fechado no banco: traduzir é papel de quem tem o `t`, não deste serviço puro.
   if (column === 'color') return colorLabel
+  if (column === 'fuelArrangement') return fuelArrangementLabel
   if (column === 'costPerKilometer') {
     if (vehicle.costPerKilometer === null) return notInformedLabel
     return formatAmount(vehicle.costPerKilometer)
