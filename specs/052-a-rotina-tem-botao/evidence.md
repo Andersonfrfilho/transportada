@@ -645,6 +645,7 @@ cron      94 pass · 0 fail  ( 7 arquivos)  ·  typecheck limpo
 raiz      lint limpo  ·  format:check limpo
 ```
 
-⚠️ Falta o passo manual: provisionar as quatro variáveis no serviço `worker` dos **dois** ambientes
-Railway e removê-las do painel da `cron`, onde já saíram do schema. Nenhum script do repositório
-escreve variável no painel.
+**Railway.** As quatro foram provisionadas no serviço `worker` dos **dois** ambientes
+(`--skip-deploys`; valem no próximo deploy). No painel da `cron` elas não existiam — quem as tinha
+era o serviço `cron-fuel`, que já não existe. Resto ainda no painel da `cron`, dos dois ambientes:
+`CRON_JOB`, que nenhum código lê desde o T3.
