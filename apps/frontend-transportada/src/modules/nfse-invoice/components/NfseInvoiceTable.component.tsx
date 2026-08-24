@@ -23,6 +23,7 @@ import { NfseInvoiceColumnsMenu } from './NfseInvoiceColumnsMenu.component'
 import { NfseInvoiceFilters } from './NfseInvoiceFilters.component'
 import { NfseInvoicePagination } from './NfseInvoicePagination.component'
 import { NfseInvoiceRowActions } from './NfseInvoiceRowActions.component'
+import { NfseAuthorizationRefresh } from './NfseAuthorizationRefresh.component'
 import { NfseInvoiceSelectionBar } from './NfseInvoiceSelectionBar.component'
 
 const EMPTY_CELL = '—'
@@ -201,6 +202,8 @@ export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element 
       />
 
       <p className={styles.counter}>{t('table.counter', { count: table.loadedCount })}</p>
+
+      <NfseAuthorizationRefresh table={table} />
 
       <NfseInvoiceSelectionBar table={table} />
 

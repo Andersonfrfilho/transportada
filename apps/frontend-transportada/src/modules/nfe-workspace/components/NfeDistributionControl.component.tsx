@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import type { NfeJobRunSnapshot } from '../shared/nfeWorkspaceClient.service'
-import { useCountdown } from '../hooks/useCountdown.hook'
+import { useCountdown } from '@/modules/shared/useCountdown.hook'
 import {
   type NfeDistributionPullControl,
   formatCountdown,

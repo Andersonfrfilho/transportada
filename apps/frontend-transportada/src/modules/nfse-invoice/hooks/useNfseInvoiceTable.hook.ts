@@ -46,6 +46,10 @@ import { useNfseInvoiceBulkDiscard } from './useNfseInvoiceBulkDiscard.hook'
 import { useNfseInvoiceBulkExport } from './useNfseInvoiceBulkExport.hook'
 import { useNfseInvoiceBulkReissue } from './useNfseInvoiceBulkReissue.hook'
 import { useNfseInvoiceRowActions } from './useNfseInvoiceRowActions.hook'
+import {
+  resolveNextRefreshIso,
+  resolveNfseAuthorizationRefreshState,
+} from '../shared/nfseAuthorizationRefresh.service'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
 
 export type NfseInvoiceTableController = ReturnType<typeof useNfseInvoiceTable>
@@ -107,9 +111,21 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
     enabled: controller.canReadInvoices,
     queryFn: () => controller.listInvoices(query),
     queryKey: [NFSE_INVOICES_QUERY_KEY, input.companyId, JSON.stringify(query)] as const,
+    /**
+     * O ciclo existe só enquanto alguma nota espera a prefeitura. Sem esse corte, uma aba aberta e
+     * esquecida bateria na API para sempre por uma resposta que não muda.
+     */
+    refetchInterval: (polled) => {
+      const state = resolveNfseAuthorizationRefreshState({
+        invoices: polled.state.data?.items ?? [],
+      })
+
+      return state.enabled ? (state.intervalMs ?? false) : false
+    },
   })
 
   const invoices = invoicesQuery.data?.items ?? []
+  const refreshState = resolveNfseAuthorizationRefreshState({ invoices })
   const nextCursor = invoicesQuery.data?.nextCursor ?? null
   knownInvoices.current = rememberInvoices(knownInvoices.current, invoices)
 
@@ -154,6 +170,19 @@ export function useNfseInvoiceTable(input: UseNfseInvoiceTableInput) {
   }
 
   return {
+    /** O relógio parte do fim do último fetch: é dali que o próximo ciclo conta. */
+    authorizationRefresh: {
+      isRefreshing: invoicesQuery.isFetching,
+      nextRefreshIso: resolveNextRefreshIso({
+        enabled: refreshState.enabled,
+        fromEpochMs: invoicesQuery.dataUpdatedAt,
+        intervalMs: refreshState.intervalMs,
+      }),
+      pendingCount: refreshState.pendingCount,
+      refreshNow: () => {
+        void invoicesQuery.refetch()
+      },
+    },
     activeFilterCount:
       filterMode === 'advanced'
         ? countActiveNfseConditions(advancedFilter.model)

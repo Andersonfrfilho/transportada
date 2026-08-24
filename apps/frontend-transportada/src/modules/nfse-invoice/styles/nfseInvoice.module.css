@@ -749,3 +749,19 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* Só existe enquanto há nota esperando a prefeitura, então não reserva espaço quando não aparece. */
+.authorizationRefresh {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.authorizationRefreshLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
