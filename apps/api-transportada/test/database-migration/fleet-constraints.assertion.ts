@@ -361,16 +361,16 @@ export async function assertFleetConstraints(
   // O endereço do CNPJ do agregado é opcional metade por metade, como o residencial
   await database`
     insert into fleet_drivers (company_id, name, tax_id, linked_postal_code, linked_state, linked_city)
-    values (${companyId}, 'Agregado Com Endereco Da Empresa', '55566677788', '14400000', 'SP', 'Franca')
+    values (${companyId}, 'Agregado Com Endereco Da Empresa', '12000000011', '14400000', 'SP', 'Franca')
   `
   await database`
     insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
-    values (${companyId}, 'Agregado Com CEP Sozinho', '66677788899', '14400000')
+    values (${companyId}, 'Agregado Com CEP Sozinho', '12000000022', '14400000')
   `
   await expectQueryToFail(
     database`
       insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
-      values (${companyId}, 'Agregado Com CEP Mascarado', '77788899900', '14400-000')
+      values (${companyId}, 'Agregado Com CEP Mascarado', '12000000033', '14400-000')
     `,
     '23514',
     'fleet_drivers_linked_postal_code_check',
@@ -378,7 +378,7 @@ export async function assertFleetConstraints(
   await expectQueryToFail(
     database`
       insert into fleet_drivers (company_id, name, tax_id, linked_state)
-      values (${companyId}, 'Agregado Com UF Por Extenso', '88899900011', 'Sao Paulo')
+      values (${companyId}, 'Agregado Com UF Por Extenso', '12000000044', 'Sao Paulo')
     `,
     '23514',
     'fleet_drivers_linked_state_check',
@@ -386,7 +386,7 @@ export async function assertFleetConstraints(
   await expectQueryToFail(
     database`
       insert into fleet_drivers (company_id, name, tax_id, linked_street)
-      values (${companyId}, 'Agregado Com Rua Longa', '99900011144', ${'R'.repeat(121)})
+      values (${companyId}, 'Agregado Com Rua Longa', '12000000055', ${'R'.repeat(121)})
     `,
     '23514',
     'fleet_drivers_linked_address_length_check',
