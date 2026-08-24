@@ -36,10 +36,7 @@ export function createDrizzleDistributionEnqueueGateway(dependencies: {
   }
 }
 
-async function insertEnqueuePlan(
-  database: Database,
-  plan: DistributionEnqueuePlan,
-): Promise<void> {
+async function insertEnqueuePlan(database: Database, plan: DistributionEnqueuePlan): Promise<void> {
   await database.transaction(async (transaction) => {
     await transaction.insert(nfeImports).values({
       automationJob: plan.import.automationJob,

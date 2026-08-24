@@ -84,9 +84,10 @@ describe('nfe distribution eligibility', () => {
       eligible: false,
       reason: 'certificate_missing',
     })
-    expect(
-      evaluate({ certificate: { ...CERTIFICATE, status: 'retired' } }),
-    ).toEqual({ eligible: false, reason: 'certificate_missing' })
+    expect(evaluate({ certificate: { ...CERTIFICATE, status: 'retired' } })).toEqual({
+      eligible: false,
+      reason: 'certificate_missing',
+    })
     expect(
       evaluate({
         certificate: {
@@ -146,9 +147,9 @@ describe('nfe distribution candidate mapping', () => {
     expect(
       toDistributionCandidate({ environment: 'homologation', row: { ...ROW } }).environment,
     ).toBe('homologation')
-    expect(toDistributionCandidate({ environment: 'production', row: { ...ROW } }).environment).toBe(
-      'production',
-    )
+    expect(
+      toDistributionCandidate({ environment: 'production', row: { ...ROW } }).environment,
+    ).toBe('production')
   })
 
   test('ausência no join vira ausência na política, nunca `null`', () => {
@@ -184,7 +185,9 @@ describe('nfe distribution candidate mapping', () => {
 
 describe('nfe distribution idempotency key', () => {
   test('a cadência sai do catálogo, não de configuração', () => {
-    expect(DISTRIBUTION_CADENCE_MINUTES).toBe(JOB_MINIMUM_INTERVAL_SECONDS[DISTRIBUTION_PULL_JOB] / 60)
+    expect(DISTRIBUTION_CADENCE_MINUTES).toBe(
+      JOB_MINIMUM_INTERVAL_SECONDS[DISTRIBUTION_PULL_JOB] / 60,
+    )
     expect(DISTRIBUTION_CADENCE_MINUTES).toBe(5)
   })
 
@@ -225,7 +228,10 @@ describe('nfe distribution idempotency key', () => {
       }),
     ).not.toBe(key)
     expect(
-      deriveDistributionIdempotencyKey({ ...base, companyId: '00000000-0000-4000-8000-0000000000ff' }),
+      deriveDistributionIdempotencyKey({
+        ...base,
+        companyId: '00000000-0000-4000-8000-0000000000ff',
+      }),
     ).not.toBe(key)
     // Homologação e produção têm cursor próprio: uma chave só pularia NSU de um lado.
     expect(deriveDistributionIdempotencyKey({ ...base, environment: 'homologation' })).not.toBe(key)

@@ -87,11 +87,13 @@ describeDatabase('createDrizzleDistributionCandidateSource.listCandidates (integ
       on conflict (id) do nothing
     `)
 
-    await db.insert(companyFiscalProfiles).values([
-      baseProfile(eligibleCompanyId, '12345678000190'),
-      baseProfile(optedOutCompanyId, '98765432000155'),
-      baseProfile(mdfeOnlyCompanyId, '45678912000133'),
-    ])
+    await db
+      .insert(companyFiscalProfiles)
+      .values([
+        baseProfile(eligibleCompanyId, '12345678000190'),
+        baseProfile(optedOutCompanyId, '98765432000155'),
+        baseProfile(mdfeOnlyCompanyId, '45678912000133'),
+      ])
 
     await db.execute(sql`
       insert into company_distribution_settings (company_id, scheduled_distribution_enabled)

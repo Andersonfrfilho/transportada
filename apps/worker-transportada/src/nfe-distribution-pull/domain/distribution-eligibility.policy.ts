@@ -73,7 +73,8 @@ function findBlockingReason(
   if (certificateReason !== undefined) return certificateReason
 
   const nextAllowedAt = candidate.nextAllowedAt
-  if (nextAllowedAt !== undefined && nextAllowedAt.getTime() > now.getTime()) return 'cooldown_active'
+  if (nextAllowedAt !== undefined && nextAllowedAt.getTime() > now.getTime())
+    return 'cooldown_active'
 
   return undefined
 }
