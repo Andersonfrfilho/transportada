@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { JobRoutine, JobRoutineContext, JobRoutineResult } from '../../job-run/application/job-routine.port.js'
+import type {
+  JobRoutine,
+  JobRoutineContext,
+  JobRoutineResult,
+} from '../../job-run/application/job-routine.port.js'
 import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
 import type { JobOutcome } from '../../shared/job-catalog.constant.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'

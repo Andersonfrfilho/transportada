@@ -110,10 +110,7 @@ function planAt(plans: readonly DistributionEnqueuePlan[], index: number): Distr
   return plan
 }
 
-function withCompany(
-  candidate: DistributionCandidate,
-  companyId: string,
-): DistributionCandidate {
+function withCompany(candidate: DistributionCandidate, companyId: string): DistributionCandidate {
   return { ...candidate, companyId }
 }
 
