@@ -283,7 +283,6 @@
     "empty": "Nenhuma nota da seleção pode virar nota de serviço.",
     "documents": "{{count}} notas",
     "omittedDocuments": "{{count}} fora da descrição",
-    "moreRows": "Mais {{count}} tomadores não exibidos.",
     "totalService": "Total do serviço",
     "totalIss": "Total do ISS",
     "blocked": "Notas fora da emissão",
@@ -321,7 +320,12 @@
     "errorPreview": "Não foi possível calcular a prévia da emissão.",
     "errorCreate": "Não foi possível emitir as notas de serviço.",
     "errorProfiles": "Não foi possível carregar os perfis de emissão.",
-    "profileMissing": "Nenhum perfil de emissão ativo está cadastrado. Cadastre um perfil em Configurações para emitir a nota de serviço."
+    "profileMissing": "Nenhum perfil de emissão ativo está cadastrado. Cadastre um perfil em Configurações para emitir a nota de serviço.",
+    "range": "{{start}}–{{end}} de {{total}}",
+    "pageSize": "NFS-e por página",
+    "pageIndicator": "{{current}} de {{total}}",
+    "previousPage": "Anterior",
+    "nextPage": "Próxima"
   },
   "feedback": {
     "alreadyAuthorized": "Esta nota de serviço já está autorizada.",

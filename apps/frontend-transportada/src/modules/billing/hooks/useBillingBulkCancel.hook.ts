@@ -51,13 +51,22 @@ export function useBillingBulkCancel(input: UseBillingBulkCancelInput) {
         },
         reason,
       }),
-    onSuccess: async (results) => {
+    /**
+     * A revalidação não segura o botão: `isPending` só cai quando a promise daqui resolve, e
+     * esperar as listas voltarem deixava o botão em "cancelando" muito depois de os cancelamentos
+     * terem saído. A ordem abaixo continua valendo, encadeada em vez de aguardada.
+     */
+    onSuccess: (results) => {
       setOutcomes(results)
       // A fatura cancelada devolve o CT-e: elegíveis e a coluna "Faturado" mudam com a lista.
-      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
-      // Só depois da lista voltar do servidor a seleção perde sentido — antes disso o operador
-      // ainda está lendo quais faturas saíram.
-      if (results.every((outcome) => outcome.errorCode === undefined)) input.onCancelled()
+      void invalidateMutationEffect({
+        effect: MUTATION_EFFECT.billingInvoiceItem,
+        queryClient,
+      }).then(() => {
+        // Só depois da lista voltar do servidor a seleção perde sentido — antes disso o operador
+        // ainda está lendo quais faturas saíram.
+        if (results.every((outcome) => outcome.errorCode === undefined)) input.onCancelled()
+      })
     },
   })
 

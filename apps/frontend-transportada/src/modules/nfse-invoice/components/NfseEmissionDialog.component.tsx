@@ -6,6 +6,8 @@ import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+
+import { NFSE_EMISSION_PAGE_SIZES, parseNfseEmissionPageSize } from '../shared/nfseEmission.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { UseNfseEmissionDialogResult } from '../hooks/useNfseEmissionDialog.hook'
@@ -22,6 +24,11 @@ type NfseEmissionDialogProps = Readonly<{
 }>
 
 const SKELETON_ROWS = 3
+
+const pageSizeOptions: readonly SelectOption[] = NFSE_EMISSION_PAGE_SIZES.map((size) => ({
+  label: String(size),
+  value: String(size),
+}))
 
 export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
   const { t } = useTranslation('nfseInvoice')
@@ -182,10 +189,54 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
                 </table>
               </div>
             )}
-            {dialog.hiddenRowCount > 0 && (
-              <p className={styles.emissionHint}>
-                {t('emission.moreRows', { count: dialog.hiddenRowCount })}
-              </p>
+            {dialog.pageCount > 1 && (
+              <div className={styles.pagination}>
+                <span className={styles.emissionRangeLabel}>
+                  {t('emission.range', {
+                    end: dialog.rowsLastShown,
+                    start: dialog.rowsFirstShown,
+                    total: dialog.rowsTotal,
+                  })}
+                </span>
+                <div className={styles.emissionPager}>
+                  <Select
+                    align="end"
+                    ariaLabel={t('emission.pageSize')}
+                    clearable={false}
+                    compact
+                    onChange={(value) => dialog.setPageSize(parseNfseEmissionPageSize(value))}
+                    options={pageSizeOptions}
+                    placeholder={t('emission.pageSize')}
+                    value={String(dialog.pageSize)}
+                  />
+                  <button
+                    aria-label={t('emission.previousPage')}
+                    className={styles.iconAction}
+                    disabled={!dialog.canGoToPreviousPage}
+                    onClick={dialog.goToPreviousPage}
+                    title={t('emission.previousPage')}
+                    type="button"
+                  >
+                    <Icon name="page-previous" />
+                  </button>
+                  <span className={styles.emissionPageIndicator}>
+                    {t('emission.pageIndicator', {
+                      current: dialog.pageNumber,
+                      total: dialog.pageCount,
+                    })}
+                  </span>
+                  <button
+                    aria-label={t('emission.nextPage')}
+                    className={styles.iconAction}
+                    disabled={!dialog.hasNextPage}
+                    onClick={dialog.goToNextPage}
+                    title={t('emission.nextPage')}
+                    type="button"
+                  >
+                    <Icon name="page-next" />
+                  </button>
+                </div>
+              </div>
             )}
             <p className={styles.emissionTotal}>
               {t('emission.totalService')}:{' '}

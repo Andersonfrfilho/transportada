@@ -765,3 +765,22 @@
   font-family: var(--font-utility);
   font-size: 0.75rem;
 }
+
+.emissionPager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.emissionRangeLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.emissionPageIndicator {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}

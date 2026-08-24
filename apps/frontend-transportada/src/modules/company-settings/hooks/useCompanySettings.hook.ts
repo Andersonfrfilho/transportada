@@ -106,8 +106,8 @@ function useSettingsMutations(
   const queryClient = useQueryClient()
   const certificateMutation = useMutation({
     mutationFn: input.controller.replaceCertificate,
-    async onSuccess() {
-      await Promise.all([
+    onSuccess() {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: input.settingsKey }),
         queryClient.invalidateQueries({ queryKey: input.certificatesKey }),
       ])
@@ -115,8 +115,8 @@ function useSettingsMutations(
   })
   const certificateRetireMutation = useMutation({
     mutationFn: input.controller.retireCertificate,
-    async onSuccess() {
-      await Promise.all([
+    onSuccess() {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: input.settingsKey }),
         queryClient.invalidateQueries({ queryKey: input.certificatesKey }),
       ])

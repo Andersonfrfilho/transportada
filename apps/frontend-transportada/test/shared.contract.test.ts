@@ -1,3 +1,5 @@
+import './shared/row-pagination.contract.js'
+import './shared/mutation-pending-state.contract.js'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './shared/alphanumeric-tax-id.contract.js'
 import './shared/content-security-policy.contract.js'

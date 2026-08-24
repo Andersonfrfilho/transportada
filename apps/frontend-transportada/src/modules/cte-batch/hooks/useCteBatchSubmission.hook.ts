@@ -39,7 +39,7 @@ export function useCteBatchSubmission(input: UseCteBatchSubmissionInput) {
         },
         submitBatch: input.submitBatch,
       }),
-    onSuccess: async (results) => {
+    onSuccess: (results) => {
       setOutcomes(results)
       input.onFinish?.()
       /**
@@ -47,7 +47,7 @@ export function useCteBatchSubmission(input: UseCteBatchSubmissionInput) {
        * sem invalidar, a barra da SEFAZ lê o retrato de antes da transmissão — e como nele nada
        * consta em voo, o polling nem liga e a barra congela no que era verdade antes.
        */
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEMS_QUERY_KEY] }),
       ])

@@ -116,8 +116,8 @@ export function useCteBatchWorkspace(
   // O lote cancelado sai do recorte de vínculo ativo: todas as notas dele voltam a ser livres.
   const cancelBatchMutation = useMutation({
     mutationFn: controller.cancelBatch,
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: batchesQueryKey }),
         invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
       ])

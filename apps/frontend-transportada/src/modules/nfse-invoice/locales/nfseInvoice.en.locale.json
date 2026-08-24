@@ -283,7 +283,6 @@
     "empty": "No note in the selection can become a service invoice.",
     "documents": "{{count}} notes",
     "omittedDocuments": "{{count}} outside the description",
-    "moreRows": "{{count}} more takers not shown.",
     "totalService": "Service total",
     "totalIss": "Tax total",
     "blocked": "Notes left out",
@@ -321,7 +320,12 @@
     "errorPreview": "Could not calculate the emission preview.",
     "errorCreate": "Could not issue the service invoices.",
     "errorProfiles": "Could not load the emission profiles.",
-    "profileMissing": "No active emission profile is registered. Create one in Settings to issue the service invoice."
+    "profileMissing": "No active emission profile is registered. Create one in Settings to issue the service invoice.",
+    "range": "{{start}}–{{end}} of {{total}}",
+    "pageSize": "NFS-e per page",
+    "pageIndicator": "{{current}} of {{total}}",
+    "previousPage": "Previous",
+    "nextPage": "Next"
   },
   "feedback": {
     "alreadyAuthorized": "This service invoice is already authorized.",
