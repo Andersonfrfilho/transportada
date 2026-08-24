@@ -19,19 +19,6 @@ export type CronFuelPricePullEnvironment = {
 }
 
 /**
- * Configuração exclusiva do trilho de reconciliação de NFS-e. Só é resolvida quando o provedor
- * municipal está declarado — a instalação sem NFS-e contratada sobe sem bucket, sem chaveiro e sem
- * endereço de prefeitura, que ela não usa.
- */
-export type CronNfseStatusPullEnvironment = {
-  readonly encryptionActiveKeyId: string
-  readonly encryptionKeyRingJson: string
-  readonly providerBaseUrl: string
-  readonly providerTimeoutMilliseconds: number
-  readonly storage: CronStorageEnvironment
-}
-
-/**
  * Configuração exclusiva do trilho de rotinas de notificação. Broker e prefixo já são exigidos
  * pela batida; o que a torna presente é a chave de supressão declarada.
  */
@@ -41,15 +28,6 @@ export type CronNotificationSchedulesEnvironment = {
   readonly suppressionHmacKey: string
 }
 
-export type CronStorageEnvironment = {
-  readonly accessKey: string
-  readonly bucket: string
-  readonly endpoint: string
-  readonly provider: string
-  readonly region: string
-  readonly secretKey: string
-}
-
 export type CronEnvironment = {
   readonly appEnv: string
   readonly cadenceMinutes: number
@@ -57,7 +35,6 @@ export type CronEnvironment = {
   readonly fiscalEnvironment: CronFiscalEnvironment
   readonly fuelPricePull: CronFuelPricePullEnvironment | undefined
   readonly logLevel: LogLevel
-  readonly nfseStatusPull: CronNfseStatusPullEnvironment | undefined
   readonly notificationSchedules: CronNotificationSchedulesEnvironment | undefined
   readonly pageSize: number
   readonly queuePrefix: string

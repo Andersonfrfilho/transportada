@@ -472,5 +472,50 @@ worker                    571 pass ·  0 fail
 make worker-integration    55 pass ·  0 fail  (12 arquivos)
 ```
 
-`typecheck`, `lint` e `format` limpos na raiz. A fatia do cron **continua no lugar, sem chamador**,
-como a da distribuição.
+`typecheck`, `lint` e `format` limpos na raiz.
+
+### T7 (h) — a fatia do cron foi apagada, e o bloco de configuração dela foi com ela
+
+Ao contrário da distribuição, aqui a fatia **não** ficou parada esperando a última rotina pousar. O
+motivo é o bloco de configuração: manter `nfse-status-pull/` no cron obrigava o schema de ambiente a
+continuar exigindo chaveiro (`ENCRYPTION_ACTIVE_KEY_ID`, `ENCRYPTION_KEYRING_JSON`), bucket
+(`STORAGE_*`) e endereço de prefeitura (`NFSE_PROVIDER_BASE_URL`, `NFSE_PROVIDER_TIMEOUT_MS`) no boot
+de uma app onde **nada mais os lê**. Segredo cobrado no boot para rotina que não roda é convite a
+resto de configuração no painel.
+
+O que saiu do `cron-transportada`:
+
+- as cinco cópias por valor (`infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+  `domain/nfse-document-payload.policy.ts`, `application/nfse-credential-secret.service.ts`,
+  `src/database/nfse-reconciliation.schema.ts`) mais `config/cryptographic-configuration.schema.ts`,
+  o parser de chaveiro, e `test/nfse-status-pull/` inteiro — inclusive o
+  `nota-rp-parity.contract.ts` que o `tasks.md` prometia converter em worker × worker. Com uma
+  implementação só não há paridade a guardar: **o contrato que sobrevive é
+  `worker/test/nota-rp-v2-client.contract.test.ts`**, e a varredura de `no-bearer` perdeu a segunda
+  cópia junto.
+- `nfseStatusPull` do `CronEnvironment`, `resolveNfseStatusPullEnvironment` do schema e o guarda de
+  `NFSE_PROVIDER_BASE_URL_HOMOLOGATION`/`_PRODUCTION` — este último mudou para o worker, única app
+  que ainda fala com a Nota RP.
+- `@adatechnology/object-storage-provider` e `@adatechnology/secret-envelope` do `package.json`
+  (nenhum importador restante, verificado por varredura); `bun install` na raiz podou exatamente duas
+  linhas do `bun.lock`, sem outro movimento.
+- o `NFSE_SETTINGS` do `test/notification-schedules/environment.contract.ts` e o teste que o usava —
+  com as chaves fora do schema, ele já não afirmava nada.
+
+O que **fica** no cron de propósito: `src/shared/job-catalog.constant.ts` continua nomeando
+`nfse.status.pull` (é o vocabulário do relógio, não da rotina) e `FISCAL_ENVIRONMENT` continua
+exigido, porque a fatia já órfã da distribuição ainda o lê.
+
+`docs/spec/railway.md` e o `CLAUDE.md` foram atualizados: **nenhuma variável nova foi provisionada** —
+o worker já abria envelope selado e arquivava documento fiscal para _emitir_ nota —, e as que saíram do
+schema da cron podem ser removidas do painel dela, nunca do worker.
+
+**Gate.**
+
+```
+cron                      153 pass ·  0 fail  (410 expects · 9 arquivos)
+worker                    615 pass ·  0 fail  (1470 expects · 62 arquivos)
+make worker-integration    55 pass ·  0 fail  (196 expects · 12 arquivos)
+```
+
+`typecheck` e `lint` limpos nas duas apps; `format:check` limpo na raiz.

@@ -22,17 +22,6 @@ const BASE_ENVIRONMENT = {
   RABBITMQ_URL: 'amqp://localhost:55672',
 } as const
 
-/** A rotina de NFS-e exige o bloco dela; aqui ele é só cenário para o trilho de aviso. */
-const NFSE_SETTINGS = {
-  ENCRYPTION_ACTIVE_KEY_ID: 'k1',
-  ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
-  NFSE_PROVIDER_BASE_URL: 'https://www.notarp.com.br/api/v2',
-  STORAGE_ACCESS_KEY: 'access',
-  STORAGE_BUCKET: 'transportada',
-  STORAGE_ENDPOINT: 'http://localhost:59000',
-  STORAGE_SECRET_KEY: 'secret',
-} as const
-
 describe('contrato do trilho de aviso das rotinas', () => {
   test('a configuração do trilho é resolvida com a chave de supressão declarada', () => {
     expect(parseCronEnvironment(BASE_ENVIRONMENT).notificationSchedules).toEqual({
@@ -54,21 +43,6 @@ describe('contrato do trilho de aviso das rotinas', () => {
         NOTIFICATION_SUPPRESSION_HMAC_KEY: undefined,
       }).notificationSchedules,
     ).toBeUndefined()
-  })
-
-  /**
-   * A reconciliação de NFS-e avisa quem pediu a nota quando a prefeitura recusa, e é o mesmo trilho.
-   * Configurada a chave, o aviso sai; ausente, a reconciliação roda calada — sem este ramo o
-   * notificador nunca era construído e a rejeição morria só no banco.
-   */
-  test('a rotina de NFS-e enxerga o mesmo trilho de aviso', () => {
-    expect(
-      parseCronEnvironment({ ...BASE_ENVIRONMENT, ...NFSE_SETTINGS }).notificationSchedules,
-    ).toEqual({
-      queuePrefix: 'transportada_test',
-      rabbitMqUrl: 'amqp://localhost:55672',
-      suppressionHmacKey: SUPPRESSION_KEY,
-    })
   })
 
   // Falhar no boot é preferível a rodar o ciclo e descobrir na primeira entrega que a supressão

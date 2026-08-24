@@ -174,6 +174,14 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 > que liga a coleta: nenhuma das duas declaradas é rotina não configurada, e **uma só** derruba o
 > boot — meia série gravada é tela com preço sem dizer que está incompleto.
 
+> 🧾 **A `cron` deixou de ler chaveiro, bucket e endereço da Nota RP** (spec 052, T7). A
+> reconciliação de NFS-e virou rotina do `worker`, que já abria envelope selado e arquivava
+> documento fiscal para **emitir** nota — nenhuma variável nova precisou ser provisionada.
+> `ENCRYPTION_ACTIVE_KEY_ID`, `ENCRYPTION_KEYRING_JSON`, `NFSE_PROVIDER_BASE_URL`,
+> `NFSE_PROVIDER_TIMEOUT_MS` e o bloco `STORAGE_*` **saíram do schema da `cron`**: se estiverem no
+> painel dela, são resto e podem ser removidos. Não remova nada disso do `worker` — lá elas são o
+> que faz a nota sair e o XML ser guardado.
+
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de
 `${{rabbitmq.*}}`.

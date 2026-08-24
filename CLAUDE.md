@@ -350,25 +350,21 @@ avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** 
 viraram um (spec 052). ⚠️ As rotinas chegam ao worker uma por vez, e enquanto a dela não chega o
 `src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as duas que faltam
 (`fuel.price.pull`, `notification.schedules.run`) estão nesse estado, e cada janela delas pousa em
-`job_run_routine_missing` no worker. `nfe.distribution.pull` e `nfse.status.pull` já foram (as fatias
-do cron ficaram paradas, e serão apagadas quando a última pousar).
+`job_run_routine_missing` no worker. `nfe.distribution.pull` e `nfse.status.pull` já foram: a fatia
+da NF-e ficou parada aqui (será apagada quando a última pousar) e a da **NFS-e já foi apagada** —
+com ela saíram as cinco cópias por valor do cliente da Nota RP, o schema de reconciliação e o bloco
+de configuração dele (chaveiro, bucket e endereço da prefeitura não são mais lidos nesta app).
 
-As quatro rotinas:
+As rotinas que ainda vivem aqui:
 
 - `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
   `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
   consumidor de distribuição que já existiam.
-- `nfse.status.pull` — reconcilia NFS-e com a prefeitura: consulta a situação de cada nota pendente,
-  arquiva XML e PDF no bucket na autorização, grava a rejeição com código e mensagem. Aqui o cron
-  **processa** em vez de enfileirar (desvio deliberado da regra geral): o consumidor seria dele
-  mesmo. Quem decide a transição é o banco — todo `UPDATE` de liquidação projeta o status de origem
-  no `WHERE` e devolve `RETURNING`; sem linha, a escrita inteira é abandonada. O XML é o documento
-  fiscal e sem ele a nota não liquida; o PDF é conveniência, e sua falta só é registrada.
 - `notification.schedules.run` — varre o que venceu (fatura a vencer, NFS-e rejeitada) e reenfileira
   em `notification.v1`, a mesma trilha que a API publica e o worker consome.
 - `fuel.price.pull` — baixa o resumo semanal da ANP (XLSX lido por código nosso, ZIP +
   `inflateRawSync`, sem dependência nova — ADR-0033) e grava `fuel_price_references` por produto e
-  UF. Como o cron de NFS-e, aqui ele **processa** em vez de enfileirar. Roda **sábado**
+  UF. Como a reconciliação de NFS-e fazia, aqui ele **processa** em vez de enfileirar. Roda **sábado**
   (`0 9 * * 6`): a semana da ANP vai de domingo a sábado e **dá nome ao arquivo**, então a URL é
   derivada da semana que contém o dia de hoje — domingo pediria uma semana publicada seis dias
   depois, e daria 404 todo ciclo. Reexecutar a mesma semana não duplica linha: a chave natural
@@ -376,17 +372,19 @@ As quatro rotinas:
   sem bucket e sem tenant — a planilha é dado público de mercado.
 
 Sem `CRON_JOB`, quem diz que um bloco de configuração existe é a **presença** da variável que o
-abre: `NFSE_PROVIDER_BASE_URL` vazia deixa a rotina de NFS-e não configurada (e aí chaveiro e bucket
-não são cobrados), e preenchida faz o boot falhar se faltar algum dos dois. O endereço do broker
+abre: nenhum endereço de agência declarado deixa `fuel.price.pull` não configurada, e **uma só**
+derruba o boot (meia série gravada é tela com preço sem dizer que está incompleta); a chave de
+supressão declarada é o que liga o trilho de aviso. O endereço do broker
 (`RABBITMQ_URL`, `QUEUE_PREFIX`), esse é **sempre** obrigatório: a batida sempre publica, e um cron
 que não alcança a fila não teria o que fazer.
 
 **O endereço da Nota RP é um só, e a NFS-e é trilho de produção** (ADR-0035). O provedor publica um
 servidor (`https://www.notarp.com.br/api/v2`) e não tem homologação; quem separa uma instalação da
 outra é a credencial selada por empresa, não a URL. Por isso `NFSE_PROVIDER_BASE_URL` substituiu o par
-`_HOMOLOGATION`/`_PRODUCTION` — um teste em cada app falha se os nomes voltarem — `FISCAL_ENVIRONMENT`
-não escolhe mais endereço de NFS-e (segue valendo para CT-e e MDF-e), e o `deploy.yml` publica
-`cron-nfse` **em produção**, não em staging.
+`_HOMOLOGATION`/`_PRODUCTION` — o teste que falha se os nomes voltarem é o do **worker**, única app
+que ainda fala com a Nota RP — e `FISCAL_ENVIRONMENT` não escolhe mais endereço de NFS-e (segue
+valendo para CT-e e MDF-e). `cron-nfse` não existe mais: a reconciliação é rotina do worker, que
+publica nos dois ambientes.
 
 **A Nota RP não autentica só pelo token, e não emite sem endereço de retorno** (spec 040). Toda
 chamada leva **dois** cabeçalhos: `X-AUTH-USER-TOKEN` e `X-AUTH-IM`, a inscrição municipal do
@@ -476,16 +474,13 @@ mude do outro; `test/companies/scheduled-distribution-parity.contract.ts` guarda
 servido pelas duas rotas, e `test/nfe-distribution-pull/eligibility-reasons.contract.ts` guarda o
 vocabulário no cron.
 
-⚠️ O trilho de NFS-e do cron carrega cinco **cópias por valor** do worker:
-`nfse-status-pull/infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
-`nfse-status-pull/domain/nfse-document-payload.policy.ts`,
-`nfse-status-pull/application/nfse-credential-secret.service.ts` e
-`src/database/nfse-reconciliation.schema.ts` (mais `config/cryptographic-configuration.schema.ts`,
-cópia do parser de chaveiro). São reduções, não espelhos — aqui só se consulta e se baixa documento.
-O que guarda a paridade é comportamento, não diff de texto:
-`test/nfse-status-pull/nota-rp-parity.contract.ts` fixa a mesma tabela de tradução de resposta e de
-causas de falha que o cliente do worker. Mudou o vocabulário da Nota RP de um lado? mude do outro.
-O AAD do envelope tem de ser idêntico ao que selou:
+🧾 **As cinco cópias por valor da NFS-e não existem mais** (spec 052, T7). Enquanto a reconciliação
+morava aqui, o cliente da Nota RP, o gateway fiscal, a política de documento, o serviço de envelope
+e o schema de reconciliação eram cópia do worker, e um contrato de paridade guardava o vocabulário
+nos dois. Com a rotina virando `nfse.status.pull` do worker, a cópia deixou de ter fronteira que a
+justifique: **dentro de uma app se importa**, e a reconciliação usa o mesmo cliente da emissão. O
+que sobrou de contrato é `worker-transportada/test/nota-rp-v2-client.contract.test.ts`, e o AAD do
+envelope segue idêntico ao que selou:
 `transportada:nfse-credential:v1:${companyId}:${credentialId}`.
 
 ⚠️ O catálogo `FUEL_TYPES` é **cópia por valor** nas três apps que o usam —
