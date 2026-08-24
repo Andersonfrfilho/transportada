@@ -29,7 +29,7 @@ type FreightRegionFormProps = Readonly<{
 /** O valor da classe é o que a transportadora paga ao motorista pela viagem, não o frete cobrado. */
 export function FreightRegionForm({ form, onCancel, region }: FreightRegionFormProps) {
   const { t } = useTranslation('fleet')
-  const panelRef = useRevealedPanel<HTMLFormElement>()
+  const { panelRef } = useRevealedPanel<HTMLFormElement>()
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

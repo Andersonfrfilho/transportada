@@ -26,6 +26,7 @@ import {
   toSelectedVehicleIds,
   toggleVehicleSelection,
 } from '../shared/driverVehicles.service'
+import { toDriverInvalidFieldLabels } from '../shared/driverInvalidFields.service'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import {
   createDriverDraft,
@@ -39,6 +40,8 @@ type UseDriverFormInput = Readonly<{
   driver?: FleetDriverDetail
   onCreate: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  /** Chamado quando a ficha volta a ficar em branco, para a tela devolver o foco ao primeiro campo. */
+  onReset?: () => void
   /** O 409 de colisão tem campo dono; quem o ancora lá é o controlador de unicidade da tela. */
   onSaveError?: (error: unknown) => void
   /** Quem abriu a ficha de fora precisa da versão gravada — é dela que o veículo tira o dono. */
@@ -62,6 +65,8 @@ export type DriverFormController = Readonly<{
   clear: () => void
   coverage: DriverCoverageController
   feedbackKey: null | string
+  /** Chaves de rótulo dos campos que a API recusou; vazio quando a falha não aponta campo. */
+  invalidFieldLabels: readonly string[]
   isSaving: boolean
   patch: (values: Partial<FleetDriverFormState>) => void
   selectedVehicleIds: readonly string[]
@@ -87,9 +92,11 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       : toDriverFormState(input.driver),
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
+  /** Os campos que a API recusou, para o aviso dizer onde olhar em vez de só dizer que falhou. */
+  const [invalidFieldLabels, setInvalidFieldLabels] = useState<readonly string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [selection, setSelection] = useState<null | readonly string[]>(null)
-  const { driver, onCreate, onSaveError, onSaved, onUpdate, regions, vehicles } = input
+  const { driver, onCreate, onReset, onSaveError, onSaved, onUpdate, regions, vehicles } = input
   // `null` significa "o operador ainda não mexeu": a marcação acompanha os vínculos que chegarem.
   const selectedVehicleIds = selection ?? toSelectedVehicleIds(vehicles?.links ?? [])
   const coverage = useDriverCoverage({
@@ -99,6 +106,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
 
   function patch(values: Partial<FleetDriverFormState>): void {
     setFeedbackKey(null)
+    setInvalidFieldLabels([])
     setState((previous) => {
       const next = { ...previous, ...values }
       writeFormDraft({
@@ -120,11 +128,13 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     coverage.clear()
     clearFormDraft({ storage, storageKey })
     setState(createDriverDraft())
+    onReset?.()
   }
 
   /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
   function clear(): void {
     resetFields()
+    setInvalidFieldLabels([])
     setFeedbackKey(null)
   }
 
@@ -172,10 +182,12 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       if (driver === undefined) {
         resetFields()
       }
+      setInvalidFieldLabels([])
       setFeedbackKey('saved')
       onSaved?.(saved)
     } catch (error) {
       onSaveError?.(error)
+      setInvalidFieldLabels(toDriverInvalidFieldLabels(error))
       setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
@@ -186,6 +198,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     clear,
     coverage,
     feedbackKey,
+    invalidFieldLabels,
     isSaving,
     patch,
     selectedVehicleIds,

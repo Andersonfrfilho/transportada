@@ -32,6 +32,7 @@
   "cancel": "Cancel",
   "save": "Save",
   "saved": "Record saved",
+  "invalidFieldsLead": "Check:",
   "saveError": "Could not save the record",
   "invalidDraft": "There are invalid fields in the form",
   "versionConflict": "The record changed in another session. Reload the page before saving.",

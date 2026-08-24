@@ -6,12 +6,13 @@ import { and, desc, eq } from 'drizzle-orm'
 
 import { digitalCertificates } from '../../database/cte-issuance-execution.schema.js'
 import { companyFiscalProfiles } from '../../database/nfe.schema.js'
+import { NFE_DISTRIBUTION_CERTIFICATE_PURPOSE } from '../../shared/nfe-distribution.constant.js'
 import { normalizeTaxId } from '../../shared/tax-id.service.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const DISTRIBUTION_MODEL = 'nfe-distribuicao' as const
-const CERTIFICATE_PURPOSE = 'cte' as const
+const CERTIFICATE_PURPOSE = NFE_DISTRIBUTION_CERTIFICATE_PURPOSE
 const CERTIFICATE_STATUS_ACTIVE = 'active' as const
 
 type NfeDistributionEnvironment = 'homologation' | 'production'

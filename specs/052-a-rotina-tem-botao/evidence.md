@@ -223,8 +223,10 @@ mensagem morta não é lugar de conteúdo não validado. Decode que falha é dea
 **O consumidor entrou na runtime como todos os outros.** `startJobRunConsumer` é injetável por
 `WorkerRuntimeDependencies`, tem provider próprio no `createCloseableGroup` e posição fixa na ordem
 de dreno — os dois contratos de runtime que assertam a ordem exata foram atualizados, e é por eles
-que um consumidor esquecido no shutdown falha o gate. Ele sobe hoje com `routines: {}`: as quatro
-rotinas chegam uma por vez, de T5 a T8, e até lá toda mensagem pousa em `job_run_routine_missing`.
+que um consumidor esquecido no shutdown falha o gate. Ele subiu com `routines: {}`: as quatro rotinas
+chegam uma por vez, e até cada uma chegar a mensagem dela pousa em `job_run_routine_missing`. ⚠️ Foi
+esse vazio que parou a busca automática de notas em produção — o T8, abaixo, é o registro da
+primeira rotina real e o fim daquela parada.
 
 ⚠️ **Renovação de lease é do T4b, de propósito.** `JOB_RUN_LEASE_SECONDS` é 30, o mesmo do outbox
 relay, e nada o renova enquanto o ciclo corre. Com `routines: {}` nenhum ciclo leva tempo mensurável,
@@ -334,3 +336,99 @@ job-run-execution          11 pass ·  0 fail  (banco migrado descartável)
 As quatro novas do `job-run-execution` são a renovação contra Postgres — 46 → 50 na integração é a
 prova de que rodaram, e não caíram em `describe.skip` por falta de `DATABASE_URL`.
 `typecheck` e `lint` limpos nas quatro apps.
+
+## T8 — a distribuição nasce da batida
+
+**Esta task fechou uma parada em produção, não uma lacuna de roadmap.** Com a release da 052 no ar
+(staging `375e4c6`, produção `c99db03`), o cron virou batida de cinco minutos e a execução passou
+para o worker — que subiu com `routines: {}`. Cada janela de `nfe.distribution.pull` reivindicava a
+linha, não achava rotina, registrava `job_run_routine_missing` e a encerrava como `unexpected_error`.
+A busca automática de NSU parou aí.
+
+⚠️ **O que parou foi o gatilho, e só ele.** `nfe-distribution-consumer.service.ts` seguia consumindo
+`nfe-distribution.v1`, o relay seguia entregando e o botão de `POST /nfe-imports/distribution`
+seguia funcionando — o que faltava era quem publicasse sem alguém clicar. Como o cursor da SEFAZ é
+por NSU, a nota não se perde enquanto ninguém puxa: ela espera. A parada custou **atraso**, não
+documento.
+
+**O registro é uma linha só, e é o `routines: {}` que sai.** `src/main.ts` passou a compor
+`{[DISTRIBUTION_PULL_JOB]: createNfeDistributionPullRoutine({gateway, identifiers, logger, now,
+source})}` com os três adaptadores da fatia (`drizzle-distribution-candidate.source.ts`,
+`drizzle-distribution-enqueue.gateway.ts`, `crypto-identifiers.ts`). A rotina não fala com a SEFAZ:
+ela seleciona empresa elegível e enfileira `source: 'distribution'` · `triggeredBy: 'automation'` na
+`processing_outbox`, reusando o relay e o consumidor que já existiam.
+
+**A trava contra o `cStat 656` mora no cursor, não no agendador.** É
+`nfe_distribution_cursors.next_allowed_at`, por `(company_id, environment)` — a NT 2014.002 §3.11.4
+bloqueia o **CNPJ** por uma hora em consumo indevido, e quem sabe quando a janela reabre é a última
+resposta da SEFAZ, não o relógio do painel. Consequência aritmética: com batida de cinco minutos,
+onze de cada doze janelas são recusadas por `cooldown_active` **antes de qualquer chamada**, e sobra
+no máximo uma ida real por hora por CNPJ. Bater de cinco em cinco minutos é seguro justamente
+porque a decisão não é do agendador.
+
+**A cadência não é configuração:** `DISTRIBUTION_CADENCE_MINUTES` é
+`JOB_MINIMUM_INTERVAL_SECONDS[DISTRIBUTION_PULL_JOB] / 60`, cinco. Ela é o balde da chave de
+idempotência (`<job>:<ambiente>:<empresa>:<instante do balde>`), então duas batidas do mesmo balde
+não abrem duas importações, e ambiente diferente tem chave diferente — cursor próprio, e uma chave
+só pularia NSU de um lado.
+
+⚠️ **O ambiente fiscal aqui é por empresa.** Ele vem de `company_fiscal_profiles.environment`: o
+worker não tem `FISCAL_ENVIRONMENT` e o envelope de `job-run.v1` não carrega ambiente. Por isso a
+junção do cursor é escopada pelo ambiente do perfil — ler o do outro ambiente devolveria a espera
+errada, que é caminho direto para o `cStat 656`. Empresa sem perfil fica de fora com
+`nfe_distribution_pull_company_without_fiscal_profile`, e **não** ganha uma oitava razão de
+inelegibilidade: o vocabulário das sete é contrato do painel, e inventar termo aqui faria o cartão
+contar história que a API não conta.
+
+**O certificado é o de CT-e, e essa é a única correção de comportamento em relação ao cron.** A
+pré-filtragem do cron juntava `digital_certificates` **sem filtrar propósito**, enquanto quem assina
+a distribuição abre o envelope de `purpose = 'cte'`. Com os dois propósitos ativos por empresa, isso
+aprovava empresa pelo certificado de MDF-e e falhava na assinatura — ou a recusava por um vencimento
+que a distribuição nunca usaria. O valor virou `NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
+`src/shared/nfe-distribution.constant.ts`, um lugar para os dois lados olharem a mesma linha. O
+defeito latente não foi portado.
+
+**A consulta de candidatos ganhou teste contra Postgres de verdade**
+(`test/nfe-distribution-candidate-source.integration.test.ts`), e não por zelo: ela é uma junção de
+cinco `left join` sobre tabelas que o worker só **copia**, e coluna renomeada na API passa pelo
+typecheck deste lado para falhar calada no ciclo — a mesma classe de defeito que produziu esta
+parada. Quatro empresas semeadas provam cinco coisas: a elegível reúne os cinco fatos numa linha; a
+espera lida é a do ambiente do perfil e não a do outro (há duas linhas de cursor, e a de
+`homologation` está fechada por dez anos); ausência no join chega como ausência e não como linha a
+menos; certificado de MDF-e não faz as vezes do de CT-e; e empresa sem perfil fica fora **com** o log
+que diz por quê.
+
+**O tipo do vocabulário não é `string`.** `enqueue-distribution.port.ts` declara os campos como
+`typeof CONSTANT`, espelhando o cron: coluna narrada por `$type` não aceita `string`, e afrouxar o
+port para o insert compilar é abrir a porta para gravar palavra que a tabela não conhece.
+
+**Parada pedida no meio das empresas devolve `succeeded`.** Quem traduz parada em `cancelled` é o
+invólucro do T4b, e só de cima disto — a rotina reporta o que gravou, e o que a empresa anterior
+enfileirou permanece.
+
+**Nenhuma migration é devida**, conferido coluna por coluna: cada edição de schema no worker é cópia
+do que a API já versiona — `digital_certificates.valid_from`/`expires_at` e o estreitamento de
+`status`, `companies.status`, os seis `default` de `processing_outbox`,
+`company_distribution_settings` inteira e `nfe_distribution_cursors.next_allowed_at`. Isso importa
+porque o gate local não roda `test:integration` (pede Docker): schema Drizzle sem a migration dele
+passa aqui e só quebra no CI.
+
+⚠️ **A fatia do cron continua sem chamador**, como as outras três — o `nfe-distribution-pull/` de lá
+não é apagado nesta task, e a paridade das duas cópias segue guardada pelos contratos dos dois
+lados. Remover a fatia é o rabo da mudança, quando a última rotina pousar no worker.
+
+⚠️ **O aceite listado no `tasks.md` para o T8 é `test/nfe-workspace/job-run-latest.contract.ts` —
+frontend**, fora do escopo de worker + cron que combinei nesta parada. Ele **não** foi escrito. O que
+existe deste lado são as duas suítes de contrato (`job-run/nfe-distribution-eligibility.contract.ts`
+e `job-run/nfe-distribution-pull.contract.ts`) mais a integração acima; o cartão da última execução
+na tela segue pendente.
+
+**Gate.** Worker e a integração, que é o que o T8 tocou:
+
+```
+worker                    554 pass ·  0 fail  (61 arquivos)
+make worker-integration    55 pass ·  0 fail  (12 arquivos)
+```
+
+50 → 55 na integração é a prova de que as cinco novas rodaram, e não caíram em `describe.skip` por
+falta de `DATABASE_URL`. `typecheck` e `lint` limpos.

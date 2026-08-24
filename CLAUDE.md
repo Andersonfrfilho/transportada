@@ -295,6 +295,26 @@ recebe `{config, logger, provider}` e devolve `{cancel()}`; a lógica fica em `s
 Dependências injetáveis via `WorkerRuntimeDependencies` — é assim que os contract tests substituem
 RabbitMQ e banco.
 
+**As rotinas agendadas são um registro, e ele é parcial de propósito.** `startJobRunConsumer` recebe
+`routines: JobRoutineRegistry` (`Partial<Record<ScheduledJob, JobRoutine>>`) e o consumidor reivindica
+a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registrada pousa em
+`job_run_routine_missing` e fecha como `unexpected_error`. Hoje só `nfe.distribution.pull` está
+registrada, em `src/nfe-distribution-pull/` — ela **não** fala com a SEFAZ: seleciona empresa elegível
+e enfileira `source: 'distribution'` na `processing_outbox`, e daí em diante é o relay e o consumidor
+de `nfe-distribution.v1` que já existiam.
+
+⚠️ **A trava contra o `cStat 656` é `nfe_distribution_cursors.next_allowed_at`, por
+`(company_id, environment)` — nunca a cadência do agendador.** A NT 2014.002 §3.11.4 bloqueia o
+**CNPJ** por uma hora em consumo indevido, e quem sabe quando a janela reabre é a última resposta da
+SEFAZ. Com batida de cinco minutos, onze de cada doze janelas são recusadas por `cooldown_active`
+antes de qualquer chamada. O ambiente é o de `company_fiscal_profiles.environment`, por empresa: o
+worker não tem `FISCAL_ENVIRONMENT` e o envelope de `job-run.v1` não carrega ambiente, então a junção
+do cursor é escopada pelo perfil — ler o do outro ambiente devolveria a espera errada. A distribuição
+assina com o certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
+`src/shared/nfe-distribution.constant.ts`): quem pré-filtra a empresa e quem abre o envelope olham a
+mesma linha de `digital_certificates`, senão a empresa é aprovada pelo certificado de MDF-e e falha ao
+assinar.
+
 ⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — oito arquivos em
 `src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`), e
@@ -311,8 +331,11 @@ O processo é **uma batida só** (`src/tick/tick.job.ts`), agendada a cada cinco
 advisory lock, lê `job_schedules`, publica em `job-run.v1` cada rotina com `next_run_at <= now()` e
 avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** — quem escolhe a rotina
 é o relógio no banco, não a variável do painel de hospedagem, e por isso os quatro serviços de cron
-viraram um (spec 052). ⚠️ Enquanto o trilho do worker não recebe as quatro rotinas (T5 e T7), os
-`src/<rotina>/<rotina>.job.ts` continuam no cron **sem chamador**.
+viraram um (spec 052). ⚠️ As rotinas chegam ao worker uma por vez, e enquanto a dela não chega o
+`src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as três que faltam
+(`fuel.price.pull`, `notification.schedules.run`, `nfse.status.pull`) estão nesse estado, e cada
+janela delas pousa em `job_run_routine_missing` no worker. `nfe.distribution.pull` já foi (a fatia do
+cron ficou parada, e será apagada quando a última pousar).
 
 As quatro rotinas:
 

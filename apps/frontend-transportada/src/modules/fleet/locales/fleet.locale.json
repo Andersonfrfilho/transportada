@@ -32,6 +32,7 @@
   "cancel": "Cancelar",
   "save": "Salvar",
   "saved": "Cadastro salvo",
+  "invalidFieldsLead": "Confira:",
   "saveError": "Não foi possível salvar o cadastro",
   "invalidDraft": "Há campos inválidos no formulário",
   "versionConflict": "O cadastro foi alterado em outra sessão. Recarregue a página antes de salvar.",

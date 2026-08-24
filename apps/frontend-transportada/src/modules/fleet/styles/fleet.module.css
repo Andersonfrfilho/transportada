@@ -1149,3 +1149,14 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   background: var(--color-asphalt);
 }
+
+/* O nome do campo no aviso é um atalho, não um botão: peso de botão competiria com Salvar. */
+.invalidField {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

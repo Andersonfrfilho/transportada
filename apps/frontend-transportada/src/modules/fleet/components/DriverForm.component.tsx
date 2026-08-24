@@ -40,6 +40,7 @@ import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
+import { InvalidFieldsHint } from './InvalidFieldsHint.component'
 import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
@@ -73,11 +74,12 @@ export function DriverForm({
   vehicles,
 }: DriverFormProps) {
   const { t } = useTranslation('fleet')
-  const panelRef = useRevealedPanel<HTMLFormElement>()
+  const { panelRef, reveal } = useRevealedPanel<HTMLFormElement>()
   const uniqueness = useDriverUniqueness(driver === undefined ? {} : { driverId: driver.id })
   const form = useDriverForm({
     onCreate,
     onSaveError: uniqueness.showSaveError,
+    onReset: reveal,
     onUpdate,
     regions: { coverage: regions.coverage, replace: regions.replace },
     vehicles: { isReady: vehicles.isReady, links: vehicles.links, replace: vehicles.replace },
@@ -249,8 +251,12 @@ export function DriverForm({
       />
       <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
       {form.feedbackKey === null ? null : (
-        <FleetFeedback isError={isFleetFeedbackError(form.feedbackKey)}>
+        <FleetFeedback
+          isError={isFleetFeedbackError(form.feedbackKey)}
+          reveal={!uniqueness.hasFieldError}
+        >
           {t(form.feedbackKey)}
+          <InvalidFieldsHint labels={form.invalidFieldLabels} panelRef={panelRef} />
         </FleetFeedback>
       )}
       <div className={styles.formActions}>

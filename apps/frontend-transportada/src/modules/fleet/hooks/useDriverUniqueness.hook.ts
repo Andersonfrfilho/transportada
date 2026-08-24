@@ -22,6 +22,8 @@ export type DriverUniquenessController = Readonly<{
   clear: (field: DriverUniqueField) => void
   confirm: (field: DriverUniqueField, value: string) => void
   errorOf: (field: DriverUniqueField) => string | undefined
+  /** Há erro ancorado num campo: quem rola a tela é ele, e o aviso do rodapé fica quieto. */
+  hasFieldError: boolean
   reset: () => void
   /** O 409 do envio: quem decide a colisão é a constraint, não a conferência prévia. */
   showSaveError: (error: unknown) => boolean
@@ -126,6 +128,7 @@ export function useDriverUniqueness({
     clear,
     confirm,
     errorOf: (field) => errors[field],
+    hasFieldError: Object.keys(errors).length > 0,
     reset,
     showSaveError,
   }
