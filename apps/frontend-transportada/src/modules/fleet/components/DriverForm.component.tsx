@@ -12,6 +12,7 @@ import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 import { useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
 import { useDriverForm } from '../hooks/useDriverForm.hook'
+import { useDriverLinkedAddress } from '../hooks/useDriverLinkedAddress.hook'
 import { useDriverUniqueness } from '../hooks/useDriverUniqueness.hook'
 import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
@@ -35,12 +36,14 @@ import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
+import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
 import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
+  isReady: boolean
   links: readonly FleetDriverVehicleLink[]
   options: readonly FleetVehicleDetail[]
   replace: (input: FleetReplaceDriverVehiclesInput) => Promise<unknown>
@@ -77,11 +80,12 @@ export function DriverForm({
     onSaveError: uniqueness.showSaveError,
     onUpdate,
     regions: { coverage: regions.coverage, replace: regions.replace },
-    vehicles: { links: vehicles.links, replace: vehicles.replace },
+    vehicles: { isReady: vehicles.isReady, links: vehicles.links, replace: vehicles.replace },
     ...(driver === undefined ? {} : { driver }),
   })
   const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const companyLookup = useCompanyLookup({ patch: form.patch })
+  const linkedAddress = useDriverLinkedAddress({ patch: form.patch, state: form.state })
   const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
 
   /** O controlador guarda a chave; quem a traduz é a tela, que é onde o idioma está. */
@@ -143,6 +147,7 @@ export function DriverForm({
             error={fieldErrorText(uniqueness.errorOf('email'))}
             inputRef={uniqueness.bindField('email')}
             label={t('driverEmail')}
+            optional
             value={form.state.email}
             onBlur={() => uniqueness.confirm('email', form.state.email)}
             onChange={(email) => {
@@ -233,6 +238,7 @@ export function DriverForm({
         <p className={styles.hint}>{t('driverAnttHint')}</p>
         {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
       </fieldset>
+      <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />
       <DriverPersonalFields state={form.state} onChange={form.patch} />
       <DriverAddressFields lookup={addressLookup} state={form.state} onChange={form.patch} />
       <DriverVehicleLinkField

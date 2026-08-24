@@ -213,6 +213,7 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isString(value.email) &&
     isString(value.id) &&
     isString(value.licenseNumber) &&
+    isDriverAddress(value.linkedAddress) &&
     isString(value.linkedLegalName) &&
     isString(value.linkedTaxId) &&
     isNullableString(value.membershipId) &&

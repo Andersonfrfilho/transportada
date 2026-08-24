@@ -358,6 +358,40 @@ export async function assertFleetConstraints(
     'fleet_drivers_identity_document_check',
   )
 
+  // O endereço do CNPJ do agregado é opcional metade por metade, como o residencial
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_postal_code, linked_state, linked_city)
+    values (${companyId}, 'Agregado Com Endereco Da Empresa', '55566677788', '14400000', 'SP', 'Franca')
+  `
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
+    values (${companyId}, 'Agregado Com CEP Sozinho', '66677788899', '14400000')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
+      values (${companyId}, 'Agregado Com CEP Mascarado', '77788899900', '14400-000')
+    `,
+    '23514',
+    'fleet_drivers_linked_postal_code_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_state)
+      values (${companyId}, 'Agregado Com UF Por Extenso', '88899900011', 'Sao Paulo')
+    `,
+    '23514',
+    'fleet_drivers_linked_state_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_street)
+      values (${companyId}, 'Agregado Com Rua Longa', '99900011144', ${'R'.repeat(121)})
+    `,
+    '23514',
+    'fleet_drivers_linked_address_length_check',
+  )
+
   await database`
     insert into fleet_driver_vehicle_assignments (id, company_id, driver_id, vehicle_id)
     values (${assignmentId}, ${companyId}, ${driverId}, ${vehicleId})

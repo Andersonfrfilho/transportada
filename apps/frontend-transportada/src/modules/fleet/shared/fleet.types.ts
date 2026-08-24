@@ -305,6 +305,11 @@ export type FleetDriverBody = Readonly<{
   licenseIssuedCity: string
   licenseIssuedState: string
   licenseNumber: string
+  /**
+   * Endereço da empresa do agregado — o do CNPJ de `linkedTaxId`, não o de quem dirige. Mesma
+   * forma do residencial, e igualmente parcial.
+   */
+  linkedAddress: FleetDriverAddress
   /** Razão social da empresa do motorista; pende do CNPJ, e a metade contrária fica solta. */
   linkedLegalName: string
   /** CNPJ da empresa do motorista autônomo; vazio quando ele dirige só como pessoa física. */
@@ -446,6 +451,13 @@ export type FleetDriverFormState = Readonly<{
   licenseIssuedCity: string
   licenseIssuedState: string
   licenseNumber: string
+  linkedAddressCity: string
+  linkedAddressComplement: string
+  linkedAddressDistrict: string
+  linkedAddressNumber: string
+  linkedAddressPostalCode: string
+  linkedAddressState: string
+  linkedAddressStreet: string
   linkedLegalName: string
   linkedTaxId: string
   motherName: string

@@ -21,7 +21,11 @@ import type {
   FleetReplaceDriverRegionsInput,
   FleetReplaceDriverVehiclesInput,
 } from '../shared/fleet.types'
-import { toSelectedVehicleIds, toggleVehicleSelection } from '../shared/driverVehicles.service'
+import {
+  shouldReplaceDriverVehicles,
+  toSelectedVehicleIds,
+  toggleVehicleSelection,
+} from '../shared/driverVehicles.service'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import {
   createDriverDraft,
@@ -46,6 +50,7 @@ type UseDriverFormInput = Readonly<{
     replace: (input: FleetReplaceDriverRegionsInput) => Promise<unknown>
   }>
   vehicles?: Readonly<{
+    isReady?: boolean
     links: readonly FleetDriverVehicleLink[]
     replace: (input: FleetReplaceDriverVehiclesInput) => Promise<unknown>
   }>
@@ -138,7 +143,13 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
             membershipId: driver.membershipId,
             status: driver.status,
           }))
-      if (vehicles !== undefined) {
+      if (
+        vehicles !== undefined &&
+        shouldReplaceDriverVehicles({
+          hasOperatorChoice: selection !== null,
+          isReady: vehicles.isReady !== false,
+        })
+      ) {
         await vehicles.replace({ driverId: saved.id, vehicleIds: selectedVehicleIds })
       }
       if (regions !== undefined) {

@@ -35,6 +35,8 @@ export function useDriverRegions(
   const { driverId } = input
   const coverageKey = [FLEET_DRIVER_REGIONS_QUERY_KEY, input.companyId, driverId] as const
   const optionsKey = [FLEET_REGION_OPTIONS_QUERY_KEY, input.companyId] as const
+  /** Pelo mesmo motivo do vínculo de veículos: a ficha do veículo grava por outro motorista. */
+  const coverageScopeKey = [FLEET_DRIVER_REGIONS_QUERY_KEY, input.companyId] as const
 
   const coverageQuery = useQuery({
     enabled: controller.canReadFleet && driverId !== undefined,
@@ -51,7 +53,7 @@ export function useDriverRegions(
   })
   const replaceMutation = useMutation({
     mutationFn: controller.replaceDriverRegions,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: coverageKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: coverageScopeKey }),
   })
 
   return {

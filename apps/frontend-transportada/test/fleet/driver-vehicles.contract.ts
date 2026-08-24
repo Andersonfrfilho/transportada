@@ -23,6 +23,18 @@ function readApplicationFile(filePath: string): Promise<string> {
 }
 
 describe('fleet driver vehicles contract', () => {
+  test('never rewrites the vehicle set from a list that has not loaded', async () => {
+    const { shouldReplaceDriverVehicles } = await loadFutureModule<{
+      shouldReplaceDriverVehicles: (
+        input: Readonly<{ hasOperatorChoice: boolean; isReady: boolean }>,
+      ) => boolean
+    }>('../../src/modules/fleet/shared/driverVehicles.service')
+
+    expect(shouldReplaceDriverVehicles({ hasOperatorChoice: false, isReady: false })).toBe(false)
+    expect(shouldReplaceDriverVehicles({ hasOperatorChoice: false, isReady: true })).toBe(true)
+    expect(shouldReplaceDriverVehicles({ hasOperatorChoice: true, isReady: false })).toBe(true)
+  })
+
   test('reads and replaces the driver vehicle set over authenticated no-store requests', async () => {
     const requests: Request[] = []
     const client = await createRecordingClient(requests)

@@ -127,6 +127,7 @@ export type FleetDriverBodyContract = Readonly<{
   licenseIssuedCity: string
   licenseIssuedState: string
   licenseNumber: string
+  linkedAddress: FleetDriverAddressContract
   linkedLegalName: string
   linkedTaxId: string
   membershipId: null | string
@@ -266,6 +267,7 @@ export const DRIVER_BODY = {
   licenseIssuedCity: 'Campinas',
   licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   membershipId: null,
@@ -294,6 +296,7 @@ export const DRIVER_CREATE_BODY = {
   licenseIssuedCity: 'Campinas',
   licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   motherName: 'Maria da Silva',
@@ -505,6 +508,7 @@ export const DRIVER_DRAFT_BODY = {
   licenseIssuedCity: '',
   licenseIssuedState: '',
   licenseNumber: '',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   motherName: '',

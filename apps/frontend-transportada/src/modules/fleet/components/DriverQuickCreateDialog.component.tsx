@@ -83,7 +83,7 @@ export function DriverQuickCreateDialog({
     onUpdate,
     regions: { coverage: regions.coverage, replace: regions.replace },
     storageKey: QUICK_DRAFT_STORAGE_KEY,
-    vehicles: { links: vehicles.links, replace: vehicles.replace },
+    vehicles: { isReady: vehicles.isReady, links: vehicles.links, replace: vehicles.replace },
   })
   const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const companyLookup = useCompanyLookup({ patch: form.patch })
