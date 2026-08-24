@@ -96,7 +96,9 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   Eram quatro serviços (`cron`, `cron-nfse`, `cron-notifications`, `cron-fuel`), separados pela
   variável `CRON_JOB` e por nada no build. A variável não existe mais: rotina cuja cadência mora no
   painel do provedor de hospedagem é rotina que o operador do cliente não consegue nem ver, e trocar
-  o tique de uma publicava as quatro.
+  o tique de uma publicava as quatro. Ela ficou de resto no painel dos dois ambientes até ser
+  removida pela CLI em 24/08/2026 — nenhum código a lia, mas variável morta no painel diz que a
+  rotina ainda é escolhida ali.
 
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
   Mudar domínio exige **rebuild**, não só restart. `VITE_APP_ENV` (`local` ·
@@ -171,10 +173,10 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 > token e sem segredo: litro e kWh saem do mesmo ciclo, e a presença é o que liga a coleta —
 > nenhuma das duas declaradas é rotina não configurada (a janela pousa em
 > `job_run_routine_missing`), e **uma só** derruba o boot, porque meia série gravada é tela com
-> preço sem dizer que está incompleto. Provisionar as quatro no `worker` nos **dois** ambientes com
-> o mesmo valor do `.env.example`, e remover as quatro do painel da `cron`, onde já saíram do
-> schema. Nenhum script do repositório escreve variável no painel — `railway-deploy.sh` só
-> publica —, então este passo é manual por ambiente.
+> preço sem dizer que está incompleto. As quatro vivem no `worker` nos **dois** ambientes com o
+> mesmo valor do `.env.example`, e saíram do painel da `cron` — conferido pela CLI em 24/08/2026.
+> Nenhum script do repositório escreve variável no painel — `railway-deploy.sh` só publica —, então
+> este passo é manual por ambiente, e conferir a presença é parte do deploy da rotina.
 
 > 🧾 **A `cron` deixou de ler chaveiro, bucket e endereço da Nota RP** (spec 052, T7). A
 > reconciliação de NFS-e virou rotina do `worker`, que já abria envelope selado e arquivava

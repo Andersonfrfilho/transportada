@@ -647,5 +647,15 @@ raiz      lint limpo  ·  format:check limpo
 
 **Railway.** As quatro foram provisionadas no serviço `worker` dos **dois** ambientes
 (`--skip-deploys`; valem no próximo deploy). No painel da `cron` elas não existiam — quem as tinha
-era o serviço `cron-fuel`, que já não existe. Resto ainda no painel da `cron`, dos dois ambientes:
-`CRON_JOB`, que nenhum código lê desde o T3.
+era o serviço `cron-fuel`, que já não existe. Reconferido pela CLI em 24/08/2026: `worker` com as
+quatro nos dois ambientes, `cron` sem nenhuma.
+
+Na mesma passada saiu o `CRON_JOB`, resto nos dois painéis da `cron` desde o T3: nenhum código o
+lê, mas variável morta ali diz que a rotina ainda é escolhida pelo provedor de hospedagem em vez de
+pelo relógio do banco.
+
+⚠️ Dois desvios entre ambientes, achados na mesma conferência e **fora do escopo desta spec**: o
+`worker` de staging não tem `NFSE_PROVIDER_BASE_URL` (a Nota RP publica um servidor só, o de
+produção — em staging `nfse.status.pull` adia toda nota como `provider_not_configured`, que é o
+comportamento desenhado), e o `worker` de production não tem `SENTRY_DSN` nem `LOG_SINK_URL`: a
+observabilidade está desligada justamente no trilho que emite documento fiscal.
