@@ -100,7 +100,7 @@ import {
 } from './cte-emission-profile.schema.js'
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
-import { tripDocuments, tripDrivers, trips } from './trip.schema.js'
+import { tripDocuments, tripDrivers, tripStops, trips } from './trip.schema.js'
 
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
@@ -217,6 +217,7 @@ export const databaseSchema = {
   storedObjects,
   tripDocuments,
   tripDrivers,
+  tripStops,
   trips,
   userCompanyMemberships,
   userInvitationRoles,

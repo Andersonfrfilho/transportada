@@ -52,15 +52,30 @@ fechada → `returned` com motivo `migration`.
   fica para T006/T010, como escopado. 9 arquivos de teste com literais `'open'/'closed'` corrigidos
   para manter `tsc --noEmit` e a suíte verdes.
 
-### T003 — `trip_stops`
+### T003 ✅ — `trip_stops`
 
 Parada com `sequence` (unique por viagem), chave de endereço normalizada, rótulo legível,
 `arrived_at`, `completed_at`, e `delivery_window_start`/`end` nulas e reservadas. FK composta
 `(company_id, trip_id)` seguindo o padrão de `trips`. Sem coordenada — a 058 a adiciona.
 
-- **Arquivos:** `drizzle/<ts>_trip_stops/`, `src/database/trip.schema.ts`
-- **Aceite:** `test/trip-schema/stops.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `apps/api-transportada/drizzle/20260824202501_trip_stops/` (migration +
+  `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`,
+  `apps/api-transportada/src/database/database.schema.ts` (registro no barrel)
+- **Aceite:** `test/trip-schema/stops.contract.ts` (novo, 7 testes),
+  `test/trip-schema/tenant-safety.contract.ts` (tripStops adicionada a `TRIP_TABLES`),
+  `test/database-migration/support.ts` (idem, para a checagem de existência),
+  `test/database-migration/static-migration.contract.ts` (migration nova na lista exaustiva; o
+  teste da migration histórica `_trip_planning_expansion` foi desacoplado do `TRIP_TABLES`
+  compartilhado — ele valida um snapshot de três tabelas no passado, não a família atual)
+- **Verificação:** `bun run --cwd apps/api-transportada typecheck` ✅,
+  `bun run --cwd apps/api-transportada lint` ✅, `bun run --cwd apps/api-transportada test`
+  (2917 pass, 0 fail) ✅
+- **Evidência:** migration puramente aditiva (`CREATE TABLE`, sem backfill — tabela nova, sem
+  linha existente); FK composta `(company_id, trip_id)` → `trips`, `on delete cascade` (a parada é
+  derivada, some com a viagem); `unique(company_id, trip_id, sequence)`; checks para `sequence >= 1`,
+  chave/rótulo não vazios, janela de entrega reservada mas coerente (início e fim nulos juntos), e
+  `completed_at` nunca sem `arrived_at`. Sem coordenada — a spec 058 adiciona. Rollback recusa
+  `DROP TABLE` se alguma parada já registrou chegada ou conclusão.
 
 ### T004 — `trip_documents.stop_id` e `trip_document_events`
 

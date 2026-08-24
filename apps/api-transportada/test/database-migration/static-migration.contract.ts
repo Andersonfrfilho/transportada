@@ -10,7 +10,6 @@ import {
   IDENTITY_TABLES,
   INVITATION_TABLES,
   NFSE_TABLES,
-  TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
 } from './support.js'
@@ -148,6 +147,7 @@ describe('Drizzle migrations', () => {
       '20260824153250_public_rattler',
       '20260824184702_separator_role',
       '20260824200157_trip_status_machine',
+      '20260824202501_trip_stops',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -348,7 +348,9 @@ describe('Drizzle migrations', () => {
     const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
 
     expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
-    for (const table of TRIP_TABLES) {
+    // A expansão original criou só estas três — trip_stops chega numa migration própria depois
+    // (ADR-0043), então este teste fica preso aos três nomes, não ao TRIP_TABLES que cresce.
+    for (const table of ['trips', 'trip_drivers', 'trip_documents']) {
       expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
     }
     // ADR-0023: expansão primeiro — trip_id nasce nullable, a contração (T003) vem depois do backfill.

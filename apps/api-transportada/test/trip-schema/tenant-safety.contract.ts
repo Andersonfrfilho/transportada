@@ -7,6 +7,7 @@ import {
   mdfeManifests,
   tripDocuments,
   tripDrivers,
+  tripStops,
   trips,
 } from '../../src/database/database.schema.js'
 import { foreignKeys } from '../fiscal-schema/support.js'
@@ -15,6 +16,7 @@ const TRIP_TABLES = [
   { name: 'trips', table: trips },
   { name: 'trip_drivers', table: tripDrivers },
   { name: 'trip_documents', table: tripDocuments },
+  { name: 'trip_stops', table: tripStops },
 ] as const
 
 describe('trip tenant safety', () => {

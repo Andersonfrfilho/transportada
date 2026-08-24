@@ -226,3 +226,62 @@ export const tripDocuments = pgTable(
     ),
   ],
 )
+
+/**
+ * ADR-0043 §3: uma parada por endereço de entrega distinto, nunca por nota. `addressKey` é a
+ * chave normalizada (postal_code + number + city_code) que agrupa as notas — a normalização em si
+ * é função pura em `trips/domain`, testada à parte. `deliveryWindowStart`/`End` nascem reservadas
+ * e nulas para a spec 060; nada aqui as consome ainda.
+ */
+export const tripStops = pgTable(
+  'trip_stops',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    sequence: bigint({ mode: 'bigint' }).notNull(),
+    addressKey: text('address_key').notNull(),
+    label: text().notNull(),
+    arrivedAt: timestamp('arrived_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    deliveryWindowStart: timestamp('delivery_window_start', { withTimezone: true }),
+    deliveryWindowEnd: timestamp('delivery_window_end', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_stops_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_stops_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('trip_stops_company_id_id_unique').on(table.companyId, table.id),
+    unique('trip_stops_company_trip_sequence_unique').on(
+      table.companyId,
+      table.tripId,
+      table.sequence,
+    ),
+    index('trip_stops_company_trip_idx').on(table.companyId, table.tripId),
+    check('trip_stops_sequence_check', sql`${table.sequence} >= 1`),
+    check('trip_stops_address_key_check', sql`length(${table.addressKey}) > 0`),
+    check('trip_stops_label_check', sql`length(${table.label}) > 0`),
+    // Reservada e nula até a spec 060 — mas já coerente: não existe janela pela metade.
+    check(
+      'trip_stops_delivery_window_check',
+      sql`(${table.deliveryWindowStart} is null) = (${table.deliveryWindowEnd} is null)`,
+    ),
+    check(
+      'trip_stops_completed_requires_arrived_check',
+      sql`${table.completedAt} is null or ${table.arrivedAt} is not null`,
+    ),
+  ],
+)

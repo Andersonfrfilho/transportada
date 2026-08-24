@@ -136,7 +136,7 @@ export const NFSE_TABLES = [
   'nfse_issuance_outbox',
 ] as const
 
-export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents'] as const
+export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents', 'trip_stops'] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
 
