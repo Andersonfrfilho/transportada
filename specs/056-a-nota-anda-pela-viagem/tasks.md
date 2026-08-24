@@ -216,16 +216,42 @@ parada se faltar, desvincular a última apaga.
   **depois** de a nota perder a referência ao `stopId` — senão ela mesma se conta como razão para
   a parada continuar existindo.
 
-### T008 — Transição de nota, com evento e derivação da viagem
+### T008 ✅ — Transição de nota, com evento e derivação da viagem
 
 Use case único por trás de `separate`/`load`/`deliver`/`return`: valida pela T006, escreve estado +
 timestamp + evento, e recalcula o estado da viagem **na mesma transação**. Idempotente (RF-8).
 
-- **Arquivos:** `src/trips/application/transition-trip-document.use-case.ts` (novo),
-  `src/trips/infrastructure/trip-document.repository.ts`
-- **Aceite:** `test/trip-documents/transition.contract.ts`, incluindo a repetição idempotente e a
-  derivação automática de `separating`/`loading`/`completed`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `src/trips/application/transition-trip-document.use-case.ts` (novo, com o port
+  `TripDocumentTransitionPort`), `src/trips/infrastructure/drizzle-trip-document.repository.ts`
+  (novo — nome corrigido de `trip-document.repository.ts`, seguindo a convenção `drizzle-*` já
+  usada por `drizzle-trip.repository.ts`), `src/trips/domain/trip.error.ts` (3 erros novos),
+  `test/trip-documents.contract.test.ts` (novo, umbrella), `package.json`
+- **Aceite:** `test/trip-documents/transition.contract.ts` (8 testes, port falso — idempotência,
+  bloqueio, motivo de devolução, corrida convergindo)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2983 pass, 0 fail) ✅
+- **Evidência:** três desfechos da T006 mapeados para efeito real — `unchanged` não toca o banco,
+  `blocked` lança `TripStateTransitionNotAllowedError` com o motivo, `applied` chama
+  `repository.applyTransition`, que faz tudo **numa transação só**: `UPDATE` guardado por
+  `WHERE separation_status = fromStatus` (mesmo padrão de corrida que `tripStillOpen` já usa no
+  repositório de viagem), `INSERT` do evento, recontagem de `tally` e `deriveTripStatus` — só
+  escreve `trips.status` quando a derivação muda algo.
+
+  **Corrida tratada como primeira classe, não como exceção.** Quando o `UPDATE` guardado não acha
+  linha, o repositório devolve `raced: true` com o estado fresco em vez de lançar; o use case
+  re-roda o `checkTripDocumentTransition` (T006) contra esse estado — e nesta máquina toda corrida
+  real converge em `unchanged`, nunca numa segunda escrita, porque só uma ação alcança cada estado
+  alvo. Escrevi um teste que tentava o cenário contrário (raced convergindo para uma segunda
+  escrita) e ele revelou que esse caso é **impossível no grafo desta máquina** — removi o teste em
+  vez de forçar um cenário sintético que o domínio não produz. O teto de tentativas (3) continua
+  como rede de segurança, não como caminho esperado.
+
+  **Provado contra o Postgres real, não só com port falso.** Um probe temporário (apagado depois)
+  seguiu o encadeamento inteiro de FKs até `stored_objects`, rodou as três chamadas em sequência —
+  `pending→separated`, a mesma corrida de propósito (recebeu `raced: true`, **zero** eventos
+  escritos), `separated→loaded` — e conferiu: `trips.status` derivou para `loading` sozinho,
+  exatamente 2 eventos gravados (não 3), e um `UPDATE` direto em `trip_document_events` foi
+  recusado pelo trigger append-only da T005 — a primeira prova real de que o trigger protege
+  linha **escrita pela aplicação**, não só a linha semeada à mão do probe de T005.
 
 ### T009 — Transição em lote
 

@@ -146,3 +146,36 @@ export class TripStateTransitionNotAllowedError extends ApiError {
 
   public readonly reason: TripTransitionBlock
 }
+
+/** ADR-0043 §7: motivo é obrigatório em toda nota devolvida, e só nela — o check do banco reflete isso. */
+export class TripDocumentReturnReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_RETURN_REASON_REQUIRED',
+      message: 'Returning a document requires a reason.',
+      status: 422,
+    })
+  }
+}
+
+/** A nota deixou de existir no estado que a leitura viu — quem chamou tenta de novo com dado fresco. */
+export class TripDocumentTransitionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_TRANSITION_CONFLICT',
+      message: 'The document changed concurrently; retry with fresh state.',
+      status: 409,
+    })
+  }
+}
+
+/** O ator da transição precisa ser membro desta empresa — mesma regra de `audit_logs`. */
+export class TripActorNotAMemberError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_ACTOR_NOT_A_MEMBER',
+      message: 'The acting user is not a member of this company.',
+      status: 422,
+    })
+  }
+}
