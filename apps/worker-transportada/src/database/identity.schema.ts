@@ -6,6 +6,14 @@
  */
 import { pgTable, text, uuid } from 'drizzle-orm/pg-core'
 
+export type CompanyStatus = 'active' | 'disabled'
+
+/** Só o status: a rotina de distribuição precisa saber se a empresa está de pé, e nada além disso. */
+export const companies = pgTable('companies', {
+  id: uuid().defaultRandom().primaryKey(),
+  status: text().$type<CompanyStatus>().notNull().default('active'),
+})
+
 export const identityUserProfiles = pgTable('identity_user_profiles', {
   userId: uuid('user_id').primaryKey(),
   name: text().notNull(),

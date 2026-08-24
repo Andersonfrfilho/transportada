@@ -109,6 +109,11 @@ import { createNfeDistributionPersistenceAdapter } from './nfe-distribution/infr
 import { DrizzleNfeDistributionCursorRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution-cursor.repository.js'
 import { DrizzleNfeDistributionProfileRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution-profile.repository.js'
 import { DrizzleNfeDistributionRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.js'
+import { createNfeDistributionPullRoutine } from './nfe-distribution-pull/application/nfe-distribution-pull.routine.js'
+import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distribution-pull.constant.js'
+import { createCryptoDistributionIdentifiers } from './nfe-distribution-pull/infrastructure/crypto-identifiers.js'
+import { createDrizzleDistributionCandidateSource } from './nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.js'
+import { createDrizzleDistributionEnqueueGateway } from './nfe-distribution-pull/infrastructure/drizzle-distribution-enqueue.gateway.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -783,15 +788,28 @@ export async function startWorkerRuntime(
     })
     jobRunConsumer = await jobRunStarter({
       config,
-      // Registro vazio de propósito: as quatro rotinas entram uma a uma, e até lá o invólucro fecha
-      // a linha em `unexpected_error` em vez de deixá-la aberta.
+      // Registro parcial de propósito: as quatro rotinas entram uma a uma, e a que ainda não entrou
+      // fecha a linha em `unexpected_error` em vez de deixá-la aberta.
       cycle: createJobCycle({
         executions: new DrizzleJobExecutionRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         logger,
         now: () => new Date(),
-        routines: {},
+        routines: {
+          [DISTRIBUTION_PULL_JOB]: createNfeDistributionPullRoutine({
+            gateway: createDrizzleDistributionEnqueueGateway({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            }),
+            identifiers: createCryptoDistributionIdentifiers(),
+            logger,
+            now: () => new Date(),
+            source: createDrizzleDistributionCandidateSource({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              logger,
+            }),
+          }),
+        },
       }),
       logger,
       provider: jobRunProvider,

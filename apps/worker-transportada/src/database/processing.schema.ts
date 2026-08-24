@@ -3,8 +3,14 @@
  */
 import { bigint, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
+/**
+ * Os `default` daqui são os mesmos que a API versiona na migration, e existem porque a rotina de
+ * distribuição **escreve** nesta tabela — até ela, o worker só lia e o relay só atualizava, e a cópia
+ * sem default bastava. Sem eles, a inserção do evento teria de inventar `attempt` e `next_attempt_at`
+ * no call site, e o relay passaria a depender de dois lugares dizerem a mesma coisa.
+ */
 export const processingOutbox = pgTable('processing_outbox', {
-  id: uuid().primaryKey(),
+  id: uuid().defaultRandom().primaryKey(),
   companyId: uuid('company_id').notNull(),
   eventId: uuid('event_id').notNull(),
   aggregateType: text('aggregate_type').notNull(),
@@ -12,17 +18,17 @@ export const processingOutbox = pgTable('processing_outbox', {
   eventType: text('event_type').notNull(),
   eventVersion: bigint('event_version', { mode: 'bigint' }).notNull(),
   actorUserId: uuid('actor_user_id').notNull(),
-  triggeredBy: text('triggered_by').notNull(),
+  triggeredBy: text('triggered_by').notNull().default('user'),
   automationJob: text('automation_job'),
   correlationId: text('correlation_id').notNull(),
   payload: jsonb().notNull(),
-  attempt: bigint({ mode: 'bigint' }).notNull(),
-  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull(),
+  attempt: bigint({ mode: 'bigint' }).notNull().default(0n),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
   claimOwner: text('claim_owner'),
   claimExpiresAt: timestamp('claim_expires_at', { withTimezone: true }),
   publishedAt: timestamp('published_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const processedMessages = pgTable('processed_messages', {

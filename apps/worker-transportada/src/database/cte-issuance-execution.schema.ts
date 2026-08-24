@@ -106,14 +106,23 @@ export const cteBatchEvents = pgTable('cte_batch_events', {
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
 })
 
+export const CERTIFICATE_STATUSES = ['active', 'retired'] as const
+export type CertificateStatus = (typeof CERTIFICATE_STATUSES)[number]
+
+/**
+ * `valid_from` e `expires_at` entraram com a rotina de distribuição, que pré-filtra empresa por
+ * certificado dentro da janela — quem só abre o envelope para assinar não precisava da vigência.
+ */
 export const digitalCertificates = pgTable('digital_certificates', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),
   purpose: text().notNull(),
   version: bigint({ mode: 'bigint' }).notNull(),
-  status: text().notNull(),
+  status: text().$type<CertificateStatus>().notNull(),
   secretEnvelope: jsonb('secret_envelope'),
   validatedCnpj: text('validated_cnpj').notNull(),
+  validFrom: timestamp('valid_from', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 })
 
