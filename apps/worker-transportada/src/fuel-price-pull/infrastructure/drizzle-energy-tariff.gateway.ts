@@ -5,14 +5,16 @@
  * retificada — sete pares medidos em 21/08/2026 —, e ignorar o conflito manteria o valor errado no
  * ar até a vigência seguinte. Reexecutar o mesmo dia reescreve o mesmo valor, sem duplicar linha.
  */
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
-import type { CronDatabase } from '../../database/cron-database.types.js'
 import { energyTariffReferences } from '../../database/energy-tariff.schema.js'
 import type { EnergyTariffGatewayPort } from '../application/energy-tariff.port.js'
 
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+
 export function createDrizzleEnergyTariffGateway(dependencies: {
-  readonly db: CronDatabase
+  readonly db: Database
 }): EnergyTariffGatewayPort {
   return {
     async upsertCurrent(input) {

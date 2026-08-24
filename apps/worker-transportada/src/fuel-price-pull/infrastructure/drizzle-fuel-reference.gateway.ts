@@ -4,12 +4,15 @@
  * Quem decide o que é novidade é a chave natural `(produto, UF, semana)`: reprocessar a mesma
  * semana não reescreve preço já coletado nem levanta erro, e o que volta é quantas linhas entraram.
  */
-import type { CronDatabase } from '../../database/cron-database.types.js'
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+
 import { fuelPriceReferences } from '../../database/fuel-reference.schema.js'
 import type { FuelReferenceGatewayPort } from '../application/fuel-reference.port.js'
 
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+
 export function createDrizzleFuelReferenceGateway(dependencies: {
-  readonly db: CronDatabase
+  readonly db: Database
 }): FuelReferenceGatewayPort {
   return {
     async insertMissing(input) {

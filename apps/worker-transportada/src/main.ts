@@ -119,6 +119,14 @@ import {
   NFSE_STATUS_PULL_JOB,
   NFSE_STATUS_PULL_PAGE_SIZE,
 } from './nfse-status-pull/domain/nfse-status-pull.constant.js'
+import { createFuelPricePullRoutine } from './fuel-price-pull/application/fuel-price-pull.routine.js'
+import { createPullEnergyTariffUseCase } from './fuel-price-pull/application/pull-energy-tariff.use-case.js'
+import { createPullFuelReferenceUseCase } from './fuel-price-pull/application/pull-fuel-reference.use-case.js'
+import { FUEL_PRICE_PULL_JOB } from './fuel-price-pull/domain/fuel-price-pull.constant.js'
+import { createAneelDatastoreClient } from './fuel-price-pull/infrastructure/aneel-datastore.client.js'
+import { createAnpSeriesClient } from './fuel-price-pull/infrastructure/anp-series.client.js'
+import { createDrizzleEnergyTariffGateway } from './fuel-price-pull/infrastructure/drizzle-energy-tariff.gateway.js'
+import { createDrizzleFuelReferenceGateway } from './fuel-price-pull/infrastructure/drizzle-fuel-reference.gateway.js'
 import { createNotificationSchedulesRoutine } from './notification-schedules/application/notification-schedules.routine.js'
 import { createSweepDueInvoices } from './notification-schedules/application/sweep-due-invoices.use-case.js'
 import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
@@ -810,7 +818,7 @@ export async function startWorkerRuntime(
     })
     jobRunConsumer = await jobRunStarter({
       config,
-      // Registro parcial de propósito: as quatro rotinas entram uma a uma, e a que ainda não entrou
+      // Registro parcial de propósito: rotina não registrada pousa em `job_run_routine_missing` e
       // fecha a linha em `unexpected_error` em vez de deixá-la aberta.
       cycle: createJobCycle({
         executions: new DrizzleJobExecutionRepository(
@@ -831,8 +839,42 @@ export async function startWorkerRuntime(
               logger,
             }),
           }),
-          // Sem aviso de rejeição enquanto `notification.schedules.run` não se mudar para cá: a
-          // porta é opcional de propósito, e a reconciliação fiscal não depende do aviso existir.
+          /**
+           * Ausente quando a instalação não declara agência: rotina não registrada pousa em
+           * `job_run_routine_missing`, que é a verdade — não há endereço de onde colher preço.
+           */
+          ...(config.fuelPricePull === undefined
+            ? {}
+            : {
+                [FUEL_PRICE_PULL_JOB]: createFuelPricePullRoutine({
+                  energyUseCase: createPullEnergyTariffUseCase({
+                    gateway: createDrizzleEnergyTariffGateway({
+                      db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                    }),
+                    logger,
+                    series: createAneelDatastoreClient({
+                      baseUrl: config.fuelPricePull.aneelBaseUrl,
+                      fetch: (url, init) => fetch(url, init),
+                      timeoutInMilliseconds: config.fuelPricePull.aneelTimeoutMilliseconds,
+                    }),
+                  }),
+                  logger,
+                  now: () => new Date(),
+                  pullUseCase: createPullFuelReferenceUseCase({
+                    gateway: createDrizzleFuelReferenceGateway({
+                      db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                    }),
+                    logger,
+                    series: createAnpSeriesClient({
+                      baseUrl: config.fuelPricePull.anpBaseUrl,
+                      fetch: (url, init) => fetch(url, init),
+                      timeoutInMilliseconds: config.fuelPricePull.anpTimeoutMilliseconds,
+                    }),
+                  }),
+                }),
+              }),
+          // Sem aviso de rejeição: a porta é opcional e ainda não tem adaptador, porque o catálogo
+          // de templates não tem chave de NFS-e rejeitada. A reconciliação fiscal não espera por ela.
           [NFSE_STATUS_PULL_JOB]: createNfseStatusPullRoutine({
             fiscalEnvironment: config.fiscalEnvironment,
             logger,

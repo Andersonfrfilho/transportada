@@ -3,12 +3,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { parseCronEnvironment } from '../../src/config/environment.schema.js'
+import { parseWorkerEnvironment } from '../../src/config/environment.schema.js'
 
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
 const ENV_EXAMPLE_PATH = new URL('.env.example', REPOSITORY_ROOT)
 const RAILWAY_DOC_PATH = new URL('docs/spec/railway.md', REPOSITORY_ROOT)
-const CRON_SOURCE_ROOT = new URL('apps/cron-transportada/src/', REPOSITORY_ROOT)
+const WORKER_SOURCE_ROOT = new URL('apps/worker-transportada/src/', REPOSITORY_ROOT)
 
 const DECLARATION_PATTERN = /^([A-Z][A-Z0-9_]*)=(.*)$/
 const ANEEL_HOST = 'dadosabertos.aneel.gov.br'
@@ -46,7 +46,7 @@ describe('contrato do ambiente da rotina de combustível', () => {
   test('o `.env.example` sobe a rotina de combustível sem nada a acrescentar', async () => {
     const declarations = await readEnvExample()
 
-    expect(parseCronEnvironment(declarations).fuelPricePull).toEqual({
+    expect(parseWorkerEnvironment(declarations).fuelPricePull).toEqual({
       aneelBaseUrl: declarations.ANEEL_BASE_URL as string,
       aneelTimeoutMilliseconds: Number(declarations.ANEEL_TIMEOUT_MS),
       anpBaseUrl: declarations.ANP_BASE_URL as string,
@@ -69,22 +69,22 @@ describe('contrato do ambiente da rotina de combustível', () => {
   test('o destino da tarifa vem da variável, e o código não guarda host nenhum', async () => {
     expect(new URL((await readEnvExample()).ANEEL_BASE_URL as string).host).toBe(ANEEL_HOST)
 
-    const sources = new Bun.Glob('**/*.ts').scan({ cwd: CRON_SOURCE_ROOT.pathname })
+    const sources = new Bun.Glob('**/*.ts').scan({ cwd: WORKER_SOURCE_ROOT.pathname })
     for await (const source of sources) {
-      const content = await Bun.file(new URL(source, CRON_SOURCE_ROOT)).text()
+      const content = await Bun.file(new URL(source, WORKER_SOURCE_ROOT)).text()
       expect(`${source}: ${content.includes(ANEEL_HOST)}`).toBe(`${source}: false`)
     }
   })
 
   /**
-   * O `cron` sobe nos dois ambientes, e nenhum script do repositório escreve variável no painel da
+   * O `worker` sobe nos dois ambientes, e nenhum script do repositório escreve variável no painel da
    * Railway. Variável não documentada é variável provisionada em um ambiente só — e declarar uma
    * agência sem a outra derruba o boot, então o deploy nem chega a rodar um ciclo.
    */
   test('o painel dos dois ambientes tem as duas agências documentadas', async () => {
     const document = await Bun.file(RAILWAY_DOC_PATH).text()
 
-    expect(document).toContain('`cron`')
+    expect(document).toContain('`worker`')
     for (const key of ['ANEEL_BASE_URL', 'ANEEL_TIMEOUT_MS', 'ANP_BASE_URL', 'ANP_TIMEOUT_MS']) {
       expect(`${key}: ${document.includes(key)}`).toBe(`${key}: true`)
     }

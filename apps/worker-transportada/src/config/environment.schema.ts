@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import type {
   CteTechnicalResponsibleEnvironment,
+  FuelPricePullEnvironment,
   WorkerEnvironment,
 } from '../shared/worker.types.js'
 
@@ -17,11 +18,18 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
 
 const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
 
+const DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS = 15_000
+const MAX_PROVIDER_TIMEOUT_MILLISECONDS = 60_000
+
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 
 const workerEnvironmentSchema = z
   .object({
+    ANEEL_BASE_URL: optionalUrl(),
+    ANEEL_TIMEOUT_MS: providerTimeout(),
+    ANP_BASE_URL: optionalUrl(),
+    ANP_TIMEOUT_MS: providerTimeout(),
     APP_ENV: z.string().trim().min(1).default('local'),
     // infRespTec: as quatro juntas ou nenhuma — grupo incompleto é rejeição na SEFAZ.
     CTE_TECHNICAL_RESPONSIBLE_CNPJ: z.string().trim().min(1).optional(),
@@ -120,6 +128,7 @@ export function parseWorkerEnvironment(
       : { cteTechnicalResponsible: technicalResponsible }),
     databaseUrl: result.data.DATABASE_URL,
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
+    fuelPricePull: toFuelPricePull(result.data),
     ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
       ? {}
       : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),
@@ -139,6 +148,41 @@ export function parseWorkerEnvironment(
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
   }
+}
+
+/**
+ * Duas agências, um bloco: quem decide se ele existe é a **presença** de um dos dois endereços.
+ * Nenhum declarado é instalação que não coleta preço; um só derruba o boot, porque meia série
+ * gravada é tela com preço sem dizer que está incompleta.
+ */
+function toFuelPricePull(
+  data: Readonly<{
+    ANEEL_BASE_URL?: string | undefined
+    ANEEL_TIMEOUT_MS: number
+    ANP_BASE_URL?: string | undefined
+    ANP_TIMEOUT_MS: number
+  }>,
+): FuelPricePullEnvironment | undefined {
+  if (data.ANEEL_BASE_URL === undefined && data.ANP_BASE_URL === undefined) return undefined
+  if (data.ANEEL_BASE_URL === undefined || data.ANP_BASE_URL === undefined) {
+    throw new WorkerConfigurationError()
+  }
+
+  return {
+    aneelBaseUrl: data.ANEEL_BASE_URL,
+    aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
+    anpBaseUrl: data.ANP_BASE_URL,
+    anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
+  }
+}
+
+function providerTimeout() {
+  return z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PROVIDER_TIMEOUT_MILLISECONDS)
+    .default(DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS)
 }
 
 /**

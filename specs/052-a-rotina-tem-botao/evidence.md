@@ -598,7 +598,53 @@ worker   625 pass · 0 fail  (62 arquivos)
 cron     101 pass · 0 fail  (7 arquivos)  ·  typecheck limpo
 ```
 
-⚠️ `worker typecheck` segue **vermelho**, e não por causa do T6: a fatia `fuel-price-pull` do T5 já
-está movida no índice do git e ainda não foi religada (`config/cron.types.js`,
-`shared/advisory-lock.port.js`, `CronLogger`, e os dois arquivos da rotina que faltam escrever).
-Fecha com o T5.
+⚠️ Na hora do commit o `worker typecheck` estava **vermelho**, e não por causa do T6: a fatia
+`fuel-price-pull` do T5 já estava movida no índice do git e ainda não religada. Fechou com o T5,
+abaixo — hoje o typecheck do worker está limpo.
+
+## T5 — `fuel.price.pull` no worker, e a agência mora onde a coleta acontece
+
+**Aceite antes da implementação.** `worker/test/job-run/fuel-price-cycle.contract.ts` — 21 pass, 0
+fail. Ele reproduz o que o contrato do cron produzia e acrescenta o vocabulário da §6: as duas
+metades correm na mesma execução, cada uma falha por conta própria, e a **linha fecha como falha**
+se qualquer uma cair — meia série gravada é tela com preço sem dizer que está incompleta. Entre as
+metades há `isStopRequested()`: parada pedida encerra `succeeded` sem começar a segunda.
+
+**A regra não mudou uma linha.** Os vinte e três arquivos de `fuel-price-pull` (domínio, portas,
+use cases, clientes HTTP, leitor de XLSX, os dois gateways Drizzle) e os sete arquivos de teste
+foram `git mv` do cron para o worker. O que nasceu novo são dois: a rotina
+(`application/fuel-price-pull.routine.ts`) e a tradução da falha
+(`domain/fuel-price-pull-failure.policy.ts`), com `FUEL_PRICE_PULL_FAILURE_OUTCOMES` =
+`anp_malformed_workbook · aneel_empty_slice · anp_week_not_published · anp_unreachable ·
+aneel_unreachable`. Dezenove códigos de erro mapeados; transporte é reconhecido pelo **nome** do
+erro (`AbortError`, `TimeoutError`, `TypeError`), e erro desconhecido devolve `undefined` → o
+consumidor fecha `unexpected_error`. Antes disso a causa só existia em log.
+
+**Sem advisory lock.** O cron precisava dele; aqui quem serializa é a linha de `job_executions`,
+com o unique de execução aberta e o lease que se renova (T4b). A porta de lock não atravessou.
+
+**A configuração.** `ANP_BASE_URL`, `ANP_TIMEOUT_MS`, `ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS` saíram
+do schema da `cron` e entraram no do `worker`, com os mesmos valores de sempre (padrão 15 000 ms,
+teto 60 000 ms) — a mudança não altera comportamento. A **presença** é o que liga a rotina: nenhuma
+das duas bases declarada deixa `fuelPricePull` `undefined` e a entrada do registro não é criada (a
+janela pousa em `job_run_routine_missing`); **uma só** declarada derruba o boot com
+`WorkerConfigurationError`. Quatro testes novos em `worker/test/environment.contract.test.ts`
+cobrem os quatro casos, incluindo string em branco contando como não declarada.
+
+**O contrato de deploy veio junto.** `cron/test/deploy/fuel-price-environment.contract.ts` virou
+`worker/test/fuel-price-pull/environment.contract.ts`, apontando para `parseWorkerEnvironment`,
+`WORKER_SOURCE_ROOT` e exigindo que `docs/spec/railway.md` cite o serviço `worker`. Ele guarda que
+o `.env.example` provisiona as quatro, que nenhum endereço de agência está escrito no código-fonte,
+e que o railway.md documenta a migração.
+
+**Gate.**
+
+```
+worker   683 pass · 0 fail  (63 arquivos)  ·  typecheck limpo
+cron      94 pass · 0 fail  ( 7 arquivos)  ·  typecheck limpo
+raiz      lint limpo  ·  format:check limpo
+```
+
+⚠️ Falta o passo manual: provisionar as quatro variáveis no serviço `worker` dos **dois** ambientes
+Railway e removê-las do painel da `cron`, onde já saíram do schema. Nenhum script do repositório
+escreve variável no painel.

@@ -5,7 +5,7 @@
  * sai das datas da própria linha, e é ele que fecha a chave natural. Coleta que falha nunca chega
  * ao banco — a referência da semana anterior continua de pé.
  */
-import type { CronLogger } from '../../config/cron.types.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import { aggregateFuelReferences } from '../domain/fuel-reference.policy.js'
 import { resolveReferenceWeek } from '../domain/reference-week.policy.js'
 
@@ -26,7 +26,7 @@ export type PullFuelReferenceUseCase = {
 
 export function createPullFuelReferenceUseCase(dependencies: {
   readonly gateway: FuelReferenceGatewayPort
-  readonly logger: CronLogger
+  readonly logger: WorkerLogger
   readonly series: FuelSeriesPort
 }): PullFuelReferenceUseCase {
   return {
