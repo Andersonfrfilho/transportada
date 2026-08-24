@@ -62,6 +62,7 @@ import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.serv
 import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-delivery-rabbitmq-topology.js'
 import { buildNotificationRabbitMqTopology } from './messaging/notification-rabbitmq-topology.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
+import { createGuardedNotificationQueue } from './notification/infrastructure/guarded-notification-queue.adapter.js'
 import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { createCteBatchFailureQuery } from './notification/infrastructure/drizzle-cte-batch-failure.query.js'
 import { createNotificationTrigger } from './notification/application/notification-trigger.service.js'
@@ -118,6 +119,10 @@ import {
   NFSE_STATUS_PULL_JOB,
   NFSE_STATUS_PULL_PAGE_SIZE,
 } from './nfse-status-pull/domain/nfse-status-pull.constant.js'
+import { createNotificationSchedulesRoutine } from './notification-schedules/application/notification-schedules.routine.js'
+import { createSweepDueInvoices } from './notification-schedules/application/sweep-due-invoices.use-case.js'
+import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
+import { createDueInvoicesQuery } from './notification-schedules/infrastructure/drizzle-due-invoices.query.js'
 import {
   createDrizzleNfseReconciliationSource,
   createDrizzleNfseReconciliationWriteBack,
@@ -154,6 +159,7 @@ import {
   type NfeStorageGateway,
 } from './storage/infrastructure/nfe-storage-gateway.js'
 import type { QueuePort } from '@adatechnology/notification-contracts'
+import { createNotificationSchedules } from '@adatechnology/notification-module'
 import type { NotificationModule } from '@adatechnology/notification-module'
 
 import type { WorkerLogger } from './shared/worker.types.js'
@@ -588,7 +594,9 @@ export async function startWorkerRuntime(
     const notificationModule = createWorkerNotificationModule({
       db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
       emailDelivery: config.emailDelivery,
-      queue: notificationQueue,
+      // A fila do módulo é a mesma do consumidor, envolvida: publicação que cai chega nomeada à
+      // rotina agendada, que fecha a linha por `queue_unreachable` em vez de `unexpected_error`.
+      queue: createGuardedNotificationQueue(notificationQueue),
       suppressionHmacKey: cryptography.notificationSuppressionHmacKey,
     })
     const loadCteBatchFailure = createCteBatchFailureQuery(
@@ -863,6 +871,18 @@ export async function startWorkerRuntime(
                 db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
                 logger,
               }),
+            }),
+          }),
+          [NOTIFICATION_SCHEDULES_JOB]: createNotificationSchedulesRoutine({
+            logger,
+            now: () => new Date(),
+            schedules: createNotificationSchedules(notificationModule),
+            sweep: createSweepDueInvoices({
+              logger,
+              selectDueInvoices: createDueInvoicesQuery(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              send: (params) => notificationModule.useCases.sendNotification.execute(params),
             }),
           }),
         },

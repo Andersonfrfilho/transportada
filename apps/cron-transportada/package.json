@@ -13,14 +13,12 @@
     "dev": "bun --watch ./src/main.ts",
     "lint": "bunx eslint src test eslint.config.js --max-warnings=0",
     "start": "bun ./dist/main.js",
-    "test": "bun test ./test/environment.contract.test.ts ./test/deploy.contract.test.ts ./test/log-format.contract.test.ts ./test/job-catalog.contract.test.ts ./test/tick.contract.test.ts ./test/fuel-price-pull.contract.test.ts ./test/nfe-distribution-pull.contract.test.ts ./test/notification-schedules.contract.test.ts ./test/observability.contract.test.ts",
+    "test": "bun test ./test/environment.contract.test.ts ./test/deploy.contract.test.ts ./test/log-format.contract.test.ts ./test/job-catalog.contract.test.ts ./test/tick.contract.test.ts ./test/fuel-price-pull.contract.test.ts ./test/nfe-distribution-pull.contract.test.ts ./test/observability.contract.test.ts",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/logger": "0.1.0-rc.0",
-    "@adatechnology/notification-contracts": "0.1.0-rc.2",
-    "@adatechnology/notification-module": "0.1.0-rc.3",
     "@adatechnology/rabbitmq-provider": "0.1.1",
     "@sentry/bun": "10.69.0",
     "drizzle-orm": "1.0.0-rc.4",

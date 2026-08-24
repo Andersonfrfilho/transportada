@@ -18,16 +18,6 @@ export type CronFuelPricePullEnvironment = {
   readonly anpTimeoutMilliseconds: number
 }
 
-/**
- * Configuração exclusiva do trilho de rotinas de notificação. Broker e prefixo já são exigidos
- * pela batida; o que a torna presente é a chave de supressão declarada.
- */
-export type CronNotificationSchedulesEnvironment = {
-  readonly queuePrefix: string
-  readonly rabbitMqUrl: string
-  readonly suppressionHmacKey: string
-}
-
 export type CronEnvironment = {
   readonly appEnv: string
   readonly cadenceMinutes: number
@@ -35,7 +25,6 @@ export type CronEnvironment = {
   readonly fiscalEnvironment: CronFiscalEnvironment
   readonly fuelPricePull: CronFuelPricePullEnvironment | undefined
   readonly logLevel: LogLevel
-  readonly notificationSchedules: CronNotificationSchedulesEnvironment | undefined
   readonly pageSize: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string

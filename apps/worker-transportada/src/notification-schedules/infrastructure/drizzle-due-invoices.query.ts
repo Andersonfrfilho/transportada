@@ -1,10 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 
 import { billingInvoices } from '../../database/billing.schema.js'
-import type { CronDatabase } from '../../database/cron-database.types.js'
+
+type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export type DueInvoice = {
   readonly actorUserId: string
@@ -18,7 +20,7 @@ export type DueInvoice = {
  * Fatura emitida, não cancelada, vencendo dentro da janela. A partir do vencimento a cobrança é
  * outro assunto — este aviso é o lembrete de antes, e por isso o piso é o próprio agora.
  */
-export function createDueInvoicesQuery(database: CronDatabase) {
+export function createDueInvoicesQuery(database: Database) {
   return async function selectDueInvoices(input: {
     readonly now: Date
     readonly until: Date

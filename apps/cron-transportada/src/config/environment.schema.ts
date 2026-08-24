@@ -12,11 +12,7 @@ import {
   CRON_MAX_PAGE_SIZE,
   CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS,
 } from './cron.constant.js'
-import type {
-  CronEnvironment,
-  CronFuelPricePullEnvironment,
-  CronNotificationSchedulesEnvironment,
-} from './cron.types.js'
+import type { CronEnvironment, CronFuelPricePullEnvironment } from './cron.types.js'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 
@@ -49,7 +45,6 @@ const cronEnvironmentSchema = z.object({
     .min(1)
     .max(CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS)
     .default(CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS),
-  NOTIFICATION_SUPPRESSION_HMAC_KEY: optionalText(),
   // A batida publica; cron que não alcança o broker não tem o que fazer, e falha no boot.
   QUEUE_PREFIX: z.string().trim().min(1),
   RABBITMQ_URL: z.string().trim().min(1),
@@ -78,7 +73,6 @@ export function parseCronEnvironment(
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     fuelPricePull: resolveFuelPricePullEnvironment(result.data),
     logLevel: result.data.LOG_LEVEL,
-    notificationSchedules: resolveNotificationEnvironment(result.data),
     pageSize: result.data.PAGE_SIZE,
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
@@ -108,28 +102,6 @@ function resolveFuelPricePullEnvironment(
     aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
     anpBaseUrl: requireConfigured(data.ANP_BASE_URL),
     anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
-  }
-}
-
-const BASE64_32_BYTES_PATTERN = /^[A-Za-z0-9+/]{43}=$/
-
-/**
- * Este job enfileira no mesmo trilho da API e consulta supressão com a mesma chave que ela usou
- * para gravar. Chave diferente produz HMAC que não casa com nada — e o e-mail volta a sair para
- * quem já recusou. Falhar no boot é preferível a descobrir isso na primeira entrega. Broker e
- * prefixo já são exigidos pela batida; o que resta gatilhar por presença é a chave.
- */
-function resolveNotificationEnvironment(
-  data: z.output<typeof cronEnvironmentSchema>,
-): CronNotificationSchedulesEnvironment | undefined {
-  const suppressionHmacKey = data.NOTIFICATION_SUPPRESSION_HMAC_KEY
-  if (suppressionHmacKey === undefined) return undefined
-  if (!BASE64_32_BYTES_PATTERN.test(suppressionHmacKey)) throw new CronConfigurationError()
-
-  return {
-    queuePrefix: data.QUEUE_PREFIX,
-    rabbitMqUrl: data.RABBITMQ_URL,
-    suppressionHmacKey,
   }
 }
 

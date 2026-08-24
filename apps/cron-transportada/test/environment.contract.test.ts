@@ -31,7 +31,6 @@ describe('cron environment contract', () => {
       // Nem sem o endereço da ANP, que só o trilho de preço de combustível usa.
       fuelPricePull: undefined,
       logLevel: 'info',
-      notificationSchedules: undefined,
       pageSize: 50,
       queuePrefix: validEnvironment.QUEUE_PREFIX,
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,

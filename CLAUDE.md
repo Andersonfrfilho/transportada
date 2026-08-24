@@ -298,7 +298,7 @@ RabbitMQ e banco.
 **As rotinas agendadas são um registro, e ele é parcial de propósito.** `startJobRunConsumer` recebe
 `routines: JobRoutineRegistry` (`Partial<Record<ScheduledJob, JobRoutine>>`) e o consumidor reivindica
 a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registrada pousa em
-`job_run_routine_missing` e fecha como `unexpected_error`. Hoje duas estão registradas:
+`job_run_routine_missing` e fecha como `unexpected_error`. Hoje três estão registradas:
 
 - `nfe.distribution.pull`, em `src/nfe-distribution-pull/` — ela **não** fala com a SEFAZ: seleciona
   empresa elegível e enfileira `source: 'distribution'` na `processing_outbox`, e daí em diante é o
@@ -309,9 +309,18 @@ a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registra
   da Nota RP, o serviço de credencial e o schema de `nfse-issuance/` em vez de duplicá-los como o
   cron precisava fazer — o AAD continua sendo o mesmo
   `transportada:nfse-credential:v1:${companyId}:${credentialId}` que selou. O aviso de rejeição
-  ainda **não** sai: a porta `notifier` é opcional e só ganha adaptador quando
-  `notification.schedules.run` se mudar para cá. Sem `NFSE_PROVIDER_BASE_URL` a rotina não morre —
-  cada nota é adiada como `provider_not_configured`, e o segredo nem chega a ser aberto.
+  ainda **não** sai: a porta `notifier` é opcional e segue sem adaptador — `notification.schedules.run`
+  já mora aqui, mas quem varre NFS-e rejeitada é o trilho `notification.v1`, não esta rotina. Sem
+  `NFSE_PROVIDER_BASE_URL` a rotina não morre — cada nota é adiada como `provider_not_configured`, e
+  o segredo nem chega a ser aberto.
+- `notification.schedules.run`, em `src/notification-schedules/` — varre fatura a vencer e roda os
+  dois schedules de `@adatechnology/notification-module`. Schedule que cai **não** derruba o
+  seguinte, e a causa é tipada, nunca adivinhada por mensagem: `queue_unreachable` vem de
+  `createGuardedNotificationQueue` (decorador sobre o `enqueue` da fila do módulo) e
+  `template_missing` do código `NOTIFICATION_TEMPLATE_NOT_FOUND`; qualquer outra é
+  `unexpected_error`. ⚠️ Aqui a **falha domina** o trabalho feito, ao contrário de `nfse.status.pull`:
+  ciclo que avisou metade das faturas precisa dizer isso, porque a outra metade não tem segunda
+  janela antes do vencimento.
 
 ⚠️ O worker passou a ter `FISCAL_ENVIRONMENT` (`homologation` | `production`, **padrão
 `production`**), e quem o lê é só a reconciliação de NFS-e, para casar a linha de
@@ -349,19 +358,20 @@ avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** 
 é o relógio no banco, não a variável do painel de hospedagem, e por isso os quatro serviços de cron
 viraram um (spec 052). ⚠️ As rotinas chegam ao worker uma por vez, e enquanto a dela não chega o
 `src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as duas que faltam
-(`fuel.price.pull`, `notification.schedules.run`) estão nesse estado, e cada janela delas pousa em
-`job_run_routine_missing` no worker. `nfe.distribution.pull` e `nfse.status.pull` já foram: a fatia
-da NF-e ficou parada aqui (será apagada quando a última pousar) e a da **NFS-e já foi apagada** —
+(hoje só `fuel.price.pull`) está nesse estado, e cada janela dela pousa em
+`job_run_routine_missing` no worker. As outras três já foram: a fatia
+da NF-e ficou parada aqui (será apagada quando a última pousar) e as de **NFS-e e notificação já
+foram apagadas** —
 com ela saíram as cinco cópias por valor do cliente da Nota RP, o schema de reconciliação e o bloco
-de configuração dele (chaveiro, bucket e endereço da prefeitura não são mais lidos nesta app).
+de configuração dele (chaveiro, bucket e endereço da prefeitura não são mais lidos nesta app); com a
+de notificação saíram o bloco `NOTIFICATION_SUPPRESSION_HMAC_KEY` e as duas dependências
+`@adatechnology/notification-*`, que nenhum arquivo desta app importa mais.
 
 As rotinas que ainda vivem aqui:
 
 - `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
   `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
   consumidor de distribuição que já existiam.
-- `notification.schedules.run` — varre o que venceu (fatura a vencer, NFS-e rejeitada) e reenfileira
-  em `notification.v1`, a mesma trilha que a API publica e o worker consome.
 - `fuel.price.pull` — baixa o resumo semanal da ANP (XLSX lido por código nosso, ZIP +
   `inflateRawSync`, sem dependência nova — ADR-0033) e grava `fuel_price_references` por produto e
   UF. Como a reconciliação de NFS-e fazia, aqui ele **processa** em vez de enfileirar. Roda **sábado**

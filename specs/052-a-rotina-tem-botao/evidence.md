@@ -553,3 +553,52 @@ frontend   1799 pass · 0 fail  (18 arquivos)
 ```
 
 `typecheck`, `lint` e `format:check` limpos nas quatro apps.
+
+## T6 — `notification.schedules.run` no worker, e a falha ganha nome
+
+`worker/test/job-run/notification-schedules.contract.ts` — 10 pass · 0 fail · 30 expect().
+
+**Por que a rotina não é um `for` sobre `createNotificationSchedules`.** Duas divergências do que o
+cron fazia, e as duas estão no contrato:
+
+- **Schedule que cai não derruba a fila de schedules.** O ciclo roda os dois (`dispatch-due` e
+  `purge-expired`) e só depois decide o desfecho; parar no primeiro deixaria a purga de fora toda
+  vez que a entrega tropeçasse. Entre um e outro o ciclo respeita `isStopRequested()` — o que não
+  começou fica para a janela seguinte, e a linha fecha `succeeded`.
+- **A classificação é por causa tipada, nunca por semelhança de mensagem.** O contrato afirma o
+  contrário do atalho: `new Error('queue unreachable')` continua `unknown` → `unexpected_error`.
+  Quem nomeia o broker é `createGuardedNotificationQueue`, decorador que envolve **só** o `enqueue`
+  da fila que o módulo já usa e converte a falha em `NotificationQueueUnreachableError`; `consume` e
+  `close` passam intactos. `template_missing` vem do código estável
+  `NOTIFICATION_TEMPLATE_NOT_FOUND` que `sendNotification` levanta na varredura — dentro do
+  `dispatchDueNotifications` o template ausente **não lança**, vira `errorCode` da entrega, e por
+  isso não há o que classificar ali.
+
+**Aqui a falha domina, ao contrário de `nfse.status.pull`.** Na fiscal o trabalho feito vence: nota
+liquidada é resultado, e o que ficou pendente volta na próxima. Aqui um ciclo que avisou metade das
+faturas precisa mostrar isso — a outra metade não tem segunda janela antes do vencimento. A ordem é
+`['template_missing', 'queue_unreachable']`: o que o operador conserta sozinho vence o que o tempo
+conserta.
+
+**O que o worker ganhou.** `notification-schedules/` com a rotina, a varredura de fatura a vencer
+(que, ao contrário da do cron, **não engole** falha — devolve `failures[]`), a query de
+`billing_invoices` e a política de causas; `BILLING_INVOICE_DUE` no catálogo de templates com os
+lugares `dueDate` e `invoiceNumber` — **sem valor e sem cliente**, o gatilho carrega referência.
+`main.ts` registra a terceira entrada do `JobRoutineRegistry`.
+
+**O que saiu do cron.** `src/notification-schedules/**`, as três suítes, a entrada do
+`package.json`, o bloco `notificationSchedules` de `cron.types.ts`/`environment.schema.ts` com
+`NOTIFICATION_SUPPRESSION_HMAC_KEY` — e as duas dependências de notificação, que nenhum arquivo da
+app importa mais.
+
+**Gate.**
+
+```
+worker   625 pass · 0 fail  (62 arquivos)
+cron     101 pass · 0 fail  (7 arquivos)  ·  typecheck limpo
+```
+
+⚠️ `worker typecheck` segue **vermelho**, e não por causa do T6: a fatia `fuel-price-pull` do T5 já
+está movida no índice do git e ainda não foi religada (`config/cron.types.js`,
+`shared/advisory-lock.port.js`, `CronLogger`, e os dois arquivos da rotina que faltam escrever).
+Fecha com o T5.
