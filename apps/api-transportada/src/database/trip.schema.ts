@@ -4,9 +4,11 @@
 import { sql } from 'drizzle-orm'
 import {
   bigint,
+  boolean,
   check,
   foreignKey,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -360,6 +362,74 @@ export const tripDocumentEvents = pgTable(
     check(
       'trip_document_events_actual_transition_check',
       sql`${table.fromStatus} is distinct from ${table.toStatus}`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0043 §2: `dispatched` é a porta de não-retorno, e o roteiro que o motorista levou é o que se
+ * cobra dele depois — não a versão que alguém editou às onze da noite. Uma linha por viagem
+ * despachada, gravada na mesma transação da transição.
+ *
+ * **Tabela própria, não coluna em `trips`**, por um motivo de execução: `trips` sofre `UPDATE` a
+ * cada transição de estado, então nunca poderia carregar o trigger append-only que torna esta
+ * imutabilidade real. A tabela pode.
+ *
+ * O `snapshot` guarda as paradas na ordem e os ids das notas de cada uma **sem FK** — de
+ * propósito. Congelar é justamente parar de acompanhar: se a parada for reconciliada ou apagada
+ * depois, o documento que o motorista levou não muda junto.
+ */
+export const tripDispatchSnapshots = pgTable(
+  'trip_dispatch_snapshots',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    snapshot: jsonb().notNull(),
+    snapshotSha256: text('snapshot_sha256').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    /** ADR-0043 §2: despachar com nota pendente acontece todo dia — mas não sem alguém assinar. */
+    forced: boolean().notNull().default(false),
+    forceReason: text('force_reason'),
+    dispatchedAt: timestamp('dispatched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_dispatch_snapshots_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_dispatch_snapshots_company_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_dispatch_snapshots_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_dispatch_snapshots_company_id_id_unique').on(table.companyId, table.id),
+    // `dispatched` é irreversível, então despacho é um evento único por viagem.
+    unique('trip_dispatch_snapshots_company_trip_unique').on(table.companyId, table.tripId),
+    check(
+      'trip_dispatch_snapshots_sha256_check',
+      sql`${table.snapshotSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    // Mesmo par coerente do motivo de retorno: forçado exige motivo, e motivo exige forçado.
+    check(
+      'trip_dispatch_snapshots_force_reason_check',
+      sql`${table.forced} = (${table.forceReason} is not null)`,
+    ),
+    check(
+      'trip_dispatch_snapshots_stops_shape_check',
+      sql`jsonb_typeof(${table.snapshot} -> 'stops') = 'array'`,
     ),
   ],
 )

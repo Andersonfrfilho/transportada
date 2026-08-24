@@ -142,6 +142,7 @@ export const TRIP_TABLES = [
   'trip_documents',
   'trip_stops',
   'trip_document_events',
+  'trip_dispatch_snapshots',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

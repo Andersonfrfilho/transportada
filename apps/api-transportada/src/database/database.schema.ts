@@ -101,6 +101,7 @@ import {
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
 import {
+  tripDispatchSnapshots,
   tripDocumentEvents,
   tripDocuments,
   tripDrivers,
@@ -221,6 +222,7 @@ export const databaseSchema = {
   billingInvoiceItems,
   billingInvoices,
   storedObjects,
+  tripDispatchSnapshots,
   tripDocumentEvents,
   tripDocuments,
   tripDrivers,

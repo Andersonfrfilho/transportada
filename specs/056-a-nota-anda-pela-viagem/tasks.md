@@ -103,14 +103,43 @@ PII** na tabela de eventos.
   código: nenhum evento é gravado quando a transição não muda nada. Tabela append-only por
   convenção de código — sem `updated_at`, e o teste confere isso.
 
-### T005 🧠 — O snapshot congelado do roteiro
+### T005 🧠 ✅ — O snapshot congelado do roteiro
 
 Tabela (ou JSONB em `trips`) escrita na transição a `dispatched`, guardando a ordem das paradas e as
 notas de cada uma. Imutável por constraint, não por convenção.
 
-- **Arquivos:** `drizzle/<ts>_trip_dispatch_snapshot/`, `src/database/trip.schema.ts`
-- **Aceite:** `test/trip-schema/snapshot.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `apps/api-transportada/drizzle/20260824204913_trip_dispatch_snapshots/` (migration
+  + `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`,
+  `apps/api-transportada/src/database/database.schema.ts`
+- **Aceite:** `test/trip-schema/dispatch-snapshot.contract.ts` (novo, 8 testes + 1 de contrato de
+  trigger)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2934 pass, 0 fail) ✅, banco recriado do zero
+  com as 91 migrations em sequência ✅
+- **Evidência — "imutável por constraint, não por convenção" resolvido:** o repositório já tinha a
+  resposta e eu não sabia. `audit_logs` e `fiscal_sequence_reservations` são append-only por
+  **trigger** (`20260720003709_company_fiscal_settings`): função `reject_<tabela>_mutation()` com
+  `RAISE EXCEPTION ... USING ERRCODE = '55000'` em `BEFORE UPDATE OR DELETE ... FOR EACH ROW`.
+  Adotei o mesmo padrão. Provado em execução, com linha real no banco: `UPDATE` e `DELETE` os dois
+  recusados pelo Postgres, linha intacta depois.
+
+  **Isso também decidiu tabela vs coluna JSONB em `trips`**, que era a dúvida aberta da task:
+  `trips` sofre `UPDATE` a cada transição de estado, então uma coluna lá jamais poderia carregar o
+  trigger. Só tabela própria torna a imutabilidade real.
+
+  O `snapshot` guarda as paradas e os ids das notas **sem FK para `trip_stops`** — de propósito, e
+  há teste para isso: uma FK faria a parada apagada levar o snapshot junto (cascade) ou travar a
+  reconciliação (restrict), e as duas desfazem o congelamento. `sha256` do conteúdo segue
+  `cte_issuance_payloads`. `forced`/`force_reason` nascem aqui em par coerente, prontos para a
+  regra de despacho com pendência da T010.
+
+  **Retrofit de T004 na mesma migration:** `trip_document_events` tinha ficado append-only só por
+  convenção de código. Ganhou o mesmo trigger — a trilha de quem separou o quê tem o mesmo peso de
+  auditoria que `audit_logs` e merece a mesma proteção. Deixar as duas tabelas com garantias
+  diferentes seria pior que qualquer uma das duas escolhas.
+
+  O trigger é escrito à mão na migration (o `drizzle-kit generate` não o produz), então é
+  exatamente o tipo de coisa que some num `db:generate` futuro sem ninguém notar — o último teste
+  do contrato lê o SQL da migration e falha se qualquer uma das quatro linhas do trigger sumir.
 
 ## Fase 2 — O domínio
 
