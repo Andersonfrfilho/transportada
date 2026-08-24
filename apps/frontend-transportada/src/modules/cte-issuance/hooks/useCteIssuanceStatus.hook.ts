@@ -142,8 +142,8 @@ export function useCteIssuanceStatus(
   })
   const reprocessMutation = useMutation({
     mutationFn: controller.reprocessItem,
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: issuanceQueryKey }),
         queryClient.invalidateQueries({ queryKey: documentsQueryKey }),
       ])

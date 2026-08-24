@@ -114,11 +114,11 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
 
   const cancelMutation = useMutation({
     mutationFn: controller.cancelInvoice,
-    onSuccess: async () => {
+    onSuccess: () => {
       setCancelTarget(null)
       setCancellationReason('')
       setCancellationMotive('')
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] }),
         invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
       ])
@@ -153,9 +153,9 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
   const discardMutation = useMutation({
     mutationFn: controller.discardInvoice,
     // Reemitir retransmite o mesmo RPS e não mexe no vínculo; descartar devolve a nota fiscal.
-    onSuccess: async () => {
+    onSuccess: () => {
       setDiscardTarget(null)
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] }),
         invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),
       ])

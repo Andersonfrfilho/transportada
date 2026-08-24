@@ -119,14 +119,14 @@ export function useBillingWorkspace(
   })
   const createMutation = useMutation({
     mutationFn: controller.createInvoice,
-    onSuccess: async () => {
-      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
+    onSuccess: () => {
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
   const updateMutation = useMutation({
     mutationFn: controller.updateInvoice,
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: invoiceQueryKey }),
         queryClient.invalidateQueries({ queryKey: invoiceListQueryKey }),
       ])
@@ -135,15 +135,15 @@ export function useBillingWorkspace(
   /** O PDF novo só aparece na lista do detalhe depois de invalidar os documentos da fatura. */
   const generateDocumentMutation = useMutation({
     mutationFn: () => controller.generateDocument({ invoiceId: input.invoiceId ?? '' }),
-    onSuccess: async (document) => {
+    onSuccess: (document) => {
       documentDownload.openDocument(document)
-      await queryClient.invalidateQueries({ queryKey: documentsQueryKey })
+      void queryClient.invalidateQueries({ queryKey: documentsQueryKey })
     },
   })
   const cancelMutation = useMutation({
     mutationFn: controller.cancelInvoice,
-    onSuccess: async () => {
-      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
+    onSuccess: () => {
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
 

@@ -226,8 +226,8 @@ export function useNfeWorkspace(
         throw new AggregateError(failures, 'NFE_UPLOAD_PARTIALLY_FAILED')
       }
     },
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: importsQueryKey }),
         queryClient.invalidateQueries({ queryKey: documentsQueryKey }),
       ])
@@ -235,9 +235,9 @@ export function useNfeWorkspace(
   })
   const distributionMutation = useMutation({
     mutationFn: client.requestDistribution,
-    onSuccess: async () => {
+    onSuccess: () => {
       setDistributionTriggeredAt(Date.now())
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: importsQueryKey }),
         queryClient.invalidateQueries({ queryKey: distributionStatusQueryKey }),
       ])
@@ -245,8 +245,8 @@ export function useNfeWorkspace(
   })
   const reprocessMutation = useMutation({
     mutationFn: client.reprocessImport,
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: importsQueryKey }),
         queryClient.invalidateQueries({ queryKey: documentsQueryKey }),
       ])

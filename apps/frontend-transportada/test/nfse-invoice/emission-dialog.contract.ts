@@ -127,7 +127,9 @@ type EmissionProfileStatus = 'error' | 'forbidden' | 'loading' | 'missing' | 're
 type EmissionModule = {
   readonly NFSE_BLOCK_LABEL_LIMIT: number
   readonly NFSE_DESCRIPTION_VARIABLES: readonly string[]
-  readonly NFSE_EMISSION_MAX_VISIBLE_ROWS: number
+  readonly NFSE_EMISSION_DEFAULT_PAGE_SIZE: number
+  readonly NFSE_EMISSION_PAGE_SIZES: readonly number[]
+  readonly parseNfseEmissionPageSize: (value: string) => number
   readonly NFSE_EMISSION_PREVIEW_QUERY_KEY: string
   readonly buildNfseCreateRequests: (
     input: Readonly<{
@@ -890,12 +892,23 @@ describe('nfse emission dialog rendering contract', () => {
     expect(dialog).not.toContain('new Intl.NumberFormat')
   })
 
-  test('caps the rows it renders and reports the remainder', async () => {
-    const { NFSE_EMISSION_MAX_VISIBLE_ROWS } = await loadEmissionModule()
+  /**
+   * O teto continua existindo — dezenas de milhares de linhas travam a janela —, mas ele agora é
+   * tamanho de página, não corte. Antes as linhas além dele só existiam como um aviso de rodapé, e
+   * quem conferia uma emissão grande não tinha como olhar as últimas.
+   */
+  test('pages the rows it renders instead of cutting the list off', async () => {
+    const { NFSE_EMISSION_DEFAULT_PAGE_SIZE, NFSE_EMISSION_PAGE_SIZES, parseNfseEmissionPageSize } =
+      await loadEmissionModule()
     const dialog = await readApplicationFile(DIALOG_PATH)
 
-    expect(NFSE_EMISSION_MAX_VISIBLE_ROWS).toBeGreaterThan(0)
-    expect(dialog).toContain('dialog.hiddenRowCount')
+    expect(NFSE_EMISSION_PAGE_SIZES).toContain(NFSE_EMISSION_DEFAULT_PAGE_SIZE)
+    expect(parseNfseEmissionPageSize('7')).toBe(NFSE_EMISSION_DEFAULT_PAGE_SIZE)
+
+    expect(dialog).toContain('dialog.pageNumber')
+    expect(dialog).toContain('dialog.goToNextPage')
+    expect(dialog).toContain('dialog.setPageSize')
+    expect(dialog).not.toContain('hiddenRowCount')
   })
 
   test('keeps the taker out of the published strings — it arrives as data, never as example', async () => {

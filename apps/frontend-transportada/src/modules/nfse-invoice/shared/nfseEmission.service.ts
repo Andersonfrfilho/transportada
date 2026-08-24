@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
+import { parsePageSize } from '@/modules/shared/rowPagination.service'
 
 import {
   NFSE_INVOICE_ERROR,
@@ -15,8 +16,24 @@ import type {
 
 export const NFSE_EMISSION_PREVIEW_QUERY_KEY = 'nfse-emission-preview'
 
-/** Dezenas de milhares de linhas no DOM travam a janela; o restante vira contagem no rodapé. */
-export const NFSE_EMISSION_MAX_VISIBLE_ROWS = 50
+/**
+ * Tamanhos de página da tabela de conferência. O teto existe porque dezenas de milhares de linhas
+ * no DOM travam a janela ao rolar — antes da paginação ele era um corte seco, e as linhas além
+ * dele só existiam como um aviso de rodapé.
+ */
+export const NFSE_EMISSION_PAGE_SIZES = [50, 100, 200] as const
+
+export type NfseEmissionPageSize = (typeof NFSE_EMISSION_PAGE_SIZES)[number]
+
+export const NFSE_EMISSION_DEFAULT_PAGE_SIZE: NfseEmissionPageSize = 50
+
+export function parseNfseEmissionPageSize(value: string): NfseEmissionPageSize {
+  return parsePageSize({
+    fallback: NFSE_EMISSION_DEFAULT_PAGE_SIZE,
+    sizes: NFSE_EMISSION_PAGE_SIZES,
+    value,
+  })
+}
 
 /** Acima disto a lista nomeada vira "e mais N": indica problema de dado, não de mensagem. */
 export const NFSE_BLOCK_LABEL_LIMIT = 10

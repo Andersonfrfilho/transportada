@@ -88,8 +88,8 @@ export function useCteBatchItems(input: UseCteBatchItemsInput) {
       return batchController.removeItem({ batchId: input.batchId, itemId: item.id })
     },
     // Tirar o item do lote solta a nota fiscal dele: ela volta a ser selecionável na listagem.
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [CTE_BATCH_ITEMS_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [CTE_BATCHES_QUERY_KEY] }),
         invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient }),

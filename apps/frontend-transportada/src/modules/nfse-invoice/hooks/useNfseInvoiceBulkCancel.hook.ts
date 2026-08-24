@@ -83,10 +83,10 @@ export function useNfseInvoiceBulkCancel(input: UseNfseInvoiceBulkCancelInput) {
       return outcomes
     },
     // Cancelar solta a nota fiscal: sem o efeito, a tabela de notas segue com o bloqueio antigo.
-    onSuccess: async (outcomes) => {
+    onSuccess: (outcomes) => {
       setSummary(summarizeNfseBulkCancellation(outcomes))
-      await queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
-      await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+      void queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
     },
   })
 

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { paginateRows } from '@/modules/shared/rowPagination.service'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -17,7 +18,8 @@ import {
   canOpenNfseEmission,
   groupNfseBlocksByReason,
   isNfseEmissionFormLocked,
-  NFSE_EMISSION_MAX_VISIBLE_ROWS,
+  NFSE_EMISSION_DEFAULT_PAGE_SIZE,
+  type NfseEmissionPageSize,
   resolveNfseDescription,
   resolveNfseEmissionProfileStatus,
   resolveNfseEmissionStatus,
@@ -52,7 +54,17 @@ export type UseNfseEmissionDialogResult = Readonly<{
   confirm: () => void
   description: string
   errorCode: null | string
-  hiddenRowCount: number
+  canGoToPreviousPage: boolean
+  goToNextPage: () => void
+  goToPreviousPage: () => void
+  hasNextPage: boolean
+  pageCount: number
+  pageNumber: number
+  pageSize: NfseEmissionPageSize
+  rowsFirstShown: number
+  rowsLastShown: number
+  rowsTotal: number
+  setPageSize: (size: NfseEmissionPageSize) => void
   isFormLocked: boolean
   isOpen: boolean
   open: () => void
@@ -76,6 +88,10 @@ export function useNfseEmissionDialog(
   input: UseNfseEmissionDialogParams,
 ): UseNfseEmissionDialogResult {
   const [isOpen, setIsOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSizeState] = useState<NfseEmissionPageSize>(
+    NFSE_EMISSION_DEFAULT_PAGE_SIZE,
+  )
   const [selectedProfileId, setSelectedProfileId] = useState<null | string>(null)
   const [customDescription, setCustomDescription] = useState<null | string>(null)
   // Nasce vazio e só o operador o preenche: nenhuma janela é derivada das notas selecionadas.
@@ -179,8 +195,23 @@ export function useNfseEmissionDialog(
       })
     : 'idle'
   const rows = summary?.rows ?? []
+  const rowPage = paginateRows({ page, pageSize, rows })
+
+  function setPageSize(size: NfseEmissionPageSize): void {
+    setPageSizeState(size)
+    setPage(1)
+  }
+
+  function goToPreviousPage(): void {
+    setPage(rowPage.pageNumber - 1)
+  }
+
+  function goToNextPage(): void {
+    setPage(rowPage.pageNumber + 1)
+  }
 
   function open(): void {
+    setPage(1)
     setSelectedProfileId(null)
     setCustomDescription(null)
     setPeriod('')
@@ -211,19 +242,29 @@ export function useNfseEmissionDialog(
     confirm,
     description,
     errorCode: readErrorCode(previewQuery.error ?? createMutation.error),
-    hiddenRowCount: Math.max(0, rows.length - NFSE_EMISSION_MAX_VISIBLE_ROWS),
+    canGoToPreviousPage: rowPage.canGoToPreviousPage,
+    goToNextPage,
+    goToPreviousPage,
+    hasNextPage: rowPage.hasNextPage,
     isFormLocked: isNfseEmissionFormLocked(status),
     isOpen,
     open,
     period,
     profileId,
     profileOptions: buildNfseProfileSelectOptions(profiles),
+    pageCount: rowPage.pageCount,
+    pageNumber: rowPage.pageNumber,
+    pageSize,
+    rowsFirstShown: rowPage.firstShown,
+    rowsLastShown: rowPage.lastShown,
+    rowsTotal: rowPage.total,
     selectedCount: input.documentIds.length,
     setDescription: setCustomDescription,
+    setPageSize,
     setPeriod,
     setProfileId: setSelectedProfileId,
     status,
     summary,
-    visibleRows: rows.slice(0, NFSE_EMISSION_MAX_VISIBLE_ROWS),
+    visibleRows: rowPage.rows,
   }
 }

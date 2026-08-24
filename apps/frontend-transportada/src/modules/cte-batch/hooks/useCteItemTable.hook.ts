@@ -178,8 +178,8 @@ export function useCteItemTable(input: UseCteItemTableInput) {
       })
     },
     /** Transmitir tira o lote do rascunho: mesmo com recusa parcial a listagem precisa reler. */
-    onSettled: async () => {
-      await Promise.all([
+    onSettled: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEMS_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY] }),
         queryClient.invalidateQueries({ queryKey: [CTE_BATCHES_QUERY_KEY] }),
