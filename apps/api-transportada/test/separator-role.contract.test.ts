@@ -78,6 +78,9 @@ describe('separator role contract', () => {
   // A lista é exaustiva de propósito: rota nova de frota, faturamento ou CT-e reprova aqui até
   // alguém decidir, por escrito, se o separador a alcança.
   test('reaches the trip write routes and nothing that changes fleet, billing or CT-e', () => {
+    // spec 056 T012: as rotas de estado (separate/load/return/batch-status/plan-route/dispatch/
+    // cancel) e a leitura de paradas entram sob a mesma trip.manage/fleet.read que já valiam; o
+    // separador ganha acesso a elas de graça, sem mudar nenhuma outra permissão.
     expect(reachableRoutes(['separator'])).toEqual([
       'DELETE /trips/:id/documents/:documentId',
       'GET /fleet/capabilities',
@@ -88,12 +91,21 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id',
       'GET /nfe-documents/:id/eligibility',
       'GET /nfe-documents/:id/xml',
+      'GET /nfe-documents/by-access-key/:accessKey/trip-location',
       'GET /trips',
       'GET /trips/:id',
+      'GET /trips/:id/stops',
       'POST /trips',
+      'POST /trips/:id/cancel',
       'POST /trips/:id/close',
+      'POST /trips/:id/dispatch',
       'POST /trips/:id/documents',
       'POST /trips/:id/documents/:documentId/deliver',
+      'POST /trips/:id/documents/:documentId/load',
+      'POST /trips/:id/documents/:documentId/return',
+      'POST /trips/:id/documents/:documentId/separate',
+      'POST /trips/:id/documents/batch-status',
+      'POST /trips/:id/plan-route',
     ])
   })
 

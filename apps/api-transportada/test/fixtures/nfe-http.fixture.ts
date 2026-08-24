@@ -171,6 +171,13 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         )
       },
     },
+    // spec 056 T012: fora do escopo dos testes deste fixture (que é de nfe-imports/documentos);
+    // stub `null` — "nota sem viagem" é resposta válida, não erro.
+    locateTripByAccessKey: {
+      async execute() {
+        return null
+      },
+    },
     listImports: {
       async execute(input) {
         importListCalls.push(structuredClone(input))

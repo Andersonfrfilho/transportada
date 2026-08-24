@@ -28,3 +28,45 @@ export const linkTripDocumentSchema = z
   .strict()
 
 export type LinkTripDocumentBody = z.infer<typeof linkTripDocumentSchema>
+
+/**
+ * O maço real do armazém, não uma lista arbitrária — mesmo teto que o T009 testou
+ * (`transition-trip-documents-batch.use-case.ts`).
+ */
+const MAX_BATCH_DOCUMENTS = 50
+
+const TRIP_DOCUMENT_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
+
+/**
+ * `returnReason` é opcional aqui de propósito: exigi-lo só quando `action = 'return'` é regra de
+ * domínio, e o use case (T008/T009) já lança `TripDocumentReturnReasonRequiredError` — validar
+ * duas vezes duplicaria a mensagem sem duplicar a segurança.
+ */
+export const transitionTripDocumentSchema = z
+  .object({
+    note: z.string().trim().min(1).nullable().default(null),
+    returnReason: z.string().trim().min(1).nullable().default(null),
+  })
+  .strict()
+
+export type TransitionTripDocumentBody = z.infer<typeof transitionTripDocumentSchema>
+
+export const batchTransitionTripDocumentsSchema = z
+  .object({
+    action: z.enum(TRIP_DOCUMENT_ACTIONS),
+    documentIds: z.array(z.uuid()).min(1).max(MAX_BATCH_DOCUMENTS),
+    note: z.string().trim().min(1).nullable().default(null),
+    returnReason: z.string().trim().min(1).nullable().default(null),
+  })
+  .strict()
+
+export type BatchTransitionTripDocumentsBody = z.infer<typeof batchTransitionTripDocumentsSchema>
+
+export const dispatchTripSchema = z
+  .object({
+    force: z.boolean().default(false),
+    forceReason: z.string().trim().min(1).nullable().default(null),
+  })
+  .strict()
+
+export type DispatchTripBody = z.infer<typeof dispatchTripSchema>

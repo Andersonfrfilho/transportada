@@ -373,7 +373,7 @@ escrever teste novo.
 - **Arquivos:** `test/authorization.contract.test.ts` (só se faltar cobertura)
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T012 — As rotas de estado
+### T012 ✅ — As rotas de estado
 
 As rotas do RF-6, incluindo as três da D8/D9, com `defineRoute`, schemas Zod em
 `trip-request.schema.ts`, e `Idempotency-Key` honrado.
@@ -385,11 +385,49 @@ As rotas do RF-6, incluindo as três da D8/D9, com `defineRoute`, schemas Zod em
 > (`.../trip-location`) continua necessária, e deve reusar aquele filtro em vez de duplicar a
 > consulta.
 
-- **Arquivos:** `src/trips/presentation/trip.routes.ts`,
-  `src/trips/presentation/trip-request.schema.ts`,
-  `src/nfe-documents/presentation/nfe-documents.routes.ts`
-- **Aceite:** `test/trips/routes.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `src/trips/presentation/trip.routes.ts`, `src/trips/presentation/trip-request.schema.ts`,
+  `src/trips/presentation/trip.schema.ts`, `src/nfe-documents/presentation/nfe-documents.routes.ts`,
+  três use cases novos (`cancel-trip.use-case.ts`, `list-trip-stops.use-case.ts`,
+  `find-trip-location-by-access-key.use-case.ts` — RF-6 pedia as rotas, e três delas não tinham
+  use case ainda), o controlador `trip-lifecycle.use-case.ts` (une T006–T010 ao formato
+  `execute(input)` que o router espera), `drizzle-trip-stop-lookup.repository.ts` (novo),
+  `drizzle-trip-route.repository.ts` (ganhou `CancelTripPort`), `src/main.ts` (composição — as
+  rotas só ficam alcançáveis de verdade com isso), e três fixtures de teste atualizadas
+  (`trip-http.fixture.ts`, `trip-http-payload.fixture.ts`, `nfe-http.fixture.ts`/`.types.ts`)
+- **Aceite:** `test/trips/routes.contract.ts` (novo, 15 testes)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (3017 pass, 0 fail) ✅
+- **Evidência:**
+
+  **`deliver` não ganhou rota individual.** RF-6 só lista separate/load/return/batch-status/
+  plan-route/dispatch/cancel para o escritório — de propósito: `.../documents/:documentId/deliver`
+  já existe, é o fluxo antigo da spec 027 (`deliveredAt` incondicional), e colidiria com a ação
+  `deliver` do eixo novo. Entregar pelo escritório continua acessível via `batch-status`; a rota
+  individual de entrega é da spec 057 (`/me/trips/*`, papel `trip.report`, motorista).
+
+  **`Idempotency-Key` não ganhou ledger.** A convenção do repositório (`apis.md`) é aceitar o
+  cabeçalho e persistir contra `idempotency_records` para deduplicar `POST` que cria recurso. As
+  rotas de transição não criam recurso — elas mudam estado de um que já existe — e o T006/T008 já
+  fazem a mesma chamada duas vezes convergir para o mesmo resultado sem reescrever nada. Construir
+  um ledger por cima disso duplicaria a garantia sem acrescentar nenhuma; documentado aqui em vez
+  de implementado.
+
+  **Composição em `main.ts` foi necessária, não opcional.** As rotas anteriores (T006–T010)
+  pararam em "porta pura + repositório", e é isso que as torna testáveis com port falso. Mas sem
+  ligar ao servidor de verdade a feature não está no ar — `tripLifecycle` é o encanamento que une
+  os quatro repositórios (`documentRepository`, `batchRepository`, `routeRepository`,
+  `stopRepository`) num objeto com `execute(input)` por ação, e `main.ts` os instancia com o mesmo
+  `database` que todo o resto do módulo já usa.
+
+  **Duas fixtures compartilhadas precisaram de stub novo** — `trip-http.fixture.ts` (a interface
+  `Dependencies` do router cresceu, e o fixture usa o tipo real, não um cast solto) e
+  `nfe-http.fixture.ts`/`.types.ts` (a nova rota de localização por chave de acesso entra no mesmo
+  módulo `nfe-documents` que os testes de import/distribuição já exercitam). Nenhum teste existente
+  mudou de comportamento — só ganhou um dependency a mais para satisfazer o tipo.
+
+  **`test/separator-role.contract.test.ts` precisou de atualização**, não conserto: a lista
+  exaustiva de rotas alcançáveis pelo papel `separator` cresceu de propósito — as nove rotas novas
+  (oito de `trip.manage`, uma de `fleet.read`/`invoices.read`) são exatamente as que o separador
+  deveria alcançar, e o teste documenta isso, não só valida.
 
 ### T013 — Vínculo e desvínculo recusam viagem despachada
 

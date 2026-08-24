@@ -126,7 +126,12 @@ import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/d
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
 import { createTripUseCase } from './trips/application/trip.use-case'
+import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
+import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
+import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
+import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
+import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
@@ -456,6 +461,17 @@ function createApplicationRoutes({
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
   const tripRepository = new DrizzleTripRepository(database)
+  const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
+  const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
+  const tripRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
+  const tripLifecycle = createTripLifecycleUseCase({
+    batchRepository: tripDocumentBatchRepository,
+    documentRepository: tripDocumentRepository,
+    locationRepository: tripStopLookupRepository,
+    routeRepository: tripRouteRepository,
+    stopRepository: tripStopLookupRepository,
+  })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
   const nfseProfileRepository = new DrizzleNfseProfileRepository(database)
@@ -800,14 +816,22 @@ function createApplicationRoutes({
       },
     }),
     ...createTripRoutes({
+      batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },
+      cancelTrip: { execute: (input) => tripLifecycle.cancel.execute(input) },
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       getTrip: { execute: (input) => trips.get(input) },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
       listTrips: { execute: (input) => trips.list(input) },
+      loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },
+      planTripRoute: { execute: (input) => tripLifecycle.planRoute.execute(input) },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
+      returnTripDocument: { execute: (input) => tripLifecycle.return.execute(input) },
+      separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),
     ...createCteEmissionProfileRoutes({
       activateProfile: { execute: (input) => cteEmissionProfiles.activate(input) },
@@ -974,6 +998,7 @@ function createApplicationRoutes({
       getDocument: { execute: (input) => nfeDocumentRepository.get(input) },
       getEligibility: { execute: (input) => nfeDocumentRepository.getEligibility(input) },
       listDocuments: { execute: (input) => nfeDocumentRepository.list(input) },
+      locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
     }),
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),

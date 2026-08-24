@@ -23,9 +23,22 @@ import type {
   TripDocumentDetail,
   TripPage,
 } from '../application/trip.port.js'
+import type { CancelTripResult } from '../application/cancel-trip.use-case.js'
+import type { DispatchTripResult } from '../application/dispatch-trip.use-case.js'
+import type { ListTripStopsResult, TripStopSummary } from '../application/list-trip-stops.use-case.js'
+import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
+import type { TransitionTripDocumentResult } from '../application/transition-trip-document.use-case.js'
+import type {
+  TransitionTripDocumentsBatchResult,
+  TripDocumentBatchItemOutcome,
+} from '../application/transition-trip-documents-batch.use-case.js'
+import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import {
+  parseBatchTransitionTripDocumentsRequest,
   parseCreateTripRequest,
+  parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
+  parseTransitionTripDocumentRequest,
   parseTripList,
   parseUuidPathIdentifier,
 } from './trip.schema.js'
@@ -35,6 +48,20 @@ const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
+/**
+ * ADR-0043 §1: `deliver` não ganha rota individual aqui — RF-6 da spec 056 só lista
+ * separate/load/return para o escritório. Entregar é ação de rua (spec 057, `/me/trips/*`, papel
+ * `trip.report`) e já teria colidido com `TRIP_DOCUMENT_DELIVER_PATH` acima, que é o fluxo antigo
+ * (spec 027) — `deliver` continua acessível pelo lote (`batch-status`) enquanto a 057 não nasce.
+ */
+const TRIP_DOCUMENT_SEPARATE_PATH = `${TRIP_DOCUMENT_PATH}/separate`
+const TRIP_DOCUMENT_LOAD_PATH = `${TRIP_DOCUMENT_PATH}/load`
+const TRIP_DOCUMENT_RETURN_PATH = `${TRIP_DOCUMENT_PATH}/return`
+const TRIP_DOCUMENTS_BATCH_STATUS_PATH = `${TRIP_DOCUMENTS_PATH}/batch-status`
+const TRIP_PLAN_ROUTE_PATH = `${API_TRIPS_PATH}/:id/plan-route`
+const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
+const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
+const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
 /**
  * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
@@ -46,7 +73,29 @@ const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as co
 
 type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: CompanyContext }
 
+type TripDocumentActionInput = {
+  readonly documentId: string
+  readonly note: string | null
+  readonly returnReason: string | null
+  readonly tripId: string
+}
+
+type BatchStatusInput = {
+  readonly action: TripDocumentAction
+  readonly documentIds: readonly string[]
+  readonly note: string | null
+  readonly returnReason: string | null
+  readonly tripId: string
+}
+
+type DispatchInput = { readonly force: boolean; readonly forceReason: string | null; readonly tripId: string }
+type TripIdInput = { readonly tripId: string }
+
 type Dependencies = {
+  readonly batchStatus: {
+    execute(input: TenantInput<BatchStatusInput>): Promise<TransitionTripDocumentsBatchResult>
+  }
+  readonly cancelTrip: { execute(input: TenantInput<TripIdInput>): Promise<CancelTripResult> }
   readonly closeTrip: { execute(input: TenantInput<CloseTripInput>): Promise<TripDetail> }
   readonly createTrip: { execute(input: TenantInput<CreateTripInput>): Promise<TripDetail> }
   readonly createTripMdfeManifest: {
@@ -55,13 +104,25 @@ type Dependencies = {
   readonly deliverTripDocument: {
     execute(input: TenantInput<DeliverTripDocumentInput>): Promise<TripDocument>
   }
+  readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
   readonly linkTripDocument: {
     execute(input: TenantInput<LinkTripDocumentInput>): Promise<TripDocument>
   }
+  readonly listStops: { execute(input: TenantInput<TripIdInput>): Promise<ListTripStopsResult> }
   readonly listTrips: { execute(input: TenantInput<ListTripsInput>): Promise<TripPage> }
+  readonly loadTripDocument: {
+    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
+  }
+  readonly planTripRoute: { execute(input: TenantInput<TripIdInput>): Promise<PlanTripRouteResult> }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
+  }
+  readonly returnTripDocument: {
+    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
+  }
+  readonly separateTripDocument: {
+    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
 }
 
@@ -187,7 +248,123 @@ export function createTripRoutes(
       pathname: TRIP_MDFE_MANIFESTS_PATH,
       policy: MDFE_MANAGE_POLICY,
     }),
+    tripDocumentActionRoute({
+      dependency: dependencies.separateTripDocument,
+      pathname: TRIP_DOCUMENT_SEPARATE_PATH,
+    }),
+    tripDocumentActionRoute({
+      dependency: dependencies.loadTripDocument,
+      pathname: TRIP_DOCUMENT_LOAD_PATH,
+    }),
+    tripDocumentActionRoute({
+      dependency: dependencies.returnTripDocument,
+      pathname: TRIP_DOCUMENT_RETURN_PATH,
+    }),
+    defineRoute<Omit<BatchStatusInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.batchStatus.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: serializeBatchResult(result) }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseBatchTransitionTripDocumentsRequest(request)
+        return {
+          action: body.action,
+          documentIds: body.documentIds,
+          note: body.note,
+          returnReason: body.returnReason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DOCUMENTS_BATCH_STATUS_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<TripIdInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.planTripRoute.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_PLAN_ROUTE_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<DispatchInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.dispatchTrip.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseDispatchTripRequest(request)
+        return {
+          force: body.force,
+          forceReason: body.forceReason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DISPATCH_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<TripIdInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.cancelTrip.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_CANCEL_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<TripIdInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.listStops.execute({ context: context.scope, ...input })
+        return jsonResponse({
+          body: { data: result.stops.map(serializeTripStop) },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_STOPS_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
   ]
+
+  /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
+  function tripDocumentActionRoute(config: {
+    readonly dependency: {
+      execute(
+        input: TenantInput<TripDocumentActionInput>,
+      ): Promise<TransitionTripDocumentResult>
+    }
+    readonly pathname: string
+  }): ReturnType<typeof defineRoute<Omit<TripDocumentActionInput, 'context'>>> {
+    return defineRoute<Omit<TripDocumentActionInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await config.dependency.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: serializeTransitionResult(result) }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseTransitionTripDocumentRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          note: body.note,
+          returnReason: body.returnReason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: config.pathname,
+      policy: TRIP_MANAGE_POLICY,
+    })
+  }
 }
 
 function jsonResponse(input: { readonly body: object; readonly status: number }): Response {
@@ -235,6 +412,22 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
     cteAuthorized: document.cteAuthorized,
     fiscalStatus: document.fiscalStatus,
   }
+}
+
+function serializeTransitionResult(result: TransitionTripDocumentResult): object {
+  return { document: serializeTripDocument(result.document), tripStatus: result.tripStatus }
+}
+
+function serializeBatchResult(result: TransitionTripDocumentsBatchResult): object {
+  return { items: result.items.map(serializeBatchItem), tripStatus: result.tripStatus }
+}
+
+function serializeBatchItem(item: TripDocumentBatchItemOutcome): object {
+  return { ...item }
+}
+
+function serializeTripStop(stop: TripStopSummary): object {
+  return { ...stop }
 }
 
 function serializeMdfeManifestDetail(manifest: MdfeManifestDetail): object {

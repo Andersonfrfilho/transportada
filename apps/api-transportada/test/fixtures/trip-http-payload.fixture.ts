@@ -32,6 +32,38 @@ export function tripDocumentDeliverPath(documentId: string = TRIP_DOCUMENT_ID): 
   return `${tripDocumentPath(documentId)}/deliver`
 }
 
+export function tripDocumentSeparatePath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/separate`
+}
+
+export function tripDocumentLoadPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/load`
+}
+
+export function tripDocumentReturnPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/return`
+}
+
+export function tripDocumentsBatchStatusPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/documents/batch-status`
+}
+
+export function tripPlanRoutePath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/plan-route`
+}
+
+export function tripDispatchPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/dispatch`
+}
+
+export function tripCancelPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/cancel`
+}
+
+export function tripStopsPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/stops`
+}
+
 export function tripClosePath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/close`
 }

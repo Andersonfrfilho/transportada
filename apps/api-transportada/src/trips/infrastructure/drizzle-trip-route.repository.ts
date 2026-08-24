@@ -18,13 +18,16 @@ import type {
   DispatchTripWriteInput,
   DispatchTripWriteResult,
 } from '../application/dispatch-trip.use-case.js'
+import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
 const NOT_LOADED_STATUSES = ['pending', 'separated'] as const
 
-export class DrizzleTripRouteRepository implements PlanTripRoutePort, DispatchTripPort {
+export class DrizzleTripRouteRepository
+  implements PlanTripRoutePort, DispatchTripPort, CancelTripPort
+{
   public constructor(private readonly database: TripDatabase) {}
 
   public async readRouteState(input: {
@@ -74,6 +77,30 @@ export class DrizzleTripRouteRepository implements PlanTripRoutePort, DispatchTr
 
   public async dispatch(input: DispatchTripWriteInput): Promise<DispatchTripWriteResult> {
     return this.database.transaction((transaction) => dispatch(transaction, input))
+  }
+
+  public async readTripStatus(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<TripStatus | null> {
+    const [record] = await this.database
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+    return record?.status ?? null
+  }
+
+  public async markCancelled(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<TripStatus> {
+    const [updated] = await this.database
+      .update(trips)
+      .set({ status: 'cancelled', updatedAt: sql`now()` })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .returning({ status: trips.status })
+    return updated?.status ?? 'cancelled'
   }
 }
 

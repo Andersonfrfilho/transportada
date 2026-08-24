@@ -3,6 +3,7 @@
  */
 import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
+import type { TripLocationByAccessKey } from '../../src/trips/application/find-trip-location-by-access-key.use-case'
 import type {
   JobRunSnapshot,
   NfeDistributionStatus,
@@ -137,6 +138,9 @@ export type NfeHttpRouteDependencies = {
       readonly items: readonly NfeDocumentSummary[]
       readonly nextCursor: string | null
     }>
+  }
+  readonly locateTripByAccessKey: {
+    execute(input: { readonly accessKey: string }): Promise<TripLocationByAccessKey | null>
   }
   readonly listImports: {
     execute(input: ListImportsCall): Promise<{
