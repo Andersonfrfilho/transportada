@@ -40,6 +40,7 @@ import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
+import { InvalidFieldsHint } from './InvalidFieldsHint.component'
 import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
@@ -255,11 +256,7 @@ export function DriverForm({
           reveal={!uniqueness.hasFieldError}
         >
           {t(form.feedbackKey)}
-          {form.invalidFieldLabels.length === 0
-            ? null
-            : ` ${t('invalidFields', {
-                fields: form.invalidFieldLabels.map((label) => t(label)).join(', '),
-              })}`}
+          <InvalidFieldsHint labels={form.invalidFieldLabels} panelRef={panelRef} />
         </FleetFeedback>
       )}
       <div className={styles.formActions}>

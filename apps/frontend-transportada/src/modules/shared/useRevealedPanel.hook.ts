@@ -9,7 +9,7 @@ import type { RefObject } from 'react'
 const FIRST_FIELD_SELECTOR =
   'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [role="combobox"]:not([disabled])'
 
-function resolveScrollBehavior(): ScrollBehavior {
+export function resolveScrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 

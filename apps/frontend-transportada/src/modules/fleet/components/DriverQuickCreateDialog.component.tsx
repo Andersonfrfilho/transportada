@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FormEvent } from 'react'
+import { useRef, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +37,7 @@ import { DriverCoverageFields } from './DriverCoverageFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
+import { InvalidFieldsHint } from './InvalidFieldsHint.component'
 import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
 
 /** A ficha aberta pelo veículo tem rascunho próprio: ela nasce de outra tela e some com ela. */
@@ -70,6 +71,7 @@ export function DriverQuickCreateDialog({
   vehicles,
 }: DriverQuickCreateDialogProps) {
   const { t } = useTranslation('fleet')
+  const formRef = useRef<HTMLFormElement | null>(null)
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
   /** Depois do `useModalDialog`, de propósito: efeito roda na ordem de declaração, e o foco de
    * abertura do diálogo desfaria o do campo. */
@@ -130,7 +132,7 @@ export function DriverQuickCreateDialog({
         <p className={styles.hint}>
           {driver === undefined ? t('ownerDriverCreateHint') : t('ownerDriverEditHint')}
         </p>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} ref={formRef}>
           <fieldset className={styles.fieldGroup}>
             <legend>{t('driverIdentityLegend')}</legend>
             <div className={styles.fieldGrid}>
@@ -284,11 +286,7 @@ export function DriverQuickCreateDialog({
               reveal={!uniqueness.hasFieldError}
             >
               {t(form.feedbackKey)}
-              {form.invalidFieldLabels.length === 0
-                ? null
-                : ` ${t('invalidFields', {
-                    fields: form.invalidFieldLabels.map((label) => t(label)).join(', '),
-                  })}`}
+              <InvalidFieldsHint labels={form.invalidFieldLabels} panelRef={formRef} />
             </FleetFeedback>
           )}
           <div className={styles.formActions}>

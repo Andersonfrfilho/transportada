@@ -103,6 +103,33 @@ describe('driver form reveal after reset', () => {
   })
 })
 
+describe('invalid field hint', () => {
+  const source = readFileSync(
+    new URL('../../src/modules/fleet/components/InvalidFieldsHint.component.tsx', import.meta.url),
+    'utf8',
+  )
+
+  test('turns every named field into a shortcut that takes the operator to it', () => {
+    expect(source).toContain('focusFieldByLabel({ label: t(label), panel: panelRef.current })')
+    expect(source).toContain('type="button"')
+  })
+
+  test('says nothing when the failure points at no field', () => {
+    expect(source).toContain('if (labels.length === 0) return null')
+  })
+
+  test('is wired into the two fichas that create a driver', () => {
+    for (const path of [
+      '../../src/modules/fleet/components/DriverForm.component.tsx',
+      '../../src/modules/fleet/components/DriverQuickCreateDialog.component.tsx',
+    ]) {
+      expect(readFileSync(new URL(path, import.meta.url), 'utf8')).toContain(
+        'labels={form.invalidFieldLabels}',
+      )
+    }
+  })
+})
+
 describe('linked company lookup', () => {
   const source = readFileSync(
     new URL('../../src/modules/fleet/hooks/useCompanyLookup.hook.ts', import.meta.url),
