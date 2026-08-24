@@ -1,4 +1,3 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
@@ -14,20 +13,37 @@ function resolveScrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 
-export function useRevealedPanel<TElement extends HTMLElement>(): RefObject<TElement | null> {
+/**
+ * O mesmo gesto serve à montagem e ao recomeço: a ficha esvaziada depois de gravar é um formulário
+ * novo, e deixar o foco no botão obrigaria o operador a rolar de volta para cadastrar o próximo.
+ */
+export function revealPanel(panel: HTMLElement): void {
+  panel.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'start' })
+  panel.querySelector<HTMLElement>(FIRST_FIELD_SELECTOR)?.focus({ preventScroll: true })
+}
+
+export type RevealedPanel<TElement extends HTMLElement> = Readonly<{
+  panelRef: RefObject<TElement | null>
+  /** Recomeço explícito: quem esvaziou a ficha chama, e o operador volta ao primeiro campo. */
+  reveal: () => void
+}>
+
+export function useRevealedPanel<TElement extends HTMLElement>(): RevealedPanel<TElement> {
   const panelRef = useRef<TElement | null>(null)
 
   useEffect(() => {
     const panel = panelRef.current
     if (panel === null) return
 
-    // O atributo é o gancho do `scroll-margin` global — sem ele o painel encosta na borda de cima.
     panel.dataset.revealedPanel = ''
-    panel.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'start' })
-
-    // O scroll síncrono do foco cancelaria a rolagem suave iniciada acima.
-    panel.querySelector<HTMLElement>(FIRST_FIELD_SELECTOR)?.focus({ preventScroll: true })
+    revealPanel(panel)
   }, [])
 
-  return panelRef
+  return {
+    panelRef,
+    reveal: () => {
+      const panel = panelRef.current
+      if (panel !== null) revealPanel(panel)
+    },
+  }
 }

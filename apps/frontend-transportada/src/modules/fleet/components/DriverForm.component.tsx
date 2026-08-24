@@ -73,11 +73,12 @@ export function DriverForm({
   vehicles,
 }: DriverFormProps) {
   const { t } = useTranslation('fleet')
-  const panelRef = useRevealedPanel<HTMLFormElement>()
+  const { panelRef, reveal } = useRevealedPanel<HTMLFormElement>()
   const uniqueness = useDriverUniqueness(driver === undefined ? {} : { driverId: driver.id })
   const form = useDriverForm({
     onCreate,
     onSaveError: uniqueness.showSaveError,
+    onReset: reveal,
     onUpdate,
     regions: { coverage: regions.coverage, replace: regions.replace },
     vehicles: { isReady: vehicles.isReady, links: vehicles.links, replace: vehicles.replace },

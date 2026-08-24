@@ -54,7 +54,7 @@ export function VehicleForm({
   vehicles,
 }: VehicleFormProps) {
   const { t } = useTranslation('fleet')
-  const panelRef = useRevealedPanel<HTMLFormElement>()
+  const { panelRef } = useRevealedPanel<HTMLFormElement>()
   const form = useVehicleForm({
     onCreate,
     onSaved: onCancel,

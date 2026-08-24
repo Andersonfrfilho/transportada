@@ -40,6 +40,8 @@ type UseDriverFormInput = Readonly<{
   driver?: FleetDriverDetail
   onCreate: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
+  /** Chamado quando a ficha volta a ficar em branco, para a tela devolver o foco ao primeiro campo. */
+  onReset?: () => void
   /** O 409 de colisão tem campo dono; quem o ancora lá é o controlador de unicidade da tela. */
   onSaveError?: (error: unknown) => void
   /** Quem abriu a ficha de fora precisa da versão gravada — é dela que o veículo tira o dono. */
@@ -94,7 +96,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
   const [invalidFieldLabels, setInvalidFieldLabels] = useState<readonly string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [selection, setSelection] = useState<null | readonly string[]>(null)
-  const { driver, onCreate, onSaveError, onSaved, onUpdate, regions, vehicles } = input
+  const { driver, onCreate, onReset, onSaveError, onSaved, onUpdate, regions, vehicles } = input
   // `null` significa "o operador ainda não mexeu": a marcação acompanha os vínculos que chegarem.
   const selectedVehicleIds = selection ?? toSelectedVehicleIds(vehicles?.links ?? [])
   const coverage = useDriverCoverage({
@@ -126,6 +128,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     coverage.clear()
     clearFormDraft({ storage, storageKey })
     setState(createDriverDraft())
+    onReset?.()
   }
 
   /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */

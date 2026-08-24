@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { readFileSync } from 'node:fs'
+
 import {
   FleetRequestError,
   readErrorDetails,
@@ -74,5 +76,40 @@ describe('driver invalid field labels', () => {
     ])
 
     expect(toDriverInvalidFieldLabels(error)).toEqual(['somethingNew'])
+  })
+})
+
+describe('driver form reveal after reset', () => {
+  const source = readFileSync(
+    new URL('../../src/modules/fleet/hooks/useDriverForm.hook.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('returns the operator to the first field when the form goes blank', () => {
+    expect(source).toContain('onReset?.()')
+    expect(source.indexOf('setState(createDriverDraft())')).toBeLessThan(
+      source.indexOf('onReset?.()'),
+    )
+  })
+
+  test('wires the reveal of the panel into the form of the fleet tab', () => {
+    const form = readFileSync(
+      new URL('../../src/modules/fleet/components/DriverForm.component.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(form).toContain('const { panelRef, reveal } = useRevealedPanel<HTMLFormElement>()')
+    expect(form).toContain('onReset: reveal,')
+  })
+})
+
+describe('linked company lookup', () => {
+  const source = readFileSync(
+    new URL('../../src/modules/fleet/hooks/useCompanyLookup.hook.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('drops the legal name the lookup filled when the tax id is cleared', () => {
+    expect(source).toContain("{ linkedLegalName: '', linkedTaxId: taxId }")
   })
 })

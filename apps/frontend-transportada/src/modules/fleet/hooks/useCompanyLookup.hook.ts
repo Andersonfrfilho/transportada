@@ -29,7 +29,10 @@ export function useCompanyLookup(input: UseCompanyLookupInput): CompanyLookupCon
 
   function changeTaxId(value: string): void {
     const taxId = normalizeTaxId(value)
-    patch({ linkedTaxId: taxId })
+    // A razão social é preenchida pela consulta do CNPJ: apagar o CNPJ e deixá-la para trás monta a
+    // combinação que a API recusa (`linkedLegalName requires linkedTaxId`), e a recusa só apareceria
+    // no envio, longe do campo que a causou.
+    patch(taxId === '' ? { linkedLegalName: '', linkedTaxId: taxId } : { linkedTaxId: taxId })
     setStatusKey(null)
     if (!isQueryableCompanyTaxId(taxId)) return
     setStatusKey('companyLookupPending')

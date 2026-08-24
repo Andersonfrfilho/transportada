@@ -28,7 +28,7 @@ type CteProfileFormProps = Readonly<{
 
 export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CteProfileFormProps) {
   const { t } = useTranslation('cteProfiles')
-  const panelRef = useRevealedPanel<HTMLFormElement>()
+  const { panelRef } = useRevealedPanel<HTMLFormElement>()
   const form = useCteProfileForm({
     onCreate,
     onUpdate,
