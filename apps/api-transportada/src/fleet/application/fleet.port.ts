@@ -12,6 +12,7 @@ import type {
 import type { CompanyRole } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
+import type { IdentityDocumentIssuer } from '../../shared/identity-document-issuer.constant.js'
 import type { LicenseCategory } from '../../shared/license-category.constant.js'
 import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 import type {
@@ -116,6 +117,12 @@ export type FleetDriverAddress = {
 
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
+  /**
+   * Endereço da empresa do agregado — o do CNPJ de `linkedTaxId`, não o de quem dirige. Mesma
+   * forma do residencial, e igualmente parcial. Endereço de pessoa jurídica é dado cadastral
+   * público: ele fica em claro, fora do envelope da ADR-0039.
+   */
+  readonly linkedAddress: FleetDriverAddress
   /** tpProp do MDF-e quando este motorista é o proprietário do veículo. */
   readonly anttCategory: MdfeOwnerTaxRegime | ''
   readonly licenseCategory: LicenseCategory | ''
@@ -128,6 +135,13 @@ export type FleetDriverInput = {
   readonly fatherName: string
   /** Data da primeira habilitação — o que a carteira imprime como "1ª habilitação". */
   readonly firstLicenseAt: string | null
+  /**
+   * O "DOC. IDENTIDADE / ÓRG. EMISSOR / UF" que a CNH imprime — documento de identidade, não a
+   * habilitação. O número não tem formato nacional, e as três metades são independentes.
+   */
+  readonly identityDocument: string
+  readonly identityDocumentIssuer: IdentityDocumentIssuer | ''
+  readonly identityDocumentState: string
   readonly licenseExpiresAt: string | null
   /** Município do DETRAN que emitiu a carteira, com a UF ao lado. */
   readonly licenseIssuedCity: string

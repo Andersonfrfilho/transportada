@@ -5,6 +5,8 @@
 - Decisores: mantenedor do projeto e revisão Opus
 - Fecha a decisão 3 da spec 046 (T009) e o achado "data de nascimento do motorista em claro" de
   `docs/SECURITY.md`, 2026-08-20
+- Emendada em 2026-08-23 pelo adendo no fim deste arquivo: o trio do RG entra no mesmo envelope,
+  e a contração passa a derrubar treze colunas, não dez
 
 ## Contexto
 
@@ -164,3 +166,30 @@ não a coloca.
   somente-leitura nem `pg_dump` indevido, que é a ameaça deste achado. Complementar, não alternativa.
 - **Coluna por coluna, um envelope cada.** Rejeitada: dez nonces e dez AADs para campos que sempre se
   leem juntos, sem ganho de granularidade — não há caminho que leia só o bairro.
+
+## Adendo 2026-08-23 — o RG entra no mesmo envelope
+
+A ficha ganhou `identity_document`, `identity_document_issuer` e `identity_document_state`: o trio
+"DOC. IDENTIDADE / ÓRG. EMISSOR / UF" que a CNH imprime, pedido para a ficha reproduzir a carteira.
+Ele nasceu em `text` em claro, e **também não tem leitor** — nem MDF-e, nem relatório, nem
+notificação, exatamente como `birth_date` e `license_number`.
+
+O número do RG é documento de identificação civil: o §5 não o nomeia, mas ele é da mesma classe que a
+lista nomeia, e a decisão 1 já vale por analogia. **Os três entram no `person_envelope`**, não só o
+número: órgão e UF sozinhos não identificam ninguém, mas são sempre lidos com o número — a ficha abre
+inteira —, e deixá-los fora criaria a granularidade que a última alternativa rejeitada já descartou.
+
+Consequências para o que estava escrito:
+
+- A decisão 5 passa a derrubar **treze** colunas em claro na contração, não dez.
+- A decisão 6 recebe mais uma baixa: `fleet_drivers_identity_document_issuer_check`, o CHECK que hoje
+  amarra o órgão ao catálogo fechado de dezessete siglas, deixa de existir — não se valida ciphertext.
+  A guarda passa a ser só a lista fechada do Zod na fronteira, e a paridade dela com o frontend
+  continua sendo `test/fleet/identity-document.contract.ts`. Perda real, pelo mesmo motivo da 6: a
+  alternativa é não criptografar.
+- **Não há índice cego novo.** O RG não é único no produto — a unicidade da ficha é o CPF, e o RG
+  colide legitimamente entre estados —, então o trio só precisa abrir e fechar.
+
+O que **não** muda: o AAD, o algoritmo, o formato do envelope e a regra de que quem abre é o use case.
+E a janela continua sendo a que a T009 nomeou — este campo entrou hoje sem leitor, e é agora que sair
+de claro custa uma app só. Quem for escrever o primeiro leitor do RG passa a ter de abrir envelope.

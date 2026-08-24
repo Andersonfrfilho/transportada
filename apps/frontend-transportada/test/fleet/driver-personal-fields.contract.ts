@@ -18,6 +18,11 @@ const PERSONAL_LABEL_KEYS = [
   'driverBirthState',
   'driverBirthStateUnset',
   'driverFatherName',
+  'driverIdentityDocument',
+  'driverIdentityDocumentIssuer',
+  'driverIdentityDocumentIssuerUnset',
+  'driverIdentityDocumentState',
+  'driverIdentityDocumentStateUnset',
   'driverLicenseIssuedCity',
   'driverLicenseIssuedState',
   'driverLicenseIssuedStateUnset',
@@ -32,6 +37,9 @@ const PERSONAL_DETAIL = {
   birthCity: 'Ribeirão Preto',
   birthState: 'SP',
   fatherName: 'Antônio da Silva',
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseIssuedCity: 'Campinas',
   licenseIssuedState: 'SP',
   motherName: 'Maria da Silva',
@@ -43,7 +51,7 @@ function readSource(path: string): string {
 }
 
 describe('driver personal fields contract', () => {
-  test('opens the seven personal fields blank on a new driver', () => {
+  test('opens the ten personal fields blank on a new driver', () => {
     const draft = createDriverDraft()
 
     expect(draft.nationality).toBe('')
@@ -51,6 +59,9 @@ describe('driver personal fields contract', () => {
     expect(draft.birthState).toBe('')
     expect(draft.fatherName).toBe('')
     expect(draft.motherName).toBe('')
+    expect(draft.identityDocument).toBe('')
+    expect(draft.identityDocumentIssuer).toBe('')
+    expect(draft.identityDocumentState).toBe('')
     expect(draft.licenseIssuedCity).toBe('')
     expect(draft.licenseIssuedState).toBe('')
   })
@@ -61,6 +72,9 @@ describe('driver personal fields contract', () => {
       birthCity: 'Ribeirão Preto',
       birthState: 'SP',
       fatherName: 'Antônio da Silva',
+      identityDocument: '12.345.678-9',
+      identityDocumentIssuer: 'SSP',
+      identityDocumentState: 'SP',
       licenseIssuedCity: 'Campinas',
       licenseIssuedState: 'SP',
       motherName: 'Maria da Silva',
@@ -72,19 +86,24 @@ describe('driver personal fields contract', () => {
     expect(body.birthState).toBe('SP')
     expect(body.fatherName).toBe('Antônio da Silva')
     expect(body.motherName).toBe('Maria da Silva')
+    expect(body.identityDocument).toBe('12.345.678-9')
+    expect(body.identityDocumentIssuer).toBe('SSP')
+    expect(body.identityDocumentState).toBe('SP')
     expect(body.licenseIssuedCity).toBe('Campinas')
     expect(body.licenseIssuedState).toBe('SP')
   })
 
   // O CHECK do banco só aceita a UF em caixa alta; a lista sobe a caixa, o teclado não
-  test('raises both states to upper case on the way out', () => {
+  test('raises every state to upper case on the way out', () => {
     const body = toDriverBody({
       ...createDriverDraft(),
       birthState: 'sp',
+      identityDocumentState: 'rj',
       licenseIssuedState: 'mg',
     })
 
     expect(body.birthState).toBe('SP')
+    expect(body.identityDocumentState).toBe('RJ')
     expect(body.licenseIssuedState).toBe('MG')
   })
 
@@ -96,6 +115,9 @@ describe('driver personal fields contract', () => {
     expect(state.birthState).toBe('SP')
     expect(state.fatherName).toBe('Antônio da Silva')
     expect(state.motherName).toBe('Maria da Silva')
+    expect(state.identityDocument).toBe('12.345.678-9')
+    expect(state.identityDocumentIssuer).toBe('SSP')
+    expect(state.identityDocumentState).toBe('SP')
     expect(state.licenseIssuedCity).toBe('Campinas')
     expect(state.licenseIssuedState).toBe('SP')
   })
@@ -133,7 +155,7 @@ describe('driver personal fields contract', () => {
       expect(group).toContain(`label={t('${key}')}`)
     }
     expect(group.match(/<DriverCityField/g)).toHaveLength(2)
-    expect(group.match(/options=\{BRAZIL_STATE\}/g)).toHaveLength(2)
+    expect(group.match(/options=\{BRAZIL_STATE\}/g)).toHaveLength(3)
     expect(group).not.toContain('<input')
   })
 })

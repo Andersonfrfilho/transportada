@@ -60,6 +60,7 @@ export type DriverFormController = Readonly<{
   isSaving: boolean
   patch: (values: Partial<FleetDriverFormState>) => void
   selectedVehicleIds: readonly string[]
+  setVehicles: (vehicleIds: readonly string[]) => void
   state: FleetDriverFormState
   submit: () => Promise<void>
   toggleVehicle: (vehicleId: string) => void
@@ -114,6 +115,11 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     setState(createDriverDraft())
   }
 
+  function setVehicles(vehicleIds: readonly string[]): void {
+    setFeedbackKey(null)
+    setSelection(vehicleIds)
+  }
+
   function toggleVehicle(vehicleId: string): void {
     setFeedbackKey(null)
     setSelection(toggleVehicleSelection({ selected: selectedVehicleIds, vehicleId }))
@@ -159,6 +165,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     isSaving,
     patch,
     selectedVehicleIds,
+    setVehicles,
     state,
     submit,
     toggleVehicle,

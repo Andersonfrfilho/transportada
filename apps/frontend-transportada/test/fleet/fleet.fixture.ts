@@ -119,6 +119,9 @@ export type FleetDriverBodyContract = Readonly<{
   email: string
   fatherName: string
   firstLicenseAt: null | string
+  identityDocument: string
+  identityDocumentIssuer: string
+  identityDocumentState: string
   licenseCategory: '' | 'A' | 'AB' | 'AC' | 'ACC' | 'AD' | 'AE' | 'B' | 'C' | 'D' | 'E'
   licenseExpiresAt: null | string
   licenseIssuedCity: string
@@ -255,6 +258,9 @@ export const DRIVER_BODY = {
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
   licenseIssuedCity: 'Campinas',
@@ -280,6 +286,9 @@ export const DRIVER_CREATE_BODY = {
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
   licenseIssuedCity: 'Campinas',
@@ -488,6 +497,9 @@ export const DRIVER_DRAFT_BODY = {
   email: '',
   fatherName: '',
   firstLicenseAt: null,
+  identityDocument: '',
+  identityDocumentIssuer: '',
+  identityDocumentState: '',
   licenseCategory: '',
   licenseExpiresAt: null,
   licenseIssuedCity: '',

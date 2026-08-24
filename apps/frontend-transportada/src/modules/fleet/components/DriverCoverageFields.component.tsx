@@ -7,7 +7,10 @@ import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
-import { describeDriverCoveragePills } from '../shared/driverCoverage.service'
+import {
+  DRIVER_COVERAGE_ALL_REGIONS_VALUE,
+  describeDriverCoveragePills,
+} from '../shared/driverCoverage.service'
 import type { DriverCoverageController } from '../hooks/useDriverCoverage.hook'
 import type { FreightRegion } from '../shared/freightRegion.types'
 import styles from '../styles/fleet.module.css'
@@ -32,6 +35,16 @@ export function DriverCoverageFields({ coverage, regions }: DriverCoverageFields
     }),
   )
 
+  /** Como a cidade, "todas as rotas" age na escolha — e volta ao placeholder: não é uma rota. */
+  function chooseRegion(value: string): void {
+    if (value !== DRIVER_COVERAGE_ALL_REGIONS_VALUE) {
+      setRegionId(value)
+      return
+    }
+    coverage.addAllRegions(regions)
+    setRegionId('')
+  }
+
   /** A cidade entra assim que é escolhida: um segundo botão só para confirmar não decide nada. */
   function addCity(city: string): void {
     const chosen = selectedRegion?.cities.find((option) => option.city === city)
@@ -49,14 +62,24 @@ export function DriverCoverageFields({ coverage, regions }: DriverCoverageFields
           <Select
             clearable
             emptyLabel={t('driverCoverage.regionsEmpty')}
-            options={regions.map((region) => ({
-              label: `${region.code} ${region.name}`,
-              value: region.id,
-            }))}
+            options={[
+              ...(regions.length === 0
+                ? []
+                : [
+                    {
+                      label: t('driverCoverage.allRegions'),
+                      value: DRIVER_COVERAGE_ALL_REGIONS_VALUE,
+                    },
+                  ]),
+              ...regions.map((region) => ({
+                label: `${region.code} ${region.name}`,
+                value: region.id,
+              })),
+            ]}
             placeholder={t('driverCoverage.regionPlaceholder')}
             searchPlaceholder={t('driverCoverage.regionSearch')}
             value={regionId}
-            onChange={setRegionId}
+            onChange={chooseRegion}
           />
         </label>
         <label>

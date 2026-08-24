@@ -63,6 +63,36 @@ export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIME)[number]
 export const LICENSE_CATEGORIES = ['ACC', 'A', 'B', 'AB', 'C', 'AC', 'D', 'AD', 'E', 'AE'] as const
 export type LicenseCategory = (typeof LICENSE_CATEGORIES)[number]
 
+/**
+ * O "ÓRG. EMISSOR" que a CNH imprime ao lado do documento de identidade — órgão do RG, não da
+ * habilitação. Cópia por valor do catálogo da API, e `test/fleet/identity-document.contract.ts` é o
+ * que garante que os dois não divergem. `OUTROS` fecha a lista porque o campo é fechado: sem ele, o
+ * órgão de um estado que ninguém previu viraria cadastro impossível de concluir.
+ */
+export const IDENTITY_DOCUMENT_ISSUERS = [
+  'SSP',
+  'PC',
+  'DETRAN',
+  'SDS',
+  'IFP',
+  'IML',
+  'DIC',
+  'SJS',
+  'SES',
+  'PF',
+  'MEX',
+  'MAER',
+  'MMA',
+  'OAB',
+  'CTPS',
+  'RNE',
+  'OUTROS',
+] as const
+export type IdentityDocumentIssuer = (typeof IDENTITY_DOCUMENT_ISSUERS)[number]
+
+/** O RG não tem formato nacional: cada estado numera do seu jeito, com ponto, traço e letra. */
+export const IDENTITY_DOCUMENT_MAX_LENGTH = 20
+
 /** A UF é fechada em 27, e é o que a API valida: `/^[A-Z]{2}$/` aceita 'XX' que não existe. */
 export const BRAZIL_STATE = [
   'AC',
@@ -261,6 +291,13 @@ export type FleetDriverBody = Readonly<{
   fatherName: string
   /** Data da primeira habilitação — o que a carteira imprime como "1ª habilitação". */
   firstLicenseAt: null | string
+  /**
+   * O "DOC. IDENTIDADE / ÓRG. EMISSOR / UF" que a CNH imprime — documento de identidade, não a
+   * habilitação. O número não tem formato nacional, e as três metades são independentes.
+   */
+  identityDocument: string
+  identityDocumentIssuer: '' | IdentityDocumentIssuer
+  identityDocumentState: string
   /** Categoria da CNH; vazia enquanto a ficha não a declara. */
   licenseCategory: '' | LicenseCategory
   licenseExpiresAt: null | string
@@ -401,6 +438,9 @@ export type FleetDriverFormState = Readonly<{
   email: string
   fatherName: string
   firstLicenseAt: string
+  identityDocument: string
+  identityDocumentIssuer: string
+  identityDocumentState: string
   licenseCategory: string
   licenseExpiresAt: string
   licenseIssuedCity: string

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 
 import {
+  addAllRegionsCoverage,
   addCityCoverage,
   addRegionCoverage,
   removeDriverCoverage,
@@ -15,6 +16,7 @@ type UseDriverCoverageInput = Readonly<{
 }>
 
 export type DriverCoverageController = Readonly<{
+  addAllRegions: (regions: readonly FreightRegion[]) => void
   addCity: (input: Readonly<{ city: FreightRegionCity; region: FreightRegion }>) => void
   addRegion: (region: FreightRegion) => void
   clear: () => void
@@ -33,6 +35,7 @@ export function useDriverCoverage(input: UseDriverCoverageInput): DriverCoverage
   }
 
   return {
+    addAllRegions: (regions) => change(addAllRegionsCoverage({ coverage: entries, regions })),
     addCity: ({ city, region }) => change(addCityCoverage({ city, coverage: entries, region })),
     addRegion: (region) => change(addRegionCoverage({ coverage: entries, region })),
     clear: () => change([]),

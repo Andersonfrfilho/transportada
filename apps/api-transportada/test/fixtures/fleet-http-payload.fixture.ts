@@ -85,6 +85,7 @@ export const EMPTY_DRIVER_ADDRESS = {
 
 export const DRIVER_FIELDS = {
   address: EMPTY_DRIVER_ADDRESS,
+  linkedAddress: EMPTY_DRIVER_ADDRESS,
   anttCategory: '',
   birthCity: 'Ribeirao Preto',
   birthDate: null,
@@ -93,6 +94,9 @@ export const DRIVER_FIELDS = {
   fatherName: 'Antonio da Silva',
   licenseCategory: 'E',
   firstLicenseAt: null,
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseExpiresAt: null,
   licenseIssuedCity: 'Ribeirao Preto',
   licenseIssuedState: 'SP',

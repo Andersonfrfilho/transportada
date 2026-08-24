@@ -192,22 +192,31 @@ describe('fleet driver vehicles contract', () => {
     ).toEqual([])
   })
 
-  test('offers the vehicle links as checkboxes in the driver form and names them in both locales', async () => {
-    const [form, ptLocale, enLocale] = await Promise.all([
+  test('offers the vehicle links as one searchable field and names it in both locales', async () => {
+    const [field, form, ptLocale, enLocale] = await Promise.all([
+      readApplicationFile('src/modules/fleet/components/DriverVehicleLinkField.component.tsx'),
       readApplicationFile('src/modules/fleet/components/DriverForm.component.tsx'),
       readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),
       readApplicationFile('src/modules/fleet/locales/fleet.en.locale.json'),
     ])
 
-    expect(form).toContain("t('driverVehiclesLegend')")
-    expect(form).toContain("from '@/components/ui/checkbox'")
-    expect(form).not.toContain('type="checkbox"')
+    expect(field).toContain("t('driverVehiclesLegend')")
+    expect(field).toContain("from '@/components/ui/multi-select'")
+    expect(field).not.toContain('type="checkbox"')
+    expect(form).toContain('<DriverVehicleLinkField')
     for (const locale of [ptLocale, enLocale]) {
       const dictionary = JSON.parse(locale) as Record<string, unknown>
       for (const key of [
         'driverVehiclesLegend',
         'driverVehiclesHint',
         'driverVehiclesEmpty',
+        'driverVehiclesPlaceholder',
+        'driverVehiclesSearch',
+        'driverVehiclesNoMatch',
+        'driverVehiclesSummary',
+        'driverVehiclesSummary_other',
+        'driverVehiclesRemove',
+        'driverVehiclesClearAll',
         'driverOwnedVehicle',
       ]) {
         expect(typeof dictionary[key]).toBe('string')

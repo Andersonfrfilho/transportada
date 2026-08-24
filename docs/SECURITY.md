@@ -126,8 +126,10 @@ contrato continua existindo, agora com a nossa infraestrutura como origem (ver o
 
 **O que é:** o §5 do baseline manda criptografar campo sensível em repouso e nomeia data de
 nascimento entre eles, com chave de aplicação separada da chave do banco. A coluna é `date` em
-claro. `license_number` (CNH, onze dígitos) e o endereço residencial estão na mesma situação, e o
-`tax_id` do motorista — CPF — já estava, desde antes desta feature.
+claro. `license_number` (CNH, onze dígitos), o endereço residencial e o trio do RG
+(`identity_document`, `identity_document_issuer`, `identity_document_state`, acrescentados em
+2026-08-23) estão na mesma situação, e o `tax_id` do motorista — CPF — já estava, desde antes desta
+feature.
 
 **O que já limita o estrago:** a tabela é por empresa, toda query filtra `company_id`, o banco não
 tem exposição pública e o acesso é só pela rede interna; nenhum destes campos vai para log, e
@@ -137,7 +139,9 @@ nenhum aparece em nome de objeto no bucket. O backup é criptografado antes do u
 coluna por coluna mostrou que a tabela não tem uma resposta só, e que o campo mais sensível é o único
 que não dá para proteger: `birth_date`, `license_number`, o endereço e o telefone vão para um envelope
 A256GCM único, com AAD por motorista e índice cego com HMAC para a CNH continuar única por empresa —
-justamente porque **não têm leitor**, e por isso é o momento mais barato que vai existir.
+justamente porque **não têm leitor**, e por isso é o momento mais barato que vai existir. O adendo de
+2026-08-23 põe o trio do RG no mesmo envelope, pelo mesmo motivo, sem índice cego: o RG não é único no
+produto.
 `tax_id` fica em claro por decisão: `mdfe-payload.builder.ts:72` já o lê, e o mesmo CPF está em claro
 em `mdfe_issuance_payloads.payload`, comprometido por `payload_sha256`, e no XML que o produto
 preserva — criptografá-lo protegeria o motorista que nunca entrou em manifesto e cobraria a unicidade,

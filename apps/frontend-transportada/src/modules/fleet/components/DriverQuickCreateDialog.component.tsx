@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
@@ -36,6 +35,7 @@ import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
+import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
 import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
 
@@ -271,32 +271,12 @@ export function DriverQuickCreateDialog({
             stateTriggerRef={focus.bindTrigger('addressState')}
             onChange={form.patch}
           />
-          <fieldset className={styles.fieldGroup}>
-            <legend>{t('driverVehiclesLegend')}</legend>
-            <p className={styles.hint}>{t('driverVehiclesHint')}</p>
-            {vehicles.options.length === 0 ? (
-              <p className={styles.hint}>{t('driverVehiclesEmpty')}</p>
-            ) : (
-              <ul className={styles.vehicleLinkList}>
-                {vehicles.options.map((vehicle) => (
-                  <li key={vehicle.id}>
-                    <Checkbox
-                      checked={form.selectedVehicleIds.includes(vehicle.id)}
-                      label={
-                        <>
-                          <strong>{vehicle.plate}</strong> {t(`roleOption.${vehicle.role}`)}
-                          {ownedVehicleIds.includes(vehicle.id) ? (
-                            <span className={styles.ownedBadge}>{t('driverOwnedVehicle')}</span>
-                          ) : null}
-                        </>
-                      }
-                      onChange={() => form.toggleVehicle(vehicle.id)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </fieldset>
+          <DriverVehicleLinkField
+            onChange={form.setVehicles}
+            options={vehicles.options}
+            ownedVehicleIds={ownedVehicleIds}
+            selectedVehicleIds={form.selectedVehicleIds}
+          />
           <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
           {form.feedbackKey === null ? null : (
             <FleetFeedback isError={isFleetFeedbackError(form.feedbackKey)}>

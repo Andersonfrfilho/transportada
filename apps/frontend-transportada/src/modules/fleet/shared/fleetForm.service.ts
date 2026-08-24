@@ -5,6 +5,8 @@ import { normalizeTaxId } from '@/modules/shared/taxId.service'
 import { joinDriverName, splitDriverName } from './driverName.service'
 import { DRIVER_FORM_KEYS, FLEET_ERROR, VEHICLE_FORM_KEYS } from './fleet.constant'
 import {
+  IDENTITY_DOCUMENT_ISSUERS,
+  type IdentityDocumentIssuer,
   LICENSE_CATEGORIES,
   type LicenseCategory,
   MDFE_OWNER_TAX_REGIME,
@@ -85,6 +87,9 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   email: '',
   fatherName: '',
   firstLicenseAt: '',
+  identityDocument: '',
+  identityDocumentIssuer: '',
+  identityDocumentState: '',
   licenseCategory: '',
   licenseExpiresAt: '',
   licenseIssuedCity: '',
@@ -184,6 +189,9 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt ?? '',
+    identityDocument: driver.identityDocument,
+    identityDocumentIssuer: driver.identityDocumentIssuer,
+    identityDocumentState: driver.identityDocumentState,
     licenseCategory: driver.licenseCategory,
     licenseExpiresAt: driver.licenseExpiresAt ?? '',
     licenseIssuedCity: driver.licenseIssuedCity,
@@ -306,6 +314,11 @@ function toAnttCategory(value: string): '' | MdfeOwnerTaxRegime {
   return MDFE_OWNER_TAX_REGIME.find((category) => category === value) ?? ''
 }
 
+/** Órgão fora do catálogo vira ausência: o CHECK do banco conhece a mesma lista fechada. */
+function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
+  return IDENTITY_DOCUMENT_ISSUERS.find((issuer) => issuer === value) ?? ''
+}
+
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
   return {
@@ -325,6 +338,10 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
     email: state.email.trim(),
     fatherName: state.fatherName,
     firstLicenseAt: state.firstLicenseAt === '' ? null : state.firstLicenseAt,
+    // O RG entra como o estado o imprime, com ponto e traço: não há formato nacional para normalizar
+    identityDocument: state.identityDocument.trim(),
+    identityDocumentIssuer: toIdentityDocumentIssuer(state.identityDocumentIssuer),
+    identityDocumentState: state.identityDocumentState.toUpperCase(),
     licenseCategory: toLicenseCategory(state.licenseCategory),
     licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
     licenseIssuedCity: state.licenseIssuedCity,

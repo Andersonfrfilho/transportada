@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 
 import { fleetDrivers } from '../../src/database/database.schema.js'
+import { IDENTITY_DOCUMENT_ISSUERS } from '../../src/shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES } from '../../src/shared/license-category.constant.js'
 import {
   checkSqlByName,
@@ -42,6 +43,9 @@ describe('fleet driver schema', () => {
       'birth_state',
       'father_name',
       'mother_name',
+      'identity_document',
+      'identity_document_issuer',
+      'identity_document_state',
       'license_issued_city',
       'license_issued_state',
       'email',
@@ -55,6 +59,13 @@ describe('fleet driver schema', () => {
       'district',
       'city',
       'state',
+      'linked_postal_code',
+      'linked_street',
+      'linked_number',
+      'linked_complement',
+      'linked_district',
+      'linked_city',
+      'linked_state',
       'status',
       'version',
       'created_at',
@@ -157,6 +168,22 @@ describe('fleet driver schema', () => {
       expect(checks.fleet_drivers_license_category_check).toContain(`'${category}'`)
     }
     expect(checks.fleet_drivers_license_category_check).toContain('= 0')
+  })
+
+  // O "ÓRG. EMISSOR" da CNH é lista fechada, mas o número do RG não tem formato nacional: cada
+  // estado numera do seu jeito, então ali só há teto de tamanho. Nenhuma das três metades exige as
+  // outras — ficha antiga não tem nenhuma delas, e o operador pode ter só o número em mãos.
+  test('closes the identity document issuer on the catalog and leaves the number free-form', () => {
+    const checks = checkSqlByName(fleetDrivers)
+
+    for (const issuer of IDENTITY_DOCUMENT_ISSUERS) {
+      expect(checks.fleet_drivers_identity_document_issuer_check).toContain(`'${issuer}'`)
+    }
+    expect(checks.fleet_drivers_identity_document_issuer_check).toContain('= 0')
+    expect(checks.fleet_drivers_identity_document_state_check).toContain("~ '^[A-Z]{2}$'")
+    expect(checks.fleet_drivers_identity_document_state_check).toContain('= 0')
+    expect(checks.fleet_drivers_identity_document_check).toContain('<= 20')
+    expect(checks.fleet_drivers_identity_document_check).not.toContain('~')
   })
 
   test('accepts an empty CNH and phone, which the MDF-e does not require', () => {
