@@ -180,3 +180,63 @@ frontend  1768 pass ·  0 fail
 ```
 
 `typecheck`, `lint` e `format:check` limpos.
+
+## T4 — o trilho `job-run.v1` no worker
+
+**O trilho nasceu com as três filas de sempre.** `src/messaging/job-run-rabbitmq-topology.ts` produz
+`${QUEUE_PREFIX}.job-run.v1.{main,retry,dead}.{exchange,queue}`, com `delayMs` de 60s e três
+tentativas — cópia por valor da topologia que o cron publica, e `test/job-run/topology.contract.ts`
+é quem guarda que os dois lados nomeiam a mesma fila. O envelope é
+`src/messaging/job-run-envelope.schema.ts`, `strictObject` versionado como todos os outros:
+`executionId`, `job` do catálogo e `origin`. Aceite em `test/job-run/envelope.contract.ts`.
+
+⚠️ **Desvio do `tasks.md`: a idempotência não é por `processed_messages`.** A task pedia essa tabela,
+e ela não serve: `processed_messages.company_id` é `uuid not null`, enquanto execução de
+`origin: 'schedule'` **não tem empresa** — quem a torna obrigatória é o
+`job_executions_requester_check`, e só para `origin: 'manual'`. Uma coluna de empresa inventada para
+caber na tabela seria tenant fabricado dentro do trilho que menos precisa dele.
+
+Quem guarda a repetição é a **própria linha da execução**, por `UPDATE` condicional:
+`DrizzleJobExecutionRepository.claim` só escreve o lease onde `finished_at is null` **e** o lease
+está vencido ou ausente, e devolve `{job, origin}` por `returning`. Sem linha devolvida, a mensagem é
+redundante — ou a execução já terminou (reentrega), ou outro worker segura um lease vivo — e o
+consumidor dá `ack` com log em vez de trabalhar duas vezes. É o mesmo padrão da liquidação de NFS-e:
+quem decide a transição é o banco, projetando o estado de origem no `where`. O `finish` fecha pelo
+mesmo recorte, então terminar duas vezes não sobrescreve o primeiro desfecho. Aceite nos sete testes
+de `test/job-run-execution.integration.test.ts`.
+
+**Quem escolhe a rotina é a linha do banco, não o envelope.** `runJobCycle` roda com o `job` que o
+`claim` devolveu, não com o que veio na mensagem: o envelope é pedido, a linha é fato, e um envelope
+adulterado rodaria a rotina errada sobre uma execução que diz outra coisa.
+
+**O invólucro não deixa linha sem `finished_at`.** Rotina ausente do registro, rotina que lança, e
+`outcome` fora do vocabulário da rotina (`isJobOutcome`) — os três pousam em `unexpected_error` com
+`finished_at` escrito. No terceiro caso os `counters` da rotina são **preservados**: o desfecho é
+nosso erro de vocabulário, e o que ela contou continua verdadeiro. O log de falha leva só
+`error.name`; a mensagem de exceção pode carregar corpo de terceiro.
+
+**`correlationId` não vai para o log.** `extractMessageKey` do consumidor extrai só `eventId` e
+`executionId` do corpo indecifrável — o `correlationId` é texto que atravessa a fronteira, e log de
+mensagem morta não é lugar de conteúdo não validado. Decode que falha é dead-letter com
+`job_run_envelope_decode_failed` e os códigos/caminhos do Zod, teto de 480 caracteres.
+
+**O consumidor entrou na runtime como todos os outros.** `startJobRunConsumer` é injetável por
+`WorkerRuntimeDependencies`, tem provider próprio no `createCloseableGroup` e posição fixa na ordem
+de dreno — os dois contratos de runtime que assertam a ordem exata foram atualizados, e é por eles
+que um consumidor esquecido no shutdown falha o gate. Ele sobe hoje com `routines: {}`: as quatro
+rotinas chegam uma por vez, de T5 a T8, e até lá toda mensagem pousa em `job_run_routine_missing`.
+
+⚠️ **Renovação de lease é do T4b, de propósito.** `JOB_RUN_LEASE_SECONDS` é 30, o mesmo do outbox
+relay, e nada o renova enquanto o ciclo corre. Com `routines: {}` nenhum ciclo leva tempo mensurável,
+então o teto curto não morde no intervalo; assim que a primeira rotina real chegar (T5), a renovação
+e a varredura de `abandoned` do T4b passam a ser pré-requisito, não melhoria.
+
+**Gate.** Suíte do worker e a integração, que é o que o T4 tocou:
+
+```
+worker                    517 pass ·  0 fail  (61 arquivos)
+make worker-integration    46 pass ·  0 fail  (11 arquivos)
+job-run-execution           7 pass ·  0 fail  (banco migrado descartável)
+```
+
+`typecheck` e `lint` limpos nas quatro apps.

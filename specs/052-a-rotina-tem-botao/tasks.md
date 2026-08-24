@@ -29,10 +29,12 @@
   `next_run_at`. Um `railway.json` só (`*/5 * * * *`); os quatro serviços viram um.
   `SCHEDULED_DISTRIBUTION_CRON`, `scheduled-distribution-window.policy.ts` e o contrato do espelho
   saem. Aceite: `cron/test/tick/selects-due.contract.ts`, `cron/test/tick/advances-window.contract.ts`.
-- **T4** — Trilho `job-run.v1` no worker: topologia main/retry/dead, envelope Zod versionado,
-  idempotência por `processed_messages`, e a gravação de `started_at`/`finished_at`/`outcome`/
-  `counters` em volta do ciclo. Aceite: `worker/test/job-run/envelope.contract.ts` e
-  `make worker-integration`.
+- **T4** — Trilho `job-run.v1` no worker: topologia main/retry/dead, envelope Zod versionado, e a
+  gravação de `started_at`/`finished_at`/`outcome`/`counters` em volta do ciclo. A idempotência é a
+  **própria linha da execução** — `claim` por `UPDATE` condicional sobre `finished_at is null` e
+  lease vencido —, e **não** `processed_messages`: aquela tabela exige `company_id not null`, e
+  execução de `origin: 'schedule'` não tem empresa. Aceite:
+  `worker/test/job-run/envelope.contract.ts` e `make worker-integration`.
 - **T4b** — Lease e cancelamento cooperativo, os dois no invólucro do ciclo, não em cada rotina:
   renovação do `lease_expires_at` enquanto corre, releitura de `cancel_requested_at` no limite de
   unidade, e a varredura que marca `abandoned` a execução de lease vencido — a batida do T3 é quem
