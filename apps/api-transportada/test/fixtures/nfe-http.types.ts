@@ -4,6 +4,7 @@
 import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 import type {
+  JobRunSnapshot,
   NfeDistributionStatus,
   NfeImportDetail,
   NfeImportSummary,
@@ -120,6 +121,9 @@ export type NfeHttpRouteDependencies = {
   }
   readonly getDistributionStatus: {
     execute(input: GetDistributionStatusCall): Promise<NfeDistributionStatus>
+  }
+  readonly getLastJobRun: {
+    execute(input: GetDistributionStatusCall): Promise<JobRunSnapshot | null>
   }
   readonly getImport: {
     execute(input: GetImportCall): Promise<NfeImportDetail>

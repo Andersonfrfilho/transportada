@@ -105,6 +105,7 @@ async function callImportsDistributionRoute(status = STATUS): Promise<Response> 
   const route = createNfeImportRoutes({
     getDistributionStatus: { execute: async () => DISTRIBUTION_STATUS },
     getImport: notCalled,
+    getLastJobRun: { execute: async () => null },
     getScheduledDistribution: scheduledStatusUseCase(status),
     listImports: notCalled,
     reprocessImport: notCalled,

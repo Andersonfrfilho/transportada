@@ -454,6 +454,7 @@ export function NfeWorkspacePage() {
                         )}
                         <NfeDistributionControl
                           canImport={workspace.canImport}
+                          lastRun={workspace.distributionStatusQuery.data?.lastRun}
                           onCooldownEnd={() => {
                             void workspace.distributionStatusQuery.refetch()
                           }}

@@ -298,7 +298,7 @@ RabbitMQ e banco.
 **As rotinas agendadas são um registro, e ele é parcial de propósito.** `startJobRunConsumer` recebe
 `routines: JobRoutineRegistry` (`Partial<Record<ScheduledJob, JobRoutine>>`) e o consumidor reivindica
 a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registrada pousa em
-`job_run_routine_missing` e fecha como `unexpected_error`. Hoje duas estão registradas:
+`job_run_routine_missing` e fecha como `unexpected_error`. Hoje quatro estão registradas:
 
 - `nfe.distribution.pull`, em `src/nfe-distribution-pull/` — ela **não** fala com a SEFAZ: seleciona
   empresa elegível e enfileira `source: 'distribution'` na `processing_outbox`, e daí em diante é o
@@ -309,9 +309,30 @@ a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registra
   da Nota RP, o serviço de credencial e o schema de `nfse-issuance/` em vez de duplicá-los como o
   cron precisava fazer — o AAD continua sendo o mesmo
   `transportada:nfse-credential:v1:${companyId}:${credentialId}` que selou. O aviso de rejeição
-  ainda **não** sai: a porta `notifier` é opcional e só ganha adaptador quando
-  `notification.schedules.run` se mudar para cá. Sem `NFSE_PROVIDER_BASE_URL` a rotina não morre —
-  cada nota é adiada como `provider_not_configured`, e o segredo nem chega a ser aberto.
+  ainda **não** sai: a porta `notifier` é opcional e segue sem adaptador — `notification.schedules.run`
+  já mora aqui, mas quem varre NFS-e rejeitada é o trilho `notification.v1`, não esta rotina. Sem
+  `NFSE_PROVIDER_BASE_URL` a rotina não morre — cada nota é adiada como `provider_not_configured`, e
+  o segredo nem chega a ser aberto.
+- `notification.schedules.run`, em `src/notification-schedules/` — varre fatura a vencer e roda os
+  dois schedules de `@adatechnology/notification-module`. Schedule que cai **não** derruba o
+  seguinte, e a causa é tipada, nunca adivinhada por mensagem: `queue_unreachable` vem de
+  `createGuardedNotificationQueue` (decorador sobre o `enqueue` da fila do módulo) e
+  `template_missing` do código `NOTIFICATION_TEMPLATE_NOT_FOUND`; qualquer outra é
+  `unexpected_error`. ⚠️ Aqui a **falha domina** o trabalho feito, ao contrário de `nfse.status.pull`:
+  ciclo que avisou metade das faturas precisa dizer isso, porque a outra metade não tem segunda
+  janela antes do vencimento.
+- `fuel.price.pull`, em `src/fuel-price-pull/` — baixa o resumo semanal da ANP (XLSX lido por código
+  nosso, ZIP + `inflateRawSync`, sem dependência nova — ADR-0033) e a tarifa homologada da ANEEL, e
+  grava `fuel_price_references` e a tarifa por UF. A semana da ANP vai de domingo a sábado e **dá
+  nome ao arquivo**, então a URL é derivada da última semana **completa** — a que contém hoje ainda
+  não foi publicada e devolve 404. Reexecutar a mesma semana não duplica linha: a chave natural
+  `(product, state, week_ending_on)` é a idempotência do ciclo. As duas metades correm na mesma
+  execução e **falham em separado**, mas a linha fecha como falha se qualquer uma cair: meia série
+  gravada é tela com preço sem dizer que está incompleta. Não há advisory lock — quem serializa é a
+  linha de `job_executions`, com o unique de execução aberta e o lease. É a única rotina que roda
+  sem chaveiro, sem bucket e sem tenant: a planilha é dado público de mercado. Sem `ANP_BASE_URL` e
+  `ANEEL_BASE_URL` a rotina **não é registrada** e a janela dela pousa em `job_run_routine_missing`;
+  declarar **uma só** derruba o boot.
 
 ⚠️ O worker passou a ter `FISCAL_ENVIRONMENT` (`homologation` | `production`, **padrão
 `production`**), e quem o lê é só a reconciliação de NFS-e, para casar a linha de
@@ -331,10 +352,11 @@ assina com o certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
 mesma linha de `digital_certificates`, senão a empresa é aprovada pelo certificado de MDF-e e falha ao
 assinar.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — oito arquivos em
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — treze arquivos em
 `src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
-`nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`), e
-outras nove no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
+`nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
+`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`), e
+outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada
 
@@ -348,35 +370,25 @@ advisory lock, lê `job_schedules`, publica em `job-run.v1` cada rotina com `nex
 avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** — quem escolhe a rotina
 é o relógio no banco, não a variável do painel de hospedagem, e por isso os quatro serviços de cron
 viraram um (spec 052). ⚠️ As rotinas chegam ao worker uma por vez, e enquanto a dela não chega o
-`src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as duas que faltam
-(`fuel.price.pull`, `notification.schedules.run`) estão nesse estado, e cada janela delas pousa em
-`job_run_routine_missing` no worker. `nfe.distribution.pull` e `nfse.status.pull` já foram: a fatia
-da NF-e ficou parada aqui (será apagada quando a última pousar) e a da **NFS-e já foi apagada** —
-com ela saíram as cinco cópias por valor do cliente da Nota RP, o schema de reconciliação e o bloco
-de configuração dele (chaveiro, bucket e endereço da prefeitura não são mais lidos nesta app).
+`src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje só `nfe.distribution.pull`
+está nesse estado, e a fatia dela fica aqui até a última pousar do outro lado. As outras três já
+foram: com a de **NFS-e** saíram as cinco cópias por valor do cliente da Nota RP, o schema de
+reconciliação e o bloco de configuração dele (chaveiro, bucket e endereço da prefeitura não são mais
+lidos nesta app); com a de **notificação** saíram o bloco `NOTIFICATION_SUPPRESSION_HMAC_KEY` e as
+duas dependências `@adatechnology/notification-*`; e com a de **combustível** saíram os dois blocos
+de agência (`ANP_*`, `ANEEL_*`), os dois schemas Drizzle do preço e o catálogo `FUEL_TYPES`, que hoje
+é cópia da API, do frontend e do **worker**.
 
-As rotinas que ainda vivem aqui:
+A rotina que ainda vive aqui:
 
 - `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
   `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
   consumidor de distribuição que já existiam.
-- `notification.schedules.run` — varre o que venceu (fatura a vencer, NFS-e rejeitada) e reenfileira
-  em `notification.v1`, a mesma trilha que a API publica e o worker consome.
-- `fuel.price.pull` — baixa o resumo semanal da ANP (XLSX lido por código nosso, ZIP +
-  `inflateRawSync`, sem dependência nova — ADR-0033) e grava `fuel_price_references` por produto e
-  UF. Como a reconciliação de NFS-e fazia, aqui ele **processa** em vez de enfileirar. Roda **sábado**
-  (`0 9 * * 6`): a semana da ANP vai de domingo a sábado e **dá nome ao arquivo**, então a URL é
-  derivada da semana que contém o dia de hoje — domingo pediria uma semana publicada seis dias
-  depois, e daria 404 todo ciclo. Reexecutar a mesma semana não duplica linha: a chave natural
-  `(product, state, week_ending_on)` é a idempotência do ciclo. É o único job que sobe sem chaveiro,
-  sem bucket e sem tenant — a planilha é dado público de mercado.
 
-Sem `CRON_JOB`, quem diz que um bloco de configuração existe é a **presença** da variável que o
-abre: nenhum endereço de agência declarado deixa `fuel.price.pull` não configurada, e **uma só**
-derruba o boot (meia série gravada é tela com preço sem dizer que está incompleta); a chave de
-supressão declarada é o que liga o trilho de aviso. O endereço do broker
-(`RABBITMQ_URL`, `QUEUE_PREFIX`), esse é **sempre** obrigatório: a batida sempre publica, e um cron
-que não alcança a fila não teria o que fazer.
+Do cron restou **uma** obrigação de configuração, e ela é dura: o endereço do broker
+(`RABBITMQ_URL`, `QUEUE_PREFIX`) é **sempre** obrigatório — a batida sempre publica, e um cron que
+não alcança a fila não teria o que fazer. Quem escolhe a rotina por presença de variável agora é o
+worker, não esta app.
 
 **O endereço da Nota RP é um só, e a NFS-e é trilho de produção** (ADR-0035). O provedor publica um
 servidor (`https://www.notarp.com.br/api/v2`) e não tem homologação; quem separa uma instalação da
@@ -486,12 +498,12 @@ envelope segue idêntico ao que selou:
 ⚠️ O catálogo `FUEL_TYPES` é **cópia por valor** nas três apps que o usam —
 `api-transportada/src/shared/fuel.constant.ts`,
 `frontend-transportada/src/modules/shared/fuel.constant.ts` e
-`cron-transportada/src/fuel-price-pull/domain/fuel.constant.ts` — com a mesma lista, na mesma ordem
+`worker-transportada/src/fuel-price-pull/domain/fuel.constant.ts` — com a mesma lista, na mesma ordem
 e com a mesma unidade por produto (`gnv` em `cubic-metre`, os outros quatro em `litre`). A unidade é
 atributo do produto, não coluna: guardá-la por linha abriria a porta para duas linhas do mesmo
 produto discordarem. Quem guarda a paridade são os contratos `test/fuel-catalog/catalog.contract.ts`
 (API), `test/shared/fuel-catalog.contract.ts` (frontend) e
-`test/fuel-price-pull/catalog.contract.ts` (cron) — mudou produto ou unidade de um lado? mude dos
+`test/fuel-price-pull/catalog.contract.ts` (worker) — mudou produto ou unidade de um lado? mude dos
 três. Uma linha de GNV lida como litro entra no banco sem reclamar de nada.
 
 ## frontend-transportada

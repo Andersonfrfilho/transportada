@@ -4,12 +4,14 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, eq, lt, ne, or, sql } from 'drizzle-orm'
 
+import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import { nfeImportItems, nfeImports } from '../../database/nfe.schema.js'
 import { processingOutbox } from '../../database/processing.schema.js'
 import type {
   CompensateNfeImportRepositoryPort,
   FinalizeNfeImportRepositoryPort,
   ImportLookup,
+  ManualJobRunInput,
   NfeImportDetail,
   NfeImportItem,
   NfeImportItemDraft,
@@ -58,6 +60,9 @@ export class DrizzleNfeImportRepository
     return Promise.reject(new Error('NFE import mutation requires a transaction'))
   }
   public saveOutbox(): Promise<void> {
+    return Promise.reject(new Error('NFE import mutation requires a transaction'))
+  }
+  public recordManualJobRun(): Promise<void> {
     return Promise.reject(new Error('NFE import mutation requires a transaction'))
   }
   public queueRetry(): Promise<NfeImportSummary> {
@@ -534,6 +539,34 @@ class DrizzleNfeImportTransaction
     await this.transaction
       .insert(processingOutbox)
       .values({ ...input, eventVersion: BigInt(input.eventVersion), triggeredBy: 'user' })
+  }
+
+  /**
+   * A linha do histórico e o adiamento da janela vão na mesma transação da importação: gravar o
+   * clique sem reagendar deixaria a próxima janela vencer minutos depois, repetindo o que o operador
+   * acabou de pedir. `next_run_at` conta do ciclo real, e é por isso que a soma parte de `now()` e
+   * não do valor guardado.
+   */
+  public async recordManualJobRun(input: ManualJobRunInput): Promise<void> {
+    const startedAt = new Date()
+    await this.transaction.insert(jobExecutions).values({
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      counters: input.counters,
+      finishedAt: startedAt,
+      job: input.job,
+      origin: 'manual',
+      outcome: input.outcome,
+      requestedBy: input.requestedBy,
+      startedAt,
+    })
+    await this.transaction
+      .update(jobSchedules)
+      .set({
+        nextRunAt: sql`now() + make_interval(secs => ${jobSchedules.intervalSeconds})`,
+        updatedAt: startedAt,
+      })
+      .where(eq(jobSchedules.job, input.job))
   }
 
   public findById(input: ImportLookup): Promise<NfeImportDetail | null> {

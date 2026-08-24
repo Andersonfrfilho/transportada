@@ -1,0 +1,1 @@
+ALTER TABLE "cte_batch_events" DROP CONSTRAINT "cte_batch_events_name_check", ADD CONSTRAINT "cte_batch_events_name_check" CHECK ("event_name" in ('created', 'updated', 'items_appended', 'submitted', 'in_flight', 'done', 'error', 'cancelled'));

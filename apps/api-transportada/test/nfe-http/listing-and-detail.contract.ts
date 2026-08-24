@@ -176,6 +176,7 @@ describe('nfe http listing and detail contract', () => {
     expect(body).toEqual({
       data: {
         ...DISTRIBUTION_STATUS,
+        lastRun: null,
         scheduled: serializeScheduledDistributionStatus(SCHEDULED_DISTRIBUTION_STATUS),
       },
     })

@@ -5,11 +5,6 @@ import { describe, expect, test } from 'bun:test'
 
 import { CronConfigurationError, parseCronEnvironment } from '../src/config/environment.schema.js'
 
-const fuelEnvironment = {
-  ANEEL_BASE_URL: 'https://dadosabertos.aneel.gov.br',
-  ANP_BASE_URL: 'https://www.gov.br/anp',
-} as const
-
 const validEnvironment = {
   APP_ENV: 'local',
   CADENCE_MINUTES: '60',
@@ -28,10 +23,7 @@ describe('cron environment contract', () => {
       cadenceMinutes: 60,
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'homologation',
-      // Nem sem o endereço da ANP, que só o trilho de preço de combustível usa.
-      fuelPricePull: undefined,
       logLevel: 'info',
-      notificationSchedules: undefined,
       pageSize: 50,
       queuePrefix: validEnvironment.QUEUE_PREFIX,
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,
@@ -39,33 +31,6 @@ describe('cron environment contract', () => {
       sentryDsn: undefined,
       sentryEnvironment: 'local',
     })
-  })
-
-  /**
-   * O litro e o kWh são coletados pelo mesmo job, então o deploy dele precisa dos dois endereços.
-   * Variável opcional no schema faria a metade esquecida virar tela sem preço, em silêncio.
-   */
-  test('o job de combustível resolve os dois provedores, com a espera padrão', () => {
-    expect(parseCronEnvironment({ ...validEnvironment, ...fuelEnvironment }).fuelPricePull).toEqual(
-      {
-        aneelBaseUrl: fuelEnvironment.ANEEL_BASE_URL,
-        aneelTimeoutMilliseconds: 15_000,
-        anpBaseUrl: fuelEnvironment.ANP_BASE_URL,
-        anpTimeoutMilliseconds: 15_000,
-      },
-    )
-  })
-
-  test('o job de combustível não sobe sem o endereço da ANEEL', () => {
-    expect(() =>
-      parseCronEnvironment({ ...validEnvironment, ...fuelEnvironment, ANEEL_BASE_URL: '  ' }),
-    ).toThrow(CronConfigurationError)
-  })
-
-  test('o job de combustível não sobe sem o endereço da ANP', () => {
-    expect(() =>
-      parseCronEnvironment({ ...validEnvironment, ...fuelEnvironment, ANP_BASE_URL: '  ' }),
-    ).toThrow(CronConfigurationError)
   })
 
   test('sem LOG_SINK_URL o transporte HTTP do log nasce desligado', () => {

@@ -519,3 +519,143 @@ make worker-integration    55 pass ·  0 fail  (196 expects · 12 arquivos)
 ```
 
 `typecheck` e `lint` limpos nas duas apps; `format:check` limpo na raiz.
+
+## T8 — o botão da puxada de emergência vira linha de `job_executions`
+
+A janela agendada já registrava; o botão que sempre existiu, não. Quem olhasse a aba **Remota** via
+"última puxada" e nada sobre o ciclo — e a linha manual, que é a que o operador provoca, não existia
+em lugar nenhum.
+
+**Como o caminho manual fecha a linha.** `request-nfe-import.use-case.ts` grava a execução **já
+fechada** (`startedAt = finishedAt`, `outcome: 'succeeded'`, `origin: 'manual'`, `requestedBy` do
+contexto autenticado) dentro da mesma transação que salva o outbox, e só quando
+`source === 'distribution'` — upload não é rotina. Fechada, e não aberta, porque o trabalho da API
+termina no commit: o que corre depois é o consumidor de `nfe-distribution.v1`, que tem trilho
+próprio. Isso também é o que dispensa o `409`: o índice parcial `job_executions_open_unique` só
+constrange linha **aberta**. O clique reagenda a janela — `next_run_at = now() + interval` —, como a
+spec pede.
+
+**Como a tela lê.** `GET /nfe-imports/distribution` passou a devolver `lastRun` ao lado de `cursor` e
+`scheduled`, servido por `createGetLastJobRunUseCase`. A leitura é escopada por
+`company_id is null OR company_id = <chamador>`: o ciclo agendado não tem empresa, e ler a linha
+manual de **outra** empresa contaria à instalação vizinha que alguém ali apertou o botão.
+
+No frontend o desfecho é conferido contra o vocabulário **desta** rotina (`isJobOutcome`), não contra
+a união das quatro — a coluna é uma só, e um `anp_unreachable` numa execução de distribuição é
+resposta errada, não desfecho desconhecido. `NfeDistributionControl` ganhou a linha da última
+execução, com origem e desfecho traduzidos nos dois catálogos.
+
+**Gate.**
+
+```
+api        2888 pass · 0 fail  (118 arquivos)
+frontend   1799 pass · 0 fail  (18 arquivos)
+```
+
+`typecheck`, `lint` e `format:check` limpos nas quatro apps.
+
+## T6 — `notification.schedules.run` no worker, e a falha ganha nome
+
+`worker/test/job-run/notification-schedules.contract.ts` — 10 pass · 0 fail · 30 expect().
+
+**Por que a rotina não é um `for` sobre `createNotificationSchedules`.** Duas divergências do que o
+cron fazia, e as duas estão no contrato:
+
+- **Schedule que cai não derruba a fila de schedules.** O ciclo roda os dois (`dispatch-due` e
+  `purge-expired`) e só depois decide o desfecho; parar no primeiro deixaria a purga de fora toda
+  vez que a entrega tropeçasse. Entre um e outro o ciclo respeita `isStopRequested()` — o que não
+  começou fica para a janela seguinte, e a linha fecha `succeeded`.
+- **A classificação é por causa tipada, nunca por semelhança de mensagem.** O contrato afirma o
+  contrário do atalho: `new Error('queue unreachable')` continua `unknown` → `unexpected_error`.
+  Quem nomeia o broker é `createGuardedNotificationQueue`, decorador que envolve **só** o `enqueue`
+  da fila que o módulo já usa e converte a falha em `NotificationQueueUnreachableError`; `consume` e
+  `close` passam intactos. `template_missing` vem do código estável
+  `NOTIFICATION_TEMPLATE_NOT_FOUND` que `sendNotification` levanta na varredura — dentro do
+  `dispatchDueNotifications` o template ausente **não lança**, vira `errorCode` da entrega, e por
+  isso não há o que classificar ali.
+
+**Aqui a falha domina, ao contrário de `nfse.status.pull`.** Na fiscal o trabalho feito vence: nota
+liquidada é resultado, e o que ficou pendente volta na próxima. Aqui um ciclo que avisou metade das
+faturas precisa mostrar isso — a outra metade não tem segunda janela antes do vencimento. A ordem é
+`['template_missing', 'queue_unreachable']`: o que o operador conserta sozinho vence o que o tempo
+conserta.
+
+**O que o worker ganhou.** `notification-schedules/` com a rotina, a varredura de fatura a vencer
+(que, ao contrário da do cron, **não engole** falha — devolve `failures[]`), a query de
+`billing_invoices` e a política de causas; `BILLING_INVOICE_DUE` no catálogo de templates com os
+lugares `dueDate` e `invoiceNumber` — **sem valor e sem cliente**, o gatilho carrega referência.
+`main.ts` registra a terceira entrada do `JobRoutineRegistry`.
+
+**O que saiu do cron.** `src/notification-schedules/**`, as três suítes, a entrada do
+`package.json`, o bloco `notificationSchedules` de `cron.types.ts`/`environment.schema.ts` com
+`NOTIFICATION_SUPPRESSION_HMAC_KEY` — e as duas dependências de notificação, que nenhum arquivo da
+app importa mais.
+
+**Gate.**
+
+```
+worker   625 pass · 0 fail  (62 arquivos)
+cron     101 pass · 0 fail  (7 arquivos)  ·  typecheck limpo
+```
+
+⚠️ Na hora do commit o `worker typecheck` estava **vermelho**, e não por causa do T6: a fatia
+`fuel-price-pull` do T5 já estava movida no índice do git e ainda não religada. Fechou com o T5,
+abaixo — hoje o typecheck do worker está limpo.
+
+## T5 — `fuel.price.pull` no worker, e a agência mora onde a coleta acontece
+
+**Aceite antes da implementação.** `worker/test/job-run/fuel-price-cycle.contract.ts` — 21 pass, 0
+fail. Ele reproduz o que o contrato do cron produzia e acrescenta o vocabulário da §6: as duas
+metades correm na mesma execução, cada uma falha por conta própria, e a **linha fecha como falha**
+se qualquer uma cair — meia série gravada é tela com preço sem dizer que está incompleta. Entre as
+metades há `isStopRequested()`: parada pedida encerra `succeeded` sem começar a segunda.
+
+**A regra não mudou uma linha.** Os vinte e três arquivos de `fuel-price-pull` (domínio, portas,
+use cases, clientes HTTP, leitor de XLSX, os dois gateways Drizzle) e os sete arquivos de teste
+foram `git mv` do cron para o worker. O que nasceu novo são dois: a rotina
+(`application/fuel-price-pull.routine.ts`) e a tradução da falha
+(`domain/fuel-price-pull-failure.policy.ts`), com `FUEL_PRICE_PULL_FAILURE_OUTCOMES` =
+`anp_malformed_workbook · aneel_empty_slice · anp_week_not_published · anp_unreachable ·
+aneel_unreachable`. Dezenove códigos de erro mapeados; transporte é reconhecido pelo **nome** do
+erro (`AbortError`, `TimeoutError`, `TypeError`), e erro desconhecido devolve `undefined` → o
+consumidor fecha `unexpected_error`. Antes disso a causa só existia em log.
+
+**Sem advisory lock.** O cron precisava dele; aqui quem serializa é a linha de `job_executions`,
+com o unique de execução aberta e o lease que se renova (T4b). A porta de lock não atravessou.
+
+**A configuração.** `ANP_BASE_URL`, `ANP_TIMEOUT_MS`, `ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS` saíram
+do schema da `cron` e entraram no do `worker`, com os mesmos valores de sempre (padrão 15 000 ms,
+teto 60 000 ms) — a mudança não altera comportamento. A **presença** é o que liga a rotina: nenhuma
+das duas bases declarada deixa `fuelPricePull` `undefined` e a entrada do registro não é criada (a
+janela pousa em `job_run_routine_missing`); **uma só** declarada derruba o boot com
+`WorkerConfigurationError`. Quatro testes novos em `worker/test/environment.contract.test.ts`
+cobrem os quatro casos, incluindo string em branco contando como não declarada.
+
+**O contrato de deploy veio junto.** `cron/test/deploy/fuel-price-environment.contract.ts` virou
+`worker/test/fuel-price-pull/environment.contract.ts`, apontando para `parseWorkerEnvironment`,
+`WORKER_SOURCE_ROOT` e exigindo que `docs/spec/railway.md` cite o serviço `worker`. Ele guarda que
+o `.env.example` provisiona as quatro, que nenhum endereço de agência está escrito no código-fonte,
+e que o railway.md documenta a migração.
+
+**Gate.**
+
+```
+worker   683 pass · 0 fail  (63 arquivos)  ·  typecheck limpo
+cron      94 pass · 0 fail  ( 7 arquivos)  ·  typecheck limpo
+raiz      lint limpo  ·  format:check limpo
+```
+
+**Railway.** As quatro foram provisionadas no serviço `worker` dos **dois** ambientes
+(`--skip-deploys`; valem no próximo deploy). No painel da `cron` elas não existiam — quem as tinha
+era o serviço `cron-fuel`, que já não existe. Reconferido pela CLI em 24/08/2026: `worker` com as
+quatro nos dois ambientes, `cron` sem nenhuma.
+
+Na mesma passada saiu o `CRON_JOB`, resto nos dois painéis da `cron` desde o T3: nenhum código o
+lê, mas variável morta ali diz que a rotina ainda é escolhida pelo provedor de hospedagem em vez de
+pelo relógio do banco.
+
+⚠️ Dois desvios entre ambientes, achados na mesma conferência e **fora do escopo desta spec**: o
+`worker` de staging não tem `NFSE_PROVIDER_BASE_URL` (a Nota RP publica um servidor só, o de
+produção — em staging `nfse.status.pull` adia toda nota como `provider_not_configured`, que é o
+comportamento desenhado), e o `worker` de production não tem `SENTRY_DSN` nem `LOG_SINK_URL`: a
+observabilidade está desligada justamente no trilho que emite documento fiscal.

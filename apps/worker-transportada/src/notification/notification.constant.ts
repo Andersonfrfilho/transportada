@@ -22,13 +22,16 @@ export const NOTIFICATION_DEFAULT_TIMEZONE = 'America/Sao_Paulo'
  * `test/notification/triggers.contract.ts` guarda o casamento entre marcador e carga.
  */
 export const NOTIFICATION_CATEGORY = {
+  BILLING: 'billing',
   CTE_BATCH: 'cte-batch',
 } as const
 
 export const NOTIFICATION_TEMPLATE_KEY = {
+  BILLING_INVOICE_DUE: 'billing.invoice-due',
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
 } as const
 
 export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = {
+  'billing.invoice-due': ['dueDate', 'invoiceNumber'],
   'cte-batch.issuance-failed': ['batchName', 'failedCount'],
 } as const

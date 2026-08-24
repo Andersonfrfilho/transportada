@@ -48,6 +48,26 @@
     "pending": "Puxando...",
     "lastPull": "Última puxada: {{when}}",
     "lastPullNever": "Nenhuma puxada registrada ainda.",
+    "lastJobRun": "Último ciclo ({{origin}}): {{when}} — {{outcome}}.",
+    "lastJobRunRunning": "Ciclo em andamento desde {{when}} ({{origin}}).",
+    "lastJobRunNever": "Nenhum ciclo da rotina registrado ainda.",
+    "jobOrigin": {
+      "manual": "pedido pelo operador",
+      "schedule": "janela agendada"
+    },
+    "jobOutcome": {
+      "succeeded": "concluído",
+      "cancelled": "cancelado",
+      "abandoned": "abandonado",
+      "unexpected_error": "erro inesperado",
+      "company_disabled": "empresa desativada",
+      "not_opted_in": "busca automática desligada",
+      "missing_synthetic_membership": "vínculo da automação ausente",
+      "certificate_missing": "certificado ausente",
+      "certificate_not_yet_valid": "certificado ainda não válido",
+      "certificate_expired": "certificado vencido",
+      "cooldown_active": "dentro do intervalo da SEFAZ"
+    },
     "ready": "Seguro puxar agora.",
     "busy": "Uma puxada já está em andamento.",
     "cooldown": "Aguarde o intervalo do SEFAZ. Nova tentativa liberada em {{countdown}}.",

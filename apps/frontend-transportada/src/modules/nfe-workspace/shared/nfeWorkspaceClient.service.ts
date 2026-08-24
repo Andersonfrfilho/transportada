@@ -3,6 +3,12 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import {
+  JOB_EXECUTION_ORIGINS,
+  isJobOutcome,
+  type JobExecutionOrigin,
+  type JobOutcome,
+} from '@/modules/shared/jobCatalog.constant'
 
 export type { ScheduledDistributionStatus }
 
@@ -42,10 +48,20 @@ export type NfeImportListPage = Readonly<{
 
 export type NfeDistributionEnvironment = 'homologation' | 'production'
 
+/** A última linha de `job_executions` da rotina — a janela que venceu ou o botão que alguém apertou. */
+export type NfeJobRunSnapshot = Readonly<{
+  counters: Readonly<Record<string, number>>
+  finishedAt: null | string
+  origin: JobExecutionOrigin
+  outcome: JobOutcome | null
+  startedAt: string
+}>
+
 export type NfeDistributionStatus = Readonly<{
   canPull: boolean
   environment: NfeDistributionEnvironment
   lastPulledAt: null | string
+  lastRun: NfeJobRunSnapshot | null
   maxNsu: string
   nextAllowedAt: null | string
   pullInProgress: boolean
@@ -373,6 +389,30 @@ function mapImportListPage(value: unknown): NfeImportListPage {
   }
 }
 
+const DISTRIBUTION_JOB = 'nfe.distribution.pull'
+
+function isJobRunCounters(value: unknown): value is Readonly<Record<string, number>> {
+  return isRecord(value) && Object.values(value).every(isNumber)
+}
+
+/**
+ * O desfecho é conferido contra o vocabulário **desta** rotina: a coluna é uma só para as quatro,
+ * e um `anp_unreachable` numa execução de distribuição é resposta errada, não desfecho desconhecido.
+ */
+function isNullableJobRunSnapshot(value: unknown): value is NfeJobRunSnapshot | null {
+  if (value === null) return true
+  return (
+    isRecord(value) &&
+    isJobRunCounters(value.counters) &&
+    isNullableString(value.finishedAt) &&
+    JOB_EXECUTION_ORIGINS.includes(value.origin as JobExecutionOrigin) &&
+    (value.outcome === null ||
+      (isString(value.outcome) &&
+        isJobOutcome({ job: DISTRIBUTION_JOB, outcome: value.outcome }))) &&
+    isString(value.startedAt)
+  )
+}
+
 function mapDistributionStatus(value: unknown): NfeDistributionStatus {
   const data = envelopeData(value)
   if (
@@ -384,7 +424,8 @@ function mapDistributionStatus(value: unknown): NfeDistributionStatus {
     !isNullableString(data.nextAllowedAt) ||
     !isString(data.maxNsu) ||
     !isString(data.ultNsu) ||
-    !isScheduledDistributionStatus(data.scheduled)
+    !isScheduledDistributionStatus(data.scheduled) ||
+    !isNullableJobRunSnapshot(data.lastRun)
   ) {
     throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
   }
@@ -392,6 +433,7 @@ function mapDistributionStatus(value: unknown): NfeDistributionStatus {
     canPull: data.canPull,
     environment: data.environment,
     lastPulledAt: data.lastPulledAt,
+    lastRun: data.lastRun,
     maxNsu: data.maxNsu,
     nextAllowedAt: data.nextAllowedAt,
     pullInProgress: data.pullInProgress,

@@ -6,36 +6,12 @@ import type { LogLevel } from '@adatechnology/logger'
 import type { CronDatabase } from '../database/cron-database.types.js'
 import type { CronFiscalEnvironment } from './cron.constant.js'
 
-/**
- * Configuração exclusiva do trilho de coleta do preço de referência. Só é resolvida quando o
- * ambiente declara alguma agência — a instalação que não coleta preço sobe sem nenhuma delas.
- * São **duas** agências no mesmo job: a ANP publica o litro e a ANEEL, o megawatt-hora.
- */
-export type CronFuelPricePullEnvironment = {
-  readonly aneelBaseUrl: string
-  readonly aneelTimeoutMilliseconds: number
-  readonly anpBaseUrl: string
-  readonly anpTimeoutMilliseconds: number
-}
-
-/**
- * Configuração exclusiva do trilho de rotinas de notificação. Broker e prefixo já são exigidos
- * pela batida; o que a torna presente é a chave de supressão declarada.
- */
-export type CronNotificationSchedulesEnvironment = {
-  readonly queuePrefix: string
-  readonly rabbitMqUrl: string
-  readonly suppressionHmacKey: string
-}
-
 export type CronEnvironment = {
   readonly appEnv: string
   readonly cadenceMinutes: number
   readonly databaseUrl: string
   readonly fiscalEnvironment: CronFiscalEnvironment
-  readonly fuelPricePull: CronFuelPricePullEnvironment | undefined
   readonly logLevel: LogLevel
-  readonly notificationSchedules: CronNotificationSchedulesEnvironment | undefined
   readonly pageSize: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 
+import type { NfeJobRunSnapshot } from '../shared/nfeWorkspaceClient.service'
 import { useCountdown } from '../hooks/useCountdown.hook'
 import {
   type NfeDistributionPullControl,
@@ -13,6 +14,7 @@ import styles from '../styles/nfeWorkspace.module.css'
 type NfeDistributionControlProps = Readonly<{
   readonly canImport: boolean
   readonly pending: boolean
+  readonly lastRun: NfeJobRunSnapshot | null | undefined
   readonly pullControl: NfeDistributionPullControl
   readonly onCooldownEnd?: () => void
   readonly onRequest: () => void
@@ -25,6 +27,34 @@ function formatMoment(value: string): string {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(parsed))
+}
+
+/**
+ * A janela e o botão fecham a mesma linha de `job_executions`, e é ela que aparece aqui: sem a
+ * última execução, o ciclo agendado seria invisível para quem só olha a tela.
+ */
+function LastJobRun({ run }: Readonly<{ run: NfeJobRunSnapshot | null | undefined }>) {
+  const { t } = useTranslation('nfeWorkspace')
+  if (run === undefined) return null
+  if (run === null) {
+    return (
+      <p className={styles.distributionMeta} role="status">
+        {t('distribution.lastJobRunNever')}
+      </p>
+    )
+  }
+  const origin = t(`distribution.jobOrigin.${run.origin}`)
+  return (
+    <p className={styles.distributionMeta} role="status">
+      {run.finishedAt === null || run.outcome === null
+        ? t('distribution.lastJobRunRunning', { origin, when: formatMoment(run.startedAt) })
+        : t('distribution.lastJobRun', {
+            origin,
+            outcome: t(`distribution.jobOutcome.${run.outcome}`),
+            when: formatMoment(run.finishedAt),
+          })}
+    </p>
+  )
 }
 
 export function NfeDistributionControl(props: NfeDistributionControlProps) {
@@ -52,6 +82,7 @@ export function NfeDistributionControl(props: NfeDistributionControlProps) {
           ? t('distribution.lastPullNever')
           : t('distribution.lastPull', { when: formatMoment(pullControl.lastPulledAt) })}
       </p>
+      <LastJobRun run={props.lastRun} />
       <div className={styles.actionRow}>
         <button
           className={styles.secondaryAction}

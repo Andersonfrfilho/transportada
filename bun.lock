@@ -49,8 +49,6 @@
       "dependencies": {
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
-        "@adatechnology/notification-contracts": "0.1.0-rc.2",
-        "@adatechnology/notification-module": "0.1.0-rc.3",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@sentry/bun": "10.69.0",
         "drizzle-orm": "1.0.0-rc.4",

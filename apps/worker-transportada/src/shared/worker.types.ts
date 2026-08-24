@@ -31,6 +31,17 @@ export type NfseProviderEnvironment = {
 
 export type NfseFiscalEnvironment = 'homologation' | 'production'
 
+/**
+ * Configuração do trilho de coleta do preço de referência, resolvida só quando o ambiente declara
+ * alguma agência. São **duas** na mesma rotina: a ANP publica o litro e a ANEEL, o megawatt-hora.
+ */
+export type FuelPricePullEnvironment = {
+  readonly aneelBaseUrl: string
+  readonly aneelTimeoutMilliseconds: number
+  readonly anpBaseUrl: string
+  readonly anpTimeoutMilliseconds: number
+}
+
 export type WorkerEnvironment = {
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
@@ -43,6 +54,7 @@ export type WorkerEnvironment = {
    * é a credencial selada por empresa.
    */
   readonly fiscalEnvironment: NfseFiscalEnvironment
+  readonly fuelPricePull: FuelPricePullEnvironment | undefined
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number

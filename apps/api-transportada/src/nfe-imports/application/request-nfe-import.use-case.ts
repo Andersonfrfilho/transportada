@@ -14,6 +14,14 @@ import type {
 const OPERATION = 'nfe-import.request'
 const ENCODER = new TextEncoder()
 
+/**
+ * A busca remota pedida pelo botão é a rotina `nfe.distribution.pull` disparada antes da hora — e
+ * por isso ela deixa a mesma linha de histórico que a janela deixa, diferente só na origem. A linha
+ * já nasce fechada: o que a API faz aqui é enfileirar, e enfileirar terminou quando a transação
+ * comitou. Quem fica em aberto é a importação, que tem trilha própria.
+ */
+const DISTRIBUTION_JOB = 'nfe.distribution.pull'
+
 const REQUEST_EVENT_TYPE = {
   distribution: 'transportada.nfe.distribution.requested',
   upload: 'transportada.nfe.import.requested',
@@ -110,5 +118,15 @@ async function executeRequest(
     eventVersion: 1,
     payload: { importId: summary.id },
   })
+  if (request.source === 'distribution') {
+    await transaction.recordManualJobRun?.({
+      companyId,
+      correlationId: request.correlationId,
+      counters: { enqueuedImports: 1 },
+      job: DISTRIBUTION_JOB,
+      outcome: 'succeeded',
+      requestedBy: request.context.userId,
+    })
+  }
   return summary
 }

@@ -40,6 +40,7 @@ describe('worker environment contract', () => {
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
+      fuelPricePull: undefined,
       logLevel: 'info',
       logSinkUrl: undefined,
       nfseProvider: {
@@ -203,6 +204,47 @@ describe('worker environment contract', () => {
         ...validEnvironment,
         APP_ENV: 'production',
         FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: 'true',
+      }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
+  /**
+   * O trilho do preço é opcional por **presença**, como era no cron: instalação que não coleta preço
+   * sobe sem nenhuma das duas agências, e meia série declarada derruba o boot — meia coleta é tela
+   * com preço sem dizer que está incompleta.
+   */
+  test('sem agência declarada a coleta de preço nasce ausente', () => {
+    expect(parseWorkerEnvironment(validEnvironment).fuelPricePull).toBeUndefined()
+  })
+
+  test('as duas agências declaradas viram o bloco da coleta', () => {
+    expect(
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        ANEEL_BASE_URL: 'https://dadosabertos.aneel.gov.br',
+        ANP_BASE_URL: 'https://www.gov.br/anp',
+      }).fuelPricePull,
+    ).toEqual({
+      aneelBaseUrl: 'https://dadosabertos.aneel.gov.br',
+      aneelTimeoutMilliseconds: 15_000,
+      anpBaseUrl: 'https://www.gov.br/anp',
+      anpTimeoutMilliseconds: 15_000,
+    })
+  })
+
+  test('uma agência só derruba o boot', () => {
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, ANP_BASE_URL: 'https://www.gov.br/anp' }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
+  /** Declarada em branco é ausência, e é assim que a variável esquecida no painel chega aqui. */
+  test('endereço em branco conta como agência não declarada', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        ANEEL_BASE_URL: '  ',
+        ANP_BASE_URL: 'https://www.gov.br/anp',
       }),
     ).toThrow(WorkerConfigurationError)
   })
