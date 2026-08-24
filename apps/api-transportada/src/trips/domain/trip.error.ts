@@ -179,3 +179,35 @@ export class TripActorNotAMemberError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0043 §2, spec 056 P2: sair com nota pendente acontece todo dia — o que não pode é acontecer
+ * sem alguém assinar. Os ids viajam em `details` para a tela listar as notas, não só o motivo.
+ */
+export class TripHasUnloadedDocumentsError extends ApiError {
+  public constructor(documentIds: readonly string[]) {
+    super({
+      code: 'TRIP_HAS_UNLOADED_DOCUMENTS',
+      details: documentIds.map((documentId) => ({
+        field: 'documentId',
+        message: documentId,
+      })),
+      message: 'The trip has documents that were never loaded. Confirm with force and a reason.',
+      status: 409,
+    })
+    this.documentIds = documentIds
+  }
+
+  public readonly documentIds: readonly string[]
+}
+
+/** Espelha `trip_dispatch_snapshots_force_reason_check`: forçado exige motivo, e só ele. */
+export class TripDispatchForceReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DISPATCH_FORCE_REASON_REQUIRED',
+      message: 'Dispatching with unloaded documents requires a reason.',
+      status: 422,
+    })
+  }
+}

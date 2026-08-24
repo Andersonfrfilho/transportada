@@ -99,13 +99,16 @@ describe('trip tenant safety', () => {
     })
   })
 
-  test('reconciles the document to the stop, and sets it null when the stop is gone', () => {
+  test('holds the document to the stop by restrict — a composite FK cannot SET NULL company_id', () => {
+    // Corrigido pela T010: numa FK composta, ON DELETE SET NULL zeraria company_id junto com
+    // stop_id, e company_id é NOT NULL. Quem solta a nota da parada zera stop_id explicitamente
+    // antes de apagar a parada (drizzle-trip-route.repository.ts).
     expect(foreignKeys(tripDocuments)).toContainEqual({
       columns: ['company_id', 'stop_id'],
       foreignColumns: ['company_id', 'id'],
       foreignTable: 'trip_stops',
       name: 'trip_documents_company_stop_fk',
-      onDelete: 'set null',
+      onDelete: 'restrict',
       onUpdate: 'cascade',
     })
   })

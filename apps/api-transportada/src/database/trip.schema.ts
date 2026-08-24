@@ -259,14 +259,17 @@ export const tripDocuments = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    // ADR-0043 §3: a parada é derivada — apagá-la (viagem reconciliada sem paradas) solta a nota
-    // de volta para 'sem parada' em vez de travar o vínculo.
+    // ADR-0043 §3: a parada é derivada — apagá-la solta a nota de volta para "sem parada" em vez
+    // de travar o vínculo. `restrict`, não `set null`: numa FK composta, `set null` zeraria
+    // `company_id` junto com `stop_id`, e `company_id` é `not null` — a T010 achou isso tentando
+    // apagar uma parada de verdade. Quem apaga a parada precisa zerar `stop_id` primeiro, no
+    // mesmo `UPDATE` que solta a nota (T010, `releaseUnloadedDocuments`).
     foreignKey({
       columns: [table.companyId, table.stopId],
       foreignColumns: [tripStops.companyId, tripStops.id],
       name: 'trip_documents_company_stop_fk',
     })
-      .onDelete('set null')
+      .onDelete('restrict')
       .onUpdate('cascade'),
     unique('trip_documents_company_id_id_unique').on(table.companyId, table.id),
     index('trip_documents_company_trip_idx').on(table.companyId, table.tripId),

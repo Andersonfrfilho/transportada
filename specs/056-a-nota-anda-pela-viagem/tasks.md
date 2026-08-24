@@ -285,15 +285,44 @@ a que o produto não deve incentivar.
   (prova de que o guard por linha funciona, não só o guard do lote inteiro); exatamente 2 eventos
   gravados, não 3.
 
-### T010 — Planejar e despachar
+### T010 ✅ — Planejar e despachar
 
 `plan-route` (exige ≥1 parada e nenhuma parada `SEM ENDEREÇO`), e `dispatch` com a regra de
 `force` mais motivo obrigatório (P2), congelando o snapshot da T005 e desvinculando as pendentes.
 
 - **Arquivos:** `src/trips/application/plan-trip-route.use-case.ts`,
-  `src/trips/application/dispatch-trip.use-case.ts` (ambos novos)
-- **Aceite:** `test/trips/plan-and-dispatch.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+  `src/trips/application/dispatch-trip.use-case.ts` (ambos novos, com os ports
+  `PlanTripRoutePort`/`DispatchTripPort`), `src/trips/infrastructure/drizzle-trip-route.repository.ts`
+  (novo, implementa os dois), `src/trips/domain/trip.error.ts` (2 erros novos),
+  `test/trips.contract.test.ts` (novo, umbrella), `package.json`
+- **Aceite:** `test/trips/plan-and-dispatch.contract.ts` (13 testes, port falso)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (3003 pass, 0 fail) ✅
+- **Evidência:** `hasRoute` é `≥1 parada && nenhuma nota viva sem stop_id` — o balde `SEM ENDEREÇO`
+  do RF-9 não precisou de coluna própria: é exatamente a nota sem `stop_id`, e quem o povoa é o
+  fluxo de vínculo (T012), não esta task. `dispatch` só marca `forced` quando havia pendência de
+  verdade — passar `force: true` numa viagem sem nota pendente é ignorado, não gravado como
+  forçado; tem teste para isso especificamente, porque um forçado que não precisava é tão
+  enganoso quanto um forçado que faltou.
+
+  **Dois bugs reais achados pelo probe contra Postgres, nenhum pelo port falso — os dois em código
+  já commitado:**
+
+  1. `trip_documents_company_stop_fk` (T004) tinha `on delete set null`. Numa FK **composta**,
+     `SET NULL` zera todas as colunas do par — inclusive `company_id`, que é `not null`. O probe
+     travou tentando apagar de verdade uma parada esvaziada. Correção: `on delete restrict`
+     (migration `20260824233118`, aditiva) — quem solta a nota da parada zera `stop_id`
+     explicitamente antes de apagar a parada, nunca espera o banco fazer isso sozinho.
+  2. Minha primeira correção do bug acima ainda estava errada: eu zerava `stop_id` **na mesma**
+     `UPDATE` que também lia `stop_id` via `RETURNING` para decidir quais paradas esvaziaram —
+     mas `RETURNING` devolve o estado **novo** da linha, sempre `null` depois do próprio `UPDATE`
+     zerá-lo. A parada nunca era apagada. Correção: ler `stop_id` num `SELECT` **antes** do
+     `UPDATE`, não do `RETURNING` dele.
+
+  Reproduzido do zero após as duas correções: `draft → route_planned` → recusa sem `force` →
+  despacha com `force` + motivo → a nota carregada mantém `released_at` nulo, a pendente ganha
+  `released_at` e perde `stop_id`, **a parada que esvaziou é apagada** (a que ficou ocupada, não),
+  o snapshot congelado lista só a parada e a nota que restaram, e um `UPDATE` direto na tabela de
+  snapshot continua recusado pelo trigger da T005.
 
 ### T010b — O endereço sobrescrito, com solicitante e histórico (D9)
 
