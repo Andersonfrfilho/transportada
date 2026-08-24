@@ -169,7 +169,8 @@ describe('fleet drivers http contract', () => {
     ])
   })
 
-  // Nacionalidade, naturalidade, filiação e local de emissão são opcionais: em branco é ausência
+  // Nacionalidade, naturalidade, filiação, documento de identidade e local de emissão são
+  // opcionais: em branco é ausência
   test('carries the personal fields of the licence and accepts them empty', async () => {
     const fixture = await createFleetHttpFixture()
     const driver = {
@@ -177,6 +178,9 @@ describe('fleet drivers http contract', () => {
       birthCity: 'Barrinha',
       birthState: 'SP',
       fatherName: 'Antonio da Silva',
+      identityDocument: '12.345.678-9',
+      identityDocumentIssuer: 'SSP',
+      identityDocumentState: 'SP',
       licenseIssuedCity: 'Ribeirao Preto',
       licenseIssuedState: 'SP',
       motherName: 'Maria dos Santos',
@@ -187,6 +191,9 @@ describe('fleet drivers http contract', () => {
       birthCity: '',
       birthState: '',
       fatherName: '',
+      identityDocument: '',
+      identityDocumentIssuer: '',
+      identityDocumentState: '',
       licenseIssuedCity: '',
       licenseIssuedState: '',
       motherName: '',
@@ -207,12 +214,13 @@ describe('fleet drivers http contract', () => {
     expect(fixture.createDriverCalls.map((call) => call.driver)).toEqual([driver, blank])
   })
 
-  // A UF da naturalidade e a do DETRAN emissor são sigla, como a do endereço
+  // A UF da naturalidade, a do DETRAN emissor e a do órgão do RG são sigla, como a do endereço
   test('rejects a birth state and a licence state spelled out', async () => {
     const fixture = await createFleetHttpFixture()
     const bodies = [
       { ...CREATE_DRIVER_BODY, birthState: 'Sao Paulo' },
       { ...CREATE_DRIVER_BODY, licenseIssuedState: 'Sao Paulo' },
+      { ...CREATE_DRIVER_BODY, identityDocumentState: 'Sao Paulo' },
     ]
 
     for (const body of bodies) {

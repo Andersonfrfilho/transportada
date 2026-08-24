@@ -17,6 +17,12 @@ export type ScheduledDistributionStatusFacts = {
   readonly hasSyntheticMembership: boolean
   readonly lastAutomationImport: ScheduledDistributionImportFacts | undefined
   readonly nextAllowedAt: Date | undefined
+  /**
+   * A próxima batida da rotina, lida do relógio (`job_schedules`) e não de uma expressão de cron.
+   * Ausente quando a rotina está pausada: o relógio guarda o instante em que ela parou, e anunciá-lo
+   * prometeria um ciclo que não vem.
+   */
+  readonly nextScheduledRunAt: Date | undefined
   readonly scheduledDistributionEnabled: boolean
 }
 

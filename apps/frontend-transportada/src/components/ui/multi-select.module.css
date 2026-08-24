@@ -1,0 +1,90 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.panel {
+  position: fixed;
+  z-index: 60;
+  top: var(--floating-layer-top, 0);
+  bottom: var(--floating-layer-bottom, auto);
+  left: var(--floating-layer-left, 0);
+  display: flex;
+  flex-direction: column;
+  min-width: var(--floating-layer-min-width, 18rem);
+  max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  background: var(--color-graphite);
+  box-shadow: 0 var(--space-2) var(--space-5)
+    color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+}
+
+.searchField {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.searchIcon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  border: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: transparent;
+}
+
+.searchInput:focus {
+  outline: none;
+}
+
+.optionList {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* O clique é da linha inteira: o quadrado dentro dela é desenho de estado, não um segundo alvo. */
+.control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  pointer-events: none;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.description {
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  font-size: 0.85rem;
+}

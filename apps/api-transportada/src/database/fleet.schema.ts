@@ -25,6 +25,11 @@ import {
   FUEL_PRODUCTS,
   type FuelProduct,
 } from '../shared/fuel.constant.js'
+import {
+  IDENTITY_DOCUMENT_ISSUERS,
+  IDENTITY_DOCUMENT_MAX_LENGTH,
+  type IdentityDocumentIssuer,
+} from '../shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES, type LicenseCategory } from '../shared/license-category.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import {
@@ -312,6 +317,12 @@ export const fleetDrivers = pgTable(
     birthState: text('birth_state').notNull().default(''),
     fatherName: text('father_name').notNull().default(''),
     motherName: text('mother_name').notNull().default(''),
+    identityDocument: text('identity_document').notNull().default(''),
+    identityDocumentIssuer: text('identity_document_issuer')
+      .$type<IdentityDocumentIssuer | ''>()
+      .notNull()
+      .default(''),
+    identityDocumentState: text('identity_document_state').notNull().default(''),
     licenseIssuedCity: text('license_issued_city').notNull().default(''),
     licenseIssuedState: text('license_issued_state').notNull().default(''),
     email: text().notNull().default(''),
@@ -325,6 +336,13 @@ export const fleetDrivers = pgTable(
     district: text().notNull().default(''),
     city: text().notNull().default(''),
     state: text().notNull().default(''),
+    linkedPostalCode: text('linked_postal_code').notNull().default(''),
+    linkedStreet: text('linked_street').notNull().default(''),
+    linkedNumber: text('linked_number').notNull().default(''),
+    linkedComplement: text('linked_complement').notNull().default(''),
+    linkedDistrict: text('linked_district').notNull().default(''),
+    linkedCity: text('linked_city').notNull().default(''),
+    linkedState: text('linked_state').notNull().default(''),
     status: text().$type<FleetDriverStatus>().notNull().default('active'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -417,6 +435,21 @@ export const fleetDrivers = pgTable(
       'fleet_drivers_license_issued_state_check',
       sql`length(${table.licenseIssuedState}) = 0 or ${table.licenseIssuedState} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
     ),
+    // O trio do documento de identidade que a CNH imprime. O órgão é lista fechada e a UF segue o
+    // padrão das outras; o número só tem teto, porque cada estado numera o RG do seu jeito. As três
+    // metades ficam soltas de propósito: quem tem só o número na mão preenche só ele.
+    check(
+      'fleet_drivers_identity_document_issuer_check',
+      sql`length(${table.identityDocumentIssuer}) = 0 or ${table.identityDocumentIssuer} in (${sql.raw(inList(IDENTITY_DOCUMENT_ISSUERS))})`,
+    ),
+    check(
+      'fleet_drivers_identity_document_state_check',
+      sql`length(${table.identityDocumentState}) = 0 or ${table.identityDocumentState} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_identity_document_check',
+      sql`length(${table.identityDocument}) <= ${sql.raw(String(IDENTITY_DOCUMENT_MAX_LENGTH))}`,
+    ),
     check(
       'fleet_drivers_personal_length_check',
       sql`length(${table.nationality}) <= ${sql.raw(String(DRIVER_NATIONALITY_MAX_LENGTH))} and length(${table.birthCity}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))} and length(${table.fatherName}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))} and length(${table.motherName}) <= ${sql.raw(String(DRIVER_NAME_MAX_LENGTH))} and length(${table.licenseIssuedCity}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))}`,
@@ -428,6 +461,21 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_address_length_check',
       sql`length(${table.street}) <= ${sql.raw(String(DRIVER_STREET_MAX_LENGTH))} and length(${table.number}) <= ${sql.raw(String(DRIVER_ADDRESS_NUMBER_MAX_LENGTH))} and length(${table.complement}) <= ${sql.raw(String(DRIVER_COMPLEMENT_MAX_LENGTH))} and length(${table.district}) <= ${sql.raw(String(DRIVER_DISTRICT_MAX_LENGTH))} and length(${table.city}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))}`,
+    ),
+    // O endereço da empresa do agregado segue a forma do residencial, e nenhuma metade exige a
+    // outra: quem tem só o CEP em mãos preenche só ele. Endereço de pessoa jurídica não é dado
+    // pessoal — ele fica em claro, fora do envelope da ADR-0039.
+    check(
+      'fleet_drivers_linked_postal_code_check',
+      sql`length(${table.linkedPostalCode}) = 0 or ${table.linkedPostalCode} ~ ${sql.raw(`'${POSTAL_CODE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_linked_state_check',
+      sql`length(${table.linkedState}) = 0 or ${table.linkedState} ~ ${sql.raw(`'${STATE_PATTERN}'`)}`,
+    ),
+    check(
+      'fleet_drivers_linked_address_length_check',
+      sql`length(${table.linkedStreet}) <= ${sql.raw(String(DRIVER_STREET_MAX_LENGTH))} and length(${table.linkedNumber}) <= ${sql.raw(String(DRIVER_ADDRESS_NUMBER_MAX_LENGTH))} and length(${table.linkedComplement}) <= ${sql.raw(String(DRIVER_COMPLEMENT_MAX_LENGTH))} and length(${table.linkedDistrict}) <= ${sql.raw(String(DRIVER_DISTRICT_MAX_LENGTH))} and length(${table.linkedCity}) <= ${sql.raw(String(DRIVER_CITY_MAX_LENGTH))}`,
     ),
     check(
       'fleet_drivers_status_check',

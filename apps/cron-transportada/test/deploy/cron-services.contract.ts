@@ -3,32 +3,26 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { DISTRIBUTION_PULL_JOB } from '../../src/nfe-distribution-pull/domain/distribution-pull.constant.js'
-import {
-  NFSE_PENDING_RECHECK_MINUTES,
-  NFSE_STATUS_PULL_JOB,
-} from '../../src/nfse-status-pull/domain/nfse-status-pull.constant.js'
+import { JOB_TICK_INTERVAL_SECONDS } from '../../src/shared/job-catalog.constant.js'
 
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
 const DEPLOY_WORKFLOW_PATH = new URL('.github/workflows/deploy.yml', REPOSITORY_ROOT)
 const RAILWAY_DOC_PATH = new URL('docs/spec/railway.md', REPOSITORY_ROOT)
 
 const CRON_DOCKERFILE = 'apps/cron-transportada/Dockerfile'
-const NFSE_CONFIG_PATH = 'deploy/cron-nfse/railway.json'
+const CRON_CONFIG_PATH = 'deploy/cron/railway.json'
+const SECONDS_PER_MINUTE = 60
 
-/** Os dois serviços de cron; o que os separa é a variável `CRON_JOB`, não o build. */
-const CRON_SERVICES = [
-  { config: 'deploy/cron/railway.json', job: DISTRIBUTION_PULL_JOB, service: 'cron' },
-  { config: NFSE_CONFIG_PATH, job: NFSE_STATUS_PULL_JOB, service: 'cron-nfse' },
-] as const
+/** Os quatro serviços separados por `CRON_JOB`; nenhum deles pode voltar sem que este contrato caia. */
+const RETIRED_SERVICES = ['cron-nfse', 'cron-notifications', 'cron-fuel'] as const
 
 type RailwayConfig = {
   readonly build?: { readonly dockerfilePath?: string }
   readonly deploy?: { readonly cronSchedule?: string; readonly restartPolicyType?: string }
 }
 
-async function readConfig(path: string): Promise<RailwayConfig> {
-  return Bun.file(new URL(path, REPOSITORY_ROOT)).json()
+async function readCronConfig(): Promise<RailwayConfig> {
+  return Bun.file(new URL(CRON_CONFIG_PATH, REPOSITORY_ROOT)).json()
 }
 
 /** Tique de minutos, a única forma que o repositório usa; qualquer outra é recusada aqui. */
@@ -40,64 +34,70 @@ function tickMinutesOf(schedule: string): number {
   return Number(matched[1])
 }
 
-describe('contrato dos serviços de cron', () => {
-  /**
-   * Um Dockerfile, um binário, dois serviços: quem decide o job é `CRON_JOB`, definida no painel.
-   * Serviço de cron sem o job documentado é serviço que ninguém sabe configurar — e configurar
-   * errado não falha em lugar nenhum, apenas roda o outro job de novo.
-   */
-  test('cada serviço de cron declara o job que roda', async () => {
-    const document = await Bun.file(RAILWAY_DOC_PATH).text()
+describe('contrato do serviço de cron', () => {
+  test('o serviço parte do Dockerfile do cron e não reinicia sozinho', async () => {
+    const railway = await readCronConfig()
 
-    for (const { config, job, service } of CRON_SERVICES) {
-      expect(document).toContain(`\`${service}\``)
-      expect(document).toContain(`\`${config}\``)
-      expect(document).toContain(`\`${job}\``)
-    }
-  })
-
-  test('os dois serviços de cron partem do mesmo Dockerfile e não reiniciam sozinhos', async () => {
-    for (const { config } of CRON_SERVICES) {
-      const railway = await readConfig(config)
-
-      expect(railway.build?.dockerfilePath).toBe(CRON_DOCKERFILE)
-      expect(railway.deploy?.restartPolicyType).toBe('NEVER')
-      expect(railway.deploy?.cronSchedule).toBeString()
-    }
+    expect(railway.build?.dockerfilePath).toBe(CRON_DOCKERFILE)
+    expect(railway.deploy?.restartPolicyType).toBe('NEVER')
   })
 
   /**
-   * A reconciliação só reconsulta uma nota a cada `NFSE_PENDING_RECHECK_MINUTES`. Tique mais largo
-   * que essa janela transforma o intervalo em promessa vazia: a nota fica elegível e ninguém passa
-   * para pegá-la, e a autorização da prefeitura espera o tique inteiro para virar XML arquivado.
+   * O `cronSchedule` é o **piso** de granularidade de toda rotina, e o catálogo o declara em
+   * segundos: nada em `job_schedules` pode correr mais fino que a batida, porque nada é olhado mais
+   * de perto que ela. Tique mais largo que o piso transforma o menor intervalo do painel em promessa
+   * vazia — a rotina fica vencida e ninguém passa para pegá-la.
    */
-  test('o tique da reconciliação de NFS-e não é mais largo que a janela de reconsulta', async () => {
-    const railway = await readConfig(NFSE_CONFIG_PATH)
+  test('o tique da batida é o piso de intervalo do catálogo', async () => {
+    const railway = await readCronConfig()
 
-    expect(tickMinutesOf(railway.deploy?.cronSchedule ?? '')).toBeLessThanOrEqual(
-      NFSE_PENDING_RECHECK_MINUTES,
+    expect(tickMinutesOf(railway.deploy?.cronSchedule ?? '')).toBe(
+      JOB_TICK_INTERVAL_SECONDS / SECONDS_PER_MINUTE,
     )
   })
 
   /**
-   * O cron lê tabelas que a migration da API cria, e só a API roda migration. Deployar o cron antes
-   * dela é subir um processo que vai ao banco procurar coluna que ainda não existe.
-   *
-   * Isso já foi ordem de passo dentro de um job só. Desde que o deploy virou três frentes, quem
-   * segura é o `needs` do job da matriz — e é ele que este contrato lê. Ordem de texto no arquivo
-   * não diz mais nada: os cinco serviços da matriz rodam ao mesmo tempo, em runners diferentes.
+   * A cadência de cada rotina mora em `job_schedules`, editável pelo painel do produto. Um serviço
+   * por rotina devolveria a decisão ao painel do provedor de hospedagem, onde o operador do cliente
+   * não entra — e onde trocar o tique de uma publicava as quatro, mesmo Dockerfile e mesma imagem.
    */
-  test('os dois crons sobem depois da API', async () => {
+  test('os quatro serviços separados por job não voltam', async () => {
     const workflow = await Bun.file(DEPLOY_WORKFLOW_PATH).text()
     const matrix = (/^\s+service: \[([a-z, -]+)\]$/m.exec(workflow)?.[1] ?? '')
       .split(',')
       .map((service) => service.trim())
+
+    expect(matrix).toEqual(['worker', 'cron'])
+    for (const service of RETIRED_SERVICES) {
+      expect(`${service}: ${matrix.includes(service)}`).toBe(`${service}: false`)
+      expect(`${service}: ${await pathExists(`deploy/${service}/railway.json`)}`).toBe(
+        `${service}: false`,
+      )
+    }
+  })
+
+  test('o serviço e a configuração dele estão documentados', async () => {
+    const document = await Bun.file(RAILWAY_DOC_PATH).text()
+
+    expect(document).toContain('`cron`')
+    expect(document).toContain(`\`${CRON_CONFIG_PATH}\``)
+  })
+
+  /**
+   * O cron lê tabelas que a migration da API cria, e só a API roda migration. Deployar o cron antes
+   * dela é subir um processo que vai ao banco procurar coluna que ainda não existe. Quem segura é o
+   * `needs` do job da matriz — ordem de texto no arquivo não diz nada, os serviços da matriz rodam
+   * ao mesmo tempo, em runners diferentes.
+   */
+  test('o cron sobe depois da API', async () => {
+    const workflow = await Bun.file(DEPLOY_WORKFLOW_PATH).text()
     const needs = /^ {2}deploy-services:$\s+needs: \[([^\]]+)\]/m.exec(workflow)?.[1] ?? ''
 
-    for (const { service } of CRON_SERVICES) {
-      expect(matrix).toContain(service)
-    }
     expect(needs).toContain('deploy-api')
     expect(workflow).toContain('railway-deploy.sh deploy api')
   })
 })
+
+async function pathExists(path: string): Promise<boolean> {
+  return Bun.file(new URL(path, REPOSITORY_ROOT)).exists()
+}

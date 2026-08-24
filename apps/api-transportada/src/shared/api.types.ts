@@ -53,8 +53,6 @@ export type ApiEnvironment = {
     readonly brasilApiUrl: string | undefined
     readonly viaCepUrl: string | undefined
   }
-  /** Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo automático. */
-  readonly scheduledDistributionCron: string
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined
   /** DSN do rastreio de erro; ausente desliga o rastreio em vez de derrubar o boot. */

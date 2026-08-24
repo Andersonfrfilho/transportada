@@ -6,8 +6,9 @@
  * — uma implementação, dois jobs.
  */
 import { CronConfigurationError } from '../config/environment.schema.js'
+import { FUEL_PRICE_PULL_JOB } from './domain/fuel-price-pull.constant.js'
 import type { CronJobDependencies } from '../config/cron.types.js'
-import { createDrizzleAdvisoryLock } from '../nfe-distribution-pull/infrastructure/drizzle-advisory-lock.js'
+import { createDrizzleAdvisoryLock } from '../shared/drizzle-advisory-lock.js'
 
 import { createPullEnergyTariffUseCase } from './application/pull-energy-tariff.use-case.js'
 import { createPullFuelReferenceUseCase } from './application/pull-fuel-reference.use-case.js'
@@ -37,7 +38,7 @@ export function runFuelPricePullJob(
         timeoutInMilliseconds: settings.aneelTimeoutMilliseconds,
       }),
     }),
-    jobId: dependencies.config.cronJob,
+    jobId: FUEL_PRICE_PULL_JOB,
     lock: createDrizzleAdvisoryLock({ db: dependencies.db }),
     logger: dependencies.logger,
     now: dependencies.now,

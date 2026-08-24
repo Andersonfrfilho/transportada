@@ -9,7 +9,6 @@ import { CronConfigurationError, parseCronEnvironment } from '../src/config/envi
 const NFSE_BASE_URL = 'https://www.notarp.com.br/api/v2'
 
 const nfseEnvironment = {
-  CRON_JOB: 'nfse.status.pull',
   ENCRYPTION_ACTIVE_KEY_ID: 'k1',
   ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
   NFSE_PROVIDER_BASE_URL: NFSE_BASE_URL,
@@ -22,34 +21,35 @@ const nfseEnvironment = {
 const fuelEnvironment = {
   ANEEL_BASE_URL: 'https://dadosabertos.aneel.gov.br',
   ANP_BASE_URL: 'https://www.gov.br/anp',
-  CRON_JOB: 'fuel.price.pull',
 } as const
 
 const validEnvironment = {
   APP_ENV: 'local',
   CADENCE_MINUTES: '60',
-  CRON_JOB: 'nfe.distribution.pull',
   DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
   FISCAL_ENVIRONMENT: 'homologation',
   LOG_LEVEL: 'info',
   PAGE_SIZE: '50',
+  QUEUE_PREFIX: 'transportada_local',
+  RABBITMQ_URL: 'amqp://transportada:transportada@localhost:55672',
 }
 
 describe('cron environment contract', () => {
-  test('parses the autonomous Bun cron configuration', () => {
+  test('parses the tick configuration', () => {
     expect(parseCronEnvironment(validEnvironment)).toEqual({
       appEnv: 'local',
       cadenceMinutes: 60,
-      cronJob: 'nfe.distribution.pull',
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'homologation',
       // Nem sem o endereço da ANP, que só o trilho de preço de combustível usa.
       fuelPricePull: undefined,
       logLevel: 'info',
-      // O deploy da busca de notas continua subindo sem chaveiro, sem bucket e sem prefeitura.
+      // A batida sobe sem chaveiro, sem bucket e sem prefeitura — só a rotina de NFS-e os exige.
       nfseStatusPull: undefined,
       notificationSchedules: undefined,
       pageSize: 50,
+      queuePrefix: validEnvironment.QUEUE_PREFIX,
+      rabbitMqUrl: validEnvironment.RABBITMQ_URL,
       logSinkUrl: undefined,
       sentryDsn: undefined,
       sentryEnvironment: 'local',
@@ -133,10 +133,20 @@ describe('cron environment contract', () => {
     expect(parseCronEnvironment(withoutCadence).cadenceMinutes).toBe(60)
   })
 
-  test('rejects an unknown cron job before any database work', () => {
-    expect(() =>
-      parseCronEnvironment({ ...validEnvironment, CRON_JOB: 'nfe.unknown.job' }),
-    ).toThrow(CronConfigurationError)
+  /**
+   * A batida publica: cron que não alcança o broker não tem o que fazer, e descobrir isso no
+   * primeiro `publish` é ciclo com execução já aberta e rotina travada.
+   */
+  test('a batida não sobe sem o endereço do broker', () => {
+    expect(() => parseCronEnvironment({ ...validEnvironment, RABBITMQ_URL: '  ' })).toThrow(
+      CronConfigurationError,
+    )
+  })
+
+  test('a batida não sobe sem o prefixo de fila', () => {
+    expect(() => parseCronEnvironment({ ...validEnvironment, QUEUE_PREFIX: '  ' })).toThrow(
+      CronConfigurationError,
+    )
   })
 
   test('rejects an unsupported fiscal environment', () => {
@@ -154,12 +164,28 @@ describe('cron environment contract', () => {
     ).toBe(NFSE_BASE_URL)
   })
 
-  test('o job de NFS-e falha no boot sem endereço do provedor', () => {
-    expect(() =>
+  /**
+   * Sem `CRON_JOB` quem diz que a rotina está configurada aqui é a presença do endereço. Ausente, o
+   * bloco inteiro é `undefined` — e o chaveiro que sobrou não faz o boot cair por uma rotina que
+   * esta instalação não contratou.
+   */
+  test('sem endereço do provedor a rotina de NFS-e nasce não configurada', () => {
+    expect(
       parseCronEnvironment({
         ...validEnvironment,
         ...nfseEnvironment,
         NFSE_PROVIDER_BASE_URL: undefined,
+      }).nfseStatusPull,
+    ).toBeUndefined()
+  })
+
+  // Declarado o endereço, o resto do bloco é tudo-ou-nada: metade selada é segredo que não abre.
+  test('com endereço do provedor o chaveiro volta a ser obrigatório', () => {
+    expect(() =>
+      parseCronEnvironment({
+        ...validEnvironment,
+        ...nfseEnvironment,
+        ENCRYPTION_KEYRING_JSON: undefined,
       }),
     ).toThrow(CronConfigurationError)
   })

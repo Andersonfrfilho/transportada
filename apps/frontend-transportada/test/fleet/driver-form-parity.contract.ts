@@ -39,7 +39,7 @@ describe('driver form parity contract', () => {
 
       for (const group of FIELD_GROUPS) expect(source).toContain(group)
       expect(source).toContain("<legend>{t('driverIdentityLegend')}</legend>")
-      expect(source).toContain("<legend>{t('driverVehiclesLegend')}</legend>")
+      expect(source).toContain('<DriverVehicleLinkField')
     }
   })
 

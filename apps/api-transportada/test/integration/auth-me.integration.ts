@@ -19,7 +19,6 @@ import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from '../fixtures/health.fixture'
 import { startApiServer } from '../../src/server/server.service'
 import type { ApiLogger } from '../../src/shared/api.types'
-import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant'
 import { CRYPTOGRAPHIC_CONFIGURATION } from '../fixtures/cryptographic-environment.fixture'
 import { DrizzleCompanyFiscalEnvironmentRepository } from '../../src/companies/infrastructure/drizzle-company-fiscal-environment.repository'
 import { createHttpRouterFixture } from '../fixtures/http-router.fixture'
@@ -103,7 +102,6 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             notificationWebhookSecret: undefined,
             port: 0,
             postalCodeProviders: { brasilApiUrl: undefined, viaCepUrl: undefined },
-            scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
             logSinkUrl: undefined,
             sentryDsn: undefined,
             sentryEnvironment: 'test',

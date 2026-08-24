@@ -92,17 +92,15 @@ describe('contrato do filtro de mudança do pipeline', () => {
   })
 
   /**
-   * Os quatro crons são uma app só — mesmo Dockerfile, mesma imagem, e só `CRON_JOB` os separa.
-   * Recortar por trilho exigiria manter à mão a lista de pastas transversais (`config/`,
-   * `database/`, `main.ts`), e uma esquecida deixa três crons rodando schema velho contra tabela
-   * nova, num ciclo agendado que ninguém está olhando.
+   * Eram quatro serviços separados por `CRON_JOB`, e um alvo só cobria os quatro. Hoje é um serviço
+   * (spec 052): o alvo continua sendo um, e continua carregando a app inteira — recortar por trilho
+   * exigiria manter à mão a lista de pastas transversais (`config/`, `database/`, `main.ts`), e uma
+   * esquecida deixa a batida rodando schema velho contra tabela nova, sem ninguém olhando.
    */
-  test('os quatro serviços de cron compartilham um alvo só', async () => {
+  test('o serviço de cron carrega a app inteira', async () => {
     const paths = (await targetPaths()).get('cron') ?? []
 
-    for (const service of ['cron', 'cron-nfse', 'cron-notifications', 'cron-fuel']) {
-      expect(paths).toContain(`deploy/${service}/`)
-    }
+    expect(paths).toContain('deploy/cron/')
     expect(paths).toContain('apps/cron-transportada/')
   })
 

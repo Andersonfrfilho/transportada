@@ -17,3 +17,13 @@ export function toggleVehicleSelection(
   }
   return [...input.selected, input.vehicleId]
 }
+
+/**
+ * Vínculo é histórico, e reescrevê-lo é uma decisão: gravar a ficha com a lista ainda em branco
+ * porque a resposta não chegou soltaria todos os veículos que o motorista já dirige.
+ */
+export function shouldReplaceDriverVehicles(
+  input: Readonly<{ isReady: boolean; hasOperatorChoice: boolean }>,
+): boolean {
+  return input.hasOperatorChoice || input.isReady
+}

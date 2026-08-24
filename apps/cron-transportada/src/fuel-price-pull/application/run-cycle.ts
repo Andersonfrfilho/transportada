@@ -10,7 +10,7 @@
  * senão um provedor fora do ar levaria junto a coleta que deu certo.
  */
 import type { CronLogger } from '../../config/cron.types.js'
-import type { AdvisoryLockPort } from '../../nfe-distribution-pull/application/advisory-lock.port.js'
+import type { AdvisoryLockPort } from '../../shared/advisory-lock.port.js'
 
 import type { PullEnergyTariffUseCase } from './pull-energy-tariff.use-case.js'
 import type { PullFuelReferenceUseCase } from './pull-fuel-reference.use-case.js'

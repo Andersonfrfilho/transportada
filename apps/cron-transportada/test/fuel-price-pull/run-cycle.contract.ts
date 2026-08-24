@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { CronLogger } from '../../src/config/cron.types.js'
-import type { AdvisoryLockPort } from '../../src/nfe-distribution-pull/application/advisory-lock.port.js'
+import type { AdvisoryLockPort } from '../../src/shared/advisory-lock.port.js'
 import type {
   FuelReferenceGatewayPort,
   FuelReferenceRecord,

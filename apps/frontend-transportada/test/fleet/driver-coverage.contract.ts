@@ -2,6 +2,8 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  DRIVER_COVERAGE_ALL_REGIONS_VALUE,
+  addAllRegionsCoverage,
   addCityCoverage,
   addRegionCoverage,
   coverageKey,
@@ -209,6 +211,45 @@ describe('fleet driver coverage contract', () => {
       expect(removeDriverCoverage(coverage, pill.key)).toHaveLength(1)
     }
     expect(removeDriverCoverage(coverage, 'nao-existe')).toHaveLength(2)
+  })
+
+  /**
+   * O motorista que roda a tabela inteira é caso comum, e marcar rota por rota era o único caminho.
+   * Cada rota vira linha própria: rota importada depois não entra na cobertura de ninguém sozinha,
+   * e retirar uma continua possível.
+   */
+  test('todas as rotas viram uma linha cada, e a cidade solta daquela rota sai junto', () => {
+    const withCity = addCityCoverage({
+      city: { city: 'BARRINHA', state: 'SP' },
+      coverage: [],
+      region: BARRETOS,
+    })
+
+    const coverage = addAllRegionsCoverage({ coverage: withCity, regions: [BARRETOS, FRANCA] })
+
+    expect(keysOf(coverage)).toEqual([
+      coverageKey({ city: null, regionId: BARRETOS.id, scope: 'region' }),
+      coverageKey({ city: null, regionId: FRANCA.id, scope: 'region' }),
+    ])
+    expect(removeDriverCoverage(coverage, keysOf(coverage)[0] ?? '')).toHaveLength(1)
+    // Repetir a escolha não duplica linha nenhuma
+    expect(addAllRegionsCoverage({ coverage, regions: [BARRETOS, FRANCA] })).toHaveLength(2)
+  })
+
+  test('a opção todas as rotas é sentinela do select, e nunca é gravada', async () => {
+    const fields = await readApplicationFile(FIELDS_PATH)
+    const coverageHook = await readApplicationFile(COVERAGE_HOOK_PATH)
+
+    expect(DRIVER_COVERAGE_ALL_REGIONS_VALUE).toBe('all-regions')
+    expect(fields).toContain('DRIVER_COVERAGE_ALL_REGIONS_VALUE')
+    expect(fields).toContain("t('driverCoverage.allRegions')")
+    expect(fields).toContain('coverage.addAllRegions(regions)')
+    expect(coverageHook).toContain('addAllRegions:')
+    for (const locale of ['fleet.locale.json', 'fleet.en.locale.json']) {
+      const source = await readApplicationFile(`src/modules/fleet/locales/${locale}`)
+      const messages = JSON.parse(source) as { driverCoverage: { allRegions?: string } }
+      expect(messages.driverCoverage.allRegions).toBeTruthy()
+    }
   })
 
   test('o campo de cobertura mora no formulário do motorista, sobre o design system', async () => {

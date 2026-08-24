@@ -121,6 +121,26 @@ O gatilho é um `<button type="button">` com `aria-haspopup="listbox"`, `aria-ex
 
 Clique fora fecha. Ao fechar, o foco volta para o gatilho.
 
+## Escolha de vários — `MultiSelect`
+
+Quando o campo aceita **mais de um valor**, o componente é `@/components/ui/multi-select`. Uma grade
+de caixas por opção não escala: com a frota inteira na tela, o resto da ficha do motorista era
+empurrado para fora do campo de visão.
+
+- O gatilho tem a mesma pele do `Select` e diz **quantos** foram escolhidos (`summaryLabel`, para o
+  idioma pluralizar) — nunca a lista dos rótulos, que não cabe.
+- O painel é o mesmo da camada flutuante, com busca, e **não fecha ao escolher**: selecionar três
+  veículos é um gesto só. `Escape`, `Tab` e clique fora fecham.
+- A busca lê `label` **e** `description`: quem procura pelo modelo não sabe a placa.
+- O que foi escolhido aparece abaixo como pílula de `@/components/ui/filter-pills` — `label` é a
+  chave visível (a placa) e `description` vira o complemento (marca, modelo, papel).
+- Valor selecionado que sumiu do catálogo continua na lista de pílulas pelo próprio identificador:
+  escondê-lo deixaria um vínculo gravado sem como desfazer.
+- O quadrado dentro da opção é desenho de estado, com `pointer-events: none` — o alvo de clique é a
+  linha inteira, e dois alvos na mesma linha se anulariam.
+
+Contrato em `test/design-system/multi-select.contract.ts`.
+
 ## Camada flutuante
 
 A lista de opções não é filha do gatilho no DOM: ela vai para `document.body` por portal e é

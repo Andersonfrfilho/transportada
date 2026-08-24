@@ -35,6 +35,7 @@ import {
   nfeVolumes,
 } from './nfe.schema.js'
 import { passwordResetDeliveryOutbox, passwordResetRequests } from './password-reset.schema.js'
+import { jobExecutions, jobSchedules } from './job-schedule.schema.js'
 import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
@@ -113,6 +114,7 @@ export * from './mdfe.schema.js'
 export * from './nfse.schema.js'
 export * from './identity.schema.js'
 export * from './nfe.schema.js'
+export * from './job-schedule.schema.js'
 export * from './processing.schema.js'
 export * from './storage.schema.js'
 export * from './cte-batch.schema.js'
@@ -188,6 +190,8 @@ export const databaseSchema = {
   nfseServiceInvoices,
   passwordResetDeliveryOutbox,
   passwordResetRequests,
+  jobExecutions,
+  jobSchedules,
   processedMessages,
   processingJobs,
   processingOutbox,

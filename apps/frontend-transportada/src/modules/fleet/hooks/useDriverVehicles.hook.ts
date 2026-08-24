@@ -13,6 +13,11 @@ const FLEET_DRIVER_VEHICLES_QUERY_KEY = 'fleet-driver-vehicles'
 const FLEET_VEHICLE_OPTIONS_QUERY_KEY = 'fleet-vehicle-options'
 
 export type DriverVehiclesController = Readonly<{
+  /**
+   * Vínculo carregado é o que autoriza reescrever a lista: gravar a ficha antes da resposta
+   * mandaria uma seleção vazia, e a API leria isso como "solte todos os veículos deste motorista".
+   */
+  isReady: boolean
   links: readonly FleetDriverVehicleLink[]
   options: readonly FleetVehicleDetail[]
   replace: (input: FleetReplaceDriverVehiclesInput) => Promise<readonly FleetDriverVehicleLink[]>
@@ -34,6 +39,11 @@ export function useDriverVehicles(
   const controller = createFleetController({ client: getFleetClient(), permissions })
   const { driverId } = input
   const linksKey = [FLEET_DRIVER_VEHICLES_QUERY_KEY, input.companyId, driverId] as const
+  /**
+   * A gravação nem sempre é do motorista aberto aqui: a ficha que nasce dentro do veículo grava
+   * para um motorista que esta instância não conhece. Invalidar pelo prefixo alcança os dois.
+   */
+  const linksScopeKey = [FLEET_DRIVER_VEHICLES_QUERY_KEY, input.companyId] as const
   const optionsKey = [FLEET_VEHICLE_OPTIONS_QUERY_KEY, input.companyId] as const
 
   const linksQuery = useQuery({
@@ -53,10 +63,11 @@ export function useDriverVehicles(
   })
   const replaceMutation = useMutation({
     mutationFn: controller.replaceDriverVehicles,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: linksKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: linksScopeKey }),
   })
 
   return {
+    isReady: driverId === undefined || linksQuery.isFetched,
     links: linksQuery.data ?? [],
     options: optionsQuery.data?.items ?? [],
     replace: (body) => replaceMutation.mutateAsync(body),

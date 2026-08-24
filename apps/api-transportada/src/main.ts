@@ -287,7 +287,6 @@ export function bootstrap(): Bun.Server<undefined> {
       keycloak: config.keycloak,
       logger,
       postalCodeProviders: config.postalCodeProviders,
-      scheduledDistributionCron: config.scheduledDistributionCron,
       vehicleCatalog: config.vehicleCatalog,
     }),
     tenantContext,
@@ -414,7 +413,6 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
-  readonly scheduledDistributionCron: ApiEnvironment['scheduledDistributionCron']
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
@@ -426,7 +424,6 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
-  scheduledDistributionCron,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
@@ -487,7 +484,6 @@ function createApplicationRoutes({
   const getScheduledDistribution = createGetScheduledDistributionStatusUseCase({
     clock: { now: () => new Date() },
     port: new DrizzleScheduledDistributionStatusRepository(database),
-    scheduledDistributionCron,
   })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })

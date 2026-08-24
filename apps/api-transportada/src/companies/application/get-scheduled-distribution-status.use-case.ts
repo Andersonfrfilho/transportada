@@ -9,7 +9,6 @@ import {
   evaluateDistributionEligibility,
   type DistributionIneligibilityReason,
 } from '../domain/distribution-eligibility.policy.js'
-import { resolveNextScheduledRunAt } from '../domain/scheduled-distribution-window.policy.js'
 import type {
   ScheduledDistributionImportFacts,
   ScheduledDistributionStatusPort,
@@ -30,8 +29,11 @@ export type ScheduledDistributionStatus = {
   readonly ineligibilityReason: DistributionIneligibilityReason | undefined
   readonly lastAutomationImport: ScheduledDistributionImportStatus | undefined
   readonly nextAllowedAt: string | undefined
-  /** Quando o cron roda de novo — independente do cooldown da SEFAZ e do opt-in da empresa. */
-  readonly nextScheduledRunAt: string
+  /**
+   * Quando a rotina roda de novo — independente do cooldown da SEFAZ e do opt-in da empresa.
+   * Ausente com a rotina pausada, que é quando não há próxima a prometer.
+   */
+  readonly nextScheduledRunAt: string | undefined
 }
 
 type Clock = { readonly now: () => Date }
@@ -39,7 +41,6 @@ type Clock = { readonly now: () => Date }
 export function createGetScheduledDistributionStatusUseCase(dependencies: {
   readonly clock: Clock
   readonly port: ScheduledDistributionStatusPort
-  readonly scheduledDistributionCron: string
 }): {
   readonly execute: (input: { readonly companyId: string }) => Promise<ScheduledDistributionStatus>
 } {
@@ -66,10 +67,7 @@ export function createGetScheduledDistributionStatusUseCase(dependencies: {
         ineligibilityReason: eligibility.eligible ? undefined : eligibility.reason,
         lastAutomationImport: toImportStatus(facts.lastAutomationImport),
         nextAllowedAt: facts.nextAllowedAt?.toISOString(),
-        nextScheduledRunAt: resolveNextScheduledRunAt({
-          cronExpression: dependencies.scheduledDistributionCron,
-          from: now,
-        }).toISOString(),
+        nextScheduledRunAt: facts.nextScheduledRunAt?.toISOString(),
       }
     },
   }

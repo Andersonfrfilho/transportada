@@ -23,7 +23,7 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  cron-nfse  cron-notifications  cron-fuel  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -55,16 +55,13 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 O Dockerfile de cada serviço é escolhido pela variável de build
 `RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 
-| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                                   |
-| ----------------------- | --------------------------------------- | ---------------------------------------- |
-| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`                |
-| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`             |
-| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`               |
-| `cron-nfse`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-nfse/railway.json`          |
-| `cron-notifications`    | `apps/cron-transportada/Dockerfile`     | `deploy/cron-notifications/railway.json` |
-| `cron-fuel`             | `apps/cron-transportada/Dockerfile`     | `deploy/cron-fuel/railway.json`          |
-| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json`           |
-| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json`           |
+| Serviço                 | `RAILWAY_DOCKERFILE_PATH`               | Config                         |
+| ----------------------- | --------------------------------------- | ------------------------------ |
+| `api`                   | `apps/api-transportada/Dockerfile`      | `deploy/api/railway.json`      |
+| `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`   |
+| `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`     |
+| `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
+| `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
 > variável de ambiente.** Não existe `RAILWAY_CONFIG_PATH`: definir essa
@@ -89,31 +86,18 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   aplicada manualmente:
   `railway ssh --service api --environment <env> bun src/database/database-migration.service.ts`
   (de dentro do contêiner, porque `*.railway.internal` não é acessível de fora).
-- **cron**: `cronSchedule` `*/15 * * * *` com `restartPolicyType: NEVER` — processo
-  de ciclo único, não serviço em loop. O tique é mais fino que a janela de uma hora
-  da SEFAZ porque essa hora corre do lado dela, a partir do instante em que nos
-  serviu: no tique de hora cheia a permissão só era reencontrada na hora seguinte.
-  Ciclo fora da janela é no-op — a elegibilidade recusa por `cooldown_active` antes
-  de criar importação, e `CADENCE_MINUTES=60` mantém uma enfileirada por hora.
-  Roda o job `nfe.distribution.pull`.
-- **cron-nfse**: mesmo Dockerfile, mesmo binário, mesma política de reinício — o
-  que separa os dois serviços é a variável `CRON_JOB`, e nada no build. Aqui ela é
-  `nfse.status.pull`, a reconciliação das notas de serviço municipais. O tique é
-  `*/5 * * * *` porque a reconsulta de uma nota pendente só é reagendada a cada
-  `NFSE_PENDING_RECHECK_MINUTES` (5): tique mais largo que essa janela deixaria a
-  nota elegível sem ninguém passando para pegá-la, e a autorização da prefeitura
-  esperaria o tique inteiro para virar XML arquivado. É o serviço que exige o
-  bloco `NFSE_*` de configuração — sem ele o boot falha, de propósito.
-- **cron-fuel**: `CRON_JOB=fuel.price.pull`, o resumo semanal de preço da ANP (ADR-0033) e a
-  tarifa homologada de energia da ANEEL, coletados pelo mesmo ciclo. O tique é
-  `0 9 * * 6` — **sábado, 09:00 UTC (06:00 no Brasil)**, e o dia não é preferência. A semana da ANP
-  vai de domingo a sábado e dá nome ao arquivo; `resolveReferenceWeek` deriva a URL da semana que
-  contém o dia de hoje. Rodando no sábado, pede a semana que fecha naquele dia — publicada na
-  sexta-feira anterior (ADR-0033: semana de 09/08 a 15/08, no ar em 14/08). Rodando no domingo,
-  pediria a semana que **acabou de começar**, cujo arquivo só existe seis dias depois: 404 a cada
-  ciclo. Ciclo sem a semana no ar não grava meia referência — falha limpa, e a semana anterior
-  continua valendo. Diferente dos outros crons, este sobe nos dois ambientes: a referência é dado
-  público de mercado, sem certificado, sem tenant e sem efeito fiscal.
+- **cron**: `cronSchedule` `*/5 * * * *` com `restartPolicyType: NEVER` — processo de ciclo único,
+  não serviço em loop. Ele não roda rotina nenhuma: pega o advisory lock, seleciona em
+  `job_schedules` o que venceu e publica cada rotina em `job-run.v1`, para o worker executar
+  (spec 052). Quem decide a cadência de cada uma é a linha do banco, editável pelo painel do
+  produto — não o `cronSchedule` daqui, que é só o **piso** de granularidade: nada corre mais fino
+  que cinco minutos, porque nada é olhado mais de perto que isso.
+
+  Eram quatro serviços (`cron`, `cron-nfse`, `cron-notifications`, `cron-fuel`), separados pela
+  variável `CRON_JOB` e por nada no build. A variável não existe mais: rotina cuja cadência mora no
+  painel do provedor de hospedagem é rotina que o operador do cliente não consegue nem ver, e trocar
+  o tique de uma publicava as quatro.
+
 - **frontend**: `VITE_*` é inlinado no bundle, então entra como `ARG` no build.
   Mudar domínio exige **rebuild**, não só restart. `VITE_APP_ENV` (`local` ·
   `staging` · `production`) decide o 🚧 no ícone da aba e a faixa de ambiente:
@@ -156,7 +140,7 @@ desabilitado e emite o primeiro código de ativação.
 Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_PORT`
 (todos `8080`), `QUEUE_PREFIX` (`transportada_staging` / `transportada_production`),
 `KEYCLOAK_AUDIENCE`, `FRONTEND_ORIGIN`, `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI`,
-`VITE_*`, `CRON_JOB`, `FISCAL_ENVIRONMENT`, `CADENCE_MINUTES`, `PAGE_SIZE`,
+`VITE_*`, `FISCAL_ENVIRONMENT`, `CADENCE_MINUTES`, `PAGE_SIZE`,
 `OBJECT_STORAGE_BUCKET`/`ENDPOINT`/`REGION`/`FORCE_PATH_STYLE`.
 
 > 🚗 **`FLEET_VEHICLE_CATALOG_URL`, na `api`** (`https://brasilapi.com.br`), liga o
@@ -167,22 +151,28 @@ Não secretas, por serviço: `APP_ENV`, `LOG_LEVEL`, `PORT`/`APP_PORT`/`WORKER_P
 > ambientes com o mesmo valor do `.env` local, é um espelho público da FIPE, sem
 > segredo nenhum.
 
-> ⏱ `SCHEDULED_DISTRIBUTION_CRON`, na `api`, tem de espelhar o `deploy.cronSchedule`
-> de `deploy/cron/railway.json` — é dela que sai o "próximo ciclo automático" que a
-> tela mostra, e a API não observa o serviço de cron para descobrir isso sozinha.
-> Só o campo de minuto pode ser fixado (`0 * * * *`, `*/15 * * * *`); qualquer outra
-> forma derruba o boot em vez de servir data inventada. Mudou a cadência do cron?
-> mude a variável junto. No painel da Railway o valor vai **sem aspas** — elas só
-> existem no `.env.example` porque o CI faz `. ./.env` e `*` solto vira glob.
+> ⏱ `SCHEDULED_DISTRIBUTION_CRON` **não existe mais** (spec 052). A API servia o "próximo ciclo
+> automático" a partir de um espelho em texto do `cronSchedule`, e espelho não observado é espelho
+> que mente: mudar o tique no painel sem mudar a variável mostrava ao operador uma data que nunca
+> chegava. Hoje a data vem de `job_schedules.next_run_at`, escrita pela própria batida ao publicar.
+> Se ela aparecer no painel de algum ambiente, é resto — pode ser removida.
 
-> ⛽ **`ANP_BASE_URL`, `ANP_TIMEOUT_MS`, `ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS`, na `cron-fuel`**
+> 📨 **`RABBITMQ_URL` e `QUEUE_PREFIX`, agora também na `cron`** (spec 052). A batida sempre
+> publica em `job-run.v1` — não executa rotina nenhuma —, então o schema passou a exigir as duas no
+> boot: cron que não alcança a fila não teria o que fazer, e falhar ao subir é melhor que abrir
+> execução que ninguém consome. `RABBITMQ_URL` é referência entre serviços, como no `worker`, e o
+> `QUEUE_PREFIX` é o mesmo do ambiente. Provisionar nos **dois** ambientes antes do primeiro deploy
+> da batida.
+
+> ⛽ **`ANP_BASE_URL`, `ANP_TIMEOUT_MS`, `ANEEL_BASE_URL` e `ANEEL_TIMEOUT_MS`, na `cron`**
 > (`https://www.gov.br/anp/...` e `https://dadosabertos.aneel.gov.br`), são os dois destinos
 > externos do job de preço — litro e kWh saem do mesmo ciclo, e o schema exige as **quatro** no
 > boot dele: falta de uma derruba o deploy em vez de gravar meia série. Provisionar nos dois
 > ambientes com o mesmo valor do `.env.example`; são bases públicas, sem token e sem segredo, e o
-> `cron-fuel` sobe em staging e em production. Nenhum script do repositório escreve variável no
-> painel — `railway-deploy.sh` só publica —, então este passo é manual por ambiente. Sem elas o
-> serviço nem chega a rodar um ciclo, e o próximo é só no sábado seguinte.
+> `cron` sobe em staging e em production. Nenhum script do repositório escreve variável no
+> painel — `railway-deploy.sh` só publica —, então este passo é manual por ambiente. Presença é o
+> que liga a coleta: nenhuma das duas declaradas é rotina não configurada, e **uma só** derruba o
+> boot — meia série gravada é tela com preço sem dizer que está incompleto.
 
 Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 `${{Postgres.DATABASE_URL}}` e `RABBITMQ_URL` é montada a partir de
@@ -241,10 +231,9 @@ Secretas, geradas por ambiente e nunca iguais entre ambientes:
      (migration no `preDeployCommand`) → asserção de migrations aplicadas.
    - `deploy-frontend` — começa junto com a API. O bundle é estático e não fala
      com o banco: não tem migration para esperar.
-   - `deploy-services` — matriz de cinco (`worker`, `cron`, `cron-nfse`,
-     `cron-notifications`, `cron-fuel`), um runner cada, depois de
-     `deploy-api`. Eles leem tabelas que só a migration da API cria; essa é a
-     única ordem que existe.
+   - `deploy-services` — matriz de dois (`worker`, `cron`), um runner cada,
+     depois de `deploy-api`. Eles leem tabelas que só a migration da API cria;
+     essa é a única ordem que existe.
 
    O job único levava **646s** no release de produção `32172971566`, com sete
    dos oito serviços apenas esperando a vez. O caminho crítico real é
@@ -332,7 +321,7 @@ targetPort})` e `domain` sendo o hostname inteiro. O CLI não serve: `railway do
 > cria nada. Por isso a primeira passada do deploy de production parou em
 > `assert-migrations`, que exige domínio público na api para ler `/health/ready`.
 
-Serviço interno não recebe domínio: `worker`, `cron`, `cron-nfse`, `cron-fuel`, `rabbitmq` e os bancos falam
+Serviço interno não recebe domínio: `worker`, `cron`, `rabbitmq` e os bancos falam
 só por `*.railway.internal`. O `worker` de staging tinha um domínio gerado que
 ninguém pedia e ninguém monitorava — anônimo, da internet aberta, o `/health/ready`
 devolvia `{"dependencies":{"database":"up","rabbitmq":"up","storage":"up"}}` e

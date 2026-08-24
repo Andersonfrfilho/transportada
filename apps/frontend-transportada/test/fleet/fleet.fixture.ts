@@ -119,11 +119,15 @@ export type FleetDriverBodyContract = Readonly<{
   email: string
   fatherName: string
   firstLicenseAt: null | string
+  identityDocument: string
+  identityDocumentIssuer: string
+  identityDocumentState: string
   licenseCategory: '' | 'A' | 'AB' | 'AC' | 'ACC' | 'AD' | 'AE' | 'B' | 'C' | 'D' | 'E'
   licenseExpiresAt: null | string
   licenseIssuedCity: string
   licenseIssuedState: string
   licenseNumber: string
+  linkedAddress: FleetDriverAddressContract
   linkedLegalName: string
   linkedTaxId: string
   membershipId: null | string
@@ -255,11 +259,15 @@ export const DRIVER_BODY = {
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
   licenseIssuedCity: 'Campinas',
   licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   membershipId: null,
@@ -280,11 +288,15 @@ export const DRIVER_CREATE_BODY = {
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
+  identityDocument: '12.345.678-9',
+  identityDocumentIssuer: 'SSP',
+  identityDocumentState: 'SP',
   licenseCategory: 'E',
   licenseExpiresAt: '2030-04-12',
   licenseIssuedCity: 'Campinas',
   licenseIssuedState: 'SP',
   licenseNumber: '12345678901',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   motherName: 'Maria da Silva',
@@ -488,11 +500,15 @@ export const DRIVER_DRAFT_BODY = {
   email: '',
   fatherName: '',
   firstLicenseAt: null,
+  identityDocument: '',
+  identityDocumentIssuer: '',
+  identityDocumentState: '',
   licenseCategory: '',
   licenseExpiresAt: null,
   licenseIssuedCity: '',
   licenseIssuedState: '',
   licenseNumber: '',
+  linkedAddress: DRIVER_ADDRESS_DRAFT,
   linkedLegalName: '',
   linkedTaxId: '',
   motherName: '',

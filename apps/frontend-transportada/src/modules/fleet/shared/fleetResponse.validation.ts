@@ -204,6 +204,8 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isDriverAddress(value.address) &&
     (value.anttCategory === '' || isOneOf(value.anttCategory, FLEET_ENUMS.taxRegime)) &&
     isNullableString(value.birthDate) &&
+    (value.identityDocumentIssuer === '' ||
+      isOneOf(value.identityDocumentIssuer, FLEET_ENUMS.identityDocumentIssuer)) &&
     (value.licenseCategory === '' || isOneOf(value.licenseCategory, FLEET_ENUMS.licenseCategory)) &&
     isNullableString(value.firstLicenseAt) &&
     isNullableString(value.licenseExpiresAt) &&
@@ -211,6 +213,7 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isString(value.email) &&
     isString(value.id) &&
     isString(value.licenseNumber) &&
+    isDriverAddress(value.linkedAddress) &&
     isString(value.linkedLegalName) &&
     isString(value.linkedTaxId) &&
     isNullableString(value.membershipId) &&

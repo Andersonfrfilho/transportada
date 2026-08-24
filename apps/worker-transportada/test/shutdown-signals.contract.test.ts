@@ -99,6 +99,7 @@ const noopRuntimeDependencies = {
   startPasswordResetDeliveryConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
+  startJobRunConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
 }
 
 let restoreSignalListeners: (() => void) | undefined

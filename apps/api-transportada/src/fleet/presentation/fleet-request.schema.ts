@@ -13,6 +13,10 @@ import {
   VEHICLE_COLORS,
 } from '../../database/fleet.schema.js'
 import { FUEL_TYPES, type FuelProduct } from '../../shared/fuel.constant.js'
+import {
+  IDENTITY_DOCUMENT_ISSUERS,
+  IDENTITY_DOCUMENT_MAX_LENGTH,
+} from '../../shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES } from '../../shared/license-category.constant.js'
 import { FLEET_DRIVER_PROFILES } from '../domain/fleet-driver-profile.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
@@ -144,10 +148,16 @@ const driverFieldsSchema = z.object({
   // A primeira habilitação já aconteceu: data futura ali é digitação errada, não cadastro
   fatherName: z.string().trim().max(NAME_MAX_LENGTH),
   firstLicenseAt: optionalPastDate(),
+  // O número do RG entra como o estado o imprime, com ponto e traço: só o teto de tamanho é nosso
+  identityDocument: z.string().trim().max(IDENTITY_DOCUMENT_MAX_LENGTH),
+  identityDocumentIssuer: z.literal('').or(z.enum(IDENTITY_DOCUMENT_ISSUERS)),
+  identityDocumentState: z.literal('').or(z.string().regex(STATE)),
   licenseExpiresAt: optionalDate(),
   licenseIssuedCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
   licenseIssuedState: z.literal('').or(z.string().regex(STATE)),
   licenseNumber: optionalDigits(CPF),
+  // Mesma forma do residencial: o endereço da empresa do agregado não é um endereço diferente
+  linkedAddress: driverAddressSchema,
   linkedLegalName: z.string().trim().max(NAME_MAX_LENGTH),
   linkedTaxId: buildOptionalTaxIdSchema(CNPJ_PATTERN),
   membershipId: z.uuid().nullable(),

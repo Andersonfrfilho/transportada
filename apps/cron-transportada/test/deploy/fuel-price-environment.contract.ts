@@ -4,7 +4,6 @@
 import { describe, expect, test } from 'bun:test'
 
 import { parseCronEnvironment } from '../../src/config/environment.schema.js'
-import { FUEL_PRICE_PULL_JOB } from '../../src/fuel-price-pull/domain/fuel-price-pull.constant.js'
 
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
 const ENV_EXAMPLE_PATH = new URL('.env.example', REPOSITORY_ROOT)
@@ -37,19 +36,17 @@ async function readEnvExample(): Promise<Record<string, string>> {
   return readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
 }
 
-describe('contrato do ambiente do cron de combustível', () => {
+describe('contrato do ambiente da rotina de combustível', () => {
   /**
-   * Litro e kWh são coletados pelo mesmo job, e as quatro variáveis são exigidas no boot dele. Uma
-   * delas de fora do `.env.example` é a que ninguém provisiona: `make bootstrap` monta um `.env`
-   * que não sobe o job, e no painel a falta só aparece no primeiro ciclo — sábado, uma vez por
-   * semana.
+   * Litro e kWh são coletados pela mesma rotina, e as quatro variáveis são exigidas no boot quando
+   * qualquer uma das duas agências está declarada. Uma delas de fora do `.env.example` é a que
+   * ninguém provisiona: `make bootstrap` monta um `.env` que não sobe a rotina, e no painel a falta
+   * só aparece no primeiro ciclo — sábado, uma vez por semana.
    */
-  test('o `.env.example` sobe o job de combustível sem nada a acrescentar', async () => {
+  test('o `.env.example` sobe a rotina de combustível sem nada a acrescentar', async () => {
     const declarations = await readEnvExample()
 
-    expect(
-      parseCronEnvironment({ ...declarations, CRON_JOB: FUEL_PRICE_PULL_JOB }).fuelPricePull,
-    ).toEqual({
+    expect(parseCronEnvironment(declarations).fuelPricePull).toEqual({
       aneelBaseUrl: declarations.ANEEL_BASE_URL as string,
       aneelTimeoutMilliseconds: Number(declarations.ANEEL_TIMEOUT_MS),
       anpBaseUrl: declarations.ANP_BASE_URL as string,
@@ -80,14 +77,14 @@ describe('contrato do ambiente do cron de combustível', () => {
   })
 
   /**
-   * `cron-fuel` sobe nos dois ambientes, e nenhum script do repositório escreve variável no painel
-   * da Railway. Variável não documentada é variável provisionada em um ambiente só — e o schema
-   * exige as duas agências, então o deploy sem elas nem chega a rodar um ciclo.
+   * O `cron` sobe nos dois ambientes, e nenhum script do repositório escreve variável no painel da
+   * Railway. Variável não documentada é variável provisionada em um ambiente só — e declarar uma
+   * agência sem a outra derruba o boot, então o deploy nem chega a rodar um ciclo.
    */
   test('o painel dos dois ambientes tem as duas agências documentadas', async () => {
     const document = await Bun.file(RAILWAY_DOC_PATH).text()
 
-    expect(document).toContain('`cron-fuel`')
+    expect(document).toContain('`cron`')
     for (const key of ['ANEEL_BASE_URL', 'ANEEL_TIMEOUT_MS', 'ANP_BASE_URL', 'ANP_TIMEOUT_MS']) {
       expect(`${key}: ${document.includes(key)}`).toBe(`${key}: true`)
     }

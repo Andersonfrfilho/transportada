@@ -6,6 +6,7 @@ import { createNotificationSchedules } from '@adatechnology/notification-module'
 
 import type { CronCycleResult, CronJobDependencies } from '../config/cron.types.js'
 import { runNotificationSchedulesCycle } from './application/run-cycle.js'
+import { NOTIFICATION_SCHEDULES_JOB } from './domain/notification-schedules.constant.js'
 import { createNotificationTrigger } from './application/notification-trigger.service.js'
 import { sweepDueInvoices } from './application/sweep-due-invoices.use-case.js'
 import { createDueInvoicesQuery } from './infrastructure/drizzle-due-invoices.query.js'
@@ -47,7 +48,7 @@ export async function runNotificationSchedulesJob(
 
     return await runNotificationSchedulesCycle({
       correlationId: dependencies.correlationId,
-      jobId: dependencies.config.cronJob,
+      jobId: NOTIFICATION_SCHEDULES_JOB,
       logger: dependencies.logger,
       schedules: createNotificationSchedules(module),
     })

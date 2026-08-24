@@ -7,11 +7,12 @@
  */
 import type { CronJobDependencies } from '../config/cron.types.js'
 import { createEnqueueDistributionUseCase } from './application/enqueue-distribution.use-case.js'
+import { DISTRIBUTION_PULL_JOB } from './domain/distribution-pull.constant.js'
 import { runDistributionPullCycle } from './application/run-cycle.js'
 import type { DistributionPullCycleResult } from './application/run-cycle.js'
 import { createSelectEligibleCompaniesUseCase } from './application/select-eligible-companies.use-case.js'
 import { createCryptoIdentifiers } from './infrastructure/crypto-identifiers.js'
-import { createDrizzleAdvisoryLock } from './infrastructure/drizzle-advisory-lock.js'
+import { createDrizzleAdvisoryLock } from '../shared/drizzle-advisory-lock.js'
 import { createDrizzleDistributionCandidateSource } from './infrastructure/drizzle-distribution-candidate.source.js'
 import { createDrizzleDistributionEnqueueGateway } from './infrastructure/drizzle-distribution-enqueue.gateway.js'
 
@@ -35,7 +36,7 @@ export function runNfeDistributionPullJob(
     correlationId: dependencies.correlationId,
     enqueueUseCase,
     environment: dependencies.config.fiscalEnvironment,
-    jobId: dependencies.config.cronJob,
+    jobId: DISTRIBUTION_PULL_JOB,
     lock: createDrizzleAdvisoryLock({ db: dependencies.db }),
     logger: dependencies.logger,
     now: dependencies.now,

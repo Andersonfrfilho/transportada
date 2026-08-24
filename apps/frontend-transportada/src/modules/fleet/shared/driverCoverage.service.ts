@@ -1,6 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FreightRegion, FreightRegionCity } from './freightRegion.types'
 
+/**
+ * Sentinela do select de rota: ela nunca é gravada, e por não ser um UUID não colide com rota
+ * nenhuma. Escolhê-la acrescenta cada rota como linha própria e o campo volta ao placeholder.
+ */
+export const DRIVER_COVERAGE_ALL_REGIONS_VALUE = 'all-regions'
+
 export const DRIVER_COVERAGE_SCOPES = ['city', 'region'] as const
 
 export type FleetDriverCoverageScope = (typeof DRIVER_COVERAGE_SCOPES)[number]
@@ -77,6 +83,23 @@ export function addRegionCoverage(
       zone: input.region.zone,
     },
   ])
+}
+
+/**
+ * O motorista que roda a tabela inteira é caso comum, e marcar rota por rota era o único caminho.
+ * Cada rota vira uma linha própria, e não uma marca de "tudo": rota nova importada depois não pode
+ * entrar na cobertura de alguém sem ninguém ter decidido isso, e retirar uma continua possível.
+ */
+export function addAllRegionsCoverage(
+  input: Readonly<{
+    coverage: readonly FleetDriverCoverage[]
+    regions: readonly FreightRegion[]
+  }>,
+): readonly FleetDriverCoverage[] {
+  return input.regions.reduce(
+    (coverage, region) => addRegionCoverage({ coverage, region }),
+    input.coverage,
+  )
 }
 
 export function addCityCoverage(

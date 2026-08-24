@@ -142,6 +142,9 @@ describe('Drizzle migrations', () => {
       '20260821232908_fuel_catalog_energy',
       '20260821233830_fleet_vehicle_secondary_fuel',
       '20260822011127_energy_tariff_reference',
+      '20260823175600_job_schedule_registry',
+      '20260823235210_fleet_driver_identity_document',
+      '20260824004030_fleet_driver_linked_address',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1245,6 +1248,71 @@ describe('Drizzle migrations', () => {
     const droppedReferences = rollbackSql.indexOf('DROP TABLE IF EXISTS "energy_tariff_references"')
     expect(droppedSettings).toBeGreaterThan(0)
     expect(droppedReferences).toBeGreaterThan(droppedSettings)
+
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+  /**
+   * O relógio das rotinas passa a viver no banco: a cadência é da instalação (por isso `job_schedules`
+   * não tem `company_id`) e cada ciclo vira linha em `job_executions`. O índice parcial é o que
+   * sustenta o `409` do botão — no máximo uma execução aberta por rotina —, e é o lease, não o
+   * índice, que decide se a aberta ainda está viva: `now()` não é imutável e não entra em predicado.
+   */
+  test('versions the routine clock without lending it to a tenant', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_job_schedule_registry'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(migrationSql).toContain('CREATE TABLE "job_schedules"')
+    expect(migrationSql).toContain('CREATE TABLE "job_executions"')
+    expect(migrationSql).not.toMatch(/\bCREATE TYPE\b/i)
+
+    // A cadência é do ambiente: uma empresa não muda o relógio das outras porque não o alcança
+    const scheduleTable = migrationSql.slice(
+      migrationSql.indexOf('CREATE TABLE "job_schedules"'),
+      migrationSql.indexOf(');', migrationSql.indexOf('CREATE TABLE "job_schedules"')),
+    )
+    expect(scheduleTable).not.toContain('"company_id"')
+    expect(scheduleTable).toContain('"interval_seconds" integer NOT NULL')
+    expect(scheduleTable).toContain('"next_run_at" timestamp with time zone NOT NULL')
+    // Pausa que não diz desde quando e por quem é rotina que morre calada
+    expect(scheduleTable).toContain(
+      'CHECK ("enabled" = ("paused_at" is null) and ("paused_at" is null) = ("paused_by" is null))',
+    )
+
+    expect(migrationSql).toContain(
+      'CREATE UNIQUE INDEX "job_executions_open_unique" ON "job_executions" ("job") WHERE "finished_at" is null',
+    )
+    // Execução encerrada não segura lease; é assim que a varredura de abandono destrava a rotina
+    expect(migrationSql).toContain('CHECK ("finished_at" is null or "lease_expires_at" is null)')
+    expect(migrationSql).toContain(
+      'ALTER TABLE "job_executions" ADD CONSTRAINT "job_executions_company_id_companies_id_fkey"',
+    )
+
+    // As quatro rotinas nascem com o intervalo que os quatro `railway.json` declaram hoje
+    expect(migrationSql).toContain('INSERT INTO "job_schedules"')
+    for (const [job, intervalSeconds] of [
+      ['nfe.distribution.pull', 900],
+      ['fuel.price.pull', 604800],
+      ['nfse.status.pull', 300],
+      ['notification.schedules.run', 3600],
+    ] as const) {
+      expect(migrationSql).toContain(`('${job}', ${intervalSeconds}`)
+    }
+
+    const droppedExecutions = rollbackSql.indexOf('DROP TABLE IF EXISTS "job_executions"')
+    const droppedSchedules = rollbackSql.indexOf('DROP TABLE IF EXISTS "job_schedules"')
+    expect(droppedExecutions).toBeGreaterThan(0)
+    expect(droppedSchedules).toBeGreaterThan(droppedExecutions)
 
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)

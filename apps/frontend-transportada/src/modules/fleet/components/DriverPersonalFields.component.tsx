@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 
 import { useMunicipalityChoices } from '../hooks/useMunicipalityChoices.hook'
-import { BRAZIL_STATE, type FleetDriverFormState } from '../shared/fleet.types'
+import {
+  BRAZIL_STATE,
+  type FleetDriverFormState,
+  IDENTITY_DOCUMENT_ISSUERS,
+  IDENTITY_DOCUMENT_MAX_LENGTH,
+} from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
 import { DriverCityField } from './DriverCityField.component'
 import { FleetField, FleetSelectField } from './FleetField.component'
@@ -21,6 +26,7 @@ type DriverPersonalFieldsProps = Readonly<{
 /**
  * O que a CNH imprime e a ficha ainda não guardava. A UF vem antes da cidade em cada par porque é
  * ela que estreita a lista do IBGE — sem a UF escolhida, o município seria um select de 5.570 linhas.
+ * O trio do RG segue a ordem impressa na carteira: documento, órgão emissor e UF do órgão.
  */
 export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalFieldsProps) {
   const { t } = useTranslation('fleet')
@@ -76,6 +82,31 @@ export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalF
           optional
           value={state.motherName}
           onChange={(motherName) => onChange({ motherName: toDisplayPersonName(motherName) })}
+        />
+        <FleetField
+          label={t('driverIdentityDocument')}
+          maxLength={IDENTITY_DOCUMENT_MAX_LENGTH}
+          optional
+          value={state.identityDocument}
+          onChange={(identityDocument) => onChange({ identityDocument })}
+        />
+        <FleetSelectField
+          clearable
+          label={t('driverIdentityDocumentIssuer')}
+          optionLabelKey="identityDocumentIssuerOption"
+          options={IDENTITY_DOCUMENT_ISSUERS}
+          placeholder={t('driverIdentityDocumentIssuerUnset')}
+          value={state.identityDocumentIssuer}
+          onChange={(identityDocumentIssuer) => onChange({ identityDocumentIssuer })}
+        />
+        <FleetSelectField
+          clearable
+          label={t('driverIdentityDocumentState')}
+          optionLabelKey="stateOption"
+          options={BRAZIL_STATE}
+          placeholder={t('driverIdentityDocumentStateUnset')}
+          value={state.identityDocumentState}
+          onChange={(identityDocumentState) => onChange({ identityDocumentState })}
         />
         <FleetSelectField
           clearable

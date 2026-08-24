@@ -100,9 +100,9 @@ continua escolhível, e sem `users.manage` o campo volta a ser digitável — qu
 administrar usuários ainda precisa cadastrar motorista.
 
 **A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
-`license_number`, `license_expires_at` e o endereço residencial existem na tabela e no formulário,
-mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Três consequências que ficam
-escritas para não serem redescobertas:
+`license_number`, `license_expires_at`, o endereço residencial e o trio do RG existem na tabela e no
+formulário, mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Quatro
+consequências que ficam escritas para não serem redescobertas:
 
 - A CNH é **única por empresa, mas só quando preenchida**: o índice
   `fleet_drivers_company_license_number_unique` é parcial (`where length(license_number) > 0`),
@@ -113,8 +113,21 @@ escritas para não serem redescobertas:
   (`BILLING_INVOICE_DUE`, `CTE_BATCH_ISSUANCE_FAILED`, `NFSE_INVOICE_REJECTED`) e nenhuma é de
   habilitação. O texto de ajuda do campo prometia o aviso; hoje diz que a data fica registrada para
   consulta. Implementar o trilho é feature com spec própria (chave nova + agendamento + cron).
+- **O RG é o trio impresso na CNH, e o órgão emissor é lista fechada.** `identity_document` ·
+  `identity_document_issuer` · `identity_document_state`, na ordem que a carteira imprime — documento,
+  órgão, UF —, e não na ordem UF-antes-de-cidade dos dois pares de município: a UF do RG não estreita
+  lista nenhuma. O número **não tem formato nacional** (ponto, traço e letra entram como o estado
+  imprime, até 20 caracteres); o órgão é `IDENTITY_DOCUMENT_ISSUERS`, dezessete siglas amarradas por
+  `fleet_drivers_identity_document_issuer_check`, e é **cópia por valor** na API e no frontend, como
+  `FUEL_TYPES` e `VEHICLE_TYPES` — cada lado restata a lista, em
+  `api-transportada/test/fleet-domain/identity-document-issuer.contract.ts` e
+  `frontend-transportada/test/fleet/identity-document.contract.ts`; mudou sigla ou ordem de um lado,
+  mude do outro. Dentro da API não há cópia: o CHECK do banco e o `z.enum` da rota saem da mesma
+  constante. Sigla fora da lista vira ausência, não erro. O trio aparece nas duas fichas (`DriverForm` e `DriverQuickCreateDialog`) porque as duas
+  renderizam `DriverPersonalFields`.
 - **A ADR-0039 já decidiu criptografar esses campos, e ainda não foi executada.** Envelope A256GCM
-  único para `birth_date`, `license_number`, endereço e telefone, AAD
+  único para `birth_date`, `license_number`, endereço e telefone — mais o trio do RG, pelo adendo de
+  2026-08-23 —, AAD
   `transportada:fleet-driver:v1:${companyId}:${driverId}`, e índice cego com HMAC para a CNH seguir
   única por empresa — decidido **porque** não há leitor, que é o que torna a mudança barata. Quem for
   escrever leitor para um desses campos passa a ter de abrir envelope: confira a ADR antes.
@@ -294,8 +307,14 @@ não há loop nem agendador embutido. Sai com código 1 só quando alguma empres
 advisory lock é no-op limpo. A conexão Postgres é pinada em **um socket** (`max: 1`) para o lock de
 sessão valer por todas as transações do ciclo.
 
-`config/environment.schema.ts` resolve qual job rodar (`CRON_JOB`), `src/job-registry.ts` mapeia o
-nome para a função. Quatro jobs:
+O processo é **uma batida só** (`src/tick/tick.job.ts`), agendada a cada cinco minutos: pega o
+advisory lock, lê `job_schedules`, publica em `job-run.v1` cada rotina com `next_run_at <= now()` e
+avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** — quem escolhe a rotina
+é o relógio no banco, não a variável do painel de hospedagem, e por isso os quatro serviços de cron
+viraram um (spec 052). ⚠️ Enquanto o trilho do worker não recebe as quatro rotinas (T5 e T7), os
+`src/<rotina>/<rotina>.job.ts` continuam no cron **sem chamador**.
+
+As quatro rotinas:
 
 - `nfe.distribution.pull` — seleciona as empresas elegíveis e enfileira uma importação
   `source: 'distribution'`, `triggeredBy: 'automation'` na `processing_outbox`, reusando o relay e o
@@ -317,9 +336,11 @@ nome para a função. Quatro jobs:
   `(product, state, week_ending_on)` é a idempotência do ciclo. É o único job que sobe sem chaveiro,
   sem bucket e sem tenant — a planilha é dado público de mercado.
 
-O bloco de configuração de NFS-e (chaveiro, bucket, `NFSE_PROVIDER_BASE_URL`) só é resolvido quando
-`CRON_JOB` é `nfse.status.pull` — o deploy da busca de notas continua subindo sem nenhum deles, e o
-de NFS-e falha no boot se faltar algum.
+Sem `CRON_JOB`, quem diz que um bloco de configuração existe é a **presença** da variável que o
+abre: `NFSE_PROVIDER_BASE_URL` vazia deixa a rotina de NFS-e não configurada (e aí chaveiro e bucket
+não são cobrados), e preenchida faz o boot falhar se faltar algum dos dois. O endereço do broker
+(`RABBITMQ_URL`, `QUEUE_PREFIX`), esse é **sempre** obrigatório: a batida sempre publica, e um cron
+que não alcança a fila não teria o que fazer.
 
 **O endereço da Nota RP é um só, e a NFS-e é trilho de produção** (ADR-0035). O provedor publica um
 servidor (`https://www.notarp.com.br/api/v2`) e não tem homologação; quem separa uma instalação da
@@ -536,7 +557,11 @@ alturas na mesma fileira. Contrato em `test/design-system/control-height.contrac
 
 Todo campo de seleção usa `@/components/ui/select` — `<select>` nativo é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/select.contract.ts` falha se algum reaparecer.
-Contrato de props, teclado e ARIA em `docs/frontend/selects.md`.
+Contrato de props, teclado e ARIA em `docs/frontend/selects.md`. Campo que aceita **vários**
+valores usa `@/components/ui/multi-select` — gatilho com a contagem, painel buscável que não fecha a
+cada escolha e o escolhido em pílulas abaixo; grade de caixas por opção empurrava o resto da ficha
+para fora da tela (é o caso do vínculo de veículos do motorista). Contrato em
+`test/design-system/multi-select.contract.ts`.
 
 Todo painel que abre sobre a tela (lista do select, calendários) é renderizado em portal no
 `document.body` e posicionado pelo hook `useFloatingLayer` — dentro de modal ou tabela rolável o

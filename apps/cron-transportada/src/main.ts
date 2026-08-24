@@ -1,19 +1,18 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Composition root of the scheduled NF-e distribution cron. A K8s CronJob runs
- * this one-shot process each cadence window: it parses config, pins a single
- * Postgres socket (so the session advisory lock spans every per-company
- * transaction), runs the resolved job inside a per-cycle trace context and
- * exits non-zero only when a company failed — a lock miss is a clean no-op.
+ * Composition root da batida do agendador. O processo é one-shot: a cada cinco minutos ele parseia
+ * a configuração, pina um socket de Postgres (para o advisory lock de sessão valer por todas as
+ * transações do ciclo), publica o que venceu dentro de um contexto de rastreio e sai. Sai diferente
+ * de zero só quando alguma rotina falhou ao ser publicada — não pegar o lock é no-op limpo.
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { CRON_PROJECT_NAME, CRON_VERSION } from './config/cron.constant.js'
 import { parseCronEnvironment } from './config/environment.schema.js'
-import { resolveCronJob } from './job-registry.js'
 import { createCronLogger, runWithCycleContext } from './logging/cycle-logger.service.js'
 import { createErrorTracker } from './observability/sentry.service.js'
+import { runTickJob } from './tick/tick.job.js'
 
 const CRON_CONNECTION_MAX_SOCKETS = 1
 const EXIT_SUCCESS = 0
@@ -39,21 +38,18 @@ export async function runCronRuntime(
 
   try {
     return await runWithCycleContext({ environment: config, traceId }, async () => {
-      const runJob = resolveCronJob(config.cronJob)
-      const result = await runJob({
+      const result = await runTickJob({
         config,
         correlationId: traceId,
         db: provider.db,
         logger,
         now: clock.now,
       })
-      logger.info('cron_cycle_completed', {
+      logger.info('cron_tick_completed', {
         acquiredLock: result.acquiredLock,
-        cronJob: config.cronJob,
-        eligibleCount: result.eligibleCount,
-        enqueuedCount: result.enqueuedCount,
+        dueCount: result.dueCount,
         failedCount: result.failedCount,
-        ineligibleCounts: result.ineligibleCounts,
+        publishedCount: result.publishedCount,
         skippedCount: result.skippedCount,
       })
       return result.failedCount > 0 ? EXIT_FAILURE : EXIT_SUCCESS

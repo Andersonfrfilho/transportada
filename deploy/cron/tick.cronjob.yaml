@@ -1,0 +1,98 @@
+# Copyright (c) 2026 Ada Technology. MIT License.
+#
+# Manifesto K8s de referência da batida do agendador (apps/cron-transportada).
+# Feature 011 / ADR-0012, reescrito pela spec 052.
+#
+# Deploy em cluster real está fora de escopo (gates locais + aprovação humana primeiro).
+# É um artefato de infra-as-code revisável:
+#   - o segredo DATABASE_URL é referenciado, nunca definido aqui (segredos nunca
+#     são commitados);
+#   - `schedule` é a batida, e é o **piso** de granularidade: quem decide a cadência
+#     de cada rotina é a linha dela em `job_schedules`, editável pelo painel do
+#     produto. Nada corre mais fino que a batida;
+#   - a batida não executa rotina nenhuma — publica em `job-run.v1` e sai;
+#   - concurrencyPolicy=Forbid + o advisory lock do Postgres + o índice parcial
+#     `job_executions_open_unique` mantêm ciclos sobrepostos seguros.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cron-transportada-config
+  labels:
+    app.kubernetes.io/name: cron-transportada
+    app.kubernetes.io/part-of: transportada
+data:
+  APP_ENV: 'production'
+  # Fiscal environment is explicit and never mixed; set per cluster/namespace.
+  FISCAL_ENVIRONMENT: 'homologation'
+  # Dedup window, not the tick: one enqueue per company per hour, however many
+  # times the CronJob below fires inside that hour.
+  CADENCE_MINUTES: '60'
+  PAGE_SIZE: '50'
+  LOG_LEVEL: 'info'
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-transportada-tick
+  labels:
+    app.kubernetes.io/name: cron-transportada
+    app.kubernetes.io/part-of: transportada
+    app.kubernetes.io/component: tick
+spec:
+  # A cada 5 min: é o piso de granularidade de toda rotina, e batida que não acha
+  # nada vencido é no-op limpo — não pega trabalho, não fala com o broker à toa.
+  schedule: '*/5 * * * *'
+  timeZone: 'America/Sao_Paulo'
+  # One instance per window; a late start never overlaps the previous run.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # A batida é idempotente pelo índice parcial de execução aberta; a retentativa
+      # é o próximo ciclo, não uma segunda tentativa dentro do mesmo.
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cron-transportada
+            app.kubernetes.io/component: tick
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cron
+              # Built and published by the deploy pipeline (out of scope here).
+              image: 'REGISTRY/adatechnology/cron-transportada:REPLACE_WITH_DIGEST'
+              imagePullPolicy: IfNotPresent
+              command: ['bun', 'run', 'start']
+              envFrom:
+                - configMapRef:
+                    name: cron-transportada-config
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cron-transportada-secrets
+                      key: DATABASE_URL
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ['ALL']
+              resources:
+                requests:
+                  cpu: '50m'
+                  memory: '128Mi'
+                limits:
+                  cpu: '500m'
+                  memory: '256Mi'

@@ -323,6 +323,75 @@ export async function assertFleetConstraints(
     'fleet_drivers_personal_length_check',
   )
 
+  // O RG entra como o estado o imprime, com ponto e traço: não há formato nacional para conferir
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, identity_document, identity_document_issuer, identity_document_state)
+    values (${companyId}, 'Motorista Com RG', '10020030055', '12.345.678-9', 'SSP', 'SP')
+  `
+  // O órgão sozinho vale: o operador pode ter a CNH em mãos e o número do RG ilegível
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, identity_document_issuer)
+    values (${companyId}, 'Motorista Com Orgao Sozinho', '11122233366', 'DETRAN')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, identity_document_issuer)
+      values (${companyId}, 'Motorista Com Orgao Inventado', '22233344477', 'SSPX')
+    `,
+    '23514',
+    'fleet_drivers_identity_document_issuer_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, identity_document_state)
+      values (${companyId}, 'Motorista Com UF Do RG Por Extenso', '33344455588', 'Sao Paulo')
+    `,
+    '23514',
+    'fleet_drivers_identity_document_state_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, identity_document)
+      values (${companyId}, 'Motorista Com RG Longo', '44455566699', ${'1'.repeat(21)})
+    `,
+    '23514',
+    'fleet_drivers_identity_document_check',
+  )
+
+  // O endereço do CNPJ do agregado é opcional metade por metade, como o residencial
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_postal_code, linked_state, linked_city)
+    values (${companyId}, 'Agregado Com Endereco Da Empresa', '12000000011', '14400000', 'SP', 'Franca')
+  `
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
+    values (${companyId}, 'Agregado Com CEP Sozinho', '12000000022', '14400000')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_postal_code)
+      values (${companyId}, 'Agregado Com CEP Mascarado', '12000000033', '14400-000')
+    `,
+    '23514',
+    'fleet_drivers_linked_postal_code_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_state)
+      values (${companyId}, 'Agregado Com UF Por Extenso', '12000000044', 'Sao Paulo')
+    `,
+    '23514',
+    'fleet_drivers_linked_state_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, linked_street)
+      values (${companyId}, 'Agregado Com Rua Longa', '12000000055', ${'R'.repeat(121)})
+    `,
+    '23514',
+    'fleet_drivers_linked_address_length_check',
+  )
+
   await database`
     insert into fleet_driver_vehicle_assignments (id, company_id, driver_id, vehicle_id)
     values (${assignmentId}, ${companyId}, ${driverId}, ${vehicleId})

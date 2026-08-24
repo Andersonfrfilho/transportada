@@ -96,6 +96,10 @@ import { DrizzleNfseOutboxRepository } from './nfse-issuance/infrastructure/driz
 import { DrizzleNfseRetryPolicyRepository } from './nfse-issuance/infrastructure/drizzle-nfse-retry-policy.repository.js'
 import { createNfseFiscalGateway } from './nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
 import { startNfseIssuanceConsumer } from './runtime/nfse-issuance-consumer.service.js'
+import { startJobRunConsumer } from './runtime/job-run-consumer.service.js'
+import { createJobCycle, type JobCyclePort } from './job-run/application/run-job-cycle.js'
+import { DrizzleJobExecutionRepository } from './job-run/infrastructure/drizzle-job-execution.repository.js'
+import { buildJobRunRabbitMqTopology } from './messaging/job-run-rabbitmq-topology.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
 import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
@@ -290,6 +294,12 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startJobRunConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly cycle: JobCyclePort
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startNotificationConsumer?: (input: {
     readonly logger: WorkerLogger
     readonly module: NotificationModule
@@ -337,6 +347,7 @@ export async function startWorkerRuntime(
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
     dependencies.startPasswordResetDeliveryConsumer ?? startPasswordResetDeliveryConsumer
+  const jobRunStarter = dependencies.startJobRunConsumer ?? startJobRunConsumer
   const notificationStarter = dependencies.startNotificationConsumer ?? startNotificationConsumer
   const healthServerStarter = dependencies.startHealthServer ?? startHealthServer
   const storageGatewayFactory =
@@ -402,6 +413,9 @@ export async function startWorkerRuntime(
   const passwordResetDeliveryTopology = buildPasswordResetDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const jobRunTopology = buildJobRunRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const notificationTopology = buildNotificationRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -428,6 +442,8 @@ export async function startWorkerRuntime(
   let passwordResetDeliveryPublisher: RabbitMqProvider | undefined
   let passwordResetDeliveryRelayLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
+  let jobRunConsumer: RuntimeConsumer | undefined
+  let jobRunProvider: RabbitMqProvider | undefined
   let notificationConsumer: RuntimeConsumer | undefined
   let notificationProvider: RabbitMqProvider | undefined
 
@@ -463,6 +479,10 @@ export async function startWorkerRuntime(
     passwordResetDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: passwordResetDeliveryTopology,
+    })
+    jobRunProvider = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: jobRunTopology,
     })
     notificationProvider = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -761,6 +781,21 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
+    jobRunConsumer = await jobRunStarter({
+      config,
+      // Registro vazio de propósito: as quatro rotinas entram uma a uma, e até lá o invólucro fecha
+      // a linha em `unexpected_error` em vez de deixá-la aberta.
+      cycle: createJobCycle({
+        executions: new DrizzleJobExecutionRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        logger,
+        now: () => new Date(),
+        routines: {},
+      }),
+      logger,
+      provider: jobRunProvider,
+    })
     notificationConsumer = await notificationStarter({
       logger,
       module: notificationModule,
@@ -938,6 +973,7 @@ export async function startWorkerRuntime(
         nfseIssuanceConsumer,
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
+        jobRunConsumer,
         notificationConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
@@ -951,6 +987,7 @@ export async function startWorkerRuntime(
         nfseIssuancePublisher,
         invitationDeliveryPublisher,
         passwordResetDeliveryPublisher,
+        jobRunProvider,
         notificationProvider,
       ]),
     })
@@ -977,6 +1014,7 @@ export async function startWorkerRuntime(
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
+    await jobRunConsumer?.cancel().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
@@ -990,6 +1028,7 @@ export async function startWorkerRuntime(
     await nfseIssuancePublisher?.close().catch(() => undefined)
     await invitationDeliveryPublisher?.close().catch(() => undefined)
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
+    await jobRunProvider?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
     // Sinal que chegou no meio do boot está esperando o desligamento existir. Ele não vai existir.

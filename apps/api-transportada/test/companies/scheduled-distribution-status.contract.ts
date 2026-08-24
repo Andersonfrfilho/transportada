@@ -8,7 +8,6 @@ import type {
   ScheduledDistributionStatusPort,
 } from '../../src/companies/application/scheduled-distribution-status.port.js'
 import { createGetScheduledDistributionStatusUseCase } from '../../src/companies/application/get-scheduled-distribution-status.use-case.js'
-import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from '../../src/config/scheduled-distribution.constant.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-0000000000c1'
 const NOW = new Date('2026-08-05T21:00:00.000Z')
@@ -26,6 +25,7 @@ function facts(
     hasSyntheticMembership: true,
     lastAutomationImport: undefined,
     nextAllowedAt: undefined,
+    nextScheduledRunAt: new Date('2026-08-05T21:15:00.000Z'),
     scheduledDistributionEnabled: true,
     ...overrides,
   }
@@ -37,11 +37,7 @@ function createUseCase(
   const port: ScheduledDistributionStatusPort = {
     loadStatusFacts: () => Promise.resolve(statusFacts),
   }
-  return createGetScheduledDistributionStatusUseCase({
-    clock: { now: () => NOW },
-    port,
-    scheduledDistributionCron: DEFAULT_SCHEDULED_DISTRIBUTION_CRON,
-  })
+  return createGetScheduledDistributionStatusUseCase({ clock: { now: () => NOW }, port })
 }
 
 describe('scheduled distribution status use case', () => {
@@ -58,6 +54,22 @@ describe('scheduled distribution status use case', () => {
       nextAllowedAt: undefined,
       nextScheduledRunAt: '2026-08-05T21:15:00.000Z',
     })
+  })
+
+  test('a próxima batida vem do relógio das rotinas, não de uma expressão de cron', async () => {
+    const status = await createUseCase(
+      facts({ nextScheduledRunAt: new Date('2026-08-05T23:40:00.000Z') }),
+    ).execute({ companyId: COMPANY_ID })
+
+    expect(status.nextScheduledRunAt).toBe('2026-08-05T23:40:00.000Z')
+  })
+
+  test('rotina pausada não anuncia próxima execução', async () => {
+    const status = await createUseCase(facts({ nextScheduledRunAt: undefined })).execute({
+      companyId: COMPANY_ID,
+    })
+
+    expect(status.nextScheduledRunAt).toBeUndefined()
   })
 
   test('reports the blocking reason when the operator never opted in', async () => {

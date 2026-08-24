@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 
 // O CI faz `set -a; . ./.env` antes das integrações. Valor com espaço ou `*` sem aspas vira glob
-// e derruba o step inteiro — foi assim que `SCHEDULED_DISTRIBUTION_CRON=0 * * * *` quebrou o gate.
+// e derruba o step inteiro — foi assim que uma expressão de cron sem aspas quebrou o gate.
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
 const ENV_EXAMPLE_PATH = new URL('.env.example', REPOSITORY_ROOT)
 const DECLARATION_PATTERN = /^([A-Z][A-Z0-9_]*)=(.*)$/
