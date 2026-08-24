@@ -26,6 +26,7 @@ import {
   toSelectedVehicleIds,
   toggleVehicleSelection,
 } from '../shared/driverVehicles.service'
+import { toDriverInvalidFieldLabels } from '../shared/driverInvalidFields.service'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import {
   createDriverDraft,
@@ -62,6 +63,8 @@ export type DriverFormController = Readonly<{
   clear: () => void
   coverage: DriverCoverageController
   feedbackKey: null | string
+  /** Chaves de rótulo dos campos que a API recusou; vazio quando a falha não aponta campo. */
+  invalidFieldLabels: readonly string[]
   isSaving: boolean
   patch: (values: Partial<FleetDriverFormState>) => void
   selectedVehicleIds: readonly string[]
@@ -87,6 +90,8 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       : toDriverFormState(input.driver),
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
+  /** Os campos que a API recusou, para o aviso dizer onde olhar em vez de só dizer que falhou. */
+  const [invalidFieldLabels, setInvalidFieldLabels] = useState<readonly string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [selection, setSelection] = useState<null | readonly string[]>(null)
   const { driver, onCreate, onSaveError, onSaved, onUpdate, regions, vehicles } = input
@@ -99,6 +104,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
 
   function patch(values: Partial<FleetDriverFormState>): void {
     setFeedbackKey(null)
+    setInvalidFieldLabels([])
     setState((previous) => {
       const next = { ...previous, ...values }
       writeFormDraft({
@@ -125,6 +131,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
   /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
   function clear(): void {
     resetFields()
+    setInvalidFieldLabels([])
     setFeedbackKey(null)
   }
 
@@ -172,10 +179,12 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
       if (driver === undefined) {
         resetFields()
       }
+      setInvalidFieldLabels([])
       setFeedbackKey('saved')
       onSaved?.(saved)
     } catch (error) {
       onSaveError?.(error)
+      setInvalidFieldLabels(toDriverInvalidFieldLabels(error))
       setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
@@ -186,6 +195,7 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     clear,
     coverage,
     feedbackKey,
+    invalidFieldLabels,
     isSaving,
     patch,
     selectedVehicleIds,

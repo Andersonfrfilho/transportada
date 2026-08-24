@@ -279,8 +279,16 @@ export function DriverQuickCreateDialog({
           />
           <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
           {form.feedbackKey === null ? null : (
-            <FleetFeedback isError={isFleetFeedbackError(form.feedbackKey)}>
+            <FleetFeedback
+              isError={isFleetFeedbackError(form.feedbackKey)}
+              reveal={!uniqueness.hasFieldError}
+            >
               {t(form.feedbackKey)}
+              {form.invalidFieldLabels.length === 0
+                ? null
+                : ` ${t('invalidFields', {
+                    fields: form.invalidFieldLabels.map((label) => t(label)).join(', '),
+                  })}`}
             </FleetFeedback>
           )}
           <div className={styles.formActions}>

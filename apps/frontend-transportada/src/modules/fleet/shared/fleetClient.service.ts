@@ -37,6 +37,11 @@ import type {
   FleetVehicleVersionInput,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
+import {
+  FleetRequestError,
+  readErrorDetails,
+  type FleetErrorDetail,
+} from './fleetRequestError.service'
 import type {
   FreightRegion,
   FreightRegionBodyInput,
@@ -81,8 +86,8 @@ export type FleetClient = Readonly<{
   updateVehicle: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
 }>
 
-function requestError(code: string): Error {
-  return new Error(code)
+function requestError(code: string, details: readonly FleetErrorDetail[] = []): Error {
+  return new FleetRequestError(code, details)
 }
 
 function readErrorCode(payload: unknown): string {
@@ -113,7 +118,7 @@ async function requestJson(
   } catch {
     throw requestError(response.ok ? FLEET_ERROR.RESPONSE_INVALID : FLEET_ERROR.REQUEST_FAILED)
   }
-  if (!response.ok) throw requestError(readErrorCode(payload))
+  if (!response.ok) throw requestError(readErrorCode(payload), readErrorDetails(payload))
   return payload
 }
 
