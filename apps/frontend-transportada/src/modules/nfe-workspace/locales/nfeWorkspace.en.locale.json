@@ -42,6 +42,26 @@
     "pending": "Pulling...",
     "lastPull": "Last pull: {{when}}",
     "lastPullNever": "No pull recorded yet.",
+    "lastJobRun": "Last cycle ({{origin}}): {{when}} — {{outcome}}.",
+    "lastJobRunRunning": "Cycle running since {{when}} ({{origin}}).",
+    "lastJobRunNever": "No routine cycle recorded yet.",
+    "jobOrigin": {
+      "manual": "requested by the operator",
+      "schedule": "scheduled window"
+    },
+    "jobOutcome": {
+      "succeeded": "completed",
+      "cancelled": "cancelled",
+      "abandoned": "abandoned",
+      "unexpected_error": "unexpected error",
+      "company_disabled": "company disabled",
+      "not_opted_in": "automatic fetch is off",
+      "missing_synthetic_membership": "automation membership missing",
+      "certificate_missing": "certificate missing",
+      "certificate_not_yet_valid": "certificate not yet valid",
+      "certificate_expired": "certificate expired",
+      "cooldown_active": "inside the SEFAZ interval"
+    },
     "ready": "Safe to pull now.",
     "busy": "A pull is already in progress.",
     "cooldown": "Wait for the SEFAZ interval. Next attempt allowed in {{countdown}}.",

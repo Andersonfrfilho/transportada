@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import type {
+  JobExecutionOrigin,
+  JobOutcome,
+  ScheduledJob,
+} from '../../shared/job-catalog.constant.js'
 
 export type NfeImportStatus =
   | 'pending'
@@ -148,7 +153,38 @@ export type RequestNfeImportTransactionPort = {
     readonly operation: string
     readonly response: NfeImportSummary
   }): Promise<void>
+  /**
+   * Opcional porque o caminho de upload não é rotina nenhuma: quem importa XML à mão não está
+   * antecipando uma janela agendada, e uma execução gravada ali seria histórico de rotina que não
+   * correu.
+   */
+  recordManualJobRun?(input: ManualJobRunInput): Promise<void>
   saveOutbox(input: OutboxInput): Promise<void>
+}
+export type ManualJobRunInput = {
+  readonly companyId: string
+  readonly correlationId: string
+  readonly counters: Readonly<Record<string, number>>
+  readonly job: ScheduledJob
+  readonly outcome: JobOutcome
+  readonly requestedBy: string
+}
+/**
+ * O que a tela mostra de uma execução: números e rótulos estáveis, nunca texto de erro — quem traduz
+ * o `outcome` é o painel, e mensagem crua de rotina não é feita para o operador ler.
+ */
+export type JobRunSnapshot = {
+  readonly counters: Readonly<Record<string, number>>
+  readonly finishedAt: string | null
+  readonly origin: JobExecutionOrigin
+  readonly outcome: JobOutcome | null
+  readonly startedAt: string
+}
+export type LastJobRunReaderPort = {
+  readLastRun(input: {
+    readonly companyId: string
+    readonly job: ScheduledJob
+  }): Promise<JobRunSnapshot | null>
 }
 export type RequestNfeImportUnitOfWorkPort = RequestNfeImportTransactionPort & {
   readonly execute?: <T>(

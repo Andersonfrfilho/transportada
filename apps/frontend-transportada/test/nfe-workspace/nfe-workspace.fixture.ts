@@ -55,10 +55,19 @@ export type ScheduledDistributionStatusContract = Readonly<{
   nextScheduledRunAt: string | null
 }>
 
+export type NfeJobRunSnapshotContract = Readonly<{
+  counters: Readonly<Record<string, number>>
+  finishedAt: null | string
+  origin: 'manual' | 'schedule'
+  outcome: null | string
+  startedAt: string
+}>
+
 export type NfeDistributionStatusContract = Readonly<{
   canPull: boolean
   environment: 'homologation' | 'production'
   lastPulledAt: null | string
+  lastRun: NfeJobRunSnapshotContract | null
   maxNsu: string
   nextAllowedAt: null | string
   pullInProgress: boolean
@@ -174,6 +183,7 @@ export const DISTRIBUTION_STATUS = {
   canPull: true,
   environment: 'homologation',
   lastPulledAt: '2026-07-22T13:40:00.000Z',
+  lastRun: null,
   maxNsu: '000000000000120',
   nextAllowedAt: null,
   pullInProgress: false,

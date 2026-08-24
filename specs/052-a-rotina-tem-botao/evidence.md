@@ -519,3 +519,37 @@ make worker-integration    55 pass ·  0 fail  (196 expects · 12 arquivos)
 ```
 
 `typecheck` e `lint` limpos nas duas apps; `format:check` limpo na raiz.
+
+## T8 — o botão da puxada de emergência vira linha de `job_executions`
+
+A janela agendada já registrava; o botão que sempre existiu, não. Quem olhasse a aba **Remota** via
+"última puxada" e nada sobre o ciclo — e a linha manual, que é a que o operador provoca, não existia
+em lugar nenhum.
+
+**Como o caminho manual fecha a linha.** `request-nfe-import.use-case.ts` grava a execução **já
+fechada** (`startedAt = finishedAt`, `outcome: 'succeeded'`, `origin: 'manual'`, `requestedBy` do
+contexto autenticado) dentro da mesma transação que salva o outbox, e só quando
+`source === 'distribution'` — upload não é rotina. Fechada, e não aberta, porque o trabalho da API
+termina no commit: o que corre depois é o consumidor de `nfe-distribution.v1`, que tem trilho
+próprio. Isso também é o que dispensa o `409`: o índice parcial `job_executions_open_unique` só
+constrange linha **aberta**. O clique reagenda a janela — `next_run_at = now() + interval` —, como a
+spec pede.
+
+**Como a tela lê.** `GET /nfe-imports/distribution` passou a devolver `lastRun` ao lado de `cursor` e
+`scheduled`, servido por `createGetLastJobRunUseCase`. A leitura é escopada por
+`company_id is null OR company_id = <chamador>`: o ciclo agendado não tem empresa, e ler a linha
+manual de **outra** empresa contaria à instalação vizinha que alguém ali apertou o botão.
+
+No frontend o desfecho é conferido contra o vocabulário **desta** rotina (`isJobOutcome`), não contra
+a união das quatro — a coluna é uma só, e um `anp_unreachable` numa execução de distribuição é
+resposta errada, não desfecho desconhecido. `NfeDistributionControl` ganhou a linha da última
+execução, com origem e desfecho traduzidos nos dois catálogos.
+
+**Gate.**
+
+```
+api        2888 pass · 0 fail  (118 arquivos)
+frontend   1799 pass · 0 fail  (18 arquivos)
+```
+
+`typecheck`, `lint` e `format:check` limpos nas quatro apps.

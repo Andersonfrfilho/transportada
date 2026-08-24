@@ -43,6 +43,7 @@ import type {
   RequestUploadCall,
 } from './nfe-http.types'
 import type {
+  JobRunSnapshot,
   NfeDistributionStatus,
   NfeImportDetail,
   NfeImportSummary,
@@ -59,6 +60,7 @@ type CreateFixtureParams = {
   }
   readonly eligibilityResult?: NfeDocumentEligibility
   readonly distributionStatus?: NfeDistributionStatus
+  readonly lastJobRun?: JobRunSnapshot | null
   readonly downloadError?: Error
   readonly downloadResult?: DownloadDocumentXmlResult
   readonly getDistributionStatusError?: Error
@@ -138,6 +140,11 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         distributionStatusCalls.push(structuredClone(input))
         if (params.getDistributionStatusError) throw params.getDistributionStatusError
         return params.distributionStatus ?? DISTRIBUTION_STATUS
+      },
+    },
+    getLastJobRun: {
+      async execute() {
+        return params.lastJobRun ?? null
       },
     },
     getImport: {

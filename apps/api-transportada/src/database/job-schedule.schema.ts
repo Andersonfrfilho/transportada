@@ -21,6 +21,7 @@ import {
   JOB_EXECUTION_ORIGINS,
   JOB_OUTCOME_MAX_LENGTH,
   JOB_TICK_INTERVAL_SECONDS,
+  type JobOutcome,
   SCHEDULED_JOB_MAX_LENGTH,
   SCHEDULED_JOBS,
   type JobExecutionOrigin,
@@ -88,7 +89,7 @@ export const jobExecutions = pgTable(
     correlationId: varchar('correlation_id', { length: 120 }).notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
-    outcome: varchar({ length: JOB_OUTCOME_MAX_LENGTH }),
+    outcome: varchar({ length: JOB_OUTCOME_MAX_LENGTH }).$type<JobOutcome>(),
     counters: jsonb()
       .notNull()
       .default(sql`'{}'::jsonb`),

@@ -185,6 +185,7 @@ import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-imp
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
 import { createReprocessNfeImportUseCase } from './nfe-imports/application/reprocess-nfe-import.use-case'
 import { createRequestNfeImportUseCase } from './nfe-imports/application/request-nfe-import.use-case'
+import { createGetLastJobRunUseCase } from './nfe-imports/application/get-last-job-run.use-case.js'
 import { DrizzleNfeDistributionStatusRepository } from './nfe-imports/infrastructure/drizzle-nfe-distribution-status.repository'
 import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle-nfe-import.repository'
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
@@ -477,10 +478,12 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: nfeImportRepository,
   })
+  const distributionStatusRepository = new DrizzleNfeDistributionStatusRepository(database)
   const getDistributionStatus = createGetNfeDistributionStatusUseCase({
     clock: { now: () => new Date() },
-    reader: new DrizzleNfeDistributionStatusRepository(database),
+    reader: distributionStatusRepository,
   })
+  const getLastJobRun = createGetLastJobRunUseCase({ reader: distributionStatusRepository })
   const getScheduledDistribution = createGetScheduledDistributionStatusUseCase({
     clock: { now: () => new Date() },
     port: new DrizzleScheduledDistributionStatusRepository(database),
@@ -941,6 +944,7 @@ function createApplicationRoutes({
     ...createNfeImportRoutes({
       getDistributionStatus,
       getImport,
+      getLastJobRun,
       getScheduledDistribution,
       listImports,
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
