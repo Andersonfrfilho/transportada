@@ -513,7 +513,7 @@ export const DRIVER_DRAFT_BODY = {
   linkedTaxId: '',
   motherName: '',
   name: '',
-  nationality: '',
+  nationality: 'Brasileiro',
   phone: '',
   rntrc: '',
   taxId: '',

@@ -54,7 +54,7 @@ describe('driver personal fields contract', () => {
   test('opens the ten personal fields blank on a new driver', () => {
     const draft = createDriverDraft()
 
-    expect(draft.nationality).toBe('')
+    expect(draft.nationality).toBe('Brasileiro')
     expect(draft.birthCity).toBe('')
     expect(draft.birthState).toBe('')
     expect(draft.fatherName).toBe('')
@@ -157,5 +157,19 @@ describe('driver personal fields contract', () => {
     expect(group.match(/<DriverCityField/g)).toHaveLength(2)
     expect(group.match(/options=\{BRAZIL_STATE\}/g)).toHaveLength(3)
     expect(group).not.toContain('<input')
+  })
+})
+
+describe('driver nationality default', () => {
+  test('a ficha em branco já nasce com a nacionalidade da maioria', () => {
+    expect(createDriverDraft().nationality).toBe('Brasileiro')
+  })
+
+  test('o rascunho salvo vence o padrão — o operador já escolheu', () => {
+    expect(createDriverDraft({ nationality: 'Paraguaio' }).nationality).toBe('Paraguaio')
+  })
+
+  test('a ficha carregada mostra o que está gravado, mesmo em branco', () => {
+    expect(toDriverFormState({ ...PERSONAL_DETAIL, nationality: '' }).nationality).toBe('')
   })
 })

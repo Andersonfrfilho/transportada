@@ -38,6 +38,8 @@ const NON_DIGIT_PATTERN = /[^0-9]/g
 const LEADING_ZERO_PATTERN = /^0+(?=[0-9])/
 /** O motorista dirige o próprio veículo ou o da empresa — é o perfil que serve a mais frotas. */
 const DEFAULT_DRIVER_PROFILE: FleetDriverProfile = 'driver'
+// Quase todo motorista da frota é brasileiro: o padrão poupa a digitação e continua editável.
+const DEFAULT_DRIVER_NATIONALITY = 'Brasileiro'
 
 export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   acquisitionAmount: '',
@@ -106,7 +108,7 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   linkedTaxId: '',
   motherName: '',
   name: '',
-  nationality: '',
+  nationality: DEFAULT_DRIVER_NATIONALITY,
   phone: '',
   profile: DEFAULT_DRIVER_PROFILE,
   rntrc: '',

@@ -114,6 +114,15 @@ describe('invalid field hint', () => {
     expect(source).toContain('type="button"')
   })
 
+  test('jumps instantly, because focusing the field interrupts a smooth scroll in flight', () => {
+    expect(
+      readFileSync(
+        new URL('../../src/modules/shared/focusFieldByLabel.service.ts', import.meta.url),
+        'utf8',
+      ),
+    ).toContain("scrollIntoView({ behavior: 'auto', block: 'center' })")
+  })
+
   test('says nothing when the failure points at no field', () => {
     expect(source).toContain('if (labels.length === 0) return null')
   })

@@ -1,6 +1,4 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { resolveScrollBehavior } from './useRevealedPanel.hook'
-
 const FIELD_SELECTOR =
   'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [role="combobox"]:not([disabled])'
 
@@ -23,6 +21,8 @@ export function focusFieldByLabel({ label, panel }: FocusFieldByLabelInput): voi
   const field = owner?.querySelector<HTMLElement>(FIELD_SELECTOR)
   if (field === undefined || field === null) return
 
-  field.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'center' })
+  // Salto instantâneo, não suave: o foco no campo interrompe a rolagem suave em curso, e o
+  // operador fica com o cursor num campo que continuou fora da tela. Aqui ele pediu para ir.
+  field.scrollIntoView({ behavior: 'auto', block: 'center' })
   field.focus({ preventScroll: true })
 }
