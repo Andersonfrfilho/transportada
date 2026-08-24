@@ -9,6 +9,10 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
+  CTE_EMISSION_PAGE_SIZES,
+  parseCteEmissionPageSize,
+} from '../shared/cteEmissionQueue.service'
+import {
   buildProfileSelectOptions,
   CTE_EMISSION_GROUPING_MODES,
   selectEmissionMessageKey,
@@ -22,6 +26,11 @@ type CteEmissionDialogProps = Readonly<{
 }>
 
 const amountFormatter = new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' })
+
+const pageSizeOptions: readonly SelectOption[] = CTE_EMISSION_PAGE_SIZES.map((size) => ({
+  label: String(size),
+  value: String(size),
+}))
 
 function formatAmount(value: string): string {
   const numeric = Number(value)
@@ -233,10 +242,54 @@ export function CteEmissionDialog({ dialog }: CteEmissionDialogProps) {
                 </table>
               </div>
             )}
-            {dialog.hiddenRowCount > 0 && (
-              <p className={styles.cteEmissionComponents}>
-                {t('cteEmission.moreRows', { count: dialog.hiddenRowCount })}
-              </p>
+            {dialog.pageCount > 1 && (
+              <div className={styles.pagination}>
+                <span className={styles.rangeLabel}>
+                  {t('cteEmission.range', {
+                    end: dialog.rowsLastShown,
+                    start: dialog.rowsFirstShown,
+                    total: dialog.rowsTotal,
+                  })}
+                </span>
+                <div className={styles.pager}>
+                  <Select
+                    align="end"
+                    ariaLabel={t('cteEmission.pageSize')}
+                    clearable={false}
+                    compact
+                    onChange={(value) => dialog.setPageSize(parseCteEmissionPageSize(value))}
+                    options={pageSizeOptions}
+                    placeholder={t('cteEmission.pageSize')}
+                    value={String(dialog.pageSize)}
+                  />
+                  <button
+                    aria-label={t('cteEmission.previousPage')}
+                    className={styles.iconAction}
+                    disabled={!dialog.canGoToPreviousPage}
+                    onClick={dialog.goToPreviousPage}
+                    title={t('cteEmission.previousPage')}
+                    type="button"
+                  >
+                    <Icon name="page-previous" />
+                  </button>
+                  <span className={styles.pageIndicator}>
+                    {t('cteEmission.pageIndicator', {
+                      current: dialog.pageNumber,
+                      total: dialog.pageCount,
+                    })}
+                  </span>
+                  <button
+                    aria-label={t('cteEmission.nextPage')}
+                    className={styles.iconAction}
+                    disabled={!dialog.hasNextPage}
+                    onClick={dialog.goToNextPage}
+                    title={t('cteEmission.nextPage')}
+                    type="button"
+                  >
+                    <Icon name="page-next" />
+                  </button>
+                </div>
+              </div>
             )}
             <p className={styles.cteEmissionTotal}>
               {t('cteEmission.total')}: <strong>{formatAmount(dialog.summary.totalAmount)}</strong>

@@ -27,6 +27,8 @@ import styles from './date-range-picker.module.css'
 export type DatePickerProps = Readonly<{
   ariaLabel: string
   chooseYearLabel: string
+  /** Alinha a altura com um `Select compact` ao lado — sem isto os dois campos ficam desencontrados. */
+  compact?: boolean
   clearLabel: string
   nextMonthLabel: string
   onChange: (value: string) => void
@@ -44,6 +46,7 @@ export function DatePicker({
   ariaLabel,
   chooseYearLabel,
   clearLabel,
+  compact,
   nextMonthLabel,
   onChange,
   openCalendarLabel,
@@ -104,7 +107,14 @@ export function DatePicker({
 
   return (
     <div className={styles.datePicker} ref={rootRef}>
-      <div className={SELECT_TRIGGER_CLASS_NAMES.trigger ?? ''}>
+      <div
+        className={[
+          SELECT_TRIGGER_CLASS_NAMES.trigger ?? '',
+          compact === true ? (SELECT_TRIGGER_CLASS_NAMES.triggerCompact ?? '') : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <input
           aria-label={ariaLabel}
           className={styles.dateInput}

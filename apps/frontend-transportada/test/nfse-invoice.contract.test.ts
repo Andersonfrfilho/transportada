@@ -1,3 +1,4 @@
+import './nfse-invoice/authorization-refresh.contract.js'
 import './nfse-invoice/bulk-cancel.contract.js'
 import './nfse-invoice/bulk-export.contract.js'
 import './nfse-invoice/bulk-reissue-discard.contract.js'

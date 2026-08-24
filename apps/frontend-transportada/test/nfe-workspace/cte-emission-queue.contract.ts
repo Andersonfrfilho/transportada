@@ -5,6 +5,9 @@ import type { CteEmissionPreview } from '../../src/modules/nfe-workspace/shared/
 import {
   chunkEmissionSelection,
   CTE_EMISSION_CHUNK_SIZE,
+  CTE_EMISSION_DEFAULT_PAGE_SIZE,
+  paginateEmissionRows,
+  parseCteEmissionPageSize,
   mergeEmissionPreviews,
   resolveEmissionProgress,
   runEmissionQueue,
@@ -225,5 +228,51 @@ describe('CT-e mass emission queue contract', () => {
     expect(merged?.summary.documentCount).toBe(5)
     expect(merged?.summary.totalAmount).toBe('0.3000')
     expect(mergeEmissionPreviews([])).toBeNull()
+  })
+  test('pages the conference rows instead of cutting them off at a ceiling', () => {
+    const rows = Array.from({ length: 294 }, (_unused, index) => index + 1)
+
+    const first = paginateEmissionRows({ page: 1, pageSize: 200, rows })
+    expect(first.rows).toHaveLength(200)
+    expect(first.rows[0]).toBe(1)
+    expect(first.firstShown).toBe(1)
+    expect(first.lastShown).toBe(200)
+    expect(first.pageCount).toBe(2)
+    expect(first.hasNextPage).toBe(true)
+    expect(first.canGoToPreviousPage).toBe(false)
+
+    const second = paginateEmissionRows({ page: 2, pageSize: 200, rows })
+    expect(second.rows).toHaveLength(94)
+    expect(second.rows[0]).toBe(201)
+    expect(second.lastShown).toBe(294)
+    expect(second.hasNextPage).toBe(false)
+    expect(second.canGoToPreviousPage).toBe(true)
+
+    const everyRow = [
+      ...paginateEmissionRows({ page: 1, pageSize: 200, rows }).rows,
+      ...paginateEmissionRows({ page: 2, pageSize: 200, rows }).rows,
+    ]
+    expect(everyRow).toEqual(rows)
+  })
+
+  test('clamps the requested page so shrinking the page size never empties the table', () => {
+    const rows = Array.from({ length: 294 }, (_unused, index) => index + 1)
+
+    const clamped = paginateEmissionRows({ page: 6, pageSize: 200, rows })
+    expect(clamped.pageNumber).toBe(2)
+    expect(clamped.rows).toHaveLength(94)
+
+    const empty = paginateEmissionRows({ page: 1, pageSize: 50, rows: [] })
+    expect(empty.rows).toHaveLength(0)
+    expect(empty.pageCount).toBe(1)
+    expect(empty.firstShown).toBe(0)
+    expect(empty.lastShown).toBe(0)
+    expect(empty.hasNextPage).toBe(false)
+  })
+
+  test('falls back to the default page size when the stored value is not offered', () => {
+    expect(parseCteEmissionPageSize('100')).toBe(100)
+    expect(parseCteEmissionPageSize('7')).toBe(CTE_EMISSION_DEFAULT_PAGE_SIZE)
+    expect(parseCteEmissionPageSize('')).toBe(CTE_EMISSION_DEFAULT_PAGE_SIZE)
   })
 })

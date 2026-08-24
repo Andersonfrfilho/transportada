@@ -97,7 +97,14 @@
     "sortDesc": "ordenada em ordem decrescente",
     "sortNone": "sem ordenação",
     "title": "Notas de serviço",
-    "toggleFilters": "Filtros"
+    "toggleFilters": "Filtros",
+    "authorizationRefresh": {
+      "pending": "{{count}} nota aguardando autorização da prefeitura",
+      "pending_other": "{{count}} notas aguardando autorização da prefeitura",
+      "nextIn": "confere em {{remaining}}",
+      "checking": "conferindo…",
+      "refreshNow": "Atualizar agora"
+    }
   },
   "rowActions": {
     "cancel": "Cancelar a nota de serviço",

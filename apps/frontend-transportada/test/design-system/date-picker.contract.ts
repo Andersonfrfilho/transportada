@@ -151,4 +151,31 @@ describe('design system date picker contract', () => {
     expect(component).toContain('buildYearChoices')
     expect(component).toContain('onChange={(event) => handleTyping(event.target.value)}')
   })
+  /**
+   * `.workspace-panel input` é (0,1,1) e vencia a classe simples do módulo: o input recuperava
+   * borda, altura e padding dentro de um gatilho que já tem os três, e o campo saía com borda
+   * dupla, o dobro da altura e o placeholder cortado no meio da palavra.
+   */
+  test('keeps the typed field flat against the panel-wide input style', async () => {
+    const stylesheet = await readApplicationFile('src/components/ui/date-range-picker.module.css')
+
+    expect(stylesheet).toContain('.dateInput.dateInput {')
+    expect(stylesheet).not.toMatch(/^\.dateInput \{/m)
+
+    const rule = stylesheet.slice(stylesheet.indexOf('.dateInput.dateInput {'))
+    const body = rule.slice(0, rule.indexOf('}'))
+    expect(body).toContain('border: 0')
+    expect(body).toContain('min-height: 0')
+    expect(body).toContain('padding: 0')
+  })
+
+  /** Ao lado de um `Select compact` a altura tem de casar, como o seletor de intervalo já faz. */
+  test('offers the compact trigger the range picker already uses', async () => {
+    const component = await readApplicationFile(DATE_PICKER_PATH)
+    const rangePicker = await readApplicationFile(RANGE_PICKER_PATH)
+
+    expect(rangePicker).toContain('triggerCompact')
+    expect(component).toContain('compact?: boolean')
+    expect(component).toContain('SELECT_TRIGGER_CLASS_NAMES.triggerCompact')
+  })
 })

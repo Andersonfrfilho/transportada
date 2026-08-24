@@ -16,8 +16,60 @@ export const CTE_EMISSION_PREVIEW_CONCURRENCY = 3
 /** Criação abre transação e grava itens: duas em voo é o teto seguro para o pool da API. */
 export const CTE_EMISSION_CREATE_CONCURRENCY = 2
 
-/** Acima disso a tabela vira dezenas de milhares de linhas no DOM e a janela trava ao rolar. */
-export const CTE_EMISSION_MAX_VISIBLE_ROWS = 200
+/**
+ * Tamanhos de página da tabela de conferência. O teto de 200 existe porque acima disso a tabela
+ * vira dezenas de milhares de linhas no DOM e a janela trava ao rolar — antes da paginação esse
+ * número era um corte seco, e as linhas além dele só existiam como um aviso de rodapé.
+ */
+export const CTE_EMISSION_PAGE_SIZES = [50, 100, 200] as const
+
+export type CteEmissionPageSize = (typeof CTE_EMISSION_PAGE_SIZES)[number]
+
+export const CTE_EMISSION_DEFAULT_PAGE_SIZE: CteEmissionPageSize = 50
+
+export function parseCteEmissionPageSize(value: string): CteEmissionPageSize {
+  const parsed = Number(value)
+
+  return CTE_EMISSION_PAGE_SIZES.find((size) => size === parsed) ?? CTE_EMISSION_DEFAULT_PAGE_SIZE
+}
+
+export type CteEmissionPage<TRow> = Readonly<{
+  canGoToPreviousPage: boolean
+  firstShown: number
+  hasNextPage: boolean
+  lastShown: number
+  pageCount: number
+  pageNumber: number
+  rows: readonly TRow[]
+  total: number
+}>
+
+/**
+ * A página pedida é fixada dentro do que existe: trocar o tamanho da página estando na última
+ * deixaria a tabela vazia com o total cheio, que lê como "a emissão perdeu as linhas" — o susto
+ * que esta tela justamente não pode dar.
+ */
+export function paginateEmissionRows<TRow>(
+  input: Readonly<{ page: number; pageSize: number; rows: readonly TRow[] }>,
+): CteEmissionPage<TRow> {
+  const total = input.rows.length
+  const pageSize = Math.max(1, input.pageSize)
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const pageNumber = Math.min(Math.max(1, input.page), pageCount)
+  const offset = (pageNumber - 1) * pageSize
+  const rows = input.rows.slice(offset, offset + pageSize)
+
+  return {
+    canGoToPreviousPage: pageNumber > 1,
+    firstShown: total === 0 ? 0 : offset + 1,
+    hasNextPage: pageNumber < pageCount,
+    lastShown: offset + rows.length,
+    pageCount,
+    pageNumber,
+    rows,
+    total,
+  }
+}
 
 export type CteEmissionChunk = Readonly<{
   documentIds: readonly string[]

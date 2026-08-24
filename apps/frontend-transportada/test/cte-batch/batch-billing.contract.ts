@@ -125,6 +125,19 @@ describe('cte batch billing contract', () => {
     expect(hook).not.toContain('fetch(')
   })
 
+  /**
+   * `isPending` do TanStack Query só cai quando a promise do `onSuccess` resolve. Esperar a
+   * revalidação ali prendia "Gerando..." depois do 100%, com as faturas já emitidas — e o operador
+   * lia trabalho pendente onde havia só cache esfriando.
+   */
+  test('does not hold the submit button while the invalidated lists refetch', async () => {
+    const hook = await readModule(BILLING_HOOK)
+
+    expect(hook).toContain('void invalidateMutationEffect(')
+    expect(hook).not.toContain('await invalidateMutationEffect(')
+    expect(hook).not.toMatch(/onSuccess:\s*async/)
+  })
+
   test('the dialog shows an accessible progress bar with the percentage in text', async () => {
     const [dialog, progress] = await Promise.all([
       readModule(BILLING_DIALOG),

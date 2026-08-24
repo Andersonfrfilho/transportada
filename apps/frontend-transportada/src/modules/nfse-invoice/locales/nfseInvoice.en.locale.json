@@ -97,7 +97,14 @@
     "sortDesc": "sorted descending",
     "sortNone": "not sorted",
     "title": "Service invoices",
-    "toggleFilters": "Filters"
+    "toggleFilters": "Filters",
+    "authorizationRefresh": {
+      "pending": "{{count}} invoice waiting on the city hall",
+      "pending_other": "{{count}} invoices waiting on the city hall",
+      "nextIn": "checks in {{remaining}}",
+      "checking": "checking…",
+      "refreshNow": "Refresh now"
+    }
   },
   "rowActions": {
     "cancel": "Cancel the service invoice",
