@@ -49,6 +49,7 @@ export function DueDateField({ invalid, onChange, value }: DueDateFieldProps): J
           ariaLabel={t('dueDate.date')}
           chooseYearLabel={t('dueDate.chooseYear')}
           clearLabel={t('dueDate.clear')}
+          compact
           nextMonthLabel={t('dueDate.nextMonth')}
           onChange={onChange}
           openCalendarLabel={t('dueDate.openCalendar')}

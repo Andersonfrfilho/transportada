@@ -71,4 +71,17 @@ describe('billing due date field contract', () => {
     expect(service).not.toContain('react')
     expect(service).not.toContain('useState')
   })
+  /** A data e o prazo ficam lado a lado: alturas diferentes desalinham os dois na mesma linha. */
+  test('matches the date field height to the term select beside it', async () => {
+    const component = await Bun.file(
+      new URL('../../src/modules/billing/components/DueDateField.component.tsx', import.meta.url),
+    ).text()
+    const stylesheet = await Bun.file(
+      new URL('../../src/modules/billing/components/DueDateField.module.css', import.meta.url),
+    ).text()
+
+    expect(component).toContain('compact')
+    expect(stylesheet).toContain('align-items: stretch')
+    expect(stylesheet).not.toContain('align-items: start')
+  })
 })

@@ -90,9 +90,15 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
           setOutcomes((current) => [...current, event.outcome])
         },
       }),
-    onSuccess: async (results) => {
+    /**
+     * A revalidação não segura o botão. `isPending` só cai quando a promise daqui resolve, e
+     * `billingInvoiceItem` invalida seis raízes — entre elas as listas de CT-e do lote. Esperar as
+     * seis refazerem o fetch deixava "Gerando..." travado depois do 100%, com as faturas já
+     * emitidas: o operador lia trabalho pendente onde havia só cache esfriando, e clicava de novo.
+     */
+    onSuccess: (results) => {
       setOutcomes(results)
-      await invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.billingInvoiceItem, queryClient })
     },
   })
 
