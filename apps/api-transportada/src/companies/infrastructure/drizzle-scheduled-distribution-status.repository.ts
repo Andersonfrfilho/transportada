@@ -15,6 +15,7 @@ import {
   companyDistributionSettings,
   companyFiscalProfiles,
   digitalCertificates,
+  jobSchedules,
   nfeDistributionCursors,
   nfeImports,
   userCompanyMemberships,
@@ -27,7 +28,11 @@ import type {
 } from '../application/scheduled-distribution-status.port.js'
 import type { CompanySettingsDatabase } from './drizzle-company-settings.types.js'
 
-/** O cron pede à SEFAZ com este job; qualquer outro import é de gente. */
+/**
+ * O cron pede à SEFAZ com esta rotina; qualquer outro import é de gente. O mesmo nome é a chave do
+ * relógio em `job_schedules` — é de lá que sai a próxima batida, desde que o `cronSchedule` do
+ * provedor deixou de ditar a cadência.
+ */
 const DISTRIBUTION_AUTOMATION_JOB = 'nfe.distribution.pull'
 const ACTIVE_STATUS = 'active'
 
@@ -39,16 +44,35 @@ export class DrizzleScheduledDistributionStatusRepository
   public async loadStatusFacts(input: {
     readonly companyId: string
   }): Promise<ScheduledDistributionStatusFacts> {
-    const [facts, lastAutomationImport] = await Promise.all([
+    const [facts, lastAutomationImport, nextScheduledRunAt] = await Promise.all([
       this.loadEligibilityFacts(input.companyId),
       this.loadLastAutomationImport(input.companyId),
+      this.loadNextScheduledRunAt(),
     ])
-    return { ...facts, lastAutomationImport }
+    return { ...facts, lastAutomationImport, nextScheduledRunAt }
+  }
+
+  /**
+   * O relógio é da instalação e por isso a consulta não leva `company_id` — a exceção de tenant está
+   * declarada no schema da tabela. Rotina pausada não devolve instante: `enabled` falso guarda o
+   * `next_run_at` de quando ela parou, e repeti-lo na tela seria anunciar um ciclo que não vem.
+   */
+  private async loadNextScheduledRunAt(): Promise<Date | undefined> {
+    const [row] = await this.database
+      .select({ enabled: jobSchedules.enabled, nextRunAt: jobSchedules.nextRunAt })
+      .from(jobSchedules)
+      .where(eq(jobSchedules.job, DISTRIBUTION_AUTOMATION_JOB))
+      .limit(1)
+
+    if (row === undefined || !row.enabled) return undefined
+    return row.nextRunAt
   }
 
   private async loadEligibilityFacts(
     companyId: string,
-  ): Promise<Omit<ScheduledDistributionStatusFacts, 'lastAutomationImport'>> {
+  ): Promise<
+    Omit<ScheduledDistributionStatusFacts, 'lastAutomationImport' | 'nextScheduledRunAt'>
+  > {
     const [row] = await this.database
       .select({
         certificateExpiresAt: digitalCertificates.expiresAt,

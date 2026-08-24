@@ -8,7 +8,7 @@
  */
 import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
 import type { CronLogger } from '../../config/cron.types.js'
-import type { AdvisoryLockPort } from './advisory-lock.port.js'
+import type { AdvisoryLockPort } from '../../shared/advisory-lock.port.js'
 import type { EnqueueDistributionUseCase } from './enqueue-distribution.use-case.js'
 import {
   createEmptyIneligibleCounts,

@@ -3,10 +3,8 @@
  */
 import { z } from 'zod'
 
-import { isSupportedScheduleExpression } from '../companies/domain/scheduled-distribution-window.policy'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
-import { DEFAULT_SCHEDULED_DISTRIBUTION_CRON } from './scheduled-distribution.constant'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -117,15 +115,6 @@ const environmentSchema = z.object({
       message: 'POSTAL_CODE_VIA_CEP_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
-  // Cadência do serviço de cron, para a tela dizer quando é o próximo ciclo. Expressão que a
-  // política não sabe resolver derruba o boot: melhor não subir do que servir data inventada.
-  SCHEDULED_DISTRIBUTION_CRON: z
-    .string()
-    .trim()
-    .default(DEFAULT_SCHEDULED_DISTRIBUTION_CRON)
-    .refine(isSupportedScheduleExpression, {
-      message: 'SCHEDULED_DISTRIBUTION_CRON must pin only the minute field',
-    }),
   // O mesmo remetente do worker (ADR-0031): não se cria segunda configuração de SMTP. As duas
   // juntas ou nenhuma — meia configuração daria envio sem remetente.
   EMAIL_FROM: optionalText(),
@@ -179,7 +168,6 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,
       viaCepUrl: parsed.POSTAL_CODE_VIA_CEP_URL,
     },
-    scheduledDistributionCron: parsed.SCHEDULED_DISTRIBUTION_CRON,
     logSinkUrl: parsed.LOG_SINK_URL,
     sentryDsn: parsed.SENTRY_DSN,
     sentryEnvironment: parsed.SENTRY_ENVIRONMENT ?? parsed.APP_ENV,

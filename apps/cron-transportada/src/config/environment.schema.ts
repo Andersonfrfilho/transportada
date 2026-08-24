@@ -3,15 +3,11 @@
  */
 import { z } from 'zod'
 
-import { FUEL_PRICE_PULL_JOB } from '../fuel-price-pull/domain/fuel-price-pull.constant.js'
-import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
-import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
 import {
   CRON_DEFAULT_CADENCE_MINUTES,
   CRON_DEFAULT_PAGE_SIZE,
   CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS,
   CRON_FISCAL_ENVIRONMENTS,
-  CRON_JOBS,
   CRON_MAX_CADENCE_MINUTES,
   CRON_MAX_PAGE_SIZE,
   CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS,
@@ -36,7 +32,6 @@ const cronEnvironmentSchema = z.object({
     .min(1)
     .max(CRON_MAX_CADENCE_MINUTES)
     .default(CRON_DEFAULT_CADENCE_MINUTES),
-  CRON_JOB: z.enum(CRON_JOBS),
   DATABASE_URL: protocolUrl(POSTGRESQL_PROTOCOLS),
   FISCAL_ENVIRONMENT: z.enum(CRON_FISCAL_ENVIRONMENTS),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
@@ -74,8 +69,9 @@ const cronEnvironmentSchema = z.object({
   STORAGE_REGION: optionalText(),
   STORAGE_SECRET_KEY: optionalText(),
   NOTIFICATION_SUPPRESSION_HMAC_KEY: optionalText(),
-  QUEUE_PREFIX: optionalText(),
-  RABBITMQ_URL: optionalText(),
+  // A batida publica; cron que não alcança o broker não tem o que fazer, e falha no boot.
+  QUEUE_PREFIX: z.string().trim().min(1),
+  RABBITMQ_URL: z.string().trim().min(1),
 })
 
 export class CronConfigurationError extends Error {
@@ -97,20 +93,15 @@ export function parseCronEnvironment(
   return {
     appEnv: result.data.APP_ENV,
     cadenceMinutes: result.data.CADENCE_MINUTES,
-    cronJob: result.data.CRON_JOB,
     databaseUrl: result.data.DATABASE_URL,
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
-    fuelPricePull:
-      result.data.CRON_JOB === FUEL_PRICE_PULL_JOB
-        ? resolveFuelPricePullEnvironment(result.data)
-        : undefined,
+    fuelPricePull: resolveFuelPricePullEnvironment(result.data),
     logLevel: result.data.LOG_LEVEL,
-    nfseStatusPull:
-      result.data.CRON_JOB === NFSE_STATUS_PULL_JOB
-        ? resolveNfseStatusPullEnvironment(result.data)
-        : undefined,
+    nfseStatusPull: resolveNfseStatusPullEnvironment(result.data),
     notificationSchedules: resolveNotificationEnvironment(result.data),
     pageSize: result.data.PAGE_SIZE,
+    queuePrefix: result.data.QUEUE_PREFIX,
+    rabbitMqUrl: result.data.RABBITMQ_URL,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
@@ -122,10 +113,16 @@ export function parseCronEnvironment(
  * para nenhum deles: o domínio muda sem avisar, e chutar um faria o ciclo falhar toda semana em
  * silêncio. Variável opcional aqui seria pior: a metade esquecida viraria tela sem preço, sem nada
  * quebrar no boot. Preço e tarifa são dado público — não há segredo, só endereço e espera.
+ *
+ * Sem `CRON_JOB` quem decide se o bloco existe é a **presença** de uma das duas agências: nenhuma
+ * declarada é rotina não configurada, e uma só derruba o boot, que é o mesmo tudo-ou-nada de antes.
  */
 function resolveFuelPricePullEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
-): CronFuelPricePullEnvironment {
+): CronFuelPricePullEnvironment | undefined {
+  const declared = [data.ANEEL_BASE_URL, data.ANP_BASE_URL].filter((value) => value !== undefined)
+  if (declared.length === 0) return undefined
+
   return {
     aneelBaseUrl: requireConfigured(data.ANEEL_BASE_URL),
     aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
@@ -141,13 +138,14 @@ function resolveFuelPricePullEnvironment(
  */
 function resolveNfseStatusPullEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
-): CronNfseStatusPullEnvironment {
+): CronNfseStatusPullEnvironment | undefined {
   /**
    * Um endereço só, e ele não vem do ambiente fiscal: a Nota RP publica um servidor, o de produção
-   * (ADR-0035). Quem separa uma instalação da outra é a credencial selada por empresa.
+   * (ADR-0035). Quem separa uma instalação da outra é a credencial selada por empresa. Vazio é
+   * provedor não contratado — e é a ausência dele que diz que a rotina não está configurada aqui.
    */
   const providerBaseUrl = data.NFSE_PROVIDER_BASE_URL
-  if (providerBaseUrl === undefined) throw new CronConfigurationError()
+  if (providerBaseUrl === undefined) return undefined
 
   return {
     encryptionActiveKeyId: requireConfigured(data.ENCRYPTION_ACTIVE_KEY_ID),
@@ -170,40 +168,19 @@ const BASE64_32_BYTES_PATTERN = /^[A-Za-z0-9+/]{43}=$/
 /**
  * Este job enfileira no mesmo trilho da API e consulta supressão com a mesma chave que ela usou
  * para gravar. Chave diferente produz HMAC que não casa com nada — e o e-mail volta a sair para
- * quem já recusou. Falhar no boot é preferível a descobrir isso na primeira entrega.
- */
-/**
- * O dono do trilho é o job de rotinas: sem broker ele não tem o que fazer, e falha no boot. O job
- * de NFS-e só avisa de rejeição de passagem — ali o broker é opcional, e a reconciliação roda
- * calada quando não há nenhum. Meia configuração é engano nos dois casos: chave sem broker
- * publicaria em lugar nenhum, e é por isso que o ramo opcional só aceita tudo ou nada.
+ * quem já recusou. Falhar no boot é preferível a descobrir isso na primeira entrega. Broker e
+ * prefixo já são exigidos pela batida; o que resta gatilhar por presença é a chave.
  */
 function resolveNotificationEnvironment(
   data: z.output<typeof cronEnvironmentSchema>,
 ): CronNotificationSchedulesEnvironment | undefined {
-  if (data.CRON_JOB === NOTIFICATION_SCHEDULES_JOB) {
-    return resolveNotificationSchedulesEnvironment(data)
-  }
-  if (data.CRON_JOB !== NFSE_STATUS_PULL_JOB) return undefined
-
-  const declared = [
-    data.NOTIFICATION_SUPPRESSION_HMAC_KEY,
-    data.QUEUE_PREFIX,
-    data.RABBITMQ_URL,
-  ].filter((value) => value !== undefined)
-
-  return declared.length === 0 ? undefined : resolveNotificationSchedulesEnvironment(data)
-}
-
-function resolveNotificationSchedulesEnvironment(
-  data: z.output<typeof cronEnvironmentSchema>,
-): CronNotificationSchedulesEnvironment {
-  const suppressionHmacKey = requireConfigured(data.NOTIFICATION_SUPPRESSION_HMAC_KEY)
+  const suppressionHmacKey = data.NOTIFICATION_SUPPRESSION_HMAC_KEY
+  if (suppressionHmacKey === undefined) return undefined
   if (!BASE64_32_BYTES_PATTERN.test(suppressionHmacKey)) throw new CronConfigurationError()
 
   return {
-    queuePrefix: requireConfigured(data.QUEUE_PREFIX),
-    rabbitMqUrl: requireConfigured(data.RABBITMQ_URL),
+    queuePrefix: data.QUEUE_PREFIX,
+    rabbitMqUrl: data.RABBITMQ_URL,
     suppressionHmacKey,
   }
 }

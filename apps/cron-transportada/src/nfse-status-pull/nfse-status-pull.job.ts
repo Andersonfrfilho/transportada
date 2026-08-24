@@ -16,8 +16,9 @@ import { CRON_MAX_FISCAL_DOCUMENT_BYTES } from '../config/cron.constant.js'
 import type { CronCycleResult, CronJobDependencies } from '../config/cron.types.js'
 import { parseCronSecretKeyRing } from '../config/cryptographic-configuration.schema.js'
 import { CronConfigurationError } from '../config/environment.schema.js'
-import { createDrizzleAdvisoryLock } from '../nfe-distribution-pull/infrastructure/drizzle-advisory-lock.js'
+import { createDrizzleAdvisoryLock } from '../shared/drizzle-advisory-lock.js'
 import { createNfseCredentialSecretService } from './application/nfse-credential-secret.service.js'
+import { NFSE_STATUS_PULL_JOB } from './domain/nfse-status-pull.constant.js'
 import { createReconcileInvoiceUseCase } from './application/reconcile-invoice.use-case.js'
 import { runNfseStatusPullCycle } from './application/run-cycle.js'
 import { createSelectDueInvoicesUseCase } from './application/select-due-invoices.use-case.js'
@@ -117,7 +118,7 @@ export async function runNfseStatusPullJob(
     return await runNfseStatusPullCycle({
       correlationId: dependencies.correlationId,
       environment: dependencies.config.fiscalEnvironment,
-      jobId: dependencies.config.cronJob,
+      jobId: NFSE_STATUS_PULL_JOB,
       lock: createDrizzleAdvisoryLock({ db: dependencies.db }),
       logger: dependencies.logger,
       now: dependencies.now,

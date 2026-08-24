@@ -8,8 +8,8 @@
  */
 import { sql } from 'drizzle-orm'
 
-import type { CronDatabase } from '../../database/cron-database.types.js'
-import type { AdvisoryLockPort } from '../application/advisory-lock.port.js'
+import type { CronDatabase } from '../database/cron-database.types.js'
+import type { AdvisoryLockPort } from './advisory-lock.port.js'
 
 export function createDrizzleAdvisoryLock(dependencies: {
   readonly db: CronDatabase

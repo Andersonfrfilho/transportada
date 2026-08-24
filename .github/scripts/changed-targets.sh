@@ -28,11 +28,7 @@ paths_of() {
     api) echo 'apps/api-transportada/ deploy/api/ deploy/keycloak/ realm/' ;;
     frontend) echo 'apps/frontend-transportada/ deploy/frontend/' ;;
     worker) echo 'apps/worker-transportada/ deploy/worker/' ;;
-    # Os quatro crons são uma app só: mesmo Dockerfile, mesma imagem, e só a variável `CRON_JOB` os
-    # separa. Filtrar por trilho (`src/fuel-price-pull/` para o `cron-fuel`) exigiria manter à mão a
-    # lista de pastas transversais — `config/`, `database/`, `main.ts` —, e uma esquecida deixa três
-    # crons rodando schema velho contra tabela nova, num ciclo agendado que ninguém está olhando.
-    cron) echo 'apps/cron-transportada/ deploy/cron/ deploy/cron-nfse/ deploy/cron-notifications/ deploy/cron-fuel/' ;;
+    cron) echo 'apps/cron-transportada/ deploy/cron/' ;;
     *) echo "alvo desconhecido: $1" >&2; exit 2 ;;
   esac
 }

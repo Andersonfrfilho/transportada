@@ -1,19 +1,18 @@
 # Copyright (c) 2026 Ada Technology. MIT License.
 #
-# Reference K8s manifest for the scheduled NF-e distribution pull
-# (apps/cron-transportada). Feature 011 / ADR-0012.
+# Manifesto K8s de referência da batida do agendador (apps/cron-transportada).
+# Feature 011 / ADR-0012, reescrito pela spec 052.
 #
-# Real cluster deploy is out of scope (gates locais + aprovação humana first).
-# This is a reviewable infra-as-code artifact:
-#   - the DATABASE_URL secret is referenced, never defined here (segredos nunca
+# Deploy em cluster real está fora de escopo (gates locais + aprovação humana primeiro).
+# É um artefato de infra-as-code revisável:
+#   - o segredo DATABASE_URL é referenciado, nunca definido aqui (segredos nunca
 #     são commitados);
-#   - `schedule` is the tick and CADENCE_MINUTES is the dedup window; the tick is
-#     finer on purpose (SEFAZ counts the hour from the moment it served us, so an
-#     on-the-hour tick only met the window an hour late). CADENCE_MINUTES must
-#     stay >= the tick interval or two ticks inside one SEFAZ window would each
-#     get their own idempotency bucket;
-#   - concurrencyPolicy=Forbid + the Postgres advisory lock + the
-#     (company_id, idempotency_key) unique keep overlapping cycles safe.
+#   - `schedule` é a batida, e é o **piso** de granularidade: quem decide a cadência
+#     de cada rotina é a linha dela em `job_schedules`, editável pelo painel do
+#     produto. Nada corre mais fino que a batida;
+#   - a batida não executa rotina nenhuma — publica em `job-run.v1` e sai;
+#   - concurrencyPolicy=Forbid + o advisory lock do Postgres + o índice parcial
+#     `job_executions_open_unique` mantêm ciclos sobrepostos seguros.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -24,7 +23,6 @@ metadata:
     app.kubernetes.io/part-of: transportada
 data:
   APP_ENV: 'production'
-  CRON_JOB: 'nfe.distribution.pull'
   # Fiscal environment is explicit and never mixed; set per cluster/namespace.
   FISCAL_ENVIRONMENT: 'homologation'
   # Dedup window, not the tick: one enqueue per company per hour, however many
@@ -36,15 +34,15 @@ data:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: cron-transportada-nfe-distribution-pull
+  name: cron-transportada-tick
   labels:
     app.kubernetes.io/name: cron-transportada
     app.kubernetes.io/part-of: transportada
-    app.kubernetes.io/component: nfe-distribution-pull
+    app.kubernetes.io/component: tick
 spec:
-  # Every 15 min so the SEFAZ window is met soon after it opens; the extra ticks
-  # are no-ops while CADENCE_MINUTES=60 holds the enqueue to one per hour.
-  schedule: '*/15 * * * *'
+  # A cada 5 min: é o piso de granularidade de toda rotina, e batida que não acha
+  # nada vencido é no-op limpo — não pega trabalho, não fala com o broker à toa.
+  schedule: '*/5 * * * *'
   timeZone: 'America/Sao_Paulo'
   # One instance per window; a late start never overlaps the previous run.
   concurrencyPolicy: Forbid
@@ -53,15 +51,15 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      # The job body is idempotent per cadence bucket; leave retries to the next
-      # cycle rather than hammering SEFAZ within the same window.
+      # A batida é idempotente pelo índice parcial de execução aberta; a retentativa
+      # é o próximo ciclo, não uma segunda tentativa dentro do mesmo.
       backoffLimit: 0
       activeDeadlineSeconds: 600
       template:
         metadata:
           labels:
             app.kubernetes.io/name: cron-transportada
-            app.kubernetes.io/component: nfe-distribution-pull
+            app.kubernetes.io/component: tick
         spec:
           restartPolicy: Never
           securityContext:

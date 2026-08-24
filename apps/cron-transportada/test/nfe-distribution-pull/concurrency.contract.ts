@@ -14,7 +14,7 @@ import type {
   DistributionEnqueuePlan,
 } from '../../src/nfe-distribution-pull/application/enqueue-distribution.port.js'
 import { createEnqueueDistributionUseCase } from '../../src/nfe-distribution-pull/application/enqueue-distribution.use-case.js'
-import type { AdvisoryLockPort } from '../../src/nfe-distribution-pull/application/advisory-lock.port.js'
+import type { AdvisoryLockPort } from '../../src/shared/advisory-lock.port.js'
 import { runDistributionPullCycle } from '../../src/nfe-distribution-pull/application/run-cycle.js'
 
 const NOW = new Date('2026-07-26T12:00:00.000Z')

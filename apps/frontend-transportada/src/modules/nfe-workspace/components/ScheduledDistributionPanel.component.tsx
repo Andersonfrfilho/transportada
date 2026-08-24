@@ -77,7 +77,9 @@ function ScheduledDistributionFacts({ status }: Readonly<{ status: ScheduledDist
     <>
       <EligibilityLine status={status} />
       <p className={styles.fieldHint}>
-        {t('scheduledDistributionNextRun', { moment: formatMoment(status.nextScheduledRunAt) })}
+        {status.nextScheduledRunAt === null
+          ? t('scheduledDistributionPaused')
+          : t('scheduledDistributionNextRun', { moment: formatMoment(status.nextScheduledRunAt) })}
       </p>
       {status.nextAllowedAt !== null && (
         <p className={styles.fieldHint}>

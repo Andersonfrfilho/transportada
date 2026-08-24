@@ -26,7 +26,7 @@ export type ScheduledDistributionStatus = Readonly<{
   ineligibilityReason: string | null
   lastAutomationImport: ScheduledDistributionRun | null
   nextAllowedAt: string | null
-  nextScheduledRunAt: string
+  nextScheduledRunAt: string | null
 }>
 
 export type ScheduledDistributionResponse = Readonly<{ data: ScheduledDistributionStatus }>
@@ -73,7 +73,6 @@ export function isScheduledDistributionStatus(
     (value.ineligibilityReason === null || typeof value.ineligibilityReason === 'string') &&
     (value.lastAutomationImport === null || isAutomationRun(value.lastAutomationImport)) &&
     isNullableIsoDate(value.nextAllowedAt) &&
-    typeof value.nextScheduledRunAt === 'string' &&
     isNullableIsoDate(value.nextScheduledRunAt)
   )
 }

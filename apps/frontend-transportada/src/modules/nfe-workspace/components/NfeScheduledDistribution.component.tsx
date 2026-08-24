@@ -77,7 +77,9 @@ export function NfeScheduledDistribution(props: NfeScheduledDistributionProps) {
       </div>
       <EligibilityLine scheduled={scheduled} />
       <p className={styles.distributionMeta}>
-        {t('scheduled.nextRun', { moment: formatMoment(scheduled.nextScheduledRunAt) })}
+        {scheduled.nextScheduledRunAt === null
+          ? t('scheduled.paused')
+          : t('scheduled.nextRun', { moment: formatMoment(scheduled.nextScheduledRunAt) })}
       </p>
       {scheduled.nextAllowedAt !== null && (
         <p className={styles.distributionMeta}>

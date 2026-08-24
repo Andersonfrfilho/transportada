@@ -3,7 +3,7 @@
  */
 import { createContext, createLogger, runWithContext, type Context } from '@adatechnology/logger'
 
-import { CRON_PROJECT_NAME, CRON_VERSION } from '../config/cron.constant.js'
+import { CRON_PROJECT_NAME, CRON_STACK_NAME, CRON_VERSION } from '../config/cron.constant.js'
 import type { CronEnvironment } from '../config/cron.types.js'
 import { shouldPrettyPrintLogs } from './log-format.policy.js'
 
@@ -16,7 +16,7 @@ export function createCycleContext({ environment, traceId }: CycleLoggerParams):
   return createContext({
     logLevel: environment.logLevel,
     projectName: CRON_PROJECT_NAME,
-    stack: [environment.cronJob],
+    stack: [CRON_STACK_NAME],
     traceId,
     version: CRON_VERSION,
   })

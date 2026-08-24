@@ -52,7 +52,7 @@ export type ScheduledDistributionStatusContract = Readonly<{
     status: string
   }> | null
   nextAllowedAt: string | null
-  nextScheduledRunAt: string
+  nextScheduledRunAt: string | null
 }>
 
 export type NfeDistributionStatusContract = Readonly<{

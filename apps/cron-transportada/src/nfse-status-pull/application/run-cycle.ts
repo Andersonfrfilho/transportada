@@ -7,7 +7,7 @@
  */
 import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
 import type { CronLogger } from '../../config/cron.types.js'
-import type { AdvisoryLockPort } from '../../nfe-distribution-pull/application/advisory-lock.port.js'
+import type { AdvisoryLockPort } from '../../shared/advisory-lock.port.js'
 import type { ReconcileInvoiceUseCase } from './reconcile-invoice.use-case.js'
 import {
   createEmptyNfseIneligibleCounts,

@@ -1,20 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { FUEL_PRICE_PULL_JOB } from '../fuel-price-pull/domain/fuel-price-pull.constant.js'
-import { NFSE_STATUS_PULL_JOB } from '../nfse-status-pull/domain/nfse-status-pull.constant.js'
-import { NOTIFICATION_SCHEDULES_JOB } from '../notification-schedules/domain/notification-schedules.constant.js'
-
 export const CRON_PROJECT_NAME = 'cron-transportada'
 export const CRON_VERSION = '0.1.0'
 
-export const CRON_JOBS = [
-  'nfe.distribution.pull',
-  FUEL_PRICE_PULL_JOB,
-  NFSE_STATUS_PULL_JOB,
-  NOTIFICATION_SCHEDULES_JOB,
-] as const
-export type CronJob = (typeof CRON_JOBS)[number]
+/**
+ * O que aparece no `traceStack` de todo log do ciclo. Era o nome do job, quando o processo rodava um
+ * só; hoje uma batida publica as quatro, e o nome da rotina viaja na linha, não no cabeçalho.
+ */
+export const CRON_STACK_NAME = 'tick'
 
 export const CRON_FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
 export type CronFiscalEnvironment = (typeof CRON_FISCAL_ENVIRONMENTS)[number]

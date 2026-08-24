@@ -120,3 +120,63 @@ frontend  1755 pass ·  0 fail
 ```
 
 `typecheck`, `lint` e `format:check` limpos nos arquivos desta task.
+
+## T3 — a batida, e o relógio que a tela lê
+
+**O cron perdeu `CRON_JOB` e virou um processo só.** `src/tick/tick.job.ts` é o novo ponto de
+entrada do ciclo: abre a conexão com o broker, pega o advisory lock, lê `job_schedules`, publica em
+`job-run.v1` cada rotina com `next_run_at <= now()` e avança a janela dela. `src/job-registry.ts` foi
+apagado, e com ele a variável que escolhia qual das quatro rodava. Aceite em
+`test/tick/selects-due.contract.ts` e `test/tick/advances-window.contract.ts`.
+
+**A variável tinha três empregos, e cada um ganhou substituto próprio.** Como chave do advisory lock,
+virou a constante de domínio de cada rotina (`FUEL_PRICE_PULL_JOB`, `DISTRIBUTION_PULL_JOB`,
+`NFSE_STATUS_PULL_JOB`, `NOTIFICATION_SCHEDULES_JOB`). Como `traceStack` do log, virou
+`CRON_STACK_NAME = 'tick'` — o nome da rotina viaja na linha, não no cabeçalho, porque uma batida
+publica as quatro. Como seletor de bloco de ambiente, virou a **presença** da variável que abre o
+bloco: `NFSE_PROVIDER_BASE_URL` vazia deixa a rotina de NFS-e não configurada em vez de derrubar o
+boot.
+
+**`RABBITMQ_URL` e `QUEUE_PREFIX` passaram a ser obrigatórios.** A batida sempre publica, então um
+cron que não alcança a fila não tem o que fazer — falhar no boot é melhor que abrir execução que
+ninguém consome. Consequência: o broker deixou de servir como sinal de presença do trilho de aviso,
+que agora é decidido só pela chave de supressão (`test/notification-schedules/environment.contract.ts`).
+
+**Quatro serviços viraram um.** A matriz do `deploy.yml` é `[worker, cron]`, `deploy/cron-nfse/`,
+`deploy/cron-notifications/` e `deploy/cron-fuel/` foram apagados, e o `cronSchedule` de
+`deploy/cron/railway.json` passou de `*/15` para `*/5 * * * *` — é o piso de granularidade, não mais
+a cadência. `test/deploy/cron-services.contract.ts` falha se algum dos três serviços aposentados
+voltar ao disco, e `api/test/deploy/service-naming.contract.ts` desceu de oito serviços publicados
+para cinco. O manifesto de referência do k8s virou `deploy/cron/tick.cronjob.yaml`.
+
+⚠️ **O guarda de deploy de `cron-nfse` só em production (ADR-0035) morreu com o serviço.** Enquanto o
+trilho de NFS-e ainda mora no cron (até T7), quem o desliga em staging é o `NFSE_PROVIDER_BASE_URL`
+vazio, que faz a rotina nascer não configurada. Quando o trilho for para o worker — que publica nos
+dois ambientes — a postura precisa ser dita de novo.
+
+**O espelho em texto do `cronSchedule` saiu.** `SCHEDULED_DISTRIBUTION_CRON`,
+`scheduled-distribution-window.policy.ts` e `test/companies/scheduled-distribution-window.contract.ts`
+foram apagados. A tela mostrava o "próximo ciclo automático" resolvendo uma expressão de cron copiada
+à mão do `railway.json`: espelho não observado é espelho que mente, e mudar o tique no painel sem
+mudar a variável mostrava ao operador uma data que nunca chegava. Hoje o instante vem de
+`job_schedules.next_run_at`, escrito pela própria batida ao publicar — a mesma linha que decide o
+ciclo é a que a tela lê.
+
+**A próxima execução passou a ser anulável, ponta a ponta.** `nextScheduledRunAt` é
+`string | null` no corpo servido, porque **rotina pausada não tem próxima**: o relógio guarda o
+`next_run_at` de quando ela parou, e repeti-lo prometeria um ciclo que não vem. A consulta nova em
+`DrizzleScheduledDistributionStatusRepository` não leva `company_id` — o relógio é da instalação, e a
+exceção de tenant está declarada no schema da tabela desde a T1. No frontend o guarda de chaves
+exatas aceita `null` e os dois painéis dizem `scheduled.paused` no lugar da data; sem isso a tela
+inteira cairia em erro com a API respondendo 200, que é a falha que este produto já viu.
+
+**Gate.** Suítes completas das quatro apps:
+
+```
+api       2883 pass · 15 skip · 0 fail
+worker     495 pass ·  0 fail
+cron       230 pass ·  0 fail
+frontend  1768 pass ·  0 fail
+```
+
+`typecheck`, `lint` e `format:check` limpos.
