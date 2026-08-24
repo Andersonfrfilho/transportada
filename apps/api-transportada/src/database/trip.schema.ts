@@ -15,7 +15,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-import { companies } from './identity.schema.js'
+import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
@@ -143,91 +143,6 @@ export const tripDrivers = pgTable(
 )
 
 /**
- * ADR-0023 §2: a viagem aceita a nota antes de o CT-e existir. `nfe_document_id` xor
- * `freight_calculation_id` — a viagem vincula a nota crua ou o frete já calculado sobre ela,
- * nunca os dois ao mesmo tempo pro mesmo vínculo (spec 027 § Dúvidas).
- */
-export const tripDocuments = pgTable(
-  'trip_documents',
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    companyId: uuid('company_id').notNull(),
-    tripId: uuid('trip_id').notNull(),
-    nfeDocumentId: uuid('nfe_document_id'),
-    freightCalculationId: uuid('freight_calculation_id'),
-    separationStatus: text('separation_status')
-      .$type<TripDocumentSeparationStatus>()
-      .notNull()
-      .default('pending'),
-    separatedAt: timestamp('separated_at', { withTimezone: true }),
-    loadedAt: timestamp('loaded_at', { withTimezone: true }),
-    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
-    returnedAt: timestamp('returned_at', { withTimezone: true }),
-    returnReason: text('return_reason'),
-    releasedAt: timestamp('released_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.companyId],
-      foreignColumns: [companies.id],
-      name: 'trip_documents_company_id_companies_id_fk',
-    })
-      .onDelete('restrict')
-      .onUpdate('cascade'),
-    foreignKey({
-      columns: [table.companyId, table.tripId],
-      foreignColumns: [trips.companyId, trips.id],
-      name: 'trip_documents_company_trip_fk',
-    })
-      .onDelete('cascade')
-      .onUpdate('cascade'),
-    foreignKey({
-      columns: [table.companyId, table.nfeDocumentId],
-      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
-      name: 'trip_documents_company_nfe_document_fk',
-    })
-      .onDelete('restrict')
-      .onUpdate('cascade'),
-    foreignKey({
-      columns: [table.companyId, table.freightCalculationId],
-      foreignColumns: [freightCalculations.companyId, freightCalculations.id],
-      name: 'trip_documents_company_freight_calculation_fk',
-    })
-      .onDelete('restrict')
-      .onUpdate('cascade'),
-    unique('trip_documents_company_id_id_unique').on(table.companyId, table.id),
-    index('trip_documents_company_trip_idx').on(table.companyId, table.tripId),
-    // Nota/frete só vivo em uma viagem por vez — mesmo padrão de mdfe_manifest_items_live_document_unique
-    uniqueIndex('trip_documents_live_nfe_document_unique')
-      .on(table.companyId, table.nfeDocumentId)
-      .where(sql`${table.releasedAt} is null`),
-    uniqueIndex('trip_documents_live_freight_calculation_unique')
-      .on(table.companyId, table.freightCalculationId)
-      .where(sql`${table.releasedAt} is null`),
-    check(
-      'trip_documents_entity_xor_check',
-      sql`(${table.nfeDocumentId} is null) <> (${table.freightCalculationId} is null)`,
-    ),
-    // Uma vez entregue, o vínculo trava — a nota nunca mais migra para outra viagem
-    check(
-      'trip_documents_delivered_locks_release_check',
-      sql`${table.deliveredAt} is null or ${table.releasedAt} is null`,
-    ),
-    check(
-      'trip_documents_separation_status_check',
-      sql`${table.separationStatus} in (${raw(inList(TRIP_DOCUMENT_SEPARATION_STATUSES))})`,
-    ),
-    // ADR-0043 §7: motivo é obrigatório em toda nota devolvida, e só nela.
-    check(
-      'trip_documents_return_reason_check',
-      sql`(${table.separationStatus} = 'returned') = (${table.returnReason} is not null)`,
-    ),
-  ],
-)
-
-/**
  * ADR-0043 §3: uma parada por endereço de entrega distinto, nunca por nota. `addressKey` é a
  * chave normalizada (postal_code + number + city_code) que agrupa as notas — a normalização em si
  * é função pura em `trips/domain`, testada à parte. `deliveryWindowStart`/`End` nascem reservadas
@@ -282,6 +197,169 @@ export const tripStops = pgTable(
     check(
       'trip_stops_completed_requires_arrived_check',
       sql`${table.completedAt} is null or ${table.arrivedAt} is not null`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0023 §2: a viagem aceita a nota antes de o CT-e existir. `nfe_document_id` xor
+ * `freight_calculation_id` — a viagem vincula a nota crua ou o frete já calculado sobre ela,
+ * nunca os dois ao mesmo tempo pro mesmo vínculo (spec 027 § Dúvidas).
+ */
+export const tripDocuments = pgTable(
+  'trip_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    nfeDocumentId: uuid('nfe_document_id'),
+    freightCalculationId: uuid('freight_calculation_id'),
+    stopId: uuid('stop_id'),
+    separationStatus: text('separation_status')
+      .$type<TripDocumentSeparationStatus>()
+      .notNull()
+      .default('pending'),
+    separatedAt: timestamp('separated_at', { withTimezone: true }),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
+    returnReason: text('return_reason'),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_documents_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_documents_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'trip_documents_company_nfe_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.freightCalculationId],
+      foreignColumns: [freightCalculations.companyId, freightCalculations.id],
+      name: 'trip_documents_company_freight_calculation_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    // ADR-0043 §3: a parada é derivada — apagá-la (viagem reconciliada sem paradas) solta a nota
+    // de volta para 'sem parada' em vez de travar o vínculo.
+    foreignKey({
+      columns: [table.companyId, table.stopId],
+      foreignColumns: [tripStops.companyId, tripStops.id],
+      name: 'trip_documents_company_stop_fk',
+    })
+      .onDelete('set null')
+      .onUpdate('cascade'),
+    unique('trip_documents_company_id_id_unique').on(table.companyId, table.id),
+    index('trip_documents_company_trip_idx').on(table.companyId, table.tripId),
+    index('trip_documents_company_stop_idx').on(table.companyId, table.stopId),
+    // Nota/frete só vivo em uma viagem por vez — mesmo padrão de mdfe_manifest_items_live_document_unique
+    uniqueIndex('trip_documents_live_nfe_document_unique')
+      .on(table.companyId, table.nfeDocumentId)
+      .where(sql`${table.releasedAt} is null`),
+    uniqueIndex('trip_documents_live_freight_calculation_unique')
+      .on(table.companyId, table.freightCalculationId)
+      .where(sql`${table.releasedAt} is null`),
+    check(
+      'trip_documents_entity_xor_check',
+      sql`(${table.nfeDocumentId} is null) <> (${table.freightCalculationId} is null)`,
+    ),
+    // Uma vez entregue, o vínculo trava — a nota nunca mais migra para outra viagem
+    check(
+      'trip_documents_delivered_locks_release_check',
+      sql`${table.deliveredAt} is null or ${table.releasedAt} is null`,
+    ),
+    check(
+      'trip_documents_separation_status_check',
+      sql`${table.separationStatus} in (${raw(inList(TRIP_DOCUMENT_SEPARATION_STATUSES))})`,
+    ),
+    // ADR-0043 §7: motivo é obrigatório em toda nota devolvida, e só nela.
+    check(
+      'trip_documents_return_reason_check',
+      sql`(${table.separationStatus} = 'returned') = (${table.returnReason} is not null)`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0043 §4: a transição é registrada, não inferida da coluna. `separation_status` responde
+ * "onde está agora"; esta tabela responde "quem, quando e por quê". Append-only — nenhum update ou
+ * delete de evento em lugar nenhum do código; a T008 escreve aqui na mesma transação em que muda
+ * `trip_documents.separation_status`, e nunca escreve um evento para uma transição que não mudou
+ * nada (idempotência da T008: repetir a mesma transição não duplica evento).
+ *
+ * Nenhuma coluna de PII: ator e documento são ids opacos, `note` é texto do operador sobre a
+ * transição, nunca dado do destinatário. `test/trip-schema/events.contract.ts` tem o contrato
+ * negativo que garante isso.
+ */
+export const tripDocumentEvents = pgTable(
+  'trip_document_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    fromStatus: text('from_status').$type<TripDocumentSeparationStatus>(),
+    toStatus: text('to_status').$type<TripDocumentSeparationStatus>().notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    note: text(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    // Segue o mesmo padrão de audit_logs_actor_membership_fk: o ator precisa ser membro desta
+    // empresa, não só um usuário que existe em algum lugar do sistema.
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_document_events_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_document_events_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('trip_document_events_company_document_occurred_idx').on(
+      table.companyId,
+      table.tripDocumentId,
+      table.occurredAt,
+    ),
+    check(
+      'trip_document_events_from_status_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} in (${raw(inList(TRIP_DOCUMENT_SEPARATION_STATUSES))})`,
+    ),
+    check(
+      'trip_document_events_to_status_check',
+      sql`${table.toStatus} in (${raw(inList(TRIP_DOCUMENT_SEPARATION_STATUSES))})`,
+    ),
+    check(
+      'trip_document_events_actual_transition_check',
+      sql`${table.fromStatus} is distinct from ${table.toStatus}`,
     ),
   ],
 )

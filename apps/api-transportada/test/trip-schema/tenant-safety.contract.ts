@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   mdfeManifests,
+  tripDocumentEvents,
   tripDocuments,
   tripDrivers,
   tripStops,
@@ -17,6 +18,7 @@ const TRIP_TABLES = [
   { name: 'trip_drivers', table: tripDrivers },
   { name: 'trip_documents', table: tripDocuments },
   { name: 'trip_stops', table: tripStops },
+  { name: 'trip_document_events', table: tripDocumentEvents },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -73,6 +75,7 @@ describe('trip tenant safety', () => {
     for (const { name, table } of [
       { name: 'trip_drivers', table: tripDrivers },
       { name: 'trip_documents', table: tripDocuments },
+      { name: 'trip_stops', table: tripStops },
     ]) {
       expect(foreignKeys(table)).toContainEqual({
         columns: ['company_id', 'trip_id'],
@@ -83,6 +86,28 @@ describe('trip tenant safety', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+
+  test('deletes the document trail with the document, never with the trip directly', () => {
+    expect(foreignKeys(tripDocumentEvents)).toContainEqual({
+      columns: ['company_id', 'trip_document_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_documents',
+      name: 'trip_document_events_company_document_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+  })
+
+  test('reconciles the document to the stop, and sets it null when the stop is gone', () => {
+    expect(foreignKeys(tripDocuments)).toContainEqual({
+      columns: ['company_id', 'stop_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_stops',
+      name: 'trip_documents_company_stop_fk',
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    })
   })
 
   // ADR-0023: o manifesto referencia a viagem pela tenant, e nunca é apagado quando a viagem some

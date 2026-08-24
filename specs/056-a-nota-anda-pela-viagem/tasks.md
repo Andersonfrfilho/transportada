@@ -77,15 +77,31 @@ Parada com `sequence` (unique por viagem), chave de endereço normalizada, rótu
   `completed_at` nunca sem `arrived_at`. Sem coordenada — a spec 058 adiciona. Rollback recusa
   `DROP TABLE` se alguma parada já registrou chegada ou conclusão.
 
-### T004 — `trip_documents.stop_id` e `trip_document_events`
+### T004 ✅ — `trip_documents.stop_id` e `trip_document_events`
 
 FK da nota para a parada, e a tabela de eventos com `from_status`, `to_status`,
 `actor_membership_id`, `occurred_at`, `note`. Contrato negativo obrigatório: **nenhuma coluna de
 PII** na tabela de eventos.
 
-- **Arquivos:** `drizzle/<ts>_trip_document_events/`, `src/database/trip.schema.ts`
-- **Aceite:** `test/trip-schema/events.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `apps/api-transportada/drizzle/20260824204404_trip_document_events/` (migration
+  + `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts` (tripStops movida para
+  antes de tripDocuments — referência direta exige declaração prévia em JS),
+  `apps/api-transportada/src/database/database.schema.ts` (registro no barrel)
+- **Aceite:** `test/trip-schema/events.contract.ts` (novo, 6 testes — inclui o contrato negativo de
+  PII por nome de coluna), `test/trip-schema/tenant-safety.contract.ts` (dois testes novos: trilha
+  cascade por documento, e vínculo nota↔parada com `set null`)
+- **Verificação:** `bun run --cwd apps/api-transportada typecheck` ✅,
+  `bun run --cwd apps/api-transportada lint` ✅, `bun run --cwd apps/api-transportada test`
+  (2925 pass, 0 fail) ✅
+- **Evidência:** `actor_user_id` (não `actor_membership_id` como o texto da spec sugeria) com FK
+  composta para `user_company_memberships(user_id, company_id)` — mesmo padrão de
+  `audit_logs_actor_membership_fk`, que já resolve "ator precisa ser membro desta empresa" sem
+  precisar guardar o id da membership em si. `stop_id` é `on delete set null` (a parada é derivada
+  e pode ser reconciliada/apagada sem travar a nota), `trip_document_events` é `on delete cascade`
+  a partir de `trip_document` (a trilha morre com a nota, nunca com a viagem diretamente). Check
+  `from_status is distinct from to_status` reforça em banco a idempotência que a T008 implementa em
+  código: nenhum evento é gravado quando a transição não muda nada. Tabela append-only por
+  convenção de código — sem `updated_at`, e o teste confere isso.
 
 ### T005 🧠 — O snapshot congelado do roteiro
 
