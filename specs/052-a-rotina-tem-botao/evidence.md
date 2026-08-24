@@ -240,3 +240,97 @@ job-run-execution           7 pass ·  0 fail  (banco migrado descartável)
 ```
 
 `typecheck` e `lint` limpos nas quatro apps.
+
+## T4b — o lease que se renova, a parada que é pedida e a linha que ninguém corre
+
+**O invólucro renova, a rotina não sabe disso.** Quem bate é `startLeaseHeartbeat`
+(`job-run/application/lease-heartbeat.ts`), montado por `runJobCycle` antes de `routine.run` e
+desligado no `finally` — a rotina recebe um `isStopRequested()` no contexto e mais nada. Pôr a
+renovação em cada rotina significaria escrever a mesma batida quatro vezes e esquecê-la na quinta.
+
+`JOB_RUN_LEASE_RENEWAL_SECONDS` é 10, **exatamente um terço** de `JOB_RUN_LEASE_SECONDS` — a razão
+é asserção de contrato, não coincidência: com um terço cabem duas batidas perdidas antes de o lease
+vencer, e é isso que separa uma pausa de GC de um processo morto.
+
+⚠️ **Renovar sem saber qual lease é o nosso seria roubá-lo de volta.** `renew` leva
+`expectedLeaseExpiresAt` no `where`, o valor que **este** processo escreveu por último. Sem ele, um
+worker que travou, viu o lease vencer e teve a linha reivindicada por outro voltaria a empurrar o
+prazo — e os dois correriam a mesma rotina achando que a têm. Com ele, a renovação do processo
+atrasado devolve `undefined`, o batimento marca `job_run_lease_lost`, e o `finish` condicional do T4
+recusa a escrita: a linha fica como o novo dono a deixar.
+
+**Renovação e releitura da parada são a mesma ida ao banco.** É a mesma linha; um `select` separado
+por batimento dobraria o tráfego, e ler `cancel_requested_at` por unidade custaria uma consulta por
+empresa. O `UPDATE ... RETURNING` devolve as duas coisas, e `isStopRequested()` lê o que o último
+batimento trouxe — defasagem de no máximo 10s, cobrada num limite de unidade.
+
+**Parar é no limite da unidade, nunca no meio.** `cooperative-cancel.contract.ts` corre quatro
+estados e dispara o pedido entre o segundo e o terceiro: para com `['SP','MG']` gravados,
+`outcome: 'cancelled'`, `counters: {statesWritten: 2}` — o que a unidade anterior escreveu
+**permanece**. A unidade em voo termina; parar no meio dela deixaria metade. E parada não apaga
+falha: rotina que já ia devolver `anp_unreachable` devolve `anp_unreachable`, e vocabulário
+desconhecido continua vencendo tudo com `unexpected_error`.
+
+**Lease perdido e parada pedida dizem a mesma coisa para a rotina.** Os dois acendem
+`isStopRequested()`: largar o que ainda não começou. O que os separa é o desfecho — parada pedida
+vira `cancelled`, lease perdido devolve o desfecho da rotina intacto, porque a linha já não é nossa
+e quem decide o que ficou gravado é o dono novo.
+
+**A varredura mora na batida, e corre antes de `listDue`.** `abandonExpired` é o primeiro membro de
+`JobSchedulePort` e a primeira chamada dentro do lock. A ordem é o contrato: varrer depois de ler o
+que venceu publicaria zero e travaria a rotina por mais uma janela, porque
+`job_executions_open_unique` recusa a execução nova enquanto a linha morta estiver de pé. O teste
+prova a ordem pelo efeito — lease vencido é abandonado **e** a rotina publica na mesma batida.
+
+⚠️ **A varredura recolhe duas mortes, e a segunda é acréscimo deliberado ao texto da task.** A task
+pede a execução de lease vencido. A outra é a linha aberta **sem lease nenhum**: o relógio insere
+sem lease (quem reivindica é o worker), então uma mensagem que morreu no caminho — dead-letter
+depois das três tentativas do trilho — deixa uma linha que ninguém jamais vai reivindicar, e nenhum
+lease jamais vai vencer nela. Sem esse segundo braço a rotina ficaria travada para sempre e o botão
+manual recusaria com 409 sem nada correndo: exatamente a morte calada que esta spec existe para
+fechar, e a varredura é o único lugar que a enxerga. O prazo é
+`JOB_EXECUTION_PICKUP_GRACE_SECONDS`, 900s — quinze minutos, onde cabem três batidas de cinco
+minutos mais as três tentativas do trilho, com folga.
+
+**A varredura não tem `company_id` e não deveria ter.** Ela recolhe execução de qualquer origem, e
+`origin: 'schedule'` não tem empresa por `job_executions_requester_check`. O que a torna segura é o
+advisory lock: sem ele não se varre nada — duas instâncias abandonando a mesma linha é corrida —, e
+o contrato fixa o resultado inteiro de batida sem lock em zeros.
+
+**A SQL do `or(and(…))` foi medida contra Postgres**, em banco descartável migrado, com as quatro
+linhas que importam abertas ao mesmo tempo:
+
+```
+abandonedCount: 2
+fuel.price.pull            lease vencido há 1s          → abandoned, finished_at gravado, lease nulo
+nfe.distribution.pull      sem lease, 900s de aberta    → abandoned, finished_at gravado, lease nulo
+nfse.status.pull           lease vivo por mais 20s      → intacta
+notification.schedules.run sem lease, 60s de aberta     → intacta
+```
+
+Os três CHECKs da tabela aceitaram a escrita: `finish_check` (desfecho e `finished_at` juntos),
+`lease_check` (linha encerrada não segura lease) e o vocabulário `abandoned`.
+
+**Um teste antigo dizia "ainda correndo" sem lease nenhum.**
+`advances-window.contract.ts` abria a execução 20 minutos antes do `now` e a chamava de rotina em
+curso — com a varredura no lugar, ela passou a ser recolhida. O teste não estava errado por acaso:
+correr de verdade é segurar lease vivo, e agora ele segura. É a diferença entre o worker morto e o
+worker ocupado, que antes desta task não existia em lugar nenhum.
+
+**O batimento é injetado, não cronometrado.** `runJobCycle` aceita `scheduleInterval`, e só os
+testes o passam — o duplo captura o callback e `beat()` o aguarda, então uma rotina de teste dispara
+o batimento **entre** duas unidades e prova o limite. Com temporizador falso a asserção seria sobre
+o relógio; assim é sobre a ordem.
+
+**Gate.** Worker, cron e a integração:
+
+```
+worker                    531 pass ·  0 fail  (61 arquivos)
+cron                      238 pass ·  0 fail  (10 arquivos)
+make worker-integration    50 pass ·  0 fail  (11 arquivos)
+job-run-execution          11 pass ·  0 fail  (banco migrado descartável)
+```
+
+As quatro novas do `job-run-execution` são a renovação contra Postgres — 46 → 50 na integração é a
+prova de que rodaram, e não caíram em `describe.skip` por falta de `DATABASE_URL`.
+`typecheck` e `lint` limpos nas quatro apps.

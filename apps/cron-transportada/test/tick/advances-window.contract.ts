@@ -84,12 +84,17 @@ describe('cron tick advances the window', () => {
     const schedules = createJobScheduleDouble([
       scheduleRow({ job: 'nfe.distribution.pull', nextRunAt: overdue }),
     ])
-    await schedules.start({
+    const started = await schedules.start({
       correlationId: 'earlier-cycle',
       job: 'nfe.distribution.pull',
       nextRunAt: overdue,
       startedAt: new Date('2026-08-23T11:40:00.000Z'),
     })
+    // Correndo de verdade é segurar lease vivo: sem ele a varredura de abandono a recolheria, que é
+    // exatamente o que se quer para o worker morto e exatamente o que não se quer aqui.
+    const row = schedules.executions.find((candidate) => candidate.id === started?.executionId)
+    if (row === undefined) throw new Error('OPEN_EXECUTION_NOT_FOUND')
+    row.leaseExpiresAt = new Date(NOW.getTime() + 20_000)
 
     await runTickCycle({
       correlationId: 'tick-correlation',

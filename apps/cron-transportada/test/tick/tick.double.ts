@@ -63,3 +63,22 @@ export function createEventIdFactory(): () => string {
     return `00000000-0000-4000-8000-0000000000e${String(sequence)}`
   }
 }
+
+export type LoggedMessage = {
+  readonly message: string
+  readonly metadata: Record<string, unknown> | undefined
+}
+
+export type LoggerDouble = CronLogger & {
+  readonly messages: readonly LoggedMessage[]
+}
+
+export function createLoggerDouble(): LoggerDouble {
+  const messages: LoggedMessage[] = []
+  const record =
+    () =>
+    (message: string, metadata?: Record<string, unknown>): void => {
+      messages.push({ message, metadata })
+    }
+  return { error: record(), info: record(), messages, warn: record() }
+}

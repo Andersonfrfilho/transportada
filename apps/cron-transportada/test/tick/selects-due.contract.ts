@@ -63,6 +63,7 @@ describe('cron tick selects what is due', () => {
     })
 
     expect(await result).toEqual({
+      abandonedCount: 0,
       acquiredLock: true,
       dueCount: 2,
       failedCount: 0,
@@ -116,6 +117,7 @@ describe('cron tick selects what is due', () => {
 
     expect(publisher.published).toEqual([])
     expect(result).toEqual({
+      abandonedCount: 0,
       acquiredLock: true,
       dueCount: 1,
       failedCount: 0,
@@ -131,6 +133,7 @@ describe('cron tick selects what is due', () => {
     })
 
     expect(await result).toEqual({
+      abandonedCount: 0,
       acquiredLock: false,
       dueCount: 0,
       failedCount: 0,
@@ -163,6 +166,7 @@ describe('cron tick selects what is due', () => {
     })
 
     expect(await result).toEqual({
+      abandonedCount: 0,
       acquiredLock: true,
       dueCount: 2,
       failedCount: 1,

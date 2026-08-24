@@ -9,6 +9,7 @@ import type {
   FinishJobExecutionParams,
   JobExecutionPort,
 } from '../../src/job-run/application/job-execution.port.js'
+import { createManualScheduler } from './job-run.double.js'
 import type {
   JobRoutineContext,
   JobRoutineRegistry,
@@ -61,6 +62,7 @@ function createFixture({
     finish: async (params) => {
       finishes.push(params)
     },
+    renew: async () => ({ cancelRequestedAt: undefined }),
   }
 
   const logger = {
@@ -76,7 +78,13 @@ function createFixture({
     logged,
     run: (routines) =>
       runJobCycle({
-        dependencies: { executions, logger, now: () => NOW, routines },
+        dependencies: {
+          executions,
+          logger,
+          now: () => NOW,
+          routines,
+          scheduleInterval: createManualScheduler().scheduler,
+        },
         envelope: ENVELOPE,
       }),
   }
@@ -109,14 +117,14 @@ describe('job run cycle', () => {
     const result = await fixture.run({ 'fuel.price.pull': routine })
 
     expect(result).toEqual({ claimed: true, outcome: 'succeeded' })
-    expect(contexts).toEqual([
-      {
-        correlationId: ENVELOPE.correlationId,
-        executionId: EXECUTION_ID,
-        job: 'fuel.price.pull',
-        origin: 'schedule',
-      },
-    ])
+    expect(contexts).toHaveLength(1)
+    expect(contexts[0]).toMatchObject({
+      correlationId: ENVELOPE.correlationId,
+      executionId: EXECUTION_ID,
+      job: 'fuel.price.pull',
+      origin: 'schedule',
+    })
+    expect(contexts[0]?.isStopRequested()).toBe(false)
     expect(fixture.finishes).toEqual([
       {
         counters: { statesWritten: 27 },

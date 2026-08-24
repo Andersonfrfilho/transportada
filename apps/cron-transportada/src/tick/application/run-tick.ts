@@ -10,6 +10,7 @@ import type { AdvisoryLockPort } from '../../shared/advisory-lock.port.js'
 import { jobRunEnvelopeV1Schema } from '../domain/job-run-envelope.schema.js'
 import { resolveNextRunAt } from '../domain/next-run.policy.js'
 import {
+  JOB_EXECUTION_PICKUP_GRACE_SECONDS,
   JOB_RUN_EVENT_TYPE,
   JOB_TICK_LOCK_KEY,
   JOB_TICK_PUBLISH_FAILURE_OUTCOME,
@@ -18,6 +19,7 @@ import type { JobRunPublisherPort } from './job-run-publisher.port.js'
 import type { DueJobSchedule, JobSchedulePort } from './job-schedule.port.js'
 
 export type TickCycleResult = {
+  readonly abandonedCount: number
   readonly acquiredLock: boolean
   readonly dueCount: number
   readonly failedCount: number
@@ -36,6 +38,7 @@ export type TickCycleDependencies = {
 }
 
 const SKIPPED_RESULT: TickCycleResult = {
+  abandonedCount: 0,
   acquiredLock: false,
   dueCount: 0,
   failedCount: 0,
@@ -58,6 +61,19 @@ export async function runTickCycle(dependencies: TickCycleDependencies): Promise
 }
 
 async function publishDueJobs(dependencies: TickCycleDependencies): Promise<TickCycleResult> {
+  // Antes de olhar o relógio: linha morta de pé recusaria a execução nova pelo índice parcial, e a
+  // rotina ficaria travada em toda batida seguinte sem nada correndo.
+  const abandonedCount = await dependencies.schedules.abandonExpired({
+    now: dependencies.now,
+    pickupDeadline: new Date(
+      dependencies.now.getTime() - JOB_EXECUTION_PICKUP_GRACE_SECONDS * 1000,
+    ),
+  })
+
+  if (abandonedCount > 0) {
+    dependencies.logger.warn('cron_tick_executions_abandoned', { abandonedCount })
+  }
+
   const due = await dependencies.schedules.listDue({ now: dependencies.now })
 
   let publishedCount = 0
@@ -79,6 +95,7 @@ async function publishDueJobs(dependencies: TickCycleDependencies): Promise<Tick
   }
 
   return {
+    abandonedCount,
     acquiredLock: true,
     dueCount: due.length,
     failedCount,

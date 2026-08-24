@@ -18,6 +18,22 @@ export type ClaimedJobExecution = {
   readonly origin: JobExecutionOrigin
 }
 
+/**
+ * `expectedLeaseExpiresAt` é o lease que **este** processo escreveu por último. Sem ele a renovação
+ * seria cega: uma execução cujo lease venceu e foi reivindicada por outro worker teria o lease
+ * roubado de volta pelo processo antigo, e os dois correriam a mesma rotina achando que a têm.
+ */
+export type RenewJobExecutionLeaseParams = {
+  readonly executionId: string
+  readonly expectedLeaseExpiresAt: Date
+  readonly leaseExpiresAt: Date
+}
+
+export type RenewedJobExecutionLease = {
+  /** A releitura do pedido de parada. Vem junto porque é a mesma linha e a mesma ida ao banco. */
+  readonly cancelRequestedAt: Date | undefined
+}
+
 export type FinishJobExecutionParams = {
   readonly counters: Readonly<Record<string, number>>
   readonly executionId: string
@@ -34,5 +50,11 @@ export type FinishJobExecutionParams = {
  */
 export type JobExecutionPort = {
   claim(params: ClaimJobExecutionParams): Promise<ClaimedJobExecution | undefined>
+  /**
+   * Estende o lease e relê o pedido de parada numa escrita só. `undefined` quer dizer que a linha
+   * deixou de ser nossa — fechada por outro caminho, ou abandonada pela varredura e reivindicada
+   * de novo. Nos dois casos o ciclo em curso perdeu o direito de gravar o desfecho dela.
+   */
+  renew(params: RenewJobExecutionLeaseParams): Promise<RenewedJobExecutionLease | undefined>
   finish(params: FinishJobExecutionParams): Promise<void>
 }

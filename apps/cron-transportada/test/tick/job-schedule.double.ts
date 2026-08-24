@@ -8,6 +8,7 @@
  */
 import type { ScheduledJob } from '../../src/shared/job-catalog.constant.js'
 import type {
+  AbandonExpiredExecutionsParams,
   DueJobSchedule,
   FinishScheduledExecutionParams,
   JobSchedulePort,
@@ -23,10 +24,13 @@ export type ScheduleRow = {
 }
 
 export type ExecutionRow = {
+  cancelRequestedAt: Date | undefined
   correlationId: string
   finishedAt: Date | undefined
   id: string
   job: ScheduledJob
+  /** Nulo até o worker reivindicar a linha: quem insere é o relógio, e ele não corre a rotina. */
+  leaseExpiresAt: Date | undefined
   origin: 'schedule'
   outcome: string | undefined
   startedAt: Date
@@ -54,6 +58,24 @@ export function createJobScheduleDouble(rows: readonly ScheduleRow[]): JobSchedu
     schedules,
     scheduleOf,
 
+    abandonExpired(params: AbandonExpiredExecutionsParams): Promise<number> {
+      const expired = executions.filter((row) => {
+        if (row.finishedAt !== undefined) return false
+        if (row.leaseExpiresAt !== undefined) {
+          return row.leaseExpiresAt.getTime() <= params.now.getTime()
+        }
+        return row.startedAt.getTime() <= params.pickupDeadline.getTime()
+      })
+
+      for (const row of expired) {
+        row.finishedAt = params.now
+        row.leaseExpiresAt = undefined
+        row.outcome = 'abandoned'
+      }
+
+      return Promise.resolve(expired.length)
+    },
+
     listDue({ now }): Promise<readonly DueJobSchedule[]> {
       return Promise.resolve(
         schedules
@@ -71,10 +93,12 @@ export function createJobScheduleDouble(rows: readonly ScheduleRow[]): JobSchedu
       sequence += 1
       const id = `00000000-0000-4000-8000-0000000000${String(sequence).padStart(2, '0')}`
       executions.push({
+        cancelRequestedAt: undefined,
         correlationId: params.correlationId,
         finishedAt: undefined,
         id,
         job: params.job,
+        leaseExpiresAt: undefined,
         origin: 'schedule',
         outcome: undefined,
         startedAt: params.startedAt,
@@ -87,6 +111,7 @@ export function createJobScheduleDouble(rows: readonly ScheduleRow[]): JobSchedu
       const row = executions.find((candidate) => candidate.id === params.executionId)
       if (row === undefined) throw new Error(`unknown execution ${params.executionId}`)
       row.finishedAt = params.finishedAt
+      row.leaseExpiresAt = undefined
       row.outcome = params.outcome
       return Promise.resolve()
     },

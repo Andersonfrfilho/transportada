@@ -54,7 +54,6 @@ describeDatabase('job execution claim against Postgres', () => {
 
   afterAll(async () => {
     await db.execute(sql`delete from job_executions where "correlation_id" = ${CORRELATION_ID}`)
-    await provider.close()
   })
 
   test('reivindica a linha aberta e devolve a rotina que a linha diz, não a que o envelope pediu', async () => {
@@ -177,5 +176,102 @@ describeDatabase('job execution claim against Postgres', () => {
     }
 
     expect(refused).toBe(true)
+  })
+})
+
+describeDatabase('job execution lease renewal against Postgres', () => {
+  const repository = new DrizzleJobExecutionRepository(db)
+
+  beforeEach(async () => {
+    await db.execute(sql`delete from job_executions where "correlation_id" = ${CORRELATION_ID}`)
+  })
+
+  afterAll(async () => {
+    await db.execute(sql`delete from job_executions where "correlation_id" = ${CORRELATION_ID}`)
+    // Último bloco do arquivo: fechar antes deixaria os testes seguintes sem conexão.
+    await provider.close()
+  })
+
+  test('renovar empurra o prazo e devolve o pedido de parada da mesma linha', async () => {
+    const executionId = await insertOpenExecution()
+    const firstLease = new Date(NOW.getTime() + 30_000)
+    await repository.claim({ executionId, leaseExpiresAt: firstLease, now: NOW })
+
+    const secondLease = new Date(NOW.getTime() + 40_000)
+    const renewed = await repository.renew({
+      executionId,
+      expectedLeaseExpiresAt: firstLease,
+      leaseExpiresAt: secondLease,
+    })
+
+    expect(renewed).toEqual({ cancelRequestedAt: undefined })
+    expect(await readExecution(executionId)).toMatchObject({ lease_expires_at: secondLease })
+  })
+
+  test('o pedido de parada gravado na linha volta no mesmo batimento', async () => {
+    const executionId = await insertOpenExecution()
+    const lease = new Date(NOW.getTime() + 30_000)
+    await repository.claim({ executionId, leaseExpiresAt: lease, now: NOW })
+
+    const cancelRequestedAt = new Date(NOW.getTime() + 7_000)
+    await db.execute(sql`
+      update job_executions set "cancel_requested_at" = ${cancelRequestedAt.toISOString()}
+      where "id" = ${executionId}
+    `)
+
+    const renewed = await repository.renew({
+      executionId,
+      expectedLeaseExpiresAt: lease,
+      leaseExpiresAt: new Date(NOW.getTime() + 40_000),
+    })
+
+    expect(renewed?.cancelRequestedAt).toEqual(cancelRequestedAt)
+  })
+
+  test('lease que já não é o nosso não é renovado — quem chegou depois fica com a linha', async () => {
+    const executionId = await insertOpenExecution()
+    const ourLease = new Date(NOW.getTime() + 30_000)
+    await repository.claim({ executionId, leaseExpiresAt: ourLease, now: NOW })
+
+    // O processo morreu, o lease venceu e outro worker reivindicou a mesma linha.
+    const theirLease = new Date(NOW.getTime() + 900_000)
+    await repository.claim({
+      executionId,
+      leaseExpiresAt: theirLease,
+      now: new Date(NOW.getTime() + 600_000),
+    })
+
+    const renewed = await repository.renew({
+      executionId,
+      expectedLeaseExpiresAt: ourLease,
+      leaseExpiresAt: new Date(NOW.getTime() + 40_000),
+    })
+
+    expect(renewed).toBeUndefined()
+    expect(await readExecution(executionId)).toMatchObject({ lease_expires_at: theirLease })
+  })
+
+  test('linha já fechada não renova: o batimento do processo atrasado não a reabre', async () => {
+    const executionId = await insertOpenExecution()
+    const lease = new Date(NOW.getTime() + 30_000)
+    await repository.claim({ executionId, leaseExpiresAt: lease, now: NOW })
+    await repository.finish({
+      counters: { statesWritten: 3 },
+      executionId,
+      finishedAt: new Date(NOW.getTime() + 20_000),
+      outcome: 'succeeded',
+    })
+
+    const renewed = await repository.renew({
+      executionId,
+      expectedLeaseExpiresAt: lease,
+      leaseExpiresAt: new Date(NOW.getTime() + 40_000),
+    })
+
+    expect(renewed).toBeUndefined()
+    expect(await readExecution(executionId)).toMatchObject({
+      lease_expires_at: null,
+      outcome: 'succeeded',
+    })
   })
 })

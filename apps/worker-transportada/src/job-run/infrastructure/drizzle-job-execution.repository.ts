@@ -10,6 +10,8 @@ import type {
   ClaimedJobExecution,
   FinishJobExecutionParams,
   JobExecutionPort,
+  RenewJobExecutionLeaseParams,
+  RenewedJobExecutionLease,
 } from '../application/job-execution.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -40,6 +42,29 @@ export class DrizzleJobExecutionRepository implements JobExecutionPort {
       .returning({ job: jobExecutions.job, origin: jobExecutions.origin })
 
     return record ?? undefined
+  }
+
+  /**
+   * Renovar é a mesma escrita condicional do `claim`, com o lease **exato** que este processo
+   * gravou no `where`: é o que impede um processo antigo, cujo lease já venceu e foi reivindicado
+   * por outro, de puxar a linha de volta. O `cancel_requested_at` volta no `returning` porque é a
+   * mesma linha — uma segunda consulta só para lê-lo dobraria as idas ao banco por batimento.
+   */
+  async renew(params: RenewJobExecutionLeaseParams): Promise<RenewedJobExecutionLease | undefined> {
+    const [record] = await this.#database
+      .update(jobExecutions)
+      .set({ leaseExpiresAt: params.leaseExpiresAt })
+      .where(
+        and(
+          eq(jobExecutions.id, params.executionId),
+          isNull(jobExecutions.finishedAt),
+          eq(jobExecutions.leaseExpiresAt, params.expectedLeaseExpiresAt),
+        ),
+      )
+      .returning({ cancelRequestedAt: jobExecutions.cancelRequestedAt })
+
+    if (record === undefined) return undefined
+    return { cancelRequestedAt: record.cancelRequestedAt ?? undefined }
   }
 
   /**

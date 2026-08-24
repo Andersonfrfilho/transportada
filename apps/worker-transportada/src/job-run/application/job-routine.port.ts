@@ -12,6 +12,13 @@ export type JobRoutineContext = {
   readonly executionId: string
   readonly job: ScheduledJob
   readonly origin: JobExecutionOrigin
+  /**
+   * Lido no **limite de unidade**, nunca no meio de uma: parar entre duas empresas deixa gravado o
+   * que a anterior escreveu, e parar no meio deixa metade. Diz `true` tanto para parada pedida pelo
+   * operador quanto para lease perdido — para a rotina os dois significam a mesma coisa, largar o
+   * que ainda não começou.
+   */
+  isStopRequested(): boolean
 }
 
 export type JobRoutineResult = {

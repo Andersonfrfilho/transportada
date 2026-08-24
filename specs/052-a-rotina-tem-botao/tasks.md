@@ -36,10 +36,16 @@
   execução de `origin: 'schedule'` não tem empresa. Aceite:
   `worker/test/job-run/envelope.contract.ts` e `make worker-integration`.
 - **T4b** — Lease e cancelamento cooperativo, os dois no invólucro do ciclo, não em cada rotina:
-  renovação do `lease_expires_at` enquanto corre, releitura de `cancel_requested_at` no limite de
-  unidade, e a varredura que marca `abandoned` a execução de lease vencido — a batida do T3 é quem
-  a roda. Aceite: `worker/test/job-run/lease.contract.ts` (worker morto no meio libera a rotina) e
-  `worker/test/job-run/cooperative-cancel.contract.ts` (para no limite, o gravado permanece).
+  renovação do `lease_expires_at` a cada terço do prazo, releitura de `cancel_requested_at` no mesmo
+  `UPDATE ... RETURNING` e lida no limite de unidade, e a varredura que a batida do T3 roda **antes**
+  de `listDue`. A varredura recolhe **duas** mortes, não uma: o lease vencido e a linha aberta sem
+  lease nenhum além de `JOB_EXECUTION_PICKUP_GRACE_SECONDS` — mensagem que morreu no caminho deixa
+  linha que ninguém vai reivindicar e lease que nunca vai vencer. Renovar leva
+  `expectedLeaseExpiresAt` no `where`: sem ele o processo atrasado rouba de volta um lease já
+  reivindicado por outro. Aceite: `worker/test/job-run/lease.contract.ts` (worker morto no meio
+  libera a rotina), `worker/test/job-run/cooperative-cancel.contract.ts` (para no limite, o gravado
+  permanece) e `cron/test/tick/abandons-expired.contract.ts` (a rotina destravada publica na mesma
+  batida).
 
 ## Fase 3 — as rotinas mudam de casa
 

@@ -25,7 +25,20 @@ export type FinishScheduledExecutionParams = {
   readonly outcome: JobWrapperOutcome
 }
 
+export type AbandonExpiredExecutionsParams = {
+  /** Execução aberta sem lease e mais velha que isto é mensagem que nunca chegou ao worker. */
+  readonly pickupDeadline: Date
+  readonly now: Date
+}
+
 export type JobSchedulePort = {
+  /**
+   * Fecha em `abandoned` a execução cujo lease venceu — processo morto no meio — e a que ninguém
+   * reivindicou dentro do prazo de retirada. Roda **antes** da seleção do que venceu: é o índice
+   * parcial `job_executions_open_unique` que recusa a execução nova, e uma linha morta de pé
+   * travaria a rotina em toda batida seguinte.
+   */
+  abandonExpired(params: AbandonExpiredExecutionsParams): Promise<number>
   listDue(params: { readonly now: Date }): Promise<readonly DueJobSchedule[]>
   /**
    * Abre a execução e avança a janela na **mesma** transação. Devolve `undefined` quando a rotina
