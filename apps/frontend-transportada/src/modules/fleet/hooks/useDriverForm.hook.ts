@@ -111,13 +111,21 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
     })
   }
 
-  /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
-  function clear(): void {
-    setFeedbackKey(null)
+  /**
+   * Esvaziar sem mexer no aviso: depois de gravar, o "salvo" tem de sobreviver ao reset, e é
+   * `coverage.clear()` quem apagaria o aviso, porque toda mudança de cobertura limpa o feedback.
+   */
+  function resetFields(): void {
     setSelection([])
     coverage.clear()
     clearFormDraft({ storage, storageKey })
     setState(createDriverDraft())
+  }
+
+  /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
+  function clear(): void {
+    resetFields()
+    setFeedbackKey(null)
   }
 
   function setVehicles(vehicleIds: readonly string[]): void {
@@ -159,6 +167,11 @@ export function useDriverForm(input: UseDriverFormInput): DriverFormController {
         })
       }
       clearFormDraft({ storage, storageKey })
+      // Cadastro é em série: gravado o motorista novo, a ficha volta em branco para o próximo.
+      // Na edição não — ali o formulário é o registro aberto, e esvaziá-lo esconderia o que se lê.
+      if (driver === undefined) {
+        resetFields()
+      }
       setFeedbackKey('saved')
       onSaved?.(saved)
     } catch (error) {
