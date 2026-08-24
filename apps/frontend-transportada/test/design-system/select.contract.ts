@@ -228,6 +228,53 @@ describe('design system select contract', () => {
     expect(filterSelectOptions({ options, query: 'bran' })).toEqual([white])
   })
 
+  /**
+   * Duas placas parecidas se distinguem pela segunda linha, e ela precisa sobreviver ao fechamento
+   * do painel: o gatilho é a única prova do que foi escolhido depois que a lista some.
+   */
+  test('renders the detail line of an option in the list and in the trigger', async () => {
+    const [component, styles] = await Promise.all([
+      readApplicationFile(SELECT_COMPONENT_PATH),
+      readApplicationFile(SELECT_STYLES_PATH),
+    ])
+
+    expect(component).toContain('entry.description')
+    expect(component).toContain('selected?.description')
+    expect(component).toContain('styles.description')
+    expect(component).toContain('styles.triggerDescription')
+    expect(styles).toContain('.triggerDescription')
+    expect(styles).toContain('text-overflow: ellipsis')
+    expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  /** Quem procura pelo modelo não sabe a placa — é por isso que procura. */
+  test('finds an option by text that lives only in its detail line', () => {
+    const own = {
+      description: 'Próprio da transportadora · Volvo FH 460 · Branca',
+      label: 'ABC1D23 · SP',
+      value: 'own-vehicle',
+    }
+    const options = [
+      own,
+      {
+        description: 'Agregado · Scania R 450 · Preta',
+        label: 'XYZ9K87 · MG',
+        value: 'aggregate-vehicle',
+      },
+    ]
+
+    expect(filterSelectOptions({ options, query: 'volvo' })).toEqual([own])
+    expect(filterSelectOptions({ options, query: 'FH 460' })).toEqual([own])
+  })
+
+  /** Opção sem detalhe é a maioria: a segunda linha não pode virar espaço em branco na lista. */
+  test('keeps the option without a detail line untouched', () => {
+    const plain = { label: 'Aberta', value: 'open' }
+
+    expect(filterSelectOptions({ options: [plain], query: 'aber' })).toEqual([plain])
+    expect(plain).not.toHaveProperty('description')
+  })
+
   test('states the rule for every future select', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/selects.md'),
@@ -238,6 +285,7 @@ describe('design system select contract', () => {
     expect(rule).toContain('<select')
     expect(rule).toContain('SELECT_SEARCH_THRESHOLD')
     expect(rule).toContain('swatch')
+    expect(rule).toContain('description')
     expect(rule).toContain('triggerRef')
     expect(projectContext).toContain('docs/frontend/selects.md')
   })

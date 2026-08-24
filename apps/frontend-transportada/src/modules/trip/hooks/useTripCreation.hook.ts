@@ -14,18 +14,14 @@ export function useTripCreation() {
     setDraft((current) => ({ ...current, vehicleId }))
   }
 
-  function toggleDriver(driverId: string): void {
-    setDraft((current) => ({
-      ...current,
-      driverIds: current.driverIds.includes(driverId)
-        ? current.driverIds.filter((id) => id !== driverId)
-        : [...current.driverIds, driverId],
-    }))
+  /** O multi-select devolve a seleção inteira: alternar um id de cada vez era do checklist. */
+  function setDriverIds(driverIds: readonly string[]): void {
+    setDraft((current) => ({ ...current, driverIds }))
   }
 
   function reset(): void {
     setDraft(EMPTY_TRIP_DRAFT)
   }
 
-  return { draft, reset, setVehicleId, toggleDriver }
+  return { draft, reset, setDriverIds, setVehicleId }
 }

@@ -70,6 +70,21 @@ A cor **vem de token**, nunca literal no call site: os tons reais ficam em `:roo
 `src/styles/index.css` (`--vehicle-color-*`) e o módulo só monta `var(--…)`. O quadrado é
 `aria-hidden` — o rótulo já diz a cor, e o leitor de tela não deve anunciá-la duas vezes.
 
+## Segunda linha
+
+Cada opção pode carregar `description`, a linha de baixo que **distingue duas opções de rótulo
+parecido** — a placa identifica o veículo, mas é "Próprio da transportadora · Volvo FH 460 · Branca"
+que faz escolher um em vez do outro. O mesmo campo existe no multi-select, e aqui ele nasceu pela
+mesma razão.
+
+O detalhe **repete no gatilho** quando a opção está escolhida: fechado o painel, o gatilho é a única
+prova do que se escolheu, e um select que mostra o detalhe só enquanto está aberto não ajuda quem
+volta ao formulário. Lá ele é uma linha só, ao lado do rótulo, encurtado por reticências.
+
+A busca lê **as duas linhas** (`filterSelectOptions`): quem procura pelo modelo não sabe a placa — é
+por isso que procura. Parte vazia não vira separador solto; quem monta a linha corta o que faltou,
+nunca imprime `" ·  · "`.
+
 ## Busca
 
 A busca **não se pede por prop: ela aparece sozinha** quando a lista passa de
