@@ -48,6 +48,8 @@ emitente da nota.
 - CteBatch: itens, aprovação, cálculo e emissão.
 - CteDocument: eventos e tentativas de transmissão.
 - BillingInvoice: itens, totais e eventos.
+- Trip: paradas ordenadas, condutores e documentos vinculados, com estado próprio (ADR-0043).
+- TripStop: uma parada por endereço de entrega distinto; agrupa as notas daquele endereço.
 - ProcessingJob e AuditLog: rastreabilidade transversal.
 
 ```mermaid
@@ -67,6 +69,15 @@ erDiagram
   COMPANY ||--o{ BILLING_INVOICE : owns
   BILLING_INVOICE ||--o{ BILLING_INVOICE_ITEM : contains
   CTE_DOCUMENT ||--o{ BILLING_INVOICE_ITEM : billed
+  COMPANY ||--o{ TRIP : owns
+  TRIP ||--o{ TRIP_DRIVER : carries
+  TRIP ||--o{ TRIP_STOP : sequences
+  TRIP ||--o{ TRIP_DOCUMENT : links
+  TRIP_STOP ||--o{ TRIP_DOCUMENT : groups
+  NFE_DOCUMENT ||--o| TRIP_DOCUMENT : travels_as
+  TRIP_DOCUMENT ||--o{ TRIP_DOCUMENT_EVENT : records
+  TRIP_DOCUMENT ||--o{ DELIVERY_ADDRESS_OVERRIDE : redirected_by
+  TRIP ||--o{ MDFE_MANIFEST : manifests
   COMPANY ||--o{ STORED_FILE : owns
   COMPANY ||--o{ AUDIT_LOG : scopes
 ```
@@ -80,6 +91,9 @@ erDiagram
 - versões de regra não se sobrepõem para o mesmo escopo/prioridade.
 - FK compostas ou validação equivalente impedem relação entre tenants.
 - `numeric(19,4)` para valores; percentual `numeric(9,6)`.
+- `trip_stop(trip_id, sequence)` unique.
+- índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
+- ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 
 ## Estados
 
@@ -91,6 +105,12 @@ erDiagram
 | CT-e        | DRAFT, PENDING, QUEUED, PROCESSING, AUTHORIZED, REJECTED, DENIED, CANCEL_PENDING, CANCELLED, FAILED                       |
 | Invoice     | DRAFT, OPEN, ISSUED, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED                                                             |
 | Job         | PENDING, PROCESSING, SUCCEEDED, RETRY_SCHEDULED, FAILED, DEAD_LETTER, CANCELLED                                           |
+| Trip        | DRAFT, ROUTE_PLANNED, SEPARATING, LOADING, DISPATCHED, IN_TRANSIT, COMPLETED, CANCELLED                                   |
+| Trip doc    | PENDING, SEPARATED, LOADED, DELIVERED, RETURNED                                                                           |
+
+O estado da viagem é **derivado** do das notas, exceto em quatro transições manuais
+(`route_planned`, `dispatched`, `cancelled`, e a criação em `draft`) — ADR-0043 §1. `DISPATCHED` é
+irreversível e sela o vínculo de documentos (§2).
 
 Transições inválidas retornam `409 STATE_TRANSITION_NOT_ALLOWED` e são
 auditadas.

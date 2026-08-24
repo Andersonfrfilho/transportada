@@ -51,10 +51,17 @@ type CreateFixtureParams = {
 
 export const COMPANY_CONTEXT: CompanyContext = {
   ...NFE_COMPANY_CONTEXT,
-  permissions: new Set(['fleet.manage', 'fleet.read', 'mdfe.manage']),
+  permissions: new Set(['fleet.manage', 'fleet.read', 'mdfe.manage', 'trip.manage']),
 }
 
 export const NO_PERMISSIONS: CompanyContext['permissions'] = new Set([])
+
+/** Quem administra frota deixou de administrar viagem: é o ponto da permissão nova. */
+export const FLEET_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set([
+  'fleet.manage',
+  'fleet.read',
+  'mdfe.manage',
+])
 
 export const READ_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set(['fleet.read'])
 
@@ -83,7 +90,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         closeTripCalls.push(structuredClone(input))
         if (params.closeTripError) throw params.closeTripError
-        return { ...TRIP_DETAIL, status: 'closed' }
+        return { ...TRIP_DETAIL, status: 'completed' }
       },
     },
     createTrip: {

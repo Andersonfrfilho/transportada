@@ -43,7 +43,7 @@ describe('GET /trips', () => {
     const response = await fixture.handle(
       jsonRequest({
         method: 'GET',
-        path: `${TRIPS_PATH}?statusEq=open&vehicleIdEq=${VEHICLE_ID}&driverIdEq=${DRIVER_ID}&createdFrom=2026-08-01T00:00:00.000Z&createdUntil=2026-08-05T00:00:00.000Z&limit=5&cursor=${encodeURIComponent(cursor)}`,
+        path: `${TRIPS_PATH}?statusEq=draft&vehicleIdEq=${VEHICLE_ID}&driverIdEq=${DRIVER_ID}&createdFrom=2026-08-01T00:00:00.000Z&createdUntil=2026-08-05T00:00:00.000Z&limit=5&cursor=${encodeURIComponent(cursor)}`,
       }),
     )
 
@@ -56,7 +56,7 @@ describe('GET /trips', () => {
           createdFrom: '2026-08-01T00:00:00.000Z',
           createdUntil: '2026-08-05T00:00:00.000Z',
           driverIdEq: DRIVER_ID,
-          statusEq: 'open',
+          statusEq: 'draft',
           vehicleIdEq: VEHICLE_ID,
         },
         limit: 5,

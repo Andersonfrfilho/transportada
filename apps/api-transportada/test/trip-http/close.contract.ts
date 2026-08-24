@@ -20,7 +20,7 @@ describe('trip close http contract', () => {
     const response = await fixture.handle(jsonRequest({ method: 'POST', path: tripClosePath() }))
 
     expect(response.status).toBe(200)
-    expect(await responseData(response)).toMatchObject({ status: 'closed' })
+    expect(await responseData(response)).toMatchObject({ status: 'completed' })
     expect(fixture.closeTripCalls).toEqual([{ context: COMPANY_CONTEXT, tripId: TRIP_ID }])
   })
 

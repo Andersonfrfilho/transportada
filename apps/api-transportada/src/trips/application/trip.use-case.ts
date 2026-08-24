@@ -78,7 +78,7 @@ export function createTripUseCase(dependencies: {
   return {
     async close({ context, tripId }) {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
-      if (trip.status === 'closed') return trip
+      if (trip.status === 'completed') return trip
 
       const closed = await repository.close({ companyId: context.companyId, tripId })
       if (closed === null) throw new TripNotFoundError()
@@ -157,7 +157,9 @@ async function assertTripOpen(input: {
   readonly tripId: string
 }): Promise<void> {
   const trip = await findTripOrThrow(input)
-  if (trip.status === 'closed') throw new TripClosedError()
+  // ADR-0042 §2: `dispatched` em diante é a porta de não-retorno; a máquina completa (com
+  // `force`+motivo) chega na T006/T010. Aqui só o terminal `completed` segue travado.
+  if (trip.status === 'completed') throw new TripClosedError()
 }
 
 async function findTripDocumentOrThrow(input: {

@@ -67,7 +67,7 @@ export const TRIP: Trip = {
   companyId: COMPANY_ID,
   createdAt: '2026-08-04T12:00:00.000Z',
   id: TRIP_ID,
-  status: 'open',
+  status: 'draft',
   updatedAt: '2026-08-04T12:00:00.000Z',
   vehicleId: VEHICLE_ID,
 }

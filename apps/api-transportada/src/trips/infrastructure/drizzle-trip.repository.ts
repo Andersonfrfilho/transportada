@@ -54,7 +54,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database.transaction(async (transaction) => {
       const [closed] = await transaction
         .update(trips)
-        .set({ status: 'closed', updatedAt: sql`now()` })
+        .set({ status: 'completed', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
@@ -246,7 +246,7 @@ function tripStillOpen(input: { readonly companyId: string; readonly tripId: str
     select 1 from ${trips}
     where ${trips.companyId} = ${input.companyId}
       and ${trips.id} = ${input.tripId}
-      and ${trips.status} = 'open'
+      and ${trips.status} not in ('completed', 'cancelled')
   )`
 }
 

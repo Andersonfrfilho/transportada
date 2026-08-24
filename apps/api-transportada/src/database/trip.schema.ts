@@ -21,9 +21,32 @@ import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { inList } from './schema-check.constant.js'
 
-/** ADR-0023 §4: a viagem não fala com a SEFAZ, então o ciclo é só aberto/fechado. */
-export const TRIP_STATUSES = ['open', 'closed'] as const
+/**
+ * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
+ * representava. O estado é derivado do das notas em toda transição, exceto as quatro manuais
+ * (draft, route_planned, dispatched, cancelled).
+ */
+export const TRIP_STATUSES = [
+  'draft',
+  'route_planned',
+  'separating',
+  'loading',
+  'dispatched',
+  'in_transit',
+  'completed',
+  'cancelled',
+] as const
 export type TripStatus = (typeof TRIP_STATUSES)[number]
+
+/** ADR-0043 §1: eixo da nota, do qual o estado da viagem é derivado. */
+export const TRIP_DOCUMENT_SEPARATION_STATUSES = [
+  'pending',
+  'separated',
+  'loaded',
+  'delivered',
+  'returned',
+] as const
+export type TripDocumentSeparationStatus = (typeof TRIP_DOCUMENT_SEPARATION_STATUSES)[number]
 
 const TAX_ID_PATTERN = '^[0-9]{11}$'
 
@@ -38,7 +61,7 @@ export const trips = pgTable(
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
     vehicleId: uuid('vehicle_id').notNull(),
-    status: text().$type<TripStatus>().notNull().default('open'),
+    status: text().$type<TripStatus>().notNull().default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -132,7 +155,15 @@ export const tripDocuments = pgTable(
     tripId: uuid('trip_id').notNull(),
     nfeDocumentId: uuid('nfe_document_id'),
     freightCalculationId: uuid('freight_calculation_id'),
+    separationStatus: text('separation_status')
+      .$type<TripDocumentSeparationStatus>()
+      .notNull()
+      .default('pending'),
+    separatedAt: timestamp('separated_at', { withTimezone: true }),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
+    returnReason: text('return_reason'),
     releasedAt: timestamp('released_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -183,6 +214,15 @@ export const tripDocuments = pgTable(
     check(
       'trip_documents_delivered_locks_release_check',
       sql`${table.deliveredAt} is null or ${table.releasedAt} is null`,
+    ),
+    check(
+      'trip_documents_separation_status_check',
+      sql`${table.separationStatus} in (${raw(inList(TRIP_DOCUMENT_SEPARATION_STATUSES))})`,
+    ),
+    // ADR-0043 §7: motivo é obrigatório em toda nota devolvida, e só nela.
+    check(
+      'trip_documents_return_reason_check',
+      sql`(${table.separationStatus} = 'returned') = (${table.returnReason} is not null)`,
     ),
   ],
 )

@@ -42,7 +42,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
   documents: [],
   drivers: [],
   id: TRIP_ID,
-  status: 'open',
+  status: 'draft',
   updatedAt: '2026-08-01T10:00:00.000Z',
   vehicleId: VEHICLE_ID,
   ...overrides,
@@ -83,7 +83,7 @@ function createFixture(params: FixtureParams = {}) {
     async close(input) {
       closeCalls.push(input)
       const trip = params.stored === undefined ? openTrip() : params.stored
-      return trip === null ? null : { ...trip, status: 'closed' }
+      return trip === null ? null : { ...trip, status: 'completed' }
     },
     async create(input) {
       createCalls.push(input)
@@ -265,7 +265,7 @@ describe('trip use case contract', () => {
   })
 
   test('closing an already closed trip is idempotent', async () => {
-    const closedTrip = openTrip({ status: 'closed' })
+    const closedTrip = openTrip({ status: 'completed' })
     const fixture = createFixture({ stored: closedTrip })
     const useCase = createTripUseCase({ repository: fixture.repository })
 
@@ -276,7 +276,7 @@ describe('trip use case contract', () => {
   })
 
   test('refuses to link, deliver or release documents on a closed trip', async () => {
-    const fixture = createFixture({ stored: openTrip({ status: 'closed' }) })
+    const fixture = createFixture({ stored: openTrip({ status: 'completed' }) })
     const useCase = createTripUseCase({ repository: fixture.repository })
 
     const linkError = await useCase
@@ -320,13 +320,13 @@ describe('trip use case contract', () => {
     const result = await useCase.list({
       context: CONTEXT,
       cursor: null,
-      filters: { statusEq: 'open' },
+      filters: { statusEq: 'draft' },
       limit: 25,
     })
 
     expect(result).toEqual(page)
     expect(fixture.listCalls).toEqual([
-      { companyId: COMPANY_ID, cursor: null, filters: { statusEq: 'open' }, limit: 25 },
+      { companyId: COMPANY_ID, cursor: null, filters: { statusEq: 'draft' }, limit: 25 },
     ])
   })
 })

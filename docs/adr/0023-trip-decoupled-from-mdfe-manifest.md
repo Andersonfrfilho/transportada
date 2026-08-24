@@ -1,5 +1,12 @@
 # ADR-0023: Viagem é entidade própria — emenda ao §5 do ADR-0016
 
+> **Emendado pela ADR-0043 (2026-08-24), no §4.** A pergunta em aberto sobre os estados de
+> `trips.status` foi respondida: o ciclo **não** é `open|closed`. São nove estados operacionais, e o
+> da viagem é derivado do estado de cada nota. A premissa deste ADR continua correta — a viagem não
+> fala com a SEFAZ, e por isso não espelha os estados fiscais do manifesto —, mas dela não segue que
+> o ciclo seja binário: os estados que faltavam são de barracão, não de SEFAZ. Os §1, §2, §3 e §5
+> continuam valendo integralmente.
+
 ## Contexto
 
 O ADR-0016 decidiu, no §5 ("O manifesto é a viagem"), que `mdfe_manifests` seria o próprio
@@ -75,9 +82,11 @@ manifesto inválido — cada item ainda é validado individualmente na criação
 Viagem "não fiscal" fecha (`status = closed`) sem nunca ter `mdfe_manifests.trip_id` apontando pra
 ela. Isso não é um estado de erro nem pendência — é o caso de uso que motivou esta emenda.
 
-`[NEEDS CLARIFICATION: quais são os estados de `trips.status`e as transições entre eles —
-paralelo a`mdfe_manifests` (`draft/issuing/authorized/...`) ou mais simples (`open/closed`), já
-que a viagem em si não fala com a SEFAZ?]`
+> **Respondido pela ADR-0043 §1.** Nem um nem outro: `draft`, `route_planned`, `separating`,
+> `loading`, `dispatched`, `in_transit`, `completed`, `cancelled` — e um eixo paralelo por nota
+> (`pending`, `separated`, `loaded`, `delivered`, `returned`), do qual o estado da viagem é derivado.
+> `dispatched` é irreversível e sela o vínculo de notas, o que é o que permite à ADR-0045 (spec 059)
+> afirmar que o conjunto declarado no MDF-e não muda.
 
 ### 5. Migração dos manifestos existentes
 
