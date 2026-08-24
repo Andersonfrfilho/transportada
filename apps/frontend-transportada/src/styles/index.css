@@ -35,6 +35,8 @@
   /* Botão e botão de ícone saem da medida do campo: numa fileira de controles tudo tem uma altura */
   --control-height: var(--field-height);
   --control-height-compact: var(--field-height-compact);
+  /* Alvo de toque de 44px do `web.md` §10: o compacto do design system fica um degrau abaixo */
+  --touch-target: 2.75rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
   /* Cores e proporção da placa Mercosul são do documento oficial: não seguem o tema da aplicação */
@@ -292,7 +294,7 @@ a {
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: 2.75rem;
+  min-height: var(--touch-target);
   padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
   color: var(--color-slate);

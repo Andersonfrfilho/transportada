@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
 
 import {
   TRIP_MANAGE_PERMISSION,
@@ -107,11 +111,17 @@ export function useTripWorkspace(
     ]).then(() => undefined)
   }
 
+  /** Prender e soltar a nota numa viagem mexe no vínculo dela: o alcance mora no registro. */
+  async function invalidateDocumentLink(): Promise<void> {
+    await invalidate()
+    await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+  }
+
   const createMutation = useMutation({ mutationFn: controller.createTrip, onSuccess: invalidate })
   const closeMutation = useMutation({ mutationFn: controller.closeTrip, onSuccess: invalidate })
   const linkDocumentMutation = useMutation({
     mutationFn: controller.linkTripDocument,
-    onSuccess: invalidate,
+    onSuccess: invalidateDocumentLink,
   })
   const deliverDocumentMutation = useMutation({
     mutationFn: controller.deliverTripDocument,
@@ -119,7 +129,7 @@ export function useTripWorkspace(
   })
   const releaseDocumentMutation = useMutation({
     mutationFn: controller.releaseTripDocument,
-    onSuccess: invalidate,
+    onSuccess: invalidateDocumentLink,
   })
 
   return {

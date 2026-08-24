@@ -107,7 +107,14 @@
     "scanReading": "Aponte a câmera para o código da nota",
     "scanDenied": "Permissão de câmera negada — digite a chave da nota.",
     "scanUnavailable": "Câmera indisponível neste aparelho — digite a chave da nota.",
-    "fiscalWarning": "Documento fiscal inválido — confira a situação antes de seguir"
+    "fiscalWarning": "Documento fiscal inválido — confira a situação antes de seguir",
+    "scanQueueTitle": "Notas lidas",
+    "scanQueueKeyColumn": "Chave de acesso",
+    "scanQueueStatusColumn": "Situação",
+    "scanQueueResolving": "Procurando a nota…",
+    "scanQueueLinking": "Vinculando à viagem…",
+    "scanQueueLinked": "Vinculada",
+    "scanQueueClear": "Limpar leituras"
   },
   "feedback": {
     "closed": "Esta viagem já está encerrada.",

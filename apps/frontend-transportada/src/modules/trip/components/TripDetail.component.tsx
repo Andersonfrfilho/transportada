@@ -25,6 +25,7 @@ import {
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
+import { TripScanQueue } from './TripScanQueue.component'
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
@@ -300,6 +301,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
               </Button>
             ) : null}
           </div>
+          <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
           <BarcodeScanner
             closeLabel={t('detail.scanClose')}
             deniedMessage={t('detail.scanDenied')}

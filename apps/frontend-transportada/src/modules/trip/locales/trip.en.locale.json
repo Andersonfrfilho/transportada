@@ -107,7 +107,14 @@
     "scanReading": "Point the camera at the note code",
     "scanDenied": "Camera permission denied — type the note key.",
     "scanUnavailable": "Camera unavailable on this device — type the note key.",
-    "fiscalWarning": "Invalid fiscal document — check its status before proceeding"
+    "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
+    "scanQueueTitle": "Notes read",
+    "scanQueueKeyColumn": "Access key",
+    "scanQueueStatusColumn": "Status",
+    "scanQueueResolving": "Looking the note up…",
+    "scanQueueLinking": "Linking to the trip…",
+    "scanQueueLinked": "Linked",
+    "scanQueueClear": "Clear reads"
   },
   "feedback": {
     "closed": "This trip is already closed.",

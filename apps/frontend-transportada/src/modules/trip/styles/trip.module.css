@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 .tripShell {
+  /* O separador opera esta tela com o dedo: o controle compacto sobe ao alvo de toque no celular. */
+  --control-height-compact: var(--touch-target);
+
   width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-5) 0 var(--space-16);
@@ -9,7 +12,7 @@
   display: grid;
   gap: var(--space-2);
   margin-bottom: var(--space-5);
-  padding: var(--space-6);
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: linear-gradient(
     145deg,
@@ -260,18 +263,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .mdfeGateDialog {
   display: grid;
   gap: var(--space-4);
-  width: min(38rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -332,4 +336,41 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.scanQueue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A chave tem 44 caracteres e nenhum espaço: sem a quebra forçada ela empurra a coluna de
+   situação para fora da tela do celular. */
+.scanQueueKey {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  word-break: break-all;
+}
+
+/* Do tablet em diante sobra largura: o cabeçalho respira, o botão volta ao compacto do design
+   system e o portão de CT-e vira caixa sobre a tela em vez de tomá-la inteira. */
+@media (min-width: 40rem) {
+  .tripShell {
+    --control-height-compact: var(--field-height-compact);
+  }
+
+  .header {
+    padding: var(--space-6);
+  }
+
+  .mdfeGateOverlay {
+    padding: var(--space-4);
+  }
+
+  .mdfeGateDialog {
+    width: min(38rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
 }

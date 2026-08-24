@@ -6,6 +6,7 @@ import { loadFutureModule, NFE_ACCESS_KEY, NFE_DOCUMENT_ID } from './trip.fixtur
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const DETAIL_PATH = 'src/modules/trip/components/TripDetail.component.tsx'
 const LINK_HOOK_PATH = 'src/modules/trip/hooks/useTripDocumentLinkForm.hook.ts'
+const SCAN_QUEUE_SERVICE_PATH = 'src/modules/trip/shared/tripScanQueue.service.ts'
 const FORM_SERVICE_PATH = '../../src/modules/trip/shared/tripForm.service'
 
 type TripDocumentLinkDraft = Readonly<{ mode: 'freight' | 'nfe'; value: string }>
@@ -109,13 +110,13 @@ describe('trip typed access key contract', () => {
    * A leitura preenche o campo com a chave canônica: o QR-Code da DANFE traz a URL inteira, e
    * gravar a URL no campo mandaria a busca atrás de uma chave que não existe.
    */
-  test('fills the field with the canonical key, never the whole QR-Code payload', async () => {
-    const hook = await readApplicationFile(LINK_HOOK_PATH)
+  test('resolves the read to the canonical key, never the whole QR-Code payload', async () => {
+    const queue = await readApplicationFile(SCAN_QUEUE_SERVICE_PATH)
 
-    expect(hook).toContain(
+    expect(queue).toContain(
       "import { extractNfeAccessKey } from '@/modules/shared/nfeAccessKey.service'",
     )
-    expect(hook).toContain('extractNfeAccessKey(text)')
+    expect(queue).toContain('extractNfeAccessKey(text)')
   })
 
   /** Chave que a empresa não tem é recusa dita no lugar, não vínculo silencioso que nunca acontece. */

@@ -99,6 +99,28 @@ tornar o campo opcional obrigaria o frontend a tratá-lo como ausente para sempr
 continua escolhível, e sem `users.manage` o campo volta a ser digitável — quem cuida da frota sem
 administrar usuários ainda precisa cadastrar motorista.
 
+**O separador é papel próprio, e `trip.manage` nasceu para ele.** As rotas de escrita da viagem
+pediam `fleet.manage` — quem montava a viagem ganhava de carona o cadastro da frota inteira. Hoje
+elas pedem `trip.manage` (`TRIP_MANAGE_POLICY` em `trips/presentation/trip.routes.ts`), e o papel
+`separator` recebe **quatro** permissões e nada mais: `invoices.read` para achar a nota que bipou,
+`fleet.read` para escolher veículo e motorista, `trip.read` e `trip.manage` para montar a viagem. Ele
+não cadastra frota, não fatura, não emite documento fiscal e **não reporta entrega** — `trip.report`
+é do campo, não do galpão, e por isso o MDF-e da viagem que ele monta continua com quem responde por
+ele. `admin` e `operator` ganharam `trip.manage` na mesma migration
+(`20260824184702_separator_role`, que só acrescenta a sigla aos dois CHECKs de `membership_roles.role`
+e `user_invitation_roles.role`). ⚠️ `trip.read` está no catálogo mas **nenhuma rota a pede**: a
+leitura de viagem continua em `fleet.read` (`TRIP_READ_POLICY`), e quem migrar isso migra os três
+papéis que a carregam (`driver`, `aggregate`, `separator`). ⚠️ O contrato `test/separator-role.contract.test.ts` lista as rotas
+alcançáveis **por extenso**: rota nova de frota, faturamento ou CT-e reprova ali até alguém decidir,
+por escrito, se o separador a alcança.
+
+**A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
+44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
+— chave de outra empresa é ausência, não 403, e é
+`test/nfe-schema/document-block-tenant-safety.contract.ts` que guarda isso. O padrão é o
+alfanumérico (`^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$`), nunca `\d{44}`: emitente com letra no CNPJ é o
+caso normal desde 01/07/2026.
+
 **A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
 `license_number`, `license_expires_at`, o endereço residencial e o trio do RG existem na tabela e no
 formulário, mas **nenhum consumidor** — nem MDF-e, nem relatório, nem notificação. Quatro
@@ -677,6 +699,27 @@ NFS-e devolvia a nota no banco e a tabela seguia com o `cteBlockReason` da consu
 impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocumentLink` e
 `billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
 em `test/shared/mutation-invalidation.contract.ts`.
+
+**O separador bipa em sequência, e a recusa fica na linha da nota.** A leitura não preenche o campo
+digitável — cada chave lida vira uma linha em `TripScanQueue.component.tsx`, com esqueleto enquanto
+resolve e o motivo impresso ao lado quando a nota é recusada; uma nota que não existe nesta empresa
+não derruba as vizinhas nem interrompe o bipe seguinte. A fila é serviço puro
+(`trip/shared/tripScanQueue.service.ts`): `acceptScannedText` extrai a chave e **descarta a
+duplicata** (o separador passa a mesma etiqueta duas vezes o tempo todo), e `markScanEntry` **ignora
+veredito de chave que não está mais na fila** — as respostas chegam fora de ordem e "Limpar leituras"
+não pode ressuscitar linha nenhuma. O seam é puro porque o teste desta app não tem DOM: o
+comportamento se prova na função, e o contrato `test/trip/scan-link.contract.ts` cobra a fiação por
+texto de fonte. Vincular e desvincular disparam `MUTATION_EFFECT.nfeDocumentLink` além das chaves da
+viagem; marcar entregue **não** — ali muda o estado da nota dentro da viagem, não o vínculo dela com
+lote ou NFS-e.
+
+**A câmera é permitida à própria origem, e só ela.** `server.ts` responde
+`Permissions-Policy: camera=(self), geolocation=(), microphone=()` — `camera=()` negava a **própria**
+origem e fazia `getUserMedia` falhar antes de qualquer diálogo do navegador. `(self)` não é `*`:
+nenhum terceiro herda a câmera, e a CSP já declara `frame-src 'none'` desde a ADR-0037. O contrato
+`test/shared/security-headers.contract.ts` guarda os dois sentidos — falha se `camera` voltar a `()`
+e falha se `geolocation` ou `microphone` deixarem de ser `()`, que é a carona de capacidade de
+dispositivo seis meses adiante. Achado datado em `docs/SECURITY.md`.
 
 **Marca e modelo do veículo têm saída da lista, e a frota realimenta a lista.** O catálogo FIPE não
 tem implemento, marca regional nem cavalo antigo: `VehicleCatalogField.component.tsx` acrescenta a
