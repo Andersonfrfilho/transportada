@@ -278,13 +278,31 @@ export const cteBatchItemCharges = pgTable(
   ],
 )
 
+/**
+ * Nomes aceitos pelo CHECK de `cte_batch_events`. A lista alimenta o tipo da coluna e a própria
+ * constraint: separar os dois foi o que deixou `items_appended` passar no TypeScript e estourar
+ * 23514 no banco, derrubando a transação inteira da fatia.
+ */
+export const CTE_BATCH_EVENT_NAMES = [
+  'created',
+  'updated',
+  'items_appended',
+  'submitted',
+  'in_flight',
+  'done',
+  'error',
+  'cancelled',
+] as const
+
+export type CteBatchEventName = (typeof CTE_BATCH_EVENT_NAMES)[number]
+
 export const cteBatchEvents = pgTable(
   'cte_batch_events',
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
     batchId: uuid('batch_id').notNull(),
-    eventName: text('event_name').notNull(),
+    eventName: text('event_name').$type<CteBatchEventName>().notNull(),
     payload: jsonb().notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -312,7 +330,7 @@ export const cteBatchEvents = pgTable(
       .onUpdate('cascade'),
     check(
       'cte_batch_events_name_check',
-      sql`${table.eventName} in ('created', 'updated', 'submitted', 'in_flight', 'done', 'error', 'cancelled')`,
+      sql`${table.eventName} in (${sql.raw(CTE_BATCH_EVENT_NAMES.map((name) => `'${name}'`).join(', '))})`,
     ),
   ],
 )

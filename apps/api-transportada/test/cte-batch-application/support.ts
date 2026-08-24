@@ -1,5 +1,9 @@
 import { expect } from 'bun:test'
 
+import {
+  CTE_BATCH_EVENT_NAMES,
+  type CteBatchEventName,
+} from '../../src/database/cte-batch.schema.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import {
   CteBatchPreviewProfileCatalogFixture,
@@ -305,7 +309,15 @@ export class CteBatchUnitOfWorkFixture {
     this.createdItemDocuments.push(input)
   }
 
+  /**
+   * O dublê recusa o que o Postgres recusaria. Aceitar qualquer nome aqui deixou `items_appended`
+   * passar no teste e estourar o CHECK em produção, derrubando a transação inteira da fatia.
+   */
   public async createBatchEvent(input: Record<string, unknown>): Promise<void> {
+    const eventName = String(input['eventName'])
+    if (!CTE_BATCH_EVENT_NAMES.includes(eventName as CteBatchEventName)) {
+      throw new Error(`cte_batch_events_name_check violated by event name "${eventName}"`)
+    }
     this.createdEvents.push(input)
   }
 

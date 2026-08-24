@@ -17,6 +17,7 @@ import {
   freightRuleVersions,
 } from '../../database/database.schema.js'
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import { CTE_BATCH_EVENT_NAMES, type CteBatchEventName } from '../../database/cte-batch.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { ApiError } from '../../shared/api.error.js'
 import type {
@@ -71,7 +72,7 @@ class DrizzleCteBatchTransaction {
     await this.database.insert(cteBatchEvents).values({
       batchId: requiredString(input.batchId),
       companyId: requiredString(input.companyId),
-      eventName: requiredString(input.eventName),
+      eventName: requiredEventName(input.eventName),
       occurredAt: new Date(),
       payload: input.payload ?? {},
     })
@@ -657,4 +658,17 @@ function requiredStatus(value: unknown): CteBatchStatus {
   }
 
   throw new Error('EXPECTED_CTE_BATCH_STATUS')
+}
+
+/**
+ * Fronteira entre o `Record<string, unknown>` do port e o CHECK da tabela: falhar aqui devolve o
+ * nome recusado, em vez de deixar o Postgres abortar a transação com um 23514 sem contexto.
+ */
+function requiredEventName(value: unknown): CteBatchEventName {
+  const eventName = requiredString(value)
+  if (!CTE_BATCH_EVENT_NAMES.includes(eventName as CteBatchEventName)) {
+    throw new Error(`CTE_BATCH_EVENT_NAME_UNSUPPORTED:${eventName}`)
+  }
+
+  return eventName as CteBatchEventName
 }
