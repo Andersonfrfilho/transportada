@@ -253,14 +253,37 @@ timestamp + evento, e recalcula o estado da viagem **na mesma transação**. Ide
   recusado pelo trigger append-only da T005 — a primeira prova real de que o trigger protege
   linha **escrita pela aplicação**, não só a linha semeada à mão do probe de T005.
 
-### T009 — Transição em lote
+### T009 ✅ — Transição em lote
 
 50 notas em uma transação e uma ida ao banco por tabela. É a operação real do armazém; uma a uma é
 a que o produto não deve incentivar.
 
-- **Arquivos:** `src/trips/application/transition-trip-documents-batch.use-case.ts` (novo)
-- **Aceite:** `test/trip-documents/batch-transition.contract.ts` (contagem de queries assertada)
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `src/trips/application/transition-trip-documents-batch.use-case.ts` (novo, com o
+  port `TripDocumentBatchTransitionPort`),
+  `src/trips/infrastructure/drizzle-trip-document-batch.repository.ts` (novo),
+  `test/trip-documents.contract.test.ts` (registro)
+- **Aceite:** `test/trip-documents/batch-transition.contract.ts` (7 testes; contagem de queries
+  assertada por número de **chamadas ao port**, não de SQL bruto — é o nível certo de asserção
+  para um teste de use case, e o probe live abaixo confere o SQL de verdade)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2990 pass, 0 fail) ✅
+- **Evidência:** cada nota do lote é resolvida pela T006 na íntegra (`applied`/`unchanged`/`blocked`
+  por documento, mais `not_found`/`raced` que só existem no nível do lote), e um bloqueio no meio
+  não trava as demais — teste com 4 ids em 4 desfechos diferentes na mesma chamada. Nada itera por
+  documento no lado do banco: `findSnapshots` é uma leitura para todos os ids pedidos, `writeBatch`
+  nunca é chamado quando não há nada para aplicar, e com 50 ids o teste confere exatamente 1
+  chamada de leitura e 1 de escrita.
+
+  A escrita real usa `(id, separation_status) in (VALUES (...), (...))` — um `UPDATE` só, guardado
+  por par `(id, fromStatus)` linha a linha, porque `toStatus` é uniforme no lote mas `fromStatus`
+  pode variar (a origem de `separate` não é fixa). É a peça de SQL bruto que um port falso não
+  prova sozinha.
+
+  **Provado contra o Postgres real** com um probe temporário (apagado, banco recriado do zero):
+  semeei 3 notas, marquei uma delas como já `separated` por fora — simulando a corrida —, e chamei
+  o lote pedindo `pending→separated` nas três. Resultado: as duas de verdade `pending` foram
+  escritas; a terceira ficou fora do `UPDATE` e **seu `separated_at` anterior não foi tocado**
+  (prova de que o guard por linha funciona, não só o guard do lote inteiro); exatamente 2 eventos
+  gravados, não 3.
 
 ### T010 — Planejar e despachar
 
