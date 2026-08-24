@@ -34,12 +34,14 @@ import {
 } from '../shared/cteEmission.service'
 import {
   chunkEmissionSelection,
-  CTE_EMISSION_MAX_VISIBLE_ROWS,
+  CTE_EMISSION_DEFAULT_PAGE_SIZE,
   CTE_EMISSION_PREVIEW_CONCURRENCY,
+  paginateEmissionRows,
   mergeEmissionPreviews,
   resolveEmissionProgress,
   runEmissionQueue,
   type CteEmissionChunkResult,
+  type CteEmissionPageSize,
   type CteEmissionProgress,
   type CteEmissionProgressEvent,
 } from '../shared/cteEmissionQueue.service'
@@ -66,6 +68,7 @@ export type UseCteEmissionDialogResult = Readonly<{
   blockGroups: readonly CteEmissionBlockGroup[]
   canConfirm: boolean
   canEmit: boolean
+  canGoToPreviousPage: boolean
   canManageProfiles: boolean
   chunkCount: number
   createProgress: CteEmissionProgress
@@ -73,20 +76,29 @@ export type UseCteEmissionDialogResult = Readonly<{
   confirm: () => void
   createdBatch: CteBatchSummary | null
   errorCode: null | string
+  goToNextPage: () => void
+  goToPreviousPage: () => void
   groupingMode: CteEmissionGroupingMode
-  hiddenRowCount: number
+  hasNextPage: boolean
   isFormLocked: boolean
   isOpen: boolean
   name: string
   open: () => void
   openProfileSettings: () => void
+  pageCount: number
+  pageNumber: number
+  pageSize: CteEmissionPageSize
   preview: CteEmissionPreview | null
   previewProgress: CteEmissionProgress
   profileId: string
   profileOptions: readonly CteEmissionProfileOption[]
+  rowsFirstShown: number
+  rowsLastShown: number
+  rowsTotal: number
   selectedCount: number
   setGroupingMode: (mode: CteEmissionGroupingMode) => void
   setName: (name: string) => void
+  setPageSize: (size: CteEmissionPageSize) => void
   setProfileId: (profileId: string) => void
   status: CteEmissionStatus
   summary: CteEmissionSummary | null
@@ -115,6 +127,8 @@ export function useCteEmissionDialog(
   const [createdBatch, setCreatedBatch] = useState<CteBatchSummary | null>(null)
   const [previewProgressEvent, setPreviewProgressEvent] = useState(IDLE_PROGRESS)
   const [createProgressEvent, setCreateProgressEvent] = useState(IDLE_PROGRESS)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSizeState] = useState<CteEmissionPageSize>(CTE_EMISSION_DEFAULT_PAGE_SIZE)
 
   const permissions = input.companyId === undefined ? [] : input.permissions
   const canEmit = permissions.includes(CTE_MANAGE_PERMISSION)
@@ -238,6 +252,7 @@ export function useCteEmissionDialog(
   })
 
   function open(): void {
+    setPage(1)
     setCreatedBatch(null)
     setCreateProgressEvent(IDLE_PROGRESS)
     setPreviewProgressEvent(IDLE_PROGRESS)
@@ -264,11 +279,26 @@ export function useCteEmissionDialog(
   }
 
   const rows = summary?.rows ?? []
+  const rowPage = paginateEmissionRows({ page, pageSize, rows })
+
+  function setPageSize(size: CteEmissionPageSize): void {
+    setPageSizeState(size)
+    setPage(1)
+  }
+
+  function goToPreviousPage(): void {
+    setPage(rowPage.pageNumber - 1)
+  }
+
+  function goToNextPage(): void {
+    setPage(rowPage.pageNumber + 1)
+  }
 
   return {
     blockGroups: preview === null ? [] : groupBlocksByReason(preview.blocked),
     canConfirm: canConfirmEmission({ preview, status }),
     canEmit,
+    canGoToPreviousPage: rowPage.canGoToPreviousPage,
     canManageProfiles: canReachCteProfiles(permissions),
     chunkCount: chunks.length,
     close,
@@ -276,13 +306,18 @@ export function useCteEmissionDialog(
     createdBatch,
     createProgress: resolveEmissionProgress(createProgressEvent),
     errorCode: readErrorCode(previewQuery.error ?? createMutation.error),
+    goToNextPage,
+    goToPreviousPage,
     groupingMode,
-    hiddenRowCount: Math.max(0, rows.length - CTE_EMISSION_MAX_VISIBLE_ROWS),
+    hasNextPage: rowPage.hasNextPage,
     isFormLocked: isEmissionFormLocked(status),
     isOpen,
     name,
     open,
     openProfileSettings,
+    pageCount: rowPage.pageCount,
+    pageNumber: rowPage.pageNumber,
+    pageSize,
     preview,
     previewProgress: resolveEmissionProgress(previewProgressEvent),
     profileId,
@@ -291,13 +326,16 @@ export function useCteEmissionDialog(
       name: profile.name,
       percentage: profile.freightRule.percentage,
     })),
+    rowsFirstShown: rowPage.firstShown,
+    rowsLastShown: rowPage.lastShown,
+    rowsTotal: rowPage.total,
     selectedCount: input.documentIds.length,
     setGroupingMode,
     setName: setCustomName,
+    setPageSize,
     setProfileId,
     status,
     summary,
-    // Dezenas de milhares de linhas no DOM travam a janela; o restante vira contagem no rodapé.
-    visibleRows: rows.slice(0, CTE_EMISSION_MAX_VISIBLE_ROWS),
+    visibleRows: rowPage.rows,
   }
 }
