@@ -189,17 +189,32 @@ transição inválida sem subir banco.
     entregue" é vacuamente verdade num saco vazio, e sem essa guarda uma viagem vazia completaria
     sozinha. Tem teste para os dois.
 
-### T007 — Normalização de endereço e derivação de parada
+### T007 ✅ — Normalização de endereço e derivação de parada
 
 Função única e testada de `(postal_code, number, city_code)` → chave. `01310-100`/`01310100`,
 `nº 45`/`45`/`45 A` resolvidos por teste, não por leitura. Mais o reconciliador: vincular cria a
 parada se faltar, desvincular a última apaga.
 
 - **Arquivos:** `src/trips/domain/stop-address-key.ts` (novo),
-  `src/trips/application/reconcile-trip-stops.use-case.ts` (novo)
-- **Aceite:** `test/trip-stops/address-key.contract.ts` (as quatro variantes de D3),
-  `test/trip-stops/reconcile.contract.ts`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+  `src/trips/application/reconcile-trip-stops.use-case.ts` (novo — inclui o port
+  `TripStopReconciliationPort`, escopo mínimo do que o reconciliador precisa do banco; a T012 liga
+  isso ao repositório real quando as rotas de vínculo passarem a chamá-lo), `test/trip-stops.contract.test.ts`
+  (novo, umbrella), `package.json` (registrado no script `test`)
+- **Aceite:** `test/trip-stops/address-key.contract.ts` (15 testes), `test/trip-stops/reconcile.contract.ts`
+  (7 testes, com port falso no padrão de `trip-use-case.contract.ts`)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2975 pass, 0 fail) ✅
+- **Evidência:** normalização de CEP (só dígitos, exige 8) e de número (remove prefixo `nº`/`n°`,
+  maiúsculas) conforme os dois pares literais do D3. Adicionei um terceiro caso que o D3 não citava
+  mas que quebraria o agrupamento na prática: endereço **sem número** — `S/N`, `SN`, `sem número` —
+  vira a chave canônica `S/N` em vez de string vazia, senão duas notas sem número no mesmo CEP
+  virariam duas paradas por acidente de string. CEP que não normaliza para 8 dígitos devolve `null`
+  em vez de chave inventada — é o sinal que T010 usa para o balde `SEM ENDEREÇO` do RF-9.
+
+  O reconciliador é as duas metades exigidas: `reconcileStopOnLink` reaproveita a parada existente
+  ou cria uma nova com a próxima sequência; `reconcileStopOnUnlink` apaga a parada só quando a
+  contagem de documentos vivos chega a zero, e documenta explicitamente que precisa ser chamado
+  **depois** de a nota perder a referência ao `stopId` — senão ela mesma se conta como razão para
+  a parada continuar existindo.
 
 ### T008 — Transição de nota, com evento e derivação da viagem
 
