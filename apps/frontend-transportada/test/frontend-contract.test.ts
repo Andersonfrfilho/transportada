@@ -36,7 +36,7 @@ describe('frontend foundation contract', () => {
       'src/modules/foundation/locales/foundation.en.locale.json',
     )
 
-    expect(styles).toContain('@media (min-width: 48rem)')
+    expect(styles).not.toContain('48rem')
     expect(styles).toContain('@media (min-width: 40rem)')
     expect(styles).toContain('@media (min-width: 64rem)')
     expect(styles).toContain('@media (min-width: 80rem)')

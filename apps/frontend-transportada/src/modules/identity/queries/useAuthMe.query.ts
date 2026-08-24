@@ -16,6 +16,7 @@ const COMPANY_ROLES = [
   'viewer',
   'driver',
   'aggregate',
+  'separator',
 ] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
@@ -49,6 +50,7 @@ const COMPANY_PERMISSIONS = [
   'nfse.cancel',
   'nfse.read',
   'trip.read',
+  'trip.manage',
   'trip.report',
 ] as const
 

@@ -11,6 +11,7 @@ export type IconName =
   | 'arrow-down'
   | 'arrow-up'
   | 'calendar'
+  | 'camera'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'
@@ -76,6 +77,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'arrow-down': ['M12 4v14', 'M6 12l6 6 6-6'],
   'arrow-up': ['M12 20V6', 'M6 12l6-6 6 6'],
   calendar: ['M8 3v4', 'M16 3v4', 'M4 7h16v14H4z', 'M4 11h16'],
+  camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
   check: ['M5 13l4 4L19 7'],
   'chevron-down': ['M6 9l6 6 6-6'],
   'chevron-left': ['M15 18l-6-6 6-6'],

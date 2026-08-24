@@ -34,6 +34,7 @@ export const COMPANY_ROLES = [
   'viewer',
   'driver',
   'aggregate',
+  'separator',
 ] as const
 export type CompanyRole = (typeof COMPANY_ROLES)[number]
 
@@ -129,7 +130,7 @@ export const membershipRoles = pgTable(
   (table) => [
     check(
       'membership_roles_role_check',
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate')`,
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

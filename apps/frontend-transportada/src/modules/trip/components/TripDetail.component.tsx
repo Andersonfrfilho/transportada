@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
@@ -119,9 +120,12 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
     workspace.closeMutation.error,
   ])
 
-  function handleLinkDocument(): void {
+  /** A chave lida vira identificador antes do vínculo: a rota não conhece chave de acesso. */
+  async function handleLinkDocument(): Promise<void> {
     if (trip === undefined) return
-    const body = buildLinkTripDocumentBody(linkForm.draft)
+    const documentId = await linkForm.resolveDocumentId()
+    if (documentId === undefined) return
+    const body = buildLinkTripDocumentBody({ mode: linkForm.draft.mode, value: documentId })
     workspace.linkDocumentMutation.mutate(
       { ...body, tripId: trip.id },
       { onSuccess: linkForm.reset },
@@ -263,22 +267,50 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
             <label>
               {t('detail.linkValue')}
               <input
+                autoComplete="off"
                 onChange={(event) => linkForm.setValue(event.target.value)}
                 value={linkForm.draft.value}
               />
+              <span className={styles.hint}>{t('detail.linkValueHint')}</span>
             </label>
           </div>
+          {linkForm.issue === undefined ? null : (
+            <p className={styles.alert} role="alert">
+              {t(`feedback.${linkForm.issue}`)}
+            </p>
+          )}
           <div className={styles.actionActions}>
             <Button
-              disabled={linkForm.draft.value === '' || workspace.linkDocumentMutation.isPending}
-              onClick={handleLinkDocument}
+              disabled={
+                linkForm.reference === undefined ||
+                linkForm.isResolving ||
+                workspace.linkDocumentMutation.isPending
+              }
+              onClick={() => void handleLinkDocument()}
               size="sm"
               type="button"
             >
               <Icon name="link" />
               {t('actions.linkDocument')}
             </Button>
+            {linkForm.canScan ? (
+              <Button onClick={linkForm.openScanner} size="sm" type="button" variant="secondary">
+                <Icon name="camera" />
+                {t('detail.scan')}
+              </Button>
+            ) : null}
           </div>
+          <BarcodeScanner
+            closeLabel={t('detail.scanClose')}
+            deniedMessage={t('detail.scanDenied')}
+            isOpen={linkForm.isScannerOpen}
+            onClose={linkForm.closeScanner}
+            onRead={linkForm.acceptScan}
+            readingMessage={t('detail.scanReading')}
+            startingMessage={t('detail.scanStarting')}
+            title={t('detail.scanTitle')}
+            unavailableMessage={t('detail.scanUnavailable')}
+          />
         </div>
       ) : null}
 

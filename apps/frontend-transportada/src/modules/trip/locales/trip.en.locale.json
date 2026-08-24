@@ -98,7 +98,15 @@
     "linkMode": "Reference type",
     "linkModeNfe": "Fiscal note (NF-e)",
     "linkModeFreight": "Freight calculation",
-    "linkValue": "Identifier",
+    "linkValue": "Identifier or key",
+    "linkValueHint": "Type the note identifier or the 44-character key printed under the barcode.",
+    "scan": "Scan with the camera",
+    "scanTitle": "Note reading",
+    "scanClose": "Close the reader",
+    "scanStarting": "Opening the camera…",
+    "scanReading": "Point the camera at the note code",
+    "scanDenied": "Camera permission denied — type the note key.",
+    "scanUnavailable": "Camera unavailable on this device — type the note key.",
     "fiscalWarning": "Invalid fiscal document — check its status before proceeding"
   },
   "feedback": {
@@ -114,6 +122,7 @@
     "notFound": "Trip not found.",
     "requestFailed": "Could not reach the API.",
     "responseInvalid": "The API responded in an unexpected format.",
+    "scannedDocumentNotFound": "No note with this access key in this company.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found."
   },

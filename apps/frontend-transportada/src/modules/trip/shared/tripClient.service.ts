@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { TRIP_ERROR, TRIPS_PATH } from './trip.constant'
+import { NFE_DOCUMENTS_PATH, SCAN_LOOKUP_LIMIT, TRIP_ERROR, TRIPS_PATH } from './trip.constant'
 import type {
   CreateTripBody,
+  FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  ScannedNfeDocument,
   TripDetail,
   TripDocument,
   TripDocumentActionInput,
@@ -22,6 +24,9 @@ export type TripClient = Readonly<{
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  findNfeDocumentByAccessKey: (
+    input: FindNfeDocumentByAccessKeyInput,
+  ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listTrips: (input: TripListInput) => Promise<TripPage>
@@ -45,7 +50,9 @@ async function requestJson(
   let response: Response
   try {
     response = await input.fetch(input.request)
-  } catch {
+  } catch (cause) {
+    // Cancelamento não é falha de rede: o separador bipa rápido, e a leitura nova aborta a anterior.
+    if (input.request.signal.aborted) throw cause
     throw requestError(TRIP_ERROR.REQUEST_FAILED)
   }
   const rawBody = await response.text()
@@ -65,6 +72,7 @@ async function authorizedRequest(
     dependencies: ClientDependencies
     method: 'DELETE' | 'GET' | 'POST'
     path: string
+    signal?: AbortSignal
   }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
@@ -72,6 +80,7 @@ async function authorizedRequest(
   if (input.body !== undefined) headers['content-type'] = 'application/json'
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  if (input.signal !== undefined) requestInit.signal = input.signal
 
   return requestJson({
     fetch: input.dependencies.fetch,
@@ -130,6 +139,21 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/deliver`,
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async findNfeDocumentByAccessKey(input) {
+      const search = buildSearch(
+        { cursor: null, limit: SCAN_LOOKUP_LIMIT },
+        {
+          accessKey: input.accessKey,
+        },
+      )
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${NFE_DOCUMENTS_PATH}?${search}`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.scannedNfeDocumentFromApi(response)
     },
     async getTrip(input) {
       const response = await authorizedRequest({

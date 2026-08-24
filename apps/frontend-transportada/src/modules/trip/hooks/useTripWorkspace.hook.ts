@@ -11,7 +11,9 @@ import {
 } from '../shared/trip.constant'
 import type {
   CreateTripBody,
+  FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  ScannedNfeDocument,
   TripDetail,
   TripDocument,
   TripDocumentActionInput,
@@ -24,6 +26,9 @@ export type TripController = Readonly<{
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  findNfeDocumentByAccessKey: (
+    input: FindNfeDocumentByAccessKeyInput,
+  ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
@@ -46,6 +51,8 @@ export function createTripController(
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     deliverTripDocument: (body) =>
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    findNfeDocumentByAccessKey: (query) =>
+      canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),

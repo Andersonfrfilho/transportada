@@ -98,7 +98,15 @@
     "linkMode": "Tipo de referência",
     "linkModeNfe": "Nota fiscal (NF-e)",
     "linkModeFreight": "Cálculo de frete",
-    "linkValue": "Identificador",
+    "linkValue": "Identificador ou chave",
+    "linkValueHint": "Digite o identificador da nota ou a chave de 44 caracteres impressa sob o código de barras.",
+    "scan": "Ler com a câmera",
+    "scanTitle": "Leitura da nota",
+    "scanClose": "Fechar a leitura",
+    "scanStarting": "Abrindo a câmera…",
+    "scanReading": "Aponte a câmera para o código da nota",
+    "scanDenied": "Permissão de câmera negada — digite a chave da nota.",
+    "scanUnavailable": "Câmera indisponível neste aparelho — digite a chave da nota.",
     "fiscalWarning": "Documento fiscal inválido — confira a situação antes de seguir"
   },
   "feedback": {
@@ -114,6 +122,7 @@
     "notFound": "Viagem não encontrada.",
     "requestFailed": "Não foi possível falar com a API.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
+    "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
     "vehicleNotFound": "Veículo não encontrado."
   },

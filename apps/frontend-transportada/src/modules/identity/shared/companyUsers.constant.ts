@@ -18,6 +18,7 @@ export const COMPANY_ROLES = [
   'viewer',
   'driver',
   'aggregate',
+  'separator',
 ] as const
 
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const

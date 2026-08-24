@@ -5,6 +5,29 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
+
+**Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`).
+
+**O que é:** o cabeçalho era `camera=(), geolocation=(), microphone=()`. `camera=()` nega a **própria**
+origem: `getUserMedia` falha antes de qualquer diálogo do navegador. Passa a `camera=(self)`, para o
+separador ler o QR da nota pela câmera do celular na tela de viagem (spec 055). Abrir capacidade de
+dispositivo é decisão que se audita, e por isso ela é registrada aqui em vez de ser uma linha mudada
+em silêncio.
+
+**O que continua fechado:** `geolocation=()` e `microphone=()` — a tela não pede posição nem áudio, e
+nada nesta mudança os toca. `(self)` não é `*`: nenhum `iframe` de terceiro herda a câmera, e a CSP
+já declara `frame-src 'none'` desde a ADR-0037, então não há moldura de terceiro dentro da nossa tela
+para herdar coisa alguma. O navegador continua pedindo consentimento ao usuário a cada origem — o
+cabeçalho remove o bloqueio, não a permissão.
+
+**O que falta:** nada em aberto. O contrato
+`frontend-transportada/test/shared/security-headers.contract.ts` guarda os dois sentidos: falha se
+`camera` voltar a `()` e falha se `geolocation` ou `microphone` deixarem de ser `()` — a carona de
+capacidade de dispositivo é o risco real de seis meses adiante, não a câmera que alguém pediu.
+
+**Origem:** spec 055, T003.
+
 ### 2026-08-21 — a rota de CEP chama provedor externo sem limitador de requisição
 
 **Onde:** `api-transportada`, `addresses/presentation/postal-code.routes.ts` e

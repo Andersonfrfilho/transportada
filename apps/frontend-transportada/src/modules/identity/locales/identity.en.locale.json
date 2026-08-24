@@ -58,7 +58,8 @@
       "operator": "Operations",
       "viewer": "Viewer",
       "driver": "Driver",
-      "aggregate": "Aggregate"
+      "aggregate": "Aggregate",
+      "separator": "Separator"
     },
     "status": {
       "invited": "Invited",

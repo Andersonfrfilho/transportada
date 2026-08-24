@@ -568,6 +568,12 @@ Todo container de tela usa `width: var(--layout-width)` — nenhum módulo decla
 o cabeçalho da aplicação e os painéis fecharem na mesma borda. Detalhes em `docs/frontend/layout.md`,
 contrato em `test/design-system/layout-width.contract.ts`.
 
+Toda largura de tela sai dos quatro pontos de quebra do `web.md` §10 — base (sem consulta), `40rem`,
+`64rem` e `80rem` —, sempre em `min-width`: `max-width` e `width <=` são **proibidos** em
+`src/**/*.css` e o contrato `test/design-system/responsive.contract.ts` falha com qualquer um dos
+dois, e com ponto de quebra fora dos quatro. Regra completa, com o alvo de toque de 44px e as três
+larguras de conferência, em `docs/frontend/responsive.md`.
+
 Todo campo (`input`, `textarea`, gatilho de select) tira altura, padding e corpo de texto dos tokens
 `--field-height`/`--field-padding`/`--field-font-size` (e suas variantes `*-compact`) — nenhum módulo
 inventa altura própria. Detalhes em `docs/frontend/fields.md`, contrato em
@@ -579,6 +585,14 @@ contrato `test/design-system/date-picker.contract.ts` falha se algum reaparecer.
 próprio de campo publica o dele ao lado do de texto (`FleetDateField`, `ProfileDateField`) em vez de
 aceitar um `type` que escolhe entre texto e data — era por esse `type` que o nativo entrava. Regra na
 seção "Data é calendário" de `docs/frontend/fields.md`.
+
+Toda leitura de etiqueta pela câmera usa `@/components/ui/barcode-scanner` — `BarcodeDetector`
+quando o navegador tem (Chromium no Android) e o decodificador do `@zxing/library` num worker
+empacotado pelo Vite quando não (Safari do iPhone, Firefox). O worker é referenciado por
+`new URL(…, import.meta.url)`, **nunca** por `blob:`: a CSP declara `worker-src 'self'` e o leitor
+não a afrouxa (ADR-0042). Câmera ausente ou permissão negada devolvem indisponibilidade, não
+exceção — o campo digitado continua sendo o caminho. Regra em `docs/frontend/barcode-scanner.md`,
+contrato em `test/design-system/barcode-scanner.contract.ts`.
 
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.

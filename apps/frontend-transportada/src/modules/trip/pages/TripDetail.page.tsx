@@ -22,7 +22,9 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
     permissions,
     tripId,
   })
-  const linkForm = useTripDocumentLinkForm()
+  const linkForm = useTripDocumentLinkForm({
+    findNfeDocumentByAccessKey: workspace.controller.findNfeDocumentByAccessKey,
+  })
 
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())

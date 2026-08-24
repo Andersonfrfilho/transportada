@@ -7,8 +7,9 @@ import {
   TRIP_ERROR,
   TRIP_KEYS,
 } from './trip.constant'
-import { TRIP_STATUS } from './trip.types'
+import { SCANNED_NFE_STATUS, TRIP_STATUS } from './trip.types'
 import type {
+  ScannedNfeDocument,
   Trip,
   TripDetail,
   TripDocument,
@@ -89,6 +90,25 @@ function isDetail(value: unknown): value is TripDetail {
   )
 }
 
+/**
+ * Guarda parcial de propósito: a linha vem da rota de outro módulo, e exigir chave exata faria a
+ * tela do separador parar toda vez que a listagem de notas ganhasse uma coluna.
+ */
+function isScannedDocument(value: unknown): value is ScannedNfeDocument {
+  return (
+    isRecord(value) &&
+    isString(value.accessKey) &&
+    isString(value.emitterName) &&
+    isString(value.id) &&
+    isString(value.issuedAt) &&
+    isString(value.number) &&
+    isString(value.recipientName) &&
+    isString(value.series) &&
+    isOneOf(value.status, SCANNED_NFE_STATUS) &&
+    isString(value.totalAmount)
+  )
+}
+
 export function createTripResponseAdapters() {
   function tripFromApi(input: unknown): Trip {
     if (!isTrip(input)) throw invalid()
@@ -103,6 +123,25 @@ export function createTripResponseAdapters() {
     tripDocumentFromApi(input: unknown): TripDocument {
       if (!isDocument(input)) throw invalid()
       return input
+    },
+    /** Ausência é resposta, não falha: chave que a empresa não tem devolve página vazia. */
+    scannedNfeDocumentFromApi(input: unknown): null | ScannedNfeDocument {
+      if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
+      const rows: readonly unknown[] = input.data
+      const [row] = rows
+      if (row === undefined) return null
+      if (!isScannedDocument(row)) throw invalid()
+      return {
+        accessKey: row.accessKey,
+        emitterName: row.emitterName,
+        id: row.id,
+        issuedAt: row.issuedAt,
+        number: row.number,
+        recipientName: row.recipientName,
+        series: row.series,
+        status: row.status,
+        totalAmount: row.totalAmount,
+      }
     },
     tripFromApi,
     tripListFromApi(input: unknown): TripPage {

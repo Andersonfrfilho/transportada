@@ -58,7 +58,8 @@
       "operator": "Operação",
       "viewer": "Consulta",
       "driver": "Motorista",
-      "aggregate": "Agregado"
+      "aggregate": "Agregado",
+      "separator": "Separador"
     },
     "status": {
       "invited": "Convidado",

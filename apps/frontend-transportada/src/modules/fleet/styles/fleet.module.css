@@ -172,7 +172,7 @@
 
 /* As seis classes são a fileira da tabela impressa: quanto mais couber lado a lado, mais a tela
    parece com o papel que o operador confere. */
-@media (min-width: 60rem) {
+@media (min-width: 64rem) {
   .rateGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -774,7 +774,7 @@
   color: var(--color-ready);
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .fuelPriceRow {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     align-items: start;
@@ -903,18 +903,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .driverDialog {
   display: grid;
   gap: var(--space-5);
-  width: min(48rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -933,16 +934,16 @@
   font-size: 1.5rem;
 }
 
-@media (width <= 40rem) {
+@media (min-width: 40rem) {
   .driverDialogOverlay {
-    padding: 0;
+    padding: var(--space-4);
   }
 
   .driverDialog {
-    width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border: none;
+    width: min(48rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
 }
 

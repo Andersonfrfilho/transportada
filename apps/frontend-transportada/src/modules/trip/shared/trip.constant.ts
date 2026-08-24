@@ -1,9 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const TRIPS_PATH = '/trips'
 
-/** spec.md § Dúvidas: "Permissão: `fleet.manage` — sem papel novo por enquanto." */
+/** A nota bipada é procurada na listagem de NF-e; a chave é única por empresa, então uma basta. */
+export const NFE_DOCUMENTS_PATH = '/nfe-documents'
+export const SCAN_LOOKUP_LIMIT = 1
+
+/**
+ * Ler viagem é `fleet.read` — a tela mostra veículo e motorista. Escrever é permissão própria:
+ * `fleet.manage` também apaga veículo e motorista, e quem monta a viagem não faz isso.
+ */
 export const TRIP_READ_PERMISSION = 'fleet.read'
-export const TRIP_MANAGE_PERMISSION = 'fleet.manage'
+export const TRIP_MANAGE_PERMISSION = 'trip.manage'
 
 export const TRIP_ERROR = {
   FORBIDDEN: 'TRIP_FORBIDDEN',

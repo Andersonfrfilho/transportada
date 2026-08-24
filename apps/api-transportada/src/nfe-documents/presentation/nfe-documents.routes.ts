@@ -5,10 +5,8 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { defineRoute } from '../../http/router.service.js'
 import { API_NFE_DOCUMENTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
-import {
-  parseDocumentList,
-  parseUuidPathIdentifier,
-} from '../../nfe-imports/presentation/nfe-imports.schema.js'
+import { parseUuidPathIdentifier } from '../../nfe-imports/presentation/nfe-imports.schema.js'
+import { parseDocumentList } from './nfe-documents.schema.js'
 
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
 const XML_EXTENSION = '.xml'
@@ -42,6 +40,7 @@ type NfeDocumentSummary = {
 type NfeDocumentDetail = NfeDocumentSummary
 
 type ListDocumentsInput = {
+  readonly accessKey: string | null
   readonly cursor: string | null
   readonly limit: number
 }
@@ -80,6 +79,7 @@ type Dependencies = {
   }
   readonly listDocuments: {
     execute(input: {
+      readonly accessKey: string | null
       readonly context: CompanyContext
       readonly cursor: string | null
       readonly limit: number

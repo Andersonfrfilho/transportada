@@ -80,6 +80,7 @@ export type NfeDocumentSummary = {
 export type NfeDocumentDetail = NfeDocumentSummary
 
 export type ListDocumentsCall = {
+  readonly accessKey: string | null
   readonly context: CompanyContext
   readonly cursor: string | null
   readonly limit: number

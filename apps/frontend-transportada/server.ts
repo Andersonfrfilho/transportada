@@ -26,7 +26,9 @@ if (contentSecurityPolicy === '') {
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy': contentSecurityPolicy,
-  'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+  // `camera=(self)` porque o separador bipa a nota pela câmera do celular; `camera=()` nega a
+  // própria origem e `getUserMedia` falha antes de qualquer diálogo. Os outros dois seguem fechados.
+  'Permissions-Policy': 'camera=(self), geolocation=(), microphone=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',

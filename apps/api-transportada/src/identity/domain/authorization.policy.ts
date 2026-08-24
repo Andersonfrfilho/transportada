@@ -38,6 +38,7 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'nfse.cancel',
   'nfse.read',
   'trip.read',
+  'trip.manage',
   'trip.report',
 ] as const)
 
@@ -71,6 +72,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.issue',
     'nfse.cancel',
     'nfse.read',
+    'trip.manage',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -123,6 +125,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.manage',
     'nfse.manage',
     'nfse.read',
+    'trip.manage',
   ]),
   viewer: Object.freeze([
     'invoices.read',
@@ -138,6 +141,10 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // O agregado dirige o veículo dele; o motorista, o dele ou o da empresa. Na tela isso muda
   // que campo o cadastro exige, não o que a conta pode ler — daí o mesmo par de permissões.
   aggregate: Object.freeze(['trip.read', 'trip.report']),
+  // O separador monta a viagem do celular: lê a nota que bipa, lê a frota para escolher veículo e
+  // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
+  // — e não reporta entrega, que é do campo.
+  separator: Object.freeze(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

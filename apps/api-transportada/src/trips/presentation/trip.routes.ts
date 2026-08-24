@@ -36,8 +36,11 @@ const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
-/** spec.md § Dúvidas: "Permissão: `fleet.manage` — sem papel novo por enquanto." */
-const TRIP_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
+/**
+ * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
+ * separador que monta a viagem não tem por que poder fazer isso.
+ */
+const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
 

@@ -935,18 +935,18 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: 0.72rem;
 }
 
 .table th,
 .table td {
-  padding: var(--space-3);
+  padding: var(--space-1) var(--space-2);
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (min-width: 40rem) {
   .table {
     font-size: 0.78rem;
   }
@@ -957,14 +957,14 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (min-width: 64rem) {
   .table {
-    font-size: 0.72rem;
+    font-size: 0.86rem;
   }
 
   .table th,
   .table td {
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-3);
   }
 }
 
@@ -1377,7 +1377,7 @@
 
 .builderCondition {
   display: grid;
-  grid-template-columns: minmax(9rem, 1fr) minmax(8rem, 1fr) minmax(10rem, 1.4fr) auto;
+  grid-template-columns: 1fr;
   gap: var(--space-2);
   align-items: center;
 }
@@ -1427,9 +1427,9 @@
   opacity: 0.5;
 }
 
-@media (max-width: 640px) {
+@media (min-width: 40rem) {
   .builderCondition {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(9rem, 1fr) minmax(8rem, 1fr) minmax(10rem, 1.4fr) auto;
   }
 }
 
@@ -1440,18 +1440,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .cteEmissionDialog {
   display: grid;
   gap: var(--space-5);
-  width: min(60rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -1583,15 +1584,15 @@
   justify-content: flex-end;
 }
 
-@media (width <= 40rem) {
+@media (min-width: 40rem) {
   .cteEmissionOverlay {
-    padding: 0;
+    padding: var(--space-4);
   }
 
   .cteEmissionDialog {
-    width: 100%;
-    max-height: 100vh;
-    height: 100%;
-    border: none;
+    width: min(60rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
 }

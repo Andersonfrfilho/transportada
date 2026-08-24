@@ -73,3 +73,28 @@ export type LinkTripDocumentBody = Readonly<{
 export type LinkTripDocumentInput = LinkTripDocumentBody & Readonly<{ tripId: string }>
 
 export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: string }>
+
+export const SCANNED_NFE_STATUS = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
+export type ScannedNfeStatus = (typeof SCANNED_NFE_STATUS)[number]
+
+/**
+ * O recorte que o separador lê da nota bipada. A linha servida por `/nfe-documents` pertence a
+ * outro módulo e tem vinte e dois campos — guardar só estes é o que impede a tela da viagem de
+ * quebrar quando a listagem de notas ganhar coluna.
+ */
+export type ScannedNfeDocument = Readonly<{
+  accessKey: string
+  emitterName: string
+  id: string
+  issuedAt: string
+  number: string
+  recipientName: string
+  series: string
+  status: ScannedNfeStatus
+  totalAmount: string
+}>
+
+export type FindNfeDocumentByAccessKeyInput = Readonly<{
+  accessKey: string
+  signal?: AbortSignal
+}>

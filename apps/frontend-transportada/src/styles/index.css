@@ -117,21 +117,24 @@ a {
 }
 
 .application-sidebar {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  left: 0;
   display: grid;
   align-content: start;
-  flex: 0 0 16rem;
+  width: min(18rem, 86vw);
   min-height: 100vh;
   padding: var(--space-5) var(--space-3);
   border-right: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 88%, var(--color-asphalt) 12%);
-  transition:
-    flex-basis 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    padding 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(-100%);
+  transition: transform 180ms ease;
 }
 
-.application-shell-sidebar-collapsed .application-sidebar {
-  flex-basis: 4.5rem;
-  padding-inline: var(--space-2);
+.application-shell-sidebar-open .application-sidebar {
+  transform: translateX(0);
 }
 
 .application-shell-sidebar-collapsed .sidebar-brand {
@@ -222,13 +225,6 @@ a {
 .application-shell-sidebar-collapsed .sidebar-link {
   justify-content: center;
   padding-inline: 0;
-}
-
-.application-shell-sidebar-collapsed .sidebar-close-button {
-  position: relative;
-  top: auto;
-  right: auto;
-  transform: rotate(180deg);
 }
 
 .sidebar-close-button {
@@ -453,6 +449,44 @@ a {
   display: none;
 }
 
+.application-shell-sidebar-collapsed .application-header-copy {
+  padding-left: var(--space-4);
+}
+
+.application-shell-sidebar-collapsed .application-header-copy > div {
+  padding-left: 3.25rem;
+}
+
+.application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-5);
+  left: var(--space-4);
+  display: inline-flex;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+  border-color: color-mix(in srgb, var(--color-copper) 42%, transparent);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+  box-shadow: 0 0.75rem 1.4rem color-mix(in srgb, var(--color-asphalt) 38%, transparent);
+}
+
+.application-shell-sidebar-open .ui-button.mobile-sidebar-trigger {
+  display: none;
+}
+
+.application-shell-sidebar-open .sidebar-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: block;
+  border: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+}
+
 .application-header {
   z-index: 10;
   width: var(--layout-width);
@@ -461,9 +495,10 @@ a {
 }
 
 .application-header-card {
+  position: relative;
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
   box-shadow:
     0 0.75rem 1.5rem color-mix(in srgb, var(--color-asphalt) 18%, transparent),
@@ -494,9 +529,18 @@ a {
   justify-content: flex-end;
   color: var(--color-slate);
   font-family: var(--font-utility);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.application-header-context > span {
+  display: none;
+}
+
+/* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
+.application-header-context > .application-fiscal-environment {
+  display: inline-block;
 }
 
 .application-fiscal-environment {
@@ -514,7 +558,9 @@ a {
 
 .application-user-area {
   display: inline-flex;
+  width: 100%;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
@@ -545,10 +591,11 @@ a {
 
 .application-user-identity {
   display: inline-flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
-  max-width: 12rem;
+  max-width: none;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1036,113 +1083,74 @@ h2 {
   font-size: 1rem;
 }
 
-@media (min-width: 48rem) {
-  .ui-button.mobile-sidebar-trigger {
-    display: none;
-  }
-
-  .application-header {
-    padding-top: var(--space-3);
-  }
-
-  .application-header-card {
-    grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.15fr);
-    align-items: center;
-  }
-
-  .application-nav {
-    justify-content: flex-end;
-  }
-}
-
-@media (max-width: 47.99rem) {
-  .application-shell-sidebar-collapsed .application-header-copy {
-    padding-left: var(--space-4);
-  }
-
-  .application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger {
-    position: absolute;
-    z-index: 2;
-    top: var(--space-5);
-    left: var(--space-4);
-    display: inline-flex;
-    width: 2.25rem;
-    min-width: 2.25rem;
-    height: 2.25rem;
-    min-height: 2.25rem;
-    padding: 0;
-    border-color: color-mix(in srgb, var(--color-copper) 42%, transparent);
-    color: var(--color-fog);
-    background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
-    box-shadow: 0 0.75rem 1.4rem color-mix(in srgb, var(--color-asphalt) 38%, transparent);
-  }
-
+/* Da largura de desktop em diante a gaveta vira barra fixa — `web.md` §10. */
+@media (min-width: 64rem) {
+  .application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger,
   .application-shell-sidebar-open .ui-button.mobile-sidebar-trigger {
     display: none;
   }
 
-  .application-shell-sidebar-collapsed .application-header-copy > div {
-    padding-left: 3.25rem;
-  }
-
-  .application-sidebar {
-    position: fixed;
-    z-index: 30;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: min(18rem, 86vw);
-    transform: translateX(-100%);
-    transition: transform 180ms ease;
-  }
-
-  .application-shell-sidebar-collapsed .sidebar-close-button {
-    position: absolute;
-    top: 0;
-    right: 0;
-    transform: none;
-  }
-
-  .application-shell-sidebar-open .application-sidebar {
-    transform: translateX(0);
-  }
-
   .application-shell-sidebar-open .sidebar-backdrop {
-    position: fixed;
-    z-index: 20;
-    inset: 0;
-    display: block;
-    border: 0;
-    background: color-mix(in srgb, var(--color-asphalt) 72%, transparent);
-  }
-
-  .application-header-card {
-    position: relative;
-    padding: var(--space-4);
-  }
-
-  .application-header-context {
-    justify-content: flex-end;
-    font-size: 0.65rem;
-  }
-
-  .application-header-context > span {
     display: none;
   }
 
-  /* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
-  .application-header-context > .application-fiscal-environment {
-    display: inline-block;
+  .application-shell-sidebar-collapsed .application-header-copy,
+  .application-shell-sidebar-collapsed .application-header-copy > div {
+    padding-left: 0;
+  }
+
+  .application-sidebar {
+    position: static;
+    flex: 0 0 16rem;
+    width: auto;
+    transform: none;
+    transition:
+      flex-basis 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      padding 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .application-shell-sidebar-collapsed .application-sidebar,
+  .application-shell-sidebar-open .application-sidebar {
+    transform: none;
+  }
+
+  .application-shell-sidebar-collapsed .application-sidebar {
+    flex-basis: 4.5rem;
+    padding-inline: var(--space-2);
+  }
+
+  .application-shell-sidebar-collapsed .sidebar-close-button {
+    position: relative;
+    top: auto;
+    right: auto;
+    transform: rotate(180deg);
+  }
+
+  .application-header-card {
+    padding: var(--space-3) var(--space-4);
+    grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.15fr);
+    align-items: center;
+  }
+
+  .application-header-context {
+    font-size: 0.7rem;
+  }
+
+  .application-header-context > span {
+    display: inline;
   }
 
   .application-user-area {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
   }
 
   .application-user-identity {
-    flex: 1;
-    max-width: none;
+    flex: 0 1 auto;
+    max-width: 12rem;
+  }
+
+  .application-nav {
+    justify-content: flex-end;
   }
 }
 
@@ -1153,17 +1161,6 @@ h2 {
   }
 }
 
-@media (max-width: 47.99rem) {
-  .application-shell-sidebar-collapsed .application-sidebar {
-    flex-basis: 16rem;
-    padding-inline: var(--space-3);
-    transform: translateX(-100%);
-  }
-
-  .application-shell-sidebar-open .application-sidebar {
-    transform: translateX(0);
-  }
-}
 .foundation-intro {
   max-width: 42rem;
   color: var(--color-slate);
@@ -1259,7 +1256,7 @@ footer {
   outline-offset: var(--space-1);
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .workspace-hero {
     grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
     align-items: end;

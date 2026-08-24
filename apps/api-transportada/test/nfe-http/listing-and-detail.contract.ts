@@ -96,6 +96,7 @@ describe('nfe http listing and detail contract', () => {
       data: serializeDocumentSummary(DOCUMENT_DETAIL),
     })
     expect(fixture.documentListCalls[0]).toEqual({
+      accessKey: null,
       context: COMPANY_CONTEXT,
       cursor: '2026-07-22T14:00:00.000Z::00000000-0000-4000-8000-000000000230',
       limit: 10,

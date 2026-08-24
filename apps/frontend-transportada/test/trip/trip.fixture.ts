@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const FLEET_READ = 'fleet.read'
 export const FLEET_MANAGE = 'fleet.manage'
+export const TRIP_MANAGE = 'trip.manage'
 
 export const SYNTHETIC_ACCESS_TOKEN = 'synthetic-access-token'
 export const SYNTHETIC_CURSOR = '2026-07-28T12:00:00.000Z::00000000-0000-4000-8000-000000000a11'
@@ -96,6 +97,47 @@ export const TRIP_PAGE = {
 export const CREATE_TRIP_BODY = {
   driverIds: [DRIVER_ID],
   vehicleId: VEHICLE_ID,
+} as const
+
+export const NFE_ACCESS_KEY = '352608A1B2C3D4E5F655555555555555555555555555'
+
+/** A linha que `/nfe-documents` serve tem 22 campos; a viagem lê nove e ignora o resto. */
+export const NFE_DOCUMENT_LISTING_ROW = {
+  accessKey: NFE_ACCESS_KEY,
+  cteBlockReason: null,
+  emitterAddress: 'Rua das Cargas, 100',
+  emitterCity: 'Ribeirao Preto',
+  emitterCityCode: '3543402',
+  emitterName: 'Industria Sintetica LTDA',
+  emitterState: 'SP',
+  emitterTaxId: 'A1B2C3D4E5F655',
+  id: NFE_DOCUMENT_ID,
+  issuedAt: '2026-08-20T09:15:00.000Z',
+  nfseInvoiceId: null,
+  nfseInvoiceNumber: null,
+  number: '000123456',
+  recipientAddress: 'Avenida do Deposito, 44',
+  recipientCity: 'Barrinha',
+  recipientCityCode: '3505500',
+  recipientName: 'Comercio Sintetico ME',
+  recipientState: 'SP',
+  recipientTaxId: '12345678000199',
+  series: '001',
+  status: 'authorized',
+  totalAmount: '1250.7500',
+  variant: 'complete',
+} as const
+
+export const SCANNED_NFE_DOCUMENT = {
+  accessKey: NFE_ACCESS_KEY,
+  emitterName: NFE_DOCUMENT_LISTING_ROW.emitterName,
+  id: NFE_DOCUMENT_ID,
+  issuedAt: NFE_DOCUMENT_LISTING_ROW.issuedAt,
+  number: NFE_DOCUMENT_LISTING_ROW.number,
+  recipientName: NFE_DOCUMENT_LISTING_ROW.recipientName,
+  series: NFE_DOCUMENT_LISTING_ROW.series,
+  status: NFE_DOCUMENT_LISTING_ROW.status,
+  totalAmount: NFE_DOCUMENT_LISTING_ROW.totalAmount,
 } as const
 
 export async function loadFutureModule<TModule>(modulePath: string): Promise<TModule> {

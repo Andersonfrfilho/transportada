@@ -117,6 +117,33 @@ export function buildDocumentNfseLinkFilters({
   ] as const as readonly SQL[]
 }
 
+/**
+ * O filtro de tenant é o primeiro da lista e não é opcional: a chave de acesso é única por empresa
+ * (`nfe_documents_company_id_access_key_unique`), então a chave da nota alheia sai como página
+ * vazia — indistinguível de chave inexistente, que é o que impede varrer a base oito dígitos por vez.
+ */
+export function buildDocumentListFilters({
+  accessKey,
+  companyId,
+  cursor,
+}: {
+  readonly accessKey: string | null
+  readonly companyId: string
+  readonly cursor: { readonly createdAt: Date; readonly id: string } | null
+}): readonly SQL[] {
+  const filters: SQL[] = [eq(nfeDocuments.companyId, companyId)]
+  if (accessKey !== null) filters.push(eq(nfeDocuments.accessKey, accessKey))
+  if (cursor !== null) {
+    filters.push(
+      or(
+        lt(nfeDocuments.issuedAt, cursor.createdAt),
+        and(eq(nfeDocuments.issuedAt, cursor.createdAt), lt(nfeDocuments.id, cursor.id)),
+      )!,
+    )
+  }
+  return filters
+}
+
 export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   public constructor(
     private readonly database: Database,
@@ -124,25 +151,20 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   ) {}
 
   public async list(input: {
+    readonly accessKey: string | null
     readonly context: CompanyContext
     readonly cursor: string | null
     readonly limit: number
   }): Promise<NfeDocumentPage> {
-    const cursor = decodeCursor(input.cursor)
-    const condition =
-      cursor === null
-        ? eq(nfeDocuments.companyId, input.context.companyId)
-        : and(
-            eq(nfeDocuments.companyId, input.context.companyId),
-            or(
-              lt(nfeDocuments.issuedAt, cursor.createdAt),
-              and(eq(nfeDocuments.issuedAt, cursor.createdAt), lt(nfeDocuments.id, cursor.id)),
-            ),
-          )
+    const filters = buildDocumentListFilters({
+      accessKey: input.accessKey,
+      companyId: input.context.companyId,
+      cursor: decodeCursor(input.cursor),
+    })
     const rows = await this.database
       .select()
       .from(nfeDocuments)
-      .where(condition)
+      .where(and(...filters))
       .orderBy(desc(nfeDocuments.issuedAt), desc(nfeDocuments.id))
       .limit(input.limit + 1)
     const pageRows = rows.slice(0, input.limit)

@@ -14,6 +14,7 @@ import {
   TRIP_DETAIL,
   TRIP_DOCUMENT,
   TRIP_ID,
+  TRIP_MANAGE,
   TRIP_PAGE,
 } from './trip.fixture'
 
@@ -160,7 +161,7 @@ describe('trip client contract', () => {
 })
 
 describe('trip controller contract', () => {
-  test('exposes trip mutations only to fleet.manage and reads only to fleet.read', async () => {
+  test('exposes trip mutations only to trip.manage and reads only to fleet.read', async () => {
     const { createTripController } = await loadFutureModule<TripControllerModule>(
       '../../src/modules/trip/hooks/useTripWorkspace.hook',
     )
@@ -173,7 +174,11 @@ describe('trip controller contract', () => {
       await blindController.getTrip({ tripId: TRIP_ID }).catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
 
-    const readOnlyController = createTripController({ client, permissions: [FLEET_READ] })
+    // `fleet.manage` administra veículo e motorista, e deixou de abrir a escrita de viagem
+    const readOnlyController = createTripController({
+      client,
+      permissions: [FLEET_READ, FLEET_MANAGE],
+    })
     expect(readOnlyController.canReadTrips).toBe(true)
     expect(readOnlyController.canManageTrips).toBe(false)
     expect(await readOnlyController.getTrip({ tripId: TRIP_ID })).toEqual(TRIP_DETAIL)
@@ -185,7 +190,7 @@ describe('trip controller contract', () => {
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
     expect(client.mutationCount).toBe(0)
 
-    const controller = createTripController({ client, permissions: [FLEET_READ, FLEET_MANAGE] })
+    const controller = createTripController({ client, permissions: [FLEET_READ, TRIP_MANAGE] })
     expect(controller.canManageTrips).toBe(true)
     await controller.createTrip(CREATE_TRIP_BODY)
     await controller.closeTrip({ tripId: TRIP_ID })

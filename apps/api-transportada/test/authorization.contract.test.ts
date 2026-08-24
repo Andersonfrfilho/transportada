@@ -56,6 +56,7 @@ describe('authorization contract', () => {
       'nfse.cancel',
       'nfse.read',
       'trip.read',
+      'trip.manage',
       'trip.report',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
@@ -82,6 +83,7 @@ describe('authorization contract', () => {
         'nfse.issue',
         'nfse.cancel',
         'nfse.read',
+        'trip.manage',
       ],
       finance: [
         'cte.read',
@@ -134,6 +136,7 @@ describe('authorization contract', () => {
         'mdfe.manage',
         'nfse.manage',
         'nfse.read',
+        'trip.manage',
       ],
       viewer: [
         'invoices.read',
@@ -146,6 +149,7 @@ describe('authorization contract', () => {
       ],
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
+      separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
     })
   })
 
@@ -165,17 +169,42 @@ describe('authorization contract', () => {
         'operations.read',
         'view-preferences.manage',
         'addresses.read',
+        'trip.manage',
       ] as const) {
         expect(permissions.has(denied)).toBe(false)
       }
     }
   })
 
-  test('keeps trip permissions exclusive to the field roles', () => {
-    for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
+  // `trip.report` é do campo — o que o motorista reporta da própria viagem, e ninguém do escritório
+  // reporta entrega por ele. `trip.manage` é o escritório: montar a viagem, vincular nota, marcar
+  // entrega, encerrar. Ela nasceu para tirar `fleet.manage` dessas cinco rotas, que também apaga
+  // veículo e motorista.
+  test('keeps the delivery report exclusive to the field roles', () => {
+    for (const role of [
+      'company-admin',
+      'finance',
+      'fiscal',
+      'operator',
+      'viewer',
+      'separator',
+    ] as const) {
       const permissions = resolveCompanyPermissions([role])
-      expect(permissions.has('trip.read')).toBe(false)
       expect(permissions.has('trip.report')).toBe(false)
+    }
+
+    for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.read')).toBe(false)
+    }
+  })
+
+  test('grants the trip write permission to the roles that already created trips', () => {
+    for (const role of ['company-admin', 'operator', 'separator'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.manage')).toBe(true)
+    }
+
+    for (const role of ['finance', 'fiscal', 'viewer', 'driver', 'aggregate'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.manage')).toBe(false)
     }
   })
 
