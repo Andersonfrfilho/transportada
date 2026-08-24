@@ -15,14 +15,10 @@ import {
 import type {
   CronEnvironment,
   CronFuelPricePullEnvironment,
-  CronNfseStatusPullEnvironment,
   CronNotificationSchedulesEnvironment,
 } from './cron.types.js'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
-
-const DEFAULT_STORAGE_PROVIDER = 's3'
-const DEFAULT_STORAGE_REGION = 'us-east-1'
 
 const cronEnvironmentSchema = z.object({
   APP_ENV: z.string().trim().min(1).default('local'),
@@ -53,21 +49,6 @@ const cronEnvironmentSchema = z.object({
     .min(1)
     .max(CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS)
     .default(CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS),
-  ENCRYPTION_ACTIVE_KEY_ID: optionalText(),
-  ENCRYPTION_KEYRING_JSON: optionalText(),
-  NFSE_PROVIDER_BASE_URL: optionalUrl(),
-  NFSE_PROVIDER_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(CRON_MAX_PROVIDER_TIMEOUT_MILLISECONDS)
-    .default(CRON_DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS),
-  STORAGE_ACCESS_KEY: optionalText(),
-  STORAGE_BUCKET: optionalText(),
-  STORAGE_ENDPOINT: optionalText(),
-  STORAGE_PROVIDER: optionalText(),
-  STORAGE_REGION: optionalText(),
-  STORAGE_SECRET_KEY: optionalText(),
   NOTIFICATION_SUPPRESSION_HMAC_KEY: optionalText(),
   // A batida publica; cron que não alcança o broker não tem o que fazer, e falha no boot.
   QUEUE_PREFIX: z.string().trim().min(1),
@@ -97,7 +78,6 @@ export function parseCronEnvironment(
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     fuelPricePull: resolveFuelPricePullEnvironment(result.data),
     logLevel: result.data.LOG_LEVEL,
-    nfseStatusPull: resolveNfseStatusPullEnvironment(result.data),
     notificationSchedules: resolveNotificationEnvironment(result.data),
     pageSize: result.data.PAGE_SIZE,
     queuePrefix: result.data.QUEUE_PREFIX,
@@ -128,38 +108,6 @@ function resolveFuelPricePullEnvironment(
     aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
     anpBaseUrl: requireConfigured(data.ANP_BASE_URL),
     anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
-  }
-}
-
-/**
- * A reconciliação abre segredo selado e arquiva documento fiscal: sem chaveiro, sem bucket e sem
- * endereço da prefeitura o processo **não sobe**. Falhar no boot é preferível a rodar meio ciclo e
- * deixar nota autorizada sem XML guardado. O deploy do outro job nunca passa por aqui.
- */
-function resolveNfseStatusPullEnvironment(
-  data: z.output<typeof cronEnvironmentSchema>,
-): CronNfseStatusPullEnvironment | undefined {
-  /**
-   * Um endereço só, e ele não vem do ambiente fiscal: a Nota RP publica um servidor, o de produção
-   * (ADR-0035). Quem separa uma instalação da outra é a credencial selada por empresa. Vazio é
-   * provedor não contratado — e é a ausência dele que diz que a rotina não está configurada aqui.
-   */
-  const providerBaseUrl = data.NFSE_PROVIDER_BASE_URL
-  if (providerBaseUrl === undefined) return undefined
-
-  return {
-    encryptionActiveKeyId: requireConfigured(data.ENCRYPTION_ACTIVE_KEY_ID),
-    encryptionKeyRingJson: requireConfigured(data.ENCRYPTION_KEYRING_JSON),
-    providerBaseUrl,
-    providerTimeoutMilliseconds: data.NFSE_PROVIDER_TIMEOUT_MS,
-    storage: {
-      accessKey: requireConfigured(data.STORAGE_ACCESS_KEY),
-      bucket: requireConfigured(data.STORAGE_BUCKET),
-      endpoint: requireConfigured(data.STORAGE_ENDPOINT),
-      provider: data.STORAGE_PROVIDER ?? DEFAULT_STORAGE_PROVIDER,
-      region: data.STORAGE_REGION ?? DEFAULT_STORAGE_REGION,
-      secretKey: requireConfigured(data.STORAGE_SECRET_KEY),
-    },
   }
 }
 

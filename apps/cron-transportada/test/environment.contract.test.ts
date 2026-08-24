@@ -1,22 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { Glob } from 'bun'
 import { describe, expect, test } from 'bun:test'
 
 import { CronConfigurationError, parseCronEnvironment } from '../src/config/environment.schema.js'
-
-const NFSE_BASE_URL = 'https://www.notarp.com.br/api/v2'
-
-const nfseEnvironment = {
-  ENCRYPTION_ACTIVE_KEY_ID: 'k1',
-  ENCRYPTION_KEYRING_JSON: JSON.stringify({ k1: Buffer.alloc(32, 7).toString('base64') }),
-  NFSE_PROVIDER_BASE_URL: NFSE_BASE_URL,
-  STORAGE_ACCESS_KEY: 'access',
-  STORAGE_BUCKET: 'transportada',
-  STORAGE_ENDPOINT: 'http://localhost:59000',
-  STORAGE_SECRET_KEY: 'secret',
-} as const
 
 const fuelEnvironment = {
   ANEEL_BASE_URL: 'https://dadosabertos.aneel.gov.br',
@@ -44,8 +31,6 @@ describe('cron environment contract', () => {
       // Nem sem o endereço da ANP, que só o trilho de preço de combustível usa.
       fuelPricePull: undefined,
       logLevel: 'info',
-      // A batida sobe sem chaveiro, sem bucket e sem prefeitura — só a rotina de NFS-e os exige.
-      nfseStatusPull: undefined,
       notificationSchedules: undefined,
       pageSize: 50,
       queuePrefix: validEnvironment.QUEUE_PREFIX,
@@ -155,71 +140,11 @@ describe('cron environment contract', () => {
     ).toThrow(CronConfigurationError)
   })
 
-  // A Nota RP publica um servidor só, e é o de produção (ADR-0035). O endereço continua obrigatório
-  // para este job — sem ele o ciclo bateria numa URL vazia com o segredo já aberto.
-  test('o job de NFS-e resolve o endereço único do provedor', () => {
-    expect(
-      parseCronEnvironment({ ...validEnvironment, ...nfseEnvironment }).nfseStatusPull
-        ?.providerBaseUrl,
-    ).toBe(NFSE_BASE_URL)
-  })
-
   /**
-   * Sem `CRON_JOB` quem diz que a rotina está configurada aqui é a presença do endereço. Ausente, o
-   * bloco inteiro é `undefined` — e o chaveiro que sobrou não faz o boot cair por uma rotina que
-   * esta instalação não contratou.
+   * A reconciliação de NFS-e é do worker, e o bloco de configuração dela se mudou junto: aqui não
+   * há mais chaveiro, bucket nem endereço de prefeitura. O que ainda exige `FISCAL_ENVIRONMENT` é a
+   * batida, que o repassa a quem consome — o teste acima é o que resta dele nesta app.
    */
-  test('sem endereço do provedor a rotina de NFS-e nasce não configurada', () => {
-    expect(
-      parseCronEnvironment({
-        ...validEnvironment,
-        ...nfseEnvironment,
-        NFSE_PROVIDER_BASE_URL: undefined,
-      }).nfseStatusPull,
-    ).toBeUndefined()
-  })
-
-  // Declarado o endereço, o resto do bloco é tudo-ou-nada: metade selada é segredo que não abre.
-  test('com endereço do provedor o chaveiro volta a ser obrigatório', () => {
-    expect(() =>
-      parseCronEnvironment({
-        ...validEnvironment,
-        ...nfseEnvironment,
-        ENCRYPTION_KEYRING_JSON: undefined,
-      }),
-    ).toThrow(CronConfigurationError)
-  })
-
-  /**
-   * `FISCAL_ENVIRONMENT` continua escolhendo ambiente de CT-e e MDF-e, onde a SEFAZ mantém
-   * homologação de verdade. Para a NFS-e não há o que escolher, e o endereço não pode voltar a
-   * depender dele por hábito.
-   */
-  test.each(['homologation', 'production'])(
-    'o ambiente fiscal %s não muda o endereço da NFS-e',
-    (fiscalEnvironment) => {
-      expect(
-        parseCronEnvironment({
-          ...validEnvironment,
-          ...nfseEnvironment,
-          FISCAL_ENVIRONMENT: fiscalEnvironment,
-        }).nfseStatusPull?.providerBaseUrl,
-      ).toBe(NFSE_BASE_URL)
-    },
-  )
-
-  // O par por ambiente fiscal prometia um isolamento que o provedor não oferece. Se o nome voltar,
-  // volta a promessa — e ninguém audita o que já parece resolvido.
-  test('o par de endereços por ambiente fiscal não reaparece no código', async () => {
-    const offenders: string[] = []
-    for await (const file of new Glob('**/*.ts').scan(`${import.meta.dir}/../src`)) {
-      const source = await Bun.file(`${import.meta.dir}/../src/${file}`).text()
-      if (source.includes('NFSE_PROVIDER_BASE_URL_')) offenders.push(file)
-    }
-
-    expect(offenders).toEqual([])
-  })
-
   test('does not expose connection credentials in configuration errors', () => {
     const secret = 'do-not-leak'
 

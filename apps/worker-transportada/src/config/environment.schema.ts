@@ -29,6 +29,9 @@ const workerEnvironmentSchema = z
     CTE_TECHNICAL_RESPONSIBLE_EMAIL: z.string().trim().email().optional(),
     CTE_TECHNICAL_RESPONSIBLE_PHONE: z.string().trim().min(1).optional(),
     DATABASE_URL: protocolUrl(POSTGRESQL_PROTOCOLS),
+    // Produção é o padrão: a NFS-e é trilho de produção (ADR-0035), e instalação de homologação
+    // declara o ambiente explicitamente, como o cron sempre fez.
+    FISCAL_ENVIRONMENT: z.enum(['homologation', 'production']).default('production'),
     // Remetente e conexão juntos ou nenhum: com um só, o convite sai sem canal e o código morre
     // selado na linha do convite.
     EMAIL_FROM: optionalText(),
@@ -116,6 +119,7 @@ export function parseWorkerEnvironment(
       ? {}
       : { cteTechnicalResponsible: technicalResponsible }),
     databaseUrl: result.data.DATABASE_URL,
+    fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
       ? {}
       : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),

@@ -3,7 +3,6 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import type { CronLogger } from '../../src/config/cron.types.js'
 import type {
   NfseDocumentStoragePort,
   NfseStoredDocument,
@@ -20,6 +19,7 @@ import {
   NFSE_DEFERRED_RECHECK_MINUTES,
   NFSE_PENDING_RECHECK_MINUTES,
 } from '../../src/nfse-status-pull/domain/nfse-status-pull.constant.js'
+import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
 const NOW = new Date('2026-08-12T12:00:00.000Z')
 const COMPANY_ID = '00000000-0000-4000-8000-0000000000c1'
@@ -145,7 +145,7 @@ type LogCall = {
   readonly metadata: Record<string, unknown>
 }
 
-function createLogger(): CronLogger & { readonly calls: LogCall[] } {
+function createLogger(): WorkerLogger & { readonly calls: LogCall[] } {
   const calls: LogCall[] = []
   const record = (event: string, metadata?: Record<string, unknown>): void => {
     calls.push({ event, metadata: metadata ?? {} })
@@ -245,7 +245,9 @@ describe('NFS-e reconciliation: authorized', () => {
     expect(fixture.documentStorage.stored).toEqual([{ companyId: COMPANY_ID, kind: 'xml' }])
     expect(fixture.writeBack.authorized).toHaveLength(1)
     expect(fixture.writeBack.authorized[0]?.['pdf']).toBeUndefined()
-    expect(fixture.logger.calls.map((call) => call.event)).toContain('cron_nfse_pdf_unavailable')
+    expect(fixture.logger.calls.map((call) => call.event)).toContain(
+      'nfse_status_pull_pdf_unavailable',
+    )
   })
 
   /** Sem o XML não há documento fiscal para arquivar: a nota não liquida, ela volta para a fila. */
@@ -257,7 +259,7 @@ describe('NFS-e reconciliation: authorized', () => {
 
     const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
 
-    expect(result).toEqual({ outcome: 'deferred' })
+    expect(result).toEqual({ cause: 'timeout', outcome: 'deferred' })
     expect(fixture.documentStorage.stored).toEqual([])
     expect(fixture.writeBack.authorized).toEqual([])
     expect(fixture.writeBack.rescheduled).toEqual([
@@ -279,7 +281,7 @@ describe('NFS-e reconciliation: authorized', () => {
 
     const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
 
-    expect(result).toEqual({ outcome: 'deferred' })
+    expect(result).toEqual({ cause: 'malformed_response', outcome: 'deferred' })
     expect(fixture.writeBack.authorized).toEqual([])
     expect(fixture.documentStorage.stored).toEqual([])
   })
@@ -307,6 +309,11 @@ describe('NFS-e reconciliation: rejected', () => {
     expect(fixture.status.documentCalls).toEqual([])
   })
 
+  /**
+   * O notificador é opcional de propósito, e continua sem consumidor: nada em `main.ts` o injeta
+   * enquanto `notification.schedules.run` não se mudar para cá. O que este teste guarda é a porta —
+   * quem a ligar não precisa descobrir na produção que o aviso nasce **depois** da gravação.
+   */
   test('avisa o dono da nota depois de gravar a rejeição', async () => {
     const fixture = buildUseCase(
       { status: { rejection: { code: 'E320', message: REJECTION_MESSAGE }, status: 'rejected' } },
@@ -325,7 +332,7 @@ describe('NFS-e reconciliation: rejected', () => {
     ])
   })
 
-  /** O deploy de NFS-e sobe sem broker: sem notificador configurado, a reconciliação segue igual. */
+  /** É como a rotina roda hoje: sem notificador configurado, a reconciliação segue igual. */
   test('sem notificador configurado a rejeição continua sendo gravada', async () => {
     const fixture = buildUseCase({
       status: { rejection: { code: 'E320', message: REJECTION_MESSAGE }, status: 'rejected' },
@@ -412,7 +419,7 @@ describe('NFS-e reconciliation: still pending', () => {
 
     const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
 
-    expect(result).toEqual({ outcome: 'deferred' })
+    expect(result).toEqual({ cause: 'transport_failure', outcome: 'deferred' })
     expect(fixture.writeBack.rescheduled[0]?.['nextStatusCheckAt']).toEqual(
       new Date(NOW.getTime() + NFSE_DEFERRED_RECHECK_MINUTES * 60_000),
     )
@@ -423,7 +430,7 @@ describe('NFS-e reconciliation: still pending', () => {
 
     const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
 
-    expect(result).toEqual({ outcome: 'deferred' })
+    expect(result).toEqual({ cause: 'provider_not_configured', outcome: 'deferred' })
     expect(fixture.writeBack.authorized).toEqual([])
     expect(fixture.writeBack.rejected).toEqual([])
   })

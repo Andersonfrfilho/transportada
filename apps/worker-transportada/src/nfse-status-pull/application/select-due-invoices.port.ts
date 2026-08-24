@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
+import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
 
 export type NfseReconciliationInvoiceStatus =
   | 'authorized'
@@ -14,7 +14,7 @@ export type NfseReconciliationInvoiceStatus =
 export type NfseReconciliationCredential = {
   readonly credentialId: string
   readonly envelope: unknown
-  readonly fiscalEnvironment: CronFiscalEnvironment
+  readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly municipalRegistration: string
   readonly status: 'active' | 'inactive'
 }
@@ -35,7 +35,7 @@ export type NfseReconciliationCandidate = {
 
 export type NfseReconciliationCandidateSourcePort = {
   listCandidates(input: {
-    readonly environment: CronFiscalEnvironment
+    readonly environment: NfseFiscalEnvironment
     readonly limit: number
   }): Promise<readonly NfseReconciliationCandidate[]>
 }

@@ -10,20 +10,21 @@
  */
 import { and, desc, eq, inArray } from 'drizzle-orm'
 
-import type { CronDatabase } from '../../database/cron-database.types.js'
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
-import type { CronLogger } from '../../config/cron.types.js'
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+
+import { storedObjects } from '../../database/nfe.schema.js'
 import {
   nfseFiscalDocuments,
   nfseIssuanceAttempts,
   nfseIssuanceEvents,
   nfseProviderCredentials,
   nfseServiceInvoices,
-  storedObjects,
   type NfseAttemptKind,
+  type NfseFiscalEnvironment,
   type NfseIssuanceStatus,
   type NfseServiceInvoiceStatus,
-} from '../../database/nfse-reconciliation.schema.js'
+} from '../../database/nfse-issuance-execution.schema.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import { buildDueInvoiceOrdering } from './nfse-reconciliation.query.js'
 import type { NfseStoredDocument } from '../application/nfse-document-storage.port.js'
 import type { NfseReconciliationWriteBackPort } from '../application/nfse-reconciliation-write-back.port.js'
@@ -34,7 +35,8 @@ import type {
   NfseReconciliationInvoiceStatus,
 } from '../application/select-due-invoices.port.js'
 
-type Transaction = Parameters<Parameters<CronDatabase['transaction']>[0]>[0]
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 const POLLABLE_INVOICE_STATUSES = ['pending_authorization', 'cancellation_requested'] as const
 
@@ -54,9 +56,11 @@ const STORAGE_MIME_TYPE = {
 const NFSE_STORAGE_PURPOSE = 'nfse_document'
 const FINAL_OBJECT_STATUS = 'final'
 
+const DEFAULT_STORAGE_PROVIDER = 'minio'
+
 export function createDrizzleNfseReconciliationSource(dependencies: {
-  readonly db: CronDatabase
-  readonly logger: CronLogger
+  readonly db: Database
+  readonly logger: WorkerLogger
 }): NfseReconciliationCandidateSourcePort {
   return {
     async listCandidates({ environment, limit }) {
@@ -110,8 +114,9 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
 }
 
 export function createDrizzleNfseReconciliationWriteBack(dependencies: {
-  readonly db: CronDatabase
-  readonly storageProvider: string
+  readonly db: Database
+  /** Mesmo rótulo das outras escritas de objeto do worker: é o `provider` da linha, não a URL. */
+  readonly storageProvider?: string
 }): NfseReconciliationWriteBackPort {
   return {
     async recordAuthorized(input) {
@@ -128,7 +133,7 @@ export function createDrizzleNfseReconciliationWriteBack(dependencies: {
           companyId: input.companyId,
           document: input.xml,
           kind: 'xml',
-          storageProvider: dependencies.storageProvider,
+          storageProvider: dependencies.storageProvider ?? DEFAULT_STORAGE_PROVIDER,
         })
         const pdfObjectId =
           input.pdf === undefined
@@ -137,7 +142,7 @@ export function createDrizzleNfseReconciliationWriteBack(dependencies: {
                 companyId: input.companyId,
                 document: input.pdf,
                 kind: 'pdf',
-                storageProvider: dependencies.storageProvider,
+                storageProvider: dependencies.storageProvider ?? DEFAULT_STORAGE_PROVIDER,
               })
 
         await transaction
@@ -424,7 +429,7 @@ async function upsertStoredObject(
 
 async function listLatestAttempts(input: {
   readonly companyIds: readonly string[]
-  readonly db: CronDatabase
+  readonly db: Database
   readonly invoiceIds: readonly string[]
 }): Promise<ReadonlyMap<string, string>> {
   const rows = await input.db
@@ -458,8 +463,8 @@ async function listLatestAttempts(input: {
  */
 async function listCredentials(input: {
   readonly companyIds: readonly string[]
-  readonly db: CronDatabase
-  readonly environment: CronFiscalEnvironment
+  readonly db: Database
+  readonly environment: NfseFiscalEnvironment
 }): Promise<ReadonlyMap<string, NfseReconciliationCredential>> {
   const rows = await input.db
     .select({

@@ -3,7 +3,7 @@
  */
 import { type SQL, sql } from 'drizzle-orm'
 
-import { nfseServiceInvoices } from '../../database/nfse-reconciliation.schema.js'
+import { nfseServiceInvoices } from '../../database/nfse-issuance-execution.schema.js'
 
 /**
  * Nota sem agendamento é a mais devida de todas — a política a trata como devida agora. No Postgres

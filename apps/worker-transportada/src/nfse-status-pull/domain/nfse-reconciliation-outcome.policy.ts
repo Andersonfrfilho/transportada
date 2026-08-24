@@ -5,14 +5,22 @@
  * reconciliação pode tomar. Regra pura: nenhuma leitura de banco, nenhuma chamada de rede.
  */
 
-export type NfseStatusFailureCause =
-  | 'credential_unreadable'
-  | 'malformed_response'
-  | 'not_found'
-  | 'provider_not_configured'
-  | 'timeout'
-  | 'transport_failure'
-  | 'unexpected_status'
+/**
+ * As sete causas de adiamento, e a lista existe para ser **percorrida**: a tradução delas nas quatro
+ * palavras do catálogo mora em `nfse-status-pull-failure.policy.ts`, e é o contrato que garante que
+ * nenhuma fique sem destino.
+ */
+export const NFSE_STATUS_FAILURE_CAUSES = [
+  'credential_unreadable',
+  'malformed_response',
+  'not_found',
+  'provider_not_configured',
+  'timeout',
+  'transport_failure',
+  'unexpected_status',
+] as const
+
+export type NfseStatusFailureCause = (typeof NFSE_STATUS_FAILURE_CAUSES)[number]
 
 export type NfseAuthorizedDocumentFacts = {
   readonly authorizedAt: string

@@ -4,7 +4,7 @@
  * A liquidação da nota é uma transação só, guardada pelo banco: o repositório projeta o status de
  * origem permitido dentro do próprio `UPDATE`, para não existir janela entre ler e escrever.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
+import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseStoredDocument } from './nfse-document-storage.port.js'
 
 export type NfseReconciliationWriteBackPort = {
@@ -12,7 +12,7 @@ export type NfseReconciliationWriteBackPort = {
     readonly attemptId: string
     readonly authorizedAt: Date
     readonly companyId: string
-    readonly fiscalEnvironment: CronFiscalEnvironment
+    readonly fiscalEnvironment: NfseFiscalEnvironment
     readonly fiscalNumber: string
     readonly invoiceId: string
     readonly occurredAt: Date

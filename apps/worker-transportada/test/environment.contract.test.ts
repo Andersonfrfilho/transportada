@@ -37,6 +37,7 @@ describe('worker environment contract', () => {
     expect(parseWorkerEnvironment(validEnvironment)).toEqual({
       appEnv: 'local',
       databaseUrl: validEnvironment.DATABASE_URL,
+      fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       logLevel: 'info',

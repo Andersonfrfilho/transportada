@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Aplica a política de elegibilidade sobre o recorte de notas pendentes e conta cada recusa por
- * razão — a contagem vai para o log de fim de ciclo, que é como se enxerga uma nota travada.
+ * razão — a contagem vai para os `counters` da execução, que é como se enxerga uma nota travada.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
-import type { CronLogger } from '../../config/cron.types.js'
+import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
   evaluateNfseReconciliationEligibility,
   NFSE_RECONCILIATION_INELIGIBILITY_REASONS,
@@ -34,7 +34,7 @@ export type NfseReconciliationIneligibleCounts = Record<
 
 export type SelectDueInvoicesUseCase = {
   execute(input: {
-    readonly environment: CronFiscalEnvironment
+    readonly environment: NfseFiscalEnvironment
     readonly limit: number
     readonly now: Date
   }): Promise<{
@@ -50,7 +50,7 @@ export function createEmptyNfseIneligibleCounts(): NfseReconciliationIneligibleC
 }
 
 export function createSelectDueInvoicesUseCase(dependencies: {
-  readonly logger: CronLogger
+  readonly logger: WorkerLogger
   readonly source: NfseReconciliationCandidateSourcePort
 }): SelectDueInvoicesUseCase {
   return {
@@ -72,7 +72,7 @@ export function createSelectDueInvoicesUseCase(dependencies: {
 
         if (!eligibility.eligible) {
           ineligibleCounts[eligibility.reason] += 1
-          dependencies.logger.info('cron_nfse_invoice_not_eligible', {
+          dependencies.logger.info('nfse_status_pull_invoice_not_eligible', {
             companyId: candidate.companyId,
             invoiceId: candidate.invoiceId,
             reason: eligibility.reason,

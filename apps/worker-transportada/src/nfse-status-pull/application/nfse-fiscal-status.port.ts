@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
+import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
 import type {
   NfseProviderStatusFacts,
   NfseStatusFailureCause,
@@ -14,7 +14,7 @@ export type NfseCredentialAccess = {
   readonly companyId: string
   readonly credentialId: string
   readonly envelope: unknown
-  readonly fiscalEnvironment: CronFiscalEnvironment
+  readonly fiscalEnvironment: NfseFiscalEnvironment
   /** Vai no `X-AUTH-IM`. Não é segredo — o segredo é o token, e ele continua selado. */
   readonly municipalRegistration: string
 }

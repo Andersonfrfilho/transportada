@@ -432,3 +432,90 @@ make worker-integration    55 pass ·  0 fail  (12 arquivos)
 
 50 → 55 na integração é a prova de que as cinco novas rodaram, e não caíram em `describe.skip` por
 falta de `DATABASE_URL`. `typecheck` e `lint` limpos.
+
+## T7 — `nfse.status.pull` no worker
+
+**A rotina existia sem chamador, e agora tem um.** `nfse-status-pull/application/nfse-status-pull.routine.ts`
+segue o molde da distribuição: `CycleTally`, contadores sempre com `eligible`/`failed`/`settled`/`skipped`
+e as razões não-zeradas ao lado. Duas divergências deliberadas, escritas no cabeçalho do arquivo — esta
+rotina **processa** em vez de enfileirar, e o catálogo dela não nomeia razão de inelegibilidade, então
+ciclo vazio é `succeeded`, não um código que `isJobOutcome` recusaria.
+
+**As cinco cópias por valor do cron não vieram.** Dentro de uma app não há fronteira que as
+justifique: `nfse-issuance/` já publica o cliente da Nota RP, o serviço de credencial (superset — ele
+devolve também o `callbackToken`), a política de payload e as tabelas. A infraestrutura nova é a
+mínima que faltava — o repositório Drizzle, a query de ordenação, o arquivamento no bucket e
+`nfse-fiscal-status.gateway.ts`, que traduz o `NotaRpStatusOutcome` plano do cliente na união
+discriminada do domínio. Consequência: **o `nota-rp-parity.contract.ts` worker × worker do `tasks.md`
+não foi escrito, porque não há duas implementações para casar.** O AAD segue idêntico ao que selou:
+`transportada:nfse-credential:v1:${companyId}:${credentialId}`, herdado do serviço da emissão.
+
+**O aviso de rejeição ficou de fora.** O `nfse-rejection-notifier.gateway.ts` depende de
+`notification-schedules/`, que é o T6 e ainda não se mudou; a porta `notifier` do
+`ReconcileInvoiceUseCase` é opcional exatamente para isto, e a reconciliação fiscal roda calada. As
+duas linhas de catálogo de notificação que a sessão anterior tinha acrescentado no worker foram
+revertidas — chave de template sem consumidor é código morto.
+
+⚠️ **O worker ganhou `FISCAL_ENVIRONMENT`** (`homologation` | `production`, padrão `production`),
+porque a seleção de nota devida casa a linha de `nfse_provider_credentials` por ambiente e o envelope
+de `job-run.v1` não o carrega. **Instalação de homologação tem de declarar a variável no painel** —
+esquecê-la não quebra nada visível: a consulta simplesmente não acha nota. `.env.example` e o
+`tick.cronjob.yaml` já a declaram como `homologation`.
+
+**Sem `NFSE_PROVIDER_BASE_URL` a rotina não morre**: cada nota é adiada como
+`provider_not_configured`, e o segredo nem chega a ser aberto.
+
+**Gate.**
+
+```
+worker                    571 pass ·  0 fail
+make worker-integration    55 pass ·  0 fail  (12 arquivos)
+```
+
+`typecheck`, `lint` e `format` limpos na raiz.
+
+### T7 (h) — a fatia do cron foi apagada, e o bloco de configuração dela foi com ela
+
+Ao contrário da distribuição, aqui a fatia **não** ficou parada esperando a última rotina pousar. O
+motivo é o bloco de configuração: manter `nfse-status-pull/` no cron obrigava o schema de ambiente a
+continuar exigindo chaveiro (`ENCRYPTION_ACTIVE_KEY_ID`, `ENCRYPTION_KEYRING_JSON`), bucket
+(`STORAGE_*`) e endereço de prefeitura (`NFSE_PROVIDER_BASE_URL`, `NFSE_PROVIDER_TIMEOUT_MS`) no boot
+de uma app onde **nada mais os lê**. Segredo cobrado no boot para rotina que não roda é convite a
+resto de configuração no painel.
+
+O que saiu do `cron-transportada`:
+
+- as cinco cópias por valor (`infrastructure/nota-rp-v2.client.ts`, `.../nfse-fiscal-gateway.ts`,
+  `domain/nfse-document-payload.policy.ts`, `application/nfse-credential-secret.service.ts`,
+  `src/database/nfse-reconciliation.schema.ts`) mais `config/cryptographic-configuration.schema.ts`,
+  o parser de chaveiro, e `test/nfse-status-pull/` inteiro — inclusive o
+  `nota-rp-parity.contract.ts` que o `tasks.md` prometia converter em worker × worker. Com uma
+  implementação só não há paridade a guardar: **o contrato que sobrevive é
+  `worker/test/nota-rp-v2-client.contract.test.ts`**, e a varredura de `no-bearer` perdeu a segunda
+  cópia junto.
+- `nfseStatusPull` do `CronEnvironment`, `resolveNfseStatusPullEnvironment` do schema e o guarda de
+  `NFSE_PROVIDER_BASE_URL_HOMOLOGATION`/`_PRODUCTION` — este último mudou para o worker, única app
+  que ainda fala com a Nota RP.
+- `@adatechnology/object-storage-provider` e `@adatechnology/secret-envelope` do `package.json`
+  (nenhum importador restante, verificado por varredura); `bun install` na raiz podou exatamente duas
+  linhas do `bun.lock`, sem outro movimento.
+- o `NFSE_SETTINGS` do `test/notification-schedules/environment.contract.ts` e o teste que o usava —
+  com as chaves fora do schema, ele já não afirmava nada.
+
+O que **fica** no cron de propósito: `src/shared/job-catalog.constant.ts` continua nomeando
+`nfse.status.pull` (é o vocabulário do relógio, não da rotina) e `FISCAL_ENVIRONMENT` continua
+exigido, porque a fatia já órfã da distribuição ainda o lê.
+
+`docs/spec/railway.md` e o `CLAUDE.md` foram atualizados: **nenhuma variável nova foi provisionada** —
+o worker já abria envelope selado e arquivava documento fiscal para _emitir_ nota —, e as que saíram do
+schema da cron podem ser removidas do painel dela, nunca do worker.
+
+**Gate.**
+
+```
+cron                      153 pass ·  0 fail  (410 expects · 9 arquivos)
+worker                    615 pass ·  0 fail  (1470 expects · 62 arquivos)
+make worker-integration    55 pass ·  0 fail  (196 expects · 12 arquivos)
+```
+
+`typecheck` e `lint` limpos nas duas apps; `format:check` limpo na raiz.

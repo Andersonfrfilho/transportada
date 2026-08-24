@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Decide quais notas de serviço entram no ciclo de reconciliação. O tipo do candidato vem da porta
- * da aplicação — mesmo arranjo de `distribution-eligibility.policy.ts`, que é a regra irmã do outro
- * job deste cron.
+ * da aplicação — mesmo arranjo de `distribution-eligibility.policy.ts`, que é a regra irmã da outra
+ * rotina agendada deste worker.
  */
-import type { CronFiscalEnvironment } from '../../config/cron.constant.js'
+import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseReconciliationCandidate } from '../application/select-due-invoices.port.js'
 
 export const NFSE_RECONCILIATION_INELIGIBILITY_REASONS = [
@@ -30,7 +30,7 @@ const ELIGIBLE: NfseReconciliationEligibility = { eligible: true }
 
 export function evaluateNfseReconciliationEligibility(input: {
   readonly candidate: NfseReconciliationCandidate
-  readonly environment: CronFiscalEnvironment
+  readonly environment: NfseFiscalEnvironment
   readonly now: Date
 }): NfseReconciliationEligibility {
   const reason = findBlockingReason(input)
@@ -39,7 +39,7 @@ export function evaluateNfseReconciliationEligibility(input: {
 
 function findBlockingReason(input: {
   readonly candidate: NfseReconciliationCandidate
-  readonly environment: CronFiscalEnvironment
+  readonly environment: NfseFiscalEnvironment
   readonly now: Date
 }): NfseReconciliationIneligibilityReason | undefined {
   const { candidate } = input
