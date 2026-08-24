@@ -50,6 +50,7 @@ export type StorageObjectPurpose =
   | 'billing_document'
   | 'cte_document'
   | 'mdfe_document'
+  | 'nfse_document'
 
 export type FiscalEnvironment = 'homologation' | 'production'
 export type TaxRegime = '1' | '2' | '3'

@@ -110,6 +110,20 @@ import { DrizzleNfeDistributionCursorRepository } from './nfe-distribution/infra
 import { DrizzleNfeDistributionProfileRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution-profile.repository.js'
 import { DrizzleNfeDistributionRepository } from './nfe-distribution/infrastructure/drizzle-nfe-distribution.repository.js'
 import { createNfeDistributionPullRoutine } from './nfe-distribution-pull/application/nfe-distribution-pull.routine.js'
+import { createNfseCredentialSecretService as createNfseStatusCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
+import { createReconcileInvoiceUseCase } from './nfse-status-pull/application/reconcile-invoice.use-case.js'
+import { createSelectDueInvoicesUseCase } from './nfse-status-pull/application/select-due-invoices.use-case.js'
+import { createNfseStatusPullRoutine } from './nfse-status-pull/application/nfse-status-pull.routine.js'
+import {
+  NFSE_STATUS_PULL_JOB,
+  NFSE_STATUS_PULL_PAGE_SIZE,
+} from './nfse-status-pull/domain/nfse-status-pull.constant.js'
+import {
+  createDrizzleNfseReconciliationSource,
+  createDrizzleNfseReconciliationWriteBack,
+} from './nfse-status-pull/infrastructure/drizzle-nfse-reconciliation.repository.js'
+import { createNfseFiscalDocumentStorage } from './nfse-status-pull/infrastructure/nfse-fiscal-document-storage.gateway.js'
+import { createNfseFiscalStatusGateway } from './nfse-status-pull/infrastructure/nfse-fiscal-status.gateway.js'
 import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distribution-pull.constant.js'
 import { createCryptoDistributionIdentifiers } from './nfe-distribution-pull/infrastructure/crypto-identifiers.js'
 import { createDrizzleDistributionCandidateSource } from './nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.js'
@@ -807,6 +821,48 @@ export async function startWorkerRuntime(
             source: createDrizzleDistributionCandidateSource({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               logger,
+            }),
+          }),
+          // Sem aviso de rejeição enquanto `notification.schedules.run` não se mudar para cá: a
+          // porta é opcional de propósito, e a reconciliação fiscal não depende do aviso existir.
+          [NFSE_STATUS_PULL_JOB]: createNfseStatusPullRoutine({
+            fiscalEnvironment: config.fiscalEnvironment,
+            logger,
+            now: () => new Date(),
+            pageSize: NFSE_STATUS_PULL_PAGE_SIZE,
+            reconcile: createReconcileInvoiceUseCase({
+              documentStorage: createNfseFiscalDocumentStorage({
+                bucket: storageBucket,
+                provider: {
+                  put: (input) =>
+                    storageGateway.storeObject({
+                      body: input.body,
+                      bucket: input.bucket,
+                      contentLength: input.contentLength,
+                      contentType: input.contentType,
+                      key: input.key,
+                      sha256: input.sha256,
+                    }),
+                },
+              }),
+              logger,
+              status: createNfseFiscalStatusGateway({
+                config: config.nfseProvider,
+                fetch: (input, init) => fetch(input, init),
+                secretService: createNfseStatusCredentialSecretService({
+                  envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+                }),
+              }),
+              writeBack: createDrizzleNfseReconciliationWriteBack({
+                db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              }),
+            }),
+            selectDue: createSelectDueInvoicesUseCase({
+              logger,
+              source: createDrizzleNfseReconciliationSource({
+                db: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                logger,
+              }),
             }),
           }),
         },

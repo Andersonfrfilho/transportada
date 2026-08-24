@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  * Cópia por valor do schema da API. Só as colunas que o trilho NFS-e lê ou escreve.
  */
-import { jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { bigint, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 export type NfseFiscalEnvironment = 'homologation' | 'production'
 export type NfseServiceInvoiceStatus =
@@ -62,6 +62,7 @@ export const nfseIssuanceAttempts = pgTable('nfse_issuance_attempts', {
   companyId: uuid('company_id').notNull(),
   invoiceId: uuid('invoice_id').notNull(),
   attemptKind: text('attempt_kind').$type<NfseAttemptKind>().notNull(),
+  attemptNumber: bigint('attempt_number', { mode: 'bigint' }).notNull(),
   status: text().$type<NfseIssuanceStatus>().notNull(),
   requestFingerprint: text('request_fingerprint').notNull(),
   fiscalEnvironment: text('fiscal_environment').$type<NfseFiscalEnvironment>().notNull(),

@@ -298,18 +298,34 @@ RabbitMQ e banco.
 **As rotinas agendadas são um registro, e ele é parcial de propósito.** `startJobRunConsumer` recebe
 `routines: JobRoutineRegistry` (`Partial<Record<ScheduledJob, JobRoutine>>`) e o consumidor reivindica
 a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registrada pousa em
-`job_run_routine_missing` e fecha como `unexpected_error`. Hoje só `nfe.distribution.pull` está
-registrada, em `src/nfe-distribution-pull/` — ela **não** fala com a SEFAZ: seleciona empresa elegível
-e enfileira `source: 'distribution'` na `processing_outbox`, e daí em diante é o relay e o consumidor
-de `nfe-distribution.v1` que já existiam.
+`job_run_routine_missing` e fecha como `unexpected_error`. Hoje duas estão registradas:
+
+- `nfe.distribution.pull`, em `src/nfe-distribution-pull/` — ela **não** fala com a SEFAZ: seleciona
+  empresa elegível e enfileira `source: 'distribution'` na `processing_outbox`, e daí em diante é o
+  relay e o consumidor de `nfe-distribution.v1` que já existiam.
+- `nfse.status.pull`, em `src/nfse-status-pull/` — aqui a rotina **processa**: consulta a prefeitura
+  por nota pendente, arquiva XML e PDF no bucket na autorização e grava a rejeição com código e
+  mensagem. Dentro de uma app não há fronteira que justifique cópia, então ela **importa** o cliente
+  da Nota RP, o serviço de credencial e o schema de `nfse-issuance/` em vez de duplicá-los como o
+  cron precisava fazer — o AAD continua sendo o mesmo
+  `transportada:nfse-credential:v1:${companyId}:${credentialId}` que selou. O aviso de rejeição
+  ainda **não** sai: a porta `notifier` é opcional e só ganha adaptador quando
+  `notification.schedules.run` se mudar para cá. Sem `NFSE_PROVIDER_BASE_URL` a rotina não morre —
+  cada nota é adiada como `provider_not_configured`, e o segredo nem chega a ser aberto.
+
+⚠️ O worker passou a ter `FISCAL_ENVIRONMENT` (`homologation` | `production`, **padrão
+`production`**), e quem o lê é só a reconciliação de NFS-e, para casar a linha de
+`nfse_provider_credentials`. Instalação de homologação **declara a variável**: esquecê-la faz a
+reconciliação procurar credencial de produção e não achar nota alguma. A distribuição de NF-e segue
+sem ela — lá o ambiente é o de `company_fiscal_profiles`, por empresa.
 
 ⚠️ **A trava contra o `cStat 656` é `nfe_distribution_cursors.next_allowed_at`, por
 `(company_id, environment)` — nunca a cadência do agendador.** A NT 2014.002 §3.11.4 bloqueia o
 **CNPJ** por uma hora em consumo indevido, e quem sabe quando a janela reabre é a última resposta da
 SEFAZ. Com batida de cinco minutos, onze de cada doze janelas são recusadas por `cooldown_active`
 antes de qualquer chamada. O ambiente é o de `company_fiscal_profiles.environment`, por empresa: o
-worker não tem `FISCAL_ENVIRONMENT` e o envelope de `job-run.v1` não carrega ambiente, então a junção
-do cursor é escopada pelo perfil — ler o do outro ambiente devolveria a espera errada. A distribuição
+envelope de `job-run.v1` não carrega ambiente e o `FISCAL_ENVIRONMENT` do worker é da NFS-e, então a
+junção do cursor é escopada pelo perfil — ler o do outro ambiente devolveria a espera errada. A distribuição
 assina com o certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
 `src/shared/nfe-distribution.constant.ts`): quem pré-filtra a empresa e quem abre o envelope olham a
 mesma linha de `digital_certificates`, senão a empresa é aprovada pelo certificado de MDF-e e falha ao
@@ -332,10 +348,10 @@ advisory lock, lê `job_schedules`, publica em `job-run.v1` cada rotina com `nex
 avança a janela dela. `CRON_JOB` e `src/job-registry.ts` **não existem mais** — quem escolhe a rotina
 é o relógio no banco, não a variável do painel de hospedagem, e por isso os quatro serviços de cron
 viraram um (spec 052). ⚠️ As rotinas chegam ao worker uma por vez, e enquanto a dela não chega o
-`src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as três que faltam
-(`fuel.price.pull`, `notification.schedules.run`, `nfse.status.pull`) estão nesse estado, e cada
-janela delas pousa em `job_run_routine_missing` no worker. `nfe.distribution.pull` já foi (a fatia do
-cron ficou parada, e será apagada quando a última pousar).
+`src/<rotina>/<rotina>.job.ts` continua no cron **sem chamador** — hoje as duas que faltam
+(`fuel.price.pull`, `notification.schedules.run`) estão nesse estado, e cada janela delas pousa em
+`job_run_routine_missing` no worker. `nfe.distribution.pull` e `nfse.status.pull` já foram (as fatias
+do cron ficaram paradas, e serão apagadas quando a última pousar).
 
 As quatro rotinas:
 

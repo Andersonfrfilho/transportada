@@ -29,12 +29,20 @@ export type NfseProviderEnvironment = {
   readonly timeoutMilliseconds: number
 }
 
+export type NfseFiscalEnvironment = 'homologation' | 'production'
+
 export type WorkerEnvironment = {
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
   /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */
   readonly emailDelivery?: EmailDeliveryEnvironment
+  /**
+   * O ambiente fiscal da instalação. Hoje só a reconciliação de NFS-e o lê, para casar a credencial
+   * do provedor: a Nota RP publica um servidor só (ADR-0035), e quem separa uma instalação da outra
+   * é a credencial selada por empresa.
+   */
+  readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
