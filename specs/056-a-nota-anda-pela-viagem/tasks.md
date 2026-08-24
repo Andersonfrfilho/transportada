@@ -145,17 +145,49 @@ notas de cada uma. Imutável por constraint, não por convenção.
 
 > 🤖 Modelo: `sonnet` (T006 é 🧠 — é a máquina inteira)
 
-### T006 🧠 — A máquina de transição, isolada e pura
+### T006 🧠 ✅ — A máquina de transição, isolada e pura
 
 Módulo sem I/O: recebe estado atual + transição pedida, devolve estado novo ou erro tipado. É ele
 que define **cada aresta**, inclusive as proibidas. Estar isolado é o que torna testável toda
 transição inválida sem subir banco.
 
-- **Arquivos:** `src/trips/domain/trip-state-machine.ts` (novo),
-  `src/trips/domain/trip-state.error.ts`, `shared/errors/codes.ts`
-- **Aceite:** `test/trip-state-machine/transitions.contract.ts` — tabela completa: toda aresta
-  válida passa, **toda inválida** devolve `STATE_TRANSITION_NOT_ALLOWED`
-- **Verificação:** `bun run --cwd apps/api-transportada test`
+- **Arquivos:** `src/trips/domain/trip-state.policy.ts` (novo — nome segue
+  `mdfe-manifest-state.policy.ts`, que é o precedente do repositório para máquina de estado pura,
+  em vez do `*-state-machine.ts` que esta task tinha chutado antes de eu olhar o código),
+  `src/trips/domain/trip.error.ts` (classe de erro nova; o repositório não tem
+  `shared/errors/codes.ts` — cada domínio guarda os seus, e essa é a convenção)
+- **Aceite:** `test/trip-domain/trip-state.contract.ts` (novo, 34 testes)
+- **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2960 pass, 0 fail) ✅
+- **Evidência:** módulo sem I/O nenhum — nem banco, nem relógio, nem `Date`. Três desfechos em vez
+  de dois: `applied` / `unchanged` / `blocked`, porque `unchanged` é o que sustenta a idempotência
+  da RF-8 e não cabe em "permitido ou não".
+
+  **Cobertura exaustiva de verdade:** dois testes varrem a grade inteira — 4 ações × 5 estados de
+  nota × 8 estados de viagem = **160 arestas** no eixo da nota, e 3 ações × 8 estados × 2 (com e
+  sem roteiro) = **48** no eixo da viagem. Toda célula tem resposta nomeada; nenhuma cai no vazio.
+
+  **Precedência dos portões, decidida e comentada no código.** O no-op idempotente é checado
+  **antes** do estado da viagem. Descobri isso escrevendo os testes: dois falharam, e a análise
+  mostrou que o teste é que estava errado. Se o portão da viagem viesse primeiro, uma confirmação
+  de entrega duplicada drenada da fila offline (spec 057 D5) **depois** de a viagem completar
+  voltaria como 409 — conflito na cara do motorista para uma entrega que funcionou. O no-op nunca
+  escreve nada e é o que torna todo replay seguro, então ele vence.
+
+  Decisões que a task não especificava e eu tomei:
+  - **Separar exige `route_planned`** (`draft` bloqueia). Separar carga cujo roteiro ninguém
+    conferiu é separar carga que talvez não vá — e é o que dá função ao `route_planned`, que
+    senão seria decorativo. É a decisão mais discutível das três; se atrapalhar a operação, o
+    portão sai de um lugar só.
+  - **Entregar e devolver exigem `dispatched`**, e separar/carregar exigem que ela **não** tenha
+    saído. Barracão e rua são fases disjuntas, e é isso que garante que `completed` nunca aconteça
+    numa viagem que nunca saiu.
+  - **Cancelar vale até com o motorista na rua** — a tabela do ADR §1 diz "antes de `dispatched`",
+    mas o texto do §2 e a spec 057 (viagem cancelada com o motorista na rua) descrevem o
+    cancelamento pós-despacho como incidente real. Segui os dois que concordam; só `completed`
+    recusa.
+  - **`deriveTripStatus` só anda para a frente**, e viagem sem nota não deriva nada — "toda nota
+    entregue" é vacuamente verdade num saco vazio, e sem essa guarda uma viagem vazia completaria
+    sozinha. Tem teste para os dois.
 
 ### T007 — Normalização de endereço e derivação de parada
 

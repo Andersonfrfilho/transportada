@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import type { TripTransitionBlock } from './trip-state.policy.js'
 
 export class TripVehicleNotFoundError extends ApiError {
   public constructor() {
@@ -114,4 +115,34 @@ export class TripDocumentAlreadyDeliveredError extends ApiError {
       status: 422,
     })
   }
+}
+
+const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, string>> = {
+  TRIP_ALREADY_DISPATCHED: 'The cargo already left: a dispatched trip no longer accepts changes.',
+  TRIP_CANCELLED: 'A cancelled trip no longer accepts changes.',
+  TRIP_COMPLETED: 'A completed trip no longer accepts changes.',
+  TRIP_DOCUMENT_ALREADY_CLOSED: 'The document was already delivered or returned.',
+  TRIP_DOCUMENT_NOT_LOADED: 'Only a loaded document can be delivered or returned.',
+  TRIP_DOCUMENT_NOT_SEPARATED: 'Only a separated document can be loaded.',
+  TRIP_HAS_NO_ROUTE: 'The trip has no planned route.',
+  TRIP_NOT_DISPATCHED: 'Delivering and returning happen on the road, after the trip is dispatched.',
+  TRIP_ROUTE_NOT_PLANNED: 'The route must be planned before the warehouse separates the cargo.',
+}
+
+/**
+ * `domain-model.md#estados`: transição inválida é `409 STATE_TRANSITION_NOT_ALLOWED`. O motivo
+ * específico viaja em `details`, porque "não pode" sem dizer o quê manda a pessoa adivinhar.
+ */
+export class TripStateTransitionNotAllowedError extends ApiError {
+  public constructor(reason: TripTransitionBlock) {
+    super({
+      code: 'STATE_TRANSITION_NOT_ALLOWED',
+      details: [{ field: 'status', message: TRIP_TRANSITION_BLOCK_MESSAGES[reason] }],
+      message: TRIP_TRANSITION_BLOCK_MESSAGES[reason],
+      status: 409,
+    })
+    this.reason = reason
+  }
+
+  public readonly reason: TripTransitionBlock
 }
