@@ -484,6 +484,46 @@ As rotas do RF-6, incluindo as três da D8/D9, com `defineRoute`, schemas Zod em
   (oito de `trip.manage`, uma de `fleet.read`/`invoices.read`) são exatamente as que o separador
   deveria alcançar, e o teste documenta isso, não só valida.
 
+### T012b ✅ — Ligar o reconciliador de parada ao vínculo/desvínculo real
+
+Achado ao começar o T018 (E2E do ciclo inteiro): `reconcileStopOnLink`/`reconcileStopOnUnlink`
+(T007) nunca tinham sido ligados ao `linkDocument`/`releaseDocument` reais — a evidência do T007 já
+previa isso para o T012, mas T012 não fez essa parte (flagrado como `task_e99ad4c8` durante o T014,
+e adiado até esbarrar num bloqueio de verdade). Sem isso, nenhuma nota vinculada por uma viagem real
+ganhava `stop_id`, e `plan-route` — que exige `hasRoute = ≥1 parada && nenhuma nota sem parada` —
+nunca conseguia sair de `false` para uma viagem que só passou pelo fluxo normal de vínculo. O
+cenário do próprio T018 ("vincular 3 notas em 2 endereços → planejar") era, literalmente,
+impossível de reproduzir antes deste fix.
+
+- **Arquivos:** `src/trips/infrastructure/drizzle-trip.repository.ts` (`linkDocument`,
+  `releaseDocument`), `src/trips/infrastructure/nfe-destination-address.support.ts` (novo),
+  `src/trips/infrastructure/drizzle-trip-stop-reconciliation.support.ts` (novo — extrai o adapter
+  de `TripStopReconciliationPort` que já existia duplicado dentro do T010b)
+- **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- `linkDocument`: depois do `insert`, resolve o `nfeDocumentId` (direto ou via
+  `freightCalculationId` → `freight_calculations.nfe_document_id`), busca o destinatário em
+  `nfe_participants`/`nfe_addresses` (role `recipient`), e chama `reconcileStopOnLink` — mesma
+  função pura do T007, sem duplicar a lógica de agrupamento. Nota sem destinatário cadastrado ou
+  sem CEP normalizável fica `stop_id: null` (`SEM ENDEREÇO`), sem quebrar o vínculo.
+- `releaseDocument`: agora lê o `stop_id` antigo **antes** do `UPDATE` que o zera (mesma lição do
+  T010 — `RETURNING` reflete o estado novo, não o antigo), e chama `reconcileStopOnUnlink` depois —
+  antes deste fix, a nota liberada continuava presa à parada para sempre.
+- `nfe-destination-address.support.ts` e `drizzle-trip-stop-reconciliation.support.ts` extraem duas
+  peças que o T010b já tinha implementado como código local (resolver o `nfeDocumentId` do
+  vínculo, e o adapter da porta de reconciliação) — agora compartilhadas entre os dois caminhos que
+  precisam delas, sem duplicação.
+- Verificado ao vivo contra Postgres local: três notas vinculadas, duas com o mesmo CEP/número/
+  código de município → mesma parada; a terceira, endereço diferente → parada distinta (2 paradas
+  no total); liberar a única nota da parada C → `stop_id` volta a `null` e a parada C é apagada.
+  `test/integration/trip-repository.integration.ts` (que já vincula/libera notas sem endereço
+  cadastrado) continua passando sem alteração — cai graciosamente no balde `SEM ENDEREÇO`. Banco
+  resetado depois.
+- `tsc --noEmit`, `eslint src --max-warnings=0` limpos; suíte completa (`bun test`):
+  3046 pass / 15 skip / 0 fail.
+
 ### T013 — Vínculo e desvínculo recusam viagem despachada ✅
 
 `POST /trips/:id/documents` e o `DELETE` respondem `409` a partir de `dispatched`. É a metade da D2

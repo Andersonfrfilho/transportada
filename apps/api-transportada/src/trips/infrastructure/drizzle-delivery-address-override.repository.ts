@@ -3,25 +3,19 @@
  */
 import { and, desc, eq, sql } from 'drizzle-orm'
 
-import {
-  freightCalculations,
-  nfeAddresses,
-  nfeParticipants,
-} from '../../database/database.schema.js'
-import { deliveryAddressOverrides, tripDocuments, tripStops, trips } from '../../database/trip.schema.js'
+import { nfeAddresses, nfeParticipants } from '../../database/database.schema.js'
+import { deliveryAddressOverrides, tripDocuments, trips } from '../../database/trip.schema.js'
 import type { ListDeliveryAddressHistoryPort } from '../application/list-delivery-address-history.use-case.js'
 import type {
   DeliveryAddressOverrideRecord,
   OverrideDeliveryAddressPort,
   OverrideDeliveryAddressPreconditions,
 } from '../application/override-delivery-address.use-case.js'
-import {
-  reconcileStopOnLink,
-  reconcileStopOnUnlink,
-  type TripStopReconciliationPort,
-} from '../application/reconcile-trip-stops.use-case.js'
+import { reconcileStopOnLink, reconcileStopOnUnlink } from '../application/reconcile-trip-stops.use-case.js'
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import { resolveNfeDocumentId } from './nfe-destination-address.support.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
 type OverrideRecord = typeof deliveryAddressOverrides.$inferSelect
@@ -158,7 +152,7 @@ export class DrizzleDeliveryAddressOverrideRepository
           ),
         )
 
-      const reconciliationPort = createReconciliationPort(transaction)
+      const reconciliationPort = createTripStopReconciliationPort(transaction)
       await reconcileStopOnUnlink({
         companyId: input.companyId,
         repository: reconciliationPort,
@@ -204,32 +198,6 @@ export class DrizzleDeliveryAddressOverrideRepository
       return mapOverride(created)
     })
   }
-}
-
-/** O vínculo aceita nota crua ou frete já calculado sobre ela (ADR-0023 §2) — os dois resolvem à
- * mesma NF-e no fim, só que o frete guarda o id um passo adiante. */
-async function resolveNfeDocumentId(
-  transaction: TripTransaction,
-  input: {
-    readonly companyId: string
-    readonly freightCalculationId: string | null
-    readonly nfeDocumentId: string | null
-  },
-): Promise<string | null> {
-  if (input.nfeDocumentId !== null) return input.nfeDocumentId
-  if (input.freightCalculationId === null) return null
-
-  const [calculation] = await transaction
-    .select({ nfeDocumentId: freightCalculations.nfeDocumentId })
-    .from(freightCalculations)
-    .where(
-      and(
-        eq(freightCalculations.companyId, input.companyId),
-        eq(freightCalculations.id, input.freightCalculationId),
-      ),
-    )
-    .limit(1)
-  return calculation?.nfeDocumentId ?? null
 }
 
 /**
@@ -312,63 +280,5 @@ async function resolvePreviousAddress(
       postalCode: recipient.postalCode,
     },
     label: [recipient.street, recipient.city, recipient.state].filter(Boolean).join(', '),
-  }
-}
-
-function createReconciliationPort(transaction: TripTransaction): TripStopReconciliationPort {
-  return {
-    async countLiveDocumentsAtStop(input) {
-      const rows = await transaction
-        .select({ id: tripDocuments.id })
-        .from(tripDocuments)
-        .where(
-          and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.stopId, input.stopId)),
-        )
-      return rows.length
-    },
-    async createStop(input) {
-      const [created] = await transaction
-        .insert(tripStops)
-        .values({
-          addressKey: input.addressKey,
-          companyId: input.companyId,
-          label: input.label,
-          sequence: input.sequence,
-          tripId: input.tripId,
-        })
-        .returning()
-      if (created === undefined) throw new Error('TRIP_STOP_CREATE_FAILED')
-      return { addressKey: created.addressKey, id: created.id, sequence: created.sequence }
-    },
-    async deleteStop(input) {
-      await transaction
-        .delete(tripStops)
-        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))
-    },
-    async findStopByAddressKey(input) {
-      const [found] = await transaction
-        .select({ addressKey: tripStops.addressKey, id: tripStops.id, sequence: tripStops.sequence })
-        .from(tripStops)
-        .where(
-          and(
-            eq(tripStops.companyId, input.companyId),
-            eq(tripStops.tripId, input.tripId),
-            eq(tripStops.addressKey, input.addressKey),
-          ),
-        )
-        .limit(1)
-      return found ?? null
-    },
-    async nextStopSequence(input) {
-      const rows = await transaction
-        .select({ sequence: tripStops.sequence })
-        .from(tripStops)
-        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
-      const max = rows.reduce(
-        (accumulator, row) => (row.sequence > accumulator ? row.sequence : accumulator),
-        0n,
-      )
-      return max + 1n
-    },
   }
 }

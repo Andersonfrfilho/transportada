@@ -32,6 +32,12 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import { reconcileStopOnLink, reconcileStopOnUnlink } from '../application/reconcile-trip-stops.use-case.js'
+import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import {
+  resolveNfeDestinationAddress,
+  resolveNfeDocumentId,
+} from './nfe-destination-address.support.js'
 import {
   mapTrip,
   mapTripDocument,
@@ -44,7 +50,7 @@ import {
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
-import type { TripDatabase, TripQueryable } from './trip-queryable.type.js'
+import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
   'trip_documents_live_nfe_document_unique',
@@ -186,7 +192,21 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         return created
       })
       if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
-      return mapTripDocument(record)
+
+      const stopId = await reconcileLinkedDocumentStop(transaction, {
+        companyId: input.companyId,
+        freightCalculationId: record.freightCalculationId,
+        nfeDocumentId: record.nfeDocumentId,
+        tripId: input.tripId,
+      })
+      if (stopId === null) return mapTripDocument(record)
+
+      const [withStop] = await transaction
+        .update(tripDocuments)
+        .set({ stopId })
+        .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
+        .returning()
+      return mapTripDocument(withStop ?? record)
     })
   }
 
@@ -246,20 +266,91 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null> {
-    const [released] = await this.database
-      .update(tripDocuments)
-      .set({ releasedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(
-        and(
-          ...buildTripDocumentFilters(input),
-          isNull(tripDocuments.deliveredAt),
-          isNull(tripDocuments.releasedAt),
-          tripStillOpen(input),
-        ),
-      )
-      .returning()
-    return released === undefined ? null : mapTripDocument(released)
+    return this.database.transaction(async (transaction) => {
+      // A parada de origem precisa ser lida **antes** do `UPDATE` abaixo: `RETURNING` reflete o
+      // estado novo da linha (`stop_id` já nulo), não o antigo — a T010 aprendeu isso do jeito
+      // caro com `releaseUnloadedDocuments`.
+      const previousStopId = await readDocumentStopIdBeforeRelease(transaction, {
+        companyId: input.companyId,
+        documentId: input.documentId,
+      })
+
+      const [released] = await transaction
+        .update(tripDocuments)
+        .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
+        .where(
+          and(
+            ...buildTripDocumentFilters(input),
+            isNull(tripDocuments.deliveredAt),
+            isNull(tripDocuments.releasedAt),
+            tripStillOpen(input),
+          ),
+        )
+        .returning()
+      if (released === undefined) return null
+
+      // A nota já perdeu a referência à parada no `UPDATE` acima — só depois disso
+      // `reconcileStopOnUnlink` pode contar corretamente se a parada esvaziou (T007).
+      if (previousStopId !== null) {
+        await reconcileStopOnUnlink({
+          companyId: input.companyId,
+          repository: createTripStopReconciliationPort(transaction),
+          stopId: previousStopId,
+        })
+      }
+
+      return mapTripDocument(released)
+    })
   }
+}
+
+/**
+ * ADR-0043 §3: vincular cria a parada se faltar, reaproveitando a que já agrupa o mesmo endereço
+ * normalizado. `null` quando a NF-e não resolve a nenhum destinatário cadastrado, ou quando o CEP
+ * não normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ */
+async function reconcileLinkedDocumentStop(
+  transaction: TripTransaction,
+  input: {
+    readonly companyId: string
+    readonly freightCalculationId: string | null
+    readonly nfeDocumentId: string | null
+    readonly tripId: string
+  },
+): Promise<string | null> {
+  const nfeDocumentId = await resolveNfeDocumentId(transaction, input)
+  if (nfeDocumentId === null) return null
+
+  const destination = await resolveNfeDestinationAddress(transaction, {
+    companyId: input.companyId,
+    nfeDocumentId,
+  })
+  if (destination === null) return null
+
+  const stop = await reconcileStopOnLink({
+    addressComponents: destination.components,
+    companyId: input.companyId,
+    label: destination.label,
+    repository: createTripStopReconciliationPort(transaction),
+    tripId: input.tripId,
+  })
+  return stop?.id ?? null
+}
+
+/**
+ * O `RETURNING` do `UPDATE` que libera a nota já reflete `stop_id = null` — a T010 aprendeu isso do
+ * jeito caro. A parada de origem precisa ser lida numa consulta separada, antes de reconciliar.
+ */
+async function readDocumentStopIdBeforeRelease(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<string | null> {
+  const [row] = await transaction
+    .select({ stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)))
+    .limit(1)
+  return row?.stopId ?? null
 }
 
 /**
