@@ -9,7 +9,15 @@ import {
   findTripLocationByAccessKey,
   type FindTripLocationByAccessKeyPort,
 } from './find-trip-location-by-access-key.use-case.js'
+import {
+  listDeliveryAddressHistory,
+  type ListDeliveryAddressHistoryPort,
+} from './list-delivery-address-history.use-case.js'
 import { listTripStops, type ListTripStopsPort } from './list-trip-stops.use-case.js'
+import {
+  overrideDeliveryAddress,
+  type OverrideDeliveryAddressPort,
+} from './override-delivery-address.use-case.js'
 import { planTripRoute, type PlanTripRoutePort } from './plan-trip-route.use-case.js'
 import { reorderTripStops, type ReorderTripStopsPort } from './reorder-trip-stops.use-case.js'
 import {
@@ -23,6 +31,8 @@ import {
 
 export type TripLifecycleDependencies = {
   readonly batchRepository: TripDocumentBatchTransitionPort
+  readonly deliveryAddressOverrideRepository: ListDeliveryAddressHistoryPort &
+    OverrideDeliveryAddressPort
   readonly documentRepository: TripDocumentTransitionPort
   readonly locationRepository: FindTripLocationByAccessKeyPort
   readonly routeRepository: CancelTripPort &
@@ -108,6 +118,19 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         })
       },
     },
+    listDeliveryAddressHistory: {
+      async execute(input: {
+        readonly context: CompanyContext
+        readonly documentId: string
+        readonly tripId: string
+      }) {
+        return listDeliveryAddressHistory({
+          companyId: input.context.companyId,
+          repository: dependencies.deliveryAddressOverrideRepository,
+          tripDocumentId: input.documentId,
+        })
+      },
+    },
     listStops: {
       async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
         return listTripStops({
@@ -118,6 +141,32 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       },
     },
     load: { execute: document('load') },
+    overrideDeliveryAddress: {
+      async execute(input: {
+        readonly context: CompanyContext
+        readonly documentId: string
+        readonly newAddress: {
+          readonly cityCode: string | null
+          readonly number: string | null
+          readonly postalCode: string | null
+        }
+        readonly newLabel: string
+        readonly reason: string
+        readonly requestedBy: string
+        readonly tripId: string
+      }) {
+        return overrideDeliveryAddress({
+          actorUserId: input.context.userId,
+          companyId: input.context.companyId,
+          newAddress: input.newAddress,
+          newLabel: input.newLabel,
+          reason: input.reason,
+          repository: dependencies.deliveryAddressOverrideRepository,
+          requestedBy: input.requestedBy,
+          tripDocumentId: input.documentId,
+        })
+      },
+    },
     locateByAccessKey: {
       async execute(input: { readonly accessKey: string; readonly context: CompanyContext }) {
         return findTripLocationByAccessKey({

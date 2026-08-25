@@ -324,7 +324,7 @@ a que o produto não deve incentivar.
   o snapshot congelado lista só a parada e a nota que restaram, e um `UPDATE` direto na tabela de
   snapshot continua recusado pelo trigger da T005.
 
-### T010b — O endereço sobrescrito, com solicitante e histórico (D9)
+### T010b ✅ — O endereço sobrescrito, com solicitante e histórico (D9)
 
 `delivery_address_overrides` e o use case da ação: exige motivo e solicitante, grava o par
 executor/solicitante, reconcilia a parada (T007) e recusa a partir de `dispatched`. A chave de
@@ -336,6 +336,38 @@ agrupamento passa a preferir o override.
 - **Aceite:** `test/trip-stops/address-override.contract.ts` — preferência sobre o XML, exigência de
   motivo e solicitante, `409` em `dispatched`, histórico preservado após desvínculo
 - **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- Achado ao começar o T015b (o menu de desvio de entrega no frontend): esta task nunca tinha sido
+  implementada, apesar de FR6/§Contratos do spec.md já listarem as duas rotas
+  (`POST .../delivery-address`, `GET .../delivery-address-history`) desde o início.
+- `delivery_address_overrides` (migration `20260825014901_delivery_address_overrides`, com
+  `rollback.sql` testado) segue o mesmo padrão append-only de `trip_document_events`/
+  `trip_dispatch_snapshots` (trigger `BEFORE UPDATE OR DELETE`, testado ao vivo — inclusive a FK
+  `on delete cascade` de `trip_documents` esbarra no trigger e falha alto em vez de cascatear, o
+  mesmo comportamento já aceito para `trip_document_events`). Duas identidades distintas por
+  desenho, não uma: `requestedBy` (texto livre — quem pediu o desvio, quase nunca é usuário do
+  sistema) e `actorUserId` (membership — quem executou, mesmo padrão de `trip_document_events`).
+- `overrideDeliveryAddress` (use case) reaproveita `checkTripAcceptsLinkage` (T013) para o gate —
+  mesma regra de vincular/desvincular/reordenar, não uma quarta cópia.
+- `DrizzleDeliveryAddressOverrideRepository.applyOverride` resolve o "endereço anterior" em duas
+  fontes, na ordem certa: o desvio mais recente já registrado para a nota, ou — no primeiro desvio
+  — o destinatário original via `nfe_participants`/`nfe_addresses` (a nota vinculada por
+  `freightCalculationId` resolve a NF-e um passo adiante, via `freight_calculations.nfe_document_id`).
+  A reconciliação de parada reaproveita `reconcileStopOnLink`/`reconcileStopOnUnlink` (T007) através
+  de um adapter fino sobre a transação — zero lógica de agrupamento duplicada. Corrigido durante a
+  implementação: `reconcileStopOnUnlink` só pode rodar depois de a nota já ter perdido a referência
+  à parada antiga (o mesmo aviso que a T010 já tinha documentado), então o `stopId` é zerado antes
+  da chamada, não depois.
+- Verificado ao vivo contra Postgres local: nota vinculada sem parada → primeiro desvio cria a
+  parada nova e grava o endereço original da NF-e como "anterior" → segundo desvio move a nota,
+  apaga a parada que esvaziou, e grava o primeiro desvio como "anterior" do segundo → histórico
+  lista os dois, mais recente primeiro → desvio recusado (`409 STATE_TRANSITION_NOT_ALLOWED`) numa
+  viagem `dispatched`. Banco resetado (`drop database`/`create database`/remigrado) depois — o
+  histórico é append-only e não pôde ser limpo por `DELETE`, então o reset total foi o caminho.
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
+  3043 pass / 15 skip / 0 fail.
 
 ### T010c — A lista de retornadas com CT-e ativo (D8)
 

@@ -9,6 +9,8 @@ import {
   responseData,
   tripCancelPath,
   tripDispatchPath,
+  tripDocumentDeliveryAddressHistoryPath,
+  tripDocumentDeliveryAddressPath,
   tripDocumentLoadPath,
   tripDocumentReturnPath,
   tripDocumentSeparatePath,
@@ -210,6 +212,75 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.reorderStopsCalls).toHaveLength(0)
   })
 
+  test('overrides the delivery address, forwarding requester and reason', async () => {
+    const fixture = await createTripHttpFixture()
+    const newAddress = { cityCode: '3505500', number: '44', postalCode: '14400000' }
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          newAddress,
+          newLabel: 'Barrinha/SP',
+          reason: 'Redespacho a pedido do cliente',
+          requestedBy: 'Cliente por telefone',
+        },
+        method: 'POST',
+        path: tripDocumentDeliveryAddressPath(),
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    const data = await responseData(response)
+    expect(data).toMatchObject({
+      newAddress,
+      newLabel: 'Barrinha/SP',
+      reason: 'Redespacho a pedido do cliente',
+      requestedBy: 'Cliente por telefone',
+    })
+    expect(fixture.overrideDeliveryAddressCalls[0]).toMatchObject({
+      documentId: TRIP_DOCUMENT_ID,
+      newAddress,
+      newLabel: 'Barrinha/SP',
+      reason: 'Redespacho a pedido do cliente',
+      requestedBy: 'Cliente por telefone',
+      tripId: TRIP_ID,
+    })
+  })
+
+  test('refuses a delivery address override with an empty requester', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          newAddress: { cityCode: null, number: null, postalCode: null },
+          newLabel: 'Barrinha/SP',
+          reason: 'Redespacho',
+          requestedBy: '',
+        },
+        method: 'POST',
+        path: tripDocumentDeliveryAddressPath(),
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.overrideDeliveryAddressCalls).toHaveLength(0)
+  })
+
+  test('lists the delivery address history of a document', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripDocumentDeliveryAddressHistoryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.listDeliveryAddressHistoryCalls[0]).toMatchObject({
+      documentId: TRIP_DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
+  })
+
   test('surfaces the domain error code and status when a transition is refused', async () => {
     const { TripStateTransitionNotAllowedError } = await import(
       '../../src/trips/domain/trip.error.js'
@@ -254,6 +325,21 @@ describe('trip state routes (spec 056 T012)', () => {
           path: tripStopsOrderPath(),
         }),
       ),
+      fixture.handle(
+        jsonRequest({
+          body: {
+            newAddress: { cityCode: null, number: null, postalCode: null },
+            newLabel: 'Barrinha/SP',
+            reason: 'Redespacho',
+            requestedBy: 'Cliente',
+          },
+          method: 'POST',
+          path: tripDocumentDeliveryAddressPath(),
+        }),
+      ),
+      fixture.handle(
+        jsonRequest({ method: 'GET', path: tripDocumentDeliveryAddressHistoryPath() }),
+      ),
     ])
 
     for (const response of responses) expect(response.status).toBe(403)
@@ -261,6 +347,7 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.batchStatusCalls).toHaveLength(0)
     expect(fixture.dispatchTripCalls).toHaveLength(0)
     expect(fixture.reorderStopsCalls).toHaveLength(0)
+    expect(fixture.overrideDeliveryAddressCalls).toHaveLength(0)
   })
 
   // `fleet.manage` sozinho não é `trip.manage` (spec 055 D5) — o separador continua com o poder

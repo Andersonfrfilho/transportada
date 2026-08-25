@@ -132,6 +132,7 @@ import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-tr
 import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
+import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
@@ -465,8 +466,10 @@ function createApplicationRoutes({
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
   const tripRouteRepository = new DrizzleTripRouteRepository(database)
   const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
+  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
+    deliveryAddressOverrideRepository,
     documentRepository: tripDocumentRepository,
     locationRepository: tripStopLookupRepository,
     routeRepository: tripRouteRepository,
@@ -829,6 +832,12 @@ function createApplicationRoutes({
       listTrips: { execute: (input) => trips.list(input) },
       loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },
       planTripRoute: { execute: (input) => tripLifecycle.planRoute.execute(input) },
+      listDeliveryAddressHistory: {
+        execute: (input) => tripLifecycle.listDeliveryAddressHistory.execute(input),
+      },
+      overrideDeliveryAddress: {
+        execute: (input) => tripLifecycle.overrideDeliveryAddress.execute(input),
+      },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
       returnTripDocument: { execute: (input) => tripLifecycle.return.execute(input) },

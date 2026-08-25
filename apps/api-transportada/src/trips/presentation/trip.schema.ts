@@ -21,12 +21,14 @@ import {
   createTripSchema,
   dispatchTripSchema,
   linkTripDocumentSchema,
+  overrideDeliveryAddressSchema,
   reorderTripStopsSchema,
   transitionTripDocumentSchema,
   type BatchTransitionTripDocumentsBody,
   type CreateTripBody,
   type DispatchTripBody,
   type LinkTripDocumentBody,
+  type OverrideDeliveryAddressBody,
   type ReorderTripStopsBody,
   type TransitionTripDocumentBody,
 } from './trip-request.schema.js'
@@ -84,6 +86,12 @@ export async function parseReorderTripStopsRequest(
   request: Request,
 ): Promise<ReorderTripStopsBody> {
   return parseBody(reorderTripStopsSchema, request)
+}
+
+export async function parseOverrideDeliveryAddressRequest(
+  request: Request,
+): Promise<OverrideDeliveryAddressBody> {
+  return parseBody(overrideDeliveryAddressSchema, request)
 }
 
 export function parseTripList(url: URL): TripListing {

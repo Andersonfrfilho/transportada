@@ -436,3 +436,65 @@ export const tripDispatchSnapshots = pgTable(
     ),
   ],
 )
+
+/**
+ * ADR-0043 §3 (D9): o endereço de entrega pode ser sobrescrito, mas não é campo — é ação, e a
+ * ação vira histórico aqui, nunca estado. Duas identidades distintas por design: `requestedBy`
+ * (texto livre — o cliente que ligou, o vendedor, quase nunca é usuário do sistema) é quem pediu
+ * o desvio; `actorUserId` (membership, mesmo padrão de `trip_document_events`) é quem executou no
+ * sistema. Sem a primeira, "quem mandou entregar ali?" vira pergunta sem resposta quando a entrega
+ * dá errado no endereço novo — é a informação que some primeiro.
+ *
+ * Guarda o par de endereços (anterior/novo) como os mesmos componentes de `StopAddressComponents`
+ * — é exatamente o que `buildStopAddressKey` consome para reconciliar a parada — mais um rótulo
+ * legível de cada lado para a tela não precisar recalcular nada para exibir o histórico.
+ */
+export const deliveryAddressOverrides = pgTable(
+  'delivery_address_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    requestedBy: text('requested_by').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    reason: text().notNull(),
+    previousPostalCode: text('previous_postal_code'),
+    previousNumber: text('previous_number'),
+    previousCityCode: text('previous_city_code'),
+    previousLabel: text('previous_label').notNull(),
+    newPostalCode: text('new_postal_code'),
+    newNumber: text('new_number'),
+    newCityCode: text('new_city_code'),
+    newLabel: text('new_label').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'delivery_address_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'delivery_address_overrides_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'delivery_address_overrides_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('delivery_address_overrides_company_document_idx').on(
+      table.companyId,
+      table.tripDocumentId,
+    ),
+    check('delivery_address_overrides_requested_by_check', sql`length(${table.requestedBy}) > 0`),
+    check('delivery_address_overrides_reason_check', sql`length(${table.reason}) > 0`),
+  ],
+)

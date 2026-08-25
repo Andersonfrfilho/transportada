@@ -48,6 +48,16 @@ export function tripDocumentReturnPath(documentId: string = TRIP_DOCUMENT_ID): s
   return `${tripDocumentPath(documentId)}/return`
 }
 
+export function tripDocumentDeliveryAddressPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/delivery-address`
+}
+
+export function tripDocumentDeliveryAddressHistoryPath(
+  documentId: string = TRIP_DOCUMENT_ID,
+): string {
+  return `${tripDocumentDeliveryAddressPath(documentId)}-history`
+}
+
 export function tripDocumentsBatchStatusPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/documents/batch-status`
 }

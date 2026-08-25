@@ -39,9 +39,11 @@ type RouteDependencies = {
   readonly dispatchTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly getTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
+  readonly listDeliveryAddressHistory: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listStops: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listTrips: { execute(input: ExecuteCall): Promise<typeof TRIP_PAGE> }
   readonly loadTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
+  readonly overrideDeliveryAddress: { execute(input: ExecuteCall): Promise<unknown> }
   readonly planTripRoute: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly releaseTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
@@ -60,10 +62,13 @@ type CreateFixtureParams = {
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
   readonly linkTripDocumentError?: Error
+  readonly listDeliveryAddressHistoryError?: Error
+  readonly listDeliveryAddressHistoryResult?: unknown
   readonly listStopsResult?: unknown
   readonly listTripsError?: Error
   readonly loadTripDocumentError?: Error
   readonly permissions?: CompanyContext['permissions']
+  readonly overrideDeliveryAddressError?: Error
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
   readonly reorderStopsError?: Error
@@ -98,9 +103,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly getTripCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly linkTripDocumentCalls: ExecuteCall[]
+  readonly listDeliveryAddressHistoryCalls: ExecuteCall[]
   readonly listStopsCalls: ExecuteCall[]
   readonly listTripsCalls: ExecuteCall[]
   readonly loadTripDocumentCalls: ExecuteCall[]
+  readonly overrideDeliveryAddressCalls: ExecuteCall[]
   readonly planTripRouteCalls: ExecuteCall[]
   readonly releaseTripDocumentCalls: ExecuteCall[]
   readonly reorderStopsCalls: ExecuteCall[]
@@ -116,9 +123,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
   const linkTripDocumentCalls: ExecuteCall[] = []
+  const listDeliveryAddressHistoryCalls: ExecuteCall[] = []
   const listStopsCalls: ExecuteCall[] = []
   const listTripsCalls: ExecuteCall[] = []
   const loadTripDocumentCalls: ExecuteCall[] = []
+  const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
@@ -199,6 +208,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return TRIP_DOCUMENT
       },
     },
+    listDeliveryAddressHistory: {
+      async execute(input) {
+        listDeliveryAddressHistoryCalls.push(structuredClone(input))
+        if (params.listDeliveryAddressHistoryError) throw params.listDeliveryAddressHistoryError
+        return params.listDeliveryAddressHistoryResult ?? { overrides: [] }
+      },
+    },
     listStops: {
       async execute(input) {
         listStopsCalls.push(structuredClone(input))
@@ -217,6 +233,30 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         loadTripDocumentCalls.push(structuredClone(input))
         if (params.loadTripDocumentError) throw params.loadTripDocumentError
         return transitionResult()
+      },
+    },
+    overrideDeliveryAddress: {
+      async execute(input) {
+        overrideDeliveryAddressCalls.push(structuredClone(input))
+        if (params.overrideDeliveryAddressError) throw params.overrideDeliveryAddressError
+        const call = input as {
+          newAddress: unknown
+          newLabel: string
+          reason: string
+          requestedBy: string
+        }
+        return {
+          actorUserId: COMPANY_CONTEXT.userId,
+          createdAt: '2026-08-05T09:00:00.000Z',
+          id: '00000000-0000-4000-8000-000000000d01',
+          newAddress: call.newAddress,
+          newLabel: call.newLabel,
+          previousAddress: { cityCode: null, number: null, postalCode: null },
+          previousLabel: '',
+          reason: call.reason,
+          requestedBy: call.requestedBy,
+          tripDocumentId: TRIP_DOCUMENT.id,
+        }
       },
     },
     planTripRoute: {
@@ -279,9 +319,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     getTripCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
+    listDeliveryAddressHistoryCalls,
     listStopsCalls,
     listTripsCalls,
     loadTripDocumentCalls,
+    overrideDeliveryAddressCalls,
     planTripRouteCalls,
     releaseTripDocumentCalls,
     reorderStopsCalls,

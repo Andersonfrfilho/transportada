@@ -79,3 +79,26 @@ export const reorderTripStopsSchema = z
   .strict()
 
 export type ReorderTripStopsBody = z.infer<typeof reorderTripStopsSchema>
+
+/**
+ * ADR-0043 §3 (D9): sobrescrever é ação, não campo — `requestedBy` e `reason` são obrigatórios
+ * (a informação que some primeiro é justamente quem pediu o desvio). O endereço aceita
+ * `postalCode`/`number`/`cityCode` nulos (mesmo formato de `StopAddressComponents`) porque nem
+ * todo desvio tem CEP normalizável — vira parada `SEM ENDEREÇO`, igual a qualquer outra.
+ */
+export const overrideDeliveryAddressSchema = z
+  .object({
+    newAddress: z
+      .object({
+        cityCode: z.string().trim().min(1).nullable().default(null),
+        number: z.string().trim().min(1).nullable().default(null),
+        postalCode: z.string().trim().min(1).nullable().default(null),
+      })
+      .strict(),
+    newLabel: z.string().trim().min(1),
+    reason: z.string().trim().min(1),
+    requestedBy: z.string().trim().min(1),
+  })
+  .strict()
+
+export type OverrideDeliveryAddressBody = z.infer<typeof overrideDeliveryAddressSchema>

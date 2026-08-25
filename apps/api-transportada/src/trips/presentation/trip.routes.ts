@@ -29,6 +29,8 @@ import type { DispatchTripResult } from '../application/dispatch-trip.use-case.j
 import type { ListTripStopsResult, TripStopSummary } from '../application/list-trip-stops.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
+import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
+import type { DeliveryAddressOverrideRecord } from '../application/override-delivery-address.use-case.js'
 import type { TransitionTripDocumentResult } from '../application/transition-trip-document.use-case.js'
 import type {
   TransitionTripDocumentsBatchResult,
@@ -40,6 +42,7 @@ import {
   parseCreateTripRequest,
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
+  parseOverrideDeliveryAddressRequest,
   parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
@@ -66,6 +69,8 @@ const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
 const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
 const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
+const TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH = `${TRIP_DOCUMENT_PATH}/delivery-address`
+const TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH = `${TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH}-history`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
 /**
  * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
@@ -95,6 +100,19 @@ type BatchStatusInput = {
 type DispatchInput = { readonly force: boolean; readonly forceReason: string | null; readonly tripId: string }
 type TripIdInput = { readonly tripId: string }
 type ReorderStopsInput = { readonly stopIds: readonly string[]; readonly tripId: string }
+type DeliveryAddressHistoryInput = { readonly documentId: string; readonly tripId: string }
+type OverrideDeliveryAddressInput = {
+  readonly documentId: string
+  readonly newAddress: {
+    readonly cityCode: string | null
+    readonly number: string | null
+    readonly postalCode: string | null
+  }
+  readonly newLabel: string
+  readonly reason: string
+  readonly requestedBy: string
+  readonly tripId: string
+}
 
 type Dependencies = {
   readonly batchStatus: {
@@ -122,6 +140,16 @@ type Dependencies = {
   readonly planTripRoute: { execute(input: TenantInput<TripIdInput>): Promise<PlanTripRouteResult> }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
+  }
+  readonly listDeliveryAddressHistory: {
+    execute(
+      input: TenantInput<DeliveryAddressHistoryInput>,
+    ): Promise<ListDeliveryAddressHistoryResult>
+  }
+  readonly overrideDeliveryAddress: {
+    execute(
+      input: TenantInput<OverrideDeliveryAddressInput>,
+    ): Promise<DeliveryAddressOverrideRecord>
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
@@ -359,6 +387,48 @@ export function createTripRoutes(
       pathname: TRIP_STOPS_ORDER_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
+    defineRoute<Omit<OverrideDeliveryAddressInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.overrideDeliveryAddress.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeDeliveryAddressOverride(result) }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseOverrideDeliveryAddressRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          newAddress: body.newAddress,
+          newLabel: body.newLabel,
+          reason: body.reason,
+          requestedBy: body.requestedBy,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<DeliveryAddressHistoryInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.listDeliveryAddressHistory.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: { data: result.overrides.map(serializeDeliveryAddressOverride) },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
   ]
 
   /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
@@ -447,6 +517,10 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
 
 function serializeTripStopDetail(stop: TripStopDetail): object {
   return { ...stop, documents: stop.documents.map(serializeTripDocumentDetail) }
+}
+
+function serializeDeliveryAddressOverride(record: DeliveryAddressOverrideRecord): object {
+  return { ...record }
 }
 
 function serializeTransitionResult(result: TransitionTripDocumentResult): object {
