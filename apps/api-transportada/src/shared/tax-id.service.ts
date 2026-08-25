@@ -38,3 +38,16 @@ export function parseTaxIdValue(value: string, pattern: RegExp): string | undefi
   const normalized = normalizeTaxId(value)
   return pattern.test(normalized) ? normalized : undefined
 }
+
+/**
+ * Os oito primeiros dígitos do CNPJ identificam o grupo econômico — matriz e filiais compartilham
+ * a raiz e divergem só na ordem (matriz `0001`) e no dígito verificador. Fronteira estreita: só
+ * aceita CNPJ já normalizado de 14 posições, porque quem chama já validou o documento antes.
+ */
+export function resolveCompanyGroupRoot(cnpj: string): string {
+  if (!CNPJ_PATTERN.test(cnpj)) {
+    throw new RangeError('resolveCompanyGroupRoot expects a normalized 14-position CNPJ')
+  }
+
+  return cnpj.slice(0, 8)
+}
