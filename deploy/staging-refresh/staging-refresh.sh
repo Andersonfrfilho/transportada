@@ -16,9 +16,9 @@
 set -Eeuo pipefail
 
 readonly REQUIRED_VARIABLES=(
-  # Alvo, e o host que ele nunca pode ser.
+  # Alvo. Quem prova que ele é staging é o `RAILWAY_ENVIRONMENT_NAME` injetado pela plataforma,
+  # não uma variável nossa — ver `refuse_non_staging_environment`.
   STAGING_DATABASE_URL
-  PRODUCTION_DATABASE_HOST
   # Origem: o ciclo de backup cifrado de produção, no bucket de ops.
   SOURCE_BACKUP_ENVIRONMENT
   APPLICATION_DATABASE_NAME
@@ -60,18 +60,26 @@ require_variables() {
 }
 
 # A guarda vem antes de tudo, inclusive do download. É a imagem espelhada da do `restore-test.yml`:
-# aquele recusa qualquer alvo que **não** seja o Postgres efêmero; este recusa qualquer alvo que
-# **seja** produção. Alvo errado descoberto depois do `pg_restore --clean` é tarde — os objetos já
-# caíram.
-refuse_production_target() {
-  local host="${STAGING_DATABASE_URL#*@}"
-  host="${host%%:*}"
-  host="${host%%/*}"
-  if [ "$host" = "$PRODUCTION_DATABASE_HOST" ]; then
-    log error staging_refresh_target_is_production ",\"host\":\"${host}\""
+# aquele recusa qualquer alvo que **não** seja o Postgres efêmero; este recusa rodar em qualquer
+# ambiente que **não** seja staging. Alvo errado descoberto depois do `pg_restore --clean` é tarde —
+# os objetos já caíram.
+#
+# Quem responde "que ambiente é este" é o `RAILWAY_ENVIRONMENT_NAME`, injetado pela plataforma. A
+# primeira versão desta guarda comparava o host do banco alvo contra o de produção, e **não teria
+# funcionado**: no Railway o DNS privado é `<serviço>.railway.internal` e o nome do serviço é o
+# mesmo nos dois ambientes, então os dois hosts são a mesma string. Uma guarda que não distingue
+# nada é pior que nenhuma, porque passa a sensação de proteção.
+refuse_non_staging_environment() {
+  local environment="${RAILWAY_ENVIRONMENT_NAME:-}"
+  if [ -z "$environment" ]; then
+    log error staging_refresh_environment_unknown ''
     exit 1
   fi
-  log info staging_refresh_target_confirmed ",\"host\":\"${host}\""
+  if [ "$environment" != staging ]; then
+    log error staging_refresh_wrong_environment ",\"environment\":\"${environment}\""
+    exit 1
+  fi
+  log info staging_refresh_environment_confirmed ",\"environment\":\"${environment}\""
 }
 
 # Mesmo desenho do backup: a credencial entra por stdin, porque em argv ela apareceria em qualquer
@@ -202,8 +210,7 @@ SQL
 # aqui não há bun nem código de aplicação: o passo é **disparar o redeploy** e deixar a máquina que
 # já existe fazer o resto. Sem isto o refresh derruba staging toda semana.
 redeploy_staging_api() {
-  if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ] \
-    || [ -z "${STAGING_ENVIRONMENT_ID:-}" ]; then
+  if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ]; then
     log error staging_refresh_redeploy_not_configured ''
     exit 1
   fi
@@ -212,7 +219,7 @@ redeploy_staging_api() {
     --header "Authorization: Bearer ${RAILWAY_API_TOKEN}" \
     --header 'Content-Type: application/json' \
     --data @- <<JSON
-{"query":"mutation(\$serviceId:String!,\$environmentId:String!){serviceInstanceRedeploy(serviceId:\$serviceId,environmentId:\$environmentId)}","variables":{"serviceId":"${STAGING_API_SERVICE_ID}","environmentId":"${STAGING_ENVIRONMENT_ID}"}}
+{"query":"mutation(\$serviceId:String!,\$environmentId:String!){serviceInstanceRedeploy(serviceId:\$serviceId,environmentId:\$environmentId)}","variables":{"serviceId":"${STAGING_API_SERVICE_ID}","environmentId":"${RAILWAY_ENVIRONMENT_ID}"}}
 JSON
   log info staging_refresh_redeploy_requested ''
 }
@@ -220,8 +227,8 @@ JSON
 main() {
   CURRENT_STEP=require_variables
   require_variables
-  CURRENT_STEP=refuse_production_target
-  refuse_production_target
+  CURRENT_STEP=refuse_non_staging_environment
+  refuse_non_staging_environment
 
   WORK_DIRECTORY="$(mktemp -d)"
 
