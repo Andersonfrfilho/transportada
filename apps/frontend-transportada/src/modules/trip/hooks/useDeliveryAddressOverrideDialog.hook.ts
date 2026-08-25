@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import type { DeliveryAddressOverride, OverrideDeliveryAddressInput } from '../shared/trip.types'
 
@@ -58,14 +58,25 @@ export function useDeliveryAddressOverrideDialog(input: DeliveryAddressOverrideD
     setSubmitError(undefined)
   }, [])
 
+  /**
+   * `loadHistory` chega como closure nova a cada render de quem chama (o controlador de
+   * `useTripWorkspace` é reconstruído todo render, então nada nele é referencialmente estável).
+   * Depender dela diretamente tornava `refreshHistory` instável, e o `useEffect` que busca o
+   * histórico ao abrir o diálogo re-disparava a cada render que ele mesmo causava — laço infinito
+   * martelando a rota de histórico. A referência guarda a versão mais recente sem entrar na
+   * identidade da função.
+   */
+  const loadHistoryRef = useRef(input.loadHistory)
+  loadHistoryRef.current = input.loadHistory
+
   const refreshHistory = useCallback(async () => {
     setIsLoadingHistory(true)
     try {
-      setHistory(await input.loadHistory())
+      setHistory(await loadHistoryRef.current())
     } finally {
       setIsLoadingHistory(false)
     }
-  }, [input.loadHistory])
+  }, [])
 
   async function submit(): Promise<boolean> {
     setSubmitError(undefined)

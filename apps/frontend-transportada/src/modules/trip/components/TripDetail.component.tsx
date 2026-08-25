@@ -21,7 +21,11 @@ import {
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
-import { isTripEditable } from '../shared/tripStatus.service'
+import {
+  canReturnDocuments,
+  canSeparateOrLoadDocuments,
+  isTripEditable,
+} from '../shared/tripStatus.service'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripProgressBar } from './TripProgressBar.component'
@@ -119,11 +123,15 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
 
   const canManage = workspace.controller.canManageTrips
   const isEditable = isTripEditable(trip.status)
+  const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
+  const canReturn = canReturnDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
   const unassignedDocuments = trip.documents.filter((document) => document.stopId === null)
   const documentActions = {
     canManage,
+    canReturn,
+    canSeparateOrLoad,
     isDeliverPending: workspace.deliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
@@ -284,10 +292,11 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
 
       <TripStateActions
         canManage={canManage}
+        canReturn={canReturn}
+        canSeparateOrLoad={canSeparateOrLoad}
         isBatchPending={workspace.batchStatusMutation.isPending}
         isCancelPending={workspace.cancelMutation.isPending}
         isDispatchPending={workspace.dispatchMutation.isPending}
-        isEditable={isEditable}
         isPlanRoutePending={workspace.planRouteMutation.isPending}
         onBatch={handleBatch}
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}

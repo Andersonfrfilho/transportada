@@ -15,10 +15,11 @@ const NOT_LOADED_STATUSES = new Set(['pending', 'separated'])
 
 export type TripStateActionsProps = Readonly<{
   canManage: boolean
+  canReturn: boolean
+  canSeparateOrLoad: boolean
   isBatchPending: boolean
   isCancelPending: boolean
   isDispatchPending: boolean
-  isEditable: boolean
   isPlanRoutePending: boolean
   onBatch: (input: { readonly action: 'load' | 'return' | 'separate'; readonly returnReason?: string }) => void
   onCancel: () => void
@@ -33,10 +34,11 @@ export type TripStateActionsProps = Readonly<{
  * sobre o maço selecionado (T015). */
 export function TripStateActions({
   canManage,
+  canReturn,
+  canSeparateOrLoad,
   isBatchPending,
   isCancelPending,
   isDispatchPending,
-  isEditable,
   isPlanRoutePending,
   onBatch,
   onCancel,
@@ -81,33 +83,39 @@ export function TripStateActions({
     <div className={styles.actionForm}>
       <h3>{t('stateActions.title')}</h3>
 
-      {isEditable && hasSelection ? (
+      {hasSelection && (canSeparateOrLoad || canReturn) ? (
         <div className={styles.actionActions}>
-          <Button
-            disabled={isBatchPending}
-            onClick={() => onBatch({ action: 'separate' })}
-            size="sm"
-            type="button"
-          >
-            {t('stateActions.batchSeparate', { count: selection.selectedIds.size })}
-          </Button>
-          <Button
-            disabled={isBatchPending}
-            onClick={() => onBatch({ action: 'load' })}
-            size="sm"
-            type="button"
-          >
-            {t('stateActions.batchLoad', { count: selection.selectedIds.size })}
-          </Button>
-          <Button
-            disabled={isBatchPending}
-            onClick={() => setIsReturnDialogOpen(true)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
-          </Button>
+          {canSeparateOrLoad ? (
+            <Button
+              disabled={isBatchPending}
+              onClick={() => onBatch({ action: 'separate' })}
+              size="sm"
+              type="button"
+            >
+              {t('stateActions.batchSeparate', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
+          {canSeparateOrLoad ? (
+            <Button
+              disabled={isBatchPending}
+              onClick={() => onBatch({ action: 'load' })}
+              size="sm"
+              type="button"
+            >
+              {t('stateActions.batchLoad', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
+          {canReturn ? (
+            <Button
+              disabled={isBatchPending}
+              onClick={() => setIsReturnDialogOpen(true)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

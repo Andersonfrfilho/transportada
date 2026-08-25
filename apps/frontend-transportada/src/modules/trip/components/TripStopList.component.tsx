@@ -14,8 +14,16 @@ import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripD
 import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+/**
+ * Três portões distintos, não um: o domínio separa trabalho de barracão (separar/carregar, só
+ * antes da saída e com roteiro planejado) de trabalho de rua (devolver, só depois da saída) — e
+ * vincular/desvincular/desviar endereço segue um terceiro, o de `checkTripAcceptsLinkage`.
+ * Colapsar os três num `isEditable` só mostrava "Devolver" exatamente quando ele falharia.
+ */
 export type TripStopDocumentActions = Readonly<{
   canManage: boolean
+  canReturn: boolean
+  canSeparateOrLoad: boolean
   isDeliverPending: boolean
   isEditable: boolean
   isReleasePending: boolean
@@ -170,7 +178,9 @@ function TripStopDocumentRow({
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
       ) : null}
       <div className={styles.rowActions}>
-        {actions.canManage && actions.isEditable && document.separationStatus === 'pending' ? (
+        {actions.canManage &&
+        actions.canSeparateOrLoad &&
+        document.separationStatus === 'pending' ? (
           <Button
             disabled={actions.isTransitionPending}
             onClick={() => actions.onSeparate(document.id)}
@@ -180,7 +190,9 @@ function TripStopDocumentRow({
             {t('actions.separate')}
           </Button>
         ) : null}
-        {actions.canManage && actions.isEditable && document.separationStatus === 'separated' ? (
+        {actions.canManage &&
+        actions.canSeparateOrLoad &&
+        document.separationStatus === 'separated' ? (
           <Button
             disabled={actions.isTransitionPending}
             onClick={() => actions.onLoad(document.id)}
@@ -190,9 +202,7 @@ function TripStopDocumentRow({
             {t('actions.load')}
           </Button>
         ) : null}
-        {actions.canManage &&
-        actions.isEditable &&
-        (document.separationStatus === 'separated' || document.separationStatus === 'loaded') ? (
+        {actions.canManage && actions.canReturn && document.separationStatus === 'loaded' ? (
           <Button
             disabled={actions.isTransitionPending}
             onClick={() => actions.onReturn(document.id)}
