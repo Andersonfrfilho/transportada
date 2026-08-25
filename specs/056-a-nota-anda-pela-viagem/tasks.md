@@ -826,7 +826,7 @@ toque ≥44px na ação mais repetida do produto (marcar nota). `min-width` para
 
 > 🤖 Modelo: `sonnet`
 
-### T018 — E2E do ciclo inteiro
+### T018 ✅ — E2E do ciclo inteiro
 
 Criar viagem → vincular 3 notas em 2 endereços → planejar → separar → carregar → despachar →
 conferir snapshot congelado e vínculo selado. Mais o teste negativo de tenant (viagem de outra
@@ -835,6 +835,43 @@ empresa → 404, não 403).
 - **Arquivos:** `test/e2e/trip-lifecycle.e2e.ts` (novo)
 - **Aceite:** verde em `env.test.e2e`
 - **Verificação:** `make test-e2e`
+
+**Evidência:**
+
+- **Desvio deliberado do caminho descrito:** `test/e2e/`, `env.test.e2e` (e a pasta `envs/` que
+  `code-standart.md` §4 documenta) e o alvo `make test-e2e` **não existem em nenhum lugar deste
+  repositório** — nem para este projeto, nem para nenhum outro. Construir essa camada do zero
+  (infraestrutura de ambiente dedicado, novo runner, novo alvo de Makefile) é um projeto à parte,
+  não o escopo de uma task de spec de feature. O padrão real e já estabelecido para "prova viva
+  contra Postgres" neste repositório é `test/integration/*.integration.ts` com
+  `withDisposableDatabase` — usado aqui (`test/integration/trip-lifecycle.integration.ts`),
+  registrado no mesmo `test:integration` dos demais.
+- **Bloqueio real encontrado e corrigido antes de escrever o teste:** o cenário "vincular 3 notas
+  em 2 endereços → planejar" era literalmente impossível de reproduzir — nenhuma nota vinculada
+  ganhava `stop_id` porque o reconciliador de parada (T007) nunca tinha sido ligado ao vínculo
+  real. Corrigido como **T012b** (ver acima) antes deste teste.
+- O teste percorre a pilha real (não mocks): `DrizzleTripRepository.create`/`linkDocument`,
+  `planTripRoute`, `transitionTripDocument` (separar e carregar, nota a nota),
+  `dispatchTrip` — todos contra os repositórios Drizzle reais, banco Postgres descartável.
+  Confere: duas notas no mesmo CEP/número/município caem na mesma parada, a terceira cai numa
+  parada distinta (2 paradas no total); a viagem deriva `route_planned` → `separating` →
+  `loading` → `dispatched` sozinha, pela mesma máquina de estado que a API usa; o
+  `trip_dispatch_snapshots` congelado lista exatamente as duas paradas, com a distribuição de
+  notas certa (`[1, 2]`); depois do despacho, vincular uma nota nova é recusado
+  (`409 STATE_TRANSITION_NOT_ALLOWED`) e liberar uma nota existente não acha linha (`null`) — o
+  vínculo está selado dos dois lados.
+- **Teste negativo de tenant:** a mesma viagem, consultada com o `companyId` de uma empresa
+  diferente, devolve `null` no repositório — a mesma leitura que o caso de uso traduz para
+  `404 TRIP_NOT_FOUND` na fronteira HTTP (nunca `403`, porque não é uma checagem de permissão, é
+  escopo de dado: o filtro por `company_id` é parte da própria consulta, não uma decisão em cima
+  do resultado).
+- Rodado contra Postgres local (`DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada
+  bun run test:integration`): passa, junto com o resto da suíte de integração (132 pass / 6 skip —
+  a única falha é `server.integration.ts`'s SIGTERM, pré-existente e não relacionada, já confirmada
+  idêntica antes de qualquer mudança desta sessão). Nenhum banco descartável ficou para trás
+  (`withDisposableDatabase` limpa sozinho).
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
+  3046 pass / 15 skip / 0 fail.
 
 ### T019 — Documentação viva
 
