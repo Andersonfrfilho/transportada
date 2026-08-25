@@ -719,7 +719,7 @@ diálogo de `force` no despacho — este último **lista as notas pendentes** an
   1911 pass / 0 fail; `bun run build` (`vite build`) concluído com sucesso.
 - **Não verificado nesta sessão:** a conferência visual humana, mesma pendência do T015/T015b.
 
-### T017 — O passe de responsividade da tela de viagem
+### T017 ⏳ — O passe de responsividade da tela de viagem
 
 `trip.module.css` hoje tem duas consultas, ambas de grade, e nenhuma pensada para 375px. Alvo de
 toque ≥44px na ação mais repetida do produto (marcar nota). `min-width` para adicionar, nunca
@@ -732,6 +732,32 @@ toque ≥44px na ação mais repetida do produto (marcar nota). `min-width` para
 - **Arquivos:** `src/modules/trip/styles/trip.module.css`, `docs/frontend/responsiveness.md` (novo)
 - **Aceite:** revisão humana nos três tamanhos
 - **Verificação:** `bun run --cwd apps/frontend-transportada build`
+
+**Evidência (auditoria; revisão humana pendente):**
+
+- A dívida global que a nota acima descreve **já foi paga** entre a spec 055 e agora: existe
+  `docs/frontend/responsive.md` (não `responsiveness.md` — o nome mudou depois que esta task foi
+  escrita), com um contrato global (`test/design-system/responsive.contract.ts`) que varre **toda**
+  folha de estilo do frontend — `trip.module.css` incluído — recusando `max-width`,
+  `width <= `/`width >= ` fora da grafia canônica, e qualquer ponto de quebra fora dos quatro
+  (`40rem`/`64rem`/`80rem`, base sem consulta). Criar um segundo documento com um nome quase igual
+  teria fragmentado a mesma regra em dois lugares — não fiz isso.
+- Reaudita `trip.module.css` linha a linha nesta task: nenhum `max-width`, nenhum breakpoint fora
+  dos quatro nomeados, nenhuma largura fixa em `px` além de bordas de 1px, `.intro`'s `max-width:
+  46rem` é limite de legibilidade de parágrafo (não layout) — o contrato global já cobre isso e
+  passou durante todo o T015/T016 (CSS novo desta sessão nasceu compatível, não corrigido depois).
+- Alvo de toque de 44px na ação mais repetida (marcar nota, via `Checkbox`): já garantido pelo
+  design system (`checkbox.module.css`, `@media (pointer: coarse)` → `--space-10 + --space-1` =
+  2.75rem), documentado em `docs/frontend/checkboxes.md`. A alça de arraste nova do T015
+  (`.stopDragHandle`) usa `--control-height-compact`, que `.tripShell` já eleva a `--touch-target`
+  (2.75rem) abaixo de `40rem` — mesmo padrão dos demais botões `size="sm"` da tela.
+- Todo container novo (`.stopCard`, `.stopCardHead`, `.rowActions`, `.selectionBar`,
+  `.progressLegend`) usa `flex-wrap: wrap` e nenhuma largura fixa — quebra naturalmente em 375px
+  sem precisar de consulta dedicada, e `.tableScroll { overflow-x: auto }` já isola a única tabela
+  restante (histórico de desvio de endereço não usa tabela).
+- `bun run test` (1911 pass, incluindo o contrato de responsividade) e `bun run build` limpos.
+- **Não verificado nesta sessão:** a conferência visual humana nos três tamanhos, mesma pendência
+  do T015/T015b/T016 — a auditoria estática não substitui olhar a tela renderizada.
 
 ## Fase 5 — Fechamento
 
