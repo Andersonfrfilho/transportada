@@ -100,6 +100,7 @@ import {
 } from './cte-emission-profile.schema.js'
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
+import { landingSettings } from './landing.schema.js'
 import {
   tripDispatchSnapshots,
   tripDocumentEvents,
@@ -136,6 +137,7 @@ export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
+export * from './landing.schema.js'
 
 export const databaseSchema = {
   auditLogs,
@@ -221,6 +223,7 @@ export const databaseSchema = {
   billingInvoiceEvents,
   billingInvoiceItems,
   billingInvoices,
+  landingSettings,
   storedObjects,
   tripDispatchSnapshots,
   tripDocumentEvents,
