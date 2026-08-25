@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ReactNode } from 'react'
 
+import { Icon, type IconName } from '@/modules/shared/components/Icon.component'
 import type { LandingGroupUnit, LandingSettings } from '@/modules/shared/landingSettings.service'
 import landingLocale from '../locales/landing.locale.json'
 import { resolveSectionList, resolveSectionText } from '../shared/landingSections.service'
@@ -15,27 +16,61 @@ export function HeroSection({ settings }: SectionProps): ReactNode {
   const subtitle = resolveSectionText(settings.sections, 'hero', 'subtitle', LOCALE.hero.subtitle)
 
   return (
-    <section className={`${styles.section} ${styles.hero}`}>
-      <h1 className={styles.heroTitle}>{title}</h1>
-      <p className={styles.heroSubtitle}>{subtitle}</p>
+    <section className={styles.hero}>
+      <div className={styles.heroInner}>
+        <p className={styles.eyebrow}>{LOCALE.hero.eyebrow}</p>
+        <h1 className={styles.heroTitle}>{title}</h1>
+        <p className={styles.heroSubtitle}>{subtitle}</p>
+        <div className={styles.heroActions}>
+          <a className={styles.primaryButton} href="/cadastro">
+            {LOCALE.hero.primaryCta}
+          </a>
+          <a className={styles.secondaryButton} href="#servicos">
+            {LOCALE.hero.secondaryCta}
+          </a>
+        </div>
+      </div>
     </section>
   )
 }
 
-export function OfferSection({ settings }: SectionProps): ReactNode {
-  const title = resolveSectionText(settings.sections, 'offer', 'title', LOCALE.offer.title)
-  const items = resolveSectionList(settings.sections, 'offer', 'items', LOCALE.offer.items)
+export function AboutSection({ settings }: SectionProps): ReactNode {
+  const title = resolveSectionText(settings.sections, 'about', 'title', LOCALE.about.title)
+  const body = resolveSectionText(settings.sections, 'about', 'body', LOCALE.about.body)
 
   return (
-    <section className={styles.section}>
+    <section className={styles.section} id="sobre">
+      <div className={styles.aboutGrid}>
+        <div>
+          <p className={styles.eyebrow}>{LOCALE.about.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{title}</h2>
+        </div>
+        <p className={styles.aboutBody}>{body}</p>
+      </div>
+    </section>
+  )
+}
+
+const SERVICE_ICONS: readonly IconName[] = ['truck', 'route', 'shield-check', 'wallet']
+
+export function ServicesSection({ settings }: SectionProps): ReactNode {
+  const title = resolveSectionText(settings.sections, 'services', 'title', LOCALE.services.title)
+  const items = resolveSectionList(settings.sections, 'services', 'items', LOCALE.services.items)
+
+  return (
+    <section className={styles.section} id="servicos">
+      <p className={styles.eyebrow}>{LOCALE.services.eyebrow}</p>
       <h2 className={styles.sectionTitle}>{title}</h2>
-      <ul className={styles.list}>
-        {items.map((item) => (
-          <li className={styles.listItem} key={item}>
-            {item}
-          </li>
+      <div className={styles.serviceGrid}>
+        {items.map((item, index) => (
+          <article className={styles.serviceCard} key={item}>
+            <span className={styles.serviceIcon}>
+              <Icon name={SERVICE_ICONS[index % SERVICE_ICONS.length] ?? 'truck'} />
+            </span>
+            <p className={styles.serviceLabel}>{item}</p>
+          </article>
         ))}
-      </ul>
+      </div>
     </section>
   )
 }
@@ -68,6 +103,35 @@ export function RequirementsSection({ settings }: SectionProps): ReactNode {
   )
 }
 
+export function AppSection({ settings }: SectionProps): ReactNode {
+  const title = resolveSectionText(settings.sections, 'app', 'title', LOCALE.app.title)
+  const body = resolveSectionText(settings.sections, 'app', 'body', LOCALE.app.body)
+  const items = resolveSectionList(settings.sections, 'app', 'items', LOCALE.app.items)
+
+  return (
+    <section className={`${styles.section} ${styles.appSection}`} id="app">
+      <div className={styles.appGrid}>
+        <div>
+          <p className={styles.eyebrow}>{LOCALE.app.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{title}</h2>
+          <p className={styles.aboutBody}>{body}</p>
+          <ul className={styles.featureList}>
+            {items.map((item) => (
+              <li className={styles.featureItem} key={item}>
+                <Icon aria-hidden="true" height="20" name="shield-check" width="20" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={styles.appDeviceFrame} aria-hidden="true">
+          <Icon height="48" name="smartphone" width="48" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function unitAddress(unit: LandingGroupUnit): string {
   const parts = [unit.street, unit.number, unit.district, unit.city, unit.state].filter(
     (part) => part.length > 0,
@@ -96,6 +160,39 @@ export function WhereWeAreSection({ settings }: SectionProps): ReactNode {
             <p className={styles.unitAddress}>{unitAddress(unit)}</p>
           </article>
         ))}
+      </div>
+    </section>
+  )
+}
+
+export function ContactSection({ settings }: SectionProps): ReactNode {
+  const title = resolveSectionText(settings.sections, 'contact', 'title', LOCALE.contact.title)
+  const body = resolveSectionText(settings.sections, 'contact', 'body', LOCALE.contact.body)
+
+  return (
+    <section className={styles.section} id="contato">
+      <p className={styles.eyebrow}>{LOCALE.contact.eyebrow}</p>
+      <h2 className={styles.sectionTitle}>{title}</h2>
+      <p className={styles.aboutBody}>{body}</p>
+      <div className={styles.contactGrid}>
+        {settings.contactPhone === undefined ? null : (
+          <a className={styles.contactCard} href={`tel:${settings.contactPhone}`}>
+            <Icon name="phone" />
+            <span>{settings.contactPhone}</span>
+          </a>
+        )}
+        {settings.contactEmail === undefined ? null : (
+          <a className={styles.contactCard} href={`mailto:${settings.contactEmail}`}>
+            <Icon name="mail" />
+            <span>{settings.contactEmail}</span>
+          </a>
+        )}
+        {settings.units[0] === undefined ? null : (
+          <div className={styles.contactCard}>
+            <Icon name="map" />
+            <span>{unitAddress(settings.units[0])}</span>
+          </div>
+        )}
       </div>
     </section>
   )

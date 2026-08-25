@@ -1,35 +1,54 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
-import { PreRegistrationForm } from '@/modules/application/components/PreRegistrationForm.component'
-import {
-  CtaSection,
-  HeroSection,
-  OfferSection,
-  RequirementsSection,
-  WhereWeAreSection,
-} from '@/modules/landing/components/LandingSections.component'
+import { Footer } from '@/modules/foundation/components/Footer.component'
+import { Header } from '@/modules/foundation/components/Header.component'
 import { useLandingSettings } from '@/modules/shared/useLandingSettings.query'
+import { ApplicationPage } from './pages/ApplicationPage'
+import { HomePage } from './pages/HomePage'
 
-const APPLICATION_FORM_ID = 'pre-cadastro'
-
-function scrollToApplicationForm(): void {
-  document.getElementById(APPLICATION_FORM_ID)?.scrollIntoView({ behavior: 'smooth' })
-}
+const APPLICATION_PATH = '/cadastro'
 
 export function App(): ReactNode {
   const { data: settings } = useLandingSettings()
+  const [pathname, setPathname] = useState(() => window.location.pathname)
+
+  useEffect(() => {
+    function syncLocation(): void {
+      setPathname(window.location.pathname)
+    }
+    window.addEventListener('popstate', syncLocation)
+    return () => window.removeEventListener('popstate', syncLocation)
+  }, [])
+
+  function navigateTo(path: string): void {
+    window.history.pushState({}, '', path)
+    setPathname(path)
+    window.scrollTo({ top: 0 })
+  }
+
+  const brandName = settings.brandName ?? 'TransportAdA'
+  const isApplicationRoute = pathname === APPLICATION_PATH
 
   return (
-    <main>
-      <HeroSection settings={settings} />
-      <OfferSection settings={settings} />
-      <RequirementsSection settings={settings} />
-      <WhereWeAreSection settings={settings} />
-      <CtaSection settings={settings} onCallToAction={scrollToApplicationForm} />
-      <div id={APPLICATION_FORM_ID}>
-        <PreRegistrationForm settings={settings} />
-      </div>
-    </main>
+    <>
+      <Header
+        brandName={brandName}
+        onNavigateHome={() => navigateTo('/')}
+        onNavigateToApplication={() => navigateTo(APPLICATION_PATH)}
+      />
+      <main>
+        {isApplicationRoute ? (
+          <ApplicationPage onNavigateHome={() => navigateTo('/')} settings={settings} />
+        ) : (
+          <HomePage onNavigateToApplication={() => navigateTo(APPLICATION_PATH)} settings={settings} />
+        )}
+      </main>
+      <Footer
+        brandName={brandName}
+        onNavigateToApplication={() => navigateTo(APPLICATION_PATH)}
+        settings={settings}
+      />
+    </>
   )
 }

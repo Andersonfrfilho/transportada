@@ -1,15 +1,25 @@
 {
   "landing": {
     "hero": {
-      "title": "Seja um agregado da nossa frota",
-      "subtitle": "Pré-cadastre seu veículo e comece a rodar com a gente."
+      "eyebrow": "Transporte de carga fracionada e dedicada",
+      "title": "Sua carga, no prazo, do jeito certo",
+      "subtitle": "Rota planejada, motorista acompanhado e nota fiscal em dia — do primeiro quilômetro à entrega confirmada.",
+      "primaryCta": "Quero ser agregado",
+      "secondaryCta": "Conheça os serviços"
     },
-    "offer": {
-      "title": "O que oferecemos",
+    "about": {
+      "eyebrow": "Quem somos",
+      "title": "Uma transportadora que roda com processo, não no improviso",
+      "body": "Operamos frota própria e agregada com roteirização, documentação fiscal eletrônica e acompanhamento de viagem de ponta a ponta — para o cliente saber onde a carga está, e para o motorista saber que o pagamento chega em dia."
+    },
+    "services": {
+      "eyebrow": "O que fazemos",
+      "title": "Serviços",
       "items": [
-        "Fretes constantes, com rota planejada",
-        "Pagamento em dia, sem surpresa",
-        "Suporte direto com a operação"
+        "Transporte fracionado e dedicado, com rota planejada por região",
+        "Coleta e entrega com CT-e e MDF-e emitidos e acompanhados pelo sistema",
+        "Rastreamento de viagem, da separação da nota até a confirmação de entrega",
+        "Repasse de frete ao agregado em dia, sem surpresa no fechamento"
       ]
     },
     "requirements": {
@@ -20,12 +30,27 @@
         "Disponibilidade para viagens"
       ]
     },
+    "app": {
+      "eyebrow": "Aplicativo do motorista",
+      "title": "A viagem inteira num aplicativo só",
+      "body": "O motorista agregado acompanha a rota, confirma coleta e entrega, e vê o fechamento do frete sem precisar ligar para ninguém.",
+      "items": [
+        "Roteiro da viagem com as paradas em ordem",
+        "Confirmação de entrega com foto e assinatura digital",
+        "Acompanhamento do fechamento de frete em tempo real"
+      ]
+    },
     "whereWeAre": {
       "title": "Onde estamos"
     },
+    "contact": {
+      "eyebrow": "Fale com a gente",
+      "title": "Contato",
+      "body": "Dúvida sobre frete, candidatura ou uma unidade específica — é só chamar."
+    },
     "cta": {
       "title": "Quer rodar com a gente?",
-      "subtitle": "Preencha o formulário abaixo — é rápido.",
+      "subtitle": "Preencha o formulário de pré-cadastro — é rápido.",
       "buttonLabel": "Quero me candidatar"
     },
     "form": {

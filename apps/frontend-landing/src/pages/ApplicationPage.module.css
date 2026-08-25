@@ -1,0 +1,13 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.breadcrumb {
+  display: block;
+  width: var(--layout-width);
+  margin: var(--space-6) auto 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.breadcrumb:hover {
+  color: var(--color-accent);
+}
