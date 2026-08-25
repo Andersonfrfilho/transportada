@@ -2,3 +2,4 @@
 import './shared/content-security-policy.contract.js'
 import './shared/deployment-environment.contract.js'
 import './shared/landing-settings.contract.js'
+import './shared/locale-accents.contract.js'

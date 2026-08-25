@@ -1,0 +1,46 @@
+{
+  "landing": {
+    "hero": {
+      "title": "Seja um agregado da nossa frota",
+      "subtitle": "Pré-cadastre seu veículo e comece a rodar com a gente."
+    },
+    "offer": {
+      "title": "O que oferecemos",
+      "items": [
+        "Fretes constantes, com rota planejada",
+        "Pagamento em dia, sem surpresa",
+        "Suporte direto com a operação"
+      ]
+    },
+    "requirements": {
+      "title": "O que você precisa ter",
+      "items": [
+        "CNH na categoria do veículo",
+        "Veículo em dia com o licenciamento",
+        "Disponibilidade para viagens"
+      ]
+    },
+    "whereWeAre": {
+      "title": "Onde estamos"
+    },
+    "cta": {
+      "title": "Quer rodar com a gente?",
+      "subtitle": "Preencha o formulário abaixo — é rápido.",
+      "buttonLabel": "Quero me candidatar"
+    },
+    "form": {
+      "title": "Pré-cadastro do agregado",
+      "nameLabel": "Nome completo",
+      "taxIdLabel": "CPF ou CNPJ",
+      "emailLabel": "E-mail",
+      "phoneLabel": "Telefone",
+      "unitLabel": "Unidade",
+      "postalCodeLabel": "CEP",
+      "submitLabel": "Enviar candidatura",
+      "submittingLabel": "Enviando…",
+      "successTitle": "Candidatura recebida",
+      "successMessage": "Obrigado! Nossa equipe vai analisar os dados e entrar em contato.",
+      "errorMessage": "Não foi possível enviar agora. Tente novamente em instantes."
+    }
+  }
+}
