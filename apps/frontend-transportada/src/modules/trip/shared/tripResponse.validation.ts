@@ -1,32 +1,43 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
   STOP_ADDRESS_COMPONENTS_KEYS,
+  TRANSITION_RESULT_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
   TRIP_ERROR,
   TRIP_KEYS,
+  TRIP_STATUS_RESULT_KEYS,
   TRIP_STOP_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
+  TRIP_BATCH_ITEM_OUTCOME,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
 } from './trip.types'
 import type {
+  BatchStatusResult,
+  CancelTripResult,
   DeliveryAddressOverride,
+  DispatchTripResult,
+  PlanTripRouteResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
   StopAddressComponents,
   Trip,
   TripDetail,
   TripDocument,
+  TripDocumentBatchItemResult,
   TripDocumentDetail,
   TripDriverLine,
   TripPage,
+  TripStatus,
   TripStopDetail,
+  TransitionTripDocumentResult,
 } from './trip.types'
 import {
   hasExactKeys,
@@ -148,6 +159,31 @@ function isDeliveryAddressOverride(value: unknown): value is DeliveryAddressOver
   )
 }
 
+function isTripStatusResult(value: unknown): value is Readonly<{ tripStatus: TripStatus }> {
+  return hasExactKeys(value, TRIP_STATUS_RESULT_KEYS) && isOneOf(value.tripStatus, TRIP_STATUS)
+}
+
+function isTransitionResult(value: unknown): value is TransitionTripDocumentResult {
+  if (!hasExactKeys(value, TRANSITION_RESULT_KEYS)) return false
+  return isDocument(value.document) && isOneOf(value.tripStatus, TRIP_STATUS)
+}
+
+/** Cada `outcome` carrega chaves diferentes (`blocked` ganha `reason`) — checar só o que toda
+ * variante tem em comum é o suficiente aqui; a tela lê o `reason` quando ele existe. */
+function isBatchItemResult(value: unknown): value is TripDocumentBatchItemResult {
+  return (
+    isRecord(value) &&
+    isString(value.documentId) &&
+    isOneOf(value.outcome, TRIP_BATCH_ITEM_OUTCOME) &&
+    (value.reason === undefined || isString(value.reason))
+  )
+}
+
+function isBatchStatusResult(value: unknown): value is BatchStatusResult {
+  if (!hasExactKeys(value, BATCH_STATUS_RESULT_KEYS)) return false
+  return isEveryItem(value.items, isBatchItemResult) && isOneOf(value.tripStatus, TRIP_STATUS)
+}
+
 /**
  * Guarda parcial de propósito: a linha vem da rota de outro módulo, e exigir chave exata faria a
  * tela do separador parar toda vez que a listagem de notas ganhasse uma coluna.
@@ -209,9 +245,29 @@ export function createTripResponseAdapters() {
       if (!isDeliveryAddressOverride(input)) throw invalid()
       return input
     },
+    batchStatusResultFromApi(input: unknown): BatchStatusResult {
+      if (!isBatchStatusResult(input)) throw invalid()
+      return input
+    },
+    cancelTripResultFromApi(input: unknown): CancelTripResult {
+      if (!isTripStatusResult(input)) throw invalid()
+      return { tripStatus: input.tripStatus }
+    },
+    dispatchTripResultFromApi(input: unknown): DispatchTripResult {
+      if (!isTripStatusResult(input)) throw invalid()
+      return { tripStatus: input.tripStatus }
+    },
+    planTripRouteResultFromApi(input: unknown): PlanTripRouteResult {
+      if (!isTripStatusResult(input)) throw invalid()
+      return { tripStatus: input.tripStatus }
+    },
     reorderTripStopsResultFromApi(input: unknown): ReorderTripStopsResult {
       if (!isRecord(input) || !isOneOf(input.tripStatus, TRIP_STATUS)) throw invalid()
       return { tripStatus: input.tripStatus }
+    },
+    transitionTripDocumentResultFromApi(input: unknown): TransitionTripDocumentResult {
+      if (!isTransitionResult(input)) throw invalid()
+      return input
     },
     tripFromApi,
     tripListFromApi(input: unknown): TripPage {

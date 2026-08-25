@@ -144,6 +144,54 @@ describe('trip client contract', () => {
     expect(historyRequest.method).toBe('GET')
   })
 
+  test('transitions a document, runs a batch, plans the route, dispatches and cancels the trip', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(
+      await client.transitionTripDocument({ action: 'separate', documentId: DOCUMENT_ID, tripId: TRIP_ID }),
+    ).toEqual({ document: TRIP_DOCUMENT, tripStatus: 'separating' })
+    expect(
+      await client.batchStatus({
+        action: 'load',
+        documentIds: [DOCUMENT_ID],
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }], tripStatus: 'loading' })
+    expect(await client.planTripRoute({ tripId: TRIP_ID })).toEqual({ tripStatus: 'route_planned' })
+    expect(await client.dispatchTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'dispatched' })
+    expect(await client.cancelTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'cancelled' })
+
+    const [separateRequest, batchRequest, planRouteRequest, dispatchRequest, cancelRequest] = requests
+    if (
+      separateRequest === undefined ||
+      batchRequest === undefined ||
+      planRouteRequest === undefined ||
+      dispatchRequest === undefined ||
+      cancelRequest === undefined
+    ) {
+      throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(separateRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`,
+    )
+    expect(await separateRequest.json()).toEqual({ note: null, returnReason: null })
+
+    expect(batchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`)
+    expect(await batchRequest.json()).toEqual({
+      action: 'load',
+      documentIds: [DOCUMENT_ID],
+      note: null,
+      returnReason: null,
+    })
+
+    expect(planRouteRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/plan-route`)
+    expect(dispatchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/dispatch`)
+    expect(await dispatchRequest.json()).toEqual({ force: false, forceReason: null })
+    expect(cancelRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/cancel`)
+  })
+
   test('surfaces the api error code instead of a generic failure', async () => {
     const { createTripClient } = await loadFutureModule<TripClientModule>(
       '../../src/modules/trip/shared/tripClient.service',
@@ -296,6 +344,30 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   ) {
     return Promise.resolve(Response.json({ data: [DELIVERY_ADDRESS_OVERRIDE] }))
   }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`) {
+    return Promise.resolve(
+      Response.json({ data: { document: TRIP_DOCUMENT, tripStatus: 'separating' } }),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`) {
+    return Promise.resolve(
+      Response.json({
+        data: {
+          items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }],
+          tripStatus: 'loading',
+        },
+      }),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/plan-route`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'route_planned' } }))
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/dispatch`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'dispatched' } }))
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/cancel`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'cancelled' } }))
+  }
 
   throw new Error(`Unexpected request in contract: ${request.url}`)
 }
@@ -311,10 +383,18 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
     return Promise.resolve(TRIP_DOCUMENT)
   }
 
+  const recordStatusMutation = (): Promise<unknown> => {
+    mutationCount += 1
+    return Promise.resolve({ tripStatus: TRIP.status })
+  }
+
   return {
+    batchStatus: recordStatusMutation,
+    cancelTrip: recordStatusMutation,
     closeTrip: recordDetailMutation,
     createTrip: recordDetailMutation,
     deliverTripDocument: recordDocumentMutation,
+    dispatchTrip: recordStatusMutation,
     getTrip: () => Promise.resolve(TRIP_DETAIL),
     linkTripDocument: recordDocumentMutation,
     listDeliveryAddressHistory: () => Promise.resolve([DELIVERY_ADDRESS_OVERRIDE]),
@@ -323,7 +403,9 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
       return mutationCount
     },
     overrideDeliveryAddress: recordDetailMutation,
+    planTripRoute: recordStatusMutation,
     releaseTripDocument: recordDocumentMutation,
+    transitionTripDocument: recordDocumentMutation,
   }
 }
 
@@ -349,16 +431,39 @@ type OverrideDeliveryAddressInput = Readonly<{
   tripId: string
 }>
 
+type BatchStatusInput = Readonly<{
+  action: 'deliver' | 'load' | 'return' | 'separate'
+  documentIds: readonly string[]
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+type TransitionInput = Readonly<{
+  action: 'load' | 'return' | 'separate'
+  documentId: string
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+type DispatchInput = Readonly<{ force?: boolean; forceReason?: null | string; tripId: string }>
+
 type TripClient = {
+  batchStatus(input: BatchStatusInput): Promise<unknown>
+  cancelTrip(input: TripIdInput): Promise<unknown>
   closeTrip(input: TripIdInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
   deliverTripDocument(input: DocumentActionInput): Promise<unknown>
+  dispatchTrip(input: DispatchInput): Promise<unknown>
   getTrip(input: TripIdInput): Promise<unknown>
   linkTripDocument(input: LinkDocumentInput): Promise<unknown>
   listDeliveryAddressHistory(input: DocumentActionInput): Promise<unknown>
   listTrips(input: ListInput): Promise<unknown>
   overrideDeliveryAddress(input: OverrideDeliveryAddressInput): Promise<unknown>
+  planTripRoute(input: TripIdInput): Promise<unknown>
   releaseTripDocument(input: DocumentActionInput): Promise<unknown>
+  transitionTripDocument(input: TransitionInput): Promise<unknown>
 }
 
 type TripClientModule = {

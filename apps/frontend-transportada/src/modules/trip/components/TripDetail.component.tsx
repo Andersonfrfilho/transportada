@@ -25,7 +25,9 @@ import { isTripEditable } from '../shared/tripStatus.service'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripProgressBar } from './TripProgressBar.component'
+import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import styles from '../styles/trip.module.css'
 
@@ -96,6 +98,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const trip = workspace.trip
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
+  const [returnDocumentId, setReturnDocumentId] = useState<string | null>(null)
   const selection = useTripDocumentSelection()
 
   if (workspace.status === 'forbidden') {
@@ -124,20 +127,63 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
     isDeliverPending: workspace.deliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
+    isTransitionPending: workspace.transitionDocumentMutation.isPending,
     onDeliver: (documentId: string) =>
       workspace.deliverDocumentMutation.mutate({ documentId, tripId: trip.id }),
+    onLoad: (documentId: string) =>
+      workspace.transitionDocumentMutation.mutate({ action: 'load', documentId, tripId: trip.id }),
     onOverrideAddress: (documentId: string) => setOverrideDocumentId(documentId),
     onRelease: (documentId: string) =>
       workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
+    onReturn: (documentId: string) => setReturnDocumentId(documentId),
+    onSeparate: (documentId: string) =>
+      workspace.transitionDocumentMutation.mutate({
+        action: 'separate',
+        documentId,
+        tripId: trip.id,
+      }),
   }
   const overrideDocument = trip.documents.find((document) => document.id === overrideDocumentId)
+  const returnDocument = trip.documents.find((document) => document.id === returnDocumentId)
   const feedbackKey = resolveFirstTripFeedbackKey([
     workspace.linkDocumentMutation.error,
     workspace.deliverDocumentMutation.error,
     workspace.releaseDocumentMutation.error,
     workspace.closeMutation.error,
     workspace.reorderStopsMutation.error,
+    workspace.transitionDocumentMutation.error,
+    workspace.batchStatusMutation.error,
+    workspace.dispatchMutation.error,
+    workspace.cancelMutation.error,
+    workspace.planRouteMutation.error,
   ])
+
+  function handleReturnSubmit(reason: string): void {
+    if (trip === undefined || returnDocumentId === null) return
+    workspace.transitionDocumentMutation.mutate({
+      action: 'return',
+      documentId: returnDocumentId,
+      returnReason: reason,
+      tripId: trip.id,
+    })
+    setReturnDocumentId(null)
+  }
+
+  function handleBatch(input: {
+    readonly action: 'load' | 'return' | 'separate'
+    readonly returnReason?: string
+  }): void {
+    if (trip === undefined || selection.selectedIds.size === 0) return
+    workspace.batchStatusMutation.mutate(
+      {
+        action: input.action,
+        documentIds: [...selection.selectedIds],
+        returnReason: input.returnReason ?? null,
+        tripId: trip.id,
+      },
+      { onSuccess: selection.clear },
+    )
+  }
 
   /** A chave lida vira identificador antes do vínculo: a rota não conhece chave de acesso. */
   async function handleLinkDocument(): Promise<void> {
@@ -235,6 +281,21 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
       {trip.documents.length === 0 ? (
         <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
       ) : null}
+
+      <TripStateActions
+        canManage={canManage}
+        isBatchPending={workspace.batchStatusMutation.isPending}
+        isCancelPending={workspace.cancelMutation.isPending}
+        isDispatchPending={workspace.dispatchMutation.isPending}
+        isEditable={isEditable}
+        isPlanRoutePending={workspace.planRouteMutation.isPending}
+        onBatch={handleBatch}
+        onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+        onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+        onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+        selection={selection}
+        trip={trip}
+      />
 
       {canManage && isEditable ? (
         <div className={styles.actionForm}>
@@ -348,6 +409,23 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         onClose={() => setOverrideDocumentId(null)}
         onOverride={(body) => workspace.overrideDeliveryAddressMutation.mutateAsync(body)}
         tripId={trip.id}
+      />
+
+      <TripReasonDialog
+        isOpen={returnDocumentId !== null}
+        isSubmitting={workspace.transitionDocumentMutation.isPending}
+        onClose={() => setReturnDocumentId(null)}
+        onSubmit={handleReturnSubmit}
+        reasonLabel={t('stateActions.returnReasonLabel')}
+        submitLabel={t('stateActions.returnSubmit')}
+        {...(returnDocument === undefined
+          ? {}
+          : {
+              subtitle: t('stateActions.returnSubtitle', {
+                document: tripDocumentLabel(returnDocument),
+              }),
+            })}
+        title={t('stateActions.returnTitle')}
       />
     </section>
   )

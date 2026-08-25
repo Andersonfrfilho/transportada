@@ -1,15 +1,23 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NFE_DOCUMENTS_PATH, SCAN_LOOKUP_LIMIT, TRIP_ERROR, TRIPS_PATH } from './trip.constant'
 import type {
+  BatchStatusInput,
+  BatchStatusResult,
+  CancelTripResult,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
+  DispatchTripInput,
+  DispatchTripResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   OverrideDeliveryAddressInput,
+  PlanTripRouteResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ScannedNfeDocument,
+  TransitionTripDocumentInput,
+  TransitionTripDocumentResult,
   TripDetail,
   TripDocument,
   TripDocumentActionInput,
@@ -26,9 +34,12 @@ type ClientDependencies = Readonly<{
 }>
 
 export type TripClient = Readonly<{
+  batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
+  cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
@@ -39,8 +50,12 @@ export type TripClient = Readonly<{
   ) => Promise<readonly DeliveryAddressOverride[]>
   listTrips: (input: TripListInput) => Promise<TripPage>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
+  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
+  transitionTripDocument: (
+    input: TransitionTripDocumentInput,
+  ) => Promise<TransitionTripDocumentResult>
 }>
 
 function requestError(code: string): Error {
@@ -125,6 +140,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
   }
 
   return {
+    async batchStatus(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          action: input.action,
+          documentIds: input.documentIds,
+          note: input.note ?? null,
+          returnReason: input.returnReason ?? null,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/batch-status`,
+      })
+      return adapters.batchStatusResultFromApi(readEnvelopeData(response))
+    },
+    async cancelTrip(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/cancel`,
+      })
+      return adapters.cancelTripResultFromApi(readEnvelopeData(response))
+    },
     async closeTrip(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -149,6 +186,18 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/deliver`,
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async dispatchTrip(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          force: input.force ?? false,
+          forceReason: input.forceReason ?? null,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/dispatch`,
+      })
+      return adapters.dispatchTripResultFromApi(readEnvelopeData(response))
     },
     async findNfeDocumentByAccessKey(input) {
       const search = buildSearch(
@@ -222,6 +271,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.deliveryAddressOverrideFromApi(readEnvelopeData(response))
     },
+    async planTripRoute(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/plan-route`,
+      })
+      return adapters.planTripRouteResultFromApi(readEnvelopeData(response))
+    },
     async releaseTripDocument(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -238,6 +295,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/stops/order`,
       })
       return adapters.reorderTripStopsResultFromApi(readEnvelopeData(response))
+    },
+    async transitionTripDocument(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ note: input.note ?? null, returnReason: input.returnReason ?? null }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/${input.action}`,
+      })
+      return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
     },
   }
 }

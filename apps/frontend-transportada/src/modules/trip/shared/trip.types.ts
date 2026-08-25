@@ -152,6 +152,61 @@ export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 
+/** As três transições que o escritório aciona por nota ou em lote — `deliver` é ação de rua
+ * (spec 057) e só existe hoje pelo lote antigo, sem rota própria de item único (T012). */
+export const TRIP_DOCUMENT_TRANSITION_ACTIONS = ['load', 'return', 'separate'] as const
+export type TripDocumentTransitionAction = (typeof TRIP_DOCUMENT_TRANSITION_ACTIONS)[number]
+
+export const TRIP_BATCH_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
+export type TripBatchAction = (typeof TRIP_BATCH_ACTIONS)[number]
+
+export type TransitionTripDocumentInput = Readonly<{
+  action: TripDocumentTransitionAction
+  documentId: string
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+export type TransitionTripDocumentResult = Readonly<{
+  document: TripDocument
+  tripStatus: TripStatus
+}>
+
+export const TRIP_BATCH_ITEM_OUTCOME = ['applied', 'blocked', 'not_found', 'raced', 'unchanged'] as const
+export type TripBatchItemOutcome = (typeof TRIP_BATCH_ITEM_OUTCOME)[number]
+
+export type TripDocumentBatchItemResult = Readonly<{
+  documentId: string
+  outcome: TripBatchItemOutcome
+  reason?: string
+}>
+
+export type BatchStatusInput = Readonly<{
+  action: TripBatchAction
+  documentIds: readonly string[]
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+export type BatchStatusResult = Readonly<{
+  items: readonly TripDocumentBatchItemResult[]
+  tripStatus: TripStatus
+}>
+
+export type DispatchTripInput = Readonly<{
+  force?: boolean
+  forceReason?: null | string
+  tripId: string
+}>
+
+export type DispatchTripResult = Readonly<{ tripStatus: TripStatus }>
+
+export type CancelTripResult = Readonly<{ tripStatus: TripStatus }>
+
+export type PlanTripRouteResult = Readonly<{ tripStatus: TripStatus }>
+
 export const SCANNED_NFE_STATUS = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
 export type ScannedNfeStatus = (typeof SCANNED_NFE_STATUS)[number]
 

@@ -16,12 +16,16 @@ import styles from '../styles/trip.module.css'
 
 export type TripStopDocumentActions = Readonly<{
   canManage: boolean
-  isEditable: boolean
   isDeliverPending: boolean
+  isEditable: boolean
   isReleasePending: boolean
+  isTransitionPending: boolean
   onDeliver: (documentId: string) => void
+  onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   onRelease: (documentId: string) => void
+  onReturn: (documentId: string) => void
+  onSeparate: (documentId: string) => void
 }>
 
 type TripStopListProps = Readonly<{
@@ -166,6 +170,39 @@ function TripStopDocumentRow({
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
       ) : null}
       <div className={styles.rowActions}>
+        {actions.canManage && actions.isEditable && document.separationStatus === 'pending' ? (
+          <Button
+            disabled={actions.isTransitionPending}
+            onClick={() => actions.onSeparate(document.id)}
+            size="sm"
+            type="button"
+          >
+            {t('actions.separate')}
+          </Button>
+        ) : null}
+        {actions.canManage && actions.isEditable && document.separationStatus === 'separated' ? (
+          <Button
+            disabled={actions.isTransitionPending}
+            onClick={() => actions.onLoad(document.id)}
+            size="sm"
+            type="button"
+          >
+            {t('actions.load')}
+          </Button>
+        ) : null}
+        {actions.canManage &&
+        actions.isEditable &&
+        (document.separationStatus === 'separated' || document.separationStatus === 'loaded') ? (
+          <Button
+            disabled={actions.isTransitionPending}
+            onClick={() => actions.onReturn(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {t('actions.return')}
+          </Button>
+        ) : null}
         {actions.canManage && actions.isEditable && document.deliveredAt === null ? (
           <Button
             disabled={actions.isDeliverPending}

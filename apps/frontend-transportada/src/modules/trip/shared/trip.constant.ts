@@ -107,3 +107,9 @@ export const DELIVERY_ADDRESS_OVERRIDE_KEYS = [
   'requestedBy',
   'tripDocumentId',
 ] as const
+
+export const TRANSITION_RESULT_KEYS = ['document', 'tripStatus'] as const
+
+export const TRIP_STATUS_RESULT_KEYS = ['tripStatus'] as const
+
+export const BATCH_STATUS_RESULT_KEYS = ['items', 'tripStatus'] as const

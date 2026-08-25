@@ -14,15 +14,23 @@ import {
   TRIP_READ_PERMISSION,
 } from '../shared/trip.constant'
 import type {
+  BatchStatusInput,
+  BatchStatusResult,
+  CancelTripResult,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
+  DispatchTripInput,
+  DispatchTripResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   OverrideDeliveryAddressInput,
+  PlanTripRouteResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ScannedNfeDocument,
+  TransitionTripDocumentInput,
+  TransitionTripDocumentResult,
   TripDetail,
   TripDocument,
   TripDocumentActionInput,
@@ -30,11 +38,14 @@ import type {
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
 
 export type TripController = Readonly<{
+  batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
+  cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   canManageTrips: boolean
   canReadTrips: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
@@ -44,8 +55,12 @@ export type TripController = Readonly<{
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
+  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
+  transitionTripDocument: (
+    input: TransitionTripDocumentInput,
+  ) => Promise<TransitionTripDocumentResult>
 }>
 
 function forbidden(): Promise<never> {
@@ -59,12 +74,15 @@ export function createTripController(
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
 
   return {
+    batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
+    cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
     canManageTrips,
     canReadTrips,
     closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     deliverTripDocument: (body) =>
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
@@ -74,10 +92,13 @@ export function createTripController(
       canReadTrips ? input.client.listDeliveryAddressHistory(query) : forbidden(),
     overrideDeliveryAddress: (body) =>
       canManageTrips ? input.client.overrideDeliveryAddress(body) : forbidden(),
+    planTripRoute: (body) => (canManageTrips ? input.client.planTripRoute(body) : forbidden()),
     releaseTripDocument: (body) =>
       canManageTrips ? input.client.releaseTripDocument(body) : forbidden(),
     reorderTripStops: (body) =>
       canManageTrips ? input.client.reorderTripStops(body) : forbidden(),
+    transitionTripDocument: (body) =>
+      canManageTrips ? input.client.transitionTripDocument(body) : forbidden(),
   }
 }
 
@@ -155,16 +176,35 @@ export function useTripWorkspace(
     mutationFn: controller.overrideDeliveryAddress,
     onSuccess: invalidate,
   })
+  const transitionDocumentMutation = useMutation({
+    mutationFn: controller.transitionTripDocument,
+    onSuccess: invalidate,
+  })
+  const batchStatusMutation = useMutation({
+    mutationFn: controller.batchStatus,
+    onSuccess: invalidate,
+  })
+  const dispatchMutation = useMutation({ mutationFn: controller.dispatchTrip, onSuccess: invalidate })
+  const cancelMutation = useMutation({ mutationFn: controller.cancelTrip, onSuccess: invalidate })
+  const planRouteMutation = useMutation({
+    mutationFn: controller.planTripRoute,
+    onSuccess: invalidate,
+  })
 
   return {
+    batchStatusMutation,
+    cancelMutation,
     closeMutation,
     controller,
     createMutation,
     deliverDocumentMutation,
+    dispatchMutation,
     linkDocumentMutation,
     overrideDeliveryAddressMutation,
+    planRouteMutation,
     releaseDocumentMutation,
     reorderStopsMutation,
+    transitionDocumentMutation,
     status: resolveQueryStatus({
       canRead: controller.canReadTrips,
       isError: tripQuery.isError,

@@ -681,7 +681,7 @@ pessoa quase nunca é usuária do sistema.
   T015 — precisa da stack local completa (Keycloak, API, viagem com nota real) para abrir o diálogo
   de verdade.
 
-### T016 — As ações de estado
+### T016 ⏳ — As ações de estado
 
 Botões de separar / carregar / devolver, em lote e por nota, com o diálogo de motivo no retorno e o
 diálogo de `force` no despacho — este último **lista as notas pendentes** antes de pedir o motivo.
@@ -690,6 +690,34 @@ diálogo de `force` no despacho — este último **lista as notas pendentes** an
   `src/modules/trip/mutations/*.mutation.ts`, `trip.locale.json`
 - **Aceite:** revisão humana
 - **Verificação:** `bun run --cwd apps/frontend-transportada build`
+
+**Evidência (implementação; revisão humana pendente):**
+
+- O frontend nunca tinha cliente/tipos para separate/load/return/batch-status/dispatch/cancel/
+  plan-route (T012 backend) — todos ficaram sem consumidor até agora. Adicionados a
+  `trip.types.ts`, `trip.constant.ts`, `tripResponse.validation.ts`, `tripClient.service.ts`,
+  `useTripWorkspace.hook.ts` (seis mutações novas: `transitionDocumentMutation`,
+  `batchStatusMutation`, `dispatchMutation`, `cancelMutation`, `planRouteMutation`, além das já
+  existentes).
+- **Lista de pendentes antes do motivo, sem round-trip:** em vez de despachar e reagir ao `409
+  TRIP_HAS_UNLOADED_DOCUMENTS` (que exigiria decodificar `error.details`), `TripStateActions`
+  calcula as notas ainda não carregadas direto de `trip.documents` (mesmo filtro
+  `pending`/`separated` que o backend usa) — se não há nenhuma, despacha direto; se há, abre
+  `TripReasonDialog` já com a lista, e só then pede o motivo.
+- `TripReasonDialog.component.tsx` (novo): diálogo genérico de motivo, reaproveitado para devolver
+  uma nota, devolver o maço selecionado, e despachar com força — mesmo padrão de
+  `DeliveryAddressOverrideDialog`/`TripMdfePendingDialog`.
+- Botões por nota (separar/carregar/devolver) entram em `TripStopList.component.tsx`, condicionados
+  ao `separationStatus` atual (só mostra "separar" se `pending`, só "carregar" se `separated`,
+  etc.) — o backend já valida a transição; o frontend só evita oferecer um botão que sempre
+  falharia.
+- Ações em lote reaproveitam `useTripDocumentSelection` (T015): os três botões de lote operam sobre
+  `selection.selectedIds`, e a seleção limpa sozinha ao concluir.
+- **Desvio do arquivo sugerido:** mesma decisão do T015b — sem pasta `mutations/` no módulo; as seis
+  mutações entram em `useTripWorkspace.hook.ts`, ao lado das demais.
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun run test`):
+  1911 pass / 0 fail; `bun run build` (`vite build`) concluído com sucesso.
+- **Não verificado nesta sessão:** a conferência visual humana, mesma pendência do T015/T015b.
 
 ### T017 — O passe de responsividade da tela de viagem
 
