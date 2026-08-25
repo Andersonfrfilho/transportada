@@ -46,14 +46,39 @@ aplica aqui — `frontend-landing` **já é** a superfície pública, sem nada d
 agregado uma conta dentro do mesmo bundle que já serve anônimo não aumenta a superfície exposta; só
 acrescenta rotas autenticadas a um app que já era público por natureza.
 
-### D2 — Conversa reusa o canal já modelado, não inventa um chat novo
+### D2 — Dois chats existem no ecossistema, e são coisas diferentes
 
-A 062 já modelou WhatsApp como canal de notificação **e** de conversa (inbox no painel,
-`WhatsAppDriverPort`, driver pronto). "Chat com os atendentes" no portal do agregado é a mesma
-conversa, só com uma segunda janela: hoje ela só aparece no painel interno; esta spec expõe a leitura
-e o envio dela também para o lado do agregado autenticado, pela mesma trilha de mensagens — não um
-canal paralelo. Ver Dúvidas: se existe de fato um SDK de chat próprio do ecossistema (`@adatechnology/*`)
-diferente do modelo WhatsApp da 062, ele **substitui** este item, não convive com ele.
+Investigação em `~/Documents/personal/adatechnology-packages` (branch `feat/webhook-account-events`)
+confirma dois pacotes, não um:
+
+| Pacote | O que é | Onde já é usado |
+|---|---|---|
+| `@adatechnology/conversations-ui` + `meta-whatsapp-module` | UI de conversa por **WhatsApp**, inbox no painel interno | Já é o modelo da spec 062 |
+| `@adatechnology/web-chat-widget` | **Bolha de chat de site**, Web Component nativo (shadow DOM, sem framework), pensado para landing/site institucional | Hoje só consumido por `api-ada` (produto fora deste monorepo) |
+
+O pedido — "chat com os atendentes" **na landing** — é o `web-chat-widget`, não o WhatsApp da 062.
+São necessidades diferentes: WhatsApp é onde o motorista já fala; a bolha de chat é para o visitante
+anônimo da landing que ainda não é agregado de ninguém.
+
+**O que falta, e é o ponto real de decisão:** o `web-chat-widget` é "só a metade do cliente" — a
+própria doc do pacote diz isso. As quatro rotas que ele consome (`POST /v1/widget/sessions`,
+`GET/POST .../messages`, `POST .../audio`, `GET .../events` via SSE) **vivem hardcoded dentro do
+`api-ada`** hoje; não existe `web-chat-module` publicado. A doc do pacote já prevê a extração:
+*"quando houver segundo consumidor de backend, vira um `web-chat-module`"* — e a `transportada`
+seria exatamente esse segundo consumidor, o gatilho que `pluggable-module.md` (regra do 2º uso) pede
+para nascer o módulo de verdade.
+
+Duas rotas possíveis, e a escolha muda o tamanho da spec:
+
+1. **Implementar o contrato HTTP direto em `api-transportada`** (as quatro rotas, seguindo a doc do
+   pacote ao pé da letra, sem esperar a extração) — entrega mais rápido, mas duplica lógica que devia
+   ser um módulo.
+2. **Pedir a extração de `web-chat-module`** no repo `adatechnology-packages` primeiro (fora do
+   escopo desta spec, é outro repositório) e consumi-lo pronto — certo pelo padrão do ecossistema,
+   mas depende de trabalho em outro lugar antes de começar aqui.
+
+A conversa do widget não se junta ao inbox de WhatsApp da 062 — são threads e produtos diferentes;
+não há requisito de unificação nesta spec.
 
 ### D3 — Documentos são objeto, não campo
 
@@ -124,10 +149,12 @@ Railway nem em qualquer outro app.
   do status da candidatura/ficha.
 - **RF11** — Tela "Documentos": lista de tipos exigidos (CNH, CRLV — configurável), upload por tipo,
   status (`pending`/`approved`/`rejected`) e motivo quando recusado.
-- **RF12** — Tela "Conversas": histórico de mensagens com a transportadora e envio de mensagem nova,
-  pela mesma trilha de dados que o inbox do painel (062).
+- **RF12** — Chat de site via `@adatechnology/web-chat-widget` (Web Component, shadow DOM) na landing
+  e/ou no portal — não o inbox de WhatsApp da 062 (ver D2). Depende de resolver a rota de backend
+  (rotas próprias em `api-transportada` ou `web-chat-module` extraído) antes de montar o widget.
 - **RF13** — DNS/deploy: `fernandes-transportadora.com.br` como domínio customizado do serviço
-  Railway de `apps/frontend-landing` em produção (ação de infraestrutura, fora do código).
+  Railway de `apps/frontend-landing` em produção (ação de infraestrutura, fora do código). Como é
+  cliente real, a 054 (multi-empresa) precisa entrar antes ou junto — ver Dúvidas.
 
 ## Requisitos não funcionais
 
@@ -169,12 +196,14 @@ Railway nem em qualquer outro app.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: existe hoje algum pacote @adatechnology de chat/mensageria além do que a
-  062 já modela sobre WhatsApp? Se sim, qual, e ele substitui D2 ou convive com ela?]`
+- `[NEEDS CLARIFICATION: entre as duas rotas do D2 — rotas próprias em api-transportada agora, ou
+  esperar a extração de web-chat-module no repo adatechnology-packages — qual seguir? A segunda
+  exige trabalho em outro repositório antes de começar aqui.]`
 - `[NEEDS CLARIFICATION: quais documentos são obrigatórios para o agregado além de CNH e CRLV —
   existe uma lista oficial da operação, ou a spec 052 (rotina) já define isso em algum lugar?]`
 - `[NEEDS CLARIFICATION: "configurações" do portal inclui troca de senha/e-mail (padrão do
   user-module) ou só os dados da ficha do motorista? Os dois pedem telas diferentes.]`
-- `[NEEDS CLARIFICATION: fernandes-transportadora.com.br é o domínio de UM cliente específico
-  (Fernandes) ou o nome interno de exemplo para o domínio de qualquer instalação? Se é de um cliente
-  real, isso muda a 054 (multi-empresa) de "próxima spec" para pré-requisito desta.]`
+- ~~`fernandes-transportadora.com.br` é domínio de instalação genérica ou de cliente real?~~
+  **Respondido: é cliente real** (Fernandes). Consequência registrada em RF13 — a 054 (multi-empresa/
+  filial, hoje "próxima spec" no encerramento da 053) precisa ser avaliada como pré-requisito ou
+  paralela a esta, não como trabalho futuro sem prazo.
