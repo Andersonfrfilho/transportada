@@ -562,7 +562,7 @@ Mesma porta de não-retorno de vincular/desvincular nota (D2/D3): só funciona a
 
 > 🤖 Modelo: `sonnet`
 
-### T015 — A viagem lista por parada
+### T015 ⏳ — A viagem lista por parada
 
 `TripDetail` passa a agrupar por parada, com reordenação por arraste (só antes de `dispatched`),
 maço de seleção e barra de progresso por fase. Mutações por `docs/frontend/mutations.md`.
@@ -571,6 +571,44 @@ maço de seleção e barra de progresso por fase. Mutações por `docs/frontend/
   `TripStopList.component.tsx` (novo), `trip.locale.json`, `trip.module.css`
 - **Aceite:** revisão humana + conferência em 375px, 768px, 1280px
 - **Verificação:** `bun run --cwd apps/frontend-transportada build`
+
+**Evidência (implementação; revisão humana pendente):**
+
+- O frontend inteiro do módulo `trip` ainda falava o contrato pré-ADR-0043 (`status: 'open'|'closed'`,
+  documento sem `separationStatus`/`stopId`) — migrado nesta task: `trip.types.ts` (9 estados da
+  viagem, `TripDocumentSeparationStatus`, `TripStopDetail`), `trip.constant.ts` (chaves exatas de
+  validação, novos códigos de erro), `tripResponse.validation.ts`, `tripClient.service.ts`,
+  `useTripWorkspace.hook.ts`.
+- Descoberta durante a migração: `PATCH /trips/:id/stops/order` (RF-6) nunca tinha sido
+  implementada no backend — resolvida à parte como **T014b** antes de construir o arraste, já que
+  T015 não tem como funcionar sem a rota existir.
+- `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` adicionados (escolha confirmada com
+  o usuário: acessível por teclado nativamente, evita HTML5 `draggable` — que falha o alvo de toque
+  de 375px e não tem suporte a teclado, reprovando `web.md` §10).
+- `TripStopList.component.tsx` (novo): um cartão por parada com alça de arraste
+  (`useSortable`/`DndContext`), maço de seleção por checkbox (`Checkbox` existente,
+  indeterminado quando parte da parada está selecionada), e as ações de entregar/desvincular por
+  nota preservadas do fluxo antigo. `useTripStopOrder.hook.ts` mantém a ordem otimista durante o
+  arraste e resincroniza com o servidor quando a lista de paradas muda por baixo.
+  `useTripDocumentSelection.hook.ts` isola o estado de seleção, reaproveitável pelo T016.
+- Nota sem parada (a maioria hoje, dado o achado do T014 — o reconciliador ainda não está ligado ao
+  vínculo real, `task_e99ad4c8`) aparece num bloco "Sem parada" reaproveitando o mesmo componente
+  de linha — nada desaparece da tela por causa da lacuna do reconciliador.
+- `TripProgressBar.component.tsx` (novo) + `tripStopProgress.service.ts`: barra de progresso por
+  fase (RF-9), computada em uma função pura testável, sem duplicar a máquina de estados.
+- `tripStatus.service.ts` (novo): `isTripEditable`/`isTripDispatched` espelham
+  `checkTripAcceptsLinkage` do backend (T013) — vincular, desvincular e reordenar param de
+  funcionar a partir de `dispatched`, a mesma regra dos dois lados.
+- Ícone `grip` (alça de arraste) adicionado a `icon.tsx`, seguindo o mesmo formato de traçado
+  24×24 dos demais.
+- Ajuste ao guard de design system (`control-height.contract.ts`, que proíbe medida de controle
+  quadrada hardcoded): `.stopSequence` e o marcador da legenda de progresso trocaram
+  `width`/`height` literais iguais por `aspect-ratio: 1` sobre um único literal.
+- `tsc --noEmit`, `eslint src test --max-warnings=0` e `bun run test` (1909 pass/0 fail) limpos;
+  `bun run build` (`vite build`) concluído com sucesso.
+- **Não verificado nesta sessão:** a conferência visual humana em 375px/768px/1280px que a task
+  exige como aceite — precisaria da stack local completa (Keycloak, API, viagem com paradas
+  semeada) para navegar até a tela real. Recomendado antes de considerar o T015 fechado.
 
 ### T015b — O menu de desvio de entrega (D9)
 

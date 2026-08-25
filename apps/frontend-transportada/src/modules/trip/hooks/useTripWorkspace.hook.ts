@@ -17,6 +17,8 @@ import type {
   CreateTripBody,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  ReorderTripStopsInput,
+  ReorderTripStopsResult,
   ScannedNfeDocument,
   TripDetail,
   TripDocument,
@@ -36,6 +38,7 @@ export type TripController = Readonly<{
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
 }>
 
 function forbidden(): Promise<never> {
@@ -62,6 +65,8 @@ export function createTripController(
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
     releaseTripDocument: (body) =>
       canManageTrips ? input.client.releaseTripDocument(body) : forbidden(),
+    reorderTripStops: (body) =>
+      canManageTrips ? input.client.reorderTripStops(body) : forbidden(),
   }
 }
 
@@ -131,6 +136,10 @@ export function useTripWorkspace(
     mutationFn: controller.releaseTripDocument,
     onSuccess: invalidateDocumentLink,
   })
+  const reorderStopsMutation = useMutation({
+    mutationFn: controller.reorderTripStops,
+    onSuccess: invalidate,
+  })
 
   return {
     closeMutation,
@@ -139,6 +148,7 @@ export function useTripWorkspace(
     deliverDocumentMutation,
     linkDocumentMutation,
     releaseDocumentMutation,
+    reorderStopsMutation,
     status: resolveQueryStatus({
       canRead: controller.canReadTrips,
       isError: tripQuery.isError,

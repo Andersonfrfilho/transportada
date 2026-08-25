@@ -29,7 +29,7 @@ describe('trip client contract', () => {
     expect(
       await client.listTrips({
         cursor: SYNTHETIC_CURSOR,
-        filters: { statusEq: 'open', vehicleIdEq: TRIP.vehicleId },
+        filters: { statusEq: 'draft', vehicleIdEq: TRIP.vehicleId },
         limit: 25,
       }),
     ).toEqual(TRIP_PAGE)
@@ -72,7 +72,7 @@ describe('trip client contract', () => {
     }
 
     expect(listRequest.url).toBe(
-      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusEq=open&vehicleIdEq=${TRIP.vehicleId}`,
+      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusEq=draft&vehicleIdEq=${TRIP.vehicleId}`,
     )
     expect(listRequest.method).toBe('GET')
     expect(listRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)

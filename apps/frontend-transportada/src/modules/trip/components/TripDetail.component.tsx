@@ -8,14 +8,10 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
 import type { TripStatus } from '../shared/trip.types'
-import {
-  hasTripDocumentFiscalWarning,
-  tripDocumentLabel,
-  tripFiscalStatusKey,
-} from '../shared/tripDocument.service'
 import { resolveFirstTripFeedbackKey } from '../shared/tripFeedback.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
@@ -24,8 +20,11 @@ import {
   navigateToMdfeManifests,
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
+import { isTripEditable } from '../shared/tripStatus.service'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
+import { TripProgressBar } from './TripProgressBar.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
@@ -35,7 +34,7 @@ type TripDetailProps = Readonly<{
 }>
 
 function statusClassName(status: TripStatus): string {
-  return status === 'closed'
+  return status === 'completed' || status === 'cancelled'
     ? `${styles.statusBadge} ${styles.statusReady}`
     : `${styles.statusBadge}`
 }
@@ -94,6 +93,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
   const trip = workspace.trip
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
+  const selection = useTripDocumentSelection()
 
   if (workspace.status === 'forbidden') {
     return (
@@ -112,13 +112,26 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   }
 
   const canManage = workspace.controller.canManageTrips
-  const isClosed = trip.status === 'closed'
+  const isEditable = isTripEditable(trip.status)
+  const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
+  const unassignedDocuments = trip.documents.filter((document) => document.stopId === null)
+  const documentActions = {
+    canManage,
+    isDeliverPending: workspace.deliverDocumentMutation.isPending,
+    isEditable,
+    isReleasePending: workspace.releaseDocumentMutation.isPending,
+    onDeliver: (documentId: string) =>
+      workspace.deliverDocumentMutation.mutate({ documentId, tripId: trip.id }),
+    onRelease: (documentId: string) =>
+      workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
+  }
   const feedbackKey = resolveFirstTripFeedbackKey([
     workspace.linkDocumentMutation.error,
     workspace.deliverDocumentMutation.error,
     workspace.releaseDocumentMutation.error,
     workspace.closeMutation.error,
+    workspace.reorderStopsMutation.error,
   ])
 
   /** A chave lida vira identificador antes do vínculo: a rota não conhece chave de acesso. */
@@ -136,6 +149,11 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   function handleCloseTrip(): void {
     if (trip === undefined) return
     workspace.closeMutation.mutate({ tripId: trip.id })
+  }
+
+  function handleReorderStops(stopIds: readonly string[]): void {
+    if (trip === undefined) return
+    workspace.reorderStopsMutation.mutate({ stopIds, tripId: trip.id })
   }
 
   function handleIssueMdfe(): void {
@@ -174,82 +192,46 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         ))}
       </fieldset>
 
-      <div className={styles.tableScroll}>
-        <table className={styles.dataTable}>
-          <thead>
-            <tr>
-              <th scope="col">{t('detail.documentColumn')}</th>
-              <th scope="col">{t('detail.fiscalStatusColumn')}</th>
-              <th scope="col">{t('detail.deliveredColumn')}</th>
-              <th scope="col">{t('actions.title')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trip.documents.map((document) => (
-              <tr
-                className={hasTripDocumentFiscalWarning(document) ? styles.warningRow : undefined}
-                key={document.id}
-              >
-                <td>{tripDocumentLabel(document)}</td>
-                <td>
-                  {t(tripFiscalStatusKey(document.fiscalStatus), {
-                    defaultValue: document.fiscalStatus,
-                  })}
-                  {hasTripDocumentFiscalWarning(document) ? (
-                    <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
-                  ) : null}
-                </td>
-                <td>
-                  {document.deliveredAt === null ? t('detail.pending') : document.deliveredAt}
-                </td>
-                <td>
-                  <div className={styles.rowActions}>
-                    {canManage && !isClosed && document.deliveredAt === null ? (
-                      <Button
-                        disabled={workspace.deliverDocumentMutation.isPending}
-                        onClick={() =>
-                          workspace.deliverDocumentMutation.mutate({
-                            documentId: document.id,
-                            tripId: trip.id,
-                          })
-                        }
-                        size="sm"
-                        type="button"
-                      >
-                        <Icon name="check" />
-                        {t('actions.deliver')}
-                      </Button>
-                    ) : null}
-                    {canManage && !isClosed ? (
-                      <Button
-                        disabled={workspace.releaseDocumentMutation.isPending}
-                        onClick={() =>
-                          workspace.releaseDocumentMutation.mutate({
-                            documentId: document.id,
-                            tripId: trip.id,
-                          })
-                        }
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Icon name="remove" />
-                        {t('actions.release')}
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TripProgressBar documents={trip.documents} />
+
+      {selection.selectedIds.size > 0 ? (
+        <div className={styles.selectionBar} role="status">
+          <span>{t('stops.selectionCount', { count: selection.selectedIds.size })}</span>
+          <Button onClick={selection.clear} size="sm" type="button" variant="ghost">
+            {t('stops.selectionClear')}
+          </Button>
+        </div>
+      ) : null}
+
+      <TripStopList
+        actions={documentActions}
+        canReorder={isEditable}
+        onReorder={handleReorderStops}
+        selection={selection}
+        stops={trip.stops}
+      />
+
+      {unassignedDocuments.length === 0 ? null : (
+        <div className={styles.stopCard}>
+          <div className={styles.stopCardHead}>
+            <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+            <span className={styles.stopCounter}>
+              {t('stops.documentCount', { count: unassignedDocuments.length })}
+            </span>
+          </div>
+          <TripStopDocumentGroup
+            actions={documentActions}
+            documents={unassignedDocuments}
+            selection={selection}
+          />
+        </div>
+      )}
 
       {trip.documents.length === 0 ? (
         <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
       ) : null}
 
-      {canManage && !isClosed ? (
+      {canManage && isEditable ? (
         <div className={styles.actionForm}>
           <h3>{t('detail.linkDocumentTitle')}</h3>
           <div className={styles.fieldGrid}>
@@ -317,13 +299,13 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
       ) : null}
 
       <div className={styles.actionActions}>
-        {canManage && !isClosed && trip.documents.length > 0 ? (
+        {canManage && !isCompleted && trip.documents.length > 0 ? (
           <Button onClick={handleIssueMdfe} size="sm" type="button">
             <Icon name="link" />
             {t('actions.issueMdfe')}
           </Button>
         ) : null}
-        {canManage && !isClosed ? (
+        {canManage && !isCompleted ? (
           <Button
             disabled={workspace.closeMutation.isPending}
             onClick={handleCloseTrip}

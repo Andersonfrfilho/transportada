@@ -26,8 +26,34 @@
     "removeFilter": "Remover o filtro {{field}}"
   },
   "status": {
-    "open": "Aberta",
-    "closed": "Encerrada"
+    "draft": "Rascunho",
+    "route_planned": "Roteiro planejado",
+    "separating": "Separando",
+    "loading": "Carregando",
+    "dispatched": "Despachada",
+    "in_transit": "Em trânsito",
+    "completed": "Concluída",
+    "cancelled": "Cancelada"
+  },
+  "separationStatus": {
+    "pending": "Pendente",
+    "separated": "Separada",
+    "loaded": "Carregada",
+    "delivered": "Entregue",
+    "returned": "Devolvida"
+  },
+  "stops": {
+    "empty": "Nenhuma parada nesta viagem ainda",
+    "unassigned": "Sem parada",
+    "documentCount": "{{count}} nota",
+    "documentCount_other": "{{count}} notas",
+    "reorderHandle": "Arrastar para reordenar a parada {{label}}",
+    "selectAll": "Selecionar todas as notas da parada {{label}}",
+    "selectDocument": "Selecionar a nota {{document}}",
+    "selectionCount": "{{count}} nota selecionada",
+    "selectionCount_other": "{{count}} notas selecionadas",
+    "selectionClear": "Limpar seleção",
+    "progressLabel": "Progresso da separação da viagem"
   },
   "columns": {
     "vehicleId": "Veículo",
@@ -118,18 +144,22 @@
   },
   "feedback": {
     "closed": "Esta viagem já está encerrada.",
+    "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
     "documentNotFound": "Nota não encontrada nesta viagem.",
     "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
+    "documentReturnReasonRequired": "Informe o motivo da devolução.",
     "driverDuplicated": "Este motorista já está na viagem.",
     "driverNotAvailable": "Motorista indisponível para a viagem.",
     "driverNotFound": "Motorista não encontrado.",
     "readOnly": "Seu acesso atual não permite esta ação.",
+    "hasUnloadedDocuments": "Há notas ainda não carregadas nesta viagem.",
     "notFound": "Viagem não encontrada.",
     "requestFailed": "Não foi possível falar com a API.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
+    "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
     "vehicleNotFound": "Veículo não encontrado."
   },

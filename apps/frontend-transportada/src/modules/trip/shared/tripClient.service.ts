@@ -4,6 +4,8 @@ import type {
   CreateTripBody,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  ReorderTripStopsInput,
+  ReorderTripStopsResult,
   ScannedNfeDocument,
   TripDetail,
   TripDocument,
@@ -31,6 +33,7 @@ export type TripClient = Readonly<{
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listTrips: (input: TripListInput) => Promise<TripPage>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
 }>
 
 function requestError(code: string): Error {
@@ -70,7 +73,7 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
-    method: 'DELETE' | 'GET' | 'POST'
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST'
     path: string
     signal?: AbortSignal
   }>,
@@ -197,6 +200,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: documentPath(input),
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async reorderTripStops(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ stopIds: input.stopIds }),
+        dependencies,
+        method: 'PATCH',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/order`,
+      })
+      return adapters.reorderTripStopsResultFromApi(readEnvelopeData(response))
     },
   }
 }

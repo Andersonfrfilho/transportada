@@ -1,6 +1,27 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-export const TRIP_STATUS = ['open', 'closed'] as const
+/** ADR-0043 §1: `open`/`closed` migraram para os nove estados da viagem (`open → draft`,
+ * `closed → completed`). */
+export const TRIP_STATUS = [
+  'cancelled',
+  'completed',
+  'dispatched',
+  'draft',
+  'in_transit',
+  'loading',
+  'route_planned',
+  'separating',
+] as const
 export type TripStatus = (typeof TRIP_STATUS)[number]
+
+/** ADR-0043 §1: estado da nota dentro da viagem — coluna `separation_status`. */
+export const TRIP_DOCUMENT_SEPARATION_STATUS = [
+  'delivered',
+  'loaded',
+  'pending',
+  'returned',
+  'separated',
+] as const
+export type TripDocumentSeparationStatus = (typeof TRIP_DOCUMENT_SEPARATION_STATUS)[number]
 
 export type TripDriverLine = Readonly<{
   driverId: string
@@ -23,8 +44,14 @@ export type TripDocument = Readonly<{
   deliveredAt: null | string
   freightCalculationId: null | string
   id: string
+  loadedAt: null | string
   nfeDocumentId: null | string
   releasedAt: null | string
+  returnedAt: null | string
+  returnReason: null | string
+  separatedAt: null | string
+  separationStatus: TripDocumentSeparationStatus
+  stopId: null | string
   tripId: string
   updatedAt: string
 }>
@@ -32,10 +59,25 @@ export type TripDocument = Readonly<{
 export type TripDocumentDetail = TripDocument &
   Readonly<{ cteAuthorized: boolean; fiscalStatus: string }>
 
+/** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
+ * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
+export type TripStopDetail = Readonly<{
+  addressKey: string
+  arrivedAt: null | string
+  completedAt: null | string
+  deliveryWindowEnd: null | string
+  deliveryWindowStart: null | string
+  documents: readonly TripDocumentDetail[]
+  id: string
+  label: string
+  sequence: number
+}>
+
 export type TripDetail = Trip &
   Readonly<{
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
+    stops: readonly TripStopDetail[]
   }>
 
 /** Sem `sortBy`/`sortDirection`: nenhuma rota real do backend implementa ordenação por servidor
@@ -73,6 +115,10 @@ export type LinkTripDocumentBody = Readonly<{
 export type LinkTripDocumentInput = LinkTripDocumentBody & Readonly<{ tripId: string }>
 
 export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: string }>
+
+export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
+
+export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 
 export const SCANNED_NFE_STATUS = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
 export type ScannedNfeStatus = (typeof SCANNED_NFE_STATUS)[number]

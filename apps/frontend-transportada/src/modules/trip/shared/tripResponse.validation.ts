@@ -6,9 +6,15 @@ import {
   TRIP_DRIVER_KEYS,
   TRIP_ERROR,
   TRIP_KEYS,
+  TRIP_STOP_KEYS,
 } from './trip.constant'
-import { SCANNED_NFE_STATUS, TRIP_STATUS } from './trip.types'
+import {
+  SCANNED_NFE_STATUS,
+  TRIP_DOCUMENT_SEPARATION_STATUS,
+  TRIP_STATUS,
+} from './trip.types'
 import type {
+  ReorderTripStopsResult,
   ScannedNfeDocument,
   Trip,
   TripDetail,
@@ -16,6 +22,7 @@ import type {
   TripDocumentDetail,
   TripDriverLine,
   TripPage,
+  TripStopDetail,
 } from './trip.types'
 import {
   hasExactKeys,
@@ -64,8 +71,14 @@ function isDocumentFields(value: Record<string, unknown>): boolean {
     isNullableString(value.deliveredAt) &&
     isNullableString(value.freightCalculationId) &&
     isString(value.id) &&
+    isNullableString(value.loadedAt) &&
     isNullableString(value.nfeDocumentId) &&
     isNullableString(value.releasedAt) &&
+    isNullableString(value.returnedAt) &&
+    isNullableString(value.returnReason) &&
+    isNullableString(value.separatedAt) &&
+    isOneOf(value.separationStatus, TRIP_DOCUMENT_SEPARATION_STATUS) &&
+    isNullableString(value.stopId) &&
     isString(value.tripId) &&
     isString(value.updatedAt)
   )
@@ -81,12 +94,28 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
   return isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
 }
 
+function isStopDetail(value: unknown): value is TripStopDetail {
+  if (!hasExactKeys(value, TRIP_STOP_KEYS)) return false
+  return (
+    isString(value.addressKey) &&
+    isNullableString(value.arrivedAt) &&
+    isNullableString(value.completedAt) &&
+    isNullableString(value.deliveryWindowEnd) &&
+    isNullableString(value.deliveryWindowStart) &&
+    isEveryItem(value.documents, isDocumentDetail) &&
+    isString(value.id) &&
+    isString(value.label) &&
+    isUnsignedInteger(value.sequence)
+  )
+}
+
 function isDetail(value: unknown): value is TripDetail {
   if (!hasExactKeys(value, TRIP_DETAIL_KEYS)) return false
   return (
     isTripFields(value) &&
     isEveryItem(value.documents, isDocumentDetail) &&
-    isEveryItem(value.drivers, isDriverLine)
+    isEveryItem(value.drivers, isDriverLine) &&
+    isEveryItem(value.stops, isStopDetail)
   )
 }
 
@@ -142,6 +171,10 @@ export function createTripResponseAdapters() {
         status: row.status,
         totalAmount: row.totalAmount,
       }
+    },
+    reorderTripStopsResultFromApi(input: unknown): ReorderTripStopsResult {
+      if (!isRecord(input) || !isOneOf(input.tripStatus, TRIP_STATUS)) throw invalid()
+      return { tripStatus: input.tripStatus }
     },
     tripFromApi,
     tripListFromApi(input: unknown): TripPage {

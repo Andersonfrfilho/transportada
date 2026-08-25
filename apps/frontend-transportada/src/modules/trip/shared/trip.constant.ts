@@ -25,18 +25,22 @@ export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
+  STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
   TRIP_DOCUMENT_NOT_FOUND: 'documentNotFound',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
+  TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',
   TRIP_DRIVER_NOT_FOUND: 'driverNotFound',
   TRIP_FORBIDDEN: 'readOnly',
+  TRIP_HAS_UNLOADED_DOCUMENTS: 'hasUnloadedDocuments',
   TRIP_NOT_FOUND: 'notFound',
   TRIP_REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
+  TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
 }
@@ -57,8 +61,14 @@ export const TRIP_DOCUMENT_KEYS = [
   'deliveredAt',
   'freightCalculationId',
   'id',
+  'loadedAt',
   'nfeDocumentId',
   'releasedAt',
+  'returnedAt',
+  'returnReason',
+  'separatedAt',
+  'separationStatus',
+  'stopId',
   'tripId',
   'updatedAt',
 ] as const
@@ -69,4 +79,16 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
   'fiscalStatus',
 ] as const
 
-export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers'] as const
+export const TRIP_STOP_KEYS = [
+  'addressKey',
+  'arrivedAt',
+  'completedAt',
+  'deliveryWindowEnd',
+  'deliveryWindowStart',
+  'documents',
+  'id',
+  'label',
+  'sequence',
+] as const
+
+export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const

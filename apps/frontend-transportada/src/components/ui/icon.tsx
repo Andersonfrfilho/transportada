@@ -28,6 +28,7 @@ export type IconName =
   | 'eye-off'
   | 'filter'
   | 'filter-clear'
+  | 'grip'
   | 'image'
   | 'invoice'
   | 'link'
@@ -98,6 +99,14 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   filter: ['M4 5h16l-6 7v6l-4 2v-8L4 5z'],
   'filter-clear': ['M4 5h16l-6 7v6l-4 2v-8L4 5z', 'M15 15l5 5', 'M20 15l-5 5'],
+  grip: [
+    'M9 6h.01',
+    'M9 12h.01',
+    'M9 18h.01',
+    'M15 6h.01',
+    'M15 12h.01',
+    'M15 18h.01',
+  ],
   image: ['M4 5h16v14H4z', 'M4 16l4.5-4.5 3 3L15 11l5 5', 'M9.4 9.4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z'],
   invoice: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6', 'M9 12h6'],
   link: [

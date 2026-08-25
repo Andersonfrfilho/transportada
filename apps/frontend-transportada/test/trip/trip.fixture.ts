@@ -13,11 +13,21 @@ export const DRIVER_ID = '00000000-0000-4000-8000-000000000912'
 export const DOCUMENT_ID = '00000000-0000-4000-8000-000000000c01'
 export const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000c02'
 
+export type TripStatusContract =
+  | 'cancelled'
+  | 'completed'
+  | 'dispatched'
+  | 'draft'
+  | 'in_transit'
+  | 'loading'
+  | 'route_planned'
+  | 'separating'
+
 export type TripContract = Readonly<{
   companyId: string
   createdAt: string
   id: string
-  status: 'closed' | 'open'
+  status: TripStatusContract
   updatedAt: string
   vehicleId: string
 }>
@@ -27,14 +37,32 @@ export type TripDocumentContract = Readonly<{
   deliveredAt: null | string
   freightCalculationId: null | string
   id: string
+  loadedAt: null | string
   nfeDocumentId: null | string
   releasedAt: null | string
+  returnedAt: null | string
+  returnReason: null | string
+  separatedAt: null | string
+  separationStatus: 'delivered' | 'loaded' | 'pending' | 'returned' | 'separated'
+  stopId: null | string
   tripId: string
   updatedAt: string
 }>
 
 export type TripDocumentDetailContract = TripDocumentContract &
   Readonly<{ cteAuthorized: boolean; fiscalStatus: string }>
+
+export type TripStopDetailContract = Readonly<{
+  addressKey: string
+  arrivedAt: null | string
+  completedAt: null | string
+  deliveryWindowEnd: null | string
+  deliveryWindowStart: null | string
+  documents: readonly TripDocumentDetailContract[]
+  id: string
+  label: string
+  sequence: number
+}>
 
 export type TripDetailContract = TripContract &
   Readonly<{
@@ -45,13 +73,14 @@ export type TripDetailContract = TripContract &
       driverTaxId: string
       position: number
     }>[]
+    stops: readonly TripStopDetailContract[]
   }>
 
 export const TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
-  status: 'open',
+  status: 'draft',
   updatedAt: '2026-07-28T12:00:00.000Z',
   vehicleId: VEHICLE_ID,
 } as const satisfies TripContract
@@ -60,7 +89,7 @@ export const SECOND_TRIP = {
   ...TRIP,
   createdAt: '2026-07-27T09:30:00.000Z',
   id: SECOND_TRIP_ID,
-  status: 'closed',
+  status: 'completed',
   updatedAt: '2026-07-27T10:00:00.000Z',
 } as const satisfies TripContract
 
@@ -69,8 +98,14 @@ export const TRIP_DOCUMENT = {
   deliveredAt: null,
   freightCalculationId: null,
   id: DOCUMENT_ID,
+  loadedAt: null,
   nfeDocumentId: NFE_DOCUMENT_ID,
   releasedAt: null,
+  returnedAt: null,
+  returnReason: null,
+  separatedAt: null,
+  separationStatus: 'pending',
+  stopId: null,
   tripId: TRIP_ID,
   updatedAt: '2026-07-28T12:05:00.000Z',
 } as const satisfies TripDocumentContract
@@ -87,6 +122,7 @@ export const TRIP_DETAIL = {
   drivers: [
     { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
   ],
+  stops: [],
 } as const satisfies TripDetailContract
 
 export const TRIP_PAGE = {

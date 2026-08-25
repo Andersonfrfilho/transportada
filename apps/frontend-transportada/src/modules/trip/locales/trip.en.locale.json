@@ -26,8 +26,34 @@
     "removeFilter": "Remove the {{field}} filter"
   },
   "status": {
-    "open": "Open",
-    "closed": "Closed"
+    "draft": "Draft",
+    "route_planned": "Route planned",
+    "separating": "Separating",
+    "loading": "Loading",
+    "dispatched": "Dispatched",
+    "in_transit": "In transit",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "separationStatus": {
+    "pending": "Pending",
+    "separated": "Separated",
+    "loaded": "Loaded",
+    "delivered": "Delivered",
+    "returned": "Returned"
+  },
+  "stops": {
+    "empty": "No stop on this trip yet",
+    "unassigned": "No stop",
+    "documentCount": "{{count}} document",
+    "documentCount_other": "{{count}} documents",
+    "reorderHandle": "Drag to reorder stop {{label}}",
+    "selectAll": "Select every document at stop {{label}}",
+    "selectDocument": "Select document {{document}}",
+    "selectionCount": "{{count}} document selected",
+    "selectionCount_other": "{{count}} documents selected",
+    "selectionClear": "Clear selection",
+    "progressLabel": "Trip separation progress"
   },
   "columns": {
     "vehicleId": "Vehicle",
@@ -118,18 +144,22 @@
   },
   "feedback": {
     "closed": "This trip is already closed.",
+    "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
     "documentNotFound": "Document not found on this trip.",
     "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
+    "documentReturnReasonRequired": "Provide the return reason.",
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
     "readOnly": "Your current access does not allow this action.",
+    "hasUnloadedDocuments": "This trip has documents that were never loaded.",
     "notFound": "Trip not found.",
     "requestFailed": "Could not reach the API.",
     "responseInvalid": "The API responded in an unexpected format.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
+    "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found."
   },

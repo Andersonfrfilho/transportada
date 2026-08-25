@@ -374,3 +374,180 @@
     border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
 }
+
+/* T015: a viagem lista por parada — cartão por parada, nota aninhada dentro. */
+.stopList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopCard {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.stopCardHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* Alvo de toque do arraste: é o gesto mais repetido do separador com viagem grande, e o dedo
+   erra fácil num alvo menor que 44px (web.md §10). */
+.stopDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  cursor: grab;
+  touch-action: none;
+  background: transparent;
+}
+
+.stopDragHandle:active {
+  cursor: grabbing;
+}
+
+.stopSequence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  aspect-ratio: 1;
+  padding: 0 var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.stopLabel {
+  font-weight: 600;
+}
+
+.stopCounter {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.stopDocumentList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopDocumentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.stopDocumentLabel {
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+}
+
+.separationStatusBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+/* T015 RF-9: barra de progresso por fase — um segmento por `separationStatus`, largura pela
+   proporção de notas naquele estado. */
+.progressWrapper {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.progressTrack {
+  display: flex;
+  overflow: hidden;
+  height: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+}
+
+.progressTrack > span {
+  display: block;
+  height: 100%;
+}
+
+.progressSegmentPending {
+  background: color-mix(in srgb, var(--color-slate) 45%, transparent);
+}
+
+.progressSegmentSeparated {
+  background: color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.progressSegmentLoaded {
+  background: color-mix(in srgb, var(--color-copper) 90%, transparent);
+}
+
+.progressSegmentDelivered {
+  background: color-mix(in srgb, var(--color-ready) 85%, transparent);
+}
+
+.progressSegmentReturned {
+  background: color-mix(in srgb, var(--color-alert) 75%, transparent);
+}
+
+.progressLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.75rem;
+  list-style: none;
+}
+
+.progressLegendItem {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.progressLegendItem > span {
+  display: inline-block;
+  width: 0.6rem;
+  aspect-ratio: 1;
+}
+
+.selectionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
+}
+
+@media (min-width: 40rem) {
+  .stopCardHead {
+    flex-wrap: nowrap;
+  }
+}
