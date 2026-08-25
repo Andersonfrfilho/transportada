@@ -10,7 +10,7 @@ set -euo pipefail
 # nunca nenhum. Pular por engano é o silêncio que custou quatro dias de tema de login fora do ar;
 # publicar por engano custa alguns minutos de runner.
 
-readonly TARGETS='api frontend worker cron'
+readonly TARGETS='api frontend landing worker cron'
 
 usage() {
   echo "uso: BASELINE=<sha> [FORCE_ALL=true] $0" >&2
@@ -27,6 +27,7 @@ paths_of() {
     # é o job da API, não um job próprio.
     api) echo 'apps/api-transportada/ deploy/api/ deploy/keycloak/ realm/' ;;
     frontend) echo 'apps/frontend-transportada/ deploy/frontend/' ;;
+    landing) echo 'apps/frontend-landing/' ;;
     worker) echo 'apps/worker-transportada/ deploy/worker/' ;;
     cron) echo 'apps/cron-transportada/ deploy/cron/' ;;
     *) echo "alvo desconhecido: $1" >&2; exit 2 ;;

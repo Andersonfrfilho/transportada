@@ -60,7 +60,7 @@ describe('contrato do filtro de mudança do pipeline', () => {
     )
     const declared = [...(await targetPaths()).values()].flat()
 
-    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(4)
+    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(5)
     for (const { isApplication, name } of applications) {
       if (isApplication) {
         expect(declared).toContain(`apps/${name}/`)

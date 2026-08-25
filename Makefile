@@ -7,6 +7,7 @@ APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
 BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
+FRONTEND_LANDING_PORT := $(or $(shell sed -n 's/^FRONTEND_LANDING_PORT=//p' $(ENV_FILE) 2>/dev/null),53003)
 FRONTEND_ORIGIN := $(shell sed -n 's/^FRONTEND_ORIGIN=//p' $(ENV_FILE) 2>/dev/null)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
@@ -112,13 +113,15 @@ ps: config ## 📋 Exibe os serviços locais
 dev: identity-bootstrap up ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
+		export FRONTEND_LANDING_PORT="$(FRONTEND_LANDING_PORT)"; \
 		export QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)"; \
 		bun run --cwd apps/api-transportada dev & api_process_id=$$!; \
 		bun run --cwd apps/worker-transportada dev & worker_process_id=$$!; \
 		bun run --cwd apps/frontend-transportada dev & frontend_process_id=$$!; \
+		bun run --cwd apps/frontend-landing dev & frontend_landing_process_id=$$!; \
 		cleanup() { \
 			trap - INT TERM EXIT; \
-			kill $$api_process_id $$worker_process_id $$frontend_process_id 2>/dev/null || true; \
+			kill $$api_process_id $$worker_process_id $$frontend_process_id $$frontend_landing_process_id 2>/dev/null || true; \
 		}; \
 		trap 'cleanup; exit 130' INT TERM; \
 		trap cleanup EXIT; \
@@ -147,6 +150,8 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	}; \
 	check_url "http://localhost:$(FRONTEND_PORT)/"; \
 	check_url "http://localhost:$(FRONTEND_PORT)/manifest.webmanifest"; \
+	check_url "http://localhost:$(FRONTEND_LANDING_PORT)/"; \
+	check_url "http://localhost:$(FRONTEND_LANDING_PORT)/manifest.webmanifest"; \
 	check_url "http://localhost:$(API_PORT)/health/live"; \
 	check_url "http://localhost:$(API_PORT)/health/ready"; \
 	check_url "http://localhost:$(WORKER_PORT)/health/live"; \

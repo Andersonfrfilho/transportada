@@ -91,6 +91,7 @@ jobs:
     outputs:
       api: ${{ steps.detect.outputs.api }}
       frontend: ${{ steps.detect.outputs.frontend }}
+      landing: ${{ steps.detect.outputs.landing }}
       worker: ${{ steps.detect.outputs.worker }}
       cron: ${{ steps.detect.outputs.cron }}
       apps: ${{ steps.apps.outputs.apps }}
@@ -114,6 +115,7 @@ jobs:
           WORKER: ${{ steps.detect.outputs.worker }}
           CRON: ${{ steps.detect.outputs.cron }}
           FRONTEND: ${{ steps.detect.outputs.frontend }}
+          FRONTEND_LANDING: ${{ steps.detect.outputs.landing }}
         run: |
           selected=()
           # `if` em vez de `flag && push`: o runner roda o passo com `-e`, e um `&&` cujo teste é
@@ -122,6 +124,7 @@ jobs:
           if [ "$WORKER" = true ]; then selected+=('"worker-transportada"'); fi
           if [ "$CRON" = true ]; then selected+=('"cron-transportada"'); fi
           if [ "$FRONTEND" = true ]; then selected+=('"frontend-transportada"'); fi
+          if [ "$FRONTEND_LANDING" = true ]; then selected+=('"frontend-landing"'); fi
           apps="[$(IFS=,; echo "${selected[*]-}")]"
           echo "apps=$apps" >>"$GITHUB_OUTPUT"
           echo "Apps no gate: $apps"
