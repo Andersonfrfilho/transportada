@@ -9,7 +9,7 @@ import {
   freightCalculations,
   nfeDocuments,
 } from '../../database/database.schema.js'
-import { tripDocuments, tripDrivers, trips } from '../../database/trip.schema.js'
+import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
   violatedUniqueConstraint,
@@ -19,6 +19,7 @@ import type {
   CreateTripRecord,
   TripDetail,
   TripDocument,
+  TripDocumentDetail,
   TripFilters,
   TripPage,
   TripRepositoryPort,
@@ -31,7 +32,13 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
-import { mapTrip, mapTripDocument, mapTripDocumentDetail, mapTripDriver } from './trip.mapper.js'
+import {
+  mapTrip,
+  mapTripDocument,
+  mapTripDocumentDetail,
+  mapTripDriver,
+  mapTripStop,
+} from './trip.mapper.js'
 import {
   buildTripDocumentListFilters,
   buildTripListFilters,
@@ -327,11 +334,32 @@ async function readTripDetail(
     )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+  const documents = documentRecords.map(mapTripDocumentDetail)
+
+  // T014: uma única leitura de paradas, independente de quantas existirem — o agrupamento com as
+  // notas já buscadas acima acontece em memória, não numa query por parada (§15 do code-standart.md).
+  const stopRecords = await queryable
+    .select()
+    .from(tripStops)
+    .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+    .orderBy(asc(tripStops.sequence))
+
+  const documentsByStopId = new Map<string, TripDocumentDetail[]>()
+  for (const document of documents) {
+    if (document.stopId === null) continue
+    const bucket = documentsByStopId.get(document.stopId)
+    if (bucket === undefined) documentsByStopId.set(document.stopId, [document])
+    else bucket.push(document)
+  }
 
   return {
     ...mapTrip(record),
-    documents: documentRecords.map(mapTripDocumentDetail),
+    documents,
     drivers: driverRecords.map(mapTripDriver),
+    stops: stopRecords.map((stopRecord) => ({
+      ...mapTripStop(stopRecord),
+      documents: documentsByStopId.get(stopRecord.id) ?? [],
+    })),
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
@@ -18,8 +18,14 @@ export type TripDocument = {
   readonly deliveredAt: string | null
   readonly freightCalculationId: string | null
   readonly id: string
+  readonly loadedAt: string | null
   readonly nfeDocumentId: string | null
   readonly releasedAt: string | null
+  readonly returnedAt: string | null
+  readonly returnReason: string | null
+  readonly separatedAt: string | null
+  readonly separationStatus: TripDocumentSeparationStatus
+  readonly stopId: string | null
   readonly tripId: string
   readonly updatedAt: string
 }
@@ -48,9 +54,29 @@ export type TripDocumentDetail = TripDocument & {
   readonly fiscalStatus: string
 }
 
+/**
+ * Leitura por parada (T014, RF-9): as mesmas notas de `TripDetail.documents`, aninhadas sob a
+ * parada que as agrupa (D3) — a fonte da verdade continua sendo a lista plana; `documents` aqui é
+ * a mesma nota reaproveitada, nunca uma cópia divergente. Nota sem parada (CEP que não normaliza,
+ * ou ainda não vinculada) não aparece em nenhum `TripStopDetail.documents`, mas segue em
+ * `TripDetail.documents`.
+ */
+export type TripStopDetail = {
+  readonly addressKey: string
+  readonly arrivedAt: string | null
+  readonly completedAt: string | null
+  readonly deliveryWindowEnd: string | null
+  readonly deliveryWindowStart: string | null
+  readonly documents: readonly TripDocumentDetail[]
+  readonly id: string
+  readonly label: string
+  readonly sequence: number
+}
+
 export type TripDetail = Trip & {
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverLine[]
+  readonly stops: readonly TripStopDetail[]
 }
 
 export type CreateTripRecord = {

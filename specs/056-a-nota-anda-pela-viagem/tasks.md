@@ -476,7 +476,7 @@ que protege o fiscal da 059.
 - `tsc --noEmit` e `eslint src test --max-warnings=0` limpos; suíte completa
   (`bun test`): 3023 pass / 15 skip / 0 fail.
 
-### T014 — `GET /trips/:id` por parada, sem N+1
+### T014 ✅ — `GET /trips/:id` por parada, sem N+1
 
 A leitura passa a devolver paradas com as notas aninhadas e o progresso por fase. 200 notas em 40
 paradas com contagem de queries assertada.
@@ -485,6 +485,46 @@ paradas com contagem de queries assertada.
   `src/trips/infrastructure/trip.repository.ts`
 - **Aceite:** `test/trips/detail-query-count.contract.ts`
 - **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- `TripDocument` (`trip.port.ts`) ganhou os campos que `trip_documents` já tinha desde T004 mas que
+  a leitura nunca expunha: `separationStatus`, `stopId`, `separatedAt`, `loadedAt`, `returnedAt`,
+  `returnReason`. Novo tipo `TripStopDetail` (parada + `documents: TripDocumentDetail[]`);
+  `TripDetail` ganhou `stops: readonly TripStopDetail[]` ao lado do `documents` plano existente —
+  mantido por compatibilidade, nunca uma cópia divergente (a mesma referência de objeto aparece
+  nos dois). Nota sem parada (CEP que não normaliza, ou ainda sem vínculo derivado) não aparece em
+  nenhum `TripStopDetail.documents`, mas continua em `TripDetail.documents`.
+- `readTripDetail` (`drizzle-trip.repository.ts`) ganhou uma única query extra para `trip_stops`
+  (ordenada por `sequence`), e o agrupamento nota→parada acontece em memória com um `Map`
+  populado num único loop sobre os documentos já buscados — nenhuma query por parada, nenhuma por
+  documento. Continua sendo exatamente 4 `select`s no total (viagem, motoristas, documentos com
+  join de status fiscal, paradas), independente de quantas paradas ou notas a viagem tenha.
+- Serializadores HTTP (`trip.routes.ts`) espelham a mudança: `serializeTripDetail` ganhou `stops`,
+  `serializeTripDocument` ganhou os seis campos novos.
+- Prova de "sem N+1" (§15 do `code-standart.md`): novo teste de integração
+  `test/integration/trip-detail-query-count.integration.ts`, seguindo o padrão
+  `withDisposableDatabase` de `trip-repository.integration.ts` (banco Postgres descartável real,
+  não fake port) — semeia uma viagem com 1 parada/1 nota e outra com 40 paradas/200 notas na mesma
+  empresa, envolve `database.db` num `Proxy` que conta chamadas a `.select(...)` (cada chamada é
+  exatamente uma query), e afirma que as duas viagens disparam **o mesmo número** de `select`s.
+  Rodado contra Postgres local (`DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada
+  bun run test:integration`): passou, e as 40 paradas vieram com 5 notas cada, agrupadas
+  corretamente. Registrado no script `test:integration` do `package.json`, ao lado do teste irmão
+  de `trip-repository`.
+- **Achado, não corrigido aqui:** o reconciliador `reconcileStopOnLink`/`reconcileStopOnUnlink`
+  (T007, `reconcile-trip-stops.use-case.ts`) nunca foi ligado ao `linkDocument`/`releaseDocument`
+  reais — a evidência do T007 já previa isso para o T012, mas T012 não fez essa parte. Hoje
+  `trip_documents.stop_id` nunca é escrito por um vínculo real; o teste deste T014 precisou semear
+  `trip_stops`/`stop_id` manualmente para exercitar a leitura. Sinalizado como tarefa separada
+  (`task_e99ad4c8`) em vez de expandir o escopo deste T014, que é só a leitura.
+- Fixtures/testes ajustados para o novo shape: `test/fixtures/trip-http-payload.fixture.ts`
+  (`TRIP_DOCUMENT`/`TRIP_DETAIL`), `test/trip-application/trip-use-case.contract.ts`,
+  `test/trip-documents/batch-transition.contract.ts`, `test/trip-documents/transition.contract.ts`.
+- `tsc --noEmit` e `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
+  3023 pass / 15 skip / 0 fail; `test:integration` local: 131 pass / 1 fail (falha pré-existente e
+  não relacionada em `server.integration.ts`, confirmada idêntica com `git stash` antes desta
+  mudança) / 6 skip.
 
 ## Fase 4 — A tela
 

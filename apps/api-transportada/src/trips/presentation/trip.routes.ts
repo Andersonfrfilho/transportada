@@ -22,6 +22,7 @@ import type {
   TripDocument,
   TripDocumentDetail,
   TripPage,
+  TripStopDetail,
 } from '../application/trip.port.js'
 import type { CancelTripResult } from '../application/cancel-trip.use-case.js'
 import type { DispatchTripResult } from '../application/dispatch-trip.use-case.js'
@@ -390,6 +391,7 @@ function serializeTripDetail(trip: TripDetail): object {
     ...serializeTrip(trip),
     documents: trip.documents.map(serializeTripDocumentDetail),
     drivers: trip.drivers.map((driver) => ({ ...driver })),
+    stops: trip.stops.map(serializeTripStopDetail),
   }
 }
 
@@ -399,8 +401,14 @@ function serializeTripDocument(document: TripDocument): object {
     deliveredAt: document.deliveredAt,
     freightCalculationId: document.freightCalculationId,
     id: document.id,
+    loadedAt: document.loadedAt,
     nfeDocumentId: document.nfeDocumentId,
     releasedAt: document.releasedAt,
+    returnedAt: document.returnedAt,
+    returnReason: document.returnReason,
+    separatedAt: document.separatedAt,
+    separationStatus: document.separationStatus,
+    stopId: document.stopId,
     tripId: document.tripId,
     updatedAt: document.updatedAt,
   }
@@ -412,6 +420,10 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
     cteAuthorized: document.cteAuthorized,
     fiscalStatus: document.fiscalStatus,
   }
+}
+
+function serializeTripStopDetail(stop: TripStopDetail): object {
+  return { ...stop, documents: stop.documents.map(serializeTripDocumentDetail) }
 }
 
 function serializeTransitionResult(result: TransitionTripDocumentResult): object {

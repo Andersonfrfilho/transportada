@@ -113,8 +113,14 @@ export const TRIP_DOCUMENT: TripDocument = {
   deliveredAt: null,
   freightCalculationId: null,
   id: TRIP_DOCUMENT_ID,
+  loadedAt: null,
   nfeDocumentId: NFE_DOCUMENT_ID,
   releasedAt: null,
+  returnedAt: null,
+  returnReason: null,
+  separatedAt: null,
+  separationStatus: 'pending',
+  stopId: null,
   tripId: TRIP_ID,
   updatedAt: '2026-08-04T12:05:00.000Z',
 }
@@ -137,6 +143,7 @@ export const TRIP_DETAIL: TripDetail = {
       position: 2,
     },
   ],
+  stops: [],
 }
 
 export const TRIP_PAGE: TripPage = {
