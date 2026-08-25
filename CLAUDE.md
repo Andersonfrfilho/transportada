@@ -114,6 +114,33 @@ papéis que a carregam (`driver`, `aggregate`, `separator`). ⚠️ O contrato `
 alcançáveis **por extenso**: rota nova de frota, faturamento ou CT-e reprova ali até alguém decidir,
 por escrito, se o separador a alcança.
 
+**A viagem tem fases, e a nota tem as suas (ADR-0043, spec 056).** `trips.status` são nove estados
+(`draft`, `route_planned`, `separating`, `loading`, `dispatched`, `in_transit`, `completed`,
+`cancelled`), e o estado da viagem é **derivado** do de suas notas — exceto em quatro transições
+manuais (criar em `draft`, `plan-route`, `dispatch`, `cancel`). `trip_documents.separation_status`
+(`pending`, `separated`, `loaded`, `delivered`, `returned`) muda por `POST
+/trips/:id/documents/:documentId/{separate,load,return}` ou em lote por `.../documents/batch-status`
+— nunca por `UPDATE` direto; `checkTripDocumentTransition`/`checkTripTransition`
+(`trips/domain/trip-state.policy.ts`) são a única fonte da máquina, e toda transição é idempotente
+por desenho (repetir converge em `unchanged`, não erro — a rede do armazém cai, o separador toca
+duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,
+desvincular e reordenar parada a partir dali (`409 STATE_TRANSITION_NOT_ALLOWED`), o roteiro
+congela em `trip_dispatch_snapshots` (append-only, mesmo padrão de `audit_logs`), e só `cancel`
+sai desse estado — incidente, não fluxo. `TripStop` é **derivada**, nunca criada à mão: vincular
+uma nota chama `reconcileStopOnLink` (`trips/application/reconcile-trip-stops.use-case.ts`), que
+agrupa pelo endereço normalizado do destinatário (`(postal_code, number, city_code)` de
+`nfe_addresses`, não pelo CNPJ — a mesma rede em cinco lojas é cinco paradas); desvincular chama
+`reconcileStopOnUnlink`, que apaga a parada só quando a última nota sai — e **precisa** rodar depois
+de a nota já ter perdido o `stop_id`, senão ela mesma se conta como razão para a parada continuar
+ocupada. ⚠️ Essa ligação **não existia** até a implementação chegar no teste E2E do ciclo inteiro —
+`linkDocument`/`releaseDocument` inseriam a nota sem nunca chamar o reconciliador, e toda viagem
+ficava presa em `hasRoute: false` para sempre. Se uma nota vinculada por uma rota real aparecer sem
+parada, é a wiring de `drizzle-trip.repository.ts` → `nfe-destination-address.support.ts` que
+quebrou, não a lógica pura de `reconcile-trip-stops.use-case.ts` (essa tem teste próprio e nunca foi
+o problema). Desvio de endereço (D9, `delivery_address_overrides`, também append-only) é ação em
+menu, nunca edição em linha, e guarda **duas** identidades por vínculo: `requestedBy` (texto livre —
+quem pediu o desvio quase nunca é usuário do sistema) e `actorUserId` (membership — quem executou).
+
 **A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
 44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
 — chave de outra empresa é ausência, não 403, e é
@@ -712,6 +739,20 @@ comportamento se prova na função, e o contrato `test/trip/scan-link.contract.t
 texto de fonte. Vincular e desvincular disparam `MUTATION_EFFECT.nfeDocumentLink` além das chaves da
 viagem; marcar entregue **não** — ali muda o estado da nota dentro da viagem, não o vínculo dela com
 lote ou NFS-e.
+
+**A viagem lista por parada, e toda mutação de estado mora no mesmo hook.** `TripDetail` agrupa
+`trip.stops` (T014/T015), cada parada com arraste por `@dnd-kit` (`TripStopList.component.tsx` +
+`useTripStopOrder.hook.ts`, escolhido em vez de HTML5 `draggable` nativo por acessibilidade de
+teclado e pelo alvo de toque de 375px que `draggable` não cobre) — nota sem parada (CEP que não
+normaliza, ou a lacuna de reconciliação do backend antes de ser corrigida) cai num balde "Sem
+parada" via o mesmo componente de linha, nunca some da tela. **Nenhuma pasta `mutations/` existe no
+módulo** apesar de três tasks da spec 056 sugerirem esse caminho de arquivo — toda mutação de
+viagem (criar, fechar, vincular, liberar, reordenar parada, desviar endereço, separar/carregar/
+devolver nota, lote, despachar, cancelar, planejar rota) entra em `useTripWorkspace.hook.ts`, ao
+lado das demais; seguir o nome de arquivo sugerido teria fragmentado o mesmo padrão em dois
+lugares. O diálogo de despacho forçado (`TripStateActions.component.tsx`) calcula as notas
+pendentes **direto de `trip.documents`** (mesmo filtro `pending`/`separated` do backend) em vez de
+decodificar `error.details` depois de uma tentativa recusada — evita o round-trip e é o mesmo dado.
 
 **A câmera é permitida à própria origem, e só ela.** `server.ts` responde
 `Permissions-Policy: camera=(self), geolocation=(), microphone=()` — `camera=()` negava a **própria**

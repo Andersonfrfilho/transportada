@@ -873,7 +873,7 @@ empresa → 404, não 403).
 - `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
   3046 pass / 15 skip / 0 fail.
 
-### T019 — Documentação viva
+### T019 ✅ — Documentação viva
 
 `docs/spec/domain-model.md` (ER + tabela de estados), `CLAUDE.md` da raiz (§14 do
 `code-standart.md`), e `evidence.md` desta spec.
@@ -881,3 +881,31 @@ empresa → 404, não 403).
 - **Arquivos:** `docs/spec/domain-model.md`, `CLAUDE.md`, `specs/056-*/evidence.md`
 - **Aceite:** revisão humana
 - **Verificação:** `make validate`
+
+**Evidência:**
+
+- `make validate` **não existe** no `Makefile` deste repositório (confirmado por `grep -n
+  "validate" Makefile`, zero ocorrências) — mesma família de comando aspiracional já encontrada em
+  T018 (`make test-e2e`)/T014 (`env.test.e2e`). Verificação real feita à mão, nas duas apps: `bunx
+  tsc --noEmit`, `bunx eslint src test --max-warnings=0`, `bun test`/`bun run test`, `bun run
+  build` — todos limpos (backend: 3046 pass/15 skip/0 fail; frontend: 1911 pass/0 fail; os dois
+  builds concluem sem erro).
+- `docs/spec/domain-model.md` **já estava atualizado** — o ER já incluía `TRIP`, `TRIP_STOP`,
+  `TRIP_DOCUMENT`, `TRIP_DOCUMENT_EVENT` e `DELIVERY_ADDRESS_OVERRIDE`, e a tabela de estados já
+  listava os nove estados da viagem e os cinco da nota, com a nota sobre `409
+  STATE_TRANSITION_NOT_ALLOWED` — escrito na fase de especificação, antes da implementação, e
+  continua correto depois dela. Nenhuma mudança necessária.
+- `CLAUDE.md`: dois parágrafos novos, um em `## api-transportada` (a máquina de estado ADR-0043
+  inteira — os nove estados, `dispatched` como porta de não-retorno, a derivação de parada por
+  `reconcileStopOnLink`/`Unlink`, e o achado do T012b marcado com ⚠️ para não ser redescoberto) e
+  um em `## frontend-transportada` (agrupamento por parada, a escolha de `@dnd-kit`, a decisão de
+  não criar uma pasta `mutations/`, e o cálculo direto de pendentes no diálogo de despacho).
+- `specs/056-a-nota-anda-pela-viagem/evidence.md` (novo): uma linha por task, os quatro desvios
+  deliberados do caminho descrito (T014/T015/T015b/T016/T017/T018) e os quatro achados corrigidos
+  fora do escopo original (T012b, T014b, T010b, o bug de corrida da retomada pré-T013) — tudo já
+  narrado em detalhe nas próprias entradas de `tasks.md`; este arquivo é o resumo que se lê de uma
+  vez, seguindo o formato já estabelecido por `specs/055-*/evidence.md`.
+- `grep -rn "\[NEEDS CLARIFICATION\]" specs/056-a-nota-anda-pela-viagem/` não devolve nada — nenhum
+  marcador aberto. A forma sem colchetes bate duas vezes, e as duas são benignas: uma é a nota
+  histórica de que o `NEEDS CLARIFICATION` do §4 da ADR-0023 já foi substituído, a outra é esta
+  própria linha citando o comando.
