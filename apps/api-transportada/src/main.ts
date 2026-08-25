@@ -127,6 +127,7 @@ import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-iss
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
+import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
 import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
 import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
@@ -837,6 +838,13 @@ function createApplicationRoutes({
       },
       overrideDeliveryAddress: {
         execute: (input) => tripLifecycle.overrideDeliveryAddress.execute(input),
+      },
+      listReturnedWithActiveCte: {
+        execute: (input) =>
+          listReturnedWithActiveCte({
+            companyId: input.context.companyId,
+            repository: tripDocumentRepository,
+          }),
       },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },

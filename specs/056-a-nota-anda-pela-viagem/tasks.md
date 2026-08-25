@@ -369,7 +369,7 @@ agrupamento passa a preferir o override.
 - `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
   3043 pass / 15 skip / 0 fail.
 
-### T010c — A lista de retornadas com CT-e ativo (D8)
+### T010c ✅ — A lista de retornadas com CT-e ativo (D8)
 
 Consulta que cruza `separation_status = 'returned'` com CT-e autorizado, pelo mesmo caminho de índice
 que a 059 vai usar. **Nenhum efeito fiscal automático** — a task inclui o teste negativo que prova
@@ -379,6 +379,29 @@ isso.
   `src/trips/infrastructure/trip-document.repository.ts`
 - **Aceite:** `test/trip-documents/returned-with-active-cte.contract.ts`
 - **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- `GET /trip-documents/returned-with-active-cte` (fora da árvore `/trips/:id`, de propósito — é
+  varredura da empresa inteira) reaproveita o mesmo join de `cteAuthorizedExpression()` (T009b,
+  `trip.query.ts`), mas com `cte_fiscal_documents.access_key` selecionado de verdade (a expressão
+  original só devolvia booleano via `exists`) — nota vinculada direto ou via cálculo de frete
+  resolvem ao mesmo CT-e, mesmo padrão.
+- `DrizzleTripDocumentRepository` ganhou o segundo port (`ListReturnedWithActiveCtePort`) ao lado
+  do de transição — mesma classe, já era o dono natural da leitura de `trip_documents`.
+- **Teste negativo (D8):** em vez de rodar a transição inteira contra um banco e provar que nenhuma
+  linha de `cte_*` mudou (caro e indireto), o teste prova a coisa mais forte — o
+  `TripDocumentTransitionPort` que `transitionTripDocument` consome **não tem, na sua própria
+  forma, nenhum método que toque CT-e**. Se algum dia alguém tentar acrescentar uma chamada fiscal
+  ali, o port muda de forma antes do código compilar; o teste lista as duas chamadas que de fato
+  acontecem (`findSnapshot`, `applyTransition`) e para aí.
+- Verificado ao vivo contra Postgres local: nota devolvida sem CT-e → lista vazia; mesma nota após
+  autorizar um CT-e (cadeia completa `cte_batches`→`cte_batch_items`→`cte_issuance_attempts`→
+  `cte_fiscal_documents`) → aparece com a chave de acesso certa. Banco resetado
+  (`drop database`/`create database`/remigrado) depois — a cadeia de CT-e toca
+  `fiscal_sequence_reservations`, também append-only, e não dava para limpar por `DELETE`.
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
+  3046 pass / 15 skip / 0 fail.
 
 ## Fase 3 — A fronteira
 

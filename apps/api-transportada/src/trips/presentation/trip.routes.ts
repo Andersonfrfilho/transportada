@@ -32,6 +32,7 @@ import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.u
 import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
 import type { DeliveryAddressOverrideRecord } from '../application/override-delivery-address.use-case.js'
 import type { TransitionTripDocumentResult } from '../application/transition-trip-document.use-case.js'
+import type { ListReturnedWithActiveCteResult } from '../application/list-returned-with-active-cte.use-case.js'
 import type {
   TransitionTripDocumentsBatchResult,
   TripDocumentBatchItemOutcome,
@@ -68,6 +69,9 @@ const TRIP_PLAN_ROUTE_PATH = `${API_TRIPS_PATH}/:id/plan-route`
 const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
 const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
 const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
+/** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
+ * uma viagem. */
+const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH = `${TRIP_DOCUMENT_PATH}/delivery-address`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH = `${TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH}-history`
@@ -150,6 +154,9 @@ type Dependencies = {
     execute(
       input: TenantInput<OverrideDeliveryAddressInput>,
     ): Promise<DeliveryAddressOverrideRecord>
+  }
+  readonly listReturnedWithActiveCte: {
+    execute(input: TenantInput<Record<never, never>>): Promise<ListReturnedWithActiveCteResult>
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
@@ -429,6 +436,21 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH,
       policy: TRIP_READ_POLICY,
     }),
+    defineRoute<Record<never, never>>({
+      async handle({ context }): Promise<Response> {
+        const result = await dependencies.listReturnedWithActiveCte.execute({
+          context: context.scope,
+        })
+        return jsonResponse({
+          body: { data: result.entries.map(serializeReturnedWithActiveCteEntry) },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: RETURNED_WITH_ACTIVE_CTE_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
   ]
 
   /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
@@ -521,6 +543,12 @@ function serializeTripStopDetail(stop: TripStopDetail): object {
 
 function serializeDeliveryAddressOverride(record: DeliveryAddressOverrideRecord): object {
   return { ...record }
+}
+
+function serializeReturnedWithActiveCteEntry(
+  entry: ListReturnedWithActiveCteResult['entries'][number],
+): object {
+  return { ...entry }
 }
 
 function serializeTransitionResult(result: TransitionTripDocumentResult): object {

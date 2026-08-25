@@ -1,9 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 
 import { tripDocumentEvents, tripDocuments, trips, type TripStatus } from '../../database/trip.schema.js'
+import { cteBatchItems } from '../../database/cte-batch.schema.js'
+import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
+import { freightCalculations } from '../../database/freight.schema.js'
 import { violatedForeignKeyConstraint } from '../../database/postgres-error.support.js'
 import type {
   ApplyTripDocumentTransitionInput,
@@ -11,13 +14,76 @@ import type {
   TripDocumentTransitionPort,
   TripDocumentTransitionSnapshot,
 } from '../application/transition-trip-document.use-case.js'
+import type {
+  ListReturnedWithActiveCtePort,
+  ReturnedWithActiveCteEntry,
+} from '../application/list-returned-with-active-cte.use-case.js'
 import { deriveTripStatus, tallyTripDocuments } from '../domain/trip-state.policy.js'
 import { TripActorNotAMemberError } from '../domain/trip.error.js'
 import { mapTripDocument } from './trip.mapper.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
-export class DrizzleTripDocumentRepository implements TripDocumentTransitionPort {
+/** `cte_fiscal_documents.status` — só este valor conta como CT-e "ativo" (mesmo padrão de
+ * `cteAuthorizedExpression()` em `trip.query.ts`). */
+const AUTHORIZED_CTE_DOCUMENT_STATUS = 'authorized'
+
+export class DrizzleTripDocumentRepository
+  implements TripDocumentTransitionPort, ListReturnedWithActiveCtePort
+{
   public constructor(private readonly database: TripDatabase) {}
+
+  public async listReturnedWithActiveCte(input: {
+    readonly companyId: string
+  }): Promise<readonly ReturnedWithActiveCteEntry[]> {
+    const rows = await this.database
+      .select({
+        accessKey: cteFiscalDocuments.accessKey,
+        returnReason: tripDocuments.returnReason,
+        returnedAt: tripDocuments.returnedAt,
+        tripDocumentId: tripDocuments.id,
+        tripId: tripDocuments.tripId,
+      })
+      .from(tripDocuments)
+      .leftJoin(
+        freightCalculations,
+        and(
+          eq(freightCalculations.companyId, tripDocuments.companyId),
+          eq(freightCalculations.id, tripDocuments.freightCalculationId),
+        ),
+      )
+      .innerJoin(
+        cteBatchItems,
+        and(
+          eq(cteBatchItems.companyId, tripDocuments.companyId),
+          or(
+            eq(cteBatchItems.nfeDocumentId, tripDocuments.nfeDocumentId),
+            eq(cteBatchItems.nfeDocumentId, freightCalculations.nfeDocumentId),
+          ),
+        ),
+      )
+      .innerJoin(
+        cteFiscalDocuments,
+        and(
+          eq(cteFiscalDocuments.companyId, cteBatchItems.companyId),
+          eq(cteFiscalDocuments.batchItemId, cteBatchItems.id),
+          eq(cteFiscalDocuments.status, AUTHORIZED_CTE_DOCUMENT_STATUS),
+        ),
+      )
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          eq(tripDocuments.separationStatus, 'returned'),
+        ),
+      )
+
+    return rows.map((row) => ({
+      cteAccessKey: row.accessKey,
+      returnedAt: (row.returnedAt ?? new Date()).toISOString(),
+      returnReason: row.returnReason ?? '',
+      tripDocumentId: row.tripDocumentId,
+      tripId: row.tripId,
+    }))
+  }
 
   public async findSnapshot(input: {
     readonly companyId: string

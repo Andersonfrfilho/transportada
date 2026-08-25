@@ -92,6 +92,7 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/eligibility',
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
+      'GET /trip-documents/returned-with-active-cte',
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
