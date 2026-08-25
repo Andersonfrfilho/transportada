@@ -28,17 +28,6 @@ readonly REQUIRED_VARIABLES=(
   BACKUP_S3_REGION
   BACKUP_S3_ACCESS_KEY_ID
   BACKUP_S3_SECRET_ACCESS_KEY
-  # Bucket fiscal: produção lê, staging escreve, credencial própria de cada lado.
-  FISCAL_SOURCE_S3_ENDPOINT
-  FISCAL_SOURCE_S3_BUCKET
-  FISCAL_SOURCE_S3_REGION
-  FISCAL_SOURCE_S3_ACCESS_KEY_ID
-  FISCAL_SOURCE_S3_SECRET_ACCESS_KEY
-  STAGING_S3_ENDPOINT
-  STAGING_S3_BUCKET
-  STAGING_S3_REGION
-  STAGING_S3_ACCESS_KEY_ID
-  STAGING_S3_SECRET_ACCESS_KEY
 )
 
 CURRENT_STEP=boot
@@ -100,64 +89,6 @@ backup_object() {
     --output "$2" "${BACKUP_S3_ENDPOINT%/}/${BACKUP_S3_BUCKET}/$1"
 }
 
-# Lista com paginação: ao contrário do backup, que mantém ~120 objetos por prefixo, o bucket fiscal
-# cresce sem teto — parar nos primeiros 1000 deixaria staging sem os XML mais antigos e sem dizer.
-list_bucket_keys() {
-  local endpoint="$1" bucket="$2" region="$3" access="$4" secret="$5"
-  local token='' page
-  while :; do
-    if [ -z "$token" ]; then
-      page="$(s3_curl "$access" "$secret" "$region" --get \
-        --data-urlencode 'list-type=2' --data-urlencode 'max-keys=1000' \
-        "${endpoint%/}/${bucket}")"
-    else
-      page="$(s3_curl "$access" "$secret" "$region" --get \
-        --data-urlencode 'list-type=2' --data-urlencode 'max-keys=1000' \
-        --data-urlencode "continuation-token=${token}" "${endpoint%/}/${bucket}")"
-    fi
-    printf '%s' "$page" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g' || true
-    printf '%s' "$page" | grep -q '<IsTruncated>true</IsTruncated>' || break
-    token="$(printf '%s' "$page" | grep -o '<NextContinuationToken>[^<]*</NextContinuationToken>' \
-      | sed 's/<[^>]*>//g')"
-    [ -n "$token" ] || break
-  done
-}
-
-# O bucket vem **antes** do banco. A ordem importa: o banco referencia `bucket`/`key`, e linha sem
-# objeto é documento fiscal que não existe (mesma razão do `bucket-mirror.yml`). Copiar objeto que
-# ainda não tem linha é inofensivo; o contrário, não.
-mirror_fiscal_bucket() {
-  local source_keys="${WORK_DIRECTORY}/source.keys"
-  local target_keys="${WORK_DIRECTORY}/target.keys"
-  local missing_keys="${WORK_DIRECTORY}/missing.keys"
-
-  list_bucket_keys "$FISCAL_SOURCE_S3_ENDPOINT" "$FISCAL_SOURCE_S3_BUCKET" \
-    "$FISCAL_SOURCE_S3_REGION" "$FISCAL_SOURCE_S3_ACCESS_KEY_ID" \
-    "$FISCAL_SOURCE_S3_SECRET_ACCESS_KEY" | sort >"$source_keys"
-  list_bucket_keys "$STAGING_S3_ENDPOINT" "$STAGING_S3_BUCKET" \
-    "$STAGING_S3_REGION" "$STAGING_S3_ACCESS_KEY_ID" \
-    "$STAGING_S3_SECRET_ACCESS_KEY" | sort >"$target_keys"
-  comm -23 "$source_keys" "$target_keys" >"$missing_keys"
-
-  local total copied=0 key body
-  total="$(wc -l <"$missing_keys" | tr -d ' ')"
-  log info staging_refresh_bucket_diff ",\"missing\":${total}"
-
-  body="${WORK_DIRECTORY}/object.bin"
-  while IFS= read -r key; do
-    [ -n "$key" ] || continue
-    s3_curl "$FISCAL_SOURCE_S3_ACCESS_KEY_ID" "$FISCAL_SOURCE_S3_SECRET_ACCESS_KEY" \
-      "$FISCAL_SOURCE_S3_REGION" --output "$body" \
-      "${FISCAL_SOURCE_S3_ENDPOINT%/}/${FISCAL_SOURCE_S3_BUCKET}/${key}"
-    s3_curl "$STAGING_S3_ACCESS_KEY_ID" "$STAGING_S3_SECRET_ACCESS_KEY" \
-      "$STAGING_S3_REGION" --upload-file "$body" --output /dev/null \
-      "${STAGING_S3_ENDPOINT%/}/${STAGING_S3_BUCKET}/${key}"
-    copied=$((copied + 1))
-  done <"$missing_keys"
-  rm -f "$body"
-  log info staging_refresh_bucket_mirrored ",\"copied\":${copied}"
-}
-
 # O ciclo sai da última linha do manifesto, não do objeto mais novo do bucket: ciclo que morreu
 # entre o upload da aplicação e o do Keycloak deixa `.enc` órfão, e restaurar o órfão copiaria um
 # banco pela metade para staging.
@@ -211,18 +142,56 @@ restore_over_staging() {
   log info staging_refresh_restored ",\"stamp\":\"${CYCLE_STAMP}\""
 }
 
-# `stored_objects.bucket` guarda o nome do bucket de **quem escreveu** (a app resolve o dela por
-# `OBJECT_STORAGE_BUCKET`, `main.ts:resolveStorageBucket`). Sem esta reescrita toda linha restaurada
-# aponta para o bucket de produção, que a credencial de staging não lê — e cada documento fiscal
-# viraria um 404 silencioso, com o objeto ali do lado no bucket certo.
-repoint_stored_objects() {
-  local updated
-  updated="$(psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet -c \
-    "with changed as (
-       update stored_objects set bucket = '${STAGING_S3_BUCKET}'
-       where bucket <> '${STAGING_S3_BUCKET}' returning 1
-     ) select count(*) from changed")"
-  log info staging_refresh_objects_repointed ",\"rows\":${updated},\"bucket\":\"${STAGING_S3_BUCKET}\""
+# "As notas, sem emissão alguma": o dump traz a base inteira, e o que **não** pode atravessar sai
+# aqui, numa transação só. Três famílias, por três motivos diferentes:
+#
+# 1. **Emissão** (CT-e, MDF-e, NFS-e, faturamento). Nota que já chegou em staging com o CT-e
+#    autorizado em cima não serve para testar o fluxo que emite o CT-e — o caso de teste vira o
+#    estado final, não o inicial.
+# 2. **Numeração fiscal** (`fiscal_sequences` e as reservas). Herdar o `next_number` de produção faria
+#    staging emitir na faixa de numeração de produção. Zerado, staging numera do começo, que é o que
+#    um ambiente de teste deve fazer.
+# 3. **Material de assinatura.** `digital_certificates.secret_envelope` é o certificado A1 que assina
+#    documento fiscal de verdade. Ele não tem o que fazer em staging: o envelope é anulado e a linha
+#    fica, para o perfil fiscal da empresa não perder a referência. Sem isto, um restore cru poria o
+#    certificado de produção num ambiente de teste — pior que qualquer dado pessoal que a decisão de
+#    espelhar já assumiu.
+#
+# `nfse_provider_credentials` entra pela mesma razão do certificado: é credencial de provedor, não
+# dado de nota. Os perfis de emissão (`cte_emission_profiles`, `nfse_emission_profiles`) **ficam** —
+# são configuração de como emitir, e staging precisa deles para exercitar o fluxo.
+strip_emission_data() {
+  psql "$STAGING_DATABASE_URL" --quiet --set ON_ERROR_STOP=1 <<'SQL'
+begin;
+
+truncate table
+  cte_batches, cte_batch_events, cte_batch_items, cte_batch_item_charges,
+  cte_batch_item_documents, cte_fiscal_documents, cte_issuance_attempts,
+  cte_issuance_diagnostics, cte_issuance_events, cte_issuance_outbox,
+  cte_issuance_payloads, cte_processed_messages, cte_retry_schedules,
+  cte_submission_records,
+  mdfe_fiscal_documents, mdfe_issuance_attempts, mdfe_issuance_events,
+  mdfe_issuance_outbox, mdfe_issuance_payloads, mdfe_manifests,
+  mdfe_manifest_drivers, mdfe_manifest_items, mdfe_manifest_loading_cities,
+  mdfe_processed_messages,
+  nfse_fiscal_documents, nfse_issuance_attempts, nfse_issuance_events,
+  nfse_issuance_outbox, nfse_issuance_payloads, nfse_processed_messages,
+  nfse_service_invoices, nfse_service_invoice_charges, nfse_service_invoice_documents,
+  nfse_provider_credentials,
+  billing_invoices, billing_invoice_documents, billing_invoice_events, billing_invoice_items,
+  fiscal_sequences, fiscal_sequence_reservations
+  restart identity cascade;
+
+-- A linha fica, o material de assinatura não: `company_fiscal_profiles` referencia o certificado, e
+-- apagar a linha levaria o perfil junto no cascade.
+update digital_certificates set secret_envelope = null where secret_envelope is not null;
+
+commit;
+SQL
+  local notes
+  notes="$(psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet \
+    -c 'select count(*) from nfe_documents')"
+  log info staging_refresh_emission_stripped ",\"notes\":${notes}"
 }
 
 # Staging quase sempre está **à frente** de produção — é onde a branch publica primeiro. O dump
@@ -256,14 +225,12 @@ main() {
 
   WORK_DIRECTORY="$(mktemp -d)"
 
-  CURRENT_STEP=mirror_bucket
-  mirror_fiscal_bucket
   CURRENT_STEP=download_cycle
   download_production_cycle
   CURRENT_STEP=restore
   restore_over_staging
-  CURRENT_STEP=repoint_objects
-  repoint_stored_objects
+  CURRENT_STEP=strip_emission
+  strip_emission_data
   CURRENT_STEP=redeploy
   redeploy_staging_api
 

@@ -272,11 +272,16 @@ espelhar a base de produção inteira em staging uma vez por semana, **sem anoni
 objetivo declarado é replicar o ambiente.
 
 A consequência é que staging passa a guardar os mesmos dados pessoais de terceiros que produção:
-CPF/CNPJ, nome, endereço e telefone de destinatário em `nfe_participants`/`nfe_addresses`, mais os
-XML assinados no bucket fiscal. **O XML não tem como ser mascarado** — qualquer alteração quebra a
-assinatura, então mascarar só as colunas do banco deixaria a mesma PII intacta dentro do arquivo.
-Sob a LGPD isso é tratamento com finalidade diferente da coleta, e o dado não é da transportadora:
-é dos clientes dos clientes dela.
+CPF/CNPJ, nome, endereço e telefone de destinatário em `nfe_participants`/`nfe_addresses`. Sob a
+LGPD isso é tratamento com finalidade diferente da coleta, e o dado não é da transportadora: é dos
+clientes dos clientes dela.
+
+**O que ficou de fora, por decisão:** os XML assinados **não** são copiados — copiá-los exigiria uma
+credencial de leitura do bucket fiscal de produção morando dentro de staging, e isso é acesso
+permanente, não o retrato semanal que foi decidido. Também não atravessam: nenhum dado de emissão
+(CT-e, MDF-e, NFS-e, faturamento), a numeração fiscal, as credenciais de provedor de NFS-e, e o
+`secret_envelope` de `digital_certificates` — o certificado A1 que assina documento fiscal de
+verdade, que num restore cru iria junto e é risco maior que qualquer PII.
 
 **O que já limita o estrago:** a réplica roda **dentro do Railway**, como o ciclo de backup — o dump descriptografado e os XML não atravessam runner hospedado de terceiro, que era o desenho inicial e foi descartado por isso. O banco de produção nunca é acessado — a origem é o backup cifrado
 que o ciclo diário já produz, e o bucket é copiado com credencial de leitura. O Keycloak de
