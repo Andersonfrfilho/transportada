@@ -20,13 +20,26 @@ import type {
 } from '../application/dispatch-trip.use-case.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
+import type {
+  ReorderTripStopsPort,
+  ReorderTripStopsPreconditions,
+} from '../application/reorder-trip-stops.use-case.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
 const NOT_LOADED_STATUSES = ['pending', 'separated'] as const
 
+/**
+ * Reordenar troca a `sequence` de todas as paradas da viagem numa tacada, e a unique
+ * `(company_id, trip_id, sequence)` não é adiável — trocar a posição 1↔2 direto colidiria com a
+ * própria linha que ainda não se moveu. Empurra tudo para um intervalo alto e sem uso primeiro,
+ * depois grava os valores finais: nenhum `UPDATE` do segundo passo pode colidir com o que restou
+ * do primeiro.
+ */
+const SEQUENCE_PARKING_OFFSET = 1_000_000
+
 export class DrizzleTripRouteRepository
-  implements PlanTripRoutePort, DispatchTripPort, CancelTripPort
+  implements PlanTripRoutePort, DispatchTripPort, CancelTripPort, ReorderTripStopsPort
 {
   public constructor(private readonly database: TripDatabase) {}
 
@@ -101,6 +114,45 @@ export class DrizzleTripRouteRepository
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
       .returning({ status: trips.status })
     return updated?.status ?? 'cancelled'
+  }
+
+  public async readStopOrderPreconditions(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<ReorderTripStopsPreconditions | null> {
+    const [tripRecord] = await this.database
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+    if (tripRecord === undefined) return null
+
+    const stopRows = await this.database
+      .select({ id: tripStops.id })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
+    return { stopIds: stopRows.map((row) => row.id), tripStatus: tripRecord.status }
+  }
+
+  public async reorderStops(input: {
+    readonly companyId: string
+    readonly orderedStopIds: readonly string[]
+    readonly tripId: string
+  }): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await transaction
+        .update(tripStops)
+        .set({ sequence: sql`${tripStops.sequence} + ${SEQUENCE_PARKING_OFFSET}` })
+        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
+      for (const [index, stopId] of input.orderedStopIds.entries()) {
+        await transaction
+          .update(tripStops)
+          .set({ sequence: BigInt(index + 1), updatedAt: sql`now()` })
+          .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
+      }
+    })
   }
 }
 

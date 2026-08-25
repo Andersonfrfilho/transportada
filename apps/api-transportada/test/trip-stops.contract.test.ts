@@ -3,3 +3,4 @@
  */
 import './trip-stops/address-key.contract.js'
 import './trip-stops/reconcile.contract.js'
+import './trip-stops/reorder.contract.js'

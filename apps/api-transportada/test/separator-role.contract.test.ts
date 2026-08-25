@@ -95,6 +95,7 @@ describe('separator role contract', () => {
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/stops',
+      'PATCH /trips/:id/stops/order',
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/close',

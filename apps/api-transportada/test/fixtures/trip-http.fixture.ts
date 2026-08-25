@@ -44,6 +44,7 @@ type RouteDependencies = {
   readonly loadTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly planTripRoute: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly releaseTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
+  readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
 }
@@ -65,6 +66,7 @@ type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
+  readonly reorderStopsError?: Error
   readonly returnTripDocumentError?: Error
   readonly separateTripDocumentError?: Error
 }
@@ -101,6 +103,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly loadTripDocumentCalls: ExecuteCall[]
   readonly planTripRouteCalls: ExecuteCall[]
   readonly releaseTripDocumentCalls: ExecuteCall[]
+  readonly reorderStopsCalls: ExecuteCall[]
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
 }> {
@@ -118,6 +121,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const loadTripDocumentCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
+  const reorderStopsCalls: ExecuteCall[] = []
   const returnTripDocumentCalls: ExecuteCall[] = []
   const separateTripDocumentCalls: ExecuteCall[] = []
 
@@ -229,6 +233,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return { ...TRIP_DOCUMENT, releasedAt: '2026-08-05T09:00:00.000Z' }
       },
     },
+    reorderStops: {
+      async execute(input) {
+        reorderStopsCalls.push(structuredClone(input))
+        if (params.reorderStopsError) throw params.reorderStopsError
+        return { tripStatus: 'route_planned' }
+      },
+    },
     returnTripDocument: {
       async execute(input) {
         returnTripDocumentCalls.push(structuredClone(input))
@@ -273,6 +284,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     loadTripDocumentCalls,
     planTripRouteCalls,
     releaseTripDocumentCalls,
+    reorderStopsCalls,
     returnTripDocumentCalls,
     separateTripDocumentCalls,
   }

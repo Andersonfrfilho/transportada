@@ -526,6 +526,38 @@ paradas com contagem de queries assertada.
   não relacionada em `server.integration.ts`, confirmada idêntica com `git stash` antes desta
   mudança) / 6 skip.
 
+### T014b ✅ — `PATCH /trips/:id/stops/order`
+
+RF-6 do spec.md lista esta rota desde o início, mas nenhuma task da Fase 3 chegou a implementá-la
+— achado ao começar o T015 (o frontend não tem como reordenar parada por arraste sem ela existir).
+Mesma porta de não-retorno de vincular/desvincular nota (D2/D3): só funciona antes de `dispatched`.
+
+- **Arquivos:** `src/trips/domain/trip.error.ts` (`TripStopSetMismatchError`),
+  `src/trips/application/reorder-trip-stops.use-case.ts` (novo),
+  `src/trips/infrastructure/drizzle-trip-route.repository.ts`,
+  `src/trips/presentation/trip.routes.ts`, `trip.schema.ts`, `trip-request.schema.ts`,
+  `src/trips/application/trip-lifecycle.use-case.ts`, `src/main.ts`
+- **Aceite:** `test/trip-stops/reorder.contract.ts` (use case, port falso), rota em
+  `test/trips/routes.contract.ts`
+- **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- `reorderTripStops` reaproveita `checkTripAcceptsLinkage` (T013) para o gate de elegibilidade —
+  a mesma regra "editável até `dispatched`", sem duplicar a lista de estados terminais numa
+  terceira função.
+- Exige que a lista recebida seja **exatamente** o conjunto de paradas da viagem (nem uma a mais,
+  de outra viagem ou inventada; nem uma a menos, nem duplicada) — `TripStopSetMismatchError`
+  (422, `TRIP_STOP_SET_MISMATCH`) quando não bate.
+- `DrizzleTripRouteRepository.reorderStops`: a unique `(company_id, trip_id, sequence)` não é
+  adiável, então trocar 1↔2 direto colidiria com a própria linha ainda não movida. Resolvido com
+  duas fases numa transação — primeiro empurra toda `sequence` da viagem para um intervalo alto
+  sem uso (`+1_000_000`), depois grava os valores finais 1..N na ordem recebida. Verificado ao
+  vivo contra Postgres local com uma viagem de 5 paradas invertida de ponta a ponta: a ordem final
+  bate exatamente com a entrada, sem violação de unique.
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun test`):
+  3033 pass / 15 skip / 0 fail.
+
 ## Fase 4 — A tela
 
 > 🤖 Modelo: `sonnet`

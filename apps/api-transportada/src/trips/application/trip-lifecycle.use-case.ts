@@ -11,6 +11,7 @@ import {
 } from './find-trip-location-by-access-key.use-case.js'
 import { listTripStops, type ListTripStopsPort } from './list-trip-stops.use-case.js'
 import { planTripRoute, type PlanTripRoutePort } from './plan-trip-route.use-case.js'
+import { reorderTripStops, type ReorderTripStopsPort } from './reorder-trip-stops.use-case.js'
 import {
   transitionTripDocument,
   type TripDocumentTransitionPort,
@@ -24,7 +25,10 @@ export type TripLifecycleDependencies = {
   readonly batchRepository: TripDocumentBatchTransitionPort
   readonly documentRepository: TripDocumentTransitionPort
   readonly locationRepository: FindTripLocationByAccessKeyPort
-  readonly routeRepository: CancelTripPort & DispatchTripPort & PlanTripRoutePort
+  readonly routeRepository: CancelTripPort &
+    DispatchTripPort &
+    PlanTripRoutePort &
+    ReorderTripStopsPort
   readonly stopRepository: ListTripStopsPort
 }
 
@@ -127,6 +131,20 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
         return planTripRoute({
           companyId: input.context.companyId,
+          repository: dependencies.routeRepository,
+          tripId: input.tripId,
+        })
+      },
+    },
+    reorderStops: {
+      async execute(input: {
+        readonly context: CompanyContext
+        readonly stopIds: readonly string[]
+        readonly tripId: string
+      }) {
+        return reorderTripStops({
+          companyId: input.context.companyId,
+          orderedStopIds: input.stopIds,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
         })

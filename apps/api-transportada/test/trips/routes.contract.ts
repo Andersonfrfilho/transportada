@@ -14,8 +14,10 @@ import {
   tripDocumentSeparatePath,
   tripDocumentsBatchStatusPath,
   tripPlanRoutePath,
+  tripStopsOrderPath,
   tripStopsPath,
   TRIP_DOCUMENT_ID,
+  TRIP_ID,
 } from '../fixtures/trip-http-payload.fixture'
 import {
   createTripHttpFixture,
@@ -180,6 +182,34 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.listStopsCalls).toHaveLength(1)
   })
 
+  test('reorders the stops of a trip', async () => {
+    const fixture = await createTripHttpFixture()
+    const stopIds = [
+      '00000000-0000-4000-8000-000000000b02',
+      '00000000-0000-4000-8000-000000000b01',
+    ]
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { stopIds }, method: 'PATCH', path: tripStopsOrderPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toEqual({ tripStatus: 'route_planned' })
+    expect(fixture.reorderStopsCalls[0]).toMatchObject({ stopIds, tripId: TRIP_ID })
+  })
+
+  test('refuses an empty stop order', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { stopIds: [] }, method: 'PATCH', path: tripStopsOrderPath() }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.reorderStopsCalls).toHaveLength(0)
+  })
+
   test('surfaces the domain error code and status when a transition is refused', async () => {
     const { TripStateTransitionNotAllowedError } = await import(
       '../../src/trips/domain/trip.error.js'
@@ -217,12 +247,20 @@ describe('trip state routes (spec 056 T012)', () => {
       fixture.handle(jsonRequest({ method: 'POST', path: tripDispatchPath() })),
       fixture.handle(jsonRequest({ method: 'POST', path: tripCancelPath() })),
       fixture.handle(jsonRequest({ method: 'GET', path: tripStopsPath() })),
+      fixture.handle(
+        jsonRequest({
+          body: { stopIds: [TRIP_DOCUMENT_ID] },
+          method: 'PATCH',
+          path: tripStopsOrderPath(),
+        }),
+      ),
     ])
 
     for (const response of responses) expect(response.status).toBe(403)
     expect(fixture.separateTripDocumentCalls).toHaveLength(0)
     expect(fixture.batchStatusCalls).toHaveLength(0)
     expect(fixture.dispatchTripCalls).toHaveLength(0)
+    expect(fixture.reorderStopsCalls).toHaveLength(0)
   })
 
   // `fleet.manage` sozinho não é `trip.manage` (spec 055 D5) — o separador continua com o poder

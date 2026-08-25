@@ -211,3 +211,17 @@ export class TripDispatchForceReasonRequiredError extends ApiError {
     })
   }
 }
+
+/**
+ * `PATCH /trips/:id/stops/order` exige a lista completa — nem uma parada a mais (id de outra
+ * viagem, id inventado), nem uma a menos (perderia a parada silenciosamente da sequência).
+ */
+export class TripStopSetMismatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_STOP_SET_MISMATCH',
+      message: 'The stop order must include every stop of the trip, and no other.',
+      status: 422,
+    })
+  }
+}

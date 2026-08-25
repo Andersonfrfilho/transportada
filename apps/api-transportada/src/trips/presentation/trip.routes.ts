@@ -28,6 +28,7 @@ import type { CancelTripResult } from '../application/cancel-trip.use-case.js'
 import type { DispatchTripResult } from '../application/dispatch-trip.use-case.js'
 import type { ListTripStopsResult, TripStopSummary } from '../application/list-trip-stops.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
+import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
 import type { TransitionTripDocumentResult } from '../application/transition-trip-document.use-case.js'
 import type {
   TransitionTripDocumentsBatchResult,
@@ -39,6 +40,7 @@ import {
   parseCreateTripRequest,
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
+  parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
   parseUuidPathIdentifier,
@@ -63,6 +65,7 @@ const TRIP_PLAN_ROUTE_PATH = `${API_TRIPS_PATH}/:id/plan-route`
 const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
 const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
 const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
+const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
 /**
  * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
@@ -91,6 +94,7 @@ type BatchStatusInput = {
 
 type DispatchInput = { readonly force: boolean; readonly forceReason: string | null; readonly tripId: string }
 type TripIdInput = { readonly tripId: string }
+type ReorderStopsInput = { readonly stopIds: readonly string[]; readonly tripId: string }
 
 type Dependencies = {
   readonly batchStatus: {
@@ -118,6 +122,9 @@ type Dependencies = {
   readonly planTripRoute: { execute(input: TenantInput<TripIdInput>): Promise<PlanTripRouteResult> }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
+  }
+  readonly reorderStops: {
+    execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
   }
   readonly returnTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -335,6 +342,22 @@ export function createTripRoutes(
       }),
       pathname: TRIP_STOPS_PATH,
       policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<Omit<ReorderStopsInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.reorderStops.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ pathParameters, request }) {
+        const body = await parseReorderTripStopsRequest(request)
+        return {
+          stopIds: body.stopIds,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_STOPS_ORDER_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
   ]
 

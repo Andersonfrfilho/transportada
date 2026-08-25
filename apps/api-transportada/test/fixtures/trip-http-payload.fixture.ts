@@ -68,6 +68,10 @@ export function tripStopsPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/stops`
 }
 
+export function tripStopsOrderPath(tripId: string = TRIP_ID): string {
+  return `${tripStopsPath(tripId)}/order`
+}
+
 export function tripClosePath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/close`
 }

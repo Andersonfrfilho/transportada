@@ -830,6 +830,7 @@ function createApplicationRoutes({
       loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },
       planTripRoute: { execute: (input) => tripLifecycle.planRoute.execute(input) },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
+      reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
       returnTripDocument: { execute: (input) => tripLifecycle.return.execute(input) },
       separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),

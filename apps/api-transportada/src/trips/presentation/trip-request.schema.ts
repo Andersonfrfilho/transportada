@@ -70,3 +70,12 @@ export const dispatchTripSchema = z
   .strict()
 
 export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
+
+/** Teto generoso: nenhuma viagem real chega perto disso — só evita um corpo absurdo. */
+const MAX_TRIP_STOPS = 200
+
+export const reorderTripStopsSchema = z
+  .object({ stopIds: z.array(z.uuid()).min(1).max(MAX_TRIP_STOPS) })
+  .strict()
+
+export type ReorderTripStopsBody = z.infer<typeof reorderTripStopsSchema>

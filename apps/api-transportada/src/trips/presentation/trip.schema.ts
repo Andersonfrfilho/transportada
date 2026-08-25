@@ -21,11 +21,13 @@ import {
   createTripSchema,
   dispatchTripSchema,
   linkTripDocumentSchema,
+  reorderTripStopsSchema,
   transitionTripDocumentSchema,
   type BatchTransitionTripDocumentsBody,
   type CreateTripBody,
   type DispatchTripBody,
   type LinkTripDocumentBody,
+  type ReorderTripStopsBody,
   type TransitionTripDocumentBody,
 } from './trip-request.schema.js'
 
@@ -76,6 +78,12 @@ export async function parseBatchTransitionTripDocumentsRequest(
 
 export async function parseDispatchTripRequest(request: Request): Promise<DispatchTripBody> {
   return parseOptionalBody(dispatchTripSchema, request)
+}
+
+export async function parseReorderTripStopsRequest(
+  request: Request,
+): Promise<ReorderTripStopsBody> {
+  return parseBody(reorderTripStopsSchema, request)
 }
 
 export function parseTripList(url: URL): TripListing {
