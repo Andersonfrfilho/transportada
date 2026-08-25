@@ -89,10 +89,35 @@
 }
 
 .bottomBarInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   width: var(--layout-width);
   margin: 0 auto;
   color: var(--color-slate);
   font-size: 0.8rem;
+}
+
+.copyright {
+  margin: 0;
+}
+
+.poweredBy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  font-size: 0.75rem;
+}
+
+.poweredByMark {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.2rem;
+  opacity: 0.85;
 }
 
 @media (min-width: 56rem) {

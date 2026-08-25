@@ -11,9 +11,12 @@ import type { AuthenticatedIdentity } from '../../src/identity/domain/authentica
 import type { AuthenticatedContext, CompanyContext } from '../../src/identity/domain/tenant-context'
 import {
   API_COMPANY_SETTINGS_LANDING_PATH,
+  API_PUBLIC_LANDING_LOGO_PATH,
   API_PUBLIC_LANDING_SETTINGS_PATH,
 } from '../../src/shared/api.constant'
+import type { CompanyLogo, CompanyLogoRepositoryPort } from '../../src/companies/application/company-logo.port'
 import type { CompanyGroupRepositoryPort } from '../../src/landing/application/company-group.port'
+import { createLandingLogoUseCase } from '../../src/landing/application/landing-logo.use-case'
 import type {
   LandingSettingsRecord,
   LandingSettingsRepositoryPort,
@@ -26,6 +29,7 @@ import { FRONTEND_ORIGIN } from './company-settings-http-request.fixture'
 
 export { FRONTEND_ORIGIN }
 export const LANDING_PUBLIC_PATH = API_PUBLIC_LANDING_SETTINGS_PATH
+export const LANDING_LOGO_PATH = API_PUBLIC_LANDING_LOGO_PATH
 export const LANDING_SETTINGS_PATH = API_COMPANY_SETTINGS_LANDING_PATH
 
 export class CompanyGroupRepositoryFixture implements CompanyGroupRepositoryPort {
@@ -70,6 +74,24 @@ export class LandingSettingsRepositoryFixture implements LandingSettingsReposito
   }
 }
 
+export class CompanyLogoRepositoryFixture implements CompanyLogoRepositoryPort {
+  public stored: CompanyLogo | null = null
+
+  public async find() {
+    return this.stored
+  }
+
+  public async remove() {
+    const removed = this.stored !== null
+    this.stored = null
+    return removed
+  }
+
+  public save(): Promise<never> {
+    return Promise.reject(new Error('not used by the landing logo fixture'))
+  }
+}
+
 export function landingRequest(input: {
   readonly authenticated?: boolean
   readonly body?: string
@@ -95,16 +117,18 @@ export async function createLandingHttpFixture({
 }: CreateFixtureParams = {}) {
   const companyGroupRepository = new CompanyGroupRepositoryFixture()
   const landingSettingsRepository = new LandingSettingsRepositoryFixture()
+  const companyLogoRepository = new CompanyLogoRepositoryFixture()
   const landingSettings = createLandingSettingsUseCase({
     companyGroupRepository,
     landingCompanyId: COMPANY_ID,
     landingSettingsRepository,
   })
+  const landingLogo = createLandingLogoUseCase({ companyLogoRepository, landingCompanyId: COMPANY_ID })
 
   const context = authenticatedContext(permissions)
   const authorization = new AuthorizationService()
   const router = createRouter({
-    anonymousRoutes: createLandingPublicRoutes({ landingSettings }),
+    anonymousRoutes: createLandingPublicRoutes({ landingLogo, landingSettings }),
     authentication: {
       async authenticate() {
         return context.identity
@@ -134,6 +158,7 @@ export async function createLandingHttpFixture({
 
   return {
     companyGroupRepository,
+    companyLogoRepository,
     handle: (request: Request) => handle(request, { timeout() {} }),
     landingSettingsRepository,
   }

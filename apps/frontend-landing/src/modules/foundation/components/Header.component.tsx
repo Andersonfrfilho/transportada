@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState, type ReactNode } from 'react'
 
+import { BrandMark } from '@/modules/shared/components/BrandMark.component'
 import { Icon } from '@/modules/shared/components/Icon.component'
 import styles from './Header.module.css'
 
@@ -31,7 +32,7 @@ export function Header({ brandName, onNavigateHome, onNavigateToApplication }: H
             onNavigateHome()
           }}
         >
-          <img alt="" className={styles.brandMark} src="/icons/icon.svg" />
+          <BrandMark className={styles.brandMark} />
           <span className={styles.brandName}>{brandName}</span>
         </a>
         <nav aria-label="Navegação principal" className={styles.nav}>

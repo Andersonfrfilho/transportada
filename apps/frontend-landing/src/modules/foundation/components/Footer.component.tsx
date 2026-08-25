@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ReactNode } from 'react'
 
+import { BrandMark } from '@/modules/shared/components/BrandMark.component'
 import { Icon } from '@/modules/shared/components/Icon.component'
 import type { LandingSettings } from '@/modules/shared/landingSettings.service'
 import styles from './Footer.module.css'
@@ -26,7 +27,7 @@ export function Footer({ brandName, onNavigateToApplication, settings }: FooterP
       <div className={styles.inner}>
         <div className={styles.brandColumn}>
           <div className={styles.brandRow}>
-            <img alt="" className={styles.brandMark} src="/icons/icon.svg" />
+            <BrandMark className={styles.brandMark} />
             <span className={styles.brandName}>{brandName}</span>
           </div>
           <p className={styles.tagline}>Transporte de carga com rota planejada e acompanhamento de ponta a ponta.</p>
@@ -71,9 +72,15 @@ export function Footer({ brandName, onNavigateToApplication, settings }: FooterP
         </div>
       </div>
       <div className={styles.bottomBar}>
-        <p className={styles.bottomBarInner}>
-          © {year} {brandName}. Todos os direitos reservados.
-        </p>
+        <div className={styles.bottomBarInner}>
+          <p className={styles.copyright}>
+            © {year} {brandName}. Todos os direitos reservados.
+          </p>
+          <p className={styles.poweredBy}>
+            <img alt="" className={styles.poweredByMark} src="/icons/icon.svg" />
+            Plataforma TransportAdA
+          </p>
+        </div>
       </div>
     </footer>
   )

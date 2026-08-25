@@ -15,6 +15,7 @@ import { createListDigitalCertificatesUseCase } from './companies/application/li
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { createLandingLogoUseCase } from './landing/application/landing-logo.use-case.js'
 import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
 import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
@@ -376,6 +377,10 @@ function createAnonymousRoutes({
   })
   // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
   const landingPublicRoutes = createLandingPublicRoutes({
+    landingLogo: createLandingLogoUseCase({
+      companyLogoRepository: new DrizzleCompanyLogoRepository(database),
+      landingCompanyId: config.companyId,
+    }),
     landingSettings: createLandingSettingsUseCase({
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
       landingCompanyId: config.companyId,

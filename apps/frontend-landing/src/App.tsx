@@ -30,6 +30,11 @@ export function App(): ReactNode {
   const brandName = settings.brandName ?? 'TransportAdA'
   const isApplicationRoute = pathname === APPLICATION_PATH
 
+  /** A aba do navegador segue a marca configurada; sem configuração, é a plataforma mesmo. */
+  useEffect(() => {
+    document.title = brandName
+  }, [brandName])
+
   return (
     <>
       <Header

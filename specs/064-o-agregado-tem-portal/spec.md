@@ -155,6 +155,14 @@ Railway nem em qualquer outro app.
 - **RF13** — DNS/deploy: `fernandes-transportadora.com.br` como domínio customizado do serviço
   Railway de `apps/frontend-landing` em produção (ação de infraestrutura, fora do código). Como é
   cliente real, a 054 (multi-empresa) precisa entrar antes ou junto — ver Dúvidas.
+- **RF14** — CORS da API passa a aceitar **mais de uma origem confiável**. Hoje
+  `FRONTEND_ORIGIN`/`cors.service.ts` são singulares — um valor só, comparado por igualdade. Em
+  produção, `frontend-transportada` (painel) e `frontend-landing` (`fernandes-transportadora.com.br`)
+  são domínios diferentes chamando a mesma API; sem isso, um dos dois nunca funciona de verdade fora
+  do proxy de desenvolvimento. Descoberto testando localmente esta spec — ver
+  `apps/api-transportada/src/http/cors.service.ts` e `environment.schema.ts`. Toca ~30 fixtures de
+  teste que hoje passam `frontendOrigin` como string única; escopo próprio, não encaixa como
+  sub-tarefa de outra.
 
 ## Requisitos não funcionais
 
