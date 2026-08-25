@@ -5,6 +5,19 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-25 — `GET /public/landing-settings` é anônima e sem limitador dedicado
+
+**Onde:** `api-transportada`, módulo `landing` (spec 053, T004).
+
+**O que é:** a rota responde sem autenticação e sem chave de tenant no path — ela sempre lê a
+empresa provisionada da instalação (`PROVISION_COMPANY_ID`). Não há PII na resposta (marca,
+contatos institucionais já públicos, endereço das unidades) e o corpo é idêntico para qualquer
+chamador, então não é oráculo de nada. O que falta é o mesmo item já registrado abaixo para
+recuperação de senha: um limitador de borda — aqui o risco é menor (raspagem de conteúdo público),
+mas a rota soma à lista de anônimas sem teto.
+
+**Origem:** spec 053, T004.
+
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 
 **Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`).

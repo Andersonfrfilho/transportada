@@ -6,13 +6,10 @@ import { eq, like } from 'drizzle-orm'
 
 import { companyFiscalProfiles } from '../../database/database.schema.js'
 import { resolveCompanyGroupRoot } from '../../shared/tax-id.service.js'
-import { orderGroupUnits, type CompanyGroupUnit } from '../domain/company-group.policy.js'
+import type { CompanyGroupRepositoryPort } from '../application/company-group.port.js'
+import { orderGroupUnits } from '../domain/company-group.policy.js'
 
 export type CompanyGroupDatabase = ReturnType<typeof createDrizzleProvider>['db']
-
-export type CompanyGroupRepositoryPort = Readonly<{
-  listGroupUnits: (input: { readonly companyId: string }) => Promise<readonly CompanyGroupUnit[]>
-}>
 
 export function createDrizzleCompanyGroupRepository(
   database: CompanyGroupDatabase,

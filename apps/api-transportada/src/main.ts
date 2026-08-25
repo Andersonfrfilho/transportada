@@ -15,6 +15,7 @@ import { createListDigitalCertificatesUseCase } from './companies/application/li
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
@@ -37,12 +38,18 @@ import { DrizzleScheduledDistributionRepository } from './companies/infrastructu
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
 import { createScheduledDistributionRoutes } from './companies/presentation/scheduled-distribution.routes.js'
 import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
+import { createDrizzleCompanyGroupRepository } from './landing/infrastructure/drizzle-company-group.repository.js'
+import { createDrizzleLandingSettingsRepository } from './landing/infrastructure/drizzle-landing-settings.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
 import { createFiscalCompanyProfileLookupGateway } from './companies/infrastructure/fiscal-company-profile-lookup.gateway'
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
 import { createCompanyLogoRoutes } from './companies/presentation/company-logo.routes.js'
+import {
+  createLandingPublicRoutes,
+  createLandingSettingsRoutes,
+} from './landing/presentation/landing.routes.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -361,10 +368,19 @@ function createAnonymousRoutes({
       repository: new DrizzleNfseCallbackRepository(database),
     }),
   })
-  if (config.companyId === undefined) return nfseCallbackRoutes
+  // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
+  const landingPublicRoutes = createLandingPublicRoutes({
+    landingSettings: createLandingSettingsUseCase({
+      companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+      landingCompanyId: config.companyId,
+      landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+    }),
+  })
+  if (config.companyId === undefined) return [...nfseCallbackRoutes, ...landingPublicRoutes]
 
   return [
     ...nfseCallbackRoutes,
+    ...landingPublicRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -442,6 +458,11 @@ function createApplicationRoutes({
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
+  const landingSettings = createLandingSettingsUseCase({
+    companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+    landingCompanyId: undefined,
+    landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+  })
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
   const freightRepository = new DrizzleFreightRepository(database)
@@ -762,6 +783,7 @@ function createApplicationRoutes({
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
+    ...createLandingSettingsRoutes({ landingSettings }),
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },
