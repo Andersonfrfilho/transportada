@@ -19,3 +19,4 @@ Uma entrada por task concluída: comando executado, saída relevante e o que ela
 | T008 | `bun run --cwd apps/frontend-landing check` | lint + typecheck + 19 testes + build, todos verdes |
 | T008 | `bun run --cwd apps/api-transportada test` | 3078 pass, 0 fail (`pipeline-change-filter.contract.ts` atualizado para 5 apps) |
 | T008 | redução consciente | Sem job `deploy-landing` no `deploy.yml` — publicar de verdade exige um serviço Railway provisionado (ação de infraestrutura fora do que este loop pode fazer sozinho). O que entrou: detecção de mudança (`changed-targets.sh`, alvo `landing`) e o gate de CI (`quality-app`), que já rodam lint/typecheck/test/build da app em todo PR — só falta o job de deploy quando o serviço existir na Railway. |
+| T009 | `bun run --cwd apps/frontend-landing check` | lint + typecheck + 24 testes + build, todos verdes |
