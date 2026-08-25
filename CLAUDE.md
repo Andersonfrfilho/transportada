@@ -120,7 +120,13 @@ por escrito, se o separador a alcança.
 manuais (criar em `draft`, `plan-route`, `dispatch`, `cancel`). `trip_documents.separation_status`
 (`pending`, `separated`, `loaded`, `delivered`, `returned`) muda por `POST
 /trips/:id/documents/:documentId/{separate,load,return}` ou em lote por `.../documents/batch-status`
-— nunca por `UPDATE` direto; `checkTripDocumentTransition`/`checkTripTransition`
+— nunca por `UPDATE` direto. ⚠️ **`return` é trabalho de rua, não de barracão, e isso inverte o
+portão:** `checkTripAcceptsDocumentWork` exige `isTripDispatched` para `return`/`deliver` e o
+proíbe para `separate`/`load` — devolver só existe **depois** da saída (antes disso a nota se
+desvincula, não se devolve), e `separate`/`load` ainda precisam de roteiro planejado (`draft` sai
+`TRIP_ROUTE_NOT_PLANNED`). Quem tratar os três como um `isEditable` só oferece "Devolver"
+exatamente quando ele dá `409` — foi o que aconteceu no T016, e `test/trip/state-gates.contract.ts`
+(frontend) existe para travar a tabela estado→portão contra esta política. `checkTripDocumentTransition`/`checkTripTransition`
 (`trips/domain/trip-state.policy.ts`) são a única fonte da máquina, e toda transição é idempotente
 por desenho (repetir converge em `unchanged`, não erro — a rede do armazém cai, o separador toca
 duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,

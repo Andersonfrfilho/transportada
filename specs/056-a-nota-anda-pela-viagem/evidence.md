@@ -44,6 +44,33 @@ neste repositório. Em todos os casos o desvio está documentado na própria ent
 | `delivery_address_overrides` (D9) nunca implementada | Início do T015b (menu de desvio sem backend) | Corrigido como T010b — ver tabela acima |
 | Bug de corrida em `drizzle-trip.repository.ts` (edição interrompida por compactação de contexto) | Retomada da sessão, antes do T013 | `linkDocument` chamava função inexistente e lançava o erro semanticamente errado; corrigido antes de qualquer teste rodar |
 
+## Revisão final (opus) — dois bugs achados e corrigidos
+
+A revisão rodou depois de todas as tasks fecharem, contra a suíte inteira **verde**. Os dois bugs
+abaixo passavam por ela sem tocar em nada, e a razão é estrutural: os contratos do frontend deste
+repositório leem texto de fonte ou exercitam serviço puro, e **nenhum renderiza**. Bug de ciclo de
+render e botão oferecido no estado errado são, por construção, invisíveis aqui.
+
+| Achado | Severidade | Como se manifestava | Correção |
+| ------ | ---------- | -------------------- | -------- |
+| Laço infinito de render no diálogo de desvio de endereço | alta — trava a aba e martela a API | `loadHistory` chega como closure nova a cada render de `TripDetail` (o controlador de `useTripWorkspace` é reconstruído todo render, então **nada nele é referencialmente estável**); `refreshHistory` era `useCallback(..., [input.loadHistory])`; o `useEffect` de carregar o histórico dependia de `refreshHistory`. Com o diálogo aberto: efeito → `setState` → render → nova closure → efeito | referência (`useRef`) guarda a versão mais recente de `loadHistory` fora da identidade da função; `refreshHistory` volta a ser estável e o efeito só dispara quando `isOpen`/`documentId` mudam |
+| Portão de "Devolver" invertido | alta — a ação principal do fluxo de retorno era inalcançável | o domínio trata `return`/`deliver` como **trabalho de rua** (`checkTripAcceptsDocumentWork` exige `isTripDispatched`), e `separate`/`load` como trabalho de barracão (proibido a partir de `dispatched`, e também em `draft`). O frontend prendeu os três a um `isTripEditable` só — que é o **inverso** do portão de rua. Resultado: "Devolver" (por nota e em lote) aparecia só antes do despacho, exatamente quando dá `409 TRIP_NOT_DISPATCHED`, e sumia depois, exatamente quando funcionaria. Ainda era oferecido para nota `separated`, que `checkDocumentOrigin` recusa com `documentNotLoaded` | três portões distintos em `tripStatus.service.ts` (`isTripEditable`, `canSeparateOrLoadDocuments`, `canReturnDocuments`), cada um espelhando um ramo da política; devolver restrito a `loaded` |
+
+**O que impede a repetição:** `test/trip/state-gates.contract.ts` transcreve a tabela
+estado → portão de `checkTripAcceptsDocumentWork` e a compara com as três funções do frontend, mais
+uma invariante direta ("devolver e separar nunca abrem no mesmo estado"). Verificado que ele falha
+nos três pontos com o bug restaurado, e passa com a correção.
+
+### Risco latente, registrado e não corrigido
+
+`listReturnedWithActiveCte` (T010c) faz `innerJoin` em `cte_batch_items`, cuja unique é
+`(company_id, batch_id, nfe_document_id)` — **por lote, não global**. A mesma NF-e pode existir em
+dois lotes (lote cancelado e refeito), e se os dois tiverem `cte_fiscal_documents` autorizado ao
+mesmo tempo, a mesma nota sai duplicada na lista. Não corrigido de propósito: dois CT-e autorizados
+simultâneos para a mesma NF-e já são anomalia fiscal, e esta lista existe justamente para
+**expor** anomalia — a linha duplicada é informação, não ruído. Se a 059 consumir esta consulta
+para decidir algo automaticamente, aí a deduplicação passa a ser obrigatória.
+
 ## Medições de campo
 
 Uma coisa desta spec não se prova por teste automatizado, e fica aqui datada.
