@@ -12,6 +12,8 @@ export const API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH = '/company-settings/cnpj-inf
 export const API_COMPANY_SETTINGS_LOGO_PATH = '/company-settings/logo'
 export const API_COMPANY_SETTINGS_LANDING_PATH = '/company-settings/landing'
 export const API_PUBLIC_LANDING_SETTINGS_PATH = '/public/landing-settings'
+export const API_PUBLIC_AGGREGATE_APPLICATIONS_PATH = '/public/aggregate-applications'
+export const API_AGGREGATE_APPLICATIONS_PATH = '/aggregate-applications'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'

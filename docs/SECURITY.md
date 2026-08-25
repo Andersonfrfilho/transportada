@@ -5,6 +5,24 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-25 — `POST /public/aggregate-applications` é anônima e sem limitador dedicado
+
+**Onde:** `api-transportada`, módulo `fleet` (spec 053, T007).
+
+**O que é:** a rota aceita candidatura de agregado sem autenticação, e a resposta é `202`
+invariável de propósito — documento novo, reenvio ou documento já motorista respondem igual,
+para não existir sonda de "este documento já existe". Isso fecha o oráculo de enumeração, mas não
+substitui um limitador: sem teto, a rota é um canal de escrita (uma linha por chamada) acionável
+por qualquer um. O mesmo item já registrado para recuperação de senha e para a landing pública
+continua em aberto — falta o limitador de borda, mais duro aqui por escrever no banco a cada
+chamada em vez de só ler.
+
+**O que já limita o estrago:** o `CHECK` de documento (T005) recusa entrada fora do formato de
+CPF/CNPJ antes de gravar, e o unique parcial por `(company_id, tax_id) where status = 'pending'`
+faz reenvio update em vez de inserir linha nova — flood do mesmo documento não cresce a tabela.
+
+**Origem:** spec 053, T007.
+
 ### 2026-08-25 — `GET /public/landing-settings` é anônima e sem limitador dedicado
 
 **Onde:** `api-transportada`, módulo `landing` (spec 053, T004).

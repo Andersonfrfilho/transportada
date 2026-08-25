@@ -16,6 +16,7 @@ import { createReplaceDigitalCertificateUseCase } from './companies/application/
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
 import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
+import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
@@ -40,6 +41,7 @@ import { createScheduledDistributionRoutes } from './companies/presentation/sche
 import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
 import { createDrizzleCompanyGroupRepository } from './landing/infrastructure/drizzle-company-group.repository.js'
 import { createDrizzleLandingSettingsRepository } from './landing/infrastructure/drizzle-landing-settings.repository.js'
+import { createDrizzleAggregateApplicationRepository } from './fleet/infrastructure/drizzle-aggregate-application.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
@@ -50,6 +52,10 @@ import {
   createLandingPublicRoutes,
   createLandingSettingsRoutes,
 } from './landing/presentation/landing.routes.js'
+import {
+  createAggregateApplicationPublicRoutes,
+  createAggregateApplicationRoutes,
+} from './fleet/presentation/aggregate-application.routes.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -376,11 +382,21 @@ function createAnonymousRoutes({
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
     }),
   })
-  if (config.companyId === undefined) return [...nfseCallbackRoutes, ...landingPublicRoutes]
+  const aggregateApplicationPublicRoutes = createAggregateApplicationPublicRoutes({
+    aggregateApplications: createAggregateApplicationsUseCase({
+      companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+      landingCompanyId: config.companyId,
+      repository: createDrizzleAggregateApplicationRepository(database),
+    }),
+  })
+  if (config.companyId === undefined) {
+    return [...nfseCallbackRoutes, ...landingPublicRoutes, ...aggregateApplicationPublicRoutes]
+  }
 
   return [
     ...nfseCallbackRoutes,
     ...landingPublicRoutes,
+    ...aggregateApplicationPublicRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -462,6 +478,11 @@ function createApplicationRoutes({
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+  })
+  const aggregateApplications = createAggregateApplicationsUseCase({
+    companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+    landingCompanyId: undefined,
+    repository: createDrizzleAggregateApplicationRepository(database),
   })
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
@@ -784,6 +805,7 @@ function createApplicationRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
     ...createLandingSettingsRoutes({ landingSettings }),
+    ...createAggregateApplicationRoutes({ aggregateApplications }),
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },
