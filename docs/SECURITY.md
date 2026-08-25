@@ -264,7 +264,7 @@ rotas — e o gate de tentativas por pedido, que hoje só existe pela expiraçã
 
 ### 2026-08-25 — staging passa a conter os dados pessoais de produção
 
-**Onde:** `.github/workflows/staging-refresh.yml`, semanal.
+**Onde:** `deploy/staging-refresh/`, serviço Railway com `cronSchedule` semanal.
 
 **O que é:** staging aponta para o ambiente de homologação da SEFAZ, e homologação não devolve nota
 real — a distribuição roda e traz nada, deixando staging sem massa para testar. A decisão foi
@@ -278,7 +278,7 @@ assinatura, então mascarar só as colunas do banco deixaria a mesma PII intacta
 Sob a LGPD isso é tratamento com finalidade diferente da coleta, e o dado não é da transportadora:
 é dos clientes dos clientes dela.
 
-**O que já limita o estrago:** o banco de produção nunca é acessado — a origem é o backup cifrado
+**O que já limita o estrago:** a réplica roda **dentro do Railway**, como o ciclo de backup — o dump descriptografado e os XML não atravessam runner hospedado de terceiro, que era o desenho inicial e foi descartado por isso. O banco de produção nunca é acessado — a origem é o backup cifrado
 que o ciclo diário já produz, e o bucket é copiado com credencial de leitura. O Keycloak de
 produção **não** atravessa: staging mantém os próprios usuários e realm, então login de produção
 não passa a valer lá. A guarda do primeiro passo recusa qualquer alvo cujo host seja o de produção,
