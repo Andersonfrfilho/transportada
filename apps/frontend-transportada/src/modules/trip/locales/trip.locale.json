@@ -55,6 +55,23 @@
     "selectionClear": "Limpar seleção",
     "progressLabel": "Progresso da separação da viagem"
   },
+  "deliveryOverride": {
+    "menuAction": "Desviar entrega",
+    "title": "Desviar entrega",
+    "subtitle": "Endereço novo para a nota {{document}} — não é edição, é uma ação registrada.",
+    "postalCode": "CEP",
+    "number": "Número",
+    "cityCode": "Código do município (IBGE)",
+    "newLabel": "Endereço legível",
+    "requestedBy": "Quem pediu o desvio",
+    "requestedByHint": "Texto livre — o cliente que ligou, o vendedor, o destinatário. Quase nunca é usuário do sistema.",
+    "reason": "Motivo",
+    "submit": "Registrar desvio",
+    "historyTitle": "Histórico de desvios",
+    "historyEmpty": "Nenhum desvio registrado para esta nota",
+    "historyEntry": "De \"{{from}}\" para \"{{to}}\"",
+    "historyRequestedBy": "Pedido por {{name}}"
+  },
   "columns": {
     "vehicleId": "Veículo",
     "status": "Situação",

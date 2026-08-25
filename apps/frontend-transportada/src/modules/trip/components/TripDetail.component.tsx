@@ -20,7 +20,9 @@ import {
   navigateToMdfeManifests,
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
+import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { isTripEditable } from '../shared/tripStatus.service'
+import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripScanQueue } from './TripScanQueue.component'
@@ -93,6 +95,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
   const trip = workspace.trip
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
+  const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
   const selection = useTripDocumentSelection()
 
   if (workspace.status === 'forbidden') {
@@ -123,9 +126,11 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     onDeliver: (documentId: string) =>
       workspace.deliverDocumentMutation.mutate({ documentId, tripId: trip.id }),
+    onOverrideAddress: (documentId: string) => setOverrideDocumentId(documentId),
     onRelease: (documentId: string) =>
       workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
   }
+  const overrideDocument = trip.documents.find((document) => document.id === overrideDocumentId)
   const feedbackKey = resolveFirstTripFeedbackKey([
     workspace.linkDocumentMutation.error,
     workspace.deliverDocumentMutation.error,
@@ -328,6 +333,21 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         onClose={() => setIsMdfeGateOpen(false)}
         onGoToCteEmission={handleGoToCteEmission}
         pendingDocuments={pendingCteDocuments}
+      />
+
+      <DeliveryAddressOverrideDialog
+        documentId={overrideDocumentId ?? ''}
+        documentLabel={overrideDocument === undefined ? '' : tripDocumentLabel(overrideDocument)}
+        isOpen={overrideDocumentId !== null}
+        loadHistory={() =>
+          workspace.controller.listDeliveryAddressHistory({
+            documentId: overrideDocumentId ?? '',
+            tripId: trip.id,
+          })
+        }
+        onClose={() => setOverrideDocumentId(null)}
+        onOverride={(body) => workspace.overrideDeliveryAddressMutation.mutateAsync(body)}
+        tripId={trip.id}
       />
     </section>
   )

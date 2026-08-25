@@ -15,8 +15,11 @@ import {
 } from '../shared/trip.constant'
 import type {
   CreateTripBody,
+  DeliveryAddressHistoryInput,
+  DeliveryAddressOverride,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  OverrideDeliveryAddressInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ScannedNfeDocument,
@@ -37,6 +40,10 @@ export type TripController = Readonly<{
   ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
+  listDeliveryAddressHistory: (
+    input: DeliveryAddressHistoryInput,
+  ) => Promise<readonly DeliveryAddressOverride[]>
+  overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
 }>
@@ -63,6 +70,10 @@ export function createTripController(
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
+    listDeliveryAddressHistory: (query) =>
+      canReadTrips ? input.client.listDeliveryAddressHistory(query) : forbidden(),
+    overrideDeliveryAddress: (body) =>
+      canManageTrips ? input.client.overrideDeliveryAddress(body) : forbidden(),
     releaseTripDocument: (body) =>
       canManageTrips ? input.client.releaseTripDocument(body) : forbidden(),
     reorderTripStops: (body) =>
@@ -140,6 +151,10 @@ export function useTripWorkspace(
     mutationFn: controller.reorderTripStops,
     onSuccess: invalidate,
   })
+  const overrideDeliveryAddressMutation = useMutation({
+    mutationFn: controller.overrideDeliveryAddress,
+    onSuccess: invalidate,
+  })
 
   return {
     closeMutation,
@@ -147,6 +162,7 @@ export function useTripWorkspace(
     createMutation,
     deliverDocumentMutation,
     linkDocumentMutation,
+    overrideDeliveryAddressMutation,
     releaseDocumentMutation,
     reorderStopsMutation,
     status: resolveQueryStatus({

@@ -80,6 +80,38 @@ export type TripDetail = Trip &
     stops: readonly TripStopDetail[]
   }>
 
+export type StopAddressComponents = Readonly<{
+  cityCode: null | string
+  number: null | string
+  postalCode: null | string
+}>
+
+/** ADR-0043 §3 (D9): `requestedBy` (quem pediu) e `actorUserId` (quem executou) são identidades
+ * distintas de propósito — a primeira quase nunca é usuária do sistema. */
+export type DeliveryAddressOverride = Readonly<{
+  actorUserId: string
+  createdAt: string
+  id: string
+  newAddress: StopAddressComponents
+  newLabel: string
+  previousAddress: StopAddressComponents
+  previousLabel: string
+  reason: string
+  requestedBy: string
+  tripDocumentId: string
+}>
+
+export type OverrideDeliveryAddressInput = Readonly<{
+  documentId: string
+  newAddress: StopAddressComponents
+  newLabel: string
+  reason: string
+  requestedBy: string
+  tripId: string
+}>
+
+export type DeliveryAddressHistoryInput = Readonly<{ documentId: string; tripId: string }>
+
 /** Sem `sortBy`/`sortDirection`: nenhuma rota real do backend implementa ordenação por servidor
  * (ver comentário de `TripFilters` em `trip.port.ts`) — ADR-0024 documenta a consequência no
  * frontend. */

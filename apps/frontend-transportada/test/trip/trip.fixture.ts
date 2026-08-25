@@ -130,6 +130,38 @@ export const TRIP_PAGE = {
   nextCursor: SYNTHETIC_CURSOR,
 } as const
 
+export type StopAddressComponentsContract = Readonly<{
+  cityCode: null | string
+  number: null | string
+  postalCode: null | string
+}>
+
+export type DeliveryAddressOverrideContract = Readonly<{
+  actorUserId: string
+  createdAt: string
+  id: string
+  newAddress: StopAddressComponentsContract
+  newLabel: string
+  previousAddress: StopAddressComponentsContract
+  previousLabel: string
+  reason: string
+  requestedBy: string
+  tripDocumentId: string
+}>
+
+export const DELIVERY_ADDRESS_OVERRIDE = {
+  actorUserId: '00000000-0000-4000-8000-000000000913',
+  createdAt: '2026-07-28T13:00:00.000Z',
+  id: '00000000-0000-4000-8000-000000000d01',
+  newAddress: { cityCode: '3505500', number: '44', postalCode: '14400000' },
+  newLabel: 'Barrinha/SP',
+  previousAddress: { cityCode: '3543402', number: '100', postalCode: '14010100' },
+  previousLabel: 'Ribeirao Preto/SP',
+  reason: 'Redespacho a pedido do cliente',
+  requestedBy: 'Cliente por telefone',
+  tripDocumentId: DOCUMENT_ID,
+} as const satisfies DeliveryAddressOverrideContract
+
 export const CREATE_TRIP_BODY = {
   driverIds: [DRIVER_ID],
   vehicleId: VEHICLE_ID,

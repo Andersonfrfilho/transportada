@@ -2,8 +2,11 @@
 import { NFE_DOCUMENTS_PATH, SCAN_LOOKUP_LIMIT, TRIP_ERROR, TRIPS_PATH } from './trip.constant'
 import type {
   CreateTripBody,
+  DeliveryAddressHistoryInput,
+  DeliveryAddressOverride,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  OverrideDeliveryAddressInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ScannedNfeDocument,
@@ -31,7 +34,11 @@ export type TripClient = Readonly<{
   ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
+  listDeliveryAddressHistory: (
+    input: DeliveryAddressHistoryInput,
+  ) => Promise<readonly DeliveryAddressOverride[]>
   listTrips: (input: TripListInput) => Promise<TripPage>
+  overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
 }>
@@ -192,6 +199,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}?${search}`,
       })
       return adapters.tripListFromApi(response)
+    },
+    async listDeliveryAddressHistory(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${documentPath(input)}/delivery-address-history`,
+      })
+      return adapters.deliveryAddressHistoryFromApi(response)
+    },
+    async overrideDeliveryAddress(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          newAddress: input.newAddress,
+          newLabel: input.newLabel,
+          reason: input.reason,
+          requestedBy: input.requestedBy,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/delivery-address`,
+      })
+      return adapters.deliveryAddressOverrideFromApi(readEnvelopeData(response))
     },
     async releaseTripDocument(input) {
       const response = await authorizedRequest({

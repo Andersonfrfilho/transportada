@@ -55,6 +55,23 @@
     "selectionClear": "Clear selection",
     "progressLabel": "Trip separation progress"
   },
+  "deliveryOverride": {
+    "menuAction": "Redirect delivery",
+    "title": "Redirect delivery",
+    "subtitle": "New address for document {{document}} — not an edit, a recorded action.",
+    "postalCode": "Postal code",
+    "number": "Number",
+    "cityCode": "City code (IBGE)",
+    "newLabel": "Readable address",
+    "requestedBy": "Who requested the detour",
+    "requestedByHint": "Free text — the customer who called, the salesperson, the recipient. Almost never a system user.",
+    "reason": "Reason",
+    "submit": "Record detour",
+    "historyTitle": "Detour history",
+    "historyEmpty": "No detour recorded for this document",
+    "historyEntry": "From \"{{from}}\" to \"{{to}}\"",
+    "historyRequestedBy": "Requested by {{name}}"
+  },
   "columns": {
     "vehicleId": "Vehicle",
     "status": "Status",

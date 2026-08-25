@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  DELIVERY_ADDRESS_OVERRIDE_KEYS,
+  STOP_ADDRESS_COMPONENTS_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_KEYS,
@@ -14,8 +16,10 @@ import {
   TRIP_STATUS,
 } from './trip.types'
 import type {
+  DeliveryAddressOverride,
   ReorderTripStopsResult,
   ScannedNfeDocument,
+  StopAddressComponents,
   Trip,
   TripDetail,
   TripDocument,
@@ -119,6 +123,31 @@ function isDetail(value: unknown): value is TripDetail {
   )
 }
 
+function isStopAddressComponents(value: unknown): value is StopAddressComponents {
+  if (!hasExactKeys(value, STOP_ADDRESS_COMPONENTS_KEYS)) return false
+  return (
+    isNullableString(value.cityCode) &&
+    isNullableString(value.number) &&
+    isNullableString(value.postalCode)
+  )
+}
+
+function isDeliveryAddressOverride(value: unknown): value is DeliveryAddressOverride {
+  if (!hasExactKeys(value, DELIVERY_ADDRESS_OVERRIDE_KEYS)) return false
+  return (
+    isString(value.actorUserId) &&
+    isString(value.createdAt) &&
+    isString(value.id) &&
+    isStopAddressComponents(value.newAddress) &&
+    isString(value.newLabel) &&
+    isStopAddressComponents(value.previousAddress) &&
+    isString(value.previousLabel) &&
+    isString(value.reason) &&
+    isString(value.requestedBy) &&
+    isString(value.tripDocumentId)
+  )
+}
+
 /**
  * Guarda parcial de propósito: a linha vem da rota de outro módulo, e exigir chave exata faria a
  * tela do separador parar toda vez que a listagem de notas ganhasse uma coluna.
@@ -171,6 +200,14 @@ export function createTripResponseAdapters() {
         status: row.status,
         totalAmount: row.totalAmount,
       }
+    },
+    deliveryAddressHistoryFromApi(input: unknown): readonly DeliveryAddressOverride[] {
+      if (!isRecord(input) || !isEveryItem(input.data, isDeliveryAddressOverride)) throw invalid()
+      return input.data
+    },
+    deliveryAddressOverrideFromApi(input: unknown): DeliveryAddressOverride {
+      if (!isDeliveryAddressOverride(input)) throw invalid()
+      return input
     },
     reorderTripStopsResultFromApi(input: unknown): ReorderTripStopsResult {
       if (!isRecord(input) || !isOneOf(input.tripStatus, TRIP_STATUS)) throw invalid()

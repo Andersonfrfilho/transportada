@@ -642,7 +642,7 @@ maço de seleção e barra de progresso por fase. Mutações por `docs/frontend/
   exige como aceite — precisaria da stack local completa (Keycloak, API, viagem com paradas
   semeada) para navegar até a tela real. Recomendado antes de considerar o T015 fechado.
 
-### T015b — O menu de desvio de entrega (D9)
+### T015b ⏳ — O menu de desvio de entrega (D9)
 
 Ação em menu explícito, nunca edição em linha: diálogo com endereço novo, motivo e **quem
 solicitou**, mais o histórico visível na nota. O campo de solicitante é texto livre porque essa
@@ -652,6 +652,34 @@ pessoa quase nunca é usuária do sistema.
   `src/modules/trip/mutations/overrideDeliveryAddress.mutation.ts` (novo), `trip.locale.json`
 - **Aceite:** revisão humana
 - **Verificação:** `bun run --cwd apps/frontend-transportada build`
+
+**Evidência (implementação; revisão humana pendente):**
+
+- Dependia do T010b (backend), que não existia — implementado nesta sessão antes deste T015b.
+- **Desvio do arquivo sugerido:** nenhum outro caminho do frontend usa uma pasta `mutations/` — toda
+  mutação de viagem vive em `useTripWorkspace.hook.ts`, ao lado de `closeMutation`,
+  `reorderStopsMutation` etc. Segui o padrão real do módulo em vez do nome de arquivo listado
+  (que não corresponde a nenhuma convenção existente), para não introduzir uma estrutura só para
+  esta mutação.
+- Tipos/validação/cliente migrados: `trip.types.ts` (`DeliveryAddressOverride`,
+  `StopAddressComponents`), `trip.constant.ts`, `tripResponse.validation.ts`,
+  `tripClient.service.ts` (`overrideDeliveryAddress`, `listDeliveryAddressHistory`).
+- `DeliveryAddressOverrideDialog.component.tsx` (novo): mesmo padrão de diálogo de
+  `TripMdfePendingDialog` (`createPortal` + `useModalDialog`) — formulário com CEP/número/código do
+  município/rótulo do endereço novo, campo de solicitante (com dica de que quase nunca é usuário do
+  sistema) e motivo, mais o histórico de desvios já registrados, carregado ao abrir.
+  `useDeliveryAddressOverrideDialog.hook.ts` isola o estado do formulário e a chamada da mutação,
+  seguindo `useTripDocumentLinkForm.hook.ts`; `refreshHistory`/`reset` usam `useCallback` para o
+  `useEffect` de carregar o histórico na abertura satisfazer `exhaustive-deps` de verdade, sem
+  `eslint-disable` (proibido por `react.md`).
+- Botão "Desviar entrega" acrescentado à linha de cada nota em `TripStopList.component.tsx`
+  (`TripStopDocumentActions.onOverrideAddress`), ao lado de entregar/desvincular — só quando a
+  viagem está editável (`isTripEditable`, mesmo gate do T015).
+- `tsc --noEmit`, `eslint src test --max-warnings=0` limpos; suíte completa (`bun run test`):
+  1910 pass / 0 fail; `bun run build` (`vite build`) concluído com sucesso.
+- **Não verificado nesta sessão:** a conferência visual humana, mesma pendência já registrada no
+  T015 — precisa da stack local completa (Keycloak, API, viagem com nota real) para abrir o diálogo
+  de verdade.
 
 ### T016 — As ações de estado
 

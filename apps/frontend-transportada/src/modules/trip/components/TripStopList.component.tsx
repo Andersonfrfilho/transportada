@@ -20,6 +20,7 @@ export type TripStopDocumentActions = Readonly<{
   isDeliverPending: boolean
   isReleasePending: boolean
   onDeliver: (documentId: string) => void
+  onOverrideAddress: (documentId: string) => void
   onRelease: (documentId: string) => void
 }>
 
@@ -186,6 +187,17 @@ function TripStopDocumentRow({
           >
             <Icon name="remove" />
             {t('actions.release')}
+          </Button>
+        ) : null}
+        {actions.canManage && actions.isEditable ? (
+          <Button
+            onClick={() => actions.onOverrideAddress(document.id)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="edit" />
+            {t('deliveryOverride.menuAction')}
           </Button>
         ) : null}
       </div>

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   CREATE_TRIP_BODY,
+  DELIVERY_ADDRESS_OVERRIDE,
   DOCUMENT_ID,
   FLEET_MANAGE,
   FLEET_READ,
@@ -101,6 +102,46 @@ describe('trip client contract', () => {
 
     expect(closeRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/close`)
     expect(closeRequest.method).toBe('POST')
+  })
+
+  test('overrides a delivery address and lists its history', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(
+      await client.overrideDeliveryAddress({
+        documentId: DOCUMENT_ID,
+        newAddress: DELIVERY_ADDRESS_OVERRIDE.newAddress,
+        newLabel: DELIVERY_ADDRESS_OVERRIDE.newLabel,
+        reason: DELIVERY_ADDRESS_OVERRIDE.reason,
+        requestedBy: DELIVERY_ADDRESS_OVERRIDE.requestedBy,
+        tripId: TRIP_ID,
+      }),
+    ).toEqual(DELIVERY_ADDRESS_OVERRIDE)
+    expect(await client.listDeliveryAddressHistory({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual([
+      DELIVERY_ADDRESS_OVERRIDE,
+    ])
+
+    const [overrideRequest, historyRequest] = requests
+    if (overrideRequest === undefined || historyRequest === undefined) {
+      throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(overrideRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address`,
+    )
+    expect(overrideRequest.method).toBe('POST')
+    expect(await overrideRequest.json()).toEqual({
+      newAddress: DELIVERY_ADDRESS_OVERRIDE.newAddress,
+      newLabel: DELIVERY_ADDRESS_OVERRIDE.newLabel,
+      reason: DELIVERY_ADDRESS_OVERRIDE.reason,
+      requestedBy: DELIVERY_ADDRESS_OVERRIDE.requestedBy,
+    })
+
+    expect(historyRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address-history`,
+    )
+    expect(historyRequest.method).toBe('GET')
   })
 
   test('surfaces the api error code instead of a generic failure', async () => {
@@ -247,6 +288,14 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}`) {
     return Promise.resolve(Response.json({ data: TRIP_DETAIL }))
   }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address`) {
+    return Promise.resolve(Response.json({ data: DELIVERY_ADDRESS_OVERRIDE }, { status: 201 }))
+  }
+  if (
+    request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address-history`
+  ) {
+    return Promise.resolve(Response.json({ data: [DELIVERY_ADDRESS_OVERRIDE] }))
+  }
 
   throw new Error(`Unexpected request in contract: ${request.url}`)
 }
@@ -268,10 +317,12 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
     deliverTripDocument: recordDocumentMutation,
     getTrip: () => Promise.resolve(TRIP_DETAIL),
     linkTripDocument: recordDocumentMutation,
+    listDeliveryAddressHistory: () => Promise.resolve([DELIVERY_ADDRESS_OVERRIDE]),
     listTrips: () => Promise.resolve(TRIP_PAGE),
     get mutationCount(): number {
       return mutationCount
     },
+    overrideDeliveryAddress: recordDetailMutation,
     releaseTripDocument: recordDocumentMutation,
   }
 }
@@ -289,13 +340,24 @@ type LinkDocumentInput = Readonly<{
   tripId: string
 }>
 
+type OverrideDeliveryAddressInput = Readonly<{
+  documentId: string
+  newAddress: { cityCode: null | string; number: null | string; postalCode: null | string }
+  newLabel: string
+  reason: string
+  requestedBy: string
+  tripId: string
+}>
+
 type TripClient = {
   closeTrip(input: TripIdInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
   deliverTripDocument(input: DocumentActionInput): Promise<unknown>
   getTrip(input: TripIdInput): Promise<unknown>
   linkTripDocument(input: LinkDocumentInput): Promise<unknown>
+  listDeliveryAddressHistory(input: DocumentActionInput): Promise<unknown>
   listTrips(input: ListInput): Promise<unknown>
+  overrideDeliveryAddress(input: OverrideDeliveryAddressInput): Promise<unknown>
   releaseTripDocument(input: DocumentActionInput): Promise<unknown>
 }
 

@@ -92,3 +92,18 @@ export const TRIP_STOP_KEYS = [
 ] as const
 
 export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
+
+export const STOP_ADDRESS_COMPONENTS_KEYS = ['cityCode', 'number', 'postalCode'] as const
+
+export const DELIVERY_ADDRESS_OVERRIDE_KEYS = [
+  'actorUserId',
+  'createdAt',
+  'id',
+  'newAddress',
+  'newLabel',
+  'previousAddress',
+  'previousLabel',
+  'reason',
+  'requestedBy',
+  'tripDocumentId',
+] as const
