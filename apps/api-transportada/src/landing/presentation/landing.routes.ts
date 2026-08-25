@@ -113,6 +113,9 @@ function serializePublic(settings: PublicLandingSettings): object {
     sections: settings.sections,
     units: settings.units.map((unit) => ({
       city: unit.city,
+      // Não é sensível — é o alvo que POST /public/aggregate-applications exige quando o grupo
+      // tem mais de uma unidade (T011); esconder companyId deixaria o select sem valor para enviar.
+      companyId: unit.companyId,
       complement: unit.complement,
       district: unit.district,
       number: unit.number,

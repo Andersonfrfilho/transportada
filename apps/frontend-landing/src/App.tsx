@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ReactNode } from 'react'
 
+import { PreRegistrationForm } from '@/modules/application/components/PreRegistrationForm.component'
 import {
   CtaSection,
   HeroSection,
@@ -26,7 +27,9 @@ export function App(): ReactNode {
       <RequirementsSection settings={settings} />
       <WhereWeAreSection settings={settings} />
       <CtaSection settings={settings} onCallToAction={scrollToApplicationForm} />
-      <div id={APPLICATION_FORM_ID} />
+      <div id={APPLICATION_FORM_ID}>
+        <PreRegistrationForm settings={settings} />
+      </div>
     </main>
   )
 }

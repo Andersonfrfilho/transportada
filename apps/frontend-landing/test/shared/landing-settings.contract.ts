@@ -57,7 +57,7 @@ describe('landing settings', () => {
               accentColor: '#123abc',
               brandName: 'Transportadora Exemplo',
               sections: { hero: { title: 'Bem-vindo' } },
-              units: [{ city: 'São Paulo', tradeName: 'Sede' }],
+              units: [{ city: 'São Paulo', companyId: 'company-1', tradeName: 'Sede' }],
             },
           }),
           { headers: { 'content-type': 'application/json' }, status: 200 },
@@ -72,6 +72,7 @@ describe('landing settings', () => {
       expect(settings.units).toEqual([
         {
           city: 'São Paulo',
+          companyId: 'company-1',
           complement: '',
           district: '',
           number: '',

@@ -5,6 +5,7 @@ const PUBLIC_LANDING_SETTINGS_PATH = '/public/landing-settings'
 
 export type LandingGroupUnit = Readonly<{
   city: string
+  companyId: string
   complement: string
   district: string
   number: string
@@ -44,6 +45,7 @@ function sanitizeUnit(value: unknown): LandingGroupUnit | undefined {
 
   return {
     city: text('city'),
+    companyId: text('companyId'),
     complement: text('complement'),
     district: text('district'),
     number: text('number'),

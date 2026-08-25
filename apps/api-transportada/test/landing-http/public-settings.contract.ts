@@ -45,6 +45,7 @@ describe(`GET ${LANDING_PUBLIC_PATH} HTTP contract`, () => {
         units: [
           {
             city: 'São Paulo',
+            companyId: COMPANY_ID,
             complement: '',
             district: 'Centro',
             number: '100',
