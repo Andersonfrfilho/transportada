@@ -101,6 +101,7 @@ import {
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { landingSettings } from './landing.schema.js'
+import { aggregateApplications } from './aggregate-application.schema.js'
 import {
   tripDispatchSnapshots,
   tripDocumentEvents,
@@ -138,8 +139,10 @@ export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
 export * from './landing.schema.js'
+export * from './aggregate-application.schema.js'
 
 export const databaseSchema = {
+  aggregateApplications,
   auditLogs,
   companies,
   companyDistributionSettings,
