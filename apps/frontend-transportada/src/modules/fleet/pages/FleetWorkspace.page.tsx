@@ -7,6 +7,7 @@ import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/co
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { AggregateApplicationsTab } from '../components/AggregateApplicationsTab.component'
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
@@ -15,6 +16,7 @@ import { FuelPricePanel } from '../components/FuelPricePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
+import { useAggregateApplications } from '../hooks/useAggregateApplications.hook'
 import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useEnergySettings } from '../hooks/useEnergySettings.hook'
@@ -46,9 +48,15 @@ type FleetEditor =
 
 type FleetWorkspace = ReturnType<typeof useFleet>
 
-type FleetTabId = 'drivers' | 'fuel' | 'regions' | 'vehicles'
+type FleetTabId = 'applications' | 'drivers' | 'fuel' | 'regions' | 'vehicles'
 
-const FLEET_TAB_IDS: readonly FleetTabId[] = ['vehicles', 'drivers', 'fuel', 'regions']
+const FLEET_TAB_IDS: readonly FleetTabId[] = [
+  'vehicles',
+  'drivers',
+  'applications',
+  'fuel',
+  'regions',
+]
 
 function resolveFleetTab(id: string): FleetTabId {
   return FLEET_TAB_IDS.find((tab) => tab === id) ?? 'vehicles'
@@ -152,6 +160,10 @@ export function FleetWorkspacePage() {
       ? { driverId: editor.driver.id }
       : {}),
     permissions,
+  })
+  const aggregateApplications = useAggregateApplications({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: workspace.viewModel.canManageFleet && activeTab === 'applications',
   })
   const driverVehicles = useDriverVehicles({
     ...(companyId === undefined ? {} : { companyId }),
@@ -291,6 +303,28 @@ export function FleetWorkspacePage() {
         />
       ),
     },
+    ...(canManageFleet
+      ? [
+          {
+            id: 'applications',
+            label: t('tabs.applications'),
+            panel: (
+              <AggregateApplicationsTab
+                applications={aggregateApplications.query.data ?? []}
+                isApproving={aggregateApplications.approveMutation.isPending}
+                isRejecting={aggregateApplications.rejectMutation.isPending}
+                loading={aggregateApplications.query.isLoading}
+                onApprove={(id) => aggregateApplications.approveMutation.mutate(id)}
+                onReject={(input) => aggregateApplications.rejectMutation.mutate(input)}
+                onViewDriver={(name) => {
+                  setDriverFilters({ nameContains: name })
+                  selectTab('drivers')
+                }}
+              />
+            ),
+          } satisfies TabsItem,
+        ]
+      : []),
     ...(canManageSettings ? [fuelTab] : []),
     regionsTab,
   ]

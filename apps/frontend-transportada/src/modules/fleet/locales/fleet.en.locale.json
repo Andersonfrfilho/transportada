@@ -16,8 +16,34 @@
   "tabs": {
     "vehicles": "Vehicles",
     "drivers": "Drivers",
+    "applications": "Applications",
     "fuel": "Fuel",
     "regions": "Regions"
+  },
+  "applications": {
+    "loading": "Loading applications",
+    "empty": "No pending applications",
+    "columns": {
+      "name": "Name",
+      "taxId": "Document",
+      "contact": "Contact",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "duplicateBadge": "Already registered",
+    "resubmittedBadge": "Resent",
+    "approveButton": "Approve",
+    "linkButton": "Link",
+    "rejectButton": "Reject",
+    "viewDriverButton": "View record",
+    "rejectionReasonLabel": "Rejection reason",
+    "confirmRejectButton": "Confirm rejection",
+    "cancelButton": "Cancel"
   },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",

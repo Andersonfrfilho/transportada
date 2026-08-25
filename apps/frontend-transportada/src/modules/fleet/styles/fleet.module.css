@@ -1161,3 +1161,37 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+.applicationBadge {
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.applicationBadge[data-variant='warning'] {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
+.applicationBadge[data-variant='info'] {
+  border-color: color-mix(in srgb, var(--color-slate) 65%, transparent);
+  color: var(--color-slate);
+}
+
+.rejectDialog {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.rejectDialog textarea {
+  width: 100%;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+}

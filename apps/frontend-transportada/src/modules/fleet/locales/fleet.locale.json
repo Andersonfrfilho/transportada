@@ -16,8 +16,34 @@
   "tabs": {
     "vehicles": "Veículos",
     "drivers": "Motoristas",
+    "applications": "Candidaturas",
     "fuel": "Combustível",
     "regions": "Regiões"
+  },
+  "applications": {
+    "loading": "Carregando candidaturas",
+    "empty": "Nenhuma candidatura pendente",
+    "columns": {
+      "name": "Nome",
+      "taxId": "Documento",
+      "contact": "Contato",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "status": {
+      "pending": "Pendente",
+      "approved": "Aprovada",
+      "rejected": "Recusada"
+    },
+    "duplicateBadge": "Já cadastrado",
+    "resubmittedBadge": "Reenviado",
+    "approveButton": "Aprovar",
+    "linkButton": "Vincular",
+    "rejectButton": "Recusar",
+    "viewDriverButton": "Ver ficha",
+    "rejectionReasonLabel": "Motivo da recusa",
+    "confirmRejectButton": "Confirmar recusa",
+    "cancelButton": "Cancelar"
   },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
