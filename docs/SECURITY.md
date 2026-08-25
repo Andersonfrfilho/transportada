@@ -262,6 +262,36 @@ rotas — e o gate de tentativas por pedido, que hoje só existe pela expiraçã
 
 **Origem:** spec 033, T006. A task pedia "registrar no limitador"; não havia onde.
 
+### 2026-08-25 — staging passa a conter os dados pessoais de produção
+
+**Onde:** `.github/workflows/staging-refresh.yml`, semanal.
+
+**O que é:** staging aponta para o ambiente de homologação da SEFAZ, e homologação não devolve nota
+real — a distribuição roda e traz nada, deixando staging sem massa para testar. A decisão foi
+espelhar a base de produção inteira em staging uma vez por semana, **sem anonimização**, porque o
+objetivo declarado é replicar o ambiente.
+
+A consequência é que staging passa a guardar os mesmos dados pessoais de terceiros que produção:
+CPF/CNPJ, nome, endereço e telefone de destinatário em `nfe_participants`/`nfe_addresses`, mais os
+XML assinados no bucket fiscal. **O XML não tem como ser mascarado** — qualquer alteração quebra a
+assinatura, então mascarar só as colunas do banco deixaria a mesma PII intacta dentro do arquivo.
+Sob a LGPD isso é tratamento com finalidade diferente da coleta, e o dado não é da transportadora:
+é dos clientes dos clientes dela.
+
+**O que já limita o estrago:** o banco de produção nunca é acessado — a origem é o backup cifrado
+que o ciclo diário já produz, e o bucket é copiado com credencial de leitura. O Keycloak de
+produção **não** atravessa: staging mantém os próprios usuários e realm, então login de produção
+não passa a valer lá. A guarda do primeiro passo recusa qualquer alvo cujo host seja o de produção,
+antes de baixar qualquer coisa.
+
+**O que falta:** tratar staging com o mesmo controle de acesso de produção, que é o preço da
+decisão — quem entra em staging passa a ver PII real. Concretamente: revisar quem tem credencial do
+banco e do bucket de staging, e definir retenção (hoje o refresh sobrescreve, mas nada expira).
+Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do time.
+
+**Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
+conscientemente.
+
 ## Fechados
 
 _Nenhum ainda._
