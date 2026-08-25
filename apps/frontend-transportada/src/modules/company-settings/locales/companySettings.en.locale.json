@@ -3,7 +3,27 @@
   "title": "Fiscal settings",
   "tabs": {
     "company": "Company",
+    "site": "Site",
     "certificates": "Certificates"
+  },
+  "landing": {
+    "title": "Site settings",
+    "kicker": "Landing page",
+    "brandNameLabel": "Brand name",
+    "contactEmailLabel": "Contact email",
+    "contactPhoneLabel": "Contact phone",
+    "accentColorLabel": "Accent color",
+    "heroSubtitleLabel": "Hero subtitle",
+    "offerTitleLabel": "Offer title",
+    "requirementsTitleLabel": "Requirements title",
+    "ctaTitleLabel": "Call to action title",
+    "ctaSubtitleLabel": "Call to action subtitle",
+    "previewLink": "View the landing page",
+    "saveButton": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveError": "Could not save",
+    "invalidAccentColor": "Invalid color — use the #rrggbb format"
   },
   "readinessTitle": "Fiscal readiness route",
   "profileStep": "01 Profile",

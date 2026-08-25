@@ -3,7 +3,27 @@
   "title": "Configurações fiscais",
   "tabs": {
     "company": "Empresa",
+    "site": "Site",
     "certificates": "Certificados"
+  },
+  "landing": {
+    "title": "Configuração do site",
+    "kicker": "Landing",
+    "brandNameLabel": "Nome da marca",
+    "contactEmailLabel": "E-mail de contato",
+    "contactPhoneLabel": "Telefone de contato",
+    "accentColorLabel": "Cor de destaque",
+    "heroSubtitleLabel": "Subtítulo do herói",
+    "offerTitleLabel": "Título da oferta",
+    "requirementsTitleLabel": "Título dos requisitos",
+    "ctaTitleLabel": "Título da chamada",
+    "ctaSubtitleLabel": "Subtítulo da chamada",
+    "previewLink": "Ver a landing",
+    "saveButton": "Salvar",
+    "saving": "Salvando…",
+    "saved": "Salvo",
+    "saveError": "Não foi possível salvar",
+    "invalidAccentColor": "Cor inválida — use o formato #rrggbb"
   },
   "readinessTitle": "Rota de prontidão fiscal",
   "profileStep": "01 Perfil",
