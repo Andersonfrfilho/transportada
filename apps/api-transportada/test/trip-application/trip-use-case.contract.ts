@@ -275,7 +275,7 @@ describe('trip use case contract', () => {
     expect(fixture.closeCalls).toEqual([])
   })
 
-  test('refuses to link, deliver or release documents on a closed trip', async () => {
+  test('refuses to link, deliver or release documents on a completed trip', async () => {
     const fixture = createFixture({ stored: openTrip({ status: 'completed' }) })
     const useCase = createTripUseCase({ repository: fixture.repository })
 
@@ -294,10 +294,33 @@ describe('trip use case contract', () => {
       .releaseDocument({ context: CONTEXT, documentId: DOCUMENT_ID, tripId: TRIP_ID })
       .catch((caught: unknown) => caught)
 
-    expect((linkError as ApiError).code).toBe('TRIP_CLOSED')
-    expect((deliverError as ApiError).code).toBe('TRIP_CLOSED')
-    expect((releaseError as ApiError).code).toBe('TRIP_CLOSED')
+    expect((linkError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
+    expect((linkError as ApiError).status).toBe(409)
+    expect((deliverError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
+    expect((releaseError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
   })
+
+  // ADR-0043 §2, T013: vincular e desvincular selam a partir de `dispatched`, não só em
+  // `completed`/`cancelled` — a mesma porta de não-retorno de separar/carregar.
+  test.each(['dispatched', 'in_transit', 'cancelled'] as const)(
+    'refuses to link documents once the trip is %s',
+    async (status) => {
+      const fixture = createFixture({ stored: openTrip({ status }) })
+      const useCase = createTripUseCase({ repository: fixture.repository })
+
+      const linkError = await useCase
+        .linkDocument({
+          context: CONTEXT,
+          freightCalculationId: null,
+          nfeDocumentId: NFE_DOCUMENT_ID,
+          tripId: TRIP_ID,
+        })
+        .catch((caught: unknown) => caught)
+
+      expect((linkError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
+      expect((linkError as ApiError).status).toBe(409)
+    },
+  )
 
   test('throws not-found errors when the trip does not exist in this company', async () => {
     const fixture = createFixture({ stored: null })

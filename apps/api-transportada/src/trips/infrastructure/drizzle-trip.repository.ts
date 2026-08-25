@@ -23,8 +23,14 @@ import type {
   TripPage,
   TripRepositoryPort,
 } from '../application/trip.port.js'
-import { TripDocumentAlreadyLinkedError, TripDocumentNotFoundError } from '../domain/trip.error.js'
+import {
+  TripDocumentAlreadyLinkedError,
+  TripDocumentNotFoundError,
+  TripNotFoundError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
+import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import { mapTrip, mapTripDocument, mapTripDocumentDetail, mapTripDriver } from './trip.mapper.js'
 import {
   buildTripDocumentListFilters,
@@ -145,23 +151,36 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly nfeDocumentId: string | null
     readonly tripId: string
   }): Promise<TripDocument> {
-    // LIMITAÇÃO CONHECIDA: o insert não tem `WHERE` onde pendurar a condição de viagem aberta como
-    // `deliverDocument`/`releaseDocument` têm, então segue a janela entre o `assertTripOpen` do caso
-    // de uso e esta escrita — fechá-la exigiria transação com lock da viagem em outra tabela.
-    const record = await runGuarded(async () => {
-      const [created] = await this.database
-        .insert(tripDocuments)
-        .values({
-          companyId: input.companyId,
-          freightCalculationId: input.freightCalculationId,
-          nfeDocumentId: input.nfeDocumentId,
-          tripId: input.tripId,
-        })
-        .returning()
-      return created
+    // T013 fechou a janela que ficava entre o `assertTripOpen` do caso de uso e este insert: um
+    // `SELECT ... FOR UPDATE` trava a linha da viagem por toda a transação, então um despacho
+    // concorrente ou espera este lock (e o vínculo acontece antes) ou o insert espera o despacho
+    // (e falha contra o estado já sealed) — nunca os dois escrevem sobre a mesma corrida.
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) throw new TripNotFoundError()
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      const record = await runGuarded(async () => {
+        const [created] = await transaction
+          .insert(tripDocuments)
+          .values({
+            companyId: input.companyId,
+            freightCalculationId: input.freightCalculationId,
+            nfeDocumentId: input.nfeDocumentId,
+            tripId: input.tripId,
+          })
+          .returning()
+        return created
+      })
+      if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
+      return mapTripDocument(record)
     })
-    if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
-    return mapTripDocument(record)
   }
 
   public async listDrivers(input: {
@@ -241,12 +260,18 @@ export class DrizzleTripRepository implements TripRepositoryPort {
  * concorrente pode fechar a viagem no intervalo, e a condição faz o update simplesmente não achar
  * linha em vez de gravar sobre viagem fechada.
  */
+/**
+ * ADR-0043 §2, T013: mesma porta de não-retorno de `checkTripAcceptsLinkage`
+ * (`trip-state.policy.ts`) — `dispatched` em diante sela vínculo e desvínculo, não só os dois
+ * terminais. A lista fica literal aqui porque SQL não importa `TRIP_STATUSES`; qualquer estado
+ * novo que a T006 crie precisa deste `NOT IN` revisto junto.
+ */
 function tripStillOpen(input: { readonly companyId: string; readonly tripId: string }) {
   return sql`exists (
     select 1 from ${trips}
     where ${trips.companyId} = ${input.companyId}
       and ${trips.id} = ${input.tripId}
-      and ${trips.status} not in ('completed', 'cancelled')
+      and ${trips.status} not in ('dispatched', 'in_transit', 'completed', 'cancelled')
   )`
 }
 

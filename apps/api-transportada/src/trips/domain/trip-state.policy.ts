@@ -90,6 +90,18 @@ export function isTripDispatched(status: TripStatus): boolean {
   )
 }
 
+/**
+ * ADR-0043 §2: vincular e desvincular nota são trabalho de barracão, como separar e carregar —
+ * `dispatched` em diante é a porta de não-retorno para os dois também. `null` significa liberado.
+ */
+export function checkTripAcceptsLinkage(tripStatus: TripStatus): TripTransitionBlock | null {
+  if (tripStatus === 'cancelled') return TRIP_TRANSITION_BLOCK.tripCancelled
+  if (tripStatus === 'completed') return TRIP_TRANSITION_BLOCK.tripCompleted
+  if (isTripDispatched(tripStatus)) return TRIP_TRANSITION_BLOCK.tripAlreadyDispatched
+
+  return null
+}
+
 /** Entregue e devolvida são terminais: a nota saiu do fluxo de separação para sempre. */
 export function isTripDocumentClosed(status: TripDocumentSeparationStatus): boolean {
   return status === 'delivered' || status === 'returned'

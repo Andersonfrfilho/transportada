@@ -24,8 +24,12 @@ export const TRIP_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a17'
 export const MDFE_CTE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a18'
 export const MDFE_MANIFEST_ID = '00000000-0000-4000-8000-000000000a19'
 
+export function tripDocumentsPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/documents`
+}
+
 export function tripDocumentPath(documentId: string = TRIP_DOCUMENT_ID): string {
-  return `${TRIPS_PATH}/${TRIP_ID}/documents/${documentId}`
+  return `${tripDocumentsPath()}/${documentId}`
 }
 
 export function tripDocumentDeliverPath(documentId: string = TRIP_DOCUMENT_ID): string {

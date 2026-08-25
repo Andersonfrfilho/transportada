@@ -429,7 +429,7 @@ As rotas do RF-6, incluindo as três da D8/D9, com `defineRoute`, schemas Zod em
   (oito de `trip.manage`, uma de `fleet.read`/`invoices.read`) são exatamente as que o separador
   deveria alcançar, e o teste documenta isso, não só valida.
 
-### T013 — Vínculo e desvínculo recusam viagem despachada
+### T013 — Vínculo e desvínculo recusam viagem despachada ✅
 
 `POST /trips/:id/documents` e o `DELETE` respondem `409` a partir de `dispatched`. É a metade da D2
 que protege o fiscal da 059.
@@ -437,6 +437,44 @@ que protege o fiscal da 059.
 - **Arquivos:** `src/trips/application/link-trip-document.use-case.ts` (e o de desvínculo)
 - **Aceite:** `test/trips/dispatched-is-sealed.contract.ts`
 - **Verificação:** `bun run --cwd apps/api-transportada test`
+
+**Evidência:**
+
+- `checkTripAcceptsLinkage` (novo, `src/trips/domain/trip-state.policy.ts`) unifica a porta de
+  não-retorno de vincular/desvincular nota com a de `separate`/`load` (T006): recusa
+  `cancelled`, `completed` e todo estado despachado (`dispatched`, `in_transit`, `completed`
+  via `isTripDispatched`), devolvendo `null` (liberado) ou um `TripTransitionBlock` — sem
+  duplicar a lista de estados terminais em dois lugares.
+- `assertTripOpen` (`src/trips/application/trip.use-case.ts`) trocou o antigo `TripClosedError`
+  (422, `TRIP_CLOSED`) por `TripStateTransitionNotAllowedError` (409,
+  `STATE_TRANSITION_NOT_ALLOWED`) construído a partir do motivo devolvido por
+  `checkTripAcceptsLinkage` — unifica o vocabulário de erro com as demais transições de estado
+  da spec (T007–T010). `TripClosedError` continua definido em `trip.error.ts`, sem uso de
+  produção; só é referenciado como erro injetável num teste de `close`.
+- `tripStillOpen` (guarda SQL em `drizzle-trip.repository.ts`, usada por `deliverDocument` e
+  `releaseDocument`) passou a excluir também `dispatched`/`in_transit`, não só
+  `completed`/`cancelled`.
+- `linkDocument` (mesmo arquivo) fechou a janela de corrida entre o `assertTripOpen` do caso de
+  uso e o `insert`: agora roda dentro de `this.database.transaction()`, com
+  `SELECT status FROM trips ... FOR UPDATE` travando a linha da viagem por toda a transação — um
+  despacho concorrente ou espera esse lock (e o vínculo é aceito antes) ou o vínculo espera o
+  despacho (e é recusado contra o estado já sealed). Verificado ao vivo contra Postgres local via
+  probe descartável: `linkDocument` numa viagem `dispatched` foi recusado com
+  `TripStateTransitionNotAllowedError`/`STATE_TRANSITION_NOT_ALLOWED`, e nenhuma linha ficou em
+  `trip_documents`; o probe e as linhas de teste foram removidos depois.
+- Teste novo `test/trips/dispatched-is-sealed.contract.ts` (registrado em `trips.contract.test.ts`):
+  cobre vínculo recusado com `dispatched`, desvínculo recusado com `dispatched`, e desvínculo
+  recusado com `completed`/`cancelled` — todos na fronteira HTTP, via
+  `linkTripDocumentError`/`releaseTripDocumentError` da fixture.
+- `test/trip-application/trip-use-case.contract.ts`: o teste antigo que esperava `TRIP_CLOSED` foi
+  reescrito para `STATE_TRANSITION_NOT_ALLOWED`/409, e ganhou um `test.each` cobrindo
+  `dispatched`/`in_transit`/`cancelled` para `linkDocument`.
+- `test/trip-infrastructure/document-link.contract.ts`: o fake de banco precisou simular
+  `database.transaction()` + `select().from().where().for('update').limit()` devolvendo uma
+  viagem `draft` antes de acionar o erro do `insert` — o teste testava só a tradução do erro do
+  Postgres, e passou a exercer o novo caminho de lock.
+- `tsc --noEmit` e `eslint src test --max-warnings=0` limpos; suíte completa
+  (`bun test`): 3023 pass / 15 skip / 0 fail.
 
 ### T014 — `GET /trips/:id` por parada, sem N+1
 

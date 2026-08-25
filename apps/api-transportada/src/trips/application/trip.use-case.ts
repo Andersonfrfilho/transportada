@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
+import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import {
-  TripClosedError,
   TripDocumentAlreadyDeliveredError,
   TripDocumentNotFoundError,
   TripNotFoundError,
+  TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
@@ -151,15 +152,19 @@ async function findTripOrThrow(input: {
   return trip
 }
 
+/**
+ * ADR-0043 §2, T013: vincular e desvincular selam a partir de `dispatched`, não só em `completed`
+ * — a mesma porta de não-retorno de `separate`/`load` (T006), aplicada aqui via
+ * `checkTripAcceptsLinkage` para não duplicar a lista de estados terminais em dois lugares.
+ */
 async function assertTripOpen(input: {
   readonly companyId: string
   readonly repository: TripRepositoryPort
   readonly tripId: string
 }): Promise<void> {
   const trip = await findTripOrThrow(input)
-  // ADR-0042 §2: `dispatched` em diante é a porta de não-retorno; a máquina completa (com
-  // `force`+motivo) chega na T006/T010. Aqui só o terminal `completed` segue travado.
-  if (trip.status === 'completed') throw new TripClosedError()
+  const reason = checkTripAcceptsLinkage(trip.status)
+  if (reason !== null) throw new TripStateTransitionNotAllowedError(reason)
 }
 
 async function findTripDocumentOrThrow(input: {

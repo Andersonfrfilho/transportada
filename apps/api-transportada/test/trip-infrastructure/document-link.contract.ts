@@ -22,7 +22,7 @@ const postgresError = (input: { readonly constraint: string; readonly sqlState: 
   })
 
 function createRepository(error: Error): DrizzleTripRepository {
-  const database = {
+  const transaction = {
     insert: () => ({
       values: () => ({
         returning: () => {
@@ -30,6 +30,18 @@ function createRepository(error: Error): DrizzleTripRepository {
         },
       }),
     }),
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          for: () => ({
+            limit: () => Promise.resolve([{ status: 'draft' }]),
+          }),
+        }),
+      }),
+    }),
+  }
+  const database = {
+    transaction: (callback: (transaction: unknown) => Promise<unknown>) => callback(transaction),
   } as unknown as TripDatabase
   return new DrizzleTripRepository(database)
 }
