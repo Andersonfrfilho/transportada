@@ -7,6 +7,12 @@
 > o ciclo seja binário: os estados que faltavam são de barracão, não de SEFAZ. Os §1, §2, §3 e §5
 > continuam valendo integralmente.
 
+> **Revisado pela ADR-0046 (2026-08-26).** A viagem continua **não falando com a SEFAZ** — quem fala
+> é a trilha de emissão —, e passa a *saber quando está pronta* e a *poder pedir*. Nenhum estado
+> fiscal é espelhado em `trips` como fonte; a coluna derivada que nasce lá é índice de lista, e a
+> consulta ao estado real é a verdade. A premissa deste ADR não é violada: ela é o que sustenta a
+> escolha de consulta em vez de flag.
+
 ## Contexto
 
 O ADR-0016 decidiu, no §5 ("O manifesto é a viagem"), que `mdfe_manifests` seria o próprio
