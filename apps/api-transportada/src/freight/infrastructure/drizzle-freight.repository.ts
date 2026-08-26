@@ -265,6 +265,7 @@ class DrizzleFreightTransaction {
 
   public findApplicableRule(input: {
     readonly companyId: string
+    readonly destinationCityCode?: string | null
     readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
@@ -275,6 +276,7 @@ class DrizzleFreightTransaction {
 
   public findApplicableVersion(input: {
     readonly companyId: string
+    readonly destinationCityCode?: string | null
     readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
@@ -289,6 +291,7 @@ class DrizzleFreightTransaction {
   }): ReturnType<FreightSimulationTransactionPort['findDocument']> {
     const [record] = await this.transaction
       .select({
+        destinationCityCode: recipientAddress.cityCode,
         destinationState: recipientAddress.state,
         document: nfeDocuments,
         senderTaxId: emitterParticipant.taxId,
@@ -325,6 +328,7 @@ class DrizzleFreightTransaction {
 
     return {
       ...mapDocument(record.document),
+      destinationCityCode: record.destinationCityCode,
       destinationState: record.destinationState,
       senderTaxId: record.senderTaxId,
     }
@@ -491,6 +495,7 @@ async function findApplicableVersion(
   queryable: Queryable,
   input: {
     readonly companyId: string
+    readonly destinationCityCode?: string | null
     readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
@@ -516,10 +521,17 @@ async function findApplicableVersion(
         eq(freightRuleVersions.status, 'active'),
         lte(freightRuleVersions.validFrom, issuedAt),
         or(isNull(freightRuleVersions.validUntil), gte(freightRuleVersions.validUntil, issuedAt)),
+        versionSelectorMatches('destinationCityCodes', input.destinationCityCode),
         versionSelectorMatches('destinationStates', input.destinationState),
         versionSelectorMatches('senderTaxIds', input.senderTaxId),
       ),
     )
+    /**
+     * Spec 065 D6: quem decide entre duas regras que casam é a **prioridade da regra**, e não a
+     * especificidade do filtro. É explícito e previsível — a regra de Ribeirão vence a geral porque
+     * alguém a colocou acima, não porque o sistema adivinhou. Ranquear por especificidade faria duas
+     * regras trocarem de lugar sozinhas no dia em que alguém acrescentasse um filtro a uma delas.
+     */
     .orderBy(desc(freightRules.priority), desc(freightRuleVersions.validFrom))
     .limit(1)
   return record === undefined ? null : mapApplicableVersion(record.version)

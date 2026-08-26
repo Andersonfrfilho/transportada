@@ -86,7 +86,7 @@ describe('freight rules application contract', () => {
       {
         companyId: COMPANY_CONTEXT.companyId,
         createdByUserId: COMPANY_CONTEXT.userId,
-        filters: { destinationStates: [], senderTaxIds: [] },
+        filters: { destinationCityCodes: [], destinationStates: [], senderTaxIds: [] },
         freightRuleId: RULE_ID,
         maximumAmount: '500.0000',
         minimumAmount: '100.0000',
@@ -192,7 +192,7 @@ describe('freight rules application contract', () => {
       context: COMPANY_CONTEXT,
       correlationId: CORRELATION_ID,
       expectedCurrentVersion: '1',
-      filters: { destinationStates: ['mg'], senderTaxIds: ['61084018000109'] },
+      filters: { destinationCityCodes: [], destinationStates: ['mg'], senderTaxIds: ['61084018000109'] },
       freightRuleId: RULE_ID,
       maximumAmount: '550.0000',
       minimumAmount: '110.0000',
@@ -213,7 +213,7 @@ describe('freight rules application contract', () => {
     expect(unitOfWork.createdVersions).toContainEqual({
       companyId: COMPANY_CONTEXT.companyId,
       createdByUserId: COMPANY_CONTEXT.userId,
-      filters: { destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
+      filters: { destinationCityCodes: [], destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
       freightRuleId: RULE_ID,
       maximumAmount: '550.0000',
       minimumAmount: '110.0000',

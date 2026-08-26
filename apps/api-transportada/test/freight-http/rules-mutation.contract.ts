@@ -20,7 +20,7 @@ const EXPECTED_UPDATE_CALL = {
   context: COMPANY_CONTEXT,
   correlationId: 'freight-http-correlation',
   expectedCurrentVersion: '1',
-  filters: { destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
+  filters: { destinationCityCodes: [], destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
   freightRuleId: RULE_ID,
   maximumAmount: '900.0000',
   minimumAmount: '120.0000',
@@ -67,7 +67,10 @@ describe('freight http rules mutation contract', () => {
 
     expect(response.status).toBe(200)
     expect(fixture.updateRuleCalls).toEqual([
-      { ...EXPECTED_UPDATE_CALL, filters: { destinationStates: [], senderTaxIds: [] } },
+      {
+        ...EXPECTED_UPDATE_CALL,
+        filters: { destinationCityCodes: [], destinationStates: [], senderTaxIds: [] },
+      },
     ])
   })
 
@@ -157,5 +160,37 @@ describe('freight http rules mutation contract', () => {
     expect(statusResponse.status).toBe(403)
     expect(fixture.updateRuleCalls).toEqual([])
     expect(fixture.activateRuleCalls).toEqual([])
+  })
+
+  /**
+   * Spec 065 D6: sem dimensão de município não há como precificar a entrega urbana — que é a que tem
+   * outro documento, outro imposto e outra margem.
+   */
+  test('carries the destination municipality exception in the filters', async () => {
+    const fixture = await createFreightHttpFixture()
+
+    const response = await fixture.handle(
+      updateRuleRequest({
+        body: { ...UPDATE_RULE_BODY, filters: { destinationCityCodes: ['3543402'] } },
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateRuleCalls[0]).toMatchObject({
+      filters: { destinationCityCodes: ['3543402'], destinationStates: [], senderTaxIds: [] },
+    })
+  })
+
+  /** Nome de cidade tem três grafias; o IBGE tem uma, e só ele entra. */
+  test('refuses a municipality that is not a seven-digit IBGE code', async () => {
+    const fixture = await createFreightHttpFixture()
+
+    const response = await fixture.handle(
+      updateRuleRequest({
+        body: { ...UPDATE_RULE_BODY, filters: { destinationCityCodes: ['RIBEIRAO PRETO'] } },
+      }),
+    )
+
+    expect(response.status).toBe(400)
   })
 })

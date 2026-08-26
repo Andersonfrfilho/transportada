@@ -85,6 +85,7 @@ type UpdateRuleCall = {
   readonly correlationId: string
   readonly expectedCurrentVersion: string
   readonly filters: {
+    readonly destinationCityCodes: readonly string[]
     readonly destinationStates: readonly string[]
     readonly senderTaxIds: readonly string[]
   }

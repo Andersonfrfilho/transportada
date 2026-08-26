@@ -233,8 +233,16 @@ Então a prontidão tem dois tons:
 Hoje o filtro da regra é `destinationStates` + `senderTaxIds`. Sem dimensão de município não há como
 precificar a entrega urbana — que é justamente a que tem outro documento, outro imposto e outra margem.
 
-Nasce `destinationCityCodes` (IBGE), no mesmo desenho: lista vazia é "toda cidade", e a regra mais
-específica vence. **O tipo de documento não é parâmetro** — ele decorre da D3. Deixar configurar "esta
+Nasce `destinationCityCodes` (IBGE), no mesmo desenho dos outros seletores: lista vazia é "toda
+cidade".
+
+**Correção à redação original desta decisão:** ela dizia que "a regra mais específica vence". Não é o
+que o código faz, e mudar para isso seria um defeito. A precedência entre regras aplicáveis é o
+`priority` declarado na regra — quem ordena por especificidade faz duas regras trocarem de lugar em
+silêncio no dia em que alguém acrescenta um filtro a uma delas. O município é mais um seletor, e a
+ordem continua sendo a que o operador escreveu.
+
+**O tipo de documento não é parâmetro** — ele decorre da D3. Deixar configurar "esta
 cidade emite CT-e" seria deixar configurar algo fiscalmente errado.
 
 ### D7 — Na montagem, a viagem diz quanto rende e quanto custa — e diz que é previsão
@@ -392,7 +400,7 @@ imita DANFE ou DAMDFE.
 | Carga mista, uma nota de fora ainda sem CT-e          | O automático não dispara. Isso é espera legítima, e a viagem diz qual nota falta.                    |
 | Automático impedido (certificado, 50 municípios)      | Não emite, notifica com o motivo e deixa visível na viagem. Nunca fica esperando calado.             |
 | Nota com CT-e autorizado **e** entrega no município   | Divergência declarada: o documento emitido contradiz a classificação. Nada se cancela sozinho.       |
-| Regra de município e regra de UF na mesma nota        | A de município vence — é a mais específica.                                                          |
+| Regra de município e regra de UF na mesma nota        | Vence a de maior `priority`, como entre quaisquer duas regras — especificidade não desempata (D6).   |
 | Sem regra de frete aplicável                          | Receita prevista da nota é zero **marcada como ausente**; a viagem soma o que tem e diz o que falta. |
 | MDF-e cancelado com o motorista na rua                | O DAMDFE some da tela dele e o romaneio volta, com o motivo à vista.                                 |
 | Nota desvinculada depois de o romaneio ser gerado     | O romaneio é sempre lido da viagem, nunca congelado — ele reflete o que ela carrega agora.           |

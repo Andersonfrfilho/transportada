@@ -14,6 +14,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 type EligibleNfeDocument = {
   readonly companyId: string
+  /** Spec 065 D6: o município da entrega, que é a dimensão nova do parâmetro de frete. */
+  readonly destinationCityCode?: string | null
   readonly destinationState?: string | null
   readonly id: string
   readonly issuedAt: string
@@ -94,6 +96,7 @@ export type FreightSimulationTransactionPort = {
   createCalculation(input: Record<string, unknown>): Promise<FreightCalculationDetail>
   findApplicableRule(input: {
     readonly companyId: string
+    readonly destinationCityCode?: string | null
     readonly destinationState?: string | null
     readonly issuedAt: string
     readonly ruleType: 'percentage_of_invoice_total'
@@ -154,6 +157,7 @@ export function createFreightSimulationUseCase(dependencies: {
 
         const applicableRule = await transaction.findApplicableRule({
           companyId: input.context.companyId,
+          destinationCityCode: document.destinationCityCode ?? null,
           destinationState: document.destinationState ?? null,
           issuedAt: document.issuedAt,
           ruleType: 'percentage_of_invoice_total',

@@ -93,6 +93,8 @@ describe('freight simulation application contract', () => {
     expect(unitOfWork.ruleRequests).toEqual([
       {
         companyId: COMPANY_CONTEXT.companyId,
+        // Spec 065 D6: o município entra na escolha da regra, e nota sem ele cai na regra geral
+        destinationCityCode: null,
         destinationState: 'MG',
         issuedAt: '2026-07-22T12:00:00.000Z',
         ruleType: 'percentage_of_invoice_total',
@@ -275,7 +277,7 @@ class FreightSimulationUnitOfWorkFixture implements FreightSimulationUnitOfWorkP
   public readonly createdCalculations: Array<Record<string, unknown>> = []
   public readonly documentRequests: Array<Record<string, string>> = []
   public readonly idempotencyRecords: Array<Record<string, unknown>> = []
-  public readonly ruleRequests: Array<Record<string, string>> = []
+  public readonly ruleRequests: Array<Record<string, string | null>> = []
   public document: EligibleDocument = {
     companyId: COMPANY_CONTEXT.companyId,
     destinationState: 'MG',
