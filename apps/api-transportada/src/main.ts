@@ -153,6 +153,16 @@ import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
+import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
+import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
+import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
+import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
+import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
+import { createDrizzleTripRouteGate } from './routing/infrastructure/drizzle-trip-route-gate.adapter'
+import { createTripStopOrderWriter } from './routing/infrastructure/trip-stop-order.adapter'
+import { createLazyRabbitMqRouteOptimizationQueue } from './routing/infrastructure/rabbitmq-route-optimization.queue'
+import type { RouteOptimizationQueue } from './routing/application/route-suggestion.use-case'
+import { buildRouteOptimizationTopology } from './routing/infrastructure/route-optimization-topology'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -295,6 +305,25 @@ export function bootstrap(): Bun.Server<undefined> {
             }),
           logger,
         })
+  /**
+   * Sem broker não há quem resolva: pedir sugestão responderia `202` para uma fila que ninguém
+   * consome, e a proposta ficaria `queued` para sempre. A rota não sobe, e é honesto — melhor
+   * `404` no caminho que não existe do que uma promessa que nunca se cumpre (ADR-0044 §7).
+   */
+  const routeOptimizationQueue =
+    messaging === undefined
+      ? undefined
+      : createLazyRabbitMqRouteOptimizationQueue({
+          connect: () =>
+            createRabbitMqProvider({
+              connection: messaging.url,
+              topology: buildRouteOptimizationTopology({ queuePrefix: messaging.queuePrefix }),
+            }),
+        })
+  if (routeOptimizationQueue === undefined) {
+    logger.warn('routing.queue.not_configured')
+  }
+
   if (notificationQueue === undefined) {
     // Sem broker o módulo usa a fila em memória dele: nada consome, e a entrega some no restart.
     logger.warn('notification.queue.not_configured')
@@ -380,6 +409,7 @@ export function bootstrap(): Bun.Server<undefined> {
       keycloak: config.keycloak,
       logger,
       postalCodeProviders: config.postalCodeProviders,
+      routeOptimizationQueue,
       vehicleCatalog: config.vehicleCatalog,
     }),
     tenantContext,
@@ -549,6 +579,8 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
+  readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
@@ -560,6 +592,7 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
@@ -900,6 +933,19 @@ function createApplicationRoutes({
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
+    ...(routeOptimizationQueue === undefined
+      ? []
+      : createRouteSuggestionRoutes({
+          geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
+            repository: createDrizzleGeocodedAddressRepository(database),
+          }),
+          routeSuggestions: createRouteSuggestionUseCase({
+            queue: routeOptimizationQueue,
+            repository: createDrizzleRouteSuggestionRepository(database),
+            stopOrder: createTripStopOrderWriter(tripRouteRepository),
+            trips: createDrizzleTripRouteGate(database),
+          }),
+        })),
     ...createLandingSettingsRoutes({ landingSettings }),
     ...createAggregateApplicationRoutes({ aggregateApplications }),
     ...createAggregateDocumentReviewRoutes({
