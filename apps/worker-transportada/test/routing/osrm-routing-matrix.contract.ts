@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { buildMatrixCacheKey } from '../../src/routing/application/routing-matrix.port.js'
-import { RoutingMatrixUnavailableError } from '../../src/routing/domain/routing.error.js'
+import { RoutingMatrixUnavailableError } from '../../src/routing/domain/routing-matrix.error.js'
 import { createOsrmRoutingMatrixGateway } from '../../src/routing/infrastructure/osrm-routing-matrix.gateway.js'
 
 const SAO_PAULO = { latitude: '-23.5613090', longitude: '-46.6564870' }
@@ -94,7 +94,7 @@ describe('OSRM routing matrix gateway (ADR-0044 §2)', () => {
     const error = await gateway.table([SAO_PAULO, CENTRO]).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(RoutingMatrixUnavailableError)
-    expect((error as RoutingMatrixUnavailableError).code).toBe('ROUTING_MATRIX_UNAVAILABLE')
+    expect((error as RoutingMatrixUnavailableError).message).toContain('ROUTING_MATRIX_UNAVAILABLE')
   })
 
   test('fails on a non-Ok OSRM code instead of returning an empty matrix', async () => {

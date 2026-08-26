@@ -1,12 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { RoutingMatrixUnavailableError } from '../domain/routing.error.js'
 import type {
   RoutingCoordinate,
   RoutingMatrix,
   RoutingMatrixPort,
 } from '../application/routing-matrix.port.js'
+import { RoutingMatrixUnavailableError } from '../domain/routing-matrix.error.js'
 
 /**
  * O `/table` do OSRM (ADR-0044 §2). Devolve a matriz completa em milissegundos para o N que

@@ -21,7 +21,14 @@ export type RouteOptimizationHandlerPorts = Readonly<{
     readonly outcome: RouteOptimizationOutcome
   }) => Promise<void>
   fail: (input: { readonly errorCode: string; readonly job: RouteOptimizationJob }) => Promise<void>
-  optimize: (claim: RouteOptimizationClaim) => Promise<RouteOptimizationOutcome>
+  /**
+   * Recebe o **job**, não só a reserva: o `companyId` é o filtro de tenant de toda leitura seguinte,
+   * e sem ele o worker montaria o contexto de uma viagem que não é da empresa — ou de nenhuma.
+   */
+  optimize: (input: {
+    readonly claim: RouteOptimizationClaim
+    readonly job: RouteOptimizationJob
+  }) => Promise<RouteOptimizationOutcome>
 }>
 
 export type RouteOptimizationClaim = Readonly<{ suggestionId: string }>
@@ -53,7 +60,7 @@ export async function handleRouteOptimization(input: {
   if (claim === null) return 'ack'
 
   try {
-    const outcome = await input.ports.optimize(claim)
+    const outcome = await input.ports.optimize({ claim, job: input.job })
     await input.ports.complete({ job: input.job, outcome })
     return 'ack'
   } catch (cause) {

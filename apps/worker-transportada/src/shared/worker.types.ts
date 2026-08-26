@@ -63,6 +63,8 @@ export type WorkerEnvironment = {
   readonly prefetch: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string
+  /** Ausente sem OSRM: o consumidor de roteiro não sobe (ADR-0044 §2). */
+  readonly routingMatrixUrl: string | undefined
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined

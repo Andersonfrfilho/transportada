@@ -61,6 +61,11 @@ import { MdfeOutboxRelayService } from './mdfe-issuance/application/mdfe-outbox-
 import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.service.js'
 import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-delivery-rabbitmq-topology.js'
 import { buildNotificationRabbitMqTopology } from './messaging/notification-rabbitmq-topology.js'
+import { buildRouteOptimizationTopology } from './messaging/route-optimization-topology.js'
+import { startRouteOptimizationConsumer } from './runtime/route-optimization-consumer.service.js'
+import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
+import { createOsrmRoutingMatrixGateway } from './routing/infrastructure/osrm-routing-matrix.gateway.js'
+import { createRouteOptimizationPorts } from './routing/infrastructure/route-optimization-ports.factory.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
 import { createGuardedNotificationQueue } from './notification/infrastructure/guarded-notification-queue.adapter.js'
 import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
@@ -452,6 +457,9 @@ export async function startWorkerRuntime(
   const notificationTopology = buildNotificationRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const routeOptimizationTopology = buildRouteOptimizationTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
@@ -478,6 +486,7 @@ export async function startWorkerRuntime(
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
   let notificationConsumer: RuntimeConsumer | undefined
+  let routeOptimizationConsumer: RuntimeConsumer | undefined
   let notificationProvider: RabbitMqProvider | undefined
 
   try {
@@ -937,6 +946,31 @@ export async function startWorkerRuntime(
       module: notificationModule,
       queue: notificationQueue,
     })
+
+    /**
+     * ADR-0044 §2 e §7: sem OSRM o consumidor **não sobe**. Um consumidor que consome e falha
+     * esvaziaria a fila marcando toda sugestão como `failed`; melhor a mensagem esperar até o
+     * serviço existir — o `make routing-up` e o runbook do extract são o que a destravam.
+     */
+    if (config.routingMatrixUrl === undefined) {
+      logger.warn('route_optimization_consumer_disabled', { reason: 'ROUTING_MATRIX_URL missing' })
+    } else {
+      const routeOptimizationProvider = await createRabbitMqProvider({
+        connection: config.rabbitMqUrl,
+        topology: routeOptimizationTopology,
+      })
+      routeOptimizationConsumer = await startRouteOptimizationConsumer({
+        logger,
+        maxAttempts: routeOptimizationTopology.retry?.maxRetries ?? 1,
+        ports: createRouteOptimizationPorts({
+          matrix: createOsrmRoutingMatrixGateway({ baseUrl: config.routingMatrixUrl }),
+          repository: createDrizzleRouteOptimizationRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+        }),
+        provider: routeOptimizationProvider,
+      })
+    }
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -1111,6 +1145,7 @@ export async function startWorkerRuntime(
         passwordResetDeliveryConsumer,
         jobRunConsumer,
         notificationConsumer,
+        routeOptimizationConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -1146,6 +1181,7 @@ export async function startWorkerRuntime(
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
+    await routeOptimizationConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)

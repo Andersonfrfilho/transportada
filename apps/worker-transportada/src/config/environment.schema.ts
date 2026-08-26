@@ -64,6 +64,12 @@ const workerEnvironmentSchema = z
       .max(128)
       .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
     RABBITMQ_URL: protocolUrl(RABBITMQ_PROTOCOLS),
+    /**
+     * Matriz de estrada do roteirizador (ADR-0044 §2). Ausente, o consumidor não sobe: sem ela não
+     * há como resolver, e um consumidor que consome e falha esvaziaria a fila marcando tudo como
+     * `failed`. Melhor a mensagem esperar na fila até o serviço existir.
+     */
+    ROUTING_MATRIX_URL: optionalUrl(),
     LOG_SINK_URL: optionalUrl(),
     SENTRY_DSN: optionalUrl(),
     SMTP_URL: optionalUrl(),
@@ -144,6 +150,7 @@ export function parseWorkerEnvironment(
     prefetch: result.data.WORKER_PREFETCH,
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
+    routingMatrixUrl: result.data.ROUTING_MATRIX_URL,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
