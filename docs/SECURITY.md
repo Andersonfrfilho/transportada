@@ -62,6 +62,36 @@ mas a rota soma à lista de anônimas sem teto.
 
 **Origem:** spec 053, T004.
 
+### 2026-08-26 — a posição passa a ser permitida à própria origem, e a coordenada tem prazo
+
+**Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`); `api-transportada`,
+`trip_stop_events`.
+
+**O que é:** o cabeçalho passa a `camera=(self), geolocation=(self), microphone=()`. O motorista
+confirma a entrega no celular e a coordenada carimba **onde ele estava quando confirmou** — é o que
+separa "entreguei" de "entreguei lá" (ADR-0045 §3). Abrir capacidade de dispositivo é decisão que se
+audita, e por isso ela é registrada aqui em vez de ser uma linha mudada em silêncio.
+
+**O que continua fechado:** `microphone=()`, para todo mundo. E `(self)` não é `*`: nenhum `iframe` de
+terceiro herda a posição, e a CSP declara `frame-src 'none'` desde a ADR-0037.
+
+**O que a decisão proíbe, e é a parte que importa:** a captura é `getCurrentPosition` **uma vez por
+confirmação**, nunca `watchPosition`. A coordenada mora no evento de entrega e **não existe tabela de
+posição do motorista** — não há "onde ele está agora", só "onde estava quando confirmou". Recusar a
+permissão **não bloqueia a entrega**: ela é gravada com `location: null`, porque produto que exige
+coordenada é produto que o motorista contorna anotando no papel.
+
+**Retenção:** 90 dias. Depois disso o expurgo agendado apaga `latitude`, `longitude` e
+`accuracy_meters` **preservando o evento** — a viagem continua auditável, a localização da pessoa não
+fica. Dado de localização de pessoa identificada é dado pessoal na LGPD (art. 5º, I), e reter "por
+garantia" transforma comprovante em passivo.
+
+**O que falta:** nada em aberto. O contrato de cabeçalhos guarda os dois sentidos (falha se
+`geolocation` voltar a `()` e falha se `microphone` deixar de ser `()`), e o expurgo tem teste de
+integração com relógio injetado — retenção escrita e não implementada é retenção que não existe.
+
+**Origem:** spec 057, T001/T005/T012.
+
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 
 **Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`).
