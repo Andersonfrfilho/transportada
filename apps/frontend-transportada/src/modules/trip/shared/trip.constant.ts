@@ -113,3 +113,14 @@ export const TRANSITION_RESULT_KEYS = ['document', 'tripStatus'] as const
 export const TRIP_STATUS_RESULT_KEYS = ['tripStatus'] as const
 
 export const BATCH_STATUS_RESULT_KEYS = ['items', 'tripStatus'] as const
+
+/**
+ * Spec 057 P2: o intervalo em que a tela do escritório repete a consulta enquanto a viagem está na
+ * rua. Meio minuto é o que separa "acompanhar" de "ficar batendo no servidor".
+ */
+export const TRIP_ON_THE_ROAD_REFETCH_MS = 30_000
+
+/** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
+export function isTripOnTheRoad(status: string | undefined): boolean {
+  return status === 'dispatched' || status === 'in_transit'
+}

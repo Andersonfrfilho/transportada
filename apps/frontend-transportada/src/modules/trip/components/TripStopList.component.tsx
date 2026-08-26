@@ -137,11 +137,34 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
         <span className={styles.stopCounter}>
           {t('stops.documentCount', { count: stop.documents.length })}
         </span>
+        <StopExecution stop={stop} />
       </div>
 
       <TripStopDocumentGroup actions={actions} documents={stop.documents} selection={selection} />
     </li>
   )
+}
+
+/**
+ * Spec 057 P2: o que aconteceu na rua, na mesma linha da parada. Sem isto o escritório continua
+ * descobrindo a entrega quando o motorista volta ao barracão — que é o problema que a 057 abriu.
+ */
+function StopExecution({ stop }: Readonly<{ stop: TripStopDetail }>) {
+  const { t } = useTranslation('trip')
+  if (stop.arrivedAt === null) return null
+
+  return (
+    <span className={styles.stopCounter}>
+      {stop.completedAt === null
+        ? t('stops.arrivedAt', { time: formatStopTime(stop.arrivedAt) })
+        : t('stops.completedAt', { time: formatStopTime(stop.completedAt) })}
+    </span>
+  )
+}
+
+/** Hora e minuto: o dia é o da viagem, e a data por extenso só rouba espaço da linha. */
+function formatStopTime(value: string): string {
+  return new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
 export function TripStopDocumentGroup({

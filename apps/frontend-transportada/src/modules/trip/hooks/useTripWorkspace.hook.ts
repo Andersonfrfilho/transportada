@@ -9,7 +9,9 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  isTripOnTheRoad,
   TRIP_MANAGE_PERMISSION,
+  TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
   TRIP_READ_PERMISSION,
 } from '../shared/trip.constant'
@@ -139,6 +141,13 @@ export function useTripWorkspace(
     enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.getTrip({ tripId: input.tripId ?? '' }),
     queryKey: tripKey,
+    /**
+     * Spec 057 P2: o escritório vê a viagem andar sem apertar nada — e só enquanto ela está na rua.
+     * Repetir a consulta numa viagem em rascunho seria bater no servidor por nada; um WebSocket
+     * novo, um trilho inteiro por uma tela que atualiza a cada meio minuto.
+     */
+    refetchInterval: (query) =>
+      isTripOnTheRoad(query.state.data?.status) ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
   })
 
   function invalidate(): Promise<void> {

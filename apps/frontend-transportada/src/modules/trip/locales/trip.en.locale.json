@@ -53,7 +53,9 @@
     "selectionCount": "{{count}} document selected",
     "selectionCount_other": "{{count}} documents selected",
     "selectionClear": "Clear selection",
-    "progressLabel": "Trip separation progress"
+    "progressLabel": "Trip separation progress",
+    "arrivedAt": "Arrived at {{time}}",
+    "completedAt": "Completed at {{time}}"
   },
   "deliveryOverride": {
     "menuAction": "Redirect delivery",

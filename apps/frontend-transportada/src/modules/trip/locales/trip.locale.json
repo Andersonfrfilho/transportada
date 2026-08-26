@@ -53,7 +53,9 @@
     "selectionCount": "{{count}} nota selecionada",
     "selectionCount_other": "{{count}} notas selecionadas",
     "selectionClear": "Limpar seleção",
-    "progressLabel": "Progresso da separação da viagem"
+    "progressLabel": "Progresso da separação da viagem",
+    "arrivedAt": "Chegou às {{time}}",
+    "completedAt": "Concluída às {{time}}"
   },
   "deliveryOverride": {
     "menuAction": "Desviar entrega",
