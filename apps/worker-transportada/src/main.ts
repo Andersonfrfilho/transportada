@@ -146,6 +146,9 @@ import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distributi
 import { createCryptoDistributionIdentifiers } from './nfe-distribution-pull/infrastructure/crypto-identifiers.js'
 import { createDrizzleDistributionCandidateSource } from './nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.js'
 import { createDrizzleDistributionEnqueueGateway } from './nfe-distribution-pull/infrastructure/drizzle-distribution-enqueue.gateway.js'
+import { createTripLocationPurgeRoutine } from './trip-location-purge/application/trip-location-purge.routine.js'
+import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
+import { createDrizzleRedactTripLocations } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -837,6 +840,17 @@ export async function startWorkerRuntime(
         logger,
         now: () => new Date(),
         routines: {
+          /**
+           * ADR-0045 §3.3: sempre registrada. Ela não depende de configuração nenhuma — e uma
+           * retenção que só corre quando a instalação declarou alguma coisa é retenção opcional.
+           */
+          [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
+            logger,
+            now: () => new Date(),
+            redact: createDrizzleRedactTripLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          }),
           [DISTRIBUTION_PULL_JOB]: createNfeDistributionPullRoutine({
             gateway: createDrizzleDistributionEnqueueGateway({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],

@@ -60,6 +60,13 @@ const CATALOG = [
     job: 'notification.schedules.run',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 057: a rotina só toca o próprio banco — o que pode dar errado é o imprevisto, e o
+     * invólucro já tem nome para ele. */
+    failureOutcomes: [],
+    job: 'trip.location.purge',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('cron job catalog', () => {

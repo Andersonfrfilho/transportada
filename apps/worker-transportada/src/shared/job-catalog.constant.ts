@@ -18,7 +18,7 @@ export const JOB_TICK_INTERVAL_SECONDS = 300
 export const JOB_MAXIMUM_INTERVAL_SECONDS = 7_776_000
 
 /**
- * O que o invólucro do ciclo escreve, igual para as quatro rotinas: ele não conhece o assunto de
+ * O que o invólucro do ciclo escreve, igual para as cinco rotinas: ele não conhece o assunto de
  * nenhuma delas, só sabe se terminou, se o operador pediu parada, se o lease venceu com o processo
  * morto, ou se subiu um erro que ninguém previu.
  *
@@ -36,15 +36,15 @@ export const JOB_WRAPPER_OUTCOMES = [
 export type JobWrapperOutcome = (typeof JOB_WRAPPER_OUTCOMES)[number]
 
 /**
- * As quatro rotinas agendadas da instalação, cada uma com o menor intervalo que aceita e o
+ * As cinco rotinas agendadas da instalação, cada uma com o menor intervalo que aceita e o
  * vocabulário fechado de falha dela. O nome é a chave natural do relógio (`job_schedules`) e o
  * rótulo de toda execução — ele viaja no envelope, no CHECK do banco e na tela, então mudar um valor
  * daqui é migração, não renomeação.
  *
  * O `outcome` de falha é **código estável por rotina**, nunca texto solto: quem traduz é o painel, e
  * "falhou" sem dizer o quê obriga o operador a abrir um log que ele não tem acesso para ler. O
- * código não é validado por CHECK no banco de propósito: a coluna é uma só para as quatro rotinas, e
- * um CHECK sobre a união dos quatro vocabulários aceitaria `anp_unreachable` numa execução de
+ * código não é validado por CHECK no banco de propósito: a coluna é uma só para as cinco rotinas, e
+ * um CHECK sobre a união dos cinco vocabulários aceitaria `anp_unreachable` numa execução de
  * notificação — cobraria uma migration por palavra nova sem impedir o único erro que importa.
  *
  * ⚠️ Cópia por valor na API, no worker, no cron e no frontend — quatro apps que não importam código
@@ -106,6 +106,23 @@ export const JOB_CATALOG = [
     job: 'notification.schedules.run',
     /** Não sai da instalação — só lê agendamento vencido e publica na nossa própria fila. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
+  {
+    /**
+     * Spec 057 / ADR-0045 §3: a coordenada tem prazo, e o prazo só existe porque uma rotina o
+     * cumpre. Retenção escrita e não implementada é retenção que não existe.
+     *
+     * A rotina não fala com ninguém de fora e não depende de nada além do próprio banco — daí o
+     * vocabulário de falha vazio: o que pode dar errado aqui é o imprevisto, e o invólucro já tem
+     * nome para ele.
+     */
+    failureOutcomes: [],
+    job: 'trip.location.purge',
+    /**
+     * Um dia. O corte é de noventa, então correr de hora em hora só encurtaria a retenção real em
+     * minutos — e a varredura toca a tabela que a execução de campo escreve o dia inteiro.
+     */
+    minimumIntervalSeconds: 86_400,
   },
 ] as const
 
