@@ -18,7 +18,8 @@ const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
-  status: 'open',
+  // ADR-0043 substituiu `open|closed` pelos oito estados operacionais; `open` virou `draft`
+  status: 'draft',
   updatedAt: '2026-07-28T12:00:00.000Z',
   vehicleId: VEHICLE_ID,
 } as const
@@ -33,8 +34,15 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
     fiscalStatus: input.cteAuthorized ? 'authorized' : 'unsigned',
     freightCalculationId: null,
     id: input.id,
+    // ADR-0043 §1: o eixo da nota, do qual o estado da viagem é derivado
+    loadedAt: null,
     nfeDocumentId: NFE_DOCUMENT_ID,
     releasedAt: null,
+    returnedAt: null,
+    returnReason: null,
+    separatedAt: null,
+    separationStatus: 'pending',
+    stopId: null,
     tripId: TRIP_ID,
     updatedAt: '2026-07-28T12:05:00.000Z',
   } as const
@@ -55,6 +63,8 @@ function tripDetail(mode: DocumentsMode) {
     drivers: [
       { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
     ],
+    // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
+    stops: [],
   }
 }
 

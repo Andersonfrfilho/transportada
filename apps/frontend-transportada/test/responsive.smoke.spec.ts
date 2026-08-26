@@ -789,7 +789,7 @@ test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem naveg
   const api = await mockTripWorkspaceApi({
     mode: 'has-pending',
     page,
-    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
   })
   await loginAsLocalUser(page)
 
@@ -821,7 +821,7 @@ test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o m
   const api = await mockTripWorkspaceApi({
     mode: 'all-authorized',
     page,
-    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage'],
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
   })
   await loginAsLocalUser(page)
 
