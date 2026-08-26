@@ -96,6 +96,8 @@ describe('separator role contract', () => {
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
+      // Spec 059: a prontidão fiscal é leitura da viagem, e o separador a lê como o resto dela
+      'GET /trips/:id/fiscal-readiness',
       'GET /trips/:id/stops',
       'PATCH /trips/:id/stops/order',
       'POST /trips',

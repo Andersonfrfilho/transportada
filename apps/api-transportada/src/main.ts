@@ -151,6 +151,8 @@ import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-tr
 import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
+import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
@@ -653,6 +655,7 @@ function createApplicationRoutes({
   const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
   const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
@@ -1060,6 +1063,10 @@ function createApplicationRoutes({
       deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       getTrip: { execute: (input) => trips.get(input) },
+      readFiscalReadiness: {
+        execute: (input) =>
+          readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+      },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
       listTrips: { execute: (input) => trips.list(input) },

@@ -30,6 +30,7 @@ import type {
   ListTripStopsResult,
   TripStopSummary,
 } from '../application/list-trip-stops.use-case.js'
+import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
 import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
@@ -72,6 +73,8 @@ const TRIP_PLAN_ROUTE_PATH = `${API_TRIPS_PATH}/:id/plan-route`
 const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
 const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
 const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
+/** Spec 059 D1: a prontidão é **consulta**, e por isso ela é uma rota de leitura, não uma coluna. */
+const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -140,6 +143,12 @@ type Dependencies = {
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
+  readonly readFiscalReadiness: {
+    execute(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<TripFiscalReadinessSnapshot>
+  }
   readonly linkTripDocument: {
     execute(input: TenantInput<LinkTripDocumentInput>): Promise<TripDocument>
   }
@@ -191,6 +200,22 @@ export function createTripRoutes(
       method: 'GET',
       parse: ({ request }) => parseTripList(new URL(request.url)),
       pathname: API_TRIPS_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const readiness = await dependencies.readFiscalReadiness.execute({
+          companyId: context.scope.companyId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: readiness }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_FISCAL_READINESS_PATH,
       policy: TRIP_READ_POLICY,
     }),
     defineRoute<Omit<GetTripInput, 'context'>>({

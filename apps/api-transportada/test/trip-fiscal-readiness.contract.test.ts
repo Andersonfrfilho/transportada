@@ -1,0 +1,5 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import './trip-fiscal-readiness/manifest-gate.contract.js'
+import './trip-fiscal-readiness/readiness.contract.js'
