@@ -390,7 +390,15 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
       {canManage && isEditable ? <RouteSuggestionSection controller={routeSuggestion} /> : null}
 
       {/* A prontidão fica **acima** das ações: quem rola até "emitir" já sabe se dá para emitir */}
-      <TripFiscalReadinessPanel documents={trip.documents} readiness={workspace.fiscalReadiness} />
+      <TripFiscalReadinessPanel
+        canSubmitCte={workspace.controller.canSubmitCte}
+        documents={trip.documents}
+        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+        readiness={workspace.fiscalReadiness}
+        onGenerateCteBatch={() =>
+          workspace.createCteBatchMutation.mutate({ tripId: trip.id })
+        }
+      />
 
       <div className={styles.actionActions}>
         {canManage && !isCompleted && trip.documents.length > 0 ? (

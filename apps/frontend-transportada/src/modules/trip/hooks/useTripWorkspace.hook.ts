@@ -9,6 +9,7 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  CTE_SUBMIT_PERMISSION,
   isTripOnTheRoad,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
@@ -36,6 +37,7 @@ import type {
   TransitionTripDocumentResult,
   TripDetail,
   TripDocument,
+  TripCteBatchResult,
   TripDocumentActionInput,
 } from '../shared/trip.types'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
@@ -45,8 +47,10 @@ export type TripController = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   canManageTrips: boolean
   canReadTrips: boolean
+  canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
@@ -76,14 +80,18 @@ export function createTripController(
 ): TripController {
   const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
+  const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
 
   return {
     batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
     canManageTrips,
     canReadTrips,
+    canSubmitCte,
     closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
+    createTripCteBatch: (body) =>
+      canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
     deliverTripDocument: (body) =>
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
@@ -218,6 +226,14 @@ export function useTripWorkspace(
     onSuccess: invalidate,
   })
   const cancelMutation = useMutation({ mutationFn: controller.cancelTrip, onSuccess: invalidate })
+  /**
+   * Spec 065 D4bis: o lote urgente. Invalida a viagem **e** a prontidão — o que muda é o estado
+   * fiscal das notas, e é ele que o painel mostra.
+   */
+  const createCteBatchMutation = useMutation({
+    mutationFn: controller.createTripCteBatch,
+    onSuccess: invalidate,
+  })
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,
     onSuccess: invalidate,
@@ -228,6 +244,7 @@ export function useTripWorkspace(
     cancelMutation,
     closeMutation,
     controller,
+    createCteBatchMutation,
     createMutation,
     deliverDocumentMutation,
     fiscalReadiness: fiscalReadinessQuery.data,

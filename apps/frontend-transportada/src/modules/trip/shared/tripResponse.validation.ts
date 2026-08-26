@@ -34,6 +34,7 @@ import type {
   TripDetail,
   TripDocument,
   TripDocumentBatchItemResult,
+  TripCteBatchResult,
   TripDocumentDetail,
   TripDocumentReadiness,
   TripDriverLine,
@@ -207,6 +208,11 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
   )
 }
 
+/** Documento fora do par conhecido vira `null`: é o mesmo que "não se decidiu", e não um chute. */
+function readExpectedDocument(value: unknown): 'cte' | 'nfse' | null {
+  return value === 'cte' || value === 'nfse' ? value : null
+}
+
 function toDocumentReadiness(value: unknown): TripDocumentReadiness {
   if (
     !isRecord(value) ||
@@ -219,6 +225,8 @@ function toDocumentReadiness(value: unknown): TripDocumentReadiness {
   return {
     cteAccessKey: isString(value.cteAccessKey) ? value.cteAccessKey : null,
     cteFiscalDocumentId: isString(value.cteFiscalDocumentId) ? value.cteFiscalDocumentId : null,
+    expectedDocument: readExpectedDocument(value.expectedDocument),
+    nfeDocumentId: isString(value.nfeDocumentId) ? value.nfeDocumentId : null,
     reason: value.reason,
     rejectionCode: isString(value.rejectionCode) ? value.rejectionCode : null,
     rejectionMessage: isString(value.rejectionMessage) ? value.rejectionMessage : null,
@@ -242,6 +250,8 @@ export function createTripResponseAdapters() {
       if (
         !isRecord(input) ||
         !Array.isArray(input.documents) ||
+        typeof input.manifestableCount !== 'number' ||
+        typeof input.nfseCount !== 'number' ||
         typeof input.readyCount !== 'number' ||
         typeof input.totalCount !== 'number' ||
         !isOneOf(input.state, TRIP_FISCAL_READINESS_STATES)
@@ -251,10 +261,19 @@ export function createTripResponseAdapters() {
 
       return {
         documents: input.documents.map(toDocumentReadiness),
+        manifestableCount: input.manifestableCount,
+        nfseCount: input.nfseCount,
         readyCount: input.readyCount,
         state: input.state,
         totalCount: input.totalCount,
       }
+    },
+    tripCteBatchResultFromApi(input: unknown): TripCteBatchResult {
+      if (!isRecord(input) || !isString(input.batchId) || typeof input.documentCount !== 'number') {
+        throw invalid()
+      }
+
+      return { batchId: input.batchId, documentCount: input.documentCount }
     },
     tripDetailFromApi(input: unknown): TripDetail {
       if (!isDetail(input)) throw invalid()

@@ -11,6 +11,11 @@ export const SCAN_LOOKUP_LIMIT = 1
  */
 export const TRIP_READ_PERMISSION = 'fleet.read'
 export const TRIP_MANAGE_PERMISSION = 'trip.manage'
+/**
+ * Spec 065 D4bis: disparar o lote urgente é submeter emissão fiscal, e por isso é a permissão de
+ * quem submete o lote normal — **não** a de quem monta a viagem. Quem separa carga não emite CT-e.
+ */
+export const CTE_SUBMIT_PERMISSION = 'cte.submit'
 
 export const TRIP_ERROR = {
   FORBIDDEN: 'TRIP_FORBIDDEN',

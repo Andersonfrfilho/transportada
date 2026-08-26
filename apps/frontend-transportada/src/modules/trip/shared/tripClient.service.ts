@@ -18,6 +18,7 @@ import type {
   ScannedNfeDocument,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
+  TripCteBatchResult,
   TripDetail,
   TripFiscalReadiness,
   TripDocument,
@@ -44,6 +45,7 @@ export type TripClient = Readonly<{
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
+  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
@@ -97,6 +99,7 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
+    idempotencyKey?: string
     method: 'DELETE' | 'GET' | 'PATCH' | 'POST'
     path: string
     signal?: AbortSignal
@@ -105,6 +108,7 @@ async function authorizedRequest(
   const accessToken = await input.dependencies.getAccessToken()
   const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
   if (input.body !== undefined) headers['content-type'] = 'application/json'
+  if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
   if (input.signal !== undefined) requestInit.signal = input.signal
@@ -223,6 +227,19 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    /**
+     * Spec 065 D4bis: a chave de idempotência é do **clique**. Sem ela, dois toques com a rede lenta
+     * criariam dois lotes para a mesma viagem — e lote de CT-e duplicado é emissão duplicada.
+     */
+    async createTripCteBatch(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        idempotencyKey: crypto.randomUUID(),
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/cte-batches`,
+      })
+      return adapters.tripCteBatchResultFromApi(readEnvelopeData(response))
     },
     async readFiscalReadiness(input) {
       const response = await authorizedRequest({

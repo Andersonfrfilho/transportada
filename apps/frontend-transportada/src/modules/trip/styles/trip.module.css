@@ -596,3 +596,14 @@
 .readinessReason {
   color: var(--color-copper);
 }
+
+.readinessActions {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.readinessHint {
+  color: var(--color-slate);
+  margin: 0;
+}

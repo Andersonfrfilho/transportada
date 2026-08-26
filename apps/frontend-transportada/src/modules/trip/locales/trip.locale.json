@@ -224,6 +224,9 @@
       "cte_in_progress": "CT-e em processamento",
       "cte_rejected": "CT-e rejeitado",
       "cte_cancelled": "CT-e cancelado"
-    }
+    },
+    "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
+    "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
+    "generateCteBatchHint": "Antecipa o lote que a contratante autorizaria. O faturamento continua alcançando esses CT-e."
   }
 }

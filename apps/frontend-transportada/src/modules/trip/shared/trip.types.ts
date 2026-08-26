@@ -91,6 +91,10 @@ export const TRIP_DOCUMENT_READINESS_REASONS = [
   'cte_in_progress',
   'cte_rejected',
   'cte_cancelled',
+  /** Entrega no município da transportadora: vira NFS-e, e **não** bloqueia o manifesto (065 D4). */
+  'nfse_expected',
+  /** Sem município de destino não se decide o documento — pendência explícita, nunca um chute. */
+  'city_unknown',
 ] as const
 export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASONS)[number]
 
@@ -99,12 +103,16 @@ export const TRIP_FISCAL_READINESS_STATES = [
   'ready',
   'manifested',
   'divergent',
+  /** Viagem só de entrega urbana: não tem manifesto a emitir, e isso não é "incompleta". */
+  'not_applicable',
 ] as const
 export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[number]
 
 export type TripDocumentReadiness = Readonly<{
   cteAccessKey: null | string
   cteFiscalDocumentId: null | string
+  expectedDocument: 'cte' | 'nfse' | null
+  nfeDocumentId: null | string
   reason: TripDocumentReadinessReason
   rejectionCode: null | string
   rejectionMessage: null | string
@@ -113,9 +121,17 @@ export type TripDocumentReadiness = Readonly<{
 
 export type TripFiscalReadiness = Readonly<{
   documents: readonly TripDocumentReadiness[]
+  manifestableCount: number
+  nfseCount: number
   readyCount: number
   state: TripFiscalReadinessState
   totalCount: number
+}>
+
+/** Spec 065 D4bis: o lote urgente da viagem — quantas notas foram, e qual lote nasceu. */
+export type TripCteBatchResult = Readonly<{
+  batchId: string
+  documentCount: number
 }>
 
 export type StopAddressComponents = Readonly<{

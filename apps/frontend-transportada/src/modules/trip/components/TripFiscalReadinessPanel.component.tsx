@@ -1,12 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+
 import type { TripDocumentDetail, TripFiscalReadiness } from '../shared/trip.types'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import styles from '../styles/trip.module.css'
 
 type TripFiscalReadinessPanelProps = Readonly<{
+  /** Spec 065 D4bis: só quem submete lote vê o disparo — separar carga não emite CT-e. */
+  canSubmitCte: boolean
   documents: readonly TripDocumentDetail[]
+  isGeneratingCteBatch: boolean
+  onGenerateCteBatch: () => void
   readiness: TripFiscalReadiness | undefined
 }>
 
@@ -16,7 +23,10 @@ type TripFiscalReadinessPanelProps = Readonly<{
  * existindo para o clique bloqueado; este painel é o que evita o clique.
  */
 export function TripFiscalReadinessPanel({
+  canSubmitCte,
   documents,
+  isGeneratingCteBatch,
+  onGenerateCteBatch,
   readiness,
 }: TripFiscalReadinessPanelProps) {
   const { t } = useTranslation('trip')
@@ -26,6 +36,15 @@ export function TripFiscalReadinessPanel({
     documents.map((document) => [document.id, tripDocumentLabel(document)]),
   )
   const pending = readiness.documents.filter((entry) => entry.reason !== 'ok')
+  /**
+   * O disparo só faz sentido para nota que **espera CT-e e ainda não o tem**. A urbana vira NFS-e e
+   * nunca entra; oferecer o botão por causa dela seria oferecer um lote que nasceria vazio.
+   */
+  const awaitingCte = readiness.documents.filter(
+    (entry) =>
+      entry.expectedDocument === 'cte' &&
+      ['no_cte', 'cte_rejected', 'cte_cancelled'].includes(entry.reason),
+  )
 
   return (
     <section className={styles.readinessPanel}>
@@ -36,6 +55,22 @@ export function TripFiscalReadinessPanel({
         </p>
       </header>
       <p className={styles.readinessState}>{t(`readiness.state.${readiness.state}`)}</p>
+
+      {canSubmitCte && awaitingCte.length > 0 ? (
+        <div className={styles.readinessActions}>
+          <Button
+            disabled={isGeneratingCteBatch}
+            onClick={onGenerateCteBatch}
+            size="sm"
+            type="button"
+          >
+            <Icon name="send" />
+            {t('readiness.generateCteBatch', { count: awaitingCte.length })}
+          </Button>
+          {/* O lote normal espera a contratante; este antecipa, e quem aperta precisa saber disso */}
+          <p className={styles.readinessHint}>{t('readiness.generateCteBatchHint')}</p>
+        </div>
+      ) : null}
 
       {pending.length === 0 ? null : (
         <ul className={styles.readinessList}>

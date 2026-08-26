@@ -224,6 +224,9 @@
       "cte_in_progress": "CT-e in progress",
       "cte_rejected": "CT-e rejected",
       "cte_cancelled": "CT-e cancelled"
-    }
+    },
+    "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
+    "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
+    "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e."
   }
 }
