@@ -5,6 +5,33 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-26 — CPF do usuário fica em texto puro em `identity_user_profiles`
+
+**Onde:** `api-transportada`, módulo `identity` (coluna `identity_user_profiles.tax_id`).
+
+**O que é:** o `security.md §5` pede campo sensível em repouso — CPF entre eles — cifrado com
+chave de aplicação. A coluna nova nasceu em texto puro, deliberadamente, porque o mesmo dado já
+está assim em `fleet_drivers.tax_id`, com `check` de formato e unique por empresa. Cifrar só de um
+lado teria dois custos concretos: a unicidade deixaria de ser verificável pelo banco (texto cifrado
+com IV aleatório não colide mesmo quando o CPF é igual), e o casamento entre o convite e a ficha de
+frota — que é a razão da coluna existir — passaria a exigir decifrar a tabela inteira a cada
+convite. Também criaria um terceiro padrão de armazenamento para o mesmo documento no mesmo banco.
+
+**Risco:** dump de banco ou backup vazado expõe CPF de todo usuário e de todo motorista. A
+exposição não aumentou com esta coluna — `fleet_drivers` já a tinha —, mas o alcance cresceu:
+agora pega também quem não é motorista.
+
+**Mitigação em vigor:** a API nunca devolve o CPF por extenso; a listagem e a resposta do convite
+saem mascaradas (`***09`), como o contato. Backup é cifrado antes de subir ao bucket, com a chave
+fora dele.
+
+**Desfecho pendente:** decidir de uma vez, para `fleet_drivers` e `identity_user_profiles` juntos,
+entre (a) cifra determinística com chave de aplicação, que preserva unicidade e igualdade, ou (b)
+aceitar o texto puro e registrar a exceção. Resolver só um dos dois lados não fecha nada.
+
+**Dono:** a definir.
+
+
 ### 2026-08-25 — `POST /public/aggregate-applications` é anônima e sem limitador dedicado
 
 **Onde:** `api-transportada`, módulo `fleet` (spec 053, T007).
