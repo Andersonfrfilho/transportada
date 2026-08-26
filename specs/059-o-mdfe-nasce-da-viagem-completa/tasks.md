@@ -1,5 +1,9 @@
 # 059 — O MDF-e nasce da viagem completa · tasks
 
+> ⚠️ **Estado: parcial.** O caminho manual está inteiro (T001–T008, T011, T013). O **gatilho
+> automático não existe** — T009/T010 não foram construídos, e sem eles a última autorização não
+> acende nada. O `evidence.md` lista os sete buracos.
+
 > **Ordem de trabalho:** a prontidão (fases 1–2) antes de qualquer gatilho. Um consumer que emite
 > manifesto sobre uma regra de completude que ninguém conferiu é o pior defeito possível desta spec —
 > declaração falsa à SEFAZ, e ninguém olhando.
@@ -43,7 +47,7 @@ não encerrado é pendência na SEFAZ e trava o próximo, então ela é dívida 
 
 > 🤖 Modelo: `opus` 🧠
 
-### T001 🧠 — ADR-0046: a viagem não fala com a SEFAZ, mas passa a saber quando pedir
+### T001 🧠 ✅ — ADR-0046: a viagem não fala com a SEFAZ, mas passa a saber quando pedir
 
 Revisa o **ADR-0023** por extenso: a viagem continua sem falar com a SEFAZ — quem fala é a trilha de
 emissão — e passa a **saber quando** e a **poder pedir**. Sem isso escrito, a próxima pessoa lê o 0023
@@ -61,7 +65,7 @@ por que automático nasce **desligado**; e a premissa do `dispatched` no manual,
 
 > 🤖 Modelo: `sonnet`
 
-### T002 — O caminho de índice da nota até o CT-e
+### T002 ✅ — O caminho de índice da nota até o CT-e
 
 `cte_batch_items (company_id, nfe_document_id)`. O unique existente lidera por `batch_id`, então a
 busca por nota varre. Com 200 notas numa viagem, é a diferença entre uma consulta e duzentas.
@@ -70,7 +74,7 @@ busca por nota varre. Com 200 notas numa viagem, é a diferença entre uma consu
 - **Aceite:** índice criado; a readiness de 200 notas não faz N+1
 - **Verificação:** `make migration-test`
 
-### T003 — `trips.fiscal_readiness_state`, derivado e nunca autoritativo
+### T003 ✅ — `trips.fiscal_readiness_state`, derivado e nunca autoritativo
 
 `incomplete|ready|manifested|divergent`, recalculado. **A resposta da readiness é sempre a verdade**;
 esta coluna existe para filtrar lista sem varrer o fiscal inteiro, e o comentário do schema tem de
@@ -80,7 +84,7 @@ dizer isso — senão alguém a lê como fonte e emite sobre valor velho.
 - **Aceite:** CHECK fechado na lista; default `incomplete`
 - **Verificação:** `make migration-test`
 
-### T004 — A trava de manifesto vivo por viagem
+### T004 ✅ — A trava de manifesto vivo por viagem
 
 Unique parcial em `mdfe_manifests (company_id, trip_id)` para manifesto **não cancelado/rejeitado**.
 É o que impede duas autorizações simultâneas de virarem dois MDF-e — e duplicar manifesto é incidente
@@ -90,7 +94,7 @@ fiscal, não bug de tela.
 - **Aceite:** segundo manifesto vivo na mesma viagem é recusado pelo banco
 - **Verificação:** `make migration-test`
 
-### T005 — `automatic_mdfe_on_completion`, desligado por padrão
+### T005 ✅ — `automatic_mdfe_on_completion`, desligado por padrão
 
 No perfil fiscal da empresa, com trilha de quem ligou (`security.md` §10). Emissão fiscal automática
 é ação irreversível contra órgão público: ligar por padrão é decidir pelo cliente algo que custa
@@ -104,7 +108,7 @@ dinheiro dele quando erra.
 
 > 🤖 Modelo: `opus` 🧠 (T006 é a regra que decide declaração à SEFAZ)
 
-### T006 🧠 — A readiness responde por nota, com o motivo
+### T006 🧠 ✅ — A readiness responde por nota, com o motivo
 
 Uma consulta para as N notas. Por nota: `ok`, `no_cte`, `cte_in_progress`, `cte_rejected` (com cStat e
 mensagem), `cte_cancelled`. E o caso da **D4b**: viagem carregada por `freight_calculations` declara
@@ -115,7 +119,7 @@ uma viagem some da lista sem ninguém entender.
 - **Aceite:** um teste por motivo de bloqueio; sem N+1
 - **Verificação:** `bun run --cwd apps/api-transportada test` + integração
 
-### T007 — O portão da emissão, num lugar só
+### T007 ✅ — O portão da emissão, num lugar só
 
 `checkTripAcceptsManifest`: recusa se a viagem não está `dispatched` (premissa acima), se a readiness
 não é `ready`, se passa de 50 municípios de descarregamento (D5), ou se a empresa não tem certificado
@@ -128,7 +132,7 @@ da SEFAZ traduzida do jeito que a SEFAZ fala.
 - **Aceite:** um teste por recusa, cada uma com código estável próprio
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T008 — `GET /trips/:id/fiscal-readiness`
+### T008 ✅ — `GET /trips/:id/fiscal-readiness`
 
 - **Arquivos:** `src/trips/presentation/trip.routes.ts`, `trip.schema.ts`
 - **Aceite:** `trip.read` alcança; código estável por motivo
@@ -138,7 +142,7 @@ da SEFAZ traduzida do jeito que a SEFAZ fala.
 
 > 🤖 Modelo: `sonnet` (T010 é 🧠 — concorrência)
 
-### T009 — `cte.authorized.v1` sai na autorização
+### T009 ⛔ — `cte.authorized.v1` sai na autorização
 
 O worker já escreve `cte_fiscal_documents`; o evento nasce ali. Sem chave de acesso no envelope —
 id opaco (`security.md` §1).
@@ -147,7 +151,7 @@ id opaco (`security.md` §1).
 - **Aceite:** envelope sem chave de acesso nem participante
 - **Verificação:** contrato + `make worker-integration`
 
-### T010 🧠 — O consumer que pergunta se a viagem ficou pronta
+### T010 🧠 ⛔ — O consumer que pergunta se a viagem ficou pronta
 
 Trilha padrão: retry, `processed_messages`, dead-letter. **Idempotente** — o mesmo evento duas vezes
 não emite dois manifestos. E a trava de concorrência da T004 é quem decide quando dois eventos chegam
@@ -164,7 +168,7 @@ viagem fora de `dispatched` (marca pronta, **não** emite).
 
 > 🤖 Modelo: `sonnet`
 
-### T011 — O corpo vira parcial, e a viagem completa o resto
+### T011 ✅ — O corpo vira parcial, e a viagem completa o resto
 
 `documentIds`, veículo, condutores e municípios saem da viagem. O diálogo pede **o resto** — seguro,
 tipo de carga ambíguo, produto predominante, vale-pedágio —, não tudo de novo.
@@ -173,7 +177,7 @@ tipo de carga ambíguo, produto predominante, vale-pedágio —, não tudo de no
 - **Aceite:** corpo vazio emite manifesto completo quando a viagem tem tudo
 - **Verificação:** integração
 
-### T012 — Notificação nos três momentos
+### T012 ⛔ — Notificação nos três momentos
 
 "Ficou pronta", "emitido", "divergiu". Falha de emissão automática **nunca é silenciosa**.
 
@@ -185,7 +189,7 @@ tipo de carga ambíguo, produto predominante, vale-pedágio —, não tudo de no
 
 > 🤖 Modelo: `sonnet`
 
-### T013 — O painel de prontidão na viagem
+### T013 ✅ — O painel de prontidão na viagem
 
 "8 de 10 prontas", e por nota faltante o motivo. Evolui o `TripMdfePendingDialog`.
 
@@ -193,7 +197,7 @@ tipo de carga ambíguo, produto predominante, vale-pedágio —, não tudo de no
 - **Aceite:** cada motivo aparece com texto próprio
 - **Verificação:** contrato + smoke
 
-### T014 — A lista de manifestos da viagem, com XML e DAMDFE (D4c)
+### T014 ⛔ — A lista de manifestos da viagem, com XML e DAMDFE (D4c)
 
 Inclusive cancelados e rejeitados, **com o motivo** — "por que esse não valeu?" é a pergunta que se
 faz depois.
@@ -202,7 +206,7 @@ faz depois.
 - **Aceite:** download por presigned curta; cancelado listado com motivo
 - **Verificação:** smoke
 
-### T015 — Semáforo e filtro no painel de viagens (P3)
+### T015 ⛔ — Semáforo e filtro no painel de viagens (P3)
 
 - **Arquivos:** `src/modules/trip/`
 - **Aceite:** filtro "prontas para manifestar"
@@ -212,7 +216,7 @@ faz depois.
 
 > 🤖 Modelo: `sonnet`
 
-### T016 — E2E: da nota ao manifesto autorizado
+### T016 ⛔ — E2E: da nota ao manifesto autorizado
 
 Viagem → CT-e para todas as notas → despacho → prontidão → emissão → manifesto com veículo,
 condutores e municípios corretos.
@@ -220,7 +224,7 @@ condutores e municípios corretos.
 - **Arquivos:** `apps/api-transportada/test/integration/`
 - **Verificação:** `bun run --cwd apps/api-transportada test:integration`
 
-### T017 — `evidence.md`
+### T017 ⛔ — `evidence.md`
 
 O que rodou, o que passou, e **o que ficou de fora** — o encerramento automático em primeiro lugar.
 
