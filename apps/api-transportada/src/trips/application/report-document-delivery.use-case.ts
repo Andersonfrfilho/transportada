@@ -1,8 +1,16 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TripDocumentNotReachableError } from '../domain/trip.error.js'
+import {
+  TripDocumentNotReachableError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
+import {
+  checkTripDocumentTransition,
+  TRIP_DOCUMENT_ACTION,
+  type TripDocumentAction,
+} from '../domain/trip-state.policy.js'
 import type {
   DriverFieldReportTransactionPort,
   DriverFieldReportUnitOfWork,
@@ -12,9 +20,6 @@ import { withFieldReport } from './trip-field-report.port.js'
 
 const DELIVER_OPERATION = 'document.deliver'
 const RETURN_OPERATION = 'document.return'
-
-/** Depois destes a nota saiu do eixo do campo: reconfirmar não é repetição, é conflito. */
-const SETTLED_STATUSES = ['delivered', 'returned'] as const
 
 export type ReportDocumentOutcomeInput = {
   readonly actorUserId: string
@@ -32,6 +37,11 @@ export type ReportDocumentReturnInput = ReportDocumentOutcomeInput & {
 }
 
 export type ReportDocumentOutcomeResult = {
+  /**
+   * A nota já estava onde o toque queria pôr — o escritório resolveu, ou foi um segundo toque. Não
+   * é conflito: é a idempotência que a 056 já decidiu (`trip-state.policy.ts`, portão 1).
+   */
+  readonly alreadySettled: boolean
   readonly id: string
   /** Para a tela do motorista saber que a parada fechou sem precisar recarregar a viagem inteira. */
   readonly stopCompleted: boolean
@@ -54,6 +64,7 @@ export async function reportDocumentDelivery(
         companyId: input.companyId,
         documentId,
       }),
+    action: TRIP_DOCUMENT_ACTION.deliver,
     kind: 'delivered',
   })
 }
@@ -76,11 +87,13 @@ export async function reportDocumentReturn(
         documentId,
         reason: input.reason,
       }),
+    action: TRIP_DOCUMENT_ACTION.return,
     kind: 'returned',
   })
 }
 
 type RunOutcomeParams = {
+  readonly action: TripDocumentAction
   readonly input: ReportDocumentOutcomeInput
   readonly kind: 'delivered' | 'returned'
   readonly operation: string
@@ -91,7 +104,7 @@ type RunOutcomeParams = {
 }
 
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
-  const { input, kind, operation, settle } = params
+  const { action, input, kind, operation, settle } = params
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
@@ -109,18 +122,31 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           driverId: input.driverId,
         })
         /**
-         * Confirmação enfileirada de uma nota que o escritório desvinculou, ou que já foi resolvida.
-         * O código é estável e a tela mostra o conflito: sumir com o toque do motorista é pior do
-         * que recusá-lo com o motivo à vista.
+         * Confirmação enfileirada de uma nota que o escritório desvinculou. O código é estável e a
+         * tela mostra o conflito: sumir com o toque do motorista é pior do que recusá-lo com o
+         * motivo à vista.
          */
         if (document === null || document.stopId === null) {
           throw new TripDocumentNotReachableError()
         }
-        if ((SETTLED_STATUSES as readonly string[]).includes(document.separationStatus)) {
-          throw new TripDocumentNotReachableError()
-        }
 
-        await settle(transaction, input.documentId)
+        /**
+         * Quem decide se a transição vale é a política da 056, não uma segunda lista aqui. Ela põe o
+         * no-op idempotente **antes** do estado da viagem de propósito: a fila offline drena muito
+         * depois do toque, e uma entrega que funcionou voltaria como 409 para o motorista que fez
+         * tudo certo.
+         */
+        const transition = checkTripDocumentTransition({
+          action,
+          documentStatus: document.separationStatus,
+          tripStatus: document.tripStatus,
+        })
+        if (transition.outcome === 'blocked') {
+          throw new TripStateTransitionNotAllowedError(transition.reason)
+        }
+        const alreadySettled = transition.outcome === 'unchanged'
+
+        if (!alreadySettled) await settle(transaction, input.documentId)
         const event = await transaction.recordEvent({
           actorUserId: input.actorUserId,
           companyId: input.companyId,
@@ -142,12 +168,14 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
             })
           : false
 
-        return { id: event.id, stopCompleted, tripCompleted }
+        return { alreadySettled, id: event.id, stopCompleted, tripCompleted }
       },
       async (eventId) => {
         const event = await transaction.findEventById({ companyId: input.companyId, eventId })
         // O reenvio devolve o mesmo evento; o que a parada e a viagem fizeram já está feito.
-        return event === null ? null : { id: event.id, stopCompleted: false, tripCompleted: false }
+        return event === null
+          ? null
+          : { alreadySettled: true, id: event.id, stopCompleted: false, tripCompleted: false }
       },
     ),
   )

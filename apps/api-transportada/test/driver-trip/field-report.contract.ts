@@ -9,6 +9,10 @@ import {
 } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
+import type {
+  TripDocumentSeparationStatus,
+  TripStatus,
+} from '../../src/database/trip.schema.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { createFieldReportState, createFieldReportUnitOfWork } from './field-report.double.js'
 
@@ -37,12 +41,19 @@ function buildArrivalWorld(input: { readonly arrivedAt?: Date; readonly tripStat
   return createFieldReportUnitOfWork(state)
 }
 
-function buildDocumentWorld(input: { readonly separationStatus?: string; readonly stopId?: string | null } = {}) {
+function buildDocumentWorld(
+  input: {
+    readonly separationStatus?: TripDocumentSeparationStatus
+    readonly stopId?: string | null
+    readonly tripStatus?: TripStatus
+  } = {},
+) {
   const world = buildArrivalWorld({ arrivedAt: NOW, tripStatus: 'in_transit' })
   world.state.documents.set(DOCUMENT_ID, {
     separationStatus: input.separationStatus ?? 'loaded',
     stopId: input.stopId === undefined ? STOP_ID : input.stopId,
     tripId: TRIP_ID,
+    tripStatus: input.tripStatus ?? 'in_transit',
   })
   return world
 }
@@ -217,12 +228,37 @@ describe('entreguei e não entreguei', () => {
     )
   })
 
-  it('nota já resolvida não é confirmada de novo por outra chave', async () => {
+  /**
+   * A 056 já decidiu isto e escreveu o porquê: a fila offline drena muito depois do toque, e uma
+   * entrega que **funcionou** voltaria como 409 para o motorista que fez tudo certo. Reconfirmar
+   * nota já entregue é no-op anunciado, nunca conflito.
+   */
+  it('nota já entregue volta como resolvida, não como conflito', async () => {
     const world = buildDocumentWorld({ separationStatus: 'delivered' })
 
+    const result = await reportDocumentDelivery(deliveryInput(world, 'chave-nova'))
+
+    expect(result.alreadySettled).toBe(true)
+    expect(world.state.calls).not.toContain(`markDocumentDelivered:${DOCUMENT_ID}`)
+  })
+
+  /** Viagem cancelada com o motorista na rua: a confirmação é recusada com o motivo, não engolida. */
+  it('viagem cancelada recusa a confirmação com o estado como motivo', async () => {
+    const world = buildDocumentWorld({ tripStatus: 'cancelled' })
+
     await expectApiError(
-      reportDocumentDelivery(deliveryInput(world, 'chave-nova')),
-      'TRIP_DOCUMENT_NOT_REACHABLE',
+      reportDocumentDelivery(deliveryInput(world, 'chave-1')),
+      'STATE_TRANSITION_NOT_ALLOWED',
+    )
+  })
+
+  /** Nota que nem foi carregada não se entrega: o portão de origem da 056 continua valendo na rua. */
+  it('nota não carregada é recusada com o motivo da política', async () => {
+    const world = buildDocumentWorld({ separationStatus: 'pending' })
+
+    await expectApiError(
+      reportDocumentDelivery(deliveryInput(world, 'chave-1')),
+      'STATE_TRANSITION_NOT_ALLOWED',
     )
   })
 })

@@ -1,7 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripStopEventKind, TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type {
+  TripDocumentSeparationStatus,
+  TripStatus,
+  TripStopEventKind,
+  TripStopOccurrenceKind,
+} from '../../database/trip.schema.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -18,9 +23,10 @@ export type DriverStopReference = {
 }
 
 export type DriverDocumentReference = {
-  readonly separationStatus: string
+  readonly separationStatus: TripDocumentSeparationStatus
   readonly stopId: string | null
   readonly tripId: string
+  readonly tripStatus: TripStatus
 }
 
 export type FieldReportClaim = {
