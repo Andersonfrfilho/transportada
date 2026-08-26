@@ -1,4 +1,4 @@
-# Tasks — 065
+# Tasks — 066
 
 > 🤖 Modelo por fase conforme `model-economy.md`. **T001 e T002 estão bloqueadas** por
 > `[NEEDS CLARIFICATION]` na `spec.md` — nenhuma task de implementação começa antes das quatro

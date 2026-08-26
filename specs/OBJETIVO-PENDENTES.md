@@ -28,6 +28,7 @@ Vale para toda spec deste plano, sem exceção:
 | **062** | 235     | WhatsApp como canal                     | só `spec.md`                         |
 | **063** | 206     | portal do cliente                       | só `spec.md`                         |
 | **064** | —       | portal do agregado                      | `tasks.md`, sem `evidence.md`        |
+| **066** | 184     | o MEI chega com anexo                   | só `spec.md` — quatro dúvidas abertas |
 | **065** | 190     | o caminhão sai antes do documento       | só `spec.md` — **corrige dois defeitos da 059** |
 
 ## Ordem, e a razão dela

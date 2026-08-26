@@ -1,4 +1,4 @@
-# Plano técnico — 065
+# Plano técnico — 066
 
 ## Contexto e premissas
 
@@ -66,7 +66,7 @@ POST /aggregate-documents/{id}/review  { decision, rejectionReason }   (já exis
 
 Migration **aditiva**: uma tabela nova, uma coluna JSONB que já existe (`declared_data`) ganha bloco
 novo sem alterar o tipo. Rollback é `DROP TABLE` da tabela nova — nada do que existe hoje muda de
-forma, e por isso a 065 é publicável em pedaços.
+forma, e por isso a 066 é publicável em pedaços.
 
 Índices: `unique(draft_id)`, `index(application_id)`, `index(expires_at)` para o job de expurgo.
 
