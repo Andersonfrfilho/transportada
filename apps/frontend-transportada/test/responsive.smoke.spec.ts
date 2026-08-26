@@ -18,7 +18,11 @@ import {
   SYNTHETIC_CTE_ARCHIVE_BYTES,
 } from './cte-batch-smoke.helper'
 import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
-import { DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
+import {
+  DRIVER_ACCESS_KEY,
+  DRIVER_STOP_ID,
+  mockDriverTripApi,
+} from './driver-trip-smoke.helper'
 import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
@@ -972,8 +976,9 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
 
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
   expect(new URL(page.url()).pathname).toBe('/minha-viagem')
-  await expect(page.getByText('Veículo GCQ8E47')).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100')).toBeVisible()
+  // Escopado ao cabeçalho: o romaneio repete a placa, mas só no papel — na tela ela fica escondida
+  await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
 
   // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
   await page.getByRole('button', { name: 'Cheguei' }).click()
@@ -995,6 +1000,34 @@ test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', a
 
   await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Spec 065 D1 e D1b: entre a saída do caminhão e o MDF-e o motorista só tem isto na mão — e para a
+ * entrega urbana, que não terá manifesto nenhum, isto é o que existe. O aviso de não-fiscal é
+ * requisito, não enfeite: impresso, o romaneio volta a parecer documento.
+ */
+test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é fiscal', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toBeVisible()
+  await expect(page.getByText('Não é documento fiscal')).toBeVisible()
+
+  // A chave por extenso é o que se consulta no portal e o que a portaria digita quando o leitor falha
+  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
+  await expect(page.getByText('NF-e 900123/1')).toBeVisible()
+  await expect(page.getByText('3 volumes', { exact: false })).toBeVisible()
+
+  // E o código de barras, que é o que ela bipa
+  await expect(
+    page.getByRole('img', { name: /Código de barras da chave da NF-e 900123/ }),
+  ).toBeVisible()
 
   await assertNoHorizontalOverflow(page)
 })

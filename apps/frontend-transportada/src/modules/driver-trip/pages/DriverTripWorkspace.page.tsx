@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverStopCard } from '../components/DriverStopCard.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
@@ -80,6 +81,9 @@ export function DriverTripWorkspacePage() {
       ) : null}
 
       {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
+
+      {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
+      {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
 
       {trip === undefined ? (
         snapshot?.isRegisteredDriver === false ? null : (

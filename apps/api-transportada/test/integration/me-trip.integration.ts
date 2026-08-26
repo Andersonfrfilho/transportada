@@ -95,6 +95,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened.trips[0]?.vehiclePlate).toBe('GCQ8E47')
       expect(opened.trips[0]?.stops.map((stop) => stop.sequence)).toEqual([1, 2])
       expect(opened.trips[0]?.stops[0]?.documents).toHaveLength(2)
+      /**
+       * Spec 065 D1b: a entrega urbana não tem CT-e nem MDF-e, então a NF-e é o único documento
+       * daquela carga — e é com a chave que a portaria confere e o fiscal consulta.
+       */
+      expect(opened.trips[0]?.stops[0]?.documents[0]).toMatchObject({
+        accessKey: `1${'1'.repeat(43)}`,
+        number: '1',
+        recipientName: 'Destinatario 1',
+        series: '1',
+      })
 
       // 2. Cheguei na primeira parada — e a viagem sai de `dispatched` sozinha
       await reportStopArrival({

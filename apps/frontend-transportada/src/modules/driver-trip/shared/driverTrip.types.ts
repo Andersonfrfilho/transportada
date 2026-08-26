@@ -2,11 +2,17 @@
 
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
+  accessKey: string
   deliveredAt: string | null
+  grossWeight: string
   id: string
+  number: string
   recipientName: string
   returnReason: string | null
   separationStatus: string
+  series: string
+  totalAmount: string
+  volumeCount: string
 }>
 
 export type DriverTripStop = Readonly<{

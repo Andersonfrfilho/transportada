@@ -5,6 +5,16 @@
   "documentsPending_one": "{{count}} invoice to deliver",
   "documentsPending_other": "{{count}} invoices to deliver",
   "error": "Your trip could not be loaded. Pull to try again.",
+  "loadSheet": {
+    "title": "Load sheet",
+    "notFiscal": "This is not a fiscal document",
+    "print": "Print",
+    "note": "NF-e {{number}}/{{series}}",
+    "volumes_one": "{{count}} package",
+    "volumes_other": "{{count}} packages",
+    "weight": "{{weight}} kg",
+    "barcodeLabel": "Barcode for the access key of NF-e {{number}}"
+  },
   "loading": "Loading your trip…",
   "navigate": "Navigate",
   "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",

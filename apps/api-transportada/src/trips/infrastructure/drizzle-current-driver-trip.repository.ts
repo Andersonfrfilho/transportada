@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
-import { nfeParticipants } from '../../database/nfe.schema.js'
+import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type {
   CurrentDriverTripPort,
@@ -76,7 +76,24 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.listDocuments({ companyId: input.companyId, tripIds }),
     ])
 
-    const documentsByStop = groupBy(documentRows, (row) => row.stopId)
+    /**
+     * Volume é 1..N por nota: somar no banco, numa consulta só, evita trazer cem linhas para contar
+     * três. Nota sem volume importado é caso normal — a NF-e é dado de terceiro, e nós não a
+     * preenchemos.
+     */
+    const volumesByDocument = await this.sumVolumes({
+      companyId: input.companyId,
+      nfeDocumentIds: documentRows
+        .map((row) => row.nfeDocumentId)
+        .filter((documentId): documentId is string => documentId !== null),
+    })
+    const documentsByStop = groupBy(
+      documentRows.map((row) => ({
+        ...row,
+        volumes: volumesByDocument.get(row.nfeDocumentId ?? '') ?? null,
+      })),
+      (row) => row.stopId,
+    )
     const stopsByTrip = groupBy(stopRows, (row) => row.tripId)
 
     return tripRows.map((trip) => ({
@@ -85,6 +102,32 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       stops: (stopsByTrip.get(trip.id) ?? []).map((stop) => toDriverStop(stop, documentsByStop)),
       vehiclePlate: trip.plate,
     }))
+  }
+
+  private async sumVolumes(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<Map<string, VolumeTotals>> {
+    if (input.nfeDocumentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        documentId: nfeVolumes.documentId,
+        grossWeight: sql<string>`coalesce(sum(${nfeVolumes.grossWeight}), 0)::text`,
+        quantity: sql<string>`coalesce(sum(${nfeVolumes.quantity}), 0)::text`,
+      })
+      .from(nfeVolumes)
+      .where(
+        and(
+          eq(nfeVolumes.companyId, input.companyId),
+          inArray(nfeVolumes.documentId, [...input.nfeDocumentIds]),
+        ),
+      )
+      .groupBy(nfeVolumes.documentId)
+
+    return new Map(
+      rows.map((row) => [row.documentId, { grossWeight: row.grossWeight, quantity: row.quantity }]),
+    )
   }
 
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
@@ -116,14 +159,26 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   private async listDocuments(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
       .select({
+        accessKey: nfeDocuments.accessKey,
         deliveredAt: tripDocuments.deliveredAt,
         id: tripDocuments.id,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
+        number: nfeDocuments.number,
         recipientName: nfeParticipants.legalName,
         returnReason: tripDocuments.returnReason,
         separationStatus: tripDocuments.separationStatus,
+        series: nfeDocuments.series,
         stopId: tripDocuments.stopId,
+        totalAmount: nfeDocuments.totalValue,
       })
       .from(tripDocuments)
+      .leftJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.companyId, tripDocuments.companyId),
+          eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+        ),
+      )
       .leftJoin(
         nfeParticipants,
         and(
@@ -155,13 +210,20 @@ type StopRow = {
   readonly tripId: string
 }
 
+type VolumeTotals = { readonly grossWeight: string; readonly quantity: string }
+
 type DocumentRow = {
+  readonly accessKey: string | null
   readonly deliveredAt: Date | null
   readonly id: string
+  readonly number: string | null
   readonly recipientName: string | null
   readonly returnReason: string | null
   readonly separationStatus: string
+  readonly series: string | null
   readonly stopId: string | null
+  readonly totalAmount: string | null
+  readonly volumes: VolumeTotals | null
 }
 
 function toDriverStop(stop: StopRow, documentsByStop: Map<string | null, DocumentRow[]>): DriverTripStop {
@@ -179,13 +241,23 @@ function toDriverStop(stop: StopRow, documentsByStop: Map<string | null, Documen
   }
 }
 
+/**
+ * Toda ausência vira vazio, nunca `undefined`: a NF-e é dado de terceiro, e a tela do motorista não
+ * pode quebrar porque o emitente não mandou o peso do volume.
+ */
 function toDriverDocument(row: DocumentRow): DriverTripDocument {
   return {
+    accessKey: row.accessKey ?? '',
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
+    grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
+    number: row.number ?? '',
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,
+    series: row.series ?? '',
+    totalAmount: row.totalAmount ?? '0',
+    volumeCount: row.volumes?.quantity ?? '0',
   }
 }
 

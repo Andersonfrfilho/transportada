@@ -1,0 +1,5 @@
+/* A altura é do símbolo, não do conteúdo: código de barras baixo demais o leitor não pega. */
+.barcode {
+  height: 3rem;
+  width: 100%;
+}

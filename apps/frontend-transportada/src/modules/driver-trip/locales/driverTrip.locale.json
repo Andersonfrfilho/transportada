@@ -5,6 +5,16 @@
   "documentsPending_one": "{{count}} nota para entregar",
   "documentsPending_other": "{{count}} notas para entregar",
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
+  "loadSheet": {
+    "title": "Romaneio de carga",
+    "notFiscal": "Não é documento fiscal",
+    "print": "Imprimir",
+    "note": "NF-e {{number}}/{{series}}",
+    "volumes_one": "{{count}} volume",
+    "volumes_other": "{{count}} volumes",
+    "weight": "{{weight}} kg",
+    "barcodeLabel": "Código de barras da chave da NF-e {{number}}"
+  },
   "loading": "Carregando sua viagem…",
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",

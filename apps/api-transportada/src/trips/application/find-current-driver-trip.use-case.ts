@@ -11,13 +11,28 @@
  * O payload é enxuto de propósito (RNF: abrir em 3G): sem XML, sem histórico de evento e sem produto
  * item a item, que a tela não mostra.
  */
+/**
+ * Spec 065 D1b: a entrega urbana **não tem CT-e nem MDF-e** — a NF-e é o único documento daquela
+ * carga, e ela precisa estar na mão do motorista. Por isso a nota sobe com chave, número e série: é
+ * com a chave que um fiscal consulta no portal e é com ela que a portaria do cliente confere.
+ *
+ * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
+ * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
+ */
 export type DriverTripDocument = {
+  readonly accessKey: string
   readonly deliveredAt: string | null
+  /** Soma do peso bruto dos volumes. Zero quando a nota importada não os trouxe — e isso é comum. */
+  readonly grossWeight: string
   readonly id: string
+  readonly number: string
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
   readonly returnReason: string | null
   readonly separationStatus: string
+  readonly series: string
+  readonly totalAmount: string
+  readonly volumeCount: string
 }
 
 export type DriverTripStop = {

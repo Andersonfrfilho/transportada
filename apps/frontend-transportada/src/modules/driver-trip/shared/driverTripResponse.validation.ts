@@ -32,15 +32,30 @@ function readNullableString(value: unknown): string | null {
   return readString(value)
 }
 
+function readOptionalText(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
+  /**
+   * Toda ausência vira vazio: a NF-e é dado de terceiro, e a tela do motorista não pode quebrar
+   * porque o emitente não mandou o peso do volume. O que **não** pode faltar é o id e o estado —
+   * sem eles não há o que tocar.
+   */
   return {
+    accessKey: readOptionalText(value.accessKey),
     deliveredAt: readNullableString(value.deliveredAt),
+    grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
-    recipientName: typeof value.recipientName === 'string' ? value.recipientName : '',
+    number: readOptionalText(value.number),
+    recipientName: readOptionalText(value.recipientName),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
+    series: readOptionalText(value.series),
+    totalAmount: readOptionalText(value.totalAmount),
+    volumeCount: readOptionalText(value.volumeCount),
   }
 }
 
