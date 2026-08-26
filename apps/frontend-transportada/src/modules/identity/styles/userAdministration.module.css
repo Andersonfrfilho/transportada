@@ -238,10 +238,12 @@
   justify-content: flex-end;
 }
 
+/* Alinhar pelo topo, não pelo fim: o campo com dica é mais alto, e `end` empurrava o rótulo
+   do vizinho para baixo do input dele — os dois da mesma linha saíam desencontrados. */
 .fieldGrid {
   display: grid;
   gap: var(--space-3);
-  align-items: end;
+  align-items: start;
   min-width: 0;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
