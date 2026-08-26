@@ -70,6 +70,25 @@ chamar assim**, e essa é a decisão:
 O romaneio existe do despacho até o MDF-e ser autorizado. Depois disso o DAMDFE toma o lugar dele **no
 mesmo ponto da tela** — o motorista não aprende dois lugares.
 
+### D1b — A entrega urbana não tem MDF-e nem CT-e, então quem documenta a carga é a NF-e
+
+Confirmado com a operação: transporte dentro do município **não exige MDF-e**. A consequência é que,
+para essa parte da carga, não existe CT-e nem manifesto — **a NF-e é o único documento**, e ela
+precisa estar na mão do motorista.
+
+Então o romaneio não é só uma lista: por parada, cada nota abre com **número, série, chave por
+extenso e o código de barras da chave**, mais destinatário, município, volumes, peso e valor. É com a
+chave que um fiscal consulta no portal e é com ela que a portaria do cliente confere.
+
+**O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
+emitente imprimiu e mandou junto com a carga — ela continua viajando na caixa. O que está no celular
+é a **cópia digital para conferência e consulta**, e a tela diz isso com essas palavras.
+
+> **Custo declarado:** gerar a DANFE em PDF é possível — as engrenagens do DACTE (renderizador de PDF
+> e gerador de código de barras) já existem e serviriam —, mas é trabalho próprio, de layout inteiro
+> e campo a campo. Chave e código de barras resolvem consulta e conferência **hoje**; a DANFE
+> renderizada é spec separada, com o custo dela declarado, e não entra aqui.
+
 ### D2 — O portão da emissão aceita a carga que já saiu, não só a que está saindo
 
 A garantia que o portão protege é: *depois de `dispatched` nenhuma nota entra ou sai, então o conjunto
@@ -186,6 +205,12 @@ _quando_ o motorista abre a viagem no PWA,
 _então_ vê o romaneio da carga — paradas, notas, destinatários, peso — com "não é documento fiscal" à
 vista, e consegue abrir sem sinal.
 
+**P1 — a nota da entrega urbana está na mão dele**
+_Dado_ uma parada de entrega no município da transportadora, que não terá CT-e nem MDF-e,
+_quando_ o motorista abre a parada,
+_então_ vê a NF-e daquela entrega com chave por extenso e código de barras, e consegue abrir **sem
+sinal** — porque barreira e portaria são exatamente onde não tem.
+
 **P1 — o lote autorizado com o caminhão na rua emite o manifesto**
 _Dado_ uma viagem `in_transit` cujo lote de CT-e acabou de autorizar,
 _quando_ o operador emite o MDF-e,
@@ -246,8 +271,10 @@ indica, em vez de o operador separar por CNPJ.
    pendência própria e responde `not_applicable` quando não há nota de CT-e (D4).
 4. `trips.fiscal_readiness_state` ganha `not_applicable`.
 5. A prontidão distingue "sem lote ainda" de "com lote e faltando documento" (D5).
-6. Romaneio de carga da viagem, com `GET /me/trips/current` carregando o que ele precisa, e o PDF
-   gerado **sem** aparência de documento fiscal (D1).
+6. Romaneio de carga da viagem, com `GET /me/trips/current` carregando o que ele precisa, **sem**
+   aparência de documento fiscal (D1).
+6b. Por nota do romaneio: número, série, chave por extenso, código de barras da chave, destinatário,
+    município, volumes, peso e valor — tudo no cache da viagem, disponível sem rede (D1b).
 7. `freight_rule_versions.filters` ganha `destinationCityCodes`, IBGE de 7 dígitos (D6).
 8. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
    ambos com `source` declarado (D7).
@@ -296,7 +323,9 @@ indica, em vez de o operador separar por CNPJ.
 - [ ] Teste de viagem só urbana → `not_applicable`, sem oferta de manifesto.
 - [ ] Teste dos dois tons da prontidão: sem lote versus com lote.
 - [ ] Teste de que o romaneio não é apresentado como documento fiscal — título e aviso presentes.
-- [ ] Teste de que romaneio e DAMDFE abrem sem rede.
+- [ ] Teste de que romaneio, chave da NF-e e DAMDFE abrem sem rede.
+- [ ] Teste de que a chave impressa no romaneio é a da nota daquela parada, e de que o código de
+      barras codifica exatamente ela.
 - [ ] Teste do filtro de município na regra de frete, incluindo a precedência sobre a UF.
 - [ ] Teste de que a avaliação prevista não escreve documento fiscal nenhum.
 - [ ] Integração: viagem mista, do barracão ao manifesto emitido com a viagem já concluída.
@@ -306,7 +335,9 @@ indica, em vez de o operador separar por CNPJ.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: a carga urbana precisa de MDF-e? O layout permite manifestar NF-e direto (infNFe), sem CT-e. A D4 assume que transporte intramunicipal com NFS-e não exige manifesto. Se exigir, a D4 muda inteira e a viagem urbana passa a manifestar por NF-e.]`
+> **Fechado:** a carga urbana **não exige MDF-e**. Em compensação, ela não tem CT-e nem manifesto, e
+> por isso a NF-e precisa estar no celular do motorista — é a D1b.
+
 - `[NEEDS CLARIFICATION: o lote de NFS-e agrupa por tomador — numa viagem com várias entregas urbanas de tomadores diferentes, nascem N notas de serviço. Confirmar que é isso, e não uma nota por viagem.]`
 - `[NEEDS CLARIFICATION: o romaneio precisa de PDF para impressão, ou basta a tela do PWA? Impresso, ele volta a parecer documento — e é o formato que alguém apresenta numa barreira.]`
 
