@@ -152,6 +152,20 @@ condição do manifesto**. Ela aparece como pendência da viagem, em lugar próp
 E **viagem cujas entregas são todas urbanas não tem MDF-e**: ela é `not_applicable`, não "incompleta".
 Ficar incompleta para sempre é como uma viagem some da lista sem ninguém entender.
 
+### D4b — A viagem **não** emite nada: ela anuncia o que já saiu vinculado
+
+A emissão continua sendo do escritório, pelo caminho que já existe — lote de CT-e que a contratante
+autoriza, lote de NFS-e das entregas urbanas. **A viagem não gera nenhum dos dois**, e não deve: quem
+decide quando emitir é o combinado comercial, não o barracão.
+
+O que a viagem faz é **sinalizar**. Na listagem de notas e na composição do lote, cada nota diz a
+viagem em que ela saiu — as de NF-e urbana e as de CT-e, sem distinção. É a informação que hoje falta
+na hora de montar o lote: **fatura-se o que saiu**, e quem monta o lote precisa saber o que saiu sem
+abrir a tela de viagem para conferir uma por uma.
+
+É sinal, não bloqueio. Nota vinculada a viagem **deve** entrar no lote — é justamente a carga que
+rodou. Transformar isso em impedimento inverteria o sentido da informação.
+
 ### D5 — A prontidão é informativa até o lote existir, e cobrança depois
 
 A carga circula sem documento por decisão comercial, não por atraso. Uma tela que pinta "10 notas sem
@@ -257,9 +271,17 @@ _Dado_ uma regra de frete cadastrada para o município da transportadora,
 _quando_ a nota é avaliada,
 _então_ ela usa essa regra, e não a regra geral da UF.
 
-**P3 — o lote nasce da viagem**
-Gerar o lote de CT-e e o de NFS-e a partir das notas da viagem, cada uma no lote que a classificação
-indica, em vez de o operador separar por CNPJ.
+**P2 — a nota diz em que viagem ela saiu**
+_Dado_ o operador montando o lote de CT-e,
+_quando_ ele olha a lista de notas,
+_então_ cada uma mostra a viagem em que saiu — porque fatura-se o que saiu, e hoje isso se descobre
+abrindo a tela de viagem uma nota por vez.
+
+**P3 — o romaneio impresso não se disfarça de documento fiscal**
+_Dado_ o romaneio impresso na mão do motorista,
+_quando_ alguém o olha,
+_então_ o que se lê primeiro é "ROMANEIO DE CARGA — NÃO É DOCUMENTO FISCAL", e nada no desenho dele
+imita DANFE ou DAMDFE.
 
 ## Requisitos funcionais
 
@@ -275,6 +297,10 @@ indica, em vez de o operador separar por CNPJ.
    aparência de documento fiscal (D1).
 6b. Por nota do romaneio: número, série, chave por extenso, código de barras da chave, destinatário,
     município, volumes, peso e valor — tudo no cache da viagem, disponível sem rede (D1b).
+6c. Romaneio **em PDF para impressão**, com o título e o aviso de não-fiscal acima de tudo, e sem
+    imitar o desenho de DANFE ou DAMDFE (D1, P3).
+6d. Sinal de vínculo com viagem na listagem de notas e na composição do lote — NF-e e CT-e, sem
+    bloqueio (D4b).
 7. `freight_rule_versions.filters` ganha `destinationCityCodes`, IBGE de 7 dígitos (D6).
 8. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
    ambos com `source` declarado (D7).
@@ -326,6 +352,9 @@ indica, em vez de o operador separar por CNPJ.
 - [ ] Teste de que romaneio, chave da NF-e e DAMDFE abrem sem rede.
 - [ ] Teste de que a chave impressa no romaneio é a da nota daquela parada, e de que o código de
       barras codifica exatamente ela.
+- [ ] Teste de que o PDF do romaneio carrega o título e o aviso de não-fiscal, e um contrato que
+      falha se o aviso sair do documento.
+- [ ] Teste de que o vínculo com viagem aparece na listagem de notas e **não** bloqueia o lote.
 - [ ] Teste do filtro de município na regra de frete, incluindo a precedência sobre a UF.
 - [ ] Teste de que a avaliação prevista não escreve documento fiscal nenhum.
 - [ ] Integração: viagem mista, do barracão ao manifesto emitido com a viagem já concluída.
@@ -338,8 +367,13 @@ indica, em vez de o operador separar por CNPJ.
 > **Fechado:** a carga urbana **não exige MDF-e**. Em compensação, ela não tem CT-e nem manifesto, e
 > por isso a NF-e precisa estar no celular do motorista — é a D1b.
 
-- `[NEEDS CLARIFICATION: o lote de NFS-e agrupa por tomador — numa viagem com várias entregas urbanas de tomadores diferentes, nascem N notas de serviço. Confirmar que é isso, e não uma nota por viagem.]`
-- `[NEEDS CLARIFICATION: o romaneio precisa de PDF para impressão, ou basta a tela do PWA? Impresso, ele volta a parecer documento — e é o formato que alguém apresenta numa barreira.]`
+> **Fechado:** a viagem **não gera** lote de NFS-e nem de CT-e. Os dois continuam nascendo pelo
+> caminho que já existe; a viagem só sinaliza o vínculo (D4b). Como ela não emite, a pergunta sobre
+> agrupamento por tomador não é desta spec.
+
+> **Fechado:** o romaneio **é impresso**. E por isso o desenho dele é requisito, não detalhe: impresso
+> é justamente onde ele volta a parecer documento fiscal, e é impresso que alguém o apresenta numa
+> barreira. Título e aviso vêm acima de tudo, e o layout não imita DANFE nem DAMDFE.
 
 ## 🤖 Modelo
 
