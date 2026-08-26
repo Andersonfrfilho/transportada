@@ -109,8 +109,8 @@ describe('a emissão automática', () => {
     ).toBe(false)
   })
 
-  /** ADR-0046 §3: mesmo ligada, ela só age depois do despacho — é a garantia que fecha o buraco. */
-  it('não age fora de dispatched, mesmo ligada e pronta', () => {
+  /** Mesmo ligada, ela só age depois de a carga sair — é a garantia que fecha o buraco. */
+  it('não age com a carga ainda no barracão, mesmo ligada e pronta', () => {
     expect(
       shouldIssueAutomatically({
         isAutomaticEnabled: true,
@@ -118,6 +118,22 @@ describe('a emissão automática', () => {
         tripStatus: 'route_planned',
       }),
     ).toBe(false)
+  })
+
+  /**
+   * O caso que faz o automático existir nesta operação: o lote autoriza com o caminhão na rua, ou
+   * depois de ele voltar. Se ele não agisse aí, não agiria nunca.
+   */
+  it('age com a carga na rua e com a viagem já concluída', () => {
+    for (const status of ['in_transit', 'completed'] as const) {
+      expect(
+        shouldIssueAutomatically({
+          isAutomaticEnabled: true,
+          readiness: readiness('ready'),
+          tripStatus: status,
+        }),
+      ).toBe(true)
+    }
   })
 
   it('não age duas vezes: viagem já manifestada não emite de novo', () => {

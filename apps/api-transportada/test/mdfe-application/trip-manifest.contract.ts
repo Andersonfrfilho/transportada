@@ -270,11 +270,25 @@ describe('create MDF-e manifest from a trip', () => {
   })
 
   /**
-   * A premissa que a spec 059 fechou: **o manual também exige despacho**. Permitir antes reabriria o
-   * buraco da ADR-0043 §2 — o manifesto declara dez CT-e e alguém vincula a décima primeira nota.
-   * Se a operação real exigir o contrário, é este teste que muda junto com a política.
+   * Spec 065: o caminhão sai antes de qualquer emissão, e o lote é autorizado com a viagem já na rua
+   * ou de volta. Se este caminho recusasse, a operação inteira ficaria sem manifesto.
    */
-  test('refuses a trip that was not dispatched yet, even when fiscally ready', async () => {
+  test('issues with the cargo already on the road and after the trip completed', async () => {
+    for (const tripStatus of ['in_transit', 'completed'] as const) {
+      const fixture = createFixture({ tripStatus })
+
+      await fixture.useCase.execute({
+        context: CONTEXT,
+        correlationId: `correlation-${tripStatus}`,
+        manifest: fields({ destinationState: 'SP' }),
+        tripId: TRIP_ID,
+      })
+
+      expect(fixture.createCalls).toHaveLength(1)
+    }
+  })
+
+  test('refuses a trip whose cargo has not left yet, even when fiscally ready', async () => {
     const fixture = createFixture({ tripStatus: 'route_planned' })
 
     const error = await refusal(() =>

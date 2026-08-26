@@ -166,6 +166,31 @@ abrir a tela de viagem para conferir uma por uma.
 É sinal, não bloqueio. Nota vinculada a viagem **deve** entrar no lote — é justamente a carga que
 rodou. Transformar isso em impedimento inverteria o sentido da informação.
 
+### D4c — A viagem pode dizer que não precisa de manifesto, e dizer por quê
+
+A classificação da D4 acerta o caso geral: viagem com nota de fora precisa de MDF-e, viagem só urbana
+não. Mas a realidade tem canto que a regra não cobre — e uma regra sem escape vira contorno em papel.
+
+Então `trips.requires_mdfe` nasce com **três estados**, e não dois:
+
+| Valor    | Significado                                                              |
+| -------- | ------------------------------------------------------------------------ |
+| `null`   | **derivado** da classificação — é o padrão, e é o que acerta quase sempre |
+| `true`   | o operador afirma que precisa                                            |
+| `false`  | o operador afirma que não precisa                                        |
+
+O padrão é `null` de propósito: um campo obrigatório aqui faria o operador responder toda viagem a uma
+pergunta que o sistema já sabe responder, e responder no automático — que é como se erra.
+
+Duas guardas, e a primeira é a que importa:
+
+- **Forçar `false` numa viagem que tem nota de CT-e exige motivo escrito, e ele fica na trilha.** É o
+  caso perigoso: carga intermunicipal circulando sem manifesto é multa e retenção em barreira. O
+  produto não impede — a operação tem razões que ele não conhece —, mas não deixa acontecer calado. É
+  o mesmo desenho do motivo obrigatório do despacho forçado, que já existe.
+- **Forçar `true` numa viagem sem nota de CT-e é recusado.** Não existe manifesto vazio, e a viagem
+  ficaria esperando para sempre por um documento que nunca vai ter o que declarar.
+
 ### D5 — A prontidão é informativa até o lote existir, e cobrança depois
 
 A carga circula sem documento por decisão comercial, não por atraso. Uma tela que pinta "10 notas sem
@@ -292,6 +317,8 @@ imita DANFE ou DAMDFE.
 3. A prontidão classifica cada nota, exige CT-e autorizado só das de CT-e, lista as de NFS-e como
    pendência própria e responde `not_applicable` quando não há nota de CT-e (D4).
 4. `trips.fiscal_readiness_state` ganha `not_applicable`.
+4b. `trips.requires_mdfe` anulável, com motivo obrigatório para `false` em viagem com nota de CT-e e
+    recusa de `true` em viagem sem nenhuma (D4c).
 5. A prontidão distingue "sem lote ainda" de "com lote e faltando documento" (D5).
 6. Romaneio de carga da viagem, com `GET /me/trips/current` carregando o que ele precisa, **sem**
    aparência de documento fiscal (D1).
@@ -347,6 +374,8 @@ imita DANFE ou DAMDFE.
 - [ ] Teste de classificação: destino no município → NFS-e; fora → CT-e; sem IBGE → pendência.
 - [ ] Teste de que a NFS-e pendente **não** bloqueia o manifesto.
 - [ ] Teste de viagem só urbana → `not_applicable`, sem oferta de manifesto.
+- [ ] Teste de que forçar "não precisa de MDF-e" com nota de CT-e exige motivo e grava trilha.
+- [ ] Teste de que forçar "precisa" numa viagem sem nota de CT-e é recusado.
 - [ ] Teste dos dois tons da prontidão: sem lote versus com lote.
 - [ ] Teste de que o romaneio não é apresentado como documento fiscal — título e aviso presentes.
 - [ ] Teste de que romaneio, chave da NF-e e DAMDFE abrem sem rede.

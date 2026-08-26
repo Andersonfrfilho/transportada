@@ -3,22 +3,26 @@
  */
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
+import { isTripDispatched } from './trip-state.policy.js'
 
 /**
- * ADR-0046 §4 e §6: **o portão da emissão, num lugar só**. Manual e automático passam por aqui, e
- * essa é a decisão — permitir o manual antes do despacho reabriria o buraco que a garantia fecha: o
- * manifesto declara dez CT-e, alguém vincula a décima primeira nota, e a declaração à SEFAZ passa a
- * ser falsa sem que nada acuse.
+ * ADR-0046 §4 e §6: **o portão da emissão, num lugar só**. Manual e automático passam por aqui.
  *
- * Se a operação real exigir o contrário, é aqui que se afrouxa — e o teste que trava isto está
- * nomeado.
+ * A garantia que ele protege é a da ADR-0043 §2: *depois de `dispatched` nenhuma nota entra ou sai*,
+ * então o conjunto declarado no manifesto não pode mudar por baixo dele. Essa garantia vale para
+ * `dispatched`, `in_transit` **e** `completed` — as três são "a carga já saiu".
+ *
+ * Exigir `dispatched` exato, como esta política fazia, recusava justamente o caso normal desta
+ * operação (spec 065): **o caminhão sai antes de qualquer emissão**, e o lote de CT-e é autorizado
+ * pela contratante com a viagem já na rua ou de volta. O que continua recusado é o oposto —
+ * manifestar carga que ainda **não** saiu, porque aí a nota seguinte ainda pode entrar.
  */
 export const TRIP_MANIFEST_BLOCKS = {
   /** O layout do MDF-e limita a 50, e distribuição capilar passa disso todo dia. */
   dischargeCitiesOverLimit: 'TRIP_MANIFEST_DISCHARGE_CITIES_OVER_LIMIT',
   /** Já existe manifesto vivo: emitir de novo seria declarar a mesma carga duas vezes. */
   manifestAlreadyLive: 'TRIP_MANIFEST_ALREADY_LIVE',
-  /** Antes do despacho o conjunto de notas ainda muda (ADR-0043 §2). */
+  /** A carga ainda não saiu, então o conjunto de notas ainda muda (ADR-0043 §2). */
   tripNotDispatched: 'TRIP_MANIFEST_TRIP_NOT_DISPATCHED',
   /** Falta CT-e autorizado em alguma nota — a readiness diz em qual e por quê. */
   readinessIncomplete: 'TRIP_MANIFEST_READINESS_INCOMPLETE',
@@ -42,7 +46,7 @@ export type CheckTripAcceptsManifestParams = {
 export function checkTripAcceptsManifest(
   input: CheckTripAcceptsManifestParams,
 ): TripManifestBlock | null {
-  if (input.tripStatus !== 'dispatched') return TRIP_MANIFEST_BLOCKS.tripNotDispatched
+  if (!isTripDispatched(input.tripStatus)) return TRIP_MANIFEST_BLOCKS.tripNotDispatched
   if (input.readiness.state === 'manifested' || input.readiness.state === 'divergent') {
     return TRIP_MANIFEST_BLOCKS.manifestAlreadyLive
   }
@@ -55,7 +59,8 @@ export function checkTripAcceptsManifest(
 }
 
 /**
- * ADR-0046 §3: mesmo com a empresa optando pelo automático, o gatilho só age em `dispatched`. Esta
+ * ADR-0046 §3: mesmo com a empresa optando pelo automático, o gatilho só age depois de a carga sair.
+ * Esta
  * é a função que o consumer chama, e ela é deliberadamente separada do portão acima: o botão manual
  * recusa **com motivo**, e o automático simplesmente **não age** — recusar em silêncio na tela é
  * ruim, e notificar "não emiti porque a viagem está em rascunho" a cada CT-e autorizado é pior.
