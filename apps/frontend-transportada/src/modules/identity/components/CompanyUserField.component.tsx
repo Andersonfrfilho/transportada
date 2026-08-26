@@ -12,10 +12,23 @@ type CompanyUserTextFieldProps = Readonly<{
   value: string
   autoComplete?: string
   disabled?: boolean
+  errorText?: string
   hint?: string
   isWide?: boolean
   maxLength?: number
   placeholder?: string
+}>
+
+type CompanyUserMaskedFieldProps = Readonly<{
+  format: (value: string) => string
+  label: string
+  onChange: (value: string) => void
+  value: string
+  disabled?: boolean
+  errorText?: string
+  hint?: string
+  inputMode?: 'numeric' | 'tel'
+  maxLength?: number
 }>
 
 type CompanyUserSelectFieldProps = Readonly<{
@@ -40,6 +53,7 @@ type CompanyUserRoleFieldProps = Readonly<{
 export function CompanyUserTextField({
   autoComplete,
   disabled = false,
+  errorText,
   hint,
   isWide = false,
   label,
@@ -49,11 +63,14 @@ export function CompanyUserTextField({
   value,
 }: CompanyUserTextFieldProps) {
   const className = isWide ? `${styles.field ?? ''} ${styles.wideField ?? ''}` : styles.field
+  const messageId = `${label}-message`
 
   return (
     <label className={className}>
       <span>{label}</span>
       <input
+        aria-describedby={errorText === undefined ? undefined : messageId}
+        aria-invalid={errorText === undefined ? undefined : true}
         autoComplete={autoComplete}
         disabled={disabled}
         maxLength={maxLength}
@@ -62,7 +79,56 @@ export function CompanyUserTextField({
         type="text"
         value={value}
       />
-      {hint === undefined ? null : <span className={styles.fieldHint}>{hint}</span>}
+      {errorText === undefined ? null : (
+        <span className={styles.fieldError} id={messageId} role="alert">
+          {errorText}
+        </span>
+      )}
+      {errorText !== undefined || hint === undefined ? null : (
+        <span className={styles.fieldHint}>{hint}</span>
+      )}
+    </label>
+  )
+}
+
+/**
+ * Formata enquanto se digita, e o estado guarda o texto formatado: reformatar a cada tecla a
+ * partir do valor cru moveria o cursor para o fim toda vez que a máscara inserisse pontuação.
+ */
+export function CompanyUserMaskedField({
+  disabled = false,
+  errorText,
+  format,
+  hint,
+  inputMode,
+  label,
+  maxLength,
+  onChange,
+  value,
+}: CompanyUserMaskedFieldProps) {
+  const hintId = `${label}-hint`
+
+  return (
+    <label className={styles.field}>
+      <span>{label}</span>
+      <input
+        aria-describedby={errorText === undefined ? undefined : hintId}
+        aria-invalid={errorText === undefined ? undefined : true}
+        disabled={disabled}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        onChange={(event) => onChange(format(event.target.value))}
+        type="text"
+        value={value}
+      />
+      {errorText === undefined ? null : (
+        <span className={styles.fieldError} id={hintId} role="alert">
+          {errorText}
+        </span>
+      )}
+      {errorText !== undefined || hint === undefined ? null : (
+        <span className={styles.fieldHint}>{hint}</span>
+      )}
     </label>
   )
 }

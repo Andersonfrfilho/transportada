@@ -78,7 +78,14 @@
       "rolesHint": "Ao menos um papel. O papel decide o que a pessoa enxerga no sistema.",
       "cancel": "Cancelar",
       "confirm": "Enviar convite",
-      "sending": "Enviando…"
+      "sending": "Enviando…",
+      "email": "E-mail",
+      "emailInvalid": "E-mail inválido.",
+      "phone": "Telefone",
+      "phoneInvalid": "Telefone incompleto — informe DDD e número.",
+      "taxId": "CPF",
+      "taxIdHint": "Opcional. Com papel de Motorista ou Agregado, é por ele que a ficha de frota é encontrada.",
+      "taxIdInvalid": "CPF incompleto — são onze dígitos."
     },
     "editDialog": {
       "title": "Editar usuário",
@@ -116,7 +123,13 @@
       "COMPANY_USER_CONTACT_TAKEN": "Já existe um acesso com este contato.",
       "USERNAME_ALREADY_TAKEN": "Este login já está em uso.",
       "IDENTITY_SUBJECT_NOT_FOUND": "O acesso não tem identidade no provedor de login. Convide a pessoa de novo.",
-      "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador."
+      "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador.",
+      "COMPANY_USER_TAX_ID_TAKEN": "Já existe um acesso com este CPF."
+    },
+    "fleetLink": {
+      "linked": "Vinculado à ficha de frota existente.",
+      "noDriverRecord": "Convite enviado, mas nenhuma ficha de frota com este CPF foi encontrada — cadastre a ficha para a pessoa aparecer na frota.",
+      "dismiss": "Dispensar o aviso"
     }
   }
 }

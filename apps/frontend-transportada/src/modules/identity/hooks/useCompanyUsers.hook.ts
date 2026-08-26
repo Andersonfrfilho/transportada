@@ -18,6 +18,7 @@ import {
 import type {
   ChangeCompanyUserStatusInput,
   CompanyUser,
+  InvitedCompanyUser,
   InviteCompanyUserInput,
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
@@ -38,7 +39,7 @@ export type CompanyUsersClient = Client
 export type CompanyUsersController = Readonly<{
   canManageUsers: boolean
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
-  inviteUser: (input: InviteCompanyUserInput) => Promise<CompanyUser>
+  inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
   resendInvitation: (input: Readonly<{ userId: string }>) => Promise<ResendInvitationResult>

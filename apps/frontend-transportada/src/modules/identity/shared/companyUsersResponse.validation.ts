@@ -1,6 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { COMPANY_USER_ERROR } from './companyUsers.constant'
-import type { CompanyUser, CompanyUserPage, ResendInvitationResult } from './companyUsers.types'
+import type {
+  CompanyUser,
+  CompanyUserPage,
+  FleetLink,
+  InvitedCompanyUser,
+  ResendInvitationResult,
+} from './companyUsers.types'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -48,11 +54,29 @@ export function toCompanyUser(value: unknown): CompanyUser {
     contact: readContact(value.contact),
     id: readString(value, 'id'),
     ...(invitation === undefined ? {} : { invitation }),
+    email: readString(value, 'email'),
     membershipId: readString(value, 'membershipId'),
     name: readString(value, 'name'),
+    phone: readString(value, 'phone'),
     roles: readStringArray(value, 'roles'),
     status: readString(value, 'status'),
+    taxId: readString(value, 'taxId'),
     username: readString(value, 'username'),
+  }
+}
+
+const FLEET_LINKS: readonly FleetLink[] = ['linked', 'no-driver-record', 'not-applicable']
+
+/**
+ * Valor desconhecido cai em `not-applicable` em vez de derrubar a tela: o convite já foi criado
+ * quando esta resposta chega, e recusá-la faria o operador achar que nada aconteceu.
+ */
+export function toInvitedCompanyUser(value: unknown): InvitedCompanyUser {
+  const user = toCompanyUser(value)
+  const fleetLink = isRecord(value) ? value.fleetLink : undefined
+  return {
+    ...user,
+    fleetLink: FLEET_LINKS.find((link) => link === fleetLink) ?? 'not-applicable',
   }
 }
 

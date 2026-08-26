@@ -5,6 +5,7 @@ import type {
   CompanyUser,
   CompanyUserPage,
   InviteCompanyUserInput,
+  InvitedCompanyUser,
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
   UpdateCompanyUserProfileInput,
@@ -14,6 +15,7 @@ import {
   isString,
   toCompanyUser,
   toCompanyUserPage,
+  toInvitedCompanyUser,
   toResendInvitationResult,
 } from './companyUsersResponse.validation'
 
@@ -26,7 +28,7 @@ type ClientDependencies = Readonly<{
 
 export type CompanyUsersClient = Readonly<{
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
-  inviteUser: (input: InviteCompanyUserInput) => Promise<CompanyUser>
+  inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
@@ -104,6 +106,8 @@ function buildProfileBody(input: UpdateCompanyUserProfileInput): Record<string, 
   if (input.contact !== undefined) body.contact = input.contact
   if (input.email !== undefined) body.email = input.email
   if (input.name !== undefined) body.name = input.name
+  if (input.phone !== undefined) body.phone = input.phone
+  if (input.taxId !== undefined) body.taxId = input.taxId
   if (input.username !== undefined) body.username = input.username
   return body
 }
@@ -130,13 +134,16 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
           contact: input.contact,
           name: input.name,
           roles: input.roles,
+          ...(input.email === undefined ? {} : { email: input.email }),
+          ...(input.phone === undefined ? {} : { phone: input.phone }),
+          ...(input.taxId === undefined ? {} : { taxId: input.taxId }),
         }),
         dependencies,
         idempotencyKey: dependencies.newIdempotencyKey(),
         method: 'POST',
         path: COMPANY_USERS_PATH,
       })
-      return toCompanyUser(readEnvelopeData(payload))
+      return toInvitedCompanyUser(readEnvelopeData(payload))
     },
     async listUsers(input) {
       const search = new URLSearchParams()

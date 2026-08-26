@@ -20,11 +20,15 @@ export type ContactChannel = (typeof CONTACT_CHANNELS)[number]
  */
 export type CompanyUser = Readonly<{
   contact: Readonly<{ channel: string; masked: string }>
+  /** Mascarados na API, como o contato: servem para reconhecer a pessoa, não para reeditar. */
+  email: string
   id: string
   membershipId: string
   name: string
+  phone: string
   roles: readonly string[]
   status: string
+  taxId: string
   username: string
   invitation?: Readonly<{ expiresAt: string; status: string }>
 }>
@@ -39,7 +43,15 @@ export type InviteCompanyUserInput = Readonly<{
   contact: string
   name: string
   roles: readonly string[]
+  email?: string
+  phone?: string
+  taxId?: string
 }>
+
+/** `no-driver-record` não é falha: o convite passou, mas a frota ainda não conhece a pessoa. */
+export type FleetLink = 'linked' | 'no-driver-record' | 'not-applicable'
+
+export type InvitedCompanyUser = CompanyUser & Readonly<{ fleetLink: FleetLink }>
 
 export type ChangeCompanyUserStatusInput = Readonly<{
   status: CompanyUserApiStatus
@@ -58,6 +70,8 @@ export type UpdateCompanyUserProfileInput = Readonly<{
   contact?: string
   email?: string
   name?: string
+  phone?: string
+  taxId?: string
   username?: string
 }>
 

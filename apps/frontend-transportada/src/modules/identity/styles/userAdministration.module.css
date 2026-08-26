@@ -164,6 +164,20 @@
   font-size: 0.8rem;
 }
 
+/* Vínculo feito é confirmação, não alarme: mesma forma do aviso, cor de pronto. */
+.noticeReady {
+  border-left-color: var(--color-ready);
+  color: var(--color-ready);
+  background: color-mix(in srgb, var(--color-ready) 8%, var(--color-asphalt) 92%);
+}
+
+.notice {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .feedback {
   margin: 0;
   padding: var(--space-3);
@@ -290,6 +304,17 @@
   display: block;
   color: var(--color-slate);
   font-size: 0.75rem;
+}
+
+/* Ancorada no campo, não num aviso solto no rodapé: quem errou precisa ver onde errou. */
+.fieldError {
+  display: block;
+  color: var(--color-alert);
+  font-size: 0.75rem;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-alert);
 }
 
 .roleGroup {

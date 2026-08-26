@@ -61,6 +61,30 @@ export function UserAdministrationPage() {
           </Button>
         </div>
 
+        {screen.fleetLinkNotice === null ? null : (
+          <div
+            className={`${styles.feedback ?? ''} ${styles.notice ?? ''} ${
+              screen.fleetLinkNotice === 'linked' ? (styles.noticeReady ?? '') : ''
+            }`}
+            role="status"
+          >
+            <span>
+              {screen.fleetLinkNotice === 'linked'
+                ? t('users.fleetLink.linked')
+                : t('users.fleetLink.noDriverRecord')}
+            </span>
+            <Button
+              aria-label={t('users.fleetLink.dismiss')}
+              onClick={screen.dismissFleetLinkNotice}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+            </Button>
+          </div>
+        )}
+
         {viewModel.status === 'forbidden' ? (
           <p className={styles.emptyState}>{t('users.forbidden')}</p>
         ) : null}

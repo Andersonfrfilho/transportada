@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useState } from 'react'
 
-import { USERNAME_PATTERN } from '../shared/companyUsers.constant'
+import { isCompletePhone, stripPhone } from '@/modules/shared/phone.service'
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
+
+import { CPF_LENGTH, USERNAME_PATTERN } from '../shared/companyUsers.constant'
 import type {
   CompanyUser,
   ContactChannel,
@@ -16,48 +19,102 @@ const DEFAULT_ROLE = 'operator'
 export type CompanyUserInviteForm = Readonly<{
   channel: string
   contact: string
+  email: string
+  isEmailValid: boolean
+  isPhoneValid: boolean
   isReady: boolean
+  isTaxIdValid: boolean
   name: string
+  phone: string
   roleChoices: readonly string[]
   roles: readonly string[]
+  taxId: string
   reset: () => void
   setChannel: (value: string) => void
   setContact: (value: string) => void
+  setEmail: (value: string) => void
   setName: (value: string) => void
+  setPhone: (value: string) => void
+  setTaxId: (value: string) => void
   toggleRole: (role: string, checked: boolean) => void
   toInput: () => InviteCompanyUserInput
 }>
 
+/** Só formato: quem valida de verdade é a API, e acusar antes disso é conveniência, não regra. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
+
+function isBlankOrValidEmail(value: string): boolean {
+  return value.trim() === '' || EMAIL_PATTERN.test(value.trim())
+}
+
+function isBlankOrCompletePhone(value: string): boolean {
+  return stripPhone(value) === '' || isCompletePhone(value)
+}
+
+function isBlankOrCompleteTaxId(value: string): boolean {
+  const digits = normalizeTaxId(value)
+  return digits === '' || digits.length === CPF_LENGTH
+}
+
 export function useCompanyUserInviteForm(): CompanyUserInviteForm {
   const [channel, setChannel] = useState<string>(DEFAULT_CHANNEL)
   const [contact, setContact] = useState('')
+  const [email, setEmail] = useState('')
   const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [roles, setRoles] = useState<readonly string[]>([DEFAULT_ROLE])
+  const [taxId, setTaxId] = useState('')
 
   function reset(): void {
     setChannel(DEFAULT_CHANNEL)
     setContact('')
+    setEmail('')
     setName('')
+    setPhone('')
     setRoles([DEFAULT_ROLE])
+    setTaxId('')
   }
+
+  const isEmailValid = isBlankOrValidEmail(email)
+  const isPhoneValid = isBlankOrCompletePhone(phone)
+  const isTaxIdValid = isBlankOrCompleteTaxId(taxId)
 
   return {
     channel,
     contact,
-    isReady: name.trim() !== '' && contact.trim() !== '' && roles.length > 0,
+    email,
+    isEmailValid,
+    isPhoneValid,
+    isReady:
+      name.trim() !== '' &&
+      contact.trim() !== '' &&
+      roles.length > 0 &&
+      isEmailValid &&
+      isPhoneValid &&
+      isTaxIdValid,
+    isTaxIdValid,
     name,
+    phone,
     reset,
     roleChoices: buildRoleChoices([]),
     roles,
     setChannel,
     setContact,
+    setEmail,
     setName,
+    setPhone,
+    setTaxId,
+    taxId,
     toggleRole: (role, checked) => setRoles((current) => toggleValue(current, role, checked)),
+    /** A API guarda só dígito; mandar a máscara faria a mesma pessoa entrar duas vezes. */
     toInput: () => ({
       channel: channel as ContactChannel,
       contact: contact.trim(),
       name: name.trim(),
       roles,
+      ...(email.trim() === '' ? {} : { email: email.trim() }),
+      ...(stripPhone(phone) === '' ? {} : { phone: stripPhone(phone) }),
+      ...(normalizeTaxId(taxId) === '' ? {} : { taxId: normalizeTaxId(taxId) }),
     }),
   }
 }

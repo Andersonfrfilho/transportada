@@ -78,7 +78,14 @@
       "rolesHint": "At least one role. The role decides what the person can see.",
       "cancel": "Cancel",
       "confirm": "Send invitation",
-      "sending": "Sending…"
+      "sending": "Sending…",
+      "email": "Email",
+      "emailInvalid": "Invalid email.",
+      "phone": "Phone",
+      "phoneInvalid": "Incomplete phone — include the area code and number.",
+      "taxId": "Tax id",
+      "taxIdHint": "Optional. With a Driver or Aggregate role, it is what finds the fleet record.",
+      "taxIdInvalid": "Incomplete tax id — eleven digits are required."
     },
     "editDialog": {
       "title": "Edit user",
@@ -116,7 +123,13 @@
       "COMPANY_USER_CONTACT_TAKEN": "An account with this contact already exists.",
       "USERNAME_ALREADY_TAKEN": "This login is already taken.",
       "IDENTITY_SUBJECT_NOT_FOUND": "The account has no identity in the login provider. Invite the person again.",
-      "SELF_MEMBERSHIP_REMOVAL": "Nobody removes their own account. Ask another administrator."
+      "SELF_MEMBERSHIP_REMOVAL": "Nobody removes their own account. Ask another administrator.",
+      "COMPANY_USER_TAX_ID_TAKEN": "An account with this tax id already exists."
+    },
+    "fleetLink": {
+      "linked": "Linked to the existing fleet record.",
+      "noDriverRecord": "Invitation sent, but no fleet record matches this tax id — create the record so the person shows up in the fleet.",
+      "dismiss": "Dismiss the notice"
     }
   }
 }

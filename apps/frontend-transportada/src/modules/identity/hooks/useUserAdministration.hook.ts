@@ -2,7 +2,7 @@
 import { useState } from 'react'
 
 import { useAuthMeQuery } from '../queries/useAuthMe.query'
-import type { CompanyUser } from '../shared/companyUsers.types'
+import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
@@ -25,9 +25,18 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
+  /**
+   * O diálogo fecha no sucesso, então o aviso do vínculo com a frota não cabe dentro dele: vive
+   * na página até quem convidou dispensá-lo.
+   */
+  const [fleetLinkNotice, setFleetLinkNotice] = useState<FleetLink | null>(null)
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
+
+  function dismissFleetLinkNotice(): void {
+    setFleetLinkNotice(null)
+  }
 
   function closeInvite(): void {
     setInviteOpen(false)
@@ -35,7 +44,8 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   }
 
   async function submitInvite(): Promise<void> {
-    await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
+    const invited = await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
+    setFleetLinkNotice(invited.fleetLink === 'not-applicable' ? null : invited.fleetLink)
     inviteForm.reset()
     setInviteOpen(false)
   }
@@ -87,8 +97,10 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     closeRemove,
     confirmRemove,
     currentUserId,
+    dismissFleetLinkNotice,
     editForm,
     editTarget,
+    fleetLinkNotice,
     inviteForm,
     isInviteOpen,
     openEdit: setEditTarget,

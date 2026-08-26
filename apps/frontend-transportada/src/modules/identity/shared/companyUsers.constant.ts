@@ -28,12 +28,15 @@ export const COMPANY_USER_API_STATUSES = ['active', 'suspended'] as const
 
 export const CONTACT_CHANNELS = ['email', 'sms', 'whatsapp'] as const
 
+export const CPF_LENGTH = 11
+
 /** Mesmo padrão do `updateCompanyUserProfileSchema` da API — o 400 dela não diz qual campo caiu. */
 export const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
 
 /** Códigos que a API devolve com 404/409 e que a tela ancora no campo em vez de num aviso solto. */
 export const COMPANY_USER_API_ERROR = {
   CONTACT_TAKEN: 'COMPANY_USER_CONTACT_TAKEN',
+  TAX_ID_TAKEN: 'COMPANY_USER_TAX_ID_TAKEN',
   NOT_FOUND: 'COMPANY_USER_NOT_FOUND',
   SELF_REMOVAL: 'SELF_MEMBERSHIP_REMOVAL',
   SUBJECT_NOT_FOUND: 'IDENTITY_SUBJECT_NOT_FOUND',
