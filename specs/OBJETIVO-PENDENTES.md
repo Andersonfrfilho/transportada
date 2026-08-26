@@ -28,6 +28,7 @@ Vale para toda spec deste plano, sem exceção:
 | **062** | 235     | WhatsApp como canal                     | só `spec.md`                         |
 | **063** | 206     | portal do cliente                       | só `spec.md`                         |
 | **064** | —       | portal do agregado                      | `tasks.md`, sem `evidence.md`        |
+| **065** | 168     | a carga sai do barracão sabendo o que vai virar | só `spec.md` — **corrige defeito da 059** |
 
 ## Ordem, e a razão dela
 
@@ -37,12 +38,17 @@ que lê `arrived_at`/`completed_at` que **nada no sistema escreve** ainda.
 
 ```
 048 ──┐
-      ├──> 059 ──> 061
+      ├──> 059 ──> 065 ──> 061
 057 ──┴──────────────┘
 060 ──> 063
 062 (independente)
 058-P2 (independente)
 ```
+
+**A 065 entrou na frente da 061 e ela é corretiva.** A prontidão que a 059 construiu só conhece CT-e,
+e na operação real parte da carga vira NFS-e — entrega dentro do município da empresa é serviço
+municipal. Do jeito que está, uma nota de entrega urbana ficaria `no_cte` para sempre e a viagem nunca
+manifestaria. Numa carga mista isso trava a viagem inteira, e é defeito, não funcionalidade faltando.
 
 ### 1. 048 — OCR preenche a ficha do veículo
 
