@@ -192,6 +192,8 @@ describe('local Keycloak realm contract', () => {
       '127.0.0.1:${MAILPIT_UI_PORT:-58025}:8025',
       '127.0.0.1:${KEYCLOAK_PORT}:8080',
       '127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT}:9000',
+      // ADR-0044 §2: a matriz de estrada é nossa, e ela responde só para a máquina local
+      '127.0.0.1:${OSRM_PORT:-53005}:5000',
     ])
   })
 

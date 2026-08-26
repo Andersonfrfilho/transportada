@@ -4,9 +4,12 @@ O roteirizador (spec 058, ADR-0044 §2) lê a matriz de estrada de um OSRM que *
 não baixa mapa em tempo de execução: sobe já com um `.osrm` pré-processado no volume. Este runbook é
 como esse arquivo nasce e como ele é refeito.
 
+Enquanto o extract não existir, o serviço simplesmente não sobe, e a sugestão de roteiro falha com
+`ROUTING_MATRIX_UNAVAILABLE` — que é o comportamento correto (ADR-0044 §1), não um defeito.
+
 Você precisa disto quando:
 
-- o ambiente é novo e `deploy/osrm/data/` está vazio (o container sobe e o healthcheck nunca passa);
+- quer usar o roteirizador pela primeira vez nesta máquina;
 - **a operação passou a entregar numa região que o extract atual não cobre** — a matriz responde, mas
   as paradas de fora viram pares inalcançáveis, e a sugestão as separa com aviso;
 - o mapa envelheceu a ponto de a rota divergir da rua (uma via nova, um binário que inverteu).
@@ -77,10 +80,11 @@ OSRM_DATASET=sudeste-latest
 2000 — bem acima das centenas de paradas do caso real, e é de propósito: o corte por tamanho é do
 solver (que trunca por orçamento de tempo), não do transporte.
 
-Suba e confira:
+Suba e confira. O OSRM **não** sobe no `make up`: ele é opt-in por profile, porque exigir centenas
+de MB de extract de toda máquina nova (e do CI) seria hostil.
 
 ```bash
-make up
+make routing-up
 ```
 
 ```bash

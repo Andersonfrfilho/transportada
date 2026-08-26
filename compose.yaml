@@ -87,6 +87,10 @@ services:
   # O `.osrm` vem do extract OSM da área de operação — ver docs/runbooks/osrm-extract.md.
   osrm:
     image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    # Opt-in: o serviço precisa de um extract OSM de centenas de MB que não cabe no repositório nem
+    # num `make up` de máquina nova. `make routing-up` o sobe depois do runbook; sem ele, a sugestão
+    # de roteiro falha com ROUTING_MATRIX_UNAVAILABLE, que é o comportamento correto (ADR-0044 §1).
+    profiles: ['routing']
     command: osrm-routed --algorithm mld --max-table-size ${OSRM_MAX_TABLE_SIZE:-2000} /data/${OSRM_DATASET:-area}.osrm
     ports:
       - '127.0.0.1:${OSRM_PORT:-53005}:5000'

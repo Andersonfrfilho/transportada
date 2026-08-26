@@ -120,8 +120,8 @@ describe('client versus operation (spec 058 D6)', () => {
 
   /** Operação sem média ainda não compara nada — e dividir por zero seria inventar um veredito. */
   test('refuses to rank a client against an operation with no history', () => {
-    expect(compareToOperationAverage({ clientMedianSeconds: 900, operationAverageSeconds: 0 })).toBe(
-      'even',
-    )
+    expect(
+      compareToOperationAverage({ clientMedianSeconds: 900, operationAverageSeconds: 0 }),
+    ).toBe('even')
   })
 })

@@ -104,6 +104,12 @@ up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 		ENV_FILE="$(ENV_FILE)" $(MAKE) --no-print-directory storage-bootstrap; \
 	fi
 
+routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
+	@$(COMPOSE) --profile routing up -d --wait osrm
+
+routing-down: config ## 🗺️  Encerra o OSRM sem derrubar o resto da infra
+	@$(COMPOSE) --profile routing stop osrm
+
 down: config ## 🛑 Encerra a infraestrutura local
 	@$(COMPOSE) down
 
