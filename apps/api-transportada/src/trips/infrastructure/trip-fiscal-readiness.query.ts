@@ -8,7 +8,7 @@ import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments, cteIssuanceAttempts } from '../../database/cte-issuance.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
 import { mdfeManifests } from '../../database/mdfe.schema.js'
-import { tripDocuments, trips } from '../../database/trip.schema.js'
+import { tripDocuments, tripStops, trips } from '../../database/trip.schema.js'
 import type {
   TripDocumentReadiness,
   TripDocumentReadinessReason,
@@ -55,6 +55,7 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
       .select({
         attemptStatus: cteIssuanceAttempts.status,
         cteAccessKey: cteFiscalDocuments.accessKey,
+        cteFiscalDocumentId: cteFiscalDocuments.id,
         cteStatus: cteFiscalDocuments.status,
         rejectionCode: cteIssuanceAttempts.lastErrorCode,
         rejectionMessage: cteIssuanceAttempts.lastErrorCause,
@@ -101,6 +102,24 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
     return collapseByDocument(rows)
   }
 
+  /**
+   * A chave da parada é `${cityCode}|${postalCode}|${number}` (spec 056), então o município é o que
+   * vem antes da primeira barra. Contar aqui, no banco, evita trazer 200 paradas para contar três.
+   */
+  public async countDischargeCities(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<number> {
+    const [row] = await this.database
+      .select({
+        cityCount: sql<number>`count(distinct split_part(${tripStops.addressKey}, '|', 1))::int`,
+      })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
+    return row?.cityCount ?? 0
+  }
+
   public async hasLiveManifest(input: {
     readonly companyId: string
     readonly tripId: string
@@ -124,6 +143,7 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
 type ReadinessRow = {
   readonly attemptStatus: string | null
   readonly cteAccessKey: string | null
+  readonly cteFiscalDocumentId: string | null
   readonly cteStatus: string | null
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null
@@ -173,6 +193,7 @@ function toReadiness(row: ReadinessRow): TripDocumentReadiness {
 
   return {
     cteAccessKey: reason === 'ok' ? row.cteAccessKey : null,
+    cteFiscalDocumentId: reason === 'ok' ? row.cteFiscalDocumentId : null,
     reason,
     rejectionCode: isRejection ? row.rejectionCode : null,
     rejectionMessage: isRejection ? row.rejectionMessage : null,

@@ -758,6 +758,11 @@ function createApplicationRoutes({
   const trips = createTripUseCase({ repository: tripRepository })
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
+    readiness: {
+      countDischargeCities: (input) => tripFiscalReadinessQuery.countDischargeCities(input),
+      read: (input) =>
+        readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+    },
     trips,
   })
   const cteEmissionProfileCatalog = new DrizzleCteEmissionProfileCatalogRepository(

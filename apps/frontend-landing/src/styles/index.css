@@ -25,14 +25,14 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
-  --layout-gutter: var(--space-8);
+  --layout-gutter: var(--space-4);
   --layout-max-width: 78rem;
   --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
   --field-height: 3rem;
   --field-height-compact: 2.4rem;
   --field-padding: var(--space-3);
   --field-padding-compact: var(--space-2) var(--space-3);
-  --field-font-size: 0.9rem;
+  --field-font-size: 1rem;
   --field-font-size-compact: 0.82rem;
   /* Botão e botão de ícone saem da medida do campo: numa fileira de controles tudo tem uma altura */
   --control-height: var(--field-height);
@@ -52,4 +52,21 @@ body {
   color: var(--color-fog);
   font-family: var(--font-body);
   margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --layout-gutter: var(--space-8);
+    --field-font-size: 0.9rem;
+  }
 }

@@ -12,31 +12,35 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: var(--layout-width);
   margin: 0 auto;
-  height: 4.5rem;
+  height: 4rem;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   color: inherit;
+  min-width: 0;
   text-decoration: none;
 }
 
 .brandMark {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: var(--space-1);
   flex-shrink: 0;
 }
 
 .brandName {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1rem;
   letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav {
@@ -64,8 +68,9 @@
 .ctaButton {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-compact);
-  padding: 0 var(--space-5);
+  height: var(--touch-target);
+  padding: 0 var(--space-3);
+  font-size: 0.8rem;
   border-radius: var(--space-2);
   background: var(--color-accent);
   color: var(--color-asphalt);
@@ -96,6 +101,28 @@
 
 .mobileMenu .navLink {
   font-size: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .bar {
+    height: 4.5rem;
+    gap: var(--space-4);
+  }
+
+  .brandMark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .brandName {
+    font-size: 1.15rem;
+  }
+
+  .ctaButton {
+    height: var(--control-height-compact);
+    padding: 0 var(--space-5);
+    font-size: var(--field-font-size-compact);
+  }
 }
 
 @media (min-width: 60rem) {

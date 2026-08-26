@@ -109,9 +109,11 @@ export const LINK_FREIGHT_CALCULATION_BODY = {
   nfeDocumentId: null,
 } as const
 
-export const CREATE_TRIP_MDFE_MANIFEST_BODY = {
-  documentIds: [MDFE_CTE_DOCUMENT_ID],
-} as const
+/**
+ * Spec 059 D4: o corpo não carrega mais `documentIds` — os CT-e vêm da prontidão da viagem, e
+ * aceitá-los do cliente deixaria alguém declarar à SEFAZ um conjunto diferente do que ela carrega.
+ */
+export const CREATE_TRIP_MDFE_MANIFEST_BODY = {} as const
 
 export const TRIP: Trip = {
   companyId: COMPANY_ID,

@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 .container {
+  min-width: 0;
   position: relative;
 }
 
@@ -11,6 +12,7 @@
   font-size: var(--field-font-size);
   height: var(--field-height);
   padding: var(--field-padding);
+  min-width: 0;
   width: 100%;
 }
 

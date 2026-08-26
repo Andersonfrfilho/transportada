@@ -2,11 +2,11 @@
 .section {
   margin: 0 auto;
   max-width: 32rem;
-  padding: var(--space-12) var(--layout-gutter);
+  padding: var(--space-8) var(--layout-gutter) var(--space-12);
 }
 
 .title {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   margin: 0 0 var(--space-6);
 }
 
@@ -18,6 +18,7 @@
 .field {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .label {
@@ -34,6 +35,9 @@
   font-size: var(--field-font-size);
   height: var(--field-height);
   padding: var(--field-padding);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
 }
 
 .submitButton {
@@ -43,9 +47,11 @@
   color: var(--color-asphalt);
   cursor: pointer;
   font-size: var(--field-font-size);
+  font-weight: 600;
   height: var(--control-height);
   min-width: var(--touch-target);
   padding: 0 var(--space-6);
+  width: 100%;
 }
 
 .submitButton:disabled {
@@ -74,7 +80,8 @@
   display: grid;
   gap: var(--space-4);
   margin: 0;
-  padding: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) var(--space-3);
 }
 
 .legend {
@@ -93,5 +100,23 @@
 .fieldRow {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 30rem) {
+  .fieldRow {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  }
+
+  .fieldset {
+    padding: var(--space-4);
+  }
+
+  .submitButton {
+    width: auto;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
 }

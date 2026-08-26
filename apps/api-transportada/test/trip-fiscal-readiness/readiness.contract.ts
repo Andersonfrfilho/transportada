@@ -19,6 +19,7 @@ function document(
 ): TripDocumentReadiness {
   return {
     cteAccessKey: reason === 'ok' ? '1'.repeat(44) : null,
+    cteFiscalDocumentId: reason === 'ok' ? crypto.randomUUID() : null,
     reason,
     rejectionCode: null,
     rejectionMessage: null,
@@ -32,6 +33,7 @@ function buildRepository(input: {
   readonly hasLiveManifest?: boolean
 }): TripFiscalReadinessPort {
   return {
+    countDischargeCities: () => Promise.resolve(0),
     hasLiveManifest: () => Promise.resolve(input.hasLiveManifest ?? false),
     readDocumentReadiness: () =>
       Promise.resolve(input.documents === undefined ? [] : input.documents),

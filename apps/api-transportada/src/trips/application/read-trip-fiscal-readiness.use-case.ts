@@ -23,6 +23,8 @@ export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASON
 
 export type TripDocumentReadiness = {
   readonly cteAccessKey: string | null
+  /** O id do CT-e autorizado — é ele que o manifesto declara, e é por isso que ele sobe daqui. */
+  readonly cteFiscalDocumentId: string | null
   readonly reason: TripDocumentReadinessReason
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null
@@ -41,6 +43,15 @@ export type TripFiscalReadinessSnapshot = {
 }
 
 export type TripFiscalReadinessPort = {
+  /**
+   * Municípios distintos das paradas da viagem (spec 056). O layout do MDF-e limita a 50, e a
+   * contagem vem da **viagem** porque é ela que sabe onde vai descarregar — o manifesto ainda não
+   * existe quando a recusa precisa acontecer.
+   */
+  countDischargeCities(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<number>
   /** `null` quando a viagem não existe nesta empresa. */
   readDocumentReadiness(input: {
     readonly companyId: string
