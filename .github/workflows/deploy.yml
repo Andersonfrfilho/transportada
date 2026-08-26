@@ -86,6 +86,7 @@ jobs:
   # Railway exige rebuild e **não mexe em arquivo nenhum** — o diff pularia, e o bundle ficaria
   # apontando para a URL antiga sem nada indicando isso. Para esse caso existe o `force_all`.
   changes:
+    needs: [target]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -101,10 +102,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Os marcos dizem em que commit cada alvo está publicado. Sem eles o diff comparava com o
+      # commit anterior do push — e um gate vermelho fazia o alvo perder o deploy para sempre, já
+      # que o push seguinte não via mais a mudança.
+      - name: Buscar os marcos de deploy
+        run: git fetch --no-tags --quiet origin '+refs/deploy/*:refs/deploy/*' || true
       - id: detect
         env:
-          # Em PR o baseline é a base do PR, não `event.before` — que ali aponta para outra coisa.
-          # Em `workflow_dispatch` não existe baseline: o script cai no ramo que publica tudo.
+          MARKER_PREFIX: refs/deploy/${{ needs.target.outputs.environment }}
+          # Alvo sem marco (ambiente novo) cai neste baseline. Em PR ele é a base do PR, não
+          # `event.before` — que ali aponta para outra coisa.
           BASELINE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           FORCE_ALL: ${{ (inputs.force_all || github.ref_name == 'main') && 'true' || 'false' }}
         run: .github/scripts/changed-targets.sh
@@ -280,3 +287,31 @@ jobs:
           (matrix.service == 'worker' && needs.changes.outputs.worker == 'true'
           || matrix.service == 'cron' && needs.changes.outputs.cron == 'true')
         run: .github/scripts/railway-deploy.sh deploy "${{ matrix.service }}"
+
+  # O marco só avança onde o ambiente de fato ficou com este commit. É o que impede a regressão que
+  # motivou este job: gate vermelho pulava o deploy, o push seguinte comparava contra o commit
+  # anterior dele, a mudança saía do diff e o alvo ficava para trás sem ninguém perceber.
+  mark-deployed:
+    needs: [target, changes, deploy-api, deploy-frontend, deploy-landing, deploy-services]
+    if: always() && needs.target.result == 'success' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Avançar o marco de cada alvo publicado
+        env:
+          ENVIRONMENT: ${{ needs.target.outputs.environment }}
+          API_CHANGED: ${{ needs.changes.outputs.api }}
+          API_RESULT: ${{ needs.deploy-api.result }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
+          FRONTEND_RESULT: ${{ needs.deploy-frontend.result }}
+          LANDING_CHANGED: ${{ needs.changes.outputs.landing }}
+          LANDING_RESULT: ${{ needs.deploy-landing.result }}
+          # Worker e cron compartilham o job em matriz: o resultado é um só para os dois.
+          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
+          WORKER_RESULT: ${{ needs.deploy-services.result }}
+          CRON_CHANGED: ${{ needs.changes.outputs.cron }}
+          CRON_RESULT: ${{ needs.deploy-services.result }}
+        run: .github/scripts/mark-deployed.sh
