@@ -225,3 +225,42 @@ export class TripStopSetMismatchError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0045 §5: a mesma chave em ações diferentes é **erro do cliente**, não repetição. Aceitar em
+ * silêncio faria uma entrega ser "confirmada" pela chave de uma chegada, e o aparelho nunca saberia.
+ */
+export class TripFieldReportKeyReusedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_FIELD_REPORT_KEY_REUSED',
+      message: 'This idempotency key was already used for a different field report.',
+      status: 409,
+    })
+  }
+}
+
+/** A parada não é desta viagem, ou a viagem não é deste motorista. As duas coisas são a mesma daqui. */
+export class TripStopNotReachableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_STOP_NOT_REACHABLE',
+      message: 'The stop does not belong to an active trip of this driver.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Confirmação enfileirada de uma nota que o escritório desvinculou. O código é estável porque a tela
+ * mostra o conflito — sumir com o toque do motorista é pior do que recusá-lo com o motivo.
+ */
+export class TripDocumentNotReachableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_NOT_REACHABLE',
+      message: 'The document is no longer part of an active trip of this driver.',
+      status: 409,
+    })
+  }
+}

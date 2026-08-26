@@ -1,0 +1,90 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+
+/**
+ * ADR-0045 §2: **o motorista não escolhe id.** O servidor resolve
+ * `membership → fleet_driver → trip_drivers → trip`, e por isso não existe `GET /trips/:id` para o
+ * papel `driver` — quem não escolhe não enumera, e o BOLA (OWASP API1) é o campeão de
+ * vulnerabilidade em REST justamente aí.
+ *
+ * O payload é enxuto de propósito (RNF: abrir em 3G): sem XML, sem histórico de evento e sem produto
+ * item a item, que a tela não mostra.
+ */
+export type DriverTripDocument = {
+  readonly deliveredAt: string | null
+  readonly id: string
+  /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
+  readonly recipientName: string
+  readonly returnReason: string | null
+  readonly separationStatus: string
+}
+
+export type DriverTripStop = {
+  readonly arrivedAt: string | null
+  readonly completedAt: string | null
+  readonly deliveryWindowEnd: string | null
+  readonly deliveryWindowStart: string | null
+  readonly documents: readonly DriverTripDocument[]
+  readonly id: string
+  readonly label: string
+  readonly latitude: string | null
+  readonly longitude: string | null
+  readonly sequence: number
+}
+
+export type DriverTrip = {
+  readonly id: string
+  readonly status: string
+  readonly stops: readonly DriverTripStop[]
+  readonly vehiclePlate: string
+}
+
+export type CurrentDriverTripPort = {
+  /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
+  findDriverIdByMembership(input: {
+    readonly companyId: string
+    readonly membershipId: string
+  }): Promise<string | null>
+  listActiveTrips(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<readonly DriverTrip[]>
+}
+
+export type FindCurrentDriverTripInput = {
+  readonly companyId: string
+  readonly membershipId: string
+  readonly repository: CurrentDriverTripPort
+}
+
+export type FindCurrentDriverTripResult = {
+  /**
+   * Conta sem cadastro de motorista e motorista sem viagem hoje são **problemas diferentes**, e a
+   * tela precisa dizer coisas diferentes: "fale com o escritório, sua conta não está ligada a um
+   * cadastro" não é "nada para hoje". Sem esta distinção o segundo caso esconde o primeiro.
+   */
+  readonly isRegisteredDriver: boolean
+  readonly trips: readonly DriverTrip[]
+}
+
+/**
+ * Motorista sem viagem ativa devolve lista vazia, **nunca 404**: não ter viagem hoje é rotina, e
+ * 404 na primeira tela do dia lê-se como produto quebrado.
+ *
+ * Motorista em duas viagens `dispatched` devolve as duas, e quem escolhe é ele — a 056 não impede o
+ * caso, que é dois veículos em dois dias.
+ */
+export async function findCurrentDriverTrip(
+  input: FindCurrentDriverTripInput,
+): Promise<FindCurrentDriverTripResult> {
+  const driverId = await input.repository.findDriverIdByMembership({
+    companyId: input.companyId,
+    membershipId: input.membershipId,
+  })
+  if (driverId === null) return { isRegisteredDriver: false, trips: [] }
+
+  const trips = await input.repository.listActiveTrips({ companyId: input.companyId, driverId })
+
+  return { isRegisteredDriver: true, trips }
+}
