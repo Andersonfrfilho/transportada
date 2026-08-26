@@ -31,7 +31,6 @@ aceitar o texto puro e registrar a exceção. Resolver só um dos dois lados nã
 
 **Dono:** a definir.
 
-
 ### 2026-08-25 — `POST /public/aggregate-applications` é anônima e sem limitador dedicado
 
 **Onde:** `api-transportada`, módulo `fleet` (spec 053, T007).

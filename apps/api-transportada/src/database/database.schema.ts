@@ -108,6 +108,12 @@ import { userInvitationRoles, userInvitations } from './user-invitation.schema.j
 import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { landingSettings } from './landing.schema.js'
 import { aggregateApplications } from './aggregate-application.schema.js'
+import { geocodedAddresses } from './geocoding.schema.js'
+import {
+  companyRouteOptimizationSettings,
+  routeSuggestionStops,
+  routeSuggestions,
+} from './route-suggestion.schema.js'
 import {
   tripDispatchSnapshots,
   tripDocumentEvents,
@@ -144,6 +150,8 @@ export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
+export * from './geocoding.schema.js'
+export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
 
@@ -234,7 +242,11 @@ export const databaseSchema = {
   billingInvoiceEvents,
   billingInvoiceItems,
   billingInvoices,
+  companyRouteOptimizationSettings,
+  geocodedAddresses,
   landingSettings,
+  routeSuggestionStops,
+  routeSuggestions,
   storedObjects,
   tripDispatchSnapshots,
   tripDocumentEvents,

@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -20,6 +21,7 @@ import {
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
+import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -163,6 +165,18 @@ export const tripStops = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     deliveryWindowStart: timestamp('delivery_window_start', { withTimezone: true }),
     deliveryWindowEnd: timestamp('delivery_window_end', { withTimezone: true }),
+    /**
+     * ADR-0044 §5: coordenada e precisão da parada. Anuláveis porque a parada nasce do endereço da
+     * nota e só ganha coordenada quando é geocodificada — parada sem coordenada é cadastro em
+     * andamento, não erro, e inventar valor em migration é inventar rota.
+     */
+    latitude: numeric({ precision: 10, scale: 7 }),
+    longitude: numeric({ precision: 10, scale: 7 }),
+    geocodingPrecision: text('geocoding_precision').$type<GeocodingPrecision>(),
+    /** O que o roteiro aceito calculou para esta parada — some quando a ordem muda. */
+    estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
+    distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
+    durationFromPreviousSeconds: bigint('duration_from_previous_seconds', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -199,6 +213,28 @@ export const tripStops = pgTable(
     check(
       'trip_stops_completed_requires_arrived_check',
       sql`${table.completedAt} is null or ${table.arrivedAt} is not null`,
+    ),
+    // Coordenada é par: meia coordenada não localiza nada, e a precisão descreve o par
+    check(
+      'trip_stops_coordinates_check',
+      sql`(${table.latitude} is null) = (${table.longitude} is null) and (${table.latitude} is null or ${table.geocodingPrecision} is not null)`,
+    ),
+    check(
+      'trip_stops_latitude_range_check',
+      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+    ),
+    check(
+      'trip_stops_longitude_range_check',
+      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
+    ),
+    check(
+      'trip_stops_geocoding_precision_check',
+      sql`${table.geocodingPrecision} is null or ${table.geocodingPrecision} in (${sql.raw(inList(GEOCODING_PRECISIONS))})`,
+    ),
+    // Trecho anterior não tem sinal: distância negativa é conta errada, não rota curta
+    check(
+      'trip_stops_leg_check',
+      sql`(${table.distanceFromPreviousMeters} is null or ${table.distanceFromPreviousMeters} >= 0) and (${table.durationFromPreviousSeconds} is null or ${table.durationFromPreviousSeconds} >= 0)`,
     ),
   ],
 )

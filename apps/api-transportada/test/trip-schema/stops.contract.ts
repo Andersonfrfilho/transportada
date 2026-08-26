@@ -73,11 +73,8 @@ describe('trip stops (ADR-0043 §3)', () => {
     expect(checks.trip_stops_completed_requires_arrived_check).toContain('arrived_at')
   })
 
-  test('has no coordinate columns yet — spec 058 adds them', () => {
-    const columns = columnNames(tripStops)
-    expect(columns).not.toContain('latitude')
-    expect(columns).not.toContain('longitude')
-  })
+  // O marcador "ainda não tem coordenada" cumpriu o papel: a 058 as adicionou, e quem as descreve
+  // agora é `test/routing-schema/trip-stop-coordinates.contract.ts`.
 
   test('lives in the same tenant family as the trip it belongs to', () => {
     expect(columnNames(trips)).toContain('id')

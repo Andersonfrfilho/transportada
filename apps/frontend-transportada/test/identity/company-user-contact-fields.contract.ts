@@ -1,11 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  formatPhone,
-  isCompletePhone,
-  stripPhone,
-} from '../../src/modules/shared/phone.service'
+import { formatPhone, isCompletePhone, stripPhone } from '../../src/modules/shared/phone.service'
 import { formatCpf, normalizeTaxId } from '../../src/modules/shared/taxId.service'
 import { toInvitedCompanyUser } from '../../src/modules/identity/shared/companyUsersResponse.validation'
 

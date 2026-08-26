@@ -30,6 +30,21 @@ export const checkSqlByName = (table: SchemaTable): Readonly<Record<string, stri
     ]),
   )
 
+/**
+ * O mesmo CHECK, com o nome da tabela removido de cada coluna. O dialeto qualifica tudo
+ * (`"trip_stops"."latitude"`), e uma asserção que carrega o prefixo passa a falhar quando a tabela é
+ * renomeada — o que não é o que ela quer dizer.
+ */
+export const unqualifiedCheckSqlByName = (table: SchemaTable): Readonly<Record<string, string>> => {
+  const tableName = getTableConfig(table).name
+  return Object.fromEntries(
+    Object.entries(checkSqlByName(table)).map(([name, sql]) => [
+      name,
+      sql.replaceAll(`"${tableName}".`, ''),
+    ]),
+  )
+}
+
 export const uniqueColumnsByName = (
   table: SchemaTable,
 ): Readonly<Record<string, readonly string[]>> =>
