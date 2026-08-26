@@ -12,11 +12,11 @@ tem como saber se aquele CNPJ está ativo.
 Ao mesmo tempo, **duas máquinas que resolvem isso já estão construídas e nenhuma delas alcança a
 landing**:
 
-| O que existe                                                    | Onde                                                             | Por que não serve hoje                                                                  |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Consulta de CNPJ (`consultarCnpj`, `CnpjInfo` com 20 campos)     | `fiscal-company-profile-lookup.gateway.ts`, rota `settings.manage` | Só o painel alcança, e o mapeamento **descarta** `situacao`, `dataAbertura`, `cnae`, `porte` |
-| Upload de documento + OCR (Tesseract) + pré-preenchimento        | `aggregate-document.use-case.ts`, rota `/aggregate-documents`      | Exige sessão; o portal só mostra o card **depois de aprovado** (`PortalDashboard:70`)     |
-| Leitura de PDF pela camada de texto, no navegador (048)          | `frontend-transportada/src/modules/document-intake/`               | É local do app do painel — não é pacote, a landing não importa                            |
+| O que existe                                                 | Onde                                                               | Por que não serve hoje                                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Consulta de CNPJ (`consultarCnpj`, `CnpjInfo` com 20 campos) | `fiscal-company-profile-lookup.gateway.ts`, rota `settings.manage` | Só o painel alcança, e o mapeamento **descarta** `situacao`, `dataAbertura`, `cnae`, `porte` |
+| Upload de documento + OCR (Tesseract) + pré-preenchimento    | `aggregate-document.use-case.ts`, rota `/aggregate-documents`      | Exige sessão; o portal só mostra o card **depois de aprovado** (`PortalDashboard:70`)        |
+| Leitura de PDF pela camada de texto, no navegador (048)      | `frontend-transportada/src/modules/document-intake/`               | É local do app do painel — não é pacote, a landing não importa                               |
 
 O resultado desta spec: no `/cadastro`, **o CNPJ digitado preenche a empresa** e **o documento
 anexado preenche o resto**, com os anexos vinculados à candidatura desde antes do envio, chegando
@@ -101,7 +101,7 @@ servidor além do próprio arquivo
 **Given** uma candidatura com anexos na fila de revisão
 **When** o operador abre a candidatura
 **Then** ele vê a **lista de anexos**, cada um com ícone do tipo (CCMEI, CNH, CRLV, outro) e o estado
-por extenso — *pendente de revisão*, *aprovado* ou *reprovado com motivo* — pode abrir o arquivo, e
+por extenso — _pendente de revisão_, _aprovado_ ou _reprovado com motivo_ — pode abrir o arquivo, e
 tem em cada linha **aprovar** e **reprovar**; reprovar exige motivo, e o motivo é o que o agregado lê
 
 ### P6 — O arquivo que ninguém enviou não fica para sempre
@@ -146,15 +146,15 @@ tem em cada linha **aprovar** e **reprovar**; reprovar exige motivo, e o motivo 
 
 ## Casos extremos e falhas
 
-| Caso                                                | Comportamento                                                                       |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Consulta de CNPJ fora do ar ou lenta                 | timeout curto, campo fica vazio e editável — **nunca** bloqueia o envio                |
-| CNPJ existe mas está **baixado**/inapto              | preenche mesmo assim e mostra a situação; recusar é decisão do operador, não da tela   |
-| CCMEI escaneado (sem camada de texto)                | reconhecido como `scanned`, anexado, nada extraído — igual à 048                       |
-| PDF que não é CCMEI                                  | `unknown`; anexa como "outro documento", não preenche campo nenhum                     |
-| Divergência entre CNPJ digitado e CNPJ do CCMEI      | não sobrescreve o digitado: sinaliza a divergência para o operador                     |
-| Arquivo acima de 10 MiB, ou assinatura desconhecida  | `AggregateDocumentInvalidUploadError`, reusando `assertAggregateDocumentBytes`         |
-| `draftId` inexistente, já usado ou expirado no envio | a candidatura é aceita **sem** aquele anexo — não se rejeita a candidatura por anexo    |
+| Caso                                                 | Comportamento                                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Consulta de CNPJ fora do ar ou lenta                 | timeout curto, campo fica vazio e editável — **nunca** bloqueia o envio              |
+| CNPJ existe mas está **baixado**/inapto              | preenche mesmo assim e mostra a situação; recusar é decisão do operador, não da tela |
+| CCMEI escaneado (sem camada de texto)                | reconhecido como `scanned`, anexado, nada extraído — igual à 048                     |
+| PDF que não é CCMEI                                  | `unknown`; anexa como "outro documento", não preenche campo nenhum                   |
+| Divergência entre CNPJ digitado e CNPJ do CCMEI      | não sobrescreve o digitado: sinaliza a divergência para o operador                   |
+| Arquivo acima de 10 MiB, ou assinatura desconhecida  | `AggregateDocumentInvalidUploadError`, reusando `assertAggregateDocumentBytes`       |
+| `draftId` inexistente, já usado ou expirado no envio | a candidatura é aceita **sem** aquele anexo — não se rejeita a candidatura por anexo |
 
 ## Critérios de aceite
 

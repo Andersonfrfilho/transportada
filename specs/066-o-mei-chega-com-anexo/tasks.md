@@ -6,12 +6,14 @@
 > inferido).
 
 ## Fase 0 — Destravar
+
 > 🤖 Modelo: conversa, não código
 
 - [ ] T001 Conseguir um CCMEI real (fora do repositório) e fechar o mapa de rótulos — sem isso a fase 4 não existe
 - [ ] T002 Responder as outras três dúvidas da `spec.md` e registrá-las nela
 
 ## Fase 1 — A tela que falta (independente das demais)
+
 > 🤖 Modelo: `sonnet` — API pronta, é consumo
 
 - [ ] T003 [P] Hook e cliente de anexo no painel — `modules/fleet/shared/aggregateDocumentClient.service.ts`, `hooks/` — contrato de leitura
@@ -21,6 +23,7 @@
 - [ ] T007 Smoke: aprovar muda o estado na tela real — `bun run smoke`
 
 ## Fase 2 — O CNPJ preenche a empresa
+
 > 🤖 Modelo: `sonnet`
 
 - [ ] T008 [P] Ampliar `CompanyProfileLookupResult` e o gateway com os campos hoje descartados — contratos de mapeamento
@@ -28,6 +31,7 @@
 - [ ] T010 Bloco Empresa no `/cadastro`, preenchido no blur do CNPJ, editável, com marca de origem — contratos + `docs/SECURITY.md`
 
 ## Fase 3 — O anexo se vincula à candidatura
+
 > 🤖 Modelo: `opus` 🧠 — é onde mora o risco de sobrescrita e de sonda
 
 - [ ] T011 Tabela `aggregate_application_attachments` + migration aditiva — `drizzle/` — migration revisável
@@ -38,6 +42,7 @@
 - [ ] T016 Anexos da candidatura aparecem na fila do painel (liga a fase 1)
 
 ## Fase 4 — O CCMEI preenche o que a consulta não prova
+
 > 🤖 Modelo: `opus` 🧠 na T017 (mexe em app verde), `sonnet` no resto
 
 - [ ] T017 Extrair `document-intake` para `packages/document-intake/` **sem alterar comportamento** — gate: 2012 contratos + 36 smokes do painel verdes antes de seguir

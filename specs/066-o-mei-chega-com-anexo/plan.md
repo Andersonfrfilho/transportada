@@ -13,16 +13,16 @@ que é seguro sob sessão e é uma porta aberta numa rota pública. Daí a tabel
 
 **API**
 
-| Arquivo                                                          | Mudança                                                             |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `database/aggregate-application-attachment.schema.ts`             | **novo** — `id`, `company_id`, `draft_id` (unique), `application_id` nulável, `type`, `stored_object_id`, `status`, `rejection_reason`, `expires_at` |
-| `fleet/application/aggregate-application-attachment.use-case.ts`  | **novo** — `uploadDraft`, `attachToApplication`, `expireDrafts`        |
-| `fleet/presentation/aggregate-application-attachment.routes.ts`   | **novo** — rota pública de upload (Turnstile + rate limit)            |
-| `fleet/presentation/aggregate-application.routes.ts`              | aceita `attachmentDraftIds` no submit                                 |
-| `companies/application/company-settings.port.ts`                  | `CompanyProfileLookupResult` ganha `situation`, `openedAt`, `mainActivityCode`, `mainActivityName`, `legalNature`, `size`, `simplesNacional` |
-| `companies/infrastructure/fiscal-company-profile-lookup.gateway.ts` | mapeia os campos que hoje descarta                                  |
-| `companies/presentation/public-cnpj-info.routes.ts`               | **novo** — projeção pública (sem IE, sem e-mail, sem telefone)        |
-| `shared/api.constant.ts`                                          | dois caminhos públicos novos                                          |
+| Arquivo                                                             | Mudança                                                                                                                                              |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `database/aggregate-application-attachment.schema.ts`               | **novo** — `id`, `company_id`, `draft_id` (unique), `application_id` nulável, `type`, `stored_object_id`, `status`, `rejection_reason`, `expires_at` |
+| `fleet/application/aggregate-application-attachment.use-case.ts`    | **novo** — `uploadDraft`, `attachToApplication`, `expireDrafts`                                                                                      |
+| `fleet/presentation/aggregate-application-attachment.routes.ts`     | **novo** — rota pública de upload (Turnstile + rate limit)                                                                                           |
+| `fleet/presentation/aggregate-application.routes.ts`                | aceita `attachmentDraftIds` no submit                                                                                                                |
+| `companies/application/company-settings.port.ts`                    | `CompanyProfileLookupResult` ganha `situation`, `openedAt`, `mainActivityCode`, `mainActivityName`, `legalNature`, `size`, `simplesNacional`         |
+| `companies/infrastructure/fiscal-company-profile-lookup.gateway.ts` | mapeia os campos que hoje descarta                                                                                                                   |
+| `companies/presentation/public-cnpj-info.routes.ts`                 | **novo** — projeção pública (sem IE, sem e-mail, sem telefone)                                                                                       |
+| `shared/api.constant.ts`                                            | dois caminhos públicos novos                                                                                                                         |
 
 O upload reusa `assertAggregateDocumentBytes` e o `AggregateDocumentStoragePort` que já existem —
 nada de segundo caminho de armazenamento.
