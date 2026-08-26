@@ -50,6 +50,7 @@ import { DrizzleCompanySettingsRepository } from './companies/infrastructure/dri
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
 import { createFiscalCompanyProfileLookupGateway } from './companies/infrastructure/fiscal-company-profile-lookup.gateway'
+import { createPublicCnpjInfoRoutes } from './companies/presentation/public-cnpj-info.routes'
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
 import { createCompanyLogoRoutes } from './companies/presentation/company-logo.routes.js'
 import {
@@ -513,6 +514,12 @@ function createAnonymousRoutes({
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
     }),
   })
+  // A consulta de CNPJ já existia atrás de `settings.manage`, para o painel. A landing precisa dela
+  // anônima: é o CNPJ que o próprio interessado digita, e o que volta é o que está no cartão CNPJ.
+  const publicCnpjInfoGateway = createFiscalCompanyProfileLookupGateway()
+  const publicCnpjInfoRoutes = createPublicCnpjInfoRoutes({
+    lookupProfileByCnpj: { execute: ({ cnpj }) => publicCnpjInfoGateway.lookupByCnpj({ cnpj }) },
+  })
   const aggregateApplicationPublicRoutes = createAggregateApplicationPublicRoutes({
     aggregateApplications: createAggregateApplicationsUseCase({
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
@@ -537,12 +544,18 @@ function createAnonymousRoutes({
           }),
         })
   if (config.companyId === undefined) {
-    return [...nfseCallbackRoutes, ...landingPublicRoutes, ...aggregateApplicationPublicRoutes]
+    return [
+      ...nfseCallbackRoutes,
+      ...landingPublicRoutes,
+      ...publicCnpjInfoRoutes,
+      ...aggregateApplicationPublicRoutes,
+    ]
   }
 
   return [
     ...nfseCallbackRoutes,
     ...landingPublicRoutes,
+    ...publicCnpjInfoRoutes,
     ...aggregateApplicationPublicRoutes,
     ...aggregateAccountPublicRoutes,
     ...createBootstrapRoutes({

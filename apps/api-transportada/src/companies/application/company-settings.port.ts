@@ -92,9 +92,21 @@ export type CompanyProfileLookupResult = Readonly<{
   readonly district: string
   readonly email: string
   readonly legalName: string
+  /** `2135` (empresário individual) e afins — é o que separa MEI de sociedade. */
+  readonly legalNature: string
+  readonly mainActivityCode: string
+  readonly mainActivityName: string
   readonly number: string
+  /** `AAAA-MM-DD` quando a Receita informa; vazio quando não. */
+  readonly openedAt: string
   readonly phone: string
   readonly postalCode: string
+  /** Optante pelo Simples **não** é o mesmo que MEI — a consulta não sabe dizer a condição de MEI,
+   * e é por isso que o CCMEI continua sendo o documento que prova (spec 066). */
+  readonly simplesNacional: boolean
+  readonly size: string
+  /** `Ativa`, `Baixada`, `Inapta`… — quem recusa é o operador, não a tela. */
+  readonly situation: string
   readonly state: string
   readonly stateRegistration: string
   readonly street: string

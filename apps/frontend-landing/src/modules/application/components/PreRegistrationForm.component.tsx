@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 
 import {
   getLandingApiBaseUrl,
@@ -15,6 +15,8 @@ import {
 import { CNPJ_LENGTH, formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 import { Combobox, type ComboboxOption } from '@/modules/shared/components/Combobox.component'
 import { createAggregateApplicationClient } from '../shared/landingClient.service'
+import { createCompanyInfoClient, mergeCompanyIntoFields } from '../shared/cnpjInfo.service'
+import { isLookupableCnpj, useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { formatPostalCode } from '../shared/postalCode.service'
 import styles from './PreRegistrationForm.module.css'
 import { TurnstileWidget } from './TurnstileWidget.component'
@@ -66,6 +68,10 @@ type FormFields = Readonly<{
   anttCategory: string
   city: string
   companyId: string
+  companyLegalName: string
+  companyOpenedAt: string
+  companySituation: string
+  companyTradeName: string
   complement: string
   district: string
   email: string
@@ -92,6 +98,10 @@ const EMPTY_FIELDS: FormFields = {
   anttCategory: '',
   city: '',
   companyId: '',
+  companyLegalName: '',
+  companyOpenedAt: '',
+  companySituation: '',
+  companyTradeName: '',
   complement: '',
   district: '',
   email: '',
@@ -124,14 +134,28 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
   const [state, setState] = useState<SubmissionState>('idle')
   const [turnstileToken, setTurnstileToken] = useState('')
   const turnstileSiteKey = getLandingTurnstileSiteKey()
+  const companyLookup = useCompanyLookup(
+    useMemo(() => createCompanyInfoClient({ apiBaseUrl: getLandingApiBaseUrl() }), []),
+  )
 
   const showUnitSelect = settings.units.length > 1
+  const isCompany = isLookupableCnpj(fields.taxId)
 
   function updateField<TField extends keyof FormFields>(
     field: TField,
     value: FormFields[TField],
   ): void {
     setFields((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleTaxIdBlur(): Promise<void> {
+    const company = await companyLookup.lookup(fields.taxId)
+    if (company === undefined) return
+
+    setFields((current) => ({
+      ...current,
+      ...mergeCompanyIntoFields({ company, current, formatPostalCode }),
+    }))
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -202,7 +226,11 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
               required
               type="text"
               value={fields.taxId}
-              onChange={(event) => updateField('taxId', formatTaxId(event.target.value))}
+              onBlur={() => void handleTaxIdBlur()}
+              onChange={(event) => {
+                companyLookup.forget()
+                updateField('taxId', formatTaxId(event.target.value))
+              }}
             />
           </label>
           <label className={styles.field}>
@@ -248,6 +276,57 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
             </label>
           ) : null}
         </fieldset>
+
+        {isCompany ? (
+          <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Empresa</legend>
+            <p className={styles.hint}>
+              {companyLookup.state === 'looking'
+                ? 'Consultando o CNPJ na Receita…'
+                : companyLookup.state === 'unknown'
+                  ? 'Não encontramos este CNPJ na Receita — pode preencher à mão.'
+                  : 'Preenchemos com o que a Receita informa. Confira e corrija se precisar.'}
+            </p>
+            <label className={styles.field}>
+              <span className={styles.label}>Razão social</span>
+              <input
+                className={styles.input}
+                type="text"
+                value={fields.companyLegalName}
+                onChange={(event) => updateField('companyLegalName', event.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>Nome fantasia</span>
+              <input
+                className={styles.input}
+                type="text"
+                value={fields.companyTradeName}
+                onChange={(event) => updateField('companyTradeName', event.target.value)}
+              />
+            </label>
+            <div className={styles.fieldRow}>
+              <label className={styles.field}>
+                <span className={styles.label}>Situação cadastral</span>
+                <input
+                  className={styles.input}
+                  readOnly
+                  type="text"
+                  value={fields.companySituation}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Abertura</span>
+                <input
+                  className={styles.input}
+                  readOnly
+                  type="text"
+                  value={fields.companyOpenedAt}
+                />
+              </label>
+            </div>
+          </fieldset>
+        ) : null}
 
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>Endereço</legend>
@@ -530,6 +609,16 @@ function buildDeclaredData(fields: FormFields): Record<string, unknown> {
     street: fields.street,
   }
 
+  const company =
+    fields.companyLegalName === '' && fields.companyTradeName === ''
+      ? undefined
+      : {
+          legalName: fields.companyLegalName,
+          openedAt: fields.companyOpenedAt,
+          situation: fields.companySituation,
+          tradeName: fields.companyTradeName,
+        }
+
   const driver = {
     address,
     anttCategory: optionalEnum(fields.anttCategory),
@@ -548,5 +637,5 @@ function buildDeclaredData(fields: FormFields): Record<string, unknown> {
     vehicleType: optionalEnum(fields.vehicleType),
   }
 
-  return { driver, vehicle }
+  return { ...(company === undefined ? {} : { company }), driver, vehicle }
 }

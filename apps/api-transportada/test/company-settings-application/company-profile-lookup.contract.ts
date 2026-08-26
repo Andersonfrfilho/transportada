@@ -12,15 +12,21 @@ const LEGACY_CNPJ = '11222333000181'
 const RECEITA_ANSWER: CnpjInfo = {
   bairro: 'Centro',
   cep: '01310-100',
+  cnae: '4930202',
+  cnaeDescricao: 'Transporte rodoviário de carga',
   cnpj: ALPHANUMERIC_CNPJ,
   codigoMunicipio: '3550308',
   complemento: 'Sala 12',
+  dataAbertura: '2019-04-11',
   email: 'contato@exemplo.com.br',
   inscricaoEstadual: '111222333444',
   logradouro: 'Avenida Paulista',
   municipio: 'São Paulo',
+  naturezaJuridica: '2135',
   nomeFantasia: 'Exemplo',
   numero: '1000',
+  optanteSimplesNacional: true,
+  porte: 'MICRO EMPRESA',
   razaoSocial: 'Exemplo Transportes Ltda',
   situacao: 'ATIVA',
   telefone: '1140028922',
@@ -50,6 +56,22 @@ describe('fiscal company profile lookup contract', () => {
 
   afterAll(() => {
     restoreLookup()
+  })
+
+  test('turns the fields the Receita omits into empty, never undefined', async () => {
+    nextOutcome = {
+      cnpj: ALPHANUMERIC_CNPJ,
+      razaoSocial: 'Exemplo Transportes Ltda',
+      situacao: 'ATIVA',
+    }
+
+    const profile = await gateway.lookupByCnpj({ cnpj: ALPHANUMERIC_CNPJ })
+
+    expect(profile?.openedAt).toBe('')
+    expect(profile?.mainActivityCode).toBe('')
+    expect(profile?.legalNature).toBe('')
+    expect(profile?.size).toBe('')
+    expect(profile?.simplesNacional).toBe(false)
   })
 
   test('keeps the letters of an alphanumeric document on the way in and on the way out', async () => {
@@ -94,9 +116,16 @@ describe('fiscal company profile lookup contract', () => {
       district: 'Centro',
       email: 'contato@exemplo.com.br',
       legalName: 'Exemplo Transportes Ltda',
+      legalNature: '2135',
+      mainActivityCode: '4930202',
+      mainActivityName: 'Transporte rodoviário de carga',
       number: '1000',
+      openedAt: '2019-04-11',
       phone: '1140028922',
       postalCode: '01310100',
+      simplesNacional: true,
+      size: 'MICRO EMPRESA',
+      situation: 'ATIVA',
       state: 'SP',
       stateRegistration: '111222333444',
       street: 'Avenida Paulista',
