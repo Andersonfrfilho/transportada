@@ -82,6 +82,28 @@ services:
       - ./realm:/opt/keycloak/data/import:ro
       - ./deploy/keycloak/theme:/opt/keycloak/themes/transportada:ro
 
+  # ADR-0044 §2: a matriz de estrada é hospedada por nós. O `/table` devolve N×N em milissegundos, e
+  # é isso que permite ao solver ler a matriz milhares de vezes por sugestão sem pagar por elemento.
+  # O `.osrm` vem do extract OSM da área de operação — ver docs/runbooks/osrm-extract.md.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    command: osrm-routed --algorithm mld --max-table-size ${OSRM_MAX_TABLE_SIZE:-2000} /data/${OSRM_DATASET:-area}.osrm
+    ports:
+      - '127.0.0.1:${OSRM_PORT:-53005}:5000'
+    healthcheck:
+      # A rota trivial de um ponto para ele mesmo: se ela responde, o dataset carregou
+      test:
+        [
+          'CMD-SHELL',
+          '{ printf "GET /route/v1/driving/0,0;0,0 HTTP/1.0\r\n\r\n" >&0; grep -q "HTTP/1.0 200"; } 0<>/dev/tcp/localhost/5000',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    volumes:
+      - ./deploy/osrm/data:/data:ro
+
 volumes:
   postgres_data:
   rabbitmq_data:
