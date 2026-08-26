@@ -204,13 +204,19 @@ Railway nem em qualquer outro app.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: entre as duas rotas do D2 — rotas próprias em api-transportada agora, ou
-  esperar a extração de web-chat-module no repo adatechnology-packages — qual seguir? A segunda
-  exige trabalho em outro repositório antes de começar aqui.]`
-- `[NEEDS CLARIFICATION: quais documentos são obrigatórios para o agregado além de CNH e CRLV —
-  existe uma lista oficial da operação, ou a spec 052 (rotina) já define isso em algum lugar?]`
-- `[NEEDS CLARIFICATION: "configurações" do portal inclui troca de senha/e-mail (padrão do
-  user-module) ou só os dados da ficha do motorista? Os dois pedem telas diferentes.]`
+- ~~D2 — rotas próprias em `api-transportada` ou esperar a extração de `web-chat-module`?~~
+  **Respondido: esperar a extração.** RF12 (chat de site) fica **bloqueado** por trabalho em
+  `adatechnology-packages` (fora deste monorepo) — não entra nas fases implementáveis aqui. Ver
+  `tasks.md`, Fase 4: a tarefa concreta é abrir o pedido de extração, não montar o widget.
+- ~~Quais documentos além de CNH e CRLV?~~ **Respondido: só os dois.** `fleet_drivers` e
+  `fleet_vehicles` (`fleet.schema.ts`) não modelam nenhum outro documento como entidade própria — RG
+  (`identityDocument*`) é dado de cadastro, não upload de imagem, e RENAVAM é campo, não anexo. A
+  lista de `aggregate_documents` (D3) nasce fechada em `['cnh', 'crlv']`, e RF11 já prevê que seja
+  configurável para crescer sem migração de código.
+- ~~"Configurações" inclui troca de senha/e-mail?~~ **Respondido: sim, os dois.** RF10 cobre dados da
+  ficha (nome, contato, endereço) **e** as telas padrão de conta do `user-module` do SDK (RF9) —
+  trocar senha e e-mail usa os componentes/hooks que o pacote já expõe, não uma tela nova escrita à
+  mão.
 - ~~`fernandes-transportadora.com.br` é domínio de instalação genérica ou de cliente real?~~
   **Respondido: é cliente real** (Fernandes). Consequência registrada em RF13 — a 054 (multi-empresa/
   filial, hoje "próxima spec" no encerramento da 053) precisa ser avaliada como pré-requisito ou

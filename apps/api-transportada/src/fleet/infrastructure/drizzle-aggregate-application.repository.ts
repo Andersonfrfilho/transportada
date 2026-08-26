@@ -4,8 +4,20 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray } from 'drizzle-orm'
 
-import { aggregateApplications, fleetDrivers } from '../../database/database.schema.js'
+import {
+  aggregateApplications,
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
+} from '../../database/database.schema.js'
 import { AggregateApplicationNotFoundError } from '../domain/aggregate-application.error.js'
+import {
+  hasDeclaredVehicle,
+  mapDeclaredDataToDriverInput,
+  mapDeclaredDataToVehicleInput,
+  resolveVehicleOwnerFields,
+  type AggregateApplicationDeclaredData,
+} from '../domain/aggregate-application-driver-mapping.policy.js'
 import type {
   AggregateApplication,
   AggregateApplicationRepositoryPort,
@@ -103,14 +115,36 @@ export function createDrizzleAggregateApplicationRepository(
       return toApplication(mustExist(row))
     },
 
-    async createDriverAndApprove({ companyId, id, name, taxId }) {
+    async createDriverAndApprove({ companyId, declaredData, email, id, name, phone, taxId }) {
+      const declared = declaredData as AggregateApplicationDeclaredData
+      const driverInput = mapDeclaredDataToDriverInput({ declaredData: declared, email, name, phone, taxId })
+
       return database.transaction(async (transaction) => {
         const [driver] = await transaction
           .insert(fleetDrivers)
-          .values({ companyId, name, taxId })
+          .values({ companyId, ...driverInput })
           .returning({ id: fleetDrivers.id })
 
         const insertedDriver = mustExist(driver)
+
+        // Sem placa declarada, o operador cadastra o veículo depois — a ficha do motorista já é
+        // válida sozinha, e o veículo do agregado troca de mãos com mais frequência que a CNH dele.
+        if (hasDeclaredVehicle(declared.vehicle)) {
+          const vehicleInput = mapDeclaredDataToVehicleInput(declared.vehicle ?? {}, driverInput.state)
+          const ownerFields = resolveVehicleOwnerFields({ driver: driverInput, name, taxId })
+          const [vehicle] = await transaction
+            .insert(fleetVehicles)
+            .values({ companyId, ...vehicleInput, ...ownerFields })
+            .returning({ id: fleetVehicles.id })
+
+          const insertedVehicle = mustExist(vehicle)
+          await transaction.insert(fleetDriverVehicleAssignments).values({
+            companyId,
+            driverId: insertedDriver.id,
+            vehicleId: insertedVehicle.id,
+          })
+        }
+
         const [row] = await transaction
           .update(aggregateApplications)
           .set({

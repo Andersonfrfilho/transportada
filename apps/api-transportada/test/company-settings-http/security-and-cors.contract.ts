@@ -109,7 +109,7 @@ describe('/company-settings security and CORS contract', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
     expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH')
     expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
-    expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(response.headers.has('access-control-allow-credentials')).toBe(true)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(fixture.events).toEqual([])
   })
@@ -173,7 +173,7 @@ describe('/company-settings/logo security and CORS contract', () => {
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
       expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(fixture.events).toEqual([])
     },
   )
@@ -218,7 +218,7 @@ describe('/company-settings/scheduled-distribution security and CORS contract', 
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, PUT, DELETE')
       expect(response.headers.get('access-control-allow-headers')).toBe(allowedHeaders(method))
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(fixture.events).toEqual([])
     },
   )

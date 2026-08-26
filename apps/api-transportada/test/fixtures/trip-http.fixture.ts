@@ -302,7 +302,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

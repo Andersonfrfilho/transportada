@@ -36,12 +36,13 @@ $$;
 ALTER TABLE "trip_documents" DROP CONSTRAINT "trip_documents_return_reason_check";
 ALTER TABLE "trip_documents" DROP CONSTRAINT "trip_documents_separation_status_check";
 
-ALTER TABLE "trips" DROP CONSTRAINT "trips_status_check",
-  ADD CONSTRAINT "trips_status_check" CHECK ("status" in ('open', 'closed'));
+ALTER TABLE "trips" DROP CONSTRAINT "trips_status_check";
 
 UPDATE "trips"
 SET "status" = CASE "status" WHEN 'draft' THEN 'open' WHEN 'completed' THEN 'closed' ELSE "status" END
 WHERE "status" IN ('draft', 'completed');
+
+ALTER TABLE "trips" ADD CONSTRAINT "trips_status_check" CHECK ("status" in ('open', 'closed'));
 
 ALTER TABLE "trips" ALTER COLUMN "status" SET DEFAULT 'open';
 
@@ -57,7 +58,7 @@ DECLARE
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
     WHERE "name" = '20260824200157_trip_status_machine'
-      AND "hash" = '4f480ffdfc0ec764721d194cfddeabac57e7d62e3cc649b1326f8deb181a232f';
+      AND "hash" = '0ec2ff0686381e31f70ac1e63543819e3b4ab3102dc15074f3dc57df7cbe74ed';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

@@ -76,6 +76,8 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
       name: params.name,
       nationality: 'Brasileira',
       phone: params.phone,
+      pixKey: '',
+      pixKeyType: '',
       rntrc: params.rntrc ?? '',
       taxId: params.taxId,
     },

@@ -32,7 +32,7 @@ export function startApiServer({
 }: StartApiServerParams): Bun.Server<undefined> {
   const handle = createRequestHandler({
     ...(captureError === undefined ? {} : { captureError }),
-    frontendOrigin: config.frontendOrigin,
+    frontendOrigins: config.frontendOrigins,
     logger,
     requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,
     router,

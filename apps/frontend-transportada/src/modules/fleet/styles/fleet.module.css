@@ -1181,6 +1181,27 @@
   color: var(--color-slate);
 }
 
+.applicationDeclaredDataCell {
+  padding-top: 0;
+  border-top: none;
+}
+
+.applicationDeclaredDataCell dl {
+  margin: var(--space-2) 0 0;
+}
+
+.applicationDeclaredDataCell dt {
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--color-slate);
+  margin-top: var(--space-3);
+}
+
+.applicationDeclaredDataCell dd {
+  margin: 0;
+}
+
 .rejectDialog {
   display: grid;
   gap: var(--space-3);

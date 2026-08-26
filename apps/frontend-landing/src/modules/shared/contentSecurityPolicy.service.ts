@@ -13,15 +13,23 @@ const UNSAFE_INLINE = "'unsafe-inline'"
 /** Nome do arquivo emitido no `dist`. O `server.ts` não importa daqui: ele é copiado sozinho. */
 export const CONTENT_SECURITY_POLICY_FILE_NAME = 'content-security-policy.txt'
 
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
+
 /**
- * A landing não busca origem externa nenhuma: sem mapa, sem Keycloak, sem consulta de CNPJ pelo
- * navegador (o CEP passa pela nossa API — ADR-0040). Vazio de propósito, não esquecido: a varredura
- * do teste de contrato falha se o bundle nomear uma origem `https://` sem declará-la aqui.
+ * A única origem externa que a landing busca é o Cloudflare Turnstile — o widget de captcha do
+ * formulário de candidatura (`TurnstileWidget.component.tsx`) chama de volta pra validar o desafio.
+ * Fora isso: sem mapa, sem Keycloak, sem consulta de CNPJ pelo navegador (o CEP passa pela nossa
+ * API — ADR-0040). A varredura do teste de contrato falha se o bundle nomear outra origem `https://`
+ * sem declará-la aqui.
  */
-export const EXTERNAL_CONNECT_ORIGIN = [] as const
+export const EXTERNAL_CONNECT_ORIGIN = [TURNSTILE_ORIGIN] as const
 
 /** Nenhum link de rodapé aponta para fora hoje. Mesma razão do array acima: vazio, não esquecido. */
 export const NON_FETCH_ORIGIN = [] as const
+
+/** O script do Turnstile precisa rodar e o widget dele precisa abrir o próprio iframe de desafio. */
+export const TURNSTILE_SCRIPT_ORIGIN = TURNSTILE_ORIGIN
+export const TURNSTILE_FRAME_ORIGIN = TURNSTILE_ORIGIN
 
 type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
@@ -58,11 +66,11 @@ export function buildContentSecurityPolicy({
     `font-src ${SELF}`,
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
-    `frame-src ${NONE}`,
+    `frame-src ${TURNSTILE_FRAME_ORIGIN}`,
     `img-src ${SELF}`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
-    `script-src ${scriptSource}`,
+    `script-src ${scriptSource} ${TURNSTILE_SCRIPT_ORIGIN}`,
     `style-src ${SELF} ${UNSAFE_INLINE}`,
     `worker-src ${SELF}`,
   ].join('; ')

@@ -126,7 +126,7 @@ export async function createNfseCallbacksHttpFixture(params: CreateFixtureParams
 
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger,
     requestTimeoutSeconds: 10,
     router,

@@ -587,7 +587,7 @@ function createFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => GENERATED_CORRELATION_ID,
-    frontendOrigin: 'http://localhost:53000',
+    frontendOrigins: ['http://localhost:53000'],
     logger,
     requestTimeoutSeconds: 10,
     router: createHttpRouterFixture({ authentication, healthService, routes, tenantContext }),

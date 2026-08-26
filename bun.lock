@@ -18,12 +18,14 @@
         "@adatechnology/keycloak-admin": "1.0.0-rc.0",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
-        "@adatechnology/module-http": "0.1.0-rc.1",
+        "@adatechnology/module-http": "0.1.0-rc.3",
         "@adatechnology/notification-contracts": "0.1.0-rc.2",
         "@adatechnology/notification-module": "0.1.0-rc.3",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
+        "@adatechnology/user-contracts": "0.1.0-rc.2",
+        "@adatechnology/user-module": "0.1.0-rc.3",
         "@sentry/bun": "10.69.0",
         "bwip-js": "^4.11.2",
         "drizzle-orm": "1.0.0-rc.4",
@@ -157,6 +159,8 @@
     },
   },
   "packages": {
+    "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
+
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 
     "@adatechnology/email-provider": ["@adatechnology/email-provider@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" }, "peerDependencies": { "@aws-sdk/client-sesv2": ">=3 <4", "nodemailer": ">=6.9.0 <10", "resend": ">=4 <7" }, "optionalPeers": ["@aws-sdk/client-sesv2", "nodemailer", "resend"] }, "sha512-W2dbLcUq/QF7xwv5cqACVNU7ZKauqLaSshhK+8q4rEZmmDRoxFLNgMQzbhbR8atADvr2dN4POTW3EbnxV/q7sA=="],
@@ -169,7 +173,7 @@
 
     "@adatechnology/logger": ["@adatechnology/logger@0.1.0-rc.0", "", {}, "sha512-OIA1YlWimL4oThdGpT975hXYZJXWEoEYskAHofPSD4KznOLX1lLIYHHkmLq+o9PNQW8K4y+lheQzrlI7AIT2cA=="],
 
-    "@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.1", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ThCyhqC1fa/vSmfArvLs6Y0rogHLmuiMvQ+lzgIScuYiLJsVueW9RG6ZP0v8hMh+wEB6maLyVypIMl6rwzVPbw=="],
+    "@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.3", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-w1ZcbbVwGFpYbFDfyhegbpNvrxqWMTasg7QRUtpd40fRVWIz1fy3rss3RVWHEa72piHxkqs8T+L1MbaSpWQpsA=="],
 
     "@adatechnology/notification-client": ["@adatechnology/notification-client@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" } }, "sha512-n9gRi15NkeXBwsZQ4/TNP7GT9TiMluyesxG3iVrnk4uW7iNFjZiQZdauK1VBxHAkFP0fLDyYBSN8xVSR4+nG3A=="],
 
@@ -184,6 +188,10 @@
     "@adatechnology/rabbitmq-provider": ["@adatechnology/rabbitmq-provider@0.1.1", "", { "dependencies": { "amqplib": "2.0.1" } }, "sha512-ka6HBa+y2gqUwSx9LrJgT7sWBKfP59ploSQuT6ShORtTDMncTiz2AArWxTyTmCxhTu9VKQAO2OIk1XV6gFJJkw=="],
 
     "@adatechnology/secret-envelope": ["@adatechnology/secret-envelope@0.1.0", "", {}, "sha512-opFaXbrisCrqeIqXDjz+KapafRj4g5SfaOIofyrjiuKhSzynm9644lupH0ZrPALnch8Jjp3cSqnXUMOvPAJm2Q=="],
+
+    "@adatechnology/user-contracts": ["@adatechnology/user-contracts@0.1.0-rc.2", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-a0zUM5z8n2rg1d37n9NStm6TceLMuacwe2/k7T20yjYjAEOiaMdmuK7SqH8pfClVUbcaUt3BMMQrgKnkuYfNEw=="],
+
+    "@adatechnology/user-module": ["@adatechnology/user-module@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/module-http": "0.1.0-rc.3", "@adatechnology/user-contracts": "0.1.0-rc.2", "jose": "^5.9.6", "zod": "^3.24.1" }, "optionalDependencies": { "@adatechnology/auth-keycloak": "1.0.0-rc.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-DaMZHANqdFV3y69murF4N0AEndmgFEEIqqOwdRHpkMO2+FdtUBRSavpnjmwimJmm/fHVM/Gj9mLmNbAa/EwU5A=="],
 
     "@apideck/better-ajv-errors": ["@apideck/better-ajv-errors@0.3.7", "", { "dependencies": { "jsonpointer": "^5.0.1", "leven": "^3.1.0" }, "peerDependencies": { "ajv": ">=8" } }, "sha512-TajUJwGWbDwkCx/CZi7tRE8PVB7simCvKJfHUsSdvps+aTM/PDPP4gkLmKnc+x3CE//y9i/nj74GqdL/hwk7Iw=="],
 
@@ -1569,7 +1577,15 @@
 
     "@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@adatechnology/notification-module/@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.1", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ThCyhqC1fa/vSmfArvLs6Y0rogHLmuiMvQ+lzgIScuYiLJsVueW9RG6ZP0v8hMh+wEB6maLyVypIMl6rwzVPbw=="],
+
     "@adatechnology/notification-module/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/user-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/user-module/jose": ["jose@5.10.0", "", {}, "sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg=="],
+
+    "@adatechnology/user-module/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@apideck/better-ajv-errors/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 

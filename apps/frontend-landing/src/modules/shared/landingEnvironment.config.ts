@@ -28,3 +28,9 @@ export function readTrustedUrl(value: string | undefined, name: string): string 
 export function getLandingApiBaseUrl(): string {
   return readTrustedUrl(import.meta.env.VITE_API_URL, 'VITE_API_URL')
 }
+
+/** Vazio (dev local) não renderiza o widget — a API aceita sem token quando o segredo dela também está ausente. */
+export function getLandingTurnstileSiteKey(): string | undefined {
+  const value = import.meta.env.VITE_TURNSTILE_SITE_KEY
+  return value === undefined || value.trim() === '' ? undefined : value.trim()
+}

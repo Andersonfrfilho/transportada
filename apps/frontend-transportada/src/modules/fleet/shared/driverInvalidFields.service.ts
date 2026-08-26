@@ -41,6 +41,7 @@ const LABEL_KEY_BY_FIELD: Readonly<Record<string, string>> = {
   name: 'driverName',
   nationality: 'driverNationality',
   phone: 'driverPhone',
+  pixKey: 'driverPixKey',
   profile: 'driverProfile',
   rntrc: 'driverRntrc',
   taxId: 'driverTaxId',

@@ -55,6 +55,10 @@ export type MdfeBodyType = (typeof MDFE_BODY_TYPE)[number]
 export const MDFE_OWNER_TAX_REGIME = ['0', '1', '2'] as const
 export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIME)[number]
 
+/** Os cinco tipos de chave Pix do Bacen — cópia por valor do que a API valida. */
+export const PIX_KEY_TYPES = ['cpf', 'cnpj', 'email', 'phone', 'random'] as const
+export type PixKeyType = (typeof PIX_KEY_TYPES)[number]
+
 /**
  * Categoria da CNH, no catálogo do CONTRAN. Cópia por valor do que a API valida — o bundle não
  * carrega código dela —, e a ordem é a da carteira: da mais leve para a mais pesada, com as
@@ -319,6 +323,9 @@ export type FleetDriverBody = Readonly<{
   name: string
   nationality: string
   phone: string
+  /** Chave usada para o pagamento dos fretes; vazia enquanto a ficha não a declara. */
+  pixKey: string
+  pixKeyType: '' | PixKeyType
   rntrc: string
   taxId: string
 }>
@@ -464,6 +471,8 @@ export type FleetDriverFormState = Readonly<{
   name: string
   nationality: string
   phone: string
+  pixKey: string
+  pixKeyType: string
   /** Só a criação o usa: a ficha carregada não o traz, porque a API não devolve papel de usuário. */
   profile: FleetDriverProfile
   rntrc: string

@@ -1,9 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import type { AggregateApplication } from '../shared/aggregateApplicationClient.service'
+import { formatDeclaredAddress, parseDeclaredData } from '../shared/aggregateApplicationDeclaredData.service'
 import styles from '../styles/fleet.module.css'
 
 const APPLICATIONS_COLUMN_COUNT = 5
@@ -56,64 +57,142 @@ export function AggregateApplicationsTab({
           </tr>
         </thead>
         <tbody>
-          {applications.map((application) => (
-            <tr key={application.id}>
-              <td>
-                {application.name}
-                {application.duplicateDriverId !== null ? (
-                  <span className={styles.applicationBadge} data-variant="warning">
-                    {t('applications.duplicateBadge')}
-                  </span>
-                ) : null}
-                {application.resubmittedAt !== null ? (
-                  <span className={styles.applicationBadge} data-variant="info">
-                    {t('applications.resubmittedBadge')}
-                  </span>
-                ) : null}
-              </td>
-              <td>{application.taxId}</td>
-              <td>
-                {application.email}
-                <br />
-                {application.phone}
-              </td>
-              <td>{statusLabel(application.status, t)}</td>
-              <td className={styles.rowActions}>
-                {application.status === 'pending' ? (
-                  <>
-                    {application.duplicateDriverId === null ? (
-                      <button
-                        disabled={isApproving}
-                        type="button"
-                        onClick={() => onApprove(application.id)}
-                      >
-                        {t('applications.approveButton')}
+          {applications.map((application) => {
+            const declared = parseDeclaredData(application.declaredData)
+            return (
+              <Fragment key={application.id}>
+                <tr>
+                  <td>
+                    {application.name}
+                    {application.duplicateDriverId !== null ? (
+                      <span className={styles.applicationBadge} data-variant="warning">
+                        {t('applications.duplicateBadge')}
+                      </span>
+                    ) : null}
+                    {application.resubmittedAt !== null ? (
+                      <span className={styles.applicationBadge} data-variant="info">
+                        {t('applications.resubmittedBadge')}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td>{application.taxId}</td>
+                  <td>
+                    {application.email}
+                    <br />
+                    {application.phone}
+                  </td>
+                  <td>{statusLabel(application.status, t)}</td>
+                  <td className={styles.rowActions}>
+                    {application.status === 'pending' ? (
+                      <>
+                        {application.duplicateDriverId === null ? (
+                          <button
+                            disabled={isApproving}
+                            type="button"
+                            onClick={() => onApprove(application.id)}
+                          >
+                            {t('applications.approveButton')}
+                          </button>
+                        ) : (
+                          <button
+                            disabled={isApproving}
+                            type="button"
+                            onClick={() => onApprove(application.id)}
+                          >
+                            {t('applications.linkButton')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setRejectDialog({ applicationId: application.id, reason: '' })}
+                        >
+                          {t('applications.rejectButton')}
+                        </button>
+                      </>
+                    ) : null}
+                    {application.duplicateDriverId !== null ? (
+                      <button type="button" onClick={() => onViewDriver(application.name)}>
+                        {t('applications.viewDriverButton')}
                       </button>
-                    ) : (
-                      <button
-                        disabled={isApproving}
-                        type="button"
-                        onClick={() => onApprove(application.id)}
-                      >
-                        {t('applications.linkButton')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setRejectDialog({ applicationId: application.id, reason: '' })}
-                    >
-                      {t('applications.rejectButton')}
-                    </button>
-                  </>
-                ) : null}
-                {application.duplicateDriverId !== null ? (
-                  <button type="button" onClick={() => onViewDriver(application.name)}>
-                    {t('applications.viewDriverButton')}
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
+                    ) : null}
+                  </td>
+                </tr>
+                <tr>
+                  <td className={styles.applicationDeclaredDataCell} colSpan={APPLICATIONS_COLUMN_COUNT}>
+                    <details>
+                      <summary>{t('applications.declaredData.toggleShow')}</summary>
+                      {declared.driver === null && declared.vehicle === null ? (
+                        <p>{t('applications.declaredData.empty')}</p>
+                      ) : (
+                        <>
+                          {declared.driver === null ? null : (
+                            <dl>
+                              <dt>{t('applications.declaredData.driverTitle')}</dt>
+                              {declared.driver.licenseNumber === '' ? null : (
+                                <dd>
+                                  {t('applications.declaredData.fields.licenseNumber')}: {declared.driver.licenseNumber}
+                                </dd>
+                              )}
+                              {declared.driver.licenseCategory === '' ? null : (
+                                <dd>
+                                  {t('applications.declaredData.fields.licenseCategory')}:{' '}
+                                  {declared.driver.licenseCategory}
+                                </dd>
+                              )}
+                              {declared.driver.rntrc === '' ? null : (
+                                <dd>
+                                  {t('applications.declaredData.fields.rntrc')}: {declared.driver.rntrc}
+                                </dd>
+                              )}
+                              {declared.driver.anttCategory === '' ? null : (
+                                <dd>
+                                  {t('applications.declaredData.fields.anttCategory')}: {declared.driver.anttCategory}
+                                </dd>
+                              )}
+                              {declared.driver.address === null ? null : (
+                                <dd>
+                                  {t('applications.declaredData.fields.address')}:{' '}
+                                  {formatDeclaredAddress(declared.driver.address)}
+                                </dd>
+                              )}
+                            </dl>
+                          )}
+                          <dl>
+                            <dt>{t('applications.declaredData.vehicleTitle')}</dt>
+                            {declared.vehicle === null ? (
+                              <dd>{t('applications.declaredData.noVehicle')}</dd>
+                            ) : (
+                              <>
+                                <dd>
+                                  {t('applications.declaredData.fields.plate')}: {declared.vehicle.plate}
+                                </dd>
+                                {declared.vehicle.brand === '' && declared.vehicle.model === '' ? null : (
+                                  <dd>
+                                    {t('applications.declaredData.fields.brand')}: {declared.vehicle.brand}{' '}
+                                    {declared.vehicle.model}
+                                  </dd>
+                                )}
+                                {declared.vehicle.modelYear === null ? null : (
+                                  <dd>
+                                    {t('applications.declaredData.fields.modelYear')}: {declared.vehicle.modelYear}
+                                  </dd>
+                                )}
+                                {declared.vehicle.vehicleType === '' ? null : (
+                                  <dd>
+                                    {t('applications.declaredData.fields.vehicleType')}: {declared.vehicle.vehicleType}
+                                  </dd>
+                                )}
+                              </>
+                            )}
+                          </dl>
+                        </>
+                      )}
+                    </details>
+                  </td>
+                </tr>
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
       {rejectDialog === null ? null : (

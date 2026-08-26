@@ -43,7 +43,27 @@
     "viewDriverButton": "View record",
     "rejectionReasonLabel": "Rejection reason",
     "confirmRejectButton": "Confirm rejection",
-    "cancelButton": "Cancel"
+    "cancelButton": "Cancel",
+    "declaredData": {
+      "toggleShow": "Show declared data",
+      "toggleHide": "Hide declared data",
+      "empty": "Application has no declared license, address, or vehicle.",
+      "driverTitle": "Driver",
+      "vehicleTitle": "Vehicle",
+      "noVehicle": "No vehicle declared — the operator registers it later.",
+      "fields": {
+        "licenseNumber": "License",
+        "licenseCategory": "Category",
+        "rntrc": "RNTRC",
+        "anttCategory": "Regime",
+        "address": "Address",
+        "plate": "Plate",
+        "brand": "Brand",
+        "model": "Model",
+        "modelYear": "Year",
+        "vehicleType": "Type"
+      }
+    }
   },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",
@@ -315,6 +335,16 @@
   "driverAnttCategory": "ANTT category",
   "driverAnttCategoryUnset": "No category",
   "driverAnttHint": "The driver ANTT registration and category. When the vehicle is theirs, this is what goes in the MDF-e owner group.",
+  "driverPixKeyType": "Pix key type",
+  "driverPixKeyTypeUnset": "No key",
+  "driverPixKey": "Pix key",
+  "pixKeyTypeOption": {
+    "cpf": "CPF",
+    "cnpj": "CNPJ",
+    "email": "E-mail",
+    "phone": "Phone",
+    "random": "Random key"
+  },
   "driverLicenseCategory": "License category",
   "driverLicenseCategoryUnset": "No category",
   "licenseCategoryOption": {

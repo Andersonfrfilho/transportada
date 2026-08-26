@@ -18,6 +18,7 @@ import {
   IDENTITY_DOCUMENT_MAX_LENGTH,
 } from '../../shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES } from '../../shared/license-category.constant.js'
+import { PIX_KEY_MAX_LENGTH, PIX_KEY_TYPES } from '../../shared/pix-key-type.constant.js'
 import { FLEET_DRIVER_PROFILES } from '../domain/fleet-driver-profile.constant.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
@@ -165,6 +166,8 @@ const driverFieldsSchema = z.object({
   name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
   nationality: z.string().trim().max(DRIVER_NATIONALITY_MAX_LENGTH),
   phone: optionalDigits(PHONE),
+  pixKey: z.string().trim().max(PIX_KEY_MAX_LENGTH),
+  pixKeyType: z.literal('').or(z.enum(PIX_KEY_TYPES)),
   rntrc: optionalDigits(RNTRC_INPUT),
   taxId: z.string().regex(CPF),
 })
@@ -224,8 +227,22 @@ export const updateDriverSchema = driverFieldsSchema
   .strict()
   .superRefine(assertDriverRules)
 
+/** Formato de cada chave Pix por tipo — o Bacen não valida a chave em si, só a forma. */
+const PIX_KEY_PATTERNS: Record<Exclude<(typeof PIX_KEY_TYPES)[number], ''>, RegExp> = {
+  cnpj: CNPJ_PATTERN,
+  cpf: CPF,
+  email: EMAIL,
+  phone: PHONE,
+  random: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu,
+}
+
 function assertDriverRules(
-  value: { readonly linkedLegalName: string; readonly linkedTaxId: string },
+  value: {
+    readonly linkedLegalName: string
+    readonly linkedTaxId: string
+    readonly pixKey: string
+    readonly pixKeyType: (typeof PIX_KEY_TYPES)[number] | ''
+  },
   context: z.RefinementCtx,
 ): void {
   // A metade contrária fica solta: ficha antiga tem CNPJ e não tem razão social, e ninguém a inventa
@@ -235,6 +252,12 @@ function assertDriverRules(
       message: 'linkedLegalName requires linkedTaxId',
       path: ['linkedLegalName'],
     })
+  }
+  // As duas metades nascem e somem juntas: chave sem tipo não formata, tipo sem chave não existe
+  if ((value.pixKeyType === '') !== (value.pixKey === '')) {
+    context.addIssue({ code: 'custom', message: 'pixKeyType requires pixKey and vice-versa', path: ['pixKey'] })
+  } else if (value.pixKeyType !== '' && !PIX_KEY_PATTERNS[value.pixKeyType].test(value.pixKey)) {
+    context.addIssue({ code: 'custom', message: 'pixKey does not match pixKeyType format', path: ['pixKey'] })
   }
 }
 

@@ -234,7 +234,7 @@ export async function createFreightHttpFixture(params: CreateFixtureParams = {})
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'freight-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

@@ -52,6 +52,8 @@ describe('fleet driver schema', () => {
       'phone',
       'rntrc',
       'antt_category',
+      'pix_key_type',
+      'pix_key',
       'postal_code',
       'street',
       'number',
@@ -158,6 +160,18 @@ describe('fleet driver schema', () => {
     expect(checks.fleet_drivers_rntrc_check).toContain('= 0')
     expect(checks.fleet_drivers_antt_category_check).toContain("in ('0', '1', '2')")
     expect(checks.fleet_drivers_antt_category_check).toContain('= 0')
+  })
+
+  // Chave e tipo nascem e somem juntos: um sem o outro é ficha impossível de formatar
+  test('ties the Pix key to its type, both present or both absent', () => {
+    const checks = checkSqlByName(fleetDrivers)
+
+    expect(checks.fleet_drivers_pix_key_type_check).toContain(
+      "in ('cpf', 'cnpj', 'email', 'phone', 'random')",
+    )
+    expect(checks.fleet_drivers_pix_key_type_check).toContain('= 0')
+    expect(checks.fleet_drivers_pix_key_check).toContain('<= 140')
+    expect(checks.fleet_drivers_pix_key_check).toContain('pix_key_type')
   })
 
   // A categoria é lista fechada do CONTRAN: ficha antiga não tem nenhuma, e vazio continua valendo

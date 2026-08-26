@@ -114,7 +114,7 @@ export async function createBootstrapHttpFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         logs.push({ level: 'error', message, metadata: metadata ?? {} })

@@ -72,10 +72,11 @@ export async function assertTripConstraints(
     '23503',
     'trips_company_vehicle_fk',
   )
+  // 'open' era status válido antes do ADR-0042 (trip_status_machine); a lista atual não o inclui mais.
   await expectQueryToFail(
     database`
       insert into trips (company_id, vehicle_id, status)
-      values (${companyId}, ${vehicleId}, 'in_transit')
+      values (${companyId}, ${vehicleId}, 'open')
     `,
     '23514',
     'trips_status_check',

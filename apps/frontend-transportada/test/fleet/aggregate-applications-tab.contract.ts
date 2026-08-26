@@ -5,6 +5,10 @@ import {
   AggregateApplicationRequestError,
   createAggregateApplicationClient,
 } from '../../src/modules/fleet/shared/aggregateApplicationClient.service'
+import {
+  formatDeclaredAddress,
+  parseDeclaredData,
+} from '../../src/modules/fleet/shared/aggregateApplicationDeclaredData.service'
 
 const APPLICATION: unknown = {
   companyId: 'company-1',
@@ -87,5 +91,60 @@ describe('aggregate application client', () => {
 
     const error = await client.list().catch((caught: unknown) => caught)
     expect(error).toBeInstanceOf(AggregateApplicationRequestError)
+  })
+})
+
+describe('parseDeclaredData', () => {
+  test('an empty declaration parses as no driver and no vehicle', () => {
+    const parsed = parseDeclaredData({})
+    expect(parsed.driver).toBeNull()
+    expect(parsed.vehicle).toBeNull()
+  })
+
+  test('reads the driver license and RNTRC, tolerating a malformed shape', () => {
+    const parsed = parseDeclaredData({
+      driver: { licenseCategory: 'E', licenseNumber: '12345678901', rntrc: '12345678' },
+      vehicle: 'not-an-object',
+    })
+
+    expect(parsed.driver?.licenseNumber).toBe('12345678901')
+    expect(parsed.driver?.licenseCategory).toBe('E')
+    expect(parsed.driver?.rntrc).toBe('12345678')
+    expect(parsed.vehicle).toBeNull()
+  })
+
+  test('a vehicle without a plate does not count as declared', () => {
+    const parsed = parseDeclaredData({ vehicle: { brand: 'Volvo' } })
+    expect(parsed.vehicle).toBeNull()
+  })
+
+  test('reads the declared vehicle once a plate is present', () => {
+    const parsed = parseDeclaredData({
+      vehicle: { brand: 'Volvo', model: 'FH 540', modelYear: 2022, plate: 'ABC1D23' },
+    })
+
+    expect(parsed.vehicle).toEqual({
+      brand: 'Volvo',
+      model: 'FH 540',
+      modelYear: 2022,
+      plate: 'ABC1D23',
+      vehicleType: '',
+    })
+  })
+})
+
+describe('formatDeclaredAddress', () => {
+  test('joins the parts that are present, skipping the rest', () => {
+    const formatted = formatDeclaredAddress({
+      city: 'São Paulo',
+      complement: '',
+      district: 'Centro',
+      number: '100',
+      postalCode: '01000-000',
+      state: 'SP',
+      street: 'Rua Um',
+    })
+
+    expect(formatted).toBe('Rua Um, 100 — Centro — São Paulo/SP — 01000-000')
   })
 })

@@ -30,6 +30,7 @@ export const PUBLIC_AGGREGATE_APPLICATIONS_PATH = API_PUBLIC_AGGREGATE_APPLICATI
 export function aggregateApplicationRequest(input: {
   readonly authenticated?: boolean
   readonly body?: string
+  readonly clientIp?: string
   readonly method: string
   readonly pathname: string
 }): Request {
@@ -38,6 +39,7 @@ export function aggregateApplicationRequest(input: {
     headers: {
       ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(input.authenticated === false ? {} : { authorization: 'Bearer aggregate-application-contract' }),
+      ...(input.clientIp === undefined ? {} : { 'x-forwarded-for': input.clientIp }),
     },
     method: input.method,
   })
@@ -45,10 +47,14 @@ export function aggregateApplicationRequest(input: {
 
 type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
+  readonly turnstileSecretKey?: string
+  readonly verifyTurnstileToken?: Parameters<typeof createAggregateApplicationPublicRoutes>[0]['verifyTurnstileToken']
 }
 
 export async function createAggregateApplicationHttpFixture({
   permissions = new Set(['fleet.manage']),
+  turnstileSecretKey,
+  verifyTurnstileToken,
 }: CreateFixtureParams = {}) {
   const companyGroupRepository = new CompanyGroupRepositoryFixture()
   companyGroupRepository.units = [
@@ -76,7 +82,11 @@ export async function createAggregateApplicationHttpFixture({
   const context = authenticatedContext(permissions)
   const authorization = new AuthorizationService()
   const router = createRouter({
-    anonymousRoutes: createAggregateApplicationPublicRoutes({ aggregateApplications }),
+    anonymousRoutes: createAggregateApplicationPublicRoutes({
+      aggregateApplications,
+      ...(turnstileSecretKey === undefined ? {} : { turnstileSecretKey }),
+      ...(verifyTurnstileToken === undefined ? {} : { verifyTurnstileToken }),
+    }),
     authentication: {
       async authenticate() {
         return context.identity
@@ -98,7 +108,7 @@ export async function createAggregateApplicationHttpFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

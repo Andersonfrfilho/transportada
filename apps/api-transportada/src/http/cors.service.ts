@@ -21,14 +21,15 @@ const BODYLESS_METHODS = new Set([HTTP_GET_METHOD, 'DELETE', 'HEAD'])
 const RESOURCE_ALLOW_HEADERS = `${CORS_ALLOW_HEADERS}, Content-Type, Idempotency-Key`
 
 type HandleCorsPreflightParams = {
-  readonly frontendOrigin: string
+  /** Painel e landing são origens diferentes — cada uma precisa estar na lista, não só a primeira. */
+  readonly frontendOrigins: readonly string[]
   readonly request: Request
   /** Resolvido só quando é preflight de verdade — o caminho quente não paga a varredura de rotas. */
   readonly resolveAllowedMethods: () => readonly string[]
 }
 
 export function handleCorsPreflight({
-  frontendOrigin,
+  frontendOrigins,
   request,
   resolveAllowedMethods,
 }: HandleCorsPreflightParams): Response | undefined {
@@ -36,8 +37,9 @@ export function handleCorsPreflight({
     return undefined
   }
 
+  const requestOrigin = request.headers.get('origin')
   const requestedMethod = request.headers.get('access-control-request-method')
-  if (request.headers.get('origin') !== frontendOrigin || requestedMethod === null) {
+  if (requestOrigin === null || !frontendOrigins.includes(requestOrigin) || requestedMethod === null) {
     throw new ApiError(HTTP_ERROR.forbidden)
   }
 
@@ -54,9 +56,10 @@ export function handleCorsPreflight({
 
   return new Response(null, {
     headers: {
+      'access-control-allow-credentials': 'true',
       'access-control-allow-headers': allowedHeaders(requestedMethod),
       'access-control-allow-methods': allowedMethods.join(', '),
-      'access-control-allow-origin': frontendOrigin,
+      'access-control-allow-origin': requestOrigin,
       'access-control-max-age': String(CORS_MAX_AGE_SECONDS),
     },
     status: 204,
@@ -97,13 +100,13 @@ function parseHeaderList(value: string | null): readonly string[] {
 }
 
 type ApplyCorsHeadersParams = {
-  readonly frontendOrigin: string
+  readonly frontendOrigins: readonly string[]
   readonly request: Request
   readonly response: Response
 }
 
 export function applyCorsHeaders({
-  frontendOrigin,
+  frontendOrigins,
   request,
   response,
 }: ApplyCorsHeadersParams): void {
@@ -113,8 +116,12 @@ export function applyCorsHeaders({
     values: isPreflight ? CORS_REQUEST_HEADERS : ['Origin'],
   })
 
-  if (!isPreflight && request.headers.get('origin') === frontendOrigin) {
-    response.headers.set('access-control-allow-origin', frontendOrigin)
+  const requestOrigin = request.headers.get('origin')
+  if (!isPreflight && requestOrigin !== null && frontendOrigins.includes(requestOrigin)) {
+    response.headers.set('access-control-allow-origin', requestOrigin)
+    // Exigido pro navegador aceitar `credentials: 'include'` — sem ele, o cookie de refresh do
+    // agregado (`HttpOnly`, `SameSite=Lax`) nunca chega de volta pro `fetch()` da landing.
+    response.headers.set('access-control-allow-credentials', 'true')
   }
 }
 

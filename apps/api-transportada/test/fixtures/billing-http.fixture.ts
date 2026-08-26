@@ -316,7 +316,7 @@ export async function createBillingHttpFixture(params: CreateFixtureParams = {})
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'billing-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

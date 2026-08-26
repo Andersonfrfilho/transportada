@@ -6,8 +6,10 @@ import { Header } from '@/modules/foundation/components/Header.component'
 import { useLandingSettings } from '@/modules/shared/useLandingSettings.query'
 import { ApplicationPage } from './pages/ApplicationPage'
 import { HomePage } from './pages/HomePage'
+import { PortalPage } from './pages/PortalPage'
 
 const APPLICATION_PATH = '/cadastro'
+const PORTAL_PATH = '/portal'
 
 export function App(): ReactNode {
   const { data: settings } = useLandingSettings()
@@ -29,6 +31,7 @@ export function App(): ReactNode {
 
   const brandName = settings.brandName ?? 'TransportAdA'
   const isApplicationRoute = pathname === APPLICATION_PATH
+  const isPortalRoute = pathname === PORTAL_PATH
 
   /** A aba do navegador segue a marca configurada; sem configuração, é a plataforma mesmo. */
   useEffect(() => {
@@ -45,6 +48,8 @@ export function App(): ReactNode {
       <main>
         {isApplicationRoute ? (
           <ApplicationPage onNavigateHome={() => navigateTo('/')} settings={settings} />
+        ) : isPortalRoute ? (
+          <PortalPage />
         ) : (
           <HomePage onNavigateToApplication={() => navigateTo(APPLICATION_PATH)} settings={settings} />
         )}

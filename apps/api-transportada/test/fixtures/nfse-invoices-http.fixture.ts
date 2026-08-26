@@ -366,7 +366,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'nfse-invoices-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

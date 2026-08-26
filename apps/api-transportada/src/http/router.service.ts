@@ -10,7 +10,6 @@ import type { AuthenticationPort } from '../identity/application/identity.port'
 import type { TenantContextService } from '../identity/application/tenant-context.service'
 import type { RouteAuthorizationPolicy } from '../identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../identity/domain/tenant-context'
-import { NOTIFICATION_ROUTES_BASE_PATH } from '../notification/notification.constant'
 import {
   API_AUTH_ME_PATH,
   API_LIVE_PATH,
@@ -22,6 +21,8 @@ import {
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
+import { resolveClientIp } from './client-ip.service'
+import { createRateLimiter, type RateLimitPolicy } from './rate-limiter.service'
 import { resolveLogPathname } from './request-path.service'
 
 type RouteAuthorizationPort = {
@@ -89,6 +90,8 @@ type AnonymousRouterRoute<TInput> = {
   readonly parse: (params: AnonymousRouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
+  /** Sem isto a rota fica sem teto de volume — todo endpoint anônimo deveria declarar um. */
+  readonly rateLimit?: RateLimitPolicy
 }
 
 export type RegisteredAnonymousRoute = {
@@ -96,6 +99,7 @@ export type RegisteredAnonymousRoute = {
   readonly method: string
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
+  readonly rateLimit?: RateLimitPolicy
 }
 
 type RouterRequest = {
@@ -141,11 +145,14 @@ type CreateRouterParams = {
   readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly healthService: HealthService
   /**
-   * Módulo plugável servido pelo adaptador dele: resolve a própria autenticação pelo `authResolver`
-   * da aplicação e devolve `Response` pronta. Entra depois das rotas nossas e antes do 404 daqui —
-   * um caminho do produto nunca é capturado por engano.
+   * Módulos plugáveis servidos pelos próprios adaptadores: cada um resolve a autenticação dele
+   * (`authResolver`) e devolve `Response` pronta. Entram depois das rotas nossas e antes do 404
+   * daqui — um caminho do produto nunca é capturado por engano. Mais de um porque notificação e
+   * conta de agregado (`user-module`) são módulos plugáveis distintos, com prefixo próprio cada um.
+   * `basePath` vem separado porque `ModuleFetchRouter` não o expõe de volta — só o usa internamente
+   * pra compilar as rotas — e o preflight de CORS precisa dele pra montar o caminho completo.
    */
-  readonly moduleRouter?: ModuleFetchRouter
+  readonly moduleRouters?: readonly { readonly basePath: string; readonly router: ModuleFetchRouter }[]
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
 }
@@ -156,12 +163,13 @@ export function createRouter({
   authorization,
   companyFiscalEnvironment,
   healthService,
-  moduleRouter,
+  moduleRouters = [],
   routes,
   tenantContext,
 }: CreateRouterParams): HttpRouter {
-  const moduleCandidates = toModuleCandidates(moduleRouter)
+  const moduleCandidates = toModuleCandidates(moduleRouters)
   const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
+  const rateLimiter = createRateLimiter()
   return Object.freeze({
     allowedMethods(pathname: string): readonly string[] {
       return collectAllowedMethods({ anonymousRoutes, moduleCandidates, pathname, routes })
@@ -176,6 +184,7 @@ export function createRouter({
 
       const anonymousRoute = matchRoute({ method, pathname, routes: anonymousRoutes })
       if (anonymousRoute !== undefined) {
+        assertWithinRateLimit({ rateLimiter, request, route: anonymousRoute.route })
         return anonymousRoute.route.execute({
           correlationId,
           pathParameters: anonymousRoute.pathParameters,
@@ -189,8 +198,9 @@ export function createRouter({
 
       // Antes de autenticar aqui: o módulo tem rota pública (webhook, protegida por assinatura) e
       // resolve identidade pelo `authResolver` dele. Autenticar duas vezes daria 401 no que é
-      // público. Os conjuntos são disjuntos pelo prefixo `/v1`, que nenhuma rota nossa usa.
-      if (moduleRouter?.match(request) === true) return moduleRouter.handle(request)
+      // público. Os conjuntos são disjuntos pelo prefixo (`/v1`, `/user`), que nenhuma rota nossa usa.
+      const matchedModuleRouter = moduleRouters.find((candidate) => candidate.router.match(request))
+      if (matchedModuleRouter !== undefined) return matchedModuleRouter.router.handle(request)
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
@@ -247,21 +257,49 @@ export function defineAnonymousRoute<TInput>(
     method: route.method,
     pathname: route.pathname,
     ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
+    ...(route.rateLimit ? { rateLimit: route.rateLimit } : {}),
   })
 }
 
 /**
- * O módulo declara as rotas dele como dado; aqui elas viram candidatas só para o preflight. O
+ * Sem `rateLimit` declarado, a rota anônima segue sem teto — é opt-in, não porque anônima sem
+ * limite seja seguro, mas porque cada rota tem um volume legítimo diferente (candidatura de
+ * agregado não é o mesmo tráfego que o callback de NFS-e da prefeitura) e um teto genérico erraria
+ * pra um lado ou pro outro. `429` carrega `Retry-After` para o cliente saber quando tentar de novo.
+ */
+function assertWithinRateLimit(input: {
+  readonly rateLimiter: ReturnType<typeof createRateLimiter>
+  readonly request: Request
+  readonly route: RegisteredAnonymousRoute
+}): void {
+  const { rateLimit } = input.route
+  if (rateLimit === undefined) return
+
+  const key = `${input.route.method} ${input.route.pathname} ${resolveClientIp(input.request)}`
+  const outcome = input.rateLimiter.consume({ key, policy: rateLimit })
+  if (!outcome.allowed) {
+    throw new ApiError({
+      ...HTTP_ERROR.tooManyRequests,
+      headers: { 'retry-after': String(outcome.retryAfterSeconds) },
+    })
+  }
+}
+
+/**
+ * Cada módulo declara as rotas dele como dado; aqui elas viram candidatas só para o preflight. O
  * formato é `raw` porque o segmento dinâmico do módulo nem sempre é UUID (`:driver` do webhook), e
  * exigir UUID esconderia o caminho do CORS.
  */
-function toModuleCandidates(moduleRouter: ModuleFetchRouter | undefined): DynamicRouteCandidate[] {
-  if (moduleRouter === undefined) return []
-  return moduleRouter.routes.map((route) => ({
-    method: route.method,
-    pathParameterFormat: 'raw' as const,
-    pathname: `${NOTIFICATION_ROUTES_BASE_PATH}${route.path}`,
-  }))
+function toModuleCandidates(
+  moduleRouters: readonly { readonly basePath: string; readonly router: ModuleFetchRouter }[],
+): DynamicRouteCandidate[] {
+  return moduleRouters.flatMap(({ basePath, router }) =>
+    router.routes.map((route) => ({
+      method: route.method,
+      pathParameterFormat: 'raw' as const,
+      pathname: `${basePath}${route.path}`,
+    })),
+  )
 }
 
 type CollectLogTemplatesParams = {

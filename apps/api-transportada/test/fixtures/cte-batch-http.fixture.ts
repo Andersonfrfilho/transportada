@@ -341,7 +341,7 @@ export async function createCteBatchHttpFixture(params: CreateFixtureParams = {}
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'cte-batch-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

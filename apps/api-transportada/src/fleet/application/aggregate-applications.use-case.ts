@@ -131,8 +131,11 @@ export function createAggregateApplicationsUseCase(
       }
       return dependencies.repository.createDriverAndApprove({
         companyId: application.companyId,
+        declaredData: application.declaredData,
+        email: application.email,
         id,
         name: application.name,
+        phone: application.phone,
         taxId: application.taxId,
       })
     },

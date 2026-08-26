@@ -5,6 +5,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
+import type { UserModule } from '@adatechnology/user-module'
 
 import { parseEnvironment } from './config/environment.schema'
 import { shouldPrettyPrintLogs } from './logging/log-format.policy'
@@ -18,6 +19,7 @@ import { createCompanyLogoUseCase } from './companies/application/company-logo.u
 import { createLandingLogoUseCase } from './landing/application/landing-logo.use-case.js'
 import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
 import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
+import { createAggregateAccountUseCase } from './fleet/application/aggregate-account.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
@@ -43,6 +45,7 @@ import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle
 import { createDrizzleCompanyGroupRepository } from './landing/infrastructure/drizzle-company-group.repository.js'
 import { createDrizzleLandingSettingsRepository } from './landing/infrastructure/drizzle-landing-settings.repository.js'
 import { createDrizzleAggregateApplicationRepository } from './fleet/infrastructure/drizzle-aggregate-application.repository.js'
+import { createDrizzleAggregateAccountRepository } from './fleet/infrastructure/drizzle-aggregate-account.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
@@ -57,6 +60,7 @@ import {
   createAggregateApplicationPublicRoutes,
   createAggregateApplicationRoutes,
 } from './fleet/presentation/aggregate-application.routes.js'
+import { createAggregateAccountPublicRoutes } from './fleet/presentation/aggregate-account.routes.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -233,10 +237,24 @@ import {
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
 import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
 import { createLazyRabbitMqNotificationQueue } from './notification/infrastructure/rabbitmq-notification-queue.adapter.js'
 import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
 import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
+import { createApiUserModule } from './user/infrastructure/user-module.factory.js'
+import { createUserHttpRouter, USER_ROUTES_BASE_PATH } from './user/presentation/user-http.router.js'
+import {
+  AGGREGATE_PORTAL_ROUTES_BASE_PATH,
+  createAggregatePortalHttpRouter,
+} from './user/presentation/aggregate-portal.router.js'
+import { createAggregatePortalUseCase } from './fleet/application/aggregate-portal.use-case.js'
+import { createDrizzleAggregatePortalRepository } from './fleet/infrastructure/drizzle-aggregate-portal.repository.js'
+import { createAggregateDocumentUseCase } from './fleet/application/aggregate-document.use-case.js'
+import { createAggregateDocumentReviewUseCase } from './fleet/application/aggregate-document-review.use-case.js'
+import { createDrizzleAggregateDocumentRepository } from './fleet/infrastructure/drizzle-aggregate-document.repository.js'
+import { createHttpAggregateDocumentOcrGateway } from './fleet/infrastructure/http-aggregate-document-ocr.gateway.js'
+import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggregate-document-review.routes.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -286,21 +304,67 @@ export function bootstrap(): Bun.Server<undefined> {
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
+  // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
+  // a empresa raiz, e sem segredo não há com o que assinar o access token do módulo (064/T1).
+  const userModule =
+    config.userAccessTokenSecret === undefined || config.companyId === undefined
+      ? undefined
+      : createApiUserModule({
+          accessTokenSecret: config.userAccessTokenSecret,
+          companyId: config.companyId,
+          db: database.db,
+        })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger }),
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger, userModule }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
-    // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar assinatura,
-    // aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
-    moduleRouter: createNotificationHttpRouter({
-      authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
-      module: notifications,
-      ...(config.notificationWebhookSecret === undefined
-        ? {}
-        : { webhookSecret: config.notificationWebhookSecret }),
-    }),
+    moduleRouters: [
+      // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
+      // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
+      {
+        basePath: NOTIFICATION_ROUTES_BASE_PATH,
+        router: createNotificationHttpRouter({
+          authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
+          module: notifications,
+          ...(config.notificationWebhookSecret === undefined
+            ? {}
+            : { webhookSecret: config.notificationWebhookSecret }),
+        }),
+      },
+      ...(userModule === undefined || config.companyId === undefined
+        ? []
+        : [
+            {
+              basePath: USER_ROUTES_BASE_PATH,
+              router: createUserHttpRouter({ companyId: config.companyId, module: userModule }),
+            },
+            {
+              basePath: AGGREGATE_PORTAL_ROUTES_BASE_PATH,
+              router: createAggregatePortalHttpRouter({
+                accountRepository: createDrizzleAggregatePortalRepository(database.db),
+                aggregateDocuments: createAggregateDocumentUseCase({
+                  bucket: resolveStorageBucket(process.env),
+                  ...(config.aggregateDocumentOcrUrl === undefined
+                    ? {}
+                    : { ocr: createHttpAggregateDocumentOcrGateway({ baseUrl: config.aggregateDocumentOcrUrl }) }),
+                  repository: createDrizzleAggregateDocumentRepository(database.db),
+                  storage: createNfeStorageGatewayFromEnvironment({
+                    environment: process.env,
+                    finalBucket: resolveStorageBucket(process.env),
+                    stagingBucket: resolveStorageBucket(process.env),
+                  }),
+                }),
+                aggregatePortal: createAggregatePortalUseCase({
+                  repository: createDrizzleAggregatePortalRepository(database.db),
+                }),
+                companyId: config.companyId,
+                module: userModule,
+              }),
+            },
+          ]),
+    ],
     routes: createApplicationRoutes({
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -359,6 +423,8 @@ type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
   readonly logger: ApiLogger
+  /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
+  readonly userModule: UserModule | undefined
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -366,6 +432,7 @@ function createAnonymousRoutes({
   config,
   database,
   logger,
+  userModule,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   const nfseCallbackRoutes = createNfseCallbackRoutes({
@@ -393,7 +460,23 @@ function createAnonymousRoutes({
       landingCompanyId: config.companyId,
       repository: createDrizzleAggregateApplicationRepository(database),
     }),
+    ...(config.turnstileSecretKey === undefined
+      ? {}
+      : { turnstileSecretKey: config.turnstileSecretKey }),
   })
+  // Sem módulo de conta montado (064/T1), o cadastro do agregado não é publicado — mesma regra
+  // de capacidade por ausência que o próprio `userModule` já segue.
+  const aggregateAccountPublicRoutes =
+    userModule === undefined || config.companyId === undefined
+      ? []
+      : createAggregateAccountPublicRoutes({
+          aggregateAccounts: createAggregateAccountUseCase({
+            companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+            landingCompanyId: config.companyId,
+            repository: createDrizzleAggregateAccountRepository(database),
+            userModule,
+          }),
+        })
   if (config.companyId === undefined) {
     return [...nfseCallbackRoutes, ...landingPublicRoutes, ...aggregateApplicationPublicRoutes]
   }
@@ -402,6 +485,7 @@ function createAnonymousRoutes({
     ...nfseCallbackRoutes,
     ...landingPublicRoutes,
     ...aggregateApplicationPublicRoutes,
+    ...aggregateAccountPublicRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -811,6 +895,13 @@ function createApplicationRoutes({
     }),
     ...createLandingSettingsRoutes({ landingSettings }),
     ...createAggregateApplicationRoutes({ aggregateApplications }),
+    ...createAggregateDocumentReviewRoutes({
+      aggregateDocumentReview: createAggregateDocumentReviewUseCase({
+        bucket: storageBucket,
+        repository: createDrizzleAggregateDocumentRepository(database),
+        storage: storageGateway,
+      }),
+    }),
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
       replaceCertificate: { execute: (input) => replace.executeWithOutcome(input) },

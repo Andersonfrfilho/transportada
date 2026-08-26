@@ -22,7 +22,7 @@ export type ApiEnvironment = {
         readonly smtpUrl: string
       }
     | undefined
-  readonly frontendOrigin: string
+  readonly frontendOrigins: readonly [string, ...string[]]
   readonly keycloak: {
     readonly admin: {
       readonly clientId: string
@@ -45,6 +45,12 @@ export type ApiEnvironment = {
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined
   readonly port: number
+  /** Segredo do Cloudflare Turnstile; ausente, a candidatura pública de agregado não verifica captcha. */
+  readonly turnstileSecretKey: string | undefined
+  /** Assina o access token da conta do agregado; ausente, o módulo de conta não é montado. */
+  readonly userAccessTokenSecret: string | undefined
+  /** Ausente, upload de documento do agregado nunca extrai nem aprova sozinho — só revisão manual. */
+  readonly aggregateDocumentOcrUrl: string | undefined
   /**
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
    * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.

@@ -149,7 +149,7 @@ export async function createCompanyLogoHttpFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error() {},
       info(_message, metadata) {

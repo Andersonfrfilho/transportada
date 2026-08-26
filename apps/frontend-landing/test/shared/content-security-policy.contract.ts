@@ -78,14 +78,16 @@ describe('content security policy', () => {
     expect(connectSource).toContain(API_BASE_URL)
   })
 
-  test('forbids frames in both directions', () => {
-    expect(SERVED_POLICY).toContain("frame-src 'none'")
+  test('forbids frames from anywhere but the Turnstile challenge', () => {
+    expect(SERVED_POLICY).toContain('frame-src https://challenges.cloudflare.com')
     expect(SERVED_POLICY).toContain("frame-ancestors 'none'")
     expect(SERVED_POLICY).toContain("object-src 'none'")
   })
 
-  test('never relaxes script execution in what is served', () => {
-    expect(directiveOf(SERVED_POLICY, 'script-src')).toBe("script-src 'self'")
+  test('never relaxes script execution in what is served, beyond the Turnstile widget', () => {
+    expect(directiveOf(SERVED_POLICY, 'script-src')).toBe(
+      "script-src 'self' https://challenges.cloudflare.com",
+    )
     expect(SERVED_POLICY).not.toContain('unsafe-eval')
     expect(SERVED_POLICY).toContain("default-src 'self'")
   })
@@ -97,13 +99,15 @@ describe('content security policy', () => {
         buildContentSecurityPolicy({ allowsInlineScript: true, apiBaseUrl: API_BASE_URL }),
         'script-src',
       ),
-    ).toBe("script-src 'self' 'unsafe-inline'")
+    ).toBe("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com")
   })
 
   test('survives the quality job, which builds without any environment file', () => {
     const policy = buildContentSecurityPolicy({ allowsInlineScript: false, apiBaseUrl: undefined })
 
-    expect(directiveOf(policy, 'connect-src')).toBe("connect-src 'self'")
+    expect(directiveOf(policy, 'connect-src')).toBe(
+      "connect-src 'self' https://challenges.cloudflare.com",
+    )
   })
 
   test('refuses a declared origin it cannot read, instead of shipping a narrower directive', () => {

@@ -51,9 +51,16 @@ const environmentSchema = z.object({
         message: 'DATABASE_URL must use PostgreSQL',
       },
     ),
-  FRONTEND_ORIGIN: z.string().refine(isTrustedFrontendOrigin, {
-    message: 'FRONTEND_ORIGIN must be a canonical HTTPS origin or HTTP localhost origin',
-  }),
+  // Lista separada por vírgula: painel e landing são origens diferentes e as duas precisam de CORS.
+  // Cada uma valida sozinha — uma origem torta na lista não pode abrir a porta pras outras.
+  FRONTEND_ORIGIN: z
+    .string()
+    .transform((value) => value.split(',').map((origin) => origin.trim()).filter((origin) => origin !== ''))
+    .refine((origins) => origins.length > 0, { message: 'FRONTEND_ORIGIN must not be blank' })
+    .refine((origins) => origins.every(isTrustedFrontendOrigin), {
+      message: 'FRONTEND_ORIGIN must be a comma-separated list of canonical HTTPS origins or HTTP localhost origins',
+    })
+    .transform((origins) => origins as [string, ...string[]]),
   KEYCLOAK_ADMIN_CLIENT_ID: z.string().trim().min(1),
   KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().trim().min(1),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
@@ -122,6 +129,24 @@ const environmentSchema = z.object({
   // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
   // qualquer um dizendo que a mensagem chegou.
   NOTIFICATION_WEBHOOK_SECRET: optionalText(),
+  // Segredo do Cloudflare Turnstile para a candidatura pública de agregado. Ausente, a rota aceita
+  // sem verificar (dev local, onde não dá pra resolver o desafio contra a API real do Cloudflare) —
+  // em produção configurar é o que fecha a porta pra submissão automatizada em massa.
+  TURNSTILE_SECRET_KEY: optionalText(),
+  // Assina o access token da conta do agregado (`@adatechnology/user-module`, 064/T1) — schema
+  // isolado, sem relação com o JWT do Keycloak. Ausente, o módulo não é montado: a conta do
+  // agregado ainda não existe como rota, em vez de subir com segredo vazio.
+  USER_ACCESS_TOKEN_SECRET: optionalText(),
+  // Serviço de OCR self-hosted (Tesseract, sem chave) que lê CNH/CRLV pra pré-preencher e conferir
+  // contra o declarado. Ausente, o upload nunca extrai nem aprova sozinho — só revisão manual.
+  AGGREGATE_DOCUMENT_OCR_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'AGGREGATE_DOCUMENT_OCR_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
   // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
   QUEUE_PREFIX: optionalText(),
@@ -146,7 +171,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
         ? undefined
         : { from: parsed.EMAIL_FROM, smtpUrl: parsed.SMTP_URL },
-    frontendOrigin: parsed.FRONTEND_ORIGIN,
+    frontendOrigins: parsed.FRONTEND_ORIGIN,
     keycloak: {
       admin: {
         clientId: parsed.KEYCLOAK_ADMIN_CLIENT_ID,
@@ -163,6 +188,9 @@ export function parseEnvironment(environment: Record<string, string | undefined>
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
+    turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
+    userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
+    aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
     port: parsed.APP_PORT,
     postalCodeProviders: {
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,

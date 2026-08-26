@@ -233,7 +233,7 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'operations-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

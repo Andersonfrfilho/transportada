@@ -11,6 +11,8 @@ import {
   type LicenseCategory,
   MDFE_OWNER_TAX_REGIME,
   type MdfeOwnerTaxRegime,
+  PIX_KEY_TYPES,
+  type PixKeyType,
   VEHICLE_COLOR,
   type VehicleColor,
 } from './fleet.types'
@@ -110,6 +112,8 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   name: '',
   nationality: DEFAULT_DRIVER_NATIONALITY,
   phone: '',
+  pixKey: '',
+  pixKeyType: '',
   profile: DEFAULT_DRIVER_PROFILE,
   rntrc: '',
   surname: '',
@@ -219,6 +223,8 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     name: nameParts.givenName,
     nationality: driver.nationality,
     phone: driver.phone,
+    pixKey: driver.pixKey,
+    pixKeyType: driver.pixKeyType,
     // A ficha carregada não traz perfil: a API não devolve papel de usuário, e editar não o reenvia
     profile: DEFAULT_DRIVER_PROFILE,
     rntrc: driver.rntrc,
@@ -330,6 +336,20 @@ function toAnttCategory(value: string): '' | MdfeOwnerTaxRegime {
   return MDFE_OWNER_TAX_REGIME.find((category) => category === value) ?? ''
 }
 
+function toPixKeyType(value: string): '' | PixKeyType {
+  return PIX_KEY_TYPES.find((type) => type === value) ?? ''
+}
+
+/**
+ * A API guarda a chave sem pontuação — a aleatória mantém hífen (é parte do UUID) e o CNPJ mantém
+ * letra (base alfanumérica), então as duas usam `normalizeTaxId` em vez de dígito puro.
+ */
+function normalizePixKey(type: string, value: string): string {
+  if (type === 'email' || type === 'random') return value
+  if (type === 'cnpj') return normalizeTaxId(value)
+  return normalizeDigits(value)
+}
+
 /** Órgão fora do catálogo vira ausência: o CHECK do banco conhece a mesma lista fechada. */
 function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
   return IDENTITY_DOCUMENT_ISSUERS.find((issuer) => issuer === value) ?? ''
@@ -380,6 +400,8 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
     name: joinDriverName({ givenName: state.name, surname: state.surname }),
     nationality: state.nationality,
     phone: normalizeDigits(state.phone),
+    pixKey: normalizePixKey(state.pixKeyType, state.pixKey),
+    pixKeyType: toPixKeyType(state.pixKeyType),
     rntrc: normalizeDigits(state.rntrc),
     taxId: normalizeDigits(state.taxId),
   }

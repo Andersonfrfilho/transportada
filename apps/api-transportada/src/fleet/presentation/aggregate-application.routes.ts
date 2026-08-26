@@ -9,17 +9,18 @@ import {
 import {
   API_AGGREGATE_APPLICATIONS_PATH,
   API_PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+  HTTP_ERROR,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import { ApiError } from '../../shared/api.error.js'
+import { verifyTurnstileToken as verifyTurnstileTokenWithCloudflare } from '../../shared/turnstile.service.js'
 import type { AggregateApplication } from '../application/aggregate-applications.port.js'
-import type {
-  AggregateApplicationsUseCase,
-  SubmitAggregateApplicationInput,
-} from '../application/aggregate-applications.use-case.js'
+import type { AggregateApplicationsUseCase } from '../application/aggregate-applications.use-case.js'
 import {
   parseAggregateApplicationId,
   parseRejectAggregateApplicationRequest,
   parseSubmitAggregateApplicationRequest,
+  type SubmitAggregateApplicationRequest,
 } from './aggregate-application.schema.js'
 
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
@@ -27,27 +28,51 @@ const ACCEPTED_STATUS = 202
 const APPLICATION_ID_PATH = `${API_AGGREGATE_APPLICATIONS_PATH}/:id`
 const APPROVE_PATH = `${APPLICATION_ID_PATH}/approve`
 const REJECT_PATH = `${APPLICATION_ID_PATH}/reject`
+const ONE_MINUTE_MS = 60_000
+/**
+ * Formulário público de candidatura: humano preenche uma vez em minutos, não em rajada. 5 a cada
+ * 10 minutos por IP segura o custo (banco, e-mail/SMS quando existir) sem incomodar quem erra o
+ * CPF e tenta de novo.
+ */
+const SUBMIT_RATE_LIMIT = { maxRequests: 5, windowMs: 10 * ONE_MINUTE_MS } as const
 
 type Dependencies = {
   readonly aggregateApplications: AggregateApplicationsUseCase
+  /** Ausente (dev local), a rota aceita sem checar — ver `TURNSTILE_SECRET_KEY` no schema de ambiente. */
+  readonly turnstileSecretKey?: string
+  /** Trocável em teste — a implementação real bate na API do Cloudflare. */
+  readonly verifyTurnstileToken?: typeof verifyTurnstileTokenWithCloudflare
 }
 
 export function createAggregateApplicationPublicRoutes(
   dependencies: Dependencies,
 ): readonly RegisteredAnonymousRoute[] {
+  const verifyTurnstileToken = dependencies.verifyTurnstileToken ?? verifyTurnstileTokenWithCloudflare
+
   return [
-    defineAnonymousRoute<SubmitAggregateApplicationInput>({
+    defineAnonymousRoute<SubmitAggregateApplicationRequest>({
       /**
        * `202` invariável: documento novo, reenvio ou documento já motorista respondem igual — não
        * existe rota pública de "este documento já existe", que seria a sonda que o `202` fecha.
+       * O Turnstile é verificado antes: um `403` aqui não vaza nada sobre o documento, só diz que
+       * quem mandou não passou no desafio anti-bot.
        */
       async handle({ input }): Promise<Response> {
+        if (dependencies.turnstileSecretKey !== undefined) {
+          const isHuman = await verifyTurnstileToken({
+            secretKey: dependencies.turnstileSecretKey,
+            token: input.turnstileToken,
+          })
+          if (!isHuman) throw new ApiError(HTTP_ERROR.forbidden)
+        }
+
         await dependencies.aggregateApplications.submit(input)
         return new Response(null, { status: ACCEPTED_STATUS })
       },
       method: 'POST',
       parse: ({ request }) => parseSubmitAggregateApplicationRequest(request),
       pathname: API_PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+      rateLimit: SUBMIT_RATE_LIMIT,
     }),
   ]
 }

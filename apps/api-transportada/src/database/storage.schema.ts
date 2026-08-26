@@ -17,6 +17,7 @@ export const STORAGE_OBJECT_PURPOSES = [
   'cte_document',
   'mdfe_document',
   'nfse_document',
+  'aggregate_document',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 
@@ -63,7 +64,7 @@ export const storedObjects = pgTable(
     check('stored_objects_status_check', sql`${table.status} in ('staging', 'final', 'deleted')`),
     check(
       'stored_objects_purpose_check',
-      sql`${table.purpose} in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document', 'nfse_document')`,
+      sql`${table.purpose} in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document', 'nfse_document', 'aggregate_document')`,
     ),
     check(
       'stored_objects_lease_check',

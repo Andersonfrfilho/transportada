@@ -43,7 +43,27 @@
     "viewDriverButton": "Ver ficha",
     "rejectionReasonLabel": "Motivo da recusa",
     "confirmRejectButton": "Confirmar recusa",
-    "cancelButton": "Cancelar"
+    "cancelButton": "Cancelar",
+    "declaredData": {
+      "toggleShow": "Ver dados declarados",
+      "toggleHide": "Ocultar dados declarados",
+      "empty": "Candidatura sem CNH, endereço ou veículo declarados.",
+      "driverTitle": "Motorista",
+      "vehicleTitle": "Veículo",
+      "noVehicle": "Nenhum veículo declarado — o operador cadastra depois.",
+      "fields": {
+        "licenseNumber": "CNH",
+        "licenseCategory": "Categoria",
+        "rntrc": "RNTRC",
+        "anttCategory": "Regime",
+        "address": "Endereço",
+        "plate": "Placa",
+        "brand": "Marca",
+        "model": "Modelo",
+        "modelYear": "Ano",
+        "vehicleType": "Tipo"
+      }
+    }
   },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
@@ -316,6 +336,16 @@
   "driverAnttCategory": "Categoria ANTT",
   "driverAnttCategoryUnset": "Sem categoria",
   "driverAnttHint": "Registro e categoria da ANTT do motorista. Quando o veículo é dele, é o que vai no grupo de proprietário do MDF-e.",
+  "driverPixKeyType": "Tipo da chave Pix",
+  "driverPixKeyTypeUnset": "Sem chave",
+  "driverPixKey": "Chave Pix",
+  "pixKeyTypeOption": {
+    "cpf": "CPF",
+    "cnpj": "CNPJ",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "random": "Chave aleatória"
+  },
   "driverLicenseCategory": "Categoria da CNH",
   "driverLicenseCategoryUnset": "Sem categoria",
   "licenseCategoryOption": {

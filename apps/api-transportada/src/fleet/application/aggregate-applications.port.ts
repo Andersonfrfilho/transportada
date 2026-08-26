@@ -38,8 +38,11 @@ export type AggregateApplicationRepositoryPort = Readonly<{
   }) => Promise<AggregateApplication>
   createDriverAndApprove: (input: {
     readonly companyId: string
+    readonly declaredData: Record<string, unknown>
+    readonly email: string
     readonly id: string
     readonly name: string
+    readonly phone: string
     readonly taxId: string
   }) => Promise<AggregateApplication>
   findById: (input: { readonly id: string }) => Promise<AggregateApplication | null>

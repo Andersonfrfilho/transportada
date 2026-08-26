@@ -208,7 +208,7 @@ export async function createNfseProfilesHttpFixture(params: CreateFixtureParams 
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'nfse-profiles-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

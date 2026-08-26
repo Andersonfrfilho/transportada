@@ -107,6 +107,8 @@ export const DRIVER_FIELDS = {
   name: 'Jose da Silva',
   nationality: 'Brasileira',
   phone: '11988887777',
+  pixKey: '',
+  pixKeyType: '',
   rntrc: '',
   taxId: '12345678901',
 } as const

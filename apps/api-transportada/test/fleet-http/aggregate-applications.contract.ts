@@ -74,6 +74,89 @@ describe(`POST ${PUBLIC_AGGREGATE_APPLICATIONS_PATH} HTTP contract`, () => {
     expect(response.status).toBe(400)
     expect(fixture.repository.rows).toHaveLength(0)
   })
+
+  test('rate limits repeated submissions from the same IP', async () => {
+    const fixture = await createAggregateApplicationHttpFixture()
+    const send = (taxId: string) =>
+      fixture.handle(
+        aggregateApplicationRequest({
+          authenticated: false,
+          body: submitBody(taxId),
+          clientIp: '203.0.113.10',
+          method: 'POST',
+          pathname: PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+        }),
+      )
+
+    const taxIds = ['11111111111', '22222222222', '33333333333', '44444444444', '55555555555']
+    for (const taxId of taxIds) {
+      const response = await send(taxId)
+      expect(response.status).toBe(202)
+    }
+
+    const sixth = await send('66666666666')
+    expect(sixth.status).toBe(429)
+    expect(sixth.headers.get('retry-after')).not.toBeNull()
+  })
+
+  test('does not rate limit a different IP once the first is exhausted', async () => {
+    const fixture = await createAggregateApplicationHttpFixture()
+    const send = (taxId: string, clientIp: string) =>
+      fixture.handle(
+        aggregateApplicationRequest({
+          authenticated: false,
+          body: submitBody(taxId),
+          clientIp,
+          method: 'POST',
+          pathname: PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+        }),
+      )
+
+    for (const taxId of ['11111111112', '22222222223', '33333333334', '44444444445', '55555555556']) {
+      await send(taxId, '203.0.113.20')
+    }
+
+    const otherIp = await send('66666666667', '203.0.113.21')
+    expect(otherIp.status).toBe(202)
+  })
+
+  test('rejects submission when configured with Turnstile and the token fails verification', async () => {
+    const fixture = await createAggregateApplicationHttpFixture({
+      turnstileSecretKey: 'test-secret',
+      verifyTurnstileToken: async () => false,
+    })
+
+    const response = await fixture.handle(
+      aggregateApplicationRequest({
+        authenticated: false,
+        body: submitBody('77777777777'),
+        method: 'POST',
+        pathname: PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(fixture.repository.rows).toHaveLength(0)
+  })
+
+  test('accepts submission when configured with Turnstile and the token passes verification', async () => {
+    const fixture = await createAggregateApplicationHttpFixture({
+      turnstileSecretKey: 'test-secret',
+      verifyTurnstileToken: async () => true,
+    })
+
+    const response = await fixture.handle(
+      aggregateApplicationRequest({
+        authenticated: false,
+        body: submitBody('88888888888'),
+        method: 'POST',
+        pathname: PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.repository.rows).toHaveLength(1)
+  })
 })
 
 describe(`${AGGREGATE_APPLICATIONS_PATH} HTTP contract`, () => {

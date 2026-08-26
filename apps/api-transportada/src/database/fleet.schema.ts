@@ -31,6 +31,11 @@ import {
   type IdentityDocumentIssuer,
 } from '../shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES, type LicenseCategory } from '../shared/license-category.constant.js'
+import {
+  PIX_KEY_MAX_LENGTH,
+  PIX_KEY_TYPES,
+  type PixKeyType,
+} from '../shared/pix-key-type.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import {
   VEHICLE_TYPE_MAX_LENGTH,
@@ -38,6 +43,7 @@ import {
   type VehicleType,
 } from '../shared/vehicle-type.constant.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
+import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 
 export const FLEET_VEHICLE_ROLES = ['traction', 'trailer'] as const
@@ -329,6 +335,8 @@ export const fleetDrivers = pgTable(
     phone: text().notNull().default(''),
     rntrc: text().notNull().default(''),
     anttCategory: text('antt_category').$type<MdfeOwnerTaxRegime | ''>().notNull().default(''),
+    pixKeyType: text('pix_key_type').$type<PixKeyType | ''>().notNull().default(''),
+    pixKey: text('pix_key').notNull().default(''),
     postalCode: text('postal_code').notNull().default(''),
     street: text().notNull().default(''),
     number: text().notNull().default(''),
@@ -408,6 +416,14 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_antt_category_check',
       sql`length(${table.anttCategory}) = 0 or ${table.anttCategory} in (${sql.raw(inList(MDFE_OWNER_TAX_REGIMES))})`,
+    ),
+    check(
+      'fleet_drivers_pix_key_type_check',
+      sql`length(${table.pixKeyType}) = 0 or ${table.pixKeyType} in (${sql.raw(inList(PIX_KEY_TYPES))})`,
+    ),
+    check(
+      'fleet_drivers_pix_key_check',
+      sql`length(${table.pixKey}) <= ${sql.raw(String(PIX_KEY_MAX_LENGTH))} and (length(${table.pixKey}) = 0) = (length(${table.pixKeyType}) = 0)`,
     ),
     check(
       'fleet_drivers_license_number_check',
@@ -535,6 +551,96 @@ export const fleetDriverVehicleAssignments = pgTable(
     check(
       'fleet_driver_vehicle_assignments_period_check',
       sql`${table.releasedAt} is null or ${table.releasedAt} >= ${table.assignedAt}`,
+    ),
+  ],
+)
+
+/**
+ * Vincula a conta do agregado (schema `user`, de outro módulo) ao CPF, não à ficha — a conta pode
+ * nascer **antes** da aprovação (candidatura ainda pendente, sem `fleet_drivers` nenhuma ainda), e
+ * o portal resolve o status lendo `aggregate_applications`/`fleet_drivers` por este CPF em tempo de
+ * leitura (064/T2, T3). `userId` é referência, não FK — `user.users` vive num pg schema à parte,
+ * dono de outro pacote, e a fronteira entre os dois só se cruza aqui. Um CPF tem no máximo uma
+ * conta; uma conta, no máximo um CPF — as duas pontas são `unique`.
+ */
+export const aggregateAccounts = pgTable(
+  'aggregate_accounts',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    taxId: varchar('tax_id', { length: 14 }).notNull(),
+    userId: text('user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'aggregate_accounts_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('aggregate_accounts_company_tax_id_unique').on(table.companyId, table.taxId),
+    unique('aggregate_accounts_user_id_unique').on(table.userId),
+  ],
+)
+
+export const AGGREGATE_DOCUMENT_TYPES = ['cnh', 'crlv'] as const
+export type AggregateDocumentType = (typeof AGGREGATE_DOCUMENT_TYPES)[number]
+
+export const AGGREGATE_DOCUMENT_STATUSES = ['pending', 'approved', 'rejected'] as const
+export type AggregateDocumentStatus = (typeof AGGREGATE_DOCUMENT_STATUSES)[number]
+
+/**
+ * Um documento por (CPF, tipo) — reenvio depois de recusado **atualiza** a mesma linha (novo
+ * `stored_object_id`, status volta a `pending`, motivo de recusa some), em vez de acumular
+ * histórico: só a versão mais recente importa pra revisão (mesmo espírito do reenvio de
+ * candidatura na 053). `tax_id`, não `driver_id`, pela mesma razão da conta (T2) — o agregado
+ * pode enviar documento antes da aprovação.
+ */
+export const aggregateDocuments = pgTable(
+  'aggregate_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    taxId: varchar('tax_id', { length: 14 }).notNull(),
+    type: text().$type<AggregateDocumentType>().notNull(),
+    status: text().$type<AggregateDocumentStatus>().notNull().default('pending'),
+    rejectionReason: text('rejection_reason').notNull().default(''),
+    storedObjectId: uuid('stored_object_id').notNull(),
+    reviewedBy: uuid('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'aggregate_documents_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.storedObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'aggregate_documents_company_stored_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('aggregate_documents_company_tax_id_type_unique').on(table.companyId, table.taxId, table.type),
+    check('aggregate_documents_type_check', sql`${table.type} in ('cnh', 'crlv')`),
+    check(
+      'aggregate_documents_status_check',
+      sql`${table.status} in ('pending', 'approved', 'rejected')`,
+    ),
+    check(
+      'aggregate_documents_review_check',
+      sql`(${table.reviewedBy} is null) = (${table.reviewedAt} is null)`,
+    ),
+    check(
+      'aggregate_documents_rejection_reason_check',
+      sql`(${table.status} = 'rejected') = (length(${table.rejectionReason}) > 0)`,
     ),
   ],
 )

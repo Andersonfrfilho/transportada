@@ -86,7 +86,7 @@ export async function createUserActivationHttpFixture({
 
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         logs.push({ level: 'error', message, metadata: metadata ?? {} })

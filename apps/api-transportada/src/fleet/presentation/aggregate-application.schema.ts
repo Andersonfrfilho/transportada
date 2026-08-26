@@ -13,6 +13,7 @@ import {
 } from '../../shared/request-body.service.js'
 import { normalizeTaxId, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import type { SubmitAggregateApplicationInput } from '../application/aggregate-applications.use-case.js'
+import { aggregateApplicationDeclaredDataSchema } from './aggregate-application-declared-data.schema.js'
 
 const MAX_TEXT_LENGTH = 200
 const requiredText = z.string().trim().min(1).max(MAX_TEXT_LENGTH)
@@ -21,17 +22,23 @@ const UUID = z.string().uuid()
 const submitSchema = z
   .object({
     companyId: UUID,
-    declaredData: z.record(z.string(), z.unknown()).default({}),
+    declaredData: aggregateApplicationDeclaredDataSchema.default({}),
     email: requiredText,
     name: requiredText,
     phone: requiredText,
     taxId: z.string().transform(normalizeTaxId).pipe(z.string().regex(TAX_ID_PATTERN)),
+    // Vazio por padrão: sem TURNSTILE_SECRET_KEY configurado (dev local) a rota não verifica nada,
+    // e exigir o campo quebraria o formulário público de quem ainda não integrou o widget.
+    turnstileToken: z.string().trim().default(''),
   })
   .strict()
 
+export type SubmitAggregateApplicationRequest = SubmitAggregateApplicationInput &
+  Readonly<{ turnstileToken: string }>
+
 export async function parseSubmitAggregateApplicationRequest(
   request: Request,
-): Promise<SubmitAggregateApplicationInput> {
+): Promise<SubmitAggregateApplicationRequest> {
   assertJsonContentType(request.headers.get('content-type'))
   const body = await readBoundedRequestBody(request)
   const result = submitSchema.safeParse(parseJson(body))

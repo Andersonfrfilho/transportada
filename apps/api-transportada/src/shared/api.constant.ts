@@ -14,6 +14,8 @@ export const API_COMPANY_SETTINGS_LANDING_PATH = '/company-settings/landing'
 export const API_PUBLIC_LANDING_SETTINGS_PATH = '/public/landing-settings'
 export const API_PUBLIC_LANDING_LOGO_PATH = '/public/landing-logo'
 export const API_PUBLIC_AGGREGATE_APPLICATIONS_PATH = '/public/aggregate-applications'
+export const API_PUBLIC_AGGREGATE_ACCOUNTS_PATH = '/public/aggregate-accounts'
+export const API_AGGREGATE_DOCUMENTS_PATH = '/aggregate-documents'
 export const API_AGGREGATE_APPLICATIONS_PATH = '/aggregate-applications'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
@@ -124,5 +126,10 @@ export const HTTP_ERROR = {
     code: 'REQUEST_ABORTED',
     message: 'Request aborted',
     status: 499,
+  },
+  tooManyRequests: {
+    code: 'TOO_MANY_REQUESTS',
+    message: 'Too many requests',
+    status: 429,
   },
 } as const

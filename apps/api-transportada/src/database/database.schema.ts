@@ -60,7 +60,13 @@ import {
   billingInvoices,
 } from './billing.schema.js'
 import { billingDescriptionTemplates } from './billing-description-template.schema.js'
-import { fleetDriverVehicleAssignments, fleetDrivers, fleetVehicles } from './fleet.schema.js'
+import {
+  aggregateAccounts,
+  aggregateDocuments,
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
+} from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
@@ -142,7 +148,9 @@ export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
 
 export const databaseSchema = {
+  aggregateAccounts,
   aggregateApplications,
+  aggregateDocuments,
   auditLogs,
   companies,
   companyDistributionSettings,

@@ -57,6 +57,8 @@ const RECORD: DriverRecord = {
   nationality: '',
   number: '',
   phone: '',
+  pixKey: '',
+  pixKeyType: '',
   postalCode: '',
   rntrc: '',
   state: '',
@@ -102,6 +104,8 @@ const DRIVER_INPUT: FleetDriverInput = {
   name: 'José da Silva',
   nationality: '',
   phone: '',
+  pixKey: '',
+  pixKeyType: '',
   rntrc: '',
   taxId: '12345678901',
 }

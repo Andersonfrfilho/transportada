@@ -75,14 +75,14 @@ describe('Trip backfill migration', () => {
             insert into fleet_drivers (id, company_id, name, tax_id)
             values (${driverId}, ${companyId}, 'Motorista Backfill', '12345678901')
           `
-          // Manifesto em rascunho: a viagem backfilled deve nascer 'open'.
+          // Manifesto em rascunho: a viagem backfilled deve nascer 'draft' (era 'open' antes do ADR-0042).
           await database`
             insert into mdfe_manifests (
               id, company_id, vehicle_id, fiscal_environment, origin_state, destination_state, status
             )
             values (${draftManifestId}, ${companyId}, ${vehicleId}, 'homologation', 'SP', 'MG', 'draft')
           `
-          // Manifesto já autorizado: a viagem backfilled deve nascer 'closed'.
+          // Manifesto já autorizado: a viagem backfilled deve nascer 'completed' (era 'closed' antes do ADR-0042).
           await database`
             insert into mdfe_manifests (
               id, company_id, vehicle_id, fiscal_environment, origin_state, destination_state,
@@ -124,8 +124,10 @@ describe('Trip backfill migration', () => {
           const authorizedTrip = afterBackfill.find((row) => row.id === authorizedManifestId)
           expect(draftTrip?.trip_id).toBeString()
           expect(authorizedTrip?.trip_id).toBeString()
-          expect(draftTrip?.status).toBe('open')
-          expect(authorizedTrip?.status).toBe('closed')
+          // trip_status_machine (ADR-0042), aplicada logo depois do backfill, converte open->draft
+          // e closed->completed — a viagem backfilled nasce no nome antigo e sai daqui já no novo.
+          expect(draftTrip?.status).toBe('draft')
+          expect(authorizedTrip?.status).toBe('completed')
 
           const authorizedTripDrivers = await database<
             Array<{ readonly driver_id: string; readonly driver_tax_id: string }>

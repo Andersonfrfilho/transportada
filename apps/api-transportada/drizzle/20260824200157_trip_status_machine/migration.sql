@@ -19,10 +19,11 @@ FROM "trips" "t"
 WHERE "t"."id" = "d"."trip_id"
   AND "d"."delivered_at" IS NULL
   AND "t"."status" = 'closed';--> statement-breakpoint
+ALTER TABLE "trips" DROP CONSTRAINT "trips_status_check";--> statement-breakpoint
 UPDATE "trips"
 SET "status" = CASE "status" WHEN 'open' THEN 'draft' WHEN 'closed' THEN 'completed' ELSE "status" END
 WHERE "status" IN ('open', 'closed');--> statement-breakpoint
 ALTER TABLE "trips" ALTER COLUMN "status" SET DEFAULT 'draft';--> statement-breakpoint
 ALTER TABLE "trip_documents" ADD CONSTRAINT "trip_documents_separation_status_check" CHECK ("separation_status" in ('pending', 'separated', 'loaded', 'delivered', 'returned'));--> statement-breakpoint
 ALTER TABLE "trip_documents" ADD CONSTRAINT "trip_documents_return_reason_check" CHECK (("separation_status" = 'returned') = ("return_reason" is not null));--> statement-breakpoint
-ALTER TABLE "trips" DROP CONSTRAINT "trips_status_check", ADD CONSTRAINT "trips_status_check" CHECK ("status" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'completed', 'cancelled'));
+ALTER TABLE "trips" ADD CONSTRAINT "trips_status_check" CHECK ("status" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'completed', 'cancelled'));

@@ -163,7 +163,7 @@ export async function createFreightRegionHttpFixture(params: CreateFixtureParams
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,

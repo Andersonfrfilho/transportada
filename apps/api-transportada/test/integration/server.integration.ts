@@ -63,7 +63,7 @@ const server = startApiServer({
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     emailDelivery: undefined,
-    frontendOrigin: 'http://localhost:53000',
+    frontendOrigins: ['http://localhost:53000'],
     keycloak: {
       admin: {
         clientId: 'transportada-admin-cli',
@@ -82,6 +82,9 @@ const server = startApiServer({
     logSinkUrl: undefined,
     sentryDsn: undefined,
     sentryEnvironment: 'test',
+    turnstileSecretKey: undefined,
+    userAccessTokenSecret: undefined,
+    aggregateDocumentOcrUrl: undefined,
     vehicleCatalog: null,
   },
   logger,

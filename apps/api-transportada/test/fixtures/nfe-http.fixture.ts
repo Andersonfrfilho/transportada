@@ -232,7 +232,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'nfe-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         logs.push({ level: 'error', message, ...metadata })

@@ -301,7 +301,7 @@ function createFixture({
   const tenantContext = new TenantContextService({ repository: membership })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: 'http://localhost:53000',
+    frontendOrigins: ['http://localhost:53000'],
     logger,
     requestTimeoutSeconds: 10,
     router: createHttpRouterFixture({

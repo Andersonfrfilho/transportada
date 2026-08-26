@@ -10,6 +10,7 @@ export type SubmitAggregateApplicationInput = Readonly<{
   name: string
   phone: string
   taxId: string
+  turnstileToken?: string
 }>
 
 export type AggregateApplicationClient = Readonly<{
