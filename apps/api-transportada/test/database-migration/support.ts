@@ -143,6 +143,10 @@ export const TRIP_TABLES = [
   'trip_stops',
   'trip_document_events',
   'trip_dispatch_snapshots',
+  /** Spec 057: a execução de campo — o que aconteceu na rua, e a chave que impede o reenvio duplicar. */
+  'trip_stop_events',
+  'trip_stop_occurrences',
+  'trip_field_reports',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

@@ -23,6 +23,7 @@ import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
+import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
@@ -529,5 +530,229 @@ export const deliveryAddressOverrides = pgTable(
     ),
     check('delivery_address_overrides_requested_by_check', sql`length(${table.requestedBy}) > 0`),
     check('delivery_address_overrides_reason_check', sql`length(${table.reason}) > 0`),
+  ],
+)
+
+/**
+ * ADR-0045 §3: **onde estava quando confirmou**, e nunca "onde está agora". A coordenada mora presa
+ * ao evento de entrega, e não existe tabela de posição do motorista — essa ausência é a decisão, não
+ * uma etapa futura.
+ *
+ * Anulável em toda coordenada porque a recusa não bloqueia (§3.1): GPS desligado, sem sinal no
+ * galpão ou permissão negada confirmam a entrega do mesmo jeito. Produto que exige coordenada é
+ * produto que o motorista contorna anotando no papel, e aí não sobra dado nenhum.
+ *
+ * É desta tabela que sai o tempo real de atendimento por parada — a medição que a 058 lê hoje de
+ * colunas que ninguém escrevia, e que a 060 vai ler depois.
+ */
+export const TRIP_STOP_EVENT_KINDS = ['arrived', 'delivered', 'returned', 'occurrence'] as const
+export type TripStopEventKind = (typeof TRIP_STOP_EVENT_KINDS)[number]
+
+export const tripStopEvents = pgTable(
+  'trip_stop_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    stopId: uuid('stop_id').notNull(),
+    /** Chegada é da parada; entrega e retorno são de uma nota. */
+    tripDocumentId: uuid('trip_document_id'),
+    kind: text().notNull().$type<TripStopEventKind>(),
+    latitude: numeric({ precision: 10, scale: 7 }),
+    longitude: numeric({ precision: 10, scale: 7 }),
+    /**
+     * O raio que o aparelho declarou. Precisão de 5 km é gravada **com** o número, nunca descartada:
+     * galpão de laje é o caso normal, não o suspeito, e o escritório vê o raio ao lado do pino.
+     */
+    accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+    /** A hora do aparelho quando a posição foi lida — não a hora em que o evento chegou ao servidor. */
+    capturedAt: timestamp('captured_at', { withTimezone: true }),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_stop_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopId],
+      foreignColumns: [tripStops.companyId, tripStops.id],
+      name: 'trip_stop_events_company_stop_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_stop_events_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_stop_events_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_stop_events_company_id_id_unique').on(table.companyId, table.id),
+    index('trip_stop_events_company_stop_created_at_idx').on(
+      table.companyId,
+      table.stopId,
+      table.createdAt,
+    ),
+    /** O expurgo dos 90 dias varre por data e apaga só a coordenada; sem este índice ele varre tudo. */
+    index('trip_stop_events_located_created_at_idx')
+      .on(table.createdAt)
+      .where(sql`${table.latitude} is not null`),
+    check('trip_stop_events_kind_check', sql`${table.kind} in (${raw(inList(TRIP_STOP_EVENT_KINDS))})`),
+    check(
+      'trip_stop_events_coordinates_check',
+      sql`(${table.latitude} is null) = (${table.longitude} is null)`,
+    ),
+    check(
+      'trip_stop_events_latitude_range_check',
+      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+    ),
+    check(
+      'trip_stop_events_longitude_range_check',
+      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
+    ),
+    /** Coordenada sem precisão e precisão sem coordenada são as duas metades de um dado que mente. */
+    check(
+      'trip_stop_events_accuracy_check',
+      sql`${table.accuracyMeters} is null or ${table.latitude} is not null`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0045 §6: o problema que hoje volta por WhatsApp e morre lá.
+ *
+ * **Não pede decisão** — não há coluna de valor, de custo nem de culpa, e isso é proposital: o
+ * motorista descreve o que viu, e quem decide é o escritório com a 060 na mão. Uma coluna de valor
+ * aqui viraria, na primeira semana, o motorista negociando taxa na porta do cliente.
+ *
+ * **É independente da entrega**: `trip_document_id` é anulável e nada liga a ocorrência ao desfecho
+ * da nota. Ele esperou duas horas *e* entregou — os dois fatos convivem.
+ */
+export const TRIP_STOP_OCCURRENCE_KINDS = [
+  'unexpected_charge',
+  'long_wait',
+  'dock_closed',
+  'appointment_required',
+  'damaged_goods',
+  'address_not_found',
+  'customer_closed',
+  'other',
+] as const
+export type TripStopOccurrenceKind = (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
+
+export const tripStopOccurrences = pgTable(
+  'trip_stop_occurrences',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    stopId: uuid('stop_id').notNull(),
+    tripDocumentId: uuid('trip_document_id'),
+    kind: text().notNull().$type<TripStopOccurrenceKind>(),
+    /** Curta de propósito: é relato de campo digitado com uma mão, não formulário. */
+    description: text().notNull().default(''),
+    attachmentObjectId: uuid('attachment_object_id'),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_stop_occurrences_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopId],
+      foreignColumns: [tripStops.companyId, tripStops.id],
+      name: 'trip_stop_occurrences_company_stop_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_stop_occurrences_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.attachmentObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_stop_occurrences_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_stop_occurrences_company_id_id_unique').on(table.companyId, table.id),
+    index('trip_stop_occurrences_company_stop_created_at_idx').on(
+      table.companyId,
+      table.stopId,
+      table.createdAt,
+    ),
+    check(
+      'trip_stop_occurrences_kind_check',
+      sql`${table.kind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0045 §5: a idempotência mora **no servidor**, não no cliente.
+ *
+ * A fila offline reenvia, e dois celulares logados no mesmo motorista mandam a mesma coisa duas
+ * vezes. Quem decide que é a mesma confirmação é esta tabela, no padrão `*_processed_messages` dos
+ * workers: a chave vem do aparelho, e a resposta guardada volta igual no reenvio.
+ *
+ * `result_id` é o que foi criado da primeira vez — evento ou ocorrência —, para o reenvio devolver o
+ * mesmo recurso em vez de um segundo.
+ */
+export const tripFieldReports = pgTable(
+  'trip_field_reports',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    /** A rota que consumiu a chave: a mesma chave em ações diferentes é erro do cliente, não repetição. */
+    operation: text().notNull(),
+    resultId: uuid('result_id'),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_field_reports_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_field_reports_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_field_reports_company_key_unique').on(table.companyId, table.idempotencyKey),
+    check('trip_field_reports_key_check', sql`length(${table.idempotencyKey}) > 0`),
+    check('trip_field_reports_operation_check', sql`length(${table.operation}) > 0`),
   ],
 )

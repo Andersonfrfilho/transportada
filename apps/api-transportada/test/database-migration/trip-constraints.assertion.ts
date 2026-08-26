@@ -205,4 +205,114 @@ export async function assertTripConstraints(
       (select count(*) from trip_documents where trip_id = ${otherTripId}) as documents
   `
   expect(orphans[0]).toEqual({ drivers: '0', documents: '0' })
+
+  await assertFieldExecutionConstraints({
+    companyId,
+    database,
+    tripDocumentId: liveTripDocumentId,
+    tripId,
+    userId,
+  })
+}
+
+/**
+ * Spec 057: os invariantes que o banco guarda porque o caso de uso pode esquecer. Coordenada meia —
+ * latitude sem longitude, ou precisão sem coordenada — é dado que mente, e mentir sobre onde a
+ * entrega aconteceu é pior do que não saber.
+ */
+async function assertFieldExecutionConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly tripDocumentId: string
+  readonly tripId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, tripDocumentId, tripId, userId } = input
+  const stopId = crypto.randomUUID()
+
+  await database`
+    insert into trip_stops (id, company_id, trip_id, sequence, address_key, label)
+    values (${stopId}, ${companyId}, ${tripId}, 1, '3550308|01001000|100', 'Centro, 100')
+  `
+
+  // A recusa de GPS não bloqueia: a entrega entra sem coordenada nenhuma, e isso é o caso normal
+  await database`
+    insert into trip_stop_events (company_id, stop_id, trip_document_id, kind, actor_user_id)
+    values (${companyId}, ${stopId}, ${tripDocumentId}, 'delivered', ${userId})
+  `
+
+  // Precisão de 5 km é gravada com o número, nunca descartada: galpão de laje é o caso normal
+  await database`
+    insert into trip_stop_events (
+      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id
+    )
+    values (
+      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId}
+    )
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id)
+      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_coordinates_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, accuracy_meters, actor_user_id)
+      values (${companyId}, ${stopId}, 'arrived', '12.00', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_accuracy_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id)
+      values (${companyId}, ${stopId}, 'chegou', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_kind_check',
+  )
+
+  // A ocorrência não precisa de nota: o problema aconteceu na parada, com ou sem entrega
+  await database`
+    insert into trip_stop_occurrences (company_id, stop_id, kind, description, actor_user_id)
+    values (${companyId}, ${stopId}, 'long_wait', 'Duas horas na fila da doca', ${userId})
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_occurrences (company_id, stop_id, kind, actor_user_id)
+      values (${companyId}, ${stopId}, 'cobranca', ${userId})
+    `,
+    '23514',
+    'trip_stop_occurrences_kind_check',
+  )
+
+  // O reenvio da fila offline bate aqui, e é aqui que ele para de virar entrega duplicada
+  await database`
+    insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id)
+    values (${companyId}, 'chave-do-aparelho', 'deliver', ${userId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id)
+      values (${companyId}, 'chave-do-aparelho', 'deliver', ${userId})
+    `,
+    '23505',
+    'trip_field_reports_company_key_unique',
+  )
+
+  // A parada apagada leva o que aconteceu nela; o que não pode é sobrar evento órfão
+  await database`delete from trip_stops where id = ${stopId}`
+  const orphanEvents = await database<Array<{ readonly events: string; readonly occurrences: string }>>`
+    select
+      (select count(*) from trip_stop_events where stop_id = ${stopId}) as events,
+      (select count(*) from trip_stop_occurrences where stop_id = ${stopId}) as occurrences
+  `
+  expect(orphanEvents[0]).toEqual({ events: '0', occurrences: '0' })
 }
