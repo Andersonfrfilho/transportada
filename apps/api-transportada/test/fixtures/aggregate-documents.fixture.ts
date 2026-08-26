@@ -8,11 +8,13 @@ import type {
   ReviewAggregateDocumentInput,
   UpsertAggregateDocumentInput,
 } from '../../src/fleet/application/aggregate-document.port'
+import { listAggregateDocumentDivergences } from '../../src/fleet/domain/aggregate-document-ocr.policy'
 
 type StoredRow = AggregateDocument & { readonly companyId: string; readonly taxId: string }
 
 export class FakeAggregateDocumentRepository implements AggregateDocumentRepositoryPort {
   public readonly rows: StoredRow[] = []
+  public readonly extractedByDocumentId = new Map<string, Readonly<Record<string, string | null>>>()
   public declaredFieldsByTaxId = new Map<
     string,
     {
@@ -79,7 +81,37 @@ export class FakeAggregateDocumentRepository implements AggregateDocumentReposit
   }
 
   public async listPendingByCompany({ companyId }: { readonly companyId: string }) {
-    return this.rows.filter((row) => row.companyId === companyId && row.status === 'pending')
+    return this.rows
+      .filter((row) => row.companyId === companyId && row.status === 'pending')
+      .map((row) => {
+        const extracted = this.extractedByDocumentId.get(row.id)
+        if (extracted === undefined) return { ...row, divergences: [], hasExtraction: false }
+        return {
+          ...row,
+          divergences: listAggregateDocumentDivergences({
+            declared: this.declaredFieldsByTaxId.get(row.taxId) ?? {
+              licenseCategory: null,
+              licenseNumber: null,
+              name: null,
+              plate: null,
+              renavam: null,
+            },
+            extracted,
+          }),
+          hasExtraction: true,
+        }
+      })
+  }
+
+  public async saveExtractedFields({
+    extractedFields,
+    id,
+  }: {
+    readonly companyId: string
+    readonly extractedFields: Readonly<Record<string, string | null>>
+    readonly id: string
+  }) {
+    this.extractedByDocumentId.set(id, extractedFields)
   }
 
   public async review({ companyId, id, rejectionReason, status }: ReviewAggregateDocumentInput) {

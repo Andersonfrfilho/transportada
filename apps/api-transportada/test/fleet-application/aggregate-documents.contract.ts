@@ -163,6 +163,71 @@ describe('aggregate document use case', () => {
     expect(result.extracted).not.toBeNull()
   })
 
+  /**
+   * Sem gravar, a divergência só existia no instante do upload: o operador abre a fila minutos
+   * depois e não tem com o que comparar. É o que fazia a revisão ser um sim/não no escuro.
+   */
+  test('what the OCR read is stored, so the review that comes later can compare', async () => {
+    const repository = new FakeAggregateDocumentRepository()
+    repository.declaredFieldsByTaxId.set(TAX_ID, {
+      licenseCategory: 'B',
+      licenseNumber: '99999999999',
+      name: 'Outro Nome',
+      plate: null,
+      renavam: null,
+    })
+    const useCase = createAggregateDocumentUseCase({
+      bucket: 'test-bucket',
+      ocr: {
+        extractText: async () => 'NOME: FULANO DE TAL\nN HABILITACAO 12345678901\nCAT. HAB. AE',
+      },
+      repository,
+      storage: new FakeAggregateDocumentStorage(),
+    })
+
+    const uploaded = await useCase.upload({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
+
+    expect(repository.extractedByDocumentId.get(uploaded.id)).toEqual({
+      licenseCategory: 'AE',
+      licenseNumber: '12345678901',
+      name: 'Fulano De Tal',
+    })
+
+    const [forReview] = await repository.listPendingByCompany({ companyId: COMPANY_ID })
+    expect(forReview?.hasExtraction).toBe(true)
+    expect(forReview?.divergences.map((item) => item.field).sort()).toEqual([
+      'licenseCategory',
+      'licenseNumber',
+      'name',
+    ])
+  })
+
+  /** "Nada divergiu" e "não deu para conferir" são coisas diferentes para quem aprova. */
+  test('a document with no reading is listed as unverified, not as divergence-free', async () => {
+    const repository = new FakeAggregateDocumentRepository()
+    const useCase = createAggregateDocumentUseCase({
+      bucket: 'test-bucket',
+      repository,
+      storage: new FakeAggregateDocumentStorage(),
+    })
+
+    await useCase.upload({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
+
+    const [forReview] = await repository.listPendingByCompany({ companyId: COMPANY_ID })
+    expect(forReview?.hasExtraction).toBe(false)
+    expect(forReview?.divergences).toEqual([])
+  })
+
   test('an OCR failure never blocks the upload — it just falls back to no extraction', async () => {
     const repository = new FakeAggregateDocumentRepository()
     const storage = new FakeAggregateDocumentStorage()

@@ -1,0 +1,1 @@
+ALTER TABLE "aggregate_documents" ADD COLUMN "extracted_fields" jsonb;

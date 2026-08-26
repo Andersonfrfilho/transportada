@@ -7,6 +7,7 @@ import {
   extractCnhFields,
   extractCrlvFields,
   scoreAggregateDocumentMatch,
+  listAggregateDocumentDivergences,
 } from '../../src/fleet/domain/aggregate-document-ocr.policy.js'
 
 describe('aggregate document OCR field extraction', () => {
@@ -83,5 +84,63 @@ describe('aggregate document match scoring', () => {
     })
 
     expect(outcome.confidence).toBe('high')
+  })
+})
+
+describe('divergência entre o documento e a ficha', () => {
+  const DECLARED = {
+    licenseCategory: 'AE',
+    licenseNumber: '12345678901',
+    name: 'Jose da Silva',
+    plate: null,
+    renavam: null,
+  }
+
+  test('aponta o campo em que o documento e a ficha discordam, com os dois valores', () => {
+    const divergences = listAggregateDocumentDivergences({
+      declared: DECLARED,
+      extracted: { licenseCategory: 'AE', licenseNumber: '99999999999', name: 'Jose da Silva' },
+    })
+
+    expect(divergences).toEqual([
+      { declared: '12345678901', extracted: '99999999999', field: 'licenseNumber' },
+    ])
+  })
+
+  test('não acusa diferença de caixa nem de espaço — é a mesma pessoa escrita torto', () => {
+    const divergences = listAggregateDocumentDivergences({
+      declared: DECLARED,
+      extracted: { licenseCategory: 'ae', licenseNumber: '12345678901', name: 'JOSE  DA SILVA' },
+    })
+
+    expect(divergences).toEqual([])
+  })
+
+  /** Ausência não é conflito: acusá-la faria o operador desconfiar de documento correto. */
+  test('campo que a leitura não achou, e campo que ninguém declarou, ficam de fora', () => {
+    const divergences = listAggregateDocumentDivergences({
+      declared: DECLARED,
+      extracted: {
+        licenseCategory: null,
+        licenseNumber: '',
+        name: 'Jose da Silva',
+        plate: 'ABC1D23',
+      },
+    })
+
+    expect(divergences).toEqual([])
+  })
+
+  test('lista todos os campos que discordam, não só o primeiro', () => {
+    const divergences = listAggregateDocumentDivergences({
+      declared: DECLARED,
+      extracted: { licenseCategory: 'B', licenseNumber: '99999999999', name: 'Outra Pessoa' },
+    })
+
+    expect(divergences.map((item) => item.field).sort()).toEqual([
+      'licenseCategory',
+      'licenseNumber',
+      'name',
+    ])
   })
 })

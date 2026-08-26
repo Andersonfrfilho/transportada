@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -608,6 +609,12 @@ export const aggregateDocuments = pgTable(
     status: text().$type<AggregateDocumentStatus>().notNull().default('pending'),
     rejectionReason: text('rejection_reason').notNull().default(''),
     storedObjectId: uuid('stored_object_id').notNull(),
+    /**
+     * O que o OCR leu no upload. Sem gravar, a divergência entre documento e ficha só existia no
+     * instante do envio e se perdia — o operador abria a revisão minutos depois e não tinha com o
+     * que comparar. `null` quando não houve leitura (PDF, OCR desligado, ou texto ilegível).
+     */
+    extractedFields: jsonb('extracted_fields'),
     reviewedBy: uuid('reviewed_by'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

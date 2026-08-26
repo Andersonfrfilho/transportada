@@ -111,3 +111,30 @@ function normalizeForCompare(value: string | null | undefined): string | null {
   const normalized = value.trim().toUpperCase().replace(/\s+/g, ' ')
   return normalized.length === 0 ? null : normalized
 }
+
+/**
+ * A divergência é o que o operador precisa ver antes de aprovar: onde o documento diz uma coisa e a
+ * ficha diz outra. Campo que a leitura não achou **não** é divergência — é ausência, e acusar
+ * ausência como conflito faria o operador desconfiar de documento correto. O mesmo vale para o
+ * campo que a pessoa não declarou: não há o que conferir.
+ */
+export function listAggregateDocumentDivergences(input: {
+  readonly declared: Readonly<Record<string, string | null>>
+  readonly extracted: Readonly<Record<string, string | null | undefined>>
+}): readonly Readonly<{ declared: string; extracted: string; field: string }>[] {
+  const divergences: Array<{ declared: string; extracted: string; field: string }> = []
+
+  for (const field of Object.keys(input.extracted)) {
+    const extracted = normalizeForCompare(input.extracted[field] ?? null)
+    const declared = normalizeForCompare(input.declared[field] ?? null)
+    if (extracted === null || declared === null) continue
+    if (extracted === declared) continue
+    divergences.push({
+      declared: input.declared[field] ?? '',
+      extracted: input.extracted[field] ?? '',
+      field,
+    })
+  }
+
+  return divergences
+}

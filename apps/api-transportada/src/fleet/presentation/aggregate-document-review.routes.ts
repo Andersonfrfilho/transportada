@@ -119,5 +119,10 @@ function serializeDocument(document: AggregateDocument): object {
 }
 
 function serialize(document: AggregateDocumentForReview): object {
-  return { ...serializeDocument(document), taxId: document.taxId }
+  return {
+    ...serializeDocument(document),
+    divergences: document.divergences.map((divergence) => ({ ...divergence })),
+    hasExtraction: document.hasExtraction,
+    taxId: document.taxId,
+  }
 }

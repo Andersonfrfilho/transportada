@@ -149,6 +149,11 @@ async function runOcrAndMaybeApprove(input: {
       companyId: input.companyId,
       taxId: input.taxId,
     })
+    await input.repository.saveExtractedFields({
+      companyId: input.companyId,
+      extractedFields: { ...extracted },
+      id: input.document.id,
+    })
     const outcome = scoreAggregateDocumentMatch({
       declared: [declared.name, declared.licenseNumber, declared.licenseCategory],
       extracted: [extracted.name, extracted.licenseNumber, extracted.licenseCategory],
@@ -164,6 +169,11 @@ async function runOcrAndMaybeApprove(input: {
   const declared = await input.repository.findDeclaredFields({
     companyId: input.companyId,
     taxId: input.taxId,
+  })
+  await input.repository.saveExtractedFields({
+    companyId: input.companyId,
+    extractedFields: { ...extracted },
+    id: input.document.id,
   })
   const outcome = scoreAggregateDocumentMatch({
     declared: [declared.plate, declared.renavam],

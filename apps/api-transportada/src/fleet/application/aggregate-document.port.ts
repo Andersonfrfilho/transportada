@@ -12,7 +12,24 @@ export type AggregateDocument = Readonly<{
   updatedAt: Date
 }>
 
-export type AggregateDocumentForReview = AggregateDocument & Readonly<{ taxId: string }>
+export type AggregateDocumentForReview = AggregateDocument &
+  Readonly<{
+    /**
+     * O que o documento diz contra o que a pessoa declarou, campo a campo. Vazio quando não houve
+     * leitura (PDF, OCR desligado, texto ilegível) **e** quando tudo bateu — a tela distingue os
+     * dois por `hasExtraction`, porque "nada divergiu" e "não deu para conferir" são coisas
+     * diferentes para quem aprova.
+     */
+    divergences: readonly AggregateDocumentDivergence[]
+    hasExtraction: boolean
+    taxId: string
+  }>
+
+export type AggregateDocumentDivergence = Readonly<{
+  declared: string
+  extracted: string
+  field: string
+}>
 
 export type AggregateDocumentDownloadLocation = Readonly<{
   bucket: string
@@ -69,6 +86,12 @@ export type AggregateDocumentRepositoryPort = Readonly<{
   /** Aprovação sem revisor humano — `reviewedBy`/`reviewedAt` ficam `null` de propósito, para o
    * painel distinguir "confirmado por OCR" de "revisado por gente". */
   markAutoApproved: (input: { readonly companyId: string; readonly id: string }) => Promise<void>
+  /** O que o OCR leu, guardado para a revisão que acontece depois do upload. */
+  saveExtractedFields: (input: {
+    readonly companyId: string
+    readonly extractedFields: Readonly<Record<string, string | null>>
+    readonly id: string
+  }) => Promise<void>
   review: (input: ReviewAggregateDocumentInput) => Promise<AggregateDocument | null>
   /** Reenvio depois de recusado atualiza a mesma linha — ver comentário do schema. */
   upsert: (input: UpsertAggregateDocumentInput) => Promise<AggregateDocument>
