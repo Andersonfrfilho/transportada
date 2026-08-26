@@ -95,6 +95,21 @@ export const cteBatchItems = pgTable('cte_batch_items', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),
   batchId: uuid('batch_id').notNull(),
+  /** ADR-0047: a ponte da nota até a viagem — é por ela que a autorização acha o que manifestar. */
+  nfeDocumentId: uuid('nfe_document_id').notNull(),
+})
+
+/**
+ * ⚠️ **Cópia por valor** de `api-transportada/src/database/trip.schema.ts`, com as colunas que o
+ * gatilho do MDF-e lê e nada mais. As duas apps não importam código uma da outra; migration só roda
+ * na API. Mudou a tabela lá? confira aqui.
+ */
+export const tripDocuments = pgTable('trip_documents', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  tripId: uuid('trip_id').notNull(),
+  /** Anulável na origem: a viagem também carrega nota vinda de cálculo de frete. */
+  nfeDocumentId: uuid('nfe_document_id'),
 })
 
 export const cteBatchEvents = pgTable('cte_batch_events', {

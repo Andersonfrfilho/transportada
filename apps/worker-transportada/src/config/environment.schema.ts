@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import type {
   CteTechnicalResponsibleEnvironment,
+  MdfeAutoIssueEnvironment,
   FuelPricePullEnvironment,
   WorkerEnvironment,
 } from '../shared/worker.types.js'
@@ -18,6 +19,17 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
 
 const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
 
+/**
+ * ADR-0047: o crachá do worker para chamar a API. As quatro juntas ou nenhuma — com o endereço sem
+ * o segredo, o gatilho subiria e falharia em 401 a cada CT-e autorizado, barulho sem efeito.
+ */
+const MDFE_AUTO_ISSUE_KEYS = [
+  'API_BASE_URL',
+  'KEYCLOAK_TOKEN_URL',
+  'WORKER_CLIENT_ID',
+  'WORKER_CLIENT_SECRET',
+] as const
+
 const DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS = 15_000
 const MAX_PROVIDER_TIMEOUT_MILLISECONDS = 60_000
 
@@ -27,6 +39,10 @@ const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 const workerEnvironmentSchema = z
   .object({
     ANEEL_BASE_URL: optionalUrl(),
+    API_BASE_URL: optionalUrl(),
+    KEYCLOAK_TOKEN_URL: optionalUrl(),
+    WORKER_CLIENT_ID: optionalText(),
+    WORKER_CLIENT_SECRET: optionalText(),
     ANEEL_TIMEOUT_MS: providerTimeout(),
     ANP_BASE_URL: optionalUrl(),
     ANP_TIMEOUT_MS: providerTimeout(),
@@ -100,6 +116,17 @@ const workerEnvironmentSchema = z
       })
     }
 
+    const declaredAutoIssueKeys = MDFE_AUTO_ISSUE_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declaredAutoIssueKeys > 0 && declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The automatic MDF-e trigger requires every credential or none',
+        path: [...MDFE_AUTO_ISSUE_KEYS],
+      })
+    }
+
     if (environment.APP_ENV === 'production' && environment.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED) {
       context.addIssue({
         code: 'custom',
@@ -126,6 +153,7 @@ export function parseWorkerEnvironment(
   }
 
   const technicalResponsible = toTechnicalResponsible(result.data)
+  const mdfeAutoIssue = toMdfeAutoIssue(result.data)
 
   return {
     appEnv: result.data.APP_ENV,
@@ -141,6 +169,7 @@ export function parseWorkerEnvironment(
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
+    ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
@@ -181,6 +210,27 @@ function toFuelPricePull(
     anpBaseUrl: data.ANP_BASE_URL,
     anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
   }
+}
+
+/** Ausente é gatilho desligado: a instalação sem crachá continua emitindo MDF-e à mão. */
+function toMdfeAutoIssue(
+  data: Readonly<{
+    [TKey in (typeof MDFE_AUTO_ISSUE_KEYS)[number]]?: string | undefined
+  }>,
+): MdfeAutoIssueEnvironment | undefined {
+  const apiBaseUrl = data.API_BASE_URL
+  const tokenUrl = data.KEYCLOAK_TOKEN_URL
+  const clientId = data.WORKER_CLIENT_ID
+  const clientSecret = data.WORKER_CLIENT_SECRET
+  if (
+    apiBaseUrl === undefined ||
+    tokenUrl === undefined ||
+    clientId === undefined ||
+    clientSecret === undefined
+  ) {
+    return undefined
+  }
+  return { apiBaseUrl, clientId, clientSecret, tokenUrl }
 }
 
 function providerTimeout() {

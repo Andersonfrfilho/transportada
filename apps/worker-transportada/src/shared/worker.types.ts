@@ -42,6 +42,14 @@ export type FuelPricePullEnvironment = {
   readonly anpTimeoutMilliseconds: number
 }
 
+/** ADR-0047: o crachá do worker. O segredo nunca sai daqui para log ou métrica. */
+export type MdfeAutoIssueEnvironment = {
+  readonly apiBaseUrl: string
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly tokenUrl: string
+}
+
 export type WorkerEnvironment = {
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
@@ -58,6 +66,7 @@ export type WorkerEnvironment = {
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
+  readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
   readonly logLevel: LogLevel
   readonly port: number
   readonly prefetch: number
