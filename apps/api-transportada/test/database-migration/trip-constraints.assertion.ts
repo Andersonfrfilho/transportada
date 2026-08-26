@@ -206,6 +206,8 @@ export async function assertTripConstraints(
   `
   expect(orphans[0]).toEqual({ drivers: '0', documents: '0' })
 
+  await assertLiveManifestConstraint({ companyId, database, tripId, vehicleId })
+
   await assertFieldExecutionConstraints({
     companyId,
     database,
@@ -213,6 +215,52 @@ export async function assertTripConstraints(
     tripId,
     userId,
   })
+}
+
+/**
+ * ADR-0046 §5: **um manifesto vivo por viagem**. Duas autorizações de CT-e chegando no mesmo instante
+ * disparariam duas emissões, e duplicar MDF-e é incidente fiscal — quem perde a corrida é o `if` no
+ * consumer, então quem decide é o banco.
+ *
+ * Cancelado e rejeitado ficam de fora do unique de propósito: depois deles a viagem **precisa** poder
+ * manifestar de novo, e é justamente o caso em que alguém está com pressa.
+ */
+async function assertLiveManifestConstraint(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly tripId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { companyId, database, tripId, vehicleId } = input
+  const liveManifestId = crypto.randomUUID()
+
+  await database`
+    insert into mdfe_manifests
+      (id, company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+    values
+      (${liveManifestId}, ${companyId}, ${vehicleId}, ${tripId}, 'issuing', 'homologation', 'SP', 'MG')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into mdfe_manifests
+        (company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+      values
+        (${companyId}, ${vehicleId}, ${tripId}, 'draft', 'homologation', 'SP', 'MG')
+    `,
+    '23505',
+    'mdfe_manifests_company_trip_live_unique',
+  )
+
+  // Rejeitado sai da trava: a viagem precisa poder manifestar de novo depois de a SEFAZ recusar
+  await database`update mdfe_manifests set status = 'rejected' where id = ${liveManifestId}`
+  await database`
+    insert into mdfe_manifests
+      (company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+    values
+      (${companyId}, ${vehicleId}, ${tripId}, 'draft', 'homologation', 'SP', 'MG')
+  `
+  await database`delete from mdfe_manifests where trip_id = ${tripId}`
 }
 
 /**

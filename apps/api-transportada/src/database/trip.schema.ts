@@ -43,6 +43,23 @@ export const TRIP_STATUSES = [
 ] as const
 export type TripStatus = (typeof TRIP_STATUSES)[number]
 
+/**
+ * ADR-0046 §1: **derivado, e nunca a fonte.** A verdade da prontidão é a consulta ao estado real de
+ * `cte_fiscal_documents`, feita a cada leitura; esta coluna existe para filtrar a lista de viagens
+ * sem varrer o fiscal inteiro.
+ *
+ * Ela dessincroniza — é da natureza dela — no instante em que um CT-e é cancelado, e **manifesto
+ * emitido sobre ela seria declaração falsa a órgão público**. Quem for usá-la para decidir emissão
+ * está usando errado; quem for usá-la para pintar um semáforo está usando certo.
+ */
+export const TRIP_FISCAL_READINESS_STATES = [
+  'incomplete',
+  'ready',
+  'manifested',
+  'divergent',
+] as const
+export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[number]
+
 /** ADR-0043 §1: eixo da nota, do qual o estado da viagem é derivado. */
 export const TRIP_DOCUMENT_SEPARATION_STATUSES = [
   'pending',
@@ -67,6 +84,10 @@ export const trips = pgTable(
     companyId: uuid('company_id').notNull(),
     vehicleId: uuid('vehicle_id').notNull(),
     status: text().$type<TripStatus>().notNull().default('draft'),
+    fiscalReadinessState: text('fiscal_readiness_state')
+      .$type<TripFiscalReadinessState>()
+      .notNull()
+      .default('incomplete'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -89,6 +110,12 @@ export const trips = pgTable(
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
     check('trips_status_check', sql`${table.status} in (${raw(inList(TRIP_STATUSES))})`),
+    check(
+      'trips_fiscal_readiness_check',
+      sql`${table.fiscalReadinessState} in (${raw(inList(TRIP_FISCAL_READINESS_STATES))})`,
+    ),
+    /** O semáforo da lista: filtrar "prontas para manifestar" sem varrer o fiscal da empresa. */
+    index('trips_company_fiscal_readiness_idx').on(table.companyId, table.fiscalReadinessState),
   ],
 )
 
