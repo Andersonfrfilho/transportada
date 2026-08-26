@@ -1,10 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverStopCard } from '../components/DriverStopCard.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import type { DriverOccurrenceKind, DriverReturnReason } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
@@ -19,6 +21,8 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
   const driverTrip = useDriverTrip()
+  /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
+  const [proofFailed, setProofFailed] = useState(false)
 
   if (driverTrip.status === 'loading') {
     return (
@@ -63,6 +67,12 @@ export function DriverTripWorkspacePage() {
         </p>
       ) : null}
 
+      {proofFailed ? (
+        <p className={styles.rejectedBanner} role="alert">
+          {t('proofFailed')}
+        </p>
+      ) : null}
+
       {driverTrip.rejected.length > 0 ? (
         <p className={styles.rejectedBanner} role="alert">
           {t('rejected')}
@@ -98,6 +108,11 @@ export function DriverTripWorkspacePage() {
                   location,
                 }))
               }
+              onProof={(input: { documentId: string; file: File }) => {
+                void getDriverTripClient()
+                  .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
+                  .catch(() => setProofFailed(true))
+              }}
               onOccurrence={(input: {
                 description: string
                 kind: DriverOccurrenceKind

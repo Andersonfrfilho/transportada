@@ -10,6 +10,7 @@
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
   "occurrence": "Deu problema",
+  "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceKind": {
     "address_not_found": "Endereço não localizado",
     "appointment_required": "Exigiram agendamento",
@@ -20,8 +21,9 @@
     "other": "Outro",
     "unexpected_charge": "Cobrança inesperada"
   },
-  "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceSend": "Registrar",
+  "proof": "Anexar canhoto",
+  "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "queued_one": "{{count}} confirmação aguardando envio",
   "queued_other": "{{count}} confirmações aguardando envio",
   "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",

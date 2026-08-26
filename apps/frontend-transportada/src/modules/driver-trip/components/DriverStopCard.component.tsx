@@ -25,6 +25,7 @@ type DriverStopCardProps = Readonly<{
   isCurrent: boolean
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
+  onProof: (input: { documentId: string; file: File }) => void
   onOccurrence: (input: {
     description: string
     kind: DriverOccurrenceKind
@@ -39,6 +40,7 @@ export function DriverStopCard({
   onArrive,
   onDeliver,
   onOccurrence,
+  onProof,
   onReturn,
   stop,
 }: DriverStopCardProps) {
@@ -101,6 +103,7 @@ export function DriverStopCard({
             document={document}
             key={document.id}
             onDeliver={onDeliver}
+            onProof={onProof}
             onReturn={onReturn}
           />
         ))}
@@ -112,10 +115,11 @@ export function DriverStopCard({
 type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   onDeliver: (documentId: string) => void
+  onProof: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
 }>
 
-function DocumentRow({ document, onDeliver, onReturn }: DocumentRowProps) {
+function DocumentRow({ document, onDeliver, onProof, onReturn }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
 
@@ -128,6 +132,21 @@ function DocumentRow({ document, onDeliver, onReturn }: DocumentRowProps) {
             ? t('deliver')
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
+        {/* O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz */}
+        {document.separationStatus === 'delivered' ? (
+          <label className={styles.proofField}>
+            <span>{t('proof')}</span>
+            <input
+              accept="image/*"
+              capture="environment"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file !== undefined) onProof({ documentId: document.id, file })
+              }}
+            />
+          </label>
+        ) : null}
       </li>
     )
   }

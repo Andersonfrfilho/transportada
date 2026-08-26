@@ -20,7 +20,7 @@ Vale para toda spec deste plano, sem exceção:
 | Spec    | Tamanho | O que é                                 | Estado                               |
 | ------- | ------- | --------------------------------------- | ------------------------------------ |
 | **048** | 141     | OCR do CRLV preenche a ficha do veículo | ✅ fase CRLV; CNH/ANTT bloqueadas    |
-| **057** | 272     | PWA do motorista — a viagem no bolso    | só `spec.md`                         |
+| **057** | 272     | PWA do motorista — a viagem no bolso    | ✅ concluída                         |
 | **058** | —       | roteiro se sugere sozinho               | ✅ P1; **P2 multi-veículo pendente** |
 | **059** | 226     | MDF-e nasce da viagem completa          | só `spec.md`                         |
 | **060** | 383     | cliente tem janela de entrega e taxa    | só `spec.md`                         |

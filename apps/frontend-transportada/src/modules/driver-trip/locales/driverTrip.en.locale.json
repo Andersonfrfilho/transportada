@@ -10,6 +10,7 @@
   "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
   "notRegistered": "Your account is not linked to a driver record yet. Talk to the office.",
   "occurrence": "Something went wrong",
+  "occurrenceDescription": "What happened (optional)",
   "occurrenceKind": {
     "address_not_found": "Address not found",
     "appointment_required": "Appointment required",
@@ -20,8 +21,9 @@
     "other": "Other",
     "unexpected_charge": "Unexpected charge"
   },
-  "occurrenceDescription": "What happened (optional)",
   "occurrenceSend": "Record",
+  "proof": "Attach proof",
+  "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",
   "rejected": "The office changed this invoice while you were offline. Check before moving on.",

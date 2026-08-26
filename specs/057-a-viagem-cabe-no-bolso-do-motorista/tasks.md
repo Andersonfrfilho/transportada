@@ -21,7 +21,7 @@
 
 > 🤖 Modelo: `opus` 🧠
 
-### T001 🧠 — ADR-0045: canal-agnóstico, e a posição que carimba sem seguir
+### T001 🧠 ✅ — ADR-0045: canal-agnóstico, e a posição que carimba sem seguir
 
 Registra: por que as rotas são de domínio e não de tela (D2) e o que isso proíbe — regra de viagem em
 componente React; por que `GET /me/trips/current` não tem parâmetro de viagem (D1, BOLA/API1); e a
@@ -37,7 +37,7 @@ não só escrito.
 
 > 🤖 Modelo: `sonnet` (T003 é 🧠 — tabela nova que três specs vão ler)
 
-### T002 — `trip_stop_events`: onde estava quando confirmou
+### T002 ✅ — `trip_stop_events`: onde estava quando confirmou
 
 Evento por confirmação: parada, documento opcional, tipo (`arrived`/`delivered`/`returned`),
 `latitude`/`longitude` **anuláveis**, `accuracy_meters`, `captured_at`, ator e hora. É desta tabela
@@ -50,7 +50,7 @@ silêncio: o escritório vê a precisão ao lado do pino e decide.
 - **Aceite:** CHECK do tipo fechado na lista; coordenada anulável; `accuracy_meters` sem default
 - **Verificação:** `make migration-test`
 
-### T003 🧠 — `trip_stop_occurrences`: o problema que hoje morre no WhatsApp
+### T003 🧠 ✅ — `trip_stop_occurrences`: o problema que hoje morre no WhatsApp
 
 Parada, documento opcional, tipo de lista fechada (cobrança inesperada, espera longa, doca
 interditada, agendamento exigido, mercadoria avariada, endereço não localizado, cliente fechado,
@@ -63,7 +63,7 @@ convivem. Forçar a ocorrência a ser motivo de não-entrega perderia o caso mai
 - **Aceite:** tipo fechado por CHECK; `document_id` anulável; FK de anexo para `stored_objects` por `(company_id, id)`
 - **Verificação:** `make migration-test`
 
-### T004 — A confirmação que não duplica
+### T004 ✅ — A confirmação que não duplica
 
 Tabela de idempotência das rotas de campo, no padrão `*_processed_messages` que os workers já usam:
 chave do cliente + rota + empresa, com o resultado guardado. Dois celulares logados no mesmo
@@ -73,7 +73,7 @@ motorista, ou a fila offline reenviando, resolvem-se aqui — não no cliente.
 - **Aceite:** unique por `(company_id, idempotency_key)`; reenvio devolve o mesmo resultado, não um segundo evento
 - **Verificação:** `make migration-test`
 
-### T005 — O expurgo da coordenada existe, não é promessa
+### T005 ✅ — O expurgo da coordenada existe, não é promessa
 
 Rotina agendada que apaga `latitude`/`longitude`/`accuracy_meters` dos eventos com mais de 90 dias,
 **preservando o evento**. Dado de localização de pessoa identificada é dado pessoal na LGPD, e reter
@@ -87,7 +87,7 @@ Rotina agendada que apaga `latitude`/`longitude`/`accuracy_meters` dos eventos c
 
 > 🤖 Modelo: `sonnet` (T006 é 🧠 — é a fronteira de autorização do papel novo)
 
-### T006 🧠 — O servidor resolve qual viagem é a dele
+### T006 🧠 ✅ — O servidor resolve qual viagem é a dele
 
 `membership → fleet_driver → trip_drivers → trip` em `dispatched` ou `in_transit`. O motorista
 **não escolhe id**: se ele não escolhe, não há o que enumerar (D1).
@@ -100,7 +100,7 @@ devolve as duas, para a tela pedir a escolha.
 - **Aceite:** motorista de outra empresa não alcança nada; sem viagem → `200` vazio; duas viagens → duas
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T007 — Cheguei
+### T007 ✅ — Cheguei
 
 `arrived_at` na parada, evento com a coordenada se houver, e a viagem sobe a `in_transit` se ainda
 estiver em `dispatched`. Idempotente pela T004.
@@ -109,7 +109,7 @@ estiver em `dispatched`. Idempotente pela T004.
 - **Aceite:** segunda chamada com a mesma chave não move nada; `location: null` é aceito
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T008 — Entreguei, e não entreguei
+### T008 ✅ — Entreguei, e não entreguei
 
 Documento a `delivered` ou a `returned` com motivo de lista fechada (ausente, recusa, endereço não
 encontrado, avaria, estabelecimento fechado). Última nota da parada fecha `completed_at`; última
@@ -122,7 +122,7 @@ a tela mostra o conflito em vez de sumir com o toque.
 - **Aceite:** fecha parada e viagem em cascata; nota desvinculada devolve código estável; idempotente
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T009 — A ocorrência
+### T009 ✅ — A ocorrência
 
 Grava tipo, descrição e anexo opcional, sem pedir valor nenhum ao motorista (D6.1) e sem impedir a
 entrega (D6.2).
@@ -131,7 +131,7 @@ entrega (D6.2).
 - **Aceite:** ocorrência e entrega bem-sucedida convivem na mesma nota; nenhum campo de valor no contrato
 - **Verificação:** `bun run --cwd apps/api-transportada test`
 
-### T010 — O comprovante vai para o bucket privado
+### T010 ✅ — O comprovante vai para o bucket privado
 
 Foto do canhoto e assinatura colhida na tela, ligadas ao evento de entrega. Chave do objeto **sem
 nome de pessoa**, entrega por presigned curta. A assinatura colhe traço e nome do recebedor — **nunca
@@ -145,7 +145,7 @@ CPF** (D4).
 
 > 🤖 Modelo: `sonnet`
 
-### T011 — As sete rotas de `/me/trips/*`
+### T011 ✅ — As sete rotas de `/me/trips/*`
 
 `GET current`, `POST stops/:stopId/arrive`, `POST documents/:documentId/deliver`, `POST .../return`,
 `POST .../proof`, `POST stops/:stopId/occurrences`, `GET history`. Todas sob `trip.read`/`trip.report`,
@@ -157,7 +157,7 @@ Payload de `current` enxuto para 3G: sem XML, sem histórico de evento, sem prod
 - **Aceite:** `driver` não alcança `/trips/:id` nem nenhuma rota de `trip.manage`; rate limit próprio em `/me/*`
 - **Verificação:** `bun run --cwd apps/api-transportada test:integration`
 
-### T012 — `Permissions-Policy` abre geolocalização e mantém o microfone fechado
+### T012 ✅ — `Permissions-Policy` abre geolocalização e mantém o microfone fechado
 
 `geolocation=(self), camera=(self), microphone=()`. O contrato **falha** se o microfone deixar de ser
 `()` — é a diretiva que ninguém percebe voltando aberta.
@@ -170,7 +170,7 @@ Payload de `current` enxuto para 3G: sem XML, sem histórico de evento, sem prod
 
 > 🤖 Modelo: `sonnet`
 
-### T013 — A fila offline, que é onde a coisa se prova
+### T013 ✅ — A fila offline, que é onde a coisa se prova
 
 IndexedDB, drenagem no evento `online` e no `sync` do service worker. **A tela diz a verdade**:
 confirmação na fila aparece como "aguardando envio", nunca como enviada — mentir sobre sincronização
@@ -180,7 +180,7 @@ confirmação na fila aparece como "aguardando envio", nunca como enviada — me
 - **Aceite:** três confirmações offline drenam sem duplicar; bateria acabando não perde a fila
 - **Verificação:** contrato + smoke com `navigator.onLine` simulado
 
-### T014 — O workspace `/minha-viagem`
+### T014 ✅ — O workspace `/minha-viagem`
 
 Default de quem tem papel `driver` no `resolveCurrentWorkspace` — o motorista não pode cair na tela
 de NF-e. Paradas na ordem congelada, primeira pendente destacada, dois toques por parada.
@@ -189,7 +189,7 @@ de NF-e. Paradas na ordem congelada, primeira pendente destacada, dois toques po
 - **Aceite:** alvo de toque ≥44px, sem tabela densa, ação principal ao alcance do polegar
 - **Verificação:** smoke em 375px
 
-### T015 — Navegar é delegar, e o texto é locale
+### T015 ✅ — Navegar é delegar, e o texto é locale
 
 Botão que abre `geo:`/`maps.google.com` com o endereço. Nenhum texto na tag.
 
@@ -197,7 +197,7 @@ Botão que abre `geo:`/`maps.google.com` com o endereço. Nenhum texto na tag.
 - **Aceite:** paridade de chaves pt/en
 - **Verificação:** `bun run --cwd apps/frontend-transportada test`
 
-### T016 — O escritório vê andar
+### T016 ✅ — O escritório vê andar
 
 A tela de viagem do desktop (056) ganha a coluna de execução — chegada, entrega, motivo de retorno —
 por `refetchInterval` do TanStack Query, **não** WebSocket novo.
@@ -210,7 +210,7 @@ por `refetchInterval` do TanStack Query, **não** WebSocket novo.
 
 > 🤖 Modelo: `sonnet`
 
-### T017 — E2E sem browser: a prova da D2
+### T017 ✅ — E2E sem browser: a prova da D2
 
 A suíte chama **só as rotas**. Se ela precisar de um browser para passar, a regra vazou para a tela e
 a D2 está quebrada.
@@ -219,7 +219,7 @@ a D2 está quebrada.
 - **Aceite:** viagem inteira executada por HTTP: chega, entrega, não entrega, ocorrência, fecha
 - **Verificação:** `bun run --cwd apps/api-transportada test:integration`
 
-### T018 — `evidence.md`
+### T018 ✅ — `evidence.md`
 
 O que rodou, o que passou e o que ficou de fora.
 

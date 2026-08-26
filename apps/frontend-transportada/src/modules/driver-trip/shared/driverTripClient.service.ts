@@ -33,6 +33,17 @@ type ClientDependencies = Readonly<{
 }>
 
 export type DriverTripClient = Readonly<{
+  /**
+   * O comprovante **não passa pela fila**: ele anexa a uma entrega que já foi confirmada, e falhar
+   * aqui não desfaz nada. Enfileirar arquivo é outro problema — tamanho, expurgo, cota do aparelho —
+   * e está declarado como pendência em vez de resolvido pela metade.
+   */
+  attachProof: (input: {
+    documentId: string
+    file: File
+    kind: 'photo' | 'signature'
+    receiverName?: string
+  }) => Promise<void>
   readCurrent: () => Promise<DriverTripSnapshot>
   send: (report: DriverFieldReport) => Promise<void>
 }>
@@ -68,6 +79,19 @@ function reportBody(report: DriverFieldReport): string {
 
 export function createDriverTripClient(dependencies: ClientDependencies): DriverTripClient {
   return {
+    async attachProof(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      form.set('kind', input.kind)
+      if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
+
+      await request({
+        dependencies,
+        form,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
+      })
+    },
     async readCurrent() {
       const payload = await request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH })
       return toDriverTripSnapshot(payload)
@@ -96,6 +120,7 @@ async function request(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
+    form?: FormData
     idempotencyKey?: string
     method: 'GET' | 'POST'
     path: string
@@ -108,6 +133,8 @@ async function request(
 
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  // O `content-type` do multipart carrega a fronteira, e só o próprio `fetch` sabe qual ela é.
+  if (input.form !== undefined) requestInit.body = input.form
 
   let response: Response
   try {
