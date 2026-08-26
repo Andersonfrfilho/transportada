@@ -210,13 +210,25 @@ SQL
 # aqui não há bun nem código de aplicação: o passo é **disparar o redeploy** e deixar a máquina que
 # já existe fazer o resto. Sem isto o refresh derruba staging toda semana.
 redeploy_staging_api() {
-  if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ]; then
+  # O Railway tem dois tipos de token, e eles não se autenticam do mesmo jeito: o de conta/equipe vai
+  # em `Authorization: Bearer`, o de projeto vai em `Project-Access-Token`. Mandar um no cabeçalho do
+  # outro devolve 401 sem dizer por quê — daí aceitar os dois explicitamente, por variável separada.
+  local authorization_header
+  if [ -n "${RAILWAY_PROJECT_TOKEN:-}" ]; then
+    authorization_header="Project-Access-Token: ${RAILWAY_PROJECT_TOKEN}"
+  elif [ -n "${RAILWAY_API_TOKEN:-}" ]; then
+    authorization_header="Authorization: Bearer ${RAILWAY_API_TOKEN}"
+  else
+    authorization_header=''
+  fi
+
+  if [ -z "$authorization_header" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ]; then
     log error staging_refresh_redeploy_not_configured ''
     exit 1
   fi
   curl --silent --show-error --fail --max-time 60 --output /dev/null \
     --request POST 'https://backboard.railway.com/graphql/v2' \
-    --header "Authorization: Bearer ${RAILWAY_API_TOKEN}" \
+    --header "$authorization_header" \
     --header 'Content-Type: application/json' \
     --data @- <<JSON
 {"query":"mutation(\$serviceId:String!,\$environmentId:String!){serviceInstanceRedeploy(serviceId:\$serviceId,environmentId:\$environmentId)}","variables":{"serviceId":"${STAGING_API_SERVICE_ID}","environmentId":"${RAILWAY_ENVIRONMENT_ID}"}}
