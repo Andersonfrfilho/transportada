@@ -88,10 +88,29 @@ async function registerVehicleListMock(
   })
 }
 
+/** Um anexo pendente com um campo divergente — é o estado que a aba de revisão existe para mostrar. */
+export const PENDING_DOCUMENT = {
+  createdAt: '2026-08-26T12:00:00.000Z',
+  divergences: [{ declared: '12345678901', extracted: '99999999999', field: 'licenseNumber' }],
+  hasExtraction: true,
+  id: '00000000-0000-4000-8000-000000000701',
+  rejectionReason: '',
+  status: 'pending',
+  taxId: '12345678901',
+  type: 'cnh',
+  updatedAt: '2026-08-26T12:00:00.000Z',
+} as const
+
 export async function mockFleetWorkspaceApi(
-  input: Readonly<{ page: Page; permissions: readonly string[]; registeredPlate?: string }>,
-): Promise<Readonly<{ failures: () => readonly string[] }>> {
+  input: Readonly<{
+    documents?: readonly unknown[]
+    page: Page
+    permissions: readonly string[]
+    registeredPlate?: string
+  }>,
+): Promise<Readonly<{ failures: () => readonly string[]; reviews: () => readonly unknown[] }>> {
   const failures: string[] = []
+  const reviews: unknown[] = []
   input.page.on('requestfailed', (request) => {
     if (new URL(request.url()).origin === 'http://localhost:53001') {
       failures.push(`${request.url()} ${request.failure()?.errorText}`)
@@ -99,6 +118,22 @@ export async function mockFleetWorkspaceApi(
   })
 
   await registerIdentityMock({ page: input.page, permissions: input.permissions })
+  // A rota específica vem antes da lista: `/aggregate-documents` casaria com o review também.
+  await input.page.route(/\/aggregate-documents\/[^/]+\/review$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    reviews.push(route.request().postDataJSON())
+    await fulfillJson(route, { data: {} })
+  })
+  await input.page.route(/\/aggregate-documents(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: input.documents ?? [] })
+  })
   await registerVehicleListMock({
     page: input.page,
     ...(input.registeredPlate === undefined ? {} : { registeredPlate: input.registeredPlate }),
@@ -122,5 +157,5 @@ export async function mockFleetWorkspaceApi(
     ),
   )
 
-  return { failures: () => failures }
+  return { failures: () => failures, reviews: () => reviews }
 }

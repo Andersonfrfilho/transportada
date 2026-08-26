@@ -18,7 +18,8 @@
     "drivers": "Drivers",
     "applications": "Applications",
     "fuel": "Fuel",
-    "regions": "Regions"
+    "regions": "Regions",
+    "documents": "Attachments"
   },
   "applications": {
     "loading": "Loading applications",
@@ -682,5 +683,49 @@
   "ownerIncompleteHint": "The driver record has no {{fields}} — the MDF-e owner group requires these fields. Complete the record right here, without leaving the vehicle form.",
   "ownerIncompleteFixButton": "Complete driver record",
   "ownerIncompleteUnknownDriver": "The owner document matches no registered driver — pick the driver in the list above to complete the record.",
-  "ownerIncompleteFeedback": "The owner driver record is incomplete: complete it before saving the vehicle."
+  "ownerIncompleteFeedback": "The owner driver record is incomplete: complete it before saving the vehicle.",
+  "documents": {
+    "loading": "Loading attachments",
+    "empty": "No attachment awaiting review",
+    "columns": {
+      "type": "Document",
+      "taxId": "Aggregate document",
+      "status": "Status",
+      "check": "Cross-check",
+      "actions": "Actions"
+    },
+    "type": {
+      "cnh": "Driver license",
+      "crlv": "Vehicle registration"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "check": {
+      "unverified": "Could not be checked",
+      "matches": "Matches the application",
+      "divergent_one": "{{count}} field differs",
+      "divergent_other": "{{count}} fields differ"
+    },
+    "divergence": {
+      "document": "on the document",
+      "declared": "on the application"
+    },
+    "fields": {
+      "name": "Name",
+      "licenseNumber": "License number",
+      "licenseCategory": "Category",
+      "plate": "Plate",
+      "renavam": "RENAVAM"
+    },
+    "openButton": "Open",
+    "approveButton": "Approve",
+    "rejectButton": "Reject",
+    "rejectDialogTitle": "Reject attachment",
+    "rejectReasonLabel": "Rejection reason (the aggregate will read it)",
+    "confirmRejectButton": "Confirm rejection",
+    "cancelButton": "Cancel"
+  }
 }

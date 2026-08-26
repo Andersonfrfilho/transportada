@@ -19,7 +19,7 @@ import {
 } from './cte-batch-smoke.helper'
 import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
 import { DRIVER_ACCESS_KEY, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
-import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
+import { PENDING_DOCUMENT, mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
 import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
@@ -726,6 +726,32 @@ test('a nota bloqueada mostra o motivo, fica fora da seleção e é contada na b
   await auditAuthenticationStorage(page)
 })
 
+/**
+ * Spec 065 D4b: **fatura-se o que saiu.** O sinal da viagem aparece na listagem e leva à viagem em
+ * um clique — e a nota continua selecionável, porque vínculo com viagem nunca foi bloqueio.
+ */
+test('a nota anuncia a viagem em que saiu e continua entrando no lote', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'nfe'))
+  const api = await mockNfeWorkspaceApi({
+    blockedDocumentCount: 0,
+    documentCount: 1,
+    page,
+    permissions: ['invoices.read', 'cte.manage'],
+  })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { name: 'Documentos importados' })).toBeVisible()
+
+  const tripLink = page.getByRole('link', { name: 'Saiu nesta viagem' })
+  await expect(tripLink).toBeVisible()
+  await expect(tripLink).toHaveAttribute('href', '/trips/00000000-0000-4000-8000-000000000a11')
+  await expect(page.getByRole('checkbox', { name: 'Nota bloqueada para CT-e' })).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
 test('o diálogo mostra o perfil aplicado e leva aos perfis de emissão em um clique', async ({
   page,
 }) => {
@@ -1057,9 +1083,46 @@ test('dispensar o MDF-e da viagem pede o motivo antes de mandar', async ({ page 
   await dialog.getByLabel('Motivo da dispensa').fill('frota própria, carga retorna hoje')
   await dialog.getByRole('button', { name: 'Dispensar MDF-e' }).click()
 
-  await expect.poll(() => api.mdfeRequirements()).toEqual([
-    { reason: 'frota própria, carga retorna hoje', requiresMdfe: false },
-  ])
+  await expect
+    .poll(() => api.mdfeRequirements())
+    .toEqual([{ reason: 'frota própria, carga retorna hoje', requiresMdfe: false }])
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+test('o operador revisa o anexo vendo onde ele discorda da ficha, e a recusa exige motivo', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  const api = await mockFleetWorkspaceApi({
+    documents: [PENDING_DOCUMENT],
+    page,
+    permissions: ['fleet.read', 'fleet.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Frota e motoristas' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Anexos' }).click()
+
+  // o que o documento diz e o que a ficha diz, lado a lado — é o que dispensa abrir o arquivo
+  await expect(page.getByText('1 campo diverge')).toBeVisible()
+  await expect(page.getByText('99999999999')).toBeVisible()
+  await expect(page.getByText('12345678901').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Recusar' }).click()
+  const confirmReject = page.getByRole('button', { name: 'Confirmar recusa' })
+  await expect(confirmReject).toBeDisabled()
+
+  await page.getByLabel(/Motivo da recusa/).fill('foto ilegível')
+  await expect(confirmReject).toBeEnabled()
+  await confirmReject.click()
+
+  await expect
+    .poll(() => api.reviews())
+    .toEqual([{ decision: 'rejected', rejectionReason: 'foto ilegível' }])
 
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
