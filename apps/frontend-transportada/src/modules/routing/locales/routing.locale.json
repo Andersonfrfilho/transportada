@@ -60,5 +60,10 @@
       "missing": "O mapa desta região ainda não foi gerado. A lista abaixo é o roteiro completo — ela não depende do mapa.",
       "unsupported": "Este navegador não desenha o mapa. A lista abaixo é o roteiro completo — ela não depende do mapa."
     }
+  },
+  "invite": {
+    "text": "O sistema pode propor a ordem das paradas. Você confere e decide.",
+    "action": "Sugerir roteiro",
+    "requesting": "Pedindo…"
   }
 }

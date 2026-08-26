@@ -2,3 +2,4 @@
 import './routing/route-suggestion-warnings.contract'
 import './routing/route-map-tiles.contract'
 import './routing/routing-panel.contract'
+import './routing/route-suggestion-response.contract'

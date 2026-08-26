@@ -845,3 +845,47 @@ test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o m
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })
+
+/**
+ * O convite ao roteiro aparece na viagem editável, e o painel só nasce depois do pedido — a
+ * proposta é do worker, não do clique (ADR-0044 §7). Sem este teste, o painel podia estar montado
+ * e nunca renderizar, e nada acusaria.
+ */
+test('a viagem editável oferece sugerir roteiro, e o painel só existe depois do pedido', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toBeVisible()
+  // Nada de proposta antes de pedir: o painel não se antecipa ao humano
+  await expect(page.getByRole('heading', { name: 'Roteiro sugerido' })).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/** Sem `trip.manage` o convite não aparece: pedir e decidir são a mesma permissão que reordena. */
+test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'mdfe.read'],
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toHaveCount(0)
+})

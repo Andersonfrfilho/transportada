@@ -33,6 +33,9 @@ import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
+import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
+import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
+
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
@@ -104,6 +107,12 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
   const [returnDocumentId, setReturnDocumentId] = useState<string | null>(null)
   const selection = useTripDocumentSelection()
+  /**
+   * Antes de qualquer `return`: hook depois de saída condicional muda a contagem de hooks entre
+   * renders, e o React derruba o componente inteiro — foi o que o smoke pegou. A viagem ainda pode
+   * não ter carregado, e `''` é um id que nunca resolve, o que é exatamente o que se quer aqui.
+   */
+  const routeSuggestion = useRouteSuggestion({ tripId: workspace.trip?.id ?? '' })
 
   if (workspace.status === 'forbidden') {
     return (
@@ -372,6 +381,12 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
           />
         </div>
       ) : null}
+
+      {/**
+       * O roteiro se confere antes de a viagem sair. Ele fica acima das ações de propósito: quem
+       * rola até "despachar" já passou pela proposta e pelos avisos dela.
+       */}
+      {canManage && isEditable ? <RouteSuggestionSection controller={routeSuggestion} /> : null}
 
       <div className={styles.actionActions}>
         {canManage && !isCompleted && trip.documents.length > 0 ? (

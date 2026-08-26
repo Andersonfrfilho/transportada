@@ -60,5 +60,10 @@
       "missing": "The map for this region has not been generated yet. The list below is the complete route — it does not depend on the map.",
       "unsupported": "This browser cannot draw the map. The list below is the complete route — it does not depend on the map."
     }
+  },
+  "invite": {
+    "text": "The system can propose the stop order. You review it and decide.",
+    "action": "Suggest route",
+    "requesting": "Requesting…"
   }
 }
