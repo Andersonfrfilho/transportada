@@ -39,7 +39,7 @@ CPF, CNPJ alfanumérico (IN RFB 2229/2024), RENAVAM, placa, chassi e UF. Entregu
 
 > 🤖 Modelo: `opus` 🧠 (T002 decide build, worker e CSP; errar aqui quebra a política publicada)
 
-### T002 🧠 — O PDF vira fragmento com posição
+### T002 🧠 ✅ — O PDF vira fragmento com posição
 
 `pdfjs-dist` lendo `ArrayBuffer` e devolvendo `{ text, x, y, height }` por fragmento, com
 `isEvalSupported: false` (a CSP publicada é `script-src 'self'`) e o worker servido da **nossa
@@ -58,7 +58,7 @@ Três coisas que só aparecem com a biblioteca na mão, não no papel:
 - **Aceite:** PDF gerado com texto em coordenada conhecida devolve os fragmentos naquela coordenada; PDF sem texto devolve `scanned`
 - **Verificação:** `bun run --cwd apps/frontend-transportada test`
 
-### T003 — Rótulo casa com valor por geometria
+### T003 ✅ — Rótulo casa com valor por geometria
 
 `PLACA` seguido de `EXERCÍCIO` em ordem de leitura é o motivo de a ordem não servir. O valor de um
 rótulo é o fragmento **abaixo** dele (até 26pt), **alinhado** na horizontal (menos de 6pt de
@@ -72,7 +72,7 @@ distância entre os inícios), e o mais próximo vence.
 
 > 🤖 Modelo: `sonnet`
 
-### T004 — A identificação é pelo título, no topo
+### T004 ✅ — A identificação é pelo título, no topo
 
 `CERTIFICADO DE REGISTRO E LICENCIAMENTO DE VEÍCULO` no terço superior da página → CRLV-e. Nada
 casou → `unknown`, e o produto diz isso. O contrato que trava a regressão é o rodapé promocional da
@@ -83,7 +83,7 @@ habilitação.
 - **Aceite:** CRLV com "CNH" no rodapé é reconhecido como CRLV; página sem título conhecido é `unknown`
 - **Verificação:** `bun run --cwd apps/frontend-transportada test`
 
-### T005 — O CRLV vira ficha de veículo
+### T005 ✅ — O CRLV vira ficha de veículo
 
 Mapa rótulo → campo, com as normalizações: `MARCA / MODELO / VERSÃO` parte no **primeiro** `/`,
 `BRANCA` → `branca`, `ALCOOL/GASOLINA` → flex, `FURGAO` → tpCar `02`, UF fechada em 27.
@@ -99,7 +99,7 @@ O que ele **não** preenche, e o motivo, é tão normativo quanto o que ele pree
 - **Aceite:** os 16 campos medidos mapeados; PBT ignorado; `*` em eixos vira vazio; CPF inválido vira motivo
 - **Verificação:** `bun run --cwd apps/frontend-transportada test`
 
-### T006 — O orquestrador: arquivo entra, ficha e avisos saem
+### T006 ✅ — O orquestrador: arquivo entra, ficha e avisos saem
 
 `File` → `ArrayBuffer` → fragmentos → tipo → campos + avisos. Um caso de uso, sem React, sem rede e
 sem log de PII — nem em `debug`.
@@ -112,7 +112,7 @@ sem log de PII — nem em `debug`.
 
 > 🤖 Modelo: `sonnet`
 
-### T007 — O hook que lê o arquivo
+### T007 ✅ — O hook que lê o arquivo
 
 Estado da leitura (ocioso, lendo, lido, não reconhecido, imagem), o resultado e o erro. Nada de
 `useEffect` para carregar: é evento de arquivo solto.
@@ -121,7 +121,7 @@ Estado da leitura (ocioso, lendo, lido, não reconhecido, imagem), o resultado e
 - **Aceite:** o hook não importa React fora de `useState`; leitura falha não derruba a tela
 - **Verificação:** contrato + smoke da T010
 
-### T008 — A área de soltar, e a marca de origem
+### T008 ✅ — A área de soltar, e a marca de origem
 
 Área de arrastar-e-soltar (com botão de escolher arquivo, porque arrastar não é acessível por
 teclado) no topo do formulário de veículo. O que veio do documento chega **marcado**; editar o campo
@@ -131,7 +131,7 @@ teclado) no topo do formulário de veículo. O que veio do documento chega **mar
 - **Aceite:** teclado alcança o seletor de arquivo; marca some ao editar o campo; nenhum valor hardcoded (tokens do §8)
 - **Verificação:** contrato + smoke da T010
 
-### T009 — Texto em pt e en
+### T009 ✅ — Texto em pt e en
 
 Nenhum texto na tag. Escopo próprio (`documentIntake.locale.json`), com paridade de chaves.
 
@@ -143,7 +143,7 @@ Nenhum texto na tag. Escopo próprio (`documentIntake.locale.json`), com paridad
 
 > 🤖 Modelo: `sonnet`
 
-### T010 — Smoke: o operador solta o PDF e a ficha se preenche
+### T010 ✅ — Smoke: o operador solta o PDF e a ficha se preenche
 
 Playwright no painel, com um CRLV gerado em memória e entregue ao `input[type=file]`. É o teste que
 pega o que typecheck e contrato não pegam: hook depois de `return`, worker que não carrega, campo que
@@ -153,7 +153,17 @@ não recebe o valor.
 - **Aceite:** placa e RENAVAM aparecem preenchidos na tela depois de soltar o arquivo
 - **Verificação:** `cd apps/frontend-transportada && ENV_FILE=../../.env bun run smoke`
 
-### T011 — `evidence.md`
+### T012 ✅ — Placa repetida abre a ficha existente (P2)
+
+A pergunta vai ao servidor, não à lista carregada: a tabela vem paginada e filtrada, e o veículo
+fora da página em memória passaria despercebido. `plateContains` devolve vizinhança, então quem
+decide é a igualdade exata da placa normalizada.
+
+- **Arquivos:** `src/modules/fleet/shared/vehiclePlateMatch.service.ts`, `hooks/useVehiclePlateMatch.hook.ts`, `components/VehicleForm.component.tsx`, `pages/FleetWorkspace.page.tsx`
+- **Aceite:** o aviso nomeia a placa e o botão abre a ficha em modo de edição
+- **Verificação:** contrato + smoke
+
+### T011 ✅ — `evidence.md`
 
 O que rodou, o que passou e **o que ficou de fora**: a conferência contra CRLV real, a fase de CNH, a
 fase de ANTT e o OCR de imagem.
