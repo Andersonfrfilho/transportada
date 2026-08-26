@@ -1,259 +1,320 @@
-# 065 — A carga sai do barracão sabendo o que vai virar
+# 065 — O caminhão sai antes do documento, e o motorista leva o romaneio
 
-> **Emenda a 059** (a prontidão passa a contar os dois caminhos fiscais) e a **061** (receita
-> prevista na montagem, além da realizada no fechamento). Depende da **056** (paradas e estados) e
-> consome a **058** (distância) quando ela existir.
+> **Emenda a 059** (o portão da emissão e a prontidão) e a **061** (receita prevista na montagem).
+> Depende da **056** (paradas e estados) e da **057** (a viagem no bolso do motorista).
 
 ## Problema e resultado
 
-A ordem real da operação é esta:
+A ordem real da operação é esta, e ela não é a que o produto assume:
 
 ```
-separação da carga  →  lote (CT-e e/ou NFS-e)  →  prontidão  →  MDF-e  →  motorista na rua
+NF-e chegam da SEFAZ
+      ↓
+mercadoria chega ao barracão
+      ↓
+separação  →  rotas  →  MOTORISTA SAI NA RUA        ← sem documento fiscal nenhum
+      ↓
+lote de CT-e, autorizado pela contratante
+      ↓
+NFS-e das entregas no município da transportadora
+      ↓
+MDF-e  ← emitido sozinho, assim que passa a ser possível
 ```
 
-Na **separação**, a carga ainda não tem documento fiscal nenhum — nem CT-e, nem NFS-e. É assim que
-funciona: separa-se primeiro, emite-se depois. O produto hoje não sabe disso, e trata a ausência como
-pendência.
+Uma viagem carrega **entregas da mesma cidade e de outras ao mesmo tempo**. Isso não é caso extremo:
+é a carga de todo dia, e é o que faz os dois defeitos abaixo se somarem em vez de se anularem.
 
-E há um problema maior embaixo: **o produto acha que todo frete vira CT-e.** A transportadora fica em
-Ribeirão Preto, e entrega dentro de Ribeirão é serviço municipal — ISS, NFS-e — não transporte
-interestadual. A prontidão fiscal construída na 059 só olha `cte_fiscal_documents`: uma nota de
-entrega urbana ficaria `no_cte` **para sempre**, e a viagem nunca ficaria pronta para manifestar.
-Numa carga mista — parte na cidade, parte fora — isso trava a viagem inteira.
+**O caminhão sai antes de qualquer emissão.** O CT-e é emitido depois, por lote inteiro, e só quando a
+contratante autoriza — não é escolha do barracão, é o combinado comercial. A NFS-e das entregas
+urbanas sai no mesmo momento. O MDF-e, por consequência, nasce por último.
 
-Junto vem o que a operação precisa antes de tudo isso: na montagem da viagem, **quanto ela rende e
-quanto custa**. O valor sai dos mesmos parâmetros que gerariam o documento fiscal, sem gerar
-documento nenhum.
+O produto hoje assume o contrário em dois lugares, e os dois são defeito, não funcionalidade faltando:
 
-**Resultado:** a carga sai do barracão sabendo quanto vale e que documento vai gerar; quando o lote
-sai, a viagem sabe sozinha se pode manifestar; e o manifesto chega à mão do motorista.
+1. **O portão da emissão exige a viagem em `dispatched` exato** (spec 059). Quando o lote é
+   autorizado, a viagem já está `in_transit` ou `completed` — e o portão recusa o caso normal.
+2. **A prontidão só conhece CT-e.** Entrega dentro do município da transportadora vira NFS-e e nunca
+   terá CT-e: a nota ficaria `no_cte` para sempre, e uma carga mista travaria a viagem inteira.
+
+E fica um vazio operacional que ninguém preenche: **entre a saída do caminhão e a autorização do
+MDF-e, o motorista não tem o que mostrar** — nem para conferir a carga, nem para a portaria do
+cliente, nem para si mesmo.
+
+**Resultado:** o motorista sai com um romaneio da carga na mão desde o despacho; quando o lote é
+autorizado e os documentos saem, a viagem sabe sozinha se pode manifestar; e o DAMDFE substitui o
+romaneio no mesmo lugar da tela.
 
 ## Fora do escopo
 
-- **Mudar a emissão** de CT-e, de NFS-e ou de MDF-e. As três funcionam. Esta spec decide *o que* e
-  *quando*, nunca *como*.
-- **Precificar frete ao contratante.** `freight_rules` continua dona do preço; o que nasce aqui é uma
-  dimensão nova de filtro dela.
-- **Encerramento do MDF-e** ao fim da viagem — dívida registrada na 059.
-- **NFS-e fora de Ribeirão Preto.** O provedor configurado é o `notarp`, que é municipal. Transporte
-  intramunicipal em outra cidade precisaria do provedor daquela prefeitura, e isso é spec própria.
+- **Mudar a emissão** de CT-e, de NFS-e ou de MDF-e. As três funcionam.
+- **A autorização da contratante** sobre o lote — `batches.approve` já existe e não é tocado aqui.
+- **Precificar frete.** `freight_rules` continua dona; o que nasce é uma dimensão de filtro dela.
+- **NFS-e fora de Ribeirão Preto.** O provedor `notarp` é municipal; outra cidade é spec própria.
+- **Encerramento do MDF-e** — dívida registrada na 059.
 
 ## Decisões
 
-### D1 — A carga sem documento fiscal é o estado normal da separação, não uma pendência
+### D1 — O romaneio é da carga, e ele **não é documento fiscal** — a tela diz isso
 
-Separar é trabalho de barracão; emitir é trabalho de escritório, e vem depois. Uma tela que mostra
-"10 notas sem CT-e" em vermelho durante a separação está mentindo sobre o que está errado — não há
-nada errado.
+Entre o despacho e o MDF-e o motorista precisa de algo na mão. Esse algo é o **romaneio de carga**:
+veículo, condutor, paradas na ordem, e por parada as notas com chave, número, destinatário, município,
+volumes e peso. Ele nasce no despacho, do que a viagem já sabe, e **não emite nada em lugar nenhum**.
 
-Então a prontidão fiscal **tem fase**: durante `separating` e `loading` ela é informativa e silenciosa
-("nenhum documento emitido ainda"), e só vira cobrança depois que o lote foi gerado. O bloqueio existe
-onde ele importa: na emissão do manifesto.
+Vocês o chamam de "pré-MDF-e", e o nome descreve bem o momento dele. Mas **na tela ele não pode se
+chamar assim**, e essa é a decisão:
 
-### D2 — Quem decide o documento é o município de entrega
+> Um papel intitulado "pré-MDF-e", com veículo, condutor e lista de notas, **parece um DAMDFE**. Numa
+> barreira, parecer é o bastante para alguém apresentá-lo — e apresentar documento que imita fiscal e
+> não é vale mais caro do que não apresentar nada. Ele se chama **"Romaneio de carga"**, e carrega,
+> visível e junto do título, **"não é documento fiscal"**.
 
-| Entrega                       | Documento | Imposto |
-| ----------------------------- | --------- | ------- |
-| No município da empresa       | NFS-e     | ISS     |
-| Em qualquer outro município   | CT-e      | ICMS    |
+O romaneio existe do despacho até o MDF-e ser autorizado. Depois disso o DAMDFE toma o lugar dele **no
+mesmo ponto da tela** — o motorista não aprende dois lugares.
 
-A comparação é por **código IBGE**, nunca por nome — "Ribeirão Preto", "RIBEIRAO PRETO" e "Rib. Preto"
-são a mesma cidade e três strings diferentes. `nfe_addresses.city_code` tem o destino e
-`company_fiscal_profiles.city_ibge_code` tem o da empresa.
+### D2 — O portão da emissão aceita a carga que já saiu, não só a que está saindo
 
-> ⚠️ **Ressalva registrada, e é decisão consciente do mantenedor.** A regra fiscalmente completa é o
-> **par origem→destino**: transporte é municipal quando começa e termina no mesmo município. "Destino
-> = município da empresa" coincide com ela enquanto a coleta for em Ribeirão — que é a operação de
-> hoje. No dia em que houver coleta em outra cidade com entrega em Ribeirão, o trajeto é
-> intermunicipal e o documento correto é **CT-e**, e esta regra erraria.
->
-> A implementação deixa o município de origem já lido e comparável, e a troca para a regra do par é
-> uma condição num arquivo só (`resolveFiscalDocumentKind`). Está escrito aqui para quem ler daqui a
-> um ano saber que foi escolha, não descuido.
+A garantia que o portão protege é: *depois de `dispatched` nenhuma nota entra ou sai, então o conjunto
+declarado no manifesto não pode mudar por baixo dele* (ADR-0043 §2). Essa garantia vale para
+`dispatched`, `in_transit` **e** `completed` — todas são "a carga já saiu".
 
-### D3 — A parametrização de frete ganha município
+Exigir `dispatched` exato, como a 059 faz hoje, recusa justamente o caso normal desta operação: o lote
+é autorizado com o caminhão na rua ou já de volta. O predicado certo já existe no domínio —
+`isTripDispatched()` (spec 056) — e é ele que passa a valer.
 
-Hoje o filtro da regra é `destinationStates` + `senderTaxIds`. Não existe dimensão de município, e sem
-ela não há como cadastrar preço para a entrega urbana — que é justamente o frete que tem outro
-documento, outro imposto e outra margem.
+O que continua recusado é o oposto: manifestar carga que **ainda não saiu**, porque aí a nota
+undécima ainda pode entrar.
 
-Nasce `destinationCityCodes` (IBGE), no mesmo desenho dos outros dois: lista vazia significa "toda
-cidade", e a regra mais específica vence. **O tipo de documento não é parâmetro** — ele decorre da D2.
-Deixar a empresa configurar "esta cidade emite CT-e" seria deixar configurar algo fiscalmente errado.
+### D2b — O MDF-e se emite sozinho assim que passa a ser possível
 
-### D4 — A prontidão conta os dois caminhos, e a nota de NFS-e não entra no manifesto
+O gatilho é a autorização do último CT-e **que a viagem espera** — e "que ela espera" é a parte que
+importa numa carga mista: as notas de entrega urbana nunca terão CT-e, então esperar por elas é
+esperar para sempre. Quem responde "já dá?" é a prontidão corrigida da D4, não a contagem de notas.
 
-O MDF-e declara **CT-e**. Nota cujo serviço foi documentado por NFS-e é transporte municipal: ela não
-vai no manifesto, e **não pode bloqueá-lo**.
+`automatic_mdfe_on_completion` continua **desligado por padrão** para empresa nova — a ADR-0046 §3
+está certa, emissão fiscal automática é ação irreversível contra órgão público e ninguém deve ligá-la
+pelo cliente. O que muda é que, para esta operação, ela é o caminho normal e não a exceção: aqui a
+emissão manual é o contorno de quando o automático não pôde.
 
-A prontidão passa a responder, por nota, qual documento ela espera e onde ele está:
+E **falha de emissão automática nunca é silenciosa**: certificado vencido, mais de 50 municípios,
+manifesto já vivo — cada um vira notificação e fica visível na viagem, com o motivo. Um automático que
+não age e não avisa é pior do que não existir, porque ninguém está mais olhando.
 
-| Nota                    | Espera | Situação                        |
-| ----------------------- | ------ | ------------------------------- |
-| entrega em Sertãozinho  | CT-e   | autorizado → conta no manifesto |
-| entrega em Sertãozinho  | CT-e   | em lote → **bloqueia**          |
-| entrega em Ribeirão     | NFS-e  | autorizada → fora do manifesto  |
-| entrega em Ribeirão     | NFS-e  | não emitida → **não bloqueia**  |
+### D3 — Quem decide o documento é o município de entrega
 
-A última linha é a que mais importa e a menos óbvia: a NFS-e é receita e é obrigação fiscal, mas **não
-é condição do manifesto**. Travar a saída do caminhão porque falta uma nota de serviço municipal é
-travar por um documento que não vai dentro dele. Ela aparece como pendência da viagem, em lugar
-próprio, sem segurar a rua.
+| Entrega                     | Documento | Imposto |
+| --------------------------- | --------- | ------- |
+| No município da empresa     | NFS-e     | ISS     |
+| Em qualquer outro município | CT-e      | ICMS    |
 
-E o caso que a 059 não previa: **viagem cujas notas são todas de entrega urbana não tem MDF-e.** Ela
-não é "incompleta" — ela é `not_applicable`, e a tela diz isso. Ficar incompleta para sempre é como
-uma viagem some da lista sem ninguém entender.
+Comparação por **código IBGE**, nunca por nome — "Ribeirão Preto", "RIBEIRAO PRETO" e "Rib. Preto" são
+a mesma cidade e três strings diferentes.
 
-### D5 — A ordem é a da operação, e cada passo diz o que falta para o próximo
+> ⚠️ **Ressalva registrada, e é escolha consciente do mantenedor.** A regra fiscalmente completa é o
+> **par origem→destino**: transporte é municipal quando começa e termina no mesmo município. "Destino =
+> município da empresa" coincide com ela enquanto a coleta for em Ribeirão — que é a operação de hoje.
+> Havendo coleta em outra cidade com entrega em Ribeirão, o trajeto é intermunicipal e o documento
+> correto é **CT-e**. A implementação deixa o município de origem lido e comparável, e a troca é uma
+> condição num arquivo só (`resolveFiscalDocumentKind`).
 
-1. **Separação** — a carga é montada. A prontidão informa, não cobra (D1).
-2. **Lote** — o operador gera o lote de CT-e e/ou de NFS-e a partir das notas da viagem, **com a
-   classificação já feita**: cada nota já sabe para qual lote ela vai, em vez de o operador separar à
-   mão pelo CNPJ do contratante.
-3. **Prontidão** — quando o lote é gerado e os documentos autorizam, a viagem sabe sozinha se pode
-   manifestar.
-4. **MDF-e** — emitido com o portão da 059.
-5. **Motorista** — o manifesto na mão dele (D6).
+### D4 — A nota de NFS-e não entra no manifesto e não pode bloqueá-lo
 
-O passo 2 é o que hoje é feito por seleção manual: a nota entra no lote de CT-e ou no de NFS-e porque
-alguém decidiu. Com a D2, a decisão é derivada — e o operador confere em vez de escolher.
+**Carga mista é o caso normal**, não a exceção: a mesma viagem entrega em Ribeirão e em Sertãozinho.
+O MDF-e declara **CT-e**; nota de transporte municipal, documentada por NFS-e, não vai dentro dele.
 
-### D6 — O manifesto vai para a mão do motorista
+| Nota                   | Espera | Situação                        |
+| ---------------------- | ------ | ------------------------------- |
+| entrega em Sertãozinho | CT-e   | autorizado → conta no manifesto |
+| entrega em Sertãozinho | CT-e   | em lote → **bloqueia**          |
+| entrega em Ribeirão    | NFS-e  | autorizada → fora do manifesto  |
+| entrega em Ribeirão    | NFS-e  | não emitida → **não bloqueia**  |
 
-O DAMDFE fica acessível na viagem do PWA (spec 057), por URL assinada e curta. O caso é a
-fiscalização em barreira, e ele é o motivo prosaico de tudo isto existir: o manifesto que está no
-sistema e não abre no celular do motorista é o manifesto que ele imprime e leva em papel — e aí o
-produto virou burocracia extra.
+A última linha é a menos óbvia e a que mais importa: a NFS-e é receita e é obrigação, mas **não é
+condição do manifesto**. Ela aparece como pendência da viagem, em lugar próprio.
 
-Vale para a viagem em curso. Manifesto de viagem encerrada continua no escritório.
+E **viagem cujas entregas são todas urbanas não tem MDF-e**: ela é `not_applicable`, não "incompleta".
+Ficar incompleta para sempre é como uma viagem some da lista sem ninguém entender.
 
-### D7 — Na montagem, a viagem já diz quanto rende e quanto custa — e diz que é previsão
+### D5 — A prontidão é informativa até o lote existir, e cobrança depois
 
-A receita prevista sai dos **mesmos parâmetros** que gerariam o documento fiscal, sem emitir nada:
-para cada nota, a regra de frete aplicável (agora com a dimensão de município da D3) dá o valor.
+A carga circula sem documento por decisão comercial, não por atraso. Uma tela que pinta "10 notas sem
+CT-e" de vermelho durante a separação — e durante a viagem inteira — está gritando sobre o que é
+normal, e o operador aprende a ignorar o vermelho. Aí ele ignora também o que importa.
 
-Isto **emenda a D1 da 061**, que diz "receita é o CT-e autorizado, e nada mais". As duas convivem
-porque são números com propósitos diferentes, e a 061 já tem o vocabulário para separá-los:
+Então a prontidão tem dois tons:
 
-| Momento             | Receita                  | `source`    | Para quê                        |
-| ------------------- | ------------------------ | ----------- | ------------------------------- |
-| Viagem aberta       | parâmetros de frete      | `estimated` | decidir se vale montar a viagem |
-| Viagem `completed`  | CT-e/NFS-e autorizados   | `measured`  | comparar histórico e bater com o financeiro |
+- **Antes de existir lote para as notas da viagem**: informativa. "Nenhum documento emitido ainda" com
+  a contagem, sem alarme.
+- **Depois que o lote existe**: cobrança. Aqui a nota sem CT-e autorizado é pendência de verdade —
+  alguém começou a emitir e parou no meio.
+
+### D6 — A parametrização de frete ganha município
+
+Hoje o filtro da regra é `destinationStates` + `senderTaxIds`. Sem dimensão de município não há como
+precificar a entrega urbana — que é justamente a que tem outro documento, outro imposto e outra margem.
+
+Nasce `destinationCityCodes` (IBGE), no mesmo desenho: lista vazia é "toda cidade", e a regra mais
+específica vence. **O tipo de documento não é parâmetro** — ele decorre da D3. Deixar configurar "esta
+cidade emite CT-e" seria deixar configurar algo fiscalmente errado.
+
+### D7 — Na montagem, a viagem diz quanto rende e quanto custa — e diz que é previsão
+
+Como o caminhão sai antes de qualquer emissão, na montagem **não existe receita realizada**: existe
+receita prevista, pelos mesmos parâmetros que gerariam o documento, sem gerar documento nenhum.
+
+Isto emenda a **D1 da 061** ("receita é o CT-e autorizado, e nada mais"). As duas convivem porque são
+números com propósitos diferentes, e a 061 já tem o vocabulário para separá-los:
+
+| Momento            | Receita                | `source`    | Para quê                        |
+| ------------------ | ---------------------- | ----------- | ------------------------------- |
+| Viagem aberta      | parâmetros de frete    | `estimated` | decidir se vale montar a viagem |
+| Viagem `completed` | CT-e/NFS-e autorizados | `measured`  | comparar histórico e bater com o financeiro |
 
 O que a 061 proíbe — e continua proibido — é **somar previsão no relatório de resultado**. Previsão
-serve para decidir hoje; realizado serve para medir ontem. Misturar os dois produz o relatório que
-discorda do financeiro, que é o defeito que a D1 da 061 existe para evitar.
+decide hoje; realizado mede ontem. Misturar produz o relatório que discorda do financeiro, que é o
+defeito que a D1 da 061 existe para evitar.
 
-O custo previsto usa a mesma composição da 061 D2 (motorista por região, combustível por km, outros
-custos por km), com a distância da 058 quando houver e estimada quando não — cada parcela marcada com
-a origem dela. **Nenhuma parcela ausente vira zero silencioso.**
+### D8 — O que o motorista leva funciona sem sinal
+
+O romaneio e, depois, o DAMDFE são justamente o que ele precisa **quando não tem sinal** — barreira em
+rodovia, portaria de cliente, subsolo. Os dois entram no cache da viagem que a 057 já mantém, e não
+dependem de rede no momento de abrir.
 
 ## Histórias priorizadas
 
-**P1 — separar sem documento não é pendência**
-_Dado_ uma viagem em separação, sem CT-e nem NFS-e,
-_quando_ o operador abre a viagem,
-_então_ a prontidão diz "nenhum documento emitido ainda" e não mostra dez linhas vermelhas de erro.
+**P1 — o motorista sai com o romaneio**
+_Dado_ uma viagem despachada, sem documento fiscal nenhum,
+_quando_ o motorista abre a viagem no PWA,
+_então_ vê o romaneio da carga — paradas, notas, destinatários, peso — com "não é documento fiscal" à
+vista, e consegue abrir sem sinal.
 
-**P1 — cada nota já sabe o que vai virar**
-_Dado_ uma carga com entregas em Ribeirão e em Sertãozinho,
-_quando_ o operador monta a viagem,
-_então_ cada nota mostra o documento previsto — NFS-e para a urbana, CT-e para a outra — sem ele
-separar por CNPJ.
+**P1 — o lote autorizado com o caminhão na rua emite o manifesto**
+_Dado_ uma viagem `in_transit` cujo lote de CT-e acabou de autorizar,
+_quando_ o operador emite o MDF-e,
+_então_ ele é emitido — e não recusado por a viagem não estar mais em `dispatched`.
 
 **P1 — a nota de serviço não trava o caminhão**
-_Dado_ uma viagem com CT-e autorizados e uma NFS-e ainda não emitida,
+_Dado_ uma viagem com CT-e autorizados e uma NFS-e urbana ainda não emitida,
 _quando_ a prontidão é consultada,
-_então_ a viagem está pronta para manifestar, e a NFS-e pendente aparece como pendência da viagem —
-não como bloqueio do MDF-e.
+_então_ a viagem está pronta para manifestar, e a NFS-e pendente aparece como pendência da viagem.
 
 **P1 — viagem urbana não manifesta**
 _Dado_ uma viagem cujas entregas são todas no município da empresa,
 _quando_ a prontidão é consultada,
 _então_ ela responde que não há MDF-e a emitir, e a tela não oferece o botão.
 
-**P1 — quanto essa viagem rende**
+**P1 — separar sem documento não é pendência**
+_Dado_ uma viagem em separação, sem lote nenhum,
+_quando_ o operador a abre,
+_então_ a prontidão informa "nenhum documento emitido ainda" sem alarme.
+
+**P1 — o manifesto sai sozinho quando o último CT-e autoriza**
+_Dado_ uma viagem mista, com entregas urbanas e fora, e o último CT-e das notas de fora autorizando,
+_quando_ o consumer processa a autorização,
+_então_ o MDF-e é emitido sozinho — sem esperar pelas notas urbanas, que nunca terão CT-e.
+
+**P1 — o automático que não pôde avisa**
+_Dado_ uma viagem pronta e um certificado vencido,
+_quando_ a emissão automática tenta,
+_então_ ela não acontece, e a viagem mostra o motivo — em vez de ficar esperando calada.
+
+**P2 — o DAMDFE toma o lugar do romaneio**
+_Dado_ o MDF-e autorizado com o motorista na rua,
+_quando_ ele abre a viagem,
+_então_ o DAMDFE está no mesmo lugar onde o romaneio estava.
+
+**P2 — quanto essa viagem rende**
 _Dado_ uma viagem em montagem,
 _quando_ o operador a abre,
-_então_ vê receita prevista, custo previsto e margem — **marcados como previsão**, com a composição à
+_então_ vê receita prevista, custo previsto e margem, **marcados como previsão**, com a composição à
 vista.
 
-**P2 — o motorista abre o manifesto no celular**
-_Dado_ uma viagem despachada com MDF-e autorizado,
-_quando_ o motorista abre a viagem no PWA,
-_então_ o DAMDFE abre para ele, por URL assinada e curta.
-
 **P2 — preço diferente para a entrega urbana**
-_Dado_ uma regra de frete cadastrada para o município de Ribeirão Preto,
+_Dado_ uma regra de frete cadastrada para o município da transportadora,
 _quando_ a nota é avaliada,
 _então_ ela usa essa regra, e não a regra geral da UF.
 
 **P3 — o lote nasce da viagem**
 Gerar o lote de CT-e e o de NFS-e a partir das notas da viagem, cada uma no lote que a classificação
-indica.
+indica, em vez de o operador separar por CNPJ.
 
 ## Requisitos funcionais
 
-1. `resolveFiscalDocumentKind` — módulo puro que decide `cte | nfse` pelo IBGE de destino contra o da
-   empresa, com o de origem já lido e comparável (D2).
-2. `freight_rule_versions.filters` ganha `destinationCityCodes`, validado como IBGE de 7 dígitos, com
-   a mesma semântica de lista vazia dos outros filtros (D3).
-3. A prontidão da 059 passa a: classificar cada nota, exigir CT-e autorizado só das de CT-e, listar as
-   de NFS-e como pendência própria, e responder `not_applicable` quando não há nota de CT-e (D4).
-4. `trips.fiscal_readiness_state` ganha `not_applicable` no vocabulário.
-5. A prontidão é **informativa** em `draft`, `route_planned`, `separating` e `loading`; cobrança só de
-   `dispatched` em diante (D1).
-6. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
+1. O portão da emissão passa a usar `isTripDispatched()` — `dispatched`, `in_transit` e `completed` —
+   em vez de `dispatched` exato (D2).
+2. `resolveFiscalDocumentKind`: módulo puro, `cte | nfse`, pelo IBGE de destino contra o da empresa,
+   com o de origem lido e comparável (D3).
+3. A prontidão classifica cada nota, exige CT-e autorizado só das de CT-e, lista as de NFS-e como
+   pendência própria e responde `not_applicable` quando não há nota de CT-e (D4).
+4. `trips.fiscal_readiness_state` ganha `not_applicable`.
+5. A prontidão distingue "sem lote ainda" de "com lote e faltando documento" (D5).
+6. Romaneio de carga da viagem, com `GET /me/trips/current` carregando o que ele precisa, e o PDF
+   gerado **sem** aparência de documento fiscal (D1).
+7. `freight_rule_versions.filters` ganha `destinationCityCodes`, IBGE de 7 dígitos (D6).
+8. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
    ambos com `source` declarado (D7).
-7. O DAMDFE do manifesto vivo da viagem acessível em `/me/trips/current` (D6).
-8. Texto em `*.locale.json`.
+9. DAMDFE do manifesto vivo acessível na viagem do motorista, substituindo o romaneio (D1, D8).
+10. Evento de autorização de CT-e e consumer que pergunta se a viagem ficou pronta, com a prontidão
+    corrigida da D4 como resposta — idempotente, e com a trava de manifesto vivo resolvendo a corrida
+    (D2b). É a T009/T010 que a 059 deixou aberta.
+11. Notificação em "ficou pronta", "emitido" e "não consegui emitir, e o motivo" (D2b).
+12. Texto em `*.locale.json`.
 
 ## Requisitos não funcionais
 
-- A classificação de uma viagem de 200 notas não faz N+1 — ela sai da mesma consulta da prontidão.
+- A classificação de uma viagem de 200 notas não faz N+1 — sai da mesma consulta da prontidão.
+- A avaliação prevista **nunca** grava documento fiscal, nem rascunho. Teste garante que nenhuma
+  escrita fiscal acontece no caminho.
+- O romaneio e o DAMDFE abrem **sem rede** depois de a viagem ter sido carregada uma vez.
 - Nenhuma chave de acesso nem CNPJ de participante em log.
-- A avaliação prevista **nunca** grava documento fiscal, nem rascunho: ela lê parâmetro e devolve
-  número. Um teste garante que nenhuma escrita fiscal acontece no caminho.
-- O DAMDFE do motorista sai por URL assinada de vida curta, sem tornar o objeto público.
+- O DAMDFE sai por URL assinada de vida curta; o objeto não vira público.
 
 ## Casos extremos e falhas
 
-| Caso                                                        | Comportamento                                                                                     |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Nota sem código IBGE de destino                             | Não classifica: pendência explícita "endereço sem município", nunca um chute para CT-e.            |
-| Empresa sem `city_ibge_code` no perfil fiscal               | A classificação inteira é recusada com código próprio — sem o município da empresa não há regra.   |
-| Viagem mista, CT-e prontos e NFS-e pendente                 | Pronta para manifestar; a NFS-e vira pendência da viagem (D4).                                    |
-| Viagem só de entrega urbana                                 | `not_applicable`; nenhum botão de manifesto.                                                      |
-| Nota com CT-e autorizado **e** entrega no município         | Divergência declarada: o documento emitido contradiz a classificação. Não se cancela nada sozinho. |
-| Regra de frete de município e de UF batendo na mesma nota   | A de município vence — é a mais específica.                                                       |
-| Sem regra de frete aplicável                                | Receita prevista da nota é zero **marcada como ausente**, e a viagem soma o que tem dizendo o que falta. |
-| Manifesto emitido e depois cancelado, motorista na rua      | O PWA para de oferecer o DAMDFE e diz por quê.                                                     |
+| Caso                                                    | Comportamento                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Nota sem código IBGE de destino                         | Não classifica: pendência explícita "endereço sem município", nunca um chute para CT-e.               |
+| Empresa sem `city_ibge_code` no perfil fiscal           | Classificação recusada com código próprio — sem o município da empresa não há regra.                  |
+| Viagem mista com NFS-e pendente                         | Pronta para manifestar; a NFS-e vira pendência da viagem.                                             |
+| Viagem só de entrega urbana                             | `not_applicable`; nenhum botão de manifesto.                                                          |
+| Lote autorizado com a viagem já `completed`             | Emite normalmente (D2). É o caso mais comum desta operação.                                           |
+| Carga mista, CT-e das notas de fora todos autorizados   | O automático dispara **sem** esperar as urbanas — elas nunca terão CT-e (D2b + D4).                   |
+| Carga mista, uma nota de fora ainda sem CT-e            | O automático não dispara. Isso é espera legítima, e a viagem diz qual nota falta.                     |
+| Automático impedido (certificado, 50 municípios)        | Não emite, notifica com o motivo e deixa visível na viagem. Nunca fica esperando calado.              |
+| Nota com CT-e autorizado **e** entrega no município     | Divergência declarada: o documento emitido contradiz a classificação. Nada se cancela sozinho.        |
+| Regra de município e regra de UF na mesma nota          | A de município vence — é a mais específica.                                                           |
+| Sem regra de frete aplicável                            | Receita prevista da nota é zero **marcada como ausente**; a viagem soma o que tem e diz o que falta.  |
+| MDF-e cancelado com o motorista na rua                  | O DAMDFE some da tela dele e o romaneio volta, com o motivo à vista.                                  |
+| Nota desvinculada depois de o romaneio ser gerado       | O romaneio é sempre lido da viagem, nunca congelado — ele reflete o que ela carrega agora.            |
 
 ## Critérios de aceite
 
+- [ ] Teste de que `in_transit` e `completed` emitem manifesto, e que `draft`/`separating`/`loading` não.
+- [ ] Teste de que o automático dispara numa carga mista **sem** esperar as notas urbanas.
+- [ ] Teste de idempotência do consumer, e de que dois eventos simultâneos geram um manifesto só.
+- [ ] Teste de que o automático impedido notifica com o motivo em vez de ficar calado.
 - [ ] Teste de classificação: destino no município → NFS-e; fora → CT-e; sem IBGE → pendência.
 - [ ] Teste de que a NFS-e pendente **não** bloqueia o manifesto.
 - [ ] Teste de viagem só urbana → `not_applicable`, sem oferta de manifesto.
-- [ ] Teste de que a prontidão é silenciosa em `separating`/`loading`.
+- [ ] Teste dos dois tons da prontidão: sem lote versus com lote.
+- [ ] Teste de que o romaneio não é apresentado como documento fiscal — título e aviso presentes.
+- [ ] Teste de que romaneio e DAMDFE abrem sem rede.
 - [ ] Teste do filtro de município na regra de frete, incluindo a precedência sobre a UF.
 - [ ] Teste de que a avaliação prevista não escreve documento fiscal nenhum.
-- [ ] Teste de que a receita prevista sai marcada `estimated` e a realizada `measured`.
-- [ ] Teste de que o DAMDFE do motorista sai por URL assinada e some quando o manifesto é cancelado.
-- [ ] Integração: viagem mista, do barracão ao manifesto, contra Postgres.
-- [ ] ADR (**0047**) — a classificação fiscal por município, com a ressalva da D2 por extenso, e a
-      emenda à D1 da 061.
+- [ ] Integração: viagem mista, do barracão ao manifesto emitido com a viagem já concluída.
+- [ ] ADR (**0047**) — a ordem real da operação, a classificação por município com a ressalva da D3, o
+      romaneio que não é fiscal, e a emenda à D1 da 061.
 - [ ] `tsc --noEmit` + `make validate`.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: o lote de NFS-e hoje agrupa por tomador (uma nota de serviço por tomador). Numa viagem com várias entregas urbanas de tomadores diferentes, nascem N notas de serviço. Confirmar que é isso mesmo, e não uma nota por viagem.]`
-- `[NEEDS CLARIFICATION: entrega urbana entra no MDF-e como NF-e (infNFe) em vez de CT-e? O layout permite manifestar NF-e diretamente. Se a operação exigir MDF-e para a carga urbana, a D4 muda — hoje ela assume que não exige.]`
+- `[NEEDS CLARIFICATION: a carga urbana precisa de MDF-e? O layout permite manifestar NF-e direto (infNFe), sem CT-e. A D4 assume que transporte intramunicipal com NFS-e não exige manifesto. Se exigir, a D4 muda inteira e a viagem urbana passa a manifestar por NF-e.]`
+- `[NEEDS CLARIFICATION: o lote de NFS-e agrupa por tomador — numa viagem com várias entregas urbanas de tomadores diferentes, nascem N notas de serviço. Confirmar que é isso, e não uma nota por viagem.]`
+- `[NEEDS CLARIFICATION: o romaneio precisa de PDF para impressão, ou basta a tela do PWA? Impresso, ele volta a parecer documento — e é o formato que alguém apresenta numa barreira.]`
 
 ## 🤖 Modelo
 
-| Etapa                                                    | Modelo    |
-| -------------------------------------------------------- | --------- |
-| Classificação fiscal, emenda à 059 e à 061, ADR-0047     | `opus` 🧠 |
-| Filtro de município, prontidão, avaliação prevista, testes | `sonnet`  |
-| Painel da montagem e DAMDFE no PWA                       | `sonnet`  |
+| Etapa                                                     | Modelo    |
+| --------------------------------------------------------- | --------- |
+| Ordem da operação, classificação fiscal, emendas, ADR-0047 | `opus` 🧠 |
+| Consumer, concorrência da emissão automática               | `opus` 🧠 |
+| Portão, prontidão, filtro de município, avaliação, testes  | `sonnet`  |
+| Romaneio e DAMDFE no PWA                                  | `sonnet`  |

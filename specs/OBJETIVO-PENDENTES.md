@@ -28,7 +28,7 @@ Vale para toda spec deste plano, sem exceção:
 | **062** | 235     | WhatsApp como canal                     | só `spec.md`                         |
 | **063** | 206     | portal do cliente                       | só `spec.md`                         |
 | **064** | —       | portal do agregado                      | `tasks.md`, sem `evidence.md`        |
-| **065** | 168     | a carga sai do barracão sabendo o que vai virar | só `spec.md` — **corrige defeito da 059** |
+| **065** | 190     | o caminhão sai antes do documento       | só `spec.md` — **corrige dois defeitos da 059** |
 
 ## Ordem, e a razão dela
 
@@ -45,10 +45,18 @@ que lê `arrived_at`/`completed_at` que **nada no sistema escreve** ainda.
 058-P2 (independente)
 ```
 
-**A 065 entrou na frente da 061 e ela é corretiva.** A prontidão que a 059 construiu só conhece CT-e,
-e na operação real parte da carga vira NFS-e — entrega dentro do município da empresa é serviço
-municipal. Do jeito que está, uma nota de entrega urbana ficaria `no_cte` para sempre e a viagem nunca
-manifestaria. Numa carga mista isso trava a viagem inteira, e é defeito, não funcionalidade faltando.
+**A 065 entrou na frente da 061 e ela é corretiva.** A ordem real da operação não é a que a 059
+assume: **o caminhão sai antes de qualquer emissão**. O CT-e é emitido depois, por lote inteiro, e só
+quando a contratante autoriza; a NFS-e das entregas urbanas sai junto; o MDF-e nasce por último. Disso
+saem dois defeitos no que já está no código:
+
+1. **O portão exige `dispatched` exato.** Quando o lote autoriza, a viagem já está `in_transit` ou
+   `completed` — o portão recusa o caso normal.
+2. **A prontidão só conhece CT-e.** Entrega dentro do município da transportadora vira NFS-e e nunca
+   terá CT-e: a nota ficaria `no_cte` para sempre e uma carga mista travaria a viagem inteira.
+
+E há um vazio operacional que ninguém preenche: entre a saída do caminhão e o MDF-e, o motorista não
+tem o que mostrar. A 065 dá a ele o romaneio da carga.
 
 ### 1. 048 — OCR preenche a ficha do veículo
 
