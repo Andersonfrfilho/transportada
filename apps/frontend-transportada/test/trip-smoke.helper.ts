@@ -138,6 +138,44 @@ async function registerEmptyListMock(
   })
 }
 
+/**
+ * Spec 059: o detalhe da viagem consulta a prontidão ao abrir. Sem este mock a requisição escapa
+ * para a API real, que não sobe no smoke — e o `requestfailed` entra em `failures()`.
+ */
+function fiscalReadiness(mode: DocumentsMode) {
+  const authorized = {
+    cteAccessKey: '35260700000000000000570010000000011000000017',
+    cteFiscalDocumentId: '00000000-0000-4000-8000-000000000607',
+    expectedDocument: 'cte',
+    nfeDocumentId: NFE_DOCUMENT_ID,
+    reason: 'ok',
+    rejectionCode: null,
+    rejectionMessage: null,
+    tripDocumentId: AUTHORIZED_DOCUMENT_ID,
+  } as const
+  const pending = {
+    cteAccessKey: null,
+    cteFiscalDocumentId: null,
+    expectedDocument: 'cte',
+    nfeDocumentId: NFE_DOCUMENT_ID,
+    reason: 'no_cte',
+    rejectionCode: null,
+    rejectionMessage: null,
+    tripDocumentId: PENDING_DOCUMENT_ID,
+  } as const
+
+  const documents = mode === 'has-pending' ? [authorized, pending] : [authorized]
+
+  return {
+    documents,
+    manifestableCount: documents.length,
+    nfseCount: 0,
+    readyCount: 1,
+    state: mode === 'has-pending' ? 'incomplete' : 'ready',
+    totalCount: documents.length,
+  } as const
+}
+
 async function registerTripMocks(
   input: Readonly<{ mode: DocumentsMode; page: Page }>,
 ): Promise<void> {
@@ -147,6 +185,13 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, { data: [BASE_TRIP], page: { nextCursor: null } })
+  })
+  await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: fiscalReadiness(input.mode) })
   })
   await input.page.route(/\/trips\/[^/]+$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
