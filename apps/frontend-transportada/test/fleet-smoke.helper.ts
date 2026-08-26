@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { type Page, type Route } from '@playwright/test'
 
+import { VEHICLE_DETAIL } from './fleet/fleet.fixture'
+
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
   'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
@@ -11,7 +13,6 @@ const USER_ID = '00000000-0000-4000-8000-000000000002'
 
 /** Toda listagem da frota responde vazia: o que este smoke exercita é o formulário, não a tabela. */
 const EMPTY_LIST_PATTERNS: readonly RegExp[] = [
-  /\/fleet\/vehicles(?:\?.*)?$/,
   /\/fleet\/drivers(?:\?.*)?$/,
   /\/fleet\/vehicle-catalog\/brands(?:\?.*)?$/,
   /\/fleet\/vehicle-catalog\/models(?:\?.*)?$/,
@@ -62,8 +63,33 @@ async function registerIdentityMock(
   })
 }
 
+/**
+ * Spec 048 P2: só a consulta por placa devolve o veículo. A listagem da tela continua vazia, que é o
+ * caso que importa — a ficha existente está fora da página carregada, e mesmo assim tem de aparecer.
+ */
+async function registerVehicleListMock(
+  input: Readonly<{ page: Page; registeredPlate?: string }>,
+): Promise<void> {
+  await input.page.route(/\/fleet\/vehicles(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const plateContains = new URL(route.request().url()).searchParams.get('plateContains')
+    const matches =
+      input.registeredPlate !== undefined &&
+      plateContains !== null &&
+      input.registeredPlate.includes(plateContains)
+
+    await fulfillJson(route, {
+      data: matches ? [{ ...VEHICLE_DETAIL, plate: input.registeredPlate }] : [],
+      page: { nextCursor: null },
+    })
+  })
+}
+
 export async function mockFleetWorkspaceApi(
-  input: Readonly<{ page: Page; permissions: readonly string[] }>,
+  input: Readonly<{ page: Page; permissions: readonly string[]; registeredPlate?: string }>,
 ): Promise<Readonly<{ failures: () => readonly string[] }>> {
   const failures: string[] = []
   input.page.on('requestfailed', (request) => {
@@ -73,6 +99,10 @@ export async function mockFleetWorkspaceApi(
   })
 
   await registerIdentityMock({ page: input.page, permissions: input.permissions })
+  await registerVehicleListMock({
+    page: input.page,
+    ...(input.registeredPlate === undefined ? {} : { registeredPlate: input.registeredPlate }),
+  })
   await input.page.route(/\/fleet\/capabilities(?:\?.*)?$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)

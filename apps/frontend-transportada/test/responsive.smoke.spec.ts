@@ -933,3 +933,28 @@ test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada',
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
 })
+
+/** Spec 048 P2: a ficha que já existe se abre, em vez de o cadastro novo morrer na unicidade. */
+test('CRLV de veículo já cadastrado oferece abrir a ficha existente', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  await mockFleetWorkspaceApi({
+    page,
+    permissions: ['fleet.read', 'fleet.manage'],
+    registeredPlate: 'GCQ8E47',
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Novo veículo' }).click()
+  await page.getByLabel('Preencher pelo documento').setInputFiles({
+    buffer: Buffer.from(buildCrlvPdf()),
+    mimeType: 'application/pdf',
+    name: 'crlv.pdf',
+  })
+
+  await expect(page.getByText('A placa GCQ8E47 já está cadastrada nesta frota.')).toBeVisible()
+  await page.getByRole('button', { name: 'Abrir a ficha existente' }).click()
+  await expect(page.getByRole('heading', { name: 'Editar veículo' })).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})

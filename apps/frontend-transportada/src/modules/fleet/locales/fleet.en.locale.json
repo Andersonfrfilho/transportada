@@ -69,6 +69,8 @@
   "driversTitle": "Drivers",
   "newVehicle": "New vehicle",
   "editVehicle": "Edit vehicle",
+  "documentPlateTaken": "Plate {{plate}} is already registered in this fleet.",
+  "documentPlateTakenAction": "Open the existing record",
   "newDriver": "New driver",
   "editDriver": "Edit driver",
   "edit": "Edit",

@@ -76,6 +76,7 @@ function FleetEditorPanel({
   driverVehicles,
   editor,
   onClose,
+  onEditVehicle,
   vehicleCatalog,
   vehicles,
   workspace,
@@ -84,6 +85,7 @@ function FleetEditorPanel({
   driverVehicles: DriverVehiclesController
   editor: FleetEditor
   onClose: () => void
+  onEditVehicle: (vehicle: FleetVehicleDetail) => void
   vehicleCatalog: VehicleCatalogController
   vehicles: readonly FleetVehicleDetail[]
   workspace: FleetWorkspace
@@ -99,6 +101,7 @@ function FleetEditorPanel({
         drivers={workspace.viewModel.driverDirectory ?? []}
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
+        onEditVehicle={onEditVehicle}
         onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdateDriver={(input) => workspace.updateDriverMutation.mutateAsync(input)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
@@ -342,6 +345,7 @@ export function FleetWorkspacePage() {
           driverRegions={driverRegions}
           driverVehicles={driverVehicles}
           editor={editor}
+          onEditVehicle={(vehicle) => setEditor({ kind: 'vehicle', vehicle })}
           vehicleCatalog={vehicleCatalog}
           vehicles={vehicles}
           workspace={workspace}

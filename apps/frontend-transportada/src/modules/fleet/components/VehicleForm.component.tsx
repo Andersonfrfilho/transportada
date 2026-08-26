@@ -9,6 +9,7 @@ import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
+import { useVehiclePlateMatch } from '../hooks/useVehiclePlateMatch.hook'
 import type {
   FleetDriverBody,
   FleetDriverCreateBody,
@@ -35,6 +36,8 @@ type VehicleFormProps = Readonly<{
   catalog: VehicleCatalogController
   drivers: readonly FleetDriverDetail[]
   onCancel: () => void
+  /** Spec 048 P2: a ficha que já existe se abre, em vez de o cadastro novo morrer na unicidade. */
+  onEditVehicle: (vehicle: FleetVehicleDetail) => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
@@ -49,6 +52,7 @@ export function VehicleForm({
   onCancel,
   onCreate,
   onCreateDriver,
+  onEditVehicle,
   onUpdateDriver,
   onUpdate,
   vehicle,
@@ -56,6 +60,7 @@ export function VehicleForm({
 }: VehicleFormProps) {
   const { t } = useTranslation('fleet')
   const { panelRef } = useRevealedPanel<HTMLFormElement>()
+  const plateMatch = useVehiclePlateMatch()
   const form = useVehicleForm({
     onCreate,
     onSaved: onCancel,
@@ -72,7 +77,29 @@ export function VehicleForm({
   return (
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
-      <DocumentIntakeDropZone onApply={(result) => form.applyDocument(result.values)} />
+      <DocumentIntakeDropZone
+        onApply={(result) => {
+          form.applyDocument(result.values)
+          if (vehicle === undefined) plateMatch.find(result.values.plate ?? '')
+        }}
+      />
+      {plateMatch.match === null ? null : (
+        <FleetFeedback isError={false}>
+          {t('documentPlateTaken', { plate: plateMatch.match.plate })}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              const existing = plateMatch.match
+              plateMatch.dismiss()
+              if (existing !== null) onEditVehicle(existing)
+            }}
+          >
+            <Icon name="edit" />
+            {t('documentPlateTakenAction')}
+          </Button>
+        </FleetFeedback>
+      )}
       <VehicleIdentityFields
         documentFields={form.documentFields}
         state={form.state}

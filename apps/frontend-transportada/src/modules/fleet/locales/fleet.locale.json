@@ -69,6 +69,8 @@
   "driversTitle": "Motoristas",
   "newVehicle": "Novo veículo",
   "editVehicle": "Editar veículo",
+  "documentPlateTaken": "A placa {{plate}} já está cadastrada nesta frota.",
+  "documentPlateTakenAction": "Abrir a ficha existente",
   "newDriver": "Novo motorista",
   "editDriver": "Editar motorista",
   "edit": "Editar",
