@@ -14,6 +14,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import {
   companies,
   companyFiscalProfiles,
+  cteBatchItemCharges,
   cteBatchItems,
   cteBatches,
   cteFiscalDocuments,
@@ -35,7 +36,9 @@ import {
 } from '../../src/database/database.schema.js'
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
 import { readTripFiscalReadiness } from '../../src/trips/application/read-trip-fiscal-readiness.use-case.js'
+import { readTripValuation } from '../../src/trips/application/read-trip-valuation.use-case.js'
 import { setTripMdfeRequirement } from '../../src/trips/application/set-trip-mdfe-requirement.use-case.js'
+import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
 
 const databaseUrl =
@@ -273,6 +276,36 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
     })
   })
 
+
+  /**
+   * Spec 065 D7: a avaliação atravessa **os dois** caminhos de vínculo e um subselect de encargos.
+   * Dublê nenhum prova isso — o `join` errado aqui não quebra: ele precifica a nota errada.
+   */
+  testWithPostgres('a avaliação separa o que já foi emitido do que é previsão', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedTrip(database)
+      const query = new DrizzleTripValuationQuery(database.db)
+
+      const valuation = await readTripValuation({
+        companyId: world.companyId,
+        repository: {
+          // Nenhuma regra cadastrada no mundo semeado: o que sobra é a previsão ausente, por nome.
+          findApplicableRule: () => Promise.resolve(null),
+          readContext: (call) => query.readContext(call),
+        },
+        tripId: world.tripId,
+      })
+
+      // Só a nota com CT-e autorizado tem encargo a somar; as outras três não são receita.
+      expect(valuation.totalRevenue).toBe('137.5000')
+      expect(valuation.revenueSource).toBe('missing')
+      expect(valuation.revenueLines).toHaveLength(4)
+      expect(
+        valuation.revenueLines.filter((line) => line.source === 'measured'),
+      ).toHaveLength(1)
+      expect(valuation.hasGaps).toBe(true)
+    })
+  })
 })
 
 function eqCompany(companyId: string) {
@@ -522,6 +555,18 @@ async function seedTrip(database: TestDatabase): Promise<World> {
       id: batchItemId,
       nfeDocumentId,
       position: BigInt(index + 1),
+    })
+
+    /** Spec 065 D7: o valor **medido** da nota é a soma dos encargos do item, e ele só vale com CT-e autorizado. */
+    await database.db.insert(cteBatchItemCharges).values({
+      amount: '137.5000',
+      baseAmount: '1000.0000',
+      calculationType: 'percentage_of_cargo',
+      companyId,
+      rate: '0.137500',
+      itemId: batchItemId,
+      label: 'Frete',
+      ordinal: 1n,
     })
 
     const attemptId = crypto.randomUUID()
