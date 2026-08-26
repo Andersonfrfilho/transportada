@@ -487,6 +487,7 @@ export async function startWorkerRuntime(
   let jobRunProvider: RabbitMqProvider | undefined
   let notificationConsumer: RuntimeConsumer | undefined
   let routeOptimizationConsumer: RuntimeConsumer | undefined
+  let routeOptimizationProvider: RabbitMqProvider | undefined
   let notificationProvider: RabbitMqProvider | undefined
 
   try {
@@ -955,7 +956,7 @@ export async function startWorkerRuntime(
     if (config.routingMatrixUrl === undefined) {
       logger.warn('route_optimization_consumer_disabled', { reason: 'ROUTING_MATRIX_URL missing' })
     } else {
-      const routeOptimizationProvider = await createRabbitMqProvider({
+      routeOptimizationProvider = await createRabbitMqProvider({
         connection: config.rabbitMqUrl,
         topology: routeOptimizationTopology,
       })
@@ -1117,6 +1118,11 @@ export async function startWorkerRuntime(
     passwordResetDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
+        /**
+         * A conexão do roteirizador fecha com as demais. Deixá-la aberta mantém o processo vivo
+         * depois do SIGTERM — o dreno nunca termina, e o orquestrador acaba matando à força.
+         */
+        ...(routeOptimizationProvider === undefined ? [] : [routeOptimizationProvider]),
         relayLoop,
         cteRelayLoop,
         mdfeRelayLoop,
