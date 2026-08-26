@@ -152,6 +152,7 @@ import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizz
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
 import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
 import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastructure/drizzle-automatic-manifest.repository'
@@ -1118,6 +1119,14 @@ function createApplicationRoutes({
       readFiscalReadiness: {
         execute: (input) =>
           readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+      },
+      setMdfeRequirement: {
+        execute: (input) =>
+          setTripMdfeRequirement({
+            ...input,
+            readinessRepository: tripFiscalReadinessQuery,
+            repository: tripFiscalReadinessQuery,
+          }),
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },

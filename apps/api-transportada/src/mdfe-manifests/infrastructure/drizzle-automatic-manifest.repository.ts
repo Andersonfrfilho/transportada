@@ -23,17 +23,17 @@ export class DrizzleAutomaticManifestRepository implements AutomaticManifestTrip
     },
   ) {}
 
-  public async findStatus(input: {
+  public async findTrip(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<TripStatus | null> {
+  }): Promise<{ readonly requiresMdfe: boolean | null; readonly status: TripStatus } | null> {
     const [trip] = await this.dependencies.database
-      .select({ status: trips.status })
+      .select({ requiresMdfe: trips.requiresMdfe, status: trips.status })
       .from(trips)
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
       .limit(1)
 
-    return trip?.status ?? null
+    return trip ?? null
   }
 
   /**

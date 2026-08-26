@@ -49,10 +49,12 @@ type RouteDependencies = {
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
+  readonly setMdfeRequirement: { execute(input: ExecuteCall): Promise<unknown> }
 }
 
 type CreateFixtureParams = {
   readonly batchStatusError?: Error
+  readonly setMdfeRequirementError?: Error
   readonly batchStatusResult?: unknown
   readonly cancelTripError?: Error
   readonly closeTripError?: Error
@@ -113,6 +115,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly reorderStopsCalls: ExecuteCall[]
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
+  readonly setMdfeRequirementCalls: ExecuteCall[]
 }> {
   const batchStatusCalls: ExecuteCall[] = []
   const cancelTripCalls: ExecuteCall[] = []
@@ -129,6 +132,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const loadTripDocumentCalls: ExecuteCall[] = []
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
+  const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
   const returnTripDocumentCalls: ExecuteCall[] = []
@@ -264,6 +268,18 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         }
       },
     },
+    setMdfeRequirement: {
+      async execute(input) {
+        setMdfeRequirementCalls.push(structuredClone(input))
+        if (params.setMdfeRequirementError) throw params.setMdfeRequirementError
+        return {
+          effectiveRequiresMdfe: input.requiresMdfe ?? true,
+          manifestableCount: 2,
+          reason: input.reason ?? null,
+          requiresMdfe: input.requiresMdfe ?? null,
+        }
+      },
+    },
     planTripRoute: {
       async execute(input) {
         planTripRouteCalls.push(structuredClone(input))
@@ -332,6 +348,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     planTripRouteCalls,
     releaseTripDocumentCalls,
     reorderStopsCalls,
+    setMdfeRequirementCalls,
     returnTripDocumentCalls,
     separateTripDocumentCalls,
   }

@@ -35,6 +35,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
 import { readTripFiscalReadiness } from '../../src/trips/application/read-trip-fiscal-readiness.use-case.js'
+import { setTripMdfeRequirement } from '../../src/trips/application/set-trip-mdfe-requirement.use-case.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
 
 const databaseUrl =
@@ -61,6 +62,7 @@ type World = {
   readonly companyId: string
   readonly tripDocumentIdByOutcome: ReadonlyMap<Outcome, string>
   readonly tripId: string
+  readonly userId: string
   readonly vehicleId: string
 }
 
@@ -205,6 +207,72 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
       })
     })
   })
+
+  /**
+   * Spec 065 D4c: a dispensa é sobrescrita assinada. Aqui o que se prova é o que dublê nenhum
+   * prova — que o `UPDATE` filtra o tenant, que a trilha entra junto, e que o CHECK da tabela
+   * recusa motivo pendurado em quem não dispensou nada.
+   */
+  testWithPostgres('a dispensa de MDF-e grava com trilha e volta ao derivado', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedTrip(database)
+      const repository = new DrizzleTripFiscalReadinessQuery(database.db)
+
+      const dispensed = await setTripMdfeRequirement({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        readinessRepository: repository,
+        reason: 'frota própria, carga retorna hoje',
+        repository,
+        requiresMdfe: false,
+        tripId: world.tripId,
+      })
+
+      expect(dispensed.effectiveRequiresMdfe).toBe(false)
+      const [afterDispense] = await database.db
+        .select({
+          actorUserId: trips.requiresMdfeActorUserId,
+          reason: trips.requiresMdfeReason,
+          requiresMdfe: trips.requiresMdfe,
+          setAt: trips.requiresMdfeSetAt,
+        })
+        .from(trips)
+        .where(eq(trips.id, world.tripId))
+      expect(afterDispense).toMatchObject({
+        actorUserId: world.userId,
+        reason: 'frota própria, carga retorna hoje',
+        requiresMdfe: false,
+      })
+      expect(afterDispense?.setAt).not.toBeNull()
+
+      await setTripMdfeRequirement({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        readinessRepository: repository,
+        reason: null,
+        repository,
+        requiresMdfe: null,
+        tripId: world.tripId,
+      })
+
+      const [afterReset] = await database.db
+        .select({
+          actorUserId: trips.requiresMdfeActorUserId,
+          reason: trips.requiresMdfeReason,
+          requiresMdfe: trips.requiresMdfe,
+          setAt: trips.requiresMdfeSetAt,
+        })
+        .from(trips)
+        .where(eq(trips.id, world.tripId))
+      expect(afterReset).toEqual({
+        actorUserId: null,
+        reason: null,
+        requiresMdfe: null,
+        setAt: null,
+      })
+    })
+  })
+
 })
 
 function eqCompany(companyId: string) {
@@ -496,7 +564,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     })
   }
 
-  return { companyId, tripDocumentIdByOutcome, tripId, vehicleId }
+  return { companyId, tripDocumentIdByOutcome, tripId, userId, vehicleId }
 }
 
 async function withDisposableDatabase(

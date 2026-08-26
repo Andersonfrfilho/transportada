@@ -41,10 +41,11 @@ export type AutomaticManifestResult = {
 
 export type AutomaticManifestTripPort = {
   /** `null` quando a viagem não existe nesta empresa. */
-  findStatus(input: {
+  /** Status **e** sobrescrita de MDF-e: as duas decidem o portão, e vêm da mesma linha. */
+  findTrip(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<TripStatus | null>
+  }): Promise<{ readonly requiresMdfe: boolean | null; readonly status: TripStatus } | null>
   isAutomaticEnabled(input: { readonly companyId: string }): Promise<boolean>
   readReadiness(input: {
     readonly companyId: string
@@ -65,8 +66,8 @@ export async function issueTripManifestAutomatically(
   input: IssueTripManifestAutomaticallyInput,
 ): Promise<AutomaticManifestResult> {
   const companyId = input.context.companyId
-  const tripStatus = await input.repository.findStatus({ companyId, tripId: input.tripId })
-  if (tripStatus === null) return refuse('not_eligible', 'TRIP_NOT_FOUND')
+  const trip = await input.repository.findTrip({ companyId, tripId: input.tripId })
+  if (trip === null) return refuse('not_eligible', 'TRIP_NOT_FOUND')
 
   if (!(await input.repository.isAutomaticEnabled({ companyId }))) {
     return refuse('automatic_disabled', null)
@@ -76,7 +77,14 @@ export async function issueTripManifestAutomatically(
   if (readiness.state === 'manifested' || readiness.state === 'divergent') {
     return refuse('already_manifested', null)
   }
-  if (!shouldIssueAutomatically({ isAutomaticEnabled: true, readiness, tripStatus })) {
+  if (
+    !shouldIssueAutomatically({
+      isAutomaticEnabled: true,
+      readiness,
+      requiresMdfe: trip.requiresMdfe,
+      tripStatus: trip.status,
+    })
+  ) {
     return refuse('not_eligible', null)
   }
 

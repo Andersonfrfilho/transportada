@@ -34,6 +34,9 @@ export type Trip = {
   readonly companyId: string
   readonly createdAt: string
   readonly id: string
+  /** Spec 065 D4c: `null` significa "derive da classificação das notas" — não "não precisa". */
+  readonly requiresMdfe: boolean | null
+  readonly requiresMdfeReason: null | string
   readonly status: TripStatus
   readonly updatedAt: string
   readonly vehicleId: string

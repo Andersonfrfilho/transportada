@@ -33,13 +33,18 @@ function buildWorld(
     readonly createError?: unknown
     readonly isAutomaticEnabled?: boolean
     readonly state?: TripFiscalReadinessSnapshot['state']
+    readonly tripRequiresMdfe?: boolean | null
     readonly tripStatus?: TripStatus | null
   } = {},
 ) {
   const createCalls: object[] = []
   const repository: AutomaticManifestTripPort = {
-    findStatus: () =>
-      Promise.resolve(input.tripStatus === undefined ? 'in_transit' : input.tripStatus),
+    findTrip: () => {
+      const status = input.tripStatus === undefined ? 'in_transit' : input.tripStatus
+      return Promise.resolve(
+        status === null ? null : { requiresMdfe: input.tripRequiresMdfe ?? null, status },
+      )
+    },
     isAutomaticEnabled: () => Promise.resolve(input.isAutomaticEnabled ?? true),
     readReadiness: () => Promise.resolve(readiness(input.state ?? 'ready')),
   }

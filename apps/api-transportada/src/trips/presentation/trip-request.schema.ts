@@ -102,3 +102,17 @@ export const overrideDeliveryAddressSchema = z
   .strict()
 
 export type OverrideDeliveryAddressBody = z.infer<typeof overrideDeliveryAddressSchema>
+
+/**
+ * Spec 065 D4c: `null` é o padrão e volta a derivar da classificação, então ele é **valor legítimo
+ * do corpo**, não ausência. `.nullable()` sem `.optional()` obriga quem chama a dizer qual dos três
+ * estados quer.
+ */
+export const setTripMdfeRequirementSchema = z
+  .object({
+    reason: z.string().trim().min(1).nullable().default(null),
+    requiresMdfe: z.boolean().nullable(),
+  })
+  .strict()
+
+export type SetTripMdfeRequirementBody = z.infer<typeof setTripMdfeRequirementSchema>

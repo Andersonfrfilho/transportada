@@ -42,6 +42,8 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
   documents: [],
   drivers: [],
   id: TRIP_ID,
+  requiresMdfe: null,
+  requiresMdfeReason: null,
   status: 'draft',
   stops: [],
   updatedAt: '2026-08-01T10:00:00.000Z',

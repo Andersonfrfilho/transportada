@@ -94,6 +94,14 @@ export const trips = pgTable(
       .$type<TripFiscalReadinessState>()
       .notNull()
       .default('incomplete'),
+    /**
+     * Spec 065 D4c: **três estados**. `null` é o padrão e significa "derive da classificação" —
+     * quem sobrescreve assume, e o motivo da dispensa fica ao lado.
+     */
+    requiresMdfe: boolean('requires_mdfe'),
+    requiresMdfeReason: text('requires_mdfe_reason'),
+    requiresMdfeActorUserId: uuid('requires_mdfe_actor_user_id'),
+    requiresMdfeSetAt: timestamp('requires_mdfe_set_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -122,6 +130,28 @@ export const trips = pgTable(
     ),
     /** O semáforo da lista: filtrar "prontas para manifestar" sem varrer o fiscal da empresa. */
     index('trips_company_fiscal_readiness_idx').on(table.companyId, table.fiscalReadinessState),
+    foreignKey({
+      columns: [table.requiresMdfeActorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trips_requires_mdfe_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * O motivo só existe para a dispensa: `true` e `null` não têm o que justificar. Quem forçar
+     * `false` sem motivo é recusado pela política, que conhece a classificação das notas — o banco
+     * garante só a coerência da forma.
+     */
+    check(
+      'trips_requires_mdfe_reason_check',
+      sql`(${table.requiresMdfeReason} is null) or (${table.requiresMdfe} = false)`,
+    ),
+    /** Sobrescrita sem autor e sem data é trilha que não conta quem assinou. */
+    check(
+      'trips_requires_mdfe_trail_check',
+      sql`(${table.requiresMdfe} is null) = (${table.requiresMdfeActorUserId} is null)
+        and (${table.requiresMdfe} is null) = (${table.requiresMdfeSetAt} is null)`,
+    ),
   ],
 )
 

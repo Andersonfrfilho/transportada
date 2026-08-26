@@ -35,6 +35,7 @@ export type TripLookupPort = {
   get(input: { readonly context: MdfeManifestCompanyContext; readonly tripId: string }): Promise<{
     readonly drivers: readonly { readonly driverId: string }[]
     readonly id: string
+    readonly requiresMdfe: boolean | null
     readonly status: TripStatus
     readonly vehicleId: string
   }>
@@ -76,6 +77,7 @@ export function createTripMdfeManifestUseCase(dependencies: {
           tripId,
         }),
         readiness: snapshot,
+        requiresMdfe: trip.requiresMdfe,
         tripStatus: trip.status,
       })
       if (block !== null) throw toManifestError({ block, snapshot })

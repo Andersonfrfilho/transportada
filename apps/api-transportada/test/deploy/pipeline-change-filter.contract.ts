@@ -108,9 +108,12 @@ describe('contrato do filtro de mudança do pipeline', () => {
   test('baseline ausente ou inalcançável publica todos os alvos', async () => {
     const script = await read(FILTER_SCRIPT_PATH)
 
-    expect(script).toContain("emit_all 'baseline ausente")
+    // O baseline passou a ser por alvo (`refs/deploy/<env>/<alvo>`), então a dúvida também é por
+    // alvo: cada um publica sozinho, e só o caso "sem marco nenhum" ainda publica todos de uma vez.
+    expect(script).toContain("emit_all 'sem marco de deploy e sem baseline")
     expect(script).toContain('git cat-file -e')
-    expect(script).toContain("emit_all 'git diff falhou'")
+    expect(script).toContain('sem baseline utilizável — publica')
+    expect(script).toContain('git diff falhou contra $baseline — publica')
   })
 
   /** Erro de `git` engolido vira "nada mudou" — foi assim que o tema de login sumiu. */

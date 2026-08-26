@@ -32,6 +32,7 @@ import type {
   TripStopSummary,
 } from '../application/list-trip-stops.use-case.js'
 import type { CreateTripCteBatchResult } from '../application/create-trip-cte-batch.use-case.js'
+import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -51,6 +52,7 @@ import {
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
   parseOverrideDeliveryAddressRequest,
+  parseSetTripMdfeRequirementRequest,
   parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
@@ -78,6 +80,7 @@ const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
 const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 /** Spec 059 D1: a prontidão é **consulta**, e por isso ela é uma rota de leitura, não uma coluna. */
 const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
+const TRIP_MDFE_REQUIREMENT_PATH = `${API_TRIPS_PATH}/:id/mdfe-requirement`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -175,6 +178,15 @@ type Dependencies = {
       readonly tripId: string
       readonly userId: string
     }): Promise<AutomaticManifestResult>
+  }
+  readonly setMdfeRequirement: {
+    execute(input: {
+      readonly actorUserId: string
+      readonly companyId: string
+      readonly reason: null | string
+      readonly requiresMdfe: boolean | null
+      readonly tripId: string
+    }): Promise<TripMdfeRequirement>
   }
   readonly readFiscalReadiness: {
     execute(input: {
@@ -294,6 +306,31 @@ export function createTripRoutes(
       }),
       pathname: TRIP_FISCAL_READINESS_PATH,
       policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<{ readonly reason: null | string; readonly requiresMdfe: boolean | null; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.setMdfeRequirement.execute({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          reason: input.reason,
+          requiresMdfe: input.requiresMdfe,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'PUT',
+      async parse({ pathParameters, request }) {
+        const body = await parseSetTripMdfeRequirementRequest(request)
+        return {
+          reason: body.reason,
+          requiresMdfe: body.requiresMdfe,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_MDFE_REQUIREMENT_PATH,
+      // Dispensar manifesto é decisão fiscal, com multa do outro lado — não é separação de carga.
+      policy: MDFE_MANAGE_POLICY,
     }),
     defineRoute<Omit<GetTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -608,6 +645,8 @@ function serializeTrip(trip: Trip): object {
     companyId: trip.companyId,
     createdAt: trip.createdAt,
     id: trip.id,
+    requiresMdfe: trip.requiresMdfe,
+    requiresMdfeReason: trip.requiresMdfeReason,
     status: trip.status,
     updatedAt: trip.updatedAt,
     vehicleId: trip.vehicleId,

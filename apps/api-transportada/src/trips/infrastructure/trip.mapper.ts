@@ -22,6 +22,8 @@ export function mapTrip(record: TripRecord): Trip {
     companyId: record.companyId,
     createdAt: record.createdAt.toISOString(),
     id: record.id,
+    requiresMdfe: record.requiresMdfe,
+    requiresMdfeReason: record.requiresMdfeReason,
     status: record.status,
     updatedAt: record.updatedAt.toISOString(),
     vehicleId: record.vehicleId,

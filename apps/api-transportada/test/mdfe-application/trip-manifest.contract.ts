@@ -95,6 +95,7 @@ type FixtureParams = {
   readonly dischargeCityCount?: number
   readonly readinessState?: TripFiscalReadinessSnapshot['state']
   readonly tripDriverIds?: readonly string[]
+  readonly tripRequiresMdfe?: boolean | null
   readonly tripStatus?: TripStatus
 }
 
@@ -138,6 +139,7 @@ function createFixture(params: FixtureParams = {}) {
           driverId,
         })),
         id: TRIP_ID,
+        requiresMdfe: params.tripRequiresMdfe ?? null,
         status: params.tripStatus ?? 'dispatched',
         vehicleId: VEHICLE_ID,
       }

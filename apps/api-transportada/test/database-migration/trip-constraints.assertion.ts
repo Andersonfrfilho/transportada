@@ -82,6 +82,35 @@ export async function assertTripConstraints(
     'trips_status_check',
   )
 
+  // Spec 065 D4c: motivo so existe para a dispensa, e sobrescrita sem autor nao conta quem assinou.
+  await expectQueryToFail(
+    database`
+      update trips
+      set requires_mdfe = true, requires_mdfe_reason = 'sem sentido',
+          requires_mdfe_actor_user_id = ${userId}, requires_mdfe_set_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_requires_mdfe_reason_check',
+  )
+  await expectQueryToFail(
+    database`update trips set requires_mdfe = true where id = ${tripId}`,
+    '23514',
+    'trips_requires_mdfe_trail_check',
+  )
+  await database`
+    update trips
+    set requires_mdfe = false, requires_mdfe_reason = 'frota propria',
+        requires_mdfe_actor_user_id = ${userId}, requires_mdfe_set_at = now()
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set requires_mdfe = null, requires_mdfe_reason = null,
+        requires_mdfe_actor_user_id = null, requires_mdfe_set_at = null
+    where id = ${tripId}
+  `
+
   await database`
     insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position)
     values (${companyId}, ${tripId}, ${driverId}, 'Motorista Titular', '12345678901', 1)

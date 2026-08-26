@@ -202,6 +202,31 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
 
     return manifest !== undefined
   }
+
+  /**
+   * O `UPDATE` filtra o tenant por construção. Voltar a `null` limpa a trilha junto — sobrescrita
+   * revogada não deixa autor pendurado, e o CHECK da tabela recusaria o par incoerente de qualquer
+   * jeito.
+   */
+  public async saveRequirement(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly reason: null | string
+    readonly requiresMdfe: boolean | null
+    readonly tripId: string
+  }): Promise<void> {
+    const isOverridden = input.requiresMdfe !== null
+    await this.database
+      .update(trips)
+      .set({
+        requiresMdfe: input.requiresMdfe,
+        requiresMdfeActorUserId: isOverridden ? input.actorUserId : null,
+        requiresMdfeReason: input.reason,
+        requiresMdfeSetAt: isOverridden ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+  }
 }
 
 type ReadinessRow = {

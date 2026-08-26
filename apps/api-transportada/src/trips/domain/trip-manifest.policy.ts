@@ -3,6 +3,7 @@
  */
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
+import { resolveTripRequiresMdfe } from './trip-mdfe-requirement.policy.js'
 import { isTripDispatched } from './trip-state.policy.js'
 
 /**
@@ -26,6 +27,8 @@ export const TRIP_MANIFEST_BLOCKS = {
   tripNotDispatched: 'TRIP_MANIFEST_TRIP_NOT_DISPATCHED',
   /** Falta CT-e autorizado em alguma nota — a readiness diz em qual e por quê. */
   readinessIncomplete: 'TRIP_MANIFEST_READINESS_INCOMPLETE',
+  /** Spec 065 D4c: a viagem não manifesta — por classificação ou porque alguém dispensou. */
+  manifestNotRequired: 'TRIP_MANIFEST_NOT_REQUIRED',
 } as const
 
 export type TripManifestBlock = (typeof TRIP_MANIFEST_BLOCKS)[keyof typeof TRIP_MANIFEST_BLOCKS]
@@ -35,6 +38,8 @@ export const MAX_DISCHARGE_CITIES_PER_MANIFEST = 50
 export type CheckTripAcceptsManifestParams = {
   readonly dischargeCityCount: number
   readonly readiness: TripFiscalReadinessSnapshot
+  /** `null` é o padrão e significa "derive da classificação" (spec 065 D4c). */
+  readonly requiresMdfe?: boolean | null
   readonly tripStatus: TripStatus
 }
 
@@ -49,6 +54,15 @@ export function checkTripAcceptsManifest(
   if (!isTripDispatched(input.tripStatus)) return TRIP_MANIFEST_BLOCKS.tripNotDispatched
   if (input.readiness.state === 'manifested' || input.readiness.state === 'divergent') {
     return TRIP_MANIFEST_BLOCKS.manifestAlreadyLive
+  }
+  // Depois do manifesto vivo, porque "já existe um" é resposta mais acionável que "não precisa".
+  if (
+    !resolveTripRequiresMdfe({
+      manifestableCount: input.readiness.manifestableCount,
+      requiresMdfe: input.requiresMdfe ?? null,
+    })
+  ) {
+    return TRIP_MANIFEST_BLOCKS.manifestNotRequired
   }
   if (input.readiness.state !== 'ready') return TRIP_MANIFEST_BLOCKS.readinessIncomplete
   if (input.dischargeCityCount > MAX_DISCHARGE_CITIES_PER_MANIFEST) {
@@ -68,6 +82,7 @@ export function checkTripAcceptsManifest(
 export function shouldIssueAutomatically(input: {
   readonly isAutomaticEnabled: boolean
   readonly readiness: TripFiscalReadinessSnapshot
+  readonly requiresMdfe?: boolean | null
   readonly tripStatus: TripStatus
 }): boolean {
   if (!input.isAutomaticEnabled) return false
@@ -76,6 +91,7 @@ export function shouldIssueAutomatically(input: {
     checkTripAcceptsManifest({
       dischargeCityCount: 0,
       readiness: input.readiness,
+      requiresMdfe: input.requiresMdfe ?? null,
       tripStatus: input.tripStatus,
     }) === null
   )
