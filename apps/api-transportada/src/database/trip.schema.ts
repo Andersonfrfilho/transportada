@@ -57,6 +57,12 @@ export const TRIP_FISCAL_READINESS_STATES = [
   'ready',
   'manifested',
   'divergent',
+  /**
+   * Spec 065 D4: viagem cujas entregas são todas no município da transportadora. Ela vira NFS-e, não
+   * tem CT-e a declarar e **não tem manifesto a emitir** — não é "incompleta". Ficar incompleta para
+   * sempre é como uma viagem some da lista sem ninguém entender.
+   */
+  'not_applicable',
 ] as const
 export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[number]
 

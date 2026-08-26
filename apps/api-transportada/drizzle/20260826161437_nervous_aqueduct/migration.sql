@@ -1,0 +1,1 @@
+ALTER TABLE "trips" DROP CONSTRAINT "trips_fiscal_readiness_check", ADD CONSTRAINT "trips_fiscal_readiness_check" CHECK ("fiscal_readiness_state" in ('incomplete', 'ready', 'manifested', 'divergent', 'not_applicable'));

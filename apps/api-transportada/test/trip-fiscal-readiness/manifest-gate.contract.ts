@@ -12,7 +12,14 @@ import {
 } from '../../src/trips/domain/trip-manifest.policy.js'
 
 function readiness(state: TripFiscalReadinessSnapshot['state']): TripFiscalReadinessSnapshot {
-  return { documents: [], readyCount: 1, state, totalCount: 1 }
+  return {
+    documents: [],
+    manifestableCount: 1,
+    nfseCount: 0,
+    readyCount: 1,
+    state,
+    totalCount: 1,
+  }
 }
 
 describe('o portão da emissão do manifesto', () => {

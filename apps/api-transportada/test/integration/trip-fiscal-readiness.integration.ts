@@ -13,6 +13,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
+  companyFiscalProfiles,
   cteBatchItems,
   cteBatches,
   cteFiscalDocuments,
@@ -25,8 +26,10 @@ import {
   freightRules,
   identityUsers,
   mdfeManifests,
+  nfeAddresses,
   nfeDocuments,
   nfeImports,
+  nfeParticipants,
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
@@ -42,8 +45,17 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
-/** Três notas, três desfechos fiscais: um autorizado, um rejeitado e um sem CT-e nenhum. */
-type Outcome = 'authorized' | 'none' | 'rejected'
+/**
+ * Quatro notas: três de entrega **fora** do município da transportadora — uma com CT-e autorizado,
+ * uma rejeitada e uma sem CT-e — e uma de entrega **urbana**, que vira NFS-e e nunca terá CT-e.
+ *
+ * Essa quarta é a que prova o defeito da spec 065: numa carga mista, esperar por ela travaria a
+ * viagem inteira e o manifesto automático não dispararia nunca.
+ */
+type Outcome = 'authorized' | 'none' | 'rejected' | 'urban'
+
+const COMPANY_CITY_CODE = '3543402'
+const OTHER_CITY_CODE = '3551702'
 
 type World = {
   readonly companyId: string
@@ -64,7 +76,19 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
         tripId: world.tripId,
       })
 
-      expect(readiness).toMatchObject({ readyCount: 1, state: 'incomplete', totalCount: 3 })
+      expect(readiness).toMatchObject({
+        manifestableCount: 3,
+        nfseCount: 1,
+        readyCount: 1,
+        state: 'incomplete',
+        totalCount: 4,
+      })
+      // A nota urbana é NFS-e e não conta para o manifesto — é o defeito que a 065 conserta
+      expect(
+        readiness.documents.find(
+          (entry) => entry.tripDocumentId === world.tripDocumentIdByOutcome.get('urban'),
+        ),
+      ).toMatchObject({ expectedDocument: 'nfse', reason: 'nfse_expected' })
       const byDocument = new Map(
         readiness.documents.map((entry) => [entry.tripDocumentId, entry]),
       )
@@ -87,7 +111,8 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
       const world = await seedTrip(database)
       const query = new DrizzleTripFiscalReadinessQuery(database.db)
 
-      // Desvincular as duas pendentes é o caminho da P2 da spec: a viagem segue sem elas
+      // Desvincular as duas pendentes é o caminho da P2 da spec: a viagem segue sem elas.
+      // A urbana **fica**, e é justamente ela que não pode impedir a viagem de ficar pronta.
       await database.db.delete(tripDocuments).where(
         inCompanyDocuments(world, ['none', 'rejected']),
       )
@@ -98,7 +123,13 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
         tripId: world.tripId,
       })
 
-      expect(readiness).toMatchObject({ readyCount: 1, state: 'ready', totalCount: 1 })
+      expect(readiness).toMatchObject({
+        manifestableCount: 1,
+        nfseCount: 1,
+        readyCount: 1,
+        state: 'ready',
+        totalCount: 2,
+      })
     })
   })
 
@@ -152,6 +183,32 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
       ).toBe('divergent')
     })
   })
+
+  /**
+   * O caso que a 059 não previa e que a 065 conserta: viagem cujas entregas são todas no município da
+   * transportadora. Ela não é "incompleta" — ela **não manifesta**, e o botão não deve nem aparecer.
+   */
+  testWithPostgres('viagem só de entrega urbana não tem manifesto a emitir', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedTrip(database)
+      await database.db
+        .delete(tripDocuments)
+        .where(inCompanyDocuments(world, ['authorized', 'none', 'rejected']))
+
+      const readiness = await readTripFiscalReadiness({
+        companyId: world.companyId,
+        repository: new DrizzleTripFiscalReadinessQuery(database.db),
+        tripId: world.tripId,
+      })
+
+      expect(readiness).toMatchObject({
+        manifestableCount: 0,
+        nfseCount: 1,
+        state: 'not_applicable',
+        totalCount: 1,
+      })
+    })
+  })
 })
 
 function eqCompany(companyId: string) {
@@ -185,6 +242,28 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
+  // Sem o município da empresa não há classificação possível: toda nota ficaria indecisa.
+  await database.db.insert(companyFiscalProfiles).values({
+    city: 'Ribeirao Preto',
+    cityIbgeCode: COMPANY_CITY_CODE,
+    cnpj: '12345678000190',
+    companyId,
+    complement: '',
+    district: 'Centro',
+    email: 'fiscal@example.com',
+    environment: 'homologation',
+    legalName: 'Transportada Exemplo LTDA',
+    municipalRegistration: '000000',
+    number: '100',
+    phone: '1633333333',
+    postalCode: '14010100',
+    rntrc: '12345678',
+    state: 'SP',
+    stateRegistration: '110042490114',
+    street: 'Rua do Barracao',
+    taxRegime: '1',
+    tradeName: 'Transportada',
+  })
   await database.db.insert(fleetVehicles).values({
     companyId,
     id: vehicleId,
@@ -284,7 +363,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   })
 
   const tripDocumentIdByOutcome = new Map<Outcome, string>()
-  const outcomes: readonly Outcome[] = ['authorized', 'rejected', 'none']
+  const outcomes: readonly Outcome[] = ['authorized', 'rejected', 'none', 'urban']
 
   for (const [index, outcome] of outcomes.entries()) {
     const nfeDocumentId = crypto.randomUUID()
@@ -310,6 +389,34 @@ async function seedTrip(database: TestDatabase): Promise<World> {
       xmlSha256: sha,
     })
 
+    /**
+     * O município vem do endereço do participante da própria nota — é o trajeto real. `sender` sempre
+     * no município da transportadora (a coleta é aqui); `recipient` é o que decide o documento.
+     */
+    for (const [role, cityCode] of [
+      ['sender', COMPANY_CITY_CODE],
+      ['recipient', outcome === 'urban' ? COMPANY_CITY_CODE : OTHER_CITY_CODE],
+    ] as const) {
+      const participantId = crypto.randomUUID()
+      await database.db.insert(nfeParticipants).values({
+        companyId,
+        documentId: nfeDocumentId,
+        id: participantId,
+        legalName: `Participante ${role} ${index}`,
+        role,
+      })
+      await database.db.insert(nfeAddresses).values({
+        city: cityCode === COMPANY_CITY_CODE ? 'Ribeirao Preto' : 'Sertaozinho',
+        cityCode,
+        companyId,
+        number: '100',
+        participantId,
+        postalCode: '14010100',
+        state: 'SP',
+        street: 'Rua da Entrega',
+      })
+    }
+
     const tripDocumentId = crypto.randomUUID()
     await database.db.insert(tripDocuments).values({
       companyId,
@@ -320,7 +427,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     })
     tripDocumentIdByOutcome.set(outcome, tripDocumentId)
 
-    if (outcome === 'none') continue
+    if (outcome === 'none' || outcome === 'urban') continue
 
     const freightCalculationId = crypto.randomUUID()
     await database.db.insert(freightCalculations).values({

@@ -13,6 +13,14 @@ import { ApiError } from '../../src/shared/api.error.js'
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000002'
 
+/** A classificação manda: `nfse_expected` é nota urbana, `city_unknown` é nota que não se decidiu. */
+function expectedDocumentOf(reason: TripDocumentReadiness['reason']) {
+  if (reason === 'nfse_expected') return 'nfse' as const
+  if (reason === 'city_unknown') return null
+
+  return 'cte' as const
+}
+
 function document(
   reason: TripDocumentReadiness['reason'],
   overrides: Partial<TripDocumentReadiness> = {},
@@ -20,6 +28,7 @@ function document(
   return {
     cteAccessKey: reason === 'ok' ? '1'.repeat(44) : null,
     cteFiscalDocumentId: reason === 'ok' ? crypto.randomUUID() : null,
+    expectedDocument: expectedDocumentOf(reason),
     reason,
     rejectionCode: null,
     rejectionMessage: null,
@@ -81,13 +90,6 @@ describe('a prontidão fiscal da viagem', () => {
     expect(snapshot.state).toBe('incomplete')
   })
 
-  /** Não existe manifesto vazio: `ready` aqui faria o consumer emitir um MDF-e sem CT-e dentro. */
-  it('viagem sem nota nenhuma não é pronta', async () => {
-    const snapshot = await read(buildRepository({ documents: [] }))
-
-    expect(snapshot).toMatchObject({ readyCount: 0, state: 'incomplete', totalCount: 0 })
-  })
-
   it('viagem com manifesto vivo e tudo em ordem é manifested', async () => {
     const snapshot = await read(
       buildRepository({ documents: [document('ok')], hasLiveManifest: true }),
@@ -115,5 +117,52 @@ describe('a prontidão fiscal da viagem', () => {
     const attempt = read(buildRepository({ documents: null }))
 
     await expect(attempt).rejects.toBeInstanceOf(ApiError)
+  })
+
+  /**
+   * Spec 065 D4, e é o defeito que esta correção conserta: a nota de entrega urbana **nunca** terá
+   * CT-e. Numa carga mista — que é a carga de todo dia — esperar por ela travaria a viagem inteira, e
+   * o MDF-e automático não dispararia nunca.
+   */
+  it('a nota de entrega urbana não bloqueia o manifesto', async () => {
+    const snapshot = await read(
+      buildRepository({ documents: [document('ok'), document('nfse_expected')] }),
+    )
+
+    expect(snapshot).toMatchObject({
+      manifestableCount: 1,
+      nfseCount: 1,
+      readyCount: 1,
+      state: 'ready',
+      totalCount: 2,
+    })
+  })
+
+  /** Não existe manifesto vazio: viagem só urbana não é "incompleta", ela não manifesta. */
+  it('viagem só de entrega urbana não tem manifesto a emitir', async () => {
+    const snapshot = await read(
+      buildRepository({ documents: [document('nfse_expected'), document('nfse_expected')] }),
+    )
+
+    expect(snapshot).toMatchObject({ manifestableCount: 0, nfseCount: 2, state: 'not_applicable' })
+  })
+
+  it('viagem sem nota nenhuma também não tem manifesto a emitir', async () => {
+    expect((await read(buildRepository({ documents: [] }))).state).toBe('not_applicable')
+  })
+
+  /** Nota sem município pode ser CT-e: enquanto não se sabe, ela **bloqueia** em vez de sumir. */
+  it('nota sem município de destino bloqueia', async () => {
+    const snapshot = await read(
+      buildRepository({ documents: [document('ok'), document('city_unknown')] }),
+    )
+
+    expect(snapshot.state).toBe('incomplete')
+  })
+
+  it('viagem só com nota sem município não vira not_applicable', async () => {
+    const snapshot = await read(buildRepository({ documents: [document('city_unknown')] }))
+
+    expect(snapshot.state).toBe('incomplete')
   })
 })
