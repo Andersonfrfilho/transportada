@@ -27,6 +27,7 @@ import {
   isTripEditable,
 } from '../shared/tripStatus.service'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
+import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -387,6 +388,9 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
        * rola até "despachar" já passou pela proposta e pelos avisos dela.
        */}
       {canManage && isEditable ? <RouteSuggestionSection controller={routeSuggestion} /> : null}
+
+      {/* A prontidão fica **acima** das ações: quem rola até "emitir" já sabe se dá para emitir */}
+      <TripFiscalReadinessPanel documents={trip.documents} readiness={workspace.fiscalReadiness} />
 
       <div className={styles.actionActions}>
         {canManage && !isCompleted && trip.documents.length > 0 ? (

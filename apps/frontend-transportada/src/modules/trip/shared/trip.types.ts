@@ -80,6 +80,44 @@ export type TripDetail = Trip &
     stops: readonly TripStopDetail[]
   }>
 
+/**
+ * ⚠️ Cópia por valor de `read-trip-fiscal-readiness.use-case.ts` — o bundle não carrega código da
+ * API. Spec 059 D1: a prontidão responde **por nota**, com o motivo, porque "não está pronta" é a
+ * resposta que manda o operador abrir outra tela.
+ */
+export const TRIP_DOCUMENT_READINESS_REASONS = [
+  'ok',
+  'no_cte',
+  'cte_in_progress',
+  'cte_rejected',
+  'cte_cancelled',
+] as const
+export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASONS)[number]
+
+export const TRIP_FISCAL_READINESS_STATES = [
+  'incomplete',
+  'ready',
+  'manifested',
+  'divergent',
+] as const
+export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[number]
+
+export type TripDocumentReadiness = Readonly<{
+  cteAccessKey: null | string
+  cteFiscalDocumentId: null | string
+  reason: TripDocumentReadinessReason
+  rejectionCode: null | string
+  rejectionMessage: null | string
+  tripDocumentId: string
+}>
+
+export type TripFiscalReadiness = Readonly<{
+  documents: readonly TripDocumentReadiness[]
+  readyCount: number
+  state: TripFiscalReadinessState
+  totalCount: number
+}>
+
 export type StopAddressComponents = Readonly<{
   cityCode: null | string
   number: null | string

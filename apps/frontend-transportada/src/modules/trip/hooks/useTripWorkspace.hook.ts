@@ -31,6 +31,7 @@ import type {
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ScannedNfeDocument,
+  TripFiscalReadiness,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
   TripDetail,
@@ -52,6 +53,7 @@ export type TripController = Readonly<{
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
@@ -88,6 +90,8 @@ export function createTripController(
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
+    readFiscalReadiness: (query) =>
+      canReadTrips ? input.client.readFiscalReadiness(query) : forbidden(),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
     listDeliveryAddressHistory: (query) =>
@@ -150,6 +154,22 @@ export function useTripWorkspace(
       isTripOnTheRoad(query.state.data?.status) ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
   })
 
+  /**
+   * Spec 059 D1: a prontidão é **consulta**, e ela acompanha o mesmo relógio da viagem na rua — o
+   * CT-e que autoriza enquanto o operador olha a tela acende o painel sem ele apertar nada.
+   */
+  const fiscalReadinessQuery = useQuery({
+    enabled:
+      controller.canReadTrips &&
+      input.tripId !== undefined &&
+      input.tripId !== '' &&
+      (tripQuery.data?.documents.length ?? 0) > 0,
+    queryFn: () => controller.readFiscalReadiness({ tripId: input.tripId ?? '' }),
+    queryKey: [...tripKey, 'fiscal-readiness'] as const,
+    refetchInterval: (query) =>
+      query.state.data?.state === 'incomplete' ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
+  })
+
   function invalidate(): Promise<void> {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: tripKey }),
@@ -210,6 +230,7 @@ export function useTripWorkspace(
     controller,
     createMutation,
     deliverDocumentMutation,
+    fiscalReadiness: fiscalReadinessQuery.data,
     dispatchMutation,
     linkDocumentMutation,
     overrideDeliveryAddressMutation,

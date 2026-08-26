@@ -209,5 +209,21 @@
     "rejected": "Rejected",
     "snapshotted": "Snapshotted",
     "unsigned": "Unsigned"
+  },
+  "readiness": {
+    "title": "Fiscal readiness",
+    "count": "{{ready}} of {{total}} invoices ready",
+    "state": {
+      "incomplete": "Some invoice has no authorized CT-e. Issuing now would declare a document that does not exist.",
+      "ready": "Every invoice has an authorized CT-e. The trip can be manifested.",
+      "manifested": "A manifest was issued for this trip.",
+      "divergent": "A CT-e changed after the manifest. Check before moving on — cancelling an MDF-e is your call."
+    },
+    "reason": {
+      "no_cte": "no CT-e",
+      "cte_in_progress": "CT-e in progress",
+      "cte_rejected": "CT-e rejected",
+      "cte_cancelled": "CT-e cancelled"
+    }
   }
 }

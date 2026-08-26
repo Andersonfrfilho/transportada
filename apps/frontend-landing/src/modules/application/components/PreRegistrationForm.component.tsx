@@ -265,7 +265,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
               onChange={(event) => updateField('postalCode', formatPostalCode(event.target.value))}
             />
           </label>
-          <div className={styles.fieldRow}>
+          <div className={`${styles.fieldRow} ${styles.fieldRowTight}`}>
             <label className={styles.field}>
               <span className={styles.label}>Rua</span>
               <input
@@ -305,7 +305,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
               />
             </label>
           </div>
-          <div className={styles.fieldRow}>
+          <div className={`${styles.fieldRow} ${styles.fieldRowTight}`}>
             <label className={styles.field}>
               <span className={styles.label}>Cidade</span>
               <input

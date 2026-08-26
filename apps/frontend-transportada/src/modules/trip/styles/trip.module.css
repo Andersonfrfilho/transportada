@@ -551,3 +551,48 @@
     flex-wrap: nowrap;
   }
 }
+
+/* Spec 059: a prontidão fica acima das ações — quem rola até "emitir" já sabe se dá para emitir. */
+.readinessPanel {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.readinessHeader {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.readinessCount {
+  margin: 0;
+}
+
+.readinessState {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.readinessList {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.readinessItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.readinessReason {
+  color: var(--color-copper);
+}

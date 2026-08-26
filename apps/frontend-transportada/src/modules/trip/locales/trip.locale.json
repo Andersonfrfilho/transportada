@@ -209,5 +209,21 @@
     "rejected": "Rejeitada",
     "snapshotted": "Congelada",
     "unsigned": "Sem assinatura"
+  },
+  "readiness": {
+    "title": "Prontidão fiscal",
+    "count": "{{ready}} de {{total}} notas prontas",
+    "state": {
+      "incomplete": "Falta CT-e autorizado em alguma nota. Emitir agora declararia à SEFAZ documento que não existe.",
+      "ready": "Todas as notas têm CT-e autorizado. A viagem pode manifestar.",
+      "manifested": "Manifesto emitido para esta viagem.",
+      "divergent": "Um CT-e mudou depois do manifesto. Confira antes de seguir — cancelar MDF-e é decisão sua."
+    },
+    "reason": {
+      "no_cte": "sem CT-e",
+      "cte_in_progress": "CT-e em processamento",
+      "cte_rejected": "CT-e rejeitado",
+      "cte_cancelled": "CT-e cancelado"
+    }
   }
 }

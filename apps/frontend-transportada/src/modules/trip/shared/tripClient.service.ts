@@ -19,6 +19,7 @@ import type {
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
   TripDetail,
+  TripFiscalReadiness,
   TripDocument,
   TripDocumentActionInput,
   TripListInput,
@@ -44,6 +45,7 @@ export type TripClient = Readonly<{
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
@@ -221,6 +223,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async readFiscalReadiness(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/fiscal-readiness`,
+      })
+      return adapters.tripFiscalReadinessFromApi(readEnvelopeData(response))
     },
     async linkTripDocument(input) {
       const response = await authorizedRequest({

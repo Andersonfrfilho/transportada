@@ -16,6 +16,8 @@ import {
 import {
   SCANNED_NFE_STATUS,
   TRIP_BATCH_ITEM_OUTCOME,
+  TRIP_DOCUMENT_READINESS_REASONS,
+  TRIP_FISCAL_READINESS_STATES,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
 } from './trip.types'
@@ -33,7 +35,9 @@ import type {
   TripDocument,
   TripDocumentBatchItemResult,
   TripDocumentDetail,
+  TripDocumentReadiness,
   TripDriverLine,
+  TripFiscalReadiness,
   TripPage,
   TripStatus,
   TripStopDetail,
@@ -203,6 +207,25 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
   )
 }
 
+function toDocumentReadiness(value: unknown): TripDocumentReadiness {
+  if (
+    !isRecord(value) ||
+    !isString(value.tripDocumentId) ||
+    !isOneOf(value.reason, TRIP_DOCUMENT_READINESS_REASONS)
+  ) {
+    throw invalid()
+  }
+
+  return {
+    cteAccessKey: isString(value.cteAccessKey) ? value.cteAccessKey : null,
+    cteFiscalDocumentId: isString(value.cteFiscalDocumentId) ? value.cteFiscalDocumentId : null,
+    reason: value.reason,
+    rejectionCode: isString(value.rejectionCode) ? value.rejectionCode : null,
+    rejectionMessage: isString(value.rejectionMessage) ? value.rejectionMessage : null,
+    tripDocumentId: value.tripDocumentId,
+  }
+}
+
 export function createTripResponseAdapters() {
   function tripFromApi(input: unknown): Trip {
     if (!isTrip(input)) throw invalid()
@@ -210,6 +233,29 @@ export function createTripResponseAdapters() {
   }
 
   return {
+    /**
+     * Resposta de API é entrada não confiável (`security.md` §3), e esta decide se um botão de
+     * emissão fiscal aparece: motivo fora do vocabulário tem de virar recusa, nunca `undefined`
+     * atravessando até a tela dizer que está tudo pronto.
+     */
+    tripFiscalReadinessFromApi(input: unknown): TripFiscalReadiness {
+      if (
+        !isRecord(input) ||
+        !Array.isArray(input.documents) ||
+        typeof input.readyCount !== 'number' ||
+        typeof input.totalCount !== 'number' ||
+        !isOneOf(input.state, TRIP_FISCAL_READINESS_STATES)
+      ) {
+        throw invalid()
+      }
+
+      return {
+        documents: input.documents.map(toDocumentReadiness),
+        readyCount: input.readyCount,
+        state: input.state,
+        totalCount: input.totalCount,
+      }
+    },
     tripDetailFromApi(input: unknown): TripDetail {
       if (!isDetail(input)) throw invalid()
       return input

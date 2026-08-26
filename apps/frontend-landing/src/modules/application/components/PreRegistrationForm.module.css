@@ -103,8 +103,14 @@
   grid-template-columns: 1fr;
 }
 
+/* Par de rótulo largo + rótulo curto cabe lado a lado mesmo em 320px. */
+.fieldRowTight {
+  grid-template-columns: 2fr 1fr;
+}
+
 @media (min-width: 30rem) {
-  .fieldRow {
+  .fieldRow,
+  .fieldRowTight {
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   }
 
