@@ -13,6 +13,8 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
+import type { TripDocumentLink } from '../../cte-batches/application/cte-batch-preview.port.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -73,12 +75,15 @@ type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
   readonly grossWeightByDocumentId: ReadonlyMap<string, string>
   readonly nfseInvoiceByDocumentId: ReadonlyMap<string, NfseInvoiceLink>
+  /** Spec 065 D4b: sinal de "esta nota já saiu numa viagem". Nenhum bloqueio o lê. */
+  readonly tripByDocumentId: ReadonlyMap<string, TripDocumentLink>
 }
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
   grossWeightByDocumentId: new Map(),
   nfseInvoiceByDocumentId: new Map(),
+  tripByDocumentId: new Map(),
 }
 
 export function buildDocumentGrossWeightFilters({
@@ -272,7 +277,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
 
   private async loadBlockContext(scope: DocumentScope): Promise<DocumentBlockContext> {
     if (scope.documentIds.length === 0) return EMPTY_BLOCK_CONTEXT
-    const [weightRows, linkRows, nfseLinkRows] = await Promise.all([
+    const [weightRows, linkRows, nfseLinkRows, tripLinkRows] = await Promise.all([
       this.database
         .select({ documentId: nfeVolumes.documentId, grossWeight: sum(nfeVolumes.grossWeight) })
         .from(nfeVolumes)
@@ -309,6 +314,8 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         )
         .where(and(...buildDocumentNfseLinkFilters(scope)))
         .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
+      // A mesma consulta que a composição do lote usa: um sinal só, num lugar só (spec 065 D4b).
+      findTripLinks(this.database, scope),
     ])
 
     return {
@@ -324,6 +331,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           { id: row.invoiceId, number: row.providerNumber },
         ]),
       ),
+      tripByDocumentId: new Map(tripLinkRows.map((row) => [row.documentId, row])),
     }
   }
 
@@ -410,6 +418,8 @@ function mapSummary(
     linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
     linkedNfseInvoiceId: nfseInvoice?.id ?? null,
   })
+  const trip = blockContext.tripByDocumentId.get(document.id) ?? null
+
   return {
     accessKey: document.accessKey,
     cteBlockReason: decision.blocked?.reason ?? null,
@@ -433,6 +443,8 @@ function mapSummary(
     series: document.series,
     status: document.status,
     totalAmount: document.totalValue,
+    tripId: trip?.tripId ?? null,
+    tripStatus: trip?.tripStatus ?? null,
     variant: 'complete',
   }
 }

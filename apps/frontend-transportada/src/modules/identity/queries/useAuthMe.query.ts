@@ -52,6 +52,8 @@ const COMPANY_PERMISSIONS = [
   'trip.read',
   'trip.manage',
   'trip.report',
+  /** Spec 061 D4: dinheiro tem permissão própria — margem e custo não são `trip.manage`. */
+  'trip.financials',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

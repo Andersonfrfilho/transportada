@@ -114,7 +114,8 @@
       "cteIssued": "CT-e"
     },
     "chooseYear": "Choose the year",
-    "openCalendar": "Open calendar"
+    "openCalendar": "Open calendar",
+    "tripLink": "Travelled on this trip"
   },
   "documentStatus": {
     "authorized": "Authorized",

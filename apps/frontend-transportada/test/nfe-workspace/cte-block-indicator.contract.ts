@@ -53,6 +53,8 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
     series: '1',
     status: 'authorized',
     totalAmount: '1234.5600',
+    tripId: null,
+    tripStatus: null,
     variant: 'complete',
     ...overrides,
   }
@@ -158,5 +160,41 @@ describe('nfe document cte block indicator contract', () => {
       selectedIds: new Set([...selected, 'kept-from-another-page']),
     })
     expect([...cleared]).toEqual(['kept-from-another-page'])
+  })
+})
+
+describe('o sinal de viagem na listagem de notas (spec 065 D4b)', () => {
+  const ON_A_TRIP = buildDocument({
+    id: 'on-a-trip',
+    tripId: '00000000-0000-4000-8000-000000000a11',
+    tripStatus: 'in_transit',
+  })
+
+  /**
+   * O ponto inteiro da D4b: **é sinal, não bloqueio.** A nota que rodou é justamente a que deve
+   * entrar no lote — transformar o vínculo em impedimento inverteria o sentido da informação.
+   */
+  test('a nota que saiu numa viagem continua selecionável', () => {
+    expect(isDocumentBlocked(ON_A_TRIP)).toBe(false)
+    expect(countBlockedDocuments([ON_A_TRIP, FREE])).toBe(0)
+    expect(
+      toggleDocumentSelection({
+        documentId: ON_A_TRIP.id,
+        documents: [ON_A_TRIP],
+        selectedIds: new Set(),
+      }),
+    ).toEqual(new Set(['on-a-trip']))
+  })
+
+  /** E o bloqueio de verdade continua bloqueando, viagem ou não. */
+  test('o vínculo com viagem não desbloqueia a nota que já está num lote', () => {
+    const blockedOnTrip = buildDocument({
+      cteBlockReason: ALREADY_LINKED,
+      id: 'blocked-on-trip',
+      tripId: '00000000-0000-4000-8000-000000000a11',
+      tripStatus: 'in_transit',
+    })
+
+    expect(isDocumentBlocked(blockedOnTrip)).toBe(true)
   })
 })

@@ -36,6 +36,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
 import { readTripFiscalReadiness } from '../../src/trips/application/read-trip-fiscal-readiness.use-case.js'
+import { findTripLinks } from '../../src/cte-batches/infrastructure/cte-batch-selection.query.js'
 import { readTripValuation } from '../../src/trips/application/read-trip-valuation.use-case.js'
 import { setTripMdfeRequirement } from '../../src/trips/application/set-trip-mdfe-requirement.use-case.js'
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
@@ -304,6 +305,42 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
         valuation.revenueLines.filter((line) => line.source === 'measured'),
       ).toHaveLength(1)
       expect(valuation.hasGaps).toBe(true)
+    })
+  })
+
+  /**
+   * Spec 065 D4b: o sinal de "esta nota já saiu numa viagem", contra Postgres. O que se prova aqui é
+   * o filtro de tenant e o alcance por **id de nota** — a consulta casa por `nfe_document_id`, e
+   * errar isso mostraria a viagem de outra nota a quem monta o lote.
+   */
+  testWithPostgres('a nota anuncia a viagem em que saiu, sem virar bloqueio', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedTrip(database)
+      const [linked] = await database.db
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(eq(tripDocuments.id, world.tripDocumentIdByOutcome.get('authorized') ?? ''))
+
+      const links = await findTripLinks(database.db, {
+        companyId: world.companyId,
+        documentIds: [linked?.nfeDocumentId ?? ''],
+      })
+
+      expect(links).toEqual([
+        {
+          documentId: linked?.nfeDocumentId ?? '',
+          tripId: world.tripId,
+          tripStatus: 'dispatched',
+        },
+      ])
+
+      // Outra empresa não enxerga o vínculo: o sinal é do tenant, como todo o resto.
+      expect(
+        await findTripLinks(database.db, {
+          companyId: crypto.randomUUID(),
+          documentIds: [linked?.nfeDocumentId ?? ''],
+        }),
+      ).toEqual([])
     })
   })
 })

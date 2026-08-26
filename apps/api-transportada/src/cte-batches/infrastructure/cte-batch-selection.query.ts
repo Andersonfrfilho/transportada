@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, eq, inArray, isNull, like, ne, sum } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, isNull, like, ne, or, sql, sum } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import {
@@ -12,12 +12,15 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
+import { freightCalculations } from '../../database/freight.schema.js'
+import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type {
   CteBatchNameQuery,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
   CteBatchPreviewNfseLink,
   CteBatchPreviewQuery,
+  TripDocumentLink,
 } from '../application/cte-batch-preview.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -91,6 +94,56 @@ export async function findActiveBatchLinks(
       ),
     )
     .orderBy(cteBatchItemDocuments.nfeDocumentId)
+}
+
+/**
+ * Spec 065 D4b: **fatura-se o que saiu.** Quem monta o lote precisa saber em que viagem a nota
+ * rodou sem abrir a tela de viagem para conferir uma por uma — e isso vale para a nota de CT-e e
+ * para a urbana, sem distinção.
+ *
+ * É **sinal, não bloqueio**: nota vinculada a viagem *deve* entrar no lote, porque é justamente a
+ * carga que rodou. Nenhum bloqueio lê este vínculo, e há contrato provando isso.
+ *
+ * A nota é alcançada pelos dois caminhos que `trip_documents` permite — o vínculo direto e o
+ * cálculo de frete. Quando ela rodou em mais de uma viagem (devolvida e reenviada), vence a mais
+ * recente: é a que responde "onde ela está agora".
+ */
+export async function findTripLinks(
+  queryable: SelectionQueryable,
+  { companyId, documentIds }: CteBatchPreviewQuery,
+): Promise<readonly TripDocumentLink[]> {
+  if (documentIds.length === 0) return []
+
+  const documentId = sql<string>`coalesce(${tripDocuments.nfeDocumentId}, ${freightCalculations.nfeDocumentId})`
+
+  return queryable
+    .selectDistinctOn([documentId], {
+      documentId: documentId.as('trip_link_document_id'),
+      tripId: tripDocuments.tripId,
+      tripStatus: trips.status,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      freightCalculations,
+      and(
+        eq(freightCalculations.companyId, tripDocuments.companyId),
+        eq(freightCalculations.id, tripDocuments.freightCalculationId),
+      ),
+    )
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, companyId),
+        or(
+          inArray(tripDocuments.nfeDocumentId, [...documentIds]),
+          inArray(freightCalculations.nfeDocumentId, [...documentIds]),
+        ),
+      ),
+    )
+    .orderBy(documentId, desc(tripDocuments.createdAt))
 }
 
 /**

@@ -242,6 +242,8 @@ function serializeDocument(document: NfeDocumentSummary): object {
     series: document.series,
     status: document.status,
     totalAmount: document.totalAmount,
+    tripId: document.tripId,
+    tripStatus: document.tripStatus,
     variant: document.variant,
   }
 }

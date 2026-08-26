@@ -271,7 +271,8 @@
       "totalAmount": "Valor"
     },
     "chooseYear": "Escolher o ano",
-    "openCalendar": "Abrir calendário"
+    "openCalendar": "Abrir calendário",
+    "tripLink": "Saiu nesta viagem"
   },
   "documentStatus": {
     "authorized": "Autorizada",

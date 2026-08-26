@@ -12,6 +12,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 import { buildNfseInvoiceDetailHref } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
+import { buildTripRoute } from '@/modules/trip/shared/tripRoute.service'
 
 import {
   describeNfeDocumentFilterPills,
@@ -316,6 +317,20 @@ export function NfeDocumentTable({
           >
             {blockReasonLabel(document.cteBlockReason)}
           </span>
+        )}
+        {/*
+          Spec 065 D4b: fatura-se o que saiu. O sinal vem **depois** do bloqueio de propósito — ele
+          não é bloqueio nenhum, e a nota que rodou é justamente a que deve entrar no lote.
+        */}
+        {document.tripId === null ? null : (
+          <a
+            aria-label={t('documents.tripLink')}
+            className={styles.nfseLink}
+            href={buildTripRoute(document.tripId)}
+            title={t('documents.tripLink')}
+          >
+            <Icon name="workspace-trip" />
+          </a>
         )}
       </td>
     )

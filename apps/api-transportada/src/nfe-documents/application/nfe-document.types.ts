@@ -26,6 +26,12 @@ export type NfeDocumentSummary = {
   readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
+  /**
+   * Spec 065 D4b: a viagem em que a nota saiu. **Sinal, não bloqueio** — nota que rodou é
+   * justamente a que deve entrar no lote, e nenhum bloqueio lê estes dois campos.
+   */
+  readonly tripId: string | null
+  readonly tripStatus: string | null
   readonly variant: 'complete' | 'summary' | 'event'
 }
 

@@ -54,6 +54,9 @@ const DOCUMENT_PAGE = {
       series: '1',
       status: 'authorized',
       totalAmount: '1234.5600',
+      // Spec 065 D4b: a nota saiu numa viagem, e continua livre para entrar no lote.
+      tripId: '00000000-0000-4000-8000-000000000a11',
+      tripStatus: 'in_transit',
       variant: 'complete',
     },
   ],
