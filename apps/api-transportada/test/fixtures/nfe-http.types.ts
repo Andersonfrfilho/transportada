@@ -75,6 +75,9 @@ export type NfeDocumentSummary = {
   readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied'
   readonly totalAmount: string
+  /** Spec 065 D4b — o mesmo par que o tipo da aplicação e o das rotas declaram. */
+  readonly tripId: string | null
+  readonly tripStatus: string | null
   readonly variant: 'complete' | 'summary' | 'event'
 }
 

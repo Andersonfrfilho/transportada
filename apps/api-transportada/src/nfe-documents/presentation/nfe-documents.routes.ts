@@ -42,6 +42,9 @@ type NfeDocumentSummary = {
   readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
+  /** Spec 065 D4b — os dois campos existem no tipo da aplicação e precisam existir aqui também. */
+  readonly tripId: string | null
+  readonly tripStatus: string | null
   readonly variant: 'complete' | 'summary' | 'event'
 }
 
