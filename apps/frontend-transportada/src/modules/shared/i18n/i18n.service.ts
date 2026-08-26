@@ -28,6 +28,8 @@ import notificationLocale from '@/modules/notification/locales/notification.loca
 import notificationEnglishLocale from '@/modules/notification/locales/notification.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
+import routingLocale from '@/modules/routing/locales/routing.locale.json'
+import routingEnglishLocale from '@/modules/routing/locales/routing.en.locale.json'
 import tripLocale from '@/modules/trip/locales/trip.locale.json'
 import tripEnglishLocale from '@/modules/trip/locales/trip.en.locale.json'
 
@@ -49,6 +51,7 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceEnglishLocale,
       notification: notificationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
+      routing: routingEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
     },
@@ -65,6 +68,7 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceLocale,
       notification: notificationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
+      routing: routingLocale,
       translation: foundationLocale,
       trip: tripLocale,
     },

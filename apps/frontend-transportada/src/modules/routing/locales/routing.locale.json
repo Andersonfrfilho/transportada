@@ -1,0 +1,64 @@
+{
+  "panel": {
+    "title": "Roteiro sugerido",
+    "distance": "Distância",
+    "duration": "Tempo estimado",
+    "cost": "Custo estimado",
+    "unknown": "—",
+    "accept": "Aceitar roteiro",
+    "reject": "Descartar"
+  },
+  "status": {
+    "queued": "Na fila",
+    "running": "Calculando…",
+    "ready": "Pronta para conferência",
+    "accepted": "Aceita",
+    "rejected": "Descartada",
+    "failed": "Não foi possível calcular",
+    "stale": "A viagem mudou — gere de novo"
+  },
+  "failure": {
+    "ROUTING_MATRIX_UNAVAILABLE": "O serviço de rotas está fora do ar. Ordene as paradas à mão por enquanto — o sistema não estima distância por linha reta, porque isso produz um roteiro que não se cumpre na rua.",
+    "unknown": "Não foi possível calcular o roteiro."
+  },
+  "warning": {
+    "unreachable_one": "1 parada não tem rota até ela. Confira o endereço antes de aceitar.",
+    "unreachable_other": "{{count}} paradas não têm rota até elas. Confira os endereços antes de aceitar.",
+    "weight_one": "1 parada estoura a capacidade do veículo em {{total}} kg.",
+    "weight_other": "{{count}} paradas estouram a capacidade do veículo em {{total}} kg no total.",
+    "deliveryWindow_one": "1 parada chega fora da janela de entrega, com {{total}} segundos de atraso.",
+    "deliveryWindow_other": "{{count}} paradas chegam fora da janela de entrega, somando {{total}} segundos de atraso.",
+    "dutyTime_one": "A jornada estoura em {{total}} segundos.",
+    "dutyTime_other": "A jornada estoura em {{total}} segundos.",
+    "coarseGeocoding_one": "1 parada só tem o centro do município — um palpite de vários quilômetros. Ela ficou fora da otimização, no fim da lista. Corrija o pino para ela entrar no roteiro.",
+    "coarseGeocoding_other": "{{count}} paradas só têm o centro do município — palpites de vários quilômetros. Elas ficaram fora da otimização, no fim da lista. Corrija os pinos para elas entrarem no roteiro.",
+    "estimatedWeight_one": "1 parada entrou com o peso médio da empresa, porque a nota não informou o peso.",
+    "estimatedWeight_other": "{{count}} paradas entraram com o peso médio da empresa, porque as notas não informaram o peso.",
+    "truncated_one": "O tempo de cálculo acabou antes de a busca convergir. Este é o melhor roteiro encontrado até ali — pode existir um melhor.",
+    "truncated_other": "O tempo de cálculo acabou antes de a busca convergir. Este é o melhor roteiro encontrado até ali — pode existir um melhor."
+  },
+  "precision": {
+    "rooftop": "endereço exato",
+    "street": "número aproximado",
+    "postal_code": "centro do CEP",
+    "city": "centro do município"
+  },
+  "stop": {
+    "weightEstimated": "peso estimado",
+    "excluded": "fora da otimização"
+  },
+  "assumptions": {
+    "serviceTime": {
+      "default": "Tempo de parada: {{seconds}}s, o padrão da empresa — ainda não há entregas medidas suficientes.",
+      "measured": "Tempo de parada: {{seconds}}s, mediana das entregas dos últimos 3 meses."
+    }
+  },
+  "map": {
+    "label": "Mapa do roteiro sugerido",
+    "loading": "Carregando o mapa…",
+    "unavailable": {
+      "missing": "O mapa desta região ainda não foi gerado. A lista abaixo é o roteiro completo — ela não depende do mapa.",
+      "unsupported": "Este navegador não desenha o mapa. A lista abaixo é o roteiro completo — ela não depende do mapa."
+    }
+  }
+}

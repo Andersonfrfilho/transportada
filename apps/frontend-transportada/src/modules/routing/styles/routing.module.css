@@ -1,0 +1,155 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.panel {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.header {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.status {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.failure {
+  background: color-mix(in srgb, var(--color-alert) 20%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+/* Grade que quebra sozinha: três números lado a lado no desktop, empilhados no celular */
+.estimates {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  margin: 0;
+}
+
+.estimates dt {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.estimates dd {
+  font-family: var(--font-utility);
+  margin: 0;
+}
+
+/*
+ * Os avisos vêm antes da lista e antes do botão de propósito: quem rola até aceitar já passou por
+ * eles. Um aviso abaixo do botão é um aviso que ninguém leu.
+ */
+.warnings {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.warning {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.map {
+  aspect-ratio: 16 / 9;
+  background: var(--color-asphalt);
+  border-radius: var(--space-2);
+  width: 100%;
+}
+
+/* A degradação é informação, não erro: ela se parece com um aviso calmo, não com uma falha */
+.mapNotice {
+  background: var(--color-asphalt);
+  border-radius: var(--space-2);
+  color: var(--color-slate);
+  margin: 0;
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.stops {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stop {
+  align-items: center;
+  border-radius: var(--space-1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.stop:nth-child(odd) {
+  background: color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+/* A parada fora da otimização não se parece com as que entraram nela */
+.stop[data-excluded='true'] {
+  border: 1px dashed var(--color-copper);
+}
+
+.stopSequence {
+  background: var(--color-asphalt);
+  border-radius: var(--space-1);
+  font-family: var(--font-utility);
+  min-width: var(--space-6);
+  padding: var(--space-1) var(--space-2);
+  text-align: center;
+}
+
+.stopLabel {
+  flex: 1 1 12rem;
+}
+
+.stopPrecision {
+  border-radius: var(--space-1);
+  color: var(--color-slate);
+  font-size: 0.75rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+/* Centroide de município é palpite de ~8km: ele não pode parecer com um telhado */
+.stopPrecision[data-precision='city'] {
+  background: color-mix(in srgb, var(--color-copper) 30%, transparent);
+  color: var(--color-fog);
+}
+
+.stopFlag {
+  background: color-mix(in srgb, var(--color-copper) 25%, transparent);
+  border-radius: var(--space-1);
+  font-size: 0.75rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.assumptions {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
