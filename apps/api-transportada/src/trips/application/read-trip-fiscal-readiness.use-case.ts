@@ -74,10 +74,7 @@ export type TripFiscalReadinessPort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<readonly TripDocumentReadiness[] | null>
-  hasLiveManifest(input: {
-    readonly companyId: string
-    readonly tripId: string
-  }): Promise<boolean>
+  hasLiveManifest(input: { readonly companyId: string; readonly tripId: string }): Promise<boolean>
 }
 
 export type ReadTripFiscalReadinessInput = {

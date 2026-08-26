@@ -18,11 +18,7 @@ import {
   SYNTHETIC_CTE_ARCHIVE_BYTES,
 } from './cte-batch-smoke.helper'
 import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
-import {
-  DRIVER_ACCESS_KEY,
-  DRIVER_STOP_ID,
-  mockDriverTripApi,
-} from './driver-trip-smoke.helper'
+import { DRIVER_ACCESS_KEY, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
 import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
@@ -902,7 +898,9 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
  * encanamento — o pdf.js carregado sob demanda no navegador, o worker servido da nossa origem sem
  * afrouxar a CSP, o hook montado e o valor chegando ao `input` que o operador vê.
  */
-test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({ page }) => {
+test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({
+  page,
+}) => {
   await page.setViewportSize(VIEWPORTS.desktop)
   await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
   const api = await mockFleetWorkspaceApi({

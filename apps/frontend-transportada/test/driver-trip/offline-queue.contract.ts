@@ -98,10 +98,7 @@ describe('a fila offline', () => {
 
     expect(attempted).toEqual(['chave-1', 'chave-2'])
     expect(result).toMatchObject({ remaining: 2, sent: 1 })
-    expect(store.items().map((item) => item.report.idempotencyKey)).toEqual([
-      'chave-2',
-      'chave-3',
-    ])
+    expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['chave-2', 'chave-3'])
   })
 
   /** Só quem a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados. */
@@ -125,8 +122,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
 
     const result = await drainQueue({
-      send: (report) =>
-        Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
+      send: (report) => Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
       store,
     })
 

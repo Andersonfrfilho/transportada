@@ -1,10 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import {
-  isTripOnTheRoad,
-  TRIP_ON_THE_ROAD_REFETCH_MS,
-} from '@/modules/trip/shared/trip.constant'
+import { isTripOnTheRoad, TRIP_ON_THE_ROAD_REFETCH_MS } from '@/modules/trip/shared/trip.constant'
 
 describe('o escritório vê a viagem andar', () => {
   /** Só na rua: repetir a consulta numa viagem em rascunho é bater no servidor por nada. */
@@ -12,7 +9,14 @@ describe('o escritório vê a viagem andar', () => {
     expect(isTripOnTheRoad('dispatched')).toBe(true)
     expect(isTripOnTheRoad('in_transit')).toBe(true)
 
-    for (const status of ['draft', 'route_planned', 'separating', 'loading', 'completed', 'cancelled']) {
+    for (const status of [
+      'draft',
+      'route_planned',
+      'separating',
+      'loading',
+      'completed',
+      'cancelled',
+    ]) {
       expect(isTripOnTheRoad(status)).toBe(false)
     }
   })

@@ -17,9 +17,7 @@ const USER_ID = '00000000-0000-4000-8000-000000000002'
 const TRIP_ID = '00000000-0000-4000-8000-000000000003'
 const MANIFEST_ID = '00000000-0000-4000-8000-000000000004'
 
-function readiness(
-  state: TripFiscalReadinessSnapshot['state'],
-): TripFiscalReadinessSnapshot {
+function readiness(state: TripFiscalReadinessSnapshot['state']): TripFiscalReadinessSnapshot {
   return {
     documents: [],
     manifestableCount: 1,
@@ -30,12 +28,14 @@ function readiness(
   }
 }
 
-function buildWorld(input: {
-  readonly createError?: unknown
-  readonly isAutomaticEnabled?: boolean
-  readonly state?: TripFiscalReadinessSnapshot['state']
-  readonly tripStatus?: TripStatus | null
-} = {}) {
+function buildWorld(
+  input: {
+    readonly createError?: unknown
+    readonly isAutomaticEnabled?: boolean
+    readonly state?: TripFiscalReadinessSnapshot['state']
+    readonly tripStatus?: TripStatus | null
+  } = {},
+) {
   const createCalls: object[] = []
   const repository: AutomaticManifestTripPort = {
     findStatus: () =>
@@ -144,6 +144,9 @@ describe('o MDF-e que se emite sozinho', () => {
   it('viagem de outra empresa não emite nada', async () => {
     const world = buildWorld({ tripStatus: null })
 
-    expect(await world.run()).toMatchObject({ outcome: 'not_eligible', refusalCode: 'TRIP_NOT_FOUND' })
+    expect(await world.run()).toMatchObject({
+      outcome: 'not_eligible',
+      refusalCode: 'TRIP_NOT_FOUND',
+    })
   })
 })

@@ -174,7 +174,8 @@ function collectModel(page: PdfPageText, collector: Collector): void {
 
 function collectOperation(page: PdfPageText, collector: Collector): void {
   const axleCount = readLabel(page, LABEL.axleCount)?.replace(/\D/gu, '')
-  if (axleCount === undefined || axleCount.length === 0) collector.remark('axleCount', 'notInformed')
+  if (axleCount === undefined || axleCount.length === 0)
+    collector.remark('axleCount', 'notInformed')
   else collector.values.axleCount = axleCount
 
   const bodyType = readLabel(page, LABEL.bodyType)

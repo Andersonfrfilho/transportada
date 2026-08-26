@@ -54,10 +54,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       )
       .innerJoin(
         fleetVehicles,
-        and(
-          eq(fleetVehicles.companyId, trips.companyId),
-          eq(fleetVehicles.id, trips.vehicleId),
-        ),
+        and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
       )
       .where(
         and(
@@ -157,49 +154,51 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
    * participante é importação incompleta, não motivo para a parada sumir da tela.
    */
   private async listDocuments(input: { readonly companyId: string; readonly tripIds: string[] }) {
-    return this.database
-      .select({
-        accessKey: nfeDocuments.accessKey,
-        deliveredAt: tripDocuments.deliveredAt,
-        id: tripDocuments.id,
-        nfeDocumentId: tripDocuments.nfeDocumentId,
-        number: nfeDocuments.number,
-        recipientName: nfeParticipants.legalName,
-        returnReason: tripDocuments.returnReason,
-        separationStatus: tripDocuments.separationStatus,
-        series: nfeDocuments.series,
-        stopId: tripDocuments.stopId,
-        totalAmount: nfeDocuments.totalValue,
-      })
-      .from(tripDocuments)
-      .leftJoin(
-        nfeDocuments,
-        and(
-          eq(nfeDocuments.companyId, tripDocuments.companyId),
-          eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
-        ),
-      )
-      .leftJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.companyId, tripDocuments.companyId),
-          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
-          eq(nfeParticipants.role, RECIPIENT_ROLE),
-        ),
-      )
-      .where(
-        and(
-          eq(tripDocuments.companyId, input.companyId),
-          inArray(tripDocuments.tripId, input.tripIds),
-          isNull(tripDocuments.releasedAt),
-        ),
-      )
-      /**
-       * A ordem é a do vínculo, que é a ordem em que a carga foi separada — e ela precisa ser
-       * estável: romaneio cuja lista embaralha entre uma abertura e outra é romaneio que o
-       * conferente não consegue checar. Sem `order by` explícito, quem decide é o plano do banco.
-       */
-      .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+    return (
+      this.database
+        .select({
+          accessKey: nfeDocuments.accessKey,
+          deliveredAt: tripDocuments.deliveredAt,
+          id: tripDocuments.id,
+          nfeDocumentId: tripDocuments.nfeDocumentId,
+          number: nfeDocuments.number,
+          recipientName: nfeParticipants.legalName,
+          returnReason: tripDocuments.returnReason,
+          separationStatus: tripDocuments.separationStatus,
+          series: nfeDocuments.series,
+          stopId: tripDocuments.stopId,
+          totalAmount: nfeDocuments.totalValue,
+        })
+        .from(tripDocuments)
+        .leftJoin(
+          nfeDocuments,
+          and(
+            eq(nfeDocuments.companyId, tripDocuments.companyId),
+            eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+          ),
+        )
+        .leftJoin(
+          nfeParticipants,
+          and(
+            eq(nfeParticipants.companyId, tripDocuments.companyId),
+            eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+            eq(nfeParticipants.role, RECIPIENT_ROLE),
+          ),
+        )
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            inArray(tripDocuments.tripId, input.tripIds),
+            isNull(tripDocuments.releasedAt),
+          ),
+        )
+        /**
+         * A ordem é a do vínculo, que é a ordem em que a carga foi separada — e ela precisa ser
+         * estável: romaneio cuja lista embaralha entre uma abertura e outra é romaneio que o
+         * conferente não consegue checar. Sem `order by` explícito, quem decide é o plano do banco.
+         */
+        .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+    )
   }
 }
 
@@ -232,7 +231,10 @@ type DocumentRow = {
   readonly volumes: VolumeTotals | null
 }
 
-function toDriverStop(stop: StopRow, documentsByStop: Map<string | null, DocumentRow[]>): DriverTripStop {
+function toDriverStop(
+  stop: StopRow,
+  documentsByStop: Map<string | null, DocumentRow[]>,
+): DriverTripStop {
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
     completedAt: stop.completedAt?.toISOString() ?? null,

@@ -17,18 +17,18 @@ Vale para toda spec deste plano, sem exceção:
 
 ## Estado inicial (verificado no código)
 
-| Spec    | Tamanho | O que é                                 | Estado                               |
-| ------- | ------- | --------------------------------------- | ------------------------------------ |
-| **048** | 141     | OCR do CRLV preenche a ficha do veículo | ✅ fase CRLV; CNH/ANTT bloqueadas    |
-| **057** | 272     | PWA do motorista — a viagem no bolso    | ✅ concluída                         |
-| **058** | —       | roteiro se sugere sozinho               | ✅ P1; **P2 multi-veículo pendente** |
-| **059** | 226     | MDF-e nasce da viagem completa          | ⚠️ parcial: manual ok, gatilho falta |
-| **060** | 383     | cliente tem janela de entrega e taxa    | só `spec.md`                         |
-| **061** | 216     | a viagem fecha a conta (margem real)    | só `spec.md`                         |
-| **062** | 235     | WhatsApp como canal                     | só `spec.md`                         |
-| **063** | 206     | portal do cliente                       | só `spec.md`                         |
-| **064** | —       | portal do agregado                      | `tasks.md`, sem `evidence.md`        |
-| **066** | 184     | o MEI chega com anexo                   | só `spec.md` — quatro dúvidas abertas |
+| Spec    | Tamanho | O que é                                 | Estado                                          |
+| ------- | ------- | --------------------------------------- | ----------------------------------------------- |
+| **048** | 141     | OCR do CRLV preenche a ficha do veículo | ✅ fase CRLV; CNH/ANTT bloqueadas               |
+| **057** | 272     | PWA do motorista — a viagem no bolso    | ✅ concluída                                    |
+| **058** | —       | roteiro se sugere sozinho               | ✅ P1; **P2 multi-veículo pendente**            |
+| **059** | 226     | MDF-e nasce da viagem completa          | ⚠️ parcial: manual ok, gatilho falta            |
+| **060** | 383     | cliente tem janela de entrega e taxa    | só `spec.md`                                    |
+| **061** | 216     | a viagem fecha a conta (margem real)    | só `spec.md`                                    |
+| **062** | 235     | WhatsApp como canal                     | só `spec.md`                                    |
+| **063** | 206     | portal do cliente                       | só `spec.md`                                    |
+| **064** | —       | portal do agregado                      | `tasks.md`, sem `evidence.md`                   |
+| **066** | 184     | o MEI chega com anexo                   | só `spec.md` — quatro dúvidas abertas           |
 | **065** | 190     | o caminhão sai antes do documento       | só `spec.md` — **corrige dois defeitos da 059** |
 
 ## Ordem, e a razão dela

@@ -77,7 +77,7 @@ Diferenças em relação aos outros dois trilhos:
 ## Quando o MDF-e de uma viagem pode nascer (spec 059, ADR-0046)
 
 A viagem **não fala com a SEFAZ** — quem fala é a trilha de emissão. O que ela passa a saber é
-*quando pedir*, e a regra é uma só, em `checkTripAcceptsManifest`:
+_quando pedir_, e a regra é uma só, em `checkTripAcceptsManifest`:
 
 - a viagem está em `dispatched` — vale para o botão manual também, porque é depois do despacho que o
   conjunto de notas para de mudar (ADR-0043 §2). Antes disso o manifesto declararia um conjunto que

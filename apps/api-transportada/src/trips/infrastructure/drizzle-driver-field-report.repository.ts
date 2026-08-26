@@ -66,7 +66,9 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         idempotencyKey: input.idempotencyKey,
         operation: input.operation,
       })
-      .onConflictDoNothing({ target: [tripFieldReports.companyId, tripFieldReports.idempotencyKey] })
+      .onConflictDoNothing({
+        target: [tripFieldReports.companyId, tripFieldReports.idempotencyKey],
+      })
       .returning({ id: tripFieldReports.id })
 
     if (inserted.length > 0) {
@@ -326,8 +328,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .values({
         accuracyMeters: input.location?.accuracyMeters ?? null,
         actorUserId: input.actorUserId,
-        capturedAt:
-          input.location === null ? null : new Date(input.location.capturedAt),
+        capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
         companyId: input.companyId,
         kind: input.kind,
         latitude: input.location?.latitude ?? null,

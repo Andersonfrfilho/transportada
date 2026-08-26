@@ -6,13 +6,13 @@
 
 ## O que está pronto e verificado
 
-| Task | O que entrou                                                                          |
+| Task | O que entrou                                                                            |
 | ---- | --------------------------------------------------------------------------------------- |
-| T001 | ADR-0046, revisando a ADR-0023 por extenso; `fiscal-integration.md` com a regra escrita  |
-| T002 | índice `cte_batch_items (company_id, nfe_document_id)` — o caminho da nota até o CT-e    |
-| T003 | `trips.fiscal_readiness_state`, derivado, com o comentário dizendo que não é fonte       |
+| T001 | ADR-0046, revisando a ADR-0023 por extenso; `fiscal-integration.md` com a regra escrita |
+| T002 | índice `cte_batch_items (company_id, nfe_document_id)` — o caminho da nota até o CT-e   |
+| T003 | `trips.fiscal_readiness_state`, derivado, com o comentário dizendo que não é fonte      |
 | T004 | unique parcial: **um manifesto vivo por viagem**                                        |
-| T005 | `automatic_mdfe_on_completion`, desligado por padrão                                     |
+| T005 | `automatic_mdfe_on_completion`, desligado por padrão                                    |
 | T006 | a prontidão por nota, com o motivo, numa consulta só                                    |
 | T007 | o portão da emissão num lugar só, com quatro recusas nomeadas                           |
 | T008 | `GET /trips/:id/fiscal-readiness`                                                       |
@@ -21,27 +21,27 @@
 
 ## O que rodou
 
-| Comando                                                | Resultado                          |
-| ------------------------------------------------------ | ------------------------------------ |
-| `make migration-test`                                  | **86** testes, 0 falhas             |
-| `bun run --cwd apps/api-transportada test`             | **3284** contratos, 0 falhas        |
-| `bun run --cwd apps/api-transportada test:integration` | **152** testes contra Postgres      |
-| `bun run --cwd apps/frontend-transportada test`        | **2035** contratos, 0 falhas        |
-| `typecheck` + `lint` + `build`                         | limpos; CSP inalterada              |
+| Comando                                                | Resultado                      |
+| ------------------------------------------------------ | ------------------------------ |
+| `make migration-test`                                  | **86** testes, 0 falhas        |
+| `bun run --cwd apps/api-transportada test`             | **3284** contratos, 0 falhas   |
+| `bun run --cwd apps/api-transportada test:integration` | **152** testes contra Postgres |
+| `bun run --cwd apps/frontend-transportada test`        | **2035** contratos, 0 falhas   |
+| `typecheck` + `lint` + `build`                         | limpos; CSP inalterada         |
 
 ## O que cada verificação provou
 
-| Decisão                                            | Como ela está travada                                                                                                        |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Um manifesto vivo por viagem**                   | unique parcial exercitado contra Postgres nos dois sentidos: o segundo vivo é recusado, e depois de rejeitado a viagem manifesta de novo |
-| A migration não cria a trava em silêncio           | ela confere antes e **falha nomeando as viagens** com dois manifestos vivos — qual vale é decisão humana                       |
-| A prontidão responde por nota                      | contrato por motivo de bloqueio + integração com três desfechos fiscais reais (autorizado, rejeitado com cStat, sem CT-e)     |
-| Autorizado vence tudo entre várias tentativas      | o `collapseByDocument` tem ranking, e a integração cobre a nota com tentativa rejeitada **e** documento autorizado            |
-| O erro só aparece quando é o motivo                | nota autorizada depois de retry não mostra o `lastErrorCode` da tentativa que falhou                                          |
-| **O manual também exige `dispatched`**             | contrato próprio, nomeado — é a premissa que esta spec fechou, e é ele que muda se a operação real for outra                  |
-| Os CT-e saem da prontidão, não do corpo            | `documentIds` foi **removido** do schema da rota; contrato prova que o manifesto nasce da viagem                              |
-| A recusa carrega o que falta                       | `details` do erro trazem nota e motivo — um `409` mudo mandaria o operador abrir a outra tela                                 |
-| A tela não engole resposta estranha                | motivo e estado fora do vocabulário viram recusa: é a resposta que decide se o botão de emissão fiscal aparece                |
+| Decisão                                       | Como ela está travada                                                                                                                    |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Um manifesto vivo por viagem**              | unique parcial exercitado contra Postgres nos dois sentidos: o segundo vivo é recusado, e depois de rejeitado a viagem manifesta de novo |
+| A migration não cria a trava em silêncio      | ela confere antes e **falha nomeando as viagens** com dois manifestos vivos — qual vale é decisão humana                                 |
+| A prontidão responde por nota                 | contrato por motivo de bloqueio + integração com três desfechos fiscais reais (autorizado, rejeitado com cStat, sem CT-e)                |
+| Autorizado vence tudo entre várias tentativas | o `collapseByDocument` tem ranking, e a integração cobre a nota com tentativa rejeitada **e** documento autorizado                       |
+| O erro só aparece quando é o motivo           | nota autorizada depois de retry não mostra o `lastErrorCode` da tentativa que falhou                                                     |
+| **O manual também exige `dispatched`**        | contrato próprio, nomeado — é a premissa que esta spec fechou, e é ele que muda se a operação real for outra                             |
+| Os CT-e saem da prontidão, não do corpo       | `documentIds` foi **removido** do schema da rota; contrato prova que o manifesto nasce da viagem                                         |
+| A recusa carrega o que falta                  | `details` do erro trazem nota e motivo — um `409` mudo mandaria o operador abrir a outra tela                                            |
+| A tela não engole resposta estranha           | motivo e estado fora do vocabulário viram recusa: é a resposta que decide se o botão de emissão fiscal aparece                           |
 
 ## Uma correção à spec, com o código como evidência
 

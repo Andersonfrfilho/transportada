@@ -9,10 +9,7 @@ import {
 } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
-import type {
-  TripDocumentSeparationStatus,
-  TripStatus,
-} from '../../src/database/trip.schema.js'
+import type { TripDocumentSeparationStatus, TripStatus } from '../../src/database/trip.schema.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { createFieldReportState, createFieldReportUnitOfWork } from './field-report.double.js'
 
@@ -31,7 +28,9 @@ const LOCATION = {
   longitude: '-46.6333094',
 } as const
 
-function buildArrivalWorld(input: { readonly arrivedAt?: Date; readonly tripStatus?: string } = {}) {
+function buildArrivalWorld(
+  input: { readonly arrivedAt?: Date; readonly tripStatus?: string } = {},
+) {
   const state = createFieldReportState()
   state.stops.set(STOP_ID, {
     arrivedAt: input.arrivedAt ?? null,
@@ -143,7 +142,10 @@ describe('cheguei', () => {
   it('parada que não é de uma viagem ativa deste motorista não é alcançável', async () => {
     const world = createFieldReportUnitOfWork(createFieldReportState())
 
-    await expectApiError(reportStopArrival(arrivalInput(world, 'chave-1')), 'TRIP_STOP_NOT_REACHABLE')
+    await expectApiError(
+      reportStopArrival(arrivalInput(world, 'chave-1')),
+      'TRIP_STOP_NOT_REACHABLE',
+    )
   })
 })
 
@@ -209,9 +211,7 @@ describe('entreguei e não entreguei', () => {
       reason: 'establishment_closed',
     })
 
-    expect(world.state.calls).toContain(
-      `markDocumentReturned:${DOCUMENT_ID}:establishment_closed`,
-    )
+    expect(world.state.calls).toContain(`markDocumentReturned:${DOCUMENT_ID}:establishment_closed`)
     expect(world.state.calls).toContain('recordEvent:returned:no-gps')
   })
 

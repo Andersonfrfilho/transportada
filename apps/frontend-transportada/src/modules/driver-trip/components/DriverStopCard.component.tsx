@@ -26,11 +26,7 @@ type DriverStopCardProps = Readonly<{
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
   onProof: (input: { documentId: string; file: File }) => void
-  onOccurrence: (input: {
-    description: string
-    kind: DriverOccurrenceKind
-    stopId: string
-  }) => void
+  onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
   stop: DriverTripStop
 }>

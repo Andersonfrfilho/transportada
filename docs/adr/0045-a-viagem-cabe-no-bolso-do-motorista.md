@@ -134,11 +134,11 @@ confia. Construir navegação própria é competir com o Google Maps para entreg
 
 ## Alternativas descartadas
 
-| Alternativa                                        | Por que não                                                                                                    |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| App nativo primeiro                                | Instalação é a barreira, não o recurso. O PWA entrega hoje, e o contrato da §1 mantém o app barato depois.        |
-| `GET /trips/:id` com checagem de vínculo           | Funciona e é frágil: basta um caminho esquecer a checagem. Não ter id a passar é a versão que não se esquece.     |
-| Exigir coordenada para aceitar entrega             | Vira papel na mão do motorista, e o dado some inteiro em vez de vir parcial.                                     |
-| `watchPosition` durante a viagem                   | É rastreamento de pessoa com outro nome, e pede consentimento que esta spec não colheu.                          |
-| Fila offline sem idempotência no servidor          | Duplica entrega no primeiro reenvio, e o segundo celular logado duplica de novo.                                 |
-| Ocorrência como motivo de não-entrega              | Perde o caso mais comum, que é o problema **com** entrega feita.                                                 |
+| Alternativa                               | Por que não                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| App nativo primeiro                       | Instalação é a barreira, não o recurso. O PWA entrega hoje, e o contrato da §1 mantém o app barato depois.    |
+| `GET /trips/:id` com checagem de vínculo  | Funciona e é frágil: basta um caminho esquecer a checagem. Não ter id a passar é a versão que não se esquece. |
+| Exigir coordenada para aceitar entrega    | Vira papel na mão do motorista, e o dado some inteiro em vez de vir parcial.                                  |
+| `watchPosition` durante a viagem          | É rastreamento de pessoa com outro nome, e pede consentimento que esta spec não colheu.                       |
+| Fila offline sem idempotência no servidor | Duplica entrega no primeiro reenvio, e o segundo celular logado duplica de novo.                              |
+| Ocorrência como motivo de não-entrega     | Perde o caso mais comum, que é o problema **com** entrega feita.                                              |

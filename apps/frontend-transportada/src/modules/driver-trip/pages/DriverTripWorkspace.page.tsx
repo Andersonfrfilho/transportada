@@ -48,7 +48,11 @@ export function DriverTripWorkspacePage() {
   const snapshot = driverTrip.snapshot
   const trip = snapshot?.trips[0]
 
-  async function report(build: (location: Awaited<ReturnType<typeof readCurrentLocation>>) => Parameters<typeof driverTrip.report>[0]): Promise<void> {
+  async function report(
+    build: (
+      location: Awaited<ReturnType<typeof readCurrentLocation>>,
+    ) => Parameters<typeof driverTrip.report>[0],
+  ): Promise<void> {
     await driverTrip.report(build(await readCurrentLocation()))
   }
 

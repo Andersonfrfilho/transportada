@@ -357,7 +357,9 @@ async function assertFieldExecutionConstraints(input: {
 
   // A parada apagada leva o que aconteceu nela; o que não pode é sobrar evento órfão
   await database`delete from trip_stops where id = ${stopId}`
-  const orphanEvents = await database<Array<{ readonly events: string; readonly occurrences: string }>>`
+  const orphanEvents = await database<
+    Array<{ readonly events: string; readonly occurrences: string }>
+  >`
     select
       (select count(*) from trip_stop_events where stop_id = ${stopId}) as events,
       (select count(*) from trip_stop_occurrences where stop_id = ${stopId}) as occurrences

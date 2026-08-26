@@ -8,7 +8,7 @@
 > continuam valendo integralmente.
 
 > **Revisado pela ADR-0046 (2026-08-26).** A viagem continua **não falando com a SEFAZ** — quem fala
-> é a trilha de emissão —, e passa a *saber quando está pronta* e a *poder pedir*. Nenhum estado
+> é a trilha de emissão —, e passa a _saber quando está pronta_ e a _poder pedir_. Nenhum estado
 > fiscal é espelhado em `trips` como fonte; a coluna derivada que nasce lá é índice de lista, e a
 > consulta ao estado real é a verdade. A premissa deste ADR não é violada: ela é o que sustenta a
 > escolha de consulta em vez de flag.

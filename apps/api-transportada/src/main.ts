@@ -767,8 +767,7 @@ function createApplicationRoutes({
     manifests: mdfeManifests,
     readiness: {
       countDischargeCities: (input) => tripFiscalReadinessQuery.countDischargeCities(input),
-      read: (input) =>
-        readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+      read: (input) => readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
     },
     trips,
   })
@@ -1061,7 +1060,11 @@ function createApplicationRoutes({
       reportDelivery: (input) =>
         reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       reportOccurrence: (input) =>
-        reportStopOccurrence({ ...input, attachmentObjectId: null, unitOfWork: driverFieldReports }),
+        reportStopOccurrence({
+          ...input,
+          attachmentObjectId: null,
+          unitOfWork: driverFieldReports,
+        }),
       reportReturn: (input) =>
         reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),

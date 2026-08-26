@@ -5,35 +5,35 @@
 
 ## O que rodou
 
-| Comando                                                             | Resultado                                                   |
-| ------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `make migration-test`                                               | **86** testes — aplica, exercita as constraints e reverte    |
-| `bun run --cwd apps/api-transportada test`                          | **3261** contratos, 0 falhas                                 |
-| `bun run --cwd apps/api-transportada test:integration`              | **149** testes contra Postgres, 0 falhas                     |
-| `make worker-integration`                                           | **57** testes, 0 falhas                                      |
-| `bun run --cwd apps/frontend-transportada test`                     | **2029** contratos, 0 falhas                                 |
-| `ENV_FILE=../../.env bun run smoke`                                 | **38** cenários no navegador, 0 falhas                       |
-| `typecheck` + `lint` nas quatro apps                                | limpos                                                       |
-| `bun run --cwd apps/frontend-transportada build`                    | `built in 2.71s`                                             |
+| Comando                                                | Resultado                                                 |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `make migration-test`                                  | **86** testes — aplica, exercita as constraints e reverte |
+| `bun run --cwd apps/api-transportada test`             | **3261** contratos, 0 falhas                              |
+| `bun run --cwd apps/api-transportada test:integration` | **149** testes contra Postgres, 0 falhas                  |
+| `make worker-integration`                              | **57** testes, 0 falhas                                   |
+| `bun run --cwd apps/frontend-transportada test`        | **2029** contratos, 0 falhas                              |
+| `ENV_FILE=../../.env bun run smoke`                    | **38** cenários no navegador, 0 falhas                    |
+| `typecheck` + `lint` nas quatro apps                   | limpos                                                    |
+| `bun run --cwd apps/frontend-transportada build`       | `built in 2.71s`                                          |
 
 ## O que cada verificação provou
 
-| Decisão                                                     | Como ela está travada                                                                                                                                    |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **D2 — o contrato é do canal, não do PWA**                  | `test/integration/me-trip.integration.ts` executa a viagem inteira — chegar, entregar duas, ocorrência, devolver, fechar — **sem browser nenhum**         |
-| **D1 — o motorista não escolhe id**                         | contrato sobre as rotas: nenhuma leva `:id` nem `:tripId`, e todas ficam sob `/me/trips/current`                                                          |
-| `driver` não alcança o escritório                           | contrato que varre **as políticas declaradas** das rotas de viagem e checa contra as permissões do papel — não uma lista de caminhos que alguém mantém    |
-| **D3.1 — a recusa de GPS não bloqueia**                     | contrato do caso de uso + CHECK do banco: entrega sem coordenada nenhuma é aceita nos dois níveis                                                         |
-| Coordenada meia não entra                                   | `trip_stop_events_coordinates_check` e `trip_stop_events_accuracy_check`, exercitados contra Postgres                                                     |
-| Precisão de 5 km é gravada, não descartada                  | inserção explícita no teste de migration — galpão de laje é o caso normal, não o suspeito                                                                 |
-| **D3.3 — retenção de 90 dias com expurgo real**             | rotina no `JOB_CATALOG` das quatro apps + integração com **relógio injetado**: o evento de 91 dias perde a coordenada e mantém `arrived_at`               |
-| **D5 — a fila offline não duplica**                         | integração contra Postgres: três chegadas com a mesma chave devolvem o mesmo evento e a tabela tem **uma** linha                                          |
-| **D5 — a tela diz a verdade**                               | smoke com a rede abortada de verdade: o toque fica "aguardando envio" e nada sobe                                                                         |
-| **D6.2 — ocorrência e entrega convivem**                    | dois contratos: a ocorrência não muda estado de nota nenhuma, e a entrega da mesma nota funciona logo depois                                              |
-| **D7 — a assinatura não colhe CPF**                         | não há coluna para ele; e a chave do objeto no bucket tem contrato próprio provando que não leva nome de pessoa                                           |
-| Filtro de tenant                                            | teste negativo na integração: o motorista de outra empresa abre o app e não enxerga a viagem, nem alcança a parada dela                                   |
-| `Permissions-Policy`                                        | contrato que quebra nos dois sentidos, e um teste **só** para o microfone continuar `()`                                                                  |
-| A CSP não mudou                                             | `dist/content-security-policy.txt` sai do build com o mesmo sha256 de antes da spec (`c7ade7eb…`)                                                         |
+| Decisão                                         | Como ela está travada                                                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **D2 — o contrato é do canal, não do PWA**      | `test/integration/me-trip.integration.ts` executa a viagem inteira — chegar, entregar duas, ocorrência, devolver, fechar — **sem browser nenhum**      |
+| **D1 — o motorista não escolhe id**             | contrato sobre as rotas: nenhuma leva `:id` nem `:tripId`, e todas ficam sob `/me/trips/current`                                                       |
+| `driver` não alcança o escritório               | contrato que varre **as políticas declaradas** das rotas de viagem e checa contra as permissões do papel — não uma lista de caminhos que alguém mantém |
+| **D3.1 — a recusa de GPS não bloqueia**         | contrato do caso de uso + CHECK do banco: entrega sem coordenada nenhuma é aceita nos dois níveis                                                      |
+| Coordenada meia não entra                       | `trip_stop_events_coordinates_check` e `trip_stop_events_accuracy_check`, exercitados contra Postgres                                                  |
+| Precisão de 5 km é gravada, não descartada      | inserção explícita no teste de migration — galpão de laje é o caso normal, não o suspeito                                                              |
+| **D3.3 — retenção de 90 dias com expurgo real** | rotina no `JOB_CATALOG` das quatro apps + integração com **relógio injetado**: o evento de 91 dias perde a coordenada e mantém `arrived_at`            |
+| **D5 — a fila offline não duplica**             | integração contra Postgres: três chegadas com a mesma chave devolvem o mesmo evento e a tabela tem **uma** linha                                       |
+| **D5 — a tela diz a verdade**                   | smoke com a rede abortada de verdade: o toque fica "aguardando envio" e nada sobe                                                                      |
+| **D6.2 — ocorrência e entrega convivem**        | dois contratos: a ocorrência não muda estado de nota nenhuma, e a entrega da mesma nota funciona logo depois                                           |
+| **D7 — a assinatura não colhe CPF**             | não há coluna para ele; e a chave do objeto no bucket tem contrato próprio provando que não leva nome de pessoa                                        |
+| Filtro de tenant                                | teste negativo na integração: o motorista de outra empresa abre o app e não enxerga a viagem, nem alcança a parada dela                                |
+| `Permissions-Policy`                            | contrato que quebra nos dois sentidos, e um teste **só** para o microfone continuar `()`                                                               |
+| A CSP não mudou                                 | `dist/content-security-policy.txt` sai do build com o mesmo sha256 de antes da spec (`c7ade7eb…`)                                                      |
 
 ## Dois defeitos meus que a verificação pegou
 

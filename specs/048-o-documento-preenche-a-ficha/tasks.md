@@ -7,12 +7,12 @@
 
 ## Estado das dependências (verificado no código, 2026-08-26)
 
-| Dependência                                     | Estado                                | Consequência para esta spec                                                                                                                              |
-| ----------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `aggregate-document-ocr` (API)                  | ✅ existe                             | **Não é reaproveitável aqui.** É gateway HTTP para OCR de terceiro, no backend. A 048 é o oposto: o PDF não sai da máquina do operador (§ Privacidade). |
-| `checkDigit.service.ts` (T001)                  | ✅ feito                              | O verificador que decide o que não se preenche já está no módulo, com 17 contratos.                                                                      |
-| `FleetVehicleFormState`                         | ✅ existe                             | É o alvo do mapeamento. `tareWeightKilograms` existe no formulário, mas o CRLV **não imprime tara** — ver T006.                                          |
-| Amostra de CRLV-e em PDF                        | ⛔ não está no repositório            | As medições de 19–20/08 estão na spec; os arquivos, não. A verificação usa PDF **gerado** com a geometria medida — ver § Buraco declarado.               |
+| Dependência                    | Estado                     | Consequência para esta spec                                                                                                                             |
+| ------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aggregate-document-ocr` (API) | ✅ existe                  | **Não é reaproveitável aqui.** É gateway HTTP para OCR de terceiro, no backend. A 048 é o oposto: o PDF não sai da máquina do operador (§ Privacidade). |
+| `checkDigit.service.ts` (T001) | ✅ feito                   | O verificador que decide o que não se preenche já está no módulo, com 17 contratos.                                                                     |
+| `FleetVehicleFormState`        | ✅ existe                  | É o alvo do mapeamento. `tareWeightKilograms` existe no formulário, mas o CRLV **não imprime tara** — ver T006.                                         |
+| Amostra de CRLV-e em PDF       | ⛔ não está no repositório | As medições de 19–20/08 estão na spec; os arquivos, não. A verificação usa PDF **gerado** com a geometria medida — ver § Buraco declarado.              |
 
 ## Buraco declarado, e por que ele não invalida a fase
 

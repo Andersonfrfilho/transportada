@@ -74,9 +74,7 @@ export async function createTripCteBatch(
   return { batchId: batch.id, documentCount: documentIds.length }
 }
 
-function selectPendingCteDocuments(
-  readiness: TripFiscalReadinessSnapshot,
-): readonly string[] {
+function selectPendingCteDocuments(readiness: TripFiscalReadinessSnapshot): readonly string[] {
   return readiness.documents
     .filter(
       (document) =>

@@ -641,7 +641,10 @@ export const tripStopEvents = pgTable(
     index('trip_stop_events_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
-    check('trip_stop_events_kind_check', sql`${table.kind} in (${raw(inList(TRIP_STOP_EVENT_KINDS))})`),
+    check(
+      'trip_stop_events_kind_check',
+      sql`${table.kind} in (${raw(inList(TRIP_STOP_EVENT_KINDS))})`,
+    ),
     check(
       'trip_stop_events_coordinates_check',
       sql`(${table.latitude} is null) = (${table.longitude} is null)`,

@@ -89,9 +89,7 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
           (entry) => entry.tripDocumentId === world.tripDocumentIdByOutcome.get('urban'),
         ),
       ).toMatchObject({ expectedDocument: 'nfse', reason: 'nfse_expected' })
-      const byDocument = new Map(
-        readiness.documents.map((entry) => [entry.tripDocumentId, entry]),
-      )
+      const byDocument = new Map(readiness.documents.map((entry) => [entry.tripDocumentId, entry]))
       expect(byDocument.get(world.tripDocumentIdByOutcome.get('authorized') ?? '')).toMatchObject({
         reason: 'ok',
       })
@@ -113,9 +111,7 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
 
       // Desvincular as duas pendentes é o caminho da P2 da spec: a viagem segue sem elas.
       // A urbana **fica**, e é justamente ela que não pode impedir a viagem de ficar pronta.
-      await database.db.delete(tripDocuments).where(
-        inCompanyDocuments(world, ['none', 'rejected']),
-      )
+      await database.db.delete(tripDocuments).where(inCompanyDocuments(world, ['none', 'rejected']))
 
       const readiness = await readTripFiscalReadiness({
         companyId: world.companyId,
@@ -272,9 +268,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     state: 'SP',
     vehicleType: 'tractor_unit',
   })
-  await database.db
-    .insert(trips)
-    .values({ companyId, id: tripId, status: 'dispatched', vehicleId })
+  await database.db.insert(trips).values({ companyId, id: tripId, status: 'dispatched', vehicleId })
   await database.db.insert(storedObjects).values([
     {
       bucket: 'integration',

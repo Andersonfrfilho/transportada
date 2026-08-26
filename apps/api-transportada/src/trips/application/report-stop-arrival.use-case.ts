@@ -2,10 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { TripStopNotReachableError } from '../domain/trip.error.js'
-import type {
-  DriverFieldReportUnitOfWork,
-  ReportedLocation,
-} from './driver-field-report.port.js'
+import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const ARRIVE_OPERATION = 'stop.arrive'

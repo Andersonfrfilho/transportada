@@ -154,10 +154,7 @@ describe('o comprovante da entrega', () => {
   it('recusa quando não há entrega deste motorista para a nota', async () => {
     const world = buildWorld({ eventId: null })
 
-    await expectApiError(
-      attachDeliveryProof(buildInput(world)),
-      'TRIP_DOCUMENT_NOT_REACHABLE',
-    )
+    await expectApiError(attachDeliveryProof(buildInput(world)), 'TRIP_DOCUMENT_NOT_REACHABLE')
     expect(world.stored).toHaveLength(0)
   })
 })

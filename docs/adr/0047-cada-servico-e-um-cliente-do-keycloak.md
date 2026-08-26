@@ -76,10 +76,10 @@ responde nada quando alguém pergunta por que aquele manifesto saiu.
 
 ## Alternativas descartadas
 
-| Alternativa                                   | Por que não                                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Segredo compartilhado com header próprio      | Caminho de autenticação escrito por nós, ao lado de um Keycloak que já faz isso melhor.                  |
-| Um cliente do Keycloak por empresa            | Provisionamento por tenant, e o worker teria de descobrir qual cliente usar a cada mensagem.             |
+| Alternativa                                   | Por que não                                                                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Segredo compartilhado com header próprio      | Caminho de autenticação escrito por nós, ao lado de um Keycloak que já faz isso melhor.                           |
+| Um cliente do Keycloak por empresa            | Provisionamento por tenant, e o worker teria de descobrir qual cliente usar a cada mensagem.                      |
 | Worker escreve direto no banco                | Duplica a montagem do manifesto — veículo, condutores, itens, municípios, totais. Regra fiscal duplicada diverge. |
-| Mover o domínio de manifesto para `packages/` | A regra do monorepo fala de **provider** compartilhado, não de domínio; e move superfície demais.        |
-| Deixar manual                                 | O automático é o caminho normal desta operação (065 D2b); manual é o contorno.                           |
+| Mover o domínio de manifesto para `packages/` | A regra do monorepo fala de **provider** compartilhado, não de domínio; e move superfície demais.                 |
+| Deixar manual                                 | O automático é o caminho normal desta operação (065 D2b); manual é o contorno.                                    |

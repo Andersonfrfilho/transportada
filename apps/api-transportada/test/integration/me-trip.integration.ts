@@ -350,9 +350,7 @@ async function seedDispatchedTrip(database: TestDatabase): Promise<World> {
     name: 'Motorista de Campo',
     taxId: '11111111111',
   })
-  await database.db
-    .insert(trips)
-    .values({ companyId, id: tripId, status: 'dispatched', vehicleId })
+  await database.db.insert(trips).values({ companyId, id: tripId, status: 'dispatched', vehicleId })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,

@@ -75,7 +75,10 @@ export type MeTripDependencies = {
     },
   ) => Promise<ReportDocumentOutcomeResult>
   readonly attachProof: (
-    input: DriverContextInput & { readonly documentId: string; readonly upload: DeliveryProofUpload },
+    input: DriverContextInput & {
+      readonly documentId: string
+      readonly upload: DeliveryProofUpload
+    },
   ) => Promise<{ readonly id: string }>
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   readonly resolveDriverId: (input: {

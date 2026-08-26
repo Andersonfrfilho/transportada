@@ -10,16 +10,16 @@
 
 ## Estado das dependências (verificado no código, 2026-08-26)
 
-| Dependência                             | Estado                                        | Consequência para esta spec                                                                                                              |
-| --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Emissão de MDF-e                        | ✅ viva (outbox → RabbitMQ → provider)        | Esta spec **não a toca**: ela decide *quando* chamar.                                                                                    |
-| `mdfe_manifests.trip_id`                | ✅ existe                                     | O vínculo já está lá; falta a trava de manifesto vivo por viagem.                                                                        |
-| `cteAuthorizedExpression()`             | ✅ existe em `trip.query.ts`                  | Já responde "esta nota tem CT-e autorizado?" — **sim/não**, sem o motivo. A readiness é a versão que diz por quê.                        |
-| `POST /trips/:id/mdfe-manifests`        | ✅ existe                                     | Hoje exige `documentIds` no corpo. A D4 a faz completar da viagem.                                                                       |
-| `list-returned-with-active-cte`         | ✅ implementada (056 D8)                      | Mesmo caminho de índice da D1 — e é por isso que ele nasce uma vez só.                                                                   |
-| `TripMdfePendingDialog` (frontend)      | ⚠️ existe                                     | É a **evidência do problema**, não a solução: ele bloqueia na hora do clique em vez de a viagem saber. Evolui, não some.                 |
-| Índice `cte_batch_items (company, nfe)` | ⛔ não existe                                 | O unique é `(company, batch, nfe)` — a busca por nota sozinha não o usa. Nasce aqui (RF-2).                                              |
-| **057** execução de campo               | ✅ concluída                                  | A viagem agora sabe o que aconteceu na rua. Não é dependência desta spec, mas é o que a 061 espera das duas.                             |
+| Dependência                             | Estado                                 | Consequência para esta spec                                                                                              |
+| --------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Emissão de MDF-e                        | ✅ viva (outbox → RabbitMQ → provider) | Esta spec **não a toca**: ela decide _quando_ chamar.                                                                    |
+| `mdfe_manifests.trip_id`                | ✅ existe                              | O vínculo já está lá; falta a trava de manifesto vivo por viagem.                                                        |
+| `cteAuthorizedExpression()`             | ✅ existe em `trip.query.ts`           | Já responde "esta nota tem CT-e autorizado?" — **sim/não**, sem o motivo. A readiness é a versão que diz por quê.        |
+| `POST /trips/:id/mdfe-manifests`        | ✅ existe                              | Hoje exige `documentIds` no corpo. A D4 a faz completar da viagem.                                                       |
+| `list-returned-with-active-cte`         | ✅ implementada (056 D8)               | Mesmo caminho de índice da D1 — e é por isso que ele nasce uma vez só.                                                   |
+| `TripMdfePendingDialog` (frontend)      | ⚠️ existe                              | É a **evidência do problema**, não a solução: ele bloqueia na hora do clique em vez de a viagem saber. Evolui, não some. |
+| Índice `cte_batch_items (company, nfe)` | ⛔ não existe                          | O unique é `(company, batch, nfe)` — a busca por nota sozinha não o usa. Nasce aqui (RF-2).                              |
+| **057** execução de campo               | ✅ concluída                           | A viagem agora sabe o que aconteceu na rua. Não é dependência desta spec, mas é o que a 061 espera das duas.             |
 
 ## Premissa registrada — a dúvida que eu fecho, e por quê
 
@@ -27,8 +27,8 @@ A spec deixa em aberto: **emissão manual de MDF-e em `draft`/`route_planned` �
 `dispatched` também no manual?**
 
 Eu fecho por **exigir `dispatched` nos dois caminhos**, e o argumento é o da própria spec. A garantia
-inteira da D3 é: *"depois de `dispatched` nenhuma nota entra ou sai, então o conjunto declarado no
-manifesto não pode mudar por baixo dele"*. Permitir a emissão manual antes disso reabre exatamente
+inteira da D3 é: _"depois de `dispatched` nenhuma nota entra ou sai, então o conjunto declarado no
+manifesto não pode mudar por baixo dele"_. Permitir a emissão manual antes disso reabre exatamente
 esse buraco — o manifesto declara dez CT-e, alguém vincula a décima primeira nota, e a declaração à
 SEFAZ passa a ser falsa sem que nada acuse.
 

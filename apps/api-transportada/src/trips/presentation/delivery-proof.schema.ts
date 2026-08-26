@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TRIP_DELIVERY_PROOF_KINDS, type TripDeliveryProofKind } from '../../database/trip.schema.js'
+import {
+  TRIP_DELIVERY_PROOF_KINDS,
+  type TripDeliveryProofKind,
+} from '../../database/trip.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
@@ -12,7 +15,9 @@ const RECEIVER_FIELD = 'receiverName'
 const RECEIVER_NAME_MAX_LENGTH = 120
 
 function isProofKind(value: unknown): value is TripDeliveryProofKind {
-  return typeof value === 'string' && (TRIP_DELIVERY_PROOF_KINDS as readonly string[]).includes(value)
+  return (
+    typeof value === 'string' && (TRIP_DELIVERY_PROOF_KINDS as readonly string[]).includes(value)
+  )
 }
 
 /**

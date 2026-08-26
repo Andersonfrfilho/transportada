@@ -97,10 +97,10 @@ foi gerado manda a pessoa para o portal da SEFAZ. É assim que o produto passa a
 
 ## Alternativas descartadas
 
-| Alternativa                                | Por que não                                                                                          |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Flag booleana de completude em `trips`     | Dessincroniza no cancelamento de um CT-e, e o manifesto sobre ela é declaração falsa.                |
-| Cron varrendo viagens abertas              | Atrasa quem espera e gasta consulta em quem não mudou. O evento já existe no fluxo.                  |
-| Automático ligado por padrão               | Decide pelo cliente uma ação irreversível contra órgão público.                                      |
-| `if` no consumer contra emissão duplicada  | Perde a corrida por definição. A unicidade é do banco.                                               |
-| Cancelar o manifesto sozinho na divergência | Cancelamento de MDF-e é decisão fiscal humana, com janela e regra próprias. O sistema **avisa**.      |
+| Alternativa                                 | Por que não                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Flag booleana de completude em `trips`      | Dessincroniza no cancelamento de um CT-e, e o manifesto sobre ela é declaração falsa.            |
+| Cron varrendo viagens abertas               | Atrasa quem espera e gasta consulta em quem não mudou. O evento já existe no fluxo.              |
+| Automático ligado por padrão                | Decide pelo cliente uma ação irreversível contra órgão público.                                  |
+| `if` no consumer contra emissão duplicada   | Perde a corrida por definição. A unicidade é do banco.                                           |
+| Cancelar o manifesto sozinho na divergência | Cancelamento de MDF-e é decisão fiscal humana, com janela e regra próprias. O sistema **avisa**. |

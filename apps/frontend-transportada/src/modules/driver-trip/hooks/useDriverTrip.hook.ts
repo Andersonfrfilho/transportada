@@ -2,10 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import {
-  DriverTripRequestError,
-  getDriverTripClient,
-} from '../shared/driverTripClient.service'
+import { DriverTripRequestError, getDriverTripClient } from '../shared/driverTripClient.service'
 import type { DriverFieldReport, DriverTripSnapshot } from '../shared/driverTrip.types'
 import { createIndexedDbQueueStore } from '../shared/indexedDbQueue.service'
 import {

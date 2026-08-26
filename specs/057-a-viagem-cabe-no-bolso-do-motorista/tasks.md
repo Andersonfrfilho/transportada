@@ -7,15 +7,15 @@
 
 ## Estado das dependências (verificado no código, 2026-08-26)
 
-| Dependência                                | Estado                                  | Consequência para esta spec                                                                                                                       |
-| ------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **056** paradas e máquina de estados       | ✅ implementada                         | `trip_stops` já tem `sequence`, `arrived_at`, `completed_at` e a constraint `completed_at is null or arrived_at is not null`. É a base.            |
-| `driver`/`aggregate` com `trip.read`/`trip.report` | ✅ reservados, **sem consumidor**  | `authorization.policy.ts` já os declara. Esta spec é o primeiro consumidor — nenhuma permissão nova nasce.                                         |
-| `fleet_drivers.membership_id`              | ✅ existe, anulável                     | É por ele que o servidor resolve `membership → driver → trip` (D1). Motorista sem `membership_id` não tem PWA — e isso é caso de tela, não erro.   |
-| `stored_objects` + provider de bucket      | ✅ em uso (XML, PDF de fatura)          | O comprovante da D4 entra por lá: bucket privado, presigned curta, chave sem nome de pessoa.                                                       |
-| `TRIP_DOCUMENT_DELIVER_PATH` (spec 027)    | ⚠️ existe e é do **escritório**         | O comentário da 056 já avisa: `deliver` de rua é `/me/trips/*`. As duas rotas convivem; nada é removido aqui.                                      |
-| **060** hora e preço                       | ⛔ só spec                              | `delivery_window_*` já é coluna. A parada mostra a janela quando houver; sem cadastro, não mostra. Nenhuma migration futura por causa disso.       |
-| **058** mediana de tempo de serviço        | ✅ implementada, **medindo vazio**      | Ela lê `arrived_at`/`completed_at`, que **nada escreve** hoje. Esta spec é quem começa a escrever — é a razão de a 057 vir antes da 059 e da 061. |
+| Dependência                                        | Estado                             | Consequência para esta spec                                                                                                                       |
+| -------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **056** paradas e máquina de estados               | ✅ implementada                    | `trip_stops` já tem `sequence`, `arrived_at`, `completed_at` e a constraint `completed_at is null or arrived_at is not null`. É a base.           |
+| `driver`/`aggregate` com `trip.read`/`trip.report` | ✅ reservados, **sem consumidor**  | `authorization.policy.ts` já os declara. Esta spec é o primeiro consumidor — nenhuma permissão nova nasce.                                        |
+| `fleet_drivers.membership_id`                      | ✅ existe, anulável                | É por ele que o servidor resolve `membership → driver → trip` (D1). Motorista sem `membership_id` não tem PWA — e isso é caso de tela, não erro.  |
+| `stored_objects` + provider de bucket              | ✅ em uso (XML, PDF de fatura)     | O comprovante da D4 entra por lá: bucket privado, presigned curta, chave sem nome de pessoa.                                                      |
+| `TRIP_DOCUMENT_DELIVER_PATH` (spec 027)            | ⚠️ existe e é do **escritório**    | O comentário da 056 já avisa: `deliver` de rua é `/me/trips/*`. As duas rotas convivem; nada é removido aqui.                                     |
+| **060** hora e preço                               | ⛔ só spec                         | `delivery_window_*` já é coluna. A parada mostra a janela quando houver; sem cadastro, não mostra. Nenhuma migration futura por causa disso.      |
+| **058** mediana de tempo de serviço                | ✅ implementada, **medindo vazio** | Ela lê `arrived_at`/`completed_at`, que **nada escreve** hoje. Esta spec é quem começa a escrever — é a razão de a 057 vir antes da 059 e da 061. |
 
 ## Fase 0 — Decisão registrada
 

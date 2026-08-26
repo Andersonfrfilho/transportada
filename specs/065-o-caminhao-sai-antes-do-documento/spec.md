@@ -91,8 +91,8 @@ emitente imprimiu e mandou junto com a carga — ela continua viajando na caixa.
 
 ### D2 — O portão da emissão aceita a carga que já saiu, não só a que está saindo
 
-A garantia que o portão protege é: *depois de `dispatched` nenhuma nota entra ou sai, então o conjunto
-declarado no manifesto não pode mudar por baixo dele* (ADR-0043 §2). Essa garantia vale para
+A garantia que o portão protege é: _depois de `dispatched` nenhuma nota entra ou sai, então o conjunto
+declarado no manifesto não pode mudar por baixo dele_ (ADR-0043 §2). Essa garantia vale para
 `dispatched`, `in_transit` **e** `completed` — todas são "a carga já saiu".
 
 Exigir `dispatched` exato, como a 059 faz hoje, recusa justamente o caso normal desta operação: o lote
@@ -175,7 +175,7 @@ comercial para resolver uma necessidade fiscal.
 Então o romaneio oferece **"gerar os CT-e desta viagem"**: nasce um lote com as notas de CT-e daquela
 viagem, e ele segue a trilha de emissão que já existe.
 
-E a pergunta que vem junto — *"e o lote futuro, perde alguma coisa?"* — já tem resposta no código:
+E a pergunta que vem junto — _"e o lote futuro, perde alguma coisa?"_ — já tem resposta no código:
 
 > **O lote de CT-e é a unidade de emissão, não a de faturamento.** A fatura é montada por **CT-e
 > autorizado**, e o lote é apenas um **filtro opcional** dela (`eligible-cte.query.ts`): ela varre por
@@ -197,11 +197,11 @@ não. Mas a realidade tem canto que a regra não cobre — e uma regra sem escap
 
 Então `trips.requires_mdfe` nasce com **três estados**, e não dois:
 
-| Valor    | Significado                                                              |
-| -------- | ------------------------------------------------------------------------ |
-| `null`   | **derivado** da classificação — é o padrão, e é o que acerta quase sempre |
-| `true`   | o operador afirma que precisa                                            |
-| `false`  | o operador afirma que não precisa                                        |
+| Valor   | Significado                                                               |
+| ------- | ------------------------------------------------------------------------- |
+| `null`  | **derivado** da classificação — é o padrão, e é o que acerta quase sempre |
+| `true`  | o operador afirma que precisa                                             |
+| `false` | o operador afirma que não precisa                                         |
 
 O padrão é `null` de propósito: um campo obrigatório aqui faria o operador responder toda viagem a uma
 pergunta que o sistema já sabe responder, e responder no automático — que é como se erra.
@@ -245,9 +245,9 @@ receita prevista, pelos mesmos parâmetros que gerariam o documento, sem gerar d
 Isto emenda a **D1 da 061** ("receita é o CT-e autorizado, e nada mais"). As duas convivem porque são
 números com propósitos diferentes, e a 061 já tem o vocabulário para separá-los:
 
-| Momento            | Receita                | `source`    | Para quê                        |
-| ------------------ | ---------------------- | ----------- | ------------------------------- |
-| Viagem aberta      | parâmetros de frete    | `estimated` | decidir se vale montar a viagem |
+| Momento            | Receita                | `source`    | Para quê                                    |
+| ------------------ | ---------------------- | ----------- | ------------------------------------------- |
+| Viagem aberta      | parâmetros de frete    | `estimated` | decidir se vale montar a viagem             |
 | Viagem `completed` | CT-e/NFS-e autorizados | `measured`  | comparar histórico e bater com o financeiro |
 
 O que a 061 proíbe — e continua proibido — é **somar previsão no relatório de resultado**. Previsão
@@ -347,19 +347,19 @@ imita DANFE ou DAMDFE.
 3. A prontidão classifica cada nota, exige CT-e autorizado só das de CT-e, lista as de NFS-e como
    pendência própria e responde `not_applicable` quando não há nota de CT-e (D4).
 4. `trips.fiscal_readiness_state` ganha `not_applicable`.
-4b. `trips.requires_mdfe` anulável, com motivo obrigatório para `false` em viagem com nota de CT-e e
-    recusa de `true` em viagem sem nenhuma (D4c).
+   4b. `trips.requires_mdfe` anulável, com motivo obrigatório para `false` em viagem com nota de CT-e e
+   recusa de `true` em viagem sem nenhuma (D4c).
 5. A prontidão distingue "sem lote ainda" de "com lote e faltando documento" (D5).
 6. Romaneio de carga da viagem, com `GET /me/trips/current` carregando o que ele precisa, **sem**
    aparência de documento fiscal (D1).
-6b. Por nota do romaneio: número, série, chave por extenso, código de barras da chave, destinatário,
-    município, volumes, peso e valor — tudo no cache da viagem, disponível sem rede (D1b).
-6c. Romaneio **em PDF para impressão**, com o título e o aviso de não-fiscal acima de tudo, e sem
-    imitar o desenho de DANFE ou DAMDFE (D1, P3).
-6d. Sinal de vínculo com viagem na listagem de notas e na composição do lote — NF-e e CT-e, sem
-    bloqueio (D4b).
-6e. Ação "gerar os CT-e desta viagem" a partir do romaneio, criando lote com as notas de CT-e da
-    viagem e gravando trilha de quem disparou (D4bis).
+   6b. Por nota do romaneio: número, série, chave por extenso, código de barras da chave, destinatário,
+   município, volumes, peso e valor — tudo no cache da viagem, disponível sem rede (D1b).
+   6c. Romaneio **em PDF para impressão**, com o título e o aviso de não-fiscal acima de tudo, e sem
+   imitar o desenho de DANFE ou DAMDFE (D1, P3).
+   6d. Sinal de vínculo com viagem na listagem de notas e na composição do lote — NF-e e CT-e, sem
+   bloqueio (D4b).
+   6e. Ação "gerar os CT-e desta viagem" a partir do romaneio, criando lote com as notas de CT-e da
+   viagem e gravando trilha de quem disparou (D4bis).
 7. `freight_rule_versions.filters` ganha `destinationCityCodes`, IBGE de 7 dígitos (D6).
 8. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
    ambos com `source` declarado (D7).
@@ -381,21 +381,21 @@ imita DANFE ou DAMDFE.
 
 ## Casos extremos e falhas
 
-| Caso                                                    | Comportamento                                                                                        |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Nota sem código IBGE de destino                         | Não classifica: pendência explícita "endereço sem município", nunca um chute para CT-e.               |
-| Empresa sem `city_ibge_code` no perfil fiscal           | Classificação recusada com código próprio — sem o município da empresa não há regra.                  |
-| Viagem mista com NFS-e pendente                         | Pronta para manifestar; a NFS-e vira pendência da viagem.                                             |
-| Viagem só de entrega urbana                             | `not_applicable`; nenhum botão de manifesto.                                                          |
-| Lote autorizado com a viagem já `completed`             | Emite normalmente (D2). É o caso mais comum desta operação.                                           |
-| Carga mista, CT-e das notas de fora todos autorizados   | O automático dispara **sem** esperar as urbanas — elas nunca terão CT-e (D2b + D4).                   |
-| Carga mista, uma nota de fora ainda sem CT-e            | O automático não dispara. Isso é espera legítima, e a viagem diz qual nota falta.                     |
-| Automático impedido (certificado, 50 municípios)        | Não emite, notifica com o motivo e deixa visível na viagem. Nunca fica esperando calado.              |
-| Nota com CT-e autorizado **e** entrega no município     | Divergência declarada: o documento emitido contradiz a classificação. Nada se cancela sozinho.        |
-| Regra de município e regra de UF na mesma nota          | A de município vence — é a mais específica.                                                           |
-| Sem regra de frete aplicável                            | Receita prevista da nota é zero **marcada como ausente**; a viagem soma o que tem e diz o que falta.  |
-| MDF-e cancelado com o motorista na rua                  | O DAMDFE some da tela dele e o romaneio volta, com o motivo à vista.                                  |
-| Nota desvinculada depois de o romaneio ser gerado       | O romaneio é sempre lido da viagem, nunca congelado — ele reflete o que ela carrega agora.            |
+| Caso                                                  | Comportamento                                                                                        |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Nota sem código IBGE de destino                       | Não classifica: pendência explícita "endereço sem município", nunca um chute para CT-e.              |
+| Empresa sem `city_ibge_code` no perfil fiscal         | Classificação recusada com código próprio — sem o município da empresa não há regra.                 |
+| Viagem mista com NFS-e pendente                       | Pronta para manifestar; a NFS-e vira pendência da viagem.                                            |
+| Viagem só de entrega urbana                           | `not_applicable`; nenhum botão de manifesto.                                                         |
+| Lote autorizado com a viagem já `completed`           | Emite normalmente (D2). É o caso mais comum desta operação.                                          |
+| Carga mista, CT-e das notas de fora todos autorizados | O automático dispara **sem** esperar as urbanas — elas nunca terão CT-e (D2b + D4).                  |
+| Carga mista, uma nota de fora ainda sem CT-e          | O automático não dispara. Isso é espera legítima, e a viagem diz qual nota falta.                    |
+| Automático impedido (certificado, 50 municípios)      | Não emite, notifica com o motivo e deixa visível na viagem. Nunca fica esperando calado.             |
+| Nota com CT-e autorizado **e** entrega no município   | Divergência declarada: o documento emitido contradiz a classificação. Nada se cancela sozinho.       |
+| Regra de município e regra de UF na mesma nota        | A de município vence — é a mais específica.                                                          |
+| Sem regra de frete aplicável                          | Receita prevista da nota é zero **marcada como ausente**; a viagem soma o que tem e diz o que falta. |
+| MDF-e cancelado com o motorista na rua                | O DAMDFE some da tela dele e o romaneio volta, com o motivo à vista.                                 |
+| Nota desvinculada depois de o romaneio ser gerado     | O romaneio é sempre lido da viagem, nunca congelado — ele reflete o que ela carrega agora.           |
 
 ## Critérios de aceite
 
@@ -440,9 +440,9 @@ imita DANFE ou DAMDFE.
 
 ## 🤖 Modelo
 
-| Etapa                                                     | Modelo    |
-| --------------------------------------------------------- | --------- |
+| Etapa                                                      | Modelo    |
+| ---------------------------------------------------------- | --------- |
 | Ordem da operação, classificação fiscal, emendas, ADR-0047 | `opus` 🧠 |
 | Consumer, concorrência da emissão automática               | `opus` 🧠 |
 | Portão, prontidão, filtro de município, avaliação, testes  | `sonnet`  |
-| Romaneio e DAMDFE no PWA                                  | `sonnet`  |
+| Romaneio e DAMDFE no PWA                                   | `sonnet`  |

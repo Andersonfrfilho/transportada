@@ -395,9 +395,7 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         documents={trip.documents}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
         readiness={workspace.fiscalReadiness}
-        onGenerateCteBatch={() =>
-          workspace.createCteBatchMutation.mutate({ tripId: trip.id })
-        }
+        onGenerateCteBatch={() => workspace.createCteBatchMutation.mutate({ tripId: trip.id })}
       />
 
       <div className={styles.actionActions}>
