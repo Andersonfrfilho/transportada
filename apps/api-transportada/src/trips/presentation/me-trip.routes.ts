@@ -5,6 +5,7 @@ import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_ME_CURRENT_TRIP_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
   DriverTrip,
@@ -15,6 +16,7 @@ import type { ReportDocumentOutcomeResult } from '../application/report-document
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
+import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
 import {
   parseDocumentReturnRequest,
   parseFieldReportRequest,
@@ -26,6 +28,7 @@ const STOP_ARRIVE_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/arrive`
 const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurrences`
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
+const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
 
 /**
  * `trip.read` lê a viagem própria e `trip.report` reporta o que aconteceu na rua. Nenhum dos dois é
@@ -71,6 +74,9 @@ export type MeTripDependencies = {
       readonly reason: DriverReturnReason
     },
   ) => Promise<ReportDocumentOutcomeResult>
+  readonly attachProof: (
+    input: DriverContextInput & { readonly documentId: string; readonly upload: DeliveryProofUpload },
+  ) => Promise<{ readonly id: string }>
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   readonly resolveDriverId: (input: {
     readonly companyId: string
@@ -221,6 +227,33 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_RETURN_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    /**
+     * O comprovante anexa a uma entrega **que já aconteceu** — ele não é passo dela. Em 3G ruim,
+     * esperar o arquivo para confirmar a entrega é perder a entrega, e a spec pede o contrário.
+     */
+    defineRoute<{ readonly documentId: string; readonly upload: DeliveryProofUpload }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const proof = await dependencies.attachProof({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+          upload: input.upload,
+        })
+
+        return jsonResponse({ body: { data: { id: proof.id } }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          upload: await parseDeliveryProofUpload(request),
+        }
+      },
+      pathname: DOCUMENT_PROOF_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{

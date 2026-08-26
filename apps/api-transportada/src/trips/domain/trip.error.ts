@@ -279,3 +279,25 @@ export class DriverNotRegisteredError extends ApiError {
     })
   }
 }
+
+const DELIVERY_PROOF_REJECTION_MESSAGES = {
+  TOO_LARGE: 'The delivery proof is larger than the accepted size.',
+  UNSUPPORTED_TYPE: 'The delivery proof must be an image.',
+} as const
+
+export type DeliveryProofRejection = keyof typeof DELIVERY_PROOF_REJECTION_MESSAGES
+
+/**
+ * ADR-0045 §7: o anexo recusado **não desfaz a entrega**. O código é estável para a tela dizer o que
+ * houve com o arquivo, e a nota continua entregue — perder a confirmação por causa do aparelho seria
+ * punir o motorista pelo celular que a empresa não comprou.
+ */
+export class TripDeliveryProofRejectedError extends ApiError {
+  public constructor(rejection: DeliveryProofRejection) {
+    super({
+      code: `TRIP_DELIVERY_PROOF_${rejection}`,
+      message: DELIVERY_PROOF_REJECTION_MESSAGES[rejection],
+      status: 422,
+    })
+  }
+}

@@ -756,3 +756,69 @@ export const tripFieldReports = pgTable(
     check('trip_field_reports_operation_check', sql`length(${table.operation}) > 0`),
   ],
 )
+
+/**
+ * ADR-0045 §7: o comprovante da entrega — foto do canhoto e/ou assinatura colhida na tela. Duas
+ * linhas por entrega no caso comum, e por isso tabela em vez de coluna.
+ *
+ * **A assinatura colhe traço e nome do recebedor, e nunca CPF.** Puxar CPF de recebedor para dentro
+ * do sistema por causa de um comprovante é dado pessoal novo, com criptografia em repouso, retenção
+ * e trilha próprias — desproporcional ao ganho, porque quando a disputa acontece é o canhoto em
+ * papel que a resolve. Não há coluna para ele aqui, e essa ausência é a decisão.
+ */
+export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
+export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
+
+export const tripDeliveryProofs = pgTable(
+  'trip_delivery_proofs',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    stopEventId: uuid('stop_event_id').notNull(),
+    kind: text().notNull().$type<TripDeliveryProofKind>(),
+    objectId: uuid('object_id').notNull(),
+    /** Nome de quem recebeu, quando ele assina. Nunca documento — ver o comentário da tabela. */
+    receiverName: text('receiver_name').notNull().default(''),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_delivery_proofs_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopEventId],
+      foreignColumns: [tripStopEvents.companyId, tripStopEvents.id],
+      name: 'trip_delivery_proofs_company_event_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.objectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_delivery_proofs_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_delivery_proofs_company_id_id_unique').on(table.companyId, table.id),
+    /** Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. */
+    unique('trip_delivery_proofs_company_event_kind_unique').on(
+      table.companyId,
+      table.stopEventId,
+      table.kind,
+    ),
+    check(
+      'trip_delivery_proofs_kind_check',
+      sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
+    ),
+    /** Nome só faz sentido em assinatura: foto de canhoto não tem quem assine. */
+    check(
+      'trip_delivery_proofs_receiver_check',
+      sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
+    ),
+  ],
+)

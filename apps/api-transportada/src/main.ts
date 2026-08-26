@@ -161,6 +161,9 @@ import {
   reportDocumentReturn,
 } from './trips/application/report-document-delivery.use-case'
 import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
+import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
+import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
@@ -651,6 +654,7 @@ function createApplicationRoutes({
   const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
+  const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1025,6 +1029,16 @@ function createApplicationRoutes({
       },
     }),
     ...createMeTripRoutes({
+      attachProof: (input) =>
+        attachDeliveryProof({
+          ...input,
+          newObjectId: () => crypto.randomUUID(),
+          repository: deliveryProofRepository,
+          storage: createDeliveryProofStorage({
+            bucket: storageBucket,
+            storage: storageGateway,
+          }),
+        }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
       reportArrival: (input) =>

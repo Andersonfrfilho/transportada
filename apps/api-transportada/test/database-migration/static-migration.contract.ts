@@ -161,6 +161,7 @@ describe('Drizzle migrations', () => {
       '20260826015435_powerful_dakota_north',
       '20260826095930_overconfident_iron_monger',
       '20260826101924_tough_killraven',
+      '20260826110441_cold_mattie_franklin',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
