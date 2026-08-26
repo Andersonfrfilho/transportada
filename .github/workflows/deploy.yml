@@ -217,6 +217,24 @@ jobs:
       - name: Deploy frontend
         run: .github/scripts/railway-deploy.sh deploy transportada-frontend
 
+  # A landing é bundle estático e público: não depende de migration nem do painel, e por isso sobe
+  # em paralelo com todo o resto.
+  deploy-landing:
+    needs: [target, changes, gate]
+    if: needs.changes.outputs.landing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.target.outputs.environment }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Deploy landing
+        run: .github/scripts/railway-deploy.sh deploy landing
+
   # Worker e cron consomem tabelas que a migration da API cria: `needs: deploy-api` é a única ordem
   # que importa. Entre eles não há ordem alguma, e cada um roda no seu runner — a paralelização não
   # cabe num job só porque `railway-deploy.sh` reescreve `~/.railway/config.json` a cada chamada, e

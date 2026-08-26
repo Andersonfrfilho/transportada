@@ -23,7 +23,7 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  transportada-frontend  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  transportada-frontend  landing  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
@@ -61,6 +61,7 @@ O Dockerfile de cada serviço é escolhido pela variável de build
 | `worker`                | `apps/worker-transportada/Dockerfile`   | `deploy/worker/railway.json`   |
 | `cron`                  | `apps/cron-transportada/Dockerfile`     | `deploy/cron/railway.json`     |
 | `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
+| `landing`               | `apps/frontend-landing/Dockerfile`      | `deploy/landing/railway.json`  |
 | `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
@@ -343,6 +344,7 @@ entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDe
 
 - api: `https://api-staging-5633.up.railway.app`
 - transportada-frontend: `https://transportada-staging.up.railway.app`
+- landing: `https://landing-staging-6070.up.railway.app`
 - keycloak: `https://keycloak-staging-d714.up.railway.app`
 
 > ⚠️ Renomear um serviço **não** renomeia o domínio gerado — ele fica com o nome
