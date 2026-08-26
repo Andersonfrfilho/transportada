@@ -62,6 +62,38 @@ mas a rota soma à lista de anônimas sem teto.
 
 **Origem:** spec 053, T004.
 
+### 2026-08-26 — o worker passa a ter identidade de máquina, e ela alcança todas as empresas
+
+**Onde:** `api-transportada`, caminho de autenticação; `worker-transportada`, credencial de cliente.
+
+**O que é:** o worker vira um cliente do Keycloak com service account (ADR-0047), para acionar a
+emissão automática de MDF-e que a spec 065 decidiu. Ele é reconhecido por papel em
+`realm_access.roles`, pela mesma porta em que `platform-admin` já é.
+
+**O que muda em risco, e é o motivo desta entrada:** o `§2` acima manda derivar o tenant do contexto
+autenticado e nunca de campo livre do cliente. Um token de gente carrega `company_id` e fica **preso a
+uma empresa**; um service account **não pode** — o worker processa CT-e de todas elas. Então a empresa
+chega no pedido e continua sendo **validada contra a membership real do usuário do serviço**: a
+autorização é idêntica à de gente, o que muda é o transporte.
+
+O preço é concreto: **o token do serviço é cross-tenant**. Vazado, ele alcança toda empresa onde a
+membership sintética existir — enquanto um token de gente alcança uma.
+
+**As três guardas, e nenhuma é opcional:**
+
+1. **Escopo de uma rota.** O serviço não recebe `mdfe.manage`, que também descarta manifesto: recebe
+   uma permissão criada para isto, e o papel dele concede só ela.
+2. **Segredo rotacionável**, em variável validada no boot, e a troca vale a partir do próximo token —
+   rotacionar não pode exigir janela de emissão parada.
+3. **Trilha com a identidade do serviço**, nunca "o sistema": é a linha que responde por que aquele
+   manifesto saiu.
+
+**O que falta:** **tudo.** Nesta data existe só a decisão registrada — o caminho de autenticação, o
+papel, a permissão e a credencial do worker **não foram implementados**. Enquanto não forem, o MDF-e
+automático só sai se alguém chamar a rota na mão, e o painel de prontidão é quem avisa que dá.
+
+**Origem:** spec 065, ADR-0047.
+
 ### 2026-08-26 — a posição passa a ser permitida à própria origem, e a coordenada tem prazo
 
 **Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`); `api-transportada`,
