@@ -26,9 +26,10 @@ if (contentSecurityPolicy === '') {
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy': contentSecurityPolicy,
-  // `camera=(self)` porque o separador bipa a nota pela câmera do celular; `camera=()` nega a
-  // própria origem e `getUserMedia` falha antes de qualquer diálogo. Os outros dois seguem fechados.
-  'Permissions-Policy': 'camera=(self), geolocation=(), microphone=()',
+  // `camera=(self)` porque o separador bipa a nota pela câmera do celular, e `geolocation=(self)`
+  // porque a entrega do motorista carimba onde ela aconteceu (ADR-0045 §3) — `()` nega a **própria**
+  // origem, e a API falha antes de qualquer diálogo. O microfone segue fechado para todo mundo.
+  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',

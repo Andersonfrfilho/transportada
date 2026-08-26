@@ -264,3 +264,18 @@ export class TripDocumentNotReachableError extends ApiError {
     })
   }
 }
+
+/**
+ * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
+ * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
+ * vez de "nada para hoje", que esconderia o problema até alguém reclamar.
+ */
+export class DriverNotRegisteredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_NOT_REGISTERED',
+      message: 'This account is not linked to a driver record in this company.',
+      status: 409,
+    })
+  }
+}

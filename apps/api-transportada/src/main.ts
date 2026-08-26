@@ -153,6 +153,16 @@ import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
+import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
+import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
+import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
+import {
+  reportDocumentDelivery,
+  reportDocumentReturn,
+} from './trips/application/report-document-delivery.use-case'
+import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
+import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
@@ -639,6 +649,8 @@ function createApplicationRoutes({
   const tripRouteRepository = new DrizzleTripRouteRepository(database)
   const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
   const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
+  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1011,6 +1023,19 @@ function createApplicationRoutes({
         close: (input) => mdfeIssuance.close(input),
         issue: (input) => mdfeIssuance.issue(input),
       },
+    }),
+    ...createMeTripRoutes({
+      findCurrentTrip: (input) =>
+        findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
+      reportArrival: (input) =>
+        reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDelivery: (input) =>
+        reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportOccurrence: (input) =>
+        reportStopOccurrence({ ...input, attachmentObjectId: null, unitOfWork: driverFieldReports }),
+      reportReturn: (input) =>
+        reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createTripRoutes({
       batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },

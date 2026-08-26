@@ -47,12 +47,13 @@ function parsePermissionsPolicy(value: string): ReadonlyMap<string, string> {
 
 describe('frontend security headers', () => {
   /**
-   * As duas metades vivem no mesmo `toEqual` de propósito. `camera=()` nega a **própria** origem, e
-   * `getUserMedia` falha antes de qualquer diálogo — o separador não conseguiria bipar a nota. Já
-   * `geolocation` e `microphone` voltarem a `(self)` seria capacidade de dispositivo aberta de
-   * carona, que é exatamente o que ninguém repara numa revisão de seis meses.
+   * As duas metades vivem no mesmo `toEqual` de propósito. `camera=()` e `geolocation=()` negam a
+   * **própria** origem, e a API falha antes de qualquer diálogo — o separador não bipa a nota e a
+   * entrega do motorista perde o carimbo de onde aconteceu. Já o microfone voltar a `(self)` seria
+   * capacidade de dispositivo aberta de carona, que é exatamente o que ninguém repara numa revisão
+   * de seis meses.
    */
-  test('opens the camera to its own origin and keeps the other two devices shut', async () => {
+  test('opens camera and geolocation to its own origin and keeps the microphone shut', async () => {
     const headers = await readSecurityHeaders()
     const permissionsPolicy = headers.get('Permissions-Policy')
     if (permissionsPolicy === undefined) {
@@ -61,9 +62,19 @@ describe('frontend security headers', () => {
 
     expect([...parsePermissionsPolicy(permissionsPolicy.replaceAll("'", ''))]).toEqual([
       ['camera', '(self)'],
-      ['geolocation', '()'],
+      ['geolocation', '(self)'],
       ['microphone', '()'],
     ])
+  })
+
+  /** O microfone é o que ninguém pediu e o que mais barato se abre de carona. Ele tem teste só dele. */
+  test('never lets the microphone open', async () => {
+    const headers = await readSecurityHeaders()
+    const permissionsPolicy = headers.get('Permissions-Policy') ?? ''
+
+    expect(parsePermissionsPolicy(permissionsPolicy.replaceAll("'", '')).get('microphone')).toBe(
+      '()',
+    )
   })
 
   test('keeps the built policy and the other three headers untouched', async () => {

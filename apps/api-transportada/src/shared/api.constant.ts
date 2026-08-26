@@ -36,6 +36,12 @@ export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
+/**
+ * ADR-0045 §2: a árvore do campo não leva id de viagem. O servidor resolve qual é a do motorista, e
+ * quem não escolhe não enumera.
+ */
+export const API_ME_TRIPS_PATH = '/me/trips'
+export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
