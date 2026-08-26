@@ -247,6 +247,23 @@ Violação de janela e de jornada aparecem **explícitas**, nunca escondidas esc
 - **Aceite:** os três avisos visíveis antes do botão de aceitar
 - **Verificação:** contrato de componente
 
+## Objetivo de conclusão (2026-08-26)
+
+Terminar a spec inteira **sem parar**, e validar no fim. O que falta, na ordem em que compila:
+
+| #   | O que                                                             | Por que é o gargalo                      |
+| --- | ----------------------------------------------------------------- | ---------------------------------------- |
+| E1  | Repositórios Drizzle (geocodificação, sugestão, configuração)     | Tudo abaixo lê e escreve por eles        |
+| E2  | Casos de uso (criar/ler/aceitar/rejeitar, corrigir pino)          | Onde mora a regra do aceite              |
+| E3  | Adaptadores da API (porta da viagem, fila, escrita de ordem)      | Ligam o caso de uso ao que já existe     |
+| E4  | Handler do worker que roda o solver                               | É o que faz a sugestão sair de `queued`  |
+| E5  | Fiação no `main.ts` das duas apps                                 | Sem isso nada é alcançável por HTTP      |
+| E6  | Cliente e query no painel, montado na tela da viagem              | Fecha o caminho até o olho do conferente |
+| E7  | Validação final: typecheck, lint, testes, migration, build, smoke | O que autoriza dizer "pronto"            |
+
+**Regra do aceite deste objetivo:** nada é dado por concluído sem verificação executada. "Compila"
+não é "funciona", e teste que só existe contra fixture não prova encanamento.
+
 ## Ordem de execução
 
 ```
