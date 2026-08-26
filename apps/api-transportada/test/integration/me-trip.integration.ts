@@ -13,7 +13,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
