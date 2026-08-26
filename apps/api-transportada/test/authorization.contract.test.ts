@@ -58,6 +58,7 @@ describe('authorization contract', () => {
       'trip.read',
       'trip.manage',
       'trip.report',
+      'trip.financials',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -84,9 +85,11 @@ describe('authorization contract', () => {
         'nfse.cancel',
         'nfse.read',
         'trip.manage',
+        'trip.financials',
       ],
       finance: [
         'cte.read',
+        'trip.financials',
         'billing.create',
         'billing.cancel',
         'billing.read',
@@ -137,6 +140,7 @@ describe('authorization contract', () => {
         'nfse.manage',
         'nfse.read',
         'trip.manage',
+        'trip.financials',
       ],
       viewer: [
         'invoices.read',
@@ -173,6 +177,19 @@ describe('authorization contract', () => {
       ] as const) {
         expect(permissions.has(denied)).toBe(false)
       }
+    }
+  })
+
+  /**
+   * Spec 061 D4: **dinheiro tem permissão própria.** O valor pago ao motorista é dado sensível para
+   * o próprio motorista, que tem `trip.read` — e o separador monta a carga sem precisar da margem.
+   */
+  test('keeps the trip financials away from the field roles and the separator', () => {
+    for (const role of ['driver', 'aggregate', 'separator', 'viewer', 'fiscal'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(false)
+    }
+    for (const role of ['company-admin', 'finance', 'operator'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(true)
     }
   })
 

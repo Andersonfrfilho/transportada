@@ -39,6 +39,7 @@ import type {
   FreightRulesTransactionPort,
   FreightRulesUnitOfWorkPort,
 } from '../../freight-rules/application/freight-rules.use-case.js'
+import type { ApplicableFreightRule } from '../../trips/application/read-trip-valuation.use-case.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -140,6 +141,38 @@ export class DrizzleFreightRuleListRepository {
       limit: input.limit,
       ...(input.filters === undefined ? {} : { filters: input.filters }),
     })
+  }
+}
+
+/**
+ * Spec 065 D7: a avaliação prevista da viagem precisa da **mesma** seleção de regra que a simulação
+ * usa — e precisa dela fora de transação, porque não escreve nada. Uma segunda seleção seria uma
+ * segunda regra de precedência, e as duas divergiriam no primeiro filtro novo.
+ */
+export class DrizzleApplicableFreightRuleQuery {
+  public constructor(private readonly database: Database) {}
+
+  public async findApplicableRule(input: {
+    readonly companyId: string
+    readonly destinationCityCode?: null | string
+    readonly destinationState?: null | string
+    readonly issuedAt: string
+    readonly ruleType: 'percentage_of_invoice_total'
+    readonly senderTaxId?: null | string
+  }): Promise<ApplicableFreightRule | null> {
+    const record = await findApplicableVersion(this.database, input)
+    if (record === null) return null
+
+    return {
+      freightRuleId: requiredString(record.freightRuleId),
+      freightRuleVersionId: requiredString(record.freightRuleVersionId),
+      maximumAmount: record.maximumAmount ?? '',
+      minimumAmount: record.minimumAmount ?? '',
+      percentage: requiredString(record.percentage),
+      validFrom: requiredString(record.validFrom),
+      validUntil: record.validUntil ?? '',
+      version: requiredString(record.version),
+    }
   }
 }
 

@@ -33,6 +33,7 @@ import type {
 } from '../application/list-trip-stops.use-case.js'
 import type { CreateTripCteBatchResult } from '../application/create-trip-cte-batch.use-case.js'
 import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
+import type { TripValuation } from '../domain/trip-valuation.policy.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -81,6 +82,7 @@ const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 /** Spec 059 D1: a prontidão é **consulta**, e por isso ela é uma rota de leitura, não uma coluna. */
 const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
 const TRIP_MDFE_REQUIREMENT_PATH = `${API_TRIPS_PATH}/:id/mdfe-requirement`
+const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -106,6 +108,8 @@ const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
+/** Spec 061 D4: margem, custo de motorista e receita não são `trip.manage`. */
+const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 /** Disparar o lote é submeter emissão fiscal — a mesma permissão de quem submete o lote normal. */
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
 
@@ -178,6 +182,12 @@ type Dependencies = {
       readonly tripId: string
       readonly userId: string
     }): Promise<AutomaticManifestResult>
+  }
+  readonly readValuation: {
+    execute(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<TripValuation>
   }
   readonly setMdfeRequirement: {
     execute(input: {
@@ -331,6 +341,22 @@ export function createTripRoutes(
       pathname: TRIP_MDFE_REQUIREMENT_PATH,
       // Dispensar manifesto é decisão fiscal, com multa do outro lado — não é separação de carga.
       policy: MDFE_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const valuation = await dependencies.readValuation.execute({
+          companyId: context.scope.companyId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: valuation }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_VALUATION_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
     }),
     defineRoute<Omit<GetTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {

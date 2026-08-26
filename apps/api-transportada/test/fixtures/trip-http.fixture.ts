@@ -49,6 +49,7 @@ type RouteDependencies = {
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
+  readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
   readonly setMdfeRequirement: { execute(input: ExecuteCall): Promise<unknown> }
 }
 
@@ -115,6 +116,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly reorderStopsCalls: ExecuteCall[]
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
+  readonly readValuationCalls: ExecuteCall[]
   readonly setMdfeRequirementCalls: ExecuteCall[]
 }> {
   const batchStatusCalls: ExecuteCall[] = []
@@ -132,6 +134,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const loadTripDocumentCalls: ExecuteCall[] = []
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
+  const readValuationCalls: ExecuteCall[] = []
   const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
@@ -268,6 +271,21 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         }
       },
     },
+    readValuation: {
+      async execute(input) {
+        readValuationCalls.push(structuredClone(input))
+        return {
+          costParcels: [],
+          hasGaps: true,
+          marginPercentage: '20.0000',
+          revenueLines: [],
+          revenueSource: 'estimated',
+          totalCost: '800.0000',
+          totalMargin: '200.0000',
+          totalRevenue: '1000.0000',
+        }
+      },
+    },
     setMdfeRequirement: {
       async execute(input) {
         setMdfeRequirementCalls.push(structuredClone(input))
@@ -340,6 +358,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     getTripCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
+    readValuationCalls,
     listDeliveryAddressHistoryCalls,
     listStopsCalls,
     listTripsCalls,

@@ -152,7 +152,10 @@ import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizz
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
+import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
+import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
 import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
 import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
 import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastructure/drizzle-automatic-manifest.repository'
@@ -660,6 +663,8 @@ function createApplicationRoutes({
   const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
+  const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
   const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
     database,
     readiness: tripFiscalReadinessQuery,
@@ -1119,6 +1124,16 @@ function createApplicationRoutes({
       readFiscalReadiness: {
         execute: (input) =>
           readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+      },
+      readValuation: {
+        execute: (input) =>
+          readTripValuation({
+            ...input,
+            repository: {
+              findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+              readContext: (query) => tripValuationQuery.readContext(query),
+            },
+          }),
       },
       setMdfeRequirement: {
         execute: (input) =>

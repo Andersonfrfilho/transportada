@@ -40,6 +40,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'trip.read',
   'trip.manage',
   'trip.report',
+  /**
+   * Spec 061 D4: dinheiro tem permissão própria. Quem monta a viagem não precisa saber a margem, e
+   * o valor pago ao motorista é dado sensível para o próprio motorista — que tem `trip.read`.
+   */
+  'trip.financials',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -73,9 +78,11 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.cancel',
     'nfse.read',
     'trip.manage',
+    'trip.financials',
   ]),
   finance: Object.freeze([
     'cte.read',
+    'trip.financials',
     'billing.create',
     'billing.cancel',
     'billing.read',
@@ -126,6 +133,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.manage',
     'nfse.read',
     'trip.manage',
+    // Quem monta a viagem é quem decide se vale montá-la, e é para isso que a previsão existe.
+    'trip.financials',
   ]),
   viewer: Object.freeze([
     'invoices.read',
