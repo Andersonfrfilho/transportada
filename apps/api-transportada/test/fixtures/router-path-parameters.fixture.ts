@@ -208,6 +208,7 @@ function identity(): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-000000000104',
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'router-path-parameters-user',
     userId: ROUTER_PATH_USER_ID,
   })

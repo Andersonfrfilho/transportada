@@ -133,6 +133,7 @@ function authenticatedContext(
       externalIdentityId: crypto.randomUUID(),
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'aggregate-application-contract',
       userId: COMPANY_CONTEXT.userId,
     } satisfies AuthenticatedIdentity,

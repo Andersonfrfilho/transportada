@@ -528,6 +528,7 @@ function createFixture({
         externalIdentityId: '00000000-0000-4000-8000-000000000002',
         issuer: 'https://identity.example.test/realms/transportada',
         platformAdmin: false,
+        serviceAccount: false,
         subject: 'cors-user',
         userId: '00000000-0000-4000-8000-000000000003',
       }

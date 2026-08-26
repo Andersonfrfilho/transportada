@@ -19,6 +19,7 @@ function identity(): AuthenticatedIdentity {
     externalIdentityId: crypto.randomUUID(),
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'digital-certificates-http-contract',
     userId: COMPANY_CONTEXT.userId,
   }

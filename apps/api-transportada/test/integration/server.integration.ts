@@ -43,6 +43,7 @@ const authentication: AuthenticationPort = {
       externalIdentityId: '00000000-0000-4000-8000-000000000002',
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'integration-user',
       userId: '00000000-0000-4000-8000-000000000003',
     }

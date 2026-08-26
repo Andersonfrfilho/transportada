@@ -236,6 +236,7 @@ function createAuthentication({
         externalIdentityId: crypto.randomUUID(),
         issuer: 'https://identity.example.test/realms/transportada',
         platformAdmin: false,
+        serviceAccount: false,
         subject: `subject-${identity.userId}`,
       })
     },

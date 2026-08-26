@@ -45,6 +45,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * o valor pago ao motorista é dado sensível para o próprio motorista — que tem `trip.read`.
    */
   'trip.financials',
+  /**
+   * ADR-0047 §4: escopo enumerado, e ele é de **uma rota**. O serviço não recebe `mdfe.manage` —
+   * que também descarta manifesto —, e sim a permissão criada para o gatilho automático.
+   */
+  'mdfe.auto-issue',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -154,6 +159,13 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
   // — e não reporta entrega, que é do campo.
   separator: Object.freeze(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
+  /**
+   * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
+   * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.
+   * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
+   * a viagem já está pronta para ter.
+   */
+  automation: Object.freeze(['mdfe.auto-issue']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

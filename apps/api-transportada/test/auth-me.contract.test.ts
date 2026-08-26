@@ -322,6 +322,7 @@ function identity(): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-000000000005',
     issuer: 'https://identity.example.test/realms/transportada',
     platformAdmin: true,
+    serviceAccount: false,
     subject: 'keycloak-user',
     userId: USER_ID,
   })

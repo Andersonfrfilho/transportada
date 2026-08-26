@@ -342,6 +342,7 @@ function authenticatedIdentity(scope: CompanyContext): AuthenticatedIdentity {
     externalIdentityId: crypto.randomUUID(),
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'nfe-http-contract-user',
     userId: scope.userId,
   }

@@ -35,8 +35,29 @@ export const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
+  /**
+   * ADR-0047: o papel do **serviço**, não de gente. Ele existe para a membership sintética do worker
+   * — é ela que a API valida quando o token de máquina diz em que empresa está agindo — e concede uma
+   * permissão só. Um serviço que pode tudo o que um operador pode é um operador com senha que
+   * ninguém troca.
+   *
+   * Ele **não** entra no CHECK de `user_invitation_roles`: não se convida um robô.
+   */
+  'automation',
 ] as const
 export type CompanyRole = (typeof COMPANY_ROLES)[number]
+
+/**
+ * ADR-0047: **não se convida um robô.** `automation` é papel de service account, atribuído pelo
+ * provisionamento da membership sintética — nunca por convite. Derivar o CHECK do convite de
+ * `COMPANY_ROLES` inteiro deixaria alguém convidar uma pessoa para o papel do worker, com a
+ * permissão que dispara emissão fiscal.
+ */
+export const SERVICE_COMPANY_ROLES: readonly CompanyRole[] = ['automation']
+
+export const INVITABLE_COMPANY_ROLES = COMPANY_ROLES.filter(
+  (role) => !SERVICE_COMPANY_ROLES.includes(role),
+)
 
 export const identityUsers = pgTable(
   'identity_users',
@@ -130,7 +151,8 @@ export const membershipRoles = pgTable(
   (table) => [
     check(
       'membership_roles_role_check',
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator')`,
+      // `automation` é o papel do service account (ADR-0047) — cabe aqui e **não** no CHECK do convite
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'automation')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

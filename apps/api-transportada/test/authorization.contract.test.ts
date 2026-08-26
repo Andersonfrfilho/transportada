@@ -59,6 +59,8 @@ describe('authorization contract', () => {
       'trip.manage',
       'trip.report',
       'trip.financials',
+      // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
+      'mdfe.auto-issue',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -154,6 +156,7 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
+      automation: ['mdfe.auto-issue'],
     })
   })
 
@@ -278,8 +281,12 @@ describe('authorization contract', () => {
   // papel de menos ali some com botão na tela e devolve 403 sem que nada esteja quebrado
   test('grants the local seed user every company permission', () => {
     const permissions = resolveCompanyPermissions([...LOCAL_IDENTITY_ROLES])
+    /**
+     * `mdfe.auto-issue` fica de fora de propósito (ADR-0047 §4): ela é do **serviço**, e nenhum papel
+     * de gente a concede. Um humano que a tivesse dispararia emissão fiscal pela rota de máquina.
+     */
     const companyPermissions = TRANSPORTADA_PERMISSIONS.filter(
-      (permission) => permission !== 'companies.manage',
+      (permission) => permission !== 'companies.manage' && permission !== 'mdfe.auto-issue',
     )
 
     expect([...permissions]).toEqual(companyPermissions)
@@ -485,6 +492,7 @@ function authenticatedIdentity(
     externalIdentityId: '00000000-0000-4000-8000-000000000004',
     issuer: 'https://identity.example.test/realms/transportada',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'keycloak-user',
     userId: USER_ID,
     ...overrides,

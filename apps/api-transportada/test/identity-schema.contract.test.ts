@@ -65,6 +65,8 @@ describe('tenant identity schema', () => {
       'driver',
       'aggregate',
       'separator',
+      // ADR-0047: o papel do serviço, não de gente — e ele não entra no CHECK de convite
+      'automation',
     ])
     expect(COMPANY_ROLES).not.toContain('platform-admin')
   })
@@ -155,7 +157,7 @@ describe('tenant identity schema', () => {
       `"user_company_memberships"."status" in ('active', 'disabled')`,
     ])
     expect(checkSql(membershipRoles)).toEqual([
-      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator')`,
+      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'automation')`,
     ])
   })
 

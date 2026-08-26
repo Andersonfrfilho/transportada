@@ -151,6 +151,80 @@ describe('tenant context contract', () => {
       }),
     )
   })
+
+  /**
+   * ADR-0047 §3: as três metades da dobra do `security.md` §2 — a empresa do serviço vem do pedido,
+   * a de gente **nunca** vem, e a do serviço continua passando pela membership real.
+   */
+  describe('service account', () => {
+    test('takes the company from the request and still validates the membership', async () => {
+      const lookups: Array<{ readonly companyId: string; readonly userId: string }> = []
+      const service = createService({
+        async findActiveByUserAndCompany(input) {
+          lookups.push(input)
+          return { membershipId: MEMBERSHIP_ID, roles: ['automation'] }
+        },
+      })
+
+      const context = await service.resolveCompany(
+        authenticatedIdentity({ companyIdClaim: null, serviceAccount: true }),
+        COMPANY_ID,
+      )
+
+      expect(lookups).toEqual([{ companyId: COMPANY_ID, userId: USER_ID }])
+      expect(context.scope.companyId).toBe(COMPANY_ID)
+      expect([...context.scope.permissions]).toEqual(['mdfe.auto-issue'])
+    })
+
+    test('is refused when the requested company has no membership', async () => {
+      const service = createService({
+        async findActiveByUserAndCompany() {
+          return null
+        },
+      })
+
+      await expect(
+        service.resolveCompany(
+          authenticatedIdentity({ companyIdClaim: null, serviceAccount: true }),
+          COMPANY_ID,
+        ),
+      ).rejects.toBeInstanceOf(ApiError)
+    })
+
+    test('is refused without a usable company, and never reaches the repository', async () => {
+      let calls = 0
+      const service = createService({
+        async findActiveByUserAndCompany() {
+          calls += 1
+          return { membershipId: MEMBERSHIP_ID, roles: ['automation'] }
+        },
+      })
+
+      for (const requested of [null, 'nao-e-uuid']) {
+        await expect(
+          service.resolveCompany(
+            authenticatedIdentity({ companyIdClaim: null, serviceAccount: true }),
+            requested,
+          ),
+        ).rejects.toBeInstanceOf(ApiError)
+      }
+      expect(calls).toBe(0)
+    })
+
+    test('ignores the requested company for a human token', async () => {
+      const lookups: Array<{ readonly companyId: string; readonly userId: string }> = []
+      const service = createService({
+        async findActiveByUserAndCompany(input) {
+          lookups.push(input)
+          return { membershipId: MEMBERSHIP_ID, roles: ['viewer'] }
+        },
+      })
+
+      await service.resolveCompany(authenticatedIdentity(), '00000000-0000-4000-8000-0000000000ff')
+
+      expect(lookups).toEqual([{ companyId: COMPANY_ID, userId: USER_ID }])
+    })
+  })
 })
 
 function createService(
@@ -174,6 +248,7 @@ function authenticatedIdentity(
     externalIdentityId: '00000000-0000-4000-8000-000000000004',
     issuer: 'https://identity.example.test/realms/transportada',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'keycloak-user',
     userId: USER_ID,
     ...overrides,

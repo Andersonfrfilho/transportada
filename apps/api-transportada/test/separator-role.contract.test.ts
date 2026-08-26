@@ -35,6 +35,7 @@ function companyContext(roles: CompanyContext['roles']): AuthenticatedContext<Co
       externalIdentityId: '00000000-0000-4000-8000-000000000004',
       issuer: 'https://issuer.test',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'separator',
       userId: USER_ID,
     },

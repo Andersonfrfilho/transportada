@@ -4,15 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, or } from 'drizzle-orm'
 
-import {
-  LOCAL_COMPANY_ID,
-  LOCAL_EXTERNAL_IDENTITY_ID,
-  LOCAL_IDENTITY_ROLES,
-  LOCAL_IDENTITY_USER_ID,
-  LOCAL_KEYCLOAK_ISSUER,
-  LOCAL_KEYCLOAK_SUBJECT,
-  LOCAL_MEMBERSHIP_ID,
-} from './local-identity-seed.constant'
+import { LOCAL_COMPANY_ID, LOCAL_KEYCLOAK_ISSUER, type LocalSeedActor } from './local-identity-seed.constant'
 import { LocalIdentitySeedConflictError } from './local-identity-seed.error'
 import {
   companies,
@@ -26,10 +18,15 @@ type IdentityDatabase = ReturnType<typeof createDrizzleProvider>['db']
 type IdentityTransaction = Parameters<Parameters<IdentityDatabase['transaction']>[0]>[0]
 
 export class LocalIdentitySeedRepository {
+  private readonly actor: LocalSeedActor
   private readonly transaction: IdentityTransaction
 
-  public constructor(transaction: IdentityTransaction) {
-    this.transaction = transaction
+  public constructor(input: {
+    readonly actor: LocalSeedActor
+    readonly transaction: IdentityTransaction
+  }) {
+    this.actor = input.actor
+    this.transaction = input.transaction
   }
 
   public async ensureExpectedState(): Promise<void> {
@@ -60,13 +57,13 @@ export class LocalIdentitySeedRepository {
     const [user] = await this.transaction
       .select({ id: identityUsers.id, status: identityUsers.status })
       .from(identityUsers)
-      .where(eq(identityUsers.id, LOCAL_IDENTITY_USER_ID))
+      .where(eq(identityUsers.id, this.actor.userId))
       .limit(1)
 
     if (user === undefined) {
       await this.transaction
         .insert(identityUsers)
-        .values({ id: LOCAL_IDENTITY_USER_ID, status: 'active' })
+        .values({ id: this.actor.userId, status: 'active' })
       return
     }
     if (user.status !== 'active') {
@@ -85,10 +82,10 @@ export class LocalIdentitySeedRepository {
       .from(externalIdentities)
       .where(
         or(
-          eq(externalIdentities.id, LOCAL_EXTERNAL_IDENTITY_ID),
+          eq(externalIdentities.id, this.actor.externalIdentityId),
           and(
             eq(externalIdentities.issuer, LOCAL_KEYCLOAK_ISSUER),
-            eq(externalIdentities.subject, LOCAL_KEYCLOAK_SUBJECT),
+            eq(externalIdentities.subject, this.actor.subject),
           ),
         ),
       )
@@ -97,19 +94,19 @@ export class LocalIdentitySeedRepository {
 
     if (identity === undefined) {
       await this.transaction.insert(externalIdentities).values({
-        id: LOCAL_EXTERNAL_IDENTITY_ID,
+        id: this.actor.externalIdentityId,
         issuer: LOCAL_KEYCLOAK_ISSUER,
-        subject: LOCAL_KEYCLOAK_SUBJECT,
-        userId: LOCAL_IDENTITY_USER_ID,
+        subject: this.actor.subject,
+        userId: this.actor.userId,
       })
       return
     }
     if (
       identities.length !== 1 ||
-      identity.id !== LOCAL_EXTERNAL_IDENTITY_ID ||
+      identity.id !== this.actor.externalIdentityId ||
       identity.issuer !== LOCAL_KEYCLOAK_ISSUER ||
-      identity.subject !== LOCAL_KEYCLOAK_SUBJECT ||
-      identity.userId !== LOCAL_IDENTITY_USER_ID
+      identity.subject !== this.actor.subject ||
+      identity.userId !== this.actor.userId
     ) {
       throw new LocalIdentitySeedConflictError('external identity')
     }
@@ -126,9 +123,9 @@ export class LocalIdentitySeedRepository {
       .from(userCompanyMemberships)
       .where(
         or(
-          eq(userCompanyMemberships.id, LOCAL_MEMBERSHIP_ID),
+          eq(userCompanyMemberships.id, this.actor.membershipId),
           and(
-            eq(userCompanyMemberships.userId, LOCAL_IDENTITY_USER_ID),
+            eq(userCompanyMemberships.userId, this.actor.userId),
             eq(userCompanyMemberships.companyId, LOCAL_COMPANY_ID),
           ),
         ),
@@ -139,18 +136,18 @@ export class LocalIdentitySeedRepository {
     if (membership === undefined) {
       await this.transaction.insert(userCompanyMemberships).values({
         companyId: LOCAL_COMPANY_ID,
-        id: LOCAL_MEMBERSHIP_ID,
+        id: this.actor.membershipId,
         status: 'active',
-        userId: LOCAL_IDENTITY_USER_ID,
+        userId: this.actor.userId,
       })
       return
     }
     if (
       memberships.length !== 1 ||
       membership.companyId !== LOCAL_COMPANY_ID ||
-      membership.id !== LOCAL_MEMBERSHIP_ID ||
+      membership.id !== this.actor.membershipId ||
       membership.status !== 'active' ||
-      membership.userId !== LOCAL_IDENTITY_USER_ID
+      membership.userId !== this.actor.userId
     ) {
       throw new LocalIdentitySeedConflictError('company membership')
     }
@@ -160,19 +157,19 @@ export class LocalIdentitySeedRepository {
     const rows = await this.transaction
       .select({ role: membershipRoles.role })
       .from(membershipRoles)
-      .where(eq(membershipRoles.membershipId, LOCAL_MEMBERSHIP_ID))
+      .where(eq(membershipRoles.membershipId, this.actor.membershipId))
     const existingRoles = new Set(rows.map(({ role }) => role))
-    const expectedRoles: ReadonlySet<string> = new Set(LOCAL_IDENTITY_ROLES)
+    const expectedRoles: ReadonlySet<string> = new Set(this.actor.roles)
 
     if ([...existingRoles].some((role) => !expectedRoles.has(role))) {
       throw new LocalIdentitySeedConflictError('membership roles')
     }
 
-    const missingRoles = LOCAL_IDENTITY_ROLES.filter((role) => !existingRoles.has(role))
+    const missingRoles = this.actor.roles.filter((role) => !existingRoles.has(role))
     if (missingRoles.length > 0) {
       await this.transaction
         .insert(membershipRoles)
-        .values(missingRoles.map((role) => ({ membershipId: LOCAL_MEMBERSHIP_ID, role })))
+        .values(missingRoles.map((role) => ({ membershipId: this.actor.membershipId, role })))
     }
   }
 }

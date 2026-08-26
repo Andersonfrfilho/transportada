@@ -14,9 +14,12 @@ const EXPECTED_ROLES = [
   'operator',
   'viewer',
   'driver',
+  /** ADR-0047 §2: o papel do service account. É por ele que a API reconhece o serviço. */
+  'transportada-service',
 ]
 const ADMIN_CLIENT_ID = 'transportada-admin'
 const ADMIN_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_ADMIN_CLIENT_SECRET}'
+const WORKER_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_WORKER_CLIENT_SECRET}'
 const REALM_MANAGEMENT_CLIENT = 'realm-management'
 const MANAGE_REALM_ROLE = 'manage-realm'
 const MANAGE_USERS_ROLE = 'manage-users'
@@ -346,7 +349,7 @@ describe('Keycloak Admin API service account contract', () => {
     for (const realm of await readEveryRealm()) {
       const secrets = collectSecretValues(realm)
 
-      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER])
+      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER, WORKER_CLIENT_SECRET_PLACEHOLDER])
       for (const secret of secrets) {
         expect(secret).toMatch(ENVIRONMENT_PLACEHOLDER)
       }

@@ -17,6 +17,8 @@ const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
+  /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
+  'automation',
 ] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
@@ -54,6 +56,11 @@ const COMPANY_PERMISSIONS = [
   'trip.report',
   /** Spec 061 D4: dinheiro tem permissão própria — margem e custo não são `trip.manage`. */
   'trip.financials',
+  /**
+   * ADR-0047: permissão de **máquina**, e nenhuma tela a lê. Ela está aqui porque este é o
+   * vocabulário do que a API pode devolver — deixá-la de fora faria a lista mentir sobre isso.
+   */
+  'mdfe.auto-issue',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

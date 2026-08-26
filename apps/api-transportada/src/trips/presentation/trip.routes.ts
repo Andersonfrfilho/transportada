@@ -108,6 +108,12 @@ const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
+/**
+ * ADR-0047 §4: o escopo do service account é **esta rota e nada mais**. Ela não é `mdfe.manage` de
+ * propósito — quem emite manifesto à mão não deveria ganhar o gatilho de máquina de carona, e um
+ * token de serviço com `mdfe.manage` alcançaria cancelar e encerrar manifesto de qualquer empresa.
+ */
+const MDFE_AUTO_ISSUE_POLICY = { permission: 'mdfe.auto-issue', scope: 'company' } as const
 /** Spec 061 D4: margem, custo de motorista e receita não são `trip.manage`. */
 const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 /** Disparar o lote é submeter emissão fiscal — a mesma permissão de quem submete o lote normal. */
@@ -299,7 +305,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_AUTOMATIC_MANIFEST_PATH,
-      policy: MDFE_MANAGE_POLICY,
+      policy: MDFE_AUTO_ISSUE_POLICY,
     }),
     defineRoute<{ readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {

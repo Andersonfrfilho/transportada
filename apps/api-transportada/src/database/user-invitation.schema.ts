@@ -18,7 +18,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-import { COMPANY_ROLES, companies, userCompanyMemberships } from './identity.schema.js'
+import { COMPANY_ROLES, INVITABLE_COMPANY_ROLES, companies, userCompanyMemberships } from './identity.schema.js'
 
 /**
  * `superseded` é o convite que um reenvio invalidou. Expiração não é situação: sai de
@@ -31,7 +31,7 @@ const USER_INVITATION_STATUS_LIST = sql.raw(
   USER_INVITATION_STATUSES.map((status) => `'${status}'`).join(', '),
 )
 
-const COMPANY_ROLE_LIST = sql.raw(COMPANY_ROLES.map((role) => `'${role}'`).join(', '))
+const COMPANY_ROLE_LIST = sql.raw(INVITABLE_COMPANY_ROLES.map((role) => `'${role}'`).join(', '))
 
 export const userInvitations = pgTable(
   'user_invitations',

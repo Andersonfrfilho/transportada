@@ -215,7 +215,10 @@ export function createRouter({
         throw new ApiError(HTTP_ERROR.notFound)
       }
 
-      const context = await tenantContext.resolveCompany(identity)
+      const context = await tenantContext.resolveCompany(
+        identity,
+        request.headers.get(SERVICE_COMPANY_HEADER),
+      )
       authorization.authorize(context, matchedRoute.route.policy)
       return matchedRoute.route.execute({
         context,
@@ -226,6 +229,14 @@ export function createRouter({
     },
   })
 }
+
+/**
+ * ADR-0047 §3: a empresa do **service account** chega no pedido, e chega por cabeçalho para o
+ * roteador seguir genérico — deduzi-la do recurso exigiria consultar cada tabela antes de autorizar.
+ * Para token de gente ele é **ignorado**: quem manda é a claim, e o `tenant-context` é quem decide
+ * isso, num lugar só.
+ */
+const SERVICE_COMPANY_HEADER = 'x-company-id'
 
 export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRouterRoute {
   return Object.freeze({
