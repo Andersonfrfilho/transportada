@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import type { AggregateApplication } from '../shared/aggregateApplicationClient.service'
-import { formatDeclaredAddress, parseDeclaredData } from '../shared/aggregateApplicationDeclaredData.service'
+import {
+  formatDeclaredAddress,
+  parseDeclaredData,
+} from '../shared/aggregateApplicationDeclaredData.service'
 import styles from '../styles/fleet.module.css'
 
 const APPLICATIONS_COLUMN_COUNT = 5
@@ -39,7 +42,10 @@ export function AggregateApplicationsTab({
 
   if (loading) {
     return (
-      <FleetTableSkeleton columnCount={APPLICATIONS_COLUMN_COUNT} label={t('applications.loading')} />
+      <FleetTableSkeleton
+        columnCount={APPLICATIONS_COLUMN_COUNT}
+        label={t('applications.loading')}
+      />
     )
   }
   if (applications.length === 0) return <p className={styles.kicker}>{t('applications.empty')}</p>
@@ -104,7 +110,9 @@ export function AggregateApplicationsTab({
                         )}
                         <button
                           type="button"
-                          onClick={() => setRejectDialog({ applicationId: application.id, reason: '' })}
+                          onClick={() =>
+                            setRejectDialog({ applicationId: application.id, reason: '' })
+                          }
                         >
                           {t('applications.rejectButton')}
                         </button>
@@ -118,7 +126,10 @@ export function AggregateApplicationsTab({
                   </td>
                 </tr>
                 <tr>
-                  <td className={styles.applicationDeclaredDataCell} colSpan={APPLICATIONS_COLUMN_COUNT}>
+                  <td
+                    className={styles.applicationDeclaredDataCell}
+                    colSpan={APPLICATIONS_COLUMN_COUNT}
+                  >
                     <details>
                       <summary>{t('applications.declaredData.toggleShow')}</summary>
                       {declared.driver === null && declared.vehicle === null ? (
@@ -130,7 +141,8 @@ export function AggregateApplicationsTab({
                               <dt>{t('applications.declaredData.driverTitle')}</dt>
                               {declared.driver.licenseNumber === '' ? null : (
                                 <dd>
-                                  {t('applications.declaredData.fields.licenseNumber')}: {declared.driver.licenseNumber}
+                                  {t('applications.declaredData.fields.licenseNumber')}:{' '}
+                                  {declared.driver.licenseNumber}
                                 </dd>
                               )}
                               {declared.driver.licenseCategory === '' ? null : (
@@ -141,12 +153,14 @@ export function AggregateApplicationsTab({
                               )}
                               {declared.driver.rntrc === '' ? null : (
                                 <dd>
-                                  {t('applications.declaredData.fields.rntrc')}: {declared.driver.rntrc}
+                                  {t('applications.declaredData.fields.rntrc')}:{' '}
+                                  {declared.driver.rntrc}
                                 </dd>
                               )}
                               {declared.driver.anttCategory === '' ? null : (
                                 <dd>
-                                  {t('applications.declaredData.fields.anttCategory')}: {declared.driver.anttCategory}
+                                  {t('applications.declaredData.fields.anttCategory')}:{' '}
+                                  {declared.driver.anttCategory}
                                 </dd>
                               )}
                               {declared.driver.address === null ? null : (
@@ -164,22 +178,26 @@ export function AggregateApplicationsTab({
                             ) : (
                               <>
                                 <dd>
-                                  {t('applications.declaredData.fields.plate')}: {declared.vehicle.plate}
+                                  {t('applications.declaredData.fields.plate')}:{' '}
+                                  {declared.vehicle.plate}
                                 </dd>
-                                {declared.vehicle.brand === '' && declared.vehicle.model === '' ? null : (
+                                {declared.vehicle.brand === '' &&
+                                declared.vehicle.model === '' ? null : (
                                   <dd>
-                                    {t('applications.declaredData.fields.brand')}: {declared.vehicle.brand}{' '}
-                                    {declared.vehicle.model}
+                                    {t('applications.declaredData.fields.brand')}:{' '}
+                                    {declared.vehicle.brand} {declared.vehicle.model}
                                   </dd>
                                 )}
                                 {declared.vehicle.modelYear === null ? null : (
                                   <dd>
-                                    {t('applications.declaredData.fields.modelYear')}: {declared.vehicle.modelYear}
+                                    {t('applications.declaredData.fields.modelYear')}:{' '}
+                                    {declared.vehicle.modelYear}
                                   </dd>
                                 )}
                                 {declared.vehicle.vehicleType === '' ? null : (
                                   <dd>
-                                    {t('applications.declaredData.fields.vehicleType')}: {declared.vehicle.vehicleType}
+                                    {t('applications.declaredData.fields.vehicleType')}:{' '}
+                                    {declared.vehicle.vehicleType}
                                   </dd>
                                 )}
                               </>
@@ -201,9 +219,7 @@ export function AggregateApplicationsTab({
             {t('applications.rejectionReasonLabel')}
             <textarea
               value={rejectDialog.reason}
-              onChange={(event) =>
-                setRejectDialog({ ...rejectDialog, reason: event.target.value })
-              }
+              onChange={(event) => setRejectDialog({ ...rejectDialog, reason: event.target.value })}
             />
           </label>
           <button

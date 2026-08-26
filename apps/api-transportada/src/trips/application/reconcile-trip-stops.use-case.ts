@@ -33,10 +33,7 @@ export type TripStopReconciliationPort = {
     readonly tripId: string
   }): Promise<TripStopRecord | null>
   /** Próxima posição livre na sequência da viagem — 1 quando ainda não há paradas. */
-  nextStopSequence(input: {
-    readonly companyId: string
-    readonly tripId: string
-  }): Promise<bigint>
+  nextStopSequence(input: { readonly companyId: string; readonly tripId: string }): Promise<bigint>
 }
 
 export type ReconcileStopOnLinkInput = {

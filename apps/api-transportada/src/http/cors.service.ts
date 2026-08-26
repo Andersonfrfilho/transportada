@@ -39,7 +39,11 @@ export function handleCorsPreflight({
 
   const requestOrigin = request.headers.get('origin')
   const requestedMethod = request.headers.get('access-control-request-method')
-  if (requestOrigin === null || !frontendOrigins.includes(requestOrigin) || requestedMethod === null) {
+  if (
+    requestOrigin === null ||
+    !frontendOrigins.includes(requestOrigin) ||
+    requestedMethod === null
+  ) {
     throw new ApiError(HTTP_ERROR.forbidden)
   }
 

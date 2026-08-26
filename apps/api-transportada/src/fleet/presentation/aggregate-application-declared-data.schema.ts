@@ -105,4 +105,6 @@ export const aggregateApplicationDeclaredDataSchema = z
 
 export type AggregateApplicationDeclaredDriver = z.infer<typeof declaredDriverSchema>
 export type AggregateApplicationDeclaredVehicle = z.infer<typeof declaredVehicleSchema>
-export type AggregateApplicationDeclaredData = z.infer<typeof aggregateApplicationDeclaredDataSchema>
+export type AggregateApplicationDeclaredData = z.infer<
+  typeof aggregateApplicationDeclaredDataSchema
+>

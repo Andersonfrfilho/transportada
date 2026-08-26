@@ -17,7 +17,10 @@ type CreateUserAuthResolverParams = {
  * `USER_ACCESS_TOKEN_SECRET`), verificado por `module.verifyAccessToken`. Schema `user` isolado,
  * sessão isolada: uma conta de agregado nunca autentica numa rota do painel, e vice-versa.
  */
-export function createUserAuthResolver({ companyId, module }: CreateUserAuthResolverParams): AuthContextResolverPort {
+export function createUserAuthResolver({
+  companyId,
+  module,
+}: CreateUserAuthResolverParams): AuthContextResolverPort {
   return Object.freeze({
     async resolve({ headers }: { readonly headers: Readonly<Record<string, string>> }) {
       const token = extractBearerToken(headers.authorization)

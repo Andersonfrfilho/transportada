@@ -4,7 +4,11 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 
-import { createLandingHttpFixture, landingRequest, LANDING_LOGO_PATH } from '../fixtures/landing-http.fixture'
+import {
+  createLandingHttpFixture,
+  landingRequest,
+  LANDING_LOGO_PATH,
+} from '../fixtures/landing-http.fixture'
 
 const PNG_BYTES = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',

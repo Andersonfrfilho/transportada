@@ -231,7 +231,9 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         ).toBeNull()
 
         // Teste negativo de tenant: a viagem de uma empresa não existe para a outra — 404, não 403.
-        expect(await tripRepository.findById({ companyId: otherCompanyId, tripId: trip.id })).toBeNull()
+        expect(
+          await tripRepository.findById({ companyId: otherCompanyId, tripId: trip.id }),
+        ).toBeNull()
       })
     },
     30_000,

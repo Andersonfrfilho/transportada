@@ -43,18 +43,17 @@ Viagem com CT-e faltando não tem receita "parcial estimada": ela tem receita **
 declarada como tal**, com a contagem de quantas notas faltam. A 059 já constrói exatamente essa
 consulta, e é dela que este número sai.
 
-CT-e cancelado sai da soma, e a viagem passa a mostrar divergência — o mesmo estado `divergent` da
-059.
+CT-e cancelado sai da soma, e a viagem passa a mostrar divergência — o mesmo estado `divergent` da 059.
 
 ### D2 — Custo é composto, e cada parcela diz de onde veio
 
-| Parcela | Fonte | Quando falta |
-|---|---|---|
-| Motorista / agregado | `freight_region_driver_rates` (classe → valor), por nota ou por viagem | Sem região cadastrada, entra zero **marcado como ausente** |
-| Combustível | km × consumo do veículo ÷ 1 × preço em `company_fuel_prices`, com os dois tanques da spec 051 | Sem km real (sem 058), usa a distância estimada e marca a origem |
-| Outros custos por km | `fleet_vehicles.other_costs_per_kilometer` | Zero, marcado |
-| Taxas de entrega | `delivery_charges` da 060, em `recorded` ou adiante | Zero enquanto a 060 não existir |
-| Pedágio | lançamento manual na viagem | Zero |
+| Parcela              | Fonte                                                                                         | Quando falta                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Motorista / agregado | `freight_region_driver_rates` (classe → valor), por nota ou por viagem                        | Sem região cadastrada, entra zero **marcado como ausente**       |
+| Combustível          | km × consumo do veículo ÷ 1 × preço em `company_fuel_prices`, com os dois tanques da spec 051 | Sem km real (sem 058), usa a distância estimada e marca a origem |
+| Outros custos por km | `fleet_vehicles.other_costs_per_kilometer`                                                    | Zero, marcado                                                    |
+| Taxas de entrega     | `delivery_charges` da 060, em `recorded` ou adiante                                           | Zero enquanto a 060 não existir                                  |
+| Pedágio              | lançamento manual na viagem                                                                   | Zero                                                             |
 
 **Nenhuma parcela ausente vira zero silencioso.** Cada uma carrega `source` (`measured` | `estimated`
 | `missing`), e a tela mostra a composição, nunca só o total. Uma margem de 18% que na verdade é
@@ -101,39 +100,39 @@ número na mão.
 ## Histórias priorizadas
 
 **P1 — a viagem mostra a conta**
-*Dado* uma viagem com todos os CT-e autorizados,
-*quando* o operador com `trip.financials` a abre,
-*então* vê receita, cada parcela de custo com sua origem, o total e a margem — em porcentagem e em
+_Dado_ uma viagem com todos os CT-e autorizados,
+_quando_ o operador com `trip.financials` a abre,
+_então_ vê receita, cada parcela de custo com sua origem, o total e a margem — em porcentagem e em
 reais.
 
 **P1 — a conta incompleta se declara**
-*Dado* uma viagem com 8 de 10 CT-e,
-*quando* o resultado é aberto,
-*então* mostra "receita de 8 de 10 notas" e a margem marcada como parcial. Nunca um número que
+_Dado_ uma viagem com 8 de 10 CT-e,
+_quando_ o resultado é aberto,
+_então_ mostra "receita de 8 de 10 notas" e a margem marcada como parcial. Nunca um número que
 parece final.
 
 **P1 — o custo estimado se distingue do medido**
-*Dado* uma viagem antes da 058 existir,
-*quando* o custo de combustível é exibido,
-*então* vem marcado como estimado, com a premissa (distância aproximada, consumo cadastrado, preço
+_Dado_ uma viagem antes da 058 existir,
+_quando_ o custo de combustível é exibido,
+_então_ vem marcado como estimado, com a premissa (distância aproximada, consumo cadastrado, preço
 da data).
 
 **P2 — fechar congela**
-*Dado* uma viagem que vai a `completed`,
-*quando* o estado transiciona,
-*então* o resultado é gravado com as premissas, e a mudança de preço de combustível na semana
+_Dado_ uma viagem que vai a `completed`,
+_quando_ o estado transiciona,
+_então_ o resultado é gravado com as premissas, e a mudança de preço de combustível na semana
 seguinte não o altera.
 
 **P2 — o CT-e cancelado abre divergência**
-*Dado* um resultado congelado,
-*quando* um CT-e daquela viagem é cancelado,
-*então* a viagem aparece como divergente e o recálculo fica disponível como ação, com a versão
+_Dado_ um resultado congelado,
+_quando_ um CT-e daquela viagem é cancelado,
+_então_ a viagem aparece como divergente e o recálculo fica disponível como ação, com a versão
 anterior preservada.
 
 **P2 — quanto pagamos ao agregado**
-*Dado* um período,
-*quando* consultado por motorista,
-*então* mostra o total pago, o faturamento das viagens dele e a relação entre os dois.
+_Dado_ um período,
+_quando_ consultado por motorista,
+_então_ mostra o total pago, o faturamento das viagens dele e a relação entre os dois.
 
 **P3 — margem por contratante e por veículo**
 Painel com o acumulado do período, ordenável e filtrável, com exportação.
@@ -175,16 +174,16 @@ Lançamento simples na viagem, entrando na composição.
 
 ## Casos extremos e falhas
 
-| Caso | Comportamento |
-|---|---|
-| Viagem sem nenhum CT-e | Receita zero, declarada como ausente. A margem não é exibida — margem sobre zero é −100% e engana. |
-| CT-e emitido depois do congelamento | Viagem vira divergente; recálculo disponível. |
-| Motorista sem região cadastrada | Custo de motorista `missing`, e a viagem aparece numa lista de "resultado incompleto por cadastro". |
-| Dois motoristas na mesma viagem | O custo é somado; a atribuição por motorista rateia pelo que a regra de região disser, e se ela não disser, divide igualmente e marca. |
-| Preço de combustível sem registro na data | Usa o mais recente anterior e marca a premissa com a data efetiva. |
-| Viagem cancelada | Sem resultado. Custos já lançados ficam visíveis como perda. |
-| Taxa da 060 lançada depois do congelamento | Vira divergência, não sobrescrita silenciosa. |
-| Margem negativa | Exibida como negativa, em destaque. Nunca escondida nem zerada. |
+| Caso                                       | Comportamento                                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Viagem sem nenhum CT-e                     | Receita zero, declarada como ausente. A margem não é exibida — margem sobre zero é −100% e engana.                                     |
+| CT-e emitido depois do congelamento        | Viagem vira divergente; recálculo disponível.                                                                                          |
+| Motorista sem região cadastrada            | Custo de motorista `missing`, e a viagem aparece numa lista de "resultado incompleto por cadastro".                                    |
+| Dois motoristas na mesma viagem            | O custo é somado; a atribuição por motorista rateia pelo que a regra de região disser, e se ela não disser, divide igualmente e marca. |
+| Preço de combustível sem registro na data  | Usa o mais recente anterior e marca a premissa com a data efetiva.                                                                     |
+| Viagem cancelada                           | Sem resultado. Custos já lançados ficam visíveis como perda.                                                                           |
+| Taxa da 060 lançada depois do congelamento | Vira divergência, não sobrescrita silenciosa.                                                                                          |
+| Margem negativa                            | Exibida como negativa, em destaque. Nunca escondida nem zerada.                                                                        |
 
 ## Critérios de aceite
 
@@ -209,9 +208,9 @@ Lançamento simples na viagem, entrando na composição.
 
 ## 🤖 Modelo
 
-| Etapa | Modelo |
-|---|---|
+| Etapa                                       | Modelo    |
+| ------------------------------------------- | --------- |
 | Composição de custo, congelamento, ADR-0047 | `opus` 🧠 |
-| Módulo de cálculo e suíte de precisão | `opus` 🧠 |
-| Rotas, agregações, permissão | `sonnet` |
-| Painéis e exportação | `sonnet` |
+| Módulo de cálculo e suíte de precisão       | `opus` 🧠 |
+| Rotas, agregações, permissão                | `sonnet`  |
+| Painéis e exportação                        | `sonnet`  |

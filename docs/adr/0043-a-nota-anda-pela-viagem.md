@@ -4,7 +4,7 @@
 - Data: 2026-08-24
 - Decisores: mantenedor do projeto e revisão Opus
 - Responde a pergunta em aberto do **§4 da ADR-0023** (`[NEEDS CLARIFICATION: quais são os estados de
-  trips.status ...]`) e substitui o ciclo `open|closed` que a spec 027 implementou como resposta
+trips.status ...]`) e substitui o ciclo `open|closed` que a spec 027 implementou como resposta
   provisória. O resto da ADR-0023 (§1, §2, §3, §5) continua valendo integralmente
 - Fecha a decisão da spec 056
 - Base das specs 057, 058, 059, 060 e 061
@@ -16,7 +16,7 @@ estados de `trips.status`, "paralelo a `mdfe_manifests` (`draft/issuing/authoriz
 simples (`open/closed`), já que a viagem em si não fala com a SEFAZ?".
 
 A spec 027 respondeu `open|closed`, e o comentário em `src/database/trip.schema.ts:24` registra o
-raciocínio: *"a viagem não fala com a SEFAZ, então o ciclo é só aberto/fechado"*. A premissa estava
+raciocínio: _"a viagem não fala com a SEFAZ, então o ciclo é só aberto/fechado"_. A premissa estava
 certa e a conclusão não seguia dela. Não falar com a SEFAZ elimina a necessidade de espelhar os
 estados **fiscais** do manifesto; não elimina os estados **operacionais**, que são de outra natureza e
 existem de qualquer forma — só que fora do sistema.
@@ -45,16 +45,16 @@ de duas).
 
 **Eixo da viagem** — `trips.status`, substituindo `open|closed`:
 
-| Estado | Entra quando | Transição |
-|---|---|---|
-| `draft` | viagem criada | manual (é o `open` de hoje) |
-| `route_planned` | roteiro montado e conferido | manual, exige ≥1 parada |
-| `separating` | primeira nota vira `separated` | automática |
-| `loading` | primeira nota vira `loaded` | automática |
-| `dispatched` | motorista saiu do barracão | manual, irreversível |
-| `in_transit` | primeira entrega confirmada | automática |
-| `completed` | toda nota em `delivered` ou `returned` | automática |
-| `cancelled` | viagem abortada antes de `dispatched` | manual |
+| Estado          | Entra quando                           | Transição                   |
+| --------------- | -------------------------------------- | --------------------------- |
+| `draft`         | viagem criada                          | manual (é o `open` de hoje) |
+| `route_planned` | roteiro montado e conferido            | manual, exige ≥1 parada     |
+| `separating`    | primeira nota vira `separated`         | automática                  |
+| `loading`       | primeira nota vira `loaded`            | automática                  |
+| `dispatched`    | motorista saiu do barracão             | manual, irreversível        |
+| `in_transit`    | primeira entrega confirmada            | automática                  |
+| `completed`     | toda nota em `delivered` ou `returned` | automática                  |
+| `cancelled`     | viagem abortada antes de `dispatched`  | manual                      |
 
 O estado da viagem **nunca é escrito à mão** fora das quatro transições manuais. O restante é
 consequência aritmética do estado das notas, calculada na mesma transação da escrita da nota. Duas

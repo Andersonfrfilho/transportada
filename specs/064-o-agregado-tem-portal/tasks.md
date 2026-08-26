@@ -6,6 +6,7 @@
 > (conta e portal do agregado) e RF13 (domínio). RF12 (chat) está **bloqueado** — ver Fase 4.
 
 ## Fase 1 — Conta do agregado (RF9)
+
 > 🤖 Modelo: `opus` 🧠 (integração de SDK nova, decisões de schema de auth — T2 pode descer pra `sonnet` depois de T1 validado)
 
 - **T1** 🧠 — Instalar `@adatechnology/user-module` + `user-contracts` + `user-ui` em
@@ -28,6 +29,7 @@
   - Critério de aceite: os três casos do "Casos extremos" da spec têm teste correspondente.
 
 ## Fase 2 — Configurações do portal (RF10, RF9-conta)
+
 > 🤖 Modelo: `sonnet`
 
 - **T3** — Tela "Configurações": dados da ficha em modo leitura (nome, contato, endereço, status da
@@ -48,10 +50,11 @@
   - Critério de aceite: troca de senha/e-mail funcional ponta a ponta contra o schema `user` local.
 
 ## Fase 3 — Documentos (RF11, D3)
+
 > 🤖 Modelo: `sonnet` (T5 é 🧠 — schema novo, decisão de bucket/prefixo — validar com `opus` antes)
 
 - **T5** 🧠 — Tabela `aggregate_documents` (`fleet` ou schema próprio): `driverId`, `type` (`'cnh' |
-  'crlv'`, lista fechada mas pensada pra crescer sem migração — RF11), `status`
+'crlv'`, lista fechada mas pensada pra crescer sem migração — RF11), `status`
   (`'pending'|'approved'|'rejected'`), `rejectionReason`, `reviewedBy`, `reviewedAt`, referência ao
   `stored_objects` do upload (mesmo padrão de NF-e/CT-e — presigned URL, bucket privado, D3).
   - Dependências: T2.
@@ -80,6 +83,7 @@
     forçado (poll ou re-fetch ao focar a aba já resolve; não precisa de websocket novo).
 
 ## Fase 4 — Chat (RF12) — bloqueado, não implementável nesta spec
+
 > 🤖 Modelo: `opus` 🧠 (decisão de contrato de módulo em outro repositório)
 
 - **T9** 🧠 — **Fora deste monorepo.** Abrir o pedido de extração de `web-chat-module` em
@@ -99,6 +103,7 @@
     site é canal à parte, sem esse requisito de unificação (ver D2).
 
 ## Fase 5 — Domínio de produção (RF13) — ação de infraestrutura
+
 > 🤖 Modelo: n/a — não é task de código
 
 - **T11** — Fora do código: configurar `fernandes-transportadora.com.br` como domínio customizado do

@@ -37,7 +37,7 @@ próxima leitura do 0023 conclui que esta feature o viola.
 fechada → `returned` com motivo `migration`.
 
 - **Arquivos:** `apps/api-transportada/drizzle/20260824200157_trip_status_machine/` (migration
-  + `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`
+  - `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`
 - **Aceite:** `test/trip-schema/status.contract.ts` (novo),
   `test/database-migration/static-migration.contract.ts` (atualizado)
 - **Verificação:** `bun run --cwd apps/api-transportada typecheck` ✅,
@@ -84,9 +84,9 @@ FK da nota para a parada, e a tabela de eventos com `from_status`, `to_status`,
 PII** na tabela de eventos.
 
 - **Arquivos:** `apps/api-transportada/drizzle/20260824204404_trip_document_events/` (migration
-  + `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts` (tripStops movida para
-  antes de tripDocuments — referência direta exige declaração prévia em JS),
-  `apps/api-transportada/src/database/database.schema.ts` (registro no barrel)
+  - `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts` (tripStops movida para
+    antes de tripDocuments — referência direta exige declaração prévia em JS),
+    `apps/api-transportada/src/database/database.schema.ts` (registro no barrel)
 - **Aceite:** `test/trip-schema/events.contract.ts` (novo, 6 testes — inclui o contrato negativo de
   PII por nome de coluna), `test/trip-schema/tenant-safety.contract.ts` (dois testes novos: trilha
   cascade por documento, e vínculo nota↔parada com `set null`)
@@ -109,8 +109,8 @@ Tabela (ou JSONB em `trips`) escrita na transição a `dispatched`, guardando a 
 notas de cada uma. Imutável por constraint, não por convenção.
 
 - **Arquivos:** `apps/api-transportada/drizzle/20260824204913_trip_dispatch_snapshots/` (migration
-  + `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`,
-  `apps/api-transportada/src/database/database.schema.ts`
+  - `rollback.sql`), `apps/api-transportada/src/database/trip.schema.ts`,
+    `apps/api-transportada/src/database/database.schema.ts`
 - **Aceite:** `test/trip-schema/dispatch-snapshot.contract.ts` (novo, 8 testes + 1 de contrato de
   trigger)
 - **Verificação:** `typecheck` ✅, `lint` ✅, `test` (2934 pass, 0 fail) ✅, banco recriado do zero
@@ -306,7 +306,6 @@ a que o produto não deve incentivar.
 
   **Dois bugs reais achados pelo probe contra Postgres, nenhum pelo port falso — os dois em código
   já commitado:**
-
   1. `trip_documents_company_stop_fk` (T004) tinha `on delete set null`. Numa FK **composta**,
      `SET NULL` zera todas as colunas do par — inclusive `company_id`, que é `not null`. O probe
      travou tentando apagar de verdade uma parada esvaziada. Correção: `on delete restrict`
@@ -407,7 +406,7 @@ isso.
 
 > 🤖 Modelo: `sonnet` (T011 é 🧠 — é permissão)
 
-### T011 ✅ — A permissão `trip.manage` *(entregue pela spec 055, na árvore)*
+### T011 ✅ — A permissão `trip.manage` _(entregue pela spec 055, na árvore)_
 
 **Não refazer.** A implementação da 055 já está na árvore de trabalho (não commitada, branch
 `staging`) e entregou tudo o que esta task pedia:
@@ -604,7 +603,7 @@ paradas com contagem de queries assertada.
   empresa, envolve `database.db` num `Proxy` que conta chamadas a `.select(...)` (cada chamada é
   exatamente uma query), e afirma que as duas viagens disparam **o mesmo número** de `select`s.
   Rodado contra Postgres local (`DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada
-  bun run test:integration`): passou, e as 40 paradas vieram com 5 notas cada, agrupadas
+bun run test:integration`): passou, e as 40 paradas vieram com 5 notas cada, agrupadas
   corretamente. Registrado no script `test:integration` do `package.json`, ao lado do teste irmão
   de `trip-repository`.
 - **Achado, não corrigido aqui:** o reconciliador `reconcileStopOnLink`/`reconcileStopOnUnlink`
@@ -763,7 +762,7 @@ diálogo de `force` no despacho — este último **lista as notas pendentes** an
   `batchStatusMutation`, `dispatchMutation`, `cancelMutation`, `planRouteMutation`, além das já
   existentes).
 - **Lista de pendentes antes do motivo, sem round-trip:** em vez de despachar e reagir ao `409
-  TRIP_HAS_UNLOADED_DOCUMENTS` (que exigiria decodificar `error.details`), `TripStateActions`
+TRIP_HAS_UNLOADED_DOCUMENTS` (que exigiria decodificar `error.details`), `TripStateActions`
   calcula as notas ainda não carregadas direto de `trip.documents` (mesmo filtro
   `pending`/`separated` que o backend usa) — se não há nenhuma, despacha direto; se há, abre
   `TripReasonDialog` já com a lista, e só then pede o motivo.
@@ -807,7 +806,7 @@ toque ≥44px na ação mais repetida do produto (marcar nota). `min-width` para
   teria fragmentado a mesma regra em dois lugares — não fiz isso.
 - Reaudita `trip.module.css` linha a linha nesta task: nenhum `max-width`, nenhum breakpoint fora
   dos quatro nomeados, nenhuma largura fixa em `px` além de bordas de 1px, `.intro`'s `max-width:
-  46rem` é limite de legibilidade de parágrafo (não layout) — o contrato global já cobre isso e
+46rem` é limite de legibilidade de parágrafo (não layout) — o contrato global já cobre isso e
   passou durante todo o T015/T016 (CSS novo desta sessão nasceu compatível, não corrigido depois).
 - Alvo de toque de 44px na ação mais repetida (marcar nota, via `Checkbox`): já garantido pelo
   design system (`checkbox.module.css`, `@media (pointer: coarse)` → `--space-10 + --space-1` =
@@ -866,7 +865,7 @@ empresa → 404, não 403).
   escopo de dado: o filtro por `company_id` é parte da própria consulta, não uma decisão em cima
   do resultado).
 - Rodado contra Postgres local (`DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada
-  bun run test:integration`): passa, junto com o resto da suíte de integração (132 pass / 6 skip —
+bun run test:integration`): passa, junto com o resto da suíte de integração (132 pass / 6 skip —
   a única falha é `server.integration.ts`'s SIGTERM, pré-existente e não relacionada, já confirmada
   idêntica antes de qualquer mudança desta sessão). Nenhum banco descartável ficou para trás
   (`withDisposableDatabase` limpa sozinho).
@@ -885,15 +884,15 @@ empresa → 404, não 403).
 **Evidência:**
 
 - `make validate` **não existe** no `Makefile` deste repositório (confirmado por `grep -n
-  "validate" Makefile`, zero ocorrências) — mesma família de comando aspiracional já encontrada em
+"validate" Makefile`, zero ocorrências) — mesma família de comando aspiracional já encontrada em
   T018 (`make test-e2e`)/T014 (`env.test.e2e`). Verificação real feita à mão, nas duas apps: `bunx
-  tsc --noEmit`, `bunx eslint src test --max-warnings=0`, `bun test`/`bun run test`, `bun run
-  build` — todos limpos (backend: 3046 pass/15 skip/0 fail; frontend: 1911 pass/0 fail; os dois
+tsc --noEmit`, `bunx eslint src test --max-warnings=0`, `bun test`/`bun run test`, `bun run
+build` — todos limpos (backend: 3046 pass/15 skip/0 fail; frontend: 1911 pass/0 fail; os dois
   builds concluem sem erro).
 - `docs/spec/domain-model.md` **já estava atualizado** — o ER já incluía `TRIP`, `TRIP_STOP`,
   `TRIP_DOCUMENT`, `TRIP_DOCUMENT_EVENT` e `DELIVERY_ADDRESS_OVERRIDE`, e a tabela de estados já
   listava os nove estados da viagem e os cinco da nota, com a nota sobre `409
-  STATE_TRANSITION_NOT_ALLOWED` — escrito na fase de especificação, antes da implementação, e
+STATE_TRANSITION_NOT_ALLOWED` — escrito na fase de especificação, antes da implementação, e
   continua correto depois dela. Nenhuma mudança necessária.
 - `CLAUDE.md`: dois parágrafos novos, um em `## api-transportada` (a máquina de estado ADR-0043
   inteira — os nove estados, `dispatched` como porta de não-retorno, a derivação de parada por

@@ -4,7 +4,11 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
-import { aggregateAccounts, aggregateApplications, fleetDrivers } from '../../database/database.schema.js'
+import {
+  aggregateAccounts,
+  aggregateApplications,
+  fleetDrivers,
+} from '../../database/database.schema.js'
 import type { AggregatePortalRepositoryPort } from '../application/aggregate-portal.port.js'
 
 export type AggregatePortalDatabase = ReturnType<typeof createDrizzleProvider>['db']
@@ -29,7 +33,12 @@ export function createDrizzleAggregatePortalRepository(
           status: aggregateApplications.status,
         })
         .from(aggregateApplications)
-        .where(and(eq(aggregateApplications.companyId, companyId), eq(aggregateApplications.taxId, taxId)))
+        .where(
+          and(
+            eq(aggregateApplications.companyId, companyId),
+            eq(aggregateApplications.taxId, taxId),
+          ),
+        )
         .limit(1)
       return row ?? null
     },

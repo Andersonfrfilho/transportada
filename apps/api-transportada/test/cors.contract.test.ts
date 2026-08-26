@@ -37,7 +37,9 @@ describe('trusted frontend origin configuration', () => {
   test.each(['https://spa.example.test', 'https://spa.example.test:5443', FRONTEND_ORIGIN])(
     'accepts one canonical HTTPS origin or HTTP localhost: %s',
     (frontendOrigin) => {
-      expect(parseEnvironment(environmentWith(frontendOrigin)).frontendOrigins).toEqual([frontendOrigin])
+      expect(parseEnvironment(environmentWith(frontendOrigin)).frontendOrigins).toEqual([
+        frontendOrigin,
+      ])
     },
   )
 
@@ -461,8 +463,14 @@ describe('API CORS contract', () => {
     test('reflects whichever of the two origins actually asked, on preflight and on the real request', async () => {
       const fixture = createFixture({ frontendOrigins: [FRONTEND_ORIGIN, LANDING_ORIGIN] })
 
-      const panelPreflight = await fixture.handle(preflightRequest({ origin: FRONTEND_ORIGIN }), fixture.server)
-      const landingPreflight = await fixture.handle(preflightRequest({ origin: LANDING_ORIGIN }), fixture.server)
+      const panelPreflight = await fixture.handle(
+        preflightRequest({ origin: FRONTEND_ORIGIN }),
+        fixture.server,
+      )
+      const landingPreflight = await fixture.handle(
+        preflightRequest({ origin: LANDING_ORIGIN }),
+        fixture.server,
+      )
       const panelRequest = await fixture.handle(
         new Request('http://localhost/auth/me', {
           headers: { authorization: 'Bearer header.payload.signature', origin: FRONTEND_ORIGIN },
@@ -486,7 +494,10 @@ describe('API CORS contract', () => {
 
     test('still rejects an origin outside both trusted ones', async () => {
       const fixture = createFixture({ frontendOrigins: [FRONTEND_ORIGIN, LANDING_ORIGIN] })
-      const response = await fixture.handle(preflightRequest({ origin: OTHER_ORIGIN }), fixture.server)
+      const response = await fixture.handle(
+        preflightRequest({ origin: OTHER_ORIGIN }),
+        fixture.server,
+      )
       expect(response.status).toBe(403)
     })
   })

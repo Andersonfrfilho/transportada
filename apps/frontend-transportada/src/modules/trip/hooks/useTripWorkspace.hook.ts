@@ -184,7 +184,10 @@ export function useTripWorkspace(
     mutationFn: controller.batchStatus,
     onSuccess: invalidate,
   })
-  const dispatchMutation = useMutation({ mutationFn: controller.dispatchTrip, onSuccess: invalidate })
+  const dispatchMutation = useMutation({
+    mutationFn: controller.dispatchTrip,
+    onSuccess: invalidate,
+  })
   const cancelMutation = useMutation({ mutationFn: controller.cancelTrip, onSuccess: invalidate })
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,

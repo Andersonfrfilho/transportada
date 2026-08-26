@@ -146,7 +146,12 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         if (params.batchStatusError) throw params.batchStatusError
         return (
           params.batchStatusResult ?? {
-            items: [{ documentId: (input as { documentIds: string[] }).documentIds[0], outcome: 'applied' }],
+            items: [
+              {
+                documentId: (input as { documentIds: string[] }).documentIds[0],
+                outcome: 'applied',
+              },
+            ],
             tripStatus: 'separating',
           }
         )

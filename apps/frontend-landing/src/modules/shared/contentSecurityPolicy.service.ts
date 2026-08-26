@@ -50,7 +50,9 @@ export function buildContentSecurityPolicy({
   allowsInlineScript,
   apiBaseUrl,
 }: ContentSecurityPolicyParams): string {
-  const configured = [toOrigin(apiBaseUrl)].filter((origin): origin is string => origin !== undefined)
+  const configured = [toOrigin(apiBaseUrl)].filter(
+    (origin): origin is string => origin !== undefined,
+  )
   const connectSource = [
     SELF,
     ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),

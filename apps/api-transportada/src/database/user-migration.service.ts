@@ -15,7 +15,8 @@ export const USER_SCHEMA = 'user'
  * migrations da aplicação. Ele mora ao lado do runner, num diretório irmão (mesmo padrão do
  * schema de notificações).
  */
-export const USER_ROLLBACK_FILE = new URL('../../drizzle-user/rollback.sql', import.meta.url).pathname
+export const USER_ROLLBACK_FILE = new URL('../../drizzle-user/rollback.sql', import.meta.url)
+  .pathname
 
 export async function readUserRollbackSql(): Promise<string> {
   return readFile(USER_ROLLBACK_FILE, 'utf8')

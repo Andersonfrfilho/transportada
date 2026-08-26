@@ -11,7 +11,9 @@ const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46] as const
 export type AggregateDocumentMimeType = 'application/pdf' | 'image/jpeg' | 'image/png'
 
 /** O tipo declarado no upload vem do cliente; só a assinatura do arquivo decide o que é gravado. */
-export function detectAggregateDocumentMimeType(bytes: Uint8Array): AggregateDocumentMimeType | null {
+export function detectAggregateDocumentMimeType(
+  bytes: Uint8Array,
+): AggregateDocumentMimeType | null {
   if (startsWith({ bytes, signature: PNG_SIGNATURE })) return 'image/png'
   if (startsWith({ bytes, signature: JPEG_SIGNATURE })) return 'image/jpeg'
   if (startsWith({ bytes, signature: PDF_SIGNATURE })) return 'application/pdf'
@@ -27,7 +29,10 @@ export function assertAggregateDocumentBytes(bytes: Uint8Array): AggregateDocume
   return mimeType
 }
 
-function startsWith(input: { readonly bytes: Uint8Array; readonly signature: readonly number[] }): boolean {
+function startsWith(input: {
+  readonly bytes: Uint8Array
+  readonly signature: readonly number[]
+}): boolean {
   if (input.bytes.byteLength < input.signature.length) return false
   return input.signature.every((byte, index) => input.bytes[index] === byte)
 }

@@ -37,24 +37,40 @@ describe('aggregate account use case', () => {
     const { useCase } = buildUseCase()
 
     await expect(
-      useCase.register({ email: 'a@example.com', name: 'Fulano', password: 'senha1234', taxId: '12345678901' }),
+      useCase.register({
+        email: 'a@example.com',
+        name: 'Fulano',
+        password: 'senha1234',
+        taxId: '12345678901',
+      }),
     ).rejects.toBeInstanceOf(AggregateAccountDriverNotFoundError)
   })
 
   test('a document already linked to another account is refused', async () => {
     const repository = new FakeAggregateAccountRepository()
-    repository.eligibleByTaxId.set('12345678901', { companyId: UNIT_COMPANY_ID, taxId: '12345678901' })
+    repository.eligibleByTaxId.set('12345678901', {
+      companyId: UNIT_COMPANY_ID,
+      taxId: '12345678901',
+    })
     repository.linkedTaxIds.add('12345678901')
     const { useCase } = buildUseCase({ repository })
 
     await expect(
-      useCase.register({ email: 'a@example.com', name: 'Fulano', password: 'senha1234', taxId: '12345678901' }),
+      useCase.register({
+        email: 'a@example.com',
+        name: 'Fulano',
+        password: 'senha1234',
+        taxId: '12345678901',
+      }),
     ).rejects.toBeInstanceOf(AggregateAccountAlreadyLinkedError)
   })
 
   test('registers the account for a pending application — before approval', async () => {
     const repository = new FakeAggregateAccountRepository()
-    repository.eligibleByTaxId.set('12345678901', { companyId: UNIT_COMPANY_ID, taxId: '12345678901' })
+    repository.eligibleByTaxId.set('12345678901', {
+      companyId: UNIT_COMPANY_ID,
+      taxId: '12345678901',
+    })
     const { useCase, userModule } = buildUseCase({ repository })
 
     const session = await useCase.register({
@@ -74,7 +90,10 @@ describe('aggregate account use case', () => {
 
   test('registers the account for an already-approved driver too', async () => {
     const repository = new FakeAggregateAccountRepository()
-    repository.eligibleByTaxId.set('98765432100', { companyId: UNIT_COMPANY_ID, taxId: '98765432100' })
+    repository.eligibleByTaxId.set('98765432100', {
+      companyId: UNIT_COMPANY_ID,
+      taxId: '98765432100',
+    })
     const { useCase } = buildUseCase({ repository })
 
     const session = await useCase.register({

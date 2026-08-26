@@ -18,7 +18,11 @@ type HeaderProps = Readonly<{
   onNavigateToApplication: () => void
 }>
 
-export function Header({ brandName, onNavigateHome, onNavigateToApplication }: HeaderProps): ReactNode {
+export function Header({
+  brandName,
+  onNavigateHome,
+  onNavigateToApplication,
+}: HeaderProps): ReactNode {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (

@@ -46,7 +46,11 @@ export function createAggregatePortalUseCase(dependencies: Dependencies): Aggreg
       })
       if (application === null) throw new AggregatePortalAccountNotLinkedError()
 
-      return { driver: null, rejectionReason: application.rejectionReason, status: application.status }
+      return {
+        driver: null,
+        rejectionReason: application.rejectionReason,
+        status: application.status,
+      }
     },
   }
 }

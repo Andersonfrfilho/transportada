@@ -3,7 +3,10 @@
  */
 import { createHash, randomUUID } from 'node:crypto'
 
-import { AGGREGATE_DOCUMENT_TYPES, type AggregateDocumentType } from '../../database/fleet.schema.js'
+import {
+  AGGREGATE_DOCUMENT_TYPES,
+  type AggregateDocumentType,
+} from '../../database/fleet.schema.js'
 import {
   extractCnhFields,
   extractCrlvFields,
@@ -39,7 +42,10 @@ export type AggregateDocumentUploadResult = AggregateDocument &
   }>
 
 export type AggregateDocumentUseCase = Readonly<{
-  list: (input: { readonly companyId: string; readonly taxId: string }) => Promise<readonly AggregateDocumentListItem[]>
+  list: (input: {
+    readonly companyId: string
+    readonly taxId: string
+  }) => Promise<readonly AggregateDocumentListItem[]>
   upload: (input: {
     readonly bytes: Uint8Array
     readonly companyId: string
@@ -59,7 +65,9 @@ export function buildAggregateDocumentObjectKey(input: {
   return `tenants/${input.companyId}/aggregate-documents/${input.taxId}/${input.type}/${input.objectId}`
 }
 
-export function createAggregateDocumentUseCase(dependencies: Dependencies): AggregateDocumentUseCase {
+export function createAggregateDocumentUseCase(
+  dependencies: Dependencies,
+): AggregateDocumentUseCase {
   return {
     async list({ companyId, taxId }) {
       const documents = await dependencies.repository.listByTaxId({ companyId, taxId })
@@ -130,12 +138,17 @@ async function runOcrAndMaybeApprove(input: {
 }): Promise<AggregateDocumentUploadResult> {
   // OCR indisponível ou falhando não pode derrubar o upload — o documento já está salvo, e a
   // revisão manual continua funcionando; só a aprovação automática fica de fora desta vez.
-  const text = await input.ocr.extractText({ bytes: input.bytes, mimeType: input.mimeType }).catch(() => null)
+  const text = await input.ocr
+    .extractText({ bytes: input.bytes, mimeType: input.mimeType })
+    .catch(() => null)
   if (text === null) return { ...input.document, extracted: null }
 
   if (input.type === 'cnh') {
     const extracted = extractCnhFields(text)
-    const declared = await input.repository.findDeclaredFields({ companyId: input.companyId, taxId: input.taxId })
+    const declared = await input.repository.findDeclaredFields({
+      companyId: input.companyId,
+      taxId: input.taxId,
+    })
     const outcome = scoreAggregateDocumentMatch({
       declared: [declared.name, declared.licenseNumber, declared.licenseCategory],
       extracted: [extracted.name, extracted.licenseNumber, extracted.licenseCategory],
@@ -148,7 +161,10 @@ async function runOcrAndMaybeApprove(input: {
   }
 
   const extracted = extractCrlvFields(text)
-  const declared = await input.repository.findDeclaredFields({ companyId: input.companyId, taxId: input.taxId })
+  const declared = await input.repository.findDeclaredFields({
+    companyId: input.companyId,
+    taxId: input.taxId,
+  })
   const outcome = scoreAggregateDocumentMatch({
     declared: [declared.plate, declared.renavam],
     extracted: [extracted.plate, extracted.renavam],

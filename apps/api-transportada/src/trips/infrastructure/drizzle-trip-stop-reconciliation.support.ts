@@ -43,7 +43,11 @@ export function createTripStopReconciliationPort(
     },
     async findStopByAddressKey(input) {
       const [found] = await transaction
-        .select({ addressKey: tripStops.addressKey, id: tripStops.id, sequence: tripStops.sequence })
+        .select({
+          addressKey: tripStops.addressKey,
+          id: tripStops.id,
+          sequence: tripStops.sequence,
+        })
         .from(tripStops)
         .where(
           and(

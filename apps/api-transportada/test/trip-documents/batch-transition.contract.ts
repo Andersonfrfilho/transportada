@@ -67,9 +67,10 @@ function createFakePort(overrides: FakePortOverrides = {}): TripDocumentBatchTra
     get writeBatchCalls() {
       return writeBatchCalls
     },
-    async findSnapshots(): Promise<
-      { readonly snapshots: TripDocumentSnapshotById; readonly tripStatus: 'separating' } | null
-    > {
+    async findSnapshots(): Promise<{
+      readonly snapshots: TripDocumentSnapshotById
+      readonly tripStatus: 'separating'
+    } | null> {
       findSnapshotsCalls += 1
       if (!tripExists) return null
       const snapshots: TripDocumentSnapshotById = new Map([
@@ -121,7 +122,9 @@ describe('transition trip documents batch (spec 056 T009)', () => {
 
   test('touches the database once per table, never once per document', async () => {
     const manyIds = Array.from({ length: 50 }, (_unused, index) =>
-      index === 0 ? PENDING_ID : `c${index.toString().padStart(7, '0')}-0000-4000-8000-000000000000`,
+      index === 0
+        ? PENDING_ID
+        : `c${index.toString().padStart(7, '0')}-0000-4000-8000-000000000000`,
     )
     const repository = createFakePort()
 

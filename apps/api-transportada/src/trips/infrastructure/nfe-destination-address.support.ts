@@ -3,7 +3,11 @@
  */
 import { and, eq } from 'drizzle-orm'
 
-import { freightCalculations, nfeAddresses, nfeParticipants } from '../../database/database.schema.js'
+import {
+  freightCalculations,
+  nfeAddresses,
+  nfeParticipants,
+} from '../../database/database.schema.js'
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 

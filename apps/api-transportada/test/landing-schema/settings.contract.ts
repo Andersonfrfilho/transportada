@@ -38,6 +38,6 @@ describe('landing settings schema', () => {
 
     expect(checks.landing_settings_cnpj_root_check).toContain('[A-Z0-9]{8}')
     expect(checks.landing_settings_accent_color_check).toContain('^#[0-9a-f]{6}$')
-    expect(checks.landing_settings_sections_check).toContain("jsonb_typeof")
+    expect(checks.landing_settings_sections_check).toContain('jsonb_typeof')
   })
 })

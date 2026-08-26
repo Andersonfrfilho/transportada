@@ -36,7 +36,9 @@ export type ParsedDeclaredData = Readonly<{
  * quem não está autenticado, então nada aqui é garantido presente nem no formato certo. Ler campo
  * a campo com fallback, nunca confiar num `as` direto no objeto inteiro.
  */
-export function parseDeclaredData(declaredData: Readonly<Record<string, unknown>>): ParsedDeclaredData {
+export function parseDeclaredData(
+  declaredData: Readonly<Record<string, unknown>>,
+): ParsedDeclaredData {
   return {
     driver: parseDriver(asRecord(declaredData.driver)),
     vehicle: parseVehicle(asRecord(declaredData.vehicle)),
@@ -44,7 +46,9 @@ export function parseDeclaredData(declaredData: Readonly<Record<string, unknown>
 }
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {
-  return typeof value === 'object' && value !== null ? (value as Readonly<Record<string, unknown>>) : null
+  return typeof value === 'object' && value !== null
+    ? (value as Readonly<Record<string, unknown>>)
+    : null
 }
 
 function asText(value: unknown): string {

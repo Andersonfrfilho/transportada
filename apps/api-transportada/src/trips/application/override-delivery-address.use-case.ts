@@ -4,7 +4,10 @@
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
-import { TripDocumentNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import {
+  TripDocumentNotFoundError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 
 export type DeliveryAddressOverrideRecord = {
   readonly actorUserId: string
@@ -61,8 +64,16 @@ export type OverrideDeliveryAddressInput = {
 export async function overrideDeliveryAddress(
   input: OverrideDeliveryAddressInput,
 ): Promise<DeliveryAddressOverrideRecord> {
-  const { actorUserId, companyId, newAddress, newLabel, reason, repository, requestedBy, tripDocumentId } =
-    input
+  const {
+    actorUserId,
+    companyId,
+    newAddress,
+    newLabel,
+    reason,
+    repository,
+    requestedBy,
+    tripDocumentId,
+  } = input
   const preconditions = await repository.readPreconditions({ companyId, tripDocumentId })
   if (preconditions === null) throw new TripDocumentNotFoundError()
 

@@ -49,6 +49,22 @@ export class DuplicateContactError extends ApiError {
 }
 
 /**
+ * O CPF identifica a pessoa no realm inteiro: a mesma pessoa em duas empresas é uma identidade só.
+ * Como no login já usado, a mensagem não diz de quem é o documento — isso enumeraria gente de
+ * outras empresas para quem só administra a sua.
+ */
+export class DuplicateTaxIdError extends ApiError {
+  public constructor() {
+    super({
+      code: 'COMPANY_USER_TAX_ID_TAKEN',
+      message: 'Tax id is already taken.',
+      status: 409,
+    })
+    this.name = 'DuplicateTaxIdError'
+  }
+}
+
+/**
  * Vínculo na aplicação sem identidade externa correspondente é estado inconsistente: falha alto,
  * porque continuar significaria mudar o banco sem que o provedor de identidade acompanhe.
  */

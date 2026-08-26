@@ -39,11 +39,7 @@ export function normalizeAddressNumber(number: string | null): string {
   const trimmed = (number ?? '').trim()
   if (trimmed.length === 0 || NO_NUMBER_PATTERN.test(trimmed)) return NO_NUMBER_KEY
 
-  return trimmed
-    .replace(NUMBER_PREFIX_PATTERN, '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/gu, ' ')
+  return trimmed.replace(NUMBER_PREFIX_PATTERN, '').trim().toUpperCase().replace(/\s+/gu, ' ')
 }
 
 export function normalizeCityCode(cityCode: string | null): string {

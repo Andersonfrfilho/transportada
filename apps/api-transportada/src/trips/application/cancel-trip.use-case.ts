@@ -31,7 +31,11 @@ export async function cancelTrip(input: CancelTripInput): Promise<CancelTripResu
 
   // `hasRoute` não entra na decisão de cancelar (checkTripTransition ignora o campo para esta
   // ação) — cancelar não exige rota nenhuma.
-  const transition = checkTripTransition({ action: TRIP_ACTION.cancel, hasRoute: false, tripStatus })
+  const transition = checkTripTransition({
+    action: TRIP_ACTION.cancel,
+    hasRoute: false,
+    tripStatus,
+  })
 
   if (transition.outcome === 'blocked') {
     throw new TripStateTransitionNotAllowedError(transition.reason)

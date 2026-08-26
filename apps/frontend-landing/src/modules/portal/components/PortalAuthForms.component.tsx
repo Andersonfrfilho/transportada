@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState, type FormEvent, type ReactNode } from 'react'
 
-import { PortalRequestError, type PortalClient, type PortalSession } from '../shared/portalClient.service'
+import {
+  PortalRequestError,
+  type PortalClient,
+  type PortalSession,
+} from '../shared/portalClient.service'
 import styles from './Portal.module.css'
 
 const MIN_PASSWORD_LENGTH = 8
@@ -30,7 +34,11 @@ export function PortalAuthForms({ client, onAuthenticated }: PortalAuthFormsProp
       onAuthenticated(session)
     } catch (error) {
       setState('error')
-      setErrorMessage(error instanceof PortalRequestError ? loginErrorMessage(error.code) : 'Não foi possível entrar agora.')
+      setErrorMessage(
+        error instanceof PortalRequestError
+          ? loginErrorMessage(error.code)
+          : 'Não foi possível entrar agora.',
+      )
       return
     }
     setState('idle')

@@ -9,7 +9,10 @@ import {
   sanitizeLandingSettingsInput,
   type LandingSections,
 } from '../domain/landing-settings.policy.js'
-import type { LandingSettingsRecord, LandingSettingsRepositoryPort } from './landing-settings.port.js'
+import type {
+  LandingSettingsRecord,
+  LandingSettingsRepositoryPort,
+} from './landing-settings.port.js'
 
 export type PublicLandingSettings = Readonly<{
   accentColor: string | undefined

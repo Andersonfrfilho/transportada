@@ -230,6 +230,7 @@ extract OSM que alimenta o OSRM, guardado no bucket privado que já existe
 domínio.
 
 O que isso compra:
+
 - **Nenhuma requisição a domínio externo.** O CSP não precisa liberar host de tile, e a coordenada da
   parada não viaja na URL de um terceiro. Endereço de cliente é dado pessoal (`security.md` §1), e
   uma URL de tile é um log de servidor alheio.
@@ -404,7 +405,6 @@ acumulada.
       pessoal e precisa estar declarado.
 
 ## Dúvidas
-
 
 ## 🤖 Modelo
 

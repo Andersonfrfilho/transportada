@@ -112,7 +112,13 @@ describe(`POST ${PUBLIC_AGGREGATE_APPLICATIONS_PATH} HTTP contract`, () => {
         }),
       )
 
-    for (const taxId of ['11111111112', '22222222223', '33333333334', '44444444445', '55555555556']) {
+    for (const taxId of [
+      '11111111112',
+      '22222222223',
+      '33333333334',
+      '44444444445',
+      '55555555556',
+    ]) {
       await send(taxId, '203.0.113.20')
     }
 

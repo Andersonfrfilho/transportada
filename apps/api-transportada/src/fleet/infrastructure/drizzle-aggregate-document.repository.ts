@@ -33,13 +33,27 @@ export function createDrizzleAggregateDocumentRepository(
   return {
     async findDeclaredFields({ companyId, taxId }) {
       const [row] = await database
-        .select({ declaredData: aggregateApplications.declaredData, name: aggregateApplications.name })
+        .select({
+          declaredData: aggregateApplications.declaredData,
+          name: aggregateApplications.name,
+        })
         .from(aggregateApplications)
-        .where(and(eq(aggregateApplications.companyId, companyId), eq(aggregateApplications.taxId, taxId)))
+        .where(
+          and(
+            eq(aggregateApplications.companyId, companyId),
+            eq(aggregateApplications.taxId, taxId),
+          ),
+        )
         .limit(1)
 
       if (row === undefined) {
-        return { licenseCategory: null, licenseNumber: null, name: null, plate: null, renavam: null }
+        return {
+          licenseCategory: null,
+          licenseNumber: null,
+          name: null,
+          plate: null,
+          renavam: null,
+        }
       }
 
       return {
@@ -57,7 +71,10 @@ export function createDrizzleAggregateDocumentRepository(
         .from(aggregateDocuments)
         .innerJoin(
           storedObjects,
-          and(eq(storedObjects.companyId, aggregateDocuments.companyId), eq(storedObjects.id, aggregateDocuments.storedObjectId)),
+          and(
+            eq(storedObjects.companyId, aggregateDocuments.companyId),
+            eq(storedObjects.id, aggregateDocuments.storedObjectId),
+          ),
         )
         .where(and(eq(aggregateDocuments.companyId, companyId), eq(aggregateDocuments.id, id)))
         .limit(1)
@@ -68,14 +85,21 @@ export function createDrizzleAggregateDocumentRepository(
       return database
         .select(DOCUMENT_FIELDS)
         .from(aggregateDocuments)
-        .where(and(eq(aggregateDocuments.companyId, companyId), eq(aggregateDocuments.taxId, taxId)))
+        .where(
+          and(eq(aggregateDocuments.companyId, companyId), eq(aggregateDocuments.taxId, taxId)),
+        )
     },
 
     async listPendingByCompany({ companyId }) {
       return database
         .select({ ...DOCUMENT_FIELDS, taxId: aggregateDocuments.taxId })
         .from(aggregateDocuments)
-        .where(and(eq(aggregateDocuments.companyId, companyId), eq(aggregateDocuments.status, 'pending')))
+        .where(
+          and(
+            eq(aggregateDocuments.companyId, companyId),
+            eq(aggregateDocuments.status, 'pending'),
+          ),
+        )
     },
 
     async markAutoApproved({ companyId, id }) {
@@ -94,7 +118,18 @@ export function createDrizzleAggregateDocumentRepository(
       return row ?? null
     },
 
-    async upsert({ bucket, companyId, mimeType, objectKey, provider, sha256, sizeBytes, storedObjectId, taxId, type }) {
+    async upsert({
+      bucket,
+      companyId,
+      mimeType,
+      objectKey,
+      provider,
+      sha256,
+      sizeBytes,
+      storedObjectId,
+      taxId,
+      type,
+    }) {
       return database.transaction(async (transaction) => {
         await transaction.insert(storedObjects).values({
           bucket,
@@ -121,7 +156,11 @@ export function createDrizzleAggregateDocumentRepository(
               storedObjectId,
               updatedAt: new Date(),
             },
-            target: [aggregateDocuments.companyId, aggregateDocuments.taxId, aggregateDocuments.type],
+            target: [
+              aggregateDocuments.companyId,
+              aggregateDocuments.taxId,
+              aggregateDocuments.type,
+            ],
           })
           .returning(DOCUMENT_FIELDS)
 

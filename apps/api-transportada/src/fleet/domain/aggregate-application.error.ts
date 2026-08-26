@@ -5,7 +5,11 @@ import { ApiError } from '../../shared/api.error.js'
 
 export class AggregateApplicationNotFoundError extends ApiError {
   public constructor() {
-    super({ code: 'AGGREGATE_APPLICATION_NOT_FOUND', message: 'Aggregate application not found', status: 404 })
+    super({
+      code: 'AGGREGATE_APPLICATION_NOT_FOUND',
+      message: 'Aggregate application not found',
+      status: 404,
+    })
   }
 }
 

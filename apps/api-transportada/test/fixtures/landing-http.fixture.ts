@@ -14,7 +14,10 @@ import {
   API_PUBLIC_LANDING_LOGO_PATH,
   API_PUBLIC_LANDING_SETTINGS_PATH,
 } from '../../src/shared/api.constant'
-import type { CompanyLogo, CompanyLogoRepositoryPort } from '../../src/companies/application/company-logo.port'
+import type {
+  CompanyLogo,
+  CompanyLogoRepositoryPort,
+} from '../../src/companies/application/company-logo.port'
 import type { CompanyGroupRepositoryPort } from '../../src/landing/application/company-group.port'
 import { createLandingLogoUseCase } from '../../src/landing/application/landing-logo.use-case'
 import type {
@@ -23,7 +26,10 @@ import type {
   LandingSettingsWriteInput,
 } from '../../src/landing/application/landing-settings.port'
 import { createLandingSettingsUseCase } from '../../src/landing/application/landing-settings.use-case'
-import { createLandingPublicRoutes, createLandingSettingsRoutes } from '../../src/landing/presentation/landing.routes'
+import {
+  createLandingPublicRoutes,
+  createLandingSettingsRoutes,
+} from '../../src/landing/presentation/landing.routes'
 import { COMPANY_CONTEXT, COMPANY_ID, CORRELATION_ID } from './company-settings-application.fixture'
 import { FRONTEND_ORIGIN } from './company-settings-http-request.fixture'
 
@@ -123,7 +129,10 @@ export async function createLandingHttpFixture({
     landingCompanyId: COMPANY_ID,
     landingSettingsRepository,
   })
-  const landingLogo = createLandingLogoUseCase({ companyLogoRepository, landingCompanyId: COMPANY_ID })
+  const landingLogo = createLandingLogoUseCase({
+    companyLogoRepository,
+    landingCompanyId: COMPANY_ID,
+  })
 
   const context = authenticatedContext(permissions)
   const authorization = new AuthorizationService()

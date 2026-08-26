@@ -83,7 +83,12 @@ export function createAggregateApplicationsUseCase(
         dependencies.repository.findDriverIdByTaxIdInCompanies({ companyIds, taxId: input.taxId }),
       ])
 
-      const submission = { declaredData: input.declaredData, email: input.email, name: input.name, phone: input.phone }
+      const submission = {
+        declaredData: input.declaredData,
+        email: input.email,
+        name: input.name,
+        phone: input.phone,
+      }
       const outcome = resolveDuplicateCheckOutcome({
         duplicateDriverId,
         existingPendingApplicationId: pending === null ? null : pending.id,

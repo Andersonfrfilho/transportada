@@ -11,7 +11,10 @@ import type {
   DispatchTripWriteResult,
 } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
-import type { PlanTripRoutePort, TripRouteState } from '../../src/trips/application/plan-trip-route.use-case.js'
+import type {
+  PlanTripRoutePort,
+  TripRouteState,
+} from '../../src/trips/application/plan-trip-route.use-case.js'
 import {
   TripDispatchForceReasonRequiredError,
   TripHasUnloadedDocumentsError,
@@ -24,11 +27,13 @@ const TRIP_ID = '22222222-2222-4222-8222-222222222222'
 const ACTOR_USER_ID = '33333333-3333-4333-8333-333333333333'
 const UNLOADED_ID = '44444444-4444-4444-8444-444444444444'
 
-function createPlanFakePort(overrides: {
-  readonly exists?: boolean
-  readonly hasRoute?: boolean
-  readonly tripStatus?: TripRouteState['tripStatus']
-} = {}): PlanTripRoutePort & { readonly markRoutePlannedCalls: number } {
+function createPlanFakePort(
+  overrides: {
+    readonly exists?: boolean
+    readonly hasRoute?: boolean
+    readonly tripStatus?: TripRouteState['tripStatus']
+  } = {},
+): PlanTripRoutePort & { readonly markRoutePlannedCalls: number } {
   const exists = overrides.exists ?? true
   const hasRoute = overrides.hasRoute ?? true
   const tripStatus = overrides.tripStatus ?? 'draft'
@@ -49,12 +54,14 @@ function createPlanFakePort(overrides: {
   }
 }
 
-function createDispatchFakePort(overrides: {
-  readonly exists?: boolean
-  readonly hasRoute?: boolean
-  readonly tripStatus?: DispatchTripPreconditions['tripStatus']
-  readonly unloadedDocumentIds?: readonly string[]
-} = {}): DispatchTripPort & { readonly dispatchCalls: DispatchTripWriteInput[] } {
+function createDispatchFakePort(
+  overrides: {
+    readonly exists?: boolean
+    readonly hasRoute?: boolean
+    readonly tripStatus?: DispatchTripPreconditions['tripStatus']
+    readonly unloadedDocumentIds?: readonly string[]
+  } = {},
+): DispatchTripPort & { readonly dispatchCalls: DispatchTripWriteInput[] } {
   const exists = overrides.exists ?? true
   const hasRoute = overrides.hasRoute ?? true
   const tripStatus = overrides.tripStatus ?? 'loading'

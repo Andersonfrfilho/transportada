@@ -44,13 +44,27 @@ export type InviteCompanyUserInput = {
   readonly context: { readonly companyId: string; readonly userId?: string }
   readonly contact: string
   readonly correlationId?: string
+  readonly email?: string
   readonly name: string
+  readonly phone?: string
   readonly roles: readonly CompanyRole[]
+  readonly taxId?: string
+}
+
+export type InviteCompanyUserResult = CompanyUserView & {
+  /**
+   * Papel de frota marcado e nenhuma ficha com esse CPF: a pessoa entra no sistema e não aparece
+   * na frota. Não é erro — pode-se convidar antes de cadastrar a ficha —, mas a tela precisa
+   * dizer, senão o operador só descobre quando for montar uma viagem.
+   */
+  readonly fleetLink: 'linked' | 'not-applicable' | 'no-driver-record'
 }
 
 export type InviteCompanyUserUseCase = {
-  execute(input: InviteCompanyUserInput): Promise<CompanyUserView>
+  execute(input: InviteCompanyUserInput): Promise<InviteCompanyUserResult>
 }
+
+const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 /**
  * Usuário nasce desabilitado e sem senha no Keycloak: só a ativação (código → senha) habilita.
@@ -66,8 +80,12 @@ export function createInviteCompanyUserUseCase({
   repository,
 }: InviteCompanyUserDependencies): InviteCompanyUserUseCase {
   return {
-    async execute({ channel, context, contact, correlationId, name, roles }) {
+    async execute({ channel, context, contact, correlationId, email, name, phone, roles, taxId }) {
       const userId = crypto.randomUUID()
+      /** O contato é o canal do convite, não a identidade: quem escolheu SMS também tem e-mail. */
+      const profileEmail = email ?? (channel === 'email' ? contact : '')
+      const profilePhone = phone ?? (channel === 'email' ? '' : contact)
+      const profileTaxId = taxId ?? ''
       /** `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. */
       const { subject } = await identityGateway.createUser({
         attributes: { company_id: context.companyId },
@@ -77,13 +95,16 @@ export function createInviteCompanyUserUseCase({
         username: userId,
       })
 
-      const { membershipId } = await repository.createInvitedUser({
+      const { linkedFleetDriverId, membershipId } = await repository.createInvitedUser({
         companyId: context.companyId,
         contactAddress: contact,
         contactChannel: channel,
+        email: profileEmail,
         issuer,
         name,
+        phone: profilePhone,
         roles,
+        taxId: profileTaxId,
         subject,
         userId,
         username: userId,
@@ -117,17 +138,34 @@ export function createInviteCompanyUserUseCase({
         payload: { invitationId: invitation.id, userId },
       })
 
-      return toCompanyUserView({
-        contactAddress: contact,
-        contactChannel: channel,
-        membershipId,
-        membershipStatus: 'active',
-        name,
-        pendingInvitation: { expiresAt: plan.expiresAt },
-        roles,
-        userId,
-        username: userId,
-      })
+      return {
+        ...toCompanyUserView({
+          contactAddress: contact,
+          contactChannel: channel,
+          email: profileEmail,
+          membershipId,
+          membershipStatus: 'active',
+          name,
+          pendingInvitation: { expiresAt: plan.expiresAt },
+          phone: profilePhone,
+          roles,
+          taxId: profileTaxId,
+          userId,
+          username: userId,
+        }),
+        fleetLink: resolveFleetLink({ linkedFleetDriverId, roles }),
+      }
     },
   }
+}
+
+function resolveFleetLink({
+  linkedFleetDriverId,
+  roles,
+}: {
+  readonly linkedFleetDriverId: string | null
+  readonly roles: readonly CompanyRole[]
+}): InviteCompanyUserResult['fleetLink'] {
+  if (!roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return 'not-applicable'
+  return linkedFleetDriverId === null ? 'no-driver-record' : 'linked'
 }

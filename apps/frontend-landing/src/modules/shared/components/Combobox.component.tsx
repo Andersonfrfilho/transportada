@@ -18,7 +18,13 @@ type ComboboxProps = Readonly<{
  * busca e quebra o visual entre navegadores. Este componente é a versão mínima: input de texto que
  * filtra a lista à medida que digita, teclado (setas/Enter/Escape), fecha ao clicar fora.
  */
-export function Combobox({ options, placeholder, required, value, onChange }: ComboboxProps): ReactNode {
+export function Combobox({
+  options,
+  placeholder,
+  required,
+  value,
+  onChange,
+}: ComboboxProps): ReactNode {
   const listId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')

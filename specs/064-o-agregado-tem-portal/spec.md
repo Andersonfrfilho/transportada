@@ -51,10 +51,10 @@ acrescenta rotas autenticadas a um app que já era público por natureza.
 Investigação em `~/Documents/personal/adatechnology-packages` (branch `feat/webhook-account-events`)
 confirma dois pacotes, não um:
 
-| Pacote | O que é | Onde já é usado |
-|---|---|---|
-| `@adatechnology/conversations-ui` + `meta-whatsapp-module` | UI de conversa por **WhatsApp**, inbox no painel interno | Já é o modelo da spec 062 |
-| `@adatechnology/web-chat-widget` | **Bolha de chat de site**, Web Component nativo (shadow DOM, sem framework), pensado para landing/site institucional | Hoje só consumido por `api-ada` (produto fora deste monorepo) |
+| Pacote                                                     | O que é                                                                                                              | Onde já é usado                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `@adatechnology/conversations-ui` + `meta-whatsapp-module` | UI de conversa por **WhatsApp**, inbox no painel interno                                                             | Já é o modelo da spec 062                                     |
+| `@adatechnology/web-chat-widget`                           | **Bolha de chat de site**, Web Component nativo (shadow DOM, sem framework), pensado para landing/site institucional | Hoje só consumido por `api-ada` (produto fora deste monorepo) |
 
 O pedido — "chat com os atendentes" **na landing** — é o `web-chat-widget`, não o WhatsApp da 062.
 São necessidades diferentes: WhatsApp é onde o motorista já fala; a bolha de chat é para o visitante
@@ -64,7 +64,7 @@ anônimo da landing que ainda não é agregado de ninguém.
 própria doc do pacote diz isso. As quatro rotas que ele consome (`POST /v1/widget/sessions`,
 `GET/POST .../messages`, `POST .../audio`, `GET .../events` via SSE) **vivem hardcoded dentro do
 `api-ada`** hoje; não existe `web-chat-module` publicado. A doc do pacote já prevê a extração:
-*"quando houver segundo consumidor de backend, vira um `web-chat-module`"* — e a `transportada`
+_"quando houver segundo consumidor de backend, vira um `web-chat-module`"_ — e a `transportada`
 seria exatamente esse segundo consumidor, o gatilho que `pluggable-module.md` (regra do 2º uso) pede
 para nascer o módulo de verdade.
 
@@ -193,13 +193,13 @@ Railway nem em qualquer outro app.
 ## Critérios de aceite
 
 - [ ] Landing com header, footer, e as cinco seções (herói, sobre, serviços, app, contato) — nenhuma
-  com texto de preenchimento.
+      com texto de preenchimento.
 - [ ] `/cadastro` funcional como rota própria, com o formulário da 053 sem alteração de comportamento.
 - [ ] `make check`, `make migration-test` e `make smoke` verdes com o portal montado.
 - [ ] Documento enviado pelo agregado aparece na revisão do painel interno (fluxo completo, não só a
-  metade do agregado).
+      metade do agregado).
 - [ ] Mensagem enviada pelo portal chega no inbox do painel, e uma resposta do operador chega no
-  portal.
+      portal.
 - [ ] `fernandes-transportadora.com.br` servindo `frontend-landing` em produção, com HTTPS válido.
 
 ## Dúvidas

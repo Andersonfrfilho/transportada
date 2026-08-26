@@ -4,7 +4,11 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray } from 'drizzle-orm'
 
-import { aggregateAccounts, aggregateApplications, fleetDrivers } from '../../database/database.schema.js'
+import {
+  aggregateAccounts,
+  aggregateApplications,
+  fleetDrivers,
+} from '../../database/database.schema.js'
 import type { AggregateAccountRepositoryPort } from '../application/aggregate-account.port.js'
 
 export type AggregateAccountDatabase = ReturnType<typeof createDrizzleProvider>['db']
@@ -26,7 +30,12 @@ export function createDrizzleAggregateAccountRepository(
       const [applicationRow] = await database
         .select({ companyId: aggregateApplications.companyId })
         .from(aggregateApplications)
-        .where(and(inArray(aggregateApplications.companyId, [...companyIds]), eq(aggregateApplications.taxId, taxId)))
+        .where(
+          and(
+            inArray(aggregateApplications.companyId, [...companyIds]),
+            eq(aggregateApplications.taxId, taxId),
+          ),
+        )
         .limit(1)
       return applicationRow === undefined ? null : { companyId: applicationRow.companyId, taxId }
     },

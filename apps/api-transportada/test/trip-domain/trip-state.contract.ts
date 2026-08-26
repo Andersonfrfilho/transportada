@@ -360,17 +360,15 @@ describe('derived trip status (ADR-0043 §1)', () => {
 
   test('never completes a trip that never left the warehouse', () => {
     for (const tripStatus of WAREHOUSE_STATUSES) {
-      expect(
-        deriveTripStatus({ tally: tallyOf(['loaded', 'loaded']), tripStatus }),
-      ).toBe('loading')
+      expect(deriveTripStatus({ tally: tallyOf(['loaded', 'loaded']), tripStatus })).toBe('loading')
     }
   })
 
   test('leaves cancelled and completed alone, whatever the notes say', () => {
     for (const tripStatus of ['cancelled', 'completed'] as const) {
-      expect(
-        deriveTripStatus({ tally: tallyOf(['pending', 'separated']), tripStatus }),
-      ).toBe(tripStatus)
+      expect(deriveTripStatus({ tally: tallyOf(['pending', 'separated']), tripStatus })).toBe(
+        tripStatus,
+      )
     }
   })
 
@@ -383,9 +381,7 @@ describe('derived trip status (ADR-0043 §1)', () => {
 
 describe('transition error', () => {
   test('speaks the code the domain model promises, and names the reason', () => {
-    const error = new TripStateTransitionNotAllowedError(
-      TRIP_TRANSITION_BLOCK.documentNotSeparated,
-    )
+    const error = new TripStateTransitionNotAllowedError(TRIP_TRANSITION_BLOCK.documentNotSeparated)
 
     expect(error.code).toBe('STATE_TRANSITION_NOT_ALLOWED')
     expect(error.status).toBe(409)

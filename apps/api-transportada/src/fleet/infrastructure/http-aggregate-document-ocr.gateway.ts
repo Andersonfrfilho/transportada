@@ -23,7 +23,10 @@ type TesseractServerResponse = Readonly<{
 }>
 
 export function createHttpAggregateDocumentOcrGateway(input: { readonly baseUrl: string }): {
-  readonly extractText: (params: { readonly bytes: Uint8Array; readonly mimeType: string }) => Promise<string>
+  readonly extractText: (params: {
+    readonly bytes: Uint8Array
+    readonly mimeType: string
+  }) => Promise<string>
 } {
   return {
     async extractText({ bytes, mimeType }) {
@@ -36,7 +39,8 @@ export function createHttpAggregateDocumentOcrGateway(input: { readonly baseUrl:
         method: 'POST',
         signal: AbortSignal.timeout(OCR_REQUEST_TIMEOUT_MS),
       })
-      if (!response.ok) throw new Error(`aggregate document OCR request failed with status ${response.status}`)
+      if (!response.ok)
+        throw new Error(`aggregate document OCR request failed with status ${response.status}`)
 
       const result = (await response.json()) as TesseractServerResponse
       if (result.data.exit.code !== 0) {

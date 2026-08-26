@@ -4,7 +4,10 @@
 import { requireUser } from '@adatechnology/user-module'
 import type { ModuleRouteTable } from '@adatechnology/module-http'
 
-import { AGGREGATE_DOCUMENT_TYPES, type AggregateDocumentType } from '../../database/fleet.schema.js'
+import {
+  AGGREGATE_DOCUMENT_TYPES,
+  type AggregateDocumentType,
+} from '../../database/fleet.schema.js'
 import type { AggregateDocumentUseCase } from '../../fleet/application/aggregate-document.use-case.js'
 import type { AggregatePortalRepositoryPort } from '../../fleet/application/aggregate-portal.port.js'
 import type { AggregatePortalUseCase } from '../../fleet/application/aggregate-portal.use-case.js'

@@ -182,16 +182,16 @@ Coluna de prontidão fiscal na lista de viagens, filtrável por "prontas para ma
 
 ## Casos extremos e falhas
 
-| Caso                                             | Comportamento                                                                                                          |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Viagem sem nenhuma nota                          | Readiness `incomplete`; não existe manifesto vazio.                                                                    |
-| Viagem só com `freight_calculations` (sem NF-e)  | Readiness declara que não há o que manifestar por este caminho (D4b). Não fica `incomplete` para sempre. |
-| CT-e autorizado depois de a viagem ser cancelada | Consumer ignora e registra.                                                                                            |
-| Viagem `draft` fica completa                     | Readiness vira `ready`; emissão automática **não** dispara (D3). O botão manual fica disponível? — ver Dúvidas.        |
-| Manifesto rejeitado pela SEFAZ                   | Estado volta a `ready`; erro visível com cStat traduzido; retry pela trilha que já existe.                             |
-| Nota desvinculada depois do manifesto autorizado | Impossível: `dispatched` bloqueia (056 D2). Se o vínculo mudar por caminho administrativo, `divergent`.                |
-| Mais de 50 municípios                            | D5.                                                                                                                    |
-| Empresa sem certificado válido                   | Readiness `ready`, emissão recusada com código próprio antes de tocar a fila.                                          |
+| Caso                                             | Comportamento                                                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Viagem sem nenhuma nota                          | Readiness `incomplete`; não existe manifesto vazio.                                                             |
+| Viagem só com `freight_calculations` (sem NF-e)  | Readiness declara que não há o que manifestar por este caminho (D4b). Não fica `incomplete` para sempre.        |
+| CT-e autorizado depois de a viagem ser cancelada | Consumer ignora e registra.                                                                                     |
+| Viagem `draft` fica completa                     | Readiness vira `ready`; emissão automática **não** dispara (D3). O botão manual fica disponível? — ver Dúvidas. |
+| Manifesto rejeitado pela SEFAZ                   | Estado volta a `ready`; erro visível com cStat traduzido; retry pela trilha que já existe.                      |
+| Nota desvinculada depois do manifesto autorizado | Impossível: `dispatched` bloqueia (056 D2). Se o vínculo mudar por caminho administrativo, `divergent`.         |
+| Mais de 50 municípios                            | D5.                                                                                                             |
+| Empresa sem certificado válido                   | Readiness `ready`, emissão recusada com código próprio antes de tocar a fila.                                   |
 
 ## Critérios de aceite
 

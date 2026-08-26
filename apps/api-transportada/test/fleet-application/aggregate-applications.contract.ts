@@ -15,7 +15,9 @@ import { FakeAggregateApplicationRepository } from '../fixtures/aggregate-applic
 
 const UNIT_COMPANY_ID = COMPANY_CONTEXT.companyId
 
-function buildUseCase(overrides: { readonly repository?: FakeAggregateApplicationRepository } = {}) {
+function buildUseCase(
+  overrides: { readonly repository?: FakeAggregateApplicationRepository } = {},
+) {
   const repository = overrides.repository ?? new FakeAggregateApplicationRepository()
   const useCase = createAggregateApplicationsUseCase({
     companyGroupRepository: {

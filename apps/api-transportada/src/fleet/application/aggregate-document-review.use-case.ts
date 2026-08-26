@@ -23,7 +23,9 @@ type Dependencies = {
 
 export type AggregateDocumentReviewUseCase = Readonly<{
   getDownloadUrl: (input: { readonly context: CompanyContext; readonly id: string }) => Promise<URL>
-  list: (input: { readonly context: CompanyContext }) => Promise<readonly AggregateDocumentForReview[]>
+  list: (input: {
+    readonly context: CompanyContext
+  }) => Promise<readonly AggregateDocumentForReview[]>
   review: (input: {
     readonly context: CompanyContext
     readonly decision: 'approved' | 'rejected'
@@ -37,10 +39,15 @@ export type AggregateDocumentReviewUseCase = Readonly<{
  * de NF-e/CT-e. O storage não sabe nada sobre "documento de agregado"; só serve o que a linha do
  * banco aponta.
  */
-export function createAggregateDocumentReviewUseCase(dependencies: Dependencies): AggregateDocumentReviewUseCase {
+export function createAggregateDocumentReviewUseCase(
+  dependencies: Dependencies,
+): AggregateDocumentReviewUseCase {
   return {
     async getDownloadUrl({ context, id }) {
-      const location = await dependencies.repository.findDownloadLocation({ companyId: context.companyId, id })
+      const location = await dependencies.repository.findDownloadLocation({
+        companyId: context.companyId,
+        id,
+      })
       if (location === null) throw new AggregateDocumentNotFoundError()
       return dependencies.storage.createSignedDownload({
         bucket: location.bucket,

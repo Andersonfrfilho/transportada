@@ -3,7 +3,12 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import { tripDocumentEvents, tripDocuments, trips, type TripStatus } from '../../database/trip.schema.js'
+import {
+  tripDocumentEvents,
+  tripDocuments,
+  trips,
+  type TripStatus,
+} from '../../database/trip.schema.js'
 import { violatedForeignKeyConstraint } from '../../database/postgres-error.support.js'
 import type {
   TripDocumentBatchTransitionPort,
@@ -23,7 +28,10 @@ export class DrizzleTripDocumentBatchRepository implements TripDocumentBatchTran
     readonly companyId: string
     readonly documentIds: readonly string[]
     readonly tripId: string
-  }): Promise<{ readonly snapshots: TripDocumentSnapshotById; readonly tripStatus: TripStatus } | null> {
+  }): Promise<{
+    readonly snapshots: TripDocumentSnapshotById
+    readonly tripStatus: TripStatus
+  } | null> {
     // Ida 1/2 (tabela trips): confirma a viagem e pega o estado dela, independente de quantos ids
     // vieram no lote.
     const [tripRecord] = await this.database
@@ -48,11 +56,16 @@ export class DrizzleTripDocumentBatchRepository implements TripDocumentBatchTran
               ),
             )
 
-    const snapshots: [string, { document: ReturnType<typeof mapTripDocument>; documentStatus: (typeof documentRecords)[number]['separationStatus'] }][] =
-      documentRecords.map((record) => [
-        record.id,
-        { document: mapTripDocument(record), documentStatus: record.separationStatus },
-      ])
+    const snapshots: [
+      string,
+      {
+        document: ReturnType<typeof mapTripDocument>
+        documentStatus: (typeof documentRecords)[number]['separationStatus']
+      },
+    ][] = documentRecords.map((record) => [
+      record.id,
+      { document: mapTripDocument(record), documentStatus: record.separationStatus },
+    ])
 
     return { snapshots: new Map(snapshots), tripStatus: tripRecord.status }
   }
@@ -104,7 +117,11 @@ async function writeBatch(
 
   if (updated.length > 0) {
     // 2/4: um INSERT só, uma linha de evento por nota escrita — nunca um insert por documento.
-    await insertEvents(transaction, input, updated.map((record) => record.id))
+    await insertEvents(
+      transaction,
+      input,
+      updated.map((record) => record.id),
+    )
   }
 
   // 3/4 e 4/4: uma leitura da contagem + um UPDATE condicional em trips, independente do tamanho
@@ -123,7 +140,9 @@ async function insertEvents(
   input: TripDocumentBatchWriteInput,
   writtenDocumentIds: readonly string[],
 ): Promise<void> {
-  const fromStatusByDocumentId = new Map(input.items.map((item) => [item.documentId, item.fromStatus]))
+  const fromStatusByDocumentId = new Map(
+    input.items.map((item) => [item.documentId, item.fromStatus]),
+  )
   const toStatus = input.items[0]?.toStatus
   if (toStatus === undefined) return
 
@@ -162,7 +181,9 @@ async function recalculateTripStatus(
   const documentRows = await transaction
     .select({ status: tripDocuments.separationStatus })
     .from(tripDocuments)
-    .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)))
+    .where(
+      and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
+    )
   const tally = tallyTripDocuments(documentRows.map((row) => row.status))
 
   const [tripRecord] = await transaction

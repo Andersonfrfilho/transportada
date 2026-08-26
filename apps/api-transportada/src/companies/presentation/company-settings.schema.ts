@@ -161,4 +161,3 @@ export function parseCompanySettingsLookupCnpjRequest(request: Request): string 
 function isDatabaseBigint(value: string): boolean {
   return DECIMAL_BIGINT.test(value) && BigInt(value) <= MAX_DATABASE_BIGINT
 }
-

@@ -156,7 +156,9 @@ export function DeliveryAddressOverrideDialog({
                   to: override.newLabel,
                 })}
               </span>
-              <span>{t('deliveryOverride.historyRequestedBy', { name: override.requestedBy })}</span>
+              <span>
+                {t('deliveryOverride.historyRequestedBy', { name: override.requestedBy })}
+              </span>
             </li>
           ))}
         </ul>

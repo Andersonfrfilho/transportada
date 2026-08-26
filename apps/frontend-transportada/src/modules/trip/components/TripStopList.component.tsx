@@ -44,7 +44,13 @@ type TripStopListProps = Readonly<{
   stops: readonly TripStopDetail[]
 }>
 
-export function TripStopList({ actions, canReorder, onReorder, selection, stops }: TripStopListProps) {
+export function TripStopList({
+  actions,
+  canReorder,
+  onReorder,
+  selection,
+  stops,
+}: TripStopListProps) {
   const { t } = useTranslation('trip')
   const order = useTripStopOrder({ onReorder, stops })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -60,7 +66,13 @@ export function TripStopList({ actions, canReorder, onReorder, selection, stops 
   const list = (
     <ul className={styles.stopList}>
       {orderedStops.map((stop) => (
-        <TripStopCard actions={actions} canReorder={canReorder} key={stop.id} selection={selection} stop={stop} />
+        <TripStopCard
+          actions={actions}
+          canReorder={canReorder}
+          key={stop.id}
+          selection={selection}
+          stop={stop}
+        />
       ))}
     </ul>
   )
@@ -68,7 +80,11 @@ export function TripStopList({ actions, canReorder, onReorder, selection, stops 
   if (!canReorder) return list
 
   return (
-    <DndContext collisionDetection={closestCenter} onDragEnd={order.handleDragEnd} sensors={sensors}>
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragEnd={order.handleDragEnd}
+      sensors={sensors}
+    >
       <SortableContext items={[...order.orderedIds]} strategy={verticalListSortingStrategy}>
         {list}
       </SortableContext>
@@ -140,7 +156,12 @@ export function TripStopDocumentGroup({
   return (
     <ul className={styles.stopDocumentList}>
       {documents.map((document) => (
-        <TripStopDocumentRow actions={actions} document={document} key={document.id} selection={selection} />
+        <TripStopDocumentRow
+          actions={actions}
+          document={document}
+          key={document.id}
+          selection={selection}
+        />
       ))}
     </ul>
   )

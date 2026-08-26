@@ -30,7 +30,9 @@ export function Footer({ brandName, onNavigateToApplication, settings }: FooterP
             <BrandMark className={styles.brandMark} />
             <span className={styles.brandName}>{brandName}</span>
           </div>
-          <p className={styles.tagline}>Transporte de carga com rota planejada e acompanhamento de ponta a ponta.</p>
+          <p className={styles.tagline}>
+            Transporte de carga com rota planejada e acompanhamento de ponta a ponta.
+          </p>
         </div>
         <div>
           <p className={styles.columnTitle}>Navegação</p>

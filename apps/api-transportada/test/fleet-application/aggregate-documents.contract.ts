@@ -39,7 +39,12 @@ describe('aggregate document use case', () => {
     const { useCase } = buildUseCase()
 
     await expect(
-      useCase.upload({ bytes: new Uint8Array([1, 2, 3]), companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' }),
+      useCase.upload({
+        bytes: new Uint8Array([1, 2, 3]),
+        companyId: COMPANY_ID,
+        taxId: TAX_ID,
+        type: 'cnh',
+      }),
     ).rejects.toBeInstanceOf(AggregateDocumentInvalidUploadError)
   })
 
@@ -47,14 +52,24 @@ describe('aggregate document use case', () => {
     const { useCase } = buildUseCase()
 
     await expect(
-      useCase.upload({ bytes: new Uint8Array(0), companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' }),
+      useCase.upload({
+        bytes: new Uint8Array(0),
+        companyId: COMPANY_ID,
+        taxId: TAX_ID,
+        type: 'cnh',
+      }),
     ).rejects.toBeInstanceOf(AggregateDocumentInvalidUploadError)
   })
 
   test('stores a valid PDF and marks it pending', async () => {
     const { storage, useCase } = buildUseCase()
 
-    const document = await useCase.upload({ bytes: PDF_BYTES, companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' })
+    const document = await useCase.upload({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
 
     expect(document.status).toBe('pending')
     expect(document.type).toBe('cnh')
@@ -77,7 +92,12 @@ describe('aggregate document use case', () => {
   test('without OCR configured, upload never extracts nor auto-approves', async () => {
     const { useCase } = buildUseCase()
 
-    const result = await useCase.upload({ bytes: PDF_BYTES, companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' })
+    const result = await useCase.upload({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
 
     expect(result.extracted).toBeNull()
     expect(result.status).toBe('pending')
@@ -95,12 +115,19 @@ describe('aggregate document use case', () => {
     const storage = new FakeAggregateDocumentStorage()
     const useCase = createAggregateDocumentUseCase({
       bucket: 'test-bucket',
-      ocr: { extractText: async () => 'NOME: FULANO DE TAL\nN HABILITACAO 12345678901\nCAT. HAB. AE' },
+      ocr: {
+        extractText: async () => 'NOME: FULANO DE TAL\nN HABILITACAO 12345678901\nCAT. HAB. AE',
+      },
       repository,
       storage,
     })
 
-    const result = await useCase.upload({ bytes: PNG_BYTES, companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' })
+    const result = await useCase.upload({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
 
     expect(result.status).toBe('approved')
     expect(result.extracted).not.toBeNull()
@@ -118,12 +145,19 @@ describe('aggregate document use case', () => {
     const storage = new FakeAggregateDocumentStorage()
     const useCase = createAggregateDocumentUseCase({
       bucket: 'test-bucket',
-      ocr: { extractText: async () => 'NOME: FULANO DE TAL\nN HABILITACAO 12345678901\nCAT. HAB. AE' },
+      ocr: {
+        extractText: async () => 'NOME: FULANO DE TAL\nN HABILITACAO 12345678901\nCAT. HAB. AE',
+      },
       repository,
       storage,
     })
 
-    const result = await useCase.upload({ bytes: PNG_BYTES, companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' })
+    const result = await useCase.upload({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
 
     expect(result.status).toBe('pending')
     expect(result.extracted).not.toBeNull()
@@ -143,7 +177,12 @@ describe('aggregate document use case', () => {
       storage,
     })
 
-    const result = await useCase.upload({ bytes: PNG_BYTES, companyId: COMPANY_ID, taxId: TAX_ID, type: 'cnh' })
+    const result = await useCase.upload({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'cnh',
+    })
 
     expect(result.status).toBe('pending')
     expect(result.extracted).toBeNull()

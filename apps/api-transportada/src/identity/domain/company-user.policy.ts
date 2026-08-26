@@ -9,6 +9,12 @@ export type CompanyUserStatus = (typeof COMPANY_USER_STATUSES)[number]
 
 export type CompanyUserView = {
   readonly contact: { readonly channel: ContactChannel; readonly masked: string }
+  /**
+   * Mascarados como o contato, e pelo mesmo motivo: a listagem de administração serve para
+   * reconhecer a pessoa, não para exportar a ficha dela. Campo vazio continua vazio — mascarar o
+   * que não existe inventaria um dado que ninguém cadastrou.
+   */
+  readonly email: string
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
   /**
@@ -18,19 +24,24 @@ export type CompanyUserView = {
    */
   readonly membershipId: string
   readonly name: string
+  readonly phone: string
   readonly roles: readonly CompanyRole[]
   readonly status: CompanyUserStatus
+  readonly taxId: string
   readonly username: string
 }
 
 type CompanyUserViewSource = {
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  readonly email: string
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly pendingInvitation: { readonly expiresAt: Date } | undefined
+  readonly phone: string
   readonly roles: readonly CompanyRole[]
+  readonly taxId: string
   readonly userId: string
   readonly username: string
 }
@@ -106,11 +117,14 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
       channel: source.contactChannel,
       masked: maskContactAddress({ channel: source.contactChannel, value: source.contactAddress }),
     },
+    email: maskEmailOrEmpty(source.email),
     id: source.userId,
     membershipId: source.membershipId,
     name: source.name,
+    phone: maskTrailingDigits(source.phone),
     roles: source.roles,
     status,
+    taxId: maskTrailingDigits(source.taxId),
     username: source.username,
     ...(source.pendingInvitation === undefined
       ? {}
@@ -130,4 +144,15 @@ function maskEmailAddress(email: string): string {
   const separatorIndex = domain.indexOf('.')
   const domainSuffix = separatorIndex === -1 ? '' : domain.slice(separatorIndex)
   return `${local.slice(0, 1)}***@${domain.slice(0, 1)}***${domainSuffix}`
+}
+
+/** Mascarar campo vazio produziria `***` para quem nunca cadastrou nada — o vazio é a resposta. */
+function maskEmailOrEmpty(value: string): string {
+  return value === '' ? '' : maskEmailAddress(value)
+}
+
+function maskTrailingDigits(value: string): string {
+  const visibleSuffixLength = 2
+  if (value.length <= visibleSuffixLength) return value === '' ? '' : '***'
+  return `***${value.slice(-visibleSuffixLength)}`
 }

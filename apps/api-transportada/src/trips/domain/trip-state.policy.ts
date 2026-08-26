@@ -1,10 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type {
-  TripDocumentSeparationStatus,
-  TripStatus,
-} from '../../database/trip.schema.js'
+import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 
 /**
  * ADR-0043 §1: dois eixos. A nota anda por conta própria (`pending → separated → loaded →
@@ -19,8 +16,7 @@ export const TRIP_DOCUMENT_ACTION = {
   separate: 'separate',
 } as const
 
-export type TripDocumentAction =
-  (typeof TRIP_DOCUMENT_ACTION)[keyof typeof TRIP_DOCUMENT_ACTION]
+export type TripDocumentAction = (typeof TRIP_DOCUMENT_ACTION)[keyof typeof TRIP_DOCUMENT_ACTION]
 
 export const TRIP_ACTION = {
   cancel: 'cancel',
@@ -46,8 +42,7 @@ export const TRIP_TRANSITION_BLOCK = {
   documentAlreadyClosed: 'TRIP_DOCUMENT_ALREADY_CLOSED',
 } as const
 
-export type TripTransitionBlock =
-  (typeof TRIP_TRANSITION_BLOCK)[keyof typeof TRIP_TRANSITION_BLOCK]
+export type TripTransitionBlock = (typeof TRIP_TRANSITION_BLOCK)[keyof typeof TRIP_TRANSITION_BLOCK]
 
 /**
  * Três desfechos, não dois. `unchanged` é o que sustenta a idempotência da RF-8: a rede do armazém
@@ -70,9 +65,7 @@ const TRIP_STATUS_ORDER = [
   'completed',
 ] as const
 
-const DOCUMENT_TARGET_STATUS: Readonly<
-  Record<TripDocumentAction, TripDocumentSeparationStatus>
-> = {
+const DOCUMENT_TARGET_STATUS: Readonly<Record<TripDocumentAction, TripDocumentSeparationStatus>> = {
   deliver: 'delivered',
   load: 'loaded',
   return: 'returned',
@@ -85,9 +78,7 @@ export function tripStatusRank(status: TripStatus): number {
 }
 
 export function isTripDispatched(status: TripStatus): boolean {
-  return (
-    status === 'dispatched' || status === 'in_transit' || status === 'completed'
-  )
+  return status === 'dispatched' || status === 'in_transit' || status === 'completed'
 }
 
 /**

@@ -38,7 +38,9 @@ export function aggregateApplicationRequest(input: {
     body: input.body ?? null,
     headers: {
       ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...(input.authenticated === false ? {} : { authorization: 'Bearer aggregate-application-contract' }),
+      ...(input.authenticated === false
+        ? {}
+        : { authorization: 'Bearer aggregate-application-contract' }),
       ...(input.clientIp === undefined ? {} : { 'x-forwarded-for': input.clientIp }),
     },
     method: input.method,
@@ -48,7 +50,9 @@ export function aggregateApplicationRequest(input: {
 type CreateFixtureParams = {
   readonly permissions?: CompanyContext['permissions']
   readonly turnstileSecretKey?: string
-  readonly verifyTurnstileToken?: Parameters<typeof createAggregateApplicationPublicRoutes>[0]['verifyTurnstileToken']
+  readonly verifyTurnstileToken?: Parameters<
+    typeof createAggregateApplicationPublicRoutes
+  >[0]['verifyTurnstileToken']
 }
 
 export async function createAggregateApplicationHttpFixture({

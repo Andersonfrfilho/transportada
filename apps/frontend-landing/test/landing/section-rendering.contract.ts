@@ -40,9 +40,9 @@ describe('landing section text resolution', () => {
       'A',
       'B',
     ])
-    expect(resolveSectionList({ offer: { items: 'não é lista' } }, 'offer', 'items', ['A'])).toEqual(
-      ['A'],
-    )
+    expect(
+      resolveSectionList({ offer: { items: 'não é lista' } }, 'offer', 'items', ['A']),
+    ).toEqual(['A'])
   })
 })
 

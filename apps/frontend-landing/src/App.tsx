@@ -51,7 +51,10 @@ export function App(): ReactNode {
         ) : isPortalRoute ? (
           <PortalPage />
         ) : (
-          <HomePage onNavigateToApplication={() => navigateTo(APPLICATION_PATH)} settings={settings} />
+          <HomePage
+            onNavigateToApplication={() => navigateTo(APPLICATION_PATH)}
+            settings={settings}
+          />
         )}
       </main>
       <Footer

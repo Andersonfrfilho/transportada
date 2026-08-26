@@ -10,7 +10,11 @@ import { ApiError } from '../../shared/api.error.js'
  */
 export class AggregateDocumentInvalidUploadError extends ApiError {
   public constructor() {
-    super({ code: 'AGGREGATE_DOCUMENT_INVALID_UPLOAD', message: 'Invalid document upload', status: 400 })
+    super({
+      code: 'AGGREGATE_DOCUMENT_INVALID_UPLOAD',
+      message: 'Invalid document upload',
+      status: 400,
+    })
   }
 }
 

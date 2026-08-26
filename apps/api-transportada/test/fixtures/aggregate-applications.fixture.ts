@@ -77,7 +77,12 @@ export class FakeAggregateApplicationRepository implements AggregateApplicationR
       declaredData: input.declaredData,
       duplicateDriverId: input.duplicateDriverId,
       email: input.email,
-      latestSubmission: { declaredData: input.declaredData, email: input.email, name: input.name, phone: input.phone },
+      latestSubmission: {
+        declaredData: input.declaredData,
+        email: input.email,
+        name: input.name,
+        phone: input.phone,
+      },
       name: input.name,
       phone: input.phone,
       resubmittedAt: new Date(),

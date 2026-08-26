@@ -56,6 +56,8 @@ export async function parseRejectAggregateApplicationRequest(request: Request): 
   return result.data.rejectionReason
 }
 
-export function parseAggregateApplicationId(pathParameters: Readonly<Record<string, string>>): string {
+export function parseAggregateApplicationId(
+  pathParameters: Readonly<Record<string, string>>,
+): string {
   return parseUuidPathIdentifier(pathParameters.id ?? '')
 }

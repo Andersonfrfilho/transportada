@@ -82,7 +82,9 @@ export function createLandingSettingsRoutes(
   return [
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
-        const settings = await dependencies.landingSettings.getForCompany({ context: context.scope })
+        const settings = await dependencies.landingSettings.getForCompany({
+          context: context.scope,
+        })
         return jsonResponse({
           body: { data: settings === null ? null : serialize(settings) },
           cacheControl: 'no-store',
@@ -96,7 +98,10 @@ export function createLandingSettingsRoutes(
     }),
     defineRoute<LandingSettingsWriteRequest>({
       async handle({ context, input }): Promise<Response> {
-        const settings = await dependencies.landingSettings.update({ context: context.scope, ...input })
+        const settings = await dependencies.landingSettings.update({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({
           body: { data: serialize(settings) },
           cacheControl: 'no-store',

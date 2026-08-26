@@ -60,7 +60,9 @@ function sanitizeUnit(value: unknown): LandingGroupUnit | undefined {
 function sanitizeSettings(value: unknown): LandingSettings {
   if (typeof value !== 'object' || value === null) return DEFAULT_LANDING_SETTINGS
   const record = value as Record<string, unknown>
-  const units = Array.isArray(record.units) ? record.units.map(sanitizeUnit).filter((unit): unit is LandingGroupUnit => unit !== undefined) : []
+  const units = Array.isArray(record.units)
+    ? record.units.map(sanitizeUnit).filter((unit): unit is LandingGroupUnit => unit !== undefined)
+    : []
 
   return {
     accentColor: sanitizeAccentColor(record.accentColor),
@@ -75,7 +77,9 @@ function sanitizeSettings(value: unknown): LandingSettings {
   }
 }
 
-export async function fetchLandingSettings(input: Readonly<{ apiBaseUrl: string }>): Promise<LandingSettings> {
+export async function fetchLandingSettings(
+  input: Readonly<{ apiBaseUrl: string }>,
+): Promise<LandingSettings> {
   try {
     const response = await fetch(`${input.apiBaseUrl}${PUBLIC_LANDING_SETTINGS_PATH}`, {
       cache: 'no-store',

@@ -21,7 +21,10 @@ export type TripStateActionsProps = Readonly<{
   isCancelPending: boolean
   isDispatchPending: boolean
   isPlanRoutePending: boolean
-  onBatch: (input: { readonly action: 'load' | 'return' | 'separate'; readonly returnReason?: string }) => void
+  onBatch: (input: {
+    readonly action: 'load' | 'return' | 'separate'
+    readonly returnReason?: string
+  }) => void
   onCancel: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
   onPlanRoute: () => void
@@ -54,7 +57,8 @@ export function TripStateActions({
   if (!canManage) return null
 
   const unloadedDocuments = trip.documents.filter(
-    (document) => document.releasedAt === null && NOT_LOADED_STATUSES.has(document.separationStatus),
+    (document) =>
+      document.releasedAt === null && NOT_LOADED_STATUSES.has(document.separationStatus),
   )
   const hasSelection = selection.selectedIds.size > 0
   const canPlanRoute = trip.status === 'draft'
@@ -127,7 +131,12 @@ export function TripStateActions({
           </Button>
         ) : null}
         {canDispatch ? (
-          <Button disabled={isDispatchPending} onClick={handleDispatchClick} size="sm" type="button">
+          <Button
+            disabled={isDispatchPending}
+            onClick={handleDispatchClick}
+            size="sm"
+            type="button"
+          >
             <Icon name="send" />
             {t('stateActions.dispatch')}
           </Button>

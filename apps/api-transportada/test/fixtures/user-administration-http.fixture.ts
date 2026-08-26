@@ -21,7 +21,7 @@ export type RefusalKind = 'cross-tenant' | 'duplicate-username' | 'last-admin' |
 
 type RouteDependencies = {
   readonly changeStatus: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
-  readonly invite: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
+  readonly invite: { execute(input: ExecuteCall): Promise<typeof INVITED_COMPANY_USER> }
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -69,16 +69,25 @@ export const TARGET_MEMBERSHIP_ID = '5b1a4a1e-1a0c-4f4a-9d1a-2f0c7d3b5e11'
 
 export const COMPANY_USER = {
   contact: { channel: 'email', masked: 'c***@e***.test' },
+  email: 'c***@e***.test',
   id: TARGET_USER_ID,
   invitation: { expiresAt: '2026-08-06T12:00:00.000Z', status: 'pending' },
   membershipId: TARGET_MEMBERSHIP_ID,
   name: 'Pessoa Convidada',
+  phone: '',
   roles: ['fiscal'],
   status: 'invited',
+  taxId: '***09',
   username: TARGET_USER_ID,
 }
 
 export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
+
+/** O convite responde o que a listagem responde, mais o resultado do vínculo com a frota. */
+export const INVITED_COMPANY_USER = {
+  ...COMPANY_USER,
+  fleetLink: 'not-applicable' as 'linked' | 'no-driver-record' | 'not-applicable',
+}
 
 export const UPDATED_COMPANY_USER = {
   ...COMPANY_USER,
@@ -138,7 +147,7 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         inviteCalls.push(structuredClone(input))
         if (params.refusal) return refuse()
-        return COMPANY_USER
+        return INVITED_COMPANY_USER
       },
     },
     list: {

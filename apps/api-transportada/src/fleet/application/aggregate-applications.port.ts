@@ -57,10 +57,11 @@ export type AggregateApplicationRepositoryPort = Readonly<{
   insert: (
     input: AggregateApplicationSubmissionInput & { readonly duplicateDriverId: string | null },
   ) => Promise<AggregateApplication>
-  listByCompany: (input: {
-    readonly companyId: string
-  }) => Promise<readonly AggregateApplication[]>
-  reject: (input: { readonly id: string; readonly rejectionReason: string }) => Promise<AggregateApplication>
+  listByCompany: (input: { readonly companyId: string }) => Promise<readonly AggregateApplication[]>
+  reject: (input: {
+    readonly id: string
+    readonly rejectionReason: string
+  }) => Promise<AggregateApplication>
   updateResubmission: (input: {
     readonly declaredData: Record<string, unknown>
     readonly duplicateDriverId: string | null

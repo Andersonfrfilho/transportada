@@ -56,7 +56,8 @@ export class DrizzleTripStopLookupRepository
       addressKey: stop.addressKey,
       arrivedAt: stop.arrivedAt === null ? null : stop.arrivedAt.toISOString(),
       completedAt: stop.completedAt === null ? null : stop.completedAt.toISOString(),
-      deliveryWindowEnd: stop.deliveryWindowEnd === null ? null : stop.deliveryWindowEnd.toISOString(),
+      deliveryWindowEnd:
+        stop.deliveryWindowEnd === null ? null : stop.deliveryWindowEnd.toISOString(),
       deliveryWindowStart:
         stop.deliveryWindowStart === null ? null : stop.deliveryWindowStart.toISOString(),
       documentIds: documentIdsByStop.get(stop.id) ?? [],
@@ -102,7 +103,10 @@ export class DrizzleTripStopLookupRepository
       )
       .leftJoin(
         tripStops,
-        and(eq(tripStops.companyId, tripDocuments.companyId), eq(tripStops.id, tripDocuments.stopId)),
+        and(
+          eq(tripStops.companyId, tripDocuments.companyId),
+          eq(tripStops.id, tripDocuments.stopId),
+        ),
       )
       .where(and(...filters))
       .limit(1)

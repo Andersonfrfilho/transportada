@@ -13,7 +13,11 @@ type CreateApiUserModuleParams = {
   readonly db: Database
 }
 
-function buildUserModule({ accessTokenSecret, companyId, db }: CreateApiUserModuleParams): Promise<UserModule> {
+function buildUserModule({
+  accessTokenSecret,
+  companyId,
+  db,
+}: CreateApiUserModuleParams): Promise<UserModule> {
   return createUserModule({
     config: {
       accessToken: { secret: accessTokenSecret },

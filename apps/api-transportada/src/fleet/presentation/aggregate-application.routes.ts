@@ -47,7 +47,8 @@ type Dependencies = {
 export function createAggregateApplicationPublicRoutes(
   dependencies: Dependencies,
 ): readonly RegisteredAnonymousRoute[] {
-  const verifyTurnstileToken = dependencies.verifyTurnstileToken ?? verifyTurnstileTokenWithCloudflare
+  const verifyTurnstileToken =
+    dependencies.verifyTurnstileToken ?? verifyTurnstileTokenWithCloudflare
 
   return [
     defineAnonymousRoute<SubmitAggregateApplicationRequest>({
@@ -83,7 +84,9 @@ export function createAggregateApplicationRoutes(
   return [
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
-        const applications = await dependencies.aggregateApplications.list({ context: context.scope })
+        const applications = await dependencies.aggregateApplications.list({
+          context: context.scope,
+        })
         return jsonResponse({ body: { data: applications.map(serialize) }, status: 200 })
       },
       method: 'GET',

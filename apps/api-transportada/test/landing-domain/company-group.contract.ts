@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { orderGroupUnits, type CompanyGroupUnit } from '../../src/landing/domain/company-group.policy.js'
+import {
+  orderGroupUnits,
+  type CompanyGroupUnit,
+} from '../../src/landing/domain/company-group.policy.js'
 import { resolveCompanyGroupRoot } from '../../src/shared/tax-id.service.js'
 
 function buildUnit(overrides: Partial<CompanyGroupUnit>): CompanyGroupUnit {

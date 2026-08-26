@@ -47,11 +47,13 @@ const DOCUMENT: TripDocument = {
  * `fromStatus` bate com o estado atual, e devolve `raced: true` quando não bate — igual ao
  * `WHERE separation_status = fromStatus` do repositório real.
  */
-function createFakePort(overrides: {
-  readonly documentStatus?: TripDocumentTransitionSnapshot['documentStatus']
-  readonly exists?: boolean
-  readonly tripStatus?: TripDocumentTransitionSnapshot['tripStatus']
-} = {}): TripDocumentTransitionPort & {
+function createFakePort(
+  overrides: {
+    readonly documentStatus?: TripDocumentTransitionSnapshot['documentStatus']
+    readonly exists?: boolean
+    readonly tripStatus?: TripDocumentTransitionSnapshot['tripStatus']
+  } = {},
+): TripDocumentTransitionPort & {
   readonly applyCalls: ApplyTripDocumentTransitionInput[]
   currentDocumentStatus: TripDocumentTransitionSnapshot['documentStatus']
   currentTripStatus: TripDocumentTransitionSnapshot['tripStatus']
@@ -93,7 +95,11 @@ function createFakePort(overrides: {
     },
     async findSnapshot(): Promise<TripDocumentTransitionSnapshot | null> {
       if (!exists) return null
-      return { document: DOCUMENT, documentStatus: currentDocumentStatus, tripStatus: currentTripStatus }
+      return {
+        document: DOCUMENT,
+        documentStatus: currentDocumentStatus,
+        tripStatus: currentTripStatus,
+      }
     },
   }
 }
@@ -155,9 +161,7 @@ describe('transition trip document (spec 056 T008)', () => {
     }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripStateTransitionNotAllowedError)
-    expect((error as TripStateTransitionNotAllowedError).reason).toBe(
-      'TRIP_DOCUMENT_NOT_SEPARATED',
-    )
+    expect((error as TripStateTransitionNotAllowedError).reason).toBe('TRIP_DOCUMENT_NOT_SEPARATED')
     expect(repository.applyCalls).toHaveLength(0)
   })
 
@@ -233,8 +237,6 @@ describe('transition trip document (spec 056 T008)', () => {
     expect(result.document.id).toBe(DOCUMENT_ID)
     expect(calls).toBe(1)
   })
-
-
 
   test('gives up after too many races with a conflict, not an infinite loop', async () => {
     const repository = createFakePort({ documentStatus: 'pending', tripStatus: 'separating' })

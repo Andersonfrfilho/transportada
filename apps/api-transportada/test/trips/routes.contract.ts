@@ -140,9 +140,7 @@ describe('trip state routes (spec 056 T012)', () => {
   test('dispatches without force by default', async () => {
     const fixture = await createTripHttpFixture()
 
-    const response = await fixture.handle(
-      jsonRequest({ method: 'POST', path: tripDispatchPath() }),
-    )
+    const response = await fixture.handle(jsonRequest({ method: 'POST', path: tripDispatchPath() }))
 
     expect(response.status).toBe(200)
     expect(fixture.dispatchTripCalls[0]).toMatchObject({ force: false, forceReason: null })
@@ -186,10 +184,7 @@ describe('trip state routes (spec 056 T012)', () => {
 
   test('reorders the stops of a trip', async () => {
     const fixture = await createTripHttpFixture()
-    const stopIds = [
-      '00000000-0000-4000-8000-000000000b02',
-      '00000000-0000-4000-8000-000000000b01',
-    ]
+    const stopIds = ['00000000-0000-4000-8000-000000000b02', '00000000-0000-4000-8000-000000000b01']
 
     const response = await fixture.handle(
       jsonRequest({ body: { stopIds }, method: 'PATCH', path: tripStopsOrderPath() }),
@@ -286,9 +281,7 @@ describe('trip state routes (spec 056 T012)', () => {
       '../../src/trips/domain/trip.error.js'
     )
     const fixture = await createTripHttpFixture({
-      separateTripDocumentError: new TripStateTransitionNotAllowedError(
-        'TRIP_ROUTE_NOT_PLANNED',
-      ),
+      separateTripDocumentError: new TripStateTransitionNotAllowedError('TRIP_ROUTE_NOT_PLANNED'),
     })
 
     const response = await fixture.handle(

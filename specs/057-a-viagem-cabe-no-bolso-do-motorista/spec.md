@@ -128,7 +128,7 @@ Três regras que fazem isso ser usado em vez de contornado:
 
 1. **Não pede decisão.** O motorista não escolhe valor, não classifica custo, não julga de quem é a
    culpa. Ele descreve o que viu. Quem decide é o escritório, com a 060 na mão.
-2. **É independente da entrega.** Ele esperou duas horas *e* entregou — os dois fatos convivem, e
+2. **É independente da entrega.** Ele esperou duas horas _e_ entregou — os dois fatos convivem, e
    forçar a ocorrência a ser um motivo de não-entrega perderia o caso mais comum.
 3. **Vai pela mesma fila offline** da D5, com a mesma idempotência. Problema costuma acontecer
    exatamente onde o sinal é ruim.
@@ -169,9 +169,9 @@ _então_ escolhe um motivo de uma lista fechada (ausente, recusa, endereço não
 estabelecimento fechado) e a nota vai a `returned`.
 
 **P1 — deu problema**
-*Dado* uma parada em que o cliente cobrou uma taxa não combinada,
-*quando* o motorista registra a ocorrência com foto do recibo,
-*então* ela é gravada na parada e aparece para o escritório — sem que ele precise informar valor
+_Dado_ uma parada em que o cliente cobrou uma taxa não combinada,
+_quando_ o motorista registra a ocorrência com foto do recibo,
+_então_ ela é gravada na parada e aparece para o escritório — sem que ele precise informar valor
 nenhum.
 
 **P1 — sem sinal**

@@ -188,9 +188,9 @@ _então_ devolve a viagem, a parada, a posição na sequência e o estado atual,
    normalizada, rótulo legível (cidade/UF/logradouro), `arrived_at`, `completed_at`,
    `delivery_window_start`/`end` (reservadas, nulas). Sem coordenada — ela chega na 058.
 4. Nasce `trip_document_events` conforme D4.
-4b. Nasce `delivery_address_overrides` (D9): documento, endereço anterior e novo, `requested_by`
+   4b. Nasce `delivery_address_overrides` (D9): documento, endereço anterior e novo, `requested_by`
    (texto), `actor_membership_id`, motivo, `created_at`. Histórico, nunca sobrescrito.
-4c. A chave de agrupamento da D3 lê o override quando existir.
+   4c. A chave de agrupamento da D3 lê o override quando existir.
 5. Nasce `trip_stop_snapshot` (ou coluna JSONB congelada em `trips`) gravada na transição a
    `dispatched`.
 6. Rotas novas, todas sob `trip.manage`:
@@ -337,6 +337,7 @@ O endereço sobrescrito **também é geocodificado** (058 D2) e **também pode n
 ## Dúvidas
 
 Nenhuma. As três que existiam foram respondidas e viraram D7, D8 e D9.
+
 ## 🤖 Modelo
 
 | Etapa                                      | Modelo    |

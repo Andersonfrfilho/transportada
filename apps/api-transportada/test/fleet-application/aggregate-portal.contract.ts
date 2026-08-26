@@ -51,7 +51,15 @@ describe('aggregate portal use case', () => {
     const repository = new FakeAggregatePortalRepository()
     repository.accountsByUserId.set('user-1', { companyId: COMPANY_ID, taxId: '12345678901' })
     repository.driversByTaxId.set('12345678901', {
-      address: { city: 'São Paulo', complement: '', district: 'Centro', number: '100', postalCode: '01000000', state: 'SP', street: 'Rua Um' },
+      address: {
+        city: 'São Paulo',
+        complement: '',
+        district: 'Centro',
+        number: '100',
+        postalCode: '01000000',
+        state: 'SP',
+        street: 'Rua Um',
+      },
       email: 'motorista@example.com',
       name: 'Fulano de Tal',
       phone: '11988887777',
@@ -70,7 +78,15 @@ describe('aggregate portal use case', () => {
     repository.accountsByUserId.set('user-1', { companyId: COMPANY_ID, taxId: '12345678901' })
     repository.applicationsByTaxId.set('12345678901', { rejectionReason: '', status: 'pending' })
     repository.driversByTaxId.set('12345678901', {
-      address: { city: 'São Paulo', complement: '', district: 'Centro', number: '100', postalCode: '01000000', state: 'SP', street: 'Rua Um' },
+      address: {
+        city: 'São Paulo',
+        complement: '',
+        district: 'Centro',
+        number: '100',
+        postalCode: '01000000',
+        state: 'SP',
+        street: 'Rua Um',
+      },
       email: 'motorista@example.com',
       name: 'Fulano de Tal',
       phone: '11988887777',

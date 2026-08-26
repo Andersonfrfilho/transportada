@@ -27,12 +27,15 @@ export function createAggregateApplicationClient(
   return {
     async submit(input) {
       try {
-        const response = await fetch(`${dependencies.apiBaseUrl}${PUBLIC_AGGREGATE_APPLICATIONS_PATH}`, {
-          body: JSON.stringify({ ...input, taxId: normalizeTaxId(input.taxId) }),
-          cache: 'no-store',
-          headers: { 'content-type': 'application/json' },
-          method: 'POST',
-        })
+        const response = await fetch(
+          `${dependencies.apiBaseUrl}${PUBLIC_AGGREGATE_APPLICATIONS_PATH}`,
+          {
+            body: JSON.stringify({ ...input, taxId: normalizeTaxId(input.taxId) }),
+            cache: 'no-store',
+            headers: { 'content-type': 'application/json' },
+            method: 'POST',
+          },
+        )
         return response.status === 202
       } catch {
         return false

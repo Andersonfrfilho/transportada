@@ -243,7 +243,10 @@ import { createLazyRabbitMqNotificationQueue } from './notification/infrastructu
 import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
 import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
 import { createApiUserModule } from './user/infrastructure/user-module.factory.js'
-import { createUserHttpRouter, USER_ROUTES_BASE_PATH } from './user/presentation/user-http.router.js'
+import {
+  createUserHttpRouter,
+  USER_ROUTES_BASE_PATH,
+} from './user/presentation/user-http.router.js'
 import {
   AGGREGATE_PORTAL_ROUTES_BASE_PATH,
   createAggregatePortalHttpRouter,
@@ -348,7 +351,11 @@ export function bootstrap(): Bun.Server<undefined> {
                   bucket: resolveStorageBucket(process.env),
                   ...(config.aggregateDocumentOcrUrl === undefined
                     ? {}
-                    : { ocr: createHttpAggregateDocumentOcrGateway({ baseUrl: config.aggregateDocumentOcrUrl }) }),
+                    : {
+                        ocr: createHttpAggregateDocumentOcrGateway({
+                          baseUrl: config.aggregateDocumentOcrUrl,
+                        }),
+                      }),
                   repository: createDrizzleAggregateDocumentRepository(database.db),
                   storage: createNfeStorageGatewayFromEnvironment({
                     environment: process.env,

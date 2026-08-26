@@ -18,10 +18,12 @@ const EXISTING_STOP: TripStopRecord = {
   sequence: 1n,
 }
 
-function createFakePort(overrides: {
-  readonly stops?: TripStopRecord[]
-  readonly liveDocumentsByStop?: Record<string, number>
-} = {}): TripStopReconciliationPort & {
+function createFakePort(
+  overrides: {
+    readonly stops?: TripStopRecord[]
+    readonly liveDocumentsByStop?: Record<string, number>
+  } = {},
+): TripStopReconciliationPort & {
   readonly createStopCalls: unknown[]
   readonly deleteStopCalls: unknown[]
 } {

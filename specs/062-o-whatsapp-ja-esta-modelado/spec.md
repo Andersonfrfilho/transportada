@@ -10,7 +10,7 @@ tem `'whatsapp'` no tipo do canal — `deliver-invitation-code.service.ts:6` —
 `InvitationChannelUnavailableError` para qualquer coisa que não seja e-mail
 (`invitation-channel.gateway.ts:27-36`). O `notification-module` conhece cinco canais e recebe um só:
 `notification-module.factory.ts:52` injeta `{ email: emailDriver }`. O `evidence.md` da spec 034
-registra isso com todas as letras: *"o módulo conhece push, WhatsApp e SMS; nenhum tem driver"*.
+registra isso com todas as letras: _"o módulo conhece push, WhatsApp e SMS; nenhum tem driver"_.
 
 Enquanto isso, o motorista fala por WhatsApp o dia inteiro, o cliente combina agendamento por
 WhatsApp, e nada disso entra no sistema.
@@ -21,18 +21,18 @@ motorista e o cliente respondendo e isso virando estado).
 
 ## Auditoria — o que já existe e não precisa ser construído
 
-| Fato | Onde | Consequência |
-|---|---|---|
-| Canal `whatsapp` declarado no contrato de notificação | `@adatechnology/notification-contracts` — `NOTIFICATION_CHANNEL` | Não há enum a criar. |
-| `WhatsAppDriverPort` já definido | `notification-module/src/channelDrivers.ts` | Não há porta a desenhar. |
-| Driver pronto, derivado do módulo Meta | `createWhatsAppDriverFromChannel()` — `notification-module/src/whatsappDriver.ts` | **A ligação é injeção, não integração.** |
-| Janela de 24h e rate limit já tratados | testes em `whatsappDriver` (`strictness.test.ts`) | O erro mais comum da Cloud API já está resolvido. |
-| Cliente da Graph API pronto | `@adatechnology/meta-whatsapp-provider` — `WhatsAppMessageProvider`, `WhatsAppTemplateProvider` | Nenhum HTTP a escrever. |
-| Webhook, conversa, flows, realtime | `@adatechnology/meta-whatsapp-module` — `src/channel`, `src/flows`, `src/realtime`, `src/migrations` | Nenhum estado de conversa a modelar. |
-| UI de inbox, flows e templates | `@adatechnology/conversations-ui` — `ConversationsWorkspace`, `FlowsWorkspace`, `MessagesWorkspace` | Nenhuma tela de conversa a construir. |
-| Tema por contrato | `conversations-ui` — prop `theme` → CSS vars `--cv-*` (`src/theme.ts:17-27`) | "UI próxima da nossa app" é **preencher um objeto**, não forkar o pacote. |
-| Canal já modelado no convite e no reset de senha | `DELIVERABLE_CHANNELS = ['email','sms','whatsapp']` | Ligar o driver já habilita esses fluxos. |
-| Referência viva de uso | `sakura-bot-oficial/apps/api` e `quickcart` | Há um caminho validado a copiar. |
+| Fato                                                  | Onde                                                                                                 | Consequência                                                              |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Canal `whatsapp` declarado no contrato de notificação | `@adatechnology/notification-contracts` — `NOTIFICATION_CHANNEL`                                     | Não há enum a criar.                                                      |
+| `WhatsAppDriverPort` já definido                      | `notification-module/src/channelDrivers.ts`                                                          | Não há porta a desenhar.                                                  |
+| Driver pronto, derivado do módulo Meta                | `createWhatsAppDriverFromChannel()` — `notification-module/src/whatsappDriver.ts`                    | **A ligação é injeção, não integração.**                                  |
+| Janela de 24h e rate limit já tratados                | testes em `whatsappDriver` (`strictness.test.ts`)                                                    | O erro mais comum da Cloud API já está resolvido.                         |
+| Cliente da Graph API pronto                           | `@adatechnology/meta-whatsapp-provider` — `WhatsAppMessageProvider`, `WhatsAppTemplateProvider`      | Nenhum HTTP a escrever.                                                   |
+| Webhook, conversa, flows, realtime                    | `@adatechnology/meta-whatsapp-module` — `src/channel`, `src/flows`, `src/realtime`, `src/migrations` | Nenhum estado de conversa a modelar.                                      |
+| UI de inbox, flows e templates                        | `@adatechnology/conversations-ui` — `ConversationsWorkspace`, `FlowsWorkspace`, `MessagesWorkspace`  | Nenhuma tela de conversa a construir.                                     |
+| Tema por contrato                                     | `conversations-ui` — prop `theme` → CSS vars `--cv-*` (`src/theme.ts:17-27`)                         | "UI próxima da nossa app" é **preencher um objeto**, não forkar o pacote. |
+| Canal já modelado no convite e no reset de senha      | `DELIVERABLE_CHANNELS = ['email','sms','whatsapp']`                                                  | Ligar o driver já habilita esses fluxos.                                  |
+| Referência viva de uso                                | `sakura-bot-oficial/apps/api` e `quickcart`                                                          | Há um caminho validado a copiar.                                          |
 
 **Nada disso existe hoje na transportada:** não há dependência `meta-*`, nem variável de ambiente de
 WhatsApp no `.env.example`. É o que esta spec adiciona.
@@ -126,32 +126,32 @@ endereço num fluxo automatizado — e o que o cliente digita **nunca vai para l
 ## Histórias priorizadas
 
 **P1 — o convite chega por WhatsApp**
-*Dado* um motorista sendo cadastrado,
-*quando* o convite é enviado com canal `whatsapp`,
-*então* ele chega — e não lança `InvitationChannelUnavailableError`.
+_Dado_ um motorista sendo cadastrado,
+_quando_ o convite é enviado com canal `whatsapp`,
+_então_ ele chega — e não lança `InvitationChannelUnavailableError`.
 
 **P1 — a viagem despachada avisa o motorista**
-*Dado* uma viagem indo a `dispatched`,
-*quando* a transição ocorre,
-*então* o motorista recebe a mensagem com o link do PWA e o resumo da viagem.
+_Dado_ uma viagem indo a `dispatched`,
+_quando_ a transição ocorre,
+_então_ o motorista recebe a mensagem com o link do PWA e o resumo da viagem.
 
 **P1 — a taxa sugerida avisa o escritório**
 Notificação quando a fila de sugestões da 060 tem item novo.
 
 **P2 — falar de dentro do produto**
-*Dado* um cliente que mandou mensagem,
-*quando* o operador abre `/conversas`,
-*então* vê a inbox no visual do produto, responde, e o histórico fica.
+_Dado_ um cliente que mandou mensagem,
+_quando_ o operador abre `/conversas`,
+_então_ vê a inbox no visual do produto, responde, e o histórico fica.
 
 **P2 — a conversa está ligada à viagem**
-*Dado* uma conversa com um destinatário,
-*quando* aberta,
-*então* mostra as viagens e notas daquele documento — é o que faz a inbox valer mais que o celular.
+_Dado_ uma conversa com um destinatário,
+_quando_ aberta,
+_então_ mostra as viagens e notas daquele documento — é o que faz a inbox valer mais que o celular.
 
 **P3 — o cliente agenda por WhatsApp**
-*Dado* uma parada de cliente com `requires_scheduling` (060 D3),
-*quando* o fluxo oferece janelas em botão,
-*então* a escolha vira agendamento `confirmed` com protocolo. Resposta livre vira sugestão (D4).
+_Dado_ uma parada de cliente com `requires_scheduling` (060 D3),
+_quando_ o fluxo oferece janelas em botão,
+_então_ a escolha vira agendamento `confirmed` com protocolo. Resposta livre vira sugestão (D4).
 
 **P3 — aviso de entrega a caminho**
 Mensagem ao destinatário quando a viagem entra em `in_transit`, com a posição na fila de paradas.
@@ -190,16 +190,16 @@ Mensagem ao destinatário quando a viagem entra em `in_transit`, com a posição
 
 ## Casos extremos e falhas
 
-| Caso | Comportamento |
-|---|---|
-| Motorista sem telefone cadastrado | Notificação cai para e-mail, e a ausência aparece no cadastro. |
-| Janela de 24h expirada | Driver usa template aprovado; sem template, a notificação vai por outro canal e registra. |
-| Cliente responde fora do fluxo | `fallbackMessage`; após 2 tentativas, handoff para pessoa (`conversation-flow.md` §5). |
-| Webhook sem segredo configurado | A rota **não sobe**. Fail-closed. |
-| Webhook duplicado pela Meta | Idempotente por id de mensagem — o módulo já trata. |
-| Número da empresa bloqueado pela Meta | Notificações caem para e-mail; alerta em destaque. |
-| Template reprovado | O fluxo que depende dele fica indisponível com aviso claro, não com falha silenciosa. |
-| Cliente pede para não receber mais | Opt-out respeitado e persistido — e vale para todos os fluxos, não só o que originou. |
+| Caso                                  | Comportamento                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Motorista sem telefone cadastrado     | Notificação cai para e-mail, e a ausência aparece no cadastro.                            |
+| Janela de 24h expirada                | Driver usa template aprovado; sem template, a notificação vai por outro canal e registra. |
+| Cliente responde fora do fluxo        | `fallbackMessage`; após 2 tentativas, handoff para pessoa (`conversation-flow.md` §5).    |
+| Webhook sem segredo configurado       | A rota **não sobe**. Fail-closed.                                                         |
+| Webhook duplicado pela Meta           | Idempotente por id de mensagem — o módulo já trata.                                       |
+| Número da empresa bloqueado pela Meta | Notificações caem para e-mail; alerta em destaque.                                        |
+| Template reprovado                    | O fluxo que depende dele fica indisponível com aviso claro, não com falha silenciosa.     |
+| Cliente pede para não receber mais    | Opt-out respeitado e persistido — e vale para todos os fluxos, não só o que originou.     |
 
 ## Critérios de aceite
 
@@ -226,10 +226,10 @@ Mensagem ao destinatário quando a viagem entra em `in_transit`, com a posição
 
 ## 🤖 Modelo
 
-| Etapa | Modelo |
-|---|---|
-| Adoção dos pacotes, segurança do webhook, ADR-0048 | `opus` 🧠 |
-| Desenho do fluxo de agendamento (grafo e handoff) | `opus` 🧠 |
-| Injeção do driver, configuração, migrations, notificações | `sonnet` |
-| Workspace, tema, labels | `sonnet` |
-| Texto das mensagens, emoji, corte de título | `haiku` |
+| Etapa                                                     | Modelo    |
+| --------------------------------------------------------- | --------- |
+| Adoção dos pacotes, segurança do webhook, ADR-0048        | `opus` 🧠 |
+| Desenho do fluxo de agendamento (grafo e handoff)         | `opus` 🧠 |
+| Injeção do driver, configuração, migrations, notificações | `sonnet`  |
+| Workspace, tema, labels                                   | `sonnet`  |
+| Texto das mensagens, emoji, corte de título               | `haiku`   |

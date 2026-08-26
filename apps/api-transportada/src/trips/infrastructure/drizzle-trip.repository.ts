@@ -32,7 +32,10 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
-import { reconcileStopOnLink, reconcileStopOnUnlink } from '../application/reconcile-trip-stops.use-case.js'
+import {
+  reconcileStopOnLink,
+  reconcileStopOnUnlink,
+} from '../application/reconcile-trip-stops.use-case.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
 import {
   resolveNfeDestinationAddress,
@@ -348,7 +351,9 @@ async function readDocumentStopIdBeforeRelease(
   const [row] = await transaction
     .select({ stopId: tripDocuments.stopId })
     .from(tripDocuments)
-    .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)))
+    .where(
+      and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)),
+    )
     .limit(1)
   return row?.stopId ?? null
 }

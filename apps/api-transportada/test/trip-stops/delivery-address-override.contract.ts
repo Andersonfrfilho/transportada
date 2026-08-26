@@ -18,10 +18,12 @@ const ACTOR_USER_ID = '44444444-4444-4444-8444-444444444444'
 
 const NEW_ADDRESS = { cityCode: '3543402', number: '100', postalCode: '14010100' }
 
-function createFakePort(input: {
-  readonly tripExists?: boolean
-  readonly tripStatus?: 'cancelled' | 'completed' | 'dispatched' | 'draft'
-} = {}): OverrideDeliveryAddressPort & { readonly applyOverrideCalls: unknown[] } {
+function createFakePort(
+  input: {
+    readonly tripExists?: boolean
+    readonly tripStatus?: 'cancelled' | 'completed' | 'dispatched' | 'draft'
+  } = {},
+): OverrideDeliveryAddressPort & { readonly applyOverrideCalls: unknown[] } {
   const applyOverrideCalls: unknown[] = []
   return {
     applyOverrideCalls,
@@ -134,7 +136,11 @@ describe('delivery address history contract', () => {
       requestedBy: 'Cliente',
       tripDocumentId: DOCUMENT_ID,
     }
-    const repository = { async listHistory() { return [record] } }
+    const repository = {
+      async listHistory() {
+        return [record]
+      },
+    }
 
     const result = await listDeliveryAddressHistory({
       companyId: COMPANY_ID,
@@ -146,7 +152,11 @@ describe('delivery address history contract', () => {
   })
 
   test('refuses when the document does not exist', async () => {
-    const repository = { async listHistory() { return null } }
+    const repository = {
+      async listHistory() {
+        return null
+      },
+    }
 
     const error = await listDeliveryAddressHistory({
       companyId: COMPANY_ID,

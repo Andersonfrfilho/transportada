@@ -108,7 +108,10 @@ export function createPortalClient(dependencies: Readonly<{ apiBaseUrl: string }
     const body = (await response.json().catch(() => null)) as Envelope<T> | ErrorEnvelope | null
     if (!response.ok || body === null || !('data' in body)) {
       const error = body !== null && 'error' in body ? body.error : undefined
-      throw new PortalRequestError(error?.code ?? 'PORTAL_REQUEST_FAILED', error?.message ?? 'Request failed')
+      throw new PortalRequestError(
+        error?.code ?? 'PORTAL_REQUEST_FAILED',
+        error?.message ?? 'Request failed',
+      )
     }
     return body.data
   }
@@ -130,7 +133,10 @@ export function createPortalClient(dependencies: Readonly<{ apiBaseUrl: string }
       fetch(`${dependencies.apiBaseUrl}${path}`, {
         ...init,
         credentials: 'include',
-        headers: { ...init.headers, ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }) },
+        headers: {
+          ...init.headers,
+          ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
+        },
       })
 
     const response = await request()

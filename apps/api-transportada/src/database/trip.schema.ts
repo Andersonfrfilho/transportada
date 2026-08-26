@@ -421,10 +421,7 @@ export const tripDispatchSnapshots = pgTable(
     unique('trip_dispatch_snapshots_company_id_id_unique').on(table.companyId, table.id),
     // `dispatched` é irreversível, então despacho é um evento único por viagem.
     unique('trip_dispatch_snapshots_company_trip_unique').on(table.companyId, table.tripId),
-    check(
-      'trip_dispatch_snapshots_sha256_check',
-      sql`${table.snapshotSha256} ~ '^[0-9a-f]{64}$'`,
-    ),
+    check('trip_dispatch_snapshots_sha256_check', sql`${table.snapshotSha256} ~ '^[0-9a-f]{64}$'`),
     // Mesmo par coerente do motivo de retorno: forçado exige motivo, e motivo exige forçado.
     check(
       'trip_dispatch_snapshots_force_reason_check',

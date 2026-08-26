@@ -8,7 +8,10 @@ const RANDOM_KEY_GROUPS = [8, 4, 4, 4, 12] as const
 
 /** Chave aleatória é um UUID — mesmo agrupamento 8-4-4-4-12 que o Bacen exige (regex do backend). */
 function formatRandomPixKey(value: string): string {
-  const hex = value.toLowerCase().replace(/[^0-9a-f]/gu, '').slice(0, RANDOM_KEY_HEX_LENGTH)
+  const hex = value
+    .toLowerCase()
+    .replace(/[^0-9a-f]/gu, '')
+    .slice(0, RANDOM_KEY_HEX_LENGTH)
   let masked = ''
   let cursor = 0
   for (const groupLength of RANDOM_KEY_GROUPS) {

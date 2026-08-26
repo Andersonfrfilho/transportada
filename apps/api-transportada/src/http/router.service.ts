@@ -152,7 +152,10 @@ type CreateRouterParams = {
    * `basePath` vem separado porque `ModuleFetchRouter` não o expõe de volta — só o usa internamente
    * pra compilar as rotas — e o preflight de CORS precisa dele pra montar o caminho completo.
    */
-  readonly moduleRouters?: readonly { readonly basePath: string; readonly router: ModuleFetchRouter }[]
+  readonly moduleRouters?: readonly {
+    readonly basePath: string
+    readonly router: ModuleFetchRouter
+  }[]
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
 }

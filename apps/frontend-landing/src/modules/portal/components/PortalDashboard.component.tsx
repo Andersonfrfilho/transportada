@@ -52,9 +52,7 @@ export function PortalDashboard({ client, onLoggedOut }: PortalDashboardProps): 
     const uploaded = await client.uploadDocument({ bytes, contentType: file.type, type })
     setDocuments((current) =>
       (current ?? []).map((item) =>
-        item.type === type
-          ? { document: { ...uploaded }, type }
-          : item,
+        item.type === type ? { document: { ...uploaded }, type } : item,
       ),
     )
   }
@@ -68,11 +66,7 @@ export function PortalDashboard({ client, onLoggedOut }: PortalDashboardProps): 
         </div>
       ) : (
         <>
-          {profile === null ? (
-            <p>Carregando…</p>
-          ) : (
-            <ProfileCard profile={profile} />
-          )}
+          {profile === null ? <p>Carregando…</p> : <ProfileCard profile={profile} />}
           {profile?.status === 'approved' && documents !== null ? (
             <DocumentsCard documents={documents} onUpload={handleUpload} />
           ) : null}

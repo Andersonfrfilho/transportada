@@ -2,7 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import {
+  check,
+  foreignKey,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core'
 
 import { TAX_ID_PATTERN } from '../shared/tax-id.service.js'
 import { fleetDrivers } from './fleet.schema.js'
@@ -70,7 +79,10 @@ export const aggregateApplications = pgTable(
       'aggregate_applications_status_check',
       sql`${table.status} in ('pending', 'approved', 'rejected')`,
     ),
-    check('aggregate_applications_tax_id_check', sql`${table.taxId} ~ ${sql.raw(`'${TAX_ID_PATTERN.source}'`)}`),
+    check(
+      'aggregate_applications_tax_id_check',
+      sql`${table.taxId} ~ ${sql.raw(`'${TAX_ID_PATTERN.source}'`)}`,
+    ),
     check(
       'aggregate_applications_rejection_reason_check',
       sql`${table.status} <> 'rejected' or length(${table.rejectionReason}) > 0`,

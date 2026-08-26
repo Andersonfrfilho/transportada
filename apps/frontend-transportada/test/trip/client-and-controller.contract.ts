@@ -118,9 +118,9 @@ describe('trip client contract', () => {
         tripId: TRIP_ID,
       }),
     ).toEqual(DELIVERY_ADDRESS_OVERRIDE)
-    expect(await client.listDeliveryAddressHistory({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual([
-      DELIVERY_ADDRESS_OVERRIDE,
-    ])
+    expect(
+      await client.listDeliveryAddressHistory({ documentId: DOCUMENT_ID, tripId: TRIP_ID }),
+    ).toEqual([DELIVERY_ADDRESS_OVERRIDE])
 
     const [overrideRequest, historyRequest] = requests
     if (overrideRequest === undefined || historyRequest === undefined) {
@@ -149,7 +149,11 @@ describe('trip client contract', () => {
     const client = await createRecordingClient(requests)
 
     expect(
-      await client.transitionTripDocument({ action: 'separate', documentId: DOCUMENT_ID, tripId: TRIP_ID }),
+      await client.transitionTripDocument({
+        action: 'separate',
+        documentId: DOCUMENT_ID,
+        tripId: TRIP_ID,
+      }),
     ).toEqual({ document: TRIP_DOCUMENT, tripStatus: 'separating' })
     expect(
       await client.batchStatus({
@@ -162,7 +166,8 @@ describe('trip client contract', () => {
     expect(await client.dispatchTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'dispatched' })
     expect(await client.cancelTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'cancelled' })
 
-    const [separateRequest, batchRequest, planRouteRequest, dispatchRequest, cancelRequest] = requests
+    const [separateRequest, batchRequest, planRouteRequest, dispatchRequest, cancelRequest] =
+      requests
     if (
       separateRequest === undefined ||
       batchRequest === undefined ||
@@ -173,9 +178,7 @@ describe('trip client contract', () => {
       throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
     }
 
-    expect(separateRequest.url).toBe(
-      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`,
-    )
+    expect(separateRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`)
     expect(await separateRequest.json()).toEqual({ note: null, returnReason: null })
 
     expect(batchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`)

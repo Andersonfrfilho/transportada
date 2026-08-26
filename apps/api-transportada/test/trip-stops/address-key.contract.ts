@@ -39,14 +39,22 @@ describe('stop address key (ADR-0043 §3)', () => {
 
   test('two different postal codes never collapse into the same portão', () => {
     const first = buildStopAddressKey({ cityCode: '3550308', number: '45', postalCode: '01310100' })
-    const second = buildStopAddressKey({ cityCode: '3550308', number: '45', postalCode: '01310101' })
+    const second = buildStopAddressKey({
+      cityCode: '3550308',
+      number: '45',
+      postalCode: '01310101',
+    })
 
     expect(first).not.toBe(second)
   })
 
   test('two different numbers never collapse into the same portão', () => {
     const first = buildStopAddressKey({ cityCode: '3550308', number: '45', postalCode: '01310100' })
-    const second = buildStopAddressKey({ cityCode: '3550308', number: '46', postalCode: '01310100' })
+    const second = buildStopAddressKey({
+      cityCode: '3550308',
+      number: '46',
+      postalCode: '01310100',
+    })
 
     expect(first).not.toBe(second)
   })

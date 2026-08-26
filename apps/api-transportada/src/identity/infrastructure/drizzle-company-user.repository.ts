@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 
+import { fleetDrivers } from '../../database/fleet.schema.js'
 import {
   externalIdentities,
   identityUserProfiles,
@@ -14,7 +15,7 @@ import {
 } from '../../database/database.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
-import { DuplicateUsernameError } from '../domain/company-user.error.js'
+import { DuplicateTaxIdError, DuplicateUsernameError } from '../domain/company-user.error.js'
 import { buildCompanyAdministratorFilters } from './drizzle-invitation.repository.js'
 import type {
   CompanyUserPage,
@@ -31,10 +32,13 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 type MembershipRow = {
   readonly contactAddress: string
   readonly contactChannel: CompanyUserRecord['contactChannel']
+  readonly email: string
   readonly membershipCreatedAt: Date
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
+  readonly phone: string
+  readonly taxId: string
   readonly userId: string
   readonly username: string
 }
@@ -42,13 +46,21 @@ type MembershipRow = {
 const MEMBERSHIP_COLUMNS = {
   contactAddress: identityUserProfiles.contactAddress,
   contactChannel: identityUserProfiles.contactChannel,
+  email: identityUserProfiles.email,
   membershipCreatedAt: userCompanyMemberships.createdAt,
   membershipId: userCompanyMemberships.id,
   membershipStatus: userCompanyMemberships.status,
   name: identityUserProfiles.name,
+  phone: identityUserProfiles.phone,
+  taxId: identityUserProfiles.taxId,
   userId: userCompanyMemberships.userId,
   username: identityUserProfiles.username,
 } as const
+
+const TAX_ID_CONSTRAINT = 'identity_user_profiles_tax_id_unique'
+
+/** Papéis cuja pessoa tem ficha em `fleet_drivers` — é por eles que o vínculo é procurado. */
+const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 
@@ -57,6 +69,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
   public async createInvitedUser(input: CreateInvitedUserInput): Promise<CreateInvitedUserResult> {
     const membershipId = crypto.randomUUID()
+    let linkedFleetDriverId: string | null = null
     await this.database.transaction(async (transaction) => {
       await transaction.insert(identityUsers).values({ id: input.userId, status: 'active' })
       await transaction.insert(externalIdentities).values({
@@ -83,12 +96,17 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       await transaction.insert(identityUserProfiles).values({
         contactAddress: input.contactAddress,
         contactChannel: input.contactChannel,
+        email: input.email,
         name: input.name,
+        phone: input.phone,
+        taxId: input.taxId,
         userId: input.userId,
         username: input.username,
       })
+
+      linkedFleetDriverId = await linkFleetDriver(transaction, { ...input, membershipId })
     })
-    return { membershipId }
+    return { linkedFleetDriverId, membershipId }
   }
 
   public async findByUserId(input: {
@@ -267,7 +285,10 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     const changes = {
       ...(input.contactAddress === undefined ? {} : { contactAddress: input.contactAddress }),
       ...(input.contactChannel === undefined ? {} : { contactChannel: input.contactChannel }),
+      ...(input.email === undefined ? {} : { email: input.email }),
       ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.phone === undefined ? {} : { phone: input.phone }),
+      ...(input.taxId === undefined ? {} : { taxId: input.taxId }),
       ...(input.username === undefined ? {} : { username: input.username }),
     }
     if (Object.keys(changes).length === 0) return
@@ -278,8 +299,9 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         .set({ ...changes, updatedAt: new Date() })
         .where(eq(identityUserProfiles.userId, input.userId))
     } catch (error) {
-      if (violatedUniqueConstraint(error) === USERNAME_CONSTRAINT)
-        throw new DuplicateUsernameError()
+      const constraint = violatedUniqueConstraint(error)
+      if (constraint === USERNAME_CONSTRAINT) throw new DuplicateUsernameError()
+      if (constraint === TAX_ID_CONSTRAINT) throw new DuplicateTaxIdError()
       throw error
     }
   }
@@ -354,12 +376,53 @@ function toRecord(
   return {
     contactAddress: row.contactAddress,
     contactChannel: row.contactChannel,
+    email: row.email,
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
     name: row.name,
     pendingInvitation: expiresAt === undefined ? undefined : { expiresAt },
+    phone: row.phone,
     roles: rolesByUser.get(row.userId) ?? [],
+    taxId: row.taxId,
     userId: row.userId,
     username: row.username,
   }
+}
+
+/**
+ * O motorista e o agregado já existiam antes do convite: `fleet_drivers` guarda a ficha, com CPF
+ * único por empresa, e a criação da ficha é que costuma disparar o convite (ver
+ * `fleet-drivers.use-case.ts`). Convidar pela tela de usuários é a porta contrária, e sem isto ela
+ * produziria uma segunda pessoa para o mesmo CPF — usuário com papel Motorista que a frota não
+ * conhece.
+ *
+ * Só preenche ficha órfã (`membership_id is null`): ficha já vinculada pertence a outro usuário, e
+ * roubá-la deixaria o primeiro sem frota calada. Não achar ficha não é erro — quem convida pode
+ * estar cadastrando a pessoa antes da ficha; o chamador recebe `null` e avisa na tela.
+ */
+async function linkFleetDriver(
+  transaction: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: {
+    readonly companyId: string
+    readonly membershipId: string
+    readonly roles: readonly CompanyRole[]
+    readonly taxId: string
+  },
+): Promise<string | null> {
+  if (input.taxId === '') return null
+  if (!input.roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return null
+
+  const [linked] = await transaction
+    .update(fleetDrivers)
+    .set({ membershipId: input.membershipId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        eq(fleetDrivers.taxId, input.taxId),
+        isNull(fleetDrivers.membershipId),
+      ),
+    )
+    .returning({ id: fleetDrivers.id })
+
+  return linked?.id ?? null
 }

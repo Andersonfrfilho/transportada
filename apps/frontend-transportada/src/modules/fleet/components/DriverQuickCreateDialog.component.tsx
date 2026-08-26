@@ -238,13 +238,17 @@ export function DriverQuickCreateDialog({
                 options={PIX_KEY_TYPES}
                 placeholder={t('driverPixKeyTypeUnset')}
                 value={form.state.pixKeyType}
-                onChange={(pixKeyType) => form.patch({ pixKeyType, pixKey: formatPixKey(pixKeyType, form.state.pixKey) })}
+                onChange={(pixKeyType) =>
+                  form.patch({ pixKeyType, pixKey: formatPixKey(pixKeyType, form.state.pixKey) })
+                }
               />
               <FleetField
                 label={t('driverPixKey')}
                 {...(pixKeyMaxLength === undefined ? {} : { maxLength: pixKeyMaxLength })}
                 value={form.state.pixKey}
-                onChange={(pixKey) => form.patch({ pixKey: formatPixKey(form.state.pixKeyType, pixKey) })}
+                onChange={(pixKey) =>
+                  form.patch({ pixKey: formatPixKey(form.state.pixKeyType, pixKey) })
+                }
               />
               {driver === undefined ? (
                 <FleetSelectField

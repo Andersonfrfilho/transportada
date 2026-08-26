@@ -83,7 +83,18 @@ export function createUserAdministrationRoutes(
         return jsonResponse({ body: { data: serializeCompanyUser(companyUser) }, status: 201 })
       },
       method: 'POST',
-      parse: ({ request }) => parseInviteCompanyUserRequest(request),
+      async parse({ request }) {
+        const body = await parseInviteCompanyUserRequest(request)
+        return {
+          channel: body.channel,
+          contact: body.contact,
+          name: body.name,
+          roles: body.roles,
+          ...(body.email === undefined ? {} : { email: body.email }),
+          ...(body.phone === undefined ? {} : { phone: body.phone }),
+          ...(body.taxId === undefined ? {} : { taxId: body.taxId }),
+        }
+      },
       pathname: API_COMPANY_USERS_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
@@ -151,6 +162,8 @@ export function createUserAdministrationRoutes(
           ...(body.contact === undefined ? {} : { contact: body.contact }),
           ...(body.email === undefined ? {} : { email: body.email }),
           ...(body.name === undefined ? {} : { name: body.name }),
+          ...(body.phone === undefined ? {} : { phone: body.phone }),
+          ...(body.taxId === undefined ? {} : { taxId: body.taxId }),
           ...(body.username === undefined ? {} : { username: body.username }),
         }
       },

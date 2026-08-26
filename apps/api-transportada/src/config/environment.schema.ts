@@ -55,10 +55,16 @@ const environmentSchema = z.object({
   // Cada uma valida sozinha — uma origem torta na lista não pode abrir a porta pras outras.
   FRONTEND_ORIGIN: z
     .string()
-    .transform((value) => value.split(',').map((origin) => origin.trim()).filter((origin) => origin !== ''))
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin !== ''),
+    )
     .refine((origins) => origins.length > 0, { message: 'FRONTEND_ORIGIN must not be blank' })
     .refine((origins) => origins.every(isTrustedFrontendOrigin), {
-      message: 'FRONTEND_ORIGIN must be a comma-separated list of canonical HTTPS origins or HTTP localhost origins',
+      message:
+        'FRONTEND_ORIGIN must be a comma-separated list of canonical HTTPS origins or HTTP localhost origins',
     })
     .transform((origins) => origins as [string, ...string[]]),
   KEYCLOAK_ADMIN_CLIENT_ID: z.string().trim().min(1),

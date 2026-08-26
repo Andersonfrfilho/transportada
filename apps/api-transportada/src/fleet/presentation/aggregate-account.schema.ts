@@ -5,7 +5,11 @@ import { z } from 'zod'
 
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
-import { assertJsonContentType, parseJson, readBoundedRequestBody } from '../../shared/request-body.service.js'
+import {
+  assertJsonContentType,
+  parseJson,
+  readBoundedRequestBody,
+} from '../../shared/request-body.service.js'
 import { normalizeTaxId, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import type { RegisterAggregateAccountInput } from '../application/aggregate-account.use-case.js'
 

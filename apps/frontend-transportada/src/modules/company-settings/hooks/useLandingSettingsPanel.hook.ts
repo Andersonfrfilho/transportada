@@ -19,9 +19,7 @@ function getLandingPanelClient() {
   })
 }
 
-export function useLandingSettingsPanel(
-  input: Readonly<{ companyId?: string; enabled: boolean }>,
-) {
+export function useLandingSettingsPanel(input: Readonly<{ companyId?: string; enabled: boolean }>) {
   const client = getLandingPanelClient()
   const queryClient = useQueryClient()
   const queryKey = [LANDING_SETTINGS_QUERY_KEY, input.companyId] as const

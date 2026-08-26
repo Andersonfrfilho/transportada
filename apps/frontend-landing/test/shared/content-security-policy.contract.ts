@@ -14,7 +14,10 @@ const ORIGIN_PATTERN = /https:\/\/[a-z0-9.-]+/gu
 /** O arquivo que declara a diretiva nomeia toda origem dela: contá-lo faria a varredura se auto-provar. */
 const DECLARATION_PATH = 'modules/shared/contentSecurityPolicy.service.ts'
 
-const SERVED_POLICY = buildContentSecurityPolicy({ allowsInlineScript: false, apiBaseUrl: API_BASE_URL })
+const SERVED_POLICY = buildContentSecurityPolicy({
+  allowsInlineScript: false,
+  apiBaseUrl: API_BASE_URL,
+})
 
 function directiveOf(policy: string, name: string): string {
   const directive = policy.split('; ').find((entry) => entry.startsWith(`${name} `))

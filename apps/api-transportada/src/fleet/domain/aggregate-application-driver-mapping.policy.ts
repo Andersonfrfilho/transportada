@@ -85,9 +85,7 @@ export type AggregateApplicationDeclaredData = Partial<
   }>
 >
 
-function addressFields(
-  address: DeclaredAddress | undefined,
-): Readonly<{
+function addressFields(address: DeclaredAddress | undefined): Readonly<{
   city: string
   complement: string
   district: string
@@ -251,7 +249,14 @@ export function resolveVehicleOwnerFields(input: {
   const ownerTaxRegime = input.driver.anttCategory
 
   if (ownerRntrc === '' || ownerState === '' || ownerTaxRegime === '') {
-    return { ownerName: '', ownerRntrc: '', ownerState: '', ownerTaxId: '', ownerTaxRegime: '', ownership: 'own' }
+    return {
+      ownerName: '',
+      ownerRntrc: '',
+      ownerState: '',
+      ownerTaxId: '',
+      ownerTaxRegime: '',
+      ownership: 'own',
+    }
   }
 
   return {

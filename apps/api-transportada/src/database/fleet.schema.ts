@@ -628,7 +628,11 @@ export const aggregateDocuments = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    unique('aggregate_documents_company_tax_id_type_unique').on(table.companyId, table.taxId, table.type),
+    unique('aggregate_documents_company_tax_id_type_unique').on(
+      table.companyId,
+      table.taxId,
+      table.type,
+    ),
     check('aggregate_documents_type_check', sql`${table.type} in ('cnh', 'crlv')`),
     check(
       'aggregate_documents_status_check',

@@ -29,7 +29,9 @@ export type AggregatePortalDriverProfile = Readonly<{
 }>
 
 export type AggregatePortalRepositoryPort = Readonly<{
-  findAccountByUserId: (input: { readonly userId: string }) => Promise<AggregatePortalAccount | null>
+  findAccountByUserId: (input: {
+    readonly userId: string
+  }) => Promise<AggregatePortalAccount | null>
   findApplication: (input: {
     readonly companyId: string
     readonly taxId: string

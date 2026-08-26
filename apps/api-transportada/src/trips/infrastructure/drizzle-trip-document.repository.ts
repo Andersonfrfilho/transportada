@@ -3,7 +3,12 @@
  */
 import { and, eq, or, sql } from 'drizzle-orm'
 
-import { tripDocumentEvents, tripDocuments, trips, type TripStatus } from '../../database/trip.schema.js'
+import {
+  tripDocumentEvents,
+  tripDocuments,
+  trips,
+  type TripStatus,
+} from '../../database/trip.schema.js'
 import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
@@ -210,7 +215,9 @@ async function recalculateTripStatus(
   const documentRows = await transaction
     .select({ status: tripDocuments.separationStatus })
     .from(tripDocuments)
-    .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)))
+    .where(
+      and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
+    )
   const tally = tallyTripDocuments(documentRows.map((row) => row.status))
 
   const [tripRecord] = await transaction

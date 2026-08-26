@@ -187,7 +187,10 @@ async function readRouteState(
     .limit(1)
 
   const hasAnyStop = (stopCount?.count ?? 0) > 0
-  return { hasRoute: hasAnyStop && unassignedLiveDocument === undefined, tripStatus: tripRecord.status }
+  return {
+    hasRoute: hasAnyStop && unassignedLiveDocument === undefined,
+    tripStatus: tripRecord.status,
+  }
 }
 
 async function dispatch(
@@ -222,7 +225,11 @@ async function dispatch(
 
 async function releaseUnloadedDocuments(
   transaction: TripTransaction,
-  input: { readonly companyId: string; readonly tripId: string; readonly unloadedDocumentIds: readonly string[] },
+  input: {
+    readonly companyId: string
+    readonly tripId: string
+    readonly unloadedDocumentIds: readonly string[]
+  },
 ): Promise<void> {
   // A parada de cada nota tem de ser lida **antes** do UPDATE: `RETURNING` devolve o estado novo
   // da linha, e a T010 acabou de descobrir isso do jeito caro — nulava `stopId` e depois tentava

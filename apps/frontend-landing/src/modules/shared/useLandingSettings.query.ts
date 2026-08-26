@@ -3,7 +3,11 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { getLandingApiBaseUrl } from './landingEnvironment.config'
-import { DEFAULT_LANDING_SETTINGS, fetchLandingSettings, type LandingSettings } from './landingSettings.service'
+import {
+  DEFAULT_LANDING_SETTINGS,
+  fetchLandingSettings,
+  type LandingSettings,
+} from './landingSettings.service'
 
 const LANDING_SETTINGS_QUERY_KEY = ['landing', 'settings'] as const
 const ACCENT_COLOR_PROPERTY = '--color-accent'
@@ -14,7 +18,10 @@ function applyAccentColor(accentColor: string | undefined): void {
   document.documentElement.style.setProperty(ACCENT_COLOR_PROPERTY, accentColor)
 }
 
-export function useLandingSettings(): { readonly data: LandingSettings; readonly isLoading: boolean } {
+export function useLandingSettings(): {
+  readonly data: LandingSettings
+  readonly isLoading: boolean
+} {
   const query = useQuery({
     queryFn: () => fetchLandingSettings({ apiBaseUrl: getLandingApiBaseUrl() }),
     queryKey: LANDING_SETTINGS_QUERY_KEY,

@@ -21,15 +21,28 @@ const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46])
 function buildFixtures() {
   const repository = new FakeAggregateDocumentRepository()
   const storage = new FakeAggregateDocumentStorage()
-  const uploadUseCase = createAggregateDocumentUseCase({ bucket: 'test-bucket', repository, storage })
-  const reviewUseCase = createAggregateDocumentReviewUseCase({ bucket: 'test-bucket', repository, storage })
+  const uploadUseCase = createAggregateDocumentUseCase({
+    bucket: 'test-bucket',
+    repository,
+    storage,
+  })
+  const reviewUseCase = createAggregateDocumentReviewUseCase({
+    bucket: 'test-bucket',
+    repository,
+    storage,
+  })
   return { repository, reviewUseCase, storage, uploadUseCase }
 }
 
 describe('aggregate document review use case', () => {
   test('a pending document appears in the review queue', async () => {
     const { reviewUseCase, uploadUseCase } = buildFixtures()
-    await uploadUseCase.upload({ bytes: PDF_BYTES, companyId: CONTEXT.companyId, taxId: '12345678901', type: 'cnh' })
+    await uploadUseCase.upload({
+      bytes: PDF_BYTES,
+      companyId: CONTEXT.companyId,
+      taxId: '12345678901',
+      type: 'cnh',
+    })
 
     const pending = await reviewUseCase.list({ context: CONTEXT })
 
@@ -68,7 +81,12 @@ describe('aggregate document review use case', () => {
     })
 
     await expect(
-      reviewUseCase.review({ context: CONTEXT, decision: 'rejected', id: uploaded.id, rejectionReason: '' }),
+      reviewUseCase.review({
+        context: CONTEXT,
+        decision: 'rejected',
+        id: uploaded.id,
+        rejectionReason: '',
+      }),
     ).rejects.toBeInstanceOf(AggregateDocumentRejectionReasonRequiredError)
   })
 

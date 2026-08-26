@@ -15,10 +15,21 @@ export class FakeAggregateDocumentRepository implements AggregateDocumentReposit
   public readonly rows: StoredRow[] = []
   public declaredFieldsByTaxId = new Map<
     string,
-    { licenseCategory: string | null; licenseNumber: string | null; name: string | null; plate: string | null; renavam: string | null }
+    {
+      licenseCategory: string | null
+      licenseNumber: string | null
+      name: string | null
+      plate: string | null
+      renavam: string | null
+    }
   >()
 
-  public async findDeclaredFields({ taxId }: { readonly companyId: string; readonly taxId: string }) {
+  public async findDeclaredFields({
+    taxId,
+  }: {
+    readonly companyId: string
+    readonly taxId: string
+  }) {
     return (
       this.declaredFieldsByTaxId.get(taxId) ?? {
         licenseCategory: null,
@@ -30,18 +41,40 @@ export class FakeAggregateDocumentRepository implements AggregateDocumentReposit
     )
   }
 
-  public async findDownloadLocation({ companyId, id }: { readonly companyId: string; readonly id: string }) {
-    const row = this.rows.find((candidate) => candidate.companyId === companyId && candidate.id === id)
+  public async findDownloadLocation({
+    companyId,
+    id,
+  }: {
+    readonly companyId: string
+    readonly id: string
+  }) {
+    const row = this.rows.find(
+      (candidate) => candidate.companyId === companyId && candidate.id === id,
+    )
     return row === undefined ? null : { bucket: 'test-bucket', objectKey: `key/${row.id}` }
   }
 
-  public async markAutoApproved({ companyId, id }: { readonly companyId: string; readonly id: string }) {
-    const row = this.rows.find((candidate) => candidate.companyId === companyId && candidate.id === id)
+  public async markAutoApproved({
+    companyId,
+    id,
+  }: {
+    readonly companyId: string
+    readonly id: string
+  }) {
+    const row = this.rows.find(
+      (candidate) => candidate.companyId === companyId && candidate.id === id,
+    )
     if (row === undefined) return
     this.rows[this.rows.indexOf(row)] = { ...row, status: 'approved', updatedAt: new Date() }
   }
 
-  public async listByTaxId({ companyId, taxId }: { readonly companyId: string; readonly taxId: string }) {
+  public async listByTaxId({
+    companyId,
+    taxId,
+  }: {
+    readonly companyId: string
+    readonly taxId: string
+  }) {
     return this.rows.filter((row) => row.companyId === companyId && row.taxId === taxId)
   }
 
@@ -50,7 +83,9 @@ export class FakeAggregateDocumentRepository implements AggregateDocumentReposit
   }
 
   public async review({ companyId, id, rejectionReason, status }: ReviewAggregateDocumentInput) {
-    const row = this.rows.find((candidate) => candidate.companyId === companyId && candidate.id === id)
+    const row = this.rows.find(
+      (candidate) => candidate.companyId === companyId && candidate.id === id,
+    )
     if (row === undefined) return null
     const updated: StoredRow = { ...row, rejectionReason, status, updatedAt: new Date() }
     this.rows[this.rows.indexOf(row)] = updated
@@ -60,7 +95,8 @@ export class FakeAggregateDocumentRepository implements AggregateDocumentReposit
   public async upsert(input: UpsertAggregateDocumentInput) {
     const now = new Date()
     const existingIndex = this.rows.findIndex(
-      (row) => row.companyId === input.companyId && row.taxId === input.taxId && row.type === input.type,
+      (row) =>
+        row.companyId === input.companyId && row.taxId === input.taxId && row.type === input.type,
     )
     const row: StoredRow = {
       companyId: input.companyId,

@@ -1,12 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
-import { createPortalClient, PortalRequestError } from '../../src/modules/portal/shared/portalClient.service.js'
+import {
+  createPortalClient,
+  PortalRequestError,
+} from '../../src/modules/portal/shared/portalClient.service.js'
 
 const API_BASE_URL = 'http://localhost:1'
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' }, status })
+  return new Response(JSON.stringify(body), {
+    headers: { 'content-type': 'application/json' },
+    status,
+  })
 }
 
 const SESSION_BODY = {
@@ -47,17 +53,22 @@ describe('portal client', () => {
 
     expect(session.accessToken).toBe('access-token-1')
     expect(sentRequest?.url).toBe(`${API_BASE_URL}/user/auth/login`)
-    expect((sentRequest?.credentials as string)).toBe('include')
+    expect(sentRequest?.credentials as string).toBe('include')
   })
 
   test('an error response surfaces the code and message from the envelope', async () => {
     globalThis.fetch = (() =>
       Promise.resolve(
-        jsonResponse({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } }, 401),
+        jsonResponse(
+          { error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } },
+          401,
+        ),
       )) as unknown as typeof fetch
 
     const client = createPortalClient({ apiBaseUrl: API_BASE_URL })
-    const error = await client.login({ email: 'a@example.com', password: 'wrong' }).catch((caught: unknown) => caught)
+    const error = await client
+      .login({ email: 'a@example.com', password: 'wrong' })
+      .catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(PortalRequestError)
     expect((error as PortalRequestError).code).toBe('INVALID_CREDENTIALS')
@@ -97,10 +108,14 @@ describe('portal client', () => {
       if (url.endsWith('/aggregate-portal/me')) {
         profileCallCount += 1
         if (profileCallCount === 1) return Promise.resolve(new Response(null, { status: 401 }))
-        return Promise.resolve(jsonResponse({ data: { driver: null, rejectionReason: '', status: 'pending' } }))
+        return Promise.resolve(
+          jsonResponse({ data: { driver: null, rejectionReason: '', status: 'pending' } }),
+        )
       }
       if (url.endsWith('/user/auth/refresh')) {
-        return Promise.resolve(jsonResponse({ data: { ...SESSION_BODY.data, accessToken: 'access-token-2' } }))
+        return Promise.resolve(
+          jsonResponse({ data: { ...SESSION_BODY.data, accessToken: 'access-token-2' } }),
+        )
       }
       return Promise.reject(new Error(`unexpected request: ${url}`))
     }) as unknown as typeof fetch

@@ -298,7 +298,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async transitionTripDocument(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ note: input.note ?? null, returnReason: input.returnReason ?? null }),
+        body: JSON.stringify({
+          note: input.note ?? null,
+          returnReason: input.returnReason ?? null,
+        }),
         dependencies,
         method: 'POST',
         path: `${documentPath(input)}/${input.action}`,

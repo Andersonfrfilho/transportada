@@ -4,12 +4,23 @@
 import { z } from 'zod'
 
 import { defineRoute } from '../../http/router.service.js'
-import { API_AGGREGATE_DOCUMENTS_PATH, HTTP_ERROR, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  API_AGGREGATE_DOCUMENTS_PATH,
+  HTTP_ERROR,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
-import { assertJsonContentType, parseJson, readBoundedRequestBody } from '../../shared/request-body.service.js'
+import {
+  assertJsonContentType,
+  parseJson,
+  readBoundedRequestBody,
+} from '../../shared/request-body.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import type { AggregateDocumentReviewUseCase } from '../application/aggregate-document-review.use-case.js'
-import type { AggregateDocument, AggregateDocumentForReview } from '../application/aggregate-document.port.js'
+import type {
+  AggregateDocument,
+  AggregateDocumentForReview,
+} from '../application/aggregate-document.port.js'
 
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
 const REVIEW_PATH = `${API_AGGREGATE_DOCUMENTS_PATH}/:id/review`
@@ -41,7 +52,9 @@ export function createAggregateDocumentReviewRoutes(dependencies: Dependencies) 
   return [
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
-        const documents = await dependencies.aggregateDocumentReview.list({ context: context.scope })
+        const documents = await dependencies.aggregateDocumentReview.list({
+          context: context.scope,
+        })
         return jsonResponse({ body: { data: documents.map(serialize) }, status: 200 })
       },
       method: 'GET',

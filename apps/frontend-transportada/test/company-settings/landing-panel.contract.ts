@@ -9,7 +9,9 @@ import {
 
 function stubFetch(response: Response | (() => Response)): typeof fetch {
   return (() =>
-    Promise.resolve(typeof response === 'function' ? response() : response)) as unknown as typeof fetch
+    Promise.resolve(
+      typeof response === 'function' ? response() : response,
+    )) as unknown as typeof fetch
 }
 
 describe('landing panel client', () => {
@@ -60,10 +62,10 @@ describe('landing panel client', () => {
     let requested = false
     const client = createLandingPanelClient({
       apiBaseUrl: 'http://localhost:53001',
-      fetch: (() => {
+      fetch: () => {
         requested = true
         return Promise.resolve(Response.json({ data: null }))
-      }),
+      },
       getAccessToken: () => Promise.resolve('token'),
     })
 

@@ -26,7 +26,10 @@ import type {
 } from '../application/trip.port.js'
 import type { CancelTripResult } from '../application/cancel-trip.use-case.js'
 import type { DispatchTripResult } from '../application/dispatch-trip.use-case.js'
-import type { ListTripStopsResult, TripStopSummary } from '../application/list-trip-stops.use-case.js'
+import type {
+  ListTripStopsResult,
+  TripStopSummary,
+} from '../application/list-trip-stops.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
 import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
@@ -101,7 +104,11 @@ type BatchStatusInput = {
   readonly tripId: string
 }
 
-type DispatchInput = { readonly force: boolean; readonly forceReason: string | null; readonly tripId: string }
+type DispatchInput = {
+  readonly force: boolean
+  readonly forceReason: string | null
+  readonly tripId: string
+}
 type TripIdInput = { readonly tripId: string }
 type ReorderStopsInput = { readonly stopIds: readonly string[]; readonly tripId: string }
 type DeliveryAddressHistoryInput = { readonly documentId: string; readonly tripId: string }
@@ -324,7 +331,10 @@ export function createTripRoutes(
     }),
     defineRoute<Omit<TripIdInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
-        const result = await dependencies.planTripRoute.execute({ context: context.scope, ...input })
+        const result = await dependencies.planTripRoute.execute({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'POST',
@@ -400,7 +410,10 @@ export function createTripRoutes(
           context: context.scope,
           ...input,
         })
-        return jsonResponse({ body: { data: serializeDeliveryAddressOverride(result) }, status: 201 })
+        return jsonResponse({
+          body: { data: serializeDeliveryAddressOverride(result) },
+          status: 201,
+        })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
@@ -456,9 +469,7 @@ export function createTripRoutes(
   /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
   function tripDocumentActionRoute(config: {
     readonly dependency: {
-      execute(
-        input: TenantInput<TripDocumentActionInput>,
-      ): Promise<TransitionTripDocumentResult>
+      execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
     }
     readonly pathname: string
   }): ReturnType<typeof defineRoute<Omit<TripDocumentActionInput, 'context'>>> {

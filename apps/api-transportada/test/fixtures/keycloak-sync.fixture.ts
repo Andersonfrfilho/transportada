@@ -140,7 +140,9 @@ type CompanyUserRepositoryFakeOptions = {
 export type CompanyUserRepositoryFake = {
   readonly removeMembershipCalls: { readonly userId: string }[]
   readonly setMembershipStatusCalls: { readonly status: MembershipStatus }[]
-  createInvitedUser(input: Record<string, unknown>): Promise<{ readonly membershipId: string }>
+  createInvitedUser(
+    input: Record<string, unknown>,
+  ): Promise<{ readonly linkedFleetDriverId: string | null; readonly membershipId: string }>
   findByUserId(input: { readonly userId: string }): Promise<CompanyUserRecord | undefined>
   findIdentitySubject(input: { readonly userId: string }): Promise<string | undefined>
   listActiveMembershipCompanyIds(input: { readonly userId: string }): Promise<readonly string[]>
@@ -161,17 +163,20 @@ export function createCompanyUserRepositoryFake(
     removeMembershipCalls,
     setMembershipStatusCalls,
     createInvitedUser() {
-      return Promise.resolve({ membershipId: 'vinculo-de-teste' })
+      return Promise.resolve({ linkedFleetDriverId: null, membershipId: 'vinculo-de-teste' })
     },
     async findByUserId({ userId }) {
       return {
         contactAddress: 'pessoa@empresa.test',
         contactChannel: channel,
+        email: 'pessoa@empresa.test',
         membershipId: 'vinculo-de-teste',
         membershipStatus: options.membershipStatus ?? 'active',
         name: 'Pessoa de Teste',
         pendingInvitation: undefined,
+        phone: '',
         roles,
+        taxId: '',
         userId,
         username: userId,
       }

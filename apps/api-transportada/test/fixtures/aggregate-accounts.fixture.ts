@@ -9,7 +9,11 @@ import type { AggregateAccountUserModulePort } from '../../src/fleet/application
 
 export class FakeAggregateAccountRepository implements AggregateAccountRepositoryPort {
   public readonly eligibleByTaxId = new Map<string, AggregateAccountEligibility>()
-  public readonly linkCalls: Array<{ readonly companyId: string; readonly taxId: string; readonly userId: string }> = []
+  public readonly linkCalls: Array<{
+    readonly companyId: string
+    readonly taxId: string
+    readonly userId: string
+  }> = []
   public readonly linkedTaxIds = new Set<string>()
 
   public async findEligibleTaxId({ taxId }: { readonly taxId: string }) {
@@ -20,7 +24,11 @@ export class FakeAggregateAccountRepository implements AggregateAccountRepositor
     return this.linkedTaxIds.has(taxId)
   }
 
-  public async link(input: { readonly companyId: string; readonly taxId: string; readonly userId: string }) {
+  public async link(input: {
+    readonly companyId: string
+    readonly taxId: string
+    readonly userId: string
+  }) {
     this.linkCalls.push(input)
     this.linkedTaxIds.add(input.taxId)
   }
@@ -41,7 +49,13 @@ export class FakeAggregateAccountUserModule implements AggregateAccountUserModul
         expiresInSeconds: 900,
         refreshExpiresInSeconds: 2_592_000,
         refreshToken: 'refresh-token',
-        user: { email: input.email, id: 'user-1', isActive: true, name: 'Fulano de Tal', role: 'aggregate' },
+        user: {
+          email: input.email,
+          id: 'user-1',
+          isActive: true,
+          name: 'Fulano de Tal',
+          role: 'aggregate',
+        },
       }),
     },
     createUser: {

@@ -38,7 +38,9 @@ export class AggregateApplicationRequestError extends Error {
 export type AggregateApplicationClient = Readonly<{
   approve: (id: string) => Promise<AggregateApplication>
   list: () => Promise<readonly AggregateApplication[]>
-  reject: (input: Readonly<{ id: string; rejectionReason: string }>) => Promise<AggregateApplication>
+  reject: (
+    input: Readonly<{ id: string; rejectionReason: string }>,
+  ) => Promise<AggregateApplication>
 }>
 
 async function authenticatedRequest(

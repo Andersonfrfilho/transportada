@@ -64,7 +64,9 @@ export function createDrizzleAggregateApplicationRepository(
       return row === undefined ? null : toApplication(row)
     },
 
-    async insert(input: AggregateApplicationSubmissionInput & { duplicateDriverId: string | null }) {
+    async insert(
+      input: AggregateApplicationSubmissionInput & { duplicateDriverId: string | null },
+    ) {
       const [row] = await database
         .insert(aggregateApplications)
         .values({
@@ -117,7 +119,13 @@ export function createDrizzleAggregateApplicationRepository(
 
     async createDriverAndApprove({ companyId, declaredData, email, id, name, phone, taxId }) {
       const declared = declaredData as AggregateApplicationDeclaredData
-      const driverInput = mapDeclaredDataToDriverInput({ declaredData: declared, email, name, phone, taxId })
+      const driverInput = mapDeclaredDataToDriverInput({
+        declaredData: declared,
+        email,
+        name,
+        phone,
+        taxId,
+      })
 
       return database.transaction(async (transaction) => {
         const [driver] = await transaction
@@ -130,7 +138,10 @@ export function createDrizzleAggregateApplicationRepository(
         // Sem placa declarada, o operador cadastra o veículo depois — a ficha do motorista já é
         // válida sozinha, e o veículo do agregado troca de mãos com mais frequência que a CNH dele.
         if (hasDeclaredVehicle(declared.vehicle)) {
-          const vehicleInput = mapDeclaredDataToVehicleInput(declared.vehicle ?? {}, driverInput.state)
+          const vehicleInput = mapDeclaredDataToVehicleInput(
+            declared.vehicle ?? {},
+            driverInput.state,
+          )
           const ownerFields = resolveVehicleOwnerFields({ driver: driverInput, name, taxId })
           const [vehicle] = await transaction
             .insert(fleetVehicles)

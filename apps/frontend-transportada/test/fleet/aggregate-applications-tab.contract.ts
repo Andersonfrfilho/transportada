@@ -71,7 +71,11 @@ describe('aggregate application client', () => {
         request.text().then((body) => {
           sentBody = JSON.parse(body)
           return Response.json({
-            data: { ...(APPLICATION as object), rejectionReason: 'CNH vencida', status: 'rejected' },
+            data: {
+              ...(APPLICATION as object),
+              rejectionReason: 'CNH vencida',
+              status: 'rejected',
+            },
           })
         }),
       getAccessToken: () => Promise.resolve('token'),

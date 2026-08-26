@@ -275,10 +275,10 @@ viagens perdidas por agendamento.
 3. `trip_stop_schedules` (D3), ligada à parada da 056.
 4. `delivery_charges` (D4) e `extra_charge_batches` (D5), com a máquina de estados de D5 num módulo
    puro e testável — o mesmo padrão da máquina da 056.
-4b. `delivery_client_charge_rules` (D4b): cliente + `charge_type` + valor esperado + `active`, com
+   4b. `delivery_client_charge_rules` (D4b): cliente + `charge_type` + valor esperado + `active`, com
    trilha de ativação. Gatilho na conclusão da entrega gera `delivery_charges` em `suggested`,
    marcando a origem (`recurring` | `occurrence` | `manual`).
-4c. Consumo das ocorrências da 057 (D4c): ocorrência do tipo cobrança vira sugestão com o anexo
+   4c. Consumo das ocorrências da 057 (D4c): ocorrência do tipo cobrança vira sugestão com o anexo
    junto; as demais viram pendência operacional listada na viagem.
 5. Criação automática de `delivery_clients` (e `contractors`) na importação de NF-e, só com
    identidade — nunca com regra (D1, D1b). Idempotente por `(company_id, tax_id)`, e a criação

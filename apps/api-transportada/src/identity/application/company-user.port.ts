@@ -13,12 +13,15 @@ export type PendingInvitationSummary =
 export type CompanyUserRecord = {
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  readonly email: string
   /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly pendingInvitation: PendingInvitationSummary
+  readonly phone: string
   readonly roles: readonly CompanyRole[]
+  readonly taxId: string
   readonly userId: string
   readonly username: string
 }
@@ -32,8 +35,11 @@ export type CreateInvitedUserInput = {
   readonly companyId: string
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  readonly email: string
   readonly issuer: string
   readonly name: string
+  readonly phone: string
+  readonly taxId: string
   /** Papéis do convite: o vínculo nasce com eles, senão o convidado autentica sem permissão. */
   readonly roles: readonly CompanyRole[]
   readonly subject: string
@@ -44,12 +50,21 @@ export type CreateInvitedUserInput = {
 export type UpdateCompanyUserProfileInput = {
   readonly contactAddress?: string
   readonly contactChannel?: ContactChannel
+  readonly email?: string
   readonly name?: string
+  readonly phone?: string
+  readonly taxId?: string
   readonly userId: string
   readonly username?: string
 }
 
 export type CreateInvitedUserResult = {
+  /**
+   * Se o CPF casou com uma ficha de frota que ainda não tinha vínculo. A tela precisa saber:
+   * convidar alguém como Motorista sem ficha correspondente não é erro, mas é meia-verdade —
+   * a pessoa entra no sistema e não aparece na frota até alguém cadastrar a ficha.
+   */
+  readonly linkedFleetDriverId: string | null
   readonly membershipId: string
 }
 

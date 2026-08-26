@@ -3,10 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  TRIP_DOCUMENT_SEPARATION_STATUSES,
-  TRIP_STATUSES,
-} from '../../src/database/trip.schema.js'
+import { TRIP_DOCUMENT_SEPARATION_STATUSES, TRIP_STATUSES } from '../../src/database/trip.schema.js'
 import { tripDocuments, trips } from '../../src/database/database.schema.js'
 import { checkSqlByName, columnSqlTypes, requiredColumnNames } from '../fiscal-schema/support.js'
 

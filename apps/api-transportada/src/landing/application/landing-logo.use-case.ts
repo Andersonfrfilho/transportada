@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CompanyLogo, CompanyLogoRepositoryPort } from '../../companies/application/company-logo.port.js'
+import type {
+  CompanyLogo,
+  CompanyLogoRepositoryPort,
+} from '../../companies/application/company-logo.port.js'
 
 type Dependencies = {
   readonly companyLogoRepository: CompanyLogoRepositoryPort

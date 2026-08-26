@@ -33,7 +33,7 @@ export type TripDocumentBatchWriteInput = {
 
 export type TripDocumentBatchWriteResult = {
   /** Ids que a T006 mandou aplicar mas o `UPDATE` guardado não achou — corrida (spec 056 D2). */
-  readonly racedDocumentIds: readonly string[];
+  readonly racedDocumentIds: readonly string[]
   readonly tripStatus: TripStatus
   readonly updatedDocuments: readonly TripDocument[]
 }
@@ -47,7 +47,10 @@ export type TripDocumentBatchTransitionPort = {
     readonly companyId: string
     readonly documentIds: readonly string[]
     readonly tripId: string
-  }): Promise<{ readonly snapshots: TripDocumentSnapshotById; readonly tripStatus: TripStatus } | null>
+  }): Promise<{
+    readonly snapshots: TripDocumentSnapshotById
+    readonly tripStatus: TripStatus
+  } | null>
   writeBatch(input: TripDocumentBatchWriteInput): Promise<TripDocumentBatchWriteResult>
 }
 
@@ -64,7 +67,11 @@ export type TransitionTripDocumentsBatchInput = {
 
 export type TripDocumentBatchItemOutcome =
   | { readonly documentId: string; readonly outcome: 'applied' }
-  | { readonly documentId: string; readonly outcome: 'blocked'; readonly reason: TripTransitionBlock }
+  | {
+      readonly documentId: string
+      readonly outcome: 'blocked'
+      readonly reason: TripTransitionBlock
+    }
   | { readonly documentId: string; readonly outcome: 'not_found' }
   | { readonly documentId: string; readonly outcome: 'raced' }
   | { readonly documentId: string; readonly outcome: 'unchanged' }
@@ -115,7 +122,11 @@ export async function transitionTripDocumentsBatch(
     })
 
     if (transition.outcome === 'blocked') {
-      preWriteOutcomes.set(documentId, { documentId, outcome: 'blocked', reason: transition.reason })
+      preWriteOutcomes.set(documentId, {
+        documentId,
+        outcome: 'blocked',
+        reason: transition.reason,
+      })
     } else if (transition.outcome === 'unchanged') {
       preWriteOutcomes.set(documentId, { documentId, outcome: 'unchanged' })
     } else {
@@ -129,10 +140,13 @@ export async function transitionTripDocumentsBatch(
 
   if (toApply.length === 0) {
     return {
-      items: input.documentIds.map((documentId) => preWriteOutcomes.get(documentId) ?? {
-        documentId,
-        outcome: 'not_found',
-      }),
+      items: input.documentIds.map(
+        (documentId) =>
+          preWriteOutcomes.get(documentId) ?? {
+            documentId,
+            outcome: 'not_found',
+          },
+      ),
       tripStatus: read.tripStatus,
     }
   }
@@ -142,7 +156,8 @@ export async function transitionTripDocumentsBatch(
     companyId: input.companyId,
     items: toApply,
     note: input.note ?? null,
-    returnReason: input.action === TRIP_DOCUMENT_ACTION.return ? (input.returnReason ?? null) : null,
+    returnReason:
+      input.action === TRIP_DOCUMENT_ACTION.return ? (input.returnReason ?? null) : null,
     tripId: input.tripId,
   })
 
@@ -155,10 +170,13 @@ export async function transitionTripDocumentsBatch(
   }
 
   return {
-    items: input.documentIds.map((documentId) => preWriteOutcomes.get(documentId) ?? {
-      documentId,
-      outcome: 'not_found',
-    }),
+    items: input.documentIds.map(
+      (documentId) =>
+        preWriteOutcomes.get(documentId) ?? {
+          documentId,
+          outcome: 'not_found',
+        },
+    ),
     tripStatus: written.tripStatus,
   }
 }

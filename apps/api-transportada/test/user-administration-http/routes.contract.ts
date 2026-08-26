@@ -46,11 +46,14 @@ describe('rotas de administração de usuários — listagem', () => {
     const view = toCompanyUserView({
       contactAddress: 'pessoa@empresa.test',
       contactChannel: 'email',
+      email: 'pessoa@empresa.test',
       membershipId: TARGET_MEMBERSHIP_ID,
       membershipStatus: 'active',
       name: 'Pessoa Convidada',
       pendingInvitation: undefined,
+      phone: '',
       roles: ['fiscal'],
+      taxId: '',
       userId: TARGET_USER_ID,
       username: TARGET_USER_ID,
     })

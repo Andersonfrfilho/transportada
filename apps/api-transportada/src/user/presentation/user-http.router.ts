@@ -13,7 +13,10 @@ type CreateUserHttpRouterParams = {
   readonly module: UserModule
 }
 
-export function createUserHttpRouter({ companyId, module }: CreateUserHttpRouterParams): ModuleFetchRouter {
+export function createUserHttpRouter({
+  companyId,
+  module,
+}: CreateUserHttpRouterParams): ModuleFetchRouter {
   return createModuleFetchRouter({
     authResolver: createUserAuthResolver({ companyId, module }),
     basePath: USER_ROUTES_BASE_PATH,

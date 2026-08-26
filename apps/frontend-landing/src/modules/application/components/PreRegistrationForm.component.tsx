@@ -1,10 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState, type FormEvent, type ReactNode } from 'react'
 
-import { getLandingApiBaseUrl, getLandingTurnstileSiteKey } from '@/modules/shared/landingEnvironment.config'
+import {
+  getLandingApiBaseUrl,
+  getLandingTurnstileSiteKey,
+} from '@/modules/shared/landingEnvironment.config'
 import type { LandingSettings } from '@/modules/shared/landingSettings.service'
 import { formatPhone, PHONE_MASK_LENGTH, stripPhone } from '@/modules/shared/phone.service'
-import { formatPixKey, pixKeyMaskLength, PIX_KEY_TYPE_OPTIONS } from '@/modules/shared/pixKey.service'
+import {
+  formatPixKey,
+  pixKeyMaskLength,
+  PIX_KEY_TYPE_OPTIONS,
+} from '@/modules/shared/pixKey.service'
 import { CNPJ_LENGTH, formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 import { Combobox, type ComboboxOption } from '@/modules/shared/components/Combobox.component'
 import { createAggregateApplicationClient } from '../shared/landingClient.service'
@@ -24,9 +31,17 @@ const RNTRC_MASK_LENGTH = 9
  * seria acoplamento maior que o problema. `<select>` nativo é proibido a partir de ~8 opções
  * (web.md §11) — por isso viram `Combobox`, não `<select>`.
  */
-const LICENSE_CATEGORY_OPTIONS: readonly ComboboxOption[] = ['A', 'B', 'AB', 'C', 'AC', 'D', 'AD', 'E', 'AE'].map(
-  (category) => ({ label: category, value: category }),
-)
+const LICENSE_CATEGORY_OPTIONS: readonly ComboboxOption[] = [
+  'A',
+  'B',
+  'AB',
+  'C',
+  'AC',
+  'D',
+  'AD',
+  'E',
+  'AE',
+].map((category) => ({ label: category, value: category }))
 /** tpProp do MDF-e — 0 TAC agregado, 1 TAC independente, 2 outros. */
 const ANTT_CATEGORY_OPTIONS: readonly ComboboxOption[] = [
   { label: 'TAC agregado', value: '0' },
@@ -112,7 +127,10 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
   const showUnitSelect = settings.units.length > 1
 
-  function updateField<TField extends keyof FormFields>(field: TField, value: FormFields[TField]): void {
+  function updateField<TField extends keyof FormFields>(
+    field: TField,
+    value: FormFields[TField],
+  ): void {
     setFields((current) => ({ ...current, [field]: value }))
   }
 
@@ -156,7 +174,8 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
     )
   }
 
-  const canSubmit = state !== 'submitting' && (turnstileSiteKey === undefined || turnstileToken !== '')
+  const canSubmit =
+    state !== 'submitting' && (turnstileSiteKey === undefined || turnstileToken !== '')
 
   return (
     <section className={styles.section}>
@@ -232,7 +251,9 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>Endereço</legend>
-          <p className={styles.hint}>Usado no cadastro da ficha — não é obrigatório para enviar a candidatura.</p>
+          <p className={styles.hint}>
+            Usado no cadastro da ficha — não é obrigatório para enviar a candidatura.
+          </p>
           <label className={styles.field}>
             <span className={styles.label}>CEP</span>
             <input
@@ -310,7 +331,8 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>CNH e RNTRC</legend>
           <p className={styles.hint}>
-            Sem isso a ficha aprovada não emite MDF-e — pode completar depois, mas acelera sua liberação.
+            Sem isso a ficha aprovada não emite MDF-e — pode completar depois, mas acelera sua
+            liberação.
           </p>
           <div className={styles.fieldRow}>
             <label className={styles.field}>
@@ -320,7 +342,9 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 inputMode="numeric"
                 type="text"
                 value={fields.licenseNumber}
-                onChange={(event) => updateField('licenseNumber', event.target.value.replace(/\D/g, ''))}
+                onChange={(event) =>
+                  updateField('licenseNumber', event.target.value.replace(/\D/g, ''))
+                }
               />
             </label>
             <label className={styles.field}>
@@ -359,7 +383,9 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>Recebimento</legend>
-          <p className={styles.hint}>Chave Pix usada para o pagamento dos fretes — pode completar depois.</p>
+          <p className={styles.hint}>
+            Chave Pix usada para o pagamento dos fretes — pode completar depois.
+          </p>
           <div className={styles.fieldRow}>
             <label className={styles.field}>
               <span className={styles.label}>Tipo da chave Pix</span>
@@ -382,7 +408,9 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 maxLength={pixKeyMaskLength(fields.pixKeyType)}
                 type="text"
                 value={fields.pixKey}
-                onChange={(event) => updateField('pixKey', formatPixKey(fields.pixKeyType, event.target.value))}
+                onChange={(event) =>
+                  updateField('pixKey', formatPixKey(fields.pixKeyType, event.target.value))
+                }
               />
             </label>
           </div>
@@ -391,7 +419,8 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>Veículo</legend>
           <p className={styles.hint}>
-            Se você já roda com caminhão próprio, informe a placa — sem ela o operador cadastra o veículo depois.
+            Se você já roda com caminhão próprio, informe a placa — sem ela o operador cadastra o
+            veículo depois.
           </p>
           <div className={styles.fieldRow}>
             <label className={styles.field}>
@@ -402,7 +431,10 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 type="text"
                 value={fields.vehiclePlate}
                 onChange={(event) =>
-                  updateField('vehiclePlate', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
+                  updateField(
+                    'vehiclePlate',
+                    event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                  )
                 }
               />
             </label>
@@ -443,14 +475,20 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 maxLength={4}
                 type="text"
                 value={fields.vehicleModelYear}
-                onChange={(event) => updateField('vehicleModelYear', event.target.value.replace(/\D/g, ''))}
+                onChange={(event) =>
+                  updateField('vehicleModelYear', event.target.value.replace(/\D/g, ''))
+                }
               />
             </label>
           </div>
         </fieldset>
 
         {turnstileSiteKey === undefined ? null : (
-          <TurnstileWidget onExpire={() => setTurnstileToken('')} onVerify={setTurnstileToken} siteKey={turnstileSiteKey} />
+          <TurnstileWidget
+            onExpire={() => setTurnstileToken('')}
+            onVerify={setTurnstileToken}
+            siteKey={turnstileSiteKey}
+          />
         )}
 
         {state === 'error' ? (

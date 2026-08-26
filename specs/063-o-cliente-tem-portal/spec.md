@@ -52,6 +52,7 @@ resolver o que veio resolver. O padrão já existe no produto e está registrado
 `apps/worker-transportada/src/identity/`.
 
 Isso puxa exigências que **não** são opcionais:
+
 - O código é curto, tem prazo curto, e tem **limite de tentativa por documento e por IP**. Sem isso,
   o portal vira oráculo: quem tenta documentos aprendendo quais existem descobre a carteira de
   clientes da transportadora.
@@ -105,27 +106,27 @@ entregas dele. Só o agendamento depende de `requires_scheduling` estar ligado.
 ## Histórias priorizadas
 
 **P1 — entrar sem senha**
-*Dado* um destinatário com entrega,
-*quando* informa o documento e o código recebido,
-*então* entra. Documento inexistente recebe a mesma resposta, no mesmo tempo.
+_Dado_ um destinatário com entrega,
+_quando_ informa o documento e o código recebido,
+_então_ entra. Documento inexistente recebe a mesma resposta, no mesmo tempo.
 
 **P1 — minhas entregas**
-*Dado* um cliente autenticado,
-*quando* abre o portal,
-*então* vê as notas destinadas a ele, com status e previsão — e nada de placa, motorista ou valor.
+_Dado_ um cliente autenticado,
+_quando_ abre o portal,
+_então_ vê as notas destinadas a ele, com status e previsão — e nada de placa, motorista ou valor.
 
 **P1 — a entrega concluída mostra o comprovante**
 Data, hora, e o comprovante quando houver (057 D4).
 
 **P2 — agendar**
-*Dado* um cliente com `requires_scheduling`,
-*quando* escolhe uma janela oferecida,
-*então* o agendamento vai a `confirmed` com protocolo, pela rota da 060.
+_Dado_ um cliente com `requires_scheduling`,
+_quando_ escolhe uma janela oferecida,
+_então_ o agendamento vai a `confirmed` com protocolo, pela rota da 060.
 
 **P2 — o contratante aprova o repasse**
-*Dado* um lote `submitted`,
-*quando* o contratante entra,
-*então* vê os lançamentos com data, cliente, nota, tipo e valor, e aprova ou recusa **linha a linha**
+_Dado_ um lote `submitted`,
+_quando_ o contratante entra,
+_então_ vê os lançamentos com data, cliente, nota, tipo e valor, e aprova ou recusa **linha a linha**
 com motivo.
 
 **P3 — histórico e exportação**
@@ -163,15 +164,15 @@ Notificação (062) quando a entrega entra em rota ou é concluída.
 
 ## Casos extremos e falhas
 
-| Caso | Comportamento |
-|---|---|
-| Documento em duas transportadoras do sistema | O portal precisa saber qual — por subdomínio, ou o cliente escolhe após autenticar. Ver Dúvidas. |
-| CPF de pessoa física como destinatário | Mesmo fluxo. E o cuidado é maior: é dado pessoal, e o portal não pode confirmar existência. |
-| Código pedido dez vezes seguidas | Limite por documento, com espera crescente, e o mesmo texto de resposta. |
-| Cliente sem contato cadastrado | Não há para onde mandar o código. A resposta continua uniforme; internamente, vira pendência de cadastro. |
-| Nota cancelada | Aparece como cancelada, não some. |
-| Entrega com ocorrência | O cliente vê que houve ocorrência e o tipo — nunca a descrição interna nem a foto, que podem conter observação do motorista sobre o cliente. |
-| Contratante que também é destinatário | Duas visões no mesmo login, separadas por aba. |
+| Caso                                         | Comportamento                                                                                                                                |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documento em duas transportadoras do sistema | O portal precisa saber qual — por subdomínio, ou o cliente escolhe após autenticar. Ver Dúvidas.                                             |
+| CPF de pessoa física como destinatário       | Mesmo fluxo. E o cuidado é maior: é dado pessoal, e o portal não pode confirmar existência.                                                  |
+| Código pedido dez vezes seguidas             | Limite por documento, com espera crescente, e o mesmo texto de resposta.                                                                     |
+| Cliente sem contato cadastrado               | Não há para onde mandar o código. A resposta continua uniforme; internamente, vira pendência de cadastro.                                    |
+| Nota cancelada                               | Aparece como cancelada, não some.                                                                                                            |
+| Entrega com ocorrência                       | O cliente vê que houve ocorrência e o tipo — nunca a descrição interna nem a foto, que podem conter observação do motorista sobre o cliente. |
+| Contratante que também é destinatário        | Duas visões no mesmo login, separadas por aba.                                                                                               |
 
 ## Critérios de aceite
 
@@ -197,9 +198,9 @@ Notificação (062) quando a entrega entra em rota ou é concluída.
 
 ## 🤖 Modelo
 
-| Etapa | Modelo |
-|---|---|
-| Autenticação, enumeração, isolamento, ADR-0049 | `opus` 🧠 |
+| Etapa                                            | Modelo    |
+| ------------------------------------------------ | --------- |
+| Autenticação, enumeração, isolamento, ADR-0049   | `opus` 🧠 |
 | Contrato de payload mínimo e testes de vazamento | `opus` 🧠 |
-| App, telas, rotas | `sonnet` |
-| Locale e responsividade | `sonnet` |
+| App, telas, rotas                                | `sonnet`  |
+| Locale e responsividade                          | `sonnet`  |

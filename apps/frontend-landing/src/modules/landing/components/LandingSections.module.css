@@ -24,7 +24,11 @@
 /* Herói */
 .hero {
   background:
-    radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent),
+    radial-gradient(
+      60rem 30rem at 85% -10%,
+      color-mix(in srgb, var(--color-accent) 14%, transparent),
+      transparent
+    ),
     var(--color-asphalt);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
 }

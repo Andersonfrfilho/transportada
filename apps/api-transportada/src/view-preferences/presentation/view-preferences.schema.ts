@@ -44,4 +44,3 @@ export async function parseSaveViewPreferencesRequest(
   if (!result.success) throw new ApiError(HTTP_ERROR.invalidRequest)
   return { preferences: result.data.preferences, viewKey: result.data.viewKey }
 }
-

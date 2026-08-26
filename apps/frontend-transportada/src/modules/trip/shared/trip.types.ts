@@ -173,7 +173,13 @@ export type TransitionTripDocumentResult = Readonly<{
   tripStatus: TripStatus
 }>
 
-export const TRIP_BATCH_ITEM_OUTCOME = ['applied', 'blocked', 'not_found', 'raced', 'unchanged'] as const
+export const TRIP_BATCH_ITEM_OUTCOME = [
+  'applied',
+  'blocked',
+  'not_found',
+  'raced',
+  'unchanged',
+] as const
 export type TripBatchItemOutcome = (typeof TRIP_BATCH_ITEM_OUTCOME)[number]
 
 export type TripDocumentBatchItemResult = Readonly<{

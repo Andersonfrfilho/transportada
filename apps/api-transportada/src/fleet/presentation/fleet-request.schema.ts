@@ -255,9 +255,17 @@ function assertDriverRules(
   }
   // As duas metades nascem e somem juntas: chave sem tipo não formata, tipo sem chave não existe
   if ((value.pixKeyType === '') !== (value.pixKey === '')) {
-    context.addIssue({ code: 'custom', message: 'pixKeyType requires pixKey and vice-versa', path: ['pixKey'] })
+    context.addIssue({
+      code: 'custom',
+      message: 'pixKeyType requires pixKey and vice-versa',
+      path: ['pixKey'],
+    })
   } else if (value.pixKeyType !== '' && !PIX_KEY_PATTERNS[value.pixKeyType].test(value.pixKey)) {
-    context.addIssue({ code: 'custom', message: 'pixKey does not match pixKeyType format', path: ['pixKey'] })
+    context.addIssue({
+      code: 'custom',
+      message: 'pixKey does not match pixKeyType format',
+      path: ['pixKey'],
+    })
   }
 }
 

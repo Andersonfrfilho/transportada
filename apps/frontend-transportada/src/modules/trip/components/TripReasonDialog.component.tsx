@@ -87,7 +87,11 @@ export function TripReasonDialog({
 
         <label>
           {reasonLabel}
-          <input autoComplete="off" onChange={(event) => setReason(event.target.value)} value={reason} />
+          <input
+            autoComplete="off"
+            onChange={(event) => setReason(event.target.value)}
+            value={reason}
+          />
         </label>
 
         <footer className={styles.mdfeGateFooter}>
