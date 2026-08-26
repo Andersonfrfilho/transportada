@@ -228,5 +228,22 @@
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
     "generateCteBatchHint": "Antecipa o lote que a contratante autorizaria. O faturamento continua alcançando esses CT-e."
+  },
+  "requirement": {
+    "derived": {
+      "required": "Esta viagem exige MDF-e — ela tem nota de CT-e.",
+      "notRequired": "Esta viagem não exige MDF-e: nenhuma nota de CT-e para declarar."
+    },
+    "forced": {
+      "required": "MDF-e exigido por decisão do operador.",
+      "notRequired": "MDF-e dispensado por decisão do operador."
+    },
+    "dispense": "Dispensar MDF-e",
+    "require": "Exigir MDF-e",
+    "reset": "Voltar ao automático",
+    "hint": "Dispensar viagem com nota de CT-e exige um motivo, e ele fica na trilha.",
+    "dispenseTitle": "Dispensar o MDF-e desta viagem",
+    "dispenseSubtitle": "A viagem tem nota de CT-e. Circular sem manifesto é multa e retenção em barreira — o motivo fica registrado.",
+    "dispenseReasonLabel": "Motivo da dispensa"
   }
 }

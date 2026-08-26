@@ -9,12 +9,18 @@ import { tripDocumentLabel } from '../shared/tripDocument.service'
 import styles from '../styles/trip.module.css'
 
 type TripFiscalReadinessPanelProps = Readonly<{
+  /** Spec 065 D4c: dispensar manifesto é decisão fiscal, e ela é da mesma permissão que emite. */
+  canManageMdfe: boolean
   /** Spec 065 D4bis: só quem submete lote vê o disparo — separar carga não emite CT-e. */
   canSubmitCte: boolean
   documents: readonly TripDocumentDetail[]
   isGeneratingCteBatch: boolean
+  isSavingRequirement: boolean
   onGenerateCteBatch: () => void
+  onSetRequirement: (requiresMdfe: boolean | null) => void
   readiness: TripFiscalReadiness | undefined
+  requiresMdfe: boolean | null
+  requiresMdfeReason: null | string
 }>
 
 /**
@@ -23,11 +29,16 @@ type TripFiscalReadinessPanelProps = Readonly<{
  * existindo para o clique bloqueado; este painel é o que evita o clique.
  */
 export function TripFiscalReadinessPanel({
+  canManageMdfe,
   canSubmitCte,
   documents,
   isGeneratingCteBatch,
+  isSavingRequirement,
   onGenerateCteBatch,
+  onSetRequirement,
   readiness,
+  requiresMdfe,
+  requiresMdfeReason,
 }: TripFiscalReadinessPanelProps) {
   const { t } = useTranslation('trip')
   if (readiness === undefined || readiness.totalCount === 0) return null
@@ -55,6 +66,59 @@ export function TripFiscalReadinessPanel({
         </p>
       </header>
       <p className={styles.readinessState}>{t(`readiness.state.${readiness.state}`)}</p>
+
+      <p className={styles.readinessState}>
+        {t(
+          requiresMdfe === null
+            ? `requirement.derived.${readiness.manifestableCount > 0 ? 'required' : 'notRequired'}`
+            : `requirement.forced.${requiresMdfe ? 'required' : 'notRequired'}`,
+        )}
+        {requiresMdfeReason === null ? null : ` — ${requiresMdfeReason}`}
+      </p>
+
+      {canManageMdfe ? (
+        <div className={styles.readinessActions}>
+          {requiresMdfe === null ? (
+            <>
+              {readiness.manifestableCount > 0 ? (
+                <Button
+                  disabled={isSavingRequirement}
+                  onClick={() => onSetRequirement(false)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="close" />
+                  {t('requirement.dispense')}
+                </Button>
+              ) : (
+                <Button
+                  disabled={isSavingRequirement}
+                  onClick={() => onSetRequirement(true)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="check" />
+                  {t('requirement.require')}
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              disabled={isSavingRequirement}
+              onClick={() => onSetRequirement(null)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="refresh" />
+              {t('requirement.reset')}
+            </Button>
+          )}
+          <p className={styles.readinessHint}>{t('requirement.hint')}</p>
+        </div>
+      ) : null}
 
       {canSubmitCte && awaitingCte.length > 0 ? (
         <div className={styles.readinessActions}>

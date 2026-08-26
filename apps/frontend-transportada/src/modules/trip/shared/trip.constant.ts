@@ -17,6 +17,12 @@ export const TRIP_MANAGE_PERMISSION = 'trip.manage'
  */
 export const CTE_SUBMIT_PERMISSION = 'cte.submit'
 
+/**
+ * Spec 065 D4c: dispensar manifesto é decisão fiscal com multa do outro lado — a mesma permissão
+ * de quem emite, nunca a de quem monta a viagem.
+ */
+export const MDFE_MANAGE_PERMISSION = 'mdfe.manage'
+
 export const TRIP_ERROR = {
   FORBIDDEN: 'TRIP_FORBIDDEN',
   REQUEST_FAILED: 'TRIP_REQUEST_FAILED',
@@ -54,6 +60,8 @@ export const TRIP_KEYS = [
   'companyId',
   'createdAt',
   'id',
+  'requiresMdfe',
+  'requiresMdfeReason',
   'status',
   'updatedAt',
   'vehicleId',

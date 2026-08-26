@@ -228,5 +228,22 @@
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
     "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e."
+  },
+  "requirement": {
+    "derived": {
+      "required": "This trip requires an MDF-e — it carries CT-e notes.",
+      "notRequired": "This trip requires no MDF-e: no CT-e note to declare."
+    },
+    "forced": {
+      "required": "MDF-e required by operator decision.",
+      "notRequired": "MDF-e waived by operator decision."
+    },
+    "dispense": "Waive MDF-e",
+    "require": "Require MDF-e",
+    "reset": "Back to automatic",
+    "hint": "Waiving a trip that carries CT-e notes requires a reason, and it stays on the trail.",
+    "dispenseTitle": "Waive the MDF-e for this trip",
+    "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
+    "dispenseReasonLabel": "Reason for waiving"
   }
 }

@@ -18,6 +18,8 @@ const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
+  requiresMdfe: null,
+  requiresMdfeReason: null,
   // ADR-0043 substituiu `open|closed` pelos oito estados operacionais; `open` virou `draft`
   status: 'draft',
   updatedAt: '2026-07-28T12:00:00.000Z',
@@ -73,6 +75,8 @@ type MockPermissions = readonly string[]
 type MockState = {
   failures: string[]
   manifestCreations: number
+  /** Spec 065 D4c: o que a tela mandou na dispensa — o motivo é a metade que importa. */
+  mdfeRequirements: { reason: null | string; requiresMdfe: boolean | null }[]
 }
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
@@ -177,8 +181,27 @@ function fiscalReadiness(mode: DocumentsMode) {
 }
 
 async function registerTripMocks(
-  input: Readonly<{ mode: DocumentsMode; page: Page }>,
+  input: Readonly<{ mode: DocumentsMode; page: Page; state: MockState }>,
 ): Promise<void> {
+  await input.page.route(/\/trips\/[^/]+\/mdfe-requirement$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const body = route.request().postDataJSON() as {
+      reason: null | string
+      requiresMdfe: boolean | null
+    }
+    input.state.mdfeRequirements.push(body)
+    await fulfillJson(route, {
+      data: {
+        effectiveRequiresMdfe: body.requiresMdfe ?? true,
+        manifestableCount: 1,
+        reason: body.reason,
+        requiresMdfe: body.requiresMdfe,
+      },
+    })
+  })
   await input.page.route(/\/trips(?:\?.*)?$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
@@ -218,8 +241,14 @@ async function registerMdfeManifestMocks(
 
 export async function mockTripWorkspaceApi(
   input: Readonly<{ mode: DocumentsMode; page: Page; permissions: MockPermissions }>,
-): Promise<Readonly<{ failures: () => readonly string[]; manifestCreations: () => number }>> {
-  const state: MockState = { failures: [], manifestCreations: 0 }
+): Promise<
+  Readonly<{
+    failures: () => readonly string[]
+    manifestCreations: () => number
+    mdfeRequirements: () => readonly MockState['mdfeRequirements'][number][]
+  }>
+> {
+  const state: MockState = { failures: [], manifestCreations: 0, mdfeRequirements: [] }
   input.page.on('requestfailed', (request) => {
     if (new URL(request.url()).origin === 'http://localhost:53001') {
       state.failures.push(`${request.url()} ${request.failure()?.errorText}`)
@@ -227,7 +256,7 @@ export async function mockTripWorkspaceApi(
   })
   await Promise.all([
     registerIdentityMock({ page: input.page, permissions: input.permissions }),
-    registerTripMocks({ mode: input.mode, page: input.page }),
+    registerTripMocks({ mode: input.mode, page: input.page, state }),
     registerMdfeManifestMocks({ page: input.page, state }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/vehicles(?:\?.*)?$/ }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/drivers(?:\?.*)?$/ }),
@@ -235,5 +264,6 @@ export async function mockTripWorkspaceApi(
   return {
     failures: () => state.failures,
     manifestCreations: () => state.manifestCreations,
+    mdfeRequirements: () => state.mdfeRequirements,
   }
 }

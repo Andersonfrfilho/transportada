@@ -34,6 +34,9 @@ export type Trip = Readonly<{
   companyId: string
   createdAt: string
   id: string
+  /** Spec 065 D4c: `null` é "derive da classificação das notas", não "não precisa". */
+  requiresMdfe: boolean | null
+  requiresMdfeReason: null | string
   status: TripStatus
   updatedAt: string
   vehicleId: string
@@ -126,6 +129,20 @@ export type TripFiscalReadiness = Readonly<{
   readyCount: number
   state: TripFiscalReadinessState
   totalCount: number
+}>
+
+/** Spec 065 D4c: o que a viagem passou a exigir, já com a derivação aplicada pelo servidor. */
+export type TripMdfeRequirement = Readonly<{
+  effectiveRequiresMdfe: boolean
+  manifestableCount: number
+  reason: null | string
+  requiresMdfe: boolean | null
+}>
+
+export type SetTripMdfeRequirementInput = Readonly<{
+  reason: null | string
+  requiresMdfe: boolean | null
+  tripId: string
 }>
 
 /** Spec 065 D4bis: o lote urgente da viagem — quantas notas foram, e qual lote nasceu. */

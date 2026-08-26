@@ -107,6 +107,11 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
   const [returnDocumentId, setReturnDocumentId] = useState<string | null>(null)
+  /**
+   * Spec 065 D4c: dispensar viagem com nota de CT-e não é um toque — é uma decisão que fica na
+   * trilha, e o diálogo é onde o motivo é digitado antes de o servidor recusá-la sem ele.
+   */
+  const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
   /**
    * Antes de qualquer `return`: hook depois de saída condicional muda a contagem de hooks entre
@@ -175,6 +180,19 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
     workspace.cancelMutation.error,
     workspace.planRouteMutation.error,
   ])
+
+  /**
+   * A dispensa de viagem com nota de CT-e passa pelo diálogo do motivo; os outros dois estados vão
+   * direto, porque não há o que justificar em exigir manifesto nem em voltar ao automático.
+   */
+  function handleSetMdfeRequirement(requiresMdfe: boolean | null): void {
+    if (trip === undefined) return
+    if (requiresMdfe === false && (workspace.fiscalReadiness?.manifestableCount ?? 0) > 0) {
+      setIsDispenseDialogOpen(true)
+      return
+    }
+    workspace.setMdfeRequirementMutation.mutate({ reason: null, requiresMdfe, tripId: trip.id })
+  }
 
   function handleReturnSubmit(reason: string): void {
     if (trip === undefined || returnDocumentId === null) return
@@ -391,11 +409,16 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
 
       {/* A prontidão fica **acima** das ações: quem rola até "emitir" já sabe se dá para emitir */}
       <TripFiscalReadinessPanel
+        canManageMdfe={workspace.controller.canManageMdfe}
         canSubmitCte={workspace.controller.canSubmitCte}
         documents={trip.documents}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+        isSavingRequirement={workspace.setMdfeRequirementMutation.isPending}
         readiness={workspace.fiscalReadiness}
+        requiresMdfe={trip.requiresMdfe}
+        requiresMdfeReason={trip.requiresMdfeReason}
         onGenerateCteBatch={() => workspace.createCteBatchMutation.mutate({ tripId: trip.id })}
+        onSetRequirement={handleSetMdfeRequirement}
       />
 
       <div className={styles.actionActions}>
@@ -443,6 +466,20 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         onClose={() => setOverrideDocumentId(null)}
         onOverride={(body) => workspace.overrideDeliveryAddressMutation.mutateAsync(body)}
         tripId={trip.id}
+      />
+
+      <TripReasonDialog
+        isOpen={isDispenseDialogOpen}
+        isSubmitting={workspace.setMdfeRequirementMutation.isPending}
+        onClose={() => setIsDispenseDialogOpen(false)}
+        onSubmit={(reason) => {
+          setIsDispenseDialogOpen(false)
+          workspace.setMdfeRequirementMutation.mutate({ reason, requiresMdfe: false, tripId: trip.id })
+        }}
+        reasonLabel={t('requirement.dispenseReasonLabel')}
+        subtitle={t('requirement.dispenseSubtitle')}
+        submitLabel={t('requirement.dispense')}
+        title={t('requirement.dispenseTitle')}
       />
 
       <TripReasonDialog

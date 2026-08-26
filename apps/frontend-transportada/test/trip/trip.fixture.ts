@@ -27,6 +27,8 @@ export type TripContract = Readonly<{
   companyId: string
   createdAt: string
   id: string
+  requiresMdfe: boolean | null
+  requiresMdfeReason: null | string
   status: TripStatusContract
   updatedAt: string
   vehicleId: string
@@ -80,6 +82,8 @@ export const TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
+  requiresMdfe: null,
+  requiresMdfeReason: null,
   status: 'draft',
   updatedAt: '2026-07-28T12:00:00.000Z',
   vehicleId: VEHICLE_ID,

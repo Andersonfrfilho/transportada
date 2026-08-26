@@ -20,7 +20,9 @@ import type {
   TransitionTripDocumentResult,
   TripCteBatchResult,
   TripDetail,
+  SetTripMdfeRequirementInput,
   TripFiscalReadiness,
+  TripMdfeRequirement,
   TripDocument,
   TripDocumentActionInput,
   TripListInput,
@@ -48,6 +50,7 @@ export type TripClient = Readonly<{
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
+  setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
@@ -100,7 +103,7 @@ async function authorizedRequest(
     body?: string
     dependencies: ClientDependencies
     idempotencyKey?: string
-    method: 'DELETE' | 'GET' | 'PATCH' | 'POST'
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
     signal?: AbortSignal
   }>,
@@ -240,6 +243,19 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/cte-batches`,
       })
       return adapters.tripCteBatchResultFromApi(readEnvelopeData(response))
+    },
+    /**
+     * Spec 065 D4c: `null` é um dos três estados, e por isso o corpo o carrega por extenso — omitir
+     * o campo faria o servidor recusar, que é o que se quer: ninguém adivinha exigência fiscal.
+     */
+    async setTripMdfeRequirement(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ reason: input.reason, requiresMdfe: input.requiresMdfe }),
+        dependencies,
+        method: 'PUT',
+        path: `${TRIPS_PATH}/${input.tripId}/mdfe-requirement`,
+      })
+      return adapters.tripMdfeRequirementFromApi(readEnvelopeData(response))
     },
     async readFiscalReadiness(input) {
       const response = await authorizedRequest({

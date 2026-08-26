@@ -1029,3 +1029,39 @@ test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é 
 
   await assertNoHorizontalOverflow(page)
 })
+
+/**
+ * Spec 065 D4c: a dispensa é assinada. O que este smoke prova, e nenhum contrato prova, é o
+ * encanamento inteiro — o botão do painel abre o diálogo do motivo, e o motivo digitado chega ao
+ * corpo do `PUT`. Sem ele, o servidor recusaria e o operador veria um erro sem saber por quê.
+ */
+test('dispensar o MDF-e da viagem pede o motivo antes de mandar', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'has-pending',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Ver' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Dispensar MDF-e' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Dispensar o MDF-e desta viagem' })
+  await expect(dialog).toBeVisible()
+  // O motivo é obrigatório: o botão de confirmar nasce desabilitado.
+  await expect(dialog.getByRole('button', { name: 'Dispensar MDF-e' })).toBeDisabled()
+
+  await dialog.getByLabel('Motivo da dispensa').fill('frota própria, carga retorna hoje')
+  await dialog.getByRole('button', { name: 'Dispensar MDF-e' }).click()
+
+  await expect.poll(() => api.mdfeRequirements()).toEqual([
+    { reason: 'frota própria, carga retorna hoje', requiresMdfe: false },
+  ])
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})

@@ -10,6 +10,7 @@ import {
 
 import {
   CTE_SUBMIT_PERMISSION,
+  MDFE_MANAGE_PERMISSION,
   isTripOnTheRoad,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
@@ -37,8 +38,10 @@ import type {
   TransitionTripDocumentResult,
   TripDetail,
   TripDocument,
+  SetTripMdfeRequirementInput,
   TripCteBatchResult,
   TripDocumentActionInput,
+  TripMdfeRequirement,
 } from '../shared/trip.types'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
 
@@ -47,6 +50,7 @@ export type TripController = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   canManageTrips: boolean
   canReadTrips: boolean
+  canManageMdfe: boolean
   canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
@@ -58,6 +62,7 @@ export type TripController = Readonly<{
   ) => Promise<null | ScannedNfeDocument>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
+  setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
@@ -81,10 +86,12 @@ export function createTripController(
   const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
+  const canManageMdfe = input.permissions.includes(MDFE_MANAGE_PERMISSION)
 
   return {
     batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
+    canManageMdfe,
     canManageTrips,
     canReadTrips,
     canSubmitCte,
@@ -100,6 +107,8 @@ export function createTripController(
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
     readFiscalReadiness: (query) =>
       canReadTrips ? input.client.readFiscalReadiness(query) : forbidden(),
+    setTripMdfeRequirement: (body) =>
+      canManageMdfe ? input.client.setTripMdfeRequirement(body) : forbidden(),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
     listDeliveryAddressHistory: (query) =>
@@ -234,6 +243,14 @@ export function useTripWorkspace(
     mutationFn: controller.createTripCteBatch,
     onSuccess: invalidate,
   })
+  /**
+   * Spec 065 D4c: mudar a exigência muda o que o portão do manifesto responde, e é a viagem que
+   * carrega o campo — por isso invalida a viagem, não só a prontidão.
+   */
+  const setMdfeRequirementMutation = useMutation({
+    mutationFn: controller.setTripMdfeRequirement,
+    onSuccess: invalidate,
+  })
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,
     onSuccess: invalidate,
@@ -248,6 +265,7 @@ export function useTripWorkspace(
     createMutation,
     deliverDocumentMutation,
     fiscalReadiness: fiscalReadinessQuery.data,
+    setMdfeRequirementMutation,
     dispatchMutation,
     linkDocumentMutation,
     overrideDeliveryAddressMutation,

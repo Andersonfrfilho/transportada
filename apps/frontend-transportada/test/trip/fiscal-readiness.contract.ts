@@ -145,3 +145,34 @@ describe('a prontidão fiscal que chega da API', () => {
     expect(readiness.documents[0]?.expectedDocument).toBeNull()
   })
 })
+
+describe('a exigência de MDF-e que chega da API', () => {
+  const REQUIREMENT = {
+    effectiveRequiresMdfe: false,
+    manifestableCount: 2,
+    reason: 'frota própria',
+    requiresMdfe: false,
+  }
+
+  it('aceita a resposta completa e devolve o efetivo já derivado pelo servidor', () => {
+    expect(adapters.tripMdfeRequirementFromApi(REQUIREMENT)).toEqual(REQUIREMENT)
+  })
+
+  /** `null` é um dos três estados: recusá-lo transformaria "volte ao automático" em erro. */
+  it('aceita null como sobrescrita ausente', () => {
+    expect(
+      adapters.tripMdfeRequirementFromApi({
+        ...REQUIREMENT,
+        effectiveRequiresMdfe: true,
+        reason: null,
+        requiresMdfe: null,
+      }).requiresMdfe,
+    ).toBeNull()
+  })
+
+  it('recusa a resposta sem o efetivo, que é o que a tela mostra', () => {
+    expect(() =>
+      adapters.tripMdfeRequirementFromApi({ ...REQUIREMENT, effectiveRequiresMdfe: undefined }),
+    ).toThrow()
+  })
+})

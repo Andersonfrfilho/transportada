@@ -35,6 +35,7 @@ import type {
   TripDocument,
   TripDocumentBatchItemResult,
   TripCteBatchResult,
+  TripMdfeRequirement,
   TripDocumentDetail,
   TripDocumentReadiness,
   TripDriverLine,
@@ -64,6 +65,8 @@ function isTripFields(value: Record<string, unknown>): boolean {
     isString(value.companyId) &&
     isString(value.createdAt) &&
     isString(value.id) &&
+    (value.requiresMdfe === null || typeof value.requiresMdfe === 'boolean') &&
+    isNullableString(value.requiresMdfeReason) &&
     isOneOf(value.status, TRIP_STATUS) &&
     isString(value.updatedAt) &&
     isString(value.vehicleId)
@@ -266,6 +269,24 @@ export function createTripResponseAdapters() {
         readyCount: input.readyCount,
         state: input.state,
         totalCount: input.totalCount,
+      }
+    },
+    tripMdfeRequirementFromApi(input: unknown): TripMdfeRequirement {
+      if (
+        !isRecord(input) ||
+        typeof input.effectiveRequiresMdfe !== 'boolean' ||
+        typeof input.manifestableCount !== 'number' ||
+        !isNullableString(input.reason) ||
+        !(input.requiresMdfe === null || typeof input.requiresMdfe === 'boolean')
+      ) {
+        throw invalid()
+      }
+
+      return {
+        effectiveRequiresMdfe: input.effectiveRequiresMdfe,
+        manifestableCount: input.manifestableCount,
+        reason: input.reason,
+        requiresMdfe: input.requiresMdfe,
       }
     },
     tripCteBatchResultFromApi(input: unknown): TripCteBatchResult {
