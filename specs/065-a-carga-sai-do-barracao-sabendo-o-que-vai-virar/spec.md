@@ -166,6 +166,30 @@ abrir a tela de viagem para conferir uma por uma.
 É sinal, não bloqueio. Nota vinculada a viagem **deve** entrar no lote — é justamente a carga que
 rodou. Transformar isso em impedimento inverteria o sentido da informação.
 
+### D4bis — O romaneio dispara os CT-e da viagem quando o MDF-e é urgente
+
+O lote normal espera a autorização da contratante, e é assim que deve ser. Mas há o caso em que o
+MDF-e é necessário **antes** disso — e hoje não existe caminho: o operador espera uma autorização
+comercial para resolver uma necessidade fiscal.
+
+Então o romaneio oferece **"gerar os CT-e desta viagem"**: nasce um lote com as notas de CT-e daquela
+viagem, e ele segue a trilha de emissão que já existe.
+
+E a pergunta que vem junto — *"e o lote futuro, perde alguma coisa?"* — já tem resposta no código:
+
+> **O lote de CT-e é a unidade de emissão, não a de faturamento.** A fatura é montada por **CT-e
+> autorizado**, e o lote é apenas um **filtro opcional** dela (`eligible-cte.query.ts`): ela varre por
+> período, tomador, número e valor. Um CT-e emitido num lote urgente entra na fatura do mês do mesmo
+> jeito que qualquer outro.
+
+O que **não** vai acontecer é a nota entrar num segundo lote depois — e não deve: emitir duas vezes o
+mesmo transporte é bitributação, e o produto já recusa isso
+(`CTE_BATCH_DOCUMENT_ALREADY_LINKED`). "Adicionar num lote futuro" não é o que se quer; o que se quer
+é que o faturamento não perca a nota, e ele não perde.
+
+**Guarda:** a ação é deliberada e deixa trilha — quem gerou e quando. Ela antecipa o ciclo comercial
+combinado com a contratante, e antecipar em silêncio é o que faz alguém descobrir pela fatura.
+
 ### D4c — A viagem pode dizer que não precisa de manifesto, e dizer por quê
 
 A classificação da D4 acerta o caso geral: viagem com nota de fora precisa de MDF-e, viagem só urbana
@@ -280,6 +304,12 @@ _Dado_ uma viagem pronta e um certificado vencido,
 _quando_ a emissão automática tenta,
 _então_ ela não acontece, e a viagem mostra o motivo — em vez de ficar esperando calada.
 
+**P1 — o MDF-e é urgente e os CT-e ainda não saíram**
+_Dado_ uma viagem que precisa de MDF-e antes de a contratante autorizar o lote,
+_quando_ o operador escolhe "gerar os CT-e desta viagem" no romaneio,
+_então_ nasce um lote com as notas de CT-e dela, a emissão segue a trilha que já existe, e o
+faturamento do mês continua alcançando esses CT-e.
+
 **P2 — o DAMDFE toma o lugar do romaneio**
 _Dado_ o MDF-e autorizado com o motorista na rua,
 _quando_ ele abre a viagem,
@@ -328,6 +358,8 @@ imita DANFE ou DAMDFE.
     imitar o desenho de DANFE ou DAMDFE (D1, P3).
 6d. Sinal de vínculo com viagem na listagem de notas e na composição do lote — NF-e e CT-e, sem
     bloqueio (D4b).
+6e. Ação "gerar os CT-e desta viagem" a partir do romaneio, criando lote com as notas de CT-e da
+    viagem e gravando trilha de quem disparou (D4bis).
 7. `freight_rule_versions.filters` ganha `destinationCityCodes`, IBGE de 7 dígitos (D6).
 8. Avaliação prevista da viagem: receita por nota pelos parâmetros, custo pela composição da 061 D2,
    ambos com `source` declarado (D7).
@@ -384,6 +416,8 @@ imita DANFE ou DAMDFE.
 - [ ] Teste de que o PDF do romaneio carrega o título e o aviso de não-fiscal, e um contrato que
       falha se o aviso sair do documento.
 - [ ] Teste de que o vínculo com viagem aparece na listagem de notas e **não** bloqueia o lote.
+- [ ] Teste de que o lote urgente da viagem leva **só** as notas de CT-e — a urbana fica de fora.
+- [ ] Teste de que o CT-e emitido em lote urgente continua elegível ao faturamento do período.
 - [ ] Teste do filtro de município na regra de frete, incluindo a precedência sobre a UF.
 - [ ] Teste de que a avaliação prevista não escreve documento fiscal nenhum.
 - [ ] Integração: viagem mista, do barracão ao manifesto emitido com a viagem já concluída.
