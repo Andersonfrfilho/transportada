@@ -20,7 +20,7 @@ nasce pronto para os dados das 057/060 quando eles vierem, sem migration futura.
 
 > 🤖 Modelo: `opus` 🧠
 
-### T001 🧠 — ADR-0044: a pilha tem três camadas, e a matriz é nossa
+### T001 🧠 ✅ — ADR-0044: a pilha tem três camadas, e a matriz é nossa
 
 Registra: por que geocodificação e matriz de estrada são camadas separadas e por que pular para
 haversine falha (D1); por que o OSRM é hospedado em vez de API paga por elemento (D1); a exceção de
@@ -38,7 +38,7 @@ próprio a preserva.
 
 > 🤖 Modelo: `sonnet` (T003 é 🧠 — migration sobre tabela com dado)
 
-### T002 — `geocoded_addresses` nasce com `external_place_id`
+### T002 ✅ — `geocoded_addresses` nasce com `external_place_id`
 
 Tabela nova, chaveada pela **mesma** chave normalizada da 056 (`buildStopAddressKey`,
 `apps/api-transportada/src/trips/domain/stop-address-key.ts` — `${cityCode}|${postalCode}|${number}`).
@@ -53,7 +53,7 @@ silêncio, e o teste de aceite cobra que toda geocodificação bem-sucedida o pe
 - **Aceite:** tabela criada, CHECK de `precision` e `source` fechados na lista
 - **Verificação:** `bun run --cwd apps/api-transportada db:test`
 
-### T003 🧠 — `trip_stops` ganha coordenada, precisão e o trecho anterior
+### T003 🧠 ✅ — `trip_stops` ganha coordenada, precisão e o trecho anterior
 
 Seis colunas novas (RF-3), todas anuláveis — parada existente não tem nenhuma delas, e inventar
 valor em migration é inventar rota: `latitude`, `longitude`, `geocoding_precision`,
@@ -65,7 +65,7 @@ valor em migration é inventar rota: `latitude`, `longitude`, `geocoding_precisi
 - **Aceite:** colunas anuláveis; nenhuma parada existente alterada
 - **Verificação:** `db:test`
 
-### T004 — `route_suggestions` e `route_suggestion_stops`
+### T004 ✅ — `route_suggestions` e `route_suggestion_stops`
 
 A proposta com o que ela assumiu. `route_suggestions`: `status`
 (`queued|running|ready|accepted|rejected|failed|stale`), `trip_id` (anulável — a multi-veículo da P2
@@ -81,7 +81,7 @@ violações por parada.
 - **Aceite:** CHECK de status fechado; `accepted`/`rejected` exigem `decided_at`
 - **Verificação:** `db:test`
 
-### T005 — Configuração de otimização por empresa
+### T005 ✅ — Configuração de otimização por empresa
 
 RF-7: origem, política de fim (`depot|last_stop|address`), orçamento de tempo do solver, velocidade
 média de fallback, tempo de serviço padrão, peso médio de fallback, mínimo de amostras da mediana
@@ -98,7 +98,7 @@ espalhado pelo fitness.
 
 > 🤖 Modelo: `sonnet`
 
-### T006 — `GeocodingPort` + adaptador Google, com a cascata de quatro precisões
+### T006 ✅ — `GeocodingPort` + adaptador Google, com a cascata de quatro precisões
 
 Porta pura; adaptador Google mapeando `location_type` → precisão:
 `ROOFTOP`→`rooftop`, `RANGE_INTERPOLATED`→`street`, `GEOMETRIC_CENTER`→`postal_code`,
@@ -112,7 +112,7 @@ centroide do município (`city_code`, que já está em `nfe_addresses`).
 - **Aceite:** os quatro `location_type` mapeados; `place_id` sempre persistido; nenhum endereço logado
 - **Verificação:** `bun test ./test/routing-domain.contract.test.ts`
 
-### T007 — O cache de duas camadas, e a de baixo é a autoritativa
+### T007 ✅ — O cache de duas camadas, e a de baixo é a autoritativa
 
 Quente em memória com TTL para a rajada de uma sugestão; embaixo, `geocoded_addresses` **permanente**.
 Esvaziar a quente não pode disparar geocodificação nova — é a definição de ela estar certa, e é
@@ -122,7 +122,7 @@ teste de aceite.
 - **Aceite:** cache quente esvaziado → zero chamadas ao provedor para endereço já em base
 - **Verificação:** contrato
 
-### T008 — `RoutingMatrixPort` + adaptador OSRM + container
+### T008 ✅ — `RoutingMatrixPort` + adaptador OSRM + container
 
 `/table` do OSRM devolve N×N. Container no `compose.yaml` (mesma forma dos demais: porta em
 `127.0.0.1`, healthcheck, `${VAR:-default}`) e serviço no Railway. Runbook de como reconstruir o
@@ -141,7 +141,7 @@ ruim disfarçado de bom é pior que ausência.
 
 > 🤖 Modelo: `opus` 🧠 — é o núcleo, e é onde a spec cobra baseline publicável
 
-### T009 🧠 — A biblioteca pura, sem I/O
+### T009 🧠 ✅ — A biblioteca pura, sem I/O
 
 RF-10: recebe matriz + restrições, devolve sequência. **Sem I/O** — é isso que torna o baseline
 testável. GA híbrido (memético): cromossomo é permutação com separadores de veículo; `2-opt` local
@@ -160,7 +160,7 @@ Semente explícita na entrada. Sem isso o RNF de determinismo não existe.
   aparece em lugar nenhum (D5)
 - **Verificação:** `bun test ./test/routing-solver.contract.test.ts`
 
-### T010 🧠 — A suíte de baseline, que é o que separa produto de brinquedo
+### T010 🧠 ✅ — A suíte de baseline, que é o que separa produto de brinquedo
 
 Instância conhecida da literatura (Solomon/Augerat) comparada com o ótimo publicado, **tolerância
 declarada** — não "parece bom". E o baseline obrigatório: **GA ≥ vizinho-mais-próximo + `2-opt` em
