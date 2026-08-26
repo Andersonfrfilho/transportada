@@ -29,6 +29,7 @@
     "clsx": "2.1.1",
     "i18next": "25.7.4",
     "keycloak-js": "26.2.4",
+    "pdfjs-dist": "^6.2.108",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-i18next": "16.5.0",
