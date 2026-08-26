@@ -31,6 +31,7 @@ const MANIFEST_ID = '44444444-4444-4444-8444-444444444444'
 const TRIP_ID = '44444444-4444-4444-8444-444444444445'
 const CTE_DOCUMENT_ID = '44444444-4444-4444-8444-444444444446'
 const TRIP_DOCUMENT_ID = '44444444-4444-4444-8444-444444444447'
+const NFE_DOCUMENT_ID = '44444444-4444-4444-8444-444444444448'
 
 const SAO_PAULO_KEY = '35260712345678000195570010000000021000000020'
 
@@ -153,6 +154,7 @@ function createFixture(params: FixtureParams = {}) {
             cteAccessKey: SAO_PAULO_KEY,
             cteFiscalDocumentId: CTE_DOCUMENT_ID,
             expectedDocument: 'cte',
+            nfeDocumentId: NFE_DOCUMENT_ID,
             reason: 'ok',
             rejectionCode: null,
             rejectionMessage: null,

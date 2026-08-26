@@ -36,6 +36,8 @@ export type TripDocumentReadiness = {
   readonly cteFiscalDocumentId: string | null
   /** O documento que esta nota espera. `null` quando não deu para decidir (`city_unknown`). */
   readonly expectedDocument: FiscalDocumentKind | null
+  /** A NF-e por trás da linha da viagem — é ela que entra no lote, e por isso ela sobe daqui. */
+  readonly nfeDocumentId: string | null
   readonly reason: TripDocumentReadinessReason
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null

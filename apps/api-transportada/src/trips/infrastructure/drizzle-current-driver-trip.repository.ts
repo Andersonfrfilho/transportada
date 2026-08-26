@@ -194,6 +194,12 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           isNull(tripDocuments.releasedAt),
         ),
       )
+      /**
+       * A ordem é a do vínculo, que é a ordem em que a carga foi separada — e ela precisa ser
+       * estável: romaneio cuja lista embaralha entre uma abertura e outra é romaneio que o
+       * conferente não consegue checar. Sem `order by` explícito, quem decide é o plano do banco.
+       */
+      .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
   }
 }
 

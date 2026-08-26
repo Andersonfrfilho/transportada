@@ -86,6 +86,7 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
         cteStatus: cteFiscalDocuments.status,
         rejectionCode: cteIssuanceAttempts.lastErrorCode,
         destinationCityCode: recipientAddress.cityCode,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
         originCityCode: senderAddress.cityCode,
         rejectionMessage: cteIssuanceAttempts.lastErrorCause,
         tripDocumentId: tripDocuments.id,
@@ -208,6 +209,7 @@ type ReadinessRow = {
   readonly cteAccessKey: string | null
   readonly cteFiscalDocumentId: string | null
   readonly destinationCityCode: string | null
+  readonly nfeDocumentId: string | null
   readonly originCityCode: string | null
   readonly cteStatus: string | null
   readonly rejectionCode: string | null
@@ -279,6 +281,7 @@ function toReadiness(input: {
     cteAccessKey: reason === 'ok' ? row.cteAccessKey : null,
     cteFiscalDocumentId: reason === 'ok' ? row.cteFiscalDocumentId : null,
     expectedDocument,
+    nfeDocumentId: row.nfeDocumentId,
     reason,
     rejectionCode: isRejection ? row.rejectionCode : null,
     rejectionMessage: isRejection ? row.rejectionMessage : null,

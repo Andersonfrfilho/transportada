@@ -31,6 +31,7 @@ import type {
   ListTripStopsResult,
   TripStopSummary,
 } from '../application/list-trip-stops.use-case.js'
+import type { CreateTripCteBatchResult } from '../application/create-trip-cte-batch.use-case.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -43,6 +44,7 @@ import type {
   TripDocumentBatchItemOutcome,
 } from '../application/transition-trip-documents-batch.use-case.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
+import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import {
   parseBatchTransitionTripDocumentsRequest,
   parseCreateTripRequest,
@@ -90,12 +92,19 @@ const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
  */
 const TRIP_AUTOMATIC_MANIFEST_PATH = `${TRIP_MDFE_MANIFESTS_PATH}/automatic`
 /**
+ * Spec 065 D4bis: o lote urgente da viagem, para quando o MDF-e é necessário antes de a contratante
+ * autorizar. É o **lote normal** com as notas da viagem — só o momento muda.
+ */
+const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
+/**
  * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
  * separador que monta a viagem não tem por que poder fazer isso.
  */
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
+/** Disparar o lote é submeter emissão fiscal — a mesma permissão de quem submete o lote normal. */
+const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
 
 type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: CompanyContext }
 
@@ -142,6 +151,15 @@ type Dependencies = {
   readonly cancelTrip: { execute(input: TenantInput<TripIdInput>): Promise<CancelTripResult> }
   readonly closeTrip: { execute(input: TenantInput<CloseTripInput>): Promise<TripDetail> }
   readonly createTrip: { execute(input: TenantInput<CreateTripInput>): Promise<TripDetail> }
+  readonly createTripCteBatch: {
+    execute(input: {
+      readonly companyId: string
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly tripId: string
+      readonly userId: string
+    }): Promise<CreateTripCteBatchResult>
+  }
   readonly createTripMdfeManifest: {
     execute(input: TenantInput<CreateTripMdfeManifestInput>): Promise<MdfeManifestDetail>
   }
@@ -216,6 +234,31 @@ export function createTripRoutes(
       parse: ({ request }) => parseTripList(new URL(request.url)),
       pathname: API_TRIPS_PATH,
       policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.createTripCteBatch.execute({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          idempotencyKey: input.idempotencyKey,
+          tripId: input.tripId,
+          userId: context.scope.userId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 201 })
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters, request }) => ({
+        correlationId,
+        idempotencyKey: parseCteBatchIdempotencyKey(request.headers.get('idempotency-key')),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_CTE_BATCHES_PATH,
+      policy: CTE_SUBMIT_POLICY,
     }),
     defineRoute<{ readonly correlationId: string; readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {

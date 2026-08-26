@@ -301,3 +301,20 @@ export class TripDeliveryProofRejectedError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 065 D4bis: não há CT-e a emitir nesta viagem. Ou já foram todos, ou as entregas são todas no
+ * município da transportadora — e aí o documento é NFS-e, que não sai por lote de CT-e.
+ *
+ * Um lote vazio nasceria, seria submetido e voltaria sem nada; recusar com nome é o que diz ao
+ * operador qual dos dois casos é o dele.
+ */
+export class TripCteBatchEmptyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CTE_BATCH_EMPTY',
+      message: 'This trip has no invoice waiting for a CT-e.',
+      status: 422,
+    })
+  }
+}

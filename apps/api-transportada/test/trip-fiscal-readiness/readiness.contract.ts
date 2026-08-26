@@ -29,6 +29,7 @@ function document(
     cteAccessKey: reason === 'ok' ? '1'.repeat(44) : null,
     cteFiscalDocumentId: reason === 'ok' ? crypto.randomUUID() : null,
     expectedDocument: expectedDocumentOf(reason),
+    nfeDocumentId: crypto.randomUUID(),
     reason,
     rejectionCode: null,
     rejectionMessage: null,

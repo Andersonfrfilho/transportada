@@ -152,6 +152,7 @@ import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizz
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
 import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
 import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastructure/drizzle-automatic-manifest.repository'
 import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
@@ -1073,6 +1074,33 @@ function createApplicationRoutes({
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
+      createTripCteBatch: {
+        execute: async (input) => {
+          const batch = await createTripCteBatch({
+            companyId: input.companyId,
+            correlationId: input.correlationId,
+            createBatch: async (batchInput) => {
+              const created = await cteBatches.create({
+                context: { companyId: batchInput.companyId, userId: batchInput.userId },
+                correlationId: batchInput.correlationId,
+                documentIds: batchInput.documentIds,
+                idempotencyKey: batchInput.idempotencyKey,
+                name: batchInput.name,
+              })
+              return { id: String(created.id) }
+            },
+            idempotencyKey: input.idempotencyKey,
+            readReadiness: (readinessInput) =>
+              readTripFiscalReadiness({
+                ...readinessInput,
+                repository: tripFiscalReadinessQuery,
+              }),
+            tripId: input.tripId,
+            userId: input.userId,
+          })
+          return batch
+        },
+      },
       getTrip: { execute: (input) => trips.get(input) },
       issueManifestAutomatically: {
         execute: (input) =>
