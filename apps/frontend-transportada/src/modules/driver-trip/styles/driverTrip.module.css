@@ -1,0 +1,107 @@
+/* A tela é do motorista, não do analista: alvo grande, contraste alto e uma coluna só. */
+.shell {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 auto;
+  max-width: 40rem;
+  padding: var(--space-4);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.vehicle {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.queueBanner {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.rejectedBanner {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.stopList {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stop {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+/* A parada de agora é a que ele está fazendo: sem isso ele varre a lista com o caminhão parado. */
+.stopCurrent {
+  border-color: var(--color-copper);
+  border-width: 2px;
+}
+
+.stopDone {
+  opacity: 0.65;
+}
+
+.stopHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.stopLabel {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.stopMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.documentList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.document {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.documentSettled {
+  color: var(--color-slate);
+}
+
+/* Alvo de toque de 44px, que é o mínimo para quem usa uma mão e está de pé. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions > * {
+  min-height: 2.75rem;
+}
+
+.occurrenceForm {
+  display: grid;
+  gap: var(--space-2);
+}

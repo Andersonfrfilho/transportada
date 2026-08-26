@@ -1,0 +1,42 @@
+{
+  "arrive": "I arrived",
+  "arrived": "Arrived at {{time}}",
+  "deliver": "Delivered",
+  "documentsPending_one": "{{count}} invoice to deliver",
+  "documentsPending_other": "{{count}} invoices to deliver",
+  "error": "Your trip could not be loaded. Pull to try again.",
+  "loading": "Loading your trip…",
+  "navigate": "Navigate",
+  "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
+  "notRegistered": "Your account is not linked to a driver record yet. Talk to the office.",
+  "occurrence": "Something went wrong",
+  "occurrenceKind": {
+    "address_not_found": "Address not found",
+    "appointment_required": "Appointment required",
+    "customer_closed": "Customer closed",
+    "damaged_goods": "Damaged goods",
+    "dock_closed": "Dock closed",
+    "long_wait": "Long wait",
+    "other": "Other",
+    "unexpected_charge": "Unexpected charge"
+  },
+  "occurrenceDescription": "What happened (optional)",
+  "occurrenceSend": "Record",
+  "queued_one": "{{count}} confirmation waiting to be sent",
+  "queued_other": "{{count}} confirmations waiting to be sent",
+  "rejected": "The office changed this invoice while you were offline. Check before moving on.",
+  "return": "Not delivered",
+  "returnReason": {
+    "address_not_found": "Address not found",
+    "damaged_goods": "Damaged",
+    "establishment_closed": "Establishment closed",
+    "recipient_absent": "Recipient absent",
+    "recipient_refused": "Refused"
+  },
+  "returnTitle": "Why was it not delivered?",
+  "stopCompleted": "Stop completed",
+  "stopTitle": "Stop {{sequence}}",
+  "title": "My trip",
+  "tripCompleted": "Trip completed. Good work.",
+  "vehicle": "Vehicle {{plate}}"
+}

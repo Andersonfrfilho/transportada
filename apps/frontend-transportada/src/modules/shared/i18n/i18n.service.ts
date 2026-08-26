@@ -14,6 +14,8 @@ import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
 import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
 import documentIntakeEnglishLocale from '@/modules/document-intake/locales/documentIntake.en.locale.json'
+import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
+import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
@@ -47,6 +49,7 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
       documentIntake: documentIntakeEnglishLocale,
+      driverTrip: driverTripEnglishLocale,
       fleet: fleetEnglishLocale,
       identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
@@ -65,6 +68,7 @@ void i18n.use(initReactI18next).init({
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
       documentIntake: documentIntakeLocale,
+      driverTrip: driverTripLocale,
       fleet: fleetLocale,
       identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,

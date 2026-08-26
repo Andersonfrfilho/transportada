@@ -1,0 +1,42 @@
+{
+  "arrive": "Cheguei",
+  "arrived": "Cheguei às {{time}}",
+  "deliver": "Entreguei",
+  "documentsPending_one": "{{count}} nota para entregar",
+  "documentsPending_other": "{{count}} notas para entregar",
+  "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
+  "loading": "Carregando sua viagem…",
+  "navigate": "Navegar",
+  "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
+  "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "occurrence": "Deu problema",
+  "occurrenceKind": {
+    "address_not_found": "Endereço não localizado",
+    "appointment_required": "Exigiram agendamento",
+    "customer_closed": "Cliente fechado",
+    "damaged_goods": "Mercadoria avariada",
+    "dock_closed": "Doca interditada",
+    "long_wait": "Espera longa",
+    "other": "Outro",
+    "unexpected_charge": "Cobrança inesperada"
+  },
+  "occurrenceDescription": "O que aconteceu (opcional)",
+  "occurrenceSend": "Registrar",
+  "queued_one": "{{count}} confirmação aguardando envio",
+  "queued_other": "{{count}} confirmações aguardando envio",
+  "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",
+  "return": "Não entreguei",
+  "returnReason": {
+    "address_not_found": "Endereço não encontrado",
+    "damaged_goods": "Avaria",
+    "establishment_closed": "Estabelecimento fechado",
+    "recipient_absent": "Ausente",
+    "recipient_refused": "Recusa"
+  },
+  "returnTitle": "Por que não entregou?",
+  "stopCompleted": "Parada concluída",
+  "stopTitle": "Parada {{sequence}}",
+  "title": "Minha viagem",
+  "tripCompleted": "Viagem concluída. Bom trabalho.",
+  "vehicle": "Veículo {{plate}}"
+}

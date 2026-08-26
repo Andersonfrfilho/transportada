@@ -53,6 +53,7 @@ export type IconName =
   | 'workspace-company-settings'
   | 'workspace-cte-batch'
   | 'workspace-cte-profiles'
+  | 'workspace-driver-trip'
   | 'workspace-fleet'
   | 'workspace-freight'
   | 'workspace-mdfe-manifest'
@@ -162,6 +163,14 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M15 3v4h4',
     'M12 9v8',
     'M14 11h-3a1.5 1.5 0 0 0 0 3h2a1.5 1.5 0 0 1 0 3h-3',
+  ],
+  /** O volante: a tela de quem está com as mãos nele, e não a de quem monta a viagem. */
+  'workspace-driver-trip': [
+    'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    'M12 3v6',
+    'M4.5 16.5 9.9 13.5',
+    'M19.5 16.5 14.1 13.5',
   ],
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],

@@ -18,6 +18,7 @@ import {
   SYNTHETIC_CTE_ARCHIVE_BYTES,
 } from './cte-batch-smoke.helper'
 import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
+import { DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
 import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
@@ -955,6 +956,45 @@ test('CRLV de veículo já cadastrado oferece abrir a ficha existente', async ({
   await expect(page.getByText('A placa GCQ8E47 já está cadastrada nesta frota.')).toBeVisible()
   await page.getByRole('button', { name: 'Abrir a ficha existente' }).click()
   await expect(page.getByRole('heading', { name: 'Editar veículo' })).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Spec 057: o smoke que os contratos não fazem. Eles provam a fila e a política contra dublê; este
+ * prova o encanamento — a tela de entrada de quem é do campo, o toque virando requisição com a
+ * chave de idempotência, e a fila anunciando o que ainda não subiu.
+ */
+test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/minha-viagem')
+  await expect(page.getByText('Veículo GCQ8E47')).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100')).toBeVisible()
+
+  // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect.poll(() => api.reports().length).toBe(1)
+  expect(api.reports()[0]?.path).toBe(`/me/trips/current/stops/${DRIVER_STOP_ID}/arrive`)
+  expect(api.reports()[0]?.idempotencyKey).not.toBe('')
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/** A tela diz a verdade: sem sinal, o toque fica "aguardando envio" — nunca "enviado". */
+test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  const api = await mockDriverTripApi({ isOffline: true, page })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+
+  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+  expect(api.reports()).toEqual([])
 
   await assertNoHorizontalOverflow(page)
 })

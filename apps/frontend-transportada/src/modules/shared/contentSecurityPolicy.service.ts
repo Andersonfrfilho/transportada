@@ -29,7 +29,14 @@ export const EXTERNAL_CONNECT_ORIGIN = [
  * do `connect-src` de propósito, e está declarada aqui para o contrato distinguir "destino esquecido
  * na diretiva" de "endereço que nunca foi destino".
  */
-export const NON_FETCH_ORIGIN = ['https://adatechnology.com.br'] as const
+export const NON_FETCH_ORIGIN = [
+  'https://adatechnology.com.br',
+  /**
+   * O botão "navegar" do motorista **abre** o mapa no app que ele já usa (ADR-0045 §8) — é
+   * `window.open`, não `fetch`. Pô-lo em `connect-src` daria permissão de rede que a tela não usa.
+   */
+  'https://maps.google.com',
+] as const
 
 type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
