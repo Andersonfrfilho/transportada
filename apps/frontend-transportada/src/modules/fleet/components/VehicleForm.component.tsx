@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { DocumentIntakeDropZone } from '@/modules/document-intake/components/DocumentIntakeDropZone.component'
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
@@ -71,14 +72,24 @@ export function VehicleForm({
   return (
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
-      <VehicleIdentityFields state={form.state} onChange={form.patch} />
+      <DocumentIntakeDropZone onApply={(result) => form.applyDocument(result.values)} />
+      <VehicleIdentityFields
+        documentFields={form.documentFields}
+        state={form.state}
+        onChange={form.patch}
+      />
       <VehicleModelFields
         catalog={catalog}
+        documentFields={form.documentFields}
         state={form.state}
         vehicles={vehicles}
         onChange={form.patch}
       />
-      <VehicleOperationFields state={form.state} onChange={form.patch} />
+      <VehicleOperationFields
+        documentFields={form.documentFields}
+        state={form.state}
+        onChange={form.patch}
+      />
       <VehicleOwnerFields
         drivers={drivers}
         state={form.state}
@@ -88,6 +99,7 @@ export function VehicleForm({
       />
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
+        documentFields={form.documentFields}
         fuelPrice={resolveFormFuelPrice({ selectedFuelType: form.state.fuelType, vehicle })}
         secondaryFuelPrice={resolveSecondaryFormFuelPrice({
           selectedFuelType: form.state.secondaryFuelType,

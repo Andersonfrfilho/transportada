@@ -1,0 +1,36 @@
+{
+  "chooseFile": "Choose file",
+  "dropHint": "Drop the CRLV-e PDF here, or choose the file. It is read on this machine and never uploaded.",
+  "failed": "This file could not be read. Check that it is a PDF and try again.",
+  "field": {
+    "axleCount": "Axles",
+    "bodyType": "Body type",
+    "brand": "Brand",
+    "capacityKilograms": "Capacity",
+    "color": "Colour",
+    "fuelType": "Fuel",
+    "model": "Model",
+    "modelYear": "Model year",
+    "ownerName": "Owner name",
+    "ownerTaxId": "Owner tax ID",
+    "plate": "Plate",
+    "renavam": "RENAVAM",
+    "secondaryFuelType": "Secondary fuel",
+    "state": "State"
+  },
+  "filledTitle": "Filled from the document",
+  "fromDocument": "from the document",
+  "reading": "Reading the document…",
+  "reason": {
+    "ambiguousDiesel": "the document says only \"diesel\" and does not tell S10 from S500 — please check",
+    "checkDigitFailed": "the check digit does not add up",
+    "notInCatalog": "the printed value is not in our catalogue",
+    "notInformed": "the traffic department did not inform it",
+    "notPrinted": "the document does not print the tare weight, and capacity is gross weight minus tare"
+  },
+  "recognized": "Recognised: CRLV-e",
+  "remarksTitle": "Check by hand",
+  "scanned": "This PDF is a scanned image with no text to read. Manual entry is still available.",
+  "title": "Fill from the document",
+  "unknown": "We did not recognise this document. The form stays blank, as it always was."
+}

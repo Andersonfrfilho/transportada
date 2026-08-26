@@ -20,6 +20,7 @@ import { FleetField, FleetMoneyField, FleetSelectField } from './FleetField.comp
 
 type VehicleCostFieldsProps = Readonly<{
   costsUpdatedAt: null | string
+  documentFields: ReadonlySet<string>
   fuelPrice: FleetVehicleFuelPrice | null
   onChange: (values: Partial<FleetVehicleFormState>) => void
   secondaryFuelPrice: FleetVehicleFuelPrice | null
@@ -28,6 +29,7 @@ type VehicleCostFieldsProps = Readonly<{
 
 export function VehicleCostFields({
   costsUpdatedAt,
+  documentFields,
   fuelPrice,
   onChange,
   secondaryFuelPrice,
@@ -76,6 +78,7 @@ export function VehicleCostFields({
           onChange={(annualInsuranceAmount) => onChange({ annualInsuranceAmount })}
         />
         <FleetSelectField
+          fromDocument={documentFields.has('fuelType')}
           label={t('fuelType')}
           optionLabelKey="fuelOption"
           options={FUEL_PRODUCTS}
@@ -92,6 +95,7 @@ export function VehicleCostFields({
         />
         <FleetSelectField
           clearable
+          fromDocument={documentFields.has('secondaryFuelType')}
           label={t('secondaryFuelType')}
           optionLabelKey="fuelOption"
           options={listSecondaryFuelOptions(state.fuelType)}

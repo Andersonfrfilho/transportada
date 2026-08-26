@@ -431,6 +431,13 @@
   line-height: 1.5;
 }
 
+.documentMark {
+  margin-left: var(--space-1);
+  color: var(--color-ready);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
 .optionalMark {
   margin-left: var(--space-1);
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);

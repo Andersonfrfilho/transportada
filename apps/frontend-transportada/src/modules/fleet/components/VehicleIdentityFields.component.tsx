@@ -10,11 +10,16 @@ import { FleetField, FleetSelectField } from './FleetField.component'
 import { PlateThumbnail } from './PlateThumbnail.component'
 
 type VehicleIdentityFieldsProps = Readonly<{
+  documentFields: ReadonlySet<string>
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
 }>
 
-export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFieldsProps) {
+export function VehicleIdentityFields({
+  documentFields,
+  onChange,
+  state,
+}: VehicleIdentityFieldsProps) {
   const { t } = useTranslation('fleet')
 
   return (
@@ -22,6 +27,7 @@ export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFields
       <legend>{t('vehicleIdentityLegend')}</legend>
       <div className={styles.plateRow}>
         <FleetField
+          fromDocument={documentFields.has('plate')}
           label={t('plate')}
           maxLength={8}
           value={state.plate}
@@ -32,12 +38,14 @@ export function VehicleIdentityFields({ onChange, state }: VehicleIdentityFields
       <div className={styles.fieldGrid}>
         <FleetField
           inputMode="numeric"
+          fromDocument={documentFields.has('renavam')}
           label={t('renavam')}
           maxLength={11}
           value={state.renavam}
           onChange={(renavam) => onChange({ renavam })}
         />
         <FleetSelectField
+          fromDocument={documentFields.has('state')}
           label={t('vehicleState')}
           optionLabelKey="stateOption"
           options={BRAZIL_STATE}

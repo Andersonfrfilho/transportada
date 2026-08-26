@@ -17,6 +17,8 @@ import {
   mockCteBatchWorkspaceApi,
   SYNTHETIC_CTE_ARCHIVE_BYTES,
 } from './cte-batch-smoke.helper'
+import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
+import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
 import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
@@ -888,4 +890,46 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toHaveCount(0)
+})
+
+/**
+ * Spec 048: é o teste que os contratos não fazem. Eles provam a leitura contra bytes; este prova o
+ * encanamento — o pdf.js carregado sob demanda no navegador, o worker servido da nossa origem sem
+ * afrouxar a CSP, o hook montado e o valor chegando ao `input` que o operador vê.
+ */
+test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  const api = await mockFleetWorkspaceApi({
+    page,
+    permissions: ['fleet.read', 'fleet.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Frota e motoristas' })).toBeVisible()
+  await page.getByRole('button', { name: 'Novo veículo' }).click()
+  await expect(page.getByRole('heading', { name: 'Novo veículo' })).toBeVisible()
+
+  await page.getByLabel('Preencher pelo documento').setInputFiles({
+    buffer: Buffer.from(buildCrlvPdf()),
+    mimeType: 'application/pdf',
+    name: 'crlv.pdf',
+  })
+
+  await expect(page.getByText('Reconhecido: CRLV-e')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: /^Placa/ })).toHaveValue('GCQ8E47')
+  await expect(page.getByRole('textbox', { name: /^Renavam/ })).toHaveValue('00123456789')
+  // A marca de origem é do campo, e é o que separa o que o documento disse do que o operador digitou
+  await expect(page.getByText('veio do documento').first()).toBeVisible()
+
+  // Editar à mão apaga a marca daquele campo: a partir daí o dado é do operador
+  await page.getByRole('textbox', { name: /^Placa/ }).fill('GCQ8E48')
+  await expect(page.getByRole('textbox', { name: /^Placa/ })).toHaveValue('GCQ8E48')
+
+  // O que o documento não diz continua em branco, e o motivo fica à vista
+  await expect(page.getByText('Capacidade —', { exact: false })).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
 })

@@ -4,50 +4,13 @@ import { describe, expect, it } from 'bun:test'
 import { readVehicleDocument } from '@/modules/document-intake/shared/documentIntake.service'
 
 import {
-  buildLabelledColumns,
+  buildCrlvPdf,
   buildTextPdf,
   CDT_FOOTER_PLACEMENT,
   CRLV_TITLE_PLACEMENT,
   getLegacyDocument,
-  type PdfTextPlacement,
+  VALID_CRLV_RENAVAM,
 } from './crlv-pdf.helper'
-
-const VALID_RENAVAM = '00123456789'
-const VALID_CPF = '111.444.777-35'
-
-function buildCrlv(
-  overrides: Readonly<Record<string, string>> = {},
-  extra: readonly PdfTextPlacement[] = [],
-): Uint8Array {
-  const printed: Readonly<Record<string, string>> = {
-    'ANO MODELO': '2021',
-    CARROCERIA: 'FURGAO',
-    'CODIGO RENAVAM': VALID_RENAVAM,
-    COMBUSTIVEL: 'ALCOOL/GASOLINA',
-    'COR PREDOMINANTE': 'BRANCA',
-    'CPF / CNPJ': VALID_CPF,
-    EIXOS: '2',
-    'MARCA / MODELO / VERSAO': 'FIAT/FIORINO ENDURANCE 1.4',
-    'MUNICIPIO / UF': 'SAO PAULO / SP',
-    NOME: 'MARIA DE SOUSA',
-    PLACA: 'GCQ8E47',
-    ...overrides,
-  }
-
-  const columns = Object.entries(printed).map(([label, value], index) => ({
-    label,
-    value,
-    x: 60 + (index % 3) * 170,
-    y: 700 - Math.floor(index / 3) * 40,
-  }))
-
-  return buildTextPdf([
-    CRLV_TITLE_PLACEMENT,
-    ...buildLabelledColumns(columns),
-    CDT_FOOTER_PLACEMENT,
-    ...extra,
-  ])
-}
 
 async function read(data: Uint8Array) {
   return readVehicleDocument({ data, getDocument: getLegacyDocument })
@@ -55,13 +18,13 @@ async function read(data: Uint8Array) {
 
 describe('o CRLV preenche a ficha do veículo', () => {
   it('reconhece o documento pelo título, mesmo com a palavra CNH no rodapé', async () => {
-    const result = await read(buildCrlv())
+    const result = await read(buildCrlvPdf())
 
     expect(result.kind).toBe('crlv')
   })
 
   it('preenche os campos que o documento diz', async () => {
-    const result = await read(buildCrlv())
+    const result = await read(buildCrlvPdf())
 
     expect(result.values).toMatchObject({
       axleCount: '2',
@@ -74,7 +37,7 @@ describe('o CRLV preenche a ficha do veículo', () => {
       ownerName: 'MARIA DE SOUSA',
       ownerTaxId: '11144477735',
       plate: 'GCQ8E47',
-      renavam: VALID_RENAVAM,
+      renavam: VALID_CRLV_RENAVAM,
       secondaryFuelType: 'gasolina-comum',
       state: 'SP',
     })
@@ -82,7 +45,7 @@ describe('o CRLV preenche a ficha do veículo', () => {
 
   /** Capacidade é peso bruto menos tara, e o CRLV não imprime a tara: metade da conta falta. */
   it('não preenche capacidade, e diz por quê', async () => {
-    const result = await read(buildCrlv())
+    const result = await read(buildCrlvPdf())
 
     expect(result.values).not.toHaveProperty('capacityKilograms')
     expect(result.remarks).toContainEqual({
@@ -92,28 +55,28 @@ describe('o CRLV preenche a ficha do veículo', () => {
   })
 
   it('o asterisco em eixos vira campo vazio, nunca zero', async () => {
-    const result = await read(buildCrlv({ EIXOS: '*' }))
+    const result = await read(buildCrlvPdf({ EIXOS: '*' }))
 
     expect(result.values).not.toHaveProperty('axleCount')
     expect(result.remarks).toContainEqual({ field: 'axleCount', reason: 'notInformed' })
   })
 
   it('CPF cujo dígito não fecha não entra no formulário', async () => {
-    const result = await read(buildCrlv({ 'CPF / CNPJ': '111.444.777-34' }))
+    const result = await read(buildCrlvPdf({ 'CPF / CNPJ': '111.444.777-34' }))
 
     expect(result.values).not.toHaveProperty('ownerTaxId')
     expect(result.remarks).toContainEqual({ field: 'ownerTaxId', reason: 'checkDigitFailed' })
   })
 
   it('diesel entra com o padrão da frota e com a ressalva de S10 contra S500', async () => {
-    const result = await read(buildCrlv({ COMBUSTIVEL: 'DIESEL' }))
+    const result = await read(buildCrlvPdf({ COMBUSTIVEL: 'DIESEL' }))
 
     expect(result.values.fuelType).toBe('diesel-s10')
     expect(result.remarks).toContainEqual({ field: 'fuelType', reason: 'ambiguousDiesel' })
   })
 
   it('cor fora do nosso catálogo fica vazia com o motivo', async () => {
-    const result = await read(buildCrlv({ 'COR PREDOMINANTE': 'PRATA METALICO' }))
+    const result = await read(buildCrlvPdf({ 'COR PREDOMINANTE': 'PRATA METALICO' }))
 
     expect(result.values).not.toHaveProperty('color')
     expect(result.remarks).toContainEqual({ field: 'color', reason: 'notInCatalog' })

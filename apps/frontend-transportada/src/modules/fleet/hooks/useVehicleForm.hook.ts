@@ -36,7 +36,10 @@ type UseVehicleFormInput = Readonly<{
 }>
 
 export type VehicleFormController = Readonly<{
+  applyDocument: (values: Partial<FleetVehicleFormState>) => void
   clear: () => void
+  /** Os campos que vieram do documento, e que o formulário marca como tal — spec 048. */
+  documentFields: ReadonlySet<string>
   feedbackKey: null | string
   isSaving: boolean
   patch: (values: Partial<FleetVehicleFormState>) => void
@@ -60,10 +63,22 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   )
   const [feedbackKey, setFeedbackKey] = useState<null | string>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [documentFields, setDocumentFields] = useState<ReadonlySet<string>>(() => new Set())
   const { onCreate, onSaved, onUpdate, vehicle, vehicles } = input
 
+  /**
+   * Editar à mão apaga a marca de origem: a partir daí o dado é do operador, e dizer que ele veio do
+   * documento seria mentir sobre quem digitou o que.
+   */
   function patch(values: Partial<FleetVehicleFormState>): void {
     setFeedbackKey(null)
+    setDocumentFields((previous) => {
+      const touched = Object.keys(values).filter((key) => previous.has(key))
+      if (touched.length === 0) return previous
+      const next = new Set(previous)
+      for (const key of touched) next.delete(key)
+      return next
+    })
     setState((previous) => {
       const next = { ...previous, ...values }
       // Os padrões entram por baixo do que já foi digitado: eles só alcançam campo ainda em branco
@@ -88,10 +103,17 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     })
   }
 
+  /** O documento preenche pelo mesmo caminho do operador, e só a marca de origem o distingue. */
+  function applyDocument(values: Partial<FleetVehicleFormState>): void {
+    patch(values)
+    setDocumentFields(new Set(Object.keys(values)))
+  }
+
   /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
   function clear(): void {
     setFeedbackKey(null)
     clearFormDraft({ storage, storageKey: VEHICLE_DRAFT_STORAGE_KEY })
+    setDocumentFields(new Set())
     setState(createVehicleDraft())
   }
 
@@ -120,5 +142,5 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     }
   }
 
-  return { clear, feedbackKey, isSaving, patch, state, submit }
+  return { applyDocument, clear, documentFields, feedbackKey, isSaving, patch, state, submit }
 }
