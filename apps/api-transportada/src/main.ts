@@ -152,6 +152,8 @@ import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizz
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
+import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastructure/drizzle-automatic-manifest.repository'
 import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
@@ -656,6 +658,10 @@ function createApplicationRoutes({
   const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
+  const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
+    database,
+    readiness: tripFiscalReadinessQuery,
+  })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
@@ -1068,6 +1074,16 @@ function createApplicationRoutes({
       deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       getTrip: { execute: (input) => trips.get(input) },
+      issueManifestAutomatically: {
+        execute: (input) =>
+          issueTripManifestAutomatically({
+            context: { companyId: input.companyId, userId: input.userId },
+            correlationId: input.correlationId,
+            createManifest: createTripMdfeManifest,
+            repository: automaticManifestRepository,
+            tripId: input.tripId,
+          }),
+      },
       readFiscalReadiness: {
         execute: (input) =>
           readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),

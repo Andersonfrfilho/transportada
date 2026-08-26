@@ -5,6 +5,7 @@ import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
+import type { AutomaticManifestResult } from '../../mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
 import type { MdfeManifestDetail } from '../../mdfe-manifests/application/mdfe-manifest.port.js'
 import { parseCreateTripManifestRequest } from '../../mdfe-manifests/presentation/mdfe-manifest.schema.js'
 import type {
@@ -83,6 +84,12 @@ const TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH = `${TRIP_DOCUMENT_PATH}/delivery-addr
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH = `${TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH}-history`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
 /**
+ * Spec 065 D2b: o gatilho automático. Quem chama é o consumer que escuta a autorização de CT-e — uma
+ * **máquina** —, e por isso ela **relata em vez de recusar**: um `409` devolvido a um consumer vira
+ * reentrega, e reentrega de recusa definitiva é fila que nunca drena.
+ */
+const TRIP_AUTOMATIC_MANIFEST_PATH = `${TRIP_MDFE_MANIFESTS_PATH}/automatic`
+/**
  * A escrita de viagem é permissão própria: `fleet.manage` também apaga veículo e motorista, e o
  * separador que monta a viagem não tem por que poder fazer isso.
  */
@@ -143,6 +150,14 @@ type Dependencies = {
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
+  readonly issueManifestAutomatically: {
+    execute(input: {
+      readonly companyId: string
+      readonly correlationId: string
+      readonly tripId: string
+      readonly userId: string
+    }): Promise<AutomaticManifestResult>
+  }
   readonly readFiscalReadiness: {
     execute(input: {
       readonly companyId: string
@@ -201,6 +216,25 @@ export function createTripRoutes(
       parse: ({ request }) => parseTripList(new URL(request.url)),
       pathname: API_TRIPS_PATH,
       policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<{ readonly correlationId: string; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.issueManifestAutomatically.execute({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          tripId: input.tripId,
+          userId: context.scope.userId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_AUTOMATIC_MANIFEST_PATH,
+      policy: MDFE_MANAGE_POLICY,
     }),
     defineRoute<{ readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
