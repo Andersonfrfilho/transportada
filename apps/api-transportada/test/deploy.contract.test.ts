@@ -3,6 +3,7 @@
  */
 import './deploy/backup.contract.js'
 import './deploy/bucket-mirror.contract.js'
+import './deploy/dockerfile-workspace.contract.js'
 import './deploy/gatus.contract.js'
 import './deploy/keycloak-realm.contract.js'
 import './deploy/keycloak-theme-fork.contract.js'

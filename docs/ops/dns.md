@@ -51,11 +51,13 @@ _railway-verify.auth            TXT    "railway-verify=59e6a552b8d5a1031017dcbf4
 api.staging                     CNAME  sacpzi6e.up.railway.app.
 app.staging                     CNAME  8sipokkb.up.railway.app.
 auth.staging                    CNAME  1q9dl5tb.up.railway.app.
+site.staging                    CNAME  4sazgr8p.up.railway.app.
 
 ; --- posse dos dominios no Railway ---
 _railway-verify.api.staging     TXT    "railway-verify=7ddf6a71b4b31287cece616ada4eb130b841f63345ce9ef3dbdf9c5e51d54a7e"
 _railway-verify.app.staging     TXT    "railway-verify=906e1212967814d2db0df76c7cf61dd1947b1429ea6e82f30b1fc11264223d95"
 _railway-verify.auth.staging    TXT    "railway-verify=8cbc55468cf484b53ee1e60833ddddcd4c3c96c8a937056eb3baadd0eecc786f"
+_railway-verify.site.staging    TXT    "railway-verify=bc3f50698f203ba55583d1d7d0223ed95815f2ebe25a581751667f55c08ea757"
 ```
 
 No painel da KingHost o Host vai **relativo** (`api.staging`, não o FQDN), o CNAME leva **ponto

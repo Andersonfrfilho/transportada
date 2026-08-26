@@ -302,7 +302,8 @@ Passos que exigem o dashboard ou uma decisão humana:
 ## Domínios próprios
 
 O endereço que o cliente digita é `fernandes-transportadora.com.br`, em subdomínios:
-`app`/`api`/`auth` para production e `*.staging` para staging. A zona responde pela KingHost, o
+`app`/`api`/`auth`/`site` para production e `*.staging` para staging. O ponto separa o
+ambiente e o hifen nunca: `site.staging.<zona>`, jamais `site-staging.<zona>`. A zona responde pela KingHost, o
 apex e o e-mail do domínio ficam intocados, e não há Cloudflare no caminho — estado da zona,
 motivos e ordem de execução em `docs/ops/dns.md`. Os domínios no Railway se criam e se conferem
 com `./scripts/railway-domains.py <ambiente>`.
@@ -344,7 +345,7 @@ entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDe
 
 - api: `https://api-staging-5633.up.railway.app`
 - transportada-frontend: `https://transportada-staging.up.railway.app`
-- landing: `https://landing-staging-6070.up.railway.app`
+- landing: `https://landing-staging-6070.up.railway.app` (proprio: `https://site.staging.fernandes-transportadora.com.br`, aguardando DNS)
 - keycloak: `https://keycloak-staging-d714.up.railway.app`
 
 > ⚠️ Renomear um serviço **não** renomeia o domínio gerado — ele fica com o nome
