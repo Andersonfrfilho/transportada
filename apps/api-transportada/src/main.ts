@@ -217,6 +217,9 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
+import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
+import { DrizzleExtraChargeBatchRepository } from './delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.js'
+import { createExtraChargeBatchRoutes } from './delivery-clients/presentation/extra-charge-batch.routes.js'
 import { createSuggestDeliveryCharges } from './delivery-clients/application/suggest-delivery-charges.use-case.js'
 import {
   DrizzleDeliveryChargeRepository,
@@ -693,6 +696,15 @@ function createApplicationRoutes({
     logger,
     rules: deliveryChargeRuleRepository,
   })
+  const extraChargeBatches = createExtraChargeBatchesUseCase({
+    batches: new DrizzleExtraChargeBatchRepository(database),
+    charges: deliveryChargeRepository,
+    /**
+     * ADR-0048 §7: o token é a credencial da página pública. 32 bytes de aleatoriedade criptográfica
+     * em base64url — enumerar isso não é um caminho de ataque.
+     */
+    createToken: () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+  })
   const tripStopSchedules = createTripStopSchedulesUseCase({
     repository: new DrizzleTripStopScheduleRepository(database),
   })
@@ -1113,6 +1125,11 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    ...createExtraChargeBatchRoutes({
+      closeBatch: { execute: (input) => extraChargeBatches.close(input) },
+      decideBatch: { execute: (input) => extraChargeBatches.decide(input) },
+      readReport: { execute: (input) => extraChargeBatches.readReport(input) },
     }),
     ...createDeliveryChargeRoutes({
       confirmCharges: { execute: (input) => deliveryCharges.confirm(input) },
