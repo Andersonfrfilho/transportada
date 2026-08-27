@@ -19,7 +19,7 @@ Esta spec fecha a lacuna `NO_DRIVER_RATE`, acrescenta imposto, congela e soma.
 | T004 🧠 | O imposto que desce da receita: ICMS do payload, federais da configuração              | 2, 9      | ✅     |
 | T005    | O resultado congelado no fechamento, e o recálculo com motivo e versão                 | 2, 3      | ✅     |
 | T006    | Rotas: resultado, recálculo, custo avulso — e a recusa nomeando cada papel             | 4, 6, 7   | ✅     |
-| T007    | A soma por período, veículo, motorista e contratante, com a folha do período           | 5         | ⬜     |
-| T008    | Frontend: o painel da conta na viagem                                                  | 10, 11    | ⬜     |
-| T009    | Frontend: o workspace de resultados                                                    | 10, 11    | ⬜     |
-| T010    | E2E: viagem → CT-e → fechamento → resultado congelado com a margem certa               | —         | ⬜     |
+| T007    | A soma por período, veículo, motorista e contratante, com a folha do período           | 5         | ✅     |
+| T008    | Frontend: o painel da conta na viagem                                                  | 10, 11    | ✅     |
+| T009    | Frontend: o workspace de resultados                                                    | 10, 11    | ✅     |
+| T010    | E2E: viagem → CT-e → fechamento → resultado congelado com a margem certa               | —         | ✅     |
