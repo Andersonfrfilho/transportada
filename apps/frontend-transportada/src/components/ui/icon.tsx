@@ -53,6 +53,7 @@ export type IconName =
   | 'workspace-company-settings'
   | 'workspace-cte-batch'
   | 'workspace-cte-profiles'
+  | 'workspace-delivery-clients'
   | 'workspace-driver-trip'
   | 'workspace-fleet'
   | 'workspace-freight'
@@ -136,6 +137,14 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   'workspace-cte-batch': ['M7 4h10v3h3v13H4V7h3z', 'M9 4h6', 'M8 11h8', 'M8 15h5'],
   'workspace-cte-profiles': ['M5 4h9l5 5v11H5z', 'M14 4v5h5', 'M8 13h8', 'M8 17h5', 'M9 9h2'],
+  /** Spec 060: a porta do cliente com hora marcada — prédio e relógio, que é o que o cadastro guarda. */
+  'workspace-delivery-clients': [
+    'M5 20V6l7-3 7 3v14',
+    'M5 20h14',
+    'M9 20v-5h6v5',
+    'M12 8.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
+    'M12 10v1.5l1 .7',
+  ],
   'workspace-fleet': [
     'M4 8h9v7H4z',
     'M13 10h4l3 3v2h-7z',

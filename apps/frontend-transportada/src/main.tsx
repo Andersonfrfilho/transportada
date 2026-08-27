@@ -22,6 +22,7 @@ import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
+import { DeliveryClientWorkspacePage } from '@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'
 import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
   DRIVER_TRIP_PATH,
@@ -82,6 +83,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'company-settings'
     | 'cte-batch'
     | 'cte-profiles'
+    | 'delivery-clients'
     | 'driver-trip'
     | 'fleet'
     | 'freight'
@@ -114,6 +116,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/usuarios', key: 'users', label: 'Usuários' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
+  { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
   // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -139,7 +142,9 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   {
     key: 'registries',
     label: 'Cadastros',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => ['fleet', 'cte-profiles'].includes(key)),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['fleet', 'delivery-clients', 'cte-profiles'].includes(key),
+    ),
   },
   {
     key: 'administration',
@@ -169,6 +174,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/trips') return 'trip'
   if (window.location.pathname === '/cte-profiles') return 'cte-profiles'
   if (window.location.pathname === DRIVER_TRIP_PATH) return 'driver-trip'
+  if (window.location.pathname === '/clientes') return 'delivery-clients'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
@@ -183,6 +189,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'company-settings' ||
     storedWorkspace === 'cte-batch' ||
     storedWorkspace === 'cte-profiles' ||
+    storedWorkspace === 'delivery-clients' ||
     storedWorkspace === 'driver-trip' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
@@ -217,6 +224,8 @@ function resolvePage(
       return <CteBatchWorkspacePage />
     case 'cte-profiles':
       return <CteProfilesPage />
+    case 'delivery-clients':
+      return <DeliveryClientWorkspacePage />
     case 'driver-trip':
       return <DriverTripWorkspacePage />
     case 'fleet':
