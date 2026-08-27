@@ -65,5 +65,42 @@
     "text": "O sistema pode propor a ordem das paradas. Você confere e decide.",
     "action": "Sugerir roteiro",
     "requesting": "Pedindo…"
+  },
+  "multiVehicle": {
+    "action": "Sugerir viagens",
+    "title": "Distribuir notas entre veículos",
+    "documents_one": "1 nota selecionada",
+    "documents_other": "{{count}} notas selecionadas",
+    "vehicles": {
+      "label": "Veículos disponíveis",
+      "placeholder": "Escolha os veículos",
+      "search": "Buscar por placa",
+      "empty": "Nenhum veículo de tração ativo no cadastro.",
+      "clearAll": "Limpar",
+      "remove": "Remover {{label}}",
+      "summary_one": "1 veículo",
+      "summary_other": "{{count}} veículos"
+    },
+    "request": "Distribuir",
+    "requesting": "Distribuindo…",
+    "close": "Fechar",
+    "unassigned": "Sem veículo — decida à mão",
+    "vehicleTitle": "Veículo {{plate}}",
+    "stopCount_one": "1 parada",
+    "stopCount_other": "{{count}} paradas",
+    "accept_one": "Aceitar e criar 1 viagem",
+    "accept_other": "Aceitar e criar {{count}} viagens",
+    "reject": "Descartar",
+    "accepted_one": "1 viagem criada, em planejamento.",
+    "accepted_other": "{{count}} viagens criadas, em planejamento.",
+    "acceptedTrip": "{{documents}} nota(s), {{stops}} parada(s)",
+    "openTrip": "Abrir viagem",
+    "empty": "A distribuição não colocou nenhuma nota em veículo nenhum. Confira os endereços das notas antes de tentar de novo.",
+    "failure": {
+      "ROUTE_SUGGESTION_POOL_EMPTY": "Escolha ao menos uma nota e um veículo.",
+      "ROUTE_SUGGESTION_DOCUMENT_UNAVAILABLE": "Uma ou mais notas já estão em viagem. Tire-as da seleção e peça de novo.",
+      "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "Um ou mais veículos não podem ser roteirizados — só veículo de tração ativo entra.",
+      "unknown": "Não foi possível distribuir as notas agora."
+    }
   }
 }

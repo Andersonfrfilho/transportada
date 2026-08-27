@@ -35,6 +35,11 @@ export type RouteSuggestionStop = Readonly<{
   serviceTimeSeconds: number | null
   serviceTimeSource: ServiceTimeSource | null
   stopId: string | null
+  /**
+   * Spec 058 P2: qual veículo serve esta parada. Nulo na sugestão de viagem única — ali o veículo é
+   * o da viagem — e nulo também na parada que ficou fora da otimização, que espera decisão humana.
+   */
+  vehicleId: string | null
   violations: readonly RouteViolation[]
   /** Peso estimado porque a nota não informou — o conferente vê antes de aceitar. */
   weightEstimated: boolean

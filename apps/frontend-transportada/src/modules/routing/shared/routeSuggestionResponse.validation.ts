@@ -159,6 +159,11 @@ function toStop(value: unknown): RouteSuggestionStop | null {
     serviceTimeSeconds: value.serviceTimeSeconds as null | number,
     serviceTimeSource: value.serviceTimeSource as RouteSuggestionStop['serviceTimeSource'],
     stopId: value.stopId as null | string,
+    /**
+     * Opcional na leitura, como a coordenada: sugestão gravada antes da P2 não tem o campo, e
+     * recusá-la faria a tela deixar de mostrar roteiro que já existe.
+     */
+    vehicleId: isNullableString(value.vehicleId) ? value.vehicleId : null,
     violations,
     weightEstimated: value.weightEstimated as boolean,
   }

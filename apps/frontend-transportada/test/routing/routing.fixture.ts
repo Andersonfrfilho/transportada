@@ -24,6 +24,7 @@ export function buildStop(
     serviceTimeSeconds: 600,
     serviceTimeSource: 'default',
     stopId: null,
+    vehicleId: null,
     violations: [],
     weightEstimated: false,
     ...overrides,
@@ -54,4 +55,9 @@ export const READY_SUGGESTION: RouteSuggestion = {
   truncated: false,
   updatedAt: '2026-08-26T12:01:00.000Z',
   vehicleId: null,
+}
+
+/** Spec 058 P2: a sugestão do pool — sem viagem, e com o veículo decidido por parada. */
+export function buildSuggestion(overrides: Partial<RouteSuggestion>): RouteSuggestion {
+  return { ...READY_SUGGESTION, stops: [], tripId: null, ...overrides }
 }

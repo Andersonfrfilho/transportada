@@ -356,3 +356,53 @@ viagem de novo.
   peso por produto seria uma segunda regra de peso. Vem marcado, como a spec pede.
 - **Sem janela de atendimento** no pool: a janela vem do cadastro de cliente da 060 e o
   `readPoolStops` não a lê ainda — as paradas propostas nascem sem restrição de horário.
+
+### A tela da multi-veículo (2026-08-27)
+
+O maior buraco da entrega da P2 era este: as quatro rotas existiam e ninguém as alcançava. Fechado.
+
+**A ação nasce da seleção**, na barra da tabela de notas, ao lado da emissão de CT-e e de NFS-e — o
+mesmo padrão de `NfseEmissionAction`, e pelo mesmo motivo: é ali que o operador já escolheu as notas.
+Uma tela própria para montar o pool seria esta mesma tabela, de novo, sem os filtros que ele acabou
+de usar.
+
+O diálogo mostra **uma coluna por veículo**, porque é essa a decisão que a multi-veículo toma — quem
+leva o quê. Três coisas que o contrato guarda:
+
+- **o botão diz quantas viagens o aceite vai criar**, antes do clique. Aceitar aqui cria viagem de
+  verdade, e um botão que não avisa transforma isso em surpresa;
+- **proposta que não pôs nota em veículo nenhum não oferece o aceite** — ela diz isso por extenso.
+  Sem esse corte o operador aceitaria o vazio achando que criou viagem;
+- **a parada sem veículo aparece num grupo próprio, no fim, e nunca some**: é ela que espera decisão
+  humana (ADR-0044 §5).
+
+Só veículo de **tração ativo** é oferecido (a API recusaria o resto com `409`), a lista reusa a
+consulta de opções de frota que o vínculo do motorista já mantém em cache, e depois do aceite a tela
+lista as viagens criadas com atalho para abrir cada uma — sem isso o operador teria de procurar,
+numa lista de viagens, quais nasceram do clique que acabou de dar.
+
+⚠️ **Um buraco na API que a tela revelou:** `route_suggestion_stops.vehicle_id` existia, o worker o
+escrevia, e o **leitor não o publicava** — o `RouteSuggestionStop` da porta não tinha o campo. Sem
+isso a tela não teria como agrupar por veículo. Corrigido na porta, no mapeador e na validação do
+frontend, onde ele é lido como **opcional**: sugestão gravada antes da P2 não tem o campo, e recusá-la
+faria a tela deixar de mostrar roteiro que já existe.
+
+Comandos executados:
+
+```
+bun run lint · typecheck · format:check          # limpos, monorepo inteiro
+bun run --cwd apps/api-transportada test         # 3588 pass / 0 fail
+bun run --cwd apps/frontend-transportada test    # 2075 pass / 0 fail
+bun run --cwd apps/frontend-transportada build   # ok
+```
+
+#### Buracos que continuam
+
+- **Nenhum teste de tela de verdade**: esta app não tem DOM no `bun test`, então o que se prova é o
+  serviço puro (agrupamento, contagem, permissão) e o texto de fonte. Clique, foco e teclado do
+  diálogo ficam para o Playwright, que não cobre esta tela.
+- **A geração da proposta segue sem prova de execução** (buraco anterior, intacto): nenhum teste roda
+  o solver sobre um pool contra Postgres. A tela pede, e o que responde em produção ainda não foi
+  exercitado ponta a ponta.
+- **Sem orçamento de tempo na tela**: a rota aceita `solverTimeBudgetSeconds` e o diálogo não o
+  oferece — fica o padrão da empresa.

@@ -4,6 +4,8 @@ import { toRouteSuggestion } from './routeSuggestionResponse.validation'
 
 const TRIPS_PATH = '/trips'
 const GEOCODED_ADDRESSES_PATH = '/geocoded-addresses'
+/** Spec 058 P2: fora da árvore da viagem — a sugestão existe antes de as viagens existirem. */
+const MULTI_VEHICLE_PATH = '/route-suggestions'
 
 export const ROUTING_ERROR = {
   REQUEST_FAILED: 'REQUEST_FAILED',
@@ -26,8 +28,33 @@ type ClientDependencies = Readonly<{
   getAccessToken: () => Promise<string>
 }>
 
+/** O que o aceite da multi-veículo devolve: a sugestão decidida e as viagens que ela criou. */
+export type AcceptedMultiVehicleSuggestion = Readonly<{
+  suggestion: RouteSuggestion
+  trips: readonly MultiVehicleTrip[]
+}>
+
+export type MultiVehicleTrip = Readonly<{
+  documentCount: number
+  stopCount: number
+  tripId: string
+  vehicleId: string
+}>
+
 export type RouteSuggestionClient = Readonly<{
   accept: (input: Readonly<{ suggestionId: string; tripId: string }>) => Promise<RouteSuggestion>
+  acceptMultiVehicle: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<AcceptedMultiVehicleSuggestion>
+  createMultiVehicle: (
+    input: Readonly<{
+      nfeDocumentIds: readonly string[]
+      solverTimeBudgetSeconds?: number
+      vehicleIds: readonly string[]
+    }>,
+  ) => Promise<RouteSuggestion>
+  readMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
+  rejectMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
   correctAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -49,6 +76,55 @@ export function createRouteSuggestionClient(
     async accept(input) {
       return toSuggestion(
         await request({ dependencies, method: 'POST', path: `${suggestionPath(input)}/accept` }),
+      )
+    },
+
+    async acceptMultiVehicle(input) {
+      const payload = readEnvelopeData(
+        await request({
+          dependencies,
+          method: 'POST',
+          path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}/accept`,
+        }),
+      )
+
+      return toAcceptedMultiVehicle(payload)
+    },
+
+    async createMultiVehicle(input) {
+      return toSuggestion(
+        await request({
+          body: JSON.stringify({
+            nfeDocumentIds: input.nfeDocumentIds,
+            ...(input.solverTimeBudgetSeconds === undefined
+              ? {}
+              : { solverTimeBudgetSeconds: input.solverTimeBudgetSeconds }),
+            vehicleIds: input.vehicleIds,
+          }),
+          dependencies,
+          method: 'POST',
+          path: `${MULTI_VEHICLE_PATH}/multi-vehicle`,
+        }),
+      )
+    },
+
+    async readMultiVehicle(input) {
+      return toSuggestion(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}`,
+        }),
+      )
+    },
+
+    async rejectMultiVehicle(input) {
+      return toSuggestion(
+        await request({
+          dependencies,
+          method: 'POST',
+          path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}/reject`,
+        }),
       )
     },
 
@@ -91,6 +167,39 @@ export function createRouteSuggestionClient(
         }),
       )
     },
+  }
+}
+
+/**
+ * A resposta do aceite é **envelope de dois campos**, e as viagens vêm dentro dele. Validar aqui, e
+ * não confiar no formato, é a mesma regra de fronteira do resto: resposta de API é entrada.
+ */
+function toAcceptedMultiVehicle(payload: unknown): AcceptedMultiVehicleSuggestion {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new RoutingRequestError(ROUTING_ERROR.RESPONSE_INVALID)
+  }
+
+  const record = payload as { suggestion?: unknown; trips?: unknown }
+  const suggestion = toRouteSuggestion(record.suggestion)
+  if (suggestion === null) throw new RoutingRequestError(ROUTING_ERROR.RESPONSE_INVALID)
+
+  const trips = Array.isArray(record.trips) ? record.trips.map(toMultiVehicleTrip) : []
+
+  return { suggestion, trips: trips.filter((trip): trip is MultiVehicleTrip => trip !== null) }
+}
+
+function toMultiVehicleTrip(value: unknown): MultiVehicleTrip | null {
+  if (typeof value !== 'object' || value === null) return null
+  const record = value as Record<string, unknown>
+  const tripId = record.tripId
+  const vehicleId = record.vehicleId
+  if (typeof tripId !== 'string' || typeof vehicleId !== 'string') return null
+
+  return {
+    documentCount: typeof record.documentCount === 'number' ? record.documentCount : 0,
+    stopCount: typeof record.stopCount === 'number' ? record.stopCount : 0,
+    tripId,
+    vehicleId,
   }
 }
 

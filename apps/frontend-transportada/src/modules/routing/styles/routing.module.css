@@ -182,3 +182,92 @@
   margin: 0;
   padding: var(--space-3);
 }
+
+/* Spec 058 P2: a distribuição entre veículos. O overlay segue a forma dos outros diálogos do
+   painel — não há um componente de diálogo no design system, e inventar um aqui criaria o quinto. */
+.multiVehicleOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.multiVehicleDialog {
+  display: grid;
+  gap: var(--space-5);
+  width: min(52rem, 100%);
+  max-height: 92vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-fog) 18%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.multiVehicleHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.multiVehicleForm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Uma coluna por veículo: é essa a decisão que a multi-veículo toma, e uma lista corrida com o
+   veículo repetido em cada linha esconderia justamente isso. */
+.multiVehicleGroups {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 64rem) {
+  .multiVehicleGroups {
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  }
+}
+
+.multiVehicleGroup {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-fog) 14%, transparent);
+  border-radius: var(--space-2);
+}
+
+.multiVehicleGroupUnassigned {
+  border-color: color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.multiVehicleGroupTitle {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  text-transform: uppercase;
+}
+
+.multiVehicleStops {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.multiVehicleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.multiVehicleAccepted {
+  display: grid;
+  gap: var(--space-2);
+}

@@ -68,6 +68,7 @@ function buildStopRecord(
     serviceTimeSampleSize: null,
     serviceTimeSeconds: 600,
     serviceTimeSource: 'default',
+    vehicleId: null,
     stopId: overrides.stopId,
     violations: [],
     weightEstimated: false,

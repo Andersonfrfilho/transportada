@@ -183,6 +183,7 @@ function toStopRecord(row: StopRow): RouteSuggestionStopRecord {
     serviceTimeSeconds: row.serviceTimeSeconds,
     serviceTimeSource: row.serviceTimeSource,
     stopId: row.stopId,
+    vehicleId: row.vehicleId,
     violations: row.violations as RouteSuggestionStopRecord['violations'],
     weightEstimated: row.weightEstimated,
   }
