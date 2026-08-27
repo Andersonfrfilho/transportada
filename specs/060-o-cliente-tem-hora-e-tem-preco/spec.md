@@ -84,6 +84,20 @@ contratantes diferentes — normal, e é por isso que o contratante é **do lan�
 viagem. Um lote nunca é "as taxas da viagem X"; é "as taxas do contratante Y no período Z", e elas
 vêm de viagens diferentes.
 
+### D2b — O feriado é do município, não do cliente
+
+A janela responde "que horas", e o feriado responde "hoje não". São perguntas diferentes, e a
+segunda é **da cidade**: quando Sertãozinho fecha, fecham os quarenta clientes de lá. Repetir a
+mesma data em quarenta cadastros é o caminho mais curto para trinta e nove ficarem desatualizados.
+
+`municipal_holidays` guarda `(company_id, city_ibge_code, holiday_on)` e o nome. A parada sabe o
+município pelo endereço do destinatário — a mesma chave que decide CT-e ou NFS-e na 065.
+
+A precedência é do mais específico para o mais geral, e ela importa: **exceção do cliente vence
+feriado do município**. O CD que trabalha no feriado da cidade cadastra a exceção que abre, e ela
+manda. Sem isso, o cliente que abre no feriado seria invisível para o roteiro justamente no dia em
+que ele é o único aberto.
+
 ### D2 — A janela é semanal, com exceções por data
 
 `delivery_client_windows`: dia da semana, hora de início, hora de fim. Vários intervalos por dia
@@ -203,7 +217,21 @@ constrói é o dado no formato certo para ela: lançamento com estado, lote com 
 exportável. Uma tela mínima de conferência e exportação entra como P2; o portal de aprovação do
 contratante é spec futura.
 
-`[NEEDS CLARIFICATION: o contratante aprova dentro do produto (precisa de acesso, papel e tela) ou fora dele (recebe o relatório por e-mail e responde, e alguém marca aprovado)? Fora do produto é muito mais barato e provavelmente é o certo para começar — mas decide se `approved` é uma ação de usuário externo ou um registro interno.]`
+**Respondido: o contratante aprova numa página pública da nossa landing.** Ele não ganha conta, nem
+papel, nem tela do produto — ganha um **link**. `extra_charge_batches` guarda um token opaco, e
+`/repasse/{token}` na landing mostra o relatório do lote e os dois botões, por lançamento.
+
+É o meio-termo que o caso real pede: aprovar dentro do produto sem construir portal. As
+consequências, que o desenho tem de respeitar:
+
+- **O token é a credencial**, então ele é opaco, longo, de uso não enumerável, e a rota vive fora do
+  roteador autenticado — ao lado de `/public/nfse-callbacks/{token}`, que já é assim.
+- **Quem decidiu é quem tem o link**, e é isso que a trilha registra: `decided_by_token` mais IP e
+  hora, nunca um `userId` inventado. A pergunta "quem aprovou isso?" se responde com "quem estava
+  com o link do lote", e essa é a resposta honesta.
+- **A página não expõe mais nada.** Ela serve um lote, dele mesmo: nem lista de lotes, nem busca por
+  documento, nem nome de outro contratante. Token vazado alcança um período de um contratante.
+- **Revogável**: fechar o lote de novo gira o token, e o antigo deixa de abrir.
 
 ### D6 — O tempo real de atendimento é medido, e ele volta para a rota
 
@@ -272,6 +300,8 @@ viagens perdidas por agendamento.
    1b. `contractors` (D1b): `(company_id, tax_id)` único, nome, período de fechamento, destinatário do
    relatório, `status`. `delivery_charges.contractor_id` derivado do emitente da nota.
 2. `delivery_client_windows` e `delivery_client_exceptions` (D2), com fuso declarado.
+   2b. `municipal_holidays` (D2b): `(company_id, city_ibge_code, holiday_on)` único, com nome.
+   Exceção do cliente vence feriado do município.
 3. `trip_stop_schedules` (D3), ligada à parada da 056.
 4. `delivery_charges` (D4) e `extra_charge_batches` (D5), com a máquina de estados de D5 num módulo
    puro e testável — o mesmo padrão da máquina da 056.
@@ -295,6 +325,8 @@ viagens perdidas por agendamento.
    - `PUT /delivery-clients/:id/charge-rules`, `DELETE .../charge-rules/:ruleId`
    - `POST /extra-charge-batches` (fechar período), `POST .../:id/decisions`
    - `GET /extra-charge-batches/:id/report` (exportação)
+   - `GET /public/extra-charge-batches/{token}` e `POST .../decisions` — a página da landing (D5),
+     **anônimas** e escopadas a um lote só
    - `GET /delivery-clients/:id/metrics` (P3, derivado — D6)
 7. `POST /trips/:id/dispatch` passa a validar agendamento pendente (D3).
 8. A 057 ganha hora e protocolo na parada, e o **registro de ocorrência** (D4c). **Não** ganha
@@ -345,7 +377,9 @@ viagens perdidas por agendamento.
 - [ ] Teste de que uma viagem com notas de contratantes distintos gera lotes distintos.
 - [ ] Teste de que o motorista (`trip.report`) **não** consegue lançar taxa.
 - [ ] Teste de janela: dentro, fora, dois intervalos no mesmo dia, exceção por data, cruzando a
-      meia-noite.
+      meia-noite, feriado do município, e **exceção do cliente vencendo o feriado**.
+- [ ] Teste de que a página pública serve **um** lote e nada além, e de que fechar o lote de novo
+      gira o token.
 - [ ] Teste de que o despacho recusa agendamento pendente e aceita com `force` + motivo.
 - [ ] Teste da máquina de estados do lançamento, incluindo **toda** transição inválida — e em
       especial que `suggested` **nunca** alcança `submitted` sem passar por `recorded`.
@@ -360,13 +394,22 @@ viagens perdidas por agendamento.
       lançar taxa → fechar lote → aprovar → relatório fecha.
 - [ ] `tsc --noEmit` + `make validate`.
 - [ ] Tela conferida em 375px, 768px e 1280px.
-- [ ] ADR (**0046**) sobre o cliente de entrega existir sem virar CRM, e sobre o ciclo de repasse.
+- [ ] ADR (**0048** — a 0046 já é do MDF-e) sobre o cliente de entrega existir sem virar CRM, sobre
+      o ciclo de repasse e sobre a aprovação por link público.
 - [ ] `docs/spec/domain-model.md` atualizado.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: aprovação do contratante dentro ou fora do produto — ver D5.]`
-- `[NEEDS CLARIFICATION: calendário de feriados. Nacional é resolvível por biblioteca; municipal é onde dói (a cidade fecha e o roteiro não sabe). Vale cadastrar feriado por município das zonas atendidas, ou exceção por cliente basta?]`
+- **Aprovação do contratante** (respondido): página pública na landing, por token de lote — ver D5.
+- **Feriado** (respondido): **calendário por município**, em `municipal_holidays` — `(company_id,
+  city_ibge_code, holiday_on)`, com nome. É onde o problema real mora: a cidade fecha e o roteiro
+  não sabe, e a exceção por cliente obrigaria a repetir a mesma data em todos os clientes daquela
+  cidade. O município da parada já vem do endereço do destinatário (`nfe_addresses.city_code`), que
+  é a mesma chave que a 065 usa para decidir CT-e ou NFS-e.
+
+  O cadastro é **da empresa** e alimentado à mão: nenhuma fonte pública de feriado municipal é
+  confiável o bastante para virar dependência, e a instalação é dedicada (ADR-0021) — quem opera
+  conhece as cidades que atende. Data sem cadastro é dia útil, que é o comportamento de hoje.
 - **Agendamento por canal próprio** (respondido): o cliente vai poder agendar **por WhatsApp** ou
   pelo **portal do cliente** (`frontend-client`, não o app do motorista). Os dois são superfícies
   novas e viram specs próprias — a 060 entrega o modelo (`trip_stop_schedules`, protocolo, estados)
