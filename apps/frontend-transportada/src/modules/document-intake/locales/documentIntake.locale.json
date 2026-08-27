@@ -1,4 +1,5 @@
 {
+  "ccmei": "Este é um CCMEI, documento de empresa — não descreve veículo. O formulário continua em branco.",
   "chooseFile": "Escolher arquivo",
   "dropHint": "Solte o PDF do CRLV-e aqui, ou escolha o arquivo. Ele é lido nesta máquina e não é enviado a lugar nenhum.",
   "failed": "Não foi possível ler este arquivo. Confira se é um PDF e tente de novo.",

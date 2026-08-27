@@ -17,7 +17,11 @@ import {
   mockCteBatchWorkspaceApi,
   SYNTHETIC_CTE_ARCHIVE_BYTES,
 } from './cte-batch-smoke.helper'
-import { buildCrlvPdf } from './document-intake/pdf-fixture.helper'
+import {
+  buildCrlvPdf,
+  buildLabelledColumns,
+  buildTextPdf,
+} from './document-intake/pdf-fixture.helper'
 import { DRIVER_ACCESS_KEY, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
 import { PENDING_DOCUMENT, mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
@@ -924,6 +928,39 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
  * encanamento — o pdf.js carregado sob demanda no navegador, o worker servido da nossa origem sem
  * afrouxar a CSP, o hook montado e o valor chegando ao `input` que o operador vê.
  */
+/**
+ * O pacote de leitura aprendeu o CCMEI para a landing, e o painel consome o mesmo pacote. Sem um
+ * ramo próprio, o documento de empresa caía no ramo de sucesso e a tela dizia "reconhecido" com a
+ * lista de campos vazia — o pior tipo de mentira, porque parece que funcionou.
+ */
+test('o CCMEI solto na ficha do veículo é recusado com nome, não confundido com sucesso', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  await mockFleetWorkspaceApi({ page, permissions: ['fleet.read', 'fleet.manage'] })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Novo veículo' }).click()
+  await expect(page.getByRole('heading', { name: 'Novo veículo' })).toBeVisible()
+
+  await page.getByLabel('Preencher pelo documento').setInputFiles({
+    buffer: Buffer.from(
+      buildTextPdf([
+        { size: 14, text: 'Certificado da Condição de', x: 60, y: 790 },
+        { size: 14, text: 'Microempreendedor Individual', x: 60, y: 770 },
+        ...buildLabelledColumns([{ label: 'CNPJ', value: '30.213.061/0001-06', x: 60, y: 700 }]),
+      ]),
+    ),
+    mimeType: 'application/pdf',
+    name: 'ccmei.pdf',
+  })
+
+  await expect(page.getByText('Este é um CCMEI', { exact: false })).toBeVisible()
+  await expect(page.getByText('Reconhecido: CRLV-e')).toBeHidden()
+  await expect(page.getByRole('textbox', { name: /^Placa/ })).toHaveValue('')
+})
+
 test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({
   page,
 }) => {

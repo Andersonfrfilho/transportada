@@ -121,7 +121,7 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.1",
+        "@adatechnology/document-intake": "0.1.0-rc.2",
         "@adatechnology/notification-client": "0.1.0-rc.2",
         "@adatechnology/notification-ui": "0.1.0-rc.3",
         "@dnd-kit/core": "^6.3.1",
@@ -191,7 +191,7 @@
   "packages": {
     "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
 
-    "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0-rc.1", "", {}, "sha512-mh4IocbLDvI4B1znTrILkFaeLa0+stUXQDXXNJwWMFoVG3Fky22LDBn3vnJA5rwt8xgw0vGa8f9oQnSuKHKL7Q=="],
+    "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0-rc.2", "", {}, "sha512-2VsaHUB+dHz0epKWHRkbtmFQE3w1y8YY12x7xm7o6Ybv26i07WFFXMBUumsQxy/gzrEnUCzDypH8rc686SgzFg=="],
 
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 
@@ -1666,8 +1666,6 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@eslint/eslintrc/globals": ["globals@14.0.0", "", {}, "sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ=="],
-
-    "@transportada/frontend-landing/@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0-rc.2", "", {}, "sha512-2VsaHUB+dHz0epKWHRkbtmFQE3w1y8YY12x7xm7o6Ybv26i07WFFXMBUumsQxy/gzrEnUCzDypH8rc686SgzFg=="],
 
     "@typescript-eslint/eslint-plugin/ignore": ["ignore@7.0.6", "", {}, "sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw=="],
 

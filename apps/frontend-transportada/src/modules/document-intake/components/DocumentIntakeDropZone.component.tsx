@@ -75,7 +75,15 @@ function DocumentIntakeStatus({ result, status }: DocumentIntakeStatusProps) {
   }
   if (result === null) return null
   if (result.kind === 'scanned') return <p className={styles.status}>{t('scanned')}</p>
-  if (result.kind === 'unknown') return <p className={styles.status}>{t('unknown')}</p>
+  if (result.kind === 'ccmei') return <p className={styles.status}>{t('ccmei')}</p>
+  /**
+   * Lista **positiva**: só o CRLV chega ao resumo. Antes o encadeamento recusava `scanned` e
+   * `unknown` e deixava passar todo o resto — quando o pacote aprendeu o CCMEI, um documento de
+   * empresa passou a cair no ramo de sucesso e a tela dizia "reconhecido" com a lista de campos
+   * vazia. Tipo novo no pacote agora vira "não reconhecido", que é a verdade até alguém decidir
+   * o contrário.
+   */
+  if (result.kind !== 'crlv') return <p className={styles.status}>{t('unknown')}</p>
 
   return (
     <div className={styles.summary}>
