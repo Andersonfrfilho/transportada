@@ -349,3 +349,50 @@ manifest dela. `compose.yaml` **não muda** — ele só sobe infra, nenhum front
   serviço `frontend-client` na hospedagem. O primeiro deploy vai falhar até isso ser feito.
 - **Sem tela de vínculo no painel**: continua valendo o buraco da T004 — criar um contratante-usuário
   é convidar por `/company-users` e chamar `POST /contractors/:id/portal-users` na mão.
+
+## T011 — o ciclo inteiro e a enumeração
+
+`test/integration/contractor-portal-end-to-end.integration.ts`, contra Postgres, pelos **use cases
+de verdade**. Dois testes:
+
+**O ciclo.** Lista (a nota dele aparece, a do vizinho — que existe na mesma empresa — não) → agenda
+pela chave de acesso, e o agendamento fica gravado pela máquina da 060 com protocolo → posição:
+**nula antes do consentimento**, e depois dele coordenada e hora, com as chaves conferidas por
+extenso → lote de repasse, com o total do relatório batendo com a soma das linhas → decisão linha a
+linha, uma aprovada e uma recusada com motivo. A última asserção é a que importa para o desenho:
+`delivery_charge_events` guarda o **`actorUserId` da conta do contratante** e `decidedByToken` nulo —
+na página pública da 060 é o contrário, e poder dizer _qual pessoa do cliente_ aprovou é a razão de o
+portal ter conta em vez de link.
+
+**A enumeração.** No desenho de conta ela mudou de forma: não há login anônimo a sondar, então a
+pergunta é o que um contratante autenticado descobre sobre o que não é dele. O teste compara
+`{code, status}` de três pares — chave do vizinho vs. chave inventada, agendamento no vizinho vs. em
+chave inventada, lote do vizinho vs. lote inexistente — e exige que sejam **idênticos**. Se "não é
+sua" respondesse diferente de "não existe", bastaria varrer chaves de acesso para mapear a carteira
+da transportadora. O teste também confere que a tentativa recusada **não escreve**: o lançamento do
+vizinho continua `submitted`.
+
+Comandos executados:
+
+```
+bun run typecheck                            # limpo
+bun run --cwd apps/api-transportada test     # 3575 pass / 0 fail / 19 skip
+bun run test:integration                     # 174 pass / 0 fail / 4 skip
+```
+
+Um defeito do próprio teste, que vale registrar: o token do lote é único **no banco inteiro**, e os
+dois testes semeiam mundos na mesma base compartilhada — o segundo quebrou na primeira execução. O
+token virou derivado de UUID.
+
+`CLAUDE.md` ganhou a seção `frontend-client` e a linha na estrutura, como manda a documentação viva.
+
+### Buracos declarados
+
+- **O E2E é da API, não da tela.** Nada exercita o `frontend-client` de ponta a ponta: sem Playwright
+  nesta app, o caminho "abrir o portal, entrar, agendar" não é verificado por máquina nenhuma.
+- **O vínculo é semeado por `insert` no teste**, não criado pela rota `POST
+/contractors/:id/portal-users` — a rota tem contrato de HTTP próprio, mas o E2E não atravessa os
+  dois juntos.
+- **Nada testa o `separator` nem o `operator` batendo em `/client/me/*`**: a defesa é a permissão, que
+  o contrato de rota cobre, e o teste de papéis por extenso (`separator-role.contract.test.ts`) ainda
+  não lista as rotas do portal.

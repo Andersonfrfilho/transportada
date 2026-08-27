@@ -24,7 +24,7 @@ documentos amarrados. A ADR-0050 §2 foi reescrita; T003 e T004 mudaram de conte
 | T008    | O ping do motorista: consentimento, ingestão e expurgo no fechamento             | —         | ✅     |
 | T009    | `apps/frontend-client`: Vite, PWA, CSP própria, Docker e compose                 | 1, 9      | ✅     |
 | T010    | As telas: entrar, minhas entregas, agendar, aprovar repasse, mapa desenhado      | 1, 10     | ✅     |
-| T011    | E2E: entrar → ver entrega → agendar → aprovar, e o teste de enumeração           | —         | ⬜     |
+| T011    | E2E: entrar → ver entrega → agendar → aprovar, e o teste de enumeração           | —         | ✅     |
 
 `docs/SECURITY.md` ganha a seção do portal junto da T005 — enumeração, retenção de sessão e dado
 exposto —, não no fim.
