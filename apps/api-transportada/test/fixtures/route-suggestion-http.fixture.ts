@@ -96,15 +96,15 @@ export async function createRouteSuggestionHttpFixture(params: FixtureParams = {
         return { ...QUEUED_SUGGESTION, decidedAt: '2026-08-26T12:05:00.000Z', status: 'accepted' }
       },
       async create(input) {
-        createCalls.push(structuredClone(input))
+        createCalls.push(structuredClone(input) as unknown as Call)
         return QUEUED_SUGGESTION
       },
       async read(input) {
-        readCalls.push(structuredClone(input))
+        readCalls.push(structuredClone(input) as unknown as Call)
         return QUEUED_SUGGESTION
       },
       async reject(input) {
-        rejectCalls.push(structuredClone(input))
+        rejectCalls.push(structuredClone(input) as unknown as Call)
         return { ...QUEUED_SUGGESTION, decidedAt: '2026-08-26T12:05:00.000Z', status: 'rejected' }
       },
     },
@@ -125,6 +125,75 @@ export async function createRouteSuggestionHttpFixture(params: FixtureParams = {
   return {
     acceptCalls,
     correctCalls,
+    createCalls,
+    handle: (request) => handleRequest(request, { timeout() {} }),
+    readCalls,
+    rejectCalls,
+  }
+}
+
+/**
+ * Spec 058 P2: a mesma casca do fixture da sugestão de viagem, para as rotas que vivem **fora** da
+ * árvore `/trips/:id`. Ela é montada aqui, e não num arquivo próprio, porque o roteador de teste, o
+ * contexto autenticado e a origem do frontend são os mesmos — duplicá-los daria duas versões do
+ * mesmo aparato para manter alinhadas.
+ */
+export async function createMultiVehicleHttpFixture(params: FixtureParams = {}): Promise<{
+  readonly acceptCalls: Call[]
+  readonly createCalls: Call[]
+  readonly handle: (request: Request) => Promise<Response>
+  readonly readCalls: Call[]
+  readonly rejectCalls: Call[]
+}> {
+  const acceptCalls: Call[] = []
+  const createCalls: Call[] = []
+  const readCalls: Call[] = []
+  const rejectCalls: Call[] = []
+
+  const { createMultiVehicleSuggestionRoutes } = await import(
+    '../../src/routing/presentation/multi-vehicle-suggestion.routes.js'
+  )
+
+  const poolSuggestion: RouteSuggestion = { ...QUEUED_SUGGESTION, tripId: null }
+
+  const routes = createMultiVehicleSuggestionRoutes({
+    multiVehicleSuggestions: {
+      async accept(input) {
+        acceptCalls.push(structuredClone(input) as unknown as Call)
+        if (params.acceptError) throw params.acceptError
+        return {
+          suggestion: { ...poolSuggestion, status: 'accepted' as const },
+          trips: [{ documentCount: 2, stopCount: 1, tripId: 'trip-1', vehicleId: 'vehicle-1' }],
+        }
+      },
+      async create(input) {
+        createCalls.push(structuredClone(input) as unknown as Call)
+        return poolSuggestion
+      },
+      async read(input) {
+        readCalls.push(structuredClone(input) as unknown as Call)
+        return poolSuggestion
+      },
+      async reject(input) {
+        rejectCalls.push(structuredClone(input) as unknown as Call)
+        return { ...poolSuggestion, status: 'rejected' }
+      },
+    },
+  })
+
+  const handleRequest = createRequestHandler({
+    createCorrelationId: () => CORRELATION_ID,
+    frontendOrigins: [FRONTEND_ORIGIN],
+    logger: { error() {}, info() {}, warn() {} },
+    requestTimeoutSeconds: 10,
+    router: createTestRouter({
+      context: authenticatedContext(params.permissions ?? ROUTE_MANAGE_PERMISSIONS),
+      routes,
+    }),
+  })
+
+  return {
+    acceptCalls,
     createCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     readCalls,

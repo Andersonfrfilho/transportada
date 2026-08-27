@@ -188,6 +188,11 @@ import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-d
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
+import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
+import { createMultiVehicleSuggestionUseCase } from './routing/application/multi-vehicle-suggestion.use-case'
+import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrastructure/drizzle-multi-vehicle-suggestion.repository'
+import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
+import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
@@ -1148,6 +1153,32 @@ function createApplicationRoutes({
             repository: createDrizzleRouteSuggestionRepository(database),
             stopOrder: createTripStopOrderWriter(tripRouteRepository),
             trips: createDrizzleTripRouteGate(database),
+          }),
+        })),
+    /**
+     * Spec 058 P2: a multi-veículo mora fora da árvore `/trips/:id` — ela existe **antes** de as
+     * viagens existirem. Ela só é registrada com a fila de pé, pela mesma razão da sugestão de
+     * viagem: sem broker, pedir sugestão é pedir algo que ninguém vai processar.
+     */
+    ...(routeOptimizationQueue === undefined
+      ? []
+      : createMultiVehicleSuggestionRoutes({
+          multiVehicleSuggestions: createMultiVehicleSuggestionUseCase({
+            multiVehicle: createDrizzleMultiVehicleSuggestionRepository(database),
+            queue: routeOptimizationQueue,
+            suggestions: createDrizzleRouteSuggestionRepository(database),
+            trips: createTripComposer({
+              create: (input) => trips.create(input),
+              link: (input) => trips.linkDocument(input),
+              /**
+               * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um
+               * contexto meia-boca: aqui só o `companyId` importa, e é o que `listTripStops` recebe.
+               */
+              listStops: async (input) =>
+                (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
+              planRoute: (input) => tripLifecycle.planRoute.execute(input),
+              reorder: (input) => tripLifecycle.reorderStops.execute(input),
+            }),
           }),
         })),
     ...createLandingSettingsRoutes({ landingSettings }),

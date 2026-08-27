@@ -29,6 +29,7 @@ import {
   NFSE_TABLES,
   DELIVERY_CLIENT_TABLES,
   CONTRACTOR_PORTAL_TABLES,
+  MULTI_VEHICLE_SUGGESTION_TABLES,
   TRIP_FINANCIAL_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
@@ -73,6 +74,7 @@ describe('Drizzle migration integration', () => {
             ...DELIVERY_CLIENT_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
+            ...MULTI_VEHICLE_SUGGESTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -122,6 +124,7 @@ describe('Drizzle migration integration', () => {
             ...DELIVERY_CLIENT_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
+            ...MULTI_VEHICLE_SUGGESTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

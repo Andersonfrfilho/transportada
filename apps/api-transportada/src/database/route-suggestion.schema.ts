@@ -21,6 +21,7 @@ import { companies } from './identity.schema.js'
 import { fleetVehicles } from './fleet.schema.js'
 import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { inList } from './schema-check.constant.js'
+import { nfeDocuments } from './nfe.schema.js'
 import { trips } from './trip.schema.js'
 
 /**
@@ -147,6 +148,12 @@ export const routeSuggestionStops = pgTable(
     suggestionId: uuid('suggestion_id').notNull(),
     /** Anulável pela mesma razão de `trips.trip_id`: a multi-veículo propõe paradas ainda sem viagem. */
     stopId: uuid('stop_id'),
+    /**
+     * Spec 058 P2: **qual veículo serve esta parada.** Nulo na sugestão de uma viagem só — ali o
+     * veículo é o da viagem, e repeti-lo em cada parada seria guardar a mesma resposta N vezes. Na
+     * multi-veículo ele é a decisão do solver, e é por ele que o aceite sabe quantas viagens criar.
+     */
+    vehicleId: uuid('vehicle_id'),
     sequence: bigint({ mode: 'bigint' }).notNull(),
     addressKey: text('address_key').notNull(),
     label: text().notNull(),
@@ -181,6 +188,8 @@ export const routeSuggestionStops = pgTable(
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
+    /** Chave composta com o tenant: é ela que a ligação parada↔nota da P2 referencia. */
+    unique('route_suggestion_stops_company_id_id_unique').on(table.companyId, table.id),
     unique('route_suggestion_stops_company_suggestion_sequence_unique').on(
       table.companyId,
       table.suggestionId,
@@ -286,6 +295,125 @@ export const companyRouteOptimizationSettings = pgTable(
     check(
       'company_route_optimization_settings_duty_check',
       sql`(${table.maxDrivingSecondsPerDay} is null or ${table.maxDrivingSecondsPerDay} > 0) and (${table.maxDutySecondsPerDay} is null or ${table.maxDutySecondsPerDay} > 0)`,
+    ),
+  ],
+)
+
+/**
+ * Spec 058 P2: **os veículos da sugestão multi-veículo.** A `route_suggestions.vehicle_id` continua
+ * existindo e continua sendo a da sugestão de uma viagem só — ali o veículo é o da viagem, e não há
+ * escolha a fazer. Aqui há: o operador aponta a frota disponível e o solver decide quem leva o quê.
+ *
+ * A posição existe para o resultado ser **determinístico**: a mesma semente com a mesma frota tem de
+ * produzir a mesma divisão, e ordem de linha em Postgres não é garantida sem `order by`.
+ */
+export const routeSuggestionVehicles = pgTable(
+  'route_suggestion_vehicles',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    suggestionId: uuid('suggestion_id').notNull(),
+    vehicleId: uuid('vehicle_id').notNull(),
+    position: bigint({ mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.suggestionId],
+      foreignColumns: [routeSuggestions.companyId, routeSuggestions.id],
+      name: 'route_suggestion_vehicles_suggestion_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.vehicleId],
+      foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
+      name: 'route_suggestion_vehicles_vehicle_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('route_suggestion_vehicles_suggestion_vehicle_unique').on(
+      table.suggestionId,
+      table.vehicleId,
+    ),
+    unique('route_suggestion_vehicles_suggestion_position_unique').on(
+      table.suggestionId,
+      table.position,
+    ),
+    check('route_suggestion_vehicles_position_check', sql`${table.position} >= 0`),
+  ],
+)
+
+/**
+ * Spec 058 P2: **o pool.** A sugestão multi-veículo nasce de notas que ainda não estão em viagem
+ * nenhuma — é essa a diferença dela. A nota entra aqui e sai daqui; o vínculo com a viagem só
+ * existe depois do aceite, e quem o cria é o caso de uso da 056, não esta tabela.
+ */
+export const routeSuggestionDocuments = pgTable(
+  'route_suggestion_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    suggestionId: uuid('suggestion_id').notNull(),
+    nfeDocumentId: uuid('nfe_document_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.suggestionId],
+      foreignColumns: [routeSuggestions.companyId, routeSuggestions.id],
+      name: 'route_suggestion_documents_suggestion_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'route_suggestion_documents_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** A mesma nota duas vezes no mesmo pool é a mesma entrega contada duas vezes. */
+    unique('route_suggestion_documents_suggestion_document_unique').on(
+      table.suggestionId,
+      table.nfeDocumentId,
+    ),
+  ],
+)
+
+/**
+ * Spec 058 P2: **qual nota cai em qual parada proposta.** Na sugestão de uma viagem só isso já
+ * existe — a parada é `trip_stops`, e a nota já está vinculada. Aqui a parada é proposta: sem esta
+ * ligação, aceitar a sugestão obrigaria a reagrupar as notas por endereço **de novo**, e o segundo
+ * agrupamento poderia discordar do primeiro (grafia, nota que mudou de endereço no meio).
+ */
+export const routeSuggestionStopDocuments = pgTable(
+  'route_suggestion_stop_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    suggestionStopId: uuid('suggestion_stop_id').notNull(),
+    nfeDocumentId: uuid('nfe_document_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.suggestionStopId],
+      foreignColumns: [routeSuggestionStops.companyId, routeSuggestionStops.id],
+      name: 'route_suggestion_stop_documents_stop_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'route_suggestion_stop_documents_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('route_suggestion_stop_documents_stop_document_unique').on(
+      table.suggestionStopId,
+      table.nfeDocumentId,
     ),
   ],
 )

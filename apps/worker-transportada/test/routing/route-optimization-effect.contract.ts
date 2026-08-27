@@ -18,6 +18,7 @@ function buildStop(
 ): RouteOptimizationStop {
   return {
     addressKey: `key-${overrides.stopId}`,
+    documentIds: [],
     excludedFromOptimization: false,
     label: `Parada ${overrides.stopId}`,
     latitude: '-23.5613090',

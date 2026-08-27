@@ -2,17 +2,22 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import {
   companyRouteOptimizationSettings,
   fleetVehicles,
   geocodedAddresses,
+  routeSuggestionDocuments,
+  routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicles,
   routeSuggestions,
   tripStops,
   trips,
 } from '../../database/routing.schema.js'
+import { nfeAddresses, nfeParticipants } from '../../database/nfe.schema.js'
+import { buildStopAddressKey } from '../domain/pool-address-key.js'
 import type {
   RouteOptimizationContext,
   RouteOptimizationOutcome,
@@ -82,21 +87,44 @@ export function createDrizzleRouteOptimizationRepository(
         )
         .limit(1)
 
-      if (suggestion?.tripId == null) return null
+      if (suggestion === undefined) return null
 
       const settings = await readSettings({ companyId: job.companyId, database })
-      const stops = await readStops({
-        companyId: job.companyId,
-        database,
-        defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
-        fallbackWeightKilograms: settings.fallbackWeightKilograms,
-        tripId: suggestion.tripId,
-      })
-      const vehicles = await readVehicles({
-        companyId: job.companyId,
-        database,
-        tripId: suggestion.tripId,
-      })
+
+      /**
+       * Spec 058 P2: **as duas origens do problema.** Sugestão de viagem lê as paradas que já
+       * existem; a multi-veículo lê o pool de notas e agrupa por endereço do destinatário — o mesmo
+       * agrupamento que a reconciliação da 056 faz quando a nota entra na viagem. Se aqui ele fosse
+       * outro, a parada proposta e a parada criada no aceite discordariam.
+       */
+      const stops =
+        suggestion.tripId === null
+          ? await readPoolStops({
+              companyId: job.companyId,
+              database,
+              defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
+              fallbackWeightKilograms: settings.fallbackWeightKilograms,
+              suggestionId: job.suggestionId,
+            })
+          : await readStops({
+              companyId: job.companyId,
+              database,
+              defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
+              fallbackWeightKilograms: settings.fallbackWeightKilograms,
+              tripId: suggestion.tripId,
+            })
+      const vehicles =
+        suggestion.tripId === null
+          ? await readPoolVehicles({
+              companyId: job.companyId,
+              database,
+              suggestionId: job.suggestionId,
+            })
+          : await readVehicles({
+              companyId: job.companyId,
+              database,
+              tripId: suggestion.tripId,
+            })
 
       const depot = await readPoint({ addressKey: settings.originAddressKey, database })
 
@@ -147,24 +175,48 @@ export function createDrizzleRouteOptimizationRepository(
           )
 
         if (outcome.orderedStops.length > 0) {
-          await transaction.insert(routeSuggestionStops).values(
-            outcome.orderedStops.map((stop) => ({
-              addressKey: stop.addressKey,
+          const inserted = await transaction
+            .insert(routeSuggestionStops)
+            .values(
+              outcome.orderedStops.map((stop) => ({
+                addressKey: stop.addressKey,
+                companyId: job.companyId,
+                distanceFromPreviousMeters: stop.distanceFromPreviousMeters,
+                durationFromPreviousSeconds: stop.durationFromPreviousSeconds,
+                estimatedArrivalAt: stop.estimatedArrivalAt,
+                excludedFromOptimization: stop.excludedFromOptimization,
+                label: stop.label,
+                sequence: BigInt(stop.sequence),
+                serviceTimeSeconds: stop.serviceTimeSeconds,
+                serviceTimeSource: 'default',
+                stopId: stop.stopId,
+                suggestionId: job.suggestionId,
+                vehicleId: stop.vehicleId,
+                violations: stop.violations,
+                weightEstimated: stop.weightEstimated,
+              })),
+            )
+            .returning({ id: routeSuggestionStops.id, sequence: routeSuggestionStops.sequence })
+
+          /**
+           * Spec 058 P2: qual nota caiu em qual parada proposta. Sem isso o aceite teria de reagrupar
+           * as notas por endereço **de novo**, e o segundo agrupamento poderia discordar do primeiro.
+           * O casamento é por `sequence`, que é única por sugestão.
+           */
+          const stopIdBySequence = new Map(inserted.map((row) => [Number(row.sequence), row.id]))
+          const links = outcome.orderedStops.flatMap((stop) => {
+            const suggestionStopId = stopIdBySequence.get(stop.sequence)
+            if (suggestionStopId === undefined) return []
+
+            return stop.documentIds.map((nfeDocumentId) => ({
               companyId: job.companyId,
-              distanceFromPreviousMeters: stop.distanceFromPreviousMeters,
-              durationFromPreviousSeconds: stop.durationFromPreviousSeconds,
-              estimatedArrivalAt: stop.estimatedArrivalAt,
-              excludedFromOptimization: stop.excludedFromOptimization,
-              label: stop.label,
-              sequence: BigInt(stop.sequence),
-              serviceTimeSeconds: stop.serviceTimeSeconds,
-              serviceTimeSource: 'default',
-              stopId: stop.stopId,
-              suggestionId: job.suggestionId,
-              violations: stop.violations,
-              weightEstimated: stop.weightEstimated,
-            })),
-          )
+              nfeDocumentId,
+              suggestionStopId,
+            }))
+          })
+          if (links.length > 0) {
+            await transaction.insert(routeSuggestionStopDocuments).values(links)
+          }
         }
 
         await transaction
@@ -266,6 +318,8 @@ async function readStops(input: {
 
     return {
       addressKey: row.addressKey,
+      /** Sugestão de viagem: a nota já está vinculada, e a parada existe. Nada a propor aqui. */
+      documentIds: [],
       excludedFromOptimization: !hasFineCoordinate,
       label: row.label,
       /** Sem coordenada, uma que o solver nunca usa: a parada já saiu da otimização. */
@@ -355,3 +409,147 @@ function readBudget(assumptions: unknown, fallback: number): number {
 
 /** Só para o tipo do `complete`, que o handler já descreve. */
 export type { RouteOptimizationOutcome }
+
+/**
+ * Spec 058 P2: a frota que o operador ofereceu, **na ordem em que ele a ofereceu**. A ordem é o que
+ * torna a distribuição reproduzível com a mesma semente; sem `order by`, Postgres não a promete.
+ */
+async function readPoolVehicles(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+  readonly suggestionId: string
+}) {
+  const rows = await input.database
+    .select({
+      capacityKilograms: fleetVehicles.capacityKilograms,
+      id: fleetVehicles.id,
+      otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+    })
+    .from(routeSuggestionVehicles)
+    .innerJoin(
+      fleetVehicles,
+      and(
+        eq(fleetVehicles.companyId, routeSuggestionVehicles.companyId),
+        eq(fleetVehicles.id, routeSuggestionVehicles.vehicleId),
+      ),
+    )
+    .where(
+      and(
+        eq(routeSuggestionVehicles.companyId, input.companyId),
+        eq(routeSuggestionVehicles.suggestionId, input.suggestionId),
+      ),
+    )
+    .orderBy(routeSuggestionVehicles.position)
+
+  return rows.map((row) => ({
+    capacityKilograms: Number(row.capacityKilograms),
+    costPerMeterMicros: Math.round(
+      (Number(row.otherCostsPerKilometer) / METRES_PER_KILOMETRE) * MICROS_PER_UNIT,
+    ),
+    id: row.id,
+  }))
+}
+
+/**
+ * Spec 058 P2: **a parada nasce do endereço do destinatário**, agrupando as notas do pool — o mesmo
+ * critério da reconciliação da 056 (ADR-0043 §3). Nota sem endereço de destinatário fica de fora do
+ * problema, e não do aceite: ela entra na viagem como nota sem parada, como já entra hoje.
+ */
+async function readPoolStops(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+  readonly defaultServiceTimeSeconds: number
+  readonly fallbackWeightKilograms: string
+  readonly suggestionId: string
+}): Promise<readonly RouteOptimizationStop[]> {
+  const rows = await input.database
+    .select({
+      city: nfeAddresses.city,
+      cityCode: nfeAddresses.cityCode,
+      nfeDocumentId: routeSuggestionDocuments.nfeDocumentId,
+      number: nfeAddresses.number,
+      postalCode: nfeAddresses.postalCode,
+    })
+    .from(routeSuggestionDocuments)
+    .innerJoin(
+      nfeParticipants,
+      and(
+        eq(nfeParticipants.companyId, routeSuggestionDocuments.companyId),
+        eq(nfeParticipants.documentId, routeSuggestionDocuments.nfeDocumentId),
+        eq(nfeParticipants.role, 'recipient'),
+      ),
+    )
+    .innerJoin(
+      nfeAddresses,
+      and(
+        eq(nfeAddresses.companyId, nfeParticipants.companyId),
+        eq(nfeAddresses.participantId, nfeParticipants.id),
+      ),
+    )
+    .where(
+      and(
+        eq(routeSuggestionDocuments.companyId, input.companyId),
+        eq(routeSuggestionDocuments.suggestionId, input.suggestionId),
+      ),
+    )
+
+  /**
+   * O agrupamento é feito **aqui**, não em SQL: a chave tem normalização de verdade (CEP de oito
+   * dígitos, prefixo "nº", "S/N"), e montá-la com `concat_ws` produziria uma segunda regra do que é
+   * a mesma parada — que discordaria da primeira no dia em que alguém digitasse "Nº 45".
+   */
+  const grouped = new Map<string, { city: string | null; documentIds: string[] }>()
+  for (const row of rows) {
+    const addressKey = buildStopAddressKey(row)
+    /** Nota sem CEP não vira parada proposta; ela entra na viagem sem parada, como já entra hoje. */
+    if (addressKey === null) continue
+
+    const existing = grouped.get(addressKey)
+    if (existing === undefined) {
+      grouped.set(addressKey, { city: row.city, documentIds: [row.nfeDocumentId] })
+      continue
+    }
+    existing.documentIds.push(row.nfeDocumentId)
+  }
+  if (grouped.size === 0) return []
+
+  const coordinates = await input.database
+    .select({
+      addressKey: geocodedAddresses.addressKey,
+      latitude: geocodedAddresses.latitude,
+      longitude: geocodedAddresses.longitude,
+      precision: geocodedAddresses.precision,
+    })
+    .from(geocodedAddresses)
+    .where(inArray(geocodedAddresses.addressKey, [...grouped.keys()]))
+
+  const byKey = new Map(coordinates.map((row) => [row.addressKey, row]))
+
+  return [...grouped.entries()].map(([addressKey, group]) => {
+    const point = byKey.get(addressKey)
+    const hasFineCoordinate =
+      point?.latitude != null && point.longitude !== null && point.precision !== 'city'
+
+    return {
+      addressKey,
+      documentIds: group.documentIds,
+      excludedFromOptimization: !hasFineCoordinate,
+      label: group.city ?? addressKey,
+      /** Sem coordenada, uma que o solver nunca usa: a parada já saiu da otimização. */
+      latitude: point?.latitude ?? '0',
+      longitude: point?.longitude ?? '0',
+      serviceTimeSeconds: input.defaultServiceTimeSeconds,
+      /** A parada não existe ainda: é o aceite que a cria, pela reconciliação da 056. */
+      stopId: null,
+      /**
+       * O peso é sempre o de fallback aqui: a nota do pool ainda não passou pelo cálculo de frete, e
+       * inventar peso por produto seria uma segunda regra de peso. Ele vem **marcado**, e a tela
+       * mostra isso antes do aceite (ADR-0044 §5).
+       */
+      weightEstimated: true,
+      weightKilograms: Number(input.fallbackWeightKilograms),
+      windowEndSeconds: null,
+      windowStartSeconds: null,
+    }
+  })
+}

@@ -61,10 +61,11 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`,
-`freight`, `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
-`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
-`operations`, `storage`, `trips`, `view-preferences`, `health`.
+Módulos: `addresses`, `billing`, `companies`, `contractor-portal`, `cte-batches`, `cte-issuance`,
+`cte-profiles`, `fleet`, `freight`, `freight-calculations`, `freight-regions`, `freight-rules`,
+`identity`, `mdfe-manifests`, `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`,
+`nfse-profiles`, `notification`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
+`health`.
 Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
@@ -839,6 +840,30 @@ bundle nomeia mas nunca busca, hoje só o link do rodapé).
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
+
+**A sugestão de roteiro tem duas portas, e a segunda não parte de viagem** (spec 058 P2). A de
+sempre é `POST /trips/:id/route-suggestions`: a viagem existe, as paradas existem, e o solver só
+reordena. A outra é **`POST /route-suggestions/multi-vehicle`**, fora da árvore `/trips/:id` de
+propósito — ela recebe um **pool de notas** e uma **frota**, e é o aceite que cria as viagens. Todas
+sob `trip.manage`; ler é `fleet.read`.
+
+O que muda por dentro: `route_suggestions.trip_id` é nulo, `route_suggestion_documents` guarda o
+pool, `route_suggestion_vehicles` guarda a frota **na ordem oferecida** (é ela que faz a mesma
+semente distribuir igual), `route_suggestion_stops.vehicle_id` diz quem serve cada parada e
+`route_suggestion_stop_documents` diz qual nota cai em qual parada proposta — sem essa última, o
+aceite reagruparia as notas por endereço de novo, e o segundo agrupamento poderia discordar do
+primeiro. Nota já em viagem e veículo que não traciona são recusados na criação (`409`), com o id no
+`details`.
+
+⚠️ **O aceite cria viagem, mas não escreve viagem**: ele chama os casos de uso da 056 — criar,
+vincular, ordenar, planejar —, um por veículo, e as viagens saem em `route_planned`. As viagens
+nascem **antes** de a sugestão virar `accepted`: falha no meio deixa a sugestão `ready` para repetir.
+A viagem nasce **sem motorista** — o solver decide o veículo, não quem dirige.
+
+⚠️ A chave de parada do pool (`worker-transportada/src/routing/domain/pool-address-key.ts`) é
+**cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que
+compara os dois arquivos linha a linha: se divergirem, a parada que o worker propõe e a parada que o
+aceite cria deixam de casar, e o roteiro aceito fica com duas paradas no mesmo portão.
 
 ## frontend-client
 

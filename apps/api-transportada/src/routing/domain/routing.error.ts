@@ -67,3 +67,45 @@ export class RouteSuggestionNotDecidableError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 058 P2: sugestão multi-veículo precisa de nota e de veículo — sem os dois não há problema a
+ * resolver, e uma sugestão vazia sairia `ready` sem parada nenhuma, parecendo resposta.
+ */
+export class MultiVehicleSuggestionEmptyError extends ApiError {
+  public constructor(field: 'documentIds' | 'vehicleIds') {
+    super({
+      code: 'ROUTE_SUGGESTION_POOL_EMPTY',
+      details: [{ field, message: 'at least one item is required' }],
+      message: 'A multi-vehicle suggestion needs documents and vehicles',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Nota que já está em viagem não entra no pool: ela já tem parada, ordem e um responsável. Deixá-la
+ * entrar faria a mesma entrega ser proposta duas vezes, em duas viagens diferentes.
+ */
+export class MultiVehicleSuggestionDocumentUnavailableError extends ApiError {
+  public constructor(documentIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_DOCUMENT_UNAVAILABLE',
+      details: documentIds.map((documentId) => ({ field: 'documentIds', message: documentId })),
+      message: 'One or more documents are not available for routing',
+      status: 409,
+    })
+  }
+}
+
+/** Veículo que não é de tração não puxa carga: implemento sozinho não é uma viagem. */
+export class MultiVehicleSuggestionVehicleUnavailableError extends ApiError {
+  public constructor(vehicleIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE',
+      details: vehicleIds.map((vehicleId) => ({ field: 'vehicleIds', message: vehicleId })),
+      message: 'One or more vehicles cannot be routed',
+      status: 409,
+    })
+  }
+}

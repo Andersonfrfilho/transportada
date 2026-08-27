@@ -33,11 +33,17 @@ export type RouteOptimizationPoint = Readonly<{
 
 export type RouteOptimizationStop = RouteOptimizationPoint &
   Readonly<{
+    /**
+     * Spec 058 P2: as notas que caem nesta parada. Vazio na sugestão de viagem — lá a nota já está
+     * vinculada, e a parada tem `stopId`. Aqui é o contrário: parada proposta, sem viagem ainda.
+     */
+    documentIds: readonly string[]
     /** ADR-0044 §5: `city` não entra na otimização — vai marcada, no fim, esperando o humano. */
     excludedFromOptimization: boolean
     label: string
     serviceTimeSeconds: number
-    stopId: string
+    /** Nulo na multi-veículo: a parada ainda não existe, e é o aceite que a cria. */
+    stopId: string | null
     weightEstimated: boolean
     weightKilograms: number
     windowEndSeconds: number | null
@@ -69,12 +75,15 @@ export type OptimizedStop = Readonly<{
   addressKey: string
   distanceFromPreviousMeters: number | null
   durationFromPreviousSeconds: number | null
+  documentIds: readonly string[]
   estimatedArrivalAt: Date | null
   excludedFromOptimization: boolean
   label: string
   sequence: number
   serviceTimeSeconds: number
-  stopId: string
+  stopId: string | null
+  /** Qual veículo serve a parada — nulo quando a sugestão é de uma viagem só, ou quando ela ficou de fora. */
+  vehicleId: string | null
   violations: RouteSolution['violations']
   weightEstimated: boolean
 }>
@@ -195,6 +204,12 @@ function toOrderedStops(input: {
   let clockSeconds = input.context.dayStartEpochSeconds
 
   for (const assignment of input.solution.assignments) {
+    /**
+     * O veículo vem da própria atribuição. A ordem da lista de veículos do contexto é a gravada em
+     * `route_suggestion_vehicles`, e é ela que faz a mesma semente distribuir as mesmas paradas para
+     * os mesmos veículos — sem ordem estável, o determinismo prometido no RNF cairia.
+     */
+    const vehicleId = assignment.vehicleId
     /** Cada veículo recomeça no depósito: o trecho da primeira parada é medido a partir de 0. */
     let previousIndex = 0
     for (const stopIndex of assignment.stopIndexes) {
@@ -215,7 +230,9 @@ function toOrderedStops(input: {
         label: stop.label,
         sequence,
         serviceTimeSeconds: stop.serviceTimeSeconds,
+        documentIds: stop.documentIds,
         stopId: stop.stopId,
+        vehicleId,
         violations: violationsByStopIndex.get(stopIndex) ?? [],
         weightEstimated: stop.weightEstimated,
       })
@@ -250,8 +267,11 @@ function toExcludedStop(input: {
     excludedFromOptimization: true,
     label: input.stop.label,
     sequence: input.offset + 1,
+    documentIds: input.stop.documentIds,
     serviceTimeSeconds: input.stop.serviceTimeSeconds,
     stopId: input.stop.stopId,
+    /** Fora da otimização é fora da distribuição: quem decide o veículo dela é gente. */
+    vehicleId: null,
     violations: [],
     weightEstimated: input.stop.weightEstimated,
   }

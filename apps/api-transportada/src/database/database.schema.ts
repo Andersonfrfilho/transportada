@@ -118,7 +118,10 @@ import { aggregateApplications } from './aggregate-application.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
 import {
   companyRouteOptimizationSettings,
+  routeSuggestionDocuments,
+  routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicles,
   routeSuggestions,
 } from './route-suggestion.schema.js'
 import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
@@ -267,7 +270,10 @@ export const databaseSchema = {
   deliveryClients,
   geocodedAddresses,
   landingSettings,
+  routeSuggestionDocuments,
+  routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicles,
   routeSuggestions,
   storedObjects,
   companyTaxSettings,

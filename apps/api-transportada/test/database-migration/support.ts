@@ -177,6 +177,13 @@ export const TRIP_FINANCIAL_TABLES = [
   'company_tax_settings',
 ] as const
 
+/** Spec 058 P2: a frota, o pool de notas e a ligação parada↔nota da sugestão multi-veículo. */
+export const MULTI_VEHICLE_SUGGESTION_TABLES = [
+  'route_suggestion_vehicles',
+  'route_suggestion_documents',
+  'route_suggestion_stop_documents',
+] as const
+
 /** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
 export const CONTRACTOR_PORTAL_TABLES = [
   'contractor_portal_bindings',
@@ -245,6 +252,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...DELIVERY_CLIENT_TABLES,
     ...TRIP_FINANCIAL_TABLES,
     ...CONTRACTOR_PORTAL_TABLES,
+    ...MULTI_VEHICLE_SUGGESTION_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

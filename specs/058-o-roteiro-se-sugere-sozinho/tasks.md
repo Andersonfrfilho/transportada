@@ -193,7 +193,8 @@ RNF: **não compartilha processo com emissão fiscal** — uma sugestão pesada 
 ### T012 — As seis rotas (RF-5)
 
 `POST /trips/:id/route-suggestions` → `202`; `GET .../:suggestionId`; `accept`; `reject`;
-`POST /route-suggestions/multi-vehicle` (P2); `PATCH /geocoded-addresses/:key` (pino manual). Todas
+`POST /route-suggestions/multi-vehicle` (P2 — ✅ entregue em 2026-08-27, ver o fim deste arquivo);
+`PATCH /geocoded-addresses/:key` (pino manual). Todas
 sob `trip.manage`.
 
 **O aceite escreve pela rota da 056**, `PATCH /trips/:id/stops/order`
@@ -276,3 +277,82 @@ T001 ──> T002 ─┬─> T006 ──> T007 ─┐
 
 **T009 não começa antes de T008 estar de pé.** Um solver treinado em matriz que não existe é um
 solver que se testa contra si mesmo.
+
+## P2 — a sugestão multi-veículo (2026-08-27)
+
+O que faltava desta spec, registrado como buraco no commit `eaf6989a`: `POST
+/route-suggestions/multi-vehicle` — pool de notas + frota, **sem viagem ainda**, e o aceite criando as
+viagens.
+
+### O modelo
+
+Quatro coisas novas no banco, numa migration com rollback que **recusa reverter** enquanto existir
+sugestão multi-veículo por decidir (apagar o pool deixaria uma sugestão `ready` sem as notas que ela
+propõe distribuir):
+
+- `route_suggestion_documents` — o pool;
+- `route_suggestion_vehicles` — a frota **na ordem oferecida**. A ordem não é enfeite: é o que faz a
+  mesma semente distribuir igual;
+- `route_suggestion_stops.vehicle_id` — quem serve cada parada. Nulo na sugestão de viagem única, onde
+  o veículo é o da viagem e repeti-lo por parada guardaria a mesma resposta N vezes;
+- `route_suggestion_stop_documents` — qual nota cai em qual parada proposta. Sem ela o aceite
+  reagruparia as notas por endereço **de novo**, e o segundo agrupamento poderia discordar do
+  primeiro.
+
+### O aceite cria, mas não escreve
+
+`TripComposer` é a lista explícita do que ele pode fazer: criar viagem, vincular nota, ordenar parada,
+planejar rota — os quatro casos de uso da 056, nenhum reimplementado (ADR-0044 §5). A viagem nasce
+**sem motorista**: o solver decide o veículo, não quem dirige. As viagens nascem **antes** de a
+sugestão virar `accepted`, para falha no meio deixar `ready` e permitir repetir.
+
+A sugestão fala em **endereço** e a viagem em **parada**, porque a parada só nasce depois do vínculo,
+pela reconciliação. A tradução é feita depois de vincular, lendo as paradas que acabaram de nascer;
+endereço proposto que não virou parada é ignorado, e parada que a sugestão não nomeou vai para o fim
+— `reorderTripStops` exige o conjunto exato, e mandar lista parcial é recusa.
+
+### O worker
+
+`readContext` passou a ter **duas origens**: sugestão de viagem lê `trip_stops`; a multi-veículo lê o
+pool e agrupa pelo endereço do destinatário, com o mesmo critério da reconciliação da 056. A chave é
+**cópia por valor** (`pool-address-key.ts`), com contrato que compara os dois arquivos linha a linha —
+se divergirem, a parada proposta e a parada criada deixam de casar. O agrupamento é em TypeScript, não
+em `concat_ws`: a normalização tem CEP de oito dígitos, prefixo "nº" e "S/N", e montá-la em SQL criaria
+uma segunda regra do que é a mesma parada.
+
+### ⚠️ Um defeito de determinismo que só o Postgres achou
+
+`readGroups` ordenava por `vehicle_id` — ou seja, por **UUID sorteado**. A mesma sugestão devolvia os
+grupos em ordem diferente a cada execução, e o determinismo prometido no RNF morria ali, depois de o
+solver tê-lo respeitado. O teste passou em execução isolada e falhou na primeira rodada sob carga da
+suíte inteira. Hoje a ordem é a `position` da frota oferecida, e há contrato de unidade guardando que o
+aceite cria as viagens na ordem em que o repositório devolve.
+
+Comandos executados:
+
+```
+make migration-test                              # 86 pass / 0 fail (migration + rollback)
+bun run typecheck                                # limpo
+bun run lint                                     # limpo (monorepo inteiro)
+bun run --cwd apps/api-transportada test         # 3588 pass / 0 fail / 19 skip
+bun run --cwd apps/worker-transportada test      # 746 pass / 0 fail
+bun run test:integration                         # 172 pass / 0 fail
+```
+
+A integração cria a sugestão pronta como o worker a teria escrito, aceita, e confere contra o banco:
+duas viagens em `route_planned`, com o veículo certo, as notas vinculadas e as paradas nascidas da
+reconciliação — a primeira com duas notas do mesmo endereço numa parada só. O segundo aceite não cria
+viagem de novo.
+
+### Buracos declarados
+
+- **Não há tela.** As quatro rotas existem e são testadas, mas nenhum painel chama a multi-veículo: o
+  operador não tem por onde selecionar um pool de notas e uma frota. É o maior buraco desta entrega.
+- **O worker não foi exercitado de ponta a ponta com pool.** `readPoolStops`/`readPoolVehicles` têm
+  typecheck e leitura por contrato, mas nenhum teste roda o solver sobre um pool contra Postgres — a
+  integração parte da sugestão **já pronta**. Isso significa que a geração da proposta multi-veículo
+  ainda não tem prova de execução.
+- **Peso é sempre o de fallback** no pool: a nota ainda não passou pelo cálculo de frete, e inventar
+  peso por produto seria uma segunda regra de peso. Vem marcado, como a spec pede.
+- **Sem janela de atendimento** no pool: a janela vem do cadastro de cliente da 060 e o
+  `readPoolStops` não a lê ainda — as paradas propostas nascem sem restrição de horário.

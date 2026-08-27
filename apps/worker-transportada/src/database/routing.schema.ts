@@ -46,6 +46,8 @@ export const routeSuggestionStops = pgTable('route_suggestion_stops', {
   companyId: uuid('company_id').notNull(),
   suggestionId: uuid('suggestion_id').notNull(),
   stopId: uuid('stop_id'),
+  /** Spec 058 P2: qual veículo serve a parada. Nulo na sugestão de uma viagem só. */
+  vehicleId: uuid('vehicle_id'),
   sequence: bigint({ mode: 'bigint' }).notNull(),
   addressKey: text('address_key').notNull(),
   label: text().notNull(),
@@ -110,4 +112,31 @@ export const fleetVehicles = pgTable('fleet_vehicles', {
     precision: 19,
     scale: 4,
   }).notNull(),
+})
+
+/**
+ * ⚠️ Spec 058 P2 — cópia por valor do schema da API, como todo o resto deste arquivo. A frota, o
+ * pool de notas e a ligação parada↔nota da sugestão multi-veículo: o worker **lê** as duas primeiras
+ * para montar o problema e **escreve** a terceira ao gravar o resultado.
+ */
+export const routeSuggestionVehicles = pgTable('route_suggestion_vehicles', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  suggestionId: uuid('suggestion_id').notNull(),
+  vehicleId: uuid('vehicle_id').notNull(),
+  position: bigint({ mode: 'bigint' }).notNull(),
+})
+
+export const routeSuggestionDocuments = pgTable('route_suggestion_documents', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  suggestionId: uuid('suggestion_id').notNull(),
+  nfeDocumentId: uuid('nfe_document_id').notNull(),
+})
+
+export const routeSuggestionStopDocuments = pgTable('route_suggestion_stop_documents', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  suggestionStopId: uuid('suggestion_stop_id').notNull(),
+  nfeDocumentId: uuid('nfe_document_id').notNull(),
 })
