@@ -510,3 +510,48 @@ migrations). Nada nesta entrega toca a api; verifiquei o escopo e não mexi nos 
   dele.
 - **Sem teste de tela** para o diálogo da multi-veículo.
 - **O fuso é premissa**, não configuração — ver o ⚠️ acima.
+
+### O teste de tela do diálogo (2026-08-27)
+
+O quarto buraco da P2, fechado — e ele achou um defeito que nenhum contrato de unidade veria.
+
+O teste é **Playwright**, no navegador de verdade, junto do `responsive.smoke.spec.ts` que já existe:
+não foi introduzido DOM sintético (`happy-dom`/Testing Library) nesta app, porque isso seria um
+padrão novo para o repositório inteiro decidir, e porque o que faltava provar aqui é o **caminho do
+operador**, não a árvore React.
+
+O percurso coberto: selecionar a nota → abrir o diálogo pela barra de seleção → escolher dois
+veículos (e conferir que o **implemento não é oferecido**) → distribuir → ver o estado `queued` do
+poll → ver **uma coluna por veículo** mais o grupo "sem veículo" → ler o botão dizendo **"Aceitar e
+criar 2 viagens"** (duas, não três: a parada sem veículo não vira viagem) → aceitar → ver as viagens
+criadas → clicar no atalho e conferir que a URL virou a da viagem.
+
+#### ⚠️ O defeito que ele achou
+
+**Aceitar fazia o diálogo sumir.** `onAccepted` limpava a seleção da tabela, e a barra de seleção só
+existe enquanto há nota marcada — limpar desmontava a barra e, com ela, o diálogo. O operador via a
+tela fechar no clique e **nunca chegava a ler quais viagens nasceram**, nem a usar o atalho para
+abri-las. Toda a metade "depois do aceite" da tela era inalcançável.
+
+A limpeza passou a acontecer **ao fechar**, não ao aceitar. Nenhum contrato de unidade veria isso: a
+montagem é da tabela, não do diálogo, e o serviço puro não sabe onde ele está pendurado.
+
+#### Um erro de teste que valia registrar
+
+O mock de leitura usava `/route-suggestions/[^/]+$` — e `multi-vehicle` **também** é um segmento sem
+barra, então ele roubava o `POST` da criação. O fluxo parecia funcionar (a resposta tem a mesma
+forma) e só caiu quando o teste cobrou o **corpo enviado**. O padrão agora exige o identificador.
+
+Comandos executados:
+
+```
+bunx playwright test --grep "distribuição multi-veículo"   # 1 passed
+bunx playwright test                                       # 35 passed
+bun run --cwd apps/frontend-transportada test              # 2075 pass / 0 fail
+typecheck · lint · format                                  # limpos
+```
+
+#### O que continua aberto na P2
+
+- **Sem OSRM em suíte nenhuma** — a matriz é dublê no E2E do worker.
+- **O fuso da janela é premissa**, não configuração (`BRAZIL_UTC_OFFSET_SECONDS`).

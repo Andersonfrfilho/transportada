@@ -193,7 +193,10 @@ type MockPermissions = readonly (
   | 'cte.manage'
   | 'invoices.import'
   | 'invoices.read'
+  /** Spec 058 P2: a distribuição multi-veículo lê a frota e escreve viagem. */
+  | 'fleet.read'
   | 'settings.manage'
+  | 'trip.manage'
 )[]
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {

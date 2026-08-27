@@ -60,12 +60,20 @@ export function useMultiVehicleSuggestion(input: {
     return clientRef.current
   }
 
+  /**
+   * ⚠️ A limpeza da seleção acontece **ao fechar**, não ao aceitar. A barra de seleção da tabela só
+   * existe enquanto há nota marcada — limpar no aceite desmontava a barra, e com ela este diálogo:
+   * o operador via a tela sumir no clique e nunca chegava a ler quais viagens nasceram. Foi o smoke
+   * de tela que pegou; nenhum contrato de unidade veria, porque a montagem é da tabela.
+   */
   const close = useCallback((): void => {
+    const hadAccepted = accepted !== null
     setIsOpen(false)
     setSuggestion(null)
     setAccepted(null)
     setErrorCode(null)
-  }, [])
+    if (hadAccepted) input.onAccepted?.()
+  }, [accepted, input])
 
   const request = useCallback(async (): Promise<void> => {
     setErrorCode(null)
@@ -114,12 +122,6 @@ export function useMultiVehicleSuggestion(input: {
       const result = await resolveClient().acceptMultiVehicle({ suggestionId: suggestion.id })
       setAccepted(result)
       setSuggestion(result.suggestion)
-      /**
-       * A seleção da tabela é limpa **depois** do aceite, não antes: as notas viraram viagem, e
-       * mantê-las marcadas convidaria a pedir outra sugestão para as mesmas notas — que a API
-       * recusaria, agora que elas estão em viagem.
-       */
-      input.onAccepted?.()
     } catch (cause) {
       setErrorCode(toErrorCode(cause))
     } finally {

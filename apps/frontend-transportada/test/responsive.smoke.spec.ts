@@ -25,6 +25,12 @@ import {
 import { DRIVER_ACCESS_KEY, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
 import { PENDING_DOCUMENT, mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
+import {
+  CREATED_TRIP_ID,
+  FIRST_VEHICLE_ID,
+  mockMultiVehicleApi,
+  SECOND_VEHICLE_ID,
+} from './multi-vehicle-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
 import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
 
@@ -1164,4 +1170,83 @@ test('o operador revisa o anexo vendo onde ele discorda da ficha, e a recusa exi
   await assertNoHorizontalOverflow(page)
   expect(api.failures()).toEqual([])
   await auditAuthenticationStorage(page)
+})
+
+/**
+ * Spec 058 P2 — **a tela da distribuição, no navegador.** Os contratos de unidade provam o
+ * agrupamento e a contagem; o que só o browser prova é o caminho do operador: selecionar a nota,
+ * abrir o diálogo, escolher a frota, esperar o poll virar `ready`, ver uma coluna por veículo e o
+ * botão dizendo quantas viagens serão criadas.
+ */
+test('a distribuição multi-veículo vai da seleção de notas às viagens criadas', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'nfe'))
+  await mockNfeWorkspaceApi({
+    documentCount: 2,
+    page,
+    permissions: ['invoices.read', 'fleet.read', 'trip.manage'],
+  })
+  const routing = await mockMultiVehicleApi(page)
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { name: 'Documentos importados' })).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Selecionar nota' }).first().check()
+  await page.getByRole('button', { name: 'Sugerir viagens' }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('1 nota selecionada')).toBeVisible()
+
+  /** O implemento está na frota mockada e **não** pode ser oferecido: só quem traciona puxa carga. */
+  await dialog.getByRole('button', { name: 'Veículos disponíveis' }).click()
+  await expect(page.getByRole('option', { name: /ABC1D23/u })).toBeVisible()
+  await expect(page.getByRole('option', { name: /REB0C11/u })).toHaveCount(0)
+  await page.getByRole('option', { name: /ABC1D23/u }).click()
+  await page.getByRole('option', { name: /XYZ9A88/u }).click()
+  /**
+   * O painel do multi-select é portal e cobre a linha de ação: fechá-lo pelo próprio gatilho é o
+   * gesto do operador. `Escape` só fecha com o foco na busca — clicar numa opção tira o foco de lá.
+   */
+  await dialog.getByRole('button', { name: 'Veículos disponíveis' }).click()
+
+  await dialog.getByRole('button', { name: 'Distribuir' }).click()
+
+  /** O poll: a primeira leitura devolve `queued`, e é esse estado que o operador mais vê. */
+  await expect(dialog.getByText('Na fila')).toBeVisible()
+
+  /** Duas colunas de veículo, e a parada sem veículo num grupo próprio que **não some**. */
+  await expect(
+    dialog.getByRole('heading', { name: 'Veículo ABC1D23 · Marca Sintetica Modelo Sintetico' }),
+  ).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: /Veículo XYZ9A88/u })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Sem veículo — decida à mão' })).toBeVisible()
+  await expect(dialog.getByText('Sítio sem número')).toBeVisible()
+
+  /**
+   * O botão **diz quantas viagens** o aceite cria — duas, não três: a parada sem veículo não vira
+   * viagem. Aceitar cria viagem de verdade, e um botão que não avisa transforma isso em surpresa.
+   */
+  const accept = dialog.getByRole('button', { name: 'Aceitar e criar 2 viagens' })
+  await expect(accept).toBeVisible()
+  await accept.click()
+
+  await expect(dialog.getByText('1 viagem criada, em planejamento.')).toBeVisible()
+  expect(routing.acceptRequests()).toBe(1)
+
+  /**
+   * A ordem da frota enviada é a do próprio componente (a da lista de opções), não a dos cliques —
+   * e é ela que vira `position` no banco, de onde sai o determinismo da distribuição. O que este
+   * teste cobra é o **conjunto**: a ordem estável é contrato do multi-select, não desta tela.
+   */
+  const [body] = routing.createdBodies()
+  expect([...(body?.vehicleIds as readonly string[])].toSorted()).toEqual(
+    [FIRST_VEHICLE_ID, SECOND_VEHICLE_ID].toSorted(),
+  )
+  expect((body?.nfeDocumentIds as readonly string[]).length).toBe(1)
+
+  /** O atalho leva à viagem criada: sem ele o operador procuraria numa lista qual nasceu do clique. */
+  await dialog.getByRole('button', { name: 'Abrir viagem' }).click()
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/trips/${CREATED_TRIP_ID}`)
 })
