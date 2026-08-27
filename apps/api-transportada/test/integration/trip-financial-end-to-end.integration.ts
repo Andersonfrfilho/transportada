@@ -280,16 +280,14 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     ['recipient', '98765432000109'],
   ] as const) {
     const participantId = crypto.randomUUID()
-    await database.db
-      .insert(nfeParticipants)
-      .values({
-        companyId,
-        documentId: nfeDocumentId,
-        id: participantId,
-        legalName: role,
-        role,
-        taxId,
-      })
+    await database.db.insert(nfeParticipants).values({
+      companyId,
+      documentId: nfeDocumentId,
+      id: participantId,
+      legalName: role,
+      role,
+      taxId,
+    })
     await database.db.insert(nfeAddresses).values({
       city: 'Barretos',
       cityCode: '3505708',
