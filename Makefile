@@ -171,6 +171,10 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 		PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
 		bun run --cwd apps/frontend-transportada smoke
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53101}" \
+		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
+		bun run --cwd apps/frontend-landing smoke
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up
