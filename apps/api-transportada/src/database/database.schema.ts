@@ -122,6 +122,12 @@ import {
   routeSuggestions,
 } from './route-suggestion.schema.js'
 import {
+  companyTaxSettings,
+  tripCostEntries,
+  tripFinancialParcels,
+  tripFinancialResults,
+} from './trip-financial.schema.js'
+import {
   tripDispatchSnapshots,
   tripDocumentEvents,
   tripDocuments,
@@ -159,6 +165,7 @@ export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
 export * from './geocoding.schema.js'
 export * from './delivery-client.schema.js'
+export * from './trip-financial.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -261,7 +268,11 @@ export const databaseSchema = {
   routeSuggestionStops,
   routeSuggestions,
   storedObjects,
+  companyTaxSettings,
+  tripCostEntries,
   tripDispatchSnapshots,
+  tripFinancialParcels,
+  tripFinancialResults,
   tripDocumentEvents,
   tripDocuments,
   tripDrivers,

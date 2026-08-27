@@ -80,9 +80,9 @@ export class DrizzleExtraChargeBatchRepository implements ExtraChargeBatchReposi
     })
   }
 
-  public async findByToken(input: { readonly accessToken: string }): Promise<
-    { readonly batchId: string; readonly companyId: string } | null
-  > {
+  public async findByToken(input: {
+    readonly accessToken: string
+  }): Promise<{ readonly batchId: string; readonly companyId: string } | null> {
     const [row] = await this.database
       .select({ batchId: extraChargeBatches.id, companyId: extraChargeBatches.companyId })
       .from(extraChargeBatches)

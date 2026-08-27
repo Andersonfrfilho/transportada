@@ -25,7 +25,10 @@ import type {
   DeliveryChargePage,
   DeliveryChargeRule,
 } from '../application/delivery-charge.port.js'
-import type { ConfirmChargeInput, RecordDeliveryChargeInput } from '../application/delivery-charges.use-case.js'
+import type {
+  ConfirmChargeInput,
+  RecordDeliveryChargeInput,
+} from '../application/delivery-charges.use-case.js'
 
 const TRIP_DOCUMENT_CHARGES_PATH = `${API_TRIPS_PATH}/:id/documents/:documentId/charges`
 const CHARGE_CONFIRM_PATH = `${API_DELIVERY_CHARGES_PATH}/confirm`
@@ -107,7 +110,9 @@ export type DeliveryChargeRoutesDependencies = {
     }): Promise<readonly DeliveryChargeRule[]>
   }
   readonly recordCharge: {
-    execute(input: Omit<RecordDeliveryChargeInput, 'context'> & { readonly context: CompanyContext }): Promise<DeliveryCharge>
+    execute(
+      input: Omit<RecordDeliveryChargeInput, 'context'> & { readonly context: CompanyContext },
+    ): Promise<DeliveryCharge>
   }
   readonly upsertRule: {
     execute(input: {
@@ -174,7 +179,9 @@ export function createDeliveryChargeRoutes(
         /** `exactOptionalPropertyTypes`: linha sem valor editado não manda `amount: undefined`. */
         return {
           charges: charges.map((charge) =>
-            charge.amount === undefined ? { id: charge.id } : { amount: charge.amount, id: charge.id },
+            charge.amount === undefined
+              ? { id: charge.id }
+              : { amount: charge.amount, id: charge.id },
           ),
         }
       },

@@ -74,7 +74,10 @@ export type ContractorRoutesDependencies = {
     }): Promise<Contractor>
   }
   readonly getByTaxId: {
-    execute(input: { readonly context: CompanyContext; readonly taxId: string }): Promise<Contractor>
+    execute(input: {
+      readonly context: CompanyContext
+      readonly taxId: string
+    }): Promise<Contractor>
   }
   readonly getContractor: {
     execute(input: { readonly context: CompanyContext; readonly id: string }): Promise<Contractor>
@@ -207,7 +210,10 @@ export function createContractorRoutes(
       readonly to?: string
     }>({
       async handle({ context, input }): Promise<Response> {
-        const holidays = await dependencies.listHolidays.execute({ context: context.scope, ...input })
+        const holidays = await dependencies.listHolidays.execute({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({ body: { data: holidays }, status: 200 })
       },
       method: 'GET',
@@ -268,7 +274,9 @@ function parseHolidayFilters(url: URL): {
   const to = parameters.get('to')
 
   return {
-    ...(cityIbgeCode === null ? {} : { cityIbgeCode: z.string().regex(CITY_PATTERN).parse(cityIbgeCode) }),
+    ...(cityIbgeCode === null
+      ? {}
+      : { cityIbgeCode: z.string().regex(CITY_PATTERN).parse(cityIbgeCode) }),
     ...(from === null ? {} : { from: z.string().regex(DATE_PATTERN).parse(from) }),
     ...(to === null ? {} : { to: z.string().regex(DATE_PATTERN).parse(to) }),
   }

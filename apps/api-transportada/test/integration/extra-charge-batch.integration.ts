@@ -74,49 +74,56 @@ describe('o repasse contra Postgres (spec 060 T010–T012)', () => {
     })
   })
 
-  testWithPostgres('o relatório confere o próprio total, e a decisão por token grava o token', async () => {
-    await withDisposableDatabase(async (database) => {
-      const world = await seedCharges(database)
-      const useCase = buildUseCase(database)
-      const batch = await useCase.close({
-        context: world.context,
-        contractorId: world.contractorId,
-        periodEnd: '2026-08-31',
-        periodStart: '2026-08-01',
-      })
+  testWithPostgres(
+    'o relatório confere o próprio total, e a decisão por token grava o token',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedCharges(database)
+        const useCase = buildUseCase(database)
+        const batch = await useCase.close({
+          context: world.context,
+          contractorId: world.contractorId,
+          periodEnd: '2026-08-31',
+          periodStart: '2026-08-01',
+        })
 
-      const report = await useCase.readReport({ batchId: batch.id, context: world.context })
-      expect(report.itemsTotal).toBe(batch.totalAmount)
-      expect(report.items).toHaveLength(2)
-      expect(report.contractorName).toBe('Spani Atacadista')
+        const report = await useCase.readReport({ batchId: batch.id, context: world.context })
+        expect(report.itemsTotal).toBe(batch.totalAmount)
+        expect(report.items).toHaveLength(2)
+        expect(report.contractorName).toBe('Spani Atacadista')
 
-      const decided = await useCase.decideByToken({
-        accessToken: TOKEN,
-        decisions: [
-          { chargeId: world.recordedIds[0] ?? '', decision: 'approved', reason: '' },
-          { chargeId: world.recordedIds[1] ?? '', decision: 'rejected', reason: 'sem comprovante' },
-        ],
-      })
+        const decided = await useCase.decideByToken({
+          accessToken: TOKEN,
+          decisions: [
+            { chargeId: world.recordedIds[0] ?? '', decision: 'approved', reason: '' },
+            {
+              chargeId: world.recordedIds[1] ?? '',
+              decision: 'rejected',
+              reason: 'sem comprovante',
+            },
+          ],
+        })
 
-      const statuses = decided.items.map((item) => item.status).toSorted()
-      expect(statuses).toEqual(['approved', 'rejected'])
-      /** Cada lançamento tem estado próprio: o lote fica parcialmente aprovado, nunca travado. */
-      expect(decided.itemsTotal).toBe('135.0500')
+        const statuses = decided.items.map((item) => item.status).toSorted()
+        expect(statuses).toEqual(['approved', 'rejected'])
+        /** Cada lançamento tem estado próprio: o lote fica parcialmente aprovado, nunca travado. */
+        expect(decided.itemsTotal).toBe('135.0500')
 
-      const events = (await database.db.execute(
-        `select event_name, actor_user_id, decided_by_token from delivery_charge_events
+        const events = (await database.db.execute(
+          `select event_name, actor_user_id, decided_by_token from delivery_charge_events
          where charge_id = '${world.recordedIds[0] ?? ''}' order by occurred_at desc limit 1`,
-      )) as unknown as ReadonlyArray<{
-        readonly actor_user_id: string | null
-        readonly decided_by_token: string | null
-        readonly event_name: string
-      }>
+        )) as unknown as ReadonlyArray<{
+          readonly actor_user_id: string | null
+          readonly decided_by_token: string | null
+          readonly event_name: string
+        }>
 
-      expect(events[0]?.event_name).toBe('approved')
-      expect(events[0]?.actor_user_id).toBeNull()
-      expect(events[0]?.decided_by_token).toBe(TOKEN)
-    })
-  })
+        expect(events[0]?.event_name).toBe('approved')
+        expect(events[0]?.actor_user_id).toBeNull()
+        expect(events[0]?.decided_by_token).toBe(TOKEN)
+      })
+    },
+  )
 
   /**
    * Spec 060 D4c: a regra recorrente e a ocorrência do motorista propõem a mesma taxa pelo mesmo
@@ -211,11 +218,21 @@ async function seedCharges(database: TestDatabase): Promise<World> {
     .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
   await database.db.insert(contractors).values([
     { companyId, displayName: 'Spani Atacadista', id: contractorId, taxId: '30290856000160' },
-    { companyId, displayName: 'Outro embarcador', id: otherContractorRowId, taxId: '12345678000190' },
+    {
+      companyId,
+      displayName: 'Outro embarcador',
+      id: otherContractorRowId,
+      taxId: '12345678000190',
+    },
   ])
   await database.db
     .insert(deliveryClients)
-    .values({ companyId, displayName: 'Loja Central', id: deliveryClientId, taxId: '98765432000109' })
+    .values({
+      companyId,
+      displayName: 'Loja Central',
+      id: deliveryClientId,
+      taxId: '98765432000109',
+    })
 
   /**
    * A nota da viagem existe porque **a sugestão exige nota**: o índice parcial de dedupe é por

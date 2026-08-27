@@ -57,9 +57,7 @@ export type ResolveDeliveryWindowParams = {
  * normal (a maioria dos destinatários recebe a qualquer hora), e tratá-la como fechado travaria a
  * operação inteira no dia seguinte ao deploy.
  */
-export function resolveDeliveryWindow(
-  input: ResolveDeliveryWindowParams,
-): ResolvedDeliveryWindow {
+export function resolveDeliveryWindow(input: ResolveDeliveryWindowParams): ResolvedDeliveryWindow {
   const exception = input.exceptions.find((candidate) => candidate.exceptionOn === input.date)
   if (exception !== undefined) {
     if (exception.kind === 'closed') return { intervals: [], source: 'exception' }
@@ -107,7 +105,8 @@ export function isWithinDeliveryWindow(input: IsWithinDeliveryWindowParams): boo
 
   const time = normalizeTime(input.time)
   return resolved.intervals.some(
-    (interval) => normalizeTime(interval.opensAt) <= time && time < normalizeTime(interval.closesAt),
+    (interval) =>
+      normalizeTime(interval.opensAt) <= time && time < normalizeTime(interval.closesAt),
   )
 }
 

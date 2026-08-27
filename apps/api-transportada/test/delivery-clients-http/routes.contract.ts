@@ -13,7 +13,12 @@ import {
   DELIVERY_CLIENTS_PATH,
   READ_ONLY_PERMISSIONS,
 } from '../fixtures/delivery-client-http.fixture'
-import { COMPANY_CONTEXT, jsonRequest, responseApiError, responseData } from '../fixtures/freight-region-http.fixture'
+import {
+  COMPANY_CONTEXT,
+  jsonRequest,
+  responseApiError,
+  responseData,
+} from '../fixtures/freight-region-http.fixture'
 
 const CLIENT_PATH = `${DELIVERY_CLIENTS_PATH}/${CLIENT_ID}`
 
@@ -232,7 +237,9 @@ describe('as rotas do cliente de entrega (spec 060 T007)', () => {
   test('quem só lê não escreve cadastro', async () => {
     const fixture = createDeliveryClientHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
 
-    expect((await fixture.handle(jsonRequest({ method: 'GET', path: CLIENT_PATH }))).status).toBe(200)
+    expect((await fixture.handle(jsonRequest({ method: 'GET', path: CLIENT_PATH }))).status).toBe(
+      200,
+    )
     expect(
       (
         await fixture.handle(

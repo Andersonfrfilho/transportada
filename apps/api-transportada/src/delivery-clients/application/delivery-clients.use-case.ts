@@ -25,7 +25,10 @@ export type DeliveryClientsUseCase = {
     readonly taxId: string
     readonly values: DeliveryClientWriteInput
   }): Promise<DeliveryClient>
-  get(input: { readonly context: CompanyContext; readonly id: string }): Promise<DeliveryClientDetail>
+  get(input: {
+    readonly context: CompanyContext
+    readonly id: string
+  }): Promise<DeliveryClientDetail>
   getByTaxId(input: {
     readonly context: CompanyContext
     readonly taxId: string

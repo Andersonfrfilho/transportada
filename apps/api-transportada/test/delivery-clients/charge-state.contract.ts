@@ -17,19 +17,25 @@ import {
 } from '../../src/delivery-clients/domain/delivery-charge-state.policy.js'
 
 /** O caminho inteiro, do que a máquina propôs ao dinheiro de volta. */
-const HAPPY_PATH: readonly (readonly [DeliveryChargeStatus, DeliveryChargeAction, DeliveryChargeStatus])[] =
-  [
-    ['suggested', 'confirm', 'recorded'],
-    ['recorded', 'submit', 'submitted'],
-    ['submitted', 'approve', 'approved'],
-    ['approved', 'reimburse', 'reimbursed'],
-  ]
+const HAPPY_PATH: readonly (readonly [
+  DeliveryChargeStatus,
+  DeliveryChargeAction,
+  DeliveryChargeStatus,
+])[] = [
+  ['suggested', 'confirm', 'recorded'],
+  ['recorded', 'submit', 'submitted'],
+  ['submitted', 'approve', 'approved'],
+  ['approved', 'reimburse', 'reimbursed'],
+]
 
-const ALSO_ALLOWED: readonly (readonly [DeliveryChargeStatus, DeliveryChargeAction, DeliveryChargeStatus])[] =
-  [
-    ['suggested', 'dismiss', 'dismissed'],
-    ['submitted', 'reject', 'rejected'],
-  ]
+const ALSO_ALLOWED: readonly (readonly [
+  DeliveryChargeStatus,
+  DeliveryChargeAction,
+  DeliveryChargeStatus,
+])[] = [
+  ['suggested', 'dismiss', 'dismissed'],
+  ['submitted', 'reject', 'rejected'],
+]
 
 describe('o ciclo do repasse (spec 060 T005)', () => {
   test('anda do proposto ao reembolsado', () => {

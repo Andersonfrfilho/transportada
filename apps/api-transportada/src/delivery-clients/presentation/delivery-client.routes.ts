@@ -134,7 +134,10 @@ export function createDeliveryClientRoutes(
     }),
     defineRoute<{ readonly id: string }>({
       async handle({ context, input }): Promise<Response> {
-        const client = await dependencies.getClient.execute({ context: context.scope, id: input.id })
+        const client = await dependencies.getClient.execute({
+          context: context.scope,
+          id: input.id,
+        })
         return jsonResponse({ body: { data: serializeDetail(client) }, status: 200 })
       },
       method: 'GET',

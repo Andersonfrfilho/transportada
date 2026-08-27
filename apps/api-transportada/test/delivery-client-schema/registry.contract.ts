@@ -102,17 +102,17 @@ describe('o cadastro que nasce da nota (spec 060 T002)', () => {
   /** `open` sem horário não diz nada, e `closed` com horário é contradição — o banco recusa os dois. */
   test('a exceção por data é coerente com o que ela declara', () => {
     const check =
-      unqualifiedCheckSqlByName(deliveryClientExceptions)
-        .delivery_client_exceptions_hours_check ?? ''
+      unqualifiedCheckSqlByName(deliveryClientExceptions).delivery_client_exceptions_hours_check ??
+      ''
     expect(check).toContain(`"kind" = 'closed' and "opens_at" is null`)
     expect(check).toContain(`"kind" = 'open' and "opens_at" is not null`)
   })
 
   /** O feriado é da cidade, e a chave diz isso: uma data por município por empresa. */
   test('o feriado é único por município e por data', () => {
-    expect(uniqueColumnsByName(municipalHolidays).municipal_holidays_company_city_day_unique).toEqual(
-      ['company_id', 'city_ibge_code', 'holiday_on'],
-    )
+    expect(
+      uniqueColumnsByName(municipalHolidays).municipal_holidays_company_city_day_unique,
+    ).toEqual(['company_id', 'city_ibge_code', 'holiday_on'])
     expect(unqualifiedCheckSqlByName(municipalHolidays).municipal_holidays_city_check).toContain(
       '^[0-9]{7}$',
     )
@@ -139,12 +139,13 @@ describe('o cadastro que nasce da nota (spec 060 T002)', () => {
 describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
   /** Um agendamento por parada: dois é a portaria recebendo dois protocolos para a mesma carga. */
   test('o agendamento é único por parada e exige hora quando confirmado', () => {
-    expect(
-      uniqueColumnsByName(tripStopSchedules).trip_stop_schedules_company_stop_unique,
-    ).toEqual(['company_id', 'stop_id'])
-    expect(
-      unqualifiedCheckSqlByName(tripStopSchedules).trip_stop_schedules_confirmed_check,
-    ).toBe(`"status" <> 'confirmed' or "scheduled_at" is not null`)
+    expect(uniqueColumnsByName(tripStopSchedules).trip_stop_schedules_company_stop_unique).toEqual([
+      'company_id',
+      'stop_id',
+    ])
+    expect(unqualifiedCheckSqlByName(tripStopSchedules).trip_stop_schedules_confirmed_check).toBe(
+      `"status" <> 'confirmed' or "scheduled_at" is not null`,
+    )
   })
 
   /**
@@ -152,14 +153,15 @@ describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
    * direto em `recorded`, e o banco recusa a combinação que a máquina de estados não produz.
    */
   test('lançamento manual nunca nasce sugerido', () => {
-    expect(
-      unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_suggested_origin_check,
-    ).toBe(`"status" <> 'suggested' or "origin" <> 'manual'`)
+    expect(unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_suggested_origin_check).toBe(
+      `"status" <> 'suggested' or "origin" <> 'manual'`,
+    )
   })
 
   /** Sugestão dentro de lote seria dinheiro cobrado sem ninguém conferir. */
   test('o lote só aceita o que já passou por gente', () => {
-    const check = unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_batch_status_check ?? ''
+    const check =
+      unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_batch_status_check ?? ''
     expect(check).toContain('"batch_id" is null or')
     expect(check).not.toContain('suggested')
     expect(check).not.toContain(`'recorded'`)
@@ -189,9 +191,7 @@ describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
    * contratante" e nunca é atribuída por palpite. Por isso a coluna é anulável.
    */
   test('o lançamento sobrevive sem contratante', () => {
-    expect(
-      getTableColumns(deliveryCharges).contractorId.notNull,
-    ).toBe(false)
+    expect(getTableColumns(deliveryCharges).contractorId.notNull).toBe(false)
     expect(getTableColumns(deliveryCharges).deliveryClientId.notNull).toBe(true)
   })
 

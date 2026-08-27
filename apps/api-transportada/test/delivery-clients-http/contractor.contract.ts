@@ -5,7 +5,10 @@ import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
-import type { Contractor, MunicipalHoliday } from '../../src/delivery-clients/application/contractor.port.js'
+import type {
+  Contractor,
+  MunicipalHoliday,
+} from '../../src/delivery-clients/application/contractor.port.js'
 import { createContractorRoutes } from '../../src/delivery-clients/presentation/contractor.routes.js'
 import {
   authenticatedContext,
@@ -181,9 +184,9 @@ describe('as rotas do contratante e do feriado (spec 060 T008)', () => {
   test('quem cuida da frota lê, mas não muda o período de fechamento', async () => {
     const fixture = createFixture(new Set(['fleet.read', 'fleet.manage']))
 
-    expect((await fixture.handle(jsonRequest({ method: 'GET', path: '/contractors' }))).status).toBe(
-      200,
-    )
+    expect(
+      (await fixture.handle(jsonRequest({ method: 'GET', path: '/contractors' }))).status,
+    ).toBe(200)
     const refused = await fixture.handle(
       jsonRequest({
         body: { closingPeriod: 'fortnightly' },

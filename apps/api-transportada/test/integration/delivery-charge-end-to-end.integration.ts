@@ -212,9 +212,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
         // 7. O contratante aprova pelo link, e a trilha guarda o token — nunca um usuário inventado.
         const decided = await batches.decideByToken({
           accessToken: TOKEN,
-          decisions: [
-            { chargeId: suggested.items[0]?.id ?? '', decision: 'approved', reason: '' },
-          ],
+          decisions: [{ chargeId: suggested.items[0]?.id ?? '', decision: 'approved', reason: '' }],
         })
         expect(decided.items[0]?.status).toBe('approved')
         expect(decided.itemsTotal).toBe(batch.totalAmount)

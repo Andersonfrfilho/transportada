@@ -81,7 +81,10 @@ function buildRepository(
     },
     async transition(input) {
       transitions.push(structuredClone(input))
-      return charge({ status: input.status, ...(input.amount === undefined ? {} : { amount: input.amount }) })
+      return charge({
+        status: input.status,
+        ...(input.amount === undefined ? {} : { amount: input.amount }),
+      })
     },
   }
 

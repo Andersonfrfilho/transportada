@@ -33,6 +33,11 @@ describe('fleet driver schema', () => {
       'tax_id',
       'linked_tax_id',
       'linked_legal_name',
+      /** ADR-0049 §3: como este motorista é pago — o agregado por rota, o da casa por quinzena. */
+      'payment_model',
+      'fixed_amount',
+      'payment_period',
+      'payment_closing_day',
       'license_number',
       'license_category',
       'license_expires_at',
@@ -85,7 +90,19 @@ describe('fleet driver schema', () => {
   // As duas datas são nulas quando ausentes: coluna `date` não tem a string vazia que
   // serve de ausência para os campos de texto opcionais.
   test('leaves the login link and the two dates nullable, and requires every other column', () => {
-    const nullable = ['membership_id', 'license_expires_at', 'first_license_at', 'birth_date']
+    /**
+     * ADR-0049 §3: as três colunas do salário são nulas para o agregado — e é o CHECK de forma que
+     * garante que elas andam juntas, não a obrigatoriedade da coluna.
+     */
+    const nullable = [
+      'membership_id',
+      'license_expires_at',
+      'first_license_at',
+      'birth_date',
+      'fixed_amount',
+      'payment_period',
+      'payment_closing_day',
+    ]
 
     expect(requiredColumnNames(fleetDrivers)).toEqual(
       columnNames(fleetDrivers).filter((column) => !nullable.includes(column)),

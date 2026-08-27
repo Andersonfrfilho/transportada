@@ -101,6 +101,17 @@ export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIMES)[number]
 export const FLEET_DRIVER_STATUSES = ['active', 'inactive'] as const
 export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUSES)[number]
 
+/**
+ * ADR-0049 §3: **os dois modelos convivem na mesma frota.** O agregado é pago por rota, pela tabela
+ * de região cruzada com a classe do veículo; o motorista da casa tem valor fixo por quinzena, e esse
+ * custo é do **período**, não da viagem.
+ */
+export const DRIVER_PAYMENT_MODELS = ['route_table', 'fixed'] as const
+export type DriverPaymentModel = (typeof DRIVER_PAYMENT_MODELS)[number]
+
+export const DRIVER_PAYMENT_PERIODS = ['fortnightly', 'monthly'] as const
+export type DriverPaymentPeriod = (typeof DRIVER_PAYMENT_PERIODS)[number]
+
 /** xNome do condutor cabe em 60 caracteres no layout 3.00. */
 const DRIVER_NAME_MAX_LENGTH = 60
 
@@ -314,6 +325,19 @@ export const fleetDrivers = pgTable(
     taxId: text('tax_id').notNull(),
     linkedTaxId: text('linked_tax_id').notNull().default(''),
     linkedLegalName: text('linked_legal_name').notNull().default(''),
+    /**
+     * ADR-0049 §3: como este motorista é pago. `route_table` é o agregado — o valor sai da tabela de
+     * região. `fixed` é o da casa: salário por quinzena, que é custo do **período**, e por isso as
+     * três colunas seguintes só existem para ele.
+     */
+    paymentModel: text('payment_model')
+      .$type<DriverPaymentModel>()
+      .notNull()
+      .default('route_table'),
+    fixedAmount: numeric('fixed_amount', { precision: 19, scale: 4 }),
+    paymentPeriod: text('payment_period').$type<DriverPaymentPeriod>(),
+    /** Dia do fechamento. Na quinzena, o segundo fechamento é este dia + 15 (ou o fim do mês). */
+    paymentClosingDay: bigint('payment_closing_day', { mode: 'number' }),
     licenseNumber: text('license_number').notNull().default(''),
     licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
@@ -433,6 +457,23 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_phone_check',
       sql`length(${table.phone}) = 0 or ${table.phone} ~ '^[0-9]{10,11}$'`,
+    ),
+    /**
+     * As duas metades andam juntas: `fixed` sem valor, sem período e sem dia de fechamento é um
+     * salário que ninguém consegue pagar; `route_table` com salário é contradição — ele é pago por
+     * rota. O banco recusa as duas.
+     */
+    check(
+      'fleet_drivers_payment_model_check',
+      sql`${table.paymentModel} in (${sql.raw(inList(DRIVER_PAYMENT_MODELS))})`,
+    ),
+    check(
+      'fleet_drivers_payment_shape_check',
+      sql`(${table.paymentModel} = 'fixed' and ${table.fixedAmount} is not null and ${table.fixedAmount} > 0 and ${table.paymentPeriod} is not null and ${table.paymentClosingDay} between 1 and 28) or (${table.paymentModel} = 'route_table' and ${table.fixedAmount} is null and ${table.paymentPeriod} is null and ${table.paymentClosingDay} is null)`,
+    ),
+    check(
+      'fleet_drivers_payment_period_check',
+      sql`${table.paymentPeriod} is null or ${table.paymentPeriod} in (${sql.raw(inList(DRIVER_PAYMENT_PERIODS))})`,
     ),
     check(
       'fleet_drivers_dates_check',

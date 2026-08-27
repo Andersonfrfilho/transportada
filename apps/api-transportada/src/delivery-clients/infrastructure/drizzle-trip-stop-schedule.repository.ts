@@ -81,7 +81,8 @@ export class DrizzleTripStopScheduleRepository implements TripStopSchedulePort {
           divergedAt: null,
           notes: input.values.notes,
           protocol: input.values.protocol,
-          scheduledAt: input.values.scheduledAt === null ? null : new Date(input.values.scheduledAt),
+          scheduledAt:
+            input.values.scheduledAt === null ? null : new Date(input.values.scheduledAt),
           status: input.values.status,
           updatedAt: new Date(),
         },

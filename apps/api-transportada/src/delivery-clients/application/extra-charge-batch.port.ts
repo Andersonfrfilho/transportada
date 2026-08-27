@@ -56,9 +56,9 @@ export type ExtraChargeBatchRepositoryPort = {
     readonly periodEnd: string
     readonly periodStart: string
   }): Promise<ExtraChargeBatch | null>
-  findByToken(input: { readonly accessToken: string }): Promise<
-    { readonly batchId: string; readonly companyId: string } | null
-  >
+  findByToken(input: {
+    readonly accessToken: string
+  }): Promise<{ readonly batchId: string; readonly companyId: string } | null>
   readReport(input: {
     readonly batchId: string
     readonly companyId: string

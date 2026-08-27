@@ -130,7 +130,10 @@ export const contractors = pgTable(
       'contractors_status_check',
       sql`${table.status} in (${sql.raw(inList(DELIVERY_CLIENT_STATUSES))})`,
     ),
-    check('contractors_tax_id_check', sql`${table.taxId} ~ ${sql.raw(`'${TAX_ID_OR_CNPJ_PATTERN}'`)}`),
+    check(
+      'contractors_tax_id_check',
+      sql`${table.taxId} ~ ${sql.raw(`'${TAX_ID_OR_CNPJ_PATTERN}'`)}`,
+    ),
     check(
       'contractors_closing_period_check',
       sql`${table.closingPeriod} in (${sql.raw(inList(CONTRACTOR_CLOSING_PERIODS))})`,

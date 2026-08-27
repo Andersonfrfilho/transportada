@@ -123,9 +123,7 @@ export function parseDeliveryClientList(url: URL): { readonly filters: DeliveryC
       ...(nameContains === null || nameContains.trim().length === 0
         ? {}
         : { nameContains: nameContains.trim() }),
-      ...(requiresScheduling === null
-        ? {}
-        : { requiresScheduling: requiresScheduling === 'true' }),
+      ...(requiresScheduling === null ? {} : { requiresScheduling: requiresScheduling === 'true' }),
       ...(status === null ? {} : { status: z.enum(DELIVERY_CLIENT_STATUSES).parse(status) }),
     },
   }

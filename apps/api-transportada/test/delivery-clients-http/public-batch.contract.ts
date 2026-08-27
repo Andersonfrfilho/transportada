@@ -106,7 +106,11 @@ function createFixture(params: { readonly unknownToken?: boolean } = {}) {
   }
 }
 
-function request(input: { readonly body?: unknown; readonly method: string; readonly path: string }) {
+function request(input: {
+  readonly body?: unknown
+  readonly method: string
+  readonly path: string
+}) {
   return new Request(`${ORIGIN}${input.path}`, {
     ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
     headers: {

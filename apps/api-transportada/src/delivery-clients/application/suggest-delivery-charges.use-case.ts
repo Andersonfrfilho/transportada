@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { DeliveryChargeOrigin, DeliveryChargeType } from '../../database/delivery-client.schema.js'
+import type {
+  DeliveryChargeOrigin,
+  DeliveryChargeType,
+} from '../../database/delivery-client.schema.js'
 import type {
   DeliveryChargeRepositoryPort,
   DeliveryChargeRuleRepositoryPort,

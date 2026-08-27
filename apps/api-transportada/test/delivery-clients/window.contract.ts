@@ -42,12 +42,22 @@ describe('a hora em que o cliente recebe (spec 060 T004)', () => {
       { closesAt: '11:00:00', opensAt: '08:00:00' },
       { closesAt: '16:00:00', opensAt: '14:00:00' },
     ])
-    expect(isWithinDeliveryWindow({ ...EMPTY, date: THURSDAY, time: '12:30', windows: [AFTERNOON, MORNING] })).toBe(
-      false,
-    )
-    expect(isWithinDeliveryWindow({ ...EMPTY, date: THURSDAY, time: '15:00', windows: [AFTERNOON, MORNING] })).toBe(
-      true,
-    )
+    expect(
+      isWithinDeliveryWindow({
+        ...EMPTY,
+        date: THURSDAY,
+        time: '12:30',
+        windows: [AFTERNOON, MORNING],
+      }),
+    ).toBe(false)
+    expect(
+      isWithinDeliveryWindow({
+        ...EMPTY,
+        date: THURSDAY,
+        time: '15:00',
+        windows: [AFTERNOON, MORNING],
+      }),
+    ).toBe(true)
   })
 
   /** Quem fecha às 11h não recebe às 11h em ponto: a borda superior é exclusiva. */
@@ -108,7 +118,9 @@ describe('a hora em que o cliente recebe (spec 060 T004)', () => {
   test('a exceção do cliente vence o feriado do município, nos dois sentidos', () => {
     const open = resolveDeliveryWindow({
       date: THURSDAY,
-      exceptions: [{ closesAt: '12:00:00', exceptionOn: THURSDAY, kind: 'open', opensAt: '09:00:00' }],
+      exceptions: [
+        { closesAt: '12:00:00', exceptionOn: THURSDAY, kind: 'open', opensAt: '09:00:00' },
+      ],
       holidays: [{ holidayOn: THURSDAY }],
       windows: [MORNING],
     })
@@ -170,7 +182,11 @@ describe('a hora em que o cliente recebe (spec 060 T004)', () => {
 
   /** O banco devolve `08:00:00` e a tela manda `08:00`: são o mesmo horário. */
   test('aceita hora com e sem segundos', () => {
-    const day = { ...EMPTY, date: THURSDAY, windows: [{ closesAt: '11:00', opensAt: '08:00', weekday: THURSDAY_WEEKDAY }] }
+    const day = {
+      ...EMPTY,
+      date: THURSDAY,
+      windows: [{ closesAt: '11:00', opensAt: '08:00', weekday: THURSDAY_WEEKDAY }],
+    }
 
     expect(isWithinDeliveryWindow({ ...day, time: '09:00:00' })).toBe(true)
     expect(isWithinDeliveryWindow({ ...day, time: '09:00' })).toBe(true)

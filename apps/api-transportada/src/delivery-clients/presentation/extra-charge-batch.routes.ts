@@ -50,10 +50,10 @@ export const extraChargeDecisionsSchema = z
             reason: z.string().trim().max(500).default(''),
           })
           .strict()
-          .refine(
-            (decision) => decision.decision === 'approved' || decision.reason.length > 0,
-            { message: 'A rejection requires a reason', path: ['reason'] },
-          ),
+          .refine((decision) => decision.decision === 'approved' || decision.reason.length > 0, {
+            message: 'A rejection requires a reason',
+            path: ['reason'],
+          }),
       )
       .min(1)
       .max(500),
@@ -108,7 +108,9 @@ export function createExtraChargeBatchRoutes(
         return jsonResponse({ body: { data: report }, status: 200 })
       },
       method: 'GET',
-      parse: ({ pathParameters }) => ({ batchId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
+      parse: ({ pathParameters }) => ({
+        batchId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
       pathname: BATCH_REPORT_PATH,
       policy: BATCH_READ_POLICY,
     }),

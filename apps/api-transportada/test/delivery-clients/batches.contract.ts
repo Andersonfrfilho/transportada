@@ -158,9 +158,7 @@ describe('o lote de repasse (spec 060 T011)', () => {
     await world.useCase.decide({
       batchId: BATCH_ID,
       context: CONTEXT,
-      decisions: [
-        { chargeId: CHARGE_ID, decision: 'rejected', reason: 'sem comprovante' },
-      ],
+      decisions: [{ chargeId: CHARGE_ID, decision: 'rejected', reason: 'sem comprovante' }],
     })
 
     expect(world.transitions).toEqual([

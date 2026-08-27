@@ -70,6 +70,13 @@ emitente da nota.
 - DeliveryClientChargeRule: a taxa que se repete, como **regra** — ela propõe, quem lança é gente.
 - ExtraChargeBatch: o lote de repasse, **do contratante e do período** (nunca da viagem), com o token
   opaco da página pública de aprovação (ADR-0048 §7).
+- TripFinancialResult: **a conta da viagem, congelada quando ela fecha** (ADR-0049). Receita de CT-e
+  autorizado, imposto que desce dela e custo por parcela — cada parcela com `source`
+  (`measured` · `estimated` · `missing` · `period`), porque parcela ausente que vira zero produz
+  margem que engana com confiança. Recalcular gera versão nova, com motivo; a anterior fica.
+- TripCostEntry: pedágio e gasto avulso lançados na viagem.
+- CompanyTaxSettings: o regime federal e as alíquotas de PIS/COFINS. Sem ele a margem sai marcada
+  como "sem os federais" — assumir um regime erraria em silêncio, com cara de número certo.
 - ProcessingJob e AuditLog: rastreabilidade transversal.
 
 ```mermaid

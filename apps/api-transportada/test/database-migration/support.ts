@@ -169,6 +169,14 @@ export const DELIVERY_CLIENT_TABLES = [
   'extra_charge_batches',
 ] as const
 
+/** Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa. */
+export const TRIP_FINANCIAL_TABLES = [
+  'trip_financial_results',
+  'trip_financial_parcels',
+  'trip_cost_entries',
+  'company_tax_settings',
+] as const
+
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
 export const INVITATION_DELIVERY_TABLES = ['invitation_delivery_outbox'] as const
 
@@ -229,6 +237,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...NFSE_TABLES,
     ...TRIP_TABLES,
     ...DELIVERY_CLIENT_TABLES,
+    ...TRIP_FINANCIAL_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

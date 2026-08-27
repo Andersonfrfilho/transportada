@@ -32,10 +32,15 @@ export const DELIVERY_CHARGE_ACTIONS = [
 ] as const
 export type DeliveryChargeAction = (typeof DELIVERY_CHARGE_ACTIONS)[number]
 
-const TRANSITIONS: Readonly<Record<DeliveryChargeAction, {
-  readonly from: readonly DeliveryChargeStatus[]
-  readonly to: DeliveryChargeStatus
-}>> = Object.freeze({
+const TRANSITIONS: Readonly<
+  Record<
+    DeliveryChargeAction,
+    {
+      readonly from: readonly DeliveryChargeStatus[]
+      readonly to: DeliveryChargeStatus
+    }
+  >
+> = Object.freeze({
   approve: { from: ['submitted'], to: 'approved' },
   /** Confirmar é o toque de gente que transforma proposta em fato. Só o proposto pode ser confirmado. */
   confirm: { from: ['suggested'], to: 'recorded' },

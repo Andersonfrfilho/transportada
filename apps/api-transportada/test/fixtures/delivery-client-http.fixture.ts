@@ -38,9 +38,7 @@ export const CLIENT: DeliveryClient = {
 
 export const CLIENT_DETAIL: DeliveryClientDetail = {
   ...CLIENT,
-  exceptions: [
-    { closesAt: null, exceptionOn: '2026-12-24', kind: 'closed', opensAt: null },
-  ],
+  exceptions: [{ closesAt: null, exceptionOn: '2026-12-24', kind: 'closed', opensAt: null }],
   windows: [{ closesAt: '11:00:00', opensAt: '08:00:00', weekday: 4 }],
 }
 
