@@ -40,7 +40,6 @@ import {
   identityUsers,
   mdfeFiscalDocuments,
   mdfeIssuanceAttempts,
-  mdfeManifests,
   nfeAddresses,
   nfeDocuments,
   nfeImports,
