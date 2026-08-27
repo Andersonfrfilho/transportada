@@ -276,3 +276,76 @@ mesmo tipo de instabilidade que a carga dos bancos descartáveis causou na T007.
 - **Sem limite de frequência**: o celular pode mandar posição de segundo em segundo, e cada uma vira
   linha. Não há teto por viagem nem descarte de ping quase idêntico ao anterior.
 - **Não há tela de consentimento** — a rota existe, o PWA do motorista ainda não a chama (T009–T010).
+
+## T009 e T010 — `apps/frontend-client`
+
+App própria: build, bundle, domínio e Dockerfile separados (ADR-0050 §1). O painel carrega frota,
+financeiro, fiscal e cadastro; servir o mesmo bundle a um usuário externo seria depender de que
+**toda** condicional de permissão no cliente esteja certa, para sempre, em todo deploy.
+
+Três coisas em que ela diverge do painel, todas deliberadas e todas com contrato:
+
+- **`connect-src` sem destino externo nenhum.** O painel tem quatro (BrasilAPI, Photon, IBGE); aqui
+  são a própria origem, a API e o Keycloak. Qualquer origem que entrasse seria um terceiro sabendo
+  que uma carga daquele cliente está em trânsito. Uma varredura por `https://` no código falha se
+  alguma aparecer sem estar declarada;
+- **`Permissions-Policy: camera=(), geolocation=(), microphone=()`** — as três negadas. O portal não
+  bipa etiqueta (isso é o separador), não rastreia ninguém (quem manda posição é o celular do
+  motorista, no outro app) e não grava áudio;
+- **sem atalho de autenticação de fumaça.** O provedor é cópia do painel menos o bypass, e o contrato
+  falha por nome se ele reaparecer: um bypass num app servido a usuário externo é o tipo de código
+  que ninguém quer descobrir ligado em produção.
+
+### As telas
+
+Duas: **Entregas** e **Repasses**. A tradução do vocabulário mora num lugar só
+(`deliveryStatus.service.ts`): `separating`/`loaded` é o que acontece no galpão da transportadora, e
+o cliente quer saber se a nota **saiu** — `null` vira "Recebida" em vez de sumir, e "Devolvida" vence
+"Entregue", porque nota que voltou não é entrega concluída.
+
+**O mapa é desenho nosso**, sem tile de terceiro: projeção equirretangular com a longitude corrigida
+pelo cosseno da latitude, janela fixa de meio grau (~55 km), grade e marcador em SVG. ⚠️ **Divergência
+da ADR:** ela previa a malha do IBGE, como no mapa de zonas do painel — mas o payload mínimo do
+portal (§4) **não carrega cidade nem UF**, e alargá-lo só para desenhar um contorno trocaria
+privacidade por enfeite. Ficou o localizador com escala. Foi essa decisão que zerou o `connect-src`
+externo.
+
+Sem posição, a tela diz "sem posição no momento" e **não explica por quê**: o motorista pode não ter
+consentido, e dizer isso ao cliente seria contar algo que é do motorista.
+
+Comandos executados:
+
+```
+bun run lint                                 # monorepo inteiro, limpo
+bun run typecheck                            # limpo
+bun run test                                 # api 3575/0 · client 17/0 · demais 0 fail
+bun run format:check                         # limpo
+bun run --cwd apps/frontend-client build     # ok, CSP emitida no dist
+```
+
+**Dois contratos existentes reprovaram, e os dois estavam certos:** o que exige que todo `Dockerfile`
+copie o `package.json` de **toda** app do workspace (senão `bun install --frozen-lockfile` recusa o
+lockfile e o build morre — já derrubou o deploy três vezes), e o do filtro de mudança do pipeline,
+que cobra alvo declarado para cada app (app sem alvo nunca publica, e nada fica vermelho para
+avisar). Os dois foram atendidos: seis `Dockerfile` atualizados, alvo `client` em
+`changed-targets.sh` e no `deploy.yml`.
+
+Ligado ao monorepo: `FRONTEND_CLIENT_PORT=53100`, `VITE_CLIENT_APP_URL`, a origem no
+`FRONTEND_ORIGIN` (CORS), `make dev` subindo a quarta app e `make smoke` conferindo a raiz e o
+manifest dela. `compose.yaml` **não muda** — ele só sobe infra, nenhum frontend.
+
+### Buracos declarados
+
+- **Nenhum teste de tela.** Esta app não tem DOM no `bun test`, como o painel: o que se prova é o
+  serviço puro (tradução de estado, projeção do mapa) e o texto de fonte (CSP, cabeçalhos). Clique,
+  foco e teclado ficam para o Playwright — que **não existe aqui** (sem `playwright.config.ts`, sem
+  alvo no `make smoke` além do healthcheck).
+- **Nenhum design system.** O portal tem CSS próprio, curto, com os tokens copiados por valor. Os
+  contratos de design do painel (select, skeleton, ícone, checkbox, data) **não valem aqui**, e os
+  campos são `input` nativo — inclusive o `datetime-local`, que o painel proíbe. Foi troca
+  consciente: trazer 1.300 linhas de CSS de componente que ele não usa seria peso morto no celular
+  do cliente. Quem for crescer esta app precisa decidir isto de novo, por escrito.
+- **Sem service de deploy criado**: o alvo existe no filtro e no gate, mas ninguém provisionou o
+  serviço `frontend-client` na hospedagem. O primeiro deploy vai falhar até isso ser feito.
+- **Sem tela de vínculo no painel**: continua valendo o buraco da T004 — criar um contratante-usuário
+  é convidar por `/company-users` e chamar `POST /contractors/:id/portal-users` na mão.

@@ -12,21 +12,24 @@ COPY apps/worker-transportada/package.json apps/worker-transportada/package.json
 
 FROM manifests AS build
 RUN bun install --frozen-lockfile
-COPY apps/frontend-landing apps/frontend-landing
+COPY apps/frontend-client apps/frontend-client
 # VITE_* é inlinado no bundle: precisa existir no build, não no runtime. Nada secreto entra aqui.
 ARG VITE_API_URL
 ARG VITE_APP_ENV
 ARG VITE_APP_URL
-RUN bun run --cwd apps/frontend-landing build
+ARG VITE_KEYCLOAK_CLIENT_ID
+ARG VITE_KEYCLOAK_REALM
+ARG VITE_KEYCLOAK_URL
+RUN bun run --cwd apps/frontend-client build
 
 FROM oven/bun:1.3.14-alpine AS runtime
-WORKDIR /app/apps/frontend-landing
+WORKDIR /app/apps/frontend-client
 ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 landing \
-  && adduser --system --uid 1001 --ingroup landing landing
+RUN addgroup --system --gid 1001 transportada \
+  && adduser --system --uid 1001 --ingroup transportada transportada
 
-COPY --from=build /app/apps/frontend-landing/dist dist
-COPY apps/frontend-landing/server.ts server.ts
+COPY --from=build /app/apps/frontend-client/dist dist
+COPY apps/frontend-client/server.ts server.ts
 
-USER landing
+USER transportada
 CMD ["bun", "./server.ts"]

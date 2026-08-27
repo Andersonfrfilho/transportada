@@ -1,6 +1,6 @@
 set -euo pipefail
 
-readonly TARGETS='api frontend landing worker cron'
+readonly TARGETS='api frontend client landing worker cron'
 
 usage() {
   echo "uso: [MARKER_PREFIX=refs/deploy/<env>] BASELINE=<sha> [FORCE_ALL=true] $0" >&2
@@ -11,6 +11,7 @@ paths_of() {
   case "$1" in
     api) echo 'apps/api-transportada/ deploy/api/ deploy/keycloak/ realm/' ;;
     frontend) echo 'apps/frontend-transportada/ deploy/frontend/' ;;
+    client) echo 'apps/frontend-client/' ;;
     landing) echo 'apps/frontend-landing/' ;;
     worker) echo 'apps/worker-transportada/ deploy/worker/' ;;
     cron) echo 'apps/cron-transportada/ deploy/cron/' ;;

@@ -92,6 +92,7 @@ jobs:
     outputs:
       api: ${{ steps.detect.outputs.api }}
       frontend: ${{ steps.detect.outputs.frontend }}
+      client: ${{ steps.detect.outputs.client }}
       landing: ${{ steps.detect.outputs.landing }}
       worker: ${{ steps.detect.outputs.worker }}
       cron: ${{ steps.detect.outputs.cron }}
@@ -122,6 +123,7 @@ jobs:
           WORKER: ${{ steps.detect.outputs.worker }}
           CRON: ${{ steps.detect.outputs.cron }}
           FRONTEND: ${{ steps.detect.outputs.frontend }}
+          FRONTEND_CLIENT: ${{ steps.detect.outputs.client }}
           FRONTEND_LANDING: ${{ steps.detect.outputs.landing }}
         run: |
           selected=()
@@ -131,6 +133,7 @@ jobs:
           if [ "$WORKER" = true ]; then selected+=('"worker-transportada"'); fi
           if [ "$CRON" = true ]; then selected+=('"cron-transportada"'); fi
           if [ "$FRONTEND" = true ]; then selected+=('"frontend-transportada"'); fi
+          if [ "$FRONTEND_CLIENT" = true ]; then selected+=('"frontend-client"'); fi
           if [ "$FRONTEND_LANDING" = true ]; then selected+=('"frontend-landing"'); fi
           apps="[$(IFS=,; echo "${selected[*]-}")]"
           echo "apps=$apps" >>"$GITHUB_OUTPUT"

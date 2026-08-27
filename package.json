@@ -10,13 +10,13 @@
     "bun": "1.3.14"
   },
   "scripts": {
-    "build": "bun run --cwd apps/api-transportada build && bun run --cwd apps/worker-transportada build && bun run --cwd apps/cron-transportada build && bun run --cwd apps/frontend-transportada build && bun run --cwd apps/frontend-landing build",
+    "build": "bun run --cwd apps/api-transportada build && bun run --cwd apps/worker-transportada build && bun run --cwd apps/cron-transportada build && bun run --cwd apps/frontend-transportada build && bun run --cwd apps/frontend-client build && bun run --cwd apps/frontend-landing build",
     "dev": "make dev",
     "format": "bunx prettier --write .",
     "format:check": "bunx prettier --check .",
-    "lint": "bun run --cwd apps/api-transportada lint && bun run --cwd apps/worker-transportada lint && bun run --cwd apps/cron-transportada lint && bun run --cwd apps/frontend-transportada lint && bun run --cwd apps/frontend-landing lint",
-    "test": "bun run --cwd apps/api-transportada test && bun run --cwd apps/worker-transportada test && bun run --cwd apps/cron-transportada test && bun run --cwd apps/frontend-transportada test && bun run --cwd apps/frontend-landing test",
-    "typecheck": "bun run --cwd apps/api-transportada typecheck && bun run --cwd apps/worker-transportada typecheck && bun run --cwd apps/cron-transportada typecheck && bun run --cwd apps/frontend-transportada typecheck && bun run --cwd apps/frontend-landing typecheck",
+    "lint": "bun run --cwd apps/api-transportada lint && bun run --cwd apps/worker-transportada lint && bun run --cwd apps/cron-transportada lint && bun run --cwd apps/frontend-transportada lint && bun run --cwd apps/frontend-client lint && bun run --cwd apps/frontend-landing lint",
+    "test": "bun run --cwd apps/api-transportada test && bun run --cwd apps/worker-transportada test && bun run --cwd apps/cron-transportada test && bun run --cwd apps/frontend-transportada test && bun run --cwd apps/frontend-client test && bun run --cwd apps/frontend-landing test",
+    "typecheck": "bun run --cwd apps/api-transportada typecheck && bun run --cwd apps/worker-transportada typecheck && bun run --cwd apps/cron-transportada typecheck && bun run --cwd apps/frontend-transportada typecheck && bun run --cwd apps/frontend-client typecheck && bun run --cwd apps/frontend-landing typecheck",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {

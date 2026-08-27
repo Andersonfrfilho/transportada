@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/api-transportada/package.json apps/api-transportada/package.json
 COPY apps/cron-transportada/package.json apps/cron-transportada/package.json
+COPY apps/frontend-client/package.json apps/frontend-client/package.json
 COPY apps/frontend-landing/package.json apps/frontend-landing/package.json
 COPY apps/frontend-transportada/package.json apps/frontend-transportada/package.json
 COPY apps/worker-transportada/package.json apps/worker-transportada/package.json

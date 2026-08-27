@@ -60,7 +60,8 @@ describe('contrato do filtro de mudança do pipeline', () => {
     )
     const declared = [...(await targetPaths()).values()].flat()
 
-    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(5)
+    // Seis desde a spec 063: o portal do contratante é app própria por decisão de segurança (ADR-0050 §1).
+    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(6)
     for (const { isApplication, name } of applications) {
       if (isApplication) {
         expect(declared).toContain(`apps/${name}/`)
