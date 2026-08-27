@@ -442,6 +442,17 @@ export const deliveryCharges = pgTable(
       'delivery_charges_suggested_origin_check',
       sql`${table.status} <> 'suggested' or ${table.origin} <> 'manual'`,
     ),
+    /**
+     * Toda sugestão **carrega a nota**, e isso é o que faz a dedupe funcionar: o índice parcial de
+     * uma sugestão por nota e tipo é `(company_id, trip_document_id, charge_type)`, e no Postgres
+     * dois `null` não colidem — sem este CHECK, sugestão sem nota escaparia da trava em silêncio.
+     *
+     * Lançamento manual sem nota continua permitido: ele já passou por gente.
+     */
+    check(
+      'delivery_charges_suggested_document_check',
+      sql`${table.status} <> 'suggested' or ${table.tripDocumentId} is not null`,
+    ),
     /** Sugestão em lote seria dinheiro cobrado sem ninguém conferir: o lote só aceita conferido. */
     check(
       'delivery_charges_batch_status_check',
