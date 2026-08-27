@@ -50,6 +50,8 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * que também descarta manifesto —, e sim a permissão criada para o gatilho automático.
    */
   'mdfe.auto-issue',
+  /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
+  'deliveries.track',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -162,6 +164,12 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
   // — e não reporta entrega, que é do campo.
   separator: Object.freeze(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
+  /**
+   * ADR-0050: o contratante lê **a entrega**, e só a das notas dos documentos dele — o recorte não
+   * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
+   * documento fiscal: quem paga o frete acompanha a carga, não administra a transportadora.
+   */
+  contractor: Object.freeze(['deliveries.track']),
   /**
    * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
    * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.

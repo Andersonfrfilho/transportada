@@ -1,4 +1,4 @@
-# ADR-0050 — O portal do cliente é outra app, e ele entra sem senha
+# ADR-0050 — O portal do contratante é outra app, e o vínculo com o documento é o recorte
 
 - **Status:** aceito
 - **Data:** 2026-08-27
@@ -27,36 +27,49 @@ em vez de num erro improvável.
 
 São três superfícies com três públicos: painel, PWA do motorista, portal do cliente.
 
-### 2. A identidade é o documento, e a autenticação não é senha
+### 2. O contratante é usuário, e o que o recorta é o vínculo com o documento
 
-Senha para cada cliente é criar um problema de suporte permanente — recuperação, rotação, vazamento —
-por um uso que é ocasional: o cliente entra quando tem entrega, não todo dia.
+O portal **não** é acesso anônimo por código. O contratante recebe uma conta como qualquer outro
+usuário do produto — mesmo Keycloak, mesmo convite, mesma membership —, com o papel `contractor` e
+uma permissão só, `deliveries.track`.
 
-**Código de uso único**, enviado ao contato que a própria NF-e trouxe. O padrão já existe no produto
-(ADR-0030, recuperação de senha), e daqui saem três exigências que **não** são opcionais:
+O recorte do que ele enxerga **não vem do papel**: vem de `contractor_portal_bindings`, que amarra a
+membership dele a uma ou mais linhas de `contractors` — e é `contractors` que carrega o documento,
+desde a 060. Daí sai a lista de notas: as notas cujo participante é um dos documentos amarrados à
+conta. Um grupo com cinco CNPJs é uma conta com cinco vínculos, não cinco contas.
 
-- **a resposta é idêntica para documento cadastrado e não cadastrado**, e o tempo também. Sem isso o
-  portal vira oráculo: quem tenta documentos aprende quais existem, e descobre a carteira de clientes
-  da transportadora;
-- **limite de tentativa por documento e por IP**, com espera crescente;
-- **nunca revelar para onde o código foi**, nem mascarado — máscara que permite confirmar um telefone
-  é confirmação.
+Três consequências que não são opcionais:
+
+- **o documento nunca chega do cliente.** A conta diz quem é; o servidor resolve os documentos dela.
+  Aceitar o CNPJ no corpo da requisição seria a mesma classe de falha que `companyId` no payload;
+- **as duas chaves estrangeiras do vínculo levam `company_id` junto.** A FK simples aceitaria amarrar
+  a conta de uma empresa ao contratante de outra, porque as duas linhas existem de verdade;
+- **`deliveries.track` não é concedida a papel nenhum de dentro.** Quem trabalha na transportadora já
+  lê nota por `invoices.read`, que é mais ampla; somar as duas só criaria um segundo caminho de
+  leitura para manter alinhado com o primeiro.
+
+Descartado o **código de uso único sem senha**, que era o desenho anterior desta ADR: ele resolvia
+um acesso ocasional e sem cadastro, mas o contratante deste produto é uma relação continuada, com
+alguém do outro lado que acompanha entrega toda semana. Conta nomeada é o que permite revogar acesso
+de uma pessoa que saiu do cliente, e é o que dá trilha de auditoria de quem olhou o quê — as duas
+coisas que o código anônimo não dá. Em troca, aceita-se o custo de suporte de senha, que o produto já
+paga para todo mundo (ADR-0030).
 
 ### 3. A empresa é conhecida antes do login
 
 A instalação é dedicada: um deploy por transportadora (ADR-0021). O portal daquela instalação é o
-portal daquela transportadora, e o documento resolve **dentro** dela.
+portal daquela transportadora, e a conta resolve **dentro** dela — o mesmo `tenantContext` do painel,
+sem caminho novo.
 
-Isso não é conveniência de infraestrutura: é o que impede a resposta do login de revelar em quantas
-transportadoras aquele documento aparece. "Entrada única com escolha depois de autenticar" só faria
-sentido num produto multiempresa hospedado, que este não é.
+"Entrada única com escolha de empresa depois de autenticar" só faria sentido num produto multiempresa
+hospedado, que este não é.
 
 ### 4. O servidor decide o que é do cliente
 
 Mesmo princípio do PWA do motorista, e pela mesma razão — BOLA é o campeão de vulnerabilidade em API
 REST. As rotas são `/client/me/*` e **não recebem id de viagem, de nota nem de cliente**: o servidor
-resolve pelo documento da sessão, e mesmo a chave de acesso é conferida contra ele antes de qualquer
-leitura.
+resolve pelos documentos vinculados à conta, e mesmo a chave de acesso é conferida contra eles antes
+de qualquer leitura.
 
 E o que o cliente vê é **menos** do que o sistema sabe: qual nota, qual status, quando chega, e o
 comprovante. Sem placa, sem nome de motorista, sem valor de frete, sem margem. Cada campo a mais no
@@ -93,8 +106,8 @@ dia em que o WhatsApp também agendar, as duas divergiriam, e divergência de ag
 para o lugar errado.
 
 O que muda é **quem chama** e **o que é oferecido**: o cliente vê janelas disponíveis, não o
-formulário do operador; e a trilha registra que a decisão veio de ator externo, com documento e
-sessão.
+formulário do operador; e a trilha registra que a decisão veio de ator externo, pela membership do
+contratante.
 
 ## Consequências
 
@@ -108,13 +121,14 @@ sessão.
 
 ## Alternativas descartadas
 
-| Alternativa                                 | Por que não                                                                                     |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Rota a mais no painel interno               | Depender de toda condicional de permissão no cliente estar certa, para sempre, em todo deploy   |
-| Conta com senha por cliente                 | Problema de suporte permanente por um uso ocasional                                             |
-| Mascarar o contato para onde o código foi   | Máscara que permite confirmar um telefone é confirmação                                         |
-| Entrada única com escolha de transportadora | A tela de escolha revela em quais a pessoa está cadastrada — informação de carteira             |
-| Mapa com tiles de terceiro                  | A CSP fecha `frame-src` desde a ADR-0037, e a coordenada do cliente sairia daqui                |
-| Rastrear sem consentimento do motorista     | Histórico de deslocamento de pessoa, coletado por padrão, é o que a LGPD trata como sensível    |
-| Guardar o rastro depois da viagem           | Vira histórico de rotina de trabalho; o carimbo da entrega já responde o que a operação precisa |
-| Regra de agendamento própria do portal      | No dia em que o WhatsApp agendar, as duas divergem — e caminhão vai para o lugar errado         |
+| Alternativa                                  | Por que não                                                                                     |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Rota a mais no painel interno                | Depender de toda condicional de permissão no cliente estar certa, para sempre, em todo deploy   |
+| Código de uso único, sem conta               | Não revoga acesso de quem saiu do cliente e não deixa trilha de quem olhou o quê                |
+| Documento vindo no corpo da requisição       | Mesma classe de falha que `companyId` no payload — quem diz quem é, é a conta                   |
+| `deliveries.track` também em papel de dentro | Segundo caminho de leitura para manter alinhado com `invoices.read`, sem ganho                  |
+| Entrada única com escolha de transportadora  | A tela de escolha revela em quais a pessoa está cadastrada — informação de carteira             |
+| Mapa com tiles de terceiro                   | A CSP fecha `frame-src` desde a ADR-0037, e a coordenada do cliente sairia daqui                |
+| Rastrear sem consentimento do motorista      | Histórico de deslocamento de pessoa, coletado por padrão, é o que a LGPD trata como sensível    |
+| Guardar o rastro depois da viagem            | Vira histórico de rotina de trabalho; o carimbo da entrega já responde o que a operação precisa |
+| Regra de agendamento própria do portal       | No dia em que o WhatsApp agendar, as duas divergem — e caminhão vai para o lugar errado         |

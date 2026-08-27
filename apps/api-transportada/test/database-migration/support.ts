@@ -177,6 +177,12 @@ export const TRIP_FINANCIAL_TABLES = [
   'company_tax_settings',
 ] as const
 
+/** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
+export const CONTRACTOR_PORTAL_TABLES = [
+  'contractor_portal_bindings',
+  'trip_location_pings',
+] as const
+
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
 export const INVITATION_DELIVERY_TABLES = ['invitation_delivery_outbox'] as const
 
@@ -238,6 +244,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...TRIP_TABLES,
     ...DELIVERY_CLIENT_TABLES,
     ...TRIP_FINANCIAL_TABLES,
+    ...CONTRACTOR_PORTAL_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

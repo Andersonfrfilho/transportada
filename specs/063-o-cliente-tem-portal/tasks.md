@@ -4,15 +4,20 @@
 > mínimo são o que não dá para consertar depois de vazar.
 
 As quatro `[NEEDS CLARIFICATION]` estão respondidas: **rastreamento ao vivo entra** (com
-consentimento e expurgo), a empresa vem do **subdomínio** (a instalação é dedicada), o código vai
-para o contato **da própria NF-e**, e a spec vem antes da 062.
+consentimento e expurgo), a empresa vem do **subdomínio** (a instalação é dedicada) e a spec vem
+antes da 062.
+
+⚠️ **O acesso mudou de desenho durante a execução, por decisão do cliente (2026-08-27):** o portal
+não é entrada anônima por código de uso único, e sim **conta de usuário** com o papel `contractor`,
+amarrada a um ou mais documentos por `contractor_portal_bindings` — as notas do portal são as dos
+documentos amarrados. A ADR-0050 §2 foi reescrita; T003 e T004 mudaram de conteúdo junto.
 
 | Task    | O que                                                                            | Requisito | Estado |
 | ------- | -------------------------------------------------------------------------------- | --------- | ------ |
 | T001 🧠 | ADR-0050, e a spec sem cláusula em aberto                                        | —         | ✅     |
-| T002    | Migration: código de acesso, sessão do portal, ping de posição, consentimento    | 2, 3      | ⬜     |
-| T003 🧠 | O domínio do acesso: resposta uniforme, limite por documento e por IP, expiração | 2, 8      | ⬜     |
-| T004    | Rotas anônimas de acesso, e a sessão curta                                       | 2, 3, 4   | ⬜     |
+| T002    | Migration: vínculo contratante↔documento, papel, ping de posição, consentimento | 2, 3      | ✅     |
+| T003 🧠 | O recorte do contratante: documentos da conta, e nenhum vindo do cliente         | 2, 8      | ⬜     |
+| T004    | Administrar o vínculo: convidar contratante e amarrar documento                  | 2, 3, 4   | ⬜     |
 | T005 🧠 | `/client/me/deliveries`: payload mínimo, com contrato que reprova campo interno  | 4, 5      | ⬜     |
 | T006    | Agendar pelo portal, pela máquina de estados da 060                              | 6         | ⬜     |
 | T007    | O contratante aprova o lote linha a linha, com ator externo na trilha            | 7         | ⬜     |

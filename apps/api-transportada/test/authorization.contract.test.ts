@@ -61,6 +61,8 @@ describe('authorization contract', () => {
       'trip.financials',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
+      // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
+      'deliveries.track',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -155,6 +157,7 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
+      contractor: ['deliveries.track'],
       automation: ['mdfe.auto-issue'],
     })
   })
@@ -297,7 +300,15 @@ describe('authorization contract', () => {
      * de gente a concede. Um humano que a tivesse dispararia emissão fiscal pela rota de máquina.
      */
     const companyPermissions = TRANSPORTADA_PERMISSIONS.filter(
-      (permission) => permission !== 'companies.manage' && permission !== 'mdfe.auto-issue',
+      /**
+       * ADR-0050: `deliveries.track` sai junto — ela é do contratante, e o recorte dela não é o
+       * papel e sim o vínculo com o documento. Somá-la a um papel da transportadora daria a alguém
+       * de dentro uma leitura que já existe mais ampla em `invoices.read`.
+       */
+      (permission) =>
+        permission !== 'companies.manage' &&
+        permission !== 'mdfe.auto-issue' &&
+        permission !== 'deliveries.track',
     )
 
     expect([...permissions]).toEqual(companyPermissions)

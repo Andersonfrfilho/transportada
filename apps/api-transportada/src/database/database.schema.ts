@@ -121,6 +121,7 @@ import {
   routeSuggestionStops,
   routeSuggestions,
 } from './route-suggestion.schema.js'
+import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
 import {
   companyTaxSettings,
   tripCostEntries,
@@ -166,6 +167,7 @@ export * from './trip.schema.js'
 export * from './geocoding.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
+export * from './client-portal.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -269,8 +271,10 @@ export const databaseSchema = {
   routeSuggestions,
   storedObjects,
   companyTaxSettings,
+  contractorPortalBindings,
   tripCostEntries,
   tripDispatchSnapshots,
+  tripLocationPings,
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,

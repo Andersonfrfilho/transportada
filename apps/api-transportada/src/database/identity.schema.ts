@@ -36,6 +36,12 @@ export const COMPANY_ROLES = [
   'aggregate',
   'separator',
   /**
+   * ADR-0050: o **contratante** — quem paga o frete — com conta própria. Ele não é gente da
+   * transportadora: o que ele alcança são os documentos amarrados em `contractor_portal_bindings`,
+   * e nada da empresa fora deles.
+   */
+  'contractor',
+  /**
    * ADR-0047: o papel do **serviço**, não de gente. Ele existe para a membership sintética do worker
    * — é ela que a API valida quando o token de máquina diz em que empresa está agindo — e concede uma
    * permissão só. Um serviço que pode tudo o que um operador pode é um operador com senha que
@@ -152,7 +158,7 @@ export const membershipRoles = pgTable(
     check(
       'membership_roles_role_check',
       // `automation` é o papel do service account (ADR-0047) — cabe aqui e **não** no CHECK do convite
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'automation')`,
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor', 'automation')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

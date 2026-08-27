@@ -330,6 +330,12 @@ export const fleetDrivers = pgTable(
      * região. `fixed` é o da casa: salário por quinzena, que é custo do **período**, e por isso as
      * três colunas seguintes só existem para ele.
      */
+    /**
+     * ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo. **Desligado por
+     * padrão** — `null` é ausência de aceite, e enquanto ele for `null` o portal não mostra posição
+     * nenhuma, nem a última conhecida de ontem.
+     */
+    locationSharingConsentAt: timestamp('location_sharing_consent_at', { withTimezone: true }),
     paymentModel: text('payment_model')
       .$type<DriverPaymentModel>()
       .notNull()
