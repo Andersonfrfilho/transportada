@@ -7,7 +7,7 @@ import { aliasedTable, and, eq, inArray, sql, sum } from 'drizzle-orm'
 import { companyFuelPrices } from '../../database/company-fuel-prices.schema.js'
 import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
 import { cteBatchItemCharges, cteBatchItems } from '../../database/cte-batch.schema.js'
-import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
+import { cteFiscalDocuments, cteIssuancePayloads } from '../../database/cte-issuance.schema.js'
 import { deliveryCharges } from '../../database/delivery-client.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import {
@@ -330,9 +330,17 @@ export class DrizzleTripValuationQuery {
         and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
       )
 
+    const icmsByDocument = await this.readIcmsByDocument({
+      companyId: input.companyId,
+      nfeDocumentIds: rows
+        .map((row) => row.nfeDocumentId)
+        .filter((documentId): documentId is string => documentId !== null),
+    })
+
     return rows.map((row) => ({
       destinationCityCode: row.destinationCityCode,
       destinationState: row.destinationState,
+      icmsAmount: icmsByDocument.get(row.nfeDocumentId ?? '') ?? null,
       issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
       measuredAmount: row.measuredAmount,
       nfeDocumentId: row.nfeDocumentId,
@@ -340,6 +348,53 @@ export class DrizzleTripValuationQuery {
       senderTaxId: row.senderTaxId,
       tripDocumentId: row.tripDocumentId,
     }))
+  }
+
+  /**
+   * ADR-0049 §4: o ICMS **do documento**, lido do payload congelado — foi ele que viajou no XML, e
+   * recalculá-lo do perfil de hoje discordaria da SEFAZ no dia em que a alíquota mudasse.
+   *
+   * Consulta própria, e não subconsulta correlacionada: são N notas numa consulta só, e o mapa é
+   * montado aqui — o mesmo padrão dos volumes e do manifesto na viagem do motorista.
+   *
+   * CST isento não escreve `vICMS`, e isento é zero **medido**: o `coalesce` traduz isso. Nota sem
+   * documento autorizado simplesmente não entra no mapa, e aí o valor é `null` — desconhecido.
+   */
+  private async readIcmsByDocument(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<Map<string, string>> {
+    if (input.nfeDocumentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        amount: sql<string>`coalesce((${cteIssuancePayloads.payload} -> 'icms' ->> 'vICMS')::numeric, 0)::text`,
+        nfeDocumentId: cteBatchItems.nfeDocumentId,
+      })
+      .from(cteBatchItems)
+      .innerJoin(
+        cteFiscalDocuments,
+        and(
+          eq(cteFiscalDocuments.companyId, cteBatchItems.companyId),
+          eq(cteFiscalDocuments.batchItemId, cteBatchItems.id),
+          eq(cteFiscalDocuments.status, 'authorized'),
+        ),
+      )
+      .innerJoin(
+        cteIssuancePayloads,
+        and(
+          eq(cteIssuancePayloads.companyId, cteFiscalDocuments.companyId),
+          eq(cteIssuancePayloads.attemptId, cteFiscalDocuments.attemptId),
+        ),
+      )
+      .where(
+        and(
+          eq(cteBatchItems.companyId, input.companyId),
+          inArray(cteBatchItems.nfeDocumentId, [...input.nfeDocumentIds]),
+        ),
+      )
+
+    return new Map(rows.map((row) => [row.nfeDocumentId, row.amount]))
   }
 }
 
