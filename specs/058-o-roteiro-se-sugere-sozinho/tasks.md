@@ -406,3 +406,54 @@ bun run --cwd apps/frontend-transportada build   # ok
   exercitado ponta a ponta.
 - **Sem orçamento de tempo na tela**: a rota aceita `solverTimeBudgetSeconds` e o diálogo não o
   oferece — fica o padrão da empresa.
+
+### O E2E do solver com pool (2026-08-27)
+
+O segundo buraco da P2, fechado: nada exercitava o caminho que leva a sugestão multi-veículo de
+`queued` a `ready`. Agora existe
+`apps/worker-transportada/test/route-optimization-pool.integration.test.ts`, contra Postgres, com o
+repositório, o efeito, o solver e o banco **reais**.
+
+**O único dublê é a matriz** — o OSRM não sobe no CI, e a distância vira uma tabela de haversine
+calculada **no teste**, nunca no código. O segundo caso do arquivo é exatamente o que guarda essa
+fronteira: matriz fora do ar não vira estimativa.
+
+O que ficou provado contra o banco:
+
+- **quatro notas, três paradas.** As duas do mesmo endereço viram uma parada só — o mesmo
+  agrupamento da reconciliação da 056, que é o que faz a parada proposta e a parada criada no aceite
+  serem a mesma coisa;
+- **toda parada sai com veículo**, e é por ele que o aceite sabe quantas viagens criar;
+- **o peso vem marcado**, porque a nota do pool não passou pelo cálculo de frete;
+- **as quatro notas ficam amarradas às paradas** em `route_suggestion_stop_documents`.
+
+#### ⚠️ Um defeito que só este teste acharia
+
+Com a matriz fora do ar e tentativa sobrando, o handler devolvia `retry` **sem soltar a reserva**.
+`claim` só pega o que está `queued`, então a reentrega não conseguia reservar de novo: a sugestão
+ficava **`running` para sempre**, com o painel dizendo "calculando" até alguém abrir o banco — e o
+`failed` com código estável que a ADR-0044 §1 promete nunca chegava.
+
+A correção é `release`: a porta ganhou o método, o repositório devolve a linha para `queued` **só a
+partir de `running`** (sugestão decidida entre a falha e a devolução não se ressuscita), e o handler
+o chama antes de pedir reentrega. Dois contratos de unidade novos guardam as duas metades, e o E2E
+confere o estado no banco depois de cada uma.
+
+Nenhum teste de unidade acharia isso: todos eles dublavam `claim` para sempre devolver reserva.
+
+Comandos executados:
+
+```
+make worker-integration                          # 61 pass / 0 fail
+bun run lint · typecheck · format:check          # limpos, monorepo inteiro
+bun run --cwd apps/worker-transportada test      # 748 pass / 0 fail
+```
+
+#### O que continua aberto na P2
+
+- **Sem OSRM no teste**: a matriz é dublê. O `docs/runbooks/osrm-extract.md` explica como subir o
+  serviço, mas nenhuma suíte automatizada fala com ele — a qualidade do roteiro em rua depende dele,
+  e isso não é verificado por máquina nenhuma.
+- **Sem janela de atendimento no pool**: `readPoolStops` não lê o cadastro de cliente da 060, então
+  as paradas propostas nascem sem restrição de horário.
+- **Sem teste de tela** para o diálogo da multi-veículo (buraco anterior, intacto).

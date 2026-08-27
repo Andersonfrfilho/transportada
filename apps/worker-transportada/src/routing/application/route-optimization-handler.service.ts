@@ -22,6 +22,12 @@ export type RouteOptimizationHandlerPorts = Readonly<{
   }) => Promise<void>
   fail: (input: { readonly errorCode: string; readonly job: RouteOptimizationJob }) => Promise<void>
   /**
+   * Devolve a sugestão para `queued`. Sem isso a reentrega não consegue reservá-la de novo — `claim`
+   * só pega o que está `queued` —, e a sugestão fica `running` **para sempre**: o painel mostra
+   * "calculando" até alguém olhar o banco. Foi o teste de integração do pool que achou isso.
+   */
+  release: (job: RouteOptimizationJob) => Promise<void>
+  /**
    * Recebe o **job**, não só a reserva: o `companyId` é o filtro de tenant de toda leitura seguinte,
    * e sem ele o worker montaria o contexto de uma viagem que não é da empresa — ou de nenhuma.
    */
@@ -75,6 +81,7 @@ export async function handleRouteOptimization(input: {
       errorCode === ROUTE_OPTIMIZATION_ERROR.matrixUnavailable &&
       input.attempt < input.maxAttempts
     ) {
+      await input.ports.release(input.job)
       return 'retry'
     }
 

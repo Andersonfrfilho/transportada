@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS = {
 
 export type RouteOptimizationRepository = Pick<
   RouteOptimizationHandlerPorts,
-  'claim' | 'complete' | 'fail'
+  'claim' | 'complete' | 'fail' | 'release'
 > &
   Readonly<{ readContext: (job: RouteOptimizationJob) => Promise<RouteOptimizationContext | null> }>
 
@@ -237,6 +237,23 @@ export function createDrizzleRouteOptimizationRepository(
             ),
           )
       })
+    },
+
+    /**
+     * A volta para `queued`, e **só a partir de `running`**: uma sugestão que alguém decidiu entre a
+     * falha e a devolução não pode ser ressuscitada por uma mensagem atrasada.
+     */
+    async release(job) {
+      await database
+        .update(routeSuggestions)
+        .set({ status: 'queued', updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(routeSuggestions.companyId, job.companyId),
+            eq(routeSuggestions.id, job.suggestionId),
+            eq(routeSuggestions.status, 'running'),
+          ),
+        )
     },
 
     async fail({ errorCode, job }) {

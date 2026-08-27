@@ -20,6 +20,7 @@ export function createRouteOptimizationPorts(input: {
     claim: (job) => input.repository.claim(job),
     complete: (completion) => input.repository.complete(completion),
     fail: (failure) => input.repository.fail(failure),
+    release: (job) => input.repository.release(job),
 
     async optimize({ job }) {
       const context = await input.repository.readContext(job)

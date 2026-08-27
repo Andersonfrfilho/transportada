@@ -30,9 +30,11 @@ function buildPorts(
 ): RouteOptimizationHandlerPorts & {
   readonly completed: unknown[]
   readonly failed: { readonly errorCode: string }[]
+  readonly released: string[]
 } {
   const completed: unknown[] = []
   const failed: { readonly errorCode: string }[] = []
+  const released: string[] = []
 
   return {
     async claim() {
@@ -49,6 +51,10 @@ function buildPorts(
     async optimize() {
       return OUTCOME
     },
+    async release(job) {
+      released.push(job.suggestionId)
+    },
+    released,
     ...overrides,
   }
 }
@@ -150,5 +156,45 @@ describe('route optimization handler (ADR-0044 §5 e §7)', () => {
     await handleRouteOptimization({ attempt: 1, job: JOB, maxAttempts: 1, ports })
 
     expect(ports.completed).toEqual([])
+  })
+
+  /**
+   * A reentrega só funciona se a reserva for devolvida: `claim` só pega o que está `queued`, e sem
+   * soltar a sugestão ela ficaria `running` para sempre — o painel mostrando "calculando" até alguém
+   * olhar o banco. Foi a integração do pool (spec 058 P2) que achou isso.
+   */
+  test('devolve a reserva antes de pedir reentrega', async () => {
+    const ports = buildPorts({
+      optimize: () => Promise.reject(new Error('ROUTING_MATRIX_UNAVAILABLE')),
+    })
+
+    const disposition = await handleRouteOptimization({
+      attempt: 1,
+      job: JOB,
+      maxAttempts: 3,
+      ports,
+    })
+
+    expect(disposition).toBe('retry')
+    expect(ports.released).toEqual([JOB.suggestionId])
+    expect(ports.failed).toEqual([])
+  })
+
+  /** Esgotadas as tentativas, ela falha com código estável — e aí não se devolve reserva nenhuma. */
+  test('na última tentativa falha, e não devolve a reserva', async () => {
+    const ports = buildPorts({
+      optimize: () => Promise.reject(new Error('ROUTING_MATRIX_UNAVAILABLE')),
+    })
+
+    const disposition = await handleRouteOptimization({
+      attempt: 3,
+      job: JOB,
+      maxAttempts: 3,
+      ports,
+    })
+
+    expect(disposition).toBe('ack')
+    expect(ports.released).toEqual([])
+    expect(ports.failed).toEqual([{ errorCode: 'ROUTING_MATRIX_UNAVAILABLE' }])
   })
 })
