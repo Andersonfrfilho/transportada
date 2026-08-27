@@ -432,8 +432,17 @@ export const deliveryCharges = pgTable(
       'delivery_charges_origin_check',
       sql`${table.origin} in (${sql.raw(inList(DELIVERY_CHARGE_ORIGINS))})`,
     ),
-    /** Taxa é dinheiro cobrado de outra empresa: zero é lançamento que ninguém precisava fazer. */
-    check('delivery_charges_amount_check', sql`${table.amount} > 0`),
+    /**
+     * Taxa é dinheiro cobrado de outra empresa: zero é lançamento que ninguém precisava fazer.
+     *
+     * **A sugestão é a exceção**, e ela é deliberada: a ocorrência do motorista diz que cobraram —
+     * ele não sabe quanto, e o recibo está na foto. Zero aqui significa "o escritório preenche", e a
+     * confirmação recusa sem valor. Sem esta brecha, o aviso do campo morreria por não ter número.
+     */
+    check(
+      'delivery_charges_amount_check',
+      sql`${table.amount} > 0 or ${table.status} = 'suggested'`,
+    ),
     /**
      * Só o que nasceu automático pode estar `suggested`. Lançamento manual entra direto em
      * `recorded`, e o banco recusa a combinação que a máquina de estados não produz.

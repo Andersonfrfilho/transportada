@@ -27,6 +27,22 @@ export class DeliveryChargeNotFoundError extends ApiError {
   }
 }
 
+/**
+ * Spec 060 D4c: a sugestão nascida de ocorrência chega **sem valor** — o motorista diz que cobraram,
+ * e o recibo está na foto. Confirmar sem preencher o valor viraria uma linha de zero real no
+ * relatório do contratante.
+ */
+export class DeliveryChargeAmountRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CHARGE_AMOUNT_REQUIRED',
+      details: [{ field: 'amount', message: 'this suggestion has no amount yet' }],
+      message: 'This suggestion needs an amount before it can be confirmed',
+      status: 422,
+    })
+  }
+}
+
 export class DeliveryChargeTransitionNotAllowedError extends ApiError {
   public constructor(input: { readonly from: string; readonly to: string }) {
     super({
@@ -78,6 +94,14 @@ export type DeliveryChargesUseCase = {
  * O lançamento aceita **data retroativa**: o comprovante em papel volta com o motorista no fim do
  * dia, e o que corta é o fechamento do lote.
  */
+/**
+ * Dinheiro é texto do começo ao fim: comparar por `Number` aqui abriria a porta para alguém somar
+ * do mesmo jeito adiante, e é assim que centavo some.
+ */
+function isZeroAmount(amount: string): boolean {
+  return /^0+(\.0+)?$/u.test(amount.trim())
+}
+
 export function createDeliveryChargesUseCase(dependencies: {
   readonly repository: DeliveryChargeRepositoryPort
 }): DeliveryChargesUseCase {
@@ -107,6 +131,10 @@ export function createDeliveryChargesUseCase(dependencies: {
     }
     /** Repetir a confirmação converge: a rede caiu e o operador tocou duas vezes na mesma linha. */
     if (transition.kind === 'unchanged') return charge
+
+    if (input.action === 'confirm' && isZeroAmount(input.amount ?? charge.amount)) {
+      throw new DeliveryChargeAmountRequiredError()
+    }
 
     const updated = await repository.transition({
       actorUserId: input.userId,

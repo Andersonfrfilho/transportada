@@ -1246,6 +1246,7 @@ function createApplicationRoutes({
         reportStopOccurrence({
           ...input,
           attachmentObjectId: null,
+          suggestCharges: suggestDeliveryCharges,
           unitOfWork: driverFieldReports,
         }),
       reportReturn: (input) =>

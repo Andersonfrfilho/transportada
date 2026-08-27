@@ -35,6 +35,17 @@ export type DriverTripDocument = {
   readonly volumeCount: string
 }
 
+/**
+ * Spec 060 D3: **a hora marcada e o protocolo**, no bolso de quem chega na portaria. Um agendamento
+ * que o sistema conhece e o motorista não é um agendamento que não existe — ele fica parado no
+ * portão sem o número que o porteiro pede.
+ */
+export type DriverStopSchedule = {
+  readonly protocol: string
+  readonly scheduledAt: string | null
+  readonly status: string
+}
+
 export type DriverTripStop = {
   readonly arrivedAt: string | null
   readonly completedAt: string | null
@@ -45,6 +56,8 @@ export type DriverTripStop = {
   readonly label: string
   readonly latitude: string | null
   readonly longitude: string | null
+  /** `null` quando a parada não exige agendamento — que é o caso da maioria. */
+  readonly schedule: DriverStopSchedule | null
   readonly sequence: number
 }
 

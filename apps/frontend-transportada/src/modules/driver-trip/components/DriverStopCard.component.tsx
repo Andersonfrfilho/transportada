@@ -21,6 +21,17 @@ import {
 } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
+/** Sem hora marcada o agendamento ainda está sendo pedido — e dizer isso é melhor que uma data vazia. */
+function formatScheduleTime(scheduledAt: string | null): string {
+  if (scheduledAt === null) return '—'
+  return new Date(scheduledAt).toLocaleString('pt-BR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+  })
+}
+
 type DriverStopCardProps = Readonly<{
   isCurrent: boolean
   onArrive: (stopId: string) => void
@@ -50,6 +61,18 @@ export function DriverStopCard({
     >
       <header className={styles.stopHeader}>
         <p className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</p>
+        {/*
+          Spec 060 D3: hora e protocolo **antes do endereço**. É o que o porteiro pede, e quem chega
+          sem o número volta com a carga — o endereço ele já sabe, porque está lá.
+        */}
+        {stop.schedule === null ? null : (
+          <p className={styles.stopSchedule}>
+            {t('schedule.at', { time: formatScheduleTime(stop.schedule.scheduledAt) })}
+            {stop.schedule.protocol === ''
+              ? ''
+              : ` · ${t('schedule.protocol', { protocol: stop.schedule.protocol })}`}
+          </p>
+        )}
         <h2 className={styles.stopLabel}>{stop.label}</h2>
         <p className={styles.stopMeta}>
           {isCompleted

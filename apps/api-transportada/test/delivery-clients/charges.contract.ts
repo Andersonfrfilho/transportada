@@ -276,6 +276,55 @@ describe('a regra que propõe sozinha (spec 060 D4b)', () => {
     ])
   })
 
+  /**
+   * Spec 060 D4c: a ocorrência do motorista **sempre** vira sugestão, com ou sem regra — ele viu
+   * cobrarem, e o recibo está na foto. Sem regra ela nasce sem valor, e o escritório preenche.
+   */
+  test('a ocorrência de cobrança propõe mesmo sem regra, e sem valor', async () => {
+    const { inserts, repository } = buildRepository()
+
+    await createSuggestDeliveryCharges({
+      charges: repository,
+      logger: { warn() {} },
+      rules: buildRules([]),
+    }).onDelivered({
+      chargeType: 'other',
+      companyId: COMPANY_ID,
+      deliveredOn: '2026-08-26',
+      origin: 'occurrence',
+      tripDocumentId: TRIP_DOCUMENT_ID,
+    })
+
+    expect(inserts).toEqual([
+      {
+        amount: '0',
+        chargeType: 'other',
+        chargedOn: '2026-08-26',
+        notes: '',
+        origin: 'occurrence',
+        parties: PARTIES,
+        status: 'suggested',
+        tripDocumentId: TRIP_DOCUMENT_ID,
+      },
+    ])
+  })
+
+  /** Confirmar sem preencher o valor viraria uma linha de zero real no relatório do contratante. */
+  test('a sugestão sem valor não pode ser confirmada como está', async () => {
+    const { repository } = buildRepository({ stored: charge({ amount: '0' }) })
+    const useCase = createDeliveryChargesUseCase({ repository })
+
+    await expect(
+      useCase.confirm({ charges: [{ id: CHARGE_ID }], context: CONTEXT }),
+    ).rejects.toMatchObject({ code: 'DELIVERY_CHARGE_AMOUNT_REQUIRED', status: 422 })
+
+    const filled = await useCase.confirm({
+      charges: [{ amount: '38.5000', id: CHARGE_ID }],
+      context: CONTEXT,
+    })
+    expect(filled[0]?.amount).toBe('38.5000')
+  })
+
   test('cliente sem regra ligada não propõe nada', async () => {
     const { inserts, repository } = buildRepository()
 

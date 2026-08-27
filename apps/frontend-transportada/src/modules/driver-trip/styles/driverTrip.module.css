@@ -111,6 +111,13 @@
   gap: var(--space-1);
 }
 
+/* Spec 060 D3: a hora marcada vem antes do endereço — é o que a portaria pede. */
+.stopSchedule {
+  color: var(--color-copper);
+  font-weight: 700;
+  margin: 0;
+}
+
 /* Spec 065 D9: o MDF-e sob demanda. Vem antes do romaneio porque é o documento que a barreira pede. */
 .manifest {
   border: 1px solid var(--color-slate);

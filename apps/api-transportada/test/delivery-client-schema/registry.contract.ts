@@ -165,11 +165,23 @@ describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
     expect(check).not.toContain(`'recorded'`)
   })
 
-  test('a taxa é numeric e positiva — dinheiro não é ponto flutuante, e zero não é lançamento', () => {
+  /**
+   * Zero não é lançamento — **exceto** na sugestão, e a exceção é deliberada (spec 060 D4c): a
+   * ocorrência do motorista diz que cobraram, ele não sabe quanto, e o recibo está na foto. A
+   * confirmação é que recusa sem valor.
+   */
+  test('a taxa é numeric e positiva, com a sugestão como única exceção', () => {
     expect(columnSqlTypes(deliveryCharges).amount).toBe('numeric(14, 4)')
     expect(unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_amount_check).toBe(
-      '"amount" > 0',
+      `"amount" > 0 or "status" = 'suggested'`,
     )
+  })
+
+  /** E a sugestão sem valor só é segura porque ela **sempre carrega a nota** — dois `null` não colidem. */
+  test('toda sugestão carrega a nota', () => {
+    expect(
+      unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_suggested_document_check,
+    ).toBe(`"status" <> 'suggested' or "trip_document_id" is not null`)
   })
 
   /**

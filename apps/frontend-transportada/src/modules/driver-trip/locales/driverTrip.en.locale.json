@@ -55,6 +55,10 @@
     "recipient_refused": "Refused"
   },
   "returnTitle": "Why was it not delivered?",
+  "schedule": {
+    "at": "Scheduled for {{time}}",
+    "protocol": "Protocol {{protocol}}"
+  },
   "stopCompleted": "Stop completed",
   "stopTitle": "Stop {{sequence}}",
   "title": "My trip",

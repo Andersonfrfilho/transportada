@@ -52,10 +52,28 @@ export function createSuggestDeliveryCharges(dependencies: {
           companyId: input.companyId,
           deliveryClientId: parties.deliveryClientId,
         })
-        const wanted =
+        const matching =
           input.chargeType === undefined
             ? rules
             : rules.filter((rule) => rule.chargeType === input.chargeType)
+        /**
+         * Spec 060 D4c: a ocorrência do motorista **sempre** vira sugestão, com ou sem regra — ele
+         * viu cobrarem, e o recibo está na foto. Sem regra ela nasce **sem valor**, e a confirmação
+         * recusa até alguém preenchê-lo. Perder o aviso por não saber o número seria jogar fora
+         * justamente o que o campo tem a dizer.
+         */
+        const wanted =
+          matching.length > 0 || input.origin !== 'occurrence' || input.chargeType === undefined
+            ? matching
+            : [
+                {
+                  active: true,
+                  chargeType: input.chargeType,
+                  deliveryClientId: parties.deliveryClientId,
+                  expectedAmount: '0',
+                  id: '',
+                },
+              ]
 
         for (const rule of wanted) {
           /**

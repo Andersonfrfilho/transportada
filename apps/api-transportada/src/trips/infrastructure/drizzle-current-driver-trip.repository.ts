@@ -6,9 +6,11 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import { tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import type {
   CurrentDriverTripPort,
+  DriverStopSchedule,
   DriverTrip,
   DriverTripManifest,
   DriverTripDocument,
@@ -73,10 +75,11 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     if (tripRows.length === 0) return []
 
     const tripIds = tripRows.map((row) => row.id)
-    const [stopRows, documentRows, manifestsByTrip] = await Promise.all([
+    const [stopRows, documentRows, manifestsByTrip, schedulesByStop] = await Promise.all([
       this.listStops({ companyId: input.companyId, tripIds }),
       this.listDocuments({ companyId: input.companyId, tripIds }),
       this.listManifests({ companyId: input.companyId, tripIds }),
+      this.listSchedules({ companyId: input.companyId, tripIds }),
     ])
 
     /**
@@ -103,7 +106,9 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       id: trip.id,
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
-      stops: (stopsByTrip.get(trip.id) ?? []).map((stop) => toDriverStop(stop, documentsByStop)),
+      stops: (stopsByTrip.get(trip.id) ?? []).map((stop) =>
+        toDriverStop(stop, documentsByStop, schedulesByStop),
+      ),
       vehiclePlate: trip.plate,
     }))
   }
@@ -160,6 +165,42 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
               ] as const,
             ],
       ),
+    )
+  }
+
+  /**
+   * Spec 060 D3: a hora marcada e o protocolo da parada. Uma consulta para a viagem inteira, pelo
+   * mesmo motivo do manifesto — o agregado leva três viagens, e uma consulta por parada seria N+1 no
+   * caminho que abre a tela dele em 3G.
+   */
+  private async listSchedules(input: {
+    readonly companyId: string
+    readonly tripIds: readonly string[]
+  }): Promise<Map<string, DriverStopSchedule>> {
+    const rows = await this.database
+      .select({
+        protocol: tripStopSchedules.protocol,
+        scheduledAt: tripStopSchedules.scheduledAt,
+        status: tripStopSchedules.status,
+        stopId: tripStopSchedules.stopId,
+      })
+      .from(tripStopSchedules)
+      .where(
+        and(
+          eq(tripStopSchedules.companyId, input.companyId),
+          inArray(tripStopSchedules.tripId, [...input.tripIds]),
+        ),
+      )
+
+    return new Map(
+      rows.map((row) => [
+        row.stopId,
+        {
+          protocol: row.protocol,
+          scheduledAt: row.scheduledAt?.toISOString() ?? null,
+          status: row.status,
+        },
+      ]),
     )
   }
 
@@ -296,6 +337,7 @@ type DocumentRow = {
 function toDriverStop(
   stop: StopRow,
   documentsByStop: Map<string | null, DocumentRow[]>,
+  schedulesByStop: Map<string, DriverStopSchedule>,
 ): DriverTripStop {
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
@@ -307,6 +349,7 @@ function toDriverStop(
     label: stop.label,
     latitude: stop.latitude,
     longitude: stop.longitude,
+    schedule: schedulesByStop.get(stop.id) ?? null,
     sequence: Number(stop.sequence),
   }
 }

@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
+  DriverStopSchedule,
   DriverTrip,
   DriverTripDocument,
   DriverTripManifest,
@@ -76,6 +77,21 @@ function toManifest(value: unknown): DriverTripManifest | null {
   }
 }
 
+/**
+ * Agendamento ausente é o caso normal. O que **não** se aceita é agendamento pela metade: sem hora
+ * nem protocolo ele não ajuda ninguém na portaria, e mostrá-lo vazio seria pior que não mostrar.
+ */
+function toSchedule(value: unknown): DriverStopSchedule | null {
+  if (value === null || value === undefined) return null
+  if (!isRecord(value)) throw new DriverTripResponseError()
+
+  return {
+    protocol: readOptionalText(value.protocol),
+    scheduledAt: readNullableString(value.scheduledAt),
+    status: readString(value.status),
+  }
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
@@ -89,6 +105,7 @@ function toStop(value: unknown): DriverTripStop {
     id: readString(value.id),
     label: readString(value.label),
     latitude: readNullableString(value.latitude),
+    schedule: toSchedule(value.schedule),
     longitude: readNullableString(value.longitude),
     sequence: value.sequence,
   }
