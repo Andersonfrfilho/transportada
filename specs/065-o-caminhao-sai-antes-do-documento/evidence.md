@@ -65,8 +65,6 @@ e-mail, isso é trabalho novo, e é honesto chamá-lo assim.
    são boas notícias sobre um processo que o operador não precisa acompanhar, e o aviso que ele
    precisa ler é o que exige ação dele. Se virar necessidade, o encanamento já está posto: catálogo,
    destinatário e chave de deduplicação são os mesmos.
-3. **Sem E2E da carga mista (T018).** Cada pedaço tem contrato e integração; a costura do barracão
-   ao manifesto autorizado não foi exercitada de ponta a ponta.
 4. **O evento `cte.authorized.v1` não existe.** A 059 previa evento e consumer; o que entrou é uma
    **chamada direta** do efeito de emissão para a API, decidida na ADR-0047. É mais simples e está
    testada, mas não tem a retentativa que uma fila daria — e por desenho não pode ter, porque
@@ -117,6 +115,31 @@ alguém abrir a tela por outro motivo — a diferença entre um atraso e uma mul
 
 O texto não carrega nota, tomador nem chave: diz o veículo, o motivo e onde olhar. O template nasce
 do catálogo e entra pelo passo de pré-deploy, que é idempotente — não houve migration.
+
+## A costura inteira, contra Postgres
+
+`test/integration/mixed-cargo-end-to-end.integration.ts`: três notas — duas para fora e uma dentro
+do município da transportadora — atravessando criar → vincular → planejar → separar → carregar →
+despachar → lote urgente → CT-e autorizado → prontidão → manifesto automático → o motorista com o
+documento na mão, pelos mesmos use cases e repositórios que a API expõe.
+
+O que ele prova e nenhum contrato provava: **a nota urbana não entra no lote urgente, não conta como
+pendência de manifesto e não trava a viagem** — o defeito que esta spec existe para consertar,
+verificado de ponta a ponta.
+
+E ele já pagou o próprio preço: na primeira execução o manifesto recusou com
+`MDFE_MANIFEST_DOCUMENTS_BLOCKED`, porque a nota do fixture não tinha participante `emitter` nem
+volume — e é do **emitente** que sai o município de carregamento do MDF-e, e dos **volumes** que sai
+o peso. Papéis diferentes respondem por coisas diferentes na mesma nota, e nenhum contrato com dublê
+mostrava isso.
+
+Duas fronteiras ficam de fora, declaradas no cabeçalho do arquivo: a **SEFAZ** (a autorização de CT-e
+e de MDF-e é escrita como o worker a escreve — assinar e transmitir exige certificado e rede) e a
+**criação do lote**, injetada para não arrastar cálculo de frete, que tem integração própria.
+
+O teste mora em `test/integration/`, não em `test/e2e/`: a pasta, o `env.test.e2e` e o alvo de
+Makefile que a task nomeia **não existem** neste repositório — o padrão real de "prova viva contra
+Postgres" é `withDisposableDatabase`, e é nele que este entrou, rodando no mesmo `test:integration`.
 
 ## Auditoria de segurança (§15 do `code-standart.md`)
 
