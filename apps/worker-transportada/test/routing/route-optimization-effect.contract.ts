@@ -188,4 +188,26 @@ describe('route optimization effect (ADR-0044 §7)', () => {
 
     expect(outcome.orderedStops[0]?.weightEstimated).toBe(true)
   })
+
+  /**
+   * A ETA publicada tem de contar a **espera** pela abertura da janela, que é o que o fitness já
+   * conta. Enquanto ela não contava, o custo escolhia a rota somando o tempo parado no portão e a
+   * tela mostrava chegada às 5h da manhã — duas respostas para a mesma pergunta.
+   */
+  test('a chegada nunca é antes de a janela abrir', async () => {
+    const context = buildContext({
+      stops: [
+        buildStop({ stopId: 'stop-1', windowStartSeconds: 11 * 3_600 }),
+        buildStop({ stopId: 'stop-2' }),
+      ],
+    })
+
+    const outcome = await runRouteOptimization({ context, ports: buildPorts() })
+
+    const first = outcome.orderedStops.find((stop) => stop.stopId === 'stop-1')
+    expect(first?.estimatedArrivalAt).not.toBeNull()
+    expect((first?.estimatedArrivalAt as Date).getTime() / 1_000).toBeGreaterThanOrEqual(
+      context.dayStartEpochSeconds + 11 * 3_600,
+    )
+  })
 })

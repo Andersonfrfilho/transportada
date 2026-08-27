@@ -457,3 +457,56 @@ bun run --cwd apps/worker-transportada test      # 748 pass / 0 fail
 - **Sem janela de atendimento no pool**: `readPoolStops` não lê o cadastro de cliente da 060, então
   as paradas propostas nascem sem restrição de horário.
 - **Sem teste de tela** para o diálogo da multi-veículo (buraco anterior, intacto).
+
+### A janela de atendimento no pool (2026-08-27)
+
+O terceiro buraco da P2: as paradas propostas nasciam **sem restrição de horário**, porque
+`readPoolStops` não lia o cadastro de cliente da 060. Fechado.
+
+A resolução usa a política da 060 inteira — **cópia por valor** em
+`worker-transportada/src/routing/domain/delivery-window.policy.ts`, com contrato que compara os dois
+arquivos linha a linha. Se elas divergirem, o roteiro proposto pelo worker e a conferência feita pela
+API discordam sobre o mesmo cliente no mesmo dia, e quem descobre é o motorista, no portão. A
+precedência é a de lá: exceção do cliente vence feriado do município, e cliente **sem** cadastro é
+ausência de restrição, não fechado.
+
+Três decisões que ficaram escritas no código:
+
+- **uma consulta por tabela, não uma por parada.** Um pool de oitenta notas viraria oitenta idas ao
+  banco na rotina mais pesada do worker;
+- **duas janelas no mesmo dia viram a primeira**, não a união. O solver representa uma janela por
+  parada; unir manhã e tarde faria o roteiro propor chegada no horário de almoço, que a portaria
+  recusa. Perder a tarde é proposta pobre; propor a hora fechada é caminhão parado no portão;
+- **cliente fechado no dia recebe janela impossível** (abre e fecha no mesmo instante), que vira
+  violação explícita — a mesma regra da precisão grosseira: o operador vê antes de aceitar.
+
+⚠️ **A janela é hora local e o relógio do solver é UTC.** A conversão usa
+`BRAZIL_UTC_OFFSET_SECONDS`, constante nomeada de propósito: o país não tem horário de verão desde
+2019, mas isso é **premissa**, não verdade — instalação no Acre (UTC-5) precisa disto vindo da
+configuração da empresa.
+
+#### ⚠️ O segundo defeito que o E2E achou
+
+O fitness **já esperava** a janela abrir (`durationSeconds = max(duration, windowStart)`), mas a
+**ETA publicada** não: o custo escolhia a rota contando o tempo parado no portão e a tela mostrava
+chegada às 5h da manhã. Duas respostas para a mesma pergunta, e a que o operador via era a otimista.
+Agora as duas contas são a mesma, com contrato de unidade próprio.
+
+Comandos executados:
+
+```
+make worker-integration                          # 61 pass / 0 fail
+bun run --cwd apps/worker-transportada test      # 752 pass / 0 fail
+typecheck · lint · format do worker              # limpos
+```
+
+⚠️ A suíte da **api** está vermelha por trabalho de **outra sessão** em andamento (a migration
+`20260827200542_aggregate_application_attachments`, da spec 066, ainda não registrada no contrato de
+migrations). Nada nesta entrega toca a api; verifiquei o escopo e não mexi nos arquivos dela.
+
+#### O que continua aberto na P2
+
+- **Sem OSRM em suíte nenhuma**: a matriz é dublê no teste, e a qualidade do roteiro na rua depende
+  dele.
+- **Sem teste de tela** para o diálogo da multi-veículo.
+- **O fuso é premissa**, não configuração — ver o ⚠️ acima.

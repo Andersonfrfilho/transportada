@@ -47,6 +47,7 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
   const documentIds = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
   /** A quarta nota fica no mesmo endereço da primeira: uma parada, duas notas. */
   const twinDocumentId = crypto.randomUUID()
+  const deliveryClientId = crypto.randomUUID()
 
   beforeAll(async () => {
     await db.execute(sql`insert into companies (id, status) values (${companyId}, 'active')`)
@@ -125,6 +126,24 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
       `)
     }
 
+    /**
+     * Spec 060 D2: o cliente de entrega com janela cadastrada. Todas as notas deste teste são para o
+     * mesmo CNPJ, então a janela vale para as três paradas — é o que prova que o roteiro do pool lê
+     * o cadastro, e não que ele adivinha.
+     */
+    await db.execute(sql`
+      insert into delivery_clients (id, company_id, tax_id, display_name)
+      values (${deliveryClientId}, ${companyId}, '98765432000109', 'Loja Central')
+    `)
+    for (const weekday of [0, 1, 2, 3, 4, 5, 6]) {
+      await db.execute(sql`
+        insert into delivery_client_windows
+          (id, company_id, delivery_client_id, weekday, opens_at, closes_at)
+        values (${crypto.randomUUID()}, ${companyId}, ${deliveryClientId}, ${weekday},
+          '08:00', '11:00')
+      `)
+    }
+
     await db.execute(sql`
       insert into route_suggestions (id, company_id, trip_id, status, seed, assumptions)
       values (${suggestionId}, ${companyId}, null, 'queued', 7,
@@ -152,6 +171,8 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
     await db.execute(sql`delete from route_suggestion_documents where company_id = ${companyId}`)
     await db.execute(sql`delete from route_suggestion_vehicles where company_id = ${companyId}`)
     await db.execute(sql`delete from route_suggestions where company_id = ${companyId}`)
+    await db.execute(sql`delete from delivery_client_windows where company_id = ${companyId}`)
+    await db.execute(sql`delete from delivery_clients where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_addresses where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_participants where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_documents where company_id = ${companyId}`)
@@ -224,6 +245,34 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
 
     /** O peso vem **marcado**: a nota do pool não passou pelo cálculo de frete (ADR-0044 §5). */
     for (const stop of stops) expect(stop.weight_estimated).toBe(true)
+
+    /**
+     * Spec 060 D2 no pool: **a janela do cliente chegou ao solver.** Sem ela, todas as paradas
+     * caberiam em qualquer hora e nenhuma violação apareceria; com ela, ou a chegada cai dentro da
+     * janela, ou a violação é declarada — o que não pode acontecer é a janela ser ignorada calada.
+     */
+    const arrivals = (await db.execute(sql`
+      select "estimated_arrival_at", "violations"
+      from route_suggestion_stops
+      where "suggestion_id" = ${suggestionId}
+      order by "sequence"
+    `)) as unknown as {
+      readonly estimated_arrival_at: Date | null
+      readonly violations: readonly { readonly kind: string }[]
+    }[]
+
+    for (const arrival of arrivals) {
+      const declaredViolation = arrival.violations.some(
+        (violation) => violation.kind === 'delivery_window',
+      )
+      if (declaredViolation) continue
+
+      expect(arrival.estimated_arrival_at).not.toBeNull()
+      const hour = (arrival.estimated_arrival_at as Date).getUTCHours()
+      /** 08:00–11:00 no fuso de Ribeirão Preto é 11:00–14:00 UTC, e é assim que o solver conta. */
+      expect(hour).toBeGreaterThanOrEqual(11)
+      expect(hour).toBeLessThanOrEqual(14)
+    }
 
     const links = (await db.execute(sql`
       select d."nfe_document_id", s."address_key"

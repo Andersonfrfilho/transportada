@@ -221,6 +221,20 @@ function toOrderedStops(input: {
       sequence += 1
       clockSeconds += durationFromPreviousSeconds ?? 0
 
+      /**
+       * ⚠️ **Chegar antes da janela abrir é espera, e a ETA precisa dizer isso.** O fitness já
+       * esperava (`route-fitness.policy.ts`: `durationSeconds = max(duration, windowStart)`), mas a
+       * hora publicada ao operador vinha sem a espera — o custo escolhia a rota contando o tempo
+       * parado no portão e a tela mostrava chegada às 5h da manhã. As duas contas passam a ser a
+       * mesma; foi o teste de integração do pool que achou a divergência.
+       */
+      if (stop.windowStartSeconds !== null) {
+        clockSeconds = Math.max(
+          clockSeconds,
+          input.context.dayStartEpochSeconds + stop.windowStartSeconds,
+        )
+      }
+
       ordered.push({
         addressKey: stop.addressKey,
         distanceFromPreviousMeters,
