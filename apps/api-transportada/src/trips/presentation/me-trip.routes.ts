@@ -4,6 +4,11 @@
 import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_ME_CURRENT_TRIP_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  DAMDFE_CONTENT_TYPE,
+  type DamdfeRenderResult,
+  type MdfeDocumentDownload,
+} from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
@@ -29,6 +34,13 @@ const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurre
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
 const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
+/**
+ * O manifesto sai por id, e o id vem da própria viagem que o motorista acabou de ler — ele não
+ * procura manifesto, ele abre o da carga que está levando. A escala dele é a condição da consulta:
+ * manifesto de outra viagem responde 404, como se não existisse.
+ */
+const TRIP_MANIFEST_PATH = `${API_ME_CURRENT_TRIP_PATH}/manifests/:manifestId`
+const TRIP_MANIFEST_DAMDFE_PATH = `${TRIP_MANIFEST_PATH}/damdfe`
 
 /**
  * `trip.read` lê a viagem própria e `trip.report` reporta o que aconteceu na rua. Nenhum dos dois é
@@ -80,6 +92,16 @@ export type MeTripDependencies = {
       readonly upload: DeliveryProofUpload
     },
   ) => Promise<{ readonly id: string }>
+  readonly readManifestXml: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly manifestId: string
+  }) => Promise<MdfeDocumentDownload>
+  readonly renderManifestDamdfe: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly manifestId: string
+  }) => Promise<DamdfeRenderResult>
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   readonly resolveDriverId: (input: {
     readonly companyId: string
@@ -97,6 +119,9 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 function serializeTrip(trip: DriverTrip) {
   return {
     id: trip.id,
+    // `null` é o caso normal: a carga urbana não exige MDF-e, e o intermunicipal só ganha manifesto
+    // depois de o lote de CT-e autorizar. A tela mostra o romaneio enquanto isso.
+    manifest: trip.manifest,
     status: trip.status,
     stops: trip.stops,
     vehiclePlate: trip.vehiclePlate,
@@ -137,6 +162,49 @@ export function createMeTripRoutes(
       method: 'GET',
       parse: () => ({}),
       pathname: API_ME_CURRENT_TRIP_PATH,
+      policy: DRIVER_READ_POLICY,
+    }),
+    defineRoute<{ readonly manifestId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const document = await dependencies.readManifestXml({
+          companyId: context.scope.companyId,
+          driverId,
+          manifestId: input.manifestId,
+        })
+
+        return jsonResponse({ body: { data: document }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        manifestId: parseUuidPathIdentifier(pathParameters.manifestId ?? ''),
+      }),
+      pathname: TRIP_MANIFEST_PATH,
+      policy: DRIVER_READ_POLICY,
+    }),
+    defineRoute<{ readonly manifestId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const damdfe = await dependencies.renderManifestDamdfe({
+          companyId: context.scope.companyId,
+          driverId,
+          manifestId: input.manifestId,
+        })
+
+        return new Response(damdfe.bytes, {
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${damdfe.fileName}"`,
+            'content-type': DAMDFE_CONTENT_TYPE,
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        manifestId: parseUuidPathIdentifier(pathParameters.manifestId ?? ''),
+      }),
+      pathname: TRIP_MANIFEST_DAMDFE_PATH,
       policy: DRIVER_READ_POLICY,
     }),
     defineRoute<{

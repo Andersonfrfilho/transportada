@@ -109,6 +109,11 @@ import { toBillingInvoiceListFilters } from './billing/presentation/billing.sche
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
 import { createExportCteDocumentsUseCase } from './cte-issuance/application/export-cte-documents.use-case.js'
 import { createRenderDacteUseCase } from './cte-issuance/application/render-dacte.use-case.js'
+import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read-mdfe-document.use-case.js'
+import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
+import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
+import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
+import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
 import { createDactePdfGateway } from './cte-issuance/infrastructure/dacte-pdf.gateway.js'
 import { createDacteLogoGateway } from './cte-issuance/infrastructure/dacte-logo.gateway.js'
@@ -877,6 +882,12 @@ function createApplicationRoutes({
     logos: dacteLogoGateway,
     selection: createCteExportSelection(database),
   })
+  const readMdfeDocument = createReadMdfeDocumentUseCase({
+    downloads: createMdfeDocumentDownloadGateway({ storage: storageGateway }),
+    renderer: createDamdfePdfGateway(),
+    source: createMdfeDocumentSource(database),
+    xmlReader: createMdfeXmlReaderGateway({ storage: storageGateway }),
+  })
   const renderDacte = createRenderDacteUseCase({
     logos: dacteLogoGateway,
     renderer: dactePdfGateway,
@@ -1074,6 +1085,8 @@ function createApplicationRoutes({
         }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
+      readManifestXml: (input) => readMdfeDocument.readXmlDownload(input),
+      renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),
       reportArrival: (input) =>
         reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       reportDelivery: (input) =>

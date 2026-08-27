@@ -28,8 +28,17 @@ export type DriverTripStop = Readonly<{
   sequence: number
 }>
 
+/** `null` até o MDF-e autorizar — e nesse intervalo o que o motorista tem na mão é o romaneio. */
+export type DriverTripManifest = Readonly<{
+  accessKey: string
+  authorizedAt: string | null
+  id: string
+  protocol: string
+}>
+
 export type DriverTrip = Readonly<{
   id: string
+  manifest: DriverTripManifest | null
   status: string
   stops: readonly DriverTripStop[]
   vehiclePlate: string

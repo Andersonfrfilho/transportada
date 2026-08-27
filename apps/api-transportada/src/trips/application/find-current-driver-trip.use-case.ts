@@ -48,8 +48,21 @@ export type DriverTripStop = {
   readonly sequence: number
 }
 
+/**
+ * O que o motorista precisa do manifesto **na tela**: a chave para conferir contra o que o fiscal
+ * lê, e o id para pedir o papel. `null` enquanto o MDF-e não existe ou não autorizou — e nesse
+ * intervalo o que ele tem na mão é o romaneio.
+ */
+export type DriverTripManifest = {
+  readonly accessKey: string
+  readonly authorizedAt: string | null
+  readonly id: string
+  readonly protocol: string
+}
+
 export type DriverTrip = {
   readonly id: string
+  readonly manifest: DriverTripManifest | null
   readonly status: string
   readonly stops: readonly DriverTripStop[]
   readonly vehiclePlate: string

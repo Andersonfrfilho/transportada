@@ -6,9 +6,11 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import type {
   CurrentDriverTripPort,
   DriverTrip,
+  DriverTripManifest,
   DriverTripDocument,
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
@@ -19,6 +21,9 @@ const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit'] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = 'recipient'
+
+/** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
+const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
 
 export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort {
   public constructor(private readonly database: TripDatabase) {}
@@ -68,9 +73,10 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     if (tripRows.length === 0) return []
 
     const tripIds = tripRows.map((row) => row.id)
-    const [stopRows, documentRows] = await Promise.all([
+    const [stopRows, documentRows, manifestsByTrip] = await Promise.all([
       this.listStops({ companyId: input.companyId, tripIds }),
       this.listDocuments({ companyId: input.companyId, tripIds }),
+      this.listManifests({ companyId: input.companyId, tripIds }),
     ])
 
     /**
@@ -95,10 +101,66 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return tripRows.map((trip) => ({
       id: trip.id,
+      manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
       stops: (stopsByTrip.get(trip.id) ?? []).map((stop) => toDriverStop(stop, documentsByStop)),
       vehiclePlate: trip.plate,
     }))
+  }
+
+  /**
+   * Uma consulta para as viagens todas, não uma por viagem: o motorista costuma levar uma, mas o
+   * agregado leva três, e um `await` por viagem seria N+1 no caminho que abre a tela dele.
+   *
+   * Manifesto **cancelado não conta**: o índice único deixa um vivo por viagem, e imprimir o
+   * cancelado seria apresentar na barreira um documento que a SEFAZ já derrubou.
+   */
+  private async listManifests(input: {
+    readonly companyId: string
+    readonly tripIds: readonly string[]
+  }): Promise<Map<string, DriverTripManifest>> {
+    const rows = await this.database
+      .select({
+        accessKey: mdfeFiscalDocuments.accessKey,
+        authorizedAt: mdfeFiscalDocuments.authorizedAt,
+        manifestId: mdfeManifests.id,
+        protocol: mdfeFiscalDocuments.authorizationProtocol,
+        tripId: mdfeManifests.tripId,
+      })
+      .from(mdfeManifests)
+      .innerJoin(
+        mdfeFiscalDocuments,
+        and(
+          eq(mdfeFiscalDocuments.companyId, mdfeManifests.companyId),
+          eq(mdfeFiscalDocuments.manifestId, mdfeManifests.id),
+          inArray(mdfeFiscalDocuments.status, [...PRINTABLE_DOCUMENT_STATUSES]),
+          isNull(mdfeFiscalDocuments.cancellationRequestedAt),
+        ),
+      )
+      .where(
+        and(
+          eq(mdfeManifests.companyId, input.companyId),
+          inArray(mdfeManifests.tripId, [...input.tripIds]),
+        ),
+      )
+
+    return new Map(
+      rows.flatMap((row) =>
+        row.tripId === null
+          ? []
+          : [
+              [
+                row.tripId,
+                {
+                  accessKey: row.accessKey,
+                  authorizedAt: row.authorizedAt?.toISOString() ?? null,
+                  id: row.manifestId,
+                  protocol: row.protocol,
+                },
+              ] as const,
+            ],
+      ),
+    )
   }
 
   private async sumVolumes(input: {

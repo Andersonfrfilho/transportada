@@ -111,6 +111,42 @@
   gap: var(--space-1);
 }
 
+/* Spec 065 D9: o MDF-e sob demanda. Vem antes do romaneio porque é o documento que a barreira pede. */
+.manifest {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.manifestHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* A chave é lida em voz alta para o fiscal: quebra em qualquer ponto e não estoura a tela estreita. */
+.manifestKey {
+  font-family: var(--font-utility);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.manifestProtocol {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.manifestActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.manifestActions > * {
+  min-height: 2.75rem;
+}
+
 /* Spec 065 D1: o romaneio. O aviso de não-fiscal é irmão do título — na tela e no papel. */
 .loadSheet {
   border: 1px solid var(--color-slate);

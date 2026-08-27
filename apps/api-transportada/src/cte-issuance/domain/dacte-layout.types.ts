@@ -2,23 +2,17 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
-/** Grade de 12 colunas: `width` é quantas delas o campo ocupa dentro da própria linha. */
-export const DACTE_LAYOUT_COLUMNS = 12
+import type {
+  FiscalSheetField,
+  FiscalSheetRow,
+  FiscalSheetSection,
+} from '../../shared/fiscal-sheet.types.js'
 
-export type DacteLayoutField = Readonly<{
-  label: string
-  value: string
-  width: number
-}>
+export { FISCAL_SHEET_COLUMNS as DACTE_LAYOUT_COLUMNS } from '../../shared/fiscal-sheet.types.js'
 
-export type DacteLayoutRow = Readonly<{
-  fields: readonly DacteLayoutField[]
-}>
-
-export type DacteLayoutSection = Readonly<{
-  rows: readonly DacteLayoutRow[]
-  title: string
-}>
+export type DacteLayoutField = FiscalSheetField
+export type DacteLayoutRow = FiscalSheetRow
+export type DacteLayoutSection = FiscalSheetSection
 
 export type DacteLayout = Readonly<{
   accessKeyGrouped: string

@@ -16,6 +16,15 @@
     "barcodeLabel": "Barcode for the access key of NF-e {{number}}"
   },
   "loading": "Loading your trip…",
+  "manifest": {
+    "title": "MDF-e for this trip",
+    "protocol": "Protocol {{protocol}}",
+    "barcodeLabel": "Barcode for MDF-e access key {{accessKey}}",
+    "openDamdfe": "Get DAMDFE (PDF)",
+    "openXml": "Get XML",
+    "opening": "Getting…",
+    "failed": "The document could not be fetched right now. The access key above still holds for inspection."
+  },
   "navigate": "Navigate",
   "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
   "notRegistered": "Your account is not linked to a driver record yet. Talk to the office.",

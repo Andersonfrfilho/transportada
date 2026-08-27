@@ -17,6 +17,8 @@ const meRoutes = createMeTripRoutes({
   reportArrival: NOT_CALLED,
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
+  readManifestXml: NOT_CALLED,
+  renderManifestDamdfe: NOT_CALLED,
   reportReturn: NOT_CALLED,
   resolveDriverId: NOT_CALLED,
 })

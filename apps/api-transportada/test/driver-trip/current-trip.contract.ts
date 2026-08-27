@@ -14,7 +14,7 @@ const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000002'
 const DRIVER_ID = '00000000-0000-4000-8000-000000000003'
 
 function buildTrip(id: string): DriverTrip {
-  return { id, status: 'dispatched', stops: [], vehiclePlate: 'GCQ8E47' }
+  return { id, manifest: null, status: 'dispatched', stops: [], vehiclePlate: 'GCQ8E47' }
 }
 
 function buildRepository(input: {

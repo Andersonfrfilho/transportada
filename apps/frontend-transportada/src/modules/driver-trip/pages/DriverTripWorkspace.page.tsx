@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
+import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverStopCard } from '../components/DriverStopCard.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
+import { saveDriverFile } from '../shared/driverFileSave.service'
 import type { DriverOccurrenceKind, DriverReturnReason } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { findCurrentStop } from '../shared/driverTripView.service'
@@ -48,6 +50,16 @@ export function DriverTripWorkspacePage() {
   const snapshot = driverTrip.snapshot
   const trip = snapshot?.trips[0]
 
+  async function openManifestDamdfe(manifestId: string): Promise<void> {
+    const file = await getDriverTripClient().readManifestDamdfe(manifestId)
+    saveDriverFile(file)
+  }
+
+  async function openManifestXml(manifestId: string): Promise<void> {
+    const download = await getDriverTripClient().readManifestXml(manifestId)
+    window.open(download.downloadUrl, '_blank', 'noopener')
+  }
+
   async function report(
     build: (
       location: Awaited<ReturnType<typeof readCurrentLocation>>,
@@ -85,6 +97,15 @@ export function DriverTripWorkspacePage() {
       ) : null}
 
       {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
+
+      {/* Spec 065 D9: com manifesto autorizado, o documento da barreira vem antes do romaneio */}
+      {trip?.manifest == null ? null : (
+        <DriverManifestCard
+          manifest={trip.manifest}
+          onOpenDamdfe={(manifestId) => openManifestDamdfe(manifestId)}
+          onOpenXml={(manifestId) => openManifestXml(manifestId)}
+        />
+      )}
 
       {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
       {trip === undefined ? null : <DriverLoadSheet trip={trip} />}

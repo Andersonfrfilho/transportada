@@ -2,6 +2,7 @@
 import type {
   DriverTrip,
   DriverTripDocument,
+  DriverTripManifest,
   DriverTripSnapshot,
   DriverTripStop,
 } from './driverTrip.types'
@@ -59,6 +60,22 @@ function toDocument(value: unknown): DriverTripDocument {
   }
 }
 
+/**
+ * Manifesto ausente é o caso normal, não defeito de resposta: carga urbana não tem MDF-e. O que
+ * **não** se aceita é manifesto pela metade — sem chave ou sem id não há o que oferecer ao fiscal.
+ */
+function toManifest(value: unknown): DriverTripManifest | null {
+  if (value === null || value === undefined) return null
+  if (!isRecord(value)) throw new DriverTripResponseError()
+
+  return {
+    accessKey: readString(value.accessKey),
+    authorizedAt: readNullableString(value.authorizedAt),
+    id: readString(value.id),
+    protocol: readOptionalText(value.protocol),
+  }
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
@@ -82,6 +99,7 @@ function toTrip(value: unknown): DriverTrip {
 
   return {
     id: readString(value.id),
+    manifest: toManifest(value.manifest),
     status: readString(value.status),
     stops: value.stops.map(toStop),
     vehiclePlate: readString(value.vehiclePlate),

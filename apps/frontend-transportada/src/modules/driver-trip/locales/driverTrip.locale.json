@@ -16,6 +16,15 @@
     "barcodeLabel": "Código de barras da chave da NF-e {{number}}"
   },
   "loading": "Carregando sua viagem…",
+  "manifest": {
+    "title": "MDF-e desta viagem",
+    "protocol": "Protocolo {{protocol}}",
+    "barcodeLabel": "Código de barras da chave do MDF-e {{accessKey}}",
+    "openDamdfe": "Obter DAMDFE (PDF)",
+    "openXml": "Obter XML",
+    "opening": "Obtendo…",
+    "failed": "Não foi possível obter o documento agora. A chave acima continua valendo para conferência."
+  },
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",

@@ -3,7 +3,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import type { DriverFieldReport, DriverTripSnapshot } from './driverTrip.types'
-import { toDriverTripSnapshot } from './driverTripResponse.validation'
+import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 
@@ -32,6 +32,14 @@ type ClientDependencies = Readonly<{
   getAccessToken: () => Promise<string>
 }>
 
+export type DriverTripDocumentFile = Readonly<{ blob: Blob; fileName: string }>
+
+export type DriverTripManifestDownload = Readonly<{
+  accessKey: string
+  downloadUrl: string
+  expiresAt: string
+}>
+
 export type DriverTripClient = Readonly<{
   /**
    * O comprovante **não passa pela fila**: ele anexa a uma entrega que já foi confirmada, e falhar
@@ -44,6 +52,13 @@ export type DriverTripClient = Readonly<{
     kind: 'photo' | 'signature'
     receiverName?: string
   }) => Promise<void>
+  /**
+   * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
+   * assinada de cinco minutos que expirou no bolso não abre nada.
+   */
+  readManifestDamdfe: (manifestId: string) => Promise<DriverTripDocumentFile>
+  /** Já o XML sai por URL assinada — ele existe para ser repassado, não para ser lido na tela. */
+  readManifestXml: (manifestId: string) => Promise<DriverTripManifestDownload>
   readCurrent: () => Promise<DriverTripSnapshot>
   send: (report: DriverFieldReport) => Promise<void>
 }>
@@ -92,6 +107,21 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
       })
     },
+    async readManifestDamdfe(manifestId) {
+      return requestFile({
+        dependencies,
+        fallbackFileName: 'damdfe.pdf',
+        path: `${CURRENT_TRIP_PATH}/manifests/${manifestId}/damdfe`,
+      })
+    },
+    async readManifestXml(manifestId) {
+      const payload = await request({
+        dependencies,
+        method: 'GET',
+        path: `${CURRENT_TRIP_PATH}/manifests/${manifestId}`,
+      })
+      return toManifestDownload(payload)
+    },
     async readCurrent() {
       const payload = await request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH })
       return toDriverTripSnapshot(payload)
@@ -114,6 +144,73 @@ export function getDriverTripClient(): DriverTripClient {
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
   })
+}
+
+/** O nome do arquivo é o que o servidor mandou: é ele que carrega a chave de acesso. */
+async function requestFile(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    fallbackFileName: string
+    path: string
+  }>,
+): Promise<DriverTripDocumentFile> {
+  const accessToken = await input.dependencies.getAccessToken()
+
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(
+      new Request(`${input.dependencies.apiUrl}${input.path}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'GET',
+      }),
+    )
+  } catch {
+    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+  }
+
+  if (!response.ok) {
+    let payload: unknown = {}
+    try {
+      payload = JSON.parse(await response.text()) as unknown
+    } catch {
+      payload = {}
+    }
+    throw new DriverTripRequestError({ code: readErrorCode(payload), isOffline: false })
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: readFileName(response.headers.get('content-disposition'), input.fallbackFileName),
+  }
+}
+
+function readFileName(disposition: string | null, fallback: string): string {
+  const match = disposition?.match(/filename="([^"]+)"/u)
+  return match?.[1] ?? fallback
+}
+
+function toManifestDownload(payload: unknown): DriverTripManifestDownload {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw new DriverTripResponseError()
+
+  const record = data as Record<string, unknown>
+  if (
+    typeof record.accessKey !== 'string' ||
+    typeof record.downloadUrl !== 'string' ||
+    typeof record.expiresAt !== 'string'
+  ) {
+    throw new DriverTripResponseError()
+  }
+
+  return {
+    accessKey: record.accessKey,
+    downloadUrl: record.downloadUrl,
+    expiresAt: record.expiresAt,
+  }
 }
 
 async function request(
