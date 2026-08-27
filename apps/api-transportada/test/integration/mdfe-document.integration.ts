@@ -24,7 +24,8 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { tripDrivers, trips } from '../../src/database/trip.schema.js'
+import { tripDispatchSnapshots, tripDrivers, trips } from '../../src/database/trip.schema.js'
+import { createAutomaticManifestNotifier } from '../../src/mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
 import { createMdfeDocumentSource } from '../../src/mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { SYNTHETIC_MDFE_ACCESS_KEY } from '../fixtures/mdfe-xml.fixture.js'
 
@@ -38,7 +39,9 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 type World = {
   readonly companyId: string
+  readonly dispatcherUserId: string
   readonly manifestId: string
+  readonly tripId: string
   readonly ownDriverId: string
   readonly strangerDriverId: string
 }
@@ -103,6 +106,75 @@ describe('o documento do MDF-e (spec 065 D9)', () => {
       })
 
       expect(lookup.kind).toBe('not-authorized')
+    })
+  })
+})
+
+describe('o aviso de que o MDF-e não saiu (spec 065 D2b)', () => {
+  /**
+   * Quem recebe é **quem despachou** — a viagem não guarda autor, o despacho guarda. Se a junção
+   * errar, o aviso chega a quem não pode agir, ou não chega a ninguém.
+   */
+  testWithPostgres('vai para quem despachou a viagem, com placa e motivo', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedManifest(database)
+      // O ator precisa ter membership na empresa — é a chave estrangeira do próprio despacho.
+      const dispatcherUserId = world.dispatcherUserId
+      await database.db.insert(tripDispatchSnapshots).values({
+        actorUserId: dispatcherUserId,
+        companyId: world.companyId,
+        snapshot: { stops: [] },
+        snapshotSha256: 'b'.repeat(64),
+        tripId: world.tripId,
+      })
+
+      const sent: Record<string, unknown>[] = []
+      await createAutomaticManifestNotifier({
+        database: database.db,
+        logger: { warn: () => {} },
+        send: (params) => {
+          sent.push({ ...params })
+          return Promise.resolve()
+        },
+      }).notifyRefusal({
+        companyId: world.companyId,
+        refusalCode: 'MDFE_MANIFEST_CREW_REQUIRED',
+        tripId: world.tripId,
+      })
+
+      expect(sent).toHaveLength(1)
+      expect(sent[0]?.recipientUserId).toBe(dispatcherUserId)
+      expect(sent[0]?.payload).toEqual({
+        plate: 'GCQ8E47',
+        reason: 'a viagem está sem condutor',
+      })
+      // A chave leva viagem **e** motivo: trinta CT-e autorizados não viram trinta avisos iguais.
+      expect(sent[0]?.dedupeKey).toBe(
+        `mdfe.manifest-issuance-failed:${world.tripId}:MDFE_MANIFEST_CREW_REQUIRED`,
+      )
+    })
+  })
+
+  /** Sem despacho registrado não há destinatário — e destinatário inventado é aviso para ninguém. */
+  testWithPostgres('não avisa quando a viagem não tem despacho registrado', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedManifest(database)
+      const sent: unknown[] = []
+
+      await createAutomaticManifestNotifier({
+        database: database.db,
+        logger: { warn: () => {} },
+        send: (params) => {
+          sent.push(params)
+          return Promise.resolve()
+        },
+      }).notifyRefusal({
+        companyId: world.companyId,
+        refusalCode: 'MDFE_MANIFEST_CREW_REQUIRED',
+        tripId: world.tripId,
+      })
+
+      expect(sent).toEqual([])
     })
   })
 })
@@ -245,7 +317,7 @@ async function seedManifest(
     })
   }
 
-  return { companyId, manifestId, ownDriverId, strangerDriverId }
+  return { companyId, dispatcherUserId: userId, manifestId, ownDriverId, strangerDriverId, tripId }
 }
 
 async function withDisposableDatabase(

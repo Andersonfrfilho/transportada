@@ -23,6 +23,7 @@ export const NOTIFICATION_SETTINGS_CATEGORY_IDS = [
   'nfse',
   'billing',
   'identity',
+  'mdfe',
 ] as const
 
 type TranslateLabel = (key: string) => string

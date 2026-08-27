@@ -274,6 +274,9 @@ import {
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
+import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
+import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
+import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
 import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
@@ -361,6 +364,15 @@ export function bootstrap(): Bun.Server<undefined> {
     db: database.db,
     ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
   })
+  const automaticManifestNotifier = createAutomaticManifestNotifier({
+    database: database.db,
+    logger,
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      }),
+  })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
@@ -430,6 +442,7 @@ export function bootstrap(): Bun.Server<undefined> {
           ]),
     ],
     routes: createApplicationRoutes({
+      automaticManifestNotifier,
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
@@ -612,6 +625,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
+  readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   readonly database: CompanySettingsDatabase
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
@@ -625,6 +640,7 @@ type CreateApplicationRoutesParams = {
 }
 
 function createApplicationRoutes({
+  automaticManifestNotifier,
   database,
   envelopeKeyRing,
   environment,
@@ -1143,6 +1159,9 @@ function createApplicationRoutes({
             context: { companyId: input.companyId, userId: input.userId },
             correlationId: input.correlationId,
             createManifest: createTripMdfeManifest,
+            ...(automaticManifestNotifier === undefined
+              ? {}
+              : { notifier: automaticManifestNotifier }),
             repository: automaticManifestRepository,
             tripId: input.tripId,
           }),

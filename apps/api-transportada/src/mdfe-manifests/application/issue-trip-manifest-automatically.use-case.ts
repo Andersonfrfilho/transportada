@@ -53,10 +53,25 @@ export type AutomaticManifestTripPort = {
   }): Promise<TripFiscalReadinessSnapshot>
 }
 
+/**
+ * Spec 065 D2b: a recusa **avisa**. Só a recusa: "a viagem ainda não saiu" e "a empresa não optou"
+ * são estados normais, e avisar sobre eles a cada CT-e autorizado transformaria o aviso em ruído —
+ * e aviso que vira ruído deixa de ser lido justamente quando importa.
+ */
+export type AutomaticManifestNotifierPort = {
+  notifyRefusal(input: {
+    readonly companyId: string
+    readonly refusalCode: string
+    readonly tripId: string
+  }): Promise<void>
+}
+
 export type IssueTripManifestAutomaticallyInput = {
   readonly context: MdfeManifestCompanyContext
   readonly correlationId: string
   readonly createManifest: CreateTripMdfeManifestUseCase
+  /** Ausente é instalação sem notificação configurada — a emissão continua igual. */
+  readonly notifier?: AutomaticManifestNotifierPort
   readonly repository: AutomaticManifestTripPort
   readonly tripId: string
 }
@@ -102,7 +117,15 @@ export async function issueTripManifestAutomatically(
      * Recusa de negócio é definitiva: reenviar produz a mesma recusa para sempre. O imprevisto sobe,
      * porque é ele que a reentrega conserta.
      */
-    if (error instanceof ApiError && error.status < 500) return refuse('refused', error.code)
+    if (error instanceof ApiError && error.status < 500) {
+      // O aviso é efeito colateral: se ele falhar, a recusa continua sendo relatada como recusa.
+      await input.notifier?.notifyRefusal({
+        companyId,
+        refusalCode: error.code,
+        tripId: input.tripId,
+      })
+      return refuse('refused', error.code)
+    }
     throw error
   }
 }

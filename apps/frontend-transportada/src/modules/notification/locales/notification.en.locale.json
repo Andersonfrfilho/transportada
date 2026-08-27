@@ -5,16 +5,17 @@
   "bellLabel": "Open notifications",
   "empty": "Nothing here yet. Alerts show up as soon as the system has something to tell.",
   "settings": {
-    "title": "Notification preferences",
-    "subtitle": "Choose where each subject reaches you. The inbox keeps everything either way.",
     "backLabel": "Back to notifications",
-    "inbox": "Inbox",
-    "inboxHint": "Inside TransportAdA, under the header bell.",
+    "billing": "Billing",
+    "cteBatch": "CT-e issuance",
     "email": "Email",
     "emailHint": "Arrives with the system closed; depends on the address in your profile.",
-    "cteBatch": "CT-e issuance",
+    "identity": "Access and account",
+    "inbox": "Inbox",
+    "inboxHint": "Inside TransportAdA, under the header bell.",
+    "mdfe": "MDF-e",
     "nfse": "NFS-e",
-    "billing": "Billing",
-    "identity": "Access and account"
+    "subtitle": "Choose where each subject reaches you. The inbox keeps everything either way.",
+    "title": "Notification preferences"
   }
 }

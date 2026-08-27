@@ -38,6 +38,7 @@ function buildWorld(
   } = {},
 ) {
   const createCalls: object[] = []
+  const refusalNotices: object[] = []
   const repository: AutomaticManifestTripPort = {
     findTrip: () => {
       const status = input.tripStatus === undefined ? 'in_transit' : input.tripStatus
@@ -51,6 +52,7 @@ function buildWorld(
 
   return {
     createCalls,
+    refusalNotices,
     run: () =>
       issueTripManifestAutomatically({
         context: { companyId: COMPANY_ID, userId: USER_ID },
@@ -60,6 +62,12 @@ function buildWorld(
             createCalls.push(call)
             if (input.createError !== undefined) return Promise.reject(input.createError)
             return Promise.resolve({ id: MANIFEST_ID } as unknown as MdfeManifestDetail)
+          },
+        },
+        notifier: {
+          notifyRefusal: (notice) => {
+            refusalNotices.push(notice)
+            return Promise.resolve()
           },
         },
         repository,
@@ -153,5 +161,50 @@ describe('o MDF-e que se emite sozinho', () => {
       outcome: 'not_eligible',
       refusalCode: 'TRIP_NOT_FOUND',
     })
+  })
+
+  /**
+   * Spec 065 D2b: **a recusa avisa, e só ela.** Sem isto a recusa existe só em log, e a viagem
+   * circula sem manifesto até alguém abrir a tela por outro motivo.
+   */
+  it('avisa quando a emissão recusou, com o código do motivo', async () => {
+    const world = buildWorld({
+      createError: new ApiError({
+        code: 'MDFE_MANIFEST_CREW_REQUIRED',
+        message: 'crew required',
+        status: 422,
+      }),
+    })
+
+    const result = await world.run()
+
+    expect(result.outcome).toBe('refused')
+    expect(world.refusalNotices).toEqual([
+      { companyId: COMPANY_ID, refusalCode: 'MDFE_MANIFEST_CREW_REQUIRED', tripId: TRIP_ID },
+    ])
+  })
+
+  /**
+   * "A viagem ainda não saiu" e "a empresa não optou" são estados normais. Avisar sobre eles a cada
+   * CT-e autorizado transformaria o aviso em ruído — e ruído deixa de ser lido quando importa.
+   */
+  it('não avisa nos desfechos que não são falha', async () => {
+    for (const world of [
+      buildWorld({ tripStatus: 'draft' }),
+      buildWorld({ isAutomaticEnabled: false }),
+      buildWorld({ state: 'manifested' }),
+      buildWorld({}),
+    ]) {
+      await world.run()
+      expect(world.refusalNotices).toEqual([])
+    }
+  })
+
+  /** O imprevisto sobe para a reentrega consertar — e não vira aviso de recusa definitiva. */
+  it('não avisa quando o erro é imprevisto', async () => {
+    const world = buildWorld({ createError: new Error('banco fora') })
+
+    await expect(world.run()).rejects.toThrow('banco fora')
+    expect(world.refusalNotices).toEqual([])
   })
 })
