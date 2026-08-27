@@ -1,8 +1,9 @@
 # 065 — O caminhão sai antes do documento · evidência
 
-> ⚠️ **Parcial.** O caminho do barracão até o manifesto automático está inteiro e verificado. Faltam
-> três coisas, e a primeira é a que o motorista sente: **o DAMDFE não chega até ele**. O que falta
-> está no fim, e é a primeira coisa a ler.
+> As dezoito tasks estão fechadas, e o caminho do barracão até o manifesto na mão do motorista está
+> verificado ponta a ponta contra Postgres. **Quatro fechamentos têm ressalva** — o DAMDFE é botão e
+> não troca automática, das três notificações só a falha saiu, o gatilho é chamada direta em vez de
+> evento, e a membership do serviço é provisionada à mão. Estão no fim, e são a primeira coisa a ler.
 
 ## Os dois defeitos que esta spec conserta, e como eles se somavam
 
@@ -65,11 +66,11 @@ e-mail, isso é trabalho novo, e é honesto chamá-lo assim.
    são boas notícias sobre um processo que o operador não precisa acompanhar, e o aviso que ele
    precisa ler é o que exige ação dele. Se virar necessidade, o encanamento já está posto: catálogo,
    destinatário e chave de deduplicação são os mesmos.
-4. **O evento `cte.authorized.v1` não existe.** A 059 previa evento e consumer; o que entrou é uma
+3. **O evento `cte.authorized.v1` não existe.** A 059 previa evento e consumer; o que entrou é uma
    **chamada direta** do efeito de emissão para a API, decidida na ADR-0047. É mais simples e está
    testada, mas não tem a retentativa que uma fila daria — e por desenho não pode ter, porque
    reentregar a mensagem de emissão reemitiria o CT-e.
-5. **A membership sintética do serviço é provisionada à mão** em instalação real. Localmente ela
+4. **A membership sintética do serviço é provisionada à mão** em instalação real. Localmente ela
    nasce no seed; numa transportadora, alguém precisa criá-la por empresa — e é exatamente essa
    lista que limita o estrago de um segredo vazado (ADR-0047 §3).
 

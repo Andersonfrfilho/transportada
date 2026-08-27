@@ -22,8 +22,9 @@ Uma task por vez, cada uma com evidência executada em `evidence.md`.
 | T013    | "Gerar os CT-e desta viagem" a partir do romaneio, com trilha de quem disparou       | 6e        | ✅                                          |
 | T014    | `destinationCityCodes` nos filtros da regra de frete                                 | 7         | ✅                                          |
 | T015    | Avaliação prevista da viagem, `estimated` versus `measured`                          | 8         | ✅                                          |
-| T016    | DAMDFE do manifesto vivo substituindo o romaneio na viagem do motorista              | 9         | ❌ **não entrou**                           |
-| T017    | Notificação de "ficou pronta", "emitido" e "não consegui emitir, e o motivo"         | 11        | ❌ **não entrou**                           |
-| T018    | E2E do barracão ao manifesto, com carga mista                                        | —         | ❌ **não entrou**                           |
+| T016    | DAMDFE do manifesto vivo na viagem do motorista, sob demanda (PDF e XML)             | 9         | ✅ (botão, não troca automática)            |
+| T017    | Notificação de "não consegui emitir, e o motivo"                                     | 11        | ✅ (só a falha — ver evidência)             |
+| T018    | E2E do barracão ao manifesto, com carga mista                                        | —         | ✅ (integração contra Postgres)             |
 
-Os três abertos estão descritos em `evidence.md`, com o que cada um custa a quem opera hoje.
+O que **não** entrou de cada task fechada com ressalva está descrito em `evidence.md`, com o que
+custaria a quem opera hoje.
