@@ -61,6 +61,15 @@ emitente da nota.
 - MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
   cliente — e a exceção do cliente vence o feriado, para o CD que trabalha no feriado não sumir do
   roteiro justamente no dia em que é o único aberto.
+- TripStopSchedule: o agendamento da parada — um por parada, e ele **bloqueia o despacho** enquanto
+  estiver pendente ou recusado. O protocolo viaja até o motorista: um agendamento que o sistema
+  conhece e ele não é um agendamento que não existe.
+- DeliveryCharge: a taxa que o cliente cobrou de verdade, com estado próprio
+  (`suggested → recorded → submitted → approved | rejected → reimbursed`). `contractor_id` anulável:
+  taxa de nota cujo emitente ainda não tem cadastro existe e aparece como "sem contratante".
+- DeliveryClientChargeRule: a taxa que se repete, como **regra** — ela propõe, quem lança é gente.
+- ExtraChargeBatch: o lote de repasse, **do contratante e do período** (nunca da viagem), com o token
+  opaco da página pública de aprovação (ADR-0048 §7).
 - ProcessingJob e AuditLog: rastreabilidade transversal.
 
 ```mermaid

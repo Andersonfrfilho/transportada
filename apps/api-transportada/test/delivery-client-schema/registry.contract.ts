@@ -3,16 +3,24 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { getTableColumns } from 'drizzle-orm'
+
 import {
   contractors,
+  deliveryChargeEvents,
+  deliveryCharges,
+  deliveryClientChargeRules,
   deliveryClientExceptions,
   deliveryClientWindows,
   deliveryClients,
+  extraChargeBatches,
   municipalHolidays,
+  tripStopSchedules,
 } from '../../src/database/database.schema.js'
 import {
   columnSqlTypes,
   foreignKeys,
+  indexColumnsByName,
   unqualifiedCheckSqlByName,
   uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
@@ -125,5 +133,79 @@ describe('o cadastro que nasce da nota (spec 060 T002)', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+})
+
+describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
+  /** Um agendamento por parada: dois é a portaria recebendo dois protocolos para a mesma carga. */
+  test('o agendamento é único por parada e exige hora quando confirmado', () => {
+    expect(
+      uniqueColumnsByName(tripStopSchedules).trip_stop_schedules_company_stop_unique,
+    ).toEqual(['company_id', 'stop_id'])
+    expect(
+      unqualifiedCheckSqlByName(tripStopSchedules).trip_stop_schedules_confirmed_check,
+    ).toBe(`"status" <> 'confirmed' or "scheduled_at" is not null`)
+  })
+
+  /**
+   * ADR-0048 §5: `suggested` é alcançável **só** pelo que nasceu automático. Lançamento manual entra
+   * direto em `recorded`, e o banco recusa a combinação que a máquina de estados não produz.
+   */
+  test('lançamento manual nunca nasce sugerido', () => {
+    expect(
+      unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_suggested_origin_check,
+    ).toBe(`"status" <> 'suggested' or "origin" <> 'manual'`)
+  })
+
+  /** Sugestão dentro de lote seria dinheiro cobrado sem ninguém conferir. */
+  test('o lote só aceita o que já passou por gente', () => {
+    const check = unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_batch_status_check ?? ''
+    expect(check).toContain('"batch_id" is null or')
+    expect(check).not.toContain('suggested')
+    expect(check).not.toContain(`'recorded'`)
+  })
+
+  test('a taxa é numeric e positiva — dinheiro não é ponto flutuante, e zero não é lançamento', () => {
+    expect(columnSqlTypes(deliveryCharges).amount).toBe('numeric(14, 4)')
+    expect(unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_amount_check).toBe(
+      '"amount" > 0',
+    )
+  })
+
+  /**
+   * Taxa de nota cujo emitente ainda não tem cadastro **existe**: ela aparece na lista de "sem
+   * contratante" e nunca é atribuída por palpite. Por isso a coluna é anulável.
+   */
+  test('o lançamento sobrevive sem contratante', () => {
+    expect(
+      getTableColumns(deliveryCharges).contractorId.notNull,
+    ).toBe(false)
+    expect(getTableColumns(deliveryCharges).deliveryClientId.notNull).toBe(true)
+  })
+
+  /** Duas regras vivas do mesmo tipo gerariam duas sugestões da mesma taxa, toda entrega. */
+  test('uma regra viva por cliente e tipo', () => {
+    const indexes = indexColumnsByName(deliveryClientChargeRules)
+    expect(indexes.delivery_client_charge_rules_active_unique).toEqual([
+      'company_id',
+      'delivery_client_id',
+      'charge_type',
+    ])
+  })
+
+  /** Token curto é token adivinhável, e esta é a única porta anônima do produto que serve dinheiro. */
+  test('o token do lote é único e tem tamanho mínimo', () => {
+    expect(
+      uniqueColumnsByName(extraChargeBatches).extra_charge_batches_access_token_unique,
+    ).toEqual(['access_token'])
+    expect(unqualifiedCheckSqlByName(extraChargeBatches).extra_charge_batches_token_check).toBe(
+      'length("access_token") >= 32',
+    )
+  })
+
+  /** ADR-0048 §7: quem decidiu pela página pública é um token, nunca um `userId` inventado. */
+  test('a trilha do lançamento aceita decisão por token', () => {
+    expect(getTableColumns(deliveryChargeEvents).decidedByToken.notNull).toBe(false)
+    expect(getTableColumns(deliveryChargeEvents).actorUserId.notNull).toBe(false)
   })
 })

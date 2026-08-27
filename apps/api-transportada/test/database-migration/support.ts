@@ -162,6 +162,11 @@ export const DELIVERY_CLIENT_TABLES = [
   'delivery_client_windows',
   'delivery_client_exceptions',
   'municipal_holidays',
+  'trip_stop_schedules',
+  'delivery_client_charge_rules',
+  'delivery_charges',
+  'delivery_charge_events',
+  'extra_charge_batches',
 ] as const
 
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
