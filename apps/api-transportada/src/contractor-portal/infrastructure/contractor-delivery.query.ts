@@ -93,3 +93,49 @@ export async function listContractorDeliveries(
     tripStatus: row.tripStatus ?? null,
   }))
 }
+
+/**
+ * Spec 063 T006: a parada que a nota do contratante ocupa, resolvida **pela chave de acesso** — o
+ * portal nomeia a nota que é dele, e o servidor descobre a parada. Assim a rota de agendamento
+ * também não recebe id interno nenhum.
+ *
+ * `null` quando a chave não é de nota dele, não existe, ou a nota ainda não entrou em viagem: as
+ * três respondem igual, porque distinguir "não é sua" de "não existe" já é informação.
+ */
+export async function findScheduleTargetByAccessKey(
+  database: Database,
+  input: {
+    readonly accessKey: string
+    readonly companyId: string
+    readonly scope: ContractorScope
+  },
+): Promise<{ readonly stopId: string; readonly tripId: string } | null> {
+  const [row] = await database
+    .select({ stopId: tripDocuments.stopId, tripId: tripDocuments.tripId })
+    .from(nfeDocuments)
+    .innerJoin(
+      nfeParticipants,
+      and(
+        eq(nfeParticipants.companyId, nfeDocuments.companyId),
+        eq(nfeParticipants.documentId, nfeDocuments.id),
+        inArray(nfeParticipants.role, [...CONTRACTOR_ROLES]),
+        inArray(nfeParticipants.taxId, [...input.scope.taxIds]),
+      ),
+    )
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, nfeDocuments.companyId),
+        eq(tripDocuments.nfeDocumentId, nfeDocuments.id),
+        isNull(tripDocuments.releasedAt),
+      ),
+    )
+    .where(
+      and(eq(nfeDocuments.companyId, input.companyId), eq(nfeDocuments.accessKey, input.accessKey)),
+    )
+    .limit(1)
+
+  if (row?.stopId == null) return null
+
+  return { stopId: row.stopId, tripId: row.tripId }
+}

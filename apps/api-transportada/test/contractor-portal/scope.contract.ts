@@ -9,7 +9,14 @@ import {
   CONTRACTOR_DELIVERY_LIMIT,
   createReadContractorDeliveriesUseCase,
 } from '../../src/contractor-portal/application/read-contractor-deliveries.use-case.js'
+import { createContractorExtraChargesUseCase } from '../../src/contractor-portal/application/contractor-extra-charges.use-case.js'
+import { createScheduleContractorDeliveryUseCase } from '../../src/contractor-portal/application/schedule-contractor-delivery.use-case.js'
+import {
+  ContractorBatchNotFoundError,
+  ContractorDeliveryNotFoundError,
+} from '../../src/contractor-portal/domain/contractor-portal.error.js'
 import { ContractorNotBoundError } from '../../src/contractor-portal/domain/contractor-portal.error.js'
+import type { ContractorPortalRepositoryPort } from '../../src/contractor-portal/application/contractor-portal.types.js'
 import { resolveContractorScope } from '../../src/contractor-portal/domain/contractor-scope.policy.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 
@@ -67,6 +74,9 @@ describe('o recorte do contratante (spec 063 T003)', () => {
     const seen: unknown[] = []
     const useCase = createReadContractorDeliveriesUseCase({
       repository: {
+        findScheduleTarget: async () => null,
+        isBatchWithinScope: async () => false,
+        listBatchIds: async () => [],
         listDeliveries: async (input) => {
           seen.push(input)
           return []
@@ -131,4 +141,120 @@ describe('o recorte do contratante (spec 063 T003)', () => {
 
     expect(bindings).toContain("eq(contractors.status, 'active')")
   })
+
+  /**
+   * ADR-0050 §6: a regra do agendamento não é reescrita aqui — o portal descobre a parada pela chave
+   * e chama a mesma máquina da 060.
+   */
+  test('o agendamento chama a máquina da 060 com a parada resolvida pela chave', async () => {
+    const saved: unknown[] = []
+    const useCase = createScheduleContractorDeliveryUseCase({
+      repository: {
+        ...emptyRepository(),
+        findScheduleTarget: async () => ({ stopId: 'stop-1', tripId: 'trip-1' }),
+        resolveScope: async () =>
+          resolveContractorScope([{ contractorId: 'c1', taxId: '12345678901' }]),
+      },
+      schedules: {
+        async save(input) {
+          saved.push(input)
+          return {
+            divergedAt: null,
+            id: 'schedule-1',
+            notes: '',
+            protocol: 'AG-1',
+            scheduledAt: '2026-08-28T13:00:00.000Z',
+            status: 'confirmed',
+            stopId: 'stop-1',
+          }
+        },
+      },
+    })
+
+    await useCase({
+      accessKey: 'chave',
+      context: CONTEXT,
+      values: {
+        notes: '',
+        protocol: 'AG-1',
+        scheduledAt: '2026-08-28T13:00:00.000Z',
+        status: 'confirmed',
+      },
+    })
+
+    expect(saved).toEqual([
+      {
+        context: CONTEXT,
+        stopId: 'stop-1',
+        tripId: 'trip-1',
+        values: {
+          notes: '',
+          protocol: 'AG-1',
+          scheduledAt: '2026-08-28T13:00:00.000Z',
+          status: 'confirmed',
+        },
+      },
+    ])
+  })
+
+  /** Chave que não é dele responde como chave que não existe: existir já é informação. */
+  test('a chave fora do escopo é ausência, não recusa explicada', async () => {
+    const useCase = createScheduleContractorDeliveryUseCase({
+      repository: {
+        ...emptyRepository(),
+        resolveScope: async () =>
+          resolveContractorScope([{ contractorId: 'c1', taxId: '12345678901' }]),
+      },
+      schedules: {
+        async save() {
+          throw new Error('não deveria escrever')
+        },
+      },
+    })
+
+    await expect(
+      useCase({
+        accessKey: 'chave',
+        context: CONTEXT,
+        values: { notes: '', protocol: '', scheduledAt: null, status: 'refused' },
+      }),
+    ).rejects.toBeInstanceOf(ContractorDeliveryNotFoundError)
+  })
+
+  /** O recorte do lote é conferido **antes** de qualquer leitura do relatório. */
+  test('lote de outro contratante é ausência, e a decisão nem chega ao ciclo da 060', async () => {
+    const decided: unknown[] = []
+    const useCase = createContractorExtraChargesUseCase({
+      batches: {
+        async decide(input) {
+          decided.push(input)
+          throw new Error('não deveria decidir')
+        },
+        async readReport() {
+          throw new Error('não deveria ler')
+        },
+      },
+      repository: {
+        ...emptyRepository(),
+        resolveScope: async () =>
+          resolveContractorScope([{ contractorId: 'c1', taxId: '12345678901' }]),
+      },
+    })
+
+    await expect(
+      useCase.decide({ batchId: 'batch-1', context: CONTEXT, decisions: [] }),
+    ).rejects.toBeInstanceOf(ContractorBatchNotFoundError)
+    expect(decided).toEqual([])
+  })
 })
+
+function emptyRepository(): ContractorPortalRepositoryPort {
+  return {
+    findScheduleTarget: async () => null,
+    isBatchWithinScope: async () => false,
+    listBatchIds: async () => [],
+    listDeliveries: async () => [],
+    resolveScope: async () =>
+      resolveContractorScope([{ contractorId: 'c1', taxId: '12345678901' }]),
+  }
+}

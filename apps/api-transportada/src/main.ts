@@ -223,6 +223,9 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
+import { createScheduleContractorDeliveryUseCase } from './contractor-portal/application/schedule-contractor-delivery.use-case.js'
+import { createContractorExtraChargesUseCase } from './contractor-portal/application/contractor-extra-charges.use-case.js'
+import { createContractorExtraChargeRoutes } from './contractor-portal/presentation/contractor-extra-charge.routes.js'
 import { createReadContractorDeliveriesUseCase } from './contractor-portal/application/read-contractor-deliveries.use-case.js'
 import { DrizzleContractorPortalRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal.repository.js'
 import { DrizzleContractorPortalBindingRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal-binding.repository.js'
@@ -721,8 +724,9 @@ function createApplicationRoutes({
     repository: new DrizzleContractorRepository(database),
   })
   const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
+  const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
-    repository: new DrizzleContractorPortalRepository(database),
+    repository: contractorPortalRepository,
   })
   const municipalHolidays = createMunicipalHolidaysUseCase({
     repository: new DrizzleMunicipalHolidayRepository(database),
@@ -742,6 +746,22 @@ function createApplicationRoutes({
   })
   const tripStopSchedules = createTripStopSchedulesUseCase({
     repository: new DrizzleTripStopScheduleRepository(database),
+  })
+  /**
+   * O agendamento do portal escreve pela mesma máquina da 060 — a `tripStopSchedules` acima, não uma
+   * cópia. É a ADR-0050 §6: nenhuma regra de agendamento mora no portal.
+   */
+  const scheduleContractorDelivery = createScheduleContractorDeliveryUseCase({
+    repository: contractorPortalRepository,
+    schedules: { save: (input) => tripStopSchedules.save(input) },
+  })
+  /** O ciclo do lançamento é o da 060 — o portal acrescenta o recorte, não uma segunda máquina. */
+  const contractorExtraCharges = createContractorExtraChargesUseCase({
+    batches: {
+      decide: (input) => extraChargeBatches.decide(input),
+      readReport: (input) => extraChargeBatches.readReport(input),
+    },
+    repository: contractorPortalRepository,
   })
   const deliveryClients = createDeliveryClientsUseCase({
     repository: new DrizzleDeliveryClientRepository(database),
@@ -1230,6 +1250,11 @@ function createApplicationRoutes({
     }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
+      scheduleDelivery: { execute: (input) => scheduleContractorDelivery(input) },
+    }),
+    ...createContractorExtraChargeRoutes({
+      decideBatch: { execute: (input) => contractorExtraCharges.decide(input) },
+      listBatches: { execute: (input) => contractorExtraCharges.list(input) },
     }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },

@@ -52,6 +52,8 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'mdfe.auto-issue',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
+  /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
+  'charges.decide',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -169,7 +171,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
    * documento fiscal: quem paga o frete acompanha a carga, não administra a transportadora.
    */
-  contractor: Object.freeze(['deliveries.track']),
+  contractor: Object.freeze(['deliveries.track', 'charges.decide']),
   /**
    * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
    * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.

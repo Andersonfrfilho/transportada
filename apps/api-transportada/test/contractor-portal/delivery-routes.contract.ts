@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type { ContractorDelivery } from '../../src/contractor-portal/application/contractor-portal.types.js'
+import type { TripStopSchedule } from '../../src/delivery-clients/application/trip-stop-schedule.use-case.js'
 import { createContractorDeliveryRoutes } from '../../src/contractor-portal/presentation/contractor-delivery.routes.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
@@ -30,8 +31,19 @@ const DELIVERY: ContractorDelivery = {
   tripStatus: 'dispatched',
 }
 
+const SCHEDULE: TripStopSchedule = {
+  divergedAt: null,
+  id: '00000000-0000-4000-8000-000000000902',
+  notes: 'Doca 3',
+  protocol: 'AG-99',
+  scheduledAt: '2026-08-28T13:00:00.000Z',
+  status: 'confirmed',
+  stopId: '00000000-0000-4000-8000-000000000903',
+}
+
 function createFixture(permissions?: CompanyContext['permissions']) {
   const calls: unknown[] = []
+  const scheduleCalls: unknown[] = []
 
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
@@ -47,11 +59,21 @@ function createFixture(permissions?: CompanyContext['permissions']) {
             return [DELIVERY]
           },
         },
+        scheduleDelivery: {
+          async execute(input) {
+            scheduleCalls.push(structuredClone(input))
+            return SCHEDULE
+          },
+        },
       }),
     }),
   })
 
-  return { calls, handle: (request: Request) => handleRequest(request, { timeout() {} }) }
+  return {
+    calls,
+    handle: (request: Request) => handleRequest(request, { timeout() {} }),
+    scheduleCalls,
+  }
 }
 
 describe('a rota de entregas do contratante (spec 063 T005)', () => {
@@ -130,8 +152,84 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
           return []
         },
       },
+      scheduleDelivery: {
+        async execute() {
+          return SCHEDULE
+        },
+      },
     })
 
     expect(routes[0]?.policy).toEqual({ permission: 'deliveries.track', scope: 'company' })
+  })
+
+  /**
+   * ADR-0050 §6: o portal nomeia a nota **pela chave de acesso**, e o servidor descobre a parada —
+   * é assim que a rota de agendamento também não recebe id interno nenhum.
+   */
+  test('agenda pela chave de acesso, canonicalizada', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { protocol: 'AG-99', scheduledAt: '2026-08-28T13:00:00.000Z', status: 'confirmed' },
+        method: 'POST',
+        path: `/client/me/deliveries/${DELIVERY.accessKey.toLowerCase()}/schedule`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.scheduleCalls).toHaveLength(1)
+    expect((fixture.scheduleCalls[0] as { accessKey: string }).accessKey).toBe(DELIVERY.accessKey)
+    expect((fixture.scheduleCalls[0] as { values: unknown }).values).toEqual({
+      notes: '',
+      protocol: 'AG-99',
+      scheduledAt: '2026-08-28T13:00:00.000Z',
+      status: 'confirmed',
+    })
+  })
+
+  /**
+   * `pending` e `requested` são movimentos da transportadora — é ela que pede. Oferecê-los aqui
+   * deixaria o portal escrever pendência em nome de quem deveria resolvê-la.
+   */
+  test('só confirma ou recusa, e recusa chave que não é chave', async () => {
+    const fixture = createFixture()
+
+    const requested = await fixture.handle(
+      jsonRequest({
+        body: { status: 'requested' },
+        method: 'POST',
+        path: `/client/me/deliveries/${DELIVERY.accessKey}/schedule`,
+      }),
+    )
+    expect(requested.status).toBe(400)
+
+    const invalidKey = await fixture.handle(
+      jsonRequest({
+        body: { status: 'refused' },
+        method: 'POST',
+        path: '/client/me/deliveries/123/schedule',
+      }),
+    )
+    expect(invalidKey.status).toBe(400)
+    expect(fixture.scheduleCalls).toEqual([])
+  })
+
+  /** O agendamento devolvido não carrega id de parada nem de viagem. */
+  test('o agendamento devolvido não leva id interno', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { scheduledAt: '2026-08-28T13:00:00.000Z', status: 'confirmed' },
+        method: 'POST',
+        path: `/client/me/deliveries/${DELIVERY.accessKey}/schedule`,
+      }),
+    )
+    const payload = await response.text()
+
+    expect(payload).not.toContain(SCHEDULE.stopId)
+    expect(payload).not.toContain(SCHEDULE.id)
+    expect(payload).toContain('AG-99')
   })
 })

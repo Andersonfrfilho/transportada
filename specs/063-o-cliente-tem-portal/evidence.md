@@ -162,3 +162,65 @@ senha esperam.
   repositório) e a serialização no contrato de rota. Falta o teste que atravessa os dois com sessão
   de verdade — ele entra com o E2E da T011.
 - **Sem cursor**, ainda: cem linhas por chamada, e o contratante com mais notas não é avisado.
+
+## T006 — agendar pelo portal
+
+Uma rota: `POST /client/me/deliveries/:accessKey/schedule`. Ela **não recebe id de parada nem de
+viagem** — o portal nomeia a nota pela chave de acesso e o servidor descobre a parada, o que mantém a
+regra de "nenhuma rota do portal aceita id interno" também aqui. A chave é canonicalizada antes de
+ser conferida (a etiqueta chega na caixa que a impressora usou), e o que não casa o padrão é `400`.
+
+**Nenhuma regra de agendamento mora no portal** (ADR-0050 §6): o caso de uso resolve a parada e chama
+`tripStopSchedules.save`, o mesmo da 060 — mesma validação de "confirmado sem hora", mesmo bloqueio
+de despacho, mesmo `diverged_at`. Se a regra fosse reescrita, no dia em que o WhatsApp também agendar
+existiriam três versões dela.
+
+O portal só escreve `confirmed` e `refused`: `pending` e `requested` são movimentos da
+transportadora — é ela que pede —, e oferecê-los aqui deixaria o cliente escrever pendência em nome
+de quem deveria resolvê-la. Chave que não é dele, chave que não existe e nota que ainda não entrou em
+viagem respondem **igual** (`404`).
+
+## T007 — o repasse aprovado pela conta
+
+`GET /client/me/extra-charge-batches` e `POST .../:id/decisions`, com a máquina de estados do
+lançamento vinda inteira da 060 — o portal acrescenta o **recorte**, não uma segunda máquina. O lote
+precisa ser de um contratante amarrado à conta, e a pergunta é feita **antes** de qualquer leitura:
+lote do vizinho responde como lote inexistente, e a decisão nem chega ao ciclo.
+
+Duas decisões:
+
+- **`charges.decide` é permissão própria**, ao lado de `deliveries.track`. Aprovar cobrança é
+  dinheiro, e não sai de carona com acompanhar entrega — o contrato prova que `deliveries.track`
+  sozinha lista mas não decide;
+- **a trilha guarda o `userId` da conta**, não o token. Na página pública da 060 quem decidiu foi
+  quem tinha o link; aqui dá para dizer _qual pessoa do cliente_ aprovou, e é essa a razão de o
+  portal ter conta em vez de link.
+
+O relatório sai com o mesmo recorte da página pública: sem `clientTaxId`, sem id de viagem, sem id de
+nota.
+
+Comandos executados:
+
+```
+bun run typecheck                                    # limpo
+bun run lint                                         # limpo (monorepo inteiro)
+bun run format:check                                 # limpo
+bun run --cwd apps/api-transportada test             # 3541 pass / 0 fail / 19 skip
+bun run test:integration                             # 171 pass / 0 fail / 4 skip
+```
+
+⚠️ **A integração desta spec derrubou três testes vizinhos, e a causa era minha.** Cada teste abria
+um banco descartável próprio — quatro rodadas de migration — e a carga estourava o timeout de cinco
+segundos de suítes que rodam em paralelo. Passou a ser **um banco para os quatro testes**, com cada
+um semeando a própria empresa: 12,8s → 1,6s, e a integração inteira voltou a 0 falhas. O isolamento
+continua real porque todo dado aqui é escopado por `company_id`.
+
+### Buracos declarados
+
+- **O agendamento do portal não avisa a transportadora.** A linha muda de estado e o despacho
+  destrava, mas ninguém é notificado — `NOTIFICATION_TEMPLATE_KEY` não tem chave de agendamento.
+  Quem for implementar precisa de chave nova, como o aviso de CNH a vencer.
+- **Nada valida a janela do cliente contra o calendário da 060 no portal**: o contratante confirma a
+  hora que quiser, mesmo fora da janela cadastrada. É coerente — quem confirma é o dono da janela —,
+  mas significa que `delivery_client_windows` não é lida neste caminho.
+- **Sem cursor** também nos lotes: os vinte e quatro mais recentes.

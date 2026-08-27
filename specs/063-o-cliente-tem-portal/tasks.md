@@ -19,8 +19,8 @@ documentos amarrados. A ADR-0050 §2 foi reescrita; T003 e T004 mudaram de conte
 | T003 🧠 | O recorte do contratante: documentos da conta, e nenhum vindo do cliente         | 2, 8      | ✅     |
 | T004    | Administrar o vínculo: convidar contratante e amarrar documento                  | 2, 3, 4   | ✅     |
 | T005 🧠 | `/client/me/deliveries`: payload mínimo, com contrato que reprova campo interno  | 4, 5      | ✅     |
-| T006    | Agendar pelo portal, pela máquina de estados da 060                              | 6         | ⬜     |
-| T007    | O contratante aprova o lote linha a linha, com ator externo na trilha            | 7         | ⬜     |
+| T006    | Agendar pelo portal, pela máquina de estados da 060                              | 6         | ✅     |
+| T007    | O contratante aprova o lote linha a linha, com ator externo na trilha            | 7         | ✅     |
 | T008    | O ping do motorista: consentimento, ingestão e expurgo no fechamento             | —         | ⬜     |
 | T009    | `apps/frontend-client`: Vite, PWA, CSP própria, Docker e compose                 | 1, 9      | ⬜     |
 | T010    | As telas: entrar, minhas entregas, agendar, aprovar repasse, mapa desenhado      | 1, 10     | ⬜     |

@@ -63,6 +63,8 @@ describe('authorization contract', () => {
       'mdfe.auto-issue',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
       'deliveries.track',
+      // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
+      'charges.decide',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -157,7 +159,7 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
-      contractor: ['deliveries.track'],
+      contractor: ['deliveries.track', 'charges.decide'],
       automation: ['mdfe.auto-issue'],
     })
   })
@@ -308,7 +310,8 @@ describe('authorization contract', () => {
       (permission) =>
         permission !== 'companies.manage' &&
         permission !== 'mdfe.auto-issue' &&
-        permission !== 'deliveries.track',
+        permission !== 'deliveries.track' &&
+        permission !== 'charges.decide',
     )
 
     expect([...permissions]).toEqual(companyPermissions)

@@ -47,3 +47,29 @@ export class ContractorPortalBindingNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * Chave que não é de nota dele, nota que não existe e nota que ainda não entrou em viagem respondem
+ * igual: distinguir "não é sua" de "não existe" já é informação, e é a informação que transforma o
+ * portal em oráculo de chave de acesso.
+ */
+export class ContractorDeliveryNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_DELIVERY_NOT_FOUND',
+      message: 'Delivery was not found',
+      status: 404,
+    })
+  }
+}
+
+/** Lote de outro contratante responde como lote inexistente: existir já é informação. */
+export class ContractorBatchNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXTRA_CHARGE_BATCH_NOT_FOUND',
+      message: 'Extra charge batch was not found',
+      status: 404,
+    })
+  }
+}

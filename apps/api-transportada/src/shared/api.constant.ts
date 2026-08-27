@@ -63,6 +63,7 @@ export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
  * viagem, de nota ou de contratante — o servidor resolve pelos documentos amarrados à conta.
  */
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
+export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'

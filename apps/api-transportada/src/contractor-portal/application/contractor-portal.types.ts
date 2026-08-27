@@ -25,7 +25,28 @@ export type ContractorDelivery = {
   readonly tripStatus: string | null
 }
 
+export type ContractorScheduleTarget = {
+  readonly stopId: string
+  readonly tripId: string
+}
+
 export type ContractorPortalRepositoryPort = {
+  /** `null` quando a chave não é de nota dele, não existe, ou a nota ainda não entrou em viagem. */
+  findScheduleTarget(input: {
+    readonly accessKey: string
+    readonly context: CompanyContext
+    readonly scope: ContractorScope
+  }): Promise<ContractorScheduleTarget | null>
+  isBatchWithinScope(input: {
+    readonly batchId: string
+    readonly context: CompanyContext
+    readonly scope: ContractorScope
+  }): Promise<boolean>
+  listBatchIds(input: {
+    readonly context: CompanyContext
+    readonly limit: number
+    readonly scope: ContractorScope
+  }): Promise<readonly string[]>
   listDeliveries(input: {
     readonly context: CompanyContext
     readonly limit: number

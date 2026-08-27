@@ -6,8 +6,9 @@
  * desvinculada da viagem volta a ser nota sem viagem em vez de nota entregue por ela.
  */
 import { SQL } from 'bun'
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { and, eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -23,6 +24,9 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
+import { createContractorExtraChargesUseCase } from '../../src/contractor-portal/application/contractor-extra-charges.use-case.js'
+import { ContractorBatchNotFoundError } from '../../src/contractor-portal/domain/contractor-portal.error.js'
+import { extraChargeBatches } from '../../src/database/delivery-client.schema.js'
 import { createReadContractorDeliveriesUseCase } from '../../src/contractor-portal/application/read-contractor-deliveries.use-case.js'
 import { ContractorNotBoundError } from '../../src/contractor-portal/domain/contractor-portal.error.js'
 import { DrizzleContractorPortalRepository } from '../../src/contractor-portal/infrastructure/drizzle-contractor-portal.repository.js'
@@ -41,7 +45,7 @@ const OTHER_TAX_ID = '12345678000190'
 
 describe('o portal do contratante contra Postgres (spec 063 T003)', () => {
   testWithPostgres('mostra só as notas dos documentos amarrados à conta', async () => {
-    await withDisposableDatabase(async (database) => {
+    await withSharedDatabase(async (database) => {
       const world = await seedPortal(database)
       const useCase = createReadContractorDeliveriesUseCase({
         repository: new DrizzleContractorPortalRepository(database.db),
@@ -72,7 +76,7 @@ describe('o portal do contratante contra Postgres (spec 063 T003)', () => {
   testWithPostgres(
     'a conta sem vínculo é recusada, e a de outro contratante não empresta',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withSharedDatabase(async (database) => {
         const world = await seedPortal(database)
         const useCase = createReadContractorDeliveriesUseCase({
           repository: new DrizzleContractorPortalRepository(database.db),
@@ -86,23 +90,95 @@ describe('o portal do contratante contra Postgres (spec 063 T003)', () => {
   )
 
   testWithPostgres('contratante inativado fecha o portal da conta dele', async () => {
-    await withDisposableDatabase(async (database) => {
+    await withSharedDatabase(async (database) => {
       const world = await seedPortal(database)
       const repository = new DrizzleContractorPortalRepository(database.db)
       const useCase = createReadContractorDeliveriesUseCase({ repository })
 
-      await database.db.update(contractors).set({ status: 'inactive' })
+      await database.db
+        .update(contractors)
+        .set({ status: 'inactive' })
+        .where(
+          and(eq(contractors.companyId, world.companyId), eq(contractors.id, world.contractorId)),
+        )
 
       await expect(useCase({ context: world.context })).rejects.toBeInstanceOf(
         ContractorNotBoundError,
       )
     })
   })
+
+  /**
+   * O lote de outro contratante responde como lote inexistente — e a decisão **nem chega** ao ciclo
+   * da 060. É o recorte, não a máquina de estados, que impede o vizinho de aprovar cobrança alheia.
+   */
+  testWithPostgres(
+    'o lote do vizinho é ausência, e a decisão não chega ao ciclo da 060',
+    async () => {
+      await withSharedDatabase(async (database) => {
+        const world = await seedPortal(database)
+        const repository = new DrizzleContractorPortalRepository(database.db)
+        const decided: unknown[] = []
+        const useCase = createContractorExtraChargesUseCase({
+          batches: {
+            async decide(input) {
+              decided.push(input)
+              throw new Error('não deveria decidir')
+            },
+            async readReport() {
+              throw new Error('não deveria ler')
+            },
+          },
+          repository,
+        })
+
+        const [own, other] = await database.db
+          .insert(extraChargeBatches)
+          .values([
+            {
+              closedByUserId: world.userId,
+              companyId: world.companyId,
+              contractorId: world.contractorId,
+              accessToken: `token-do-contratante-amarrado-${'0'.repeat(16)}`,
+              periodEnd: '2026-08-31',
+              periodStart: '2026-08-01',
+            },
+            {
+              closedByUserId: world.userId,
+              companyId: world.companyId,
+              contractorId: world.otherContractorId,
+              accessToken: `token-do-outro-contratante-${'1'.repeat(16)}`,
+              periodEnd: '2026-08-31',
+              periodStart: '2026-08-01',
+            },
+          ])
+          .returning({ id: extraChargeBatches.id })
+
+        const scope = await repository.resolveScope({ context: world.context })
+        expect(
+          await repository.isBatchWithinScope({
+            batchId: own?.id ?? '',
+            context: world.context,
+            scope,
+          }),
+        ).toBe(true)
+
+        await expect(
+          useCase.decide({ batchId: other?.id ?? '', context: world.context, decisions: [] }),
+        ).rejects.toBeInstanceOf(ContractorBatchNotFoundError)
+        expect(decided).toEqual([])
+      })
+    },
+  )
 })
 
 type World = {
+  readonly companyId: string
   readonly context: CompanyContext
+  readonly contractorId: string
+  readonly otherContractorId: string
   readonly unboundContext: CompanyContext
+  readonly userId: string
 }
 
 async function seedPortal(database: TestDatabase): Promise<World> {
@@ -219,40 +295,59 @@ async function seedPortal(database: TestDatabase): Promise<World> {
   }
 
   return {
+    companyId,
     context: { companyId, membershipId, userId } as unknown as CompanyContext,
+    contractorId,
+    otherContractorId,
     unboundContext: {
       companyId,
       membershipId: unboundMembershipId,
       userId: unboundUserId,
     } as unknown as CompanyContext,
+    userId,
   }
 }
 
-async function withDisposableDatabase(
-  operation: (database: TestDatabase) => Promise<void>,
-): Promise<void> {
-  if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
+/**
+ * **Um banco para os quatro testes**, e cada um semeia a própria empresa. Um banco descartável por
+ * teste custa uma rodada inteira de migrations cada — quatro delas seguravam o Postgres o bastante
+ * para estourar o timeout de cinco segundos de suítes vizinhas, que rodam em paralelo com esta. O
+ * isolamento continua real porque todo dado aqui é escopado por `company_id`, que é o que o produto
+ * garante de qualquer jeito.
+ */
+let shared: { readonly database: TestDatabase; readonly name: string } | undefined
+
+beforeAll(async () => {
+  if (databaseUrl === undefined) return
   const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_063_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
+  const name = `transportada_063_${crypto.randomUUID().replaceAll('-', '')}`
+  const url = new URL(databaseUrl)
+  url.pathname = `/${name}`
+  url.search = ''
   try {
     // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
+    await admin.unsafe(`create database "${name}"`)
+    await runDatabaseMigrations({ connectionString: url.toString() })
+    shared = { database: createDrizzleProvider({ connection: url.toString() }), name }
   } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
+    await admin.close({ timeout: 0 })
   }
+})
+
+afterAll(async () => {
+  if (databaseUrl === undefined || shared === undefined) return
+  const admin = new SQL(databaseUrl, { max: 1 })
+  try {
+    await shared.database.close()
+    await admin.unsafe(`drop database if exists "${shared.name}" with (force)`)
+  } finally {
+    await admin.close({ timeout: 0 })
+  }
+})
+
+async function withSharedDatabase(
+  operation: (database: TestDatabase) => Promise<void>,
+): Promise<void> {
+  if (shared === undefined) throw new Error('A PostgreSQL test URL is required')
+  await operation(shared.database)
 }
