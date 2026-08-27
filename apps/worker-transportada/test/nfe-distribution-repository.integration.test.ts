@@ -188,6 +188,10 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
   })
 
   afterAll(async () => {
+    // Spec 060 T006: a distribuição também cria cliente e contratante — o cadastro nasce dos dois
+    // caminhos de importação, e a limpeza precisa saber disso.
+    await db.execute(sql`delete from delivery_clients where company_id = ${companyId}`)
+    await db.execute(sql`delete from contractors where company_id = ${companyId}`)
     await db.delete(nfeParticipants).where(eq(nfeParticipants.companyId, companyId))
     await db.delete(nfeDocuments).where(eq(nfeDocuments.companyId, companyId))
     await db.delete(nfeEvents).where(eq(nfeEvents.companyId, companyId))
