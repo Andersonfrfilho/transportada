@@ -33,12 +33,8 @@ describe('freight rule filters contract', () => {
     const filters = normalizeFreightRuleFilters(undefined)
 
     expect(filters).toEqual({ destinationCityCodes: [], destinationStates: [], senderTaxIds: [] })
-    expect(
-      match({ destinationState: 'MG', filters, senderTaxId: OTHER_TAX_ID }),
-    ).toBe(true)
-    expect(match({ destinationState: null, filters, senderTaxId: null })).toBe(
-      true,
-    )
+    expect(match({ destinationState: 'MG', filters, senderTaxId: OTHER_TAX_ID })).toBe(true)
+    expect(match({ destinationState: null, filters, senderTaxId: null })).toBe(true)
   })
 
   test('normalizes legacy persisted filters and uppercases, trims, deduplicates and sorts the selectors', () => {
@@ -62,18 +58,10 @@ describe('freight rule filters contract', () => {
   test('applies the destination state exception only to the listed states', () => {
     const filters = normalizeFreightRuleFilters({ destinationStates: ['MG', 'RJ'] })
 
-    expect(
-      match({ destinationState: 'MG', filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(true)
-    expect(
-      match({ destinationState: 'mg', filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(true)
-    expect(
-      match({ destinationState: 'SP', filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(false)
-    expect(
-      match({ destinationState: null, filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(false)
+    expect(match({ destinationState: 'MG', filters, senderTaxId: SENDER_TAX_ID })).toBe(true)
+    expect(match({ destinationState: 'mg', filters, senderTaxId: SENDER_TAX_ID })).toBe(true)
+    expect(match({ destinationState: 'SP', filters, senderTaxId: SENDER_TAX_ID })).toBe(false)
+    expect(match({ destinationState: null, filters, senderTaxId: SENDER_TAX_ID })).toBe(false)
   })
 
   test('requires every declared selector to match, never just one of them', () => {
@@ -82,15 +70,9 @@ describe('freight rule filters contract', () => {
       senderTaxIds: [SENDER_TAX_ID],
     })
 
-    expect(
-      match({ destinationState: 'MG', filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(true)
-    expect(
-      match({ destinationState: 'MG', filters, senderTaxId: OTHER_TAX_ID }),
-    ).toBe(false)
-    expect(
-      match({ destinationState: 'SP', filters, senderTaxId: SENDER_TAX_ID }),
-    ).toBe(false)
+    expect(match({ destinationState: 'MG', filters, senderTaxId: SENDER_TAX_ID })).toBe(true)
+    expect(match({ destinationState: 'MG', filters, senderTaxId: OTHER_TAX_ID })).toBe(false)
+    expect(match({ destinationState: 'SP', filters, senderTaxId: SENDER_TAX_ID })).toBe(false)
   })
 
   test('rejects a selector that is not a plain uppercase state or a numeric tax id', () => {

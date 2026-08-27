@@ -474,7 +474,11 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         onClose={() => setIsDispenseDialogOpen(false)}
         onSubmit={(reason) => {
           setIsDispenseDialogOpen(false)
-          workspace.setMdfeRequirementMutation.mutate({ reason, requiresMdfe: false, tripId: trip.id })
+          workspace.setMdfeRequirementMutation.mutate({
+            reason,
+            requiresMdfe: false,
+            tripId: trip.id,
+          })
         }}
         reasonLabel={t('requirement.dispenseReasonLabel')}
         subtitle={t('requirement.dispenseSubtitle')}

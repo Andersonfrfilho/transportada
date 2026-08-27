@@ -18,7 +18,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-import { COMPANY_ROLES, INVITABLE_COMPANY_ROLES, companies, userCompanyMemberships } from './identity.schema.js'
+import {
+  COMPANY_ROLES,
+  INVITABLE_COMPANY_ROLES,
+  companies,
+  userCompanyMemberships,
+} from './identity.schema.js'
 
 /**
  * `superseded` é o convite que um reenvio invalidou. Expiração não é situação: sai de

@@ -39,10 +39,7 @@ export class DrizzleTripValuationQuery {
       .from(trips)
       .innerJoin(
         fleetVehicles,
-        and(
-          eq(fleetVehicles.companyId, trips.companyId),
-          eq(fleetVehicles.id, trips.vehicleId),
-        ),
+        and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
       )
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
       .limit(1)

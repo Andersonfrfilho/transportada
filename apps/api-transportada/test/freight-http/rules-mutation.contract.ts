@@ -20,7 +20,11 @@ const EXPECTED_UPDATE_CALL = {
   context: COMPANY_CONTEXT,
   correlationId: 'freight-http-correlation',
   expectedCurrentVersion: '1',
-  filters: { destinationCityCodes: [], destinationStates: ['MG'], senderTaxIds: ['61084018000109'] },
+  filters: {
+    destinationCityCodes: [],
+    destinationStates: ['MG'],
+    senderTaxIds: ['61084018000109'],
+  },
   freightRuleId: RULE_ID,
   maximumAmount: '900.0000',
   minimumAmount: '120.0000',

@@ -21,7 +21,12 @@ function revenue(
 }
 
 function cost(amount: string, source: TripCostParcel['source']): TripCostParcel {
-  return { amount, gap: source === 'missing' ? VALUATION_GAPS.notRecorded : null, kind: 'toll', source }
+  return {
+    amount,
+    gap: source === 'missing' ? VALUATION_GAPS.notRecorded : null,
+    kind: 'toll',
+    source,
+  }
 }
 
 describe('a avaliação prevista da viagem', () => {

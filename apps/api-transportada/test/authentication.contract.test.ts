@@ -418,7 +418,6 @@ describe('authentication contract', () => {
 
     expect(identity.serviceAccount).toBe(false)
   })
-
 })
 
 type CreateServiceParams = {

@@ -277,7 +277,6 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
     })
   })
 
-
   /**
    * Spec 065 D7: a avaliação atravessa **os dois** caminhos de vínculo e um subselect de encargos.
    * Dublê nenhum prova isso — o `join` errado aqui não quebra: ele precifica a nota errada.
@@ -301,9 +300,7 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
       expect(valuation.totalRevenue).toBe('137.5000')
       expect(valuation.revenueSource).toBe('missing')
       expect(valuation.revenueLines).toHaveLength(4)
-      expect(
-        valuation.revenueLines.filter((line) => line.source === 'measured'),
-      ).toHaveLength(1)
+      expect(valuation.revenueLines.filter((line) => line.source === 'measured')).toHaveLength(1)
       expect(valuation.hasGaps).toBe(true)
     })
   })

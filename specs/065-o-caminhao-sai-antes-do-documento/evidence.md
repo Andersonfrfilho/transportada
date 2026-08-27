@@ -33,17 +33,17 @@ fiscalmente completa, é uma condição, não uma refatoração.
 
 ## O que cada verificação provou
 
-| Decisão                                              | Como ela está travada                                                                                                |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| O portão aceita a viagem que já saiu                 | contrato por estado: `dispatched`, `in_transit` e `completed` passam; `draft` e `separating` continuam recusados      |
-| A nota urbana não trava a viagem                     | prontidão com carga mista: as de CT-e contam, a de NFS-e vira pendência própria e a viagem fica `ready`               |
-| Viagem só urbana não pede manifesto                  | `not_applicable` — o botão não aparece, em vez de "incompleta" para sempre                                            |
-| Sem município não se chuta o documento               | `city_unknown` **bloqueia**: a nota indecisa pode ser CT-e, e manifestar sem ela seria declarar o que não se sabe     |
-| A empresa do serviço não vem de graça                | o cabeçalho só vale para service account, e ainda passa pela membership real; para token de gente ele é **ignorado**  |
-| Escopo do crachá é uma rota                          | `mdfe.auto-issue` não é dada a nenhum papel humano, e o contrato do seed local prova isso                             |
-| Não se convida um robô                               | `automation` fica fora do CHECK de convite, e a rejeição do contrato de schema foi o que revelou a falta              |
-| O gatilho não emite CT-e duas vezes                  | a falha do gatilho **não** volta para a fila: reentregar a mensagem reemitiria o documento fiscal já pago             |
-| O segredo não vaza pelo erro                         | a recusa do provedor de identidade sai como código e status, sem corpo — contrato que procura o segredo na mensagem   |
+| Decisão                                | Como ela está travada                                                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| O portão aceita a viagem que já saiu   | contrato por estado: `dispatched`, `in_transit` e `completed` passam; `draft` e `separating` continuam recusados     |
+| A nota urbana não trava a viagem       | prontidão com carga mista: as de CT-e contam, a de NFS-e vira pendência própria e a viagem fica `ready`              |
+| Viagem só urbana não pede manifesto    | `not_applicable` — o botão não aparece, em vez de "incompleta" para sempre                                           |
+| Sem município não se chuta o documento | `city_unknown` **bloqueia**: a nota indecisa pode ser CT-e, e manifestar sem ela seria declarar o que não se sabe    |
+| A empresa do serviço não vem de graça  | o cabeçalho só vale para service account, e ainda passa pela membership real; para token de gente ele é **ignorado** |
+| Escopo do crachá é uma rota            | `mdfe.auto-issue` não é dada a nenhum papel humano, e o contrato do seed local prova isso                            |
+| Não se convida um robô                 | `automation` fica fora do CHECK de convite, e a rejeição do contrato de schema foi o que revelou a falta             |
+| O gatilho não emite CT-e duas vezes    | a falha do gatilho **não** volta para a fila: reentregar a mensagem reemitiria o documento fiscal já pago            |
+| O segredo não vaza pelo erro           | a recusa do provedor de identidade sai como código e status, sem corpo — contrato que procura o segredo na mensagem  |
 
 ## Uma coisa que a implementação decidiu diferente da spec
 

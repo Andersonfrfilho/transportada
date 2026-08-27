@@ -190,10 +190,7 @@ type Dependencies = {
     }): Promise<AutomaticManifestResult>
   }
   readonly readValuation: {
-    execute(input: {
-      readonly companyId: string
-      readonly tripId: string
-    }): Promise<TripValuation>
+    execute(input: { readonly companyId: string; readonly tripId: string }): Promise<TripValuation>
   }
   readonly setMdfeRequirement: {
     execute(input: {
@@ -323,7 +320,11 @@ export function createTripRoutes(
       pathname: TRIP_FISCAL_READINESS_PATH,
       policy: TRIP_READ_POLICY,
     }),
-    defineRoute<{ readonly reason: null | string; readonly requiresMdfe: boolean | null; readonly tripId: string }>({
+    defineRoute<{
+      readonly reason: null | string
+      readonly requiresMdfe: boolean | null
+      readonly tripId: string
+    }>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.setMdfeRequirement.execute({
           actorUserId: context.scope.userId,

@@ -9,10 +9,7 @@
  */
 export type MdfeAutoIssueTrigger = {
   /** Nunca lança: o CT-e já está autorizado, e nada aqui pode desfazer isso. */
-  trigger(input: {
-    readonly batchItemId: string
-    readonly companyId: string
-  }): Promise<void>
+  trigger(input: { readonly batchItemId: string; readonly companyId: string }): Promise<void>
 }
 
 export type TripByBatchItemPort = {

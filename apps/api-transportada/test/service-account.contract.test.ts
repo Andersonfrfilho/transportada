@@ -41,7 +41,10 @@ describe('service account routing contract', () => {
         tenantContext: new TenantContextService({
           repository: {
             async findActiveByUserAndCompany() {
-              return { membershipId: '00000000-0000-4000-8000-000000000004', roles: ['company-admin'] }
+              return {
+                membershipId: '00000000-0000-4000-8000-000000000004',
+                roles: ['company-admin'],
+              }
             },
           },
         }),

@@ -60,7 +60,13 @@ describe('a exigência de MDF-e da viagem', () => {
     expect(check({ manifestableCount: 2, requiresMdfe: false })).toBe(
       TRIP_MDFE_REQUIREMENT_BLOCKS.reasonRequired,
     )
-    expect(check({ manifestableCount: 2, reason: 'frota própria, carga retorna hoje', requiresMdfe: false })).toBeNull()
+    expect(
+      check({
+        manifestableCount: 2,
+        reason: 'frota própria, carga retorna hoje',
+        requiresMdfe: false,
+      }),
+    ).toBeNull()
   })
 
   /** Viagem só urbana já não manifesta: dispensar o que não existe não precisa de justificativa. */

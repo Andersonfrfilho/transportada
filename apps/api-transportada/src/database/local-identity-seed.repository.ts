@@ -4,7 +4,11 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, or } from 'drizzle-orm'
 
-import { LOCAL_COMPANY_ID, LOCAL_KEYCLOAK_ISSUER, type LocalSeedActor } from './local-identity-seed.constant'
+import {
+  LOCAL_COMPANY_ID,
+  LOCAL_KEYCLOAK_ISSUER,
+  type LocalSeedActor,
+} from './local-identity-seed.constant'
 import { LocalIdentitySeedConflictError } from './local-identity-seed.error'
 import {
   companies,
