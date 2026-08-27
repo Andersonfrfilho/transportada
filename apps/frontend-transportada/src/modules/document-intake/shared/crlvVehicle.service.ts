@@ -9,9 +9,15 @@ import {
   type MdfeBodyType,
   type VehicleColor,
 } from '../../fleet/shared/fleet.types'
-import { isValidCnpj, isValidCpf, isValidPlate, isValidRenavam } from './checkDigit.service'
-import { normalizeLabel, readValueBelowLabel } from './labelGeometry.service'
-import type { PdfPageText } from './pdfTextLayer.service'
+import {
+  isValidCnpj,
+  isValidCpf,
+  isValidPlate,
+  isValidRenavam,
+  normalizeLabel,
+  readValueBelowLabel,
+  type PdfPageText,
+} from '@adatechnology/document-intake'
 
 /**
  * Spec 048: o CRLV preenche o que ele diz, e **só** o que ele diz. Cada campo que fica em branco

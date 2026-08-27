@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import * as pdfjsLegacy from 'pdfjs-dist/legacy/build/pdf.mjs'
 
-import type { PdfGetDocument } from '@/modules/document-intake/shared/pdfTextLayer.service'
+import type { PdfGetDocument } from '@adatechnology/document-intake'
 
 /**
  * O build `legacy/` é obrigatório fora do navegador: o normal quebra em Node com

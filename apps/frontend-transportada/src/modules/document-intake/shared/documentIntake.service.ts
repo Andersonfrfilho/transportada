@@ -2,8 +2,12 @@
 
 import type { FleetVehicleFormState } from '../../fleet/shared/fleet.types'
 import { readCrlvVehicle, type CrlvRemark } from './crlvVehicle.service'
-import { identifyDocumentKind, type DocumentKind } from './documentKind.service'
-import { readPdfTextLayer, type PdfGetDocument } from './pdfTextLayer.service'
+import {
+  identifyDocumentKind,
+  readPdfTextLayer,
+  type DocumentKind,
+  type PdfGetDocument,
+} from '@adatechnology/document-intake'
 
 /**
  * Spec 048: um caso de uso, sem React, sem rede e **sem log** — nem em `debug`. O que passa por aqui

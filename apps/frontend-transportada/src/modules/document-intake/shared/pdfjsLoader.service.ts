@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-import type { PdfGetDocument } from './pdfTextLayer.service'
+import type { PdfGetDocument } from '@adatechnology/document-intake'
 
 /**
  * O pdf.js só entra no bundle quando alguém solta um arquivo: são pouco mais de 300 kB, e quem

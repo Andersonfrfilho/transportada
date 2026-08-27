@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@adatechnology/document-intake": "0.1.0-rc.1",
     "@adatechnology/notification-client": "0.1.0-rc.2",
     "@adatechnology/notification-ui": "0.1.0-rc.3",
     "@dnd-kit/core": "^6.3.1",
