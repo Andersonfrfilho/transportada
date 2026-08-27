@@ -4,6 +4,7 @@
 import './trip-http/create.contract.js'
 import './trip-http/documents.contract.js'
 import './trip-http/close.contract.js'
+import './trip-http/location-tracking.contract.js'
 import './trip-http/mdfe-manifest.contract.js'
 import './trip-http/mdfe-requirement.contract.js'
 import './trip-http/valuation.contract.js'

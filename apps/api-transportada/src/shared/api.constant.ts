@@ -57,6 +57,8 @@ export const API_TRIPS_PATH = '/trips'
  */
 export const API_ME_TRIPS_PATH = '/me/trips'
 export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
+/** ADR-0050 §5: o consentimento é do motorista, e mora fora da viagem — ele vale para todas. */
+export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
 
 /**
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de

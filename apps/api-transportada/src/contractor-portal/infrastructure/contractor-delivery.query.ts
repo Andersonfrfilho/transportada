@@ -109,7 +109,7 @@ export async function findScheduleTargetByAccessKey(
     readonly companyId: string
     readonly scope: ContractorScope
   },
-): Promise<{ readonly stopId: string; readonly tripId: string } | null> {
+): Promise<{ readonly stopId: string | null; readonly tripId: string } | null> {
   const [row] = await database
     .select({ stopId: tripDocuments.stopId, tripId: tripDocuments.tripId })
     .from(nfeDocuments)
@@ -135,7 +135,12 @@ export async function findScheduleTargetByAccessKey(
     )
     .limit(1)
 
-  if (row?.stopId == null) return null
+  if (row === undefined) return null
 
+  /**
+   * ⚠️ `stopId` pode ser nulo: a parada é **derivada** da nota (`reconcileStopOnLink`), e a nota
+   * recém-vinculada existe na viagem antes de a parada nascer. Quem precisa da parada — o
+   * agendamento — recusa o nulo; quem precisa só da viagem — o rastro ao vivo — segue.
+   */
   return { stopId: row.stopId, tripId: row.tripId }
 }

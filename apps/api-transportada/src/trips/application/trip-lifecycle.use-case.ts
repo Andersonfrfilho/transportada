@@ -36,6 +36,10 @@ export type TripLifecycleDependencies = {
     OverrideDeliveryAddressPort
   readonly documentRepository: TripDocumentTransitionPort
   readonly locationRepository: FindTripLocationByAccessKeyPort
+  /** O rastro ao vivo (ADR-0050 §5) — separado da busca por chave, que é outra coisa. */
+  readonly trackingRepository: {
+    purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  }
   readonly routeRepository: CancelTripPort &
     DispatchTripPort &
     PlanTripRoutePort &
@@ -99,11 +103,27 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
     },
     cancel: {
       async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
-        return cancelTrip({
+        const result = await cancelTrip({
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
         })
+
+        /**
+         * ADR-0050 §5: a viagem cancelada apaga o rastro igual à concluída. O expurgo roda **depois**
+         * da transição e fora dela — ele varre uma tabela que só o portal lê, e segurar a resposta do
+         * cancelamento (que é incidente, quase sempre com alguém esperando) por causa disso trocaria
+         * o custo de lugar. Falhar aqui não desfaz o cancelamento; a linha fica para o próximo
+         * fechamento levar.
+         */
+        if (result.tripStatus === 'cancelled') {
+          await dependencies.trackingRepository.purgeByTrip({
+            companyId: input.context.companyId,
+            tripId: input.tripId,
+          })
+        }
+
+        return result
       },
     },
     deliver: { execute: document('deliver') },

@@ -223,6 +223,10 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
+import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
+import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
+import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
 import { createScheduleContractorDeliveryUseCase } from './contractor-portal/application/schedule-contractor-delivery.use-case.js'
 import { createContractorExtraChargesUseCase } from './contractor-portal/application/contractor-extra-charges.use-case.js'
 import { createContractorExtraChargeRoutes } from './contractor-portal/presentation/contractor-extra-charge.routes.js'
@@ -724,6 +728,8 @@ function createApplicationRoutes({
     repository: new DrizzleContractorRepository(database),
   })
   const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
+  const tripLocationRepository = new DrizzleTripLocationRepository(database)
+  const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
   const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
     repository: contractorPortalRepository,
@@ -751,6 +757,10 @@ function createApplicationRoutes({
    * O agendamento do portal escreve pela mesma máquina da 060 — a `tripStopSchedules` acima, não uma
    * cópia. É a ADR-0050 §6: nenhuma regra de agendamento mora no portal.
    */
+  const readContractorDeliveryLocation = createReadContractorDeliveryLocationUseCase({
+    locations: tripLocationRepository,
+    repository: contractorPortalRepository,
+  })
   const scheduleContractorDelivery = createScheduleContractorDeliveryUseCase({
     repository: contractorPortalRepository,
     schedules: { save: (input) => tripStopSchedules.save(input) },
@@ -829,6 +839,7 @@ function createApplicationRoutes({
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
+    trackingRepository: tripLocationRepository,
   })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
@@ -919,7 +930,7 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: mdfeIssuanceRepository,
   })
-  const trips = createTripUseCase({ repository: tripRepository })
+  const trips = createTripUseCase({ locations: tripLocationRepository, repository: tripRepository })
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
     readiness: {
@@ -1250,6 +1261,7 @@ function createApplicationRoutes({
     }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
+      readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
       scheduleDelivery: { execute: (input) => scheduleContractorDelivery(input) },
     }),
     ...createContractorExtraChargeRoutes({
@@ -1290,6 +1302,11 @@ function createApplicationRoutes({
         close: (input) => mdfeIssuance.close(input),
         issue: (input) => mdfeIssuance.issue(input),
       },
+    }),
+    ...createMeLocationRoutes({
+      recordLocation: (input) => recordTripLocation(input),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createMeTripRoutes({
       attachProof: (input) =>

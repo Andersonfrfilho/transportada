@@ -24,6 +24,12 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
+import { createReadContractorDeliveryLocationUseCase } from '../../src/contractor-portal/application/read-contractor-delivery-location.use-case.js'
+import { createRecordTripLocationUseCase } from '../../src/trips/application/record-trip-location.use-case.js'
+import { DrizzleTripLocationRepository } from '../../src/trips/infrastructure/drizzle-trip-location.repository.js'
+import { tripDrivers } from '../../src/database/trip.schema.js'
+import { fleetDrivers } from '../../src/database/fleet.schema.js'
+import { tripLocationPings } from '../../src/database/client-portal.schema.js'
 import { createContractorExtraChargesUseCase } from '../../src/contractor-portal/application/contractor-extra-charges.use-case.js'
 import { ContractorBatchNotFoundError } from '../../src/contractor-portal/domain/contractor-portal.error.js'
 import { extraChargeBatches } from '../../src/database/delivery-client.schema.js'
@@ -170,6 +176,80 @@ describe('o portal do contratante contra Postgres (spec 063 T003)', () => {
       })
     },
   )
+
+  /**
+   * O rastro ao vivo, ponta a ponta: sem consentimento nada é gravado; com consentimento o portal lê
+   * **só coordenada e hora**; e fechar a viagem apaga tudo. As três guardas da ADR-0050 §5, contra o
+   * banco de verdade — porque as duas primeiras dependem de `join` e a terceira, de `delete`.
+   */
+  testWithPostgres('o rastro só existe com consentimento, e morre com a viagem', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedPortal(database)
+      const locations = new DrizzleTripLocationRepository(database.db)
+      const record = createRecordTripLocationUseCase({ repository: locations })
+      const readLocation = createReadContractorDeliveryLocationUseCase({
+        locations,
+        repository: new DrizzleContractorPortalRepository(database.db),
+      })
+
+      const driverId = crypto.randomUUID()
+      await database.db.insert(fleetDrivers).values({
+        companyId: world.companyId,
+        id: driverId,
+        name: 'Motorista da carga',
+        taxId: '12345678909',
+      })
+      await database.db.insert(tripDrivers).values({
+        companyId: world.companyId,
+        driverId,
+        driverName: 'Motorista da carga',
+        driverTaxId: '12345678909',
+        id: crypto.randomUUID(),
+        position: 1n,
+        tripId: world.tripId,
+      })
+
+      const ping = {
+        companyId: world.companyId,
+        driverId,
+        latitude: '-21.1767000',
+        longitude: '-47.8208000',
+      }
+
+      /** Sem consentimento, a viagem existe e está despachada — e mesmo assim nada é gravado. */
+      expect((await record(ping)).outcome).toBe('ignored')
+      expect(
+        await readLocation({ accessKey: world.trackedAccessKey, context: world.context }),
+      ).toBeNull()
+
+      await locations.setConsent({ accepted: true, companyId: world.companyId, driverId })
+      expect((await record(ping)).outcome).toBe('recorded')
+
+      const seen = await readLocation({
+        accessKey: world.trackedAccessKey,
+        context: world.context,
+      })
+      expect(seen?.latitude).toBe('-21.1767000')
+      expect(Object.keys(seen ?? {}).sort()).toEqual(['latitude', 'longitude', 'recordedAt'])
+
+      /** Retirar o consentimento apaga o rastro vivo na mesma transação — não espera o fechamento. */
+      await locations.setConsent({ accepted: false, companyId: world.companyId, driverId })
+      expect(
+        await readLocation({ accessKey: world.trackedAccessKey, context: world.context }),
+      ).toBeNull()
+
+      await locations.setConsent({ accepted: true, companyId: world.companyId, driverId })
+      await record(ping)
+      await locations.purgeByTrip({ companyId: world.companyId, tripId: world.tripId })
+
+      expect(
+        await database.db
+          .select({ id: tripLocationPings.id })
+          .from(tripLocationPings)
+          .where(eq(tripLocationPings.companyId, world.companyId)),
+      ).toEqual([])
+    })
+  })
 })
 
 type World = {
@@ -177,6 +257,8 @@ type World = {
   readonly context: CompanyContext
   readonly contractorId: string
   readonly otherContractorId: string
+  readonly trackedAccessKey: string
+  readonly tripId: string
   readonly unboundContext: CompanyContext
   readonly userId: string
 }
@@ -299,6 +381,8 @@ async function seedPortal(database: TestDatabase): Promise<World> {
     context: { companyId, membershipId, userId } as unknown as CompanyContext,
     contractorId,
     otherContractorId,
+    trackedAccessKey: `9${'1'.repeat(43)}`,
+    tripId,
     unboundContext: {
       companyId,
       membershipId: unboundMembershipId,

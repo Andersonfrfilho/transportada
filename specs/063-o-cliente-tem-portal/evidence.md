@@ -224,3 +224,55 @@ continua real porque todo dado aqui é escopado por `company_id`.
   hora que quiser, mesmo fora da janela cadastrada. É coerente — quem confirma é o dono da janela —,
   mas significa que `delivery_client_windows` não é lida neste caminho.
 - **Sem cursor** também nos lotes: os vinte e quatro mais recentes.
+
+## T008 — o rastro do motorista
+
+As três guardas da ADR-0050 §5, uma em cada camada:
+
+1. **Sem consentimento não se grava.** A checagem é no caso de uso, não na rota — a rota é chamada
+   por um relógio no celular, e quem esquece de checar é quem escreve a próxima rota. Fora de viagem
+   e sem consentimento respondem **igual** (`ignored`): distinguir daria ao celular um jeito de
+   perguntar "esse motorista consentiu?". No HTTP são `202` e `201`, para o log de produção separar
+   "chegou e não valia" de "chegou e virou linha" sem abrir o banco.
+2. **O rastro morre com a viagem.** `purgeByTrip` roda no fechamento (`trips.close`) e no
+   cancelamento — fora da transição, como o congelamento do resultado financeiro da 061: apagar
+   dentro dela seguraria o fechamento por uma varredura de tabela que só o portal lê. Além disso,
+   **retirar o consentimento apaga o rastro vivo na mesma transação** — deixá-lo para o fechamento
+   manteria no banco, por horas, a posição de quem acabou de dizer que não queria ser seguido.
+3. **O cliente vê a carga, não quem dirige.** `GET /client/me/deliveries/:accessKey/location`
+   devolve `latitude`, `longitude` e `recordedAt`, e o contrato compara as chaves por extenso. Sem
+   rastro é `data: null`, não `404`: a nota é dele e existe — o que não existe é posição agora.
+
+A coordenada trafega como **texto** com padrão de até sete casas, o mesmo motivo de dinheiro nunca
+ser float: `number` traria erro binário para dentro do campo. A rota do celular não nomeia viagem —
+o servidor resolve a viagem corrente do próprio motorista, e `dispatched` conta junto com
+`in_transit` porque o caminhão sai da doca antes de alguém marcar a primeira chegada.
+
+⚠️ **Um defeito que só o Postgres achou:** `findScheduleTarget` devolvia `null` quando a nota não
+tinha parada, e o rastro passou a usar a mesma consulta — então a leitura de posição respondia
+"entrega não encontrada" para toda nota recém-vinculada, porque a parada é **derivada** e nasce
+depois. Hoje `stopId` é anulável no tipo: quem precisa da parada (o agendamento) recusa o nulo; quem
+precisa só da viagem (o rastro) segue.
+
+Comandos executados:
+
+```
+bun run typecheck                                  # limpo
+bun run lint                                       # limpo (monorepo inteiro)
+bun run --cwd apps/api-transportada test           # 3551 pass / 0 fail / 19 skip
+bun run test:integration                           # 172 pass / 0 fail (duas rodadas seguidas)
+```
+
+⚠️ Uma rodada intermediária de `test:integration` acusou **uma** falha que não voltou nas duas
+rodadas seguintes e não deixou nome no log. Não sei qual foi; registro aqui em vez de omitir. As
+suítes desta app rodam em paralelo contra o mesmo Postgres e têm timeout de cinco segundos — é o
+mesmo tipo de instabilidade que a carga dos bancos descartáveis causou na T007.
+
+### Buracos declarados
+
+- **Nada expira o rastro de viagem que nunca fecha.** O expurgo é consequência de fechar ou cancelar;
+  uma viagem esquecida em `in_transit` guarda posição indefinidamente. Uma rotina de expurgo por
+  idade é o desfecho, e ela não existe.
+- **Sem limite de frequência**: o celular pode mandar posição de segundo em segundo, e cada uma vira
+  linha. Não há teto por viagem nem descarte de ping quase idêntico ao anterior.
+- **Não há tela de consentimento** — a rota existe, o PWA do motorista ainda não a chama (T009–T010).

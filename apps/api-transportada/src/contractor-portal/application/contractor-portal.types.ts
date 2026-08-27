@@ -26,7 +26,8 @@ export type ContractorDelivery = {
 }
 
 export type ContractorScheduleTarget = {
-  readonly stopId: string
+  /** Nulo enquanto a parada não foi reconciliada — a nota está na viagem, a parada ainda não. */
+  readonly stopId: string | null
   readonly tripId: string
 }
 

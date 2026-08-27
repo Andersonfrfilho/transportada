@@ -72,6 +72,10 @@ export type TripUseCase = {
 }
 
 export function createTripUseCase(dependencies: {
+  /** O expurgo do rastro ao vivo no fechamento (ADR-0050 §5). */
+  readonly locations: {
+    purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  }
   readonly repository: TripRepositoryPort
 }): TripUseCase {
   const { repository } = dependencies
@@ -83,6 +87,14 @@ export function createTripUseCase(dependencies: {
 
       const closed = await repository.close({ companyId: context.companyId, tripId })
       if (closed === null) throw new TripNotFoundError()
+
+      /**
+       * ADR-0050 §5: **o rastro morre com a viagem.** Fora da transição de propósito, como o
+       * congelamento do resultado financeiro (ADR-0049): apagar dentro dela seguraria o fechamento
+       * por uma varredura de tabela que só o portal lê. O que sobrevive é o carimbo da entrega.
+       */
+      await dependencies.locations.purgeByTrip({ companyId: context.companyId, tripId })
+
       return closed
     },
 

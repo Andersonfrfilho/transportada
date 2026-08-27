@@ -43,7 +43,11 @@ export function createScheduleContractorDeliveryUseCase(dependencies: {
   return async ({ accessKey, context, values }) => {
     const scope = await dependencies.repository.resolveScope({ context })
     const target = await dependencies.repository.findScheduleTarget({ accessKey, context, scope })
-    if (target === null) throw new ContractorDeliveryNotFoundError()
+    /**
+     * Sem parada não há o que agendar: a nota entrou na viagem, mas o endereço dela ainda não virou
+     * parada. É ausência, não erro de quem pediu — e responde como as outras ausências do portal.
+     */
+    if (target === null || target.stopId === null) throw new ContractorDeliveryNotFoundError()
 
     return dependencies.schedules.save({
       context,

@@ -31,6 +31,12 @@ const DELIVERY: ContractorDelivery = {
   tripStatus: 'dispatched',
 }
 
+const PING = {
+  latitude: '-21.1767000',
+  longitude: '-47.8208000',
+  recordedAt: '2026-08-28T11:30:00.000Z',
+}
+
 const SCHEDULE: TripStopSchedule = {
   divergedAt: null,
   id: '00000000-0000-4000-8000-000000000902',
@@ -43,6 +49,7 @@ const SCHEDULE: TripStopSchedule = {
 
 function createFixture(permissions?: CompanyContext['permissions']) {
   const calls: unknown[] = []
+  const locationCalls: unknown[] = []
   const scheduleCalls: unknown[] = []
 
   const handleRequest = createRequestHandler({
@@ -59,6 +66,12 @@ function createFixture(permissions?: CompanyContext['permissions']) {
             return [DELIVERY]
           },
         },
+        readDeliveryLocation: {
+          async execute(input) {
+            locationCalls.push(structuredClone(input))
+            return PING
+          },
+        },
         scheduleDelivery: {
           async execute(input) {
             scheduleCalls.push(structuredClone(input))
@@ -71,6 +84,7 @@ function createFixture(permissions?: CompanyContext['permissions']) {
 
   return {
     calls,
+    locationCalls,
     handle: (request: Request) => handleRequest(request, { timeout() {} }),
     scheduleCalls,
   }
@@ -152,6 +166,11 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
           return []
         },
       },
+      readDeliveryLocation: {
+        async execute() {
+          return PING
+        },
+      },
       scheduleDelivery: {
         async execute() {
           return SCHEDULE
@@ -231,5 +250,62 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
     expect(payload).not.toContain(SCHEDULE.stopId)
     expect(payload).not.toContain(SCHEDULE.id)
     expect(payload).toContain('AG-99')
+  })
+
+  /**
+   * ADR-0050 §5, terceira guarda: o cliente vê **a carga**, não quem dirige. Coordenada e hora, e
+   * mais nada — sem isso o portal seria um rastreador de pessoa disfarçado de rastreador de carga.
+   */
+  test('a posição sai sem nada que identifique quem dirige', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `/client/me/deliveries/${DELIVERY.accessKey}/location` }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: Record<string, unknown> }
+    expect(Object.keys(body.data).sort()).toEqual(['latitude', 'longitude', 'recordedAt'])
+  })
+
+  /**
+   * Sem rastro é `data: null`, não `404`: a chave é dele e existe — o que não existe é posição agora.
+   * Responder ausência faria a tela dizer "nota não encontrada" para uma nota que acabou de listar.
+   */
+  test('sem rastro devolve data nula, não ausência de nota', async () => {
+    const handleRequest = createRequestHandler({
+      createCorrelationId: () => CORRELATION_ID,
+      frontendOrigins: [FRONTEND_ORIGIN],
+      logger: { error() {}, info() {}, warn() {} },
+      requestTimeoutSeconds: 10,
+      router: createTestRouter({
+        context: authenticatedContext(TRACK_PERMISSIONS),
+        routes: createContractorDeliveryRoutes({
+          listDeliveries: {
+            async execute() {
+              return []
+            },
+          },
+          readDeliveryLocation: {
+            async execute() {
+              return null
+            },
+          },
+          scheduleDelivery: {
+            async execute() {
+              return SCHEDULE
+            },
+          },
+        }),
+      }),
+    })
+
+    const response = await handleRequest(
+      jsonRequest({ method: 'GET', path: `/client/me/deliveries/${DELIVERY.accessKey}/location` }),
+      { timeout() {} },
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: null })
   })
 })
