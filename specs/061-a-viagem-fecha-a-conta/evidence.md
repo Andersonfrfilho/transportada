@@ -7,7 +7,7 @@
 ## O que ficou de pé
 
 | Task | O que entrou                                                                     |
-| ---- | ---------------------------------------------------------------------------------- |
+| ---- | -------------------------------------------------------------------------------- |
 | T001 | ADR-0049, e as três cláusulas em aberto respondidas                              |
 | T002 | resultado congelado, parcelas, custo avulso, modelo de pagamento, regime federal |
 | T003 | o custo do motorista — tabela de região por classe, e o fixo que é do período    |
@@ -31,18 +31,18 @@
 
 ## Como cada decisão está travada
 
-| Decisão                                       | Como ela está travada                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Receita é o CT-e autorizado                   | o E2E monta CT-e autorizado com encargos e confere 2.000,00 medidos, sem previsão no meio            |
-| O agregado sai da tabela de região            | contrato do custo de motorista **e** o E2E, que cruza zona com a classe do veículo (spec 038)        |
-| Salário não é rateado por viagem              | contrato: tripulação assalariada sai `period` com zero; mista soma o agregado e marca a lacuna       |
-| ICMS vem do payload congelado                 | E2E lê `payload -> icms ->> vICMS`; CST isento vira zero **medido** pelo `coalesce`                  |
-| PIS/COFINS sem regime é desconhecido          | contrato próprio, e o E2E declara o regime para exercitar o outro lado (2.000 × 3,65% = 73,00)       |
-| O congelado não muda com o cadastro           | o E2E sobe o diesel 50% **depois** e confere que o resultado não se mexe                             |
-| Recalcular exige motivo, e a versão fica       | CHECK no banco, contrato no caso de uso, e o E2E gerando a versão 2 com custo diferente              |
-| Uma versão viva por viagem                     | índice parcial, e o acumulado conta a viagem **uma vez** no E2E                                      |
-| A folha desce do total, uma vez                | contrato do acumulado: ela não entra nos grupos, e quinzena conta dois fechamentos por mês           |
-| Só admin e finance veem margem                | contrato nomeando os **seis** papéis que recebem recusa, `operator` incluído                         |
+| Decisão                                  | Como ela está travada                                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Receita é o CT-e autorizado              | o E2E monta CT-e autorizado com encargos e confere 2.000,00 medidos, sem previsão no meio      |
+| O agregado sai da tabela de região       | contrato do custo de motorista **e** o E2E, que cruza zona com a classe do veículo (spec 038)  |
+| Salário não é rateado por viagem         | contrato: tripulação assalariada sai `period` com zero; mista soma o agregado e marca a lacuna |
+| ICMS vem do payload congelado            | E2E lê `payload -> icms ->> vICMS`; CST isento vira zero **medido** pelo `coalesce`            |
+| PIS/COFINS sem regime é desconhecido     | contrato próprio, e o E2E declara o regime para exercitar o outro lado (2.000 × 3,65% = 73,00) |
+| O congelado não muda com o cadastro      | o E2E sobe o diesel 50% **depois** e confere que o resultado não se mexe                       |
+| Recalcular exige motivo, e a versão fica | CHECK no banco, contrato no caso de uso, e o E2E gerando a versão 2 com custo diferente        |
+| Uma versão viva por viagem               | índice parcial, e o acumulado conta a viagem **uma vez** no E2E                                |
+| A folha desce do total, uma vez          | contrato do acumulado: ela não entra nos grupos, e quinzena conta dois fechamentos por mês     |
+| Só admin e finance veem margem           | contrato nomeando os **seis** papéis que recebem recusa, `operator` incluído                   |
 
 ## Dois defeitos que os testes acharam
 
