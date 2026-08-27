@@ -2,16 +2,25 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { aliasedTable, and, eq, sql, sum } from 'drizzle-orm'
+import { aliasedTable, and, eq, inArray, sql, sum } from 'drizzle-orm'
 
 import { companyFuelPrices } from '../../database/company-fuel-prices.schema.js'
 import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
 import { cteBatchItemCharges, cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
-import { fleetVehicles } from '../../database/fleet.schema.js'
+import { deliveryCharges } from '../../database/delivery-client.schema.js'
+import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
+import {
+  fleetDriverRegions,
+  freightRegionDriverRates,
+} from '../../database/freight-region.schema.js'
+import { companyTaxSettings, tripCostEntries } from '../../database/trip-financial.schema.js'
+import { resolveVehicleFreightClass } from '../../shared/vehicle-type.constant.js'
+import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { freightCalculations } from '../../database/freight.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
-import { tripDocuments, tripStops, trips } from '../../database/trip.schema.js'
+import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type {
   TripValuationContext,
   TripValuationDocument,
@@ -45,16 +54,25 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (trip === undefined) return null
 
-    const [distance, fuelPrice, documents] = await Promise.all([
-      this.readPlannedDistance(input),
-      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
-      this.readDocuments(input),
-    ])
+    const [distance, fuelPrice, documents, crew, tollTotal, deliveryChargesTotal, federalRates] =
+      await Promise.all([
+        this.readPlannedDistance(input),
+        this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
+        this.readDocuments(input),
+        this.readCrew(input),
+        this.readTollTotal(input),
+        this.readDeliveryChargesTotal(input),
+        this.readFederalRates({ companyId: input.companyId }),
+      ])
 
     return {
+      crew,
+      deliveryChargesTotal,
       distanceMeters: distance,
       documents,
+      federalRates,
       fuelPricePerLiter: fuelPrice,
+      tollTotal,
       vehicle: {
         kilometersPerLiter: trip.kilometersPerLiter,
         otherCostsPerKilometer: trip.otherCostsPerKilometer,
@@ -77,6 +95,130 @@ export class DrizzleTripValuationQuery {
 
     const meters = row?.meters ?? null
     return meters === null ? null : Number(meters)
+  }
+
+  /**
+   * ADR-0049 §3: quem dirige e como é pago. O valor da rota sai da tabela de região cruzando **a
+   * zona da parada** com a classe do veículo — e a classe existe desde a spec 038.
+   *
+   * `routeAmount` fica `null` quando a tabela não cobre aquela zona ou aquela classe: é
+   * desconhecido, e o cálculo trata desconhecido como desconhecido.
+   */
+  private async readCrew(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly TripCrewMember[]> {
+    const [vehicle] = await this.database
+      .select({ vehicleType: fleetVehicles.vehicleType })
+      .from(trips)
+      .innerJoin(
+        fleetVehicles,
+        and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
+      )
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+    const freightClass = resolveVehicleFreightClass(vehicle?.vehicleType ?? '')
+
+    const rows = await this.database
+      .select({
+        driverId: fleetDrivers.id,
+        paymentModel: fleetDrivers.paymentModel,
+        routeAmount: freightRegionDriverRates.driverAmount,
+      })
+      .from(tripDrivers)
+      .innerJoin(
+        fleetDrivers,
+        and(
+          eq(fleetDrivers.companyId, tripDrivers.companyId),
+          eq(fleetDrivers.id, tripDrivers.driverId),
+        ),
+      )
+      .leftJoin(
+        fleetDriverRegions,
+        and(
+          eq(fleetDriverRegions.companyId, fleetDrivers.companyId),
+          eq(fleetDriverRegions.driverId, fleetDrivers.id),
+        ),
+      )
+      .leftJoin(
+        freightRegionDriverRates,
+        and(
+          eq(freightRegionDriverRates.companyId, fleetDriverRegions.companyId),
+          eq(freightRegionDriverRates.regionId, fleetDriverRegions.regionId),
+          freightClass === ''
+            ? sql`false`
+            : eq(freightRegionDriverRates.freightClass, freightClass),
+        ),
+      )
+      .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
+
+    /** Um condutor pode cobrir várias zonas: a linha dele é uma só, com o primeiro valor que casar. */
+    const byDriver = new Map<string, TripCrewMember>()
+    for (const row of rows) {
+      const current = byDriver.get(row.driverId)
+      if (current === undefined || (current.routeAmount === null && row.routeAmount !== null)) {
+        byDriver.set(row.driverId, {
+          driverId: row.driverId,
+          paymentModel: row.paymentModel,
+          routeAmount: row.routeAmount,
+        })
+      }
+    }
+
+    return [...byDriver.values()]
+  }
+
+  /** Pedágio e avulsos. `null` quando ninguém lançou nada — ausência de lançamento, não gratuidade. */
+  private async readTollTotal(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<null | string> {
+    const [row] = await this.database
+      .select({ total: sum(tripCostEntries.amount) })
+      .from(tripCostEntries)
+      .where(
+        and(
+          eq(tripCostEntries.companyId, input.companyId),
+          eq(tripCostEntries.tripId, input.tripId),
+        ),
+      )
+
+    return row?.total ?? null
+  }
+
+  /**
+   * As taxas da 060 que já passaram por gente. Sugestão não confirmada fica de fora: ela ainda não é
+   * fato, e somá-la faria a viagem parecer mais cara do que se sabe.
+   */
+  private async readDeliveryChargesTotal(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<null | string> {
+    const [row] = await this.database
+      .select({ total: sum(deliveryCharges.amount) })
+      .from(deliveryCharges)
+      .where(
+        and(
+          eq(deliveryCharges.companyId, input.companyId),
+          eq(deliveryCharges.tripId, input.tripId),
+          inArray(deliveryCharges.status, ['recorded', 'submitted', 'approved', 'reimbursed']),
+        ),
+      )
+
+    return row?.total ?? null
+  }
+
+  /** `null` quando a empresa não declarou regime: PIS/COFINS fica `missing` (ADR-0049 §4). */
+  private async readFederalRates(input: {
+    readonly companyId: string
+  }): Promise<CompanyFederalRates | null> {
+    const [row] = await this.database
+      .select({ cofinsRate: companyTaxSettings.cofinsRate, pisRate: companyTaxSettings.pisRate })
+      .from(companyTaxSettings)
+      .where(eq(companyTaxSettings.companyId, input.companyId))
+      .limit(1)
+
+    return row ?? null
   }
 
   private async readFuelPrice(input: {

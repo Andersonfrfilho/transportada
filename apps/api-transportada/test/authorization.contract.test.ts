@@ -142,7 +142,6 @@ describe('authorization contract', () => {
         'nfse.manage',
         'nfse.read',
         'trip.manage',
-        'trip.financials',
       ],
       viewer: [
         'invoices.read',
@@ -187,11 +186,23 @@ describe('authorization contract', () => {
    * Spec 061 D4: **dinheiro tem permissão própria.** O valor pago ao motorista é dado sensível para
    * o próprio motorista, que tem `trip.read` — e o separador monta a carga sem precisar da margem.
    */
-  test('keeps the trip financials away from the field roles and the separator', () => {
-    for (const role of ['driver', 'aggregate', 'separator', 'viewer', 'fiscal'] as const) {
+  /**
+   * ADR-0049 §6: a lista encolheu — `operator` **perdeu** `trip.financials`. Quem monta a viagem
+   * decide se vale montá-la pela avaliação prevista (065 D7), que não mostra o que se paga ao
+   * agregado; e o valor pago ao motorista é dado sensível para quem trabalha ao lado dele.
+   */
+  test('keeps the trip financials away from every role but the owner and finance', () => {
+    for (const role of [
+      'driver',
+      'aggregate',
+      'separator',
+      'viewer',
+      'fiscal',
+      'operator',
+    ] as const) {
       expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(false)
     }
-    for (const role of ['company-admin', 'finance', 'operator'] as const) {
+    for (const role of ['company-admin', 'finance'] as const) {
       expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(true)
     }
   })

@@ -13,6 +13,8 @@ import type {
   TripStopScheduleWrite,
 } from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
+import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
+import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
 import type {
   CloseTripInput,
   CreateTripInput,
@@ -88,6 +90,15 @@ const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
 const TRIP_MDFE_REQUIREMENT_PATH = `${API_TRIPS_PATH}/:id/mdfe-requirement`
 const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
+/**
+ * Spec 061 D4: **dinheiro tem permissão própria.** O resultado congelado é `trip.financials`, de
+ * `company-admin` e `finance` — quem monta viagem já tem a avaliação prevista para decidir carga, e
+ * ela não mostra o que se paga ao agregado.
+ */
+const TRIP_FINANCIAL_RESULT_PATH = `${API_TRIPS_PATH}/:id/financial-result`
+const TRIP_FINANCIAL_RECALCULATE_PATH = `${TRIP_FINANCIAL_RESULT_PATH}/recalculate`
+/** Pedágio e avulso são lançamento de operação: quem monta a viagem lança. */
+const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -262,6 +273,23 @@ type Dependencies = {
   readonly saveSchedule: {
     execute(input: TenantInput<SaveScheduleInput>): Promise<TripStopSchedule>
   }
+  readonly readFinancialResult: {
+    execute(input: TenantInput<TripIdInput>): Promise<TripFinancialResult | null>
+  }
+  readonly recalculateFinancialResult: {
+    execute(
+      input: TenantInput<TripIdInput> & { readonly reason: string },
+    ): Promise<TripFinancialResult>
+  }
+  readonly recordTripCost: {
+    execute(
+      input: TenantInput<TripIdInput> & {
+        readonly amount: string
+        readonly description: string
+        readonly kind: 'other' | 'toll'
+      },
+    ): Promise<{ readonly id: string }>
+  }
 }
 
 export function createTripRoutes(
@@ -324,6 +352,70 @@ export function createTripRoutes(
       }),
       pathname: TRIP_AUTOMATIC_MANIFEST_PATH,
       policy: MDFE_AUTO_ISSUE_POLICY,
+    }),
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.readFinancialResult.execute({
+          context: context.scope,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_FINANCIAL_RESULT_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
+    defineRoute<TripIdInput & { readonly reason: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.recalculateFinancialResult.execute({
+          context: context.scope,
+          reason: input.reason,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          reason: await parseTripFinancialReason(request),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_FINANCIAL_RECALCULATE_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
+    defineRoute<
+      TripIdInput & {
+        readonly amount: string
+        readonly description: string
+        readonly kind: 'other' | 'toll'
+      }
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const created = await dependencies.recordTripCost.execute({
+          amount: input.amount,
+          context: context.scope,
+          description: input.description,
+          kind: input.kind,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: created }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          ...(await parseTripCostRequest(request)),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_COSTS_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<TripIdInput>({
       async handle({ context, input }): Promise<Response> {

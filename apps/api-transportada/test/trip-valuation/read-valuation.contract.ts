@@ -172,4 +172,55 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
   it('viagem de outra empresa é 404', async () => {
     await expect(run({ context: null }).result).rejects.toMatchObject({ code: 'TRIP_NOT_FOUND' })
   })
+
+  /**
+   * Spec 061 T003: a tripulação decide o custo do motorista, e o agregado pago pela tabela de região
+   * fecha a lacuna que esta valoração carregava desde a 065.
+   */
+  it('conta o agregado pela tabela, e trata o assalariado como custo do período', async () => {
+    const withAggregate = await run({
+      context: {
+        ...context(),
+        crew: [{ driverId: 'a', paymentModel: 'route_table', routeAmount: '812.4500' }],
+      },
+    }).result
+    expect(withAggregate.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
+      amount: '812.4500',
+      source: 'measured',
+    })
+
+    const withSalaried = await run({
+      context: {
+        ...context(),
+        crew: [{ driverId: 'b', paymentModel: 'fixed', routeAmount: null }],
+      },
+    }).result
+    expect(withSalaried.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
+      amount: '0.0000',
+      source: 'period',
+    })
+  })
+
+  /** Spec 061 T004: o imposto desce da receita, e sem regime declarado ele fica desconhecido. */
+  it('traz o imposto como parcela própria, e o federal sem regime é ausente', async () => {
+    const valuation = await run({ context: context() }).result
+
+    const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
+    expect(byKind.get('pis_cofins')).toMatchObject({
+      gap: 'NO_FEDERAL_REGIME',
+      source: 'missing',
+    })
+    expect(byKind.has('icms')).toBe(true)
+  })
+
+  /** Pedágio lançado deixa de ser ausência: o total passa a contar o que alguém registrou. */
+  it('conta pedágio e taxa lançados como medidos', async () => {
+    const valuation = await run({
+      context: { ...context(), deliveryChargesTotal: '45.0000', tollTotal: '120.0000' },
+    }).result
+
+    const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
+    expect(byKind.get('toll')).toMatchObject({ amount: '120.0000', source: 'measured' })
+    expect(byKind.get('delivery_charges')).toMatchObject({ amount: '45.0000', source: 'measured' })
+  })
 })

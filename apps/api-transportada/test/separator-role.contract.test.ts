@@ -111,6 +111,12 @@ describe('separator role contract', () => {
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/close',
+      /**
+       * Spec 061: pedágio e avulso são lançamento de **operação**, não de dinheiro sensível — quem
+       * monta a viagem lança, e o resultado (que mostra margem e o que se paga ao agregado) continua
+       * fora do alcance dele.
+       */
+      'POST /trips/:id/costs',
       'POST /trips/:id/dispatch',
       'POST /trips/:id/documents',
       'POST /trips/:id/documents/:documentId/deliver',

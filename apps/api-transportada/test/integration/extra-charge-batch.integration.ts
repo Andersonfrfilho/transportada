@@ -225,14 +225,12 @@ async function seedCharges(database: TestDatabase): Promise<World> {
       taxId: '12345678000190',
     },
   ])
-  await database.db
-    .insert(deliveryClients)
-    .values({
-      companyId,
-      displayName: 'Loja Central',
-      id: deliveryClientId,
-      taxId: '98765432000109',
-    })
+  await database.db.insert(deliveryClients).values({
+    companyId,
+    displayName: 'Loja Central',
+    id: deliveryClientId,
+    taxId: '98765432000109',
+  })
 
   /**
    * A nota da viagem existe porque **a sugestão exige nota**: o índice parcial de dedupe é por

@@ -138,8 +138,11 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.manage',
     'nfse.read',
     'trip.manage',
-    // Quem monta a viagem é quem decide se vale montá-la, e é para isso que a previsão existe.
-    'trip.financials',
+    /**
+     * ADR-0049 §6: `trip.financials` **saiu daqui.** Quem monta a viagem decide se vale montá-la
+     * pela avaliação prevista (065 D7), que não mostra o que se paga ao agregado — e o valor pago ao
+     * motorista é dado sensível para o próprio motorista, que trabalha ao lado de quem monta.
+     */
   ]),
   viewer: Object.freeze([
     'invoices.read',

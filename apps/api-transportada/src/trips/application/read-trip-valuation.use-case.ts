@@ -14,6 +14,8 @@ import {
   type TripRevenueLine,
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
+import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 
 const ZERO = '0.0000'
@@ -21,6 +23,11 @@ const ZERO = '0.0000'
 /** Uma nota da viagem com o que decide a receita dela — medida se já houve emissão, prevista se não. */
 export type TripValuationDocument = {
   readonly destinationCityCode: null | string
+  /**
+   * ADR-0049 §4: o ICMS **do documento**, como ele foi transmitido. `null` enquanto não há emissão;
+   * `'0.0000'` quando o CST é isento — e a diferença entre os dois é o que a origem preserva.
+   */
+  readonly icmsAmount?: null | string
   readonly destinationState: null | string
   readonly issuedAt: null | string
   /** Soma dos `cte_batch_item_charges` do CT-e **autorizado** — `null` quando não há emissão. */
@@ -37,10 +44,18 @@ export type TripValuationVehicle = {
 }
 
 export type TripValuationContext = {
+  /** Quem dirige e como é pago — o agregado por rota, o da casa por quinzena (ADR-0049 §3). */
+  readonly crew?: readonly TripCrewMember[]
+  /** Taxas de entrega já conferidas (060). `null` enquanto a empresa não usa o módulo. */
+  readonly deliveryChargesTotal?: null | string
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
   readonly distanceMeters: null | number
   readonly documents: readonly TripValuationDocument[]
+  /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
+  readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
+  /** Pedágio e avulsos lançados na viagem. `null` quando ninguém lançou nada. */
+  readonly tollTotal?: null | string
   readonly vehicle: TripValuationVehicle
 }
 
@@ -98,7 +113,22 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
     ),
   )
 
-  return buildTripValuation({ costParcels: buildCostParcels(context), revenueLines })
+  const valuation = buildTripValuation({ costParcels: buildCostParcels(context), revenueLines })
+
+  /**
+   * O imposto entra **depois** da receita apurada, porque os federais incidem sobre ela. Ele não é
+   * custo de operação — desce da receita —, e a tela separa as duas naturezas.
+   */
+  const taxParcels = buildTripTaxParcels({
+    documents: context.documents.map((document) => ({ icmsAmount: document.icmsAmount ?? null })),
+    federalRates: context.federalRates ?? null,
+    revenueAmount: valuation.totalRevenue,
+  })
+
+  return buildTripValuation({
+    costParcels: [...buildCostParcels(context), ...taxParcels],
+    revenueLines,
+  })
 }
 
 async function resolveRevenueLine(input: {
@@ -163,17 +193,36 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
   const hasDistance = distance !== null && distance > 0
 
   return [
-    { amount: ZERO, gap: VALUATION_GAPS.noDriverRate, kind: 'driver', source: 'missing' },
+    buildTripDriverCost(context.crew ?? []),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
-    { amount: ZERO, gap: VALUATION_GAPS.notRecorded, kind: 'toll', source: 'missing' },
-    {
-      amount: ZERO,
+    resolveRecordedParcel({
+      amount: context.tollTotal ?? null,
+      gap: VALUATION_GAPS.notRecorded,
+      kind: 'toll',
+    }),
+    resolveRecordedParcel({
+      amount: context.deliveryChargesTotal ?? null,
       gap: VALUATION_GAPS.featureAbsent,
       kind: 'delivery_charges',
-      source: 'missing',
-    },
+    }),
   ]
+}
+
+/**
+ * Parcela que só existe se alguém lançou. Ausência aqui é **ausência de lançamento**, e ela precisa
+ * aparecer: zero silencioso num custo que existe é a margem otimista que a ADR-0049 §2 proíbe.
+ */
+function resolveRecordedParcel(input: {
+  readonly amount: null | string
+  readonly gap: (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
+  readonly kind: TripCostParcel['kind']
+}): TripCostParcel {
+  if (input.amount === null) {
+    return { amount: ZERO, gap: input.gap, kind: input.kind, source: 'missing' }
+  }
+
+  return { amount: input.amount, gap: null, kind: input.kind, source: 'measured' }
 }
 
 function resolveFuelParcel(input: {

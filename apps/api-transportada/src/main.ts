@@ -161,6 +161,9 @@ import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-re
 import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
+import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
+import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
+import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
 import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
 import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
 import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
@@ -776,6 +779,8 @@ function createApplicationRoutes({
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
+  const tripCostRepository = new DrizzleTripCostRepository(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
   const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
     database,
@@ -1290,6 +1295,43 @@ function createApplicationRoutes({
       },
       getTrip: { execute: (input) => trips.get(input) },
       listSchedules: { execute: (input) => tripStopSchedules.list(input) },
+      readFinancialResult: {
+        execute: (input) =>
+          tripFinancialResultRepository.findCurrent({
+            companyId: input.context.companyId,
+            tripId: input.tripId,
+          }),
+      },
+      recalculateFinancialResult: {
+        execute: async (input) =>
+          freezeTripFinancialResult({
+            actorUserId: input.context.userId,
+            assumptions: {},
+            companyId: input.context.companyId,
+            reason: input.reason,
+            repository: tripFinancialResultRepository,
+            tripId: input.tripId,
+            valuation: await readTripValuation({
+              companyId: input.context.companyId,
+              repository: {
+                findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+                readContext: (query) => tripValuationQuery.readContext(query),
+              },
+              tripId: input.tripId,
+            }),
+          }),
+      },
+      recordTripCost: {
+        execute: (input) =>
+          tripCostRepository.record({
+            actorUserId: input.context.userId,
+            amount: input.amount,
+            companyId: input.context.companyId,
+            description: input.description,
+            kind: input.kind,
+            tripId: input.tripId,
+          }),
+      },
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
       issueManifestAutomatically: {
         execute: (input) =>
