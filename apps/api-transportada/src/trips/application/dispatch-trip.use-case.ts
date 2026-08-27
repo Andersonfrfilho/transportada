@@ -6,6 +6,7 @@ import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js
 import {
   TripDispatchForceReasonRequiredError,
   TripHasUnloadedDocumentsError,
+  TripHasUnscheduledStopsError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
@@ -15,6 +16,11 @@ export type DispatchTripPreconditions = {
   readonly tripStatus: TripStatus
   /** Ids de nota viva (não devolvida, não liberada) que nunca chegaram a `loaded`. */
   readonly unloadedDocumentIds: readonly string[]
+  /**
+   * Spec 060 D3: paradas de cliente que exige agendamento e ainda não têm um que valha. Sair sem
+   * ele é a viagem perdida que esta spec existe para evitar — o cliente recusa a carga na portaria.
+   */
+  readonly unscheduledStopIds: readonly string[]
 }
 
 export type DispatchTripWriteInput = {
@@ -73,9 +79,19 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
   }
   if (transition.outcome === 'unchanged') return { tripStatus: state.tripStatus }
 
-  const forced = state.unloadedDocumentIds.length > 0
+  /**
+   * Duas pendências, um `force`: nota não carregada e parada sem agendamento. A recusa nomeia
+   * **qual** delas travou — "a viagem não pode sair" sem dizer o quê manda o operador procurar.
+   * A do agendamento vem primeiro porque ela não se resolve no barracão: depende do cliente.
+   */
+  const forced = state.unloadedDocumentIds.length > 0 || state.unscheduledStopIds.length > 0
   if (forced) {
-    if (!(input.force ?? false)) throw new TripHasUnloadedDocumentsError(state.unloadedDocumentIds)
+    if (!(input.force ?? false)) {
+      if (state.unscheduledStopIds.length > 0) {
+        throw new TripHasUnscheduledStopsError(state.unscheduledStopIds)
+      }
+      throw new TripHasUnloadedDocumentsError(state.unloadedDocumentIds)
+    }
     if ((input.forceReason ?? '').trim().length === 0) {
       throw new TripDispatchForceReasonRequiredError()
     }

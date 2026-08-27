@@ -9,6 +9,11 @@ import type { AutomaticManifestResult } from '../../mdfe-manifests/application/i
 import type { MdfeManifestDetail } from '../../mdfe-manifests/application/mdfe-manifest.port.js'
 import { parseCreateTripManifestRequest } from '../../mdfe-manifests/presentation/mdfe-manifest.schema.js'
 import type {
+  TripStopSchedule,
+  TripStopScheduleWrite,
+} from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
+import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
+import type {
   CloseTripInput,
   CreateTripInput,
   DeliverTripDocumentInput,
@@ -87,6 +92,12 @@ const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
+/**
+ * Spec 060 D3: pedir, confirmar ou registrar a recusa do agendamento daquela parada. É `trip.manage`
+ * porque quem fala com o cliente é quem monta a viagem — o motorista só **lê** a hora e o protocolo.
+ */
+const TRIP_STOP_SCHEDULE_PATH = `${TRIP_STOPS_PATH}/:stopId/schedule`
+const TRIP_SCHEDULES_PATH = `${API_TRIPS_PATH}/:id/schedules`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH = `${TRIP_DOCUMENT_PATH}/delivery-address`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH = `${TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH}-history`
 const TRIP_MDFE_MANIFESTS_PATH = `${API_TRIPS_PATH}/:id/mdfe-manifests`
@@ -142,6 +153,10 @@ type DispatchInput = {
   readonly tripId: string
 }
 type TripIdInput = { readonly tripId: string }
+type SaveScheduleInput = TripIdInput & {
+  readonly stopId: string
+  readonly values: TripStopScheduleWrite
+}
 type ReorderStopsInput = { readonly stopIds: readonly string[]; readonly tripId: string }
 type DeliveryAddressHistoryInput = { readonly documentId: string; readonly tripId: string }
 type OverrideDeliveryAddressInput = {
@@ -241,6 +256,12 @@ type Dependencies = {
   readonly separateTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
+  readonly listSchedules: {
+    execute(input: TenantInput<TripIdInput>): Promise<readonly TripStopSchedule[]>
+  }
+  readonly saveSchedule: {
+    execute(input: TenantInput<SaveScheduleInput>): Promise<TripStopSchedule>
+  }
 }
 
 export function createTripRoutes(
@@ -303,6 +324,44 @@ export function createTripRoutes(
       }),
       pathname: TRIP_AUTOMATIC_MANIFEST_PATH,
       policy: MDFE_AUTO_ISSUE_POLICY,
+    }),
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const schedules = await dependencies.listSchedules.execute({
+          context: context.scope,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: schedules }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_SCHEDULES_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    defineRoute<SaveScheduleInput>({
+      async handle({ context, input }): Promise<Response> {
+        const schedule = await dependencies.saveSchedule.execute({
+          context: context.scope,
+          stopId: input.stopId,
+          tripId: input.tripId,
+          values: input.values,
+        })
+
+        return jsonResponse({ body: { data: schedule }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          values: await parseTripStopScheduleRequest(request),
+        }
+      },
+      pathname: TRIP_STOP_SCHEDULE_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<{ readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {

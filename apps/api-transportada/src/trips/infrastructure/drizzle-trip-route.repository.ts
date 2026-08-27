@@ -18,6 +18,7 @@ import type {
   DispatchTripWriteInput,
   DispatchTripWriteResult,
 } from '../application/dispatch-trip.use-case.js'
+import { listUnscheduledStops } from '../../delivery-clients/infrastructure/unscheduled-stop.query.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type {
@@ -85,6 +86,7 @@ export class DrizzleTripRouteRepository
       hasRoute: route.hasRoute,
       tripStatus: route.tripStatus,
       unloadedDocumentIds: unloadedRows.map((row) => row.id),
+      unscheduledStopIds: await listUnscheduledStops(this.database, input),
     }
   }
 

@@ -216,6 +216,8 @@ import {
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { createTripStopSchedulesUseCase } from './delivery-clients/application/trip-stop-schedule.use-case.js'
+import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
 import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
@@ -675,6 +677,9 @@ function createApplicationRoutes({
   })
   const municipalHolidays = createMunicipalHolidaysUseCase({
     repository: new DrizzleMunicipalHolidayRepository(database),
+  })
+  const tripStopSchedules = createTripStopSchedulesUseCase({
+    repository: new DrizzleTripStopScheduleRepository(database),
   })
   const deliveryClients = createDeliveryClientsUseCase({
     repository: new DrizzleDeliveryClientRepository(database),
@@ -1198,6 +1203,8 @@ function createApplicationRoutes({
         },
       },
       getTrip: { execute: (input) => trips.get(input) },
+      listSchedules: { execute: (input) => tripStopSchedules.list(input) },
+      saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
       issueManifestAutomatically: {
         execute: (input) =>
           issueTripManifestAutomatically({

@@ -26,6 +26,7 @@ const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const TRIP_ID = '22222222-2222-4222-8222-222222222222'
 const ACTOR_USER_ID = '33333333-3333-4333-8333-333333333333'
 const UNLOADED_ID = '44444444-4444-4444-8444-444444444444'
+const UNSCHEDULED_STOP_ID = '55555555-5555-4555-8555-555555555555'
 
 function createPlanFakePort(
   overrides: {
@@ -60,12 +61,14 @@ function createDispatchFakePort(
     readonly hasRoute?: boolean
     readonly tripStatus?: DispatchTripPreconditions['tripStatus']
     readonly unloadedDocumentIds?: readonly string[]
+    readonly unscheduledStopIds?: readonly string[]
   } = {},
 ): DispatchTripPort & { readonly dispatchCalls: DispatchTripWriteInput[] } {
   const exists = overrides.exists ?? true
   const hasRoute = overrides.hasRoute ?? true
   const tripStatus = overrides.tripStatus ?? 'loading'
   const unloadedDocumentIds = overrides.unloadedDocumentIds ?? []
+  const unscheduledStopIds = overrides.unscheduledStopIds ?? []
   const dispatchCalls: DispatchTripWriteInput[] = []
 
   return {
@@ -74,7 +77,7 @@ function createDispatchFakePort(
     },
     async readPreconditions() {
       if (!exists) return null
-      return { hasRoute, tripStatus, unloadedDocumentIds }
+      return { hasRoute, tripStatus, unloadedDocumentIds, unscheduledStopIds }
     },
     async dispatch(input): Promise<DispatchTripWriteResult> {
       dispatchCalls.push(input)
@@ -268,5 +271,70 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripNotFoundError)
+  })
+
+  /**
+   * Spec 060 D3: o cliente que exige agendamento recusa a carga na portaria, e o caminhão volta
+   * cheio. A recusa lista **as paradas**, porque é para o cliente daquela parada que se liga.
+   */
+  test('recusa despachar viagem com parada sem agendamento', async () => {
+    const repository = createDispatchFakePort({ unscheduledStopIds: [UNSCHEDULED_STOP_ID] })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ code: 'TRIP_HAS_UNSCHEDULED_STOPS', status: 409 })
+    expect(repository.dispatchCalls).toEqual([])
+  })
+
+  /** "Vou tentar assim mesmo" é decisão real da operação — o que não pode é acontecer sem assinatura. */
+  test('aceita despachar sem agendamento com force e motivo, e recusa o force mudo', async () => {
+    const forced = createDispatchFakePort({ unscheduledStopIds: [UNSCHEDULED_STOP_ID] })
+
+    await expect(
+      dispatchTrip({
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        force: true,
+        repository: forced,
+        tripId: TRIP_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'TRIP_DISPATCH_FORCE_REASON_REQUIRED' })
+
+    const accepted = createDispatchFakePort({ unscheduledStopIds: [UNSCHEDULED_STOP_ID] })
+    await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      force: true,
+      forceReason: 'cliente autorizou por telefone',
+      repository: accepted,
+      tripId: TRIP_ID,
+    })
+
+    expect(accepted.dispatchCalls[0]).toMatchObject({
+      forceReason: 'cliente autorizou por telefone',
+      forced: true,
+    })
+  })
+
+  /** A do agendamento vem primeiro: ela não se resolve no barracão, depende do cliente. */
+  test('com as duas pendências, a recusa nomeia o agendamento', async () => {
+    const repository = createDispatchFakePort({
+      unloadedDocumentIds: [UNLOADED_ID],
+      unscheduledStopIds: [UNSCHEDULED_STOP_ID],
+    })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ code: 'TRIP_HAS_UNSCHEDULED_STOPS' })
   })
 })

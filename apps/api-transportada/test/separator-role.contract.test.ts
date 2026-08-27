@@ -99,6 +99,13 @@ describe('separator role contract', () => {
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       // Spec 059: a prontidão fiscal é leitura da viagem, e o separador a lê como o resto dela
       'GET /trips/:id/fiscal-readiness',
+      /**
+       * Spec 060 D3: o agendamento **é** do separador, e é decisão registrada aqui. Ele monta a
+       * viagem, e o portão do despacho que a pendência de agendamento levanta é dele para limpar —
+       * mandar isso para outra pessoa deixaria o caminhão parado esperando quem não está no galpão.
+       * O que ele continua não fazendo é emitir documento fiscal e reportar entrega.
+       */
+      'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
       'PATCH /trips/:id/stops/order',
       'POST /trips',
@@ -113,6 +120,7 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/separate',
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
+      'POST /trips/:id/stops/:stopId/schedule',
     ])
   })
 

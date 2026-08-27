@@ -201,6 +201,27 @@ export class TripHasUnloadedDocumentsError extends ApiError {
   public readonly documentIds: readonly string[]
 }
 
+/**
+ * Spec 060 D3: o cliente que exige agendamento recusa a carga na portaria, e o caminhão volta cheio.
+ * A recusa lista **as paradas**, não as notas: quem resolve isso liga para o cliente daquela parada.
+ *
+ * Aceita o mesmo `force` + motivo do despacho com nota pendente — "vou tentar assim mesmo" é uma
+ * decisão real da operação; o que não pode é ela acontecer sem alguém assinar.
+ */
+export class TripHasUnscheduledStopsError extends ApiError {
+  public constructor(stopIds: readonly string[]) {
+    super({
+      code: 'TRIP_HAS_UNSCHEDULED_STOPS',
+      details: stopIds.map((stopId) => ({ field: 'stopId', message: stopId })),
+      message: 'The trip has stops without a valid schedule. Confirm with force and a reason.',
+      status: 409,
+    })
+    this.stopIds = stopIds
+  }
+
+  public readonly stopIds: readonly string[]
+}
+
 /** Espelha `trip_dispatch_snapshots_force_reason_check`: forçado exige motivo, e só ele. */
 export class TripDispatchForceReasonRequiredError extends ApiError {
   public constructor() {
