@@ -16,7 +16,11 @@ import { CNPJ_LENGTH, formatTaxId, normalizeTaxId } from '@/modules/shared/taxId
 import { Combobox, type ComboboxOption } from '@/modules/shared/components/Combobox.component'
 import { createAggregateApplicationClient } from '../shared/landingClient.service'
 import { createCompanyInfoClient, mergeCompanyIntoFields } from '../shared/cnpjInfo.service'
-import { mergeCcmeiIntoFields } from '../shared/ccmei.service'
+import {
+  listCcmeiDivergences,
+  mergeCcmeiIntoFields,
+  type CcmeiDivergence,
+} from '../shared/ccmei.service'
 import {
   useCompanyDocumentIntake,
   type CompanyDocumentIntake,
@@ -145,11 +149,17 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
   const showUnitSelect = settings.units.length > 1
   const isCompany = isLookupableCnpj(fields.taxId)
+  const [ccmeiDivergences, setCcmeiDivergences] = useState<readonly CcmeiDivergence[]>([])
   const documentIntake = useCompanyDocumentIntake((reading) => {
-    setFields((current) => ({
-      ...current,
-      ...mergeCcmeiIntoFields({ current, formatPostalCode, values: reading.values }),
-    }))
+    setFields((current) => {
+      // A conferência olha o que a pessoa já tinha — por isso é calculada **antes** do merge, que
+      // preenche os vazios. Depois dele, todo campo vazio pareceria concordar com o documento.
+      setCcmeiDivergences(listCcmeiDivergences({ current, values: reading.values }))
+      return {
+        ...current,
+        ...mergeCcmeiIntoFields({ current, formatPostalCode, values: reading.values }),
+      }
+    })
   })
 
   function updateField<TField extends keyof FormFields>(
@@ -311,6 +321,11 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
               />
             </label>
             <p className={styles.hint}>{describeDocumentIntake(documentIntake)}</p>
+            {ccmeiDivergences.length > 0 ? (
+              <p className={styles.hint}>
+                {`O documento diz outra coisa em: ${ccmeiDivergences.map(describeDivergenceField).join(', ')}. Mantivemos o que você preencheu — quem confere é a nossa equipe.`}
+              </p>
+            ) : null}
             <label className={styles.field}>
               <span className={styles.label}>Razão social</span>
               <input
@@ -679,4 +694,18 @@ function describeDocumentIntake(intake: CompanyDocumentIntake): string {
   if (intake.status === 'ready') return 'Lemos o CCMEI e preenchemos os campos que estavam vazios.'
 
   return 'O arquivo é lido no seu aparelho e nada dele é enviado antes de você concluir o cadastro.'
+}
+
+const DIVERGENCE_LABEL: Readonly<Record<string, string>> = {
+  companyLegalName: 'razão social',
+  companyOpenedAt: 'data de abertura',
+  taxId: 'CNPJ',
+}
+
+/**
+ * O nome que a pessoa leu na tela, nunca a chave interna do campo. Campo sem rótulo conhecido sai
+ * com o nome que temos — esconder o desconhecido devolveria o aviso genérico que isto conserta.
+ */
+function describeDivergenceField(divergence: CcmeiDivergence): string {
+  return DIVERGENCE_LABEL[divergence.field] ?? divergence.field
 }

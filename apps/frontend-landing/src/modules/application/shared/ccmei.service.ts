@@ -2,6 +2,8 @@
 
 import { isValidCnpj, readValueBelowLabel, type PdfPageText } from '@adatechnology/document-intake'
 
+import { normalizeTaxId } from '@/modules/shared/taxId.service'
+
 import type { CompanyDeclaredFields } from './cnpjInfo.service'
 
 /**
@@ -225,4 +227,53 @@ export function mergeCcmeiIntoFields(input: {
     state: keepOrFill(current.state, address?.state),
     street: keepOrFill(current.street, address?.street),
   }
+}
+
+export type CcmeiDivergence = Readonly<{
+  declared: string
+  field: string
+  read: string
+}>
+
+/** O que o documento diz de cada campo já preenchido — o resto do merge cuida do que está vazio. */
+const COMPARED: readonly Readonly<{
+  field: 'companyLegalName' | 'companyOpenedAt' | 'taxId'
+  read: (values: Partial<CcmeiValues>) => string | undefined
+}>[] = [
+  { field: 'taxId', read: (values) => values.cnpj },
+  { field: 'companyLegalName', read: (values) => values.legalName },
+  { field: 'companyOpenedAt', read: (values) => values.openedAt },
+]
+
+/**
+ * O documento **confere**, não manda: o CNPJ digitado é da pessoa, e um arquivo anexado reescrever o
+ * cadastro de quem o anexou seria inverter quem decide. Divergência é sinal para revisão humana.
+ *
+ * Duas coisas que não são divergência, e tratá-las como tal treinaria o operador a ignorar o aviso:
+ * campo em branco (é o que o documento vai preencher) e campo que o documento não trouxe (ausência
+ * nunca é conflito). A comparação do CNPJ é canônica — máscara é do teclado, não do dado.
+ */
+export function listCcmeiDivergences(input: {
+  readonly current: Readonly<{ companyLegalName: string; companyOpenedAt: string; taxId: string }>
+  readonly values: Partial<CcmeiValues>
+}): readonly CcmeiDivergence[] {
+  const divergences: CcmeiDivergence[] = []
+
+  for (const { field, read } of COMPARED) {
+    const readValue = read(input.values)
+    const declared = input.current[field]
+    if (readValue === undefined || declared === '') continue
+
+    const left = field === 'taxId' ? normalizeTaxId(declared) : declared.trim().toUpperCase()
+    const right = field === 'taxId' ? normalizeTaxId(readValue) : readValue.trim().toUpperCase()
+    if (left === right) continue
+
+    divergences.push({
+      declared: field === 'taxId' ? left : declared,
+      field,
+      read: field === 'taxId' ? right : readValue,
+    })
+  }
+
+  return divergences
 }
