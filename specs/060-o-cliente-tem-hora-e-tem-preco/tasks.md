@@ -20,9 +20,9 @@ calendário de feriado por município). Uma task por vez, cada uma com evidênci
 | T010    | Lançamento manual, regra recorrente e a fila de sugestões                             | 4, 4b, 6  | ✅     |
 | T011    | O lote por contratante, o relatório e as decisões                                     | 5, 6      | ✅     |
 | T012 🧠 | A página pública: rotas anônimas do lote por token (a **tela** da landing é da T015)   | 5, 6      | ✅     |
-| T013    | O motorista vê hora e protocolo, e registra ocorrência de cobrança                    | 8         | ⬜     |
-| T014    | Frontend: workspace de clientes, editor de janela semanal                             | 10, 11    | ⬜     |
-| T015    | Frontend: fila de sugestões e painel de lote                                          | 10, 11    | ⬜     |
-| T016    | E2E: cadastrar → agendar → despachar → entregar → lançar → fechar → aprovar           | —         | ⬜     |
+| T013    | O motorista vê hora e protocolo, e registra ocorrência de cobrança                    | 8         | ✅     |
+| T014    | Frontend: workspace de clientes, editor de janela semanal                             | 10, 11    | ✅     |
+| T015    | Frontend: fila de sugestões e painel de lote (a **página da landing** fica fora)      | 10, 11    | ✅     |
+| T016    | E2E: cadastrar → agendar → despachar → entregar → lançar → fechar → aprovar           | —         | ✅     |
 
 `docs/spec/domain-model.md` é atualizado junto da task que cria cada tabela, não no fim.
