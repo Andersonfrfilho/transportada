@@ -16,7 +16,33 @@ import { LICENSE_CATEGORIES, type LicenseCategory } from '../../shared/license-c
  */
 const LICENSE_NUMBER_LABEL_PATTERN = /(?:registro|habilita[çc][ãa]o)\D{0,12}(\d{11})\b/i
 const PLATE_PATTERN = /\b[A-Z]{3}[ -]?\d[A-Z0-9]\d{2}\b/
-const RENAVAM_PATTERN = /\b\d{9,11}\b/
+/**
+ * Candidatos, não resposta: dentro do próprio CRLV há outros números de nove a onze dígitos — o CPF
+ * do proprietário e o código de segurança do CLA. Quem decide qual é o RENAVAM é o dígito
+ * verificador (`isRenavam`), nunca a posição na página: a ordem em que o extrator devolve o texto
+ * não é contrato, e o rótulo não ajuda aqui — no CRLV-e digital ele fica numa coluna e o valor em
+ * outra, longe.
+ */
+const RENAVAM_CANDIDATE_PATTERN = /\b\d{9,11}\b/g
+const RENAVAM_CHECK_WEIGHTS = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2] as const
+
+/**
+ * RENAVAM de nove dígitos é o de onze com zeros à frente — foi assim que o formato cresceu. Sequência
+ * de dígito repetido é recusada à parte: `00000000000` passa no dígito verificador e não é RENAVAM
+ * de veículo nenhum, é campo preenchido com zero.
+ */
+function isRenavam(value: string): boolean {
+  const padded = value.padStart(11, '0')
+  if (padded.length !== 11) return false
+  if (/^(\d)\1{10}$/.test(padded)) return false
+
+  let sum = 0
+  for (let index = 0; index < RENAVAM_CHECK_WEIGHTS.length; index += 1) {
+    sum += Number(padded[index]) * (RENAVAM_CHECK_WEIGHTS[index] ?? 0)
+  }
+  const remainder = (sum * 10) % 11
+  return (remainder === 10 ? 0 : remainder) === Number(padded[10])
+}
 /** Só o resto da MESMA linha do rótulo — sem isso, "NOME" engole a linha seguinte inteira. */
 const NAME_LABEL_PATTERN = /nome\s*[:]?\s*([A-ZÀ-Ú][A-ZÀ-Ú\s]{2,60})/i
 const CATEGORY_LABEL_PATTERN = /cat(?:egoria)?[.\s]*(?:hab[.\s]*)?[:\s]+([A-E]{1,2})\b/i
@@ -73,8 +99,7 @@ export function extractCrlvFields(rawText: string): ExtractedCrlvFields {
   const plateMatch = text.match(PLATE_PATTERN)
   const plate = plateMatch?.[0].replace(/[ -]/g, '') ?? null
 
-  const renavamMatch = text.match(RENAVAM_PATTERN)
-  const renavam = renavamMatch?.[0] ?? null
+  const renavam = (text.match(RENAVAM_CANDIDATE_PATTERN) ?? []).find(isRenavam) ?? null
 
   return { plate, renavam }
 }

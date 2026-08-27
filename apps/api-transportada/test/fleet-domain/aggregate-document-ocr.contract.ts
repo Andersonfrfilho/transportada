@@ -71,6 +71,38 @@ describe('aggregate document OCR field extraction', () => {
     expect(fields.licenseCategory).toBeNull()
   })
 
+  /**
+   * Dentro do próprio CRLV moram outros números de onze dígitos — o CPF do proprietário e o código
+   * de segurança do CLA. Pegar "o primeiro de nove a onze dígitos" dependia da ordem em que o
+   * extrator devolvesse a página, e a ordem não é contrato. O RENAVAM tem dígito verificador; é ele
+   * quem decide, não a posição.
+   */
+  test('skips the owner CPF and reads the RENAVAM that validates', () => {
+    const fields = extractCrlvFields('CPF 12345678909 CODIGO RENAVAM 00761638261 PLACA DFJ2208')
+
+    expect(fields.renavam).toBe('00761638261')
+  })
+
+  test('skips the CRLV security code, which is eleven digits too', () => {
+    const fields = extractCrlvFields('CODIGO DE SEGURANCA DO CLA 23471451544 RENAVAM 00761638261')
+
+    expect(fields.renavam).toBe('00761638261')
+  })
+
+  /** Nenhum candidato válido é ausência — e ausência não vira divergência. */
+  test('reports absence when no candidate passes the check digit', () => {
+    const fields = extractCrlvFields('CPF 12345678909 DOC 98765432100')
+
+    expect(fields.renavam).toBeNull()
+  })
+
+  /** Campo preenchido com zeros passa no dígito verificador e mesmo assim não é RENAVAM nenhum. */
+  test('rejects a run of identical digits even though the check digit accepts it', () => {
+    const fields = extractCrlvFields('RENAVAM 00000000000')
+
+    expect(fields.renavam).toBeNull()
+  })
+
   test('reads plate and RENAVAM from CRLV text, tolerating the dash in Mercosul plates', () => {
     const fields = extractCrlvFields('PLACA ABC-1D23 RENAVAM 123456789')
 
