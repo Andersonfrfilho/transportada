@@ -63,6 +63,44 @@ mais confiança do que nenhum número levaria.
 A consequência prática: enquanto a 058 não existir, o custo de combustível é estimado por distância
 aproximada, e a tela diz isso. Não é motivo para adiar esta spec — é motivo para a tela ser honesta.
 
+### D2b — O agregado é pago por rota; o motorista da casa, por quinzena
+
+Os dois modelos convivem na mesma frota, e o cadastro do motorista diz qual é o dele
+(`fleet_drivers.payment_model`).
+
+- **`route_table`** — o agregado. O valor sai de `freight_region_driver_rates`, cruzando a zona da
+  parada com a **classe do veículo** que puxou a carga. Desde a spec 038 o veículo declara
+  `vehicle_type`, e `resolveVehicleFreightClass` dá a coluna da tabela — então este custo, que era a
+  lacuna `NO_DRIVER_RATE`, passa a sair sozinho.
+- **`fixed`** — o motorista da casa. Ele recebe **valor fixo por quinzena**, com dia de fechamento no
+  cadastro, e isso **não é custo da viagem**: é custo do período.
+
+E aqui está a decisão que evita um número bonito e errado: **o salário não é rateado por viagem.**
+Ratear exigiria saber quantas viagens o período terá, o que só se sabe no fim dele — e o resultado é
+congelado no fechamento da viagem (D3), então o rateio nasceria errado e envelheceria pior. A parcela
+`driver` da viagem de motorista fixo sai com `source: 'period'` e valor zero, dizendo por extenso que
+o custo existe e não é dela.
+
+Quem subtrai a folha é a **visão por período** (D5): ela soma os fechamentos de quinzena que caem na
+janela e os desconta do acumulado. É a mesma conta que o escritório faz hoje na planilha, e é a única
+que fecha.
+
+### D2c — O imposto desce da receita, e as duas parcelas não vêm do mesmo lugar
+
+A margem é **depois do imposto sobre o frete**, e as duas parcelas têm origens diferentes:
+
+- **ICMS** é do documento. Ele foi calculado na emissão a partir do perfil (`cte_emission_profiles`:
+  CST, alíquota e redução de base) e viajou no XML — então o valor exato está no **payload congelado**
+  do CT-e autorizado, e é de lá que ele sai. Calcular de novo a partir do cadastro atual daria um
+  número que discorda do documento no dia em que alguém mudar a alíquota do perfil.
+- **PIS/COFINS** não existe no CT-e: é tributo federal sobre a receita, e a alíquota depende do
+  **regime da empresa** (presumido cumulativo, real não-cumulativo). Ele vem de configuração
+  (`company_tax_settings`), e **sem configuração ele é `missing`** — a margem aparece marcada como
+  "sem os federais", nunca com eles zerados em silêncio.
+
+CT-e com CST isento, não tributado ou diferido (`40`, `41`, `51`) tem ICMS zero **de fato**, e isso é
+`measured`, não ausência. É a diferença entre "não paga" e "não sei".
+
 ### D3 — O resultado é congelado quando a viagem fecha
 
 Preço de combustível muda, tabela de agregado muda, `other_costs_per_kilometer` é reajustado. Se o
@@ -197,14 +235,27 @@ Lançamento simples na viagem, entrando na composição.
 - [ ] E2E: viagem → CT-e → despacho → entregas → `completed` → resultado congelado com margem
       correta.
 - [ ] `tsc --noEmit` + `make validate`.
-- [ ] ADR (**0047**) sobre receita = CT-e autorizado, custo composto com origem declarada, e
-      congelamento no fechamento.
+- [ ] Teste de que a viagem de motorista fixo sai com a parcela `driver` em `source: 'period'`, e de
+      que a de agregado sai medida pela tabela de região.
+- [ ] Teste de que o ICMS sai do payload congelado, e de que CST isento é zero **medido**.
+- [ ] Teste de que a empresa sem regime configurado tem PIS/COFINS `missing`, e a margem marcada.
+- [ ] Teste de que `driver`, `aggregate`, `separator`, `operator` e `fiscal` recebem 403 no resultado.
+- [ ] ADR (**0049** — a 0047 e a 0048 já estão tomadas) sobre receita = CT-e autorizado, custo
+      composto com origem declarada, os dois modelos de pagamento de motorista, o imposto que desce
+      da receita, e o congelamento no fechamento.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: o pagamento ao agregado é por nota (freight_region_driver_rates é por classe de frete) ou por viagem (diária, percentual do frete)? Se houver mais de um modelo em uso, o cálculo precisa saber qual aplicar a cada motorista.]`
-- `[NEEDS CLARIFICATION: a margem deve descontar imposto sobre o frete (ICMS, PIS/COFINS)? Descontar aproxima do resultado real e exige regra fiscal por UF; não descontar mantém a conta operacional e simples. Recomendação: não descontar agora, e dizer na tela que é margem operacional.]`
-- `[NEEDS CLARIFICATION: quem tem `trip.financials` na prática — sócio e gerente apenas, ou o operador que monta viagem também precisa ver margem para decidir aceitar carga?]`
+- **Modelo de pagamento** (respondido): **os dois convivem**, e o cadastro do motorista diz qual é o
+  dele. O **agregado é pago por rota**, pela tabela de região (`freight_region_driver_rates`, por
+  classe de veículo); o **motorista da casa tem valor fixo**, pago por **quinzena**, com dia de
+  fechamento. Ver D2b.
+- **Imposto** (respondido): **a margem desconta ICMS e PIS/COFINS.** Ver D2c — as duas parcelas têm
+  origens diferentes e falham de jeitos diferentes, e é isso que o desenho respeita.
+- **Quem vê a margem** (respondido): **`company-admin` e `finance`, e mais ninguém.** O operador que
+  monta viagem já tem a avaliação prevista da viagem (065 D7) para decidir aceitar carga, e ela não
+  mostra o que se paga ao agregado. `driver`, `aggregate`, `separator`, `operator` e `fiscal` não
+  alcançam a rota de resultado — e há teste nomeando cada um.
 
 ## 🤖 Modelo
 
