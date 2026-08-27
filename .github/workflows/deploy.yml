@@ -253,15 +253,22 @@ jobs:
   # A lista é literal no arquivo de propósito: é dela que o contrato de nomes lê para conferir que
   # todo serviço publicado tem diretório de build declarado em `docs/spec/railway.md`.
   deploy-services:
-    needs: [target, changes, deploy-api]
+    needs: [target, changes, gate, deploy-api]
     # ⚠️ `needs: deploy-api` sozinho tem uma armadilha: job pulado propaga o `skipped` para quem
     # depende dele, então API inalterada + worker alterado deixaria o worker sem publicar, em
     # silêncio. `always()` desliga essa propagação — e obriga a conferir falha e cancelamento na
     # mão, porque `always()` também ignora esses. A ordem que importa continua de pé: se a API
     # publicou, foi antes; se falhou, ninguém sobe contra um banco sem a migration.
+    #
+    # ⚠️ E obriga a conferir o gate na mão também, que é o que faltava: gate vermelho deixa
+    # `deploy-api` em `skipped`, e `skipped` não é `failure` nem `cancelled` — a condição passava e
+    # worker e cron publicavam contra um gate reprovado (run `33072726734`). `deploy-api` e
+    # `deploy-frontend` não precisam dizer isto porque não usam `always()`: neles o `needs: gate`
+    # já segura sozinho.
     if: >-
       always()
       && needs.target.result == 'success'
+      && needs.gate.result == 'success'
       && needs.deploy-api.result != 'failure'
       && needs.deploy-api.result != 'cancelled'
       && (needs.changes.outputs.worker == 'true' || needs.changes.outputs.cron == 'true')
