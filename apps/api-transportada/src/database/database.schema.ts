@@ -114,7 +114,10 @@ import {
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { landingSettings } from './landing.schema.js'
-import { aggregateApplications } from './aggregate-application.schema.js'
+import {
+  aggregateApplicationAttachments,
+  aggregateApplications,
+} from './aggregate-application.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
 import {
   companyRouteOptimizationSettings,
@@ -177,6 +180,7 @@ export * from './aggregate-application.schema.js'
 
 export const databaseSchema = {
   aggregateAccounts,
+  aggregateApplicationAttachments,
   aggregateApplications,
   aggregateDocuments,
   auditLogs,

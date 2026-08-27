@@ -51,6 +51,29 @@
 - [ ] T020 Divergência CNPJ digitado × CNPJ do documento sinalizada, sem sobrescrever — contrato
 - [ ] T021 Smoke da landing: arquivo solto na tela real preenche os campos
 
+## Fase 5 — O anexo chega ao operador
+
+> 🤖 Modelo: `sonnet`; T023 é 🧠 (rota pública é superfície de abuso)
+
+A fase 4 lê o documento no navegador e sinaliza a divergência para **quem preenche**. A tabela de
+casos-limite da spec pede que ela chegue ao **operador**, e o caminho é este.
+
+⚠️ Duas correções ao `plan.md`, que é anterior às decisões de 2026-08-27:
+
+- **sem `expires_at` e sem `expireDrafts`** — o rascunho é guardado sem prazo, porque é o comprovante
+  do que o motorista digitou. Some o job de expiração que o plano previa.
+- **o anexo aprovado copia para `aggregate_documents`** — a spec 064 herda, e a cópia entra no escopo
+  da ADR-0039 junto com o original.
+
+- [ ] T022 Tabela `aggregate_application_attachments` + migration com rollback — contrato de schema e
+      de isolamento por tenant
+- [ ] T023 🧠 `uploadDraft` + `POST /public/aggregate-application-attachments` — Turnstile, limite de
+      taxa, validação de bytes e armazenamento; teto real é o do transporte (2 MiB do servidor), não
+      os 10 MiB do domínio, e a recusa diz isso
+- [ ] T024 `attachmentDraftIds` no submit da candidatura, vinculando os rascunhos — contrato
+- [ ] T025 O operador vê os anexos da candidatura e decide um por um; aprovar copia para
+      `aggregate_documents`
+
 ## Gates de toda task
 
 `bun run lint`, `bun run typecheck`, `bun test` e `bun run build` do app tocado; commit isolado por
