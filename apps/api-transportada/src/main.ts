@@ -206,6 +206,15 @@ import { createFleetDriverRegionsUseCase } from './freight-regions/application/f
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
+import {
+  createContractorsUseCase,
+  createMunicipalHolidaysUseCase,
+} from './delivery-clients/application/contractors.use-case.js'
+import {
+  DrizzleContractorRepository,
+  DrizzleMunicipalHolidayRepository,
+} from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
+import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
 import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
@@ -661,6 +670,12 @@ function createApplicationRoutes({
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
+  const contractorRegistry = createContractorsUseCase({
+    repository: new DrizzleContractorRepository(database),
+  })
+  const municipalHolidays = createMunicipalHolidaysUseCase({
+    repository: new DrizzleMunicipalHolidayRepository(database),
+  })
   const deliveryClients = createDeliveryClientsUseCase({
     repository: new DrizzleDeliveryClientRepository(database),
   })
@@ -1077,6 +1092,16 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    ...createContractorRoutes({
+      createContractor: { execute: (input) => contractorRegistry.create(input) },
+      getByTaxId: { execute: (input) => contractorRegistry.getByTaxId(input) },
+      getContractor: { execute: (input) => contractorRegistry.get(input) },
+      listContractors: { execute: (input) => contractorRegistry.list(input) },
+      listHolidays: { execute: (input) => municipalHolidays.list(input) },
+      removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
+      saveHoliday: { execute: (input) => municipalHolidays.save(input) },
+      updateContractor: { execute: (input) => contractorRegistry.update(input) },
     }),
     ...createDeliveryClientRoutes({
       createClient: { execute: (input) => deliveryClients.create(input) },
