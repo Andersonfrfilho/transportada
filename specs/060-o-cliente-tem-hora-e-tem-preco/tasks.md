@@ -17,9 +17,9 @@ calendário de feriado por município). Uma task por vez, cada uma com evidênci
 | T007    | Rotas de cliente: cadastro, janela, exceção, busca por documento                      | 6         | ✅     |
 | T008    | Rotas de contratante e de feriado do município                                        | 6         | ✅     |
 | T009    | Agendamento da parada, e o despacho recusando pendência com `force` + motivo          | 3, 7      | ✅     |
-| T010    | Lançamento manual, regra recorrente e a fila de sugestões                             | 4, 4b, 6  | ⬜     |
-| T011    | O lote por contratante, o relatório e as decisões                                     | 5, 6      | ⬜     |
-| T012 🧠 | A página pública da landing: um lote, token que gira, trilha por token                | 5, 6      | ⬜     |
+| T010    | Lançamento manual, regra recorrente e a fila de sugestões                             | 4, 4b, 6  | ✅     |
+| T011    | O lote por contratante, o relatório e as decisões                                     | 5, 6      | ✅     |
+| T012 🧠 | A página pública: rotas anônimas do lote por token (a **tela** da landing é da T015)   | 5, 6      | ✅     |
 | T013    | O motorista vê hora e protocolo, e registra ocorrência de cobrança                    | 8         | ⬜     |
 | T014    | Frontend: workspace de clientes, editor de janela semanal                             | 10, 11    | ⬜     |
 | T015    | Frontend: fila de sugestões e painel de lote                                          | 10, 11    | ⬜     |
