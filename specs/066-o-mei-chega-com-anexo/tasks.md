@@ -65,12 +65,12 @@ casos-limite da spec pede que ela chegue ao **operador**, e o caminho é este.
 - **o anexo aprovado copia para `aggregate_documents`** — a spec 064 herda, e a cópia entra no escopo
   da ADR-0039 junto com o original.
 
-- [ ] T022 Tabela `aggregate_application_attachments` + migration com rollback — contrato de schema e
+- [x] T022 Tabela `aggregate_application_attachments` + migration com rollback — contrato de schema e
       de isolamento por tenant
-- [ ] T023 🧠 `uploadDraft` + `POST /public/aggregate-application-attachments` — Turnstile, limite de
+- [x] T023 🧠 `uploadDraft` + `POST /public/aggregate-application-attachments` — Turnstile, limite de
       taxa, validação de bytes e armazenamento; teto real é o do transporte (2 MiB do servidor), não
       os 10 MiB do domínio, e a recusa diz isso
-- [ ] T024 `attachmentDraftIds` no submit da candidatura, vinculando os rascunhos — contrato
+- [x] T024 `attachmentDraftIds` no submit da candidatura, vinculando os rascunhos — contrato
 - [ ] T025 O operador vê os anexos da candidatura e decide um por um; aprovar copia para
       `aggregate_documents`
 

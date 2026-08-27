@@ -18,6 +18,8 @@ import type {
 } from './aggregate-applications.port.js'
 
 export type SubmitAggregateApplicationInput = Readonly<{
+  /** Rascunhos enviados antes do formulário. Ausente é o caso normal: anexar é opcional. */
+  attachmentDraftIds?: readonly string[]
   companyId: string
   declaredData: Record<string, unknown>
   email: string
@@ -59,6 +61,24 @@ export function createAggregateApplicationsUseCase(
       throw new AggregateApplicationNotFoundError()
     }
     return application
+  }
+
+  /**
+   * Anexo é opcional: sem rascunho declarado não há o que amarrar, e chamar o repositório com lista
+   * vazia seria um UPDATE que nunca casa linha nenhuma.
+   */
+  async function linkAttachments(params: {
+    readonly applicationId: string
+    readonly input: SubmitAggregateApplicationInput
+  }): Promise<void> {
+    const draftIds = params.input.attachmentDraftIds ?? []
+    if (draftIds.length === 0) return
+
+    await dependencies.repository.linkAttachmentDrafts({
+      applicationId: params.applicationId,
+      companyId: params.input.companyId,
+      draftIds,
+    })
   }
 
   return {
@@ -104,10 +124,11 @@ export function createAggregateApplicationsUseCase(
           name: outcome.submission.name,
           phone: outcome.submission.phone,
         })
+        await linkAttachments({ applicationId: outcome.applicationId, input })
         return
       }
 
-      await dependencies.repository.insert({
+      const application = await dependencies.repository.insert({
         companyId: input.companyId,
         declaredData: input.declaredData,
         duplicateDriverId: outcome.duplicateDriverId,
@@ -116,6 +137,7 @@ export function createAggregateApplicationsUseCase(
         phone: input.phone,
         taxId: input.taxId,
       })
+      await linkAttachments({ applicationId: application.id, input })
     },
 
     async list({ context }) {

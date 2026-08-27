@@ -5,6 +5,8 @@ import { describe, expect, test } from 'bun:test'
 
 import { createAggregateApplicationAttachmentUseCase } from '../../src/fleet/application/aggregate-application-attachment.use-case.js'
 import { AggregateDocumentInvalidUploadError } from '../../src/fleet/domain/aggregate-document.error.js'
+import { createAggregateApplicationsUseCase } from '../../src/fleet/application/aggregate-applications.use-case.js'
+import { FakeAggregateApplicationRepository } from '../fixtures/aggregate-applications.fixture.js'
 
 const COMPANY_ID = crypto.randomUUID()
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
@@ -109,5 +111,83 @@ describe('anexo de candidatura — envio anônimo', () => {
       useCase.uploadDraft({ bytes: PDF_BYTES, companyId: COMPANY_ID, type: 'ccmei' }),
     ).rejects.toThrow()
     expect(drafts).toEqual([])
+  })
+})
+
+describe('anexo de candidatura — vínculo no envio', () => {
+  function buildSubmitUseCase() {
+    const repository = new FakeAggregateApplicationRepository()
+    const useCase = createAggregateApplicationsUseCase({
+      companyGroupRepository: {
+        listGroupUnits: async () => [
+          {
+            city: 'Franca',
+            cnpj: '11222333000181',
+            companyId: COMPANY_ID,
+            complement: '',
+            district: 'Centro',
+            number: '1',
+            phone: '1133334444',
+            postalCode: '14400000',
+            state: 'SP',
+            street: 'Rua Um',
+            tradeName: 'Sede',
+          },
+        ],
+      },
+      landingCompanyId: COMPANY_ID,
+      repository,
+    })
+    return { repository, useCase }
+  }
+
+  const submission = {
+    companyId: COMPANY_ID,
+    declaredData: {},
+    email: 'fulano@example.test',
+    name: 'Fulano de Tal',
+    phone: '11999999999',
+    taxId: '12345678909',
+  } as const
+
+  /**
+   * O submit responde `202` invariável para não ser sonda de documento existente. Recusar um
+   * `draftId` desconhecido com `400` devolveria a mesma sonda, agora para identificador de rascunho:
+   * quem tentasse aos milhares descobriria quais existem. Rascunho de outra empresa, inexistente ou
+   * já vinculado é **ignorado em silêncio** — quem filtra é o `where` do repositório, e a resposta
+   * não muda.
+   */
+  test('os rascunhos declarados são passados ao repositório com a empresa do envio', async () => {
+    const { repository, useCase } = buildSubmitUseCase()
+    const draftIds = [crypto.randomUUID(), crypto.randomUUID()]
+
+    await useCase.submit({ ...submission, attachmentDraftIds: draftIds })
+
+    expect(repository.linkAttachmentDraftsCalls).toEqual([
+      { applicationId: repository.rows[0]?.id ?? '', companyId: COMPANY_ID, draftIds },
+    ])
+  })
+
+  test('sem rascunho declarado, o vínculo não é chamado', async () => {
+    const { repository, useCase } = buildSubmitUseCase()
+
+    await useCase.submit(submission)
+
+    expect(repository.linkAttachmentDraftsCalls).toEqual([])
+  })
+
+  /** Reenvio atualiza a candidatura que já existe — os anexos novos vão para ela, não para outra. */
+  test('no reenvio, os rascunhos vão para a candidatura existente', async () => {
+    const { repository, useCase } = buildSubmitUseCase()
+    await useCase.submit(submission)
+    const applicationId = repository.rows[0]?.id ?? ''
+    const draftIds = [crypto.randomUUID()]
+
+    await useCase.submit({ ...submission, attachmentDraftIds: draftIds })
+
+    expect(repository.rows).toHaveLength(1)
+    expect(repository.linkAttachmentDraftsCalls).toEqual([
+      { applicationId, companyId: COMPANY_ID, draftIds },
+    ])
   })
 })

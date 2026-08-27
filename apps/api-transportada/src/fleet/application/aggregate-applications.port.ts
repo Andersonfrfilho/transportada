@@ -57,6 +57,17 @@ export type AggregateApplicationRepositoryPort = Readonly<{
   insert: (
     input: AggregateApplicationSubmissionInput & { readonly duplicateDriverId: string | null },
   ) => Promise<AggregateApplication>
+  /**
+   * Amarra os rascunhos de anexo à candidatura. O `where` é que faz a segurança: só rascunho **desta
+   * empresa** e ainda **sem candidatura**. Identificador desconhecido, de outra empresa ou já
+   * vinculado simplesmente não casa nenhuma linha — e nada disso muda a resposta, porque o submit é
+   * `202` invariável e diferenciar aqui devolveria a sonda que o `202` fecha.
+   */
+  linkAttachmentDrafts: (input: {
+    readonly applicationId: string
+    readonly companyId: string
+    readonly draftIds: readonly string[]
+  }) => Promise<void>
   listByCompany: (input: { readonly companyId: string }) => Promise<readonly AggregateApplication[]>
   reject: (input: {
     readonly id: string

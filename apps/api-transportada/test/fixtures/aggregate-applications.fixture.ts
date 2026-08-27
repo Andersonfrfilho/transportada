@@ -10,7 +10,20 @@ import type {
 export class FakeAggregateApplicationRepository implements AggregateApplicationRepositoryPort {
   public readonly createDriverCalls: Array<{ readonly id: string }> = []
   public readonly driverIdByTaxId = new Map<string, string>()
+  public readonly linkAttachmentDraftsCalls: Array<{
+    readonly applicationId: string
+    readonly companyId: string
+    readonly draftIds: readonly string[]
+  }> = []
   public readonly rows: AggregateApplication[] = []
+
+  public async linkAttachmentDrafts(input: {
+    readonly applicationId: string
+    readonly companyId: string
+    readonly draftIds: readonly string[]
+  }) {
+    this.linkAttachmentDraftsCalls.push(input)
+  }
 
   public async findById({ id }: { readonly id: string }) {
     return this.rows.find((row) => row.id === id) ?? null

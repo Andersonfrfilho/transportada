@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 import {
+  aggregateApplicationAttachments,
   aggregateApplications,
   fleetDriverVehicleAssignments,
   fleetDrivers,
@@ -81,6 +82,27 @@ export function createDrizzleAggregateApplicationRepository(
         .returning()
 
       return toApplication(mustExist(row))
+    },
+
+    /**
+     * A segurança está no `where`, não em quem chama: só rascunho **desta empresa** e ainda **sem
+     * candidatura** é amarrado. Rascunho de outra empresa, inexistente ou já vinculado não casa
+     * linha nenhuma — e não vira erro, porque o submit é `202` invariável e diferenciar aqui
+     * devolveria a sonda de identificadores que o `202` fecha.
+     */
+    async linkAttachmentDrafts({ applicationId, companyId, draftIds }) {
+      if (draftIds.length === 0) return
+
+      await database
+        .update(aggregateApplicationAttachments)
+        .set({ applicationId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(aggregateApplicationAttachments.companyId, companyId),
+            isNull(aggregateApplicationAttachments.applicationId),
+            inArray(aggregateApplicationAttachments.draftId, [...draftIds]),
+          ),
+        )
     },
 
     async listByCompany({ companyId }) {

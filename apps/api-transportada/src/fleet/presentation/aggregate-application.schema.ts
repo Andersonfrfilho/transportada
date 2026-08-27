@@ -19,8 +19,15 @@ const MAX_TEXT_LENGTH = 200
 const requiredText = z.string().trim().min(1).max(MAX_TEXT_LENGTH)
 const UUID = z.string().uuid()
 
+/**
+ * Teto de anexos por envio. Três documentos é o fluxo real (CCMEI, CNH, CRLV) e o resto é margem
+ * para refazer; sem teto, uma lista de dez mil identificadores viraria um `IN` do tamanho dela.
+ */
+const MAX_ATTACHMENT_DRAFTS = 10
+
 const submitSchema = z
   .object({
+    attachmentDraftIds: z.array(UUID).max(MAX_ATTACHMENT_DRAFTS).optional(),
     companyId: UUID,
     declaredData: aggregateApplicationDeclaredDataSchema.default({}),
     email: requiredText,
@@ -43,7 +50,14 @@ export async function parseSubmitAggregateApplicationRequest(
   const body = await readBoundedRequestBody(request)
   const result = submitSchema.safeParse(parseJson(body))
   if (!result.success) throw new ApiError(HTTP_ERROR.invalidRequest)
-  return result.data
+
+  // `exactOptionalPropertyTypes`: campo ausente é ausente, não `undefined` explícito — o spread
+  // condicional é o que mantém a diferença que a flag existe para preservar.
+  const { attachmentDraftIds, ...rest } = result.data
+  return {
+    ...rest,
+    ...(attachmentDraftIds === undefined ? {} : { attachmentDraftIds }),
+  }
 }
 
 const rejectSchema = z.object({ rejectionReason: requiredText }).strict()
