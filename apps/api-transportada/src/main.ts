@@ -162,6 +162,9 @@ import { readTripValuation } from './trips/application/read-trip-valuation.use-c
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
 import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
+import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
+import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
+import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
 import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
@@ -780,6 +783,7 @@ function createApplicationRoutes({
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
+  const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
   const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
@@ -1150,6 +1154,23 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    ...createFinancialSummaryRoutes({
+      readSummary: {
+        execute: async (input) => {
+          const filters = {
+            companyId: input.context.companyId,
+            from: input.from,
+            groupBy: input.groupBy,
+            to: input.to,
+          }
+
+          return buildFinancialSummary({
+            payrollAmount: await financialSummaryQuery.readPayroll(filters),
+            rows: await financialSummaryQuery.listGroups(filters),
+          })
+        },
+      },
     }),
     ...createExtraChargeBatchRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
