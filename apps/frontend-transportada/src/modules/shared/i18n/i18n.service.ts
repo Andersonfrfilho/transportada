@@ -38,6 +38,8 @@ import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWo
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
 import routingLocale from '@/modules/routing/locales/routing.locale.json'
 import routingEnglishLocale from '@/modules/routing/locales/routing.en.locale.json'
+import tripFinancialsLocale from '@/modules/trip-financials/locales/tripFinancials.locale.json'
+import tripFinancialsEnglishLocale from '@/modules/trip-financials/locales/tripFinancials.en.locale.json'
 import tripLocale from '@/modules/trip/locales/trip.locale.json'
 import tripEnglishLocale from '@/modules/trip/locales/trip.en.locale.json'
 
@@ -66,6 +68,7 @@ void i18n.use(initReactI18next).init({
       routing: routingEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
+      tripFinancials: tripFinancialsEnglishLocale,
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
@@ -87,6 +90,7 @@ void i18n.use(initReactI18next).init({
       routing: routingLocale,
       translation: foundationLocale,
       trip: tripLocale,
+      tripFinancials: tripFinancialsLocale,
     },
   },
 })

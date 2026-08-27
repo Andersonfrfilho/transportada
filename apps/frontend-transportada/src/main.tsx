@@ -24,6 +24,7 @@ import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBa
 import '@/modules/shared/i18n/i18n.service'
 import { DeliveryClientWorkspacePage } from '@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'
 import { ExtraChargeWorkspacePage } from '@/modules/extra-charges/pages/ExtraChargeWorkspace.page'
+import { FinancialResultsWorkspacePage } from '@/modules/trip-financials/pages/FinancialResultsWorkspace.page'
 import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
   DRIVER_TRIP_PATH,
@@ -87,6 +88,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'delivery-clients'
     | 'driver-trip'
     | 'extra-charges'
+    | 'trip-financials'
     | 'fleet'
     | 'freight'
     | 'mdfe-manifest'
@@ -120,6 +122,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/fleet', key: 'fleet', label: 'Frota' },
   { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
   { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
+  { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
   // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -140,6 +143,7 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
         'mdfe-manifest',
         'billing',
         'extra-charges',
+        'trip-financials',
         'nfse-invoice',
       ].includes(key),
     ),
@@ -186,6 +190,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === DRIVER_TRIP_PATH) return 'driver-trip'
   if (window.location.pathname === '/clientes') return 'delivery-clients'
   if (window.location.pathname === '/repasses') return 'extra-charges'
+  if (window.location.pathname === '/resultados') return 'trip-financials'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
@@ -203,6 +208,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'delivery-clients' ||
     storedWorkspace === 'driver-trip' ||
     storedWorkspace === 'extra-charges' ||
+    storedWorkspace === 'trip-financials' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
@@ -242,6 +248,8 @@ function resolvePage(
       return <DriverTripWorkspacePage />
     case 'extra-charges':
       return <ExtraChargeWorkspacePage />
+    case 'trip-financials':
+      return <FinancialResultsWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':

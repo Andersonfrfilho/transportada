@@ -56,6 +56,7 @@ export type IconName =
   | 'workspace-delivery-clients'
   | 'workspace-driver-trip'
   | 'workspace-extra-charges'
+  | 'workspace-trip-financials'
   | 'workspace-fleet'
   | 'workspace-freight'
   | 'workspace-mdfe-manifest'
@@ -154,6 +155,8 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M9 15h4',
     'M9 18.5l-1.5-1.5L9 15.5',
   ],
+  /** Spec 061: a conta da viagem — colunas de barra, que é como a margem se lê. */
+  'workspace-trip-financials': ['M4 20h16', 'M7 20V11', 'M12 20V5', 'M17 20v-6'],
   'workspace-fleet': [
     'M4 8h9v7H4z',
     'M13 10h4l3 3v2h-7z',
