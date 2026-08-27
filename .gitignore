@@ -20,5 +20,9 @@ tmp/
 
 # XML fiscal real usado como insumo de pesquisa — CNPJ, IE e chave de acesso de terceiros
 specs/*/samples/
-.omc/
+# Estado operacional do OMC é descartável, mas `.omc/skills/` é exceção declarada no CLAUDE.md:
+# skill de escopo de projeto se versiona. O git não desce em diretório ignorado, então a
+# negação só funciona com `.omc/*` — `.omc/` sozinho tornaria a exceção inalcançável.
+.omc/*
+!.omc/skills/
 .omo/
