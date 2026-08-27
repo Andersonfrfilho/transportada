@@ -60,8 +60,9 @@ describe('quem da nota vira cadastro (spec 060 T006)', () => {
   /** Nota sem destinatário nomeado existe: o cadastro nasce com o nome vazio e ganha nome depois. */
   test('nome ausente não impede o cadastro', () => {
     expect(
-      resolveDeliveryRegistryCandidates([{ name: null, role: 'recipient', taxId: '12345678000190' }])
-        .deliveryClient,
+      resolveDeliveryRegistryCandidates([
+        { name: null, role: 'recipient', taxId: '12345678000190' },
+      ]).deliveryClient,
     ).toEqual({ displayName: '', taxId: '12345678000190' })
   })
 })

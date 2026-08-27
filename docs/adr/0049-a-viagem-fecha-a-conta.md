@@ -106,8 +106,8 @@ financeiro não existe no PWA, e a rota de resultado recusa `driver`, `aggregate
 
 ## Alternativas descartadas
 
-| Alternativa                                  | Por que não                                                                          |
-| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Alternativa                                   | Por que não                                                                            |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Somar `freight_calculations` como receita     | É previsão; o relatório discordaria do financeiro e seria ignorado                     |
 | Ratear o salário do motorista por viagem      | Só se sabe o divisor no fim do período, e o resultado congela antes disso              |
 | Recalcular ICMS do perfil atual               | Discordaria do documento no dia em que a alíquota mudasse                              |

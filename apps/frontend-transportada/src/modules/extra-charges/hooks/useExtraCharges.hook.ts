@@ -19,9 +19,7 @@ export type ExtraChargesController = Readonly<{
   closeBatch: (
     input: Readonly<{ contractorId: string; periodEnd: string; periodStart: string }>,
   ) => Promise<void>
-  confirmCharges: (
-    charges: readonly Readonly<{ amount?: string; id: string }>[],
-  ) => Promise<void>
+  confirmCharges: (charges: readonly Readonly<{ amount?: string; id: string }>[]) => Promise<void>
   contractors: readonly Contractor[]
   dismissCharge: (input: Readonly<{ id: string; reason: string }>) => Promise<void>
   isLoading: boolean
@@ -76,8 +74,9 @@ export function useExtraCharges(
     onSuccess: invalidate,
   })
   const close = useMutation({
-    mutationFn: (request: Readonly<{ contractorId: string; periodEnd: string; periodStart: string }>) =>
-      getExtraChargesClient().closeBatch(request),
+    mutationFn: (
+      request: Readonly<{ contractorId: string; periodEnd: string; periodStart: string }>,
+    ) => getExtraChargesClient().closeBatch(request),
     onSuccess: (batch) => {
       setOpenBatchId(batch.id)
       invalidate()

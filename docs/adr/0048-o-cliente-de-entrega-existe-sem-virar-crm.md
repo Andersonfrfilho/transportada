@@ -124,12 +124,12 @@ lançamento.
 
 ## Alternativas descartadas
 
-| Alternativa                                    | Por que não                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Cadastro manual de cliente                     | A base nunca ficaria completa, e o valor está justamente em ter todos os destinatários sem digitar     |
-| Cadastro automático já com janela e taxa vazias | Obrigaria o solver a distinguir "sem janela" de "janela não preenchida" para sempre                    |
-| Feriado nacional por biblioteca                | Resolve o feriado que todo mundo já sabe; o que derruba roteiro é o municipal, e ele não tem fonte     |
-| Motorista lançando a taxa pelo PWA             | É dinheiro cobrado de outra empresa, sem conferência, decidido na porta do cliente                     |
-| Regra recorrente escrevendo em `recorded`      | Seis meses depois, relatório com taxas que ninguém pagou                                                |
-| Portal autenticado para o contratante          | Conta, papel, convite e tela para uma decisão que ele toma duas vezes por mês                          |
-| Relatório por e-mail e alguém marca aprovado   | A decisão fica fora do sistema, e a trilha vira "fulano disse que o cliente aprovou"                   |
+| Alternativa                                     | Por que não                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Cadastro manual de cliente                      | A base nunca ficaria completa, e o valor está justamente em ter todos os destinatários sem digitar |
+| Cadastro automático já com janela e taxa vazias | Obrigaria o solver a distinguir "sem janela" de "janela não preenchida" para sempre                |
+| Feriado nacional por biblioteca                 | Resolve o feriado que todo mundo já sabe; o que derruba roteiro é o municipal, e ele não tem fonte |
+| Motorista lançando a taxa pelo PWA              | É dinheiro cobrado de outra empresa, sem conferência, decidido na porta do cliente                 |
+| Regra recorrente escrevendo em `recorded`       | Seis meses depois, relatório com taxas que ninguém pagou                                           |
+| Portal autenticado para o contratante           | Conta, papel, convite e tela para uma decisão que ele toma duas vezes por mês                      |
+| Relatório por e-mail e alguém marca aprovado    | A decisão fica fora do sistema, e a trilha vira "fulano disse que o cliente aprovou"               |

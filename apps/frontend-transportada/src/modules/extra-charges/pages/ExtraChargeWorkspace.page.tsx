@@ -110,7 +110,10 @@ export function ExtraChargeWorkspacePage() {
                 <Button
                   disabled={!controller.canConfirm}
                   onClick={() =>
-                    void controller.dismissCharge({ id: charge.id, reason: t('queue.dismissReason') })
+                    void controller.dismissCharge({
+                      id: charge.id,
+                      reason: t('queue.dismissReason'),
+                    })
                   }
                   type="button"
                   variant="ghost"
@@ -189,9 +192,7 @@ export function ExtraChargeWorkspacePage() {
             periodStart === '' ||
             periodEnd === ''
           }
-          onClick={() =>
-            void controller.closeBatch({ contractorId, periodEnd, periodStart })
-          }
+          onClick={() => void controller.closeBatch({ contractorId, periodEnd, periodStart })}
           type="button"
         >
           <Icon name="send" />

@@ -402,7 +402,7 @@ viagens perdidas por agendamento.
 
 - **Aprovação do contratante** (respondido): página pública na landing, por token de lote — ver D5.
 - **Feriado** (respondido): **calendário por município**, em `municipal_holidays` — `(company_id,
-  city_ibge_code, holiday_on)`, com nome. É onde o problema real mora: a cidade fecha e o roteiro
+city_ibge_code, holiday_on)`, com nome. É onde o problema real mora: a cidade fecha e o roteiro
   não sabe, e a exceção por cliente obrigaria a repetir a mesma data em todos os clientes daquela
   cidade. O município da parada já vem do endereço do destinatário (`nfe_addresses.city_code`), que
   é a mesma chave que a 065 usa para decidir CT-e ou NFS-e.
@@ -410,6 +410,7 @@ viagens perdidas por agendamento.
   O cadastro é **da empresa** e alimentado à mão: nenhuma fonte pública de feriado municipal é
   confiável o bastante para virar dependência, e a instalação é dedicada (ADR-0021) — quem opera
   conhece as cidades que atende. Data sem cadastro é dia útil, que é o comportamento de hoje.
+
 - **Agendamento por canal próprio** (respondido): o cliente vai poder agendar **por WhatsApp** ou
   pelo **portal do cliente** (`frontend-client`, não o app do motorista). Os dois são superfícies
   novas e viram specs próprias — a 060 entrega o modelo (`trip_stop_schedules`, protocolo, estados)

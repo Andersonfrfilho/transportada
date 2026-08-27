@@ -1,56 +1,56 @@
 # 060 — o cliente tem hora e tem preço · evidência
 
 > As dezesseis tasks estão fechadas. **Uma coisa que a spec pede não entrou, e é a primeira a ler:**
-> a *página* pública do repasse (`/repasse/{token}`) não existe, porque a landing não vive neste
+> a _página_ pública do repasse (`/repasse/{token}`) não existe, porque a landing não vive neste
 > repositório — as rotas anônimas que ela consome estão prontas e testadas. O resto está no fim.
 
 ## O que ficou de pé
 
-| Task | O que entrou                                                                           |
-| ---- | -------------------------------------------------------------------------------------- |
-| T001 | ADR-0048, e as duas cláusulas em aberto respondidas                                    |
-| T002 | cliente, contratante, janela, exceção e feriado do município                           |
-| T003 | agendamento da parada, lançamento, regra recorrente, lote e trilha                     |
-| T004 | a janela responde "abre?", com exceção do cliente vencendo o feriado                   |
-| T005 | a máquina do repasse, com toda transição inválida varrida                              |
-| T006 | cliente e contratante nascendo da nota, nos dois caminhos de importação                |
-| T007 | as sete rotas do cliente, com busca por documento em igualdade exata                    |
-| T008 | contratante e calendário de feriado por município                                       |
-| T009 | agendamento da parada, e o despacho recusando pendência com `force` + motivo            |
-| T010 | lançamento, regra recorrente e a fila de conferência                                    |
-| T011 | o lote por contratante, o relatório e as decisões                                       |
-| T012 | as rotas anônimas do lote por token                                                     |
-| T013 | hora e protocolo no bolso do motorista, e a ocorrência que vira sugestão                |
-| T014 | a tela do cliente e o editor da semana                                                  |
-| T015 | a fila de conferência e o fechamento do período                                         |
-| T016 | o ciclo inteiro contra Postgres                                                         |
+| Task | O que entrou                                                                 |
+| ---- | ---------------------------------------------------------------------------- |
+| T001 | ADR-0048, e as duas cláusulas em aberto respondidas                          |
+| T002 | cliente, contratante, janela, exceção e feriado do município                 |
+| T003 | agendamento da parada, lançamento, regra recorrente, lote e trilha           |
+| T004 | a janela responde "abre?", com exceção do cliente vencendo o feriado         |
+| T005 | a máquina do repasse, com toda transição inválida varrida                    |
+| T006 | cliente e contratante nascendo da nota, nos dois caminhos de importação      |
+| T007 | as sete rotas do cliente, com busca por documento em igualdade exata         |
+| T008 | contratante e calendário de feriado por município                            |
+| T009 | agendamento da parada, e o despacho recusando pendência com `force` + motivo |
+| T010 | lançamento, regra recorrente e a fila de conferência                         |
+| T011 | o lote por contratante, o relatório e as decisões                            |
+| T012 | as rotas anônimas do lote por token                                          |
+| T013 | hora e protocolo no bolso do motorista, e a ocorrência que vira sugestão     |
+| T014 | a tela do cliente e o editor da semana                                       |
+| T015 | a fila de conferência e o fechamento do período                              |
+| T016 | o ciclo inteiro contra Postgres                                              |
 
 ## O que rodou
 
-| Comando                                                | Resultado                       |
-| ------------------------------------------------------ | ------------------------------- |
-| `make migration-test`                                  | **86** testes, 0 falhas         |
-| `bun run --cwd apps/api-transportada test`             | **3475** contratos, 0 falhas    |
-| `bun run --cwd apps/api-transportada test:integration` | **166** testes contra Postgres  |
-| `bun run --cwd apps/worker-transportada test`          | **742** contratos, 0 falhas     |
-| `make worker-integration`                              | **59** testes contra Postgres   |
-| `bun run --cwd apps/frontend-transportada test`        | **2084** contratos, 0 falhas    |
-| `typecheck` + `lint` + `build`                         | limpos nas três apps            |
+| Comando                                                | Resultado                      |
+| ------------------------------------------------------ | ------------------------------ |
+| `make migration-test`                                  | **86** testes, 0 falhas        |
+| `bun run --cwd apps/api-transportada test`             | **3475** contratos, 0 falhas   |
+| `bun run --cwd apps/api-transportada test:integration` | **166** testes contra Postgres |
+| `bun run --cwd apps/worker-transportada test`          | **742** contratos, 0 falhas    |
+| `make worker-integration`                              | **59** testes contra Postgres  |
+| `bun run --cwd apps/frontend-transportada test`        | **2084** contratos, 0 falhas   |
+| `typecheck` + `lint` + `build`                         | limpos nas três apps           |
 
 ## O que cada decisão custou, e como ela está travada
 
-| Decisão                                          | Como ela está travada                                                                                       |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| O cadastro nasce da nota, **sem regra**          | integração no worker: a segunda nota atualiza o nome visto e **não toca** em janela, taxa nem agendamento      |
-| Erro no cadastro não derruba a importação        | a escrita corre em `SAVEPOINT` próprio — sem ele, o statement que falha aborta a transação e a nota não entra |
-| Exceção do cliente vence feriado do município    | contrato da janela, nos dois sentidos (o CD que abre no feriado, e o que fecha em dia útil)                    |
-| A conta do dia da semana não passa por `Date`    | vetor conferido à mão: bissexto, 2000 e 2100 — `new Date('2026-08-27')` é UTC e vira o dia anterior em SP      |
-| `suggested` nunca alcança `submitted`            | a máquina varre a tabela **inteira** de estado × ação, não só o caminho feliz                                  |
-| O despacho recusa parada sem agendamento         | contrato do portão **e** o E2E, onde o `409` acontece no meio da corrente                                      |
-| Uma sugestão por nota e tipo                     | índice parcial — e o CHECK que exige nota na sugestão, sem o qual dois `null` não colidem                     |
-| Dinheiro em `numeric` do começo ao fim           | 45,30 + 89,75 = 135,05 somados pelo Postgres; a tela também trata valor como texto                            |
-| Quem aprovou é quem tinha o link                 | integração confere `decided_by_token` preenchido e `actor_user_id` **nulo**                                    |
-| A página pública não vaza a base                 | o contrato procura id de viagem, id de nota e documento do cliente no corpo servido — byte a byte             |
+| Decisão                                       | Como ela está travada                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| O cadastro nasce da nota, **sem regra**       | integração no worker: a segunda nota atualiza o nome visto e **não toca** em janela, taxa nem agendamento     |
+| Erro no cadastro não derruba a importação     | a escrita corre em `SAVEPOINT` próprio — sem ele, o statement que falha aborta a transação e a nota não entra |
+| Exceção do cliente vence feriado do município | contrato da janela, nos dois sentidos (o CD que abre no feriado, e o que fecha em dia útil)                   |
+| A conta do dia da semana não passa por `Date` | vetor conferido à mão: bissexto, 2000 e 2100 — `new Date('2026-08-27')` é UTC e vira o dia anterior em SP     |
+| `suggested` nunca alcança `submitted`         | a máquina varre a tabela **inteira** de estado × ação, não só o caminho feliz                                 |
+| O despacho recusa parada sem agendamento      | contrato do portão **e** o E2E, onde o `409` acontece no meio da corrente                                     |
+| Uma sugestão por nota e tipo                  | índice parcial — e o CHECK que exige nota na sugestão, sem o qual dois `null` não colidem                     |
+| Dinheiro em `numeric` do começo ao fim        | 45,30 + 89,75 = 135,05 somados pelo Postgres; a tela também trata valor como texto                            |
+| Quem aprovou é quem tinha o link              | integração confere `decided_by_token` preenchido e `actor_user_id` **nulo**                                   |
+| A página pública não vaza a base              | o contrato procura id de viagem, id de nota e documento do cliente no corpo servido — byte a byte             |
 
 ## Dois defeitos que os testes acharam, e o que mudou por causa deles
 

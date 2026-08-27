@@ -19,10 +19,7 @@ import {
   storedObjects,
 } from '../../database/nfe.schema.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
-import {
-  ensureDeliveryRegistry,
-  type DeliveryRegistryLogger,
-} from './delivery-registry.writer.js'
+import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 

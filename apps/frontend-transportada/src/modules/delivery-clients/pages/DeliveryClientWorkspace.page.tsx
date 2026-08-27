@@ -78,7 +78,11 @@ export function DeliveryClientWorkspacePage() {
               { label: t('filters.schedulingOnly'), value: 'true' },
               { label: t('filters.schedulingNone'), value: 'false' },
             ]}
-            value={controller.filters.requiresScheduling === null ? '' : String(controller.filters.requiresScheduling)}
+            value={
+              controller.filters.requiresScheduling === null
+                ? ''
+                : String(controller.filters.requiresScheduling)
+            }
           />
         </label>
       </section>
@@ -124,7 +128,11 @@ export function DeliveryClientWorkspacePage() {
       )}
 
       {controller.nextCursor === null ? null : (
-        <Button onClick={() => controller.setCursor(controller.nextCursor)} type="button" variant="ghost">
+        <Button
+          onClick={() => controller.setCursor(controller.nextCursor)}
+          type="button"
+          variant="ghost"
+        >
           <Icon name="page-next" />
           {t('table.more')}
         </Button>

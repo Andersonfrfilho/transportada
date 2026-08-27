@@ -56,8 +56,7 @@ export function useDeliveryClients(
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
   const page = useQuery({
-    queryFn: () =>
-      getDeliveryClientsClient().listClients({ cursor, filters, limit: PAGE_SIZE }),
+    queryFn: () => getDeliveryClientsClient().listClients({ cursor, filters, limit: PAGE_SIZE }),
     queryKey: [DELIVERY_CLIENTS_QUERY_KEY, 'list', cursor, filters],
   })
 

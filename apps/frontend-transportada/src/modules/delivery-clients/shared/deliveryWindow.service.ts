@@ -47,9 +47,7 @@ export function changeWindow(
  * A janela invertida morre aqui, e não no CHECK do banco: o operador vê o erro no campo em vez de
  * um 500 com nome de constraint. Vazia é válida — é o cliente que não recebe naquele dia.
  */
-export function findInvalidWindow(
-  windows: readonly DeliveryWindow[],
-): DeliveryWindow | undefined {
+export function findInvalidWindow(windows: readonly DeliveryWindow[]): DeliveryWindow | undefined {
   return windows.find((window) => window.opensAt >= window.closesAt)
 }
 
