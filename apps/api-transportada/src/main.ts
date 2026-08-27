@@ -220,6 +220,7 @@ import { createDeliveryChargesUseCase } from './delivery-clients/application/del
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { DrizzleExtraChargeBatchRepository } from './delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.js'
 import { createExtraChargeBatchRoutes } from './delivery-clients/presentation/extra-charge-batch.routes.js'
+import { createPublicExtraChargeBatchRoutes } from './delivery-clients/presentation/public-extra-charge-batch.routes.js'
 import { createSuggestDeliveryCharges } from './delivery-clients/application/suggest-delivery-charges.use-case.js'
 import {
   DrizzleDeliveryChargeRepository,
@@ -535,6 +536,14 @@ type CreateAnonymousRoutesParams = {
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
+/**
+ * ADR-0048 §7: o token é a credencial da página pública. 32 bytes de aleatoriedade criptográfica em
+ * base64url — enumerar isso não é um caminho de ataque.
+ */
+function createExtraChargeBatchToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+}
+
 function createAnonymousRoutes({
   config,
   database,
@@ -548,6 +557,19 @@ function createAnonymousRoutes({
     notifyNfseCallback: createNotifyNfseCallbackUseCase({
       repository: new DrizzleNfseCallbackRepository(database),
     }),
+  })
+  /**
+   * ADR-0048 §7: a página de repasse do contratante. Ela existe sempre — o token é a credencial, e
+   * um lote só nasce quando alguém fecha um período, então não há superfície ociosa a esconder.
+   */
+  const publicExtraChargeBatches = createExtraChargeBatchesUseCase({
+    batches: new DrizzleExtraChargeBatchRepository(database),
+    charges: new DrizzleDeliveryChargeRepository(database),
+    createToken: createExtraChargeBatchToken,
+  })
+  const publicExtraChargeBatchRoutes = createPublicExtraChargeBatchRoutes({
+    decideByToken: { execute: (input) => publicExtraChargeBatches.decideByToken(input) },
+    readReportByToken: { execute: (input) => publicExtraChargeBatches.readReportByToken(input) },
   })
   // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
   const landingPublicRoutes = createLandingPublicRoutes({
@@ -593,6 +615,7 @@ function createAnonymousRoutes({
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...publicExtraChargeBatchRoutes,
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
@@ -601,6 +624,7 @@ function createAnonymousRoutes({
 
   return [
     ...nfseCallbackRoutes,
+    ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
     ...aggregateApplicationPublicRoutes,
@@ -699,11 +723,7 @@ function createApplicationRoutes({
   const extraChargeBatches = createExtraChargeBatchesUseCase({
     batches: new DrizzleExtraChargeBatchRepository(database),
     charges: deliveryChargeRepository,
-    /**
-     * ADR-0048 §7: o token é a credencial da página pública. 32 bytes de aleatoriedade criptográfica
-     * em base64url — enumerar isso não é um caminho de ataque.
-     */
-    createToken: () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+    createToken: createExtraChargeBatchToken,
   })
   const tripStopSchedules = createTripStopSchedulesUseCase({
     repository: new DrizzleTripStopScheduleRepository(database),

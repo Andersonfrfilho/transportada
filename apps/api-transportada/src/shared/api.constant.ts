@@ -33,6 +33,12 @@ export const API_CONTRACTORS_PATH = '/contractors'
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
+/**
+ * ADR-0048 §7: a segunda superfície anônima do produto, ao lado do postback da NFS-e. Ela serve
+ * **um** lote, identificado por token opaco — e é por isso que o caminho vive fora do roteador
+ * autenticado.
+ */
+export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batches/:token'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
