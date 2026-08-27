@@ -17,6 +17,8 @@ const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
+  /** ADR-0050: quem paga o frete acompanha a carga; o recorte vem do vínculo, não do papel. */
+  'contractor',
   /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
   'automation',
 ] as const
@@ -61,6 +63,10 @@ const COMPANY_PERMISSIONS = [
    * vocabulário do que a API pode devolver — deixá-la de fora faria a lista mentir sobre isso.
    */
   'mdfe.auto-issue',
+  /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
+  'deliveries.track',
+  /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
+  'charges.decide',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
