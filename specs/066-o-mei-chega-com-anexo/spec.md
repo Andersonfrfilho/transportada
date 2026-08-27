@@ -167,18 +167,39 @@ tem em cada linha **aprovar** e **reprovar**; reprovar exige motivo, e o motivo 
 - [ ] Smoke no painel: anexo aparece na candidatura com status, o botão aprovar muda o estado na tela,
       e reprovar sem motivo é recusado
 - [ ] Contrato: reprovar sem motivo devolve erro; aprovar duas vezes é idempotente
-- [ ] Rastro de retenção: rascunho expirado some (job do `cron-transportada`)
+- [ ] Rastro de retenção: rascunho **não** expira sozinho (decisão de 2026-08-27); a remoção é
+      manual e deixa trilha de auditoria com ator, alvo e timestamp
 - [ ] `docs/SECURITY.md` registra as duas rotas públicas novas e seus limites
+
+## Decisões (2026-08-27)
+
+As quatro dúvidas foram fechadas pelo dono do produto. Ficam aqui com a consequência de cada uma,
+porque é a consequência que a implementação precisa respeitar.
+
+- **Mapa de campos do CCMEI — resolvido.** Amostra real conferida à mão, fora do repositório
+  (§ Privacidade da 048 segue valendo: **nenhuma amostra é versionada**; as fixtures nascem
+  sintéticas). O CCMEI publica, nesta ordem: Nome Empresarial · Nome do Empresário · Nome Fantasia ·
+  Capital Social · **Número Identidade · Órgão Emissor · UF Emissor** · CPF · Situação Cadastral ·
+  Data de Início da Situação · CNPJ · NIRE · CEP · Logradouro · Número · Bairro · Município · UF ·
+  Data de Início de Atividades · Forma de Atuação · Ocupação Principal · Atividade Principal (CNAE) ·
+  Ocupações e Atividades Secundárias.
+  ⚠️ O trio da identidade casa exatamente com `identity_document` · `identity_document_issuer` ·
+  `identity_document_state` da ficha do motorista, na mesma ordem em que o documento imprime — o
+  mapa não precisa inventar campo nenhum.
+- **Retenção do rascunho: sem prazo.** O rascunho fica guardado até alguém removê-lo, porque ele
+  **é o comprovante do que o motorista digitou**.
+  ⚠️ Consequência que não pode se perder: PII sem prazo de descarte torna a **ADR-0039**
+  (criptografia em repouso, decidida e **ainda não executada**) mais urgente, não menos, e a
+  finalidade "comprovante" precisa estar escrita como base legal antes do go-live. O item de aceite
+  "rascunho expirado some" deixa de existir e vira remoção manual com trilha de auditoria.
+- **O anexo aprovado vira documento da conta.** A aprovação copia para `aggregate_documents` e a
+  spec 064 herda — o agregado não reenvia o mesmo documento.
+  ⚠️ Junto com a decisão acima, é o mesmo arquivo vivendo por prazo indeterminado em dois lugares:
+  a cópia entra no escopo da ADR-0039 como o original.
+- **MEI é inferido, não perguntado.** Documento com 14 caracteres é CNPJ, e `GET /public/cnpj-info`
+  já devolve porte e natureza jurídica — dá para saber que é MEI sem acrescentar pergunta a um
+  formulário longo. Não há "você é MEI?" na tela.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: mapa de campos do CCMEI]` — não há amostra no repositório, e a § Privacidade
-  da 048 recusa PII versionada. Sem um CCMEI real conferido à mão, o mapa de rótulos é palpite; o
-  teste gera PDF sintético e prova o encanamento, não os rótulos do gov.br. **Preciso de um CCMEI
-  (pode ser o seu, fora do repo) para fechar o mapa.**
-- `[NEEDS CLARIFICATION: prazo de retenção do rascunho]` — 24h, 7 dias? Curto demais perde quem
-  preenche em duas sentadas; longo demais é PII parada sem dono.
-- `[NEEDS CLARIFICATION: o anexo aprovado vira documento da conta?]` — se sim, a aprovação copia para
-  `aggregate_documents` e a 064 herda; se não, o anexo morre com a revisão.
-- `[NEEDS CLARIFICATION: MEI é um caminho declarado ou inferido?]` — a tela pergunta "você é MEI?" ou
-  deduz do documento digitado ter 14 dígitos?
+Nenhuma aberta.
