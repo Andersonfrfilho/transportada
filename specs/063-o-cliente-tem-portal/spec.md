@@ -95,6 +95,27 @@ formulário do operador.
 Nenhuma regra de agendamento mora no portal. Se ela morar, o dia em que o WhatsApp (062 P3) agendar
 também, as duas divergem — e divergência de agendamento manda caminhão para o lugar errado.
 
+### D7 — O rastreamento ao vivo existe, e ele tem três travas
+
+O portal mostra **onde a carga está agora**, e isso muda o PWA do motorista: a 057 D3 carimba a
+posição só na entrega, e o mapa exige posição contínua. As três exigências abaixo não são detalhes de
+implementação — elas são a razão de a coisa poder existir:
+
+1. **O motorista consente, e o consentimento é dele.** Um interruptor no PWA, desligado por padrão,
+   com data e hora do aceite gravadas. Enquanto ele estiver desligado, o portal mostra o progresso
+   por parada e diz que a posição não está disponível — nunca a última posição conhecida de ontem.
+2. **O ping vive pouco.** Posição contínua é dado pessoal do trabalhador, e guardá-la vira histórico
+   de deslocamento de uma pessoa. Ela é apagada quando a viagem fecha; o que sobrevive é o carimbo da
+   entrega, que a 057 já guardava com expurgo de 90 dias.
+3. **O cliente vê a carga, não o motorista.** O portal mostra um ponto e a distância até a parada
+   dele — sem placa, sem nome, sem velocidade, sem histórico do trajeto. A pergunta que ele tem é
+   "chega quando?", e ela se responde sem entregar a rotina de trabalho de ninguém.
+
+**O mapa é desenho nosso.** Nada de tile de terceiro: a CSP declara `frame-src 'none'` desde a
+ADR-0037, e a malha do IBGE já é o mapa das zonas de frete no painel. O portal usa a mesma malha, com
+o ponto por cima — nenhum terceiro renderiza dentro da tela, e nenhuma coordenada de cliente sai
+daqui.
+
 ### D6 — Cliente sem cadastro de regra também tem portal
 
 A 060 D1 faz o cliente nascer sozinho da NF-e importada, só com identidade. Isso significa que **todo
@@ -186,15 +207,29 @@ Notificação (062) quando a entrega entra em rota ou é concluída.
 - [ ] Teste de aprovação linha a linha com ator externo na trilha.
 - [ ] Conferido em 375px.
 - [ ] `tsc --noEmit` + `make validate`.
-- [ ] ADR (**0049**) sobre app separado por superfície de segurança, e autenticação sem senha.
+- [ ] Teste de que o consentimento desligado esconde a posição, e de que o ping some quando a viagem
+      fecha (D7).
+- [ ] Teste de que a posição servida ao cliente não carrega placa, motorista, velocidade nem trajeto.
+- [ ] ADR (**0050** — 0049 já é da 061) sobre app separado por superfície de segurança, autenticação
+      sem senha, e o rastreamento com consentimento e expurgo.
 - [ ] `docs/SECURITY.md` com a seção do portal: enumeração, retenção de sessão, dado exposto.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: rastreamento ao vivo. É o primeiro pedido que um portal de cliente recebe, e ele depende de posição contínua do motorista — que a 057 D3 deliberadamente **não** coleta (só carimba a entrega). Atender exige consentimento do motorista, retenção e uma decisão de LGPD que ainda não foi tomada. Entra agora, ou o portal mostra "próxima parada" sem mapa?]`
-- `[NEEDS CLARIFICATION: como o portal sabe de qual transportadora é o cliente — subdomínio por empresa, ou uma entrada única com escolha depois de autenticar? Subdomínio é mais simples e vaza menos; entrada única é melhor se o cliente atende várias.]`
-- `[NEEDS CLARIFICATION: o contato para onde vai o código — o telefone/e-mail que vem da NF-e (`nfe_addresses.phone`, que existe) serve, ou precisa ser confirmado por alguém antes? Usar o da nota é automático e pode estar errado ou desatualizado; exigir confirmação trava o primeiro acesso.]`
-- `[NEEDS CLARIFICATION: prioridade real desta spec. Ela é a única das seis que não parte de código existente, é a que tem mais superfície de segurança, e a 062 (WhatsApp) resolve boa parte do mesmo problema por um custo muito menor. Vale confirmar que ela vem depois da 062, e não junto.]`
+- **Rastreamento ao vivo** (respondido): **entra**, e com mapa. Ver D7 — ele muda o PWA do motorista,
+  cria retenção de posição pessoal e traz três exigências de LGPD que não são opcionais.
+- **Qual transportadora** (respondido pela arquitetura): **subdomínio por empresa**, porque a
+  instalação é dedicada — um deploy por transportadora (ADR-0021). A empresa é conhecida **antes** do
+  login, e é isso que impede a resposta do código de revelar em quantas transportadoras aquele
+  documento existe. "Entrada única com escolha depois" só faria sentido num produto multiempresa
+  hospedado, que este não é.
+- **Contato do código** (respondido): **o da própria NF-e** (`nfe_addresses.phone` e o e-mail do
+  participante). Primeiro acesso funciona sem ninguém cadastrar nada, que é a diferença entre um
+  portal que existe e um que existe só para quem pediu. Nota com contato errado simplesmente não
+  entrega o código — e **isso não é dito a quem tentou**, pela mesma regra da resposta uniforme.
+- **Prioridade** (respondido): ela vem **antes** da 062, que segue travada na escolha do provedor de
+  WhatsApp. O portal e o WhatsApp continuam convivendo pelo desenho de fora do escopo: um é onde o
+  cliente já está, o outro é onde ele resolve o que não cabe numa conversa.
 
 ## 🤖 Modelo
 
