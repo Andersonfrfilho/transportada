@@ -12,11 +12,14 @@ const ERROR_CODE_PREFIX = 'TRIP_VALUATION'
 const PERCENT_FACTOR = 100n
 
 /**
- * Spec 065 D7 e 061 D2: **nenhuma parcela ausente vira zero silencioso.** Uma margem de 18% que na
+ * Spec 065 D7 e 061 D2: **nenhuma parcela ausente vira zero silencioso.** E `period` (ADR-0049 §3)
+ * é a quarta resposta: o custo existe, é conhecido, e **não é da viagem** — é o salário do motorista
+ * da casa, que a visão do período subtrai.
+ * Uma margem de 18% que na
  * verdade é "18% se o combustível estiver certo, e ele foi estimado" leva a decisão errada com mais
  * confiança do que número nenhum levaria.
  */
-export const VALUATION_SOURCES = ['measured', 'estimated', 'missing'] as const
+export const VALUATION_SOURCES = ['measured', 'estimated', 'missing', 'period'] as const
 export type ValuationSource = (typeof VALUATION_SOURCES)[number]
 
 /**
@@ -27,10 +30,17 @@ export const VALUATION_GAPS = {
   /** As taxas de entrega são da spec 060, que ainda não foi construída. */
   featureAbsent: 'FEATURE_ABSENT',
   /**
-   * O valor do motorista sai de `freight_region_driver_rates`, que é por **classe de frete** — e o
-   * veículo ainda não declara classe nenhuma. Não é zero: é desconhecido.
+   * O valor do agregado sai de `freight_region_driver_rates`, cruzando a zona da parada com a classe
+   * do veículo (que a spec 038 passou a fornecer). Sem linha na tabela é **desconhecido**, não zero.
    */
   noDriverRate: 'NO_DRIVER_RATE',
+  /**
+   * ADR-0049 §3: há motorista assalariado na tripulação. O custo dele existe e **não é da viagem** —
+   * quem o subtrai é a visão do período. A viagem carrega a marca para a tela poder dizer isso.
+   */
+  salariedCrewMember: 'SALARIED_CREW_MEMBER',
+  /** A empresa não declarou regime federal, então PIS/COFINS não desce da receita (ADR-0049 §4). */
+  noFederalRegime: 'NO_FEDERAL_REGIME',
   /** Nenhuma regra de frete casa com a nota: sem parâmetro não há receita prevista. */
   noFreightRule: 'NO_FREIGHT_RULE',
   /** O veículo não declara consumo médio, ou a empresa não tem preço para o combustível dele. */
@@ -49,6 +59,9 @@ export const TRIP_COST_KINDS = [
   'other_per_kilometer',
   'toll',
   'delivery_charges',
+  /** ADR-0049 §4: imposto não é custo de operação — ele **desce da receita**, e a tela separa os dois. */
+  'icms',
+  'pis_cofins',
 ] as const
 export type TripCostKind = (typeof TRIP_COST_KINDS)[number]
 
