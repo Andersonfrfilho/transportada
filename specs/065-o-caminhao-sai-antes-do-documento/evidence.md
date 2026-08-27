@@ -60,9 +60,11 @@ e-mail, isso é trabalho novo, e é honesto chamá-lo assim.
    manifesto autorizado a viagem mostra um cartão com a chave e o código de barras, e os dois
    formatos saem sob demanda — DAMDFE em PDF e XML. O romaneio continua na tela abaixo dele, porque
    a carga urbana nunca terá manifesto e para ela o romaneio é o que existe.
-2. **Nenhuma notificação (T017, requisito 11).** "Ficou pronta", "emitido" e sobretudo "não consegui
-   emitir, e o motivo" não saem. O automático que **recusa** hoje só deixa rastro em log: quem opera
-   descobre abrindo a viagem.
+2. **Das três notificações do requisito 11, só a falha saiu.** "Não consegui emitir, e o motivo"
+   avisa; **"ficou pronta" e "emitido" não existem** — e é uma escolha, não um esquecimento: as duas
+   são boas notícias sobre um processo que o operador não precisa acompanhar, e o aviso que ele
+   precisa ler é o que exige ação dele. Se virar necessidade, o encanamento já está posto: catálogo,
+   destinatário e chave de deduplicação são os mesmos.
 3. **Sem E2E da carga mista (T018).** Cada pedaço tem contrato e integração; a costura do barracão
    ao manifesto autorizado não foi exercitada de ponta a ponta.
 4. **O evento `cte.authorized.v1` não existe.** A 059 previa evento e consumer; o que entrou é uma
@@ -98,6 +100,23 @@ Três decisões que ficam escritas:
 | Uma cidade de descarga não some do papel          | contrato do parser: sem `isArray`, a única cidade viraria objeto e o papel sairia sem ela              |
 | O papel diz quando é homologação                  | contrato lê o texto desenhado no PDF, não o layout                                                     |
 | O nome do arquivo carrega a chave                 | contrato do cliente: `damdfe.pdf` genérico some entre downloads no celular                             |
+
+## O aviso de que o MDF-e não saiu
+
+Até esta rodada a recusa do automático existia **só em log**: a viagem circulava sem manifesto até
+alguém abrir a tela por outro motivo — a diferença entre um atraso e uma multa em barreira.
+
+| Decisão                                 | Como ela está travada                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Avisa **só** a recusa                   | contrato percorre os quatro desfechos que não são falha e exige silêncio em todos                 |
+| O imprevisto não vira aviso             | erro que não é `ApiError < 500` sobe para a reentrega, e o contrato prova que nada foi notificado |
+| Quem recebe é **quem despachou**        | integração contra Postgres: o destinatário sai de `trip_dispatch_snapshots`, com a placa junto    |
+| Sem despacho, ninguém é avisado         | mesma integração — destinatário inventado é aviso que chega a quem não pode agir                  |
+| Trinta CT-e não viram trinta avisos     | a chave de deduplicação leva viagem **e** motivo, e a integração confere a chave por extenso      |
+| O motivo desconhecido chega como código | contrato próprio: "erro ao emitir" não é pesquisável, e um código é                               |
+
+O texto não carrega nota, tomador nem chave: diz o veículo, o motivo e onde olhar. O template nasce
+do catálogo e entra pelo passo de pré-deploy, que é idempotente — não houve migration.
 
 ## Auditoria de segurança (§15 do `code-standart.md`)
 
