@@ -171,13 +171,17 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	check_url "http://localhost:58025/livez"; \
 	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
 	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
+# ⚠️ A faixa 53110+ é **exclusiva** do preview que o Playwright sobe, e não pode
+# encostar nas portas das apps: o smoke roda com a stack do `make dev` no ar, então porta de app
+# ocupada faz o preview morrer com "already used". Foi o que aconteceu quando o `frontend-client`
+# nasceu na 53100, que era a do preview do painel.
 	@set -a; . "./$(ENV_FILE)"; set +a; \
-		PLAYWRIGHT_FRONTEND_PORT="$${PLAYWRIGHT_FRONTEND_PORT:-53100}" \
+		PLAYWRIGHT_FRONTEND_PORT="$${PLAYWRIGHT_FRONTEND_PORT:-53110}" \
 		PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 		PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
 		bun run --cwd apps/frontend-transportada smoke
 	@set -a; . "./$(ENV_FILE)"; set +a; \
-		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53101}" \
+		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
 		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
 		bun run --cwd apps/frontend-landing smoke
 
