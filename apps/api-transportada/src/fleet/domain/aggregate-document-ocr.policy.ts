@@ -9,7 +9,12 @@
  */
 import { LICENSE_CATEGORIES, type LicenseCategory } from '../../shared/license-category.constant.js'
 
-const LICENSE_NUMBER_PATTERN = /\b\d{11}\b/
+/**
+ * Ancorado no rótulo, nunca no formato: CPF e RENAVAM também têm onze dígitos, e na CNH-e o CPF
+ * vem impresso antes do registro. Sem âncora, o primeiro número da página virava "a CNH" e a
+ * conferência acusava divergência num documento correto — o oposto do que ela existe para fazer.
+ */
+const LICENSE_NUMBER_LABEL_PATTERN = /(?:registro|habilita[çc][ãa]o)\D{0,12}(\d{11})\b/i
 const PLATE_PATTERN = /\b[A-Z]{3}[ -]?\d[A-Z0-9]\d{2}\b/
 const RENAVAM_PATTERN = /\b\d{9,11}\b/
 /** Só o resto da MESMA linha do rótulo — sem isso, "NOME" engole a linha seguinte inteira. */
@@ -56,8 +61,8 @@ export function extractCnhFields(rawText: string): ExtractedCnhFields {
   const category = categoryMatch?.[1]?.toUpperCase() ?? null
   const licenseCategory = isLicenseCategory(category) ? category : null
 
-  const licenseNumberMatch = text.match(LICENSE_NUMBER_PATTERN)
-  const licenseNumber = licenseNumberMatch?.[0] ?? null
+  const licenseNumberMatch = text.match(LICENSE_NUMBER_LABEL_PATTERN)
+  const licenseNumber = licenseNumberMatch?.[1] ?? null
 
   return { licenseCategory, licenseNumber, name }
 }

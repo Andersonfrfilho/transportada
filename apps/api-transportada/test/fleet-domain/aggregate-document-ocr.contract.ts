@@ -26,6 +26,38 @@ describe('aggregate document OCR field extraction', () => {
     expect(fields.licenseCategory).toBe('AE')
   })
 
+  /**
+   * CPF e registro de CNH têm onze dígitos os dois, e na CNH-e o CPF costuma vir impresso antes.
+   * Pegar "o primeiro número de onze dígitos" trocava um pelo outro — e valor errado é pior que
+   * valor ausente: ele vira divergência contra um documento correto.
+   */
+  test('does not mistake the CPF for the licence number when both are eleven digits', () => {
+    const text = `
+      NOME: FULANO DE TAL DA SILVA
+      CPF 12345678909
+      Nº REGISTRO 98765432100
+      CAT. HAB: AE
+    `
+
+    const fields = extractCnhFields(text)
+
+    expect(fields.licenseNumber).toBe('98765432100')
+  })
+
+  /** Sem rótulo que ancore o número, a leitura declara ausência — nunca chuta o dígito que passar. */
+  test('reports absence instead of guessing when no licence label is present', () => {
+    const fields = extractCnhFields('NOME: FULANO DE TAL\nCPF 12345678909')
+
+    expect(fields.licenseNumber).toBeNull()
+  })
+
+  /** RENAVAM também tem onze dígitos: um CRLV lido como CNH não pode virar número de habilitação. */
+  test('does not read a RENAVAM as a licence number', () => {
+    const fields = extractCnhFields('CODIGO RENAVAM 00761638261 PLACA DFJ2208')
+
+    expect(fields.licenseNumber).toBeNull()
+  })
+
   test('returns nulls when nothing recognizable is found', () => {
     const fields = extractCnhFields('completely unrelated scanned garbage 42')
 
