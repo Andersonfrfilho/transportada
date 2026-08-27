@@ -45,3 +45,42 @@ de papéis e o CHECK) e `fleet-domain/person-name.contract.ts` (o registro compl
   tem onde ser dado.
 - **O vínculo não tem rota** — T004. Hoje ele só se cria por SQL, e por isso nenhuma conta de
   contratante existe em ambiente nenhum.
+
+## T003 — o recorte do contratante
+
+O escopo é **derivado da conta**: `resolveContractorScope` é a única fonte, e ela recebe vínculo, não
+filtro. Não existe assinatura no módulo por onde um documento vindo da requisição entre no caminho —
+e o contrato confere isso por texto de fonte, porque a falha aqui compilaria e passaria em todo teste
+de caminho feliz, aparecendo só no dia em que alguém mandasse o CNPJ do vizinho.
+
+Quatro decisões que ficaram escritas no código:
+
+- **conta sem vínculo é 403, não lista vazia.** Lista vazia faria o portal parecer funcionando e a
+  pessoa concluir que não tem entrega nenhuma;
+- **documento em branco no cadastro não vira escopo** — casar com string vazia alcançaria participante
+  sem documento, que é a nota de terceiro que este recorte existe para não mostrar;
+- **os dois papéis contam** (`emitter` e `recipient`): restringir ao destinatário deixaria de fora a
+  indústria que contrata o frete para entregar na loja do cliente dela, que é o caso mais comum;
+- **o `join` com a viagem é `left`** — nota importada e ainda parada é "recebida", não ausência —, e
+  ele exclui o vínculo com `released_at`: nota desvinculada volta a ser nota sem viagem.
+
+Comandos executados:
+
+```
+bun run typecheck                                                     # limpo
+bun run lint                                                          # limpo
+bun test ./test/contractor-portal.contract.test.ts                    # 8 pass / 0 fail
+DATABASE_URL=… bun test ./test/integration/contractor-portal.integration.ts   # 3 pass / 0 fail
+```
+
+A integração prova contra Postgres o que só o banco prova: a nota do vizinho existe na mesma empresa
+e **não aparece**; a nota sem viagem aparece; a desvinculada volta a `null`; e inativar o contratante
+fecha o portal da conta dele.
+
+### Buracos declarados
+
+- **Ainda não há rota** — T005. O use case existe e é testado, mas nada o chama, então nenhum
+  contratante alcança nada por HTTP.
+- **Sem cursor**: o teto é `CONTRACTOR_DELIVERY_LIMIT = 100`, sem paginação. Contratante com mais de
+  cem notas no período vê as cem mais recentes e **não é avisado disso** — quando aparecer, é cursor
+  igual ao da tabela de CT-es.
