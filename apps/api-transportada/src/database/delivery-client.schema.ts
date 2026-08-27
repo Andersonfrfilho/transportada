@@ -336,6 +336,12 @@ export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
  */
 export const DELIVERY_CHARGE_STATUSES = [
   'suggested',
+  /**
+   * A sugestão que gente olhou e recusou. Ela **não some**: guardar o descarte com motivo é o que
+   * responde "por que a taxa daquele dia não foi cobrada?" seis meses depois — e é também o que
+   * mostra que a regra recorrente está propondo o que não deveria.
+   */
+  'dismissed',
   'recorded',
   'submitted',
   'approved',
