@@ -23,6 +23,7 @@ import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFo
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
 import { DeliveryClientWorkspacePage } from '@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'
+import { ExtraChargeWorkspacePage } from '@/modules/extra-charges/pages/ExtraChargeWorkspace.page'
 import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
   DRIVER_TRIP_PATH,
@@ -85,6 +86,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'cte-profiles'
     | 'delivery-clients'
     | 'driver-trip'
+    | 'extra-charges'
     | 'fleet'
     | 'freight'
     | 'mdfe-manifest'
@@ -117,6 +119,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
   { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
+  { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
   // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -129,9 +132,16 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'fiscal',
     label: 'Fiscal',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing', 'nfse-invoice'].includes(
-        key,
-      ),
+      [
+        'nfe',
+        'freight',
+        'cte-batch',
+        'trip',
+        'mdfe-manifest',
+        'billing',
+        'extra-charges',
+        'nfse-invoice',
+      ].includes(key),
     ),
   },
   {
@@ -175,6 +185,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/cte-profiles') return 'cte-profiles'
   if (window.location.pathname === DRIVER_TRIP_PATH) return 'driver-trip'
   if (window.location.pathname === '/clientes') return 'delivery-clients'
+  if (window.location.pathname === '/repasses') return 'extra-charges'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
@@ -191,6 +202,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'cte-profiles' ||
     storedWorkspace === 'delivery-clients' ||
     storedWorkspace === 'driver-trip' ||
+    storedWorkspace === 'extra-charges' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
@@ -228,6 +240,8 @@ function resolvePage(
       return <DeliveryClientWorkspacePage />
     case 'driver-trip':
       return <DriverTripWorkspacePage />
+    case 'extra-charges':
+      return <ExtraChargeWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':

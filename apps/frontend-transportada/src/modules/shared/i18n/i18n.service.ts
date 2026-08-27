@@ -18,6 +18,8 @@ import documentIntakeLocale from '@/modules/document-intake/locales/documentInta
 import documentIntakeEnglishLocale from '@/modules/document-intake/locales/documentIntake.en.locale.json'
 import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
 import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
+import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
+import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
 import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
@@ -53,6 +55,7 @@ void i18n.use(initReactI18next).init({
       deliveryClients: deliveryClientsEnglishLocale,
       documentIntake: documentIntakeEnglishLocale,
       driverTrip: driverTripEnglishLocale,
+      extraCharges: extraChargesEnglishLocale,
       fleet: fleetEnglishLocale,
       identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
@@ -73,6 +76,7 @@ void i18n.use(initReactI18next).init({
       deliveryClients: deliveryClientsLocale,
       documentIntake: documentIntakeLocale,
       driverTrip: driverTripLocale,
+      extraCharges: extraChargesLocale,
       fleet: fleetLocale,
       identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,

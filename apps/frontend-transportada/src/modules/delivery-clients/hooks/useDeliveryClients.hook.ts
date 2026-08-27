@@ -67,8 +67,9 @@ export function useDeliveryClients(
     queryKey: [DELIVERY_CLIENTS_QUERY_KEY, 'detail', selectedClientId],
   })
 
-  async function invalidate(): Promise<void> {
-    await queryClient.invalidateQueries({ queryKey: [DELIVERY_CLIENTS_QUERY_KEY] })
+  /** A revalidação não segura o botão: `isPending` cai quando o trabalho acaba, não quando o cache esfria. */
+  function invalidate(): void {
+    void queryClient.invalidateQueries({ queryKey: [DELIVERY_CLIENTS_QUERY_KEY] })
   }
 
   const update = useMutation({

@@ -55,6 +55,7 @@ export type IconName =
   | 'workspace-cte-profiles'
   | 'workspace-delivery-clients'
   | 'workspace-driver-trip'
+  | 'workspace-extra-charges'
   | 'workspace-fleet'
   | 'workspace-freight'
   | 'workspace-mdfe-manifest'
@@ -144,6 +145,14 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M9 20v-5h6v5',
     'M12 8.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
     'M12 10v1.5l1 .7',
+  ],
+  /** Spec 060: a taxa que o cliente cobrou e volta como repasse — recibo e seta de volta. */
+  'workspace-extra-charges': [
+    'M6 3h9l3 3v15H6z',
+    'M15 3v3h3',
+    'M9 11h6',
+    'M9 15h4',
+    'M9 18.5l-1.5-1.5L9 15.5',
   ],
   'workspace-fleet': [
     'M4 8h9v7H4z',

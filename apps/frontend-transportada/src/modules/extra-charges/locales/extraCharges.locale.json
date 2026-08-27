@@ -1,0 +1,62 @@
+{
+  "title": "Taxas e repasse",
+  "subtitle": "O que o cliente cobrou para receber a carga, conferido aqui e cobrado do contratante que pediu o frete.",
+  "batch": {
+    "amount": "Valor",
+    "calendar": {
+      "chooseYear": "Escolher o ano",
+      "clear": "Limpar",
+      "nextMonth": "Próximo mês",
+      "open": "Abrir o calendário",
+      "placeholder": "dd/mm/aaaa",
+      "previousMonth": "Mês anterior"
+    },
+    "client": "Cliente",
+    "close": "Fechar o período",
+    "contractor": "Contratante",
+    "contractorPlaceholder": "Escolha o contratante",
+    "date": "Data",
+    "hint": "O lote é do contratante e do período — nunca da viagem. Uma viagem mistura contratantes, e cada um recebe o lote dele.",
+    "linkHint": "O link de aprovação do contratante é gerado ao fechar o lote e vive na página pública. Fechar o período de novo gera um link novo, e o antigo deixa de abrir.",
+    "periodEnd": "Fim do período",
+    "periodStart": "Início do período",
+    "reportTitle": "{{contractor}} · de {{periodStart}} a {{periodEnd}}",
+    "status": "Situação",
+    "title": "Fechar o período do contratante",
+    "total": "Total do lote: R$ {{total}}",
+    "type": "Tipo"
+  },
+  "chargeStatus": {
+    "approved": "Aprovada",
+    "dismissed": "Descartada",
+    "recorded": "Registrada",
+    "reimbursed": "Reembolsada",
+    "rejected": "Rejeitada",
+    "submitted": "Enviada",
+    "suggested": "Sugerida"
+  },
+  "chargeType": {
+    "other": "Outra",
+    "parking": "Estacionamento",
+    "platform": "Plataforma",
+    "scheduling": "Agendamento",
+    "unloading": "Descarga"
+  },
+  "errors": {
+    "DELIVERY_CHARGE_AMOUNT_REQUIRED": "Esta sugestão veio do motorista sem valor. Preencha o valor do recibo antes de confirmar.",
+    "EXTRA_CHARGE_BATCH_EMPTY": "Não há taxa conferida deste contratante neste período.",
+    "REQUEST_FAILED": "Não foi possível concluir. Tente de novo."
+  },
+  "queue": {
+    "amount": "Valor",
+    "confirm": "Confirmar {{count}} selecionadas",
+    "dismiss": "Descartar",
+    "dismissReason": "Descartada na conferência",
+    "empty": "Nada a conferir hoje.",
+    "hint": "A regra recorrente e o aviso do motorista propõem; quem confirma é gente. O valor é editável na hora.",
+    "loading": "Carregando as sugestões…",
+    "missingAmount": "Há uma sugestão selecionada sem valor. Preencha antes de confirmar.",
+    "select": "Selecionar a taxa",
+    "title": "Sugestões a conferir ({{count}})"
+  }
+}
