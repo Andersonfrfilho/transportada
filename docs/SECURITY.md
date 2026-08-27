@@ -5,6 +5,24 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-27 — o portal do contratante não tem limite de requisição, como o resto da API
+
+**Onde:** `api-transportada`, módulo `contractor-portal` (`GET /client/me/deliveries`).
+
+**O que é:** a rota exige sessão autenticada e recorta pelo vínculo da conta — não há enumeração de
+documento a fazer, porque o documento nunca chega do cliente. O que fica em aberto é o mesmo buraco
+já registrado para as rotas de recuperação de senha: **não existe limitador nesta API**, e agora há
+uma conta legítima na mão de alguém de fora da transportadora.
+
+**Risco:** um contratante (ou credencial dele, vazada) pode varrer a rota sem teto. O que ele lê é o
+que já é dele — o custo é de disponibilidade, não de confidencialidade.
+
+**Mitigação em vigor:** o recorte é por vínculo, com `company_id` nas duas chaves estrangeiras; o
+payload é lista fechada, sem id interno; e o teto de leitura é cem linhas por chamada.
+
+**Desfecho pendente:** limitador por usuário autenticado, junto com o das rotas anônimas de senha —
+é uma decisão só, e é infraestrutura, não regra de domínio.
+
 ### 2026-08-26 — CPF do usuário fica em texto puro em `identity_user_profiles`
 
 **Onde:** `api-transportada`, módulo `identity` (coluna `identity_user_profiles.tax_id`).

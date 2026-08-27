@@ -57,6 +57,12 @@ export const API_TRIPS_PATH = '/trips'
  */
 export const API_ME_TRIPS_PATH = '/me/trips'
 export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
+
+/**
+ * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
+ * viagem, de nota ou de contratante — o servidor resolve pelos documentos amarrados à conta.
+ */
+export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'

@@ -125,3 +125,40 @@ do código. Com o `.env` do repositório carregado, passa.
   frontend (T009–T010).
 - **`GET /client/me/deliveries` continua sem existir** (T005): o contratante já pode ser amarrado,
   mas ainda não tem o que abrir.
+
+## T005 — `/client/me/deliveries`
+
+Uma rota, sob `deliveries.track`, escopo `company`. Ela **não recebe id de nada** — nem de nota, nem
+de viagem, nem de contratante — e nem lê query: filtrar por documento é a única coisa que ela nunca
+vai oferecer. Não há BOLA a testar porque não há objeto que o cliente possa nomear.
+
+O payload é lista fechada, e o contrato compara **as chaves por extenso**: campo novo no tipo interno
+não vaza para o portal sem alguém decidir, por escrito, que ele pode sair. O que ficou de fora:
+
+- **id interno** de nota, de viagem e de vínculo — a chave de acesso já identifica a nota para quem é
+  dono dela, e um UUID nosso na mão do cliente é identificador para tentar em outra rota no dia em
+  que alguma aceitar id;
+- **motorista, placa e roteiro** — é a operação da transportadora. Saber que a mesma carreta leva a
+  carga do concorrente é informação comercial de graça;
+- **valor de frete** — o que o contratante paga está na fatura dele.
+
+Comandos executados:
+
+```
+bun run typecheck                                # limpo
+bun run lint                                     # limpo
+bun test ./test/contractor-portal.contract.test.ts   # 17 pass / 0 fail
+bun run test                                     # 3512 pass / 0 fail / 19 skip
+```
+
+`docs/SECURITY.md` ganhou a seção do portal: a rota **não tem limite de requisição**, como o resto
+desta API — o que muda é que agora existe conta legítima na mão de alguém de fora. O que ele lê é o
+que já é dele, então o custo é de disponibilidade; o desfecho é o mesmo limitador que as rotas de
+senha esperam.
+
+### Buracos declarados
+
+- **Sem integração de ponta a ponta pela rota**: o recorte é provado contra Postgres na T003 (pelo
+  repositório) e a serialização no contrato de rota. Falta o teste que atravessa os dois com sessão
+  de verdade — ele entra com o E2E da T011.
+- **Sem cursor**, ainda: cem linhas por chamada, e o contratante com mais notas não é avisado.
