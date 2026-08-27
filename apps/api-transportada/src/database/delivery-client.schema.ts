@@ -407,6 +407,17 @@ export const deliveryCharges = pgTable(
       .onUpdate('cascade'),
     unique('delivery_charges_company_id_id_unique').on(table.companyId, table.id),
     index('delivery_charges_status_idx').on(table.companyId, table.status),
+    /**
+     * Spec 060 D4c: **uma sugestão por nota e tipo.** A regra recorrente e a ocorrência do motorista
+     * propõem a mesma taxa pelo mesmo motivo, e sem esta trava a entrega com recibo fotografado
+     * geraria duas linhas para o operador conferir — e uma delas seria cobrada duas vezes.
+     *
+     * Parcial de propósito: o que já foi conferido pode repetir (a mesma nota pode ter duas taxas de
+     * descarga em dias diferentes, e as duas são fato).
+     */
+    uniqueIndex('delivery_charges_suggested_unique')
+      .on(table.companyId, table.tripDocumentId, table.chargeType)
+      .where(sql`${table.status} = 'suggested'`),
     index('delivery_charges_batch_idx').on(table.companyId, table.batchId),
     index('delivery_charges_client_idx').on(table.companyId, table.deliveryClientId),
     check(

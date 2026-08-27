@@ -13,6 +13,7 @@ import {
   TripDocumentTransitionConflictError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
+import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
 export type TripDocumentTransitionSnapshot = {
@@ -56,6 +57,8 @@ export type TransitionTripDocumentInput = {
   readonly note?: string | null
   readonly repository: TripDocumentTransitionPort
   readonly returnReason?: string | null
+  /** Ausente é instalação sem regra de taxa recorrente — a entrega funciona igual. */
+  readonly suggestCharges?: SuggestDeliveryChargesPort
   readonly tripId: string
 }
 
@@ -72,6 +75,11 @@ const MAX_RACE_RETRIES = 3
  * `repository.applyTransition` é quem garante isso), recalcula o estado da viagem. Idempotente
  * (RF-8) — repetir a mesma transição não escreve nada e não lança.
  */
+/** A data do lançamento é a da entrega, no dia dela — não a de quando alguém confere a sugestão. */
+function toDeliveryDate(deliveredAt: string | null): string {
+  return (deliveredAt ?? new Date().toISOString()).slice(0, 10)
+}
+
 export async function transitionTripDocument(
   input: TransitionTripDocumentInput,
 ): Promise<TransitionTripDocumentResult> {
@@ -117,7 +125,21 @@ async function attempt(
     tripId: input.tripId,
   })
 
-  if (!outcome.raced) return { document: outcome.document, tripStatus: outcome.tripStatus }
+  if (!outcome.raced) {
+    /**
+     * Spec 060 D4b: a entrega concluída num cliente com regra recorrente **propõe** a taxa. Nunca
+     * lança: a entrega já aconteceu, e a sugestão que não gravou não pode desfazê-la.
+     */
+    if (transition.nextStatus === 'delivered') {
+      await input.suggestCharges?.onDelivered({
+        companyId: input.companyId,
+        deliveredOn: toDeliveryDate(outcome.document.deliveredAt),
+        tripDocumentId: input.documentId,
+      })
+    }
+
+    return { document: outcome.document, tripStatus: outcome.tripStatus }
+  }
   if (retries >= MAX_RACE_RETRIES) throw new TripDocumentTransitionConflictError()
 
   return attempt(input, retries + 1)

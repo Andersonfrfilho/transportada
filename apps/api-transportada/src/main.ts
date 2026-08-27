@@ -216,6 +216,13 @@ import {
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
+import { createSuggestDeliveryCharges } from './delivery-clients/application/suggest-delivery-charges.use-case.js'
+import {
+  DrizzleDeliveryChargeRepository,
+  DrizzleDeliveryChargeRuleRepository,
+} from './delivery-clients/infrastructure/drizzle-delivery-charge.repository.js'
+import { createDeliveryChargeRoutes } from './delivery-clients/presentation/delivery-charge.routes.js'
 import { createTripStopSchedulesUseCase } from './delivery-clients/application/trip-stop-schedule.use-case.js'
 import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
@@ -678,6 +685,14 @@ function createApplicationRoutes({
   const municipalHolidays = createMunicipalHolidaysUseCase({
     repository: new DrizzleMunicipalHolidayRepository(database),
   })
+  const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
+  const deliveryChargeRuleRepository = new DrizzleDeliveryChargeRuleRepository(database)
+  const deliveryCharges = createDeliveryChargesUseCase({ repository: deliveryChargeRepository })
+  const suggestDeliveryCharges = createSuggestDeliveryCharges({
+    charges: deliveryChargeRepository,
+    logger,
+    rules: deliveryChargeRuleRepository,
+  })
   const tripStopSchedules = createTripStopSchedulesUseCase({
     repository: new DrizzleTripStopScheduleRepository(database),
   })
@@ -743,6 +758,7 @@ function createApplicationRoutes({
     locationRepository: tripStopLookupRepository,
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
+    suggestCharges: suggestDeliveryCharges,
   })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
@@ -1097,6 +1113,38 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    ...createDeliveryChargeRoutes({
+      confirmCharges: { execute: (input) => deliveryCharges.confirm(input) },
+      deactivateRule: {
+        execute: async (input) => {
+          await deliveryChargeRuleRepository.deactivate({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            ruleId: input.ruleId,
+          })
+        },
+      },
+      dismissCharge: { execute: (input) => deliveryCharges.dismiss(input) },
+      listCharges: { execute: (input) => deliveryCharges.list(input) },
+      listRules: {
+        execute: (input) =>
+          deliveryChargeRuleRepository.listByClient({
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+      recordCharge: { execute: (input) => deliveryCharges.record(input) },
+      upsertRule: {
+        execute: (input) =>
+          deliveryChargeRuleRepository.upsert({
+            actorUserId: input.context.userId,
+            chargeType: input.chargeType,
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+            expectedAmount: input.expectedAmount,
+          }),
+      },
     }),
     ...createContractorRoutes({
       createContractor: { execute: (input) => contractorRegistry.create(input) },

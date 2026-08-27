@@ -20,6 +20,7 @@ import {
 } from './override-delivery-address.use-case.js'
 import { planTripRoute, type PlanTripRoutePort } from './plan-trip-route.use-case.js'
 import { reorderTripStops, type ReorderTripStopsPort } from './reorder-trip-stops.use-case.js'
+import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import {
   transitionTripDocument,
   type TripDocumentTransitionPort,
@@ -40,6 +41,8 @@ export type TripLifecycleDependencies = {
     PlanTripRoutePort &
     ReorderTripStopsPort
   readonly stopRepository: ListTripStopsPort
+  /** Spec 060 D4b: a entrega concluída propõe a taxa recorrente. Ausente, nada muda na entrega. */
+  readonly suggestCharges?: SuggestDeliveryChargesPort
 }
 
 /**
@@ -60,6 +63,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       return transitionTripDocument({
         action,
         actorUserId: input.context.userId,
+        ...(dependencies.suggestCharges === undefined
+          ? {}
+          : { suggestCharges: dependencies.suggestCharges }),
         companyId: input.context.companyId,
         documentId: input.documentId,
         repository: dependencies.documentRepository,
