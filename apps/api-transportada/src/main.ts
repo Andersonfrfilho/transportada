@@ -297,6 +297,7 @@ import { createDrizzleAggregatePortalRepository } from './fleet/infrastructure/d
 import { createAggregateDocumentUseCase } from './fleet/application/aggregate-document.use-case.js'
 import { createAggregateDocumentReviewUseCase } from './fleet/application/aggregate-document-review.use-case.js'
 import { createDrizzleAggregateDocumentRepository } from './fleet/infrastructure/drizzle-aggregate-document.repository.js'
+import { createAggregateDocumentTextGateway } from './fleet/infrastructure/aggregate-document-text.gateway.js'
 import { createHttpAggregateDocumentOcrGateway } from './fleet/infrastructure/http-aggregate-document-ocr.gateway.js'
 import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggregate-document-review.routes.js'
 
@@ -418,13 +419,17 @@ export function bootstrap(): Bun.Server<undefined> {
                 accountRepository: createDrizzleAggregatePortalRepository(database.db),
                 aggregateDocuments: createAggregateDocumentUseCase({
                   bucket: resolveStorageBucket(process.env),
-                  ...(config.aggregateDocumentOcrUrl === undefined
-                    ? {}
-                    : {
-                        ocr: createHttpAggregateDocumentOcrGateway({
-                          baseUrl: config.aggregateDocumentOcrUrl,
-                        }),
-                      }),
+                  // O leitor existe sempre: PDF é lido pela camada de texto, sem serviço nenhum.
+                  // Só a leitura de imagem depende do OCR estar configurado.
+                  ocr: createAggregateDocumentTextGateway(
+                    config.aggregateDocumentOcrUrl === undefined
+                      ? {}
+                      : {
+                          ocr: createHttpAggregateDocumentOcrGateway({
+                            baseUrl: config.aggregateDocumentOcrUrl,
+                          }),
+                        },
+                  ),
                   repository: createDrizzleAggregateDocumentRepository(database.db),
                   storage: createNfeStorageGatewayFromEnvironment({
                     environment: process.env,

@@ -13,7 +13,7 @@ import {
 const COMPANY_ID = crypto.randomUUID()
 const TAX_ID = '12345678901'
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
-/** PNG mínimo válido (assinatura + resto arbitrário) — OCR só roda pra imagem, nunca PDF. */
+/** PNG mínimo válido (assinatura + resto arbitrário) — imagem é o que vai para o OCR. */
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0])
 
 function buildUseCase() {
@@ -131,6 +131,58 @@ describe('aggregate document use case', () => {
 
     expect(result.status).toBe('approved')
     expect(result.extracted).not.toBeNull()
+  })
+
+  /**
+   * Cartão CNPJ, RNTRC e CRLV-e digital chegam em PDF com camada de texto. Antes o host desviava
+   * todo PDF antes de tentar ler, e esses documentos passavam sem conferência nenhuma.
+   */
+  test('extracts from a PDF instead of skipping it', async () => {
+    const repository = new FakeAggregateDocumentRepository()
+    repository.declaredFieldsByTaxId.set(TAX_ID, {
+      licenseCategory: null,
+      licenseNumber: null,
+      name: null,
+      plate: 'DFJ2208',
+      renavam: '00761638261',
+    })
+    const storage = new FakeAggregateDocumentStorage()
+    const useCase = createAggregateDocumentUseCase({
+      bucket: 'test-bucket',
+      ocr: { extractText: async () => 'PLACA DFJ2208 CODIGO RENAVAM 00761638261' },
+      repository,
+      storage,
+    })
+
+    const result = await useCase.upload({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'crlv',
+    })
+
+    expect(result.extracted).not.toBeNull()
+  })
+
+  /** Texto vazio é ausência, e ausência não é extração: CNH-e em PDF é imagem embutida. */
+  test('treats empty text as no extraction at all', async () => {
+    const repository = new FakeAggregateDocumentRepository()
+    const storage = new FakeAggregateDocumentStorage()
+    const useCase = createAggregateDocumentUseCase({
+      bucket: 'test-bucket',
+      ocr: { extractText: async () => '   \n  ' },
+      repository,
+      storage,
+    })
+
+    const result = await useCase.upload({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      taxId: TAX_ID,
+      type: 'crlv',
+    })
+
+    expect(result.extracted).toBeNull()
   })
 
   test('with OCR configured but a low-confidence match, the document stays pending', async () => {

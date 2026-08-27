@@ -330,6 +330,25 @@ acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.servi
 campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
 chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
 
+**O documento do agregado é lido por camada de texto quando ele tem uma.** `POST` de anexo passa
+por `aggregate-document-text.gateway.ts`, o único lugar que sabe escolher: **PDF** sai por
+`shared/pdf-text-layer.service.ts` (exato, sem rede, sem serviço) e **imagem** sai pelo OCR
+self-hosted (palpite, com rede). Antes o host desviava todo PDF antes de tentar ler, e cartão CNPJ,
+certificado RNTRC e CRLV-e digital passavam sem conferência nenhuma.
+
+⚠️ A leitura de PDF usa `unpdf` — dependência nova, contra o instinto da ADR-0033 (a planilha da ANP
+é lida por código nosso). O motivo está medido: estes documentos usam fonte `Type0` com `ToUnicode`,
+onde o código do caractere **não é** o caractere, e um leitor ingênuo devolve a página inteira sem a
+placa e sem o RENAVAM. XLSX é formato pequeno; PDF não é.
+
+⚠️ **CNH-e e CDT não têm camada de texto útil**: o PDF deles é o invólucro do Serpro com o documento
+como imagem embutida. A extração devolve ~400 caracteres de texto legal e nenhum campo — e isso é o
+resultado **correto**, não uma falha: os parsers ancoram em rótulo, ausência vira campo vazio, e
+campo vazio nunca vira divergência. Quem lê CNH continua sendo o OCR, com imagem.
+
+Texto vazio é ausência e não conta como extração (`aggregate-document.use-case.ts`): seguir adiante
+gravaria uma extração de campos todos nulos como se fosse leitura feita.
+
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.

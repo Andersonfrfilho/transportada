@@ -105,9 +105,9 @@ export function createAggregateDocumentUseCase(
         type,
       })
 
-      // O serviço de OCR só lê imagem raster — chamar com PDF é round-trip perdido, sabendo que
-      // vai falhar (ver comentário do gateway HTTP).
-      if (dependencies.ocr === undefined || mimeType === 'application/pdf') {
+      // Quem sabe ler cada tipo é o leitor injetado (`aggregate-document-text.gateway.ts`): PDF sai
+      // pela camada de texto, imagem pelo OCR. Aqui só existe "tem leitor" ou "não tem".
+      if (dependencies.ocr === undefined) {
         return { ...document, extracted: null }
       }
 
@@ -141,7 +141,9 @@ async function runOcrAndMaybeApprove(input: {
   const text = await input.ocr
     .extractText({ bytes: input.bytes, mimeType: input.mimeType })
     .catch(() => null)
-  if (text === null) return { ...input.document, extracted: null }
+  // Texto vazio é ausência, não extração: o PDF da CNH-e é imagem embutida no invólucro do Serpro,
+  // e sai daqui em branco. Seguir adiante gravaria uma extração de campos todos nulos.
+  if (text === null || text.trim().length === 0) return { ...input.document, extracted: null }
 
   if (input.type === 'cnh') {
     const extracted = extractCnhFields(text)
