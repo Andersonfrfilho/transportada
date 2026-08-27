@@ -28,7 +28,7 @@ const PAGE_HEIGHT_POINTS = 842
 const DEFAULT_FONT_SIZE = 8
 
 /** O build `legacy/` é obrigatório fora do navegador: o normal quebra em Node com `DOMMatrix`. */
-const getLegacyDocument = pdfjsLegacy.getDocument as unknown as PdfGetDocument
+export const getLegacyDocument = pdfjsLegacy.getDocument as unknown as PdfGetDocument
 
 /** Parênteses e barra invertida são sintaxe de string no PDF: escapá-los é o mínimo. */
 function escapePdfText(text: string): string {

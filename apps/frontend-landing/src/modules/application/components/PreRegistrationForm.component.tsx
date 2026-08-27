@@ -16,6 +16,11 @@ import { CNPJ_LENGTH, formatTaxId, normalizeTaxId } from '@/modules/shared/taxId
 import { Combobox, type ComboboxOption } from '@/modules/shared/components/Combobox.component'
 import { createAggregateApplicationClient } from '../shared/landingClient.service'
 import { createCompanyInfoClient, mergeCompanyIntoFields } from '../shared/cnpjInfo.service'
+import { mergeCcmeiIntoFields } from '../shared/ccmei.service'
+import {
+  useCompanyDocumentIntake,
+  type CompanyDocumentIntake,
+} from '../hooks/useCompanyDocumentIntake.hook'
 import { isLookupableCnpj, useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { formatPostalCode } from '../shared/postalCode.service'
 import styles from './PreRegistrationForm.module.css'
@@ -140,6 +145,12 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
   const showUnitSelect = settings.units.length > 1
   const isCompany = isLookupableCnpj(fields.taxId)
+  const documentIntake = useCompanyDocumentIntake((reading) => {
+    setFields((current) => ({
+      ...current,
+      ...mergeCcmeiIntoFields({ current, formatPostalCode, values: reading.values }),
+    }))
+  })
 
   function updateField<TField extends keyof FormFields>(
     field: TField,
@@ -287,6 +298,19 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                   ? 'Não encontramos este CNPJ na Receita — pode preencher à mão.'
                   : 'Preenchemos com o que a Receita informa. Confira e corrija se precisar.'}
             </p>
+            <label className={styles.field}>
+              <span className={styles.label}>Anexar o CCMEI (opcional)</span>
+              <input
+                className={styles.input}
+                type="file"
+                accept="application/pdf"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file !== undefined) void documentIntake.read(file)
+                }}
+              />
+            </label>
+            <p className={styles.hint}>{describeDocumentIntake(documentIntake)}</p>
             <label className={styles.field}>
               <span className={styles.label}>Razão social</span>
               <input
@@ -638,4 +662,21 @@ function buildDeclaredData(fields: FormFields): Record<string, unknown> {
   }
 
   return { ...(company === undefined ? {} : { company }), driver, vehicle }
+}
+
+/**
+ * O estado da leitura vira frase para quem anexou. Documento não reconhecido **não** é erro: o
+ * arquivo segue anexado e o operador o revisa — dizer "falhou" ali faria a pessoa tentar de novo um
+ * envio que já deu certo.
+ */
+function describeDocumentIntake(intake: CompanyDocumentIntake): string {
+  if (intake.status === 'reading') return 'Lendo o documento aqui no seu aparelho…'
+  if (intake.status === 'failed')
+    return 'Não conseguimos ler o arquivo. Ele será anexado assim mesmo.'
+  if (intake.status === 'ready' && intake.reading?.kind !== 'ccmei') {
+    return 'Anexado. Não parece um CCMEI, então não preenchemos nada a partir dele.'
+  }
+  if (intake.status === 'ready') return 'Lemos o CCMEI e preenchemos os campos que estavam vazios.'
+
+  return 'O arquivo é lido no seu aparelho e nada dele é enviado antes de você concluir o cadastro.'
 }

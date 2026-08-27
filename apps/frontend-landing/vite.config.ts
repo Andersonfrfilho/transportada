@@ -86,6 +86,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // O pdf.js é carregado por `import()` só quando alguém anexa um documento, e são 423 KiB.
+        // Sem esta exclusão o service worker os baixa no precache de **todo** visitante da página
+        // pública — inclusive de quem vai preencher o cadastro digitando, que é a maioria. O
+        // `import()` sozinho tira o pdf.js do primeiro render, não da conta de dados de quem passa.
+        globIgnores: ['**/pdf-*.js', '**/pdf.worker.min-*.{js,mjs}'],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {

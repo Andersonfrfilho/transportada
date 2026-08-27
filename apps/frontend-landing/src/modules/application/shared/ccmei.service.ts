@@ -2,6 +2,8 @@
 
 import { isValidCnpj, readValueBelowLabel, type PdfPageText } from '@adatechnology/document-intake'
 
+import type { CompanyDeclaredFields } from './cnpjInfo.service'
+
 /**
  * Spec 066: o CCMEI preenche o que ele diz, e **só** o que ele diz. Cada campo que fica em branco
  * fica com o motivo à vista — campo vazio sem explicação vira digitação de novo, e valor inventado
@@ -189,5 +191,38 @@ function readAddress(input: {
     postalCode: digits,
     state: state.toUpperCase(),
     street,
+  }
+}
+
+/**
+ * O CCMEI entra no que está **vazio**, nunca por cima do que a pessoa escreveu nem por cima do que a
+ * consulta trouxe: ele existe para preencher o que a consulta não prova (P2), e o CNPJ digitado é
+ * dela — divergir dele é assunto do operador, não deste merge.
+ */
+export function mergeCcmeiIntoFields(input: {
+  readonly current: CompanyDeclaredFields
+  readonly formatPostalCode: (value: string) => string
+  readonly values: Partial<CcmeiValues>
+}): CompanyDeclaredFields {
+  const { current, values } = input
+  const address = values.address
+  const keepOrFill = (typed: string, fromDocument: string | undefined): string =>
+    typed === '' ? (fromDocument ?? '') : typed
+
+  return {
+    city: keepOrFill(current.city, address?.municipality),
+    companyLegalName: keepOrFill(current.companyLegalName, values.legalName),
+    companyOpenedAt: keepOrFill(current.companyOpenedAt, values.openedAt),
+    companySituation: keepOrFill(current.companySituation, values.situation),
+    companyTradeName: keepOrFill(current.companyTradeName, values.tradeName),
+    complement: current.complement,
+    district: keepOrFill(current.district, address?.district),
+    number: keepOrFill(current.number, address?.number),
+    postalCode:
+      current.postalCode === '' && address !== undefined
+        ? input.formatPostalCode(address.postalCode)
+        : current.postalCode,
+    state: keepOrFill(current.state, address?.state),
+    street: keepOrFill(current.street, address?.street),
   }
 }

@@ -70,8 +70,9 @@
       "name": "@transportada/frontend-landing",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.1",
+        "@adatechnology/document-intake": "0.1.0-rc.2",
         "@tanstack/react-query": "5.90.20",
+        "pdfjs-dist": "^6.2.108",
         "react": "19.2.0",
         "react-dom": "19.2.0",
         "workbox-window": "7.4.1",
@@ -85,7 +86,6 @@
         "@vitejs/plugin-react": "5.1.1",
         "eslint": "9.39.5",
         "globals": "17.3.0",
-        "pdfjs-dist": "^6.2.108",
         "typescript": "5.9.3",
         "typescript-eslint": "8.64.0",
         "vite": "7.3.6",
@@ -1639,6 +1639,8 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@eslint/eslintrc/globals": ["globals@14.0.0", "", {}, "sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ=="],
+
+    "@transportada/frontend-landing/@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0-rc.2", "", {}, "sha512-2VsaHUB+dHz0epKWHRkbtmFQE3w1y8YY12x7xm7o6Ybv26i07WFFXMBUumsQxy/gzrEnUCzDypH8rc686SgzFg=="],
 
     "@typescript-eslint/eslint-plugin/ignore": ["ignore@7.0.6", "", {}, "sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw=="],
 

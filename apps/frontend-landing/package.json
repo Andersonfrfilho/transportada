@@ -15,8 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@adatechnology/document-intake": "0.1.0-rc.1",
+    "@adatechnology/document-intake": "0.1.0-rc.2",
     "@tanstack/react-query": "5.90.20",
+    "pdfjs-dist": "^6.2.108",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "workbox-window": "7.4.1"
@@ -30,7 +31,6 @@
     "@vitejs/plugin-react": "5.1.1",
     "eslint": "9.39.5",
     "globals": "17.3.0",
-    "pdfjs-dist": "^6.2.108",
     "typescript": "5.9.3",
     "typescript-eslint": "8.64.0",
     "vite": "7.3.6",
