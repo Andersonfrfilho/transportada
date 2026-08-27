@@ -56,9 +56,10 @@ e-mail, isso é trabalho novo, e é honesto chamá-lo assim.
 
 ## O que ficou de fora
 
-1. **O DAMDFE não chega ao motorista (T016, requisito 9).** Quando o manifesto autoriza, o romaneio
-   continua sendo o que ele tem na mão. Numa barreira, o romaneio **não vale**: ele diz, com todas
-   as letras, que não é documento fiscal. Este é o buraco que custa multa, e é o primeiro a fechar.
+1. **O DAMDFE não substitui o romaneio sozinho.** Ele é **botão**, por decisão de quem opera: com
+   manifesto autorizado a viagem mostra um cartão com a chave e o código de barras, e os dois
+   formatos saem sob demanda — DAMDFE em PDF e XML. O romaneio continua na tela abaixo dele, porque
+   a carga urbana nunca terá manifesto e para ela o romaneio é o que existe.
 2. **Nenhuma notificação (T017, requisito 11).** "Ficou pronta", "emitido" e sobretudo "não consegui
    emitir, e o motivo" não saem. O automático que **recusa** hoje só deixa rastro em log: quem opera
    descobre abrindo a viagem.
@@ -71,6 +72,32 @@ e-mail, isso é trabalho novo, e é honesto chamá-lo assim.
 5. **A membership sintética do serviço é provisionada à mão** em instalação real. Localmente ela
    nasce no seed; numa transportadora, alguém precisa criá-la por empresa — e é exatamente essa
    lista que limita o estrago de um segredo vazado (ADR-0047 §3).
+
+## O DAMDFE, e o que ele reaproveitou
+
+O repositório tinha renderizador de **DACTE** e nenhum de DAMDFE. O que os dois têm em comum é o
+**papel** — cabeçalho com emitente, sigla, código de barras da chave e protocolo, e daí para baixo
+campos numa grade de 12 —, e é isso que virou `shared/fiscal-sheet`. O DACTE passou a montar só o
+conteúdo dele, e os contratos que já existiam provam que o papel não mudou.
+
+Três decisões que ficam escritas:
+
+- **O DAMDFE nasce do XML autorizado**, nunca do payload que pedimos à SEFAZ. Papel montado do
+  pedido imprimiria um documento que a SEFAZ não conhece — e é justamente o papel que a barreira
+  confere.
+- **Ele não leva QR Code.** O layout do MDF-e não publica um, ao contrário do CT-e; desenhar um
+  inventado daria ao fiscal um código que não resolve em lugar nenhum.
+- **O PDF vem como bytes; o XML, como URL assinada.** Numa barreira, uma URL de cinco minutos que
+  expirou no bolso não abre nada — já o XML existe para ser repassado depois, e aí a URL serve.
+
+| Decisão                                           | Como ela está travada                                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| O motorista alcança **só** a viagem dele          | integração contra Postgres: o motorista de outra viagem recebe `missing`, não "não é seu"              |
+| Manifesto de outra empresa é ausência             | mesma integração, com a empresa trocada                                                                |
+| "Não voltou da SEFAZ" é diferente de "não existe" | manifesto em `issuing` responde `not-authorized`; o CHECK do banco recusou a fixture que tentou fingir |
+| Uma cidade de descarga não some do papel          | contrato do parser: sem `isArray`, a única cidade viraria objeto e o papel sairia sem ela              |
+| O papel diz quando é homologação                  | contrato lê o texto desenhado no PDF, não o layout                                                     |
+| O nome do arquivo carrega a chave                 | contrato do cliente: `damdfe.pdf` genérico some entre downloads no celular                             |
 
 ## Auditoria de segurança (§15 do `code-standart.md`)
 
