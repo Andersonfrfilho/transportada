@@ -221,6 +221,8 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
+import { DrizzleContractorPortalBindingRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal-binding.repository.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
@@ -715,6 +717,7 @@ function createApplicationRoutes({
   const contractorRegistry = createContractorsUseCase({
     repository: new DrizzleContractorRepository(database),
   })
+  const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
   const municipalHolidays = createMunicipalHolidaysUseCase({
     repository: new DrizzleMunicipalHolidayRepository(database),
   })
@@ -1218,6 +1221,11 @@ function createApplicationRoutes({
       removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
       saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
+    }),
+    ...createContractorPortalBindingRoutes({
+      bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
+      listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },
+      unbindPortalUser: { execute: (input) => contractorPortalBindings.unbind(input) },
     }),
     ...createDeliveryClientRoutes({
       createClient: { execute: (input) => deliveryClients.create(input) },

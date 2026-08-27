@@ -19,3 +19,31 @@ export class ContractorNotBoundError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0050 §2: o vínculo é do papel `contractor`. Amarrar a conta de um operador a um contratante
+ * não daria acesso nenhum — `deliveries.track` não está no papel dele —, e é justamente isso que faz
+ * o erro valer a pena: quem tentou acreditaria ter concedido acesso, e ninguém descobriria até o
+ * cliente ligar dizendo que não entra.
+ */
+export class ContractorPortalRoleRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_PORTAL_ROLE_REQUIRED',
+      details: [{ field: 'membershipId', message: 'contractor' }],
+      message: 'Only a membership with the contractor role can be bound',
+      status: 409,
+    })
+  }
+}
+
+/** Vínculo que não existe nesta empresa responde como vínculo que nunca existiu. */
+export class ContractorPortalBindingNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_PORTAL_BINDING_NOT_FOUND',
+      message: 'Portal binding was not found',
+      status: 404,
+    })
+  }
+}

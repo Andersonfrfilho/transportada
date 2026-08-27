@@ -33,6 +33,8 @@ describe('fleet driver schema', () => {
       'tax_id',
       'linked_tax_id',
       'linked_legal_name',
+      // ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo, desligado por padrão
+      'location_sharing_consent_at',
       /** ADR-0049 §3: como este motorista é pago — o agregado por rota, o da casa por quinzena. */
       'payment_model',
       'fixed_amount',
@@ -102,6 +104,8 @@ describe('fleet driver schema', () => {
       'fixed_amount',
       'payment_period',
       'payment_closing_day',
+      // Nulo é ausência de aceite — e enquanto for nulo, o portal não mostra posição nenhuma
+      'location_sharing_consent_at',
     ]
 
     expect(requiredColumnNames(fleetDrivers)).toEqual(

@@ -214,7 +214,7 @@ describe('user invitation schema', () => {
     expect(config.foreignKeys[0]?.reference().foreignTable).toBe(userInvitations)
     expect(config.foreignKeys[0]?.onDelete).toBe('cascade')
     expect(checkSql(userInvitationRoles, 'user_invitation_roles_role_check')).toBe(
-      `"user_invitation_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator')`,
+      `"user_invitation_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor')`,
     )
   })
 })

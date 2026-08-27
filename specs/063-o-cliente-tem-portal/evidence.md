@@ -84,3 +84,44 @@ fecha o portal da conta dele.
 - **Sem cursor**: o teto é `CONTRACTOR_DELIVERY_LIMIT = 100`, sem paginação. Contratante com mais de
   cem notas no período vê as cem mais recentes e **não é avisado disso** — quando aparecer, é cursor
   igual ao da tabela de CT-es.
+
+## T004 — administrar o vínculo
+
+Três rotas em `/contractors/:id/portal-users`, todas sob **`users.manage`** — e não `settings.manage`.
+São decisões diferentes que moram na mesma tela: administrar o cadastro do contratante decide **para
+quem se cobra**; amarrar uma conta a ele decide **quem enxerga a operação**. O contrato reprova
+`settings.manage` de propósito.
+
+Duas guardas no repositório:
+
+- **só membership com o papel `contractor` pode ser amarrada** (`409
+CONTRACTOR_PORTAL_ROLE_REQUIRED`). Amarrar um operador não daria acesso nenhum — `deliveries.track`
+  não está no papel dele —, e é justamente isso que faz o erro valer: quem tentou acreditaria ter
+  concedido acesso, e ninguém descobriria até o cliente ligar dizendo que não entra;
+- **amarrar duas vezes é o mesmo vínculo** (`onConflictDoNothing`), porque quem administra clica de
+  novo quando a rede some.
+
+Comandos executados:
+
+```
+bun run typecheck                                # limpo
+bun run lint                                     # limpo
+bun run test                                     # 3507 pass / 0 fail / 19 skip
+bun run test:integration                         # 166 pass / 0 fail / 4 skip
+```
+
+Quatro contratos existentes reprovaram e foram atualizados com o porquê: o CHECK do convite
+(`user-invitation-schema`, que agora aceita `contractor` — contratante se convida) e as duas listas
+de colunas do motorista (`fleet-schema/drivers`, pelo consentimento anulável).
+
+⚠️ A primeira rodada de `test:integration` acusou uma falha em "drains and exits cleanly on SIGTERM";
+era **do ambiente da sessão** (o subprocesso herda `process.env`, e faltavam `KEYCLOAK_ADMIN_*`), não
+do código. Com o `.env` do repositório carregado, passa.
+
+### Buracos declarados
+
+- **Não há tela** — criar o contratante-usuário hoje é convidar por `/company-users` com o papel
+  `contractor` e depois chamar `POST /contractors/:id/portal-users` na mão. A tela entra com o
+  frontend (T009–T010).
+- **`GET /client/me/deliveries` continua sem existir** (T005): o contratante já pode ser amarrado,
+  mas ainda não tem o que abrir.

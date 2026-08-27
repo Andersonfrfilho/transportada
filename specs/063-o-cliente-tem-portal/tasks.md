@@ -16,8 +16,8 @@ documentos amarrados. A ADR-0050 §2 foi reescrita; T003 e T004 mudaram de conte
 | ------- | -------------------------------------------------------------------------------- | --------- | ------ |
 | T001 🧠 | ADR-0050, e a spec sem cláusula em aberto                                        | —         | ✅     |
 | T002    | Migration: vínculo contratante↔documento, papel, ping de posição, consentimento | 2, 3      | ✅     |
-| T003 🧠 | O recorte do contratante: documentos da conta, e nenhum vindo do cliente         | 2, 8      | ⬜     |
-| T004    | Administrar o vínculo: convidar contratante e amarrar documento                  | 2, 3, 4   | ⬜     |
+| T003 🧠 | O recorte do contratante: documentos da conta, e nenhum vindo do cliente         | 2, 8      | ✅     |
+| T004    | Administrar o vínculo: convidar contratante e amarrar documento                  | 2, 3, 4   | ✅     |
 | T005 🧠 | `/client/me/deliveries`: payload mínimo, com contrato que reprova campo interno  | 4, 5      | ⬜     |
 | T006    | Agendar pelo portal, pela máquina de estados da 060                              | 6         | ⬜     |
 | T007    | O contratante aprova o lote linha a linha, com ator externo na trilha            | 7         | ⬜     |
