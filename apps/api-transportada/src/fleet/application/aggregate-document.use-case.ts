@@ -14,6 +14,7 @@ import {
   type ExtractedCnhFields,
   type ExtractedCrlvFields,
 } from '../domain/aggregate-document-ocr.policy.js'
+import { AGGREGATE_STORAGE_PROVIDER } from '../domain/aggregate-storage.constant.js'
 import { assertAggregateDocumentBytes } from '../domain/aggregate-document.policy.js'
 import type { AggregateDocumentOcrPort } from './aggregate-document-ocr.port.js'
 import type {
@@ -53,8 +54,6 @@ export type AggregateDocumentUseCase = Readonly<{
     readonly type: AggregateDocumentType
   }) => Promise<AggregateDocumentUploadResult>
 }>
-
-const STORAGE_PROVIDER = 'object-storage'
 
 export function buildAggregateDocumentObjectKey(input: {
   readonly companyId: string
@@ -97,7 +96,7 @@ export function createAggregateDocumentUseCase(
         companyId,
         mimeType,
         objectKey: key,
-        provider: STORAGE_PROVIDER,
+        provider: AGGREGATE_STORAGE_PROVIDER,
         sha256,
         sizeBytes: bytes.byteLength,
         storedObjectId: objectId,

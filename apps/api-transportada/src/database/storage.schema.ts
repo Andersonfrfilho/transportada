@@ -20,6 +20,8 @@ export const STORAGE_OBJECT_PURPOSES = [
   'aggregate_document',
   /** Spec 057 D4: foto do canhoto e assinatura colhida na tela, ligadas ao evento de entrega. */
   'delivery_proof',
+  /** Spec 066 T023: anexo enviado antes do formulário, quando ainda não há candidatura nem conta. */
+  'aggregate_application_attachment',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 

@@ -16,6 +16,9 @@ export const API_PUBLIC_LANDING_LOGO_PATH = '/public/landing-logo'
 export const API_PUBLIC_CNPJ_INFO_PATH = '/public/cnpj-info'
 export const API_PUBLIC_AGGREGATE_APPLICATIONS_PATH = '/public/aggregate-applications'
 export const API_PUBLIC_AGGREGATE_ACCOUNTS_PATH = '/public/aggregate-accounts'
+/** Anexo enviado antes do formulário: o rascunho existe sem candidatura até o submit amarrá-lo. */
+export const API_PUBLIC_AGGREGATE_APPLICATION_ATTACHMENTS_PATH =
+  '/public/aggregate-application-attachments'
 export const API_AGGREGATE_DOCUMENTS_PATH = '/aggregate-documents'
 export const API_AGGREGATE_APPLICATIONS_PATH = '/aggregate-applications'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =

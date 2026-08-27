@@ -62,6 +62,9 @@ import {
   createAggregateApplicationRoutes,
 } from './fleet/presentation/aggregate-application.routes.js'
 import { createAggregateAccountPublicRoutes } from './fleet/presentation/aggregate-account.routes.js'
+import { createAggregateApplicationAttachmentPublicRoutes } from './fleet/presentation/aggregate-application-attachment.routes.js'
+import { createAggregateApplicationAttachmentUseCase } from './fleet/application/aggregate-application-attachment.use-case.js'
+import { createDrizzleAggregateApplicationAttachmentRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment.repository.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -622,6 +625,21 @@ function createAnonymousRoutes({
       ? {}
       : { turnstileSecretKey: config.turnstileSecretKey }),
   })
+  const aggregateApplicationAttachmentPublicRoutes =
+    createAggregateApplicationAttachmentPublicRoutes({
+      attachments: createAggregateApplicationAttachmentUseCase({
+        bucket: resolveStorageBucket(process.env),
+        repository: createDrizzleAggregateApplicationAttachmentRepository(database),
+        storage: createNfeStorageGatewayFromEnvironment({
+          environment: process.env,
+          finalBucket: resolveStorageBucket(process.env),
+          stagingBucket: resolveStorageBucket(process.env),
+        }),
+      }),
+      ...(config.turnstileSecretKey === undefined
+        ? {}
+        : { turnstileSecretKey: config.turnstileSecretKey }),
+    })
   // Sem módulo de conta montado (064/T1), o cadastro do agregado não é publicado — mesma regra
   // de capacidade por ausência que o próprio `userModule` já segue.
   const aggregateAccountPublicRoutes =
@@ -642,6 +660,7 @@ function createAnonymousRoutes({
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
+      ...aggregateApplicationAttachmentPublicRoutes,
     ]
   }
 
