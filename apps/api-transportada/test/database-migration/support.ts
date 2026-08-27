@@ -152,6 +152,18 @@ export const TRIP_TABLES = [
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
 
+/**
+ * Spec 060: o cliente que tem hora e tem preço. Sem estar nesta lista a tabela **não é conferida** —
+ * `readBusinessTables` filtra pelo esperado, e o rollback passaria mesmo deixando tabela para trás.
+ */
+export const DELIVERY_CLIENT_TABLES = [
+  'delivery_clients',
+  'contractors',
+  'delivery_client_windows',
+  'delivery_client_exceptions',
+  'municipal_holidays',
+] as const
+
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
 export const INVITATION_DELIVERY_TABLES = ['invitation_delivery_outbox'] as const
 
@@ -211,6 +223,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...MDFE_TABLES,
     ...NFSE_TABLES,
     ...TRIP_TABLES,
+    ...DELIVERY_CLIENT_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

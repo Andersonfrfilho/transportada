@@ -50,6 +50,17 @@ emitente da nota.
 - BillingInvoice: itens, totais e eventos.
 - Trip: paradas ordenadas, condutores e documentos vinculados, com estado próprio (ADR-0043).
 - TripStop: uma parada por endereço de entrega distinto; agrupa as notas daquele endereço.
+- DeliveryClient: **o destinatário com identidade própria** (spec 060). Chave `(company_id, tax_id)`,
+  nasce sozinho na importação da NF-e com identidade e **sem regra** — janela, taxa esperada e
+  agendamento obrigatório são preenchidos à mão só por quem os tem (ADR-0048). Guarda o que afeta a
+  entrega, não o relacionamento comercial: isto **não é CRM**.
+- Contractor: **o embarcador que contratou o frete** — o emitente da nota, pelo mesmo caminho
+  automático. Guarda o período de fechamento e para quem o relatório de repasse vai.
+- DeliveryClientWindow e DeliveryClientException: a hora em que o cliente recebe. A janela é lista
+  (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
+- MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
+  cliente — e a exceção do cliente vence o feriado, para o CD que trabalha no feriado não sumir do
+  roteiro justamente no dia em que é o único aberto.
 - ProcessingJob e AuditLog: rastreabilidade transversal.
 
 ```mermaid

@@ -37,6 +37,13 @@ import {
 import { passwordResetDeliveryOutbox, passwordResetRequests } from './password-reset.schema.js'
 import { jobExecutions, jobSchedules } from './job-schedule.schema.js'
 import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
+import {
+  contractors,
+  deliveryClientExceptions,
+  deliveryClientWindows,
+  deliveryClients,
+  municipalHolidays,
+} from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
   cteBatches,
@@ -151,6 +158,7 @@ export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
 export * from './geocoding.schema.js'
+export * from './delivery-client.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -196,6 +204,7 @@ export const databaseSchema = {
   mdfeManifests,
   mdfeProcessedMessages,
   membershipRoles,
+  municipalHolidays,
   nfeAddresses,
   nfeDistributionCursors,
   nfeDocuments,
@@ -243,6 +252,10 @@ export const databaseSchema = {
   billingInvoiceItems,
   billingInvoices,
   companyRouteOptimizationSettings,
+  contractors,
+  deliveryClientExceptions,
+  deliveryClientWindows,
+  deliveryClients,
   geocodedAddresses,
   landingSettings,
   routeSuggestionStops,

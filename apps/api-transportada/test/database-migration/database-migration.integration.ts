@@ -27,6 +27,7 @@ import {
   OPERATIONS_TABLES,
   MDFE_TABLES,
   NFSE_TABLES,
+  DELIVERY_CLIENT_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -67,6 +68,7 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...DELIVERY_CLIENT_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -113,6 +115,7 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...DELIVERY_CLIENT_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
