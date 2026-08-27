@@ -206,6 +206,9 @@ import { createFleetDriverRegionsUseCase } from './freight-regions/application/f
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
+import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
+import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
@@ -658,6 +661,9 @@ function createApplicationRoutes({
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
+  const deliveryClients = createDeliveryClientsUseCase({
+    repository: new DrizzleDeliveryClientRepository(database),
+  })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
@@ -1071,6 +1077,15 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    ...createDeliveryClientRoutes({
+      createClient: { execute: (input) => deliveryClients.create(input) },
+      getByTaxId: { execute: (input) => deliveryClients.getByTaxId(input) },
+      getClient: { execute: (input) => deliveryClients.get(input) },
+      listClients: { execute: (input) => deliveryClients.list(input) },
+      replaceExceptions: { execute: (input) => deliveryClients.replaceExceptions(input) },
+      replaceWindows: { execute: (input) => deliveryClients.replaceWindows(input) },
+      updateClient: { execute: (input) => deliveryClients.update(input) },
     }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
