@@ -96,12 +96,16 @@ services:
     ports:
       - '127.0.0.1:${OSRM_PORT:-53005}:5000'
     healthcheck:
-      # A rota trivial de um ponto para ele mesmo: se ela responde, o dataset carregou
-      test:
-        [
-          'CMD-SHELL',
-          '{ printf "GET /route/v1/driving/0,0;0,0 HTTP/1.0\r\n\r\n" >&0; grep -q "HTTP/1.0 200"; } 0<>/dev/tcp/localhost/5000',
-        ]
+      # ⚠️ `wget`, e não `/dev/tcp`: o `/bin/sh` desta imagem é o BusyBox, que não implementa a
+      # redireção de socket do bash — o healthcheck anterior falhava com "nonexistent directory" em
+      # **todo** dataset, e `make routing-up` (que usa `--wait`) nunca ficava pronto. Ninguém tinha
+      # rodado o serviço até o E2E da spec 058 pedir por ele.
+      #
+      # A sonda é `/route` de um ponto para ele mesmo: se responde, o processo subiu e leu o dataset.
+      # A URL vai **entre aspas** e em `127.0.0.1`: o `;` do par de coordenadas é separador de comando
+      # no shell (sem aspas a sonda vira dois comandos, e o segundo, `0,0`, não existe), e `localhost`
+      # resolve para IPv6 dentro do contêiner, onde o OSRM não escuta.
+      test: ['CMD-SHELL', 'wget -q -O /dev/null "http://127.0.0.1:5000/route/v1/driving/0,0;0,0"']
       interval: 5s
       timeout: 3s
       retries: 20

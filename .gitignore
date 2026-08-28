@@ -26,3 +26,5 @@ specs/*/samples/
 .omc/*
 !.omc/skills/
 .omo/
+deploy/osrm/data/
+!deploy/osrm/data/.gitkeep

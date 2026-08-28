@@ -105,6 +105,16 @@ up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 		ENV_FILE="$(ENV_FILE)" $(MAKE) --no-print-directory storage-bootstrap; \
 	fi
 
+routing-fixture: ## 🗺️  Processa a grade sintética em deploy/osrm/data (para o E2E, não para a rua)
+	@cp deploy/osrm/fixtures/ribeirao-grid.osm deploy/osrm/data/fixture.osm
+	@for stage in "osrm-extract -p /opt/car.lua /data/fixture.osm" \
+		"osrm-partition /data/fixture.osrm" \
+		"osrm-customize /data/fixture.osrm"; do \
+		docker run --rm -v "$$PWD/deploy/osrm/data:/data" \
+			ghcr.io/project-osrm/osrm-backend:v6.0.0 $$stage >/dev/null || exit 1; \
+	done
+	@echo "OSRM fixture pronto — suba com OSRM_DATASET=fixture make routing-up"
+
 routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
 	@$(COMPOSE) --profile routing up -d --wait osrm
 
@@ -202,6 +212,8 @@ test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente d
 
 worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
 	@SERVICES="postgres rabbitmq minio" $(MAKE) up
+	@# O OSRM é opt-in: sem `make routing-fixture` + `routing-up`, os testes dele **pulam** em vez de
+	@# falhar — a integração comum não pode exigir um dataset de centenas de MB (ver spec 058).
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		worker_database="$$(bun apps/worker-transportada/scripts/provision-integration-database.ts)"; \
 		worker_database_url="$${DATABASE_URL%/*}/$$worker_database"; \

@@ -105,7 +105,37 @@ vai a `failed` com `ROUTING_MATRIX_UNAVAILABLE` em vez de responder rota errada 
 
 ## Como saber que o extract está pequeno demais
 
-Não é erro, e é justamente por isso que precisa ser procurado: paradas fora da área viram pares
-inalcançáveis na matriz, e a sugestão as separa com aviso em vez de falhar. Um aumento de paradas
-"inalcançáveis" numa região específica é o sintoma de o extract não cobrir mais a operação —
-não de endereço errado.
+⚠️ **Corrigido em 2026-08-27, medido contra o serviço** (`worker-transportada/test/osrm-routing-matrix.integration.test.ts`).
+Este runbook afirmava que parada fora da área vira par **inalcançável**. **Não vira.** O OSRM
+_encaixa_ a coordenada na rua mais próxima que o dataset conhece e devolve a distância entre os
+pontos encaixados: uma parada a mil quilômetros da área volta com a distância de uma parada vizinha,
+plausível e errada. Medido com a grade sintética — o ponto no meio do Atlântico voltou com a mesma
+distância do canto oposto da grade.
+
+Não há aviso, e é por isso que precisa ser procurado ativamente:
+
+- **rota curta demais para o endereço**: a sugestão propõe cinco minutos para uma entrega em outra
+  região. O sintoma é o número _baixo_, não o alto;
+- **paradas distintas com distâncias idênticas** entre si — o encaixe colapsa coordenadas diferentes
+  no mesmo nó da borda do extract.
+
+`radiuses=` no `/table` faria o OSRM recusar o ponto distante em vez de encaixá-lo — mas ele responde
+`400` para a **matriz inteira**, derrubando a sugestão por causa de um único endereço fora da área.
+Escolher entre "número plausível e errado" e "sugestão inteira falha" é decisão de produto, e está
+registrada como risco aberto em `specs/058-o-roteiro-se-sugere-sozinho/tasks.md` — não resolvida
+aqui.
+
+## O dataset sintético do E2E
+
+O extract real não cabe no repositório, e sem _algum_ dataset o roteirizador nunca era exercitado
+contra o serviço de verdade. `deploy/osrm/fixtures/ribeirao-grid.osm` é uma grade de três por três em
+Ribeirão Preto — seis ruas, 2,7 KB — que `make routing-fixture` processa em segundos:
+
+```bash
+make routing-fixture
+OSRM_DATASET=fixture make routing-up
+ROUTING_MATRIX_URL=http://localhost:53005 bun run --cwd apps/worker-transportada test:integration
+```
+
+Ela **não** prova qualidade de rota — prova contrato de transporte: formato do `/table`, distância de
+rua em vez de linha reta, e o encaixe descrito acima. Sem `ROUTING_MATRIX_URL` os testes pulam.

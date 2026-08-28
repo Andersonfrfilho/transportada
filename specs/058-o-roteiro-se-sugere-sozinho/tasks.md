@@ -555,3 +555,54 @@ typecheck · lint · format                                  # limpos
 
 - **Sem OSRM em suíte nenhuma** — a matriz é dublê no E2E do worker.
 - **O fuso da janela é premissa**, não configuração (`BRAZIL_UTC_OFFSET_SECONDS`).
+
+### O OSRM no E2E (2026-08-27)
+
+O último buraco da spec, e o que mais rendeu: até aqui **nenhuma suíte falava com o OSRM**, porque o
+extract real do Sudeste tem centenas de MB e não cabe no repositório nem numa máquina nova.
+
+A saída foi um **dataset sintético**: `deploy/osrm/fixtures/ribeirao-grid.osm`, uma grade de três por
+três em Ribeirão Preto — seis ruas, 2,7 KB —, processada por `make routing-fixture` em segundos e
+servida pelo mesmo container do `compose.yaml`. Ela **não** prova qualidade de rota; prova o que o
+dublê nunca teve como provar: o formato do `/table`, a distância **de rua** (maior que a linha reta,
+porque a rua faz esquina) e o que o serviço faz com ponto fora da área.
+
+Sem `ROUTING_MATRIX_URL` os quatro testes **pulam** — a integração comum não pode exigir dataset.
+Medido: `make worker-integration` dá 61 pass / 4 skip; com a variável, 65 pass / 0 skip.
+
+#### ⚠️ Dois defeitos que só o serviço de verdade acharia
+
+**1. O healthcheck do OSRM nunca passou.** A sonda usava `/dev/tcp`, que o `/bin/sh` da imagem
+(BusyBox) não implementa — ela falhava com "nonexistent directory" em **todo** dataset, e
+`make routing-up`, que usa `--wait`, nunca ficava pronto. Ninguém tinha rodado o serviço até este
+E2E pedir por ele. Hoje é `wget`, com a URL entre aspas (o `;` do par de coordenadas é separador de
+comando no shell) e em `127.0.0.1` (`localhost` resolve para IPv6 dentro do contêiner, onde o OSRM
+não escuta). Três erros na mesma linha, e nenhum apareceria sem subir o container.
+
+**2. O runbook afirmava o oposto do que o OSRM faz.** Ele dizia que parada fora da área vira par
+**inalcançável**. **Não vira**: o OSRM _encaixa_ a coordenada na rua mais próxima que conhece e
+devolve a distância entre os pontos encaixados. Medido — um ponto no meio do Atlântico voltou com a
+**mesma** distância do canto oposto da grade. É plausível, é errado, e não há aviso. O runbook foi
+corrigido com os sintomas reais (rota curta demais; paradas distintas com distâncias idênticas).
+
+#### Risco aberto, e é decisão de produto
+
+`radiuses=` no `/table` faria o OSRM recusar o ponto distante em vez de encaixá-lo — mas ele responde
+`400` para a **matriz inteira**, derrubando a sugestão inteira por causa de um endereço fora da área.
+As duas saídas são ruins de jeitos diferentes:
+
+- **hoje**: a sugestão sai com uma parada em lugar plausível e errado, e ninguém é avisado;
+- **com `radiuses`**: um endereço fora da área impede o roteiro de todas as outras.
+
+Não decidi sozinho: fica registrado aqui, e o teste **grava o comportamento real** para quem for
+tratar não começar acreditando no runbook antigo.
+
+Comandos executados:
+
+```
+make routing-fixture                                   # dataset em segundos
+OSRM_DATASET=fixture make routing-up                   # Healthy (era unhealthy para sempre)
+make worker-integration                                # 61 pass / 4 skip / 0 fail
+ROUTING_MATRIX_URL=… make worker-integration           # 65 pass / 0 fail
+worker: test · typecheck · lint · format:check         # limpos
+```
