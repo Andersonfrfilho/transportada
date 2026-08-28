@@ -57,14 +57,24 @@ describe('anexo de candidatura — envio anônimo', () => {
   /**
    * A chave do objeto **não** leva CPF nem CNPJ: quem envia é anônimo, e o documento dele ainda não
    * pertence a candidatura nenhuma. `security.md` §7 proíbe dado pessoal no nome da chave.
+   *
+   * A asserção é a **forma exata**, não "não contém onze dígitos": a chave é feita de dois UUIDs, e
+   * UUID aleatório contém onze dígitos seguidos de vez em quando. A versão anterior deste teste
+   * passava local e falhou no CI — teste que depende de sorte reprova sozinho, mais cedo ou mais
+   * tarde, e ensina a ignorar o vermelho.
    */
-  test('a chave do objeto não carrega dado pessoal', async () => {
+  test('a chave do objeto é empresa, tipo e rascunho — nada mais', async () => {
     const { stored, useCase } = buildUseCase()
 
-    await useCase.uploadDraft({ bytes: PDF_BYTES, companyId: COMPANY_ID, type: 'cnh' })
+    const result = await useCase.uploadDraft({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      type: 'cnh',
+    })
 
-    expect(stored[0]?.key).toContain(`tenants/${COMPANY_ID}/`)
-    expect(stored[0]?.key).not.toMatch(/\d{11}/u)
+    expect(stored[0]?.key).toBe(
+      `tenants/${COMPANY_ID}/aggregate-application-attachments/cnh/${result.draftId}`,
+    )
   })
 
   /** O tipo declarado vem do cliente; só a assinatura do arquivo decide o que é gravado. */
