@@ -18,6 +18,7 @@ export function createDrizzleAggregateApplicationAttachmentRepository(
       bucket,
       companyId,
       draftId,
+      extractedFields,
       mimeType,
       objectKey,
       provider,
@@ -47,7 +48,7 @@ export function createDrizzleAggregateApplicationAttachmentRepository(
 
         const [row] = await transaction
           .insert(aggregateApplicationAttachments)
-          .values({ companyId, draftId, storedObjectId, type })
+          .values({ companyId, draftId, extractedFields, storedObjectId, type })
           .returning({
             draftId: aggregateApplicationAttachments.draftId,
             type: aggregateApplicationAttachments.type,

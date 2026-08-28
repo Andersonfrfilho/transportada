@@ -65,6 +65,7 @@ import { createAggregateAccountPublicRoutes } from './fleet/presentation/aggrega
 import { createAggregateApplicationAttachmentPublicRoutes } from './fleet/presentation/aggregate-application-attachment.routes.js'
 import { createAggregateApplicationAttachmentUseCase } from './fleet/application/aggregate-application-attachment.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment.repository.js'
+import { extractAttachmentFields } from './fleet/infrastructure/aggregate-attachment-extraction.gateway.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -629,6 +630,7 @@ function createAnonymousRoutes({
     createAggregateApplicationAttachmentPublicRoutes({
       attachments: createAggregateApplicationAttachmentUseCase({
         bucket: resolveStorageBucket(process.env),
+        extractFields: extractAttachmentFields,
         repository: createDrizzleAggregateApplicationAttachmentRepository(database),
         storage: createNfeStorageGatewayFromEnvironment({
           environment: process.env,
