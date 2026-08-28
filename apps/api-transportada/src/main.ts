@@ -88,6 +88,10 @@ import { createNfseProviderCredentialsUseCase } from './nfse-profiles/applicatio
 import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/drizzle-nfse-profile.repository.js'
 import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
 import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
+import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
+import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
+import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
+import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
 import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
 import { createNfseInvoiceDiscardUseCase } from './nfse-invoices/application/nfse-invoice-discard.use-case.js'
@@ -986,6 +990,11 @@ function createApplicationRoutes({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
   })
+  const whatsappChannel = createWhatsAppChannelUseCase({
+    newChannelId: () => crypto.randomUUID(),
+    repository: new DrizzleWhatsAppChannelRepository(database),
+    secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
+  })
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
     unitOfWork: nfseProfileRepository,
@@ -1638,6 +1647,11 @@ function createApplicationRoutes({
       listProfileOptions: { execute: (input) => nfseEmissionProfiles.listOptions(input) },
       listProfiles: { execute: (input) => nfseEmissionProfiles.list(input) },
       updateProfile: { execute: (input) => nfseEmissionProfiles.update(input) },
+    }),
+    ...createWhatsAppChannelRoutes({
+      readChannel: { execute: (input) => whatsappChannel.read(input) },
+      removeChannel: { execute: (input) => whatsappChannel.remove(input) },
+      saveChannel: { execute: (input) => whatsappChannel.save(input) },
     }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },

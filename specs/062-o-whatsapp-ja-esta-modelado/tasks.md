@@ -57,7 +57,7 @@ falha alto é canal cadastrado com envelope ilegível.
 - **Aceite:** `.env.example` documentado; ausência de canal é ausência, não erro
 - **Verificação:** contrato de configuração
 
-### T003 — As rotas do canal (`settings.manage`)
+### T003 ✅ — As rotas do canal (`settings.manage`)
 
 `GET`/`PUT`/`DELETE /company-settings/whatsapp-channel`. A leitura devolve número e WABA; **nunca**
 o token, nem mascarado — máscara que permite confirmar um token é confirmação.
@@ -190,3 +190,47 @@ typecheck · lint · format:check                       # limpos
 
 - **`.env.example` e `.env` ganharam as duas variáveis**, mas nenhuma credencial foi cadastrada —
   isso é a tela da T003, e o token é você quem põe, no painel, nunca por aqui.
+
+### T003 — as rotas do canal (2026-08-28)
+
+`GET`/`PUT`/`DELETE /company-settings/whatsapp-channel`, as três sob `settings.manage` — quem
+configura o canal decide por qual número a empresa fala com o cliente.
+
+**O token não volta, nem mascarado.** A projeção é lista fechada e o contrato compara as chaves por
+extenso; máscara que permite confirmar um token é confirmação, porque quem tem o começo e o fim
+reconhece o segredo que vazou por outro caminho. O que a tela sabe é `tokenConfigured`.
+
+Quatro decisões que ficaram no código:
+
+- **cadastro novo exige token; atualização não.** Ninguém relê o token para redigitá-lo, e exigi-lo a
+  cada correção de número mandaria o operador buscá-lo na Meta de novo. Canal novo sem token é `422`
+  com o campo nomeado — gravar assim deixaria a tela dizendo "configurado" para um canal que falha no
+  primeiro envio;
+- **o id do canal é decidido antes de a linha existir**, porque ele entra no AAD: o envelope é selado
+  para a linha, e a linha nasce com o id que o selo prometeu;
+- **empresa sem canal é `null` e `200`**, não `404`: ausência é o caso normal, e a tela abre vazia;
+- **canal desligado não é oferecido ao envio** (`findSecret` filtra por `active`), mas continua
+  visível na configuração — desligar é o botão que o operador tem para parar o fluxo, e não é apagar.
+
+⚠️ **`tokenConfigured` sai da existência da chave no envelope, não de `is not null`.** A coluna é
+`not null` e o canal sem token grava `{}` — o predicado ingênuo responderia "tem token" para todo
+canal. A checagem é `secret_envelope ? 'ciphertext'`, feita **no banco**, justamente para o segredo
+não subir na projeção.
+
+```
+bun run --cwd apps/api-transportada test              # 3646 pass / 0 fail
+bun run --cwd apps/api-transportada test:integration  # 179 pass / 0 fail
+typecheck · lint · format:check                       # limpos
+```
+
+A integração prova o que só o banco prova: atualizar sem token **preserva** o que está selado (e a
+versão sobe, que é o que a tela usa para detectar edição concorrente), canal sem envelope não se diz
+configurado, e canal desligado some do envio sem sumir da tela. Um erro meu no caminho vale registro:
+o primeiro teste reusou o mesmo `phone_number_id` em duas empresas e **o unique global o pegou** — que
+é exatamente o que ele existe para pegar.
+
+#### Buracos declarados
+
+- **Não há tela** — o painel ainda não tem o formulário do canal. Cadastrar hoje é `PUT` na mão.
+- **Sem rate limit**, como o resto desta API (achado já em `docs/SECURITY.md`).
+- **Ninguém envia nada ainda**: `findSecret` existe e não tem chamador até a T004.

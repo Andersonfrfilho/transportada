@@ -70,6 +70,8 @@ export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
  * viagem, de nota ou de contratante — o servidor resolve pelos documentos amarrados à conta.
  */
+/** Spec 062: a credencial do WhatsApp mora perto do efeito — a aba de configuração da empresa. */
+export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 export const API_CTE_BATCHES_PATH = '/cte-batches'

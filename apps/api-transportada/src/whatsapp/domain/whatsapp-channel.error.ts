@@ -28,3 +28,18 @@ export class WhatsAppChannelNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * Cadastro novo sem token: gravar assim deixaria a tela dizendo "configurado" para um canal que
+ * falha no primeiro envio. Atualização sem token é outra coisa — mantém o que já está selado.
+ */
+export class WhatsAppChannelTokenRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_CHANNEL_TOKEN_REQUIRED',
+      details: [{ field: 'accessToken', message: 'required for a new channel' }],
+      message: 'A new WhatsApp channel requires the access token',
+      status: 422,
+    })
+  }
+}
