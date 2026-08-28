@@ -39,7 +39,7 @@ frente 2, quando houver conversa a guardar.
 
 > 🤖 Modelo: `sonnet`, com T001 e T004 em `opus`
 
-### T001 🧠 — `whatsapp_channels`: a credencial por empresa, selada
+### T001 🧠 ✅ — `whatsapp_channels`: a credencial por empresa, selada
 
 Tabela por empresa com o número (`phone_number_id`), o WABA e o **token selado** — envelope
 `A256GCM` com AAD `transportada:whatsapp-channel:v1:${companyId}:${channelId}`, o mesmo desenho da
@@ -90,6 +90,13 @@ aceitar, pelo mesmo trilho do worker.
 
 ### T007 — `ConversationsWorkspace` no painel, com tema por contrato
 
+⚠️ **A skill `adatechnology-ui` manda aqui, e ela é dura:** consumir a **tela composta inteira**, com
+a página do produto em 30–170 linhas de fiação, `labels` e slots. Remontar o grid à mão é o que fez as
+telas divergirem entre os três produtos, e é rejeitado em code review. Falta uma porta? a mudança é
+**no pacote**, com changeset, e o produto sobe a versão — nunca copiar a tela para dentro para
+ajustar um detalhe. Cores e vocabulário entram por contrato: `theme` (→ `--cv-*`) e `labels` montados
+a partir dos nossos locales e dos tokens de `src/styles/index.css`.
+
 ### T008 🧠 — O papel do atendimento
 
 O cliente vai ter **bot e atendimento manual**: a inbox precisa de papel próprio (`attendant`), com
@@ -120,3 +127,37 @@ T001 ──> T002 ──> T003 ──┐
 
 **A frente 1 é entregável sozinha**, e é o que paga a infraestrutura: convite, recuperação de senha e
 os avisos das specs 059/060 passam a sair por WhatsApp sem nenhuma tela nova.
+
+## Evidência
+
+### T001 — a credencial selada (2026-08-28)
+
+`whatsapp_channels`: uma linha **por empresa** — que é "por filial" neste produto —, com
+`phone_number_id`, `waba_id`, o número de exibição e o **token dentro do envelope**. Não existe
+coluna de token em claro, e o contrato falha se alguém acrescentar uma.
+
+O AAD é `transportada:whatsapp-channel:v1:${companyId}:${channelId}`, o mesmo desenho da Nota RP. O
+contrato prova a propriedade que ele compra, com um cofre de mentira que **respeita o AAD**: envelope
+copiado para outra empresa não abre, e nem para outro canal da mesma empresa. Chaveiro fora do ar e
+AAD que não casa respondem **igual** — distinguir contaria a quem tem acesso à API se aquela empresa
+tem canal cadastrado.
+
+Três CHECKs de formato, porque id trocado por número só apareceria no primeiro envio, com o cliente
+do outro lado esperando: os dois identificadores da Meta são numéricos, e o de exibição é E.164 sem o
+`+` (ou vazio, que é o padrão — ele é conveniência de tela, não requisito de envio).
+
+O rollback **recusa reverter** com canal ativo, e avisa que o token selado **não se recupera**: ele só
+existe dentro do envelope, e quem reverter precisa pegá-lo de novo no painel da Meta.
+
+```
+make migration-test                          # 86 pass / 0 fail
+bun run --cwd apps/api-transportada test     # 3630 pass / 0 fail
+typecheck · lint · format                    # limpos
+```
+
+#### Buracos declarados
+
+- **Ninguém escreve nem lê essa tabela ainda** — as rotas são a T003 e o driver a T004. Hoje ela é
+  estrutura sem consumidor, de propósito: a credencial vem antes de quem a usa.
+- **Sem rate limit** nas rotas que virão, como no resto desta API (achado já registrado em
+  `docs/SECURITY.md`).

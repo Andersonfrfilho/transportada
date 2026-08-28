@@ -184,6 +184,9 @@ export const MULTI_VEHICLE_SUGGESTION_TABLES = [
   'route_suggestion_stop_documents',
 ] as const
 
+/** Spec 062: a credencial do WhatsApp, por empresa e com o token selado. */
+export const WHATSAPP_CHANNEL_TABLES = ['whatsapp_channels'] as const
+
 /** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
 export const CONTRACTOR_PORTAL_TABLES = [
   'contractor_portal_bindings',
@@ -253,6 +256,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...TRIP_FINANCIAL_TABLES,
     ...CONTRACTOR_PORTAL_TABLES,
     ...MULTI_VEHICLE_SUGGESTION_TABLES,
+    ...WHATSAPP_CHANNEL_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

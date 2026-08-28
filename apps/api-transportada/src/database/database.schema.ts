@@ -128,6 +128,7 @@ import {
   routeSuggestions,
 } from './route-suggestion.schema.js'
 import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
+import { whatsappChannels } from './whatsapp-channel.schema.js'
 import {
   companyTaxSettings,
   tripCostEntries,
@@ -174,6 +175,7 @@ export * from './geocoding.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
+export * from './whatsapp-channel.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -285,6 +287,7 @@ export const databaseSchema = {
   tripCostEntries,
   tripDispatchSnapshots,
   tripLocationPings,
+  whatsappChannels,
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,
