@@ -670,6 +670,7 @@ function createAnonymousRoutes({
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
     ...aggregateApplicationPublicRoutes,
+    ...aggregateApplicationAttachmentPublicRoutes,
     ...aggregateAccountPublicRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
