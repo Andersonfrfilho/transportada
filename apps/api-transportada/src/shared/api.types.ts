@@ -52,6 +52,19 @@ export type ApiEnvironment = {
   /** Ausente, upload de documento do agregado nunca extrai nem aprova sozinho — só revisão manual. */
   readonly aggregateDocumentOcrUrl: string | undefined
   /**
+   * Spec 062: a Graph API da Meta. Aqui **não há segredo** — o token é por empresa e vive selado no
+   * banco (T001). O que a variável carrega é endereço e versão: a `baseUrl` existe para apontar para
+   * um mock local em dev, e a versão porque a Meta a exige no caminho e ela envelhece.
+   *
+   * As duas são opcionais **de propósito**: instalação sem WhatsApp não pode deixar de subir por
+   * causa delas, e empresa sem canal cadastrado simplesmente não tem o canal (a notificação cai no
+   * e-mail). O que falha alto é canal cadastrado com envelope ilegível — e isso é T004, não boot.
+   */
+  readonly whatsapp: {
+    readonly apiVersion: string
+    readonly baseUrl: string | undefined
+  }
+  /**
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
    * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.
    */

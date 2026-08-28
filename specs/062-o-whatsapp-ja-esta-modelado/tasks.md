@@ -48,7 +48,7 @@ credencial da Nota RP. O token em claro nunca é persistido nem logado.
 - **Aceite:** `company_id` único; token só sai por `openEnvelope`; migration + rollback
 - **Verificação:** `make migration-test` + contrato de schema
 
-### T002 — Configuração e boot fail-closed
+### T002 ✅ — Configuração e boot fail-closed
 
 `WHATSAPP_API_VERSION` e `WHATSAPP_BASE_URL` (mock local) no schema de env. Empresa **sem** linha de
 canal não derruba o boot — ela simplesmente não tem WhatsApp, e a notificação cai no e-mail. O que
@@ -161,3 +161,32 @@ typecheck · lint · format                    # limpos
   estrutura sem consumidor, de propósito: a credencial vem antes de quem a usa.
 - **Sem rate limit** nas rotas que virão, como no resto desta API (achado já registrado em
   `docs/SECURITY.md`).
+
+### T002 — a configuração, e o que ela deliberadamente não carrega (2026-08-28)
+
+Duas variáveis, e **nenhum segredo**: `WHATSAPP_API_VERSION` (padrão `v23.0` — a Meta a exige no
+caminho e ela envelhece) e `WHATSAPP_BASE_URL` (vazio aponta para a Graph API de verdade; preenchida,
+para um mock local em dev). O token, o número e o WABA são **por empresa**, selados no banco pela
+T001 — uma variável global de token daria um token para toda a instalação, e "um número por filial"
+viraria um número para todas.
+
+O contrato falha se alguém acrescentar `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` ou
+`WHATSAPP_WABA_ID` ao schema de ambiente — é a regra escrita como teste, não como comentário.
+
+**O boot não é fail-closed aqui, e isso é decisão, não esquecimento.** A spec dizia "boot falhando
+com mensagem clara enquanto a variável não existir"; com a credencial por empresa isso ficaria
+errado: instalação sem WhatsApp deixaria de subir por causa de um canal que ela não usa, e empresa
+sem canal cadastrado é **ausência**, não erro — a notificação cai no e-mail. O que falha alto é canal
+**cadastrado** com envelope ilegível, e isso é T004. As duas variáveis são opcionais, e a versão fora
+do formato da Graph API é recusada no boot: erro de digitação que só apareceria no primeiro envio.
+
+```
+bun run --cwd apps/api-transportada test              # 3634 pass / 0 fail
+bun run --cwd apps/api-transportada test:integration  # 176 pass / 0 fail
+typecheck · lint · format:check                       # limpos
+```
+
+#### Buraco declarado
+
+- **`.env.example` e `.env` ganharam as duas variáveis**, mas nenhuma credencial foi cadastrada —
+  isso é a tela da T003, e o token é você quem põe, no painel, nunca por aqui.

@@ -153,6 +153,22 @@ const environmentSchema = z.object({
       message: 'AGGREGATE_DOCUMENT_OCR_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Spec 062: a Graph API da Meta. Sem segredo aqui — o token é por empresa e vive selado no banco.
+  // A versão tem padrão porque a Meta a exige no caminho e ela envelhece; a base existe para apontar
+  // para um mock local em dev, e ausente significa a Graph API de verdade.
+  WHATSAPP_API_VERSION: z
+    .string()
+    .trim()
+    .regex(/^v[0-9]{1,3}\.[0-9]{1,3}$/u, { message: 'WHATSAPP_API_VERSION must look like v23.0' })
+    .default('v23.0'),
+  WHATSAPP_BASE_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'WHATSAPP_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
   // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
   QUEUE_PREFIX: optionalText(),
@@ -197,6 +213,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
     userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
     aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
+    whatsapp: { apiVersion: parsed.WHATSAPP_API_VERSION, baseUrl: parsed.WHATSAPP_BASE_URL },
     port: parsed.APP_PORT,
     postalCodeProviders: {
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,

@@ -108,6 +108,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             turnstileSecretKey: undefined,
             userAccessTokenSecret: undefined,
             aggregateDocumentOcrUrl: undefined,
+            whatsapp: { apiVersion: 'v23.0', baseUrl: undefined },
             vehicleCatalog: null,
           },
           logger,
