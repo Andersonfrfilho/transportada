@@ -2,12 +2,13 @@
 
 import {
   identifyDocumentKind,
+  readCcmei,
   readPdfTextLayer,
+  type CcmeiRemark,
+  type CcmeiValues,
   type DocumentKind,
   type PdfGetDocument,
 } from '@adatechnology/document-intake'
-
-import { readCcmei, type CcmeiRemark, type CcmeiValues } from './ccmei.service'
 
 /**
  * Spec 066 (P2): a leitura acontece **no navegador de quem anexa** — sem requisição, sem origem
