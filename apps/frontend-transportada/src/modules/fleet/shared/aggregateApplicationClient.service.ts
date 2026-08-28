@@ -35,8 +35,30 @@ export class AggregateApplicationRequestError extends Error {
   }
 }
 
+export type AggregateApplicationAttachment = Readonly<{
+  /** O que a leitura do **servidor** achou; `null` quando não houve leitura ou nada foi reconhecido. */
+  extractedFields: Readonly<Record<string, string | null>> | null
+  id: string
+  rejectionReason: string
+  status: AggregateApplicationStatus
+  taxId: string
+  type: 'ccmei' | 'cnh' | 'crlv' | 'other'
+}>
+
 export type AggregateApplicationClient = Readonly<{
   approve: (id: string) => Promise<AggregateApplication>
+  attachmentDownloadUrl: (
+    input: Readonly<{ applicationId: string; attachmentId: string }>,
+  ) => Promise<string>
+  listAttachments: (applicationId: string) => Promise<readonly AggregateApplicationAttachment[]>
+  reviewAttachment: (
+    input: Readonly<{
+      applicationId: string
+      attachmentId: string
+      decision: 'approved' | 'rejected'
+      rejectionReason: string
+    }>,
+  ) => Promise<AggregateApplicationAttachment>
   list: () => Promise<readonly AggregateApplication[]>
   reject: (
     input: Readonly<{ id: string; rejectionReason: string }>,
@@ -94,6 +116,15 @@ export function createAggregateApplicationClient(
       const body = await readJson({ dependencies, request })
       return (body as { data: AggregateApplication }).data
     },
+    async attachmentDownloadUrl({ applicationId, attachmentId }) {
+      const request = await authenticatedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${AGGREGATE_APPLICATIONS_PATH}/${applicationId}/attachments/${attachmentId}/download`,
+      })
+      const body = await readJson({ dependencies, request })
+      return (body as { data: { url: string } }).data.url
+    },
     async list() {
       const request = await authenticatedRequest({
         dependencies,
@@ -102,6 +133,15 @@ export function createAggregateApplicationClient(
       })
       const body = await readJson({ dependencies, request })
       return (body as { data: readonly AggregateApplication[] }).data
+    },
+    async listAttachments(applicationId) {
+      const request = await authenticatedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${AGGREGATE_APPLICATIONS_PATH}/${applicationId}/attachments`,
+      })
+      const body = await readJson({ dependencies, request })
+      return (body as { data: readonly AggregateApplicationAttachment[] }).data
     },
     async reject({ id, rejectionReason }) {
       const request = await authenticatedRequest({
@@ -112,6 +152,16 @@ export function createAggregateApplicationClient(
       })
       const body = await readJson({ dependencies, request })
       return (body as { data: AggregateApplication }).data
+    },
+    async reviewAttachment({ applicationId, attachmentId, decision, rejectionReason }) {
+      const request = await authenticatedRequest({
+        body: { decision, rejectionReason },
+        dependencies,
+        method: 'POST',
+        path: `${AGGREGATE_APPLICATIONS_PATH}/${applicationId}/attachments/${attachmentId}/review`,
+      })
+      const body = await readJson({ dependencies, request })
+      return (body as { data: AggregateApplicationAttachment }).data
     },
   }
 }

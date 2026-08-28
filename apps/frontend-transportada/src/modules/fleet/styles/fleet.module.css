@@ -1188,6 +1188,17 @@
   color: var(--color-slate);
 }
 
+/* Um anexo por bloco, separados por linha: a divergência de cada um precisa ficar junto do dele. */
+.applicationAttachment {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.applicationAttachment:first-of-type {
+  border-top: none;
+}
+
 .applicationDeclaredDataCell {
   padding-top: 0;
   border-top: none;

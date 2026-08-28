@@ -2,6 +2,8 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AggregateApplicationAttachments } from './AggregateApplicationAttachments.component'
+
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import type { AggregateApplication } from '../shared/aggregateApplicationClient.service'
 import {
@@ -130,6 +132,7 @@ export function AggregateApplicationsTab({
                     className={styles.applicationDeclaredDataCell}
                     colSpan={APPLICATIONS_COLUMN_COUNT}
                   >
+                    <AggregateApplicationAttachments application={application} />
                     <details>
                       <summary>{t('applications.declaredData.toggleShow')}</summary>
                       {declared.driver === null && declared.vehicle === null ? (

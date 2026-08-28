@@ -64,6 +64,31 @@
         "modelYear": "Ano",
         "vehicleType": "Tipo"
       }
+    },
+    "attachments": {
+      "approveButton": "Aprovar anexo",
+      "confirmRejectButton": "Confirmar recusa",
+      "declaredLabel": "declarado",
+      "empty": "Esta candidatura não trouxe anexos.",
+      "loading": "Carregando os anexos…",
+      "matches": "O que lemos no documento confere com o que foi declarado.",
+      "notRead": "Não foi possível ler este documento — confira abrindo o arquivo.",
+      "openButton": "Abrir arquivo",
+      "readLabel": "no documento",
+      "reasonLabel": "Motivo da recusa",
+      "rejectButton": "Reprovar anexo",
+      "status": {
+        "approved": "· aprovado",
+        "pending": "· aguardando revisão",
+        "rejected": "· reprovado"
+      },
+      "toggle": "Anexos enviados",
+      "types": {
+        "ccmei": "CCMEI",
+        "cnh": "CNH",
+        "crlv": "CRLV",
+        "other": "Outro documento"
+      }
     }
   },
   "vehiclesTitle": "Veículos",

@@ -64,6 +64,31 @@
         "modelYear": "Year",
         "vehicleType": "Type"
       }
+    },
+    "attachments": {
+      "approveButton": "Approve attachment",
+      "confirmRejectButton": "Confirm rejection",
+      "declaredLabel": "declared",
+      "empty": "This application came with no attachments.",
+      "loading": "Loading attachments…",
+      "matches": "What we read in the document matches what was declared.",
+      "notRead": "We could not read this document — check it by opening the file.",
+      "openButton": "Open file",
+      "readLabel": "in the document",
+      "reasonLabel": "Rejection reason",
+      "rejectButton": "Reject attachment",
+      "status": {
+        "approved": "· approved",
+        "pending": "· awaiting review",
+        "rejected": "· rejected"
+      },
+      "toggle": "Submitted attachments",
+      "types": {
+        "ccmei": "CCMEI",
+        "cnh": "CNH",
+        "crlv": "CRLV",
+        "other": "Other document"
+      }
     }
   },
   "vehiclesTitle": "Vehicles",
