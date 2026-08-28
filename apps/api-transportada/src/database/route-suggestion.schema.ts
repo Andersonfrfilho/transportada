@@ -227,6 +227,16 @@ export const companyRouteOptimizationSettings = pgTable(
   'company_route_optimization_settings',
   {
     companyId: uuid('company_id').primaryKey(),
+    /**
+     * Spec 058 P2: **o fuso da operação**, em nome IANA. Ele existe porque a janela de atendimento do
+     * cliente (060) é hora local — a portaria abre às 8h daqui, não às 8h UTC — e o relógio do solver
+     * conta a partir da meia-noite UTC. Sem isto o roteiro proporia chegada três horas antes da
+     * abertura, e o país tem fusos diferentes: o Acre é UTC-5.
+     *
+     * Nome, não deslocamento: o deslocamento muda com horário de verão, e o nome sobrevive à volta
+     * dele. Quem converte é `Intl`, com a data da sugestão.
+     */
+    timezone: text().notNull().default('America/Sao_Paulo'),
     originAddressKey: text('origin_address_key').notNull().default(''),
     endPolicy: text('end_policy').$type<RouteEndPolicy>().notNull().default('depot'),
     endAddressKey: text('end_address_key').notNull().default(''),

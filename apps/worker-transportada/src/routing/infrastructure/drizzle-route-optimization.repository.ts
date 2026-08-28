@@ -49,6 +49,8 @@ const DEFAULT_SETTINGS = {
   fallbackWeightKilograms: '0.00',
   originAddressKey: '',
   solverTimeBudgetSeconds: 30,
+  /** Empresa sem linha de configuração opera no fuso da maior parte do país. */
+  timezone: 'America/Sao_Paulo',
 } as const
 
 export type RouteOptimizationRepository = Pick<
@@ -116,6 +118,7 @@ export function createDrizzleRouteOptimizationRepository(
               database,
               date: toUtcDate(dayStartSeconds),
               dayStartSeconds,
+              timezone: settings.timezone,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
               fallbackWeightKilograms: settings.fallbackWeightKilograms,
               suggestionId: job.suggestionId,
@@ -309,6 +312,7 @@ async function readSettings(input: {
           fallbackWeightKilograms: row.fallbackWeightKilograms,
           originAddressKey: row.originAddressKey,
           solverTimeBudgetSeconds: row.solverTimeBudgetSeconds,
+          timezone: row.timezone,
         }),
   }
 }
@@ -494,6 +498,7 @@ async function readPoolStops(input: {
   readonly defaultServiceTimeSeconds: number
   readonly fallbackWeightKilograms: string
   readonly suggestionId: string
+  readonly timezone: string
 }): Promise<readonly RouteOptimizationStop[]> {
   const rows = await input.database
     .select({
@@ -581,7 +586,7 @@ async function readPoolStops(input: {
   return [...grouped.entries()].map(([addressKey, group]) => {
     const point = byKey.get(addressKey)
     const window = resolvePoolWindow({
-      dayStartSeconds: input.dayStartSeconds,
+      offsetSeconds: utcOffsetSeconds({ date: input.date, timezone: input.timezone }),
       taxIds: [...group.taxIds],
       windows,
     })
@@ -737,7 +742,7 @@ async function readPoolWindows(input: {
  * é a mesma regra da precisão grosseira, o operador precisa ver antes de aceitar.
  */
 function resolvePoolWindow(input: {
-  readonly dayStartSeconds: number
+  readonly offsetSeconds: number
   readonly taxIds: readonly string[]
   readonly windows: PoolWindowIntervals
 }): { readonly endSeconds: number | null; readonly startSeconds: number | null } {
@@ -749,31 +754,49 @@ function resolvePoolWindow(input: {
     if (first === undefined) return { endSeconds: 0, startSeconds: 0 }
 
     return {
-      endSeconds: toDaySeconds(first.closesAt),
-      startSeconds: toDaySeconds(first.opensAt),
+      endSeconds: toDaySeconds(first.closesAt) + input.offsetSeconds,
+      startSeconds: toDaySeconds(first.opensAt) + input.offsetSeconds,
     }
   }
 
   return { endSeconds: null, startSeconds: null }
 }
 
-/**
- * `HH:MM` ou `HH:MM:SS` — o Postgres devolve com segundos, o cadastro às vezes manda sem — convertido
- * para o **relógio do solver**, que conta a partir da meia-noite UTC.
- *
- * ⚠️ A janela é hora **local** (a portaria abre às 8h de Ribeirão Preto, não às 8h UTC) e o relógio do
- * solver é UTC: sem os três fusos de diferença, o roteiro proporia chegada às 5h da manhã. O produto é
- * brasileiro e o país não tem horário de verão desde 2019, então o deslocamento é constante — mas ele
- * é **premissa**, não verdade: instalação em fuso diferente (o Acre é UTC-5) precisa disto vindo da
- * configuração da empresa, e é por isso que a constante está nomeada em vez de embutida na conta.
- */
-const BRAZIL_UTC_OFFSET_SECONDS = 3 * 3_600
-
+/** `HH:MM` ou `HH:MM:SS` — o Postgres devolve com segundos, o cadastro às vezes manda sem. */
 function toDaySeconds(time: string): number {
   const [hours = '0', minutes = '0', seconds = '0'] = time.split(':')
-  const localSeconds = Number(hours) * 3_600 + Number(minutes) * 60 + Number(seconds)
 
-  return localSeconds + BRAZIL_UTC_OFFSET_SECONDS
+  return Number(hours) * 3_600 + Number(minutes) * 60 + Number(seconds)
+}
+
+/**
+ * Quanto somar à hora local para chegar ao relógio do solver, que conta a partir da meia-noite UTC.
+ * A janela do cliente é hora **local** — a portaria abre às 8h daqui, não às 8h UTC —, e sem esta
+ * conta o roteiro proporia chegada três horas antes da abertura.
+ *
+ * O fuso vem da empresa (`company_route_optimization_settings.timezone`) e é resolvido **na data da
+ * sugestão**, com `Intl`: assim horário de verão não é premissa, e o Acre (UTC-5) funciona sem código
+ * novo. Fuso desconhecido cai em UTC e a conta continua fechando — a hora fica errada, mas ninguém
+ * fica sem roteiro por causa de um nome digitado errado no cadastro.
+ */
+export function utcOffsetSeconds(input: {
+  readonly date: string
+  readonly timezone: string
+}): number {
+  try {
+    const reference = new Date(`${input.date}T12:00:00Z`)
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: input.timezone,
+    })
+    const localHour = Number(formatter.format(reference))
+
+    /** Meio-dia UTC visto no fuso local: a diferença de horas é o deslocamento, com sinal invertido. */
+    return (12 - localHour) * 3_600
+  } catch {
+    return 0
+  }
 }
 
 /** O dia do relógio do solver, em `YYYY-MM-DD`: é a data que a janela do cliente é resolvida. */

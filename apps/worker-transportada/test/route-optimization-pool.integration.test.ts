@@ -73,8 +73,8 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
 
     /** O depósito da empresa e os três destinos precisam de coordenada: sem ela a parada sai da conta. */
     await db.execute(sql`
-      insert into company_route_optimization_settings (company_id, origin_address_key)
-      values (${companyId}, ${DEPOT.addressKey})
+      insert into company_route_optimization_settings (company_id, origin_address_key, timezone)
+      values (${companyId}, ${DEPOT.addressKey}, 'America/Sao_Paulo')
     `)
     for (const point of [DEPOT, ...POINTS]) {
       await db.execute(sql`

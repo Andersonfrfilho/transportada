@@ -263,10 +263,16 @@ bun run --cwd apps/api-transportada test           # 3551 pass / 0 fail / 19 ski
 bun run test:integration                           # 172 pass / 0 fail (duas rodadas seguidas)
 ```
 
-⚠️ Uma rodada intermediária de `test:integration` acusou **uma** falha que não voltou nas duas
-rodadas seguintes e não deixou nome no log. Não sei qual foi; registro aqui em vez de omitir. As
-suítes desta app rodam em paralelo contra o mesmo Postgres e têm timeout de cinco segundos — é o
-mesmo tipo de instabilidade que a carga dos bancos descartáveis causou na T007.
+⚠️ **Correção de 2026-08-28.** Registrei aqui que uma rodada intermediária de `test:integration`
+acusara uma falha intermitente, e atribuí à carga em paralelo. **Estava errado, e a culpa era do meu
+comando:** eu carregava o ambiente com `. .env 2>/dev/null`, e no zsh o `.` procura o arquivo no
+`PATH` — o `.env` nunca era lido, e o `2>/dev/null` escondia o erro. A falha era sempre a mesma
+(`drains and exits cleanly on SIGTERM`, o único teste que sobe a API como subprocesso e depende das
+variáveis do Keycloak), e ela some com `. ./.env`: **176 pass / 0 fail**.
+
+O que a investigação rendeu de permanente está em `server.integration.ts`: a falha passou a mostrar o
+`stderr` do subprocesso. Antes ela dizia `exited before readiness:` seguido de **nada** — o motivo
+real (a variável ausente) sempre existiu, no fluxo que ninguém lia.
 
 ### Buracos declarados
 

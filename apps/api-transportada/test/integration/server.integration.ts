@@ -186,25 +186,43 @@ describe('API server integration', () => {
       throw new Error('Expected subprocess stdout pipe')
     }
 
-    await waitForReady(stdout)
+    await waitForReady({ stderr: child.stderr, stdout })
     child.kill('SIGTERM')
 
     expect(await child.exited).toBe(0)
   })
 })
 
-async function waitForReady(stdout: ReadableStream<Uint8Array>): Promise<void> {
-  const reader = stdout.getReader()
+/**
+ * ⚠️ A falha lê **o `stderr` também**. Sem ele, o subprocesso que morre no boot produz
+ * `API subprocess exited before readiness:` seguido de nada — a mensagem diz que algo quebrou e
+ * esconde o quê, e quem investiga precisa recriar o processo à mão para descobrir. O motivo real
+ * (variável ausente, banco recusando conexão) sempre saiu por `stderr`.
+ */
+async function waitForReady(streams: {
+  readonly stderr: ReadableStream<Uint8Array> | number | undefined
+  readonly stdout: ReadableStream<Uint8Array>
+}): Promise<void> {
+  const reader = streams.stdout.getReader()
   const decoder = new TextDecoder()
   let output = ''
 
   while (!output.includes('API_TEST_READY:')) {
     const result = await reader.read()
     if (result.done) {
-      throw new Error(`API subprocess exited before readiness: ${output}`)
+      const failure = await readAll(streams.stderr)
+      throw new Error(
+        `API subprocess exited before readiness.\nstdout: ${output}\nstderr: ${failure}`,
+      )
     }
     output += decoder.decode(result.value, { stream: true })
   }
 
   reader.releaseLock()
+}
+
+async function readAll(stream: ReadableStream<Uint8Array> | number | undefined): Promise<string> {
+  if (stream === undefined || typeof stream === 'number') return '(sem stderr capturado)'
+
+  return new Response(stream).text()
 }

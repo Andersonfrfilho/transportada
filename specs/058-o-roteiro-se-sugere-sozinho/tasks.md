@@ -606,3 +606,41 @@ make worker-integration                                # 61 pass / 4 skip / 0 fa
 ROUTING_MATRIX_URL=… make worker-integration           # 65 pass / 0 fail
 worker: test · typecheck · lint · format:check         # limpos
 ```
+
+### O fuso deixa de ser premissa (2026-08-27)
+
+O último item aberto da P2. `BRAZIL_UTC_OFFSET_SECONDS` era constante nomeada com um ⚠️ dizendo que
+instalação fora de UTC-3 precisaria de configuração — agora ela tem.
+
+`company_route_optimization_settings.timezone` guarda o **nome IANA** (padrão `America/Sao_Paulo`),
+não o deslocamento: deslocamento muda com horário de verão, nome sobrevive à volta dele. O worker o
+resolve **na data da sugestão**, com `Intl`. O contrato prova São Paulo (UTC-3), o **Acre** (UTC-5) —
+que era exatamente o caso que a constante não atendia — e a virada de horário de verão de quem o tem.
+
+Fuso digitado errado cai em UTC e a conta continua fechando: a hora fica errada, mas ninguém fica sem
+roteiro por causa de um nome no cadastro. É o mesmo princípio da janela ausente — degradar, não
+travar. O rollback da migration **recusa reverter** se alguma empresa tiver fuso diferente do padrão:
+voltar à premissa leria a janela dela com duas horas de erro, sem aviso.
+
+Comandos executados:
+
+```
+make migration-test                                  # 86 pass / 0 fail
+make worker-integration                              # 61 pass / 4 skip / 0 fail
+ROUTING_MATRIX_URL=… make worker-integration         # 65 pass / 0 fail
+api: 3609/0 · worker: 756/0 · typecheck · lint       # limpos
+bun run --cwd apps/api-transportada test:integration # 176 pass / 0 fail
+```
+
+⚠️ **Correção sobre as falhas "intermitentes" que registrei antes.** Eu vinha carregando o ambiente
+com `. .env 2>/dev/null`; no zsh o `.` procura o arquivo no `PATH`, então o `.env` **nunca era lido**
+e o `2>/dev/null` engolia o erro. Toda falha de `drains and exits cleanly on SIGTERM` que atribuí a
+carga era isso. Com `. ./.env`, 176 pass / 0 fail.
+
+O que sobrou de permanente: `server.integration.ts` agora mostra o **`stderr`** do subprocesso na
+mensagem de falha. Antes ela dizia `exited before readiness:` seguido de nada — a causa real existia,
+no fluxo que ninguém lia.
+
+**Com isto a spec 058 não tem item aberto conhecido.** Os riscos que continuam estão declarados:
+o encaixe do OSRM em ponto fora da área (decisão de produto) e a ausência de teste de qualidade de
+rota — a grade sintética prova contrato, não roteiro.

@@ -65,6 +65,8 @@ export const routeSuggestionStops = pgTable('route_suggestion_stops', {
 
 export const companyRouteOptimizationSettings = pgTable('company_route_optimization_settings', {
   companyId: uuid('company_id').primaryKey(),
+  /** Spec 058 P2: o fuso da operação, em nome IANA — a janela do cliente é hora local. */
+  timezone: text().notNull(),
   originAddressKey: text('origin_address_key').notNull(),
   endPolicy: text('end_policy').notNull(),
   endAddressKey: text('end_address_key').notNull(),
