@@ -21,6 +21,9 @@ export const API_PUBLIC_AGGREGATE_APPLICATION_ATTACHMENTS_PATH =
   '/public/aggregate-application-attachments'
 export const API_AGGREGATE_DOCUMENTS_PATH = '/aggregate-documents'
 export const API_AGGREGATE_APPLICATIONS_PATH = '/aggregate-applications'
+/** Anexos de uma candidatura: o operador revisa um por um antes de decidir sobre ela. */
+export const API_AGGREGATE_APPLICATION_ATTACHMENTS_PATH =
+  '/aggregate-applications/:applicationId/attachments'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'

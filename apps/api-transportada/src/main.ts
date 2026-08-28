@@ -352,6 +352,9 @@ import { createDrizzleAggregateDocumentRepository } from './fleet/infrastructure
 import { createAggregateDocumentTextGateway } from './fleet/infrastructure/aggregate-document-text.gateway.js'
 import { createHttpAggregateDocumentOcrGateway } from './fleet/infrastructure/http-aggregate-document-ocr.gateway.js'
 import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggregate-document-review.routes.js'
+import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presentation/aggregate-application-attachment-review.routes.js'
+import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
+import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -1123,6 +1126,9 @@ function createApplicationRoutes({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
   })
+  const attachmentReviewRepository =
+    createDrizzleAggregateApplicationAttachmentReviewRepository(database)
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -1205,6 +1211,13 @@ function createApplicationRoutes({
         })),
     ...createLandingSettingsRoutes({ landingSettings }),
     ...createAggregateApplicationRoutes({ aggregateApplications }),
+    ...createAggregateApplicationAttachmentReviewRoutes({
+      attachmentReview: createAggregateApplicationAttachmentReviewUseCase({
+        repository: attachmentReviewRepository,
+      }),
+      createSignedDownload: (input) => storageGateway.createSignedDownload(input),
+      findDownloadLocation: (input) => attachmentReviewRepository.findDownloadLocation(input),
+    }),
     ...createAggregateDocumentReviewRoutes({
       aggregateDocumentReview: createAggregateDocumentReviewUseCase({
         bucket: storageBucket,

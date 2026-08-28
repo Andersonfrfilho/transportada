@@ -146,3 +146,34 @@ describe('revisão do anexo de candidatura', () => {
     expect(list).toHaveLength(1)
   })
 })
+
+describe('rotas de revisão do anexo', () => {
+  /**
+   * Bater na URL não distingue rota registrada de caminho inexistente aqui: rota autenticada
+   * responde `401` nos dois casos, e foi por isso que o defeito da rota **pública** só apareceu
+   * calibrando contra outras rotas anônimas. Para as autenticadas, o que resta é conferir o que a
+   * fábrica declara — e o lint garante que ela é usada, porque fábrica importada e não espalhada
+   * vira import morto.
+   */
+  test('declara listar, revisar e baixar, todas sob fleet.manage', async () => {
+    const { createAggregateApplicationAttachmentReviewRoutes } = await import(
+      '../../src/fleet/presentation/aggregate-application-attachment-review.routes.js'
+    )
+
+    const routes = createAggregateApplicationAttachmentReviewRoutes({
+      attachmentReview: {
+        list: async () => [],
+        review: async () => ({ id: '', status: 'approved', taxId: '', type: 'cnh' }),
+      },
+      createSignedDownload: async () => new URL('https://example.test/o'),
+      findDownloadLocation: async () => null,
+    })
+
+    expect(routes.map((route) => `${route.method} ${route.pathname}`)).toEqual([
+      'GET /aggregate-applications/:applicationId/attachments',
+      'POST /aggregate-applications/:applicationId/attachments/:attachmentId/review',
+      'GET /aggregate-applications/:applicationId/attachments/:attachmentId/download',
+    ])
+    expect(routes.every((route) => route.policy?.permission === 'fleet.manage')).toBe(true)
+  })
+})

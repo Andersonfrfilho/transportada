@@ -5,7 +5,9 @@ import { AggregateDocumentInvalidUploadError } from '../domain/aggregate-documen
 import { AggregateApplicationNotFoundError } from '../domain/aggregate-application.error.js'
 
 export type AggregateApplicationAttachmentView = Readonly<{
+  extractedFields?: unknown
   id: string
+  rejectionReason?: string
   status: string
   taxId: string
   type: string
@@ -26,6 +28,7 @@ export type AggregateApplicationAttachmentReviewRepositoryPort = Readonly<{
   promoteToAggregateDocument: (input: {
     readonly attachmentId: string
     readonly companyId: string
+    readonly reviewedBy: string
     readonly taxId: string
     readonly type: string
   }) => Promise<void>
@@ -101,6 +104,7 @@ export function createAggregateApplicationAttachmentReviewUseCase(
         await dependencies.repository.promoteToAggregateDocument({
           attachmentId,
           companyId: context.companyId,
+          reviewedBy: context.userId,
           taxId: attachment.taxId,
           type: attachment.type,
         })
