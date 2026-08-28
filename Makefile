@@ -2,6 +2,7 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
+APP_ENV_BRANCH := staging
 PROJECT_NAME := $(shell sed -n 's/^PROJECT_NAME=//p' $(ENV_FILE) 2>/dev/null)
 APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
@@ -145,6 +146,20 @@ dev: identity-bootstrap up ## 💻 Inicia somente frontend, API e worker Bun
 		trap 'cleanup; exit 130' INT TERM; \
 		trap cleanup EXIT; \
 		wait
+
+worktree: ## 🌱 Cria um worktree isolado para outra sessão trabalhar sem cruzar com esta
+	@test -n "$(NAME)" || { echo "uso: make worktree NAME=<nome-da-tarefa>"; exit 2; }
+	@root="$$(git rev-parse --show-toplevel)"; \
+		target="$$(dirname "$$root")/$$(basename "$$root")-wt/$(NAME)"; \
+		test ! -e "$$target" || { echo "já existe: $$target"; exit 2; }; \
+		git fetch --quiet origin; \
+		git worktree add "$$target" -b "work/$(NAME)" origin/$(APP_ENV_BRANCH) >/dev/null; \
+		for file in .env .env.test; do \
+			test -f "$$root/$$file" && ln -sf "$$root/$$file" "$$target/$$file"; \
+		done; \
+		(cd "$$target" && bun install --frozen-lockfile >/dev/null); \
+		echo "worktree pronto em $$target (branch work/$(NAME))"; \
+		echo "publicar de lá: git fetch && git rebase origin/$(APP_ENV_BRANCH) && git push origin HEAD:$(APP_ENV_BRANCH)"
 
 check: config ## ✅ Executa todos os gates locais
 	@bun run check

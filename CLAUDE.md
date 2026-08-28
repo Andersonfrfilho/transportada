@@ -984,6 +984,31 @@ Use cases e rotas são factories `create*`; classes de repositório são `Pascal
   misturar tenants / ambientes fiscais / buckets.
 - `.env` e `.env.test` nunca são commitados nem têm conteúdo exposto.
 
+## Duas sessões, duas árvores
+
+**Sessão que vai escrever código nesta base cria o próprio worktree.** Duas sessões no mesmo
+checkout produzem uma família inteira de atrito que não tem nada a ver com o produto: formatação
+cruzada, `git add` amplo levando trabalho alheio pela metade, teste sumindo da lista do
+`package.json` quando alguém reescreve a linha a partir de cópia antiga, e commit de uma entrando no
+push da outra.
+
+```bash
+make worktree NAME=spec-066
+```
+
+Ele cria `../transportada-wt/<NAME>` na branch `work/<NAME>` a partir de `origin/staging`, liga
+`.env` e `.env.test` por **link simbólico** (cópia envelheceria) e instala as dependências. Verificado
+que dali rodam os 3611 contratos da API e os 54 de migration contra Postgres.
+
+Publicar de um worktree não passa por checkout de `staging` — ela está ocupada pela árvore principal:
+
+```bash
+git fetch && git rebase origin/staging && git push origin HEAD:staging
+```
+
+⚠️ `git worktree prune` de vez em quando: worktree apagado à mão deixa registro órfão, e três deles
+estavam pendurados aqui de sessões antigas.
+
 ## Explorando este repo sem estourar contexto
 
 652 arquivos versionados, 509 `.ts`/`.tsx`, ~67k linhas. Ler tudo direto estoura a janela. Delegue a
