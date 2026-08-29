@@ -161,6 +161,17 @@ const environmentSchema = z.object({
     .trim()
     .regex(/^v[0-9]{1,3}\.[0-9]{1,3}$/u, { message: 'WHATSAPP_API_VERSION must look like v23.0' })
     .default('v23.0'),
+  /**
+   * Spec 062 T006 — os dois segredos do **aplicativo** da Meta, e por isso variáveis de ambiente,
+   * não linhas por empresa: um app da Meta assina o webhook de **todos** os números que ele
+   * administra, e o verify token é da assinatura do webhook, que também é do app. O que é por
+   * empresa é o token de acesso do número, e esse continua selado no banco.
+   *
+   * Fail-closed por ausência: sem os dois, a rota do webhook **não é registrada** — publicar uma
+   * rota pública que aceita qualquer corpo é pior que não ter webhook.
+   */
+  WHATSAPP_APP_SECRET: optionalText(),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: optionalText(),
   WHATSAPP_BASE_URL: z
     .string()
     .trim()
@@ -213,7 +224,19 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
     userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
     aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
-    whatsapp: { apiVersion: parsed.WHATSAPP_API_VERSION, baseUrl: parsed.WHATSAPP_BASE_URL },
+    whatsapp: {
+      apiVersion: parsed.WHATSAPP_API_VERSION,
+      baseUrl: parsed.WHATSAPP_BASE_URL,
+      ...(parsed.WHATSAPP_APP_SECRET === undefined ||
+      parsed.WHATSAPP_WEBHOOK_VERIFY_TOKEN === undefined
+        ? {}
+        : {
+            webhook: {
+              appSecret: parsed.WHATSAPP_APP_SECRET,
+              verifyToken: parsed.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+            },
+          }),
+    },
     port: parsed.APP_PORT,
     postalCodeProviders: {
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,

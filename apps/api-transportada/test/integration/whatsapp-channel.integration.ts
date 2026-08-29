@@ -14,6 +14,7 @@ import { eq } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies, whatsappChannels } from '../../src/database/database.schema.js'
 import { DrizzleWhatsAppChannelRepository } from '../../src/whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
+import { createDrizzleWebhookNonceStore } from '../../src/whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -157,6 +158,47 @@ afterAll(async () => {
   } finally {
     await admin.close({ timeout: 0 })
   }
+})
+
+describe('o nonce anti-replay do webhook (spec 062 T006)', () => {
+  /**
+   * ⚠️ **A propriedade inteira do nonce é esta, e só o banco a prova.** Um `select` seguido de
+   * `insert` deixaria duas entregas simultâneas lerem "ausente" e ambas seguirem — que é exatamente
+   * o replay que ele existe para impedir. Aqui as dez tentativas correm juntas, e **uma** vence.
+   */
+  testWithPostgres('entregas simultâneas com a mesma chave: só a primeira reivindica', async () => {
+    await withSharedDatabase(async (database) => {
+      const store = createDrizzleWebhookNonceStore(database.db)
+      const key = `sha256=${crypto.randomUUID()}`
+
+      const outcomes = await Promise.all(
+        Array.from({ length: 10 }, async () => store.setIfAbsent(key, 300)),
+      )
+
+      expect(outcomes.filter(Boolean)).toHaveLength(1)
+    })
+  })
+
+  testWithPostgres('a mesma entrega reenviada depois não reivindica de novo', async () => {
+    await withSharedDatabase(async (database) => {
+      const store = createDrizzleWebhookNonceStore(database.db)
+      const key = `sha256=${crypto.randomUUID()}`
+
+      expect(await store.setIfAbsent(key, 300)).toBe(true)
+      expect(await store.setIfAbsent(key, 300)).toBe(false)
+    })
+  })
+
+  /** Chave vencida é substituída, não bloqueio eterno: sem isso a limpeza teria de virar job. */
+  testWithPostgres('chave já expirada volta a ser reivindicável', async () => {
+    await withSharedDatabase(async (database) => {
+      const store = createDrizzleWebhookNonceStore(database.db)
+      const key = `sha256=${crypto.randomUUID()}`
+
+      expect(await store.setIfAbsent(key, -1)).toBe(true)
+      expect(await store.setIfAbsent(key, 300)).toBe(true)
+    })
+  })
 })
 
 describe('o que o envio enxerga do banco (spec 062 T004)', () => {

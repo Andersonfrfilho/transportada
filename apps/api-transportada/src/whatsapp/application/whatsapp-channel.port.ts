@@ -52,7 +52,25 @@ export type WhatsAppChannelCredential = {
   readonly phoneNumberId: string
 }
 
+/** O que o **webhook** precisa: a credencial mais a empresa e a versão que a nomeiam no cache. */
+export type WhatsAppChannelByNumber = {
+  readonly channelId: string
+  readonly companyId: string
+  readonly envelope: SecretEnvelopeV1
+  readonly phoneNumberId: string
+  readonly version: string
+  readonly wabaId: string
+}
+
 export type WhatsAppChannelRepositoryPort = {
+  /**
+   * A entrada do webhook: a Meta diz o número que recebeu, e é ele que descobre a empresa. O
+   * `phone_number_id` é único na instalação inteira (unique global em `whatsapp_channels`), então
+   * não há como duas empresas responderem pela mesma entrega.
+   */
+  findByPhoneNumberId(input: {
+    readonly phoneNumberId: string
+  }): Promise<WhatsAppChannelByNumber | undefined>
   /**
    * Os canais ativos **da instalação inteira**, com teto de dois.
    *

@@ -56,6 +56,7 @@ function buildFixture(input: { readonly existing?: WhatsAppChannelSummary | null
   const repository: WhatsAppChannelRepositoryPort = {
     find: async () => input.existing ?? null,
     findActiveCredentials: async () => [],
+    findByPhoneNumberId: async () => undefined,
     findSecret: async () => null,
     remove: async () => {
       removed += 1

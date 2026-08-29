@@ -7,6 +7,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { whatsappChannels } from '../../database/whatsapp-channel.schema.js'
 import type {
+  WhatsAppChannelByNumber,
   WhatsAppChannelCredential,
   WhatsAppChannelRecord,
   WhatsAppChannelRepositoryPort,
@@ -74,6 +75,40 @@ export class DrizzleWhatsAppChannelRepository implements WhatsAppChannelReposito
       envelope: row.envelope as SecretEnvelopeV1,
       phoneNumberId: row.phoneNumberId,
     }))
+  }
+
+  public async findByPhoneNumberId(input: {
+    readonly phoneNumberId: string
+  }): Promise<WhatsAppChannelByNumber | undefined> {
+    const [row] = await this.database
+      .select({
+        companyId: whatsappChannels.companyId,
+        envelope: whatsappChannels.secretEnvelope,
+        id: whatsappChannels.id,
+        phoneNumberId: whatsappChannels.phoneNumberId,
+        version: whatsappChannels.version,
+        wabaId: whatsappChannels.wabaId,
+      })
+      .from(whatsappChannels)
+      .where(
+        and(
+          eq(whatsappChannels.phoneNumberId, input.phoneNumberId),
+          eq(whatsappChannels.status, 'active'),
+          HAS_SEALED_TOKEN,
+        ),
+      )
+      .limit(1)
+
+    if (row === undefined) return undefined
+
+    return {
+      channelId: row.id,
+      companyId: row.companyId,
+      envelope: row.envelope as SecretEnvelopeV1,
+      phoneNumberId: row.phoneNumberId,
+      version: row.version.toString(),
+      wabaId: row.wabaId,
+    }
   }
 
   public async findSecret(input: {

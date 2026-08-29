@@ -99,6 +99,12 @@ export const API_PASSWORD_RESETS_PATH = '/password-resets'
 export const API_PASSWORD_RESET_CONFIRM_PATH = '/password-resets/confirm'
 /** Rota anônima: o segmento é segredo, e por isso o caminho fica fora da allowlist de log. */
 export const API_PUBLIC_NFSE_CALLBACKS_PATH = '/public/nfse-callbacks/:token'
+/**
+ * Rota anônima do webhook da Meta: um endereço só para a instalação inteira. A empresa é descoberta
+ * pelo `phone_number_id` do corpo **assinado**, nunca por um segmento de caminho — um id de empresa
+ * na URL seria enumerável e não provaria nada, já que a assinatura é o que autentica.
+ */
+export const API_PUBLIC_WHATSAPP_WEBHOOK_PATH = '/public/whatsapp/webhook'
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
 export const JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 export const HTTP_GET_METHOD = 'GET'

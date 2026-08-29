@@ -86,7 +86,7 @@ aceitar, pelo mesmo trilho do worker.
 
 > 🤖 Modelo: `opus` 🧠 na adoção do módulo e na segurança do webhook
 
-### T006 🧠 — `meta-whatsapp-module` e o webhook assinado
+### T006 🧠 ✅ — `meta-whatsapp-module` e o webhook assinado
 
 ### T007 — `ConversationsWorkspace` no painel, com tema por contrato
 
@@ -374,3 +374,78 @@ typecheck · lint · format:check               # limpos
   `WHATSAPP_BASE_URL` é o caminho, e ele não existe no `compose.yaml`.
 - **A `WhatsAppChannelNotConfiguredError` nomeia a empresa na mensagem** — identificador opaco, então
   está dentro da regra, mas é o tipo de campo que cresce sem querer.
+
+### T006 — o módulo de conversa e o webhook assinado (2026-08-29)
+
+A conversa passa a ter estado: `meta-whatsapp-module` instalado, migrations dele na cadeia de
+`db:migrate`, e uma rota pública que só aceita corpo assinado pela Meta.
+
+**A configuração se parte em duas, e a divisão não é arbitrária.** O `WHATSAPP_APP_SECRET` e o
+`WHATSAPP_WEBHOOK_VERIFY_TOKEN` são do **aplicativo** da Meta — um app assina o webhook de _todos_ os
+números que administra —, então são variáveis de ambiente. O token de acesso é do **número**, e
+continua selado por empresa no banco, como a T001 o deixou. Tratar os três igual poria segredo de app
+no banco por empresa (repetido e desincronizado) ou o token do número no `.env` (um só para toda a
+instalação, matando o "um número por filial").
+
+⚠️ **Fail-closed por ausência: sem os dois segredos a rota não é registrada** — mesmo espírito do
+callback da NFS-e (ADR-0022). Publicar o endereço e conferir a assinatura "quando o segredo existir"
+transformaria configuração faltando numa porta aberta, e a falha ficaria **invisível**: a Meta não
+reclama de um webhook que responde 200 a tudo.
+
+**A ordem dentro da rota é a decisão de segurança.** A assinatura é conferida **antes** de o corpo
+virar dado; só depois dela o `phone_number_id` vira empresa. Descobrir o tenant a partir de corpo não
+verificado deixaria um atacante escolher contra qual empresa a entrega forjada é contada.
+
+**Quase tudo responde 200, e a exceção é a assinatura.** A Meta desativa webhook que responde erro —
+número desconhecido, corpo sem número e evento que não sabemos ler saem `200`, porque um número de
+outra WABA derrubaria a entrega de todos os outros junto. Corpo não assinado, esse é `403`: responder
+`200` a ele ensinaria um atacante que o endereço aceita qualquer coisa.
+
+**Uma instância do módulo por empresa**, porque ele recebe a credencial na construção. A chave do
+cache carrega a `version` da linha — é isso que faz trocar o token no painel valer na entrega seguinte
+sem restart e sem invalidação manual. ⚠️ O cache guarda o token **aberto em memória** enquanto o
+processo viver; o alternativo seria abrir o envelope a cada entrega, e conversa é muito mais tráfego
+que notificação.
+
+⚠️ **O nonce anti-replay é a segunda exceção declarada ao tenant**, ao lado de
+`fuel_price_references` e por motivo diferente: lá é dado público de mercado, aqui é uma decisão que
+acontece **antes de haver tenant** — a chave sai da assinatura, e a assinatura é conferida antes de
+sabermos a empresa. Ele vive em Postgres, não em memória: um cache por processo deixaria a mesma
+entrega passar uma vez em cada réplica, que é o replay que ele existe para impedir. O `insert ... on
+conflict` é o `SET NX` atômico que a porta pede, e chave vencida é **substituída** em vez de virar
+bloqueio eterno — com janela de cinco minutos, um job de limpeza seria encanamento a mais.
+
+O contrato cobre a rota que não sobe sem segredo, o corpo assinado chegando ao módulo com a empresa
+certa, o **payload adulterado** recusado, a assinatura de outro segredo recusada, a ausência de
+cabeçalho recusada, o número desconhecido respondendo 200 sem chegar ao módulo, o desafio de
+verificação e o teto de taxa nas duas rotas. E o que a spec pede em `security.md` §1: **nada do que o
+cliente escreveu aparece em log** — o teste varre o que foi registrado atrás do texto e do telefone.
+
+A integração prova o que só o banco prova: dez reivindicações simultâneas da mesma chave e **uma**
+vence.
+
+```
+make migration-test                                   # 90 pass / 0 fail
+bun run --cwd apps/api-transportada test              # 3649 pass / 0 fail
+bun run --cwd apps/api-transportada test:integration  # 184 pass / 0 fail
+typecheck · lint · format:check                       # limpos
+```
+
+#### Buracos declarados
+
+- **Ninguém lê a conversa ainda.** O módulo grava sessão e mensagem, e não há tela nem rota de
+  leitura — isso é a T007, com o `ConversationsWorkspace`, e o papel do atendimento é a T008.
+- **Sem `hooks`**: `onMessageReceived`, `onStatusUpdate` e os de conta não têm handler, então mensagem
+  do cliente entra no transcript e **não vira estado nenhum** — agendamento e evento de entrega são a
+  frente 3 (T009–T011).
+- **Sem motor de fluxo ligado de fato**: `flowEngine` fica no padrão do módulo, e não há grafo
+  publicado. O `fallbackMessage` e o handoff da `conversation-flow.md` §5 ainda não existem.
+- **Sem janela de timestamp.** A spec pedia; o pacote publicado protege por nonce de cinco minutos e
+  não expõe checagem de `timestamp`. Uma entrega capturada e reenviada **depois** da janela do nonce
+  seria aceita. Fechar isso é ler `messages[].timestamp` do corpo já verificado — ou changeset no
+  pacote, que é onde a regra deveria morar.
+- **Sem mídia, sem transcrição e sem realtime**: `objectStorage`, `transcription` e `realtime` não são
+  injetados. Nota de voz e imagem chegam como mensagem sem binário.
+- **A versão publicada do pacote é anterior à do repositório de packages** — `runMetaWhatsAppMigrations`
+  recebe a conexão direto em vez do `migrate` por injeção, ao contrário do `notification-module`. Não
+  uniformizei: mudar isso é changeset no pacote.

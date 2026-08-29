@@ -4,6 +4,7 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
+import { runMetaWhatsAppSchemaMigrations } from './meta-whatsapp-migration.service.js'
 import { runNotificationSchemaMigrations } from './notification-migration.service.js'
 import { runUserSchemaMigrations } from './user-migration.service.js'
 
@@ -57,6 +58,7 @@ export async function runAllDatabaseMigrations({
   )
   await runNotificationSchemaMigrations({ connectionString })
   await runUserSchemaMigrations({ connectionString })
+  await runMetaWhatsAppSchemaMigrations({ connectionString })
 }
 
 if (import.meta.main) {

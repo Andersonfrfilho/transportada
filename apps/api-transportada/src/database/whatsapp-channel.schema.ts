@@ -99,3 +99,33 @@ export const whatsappChannels = pgTable(
     check('whatsapp_channels_version_check', sql`${table.version} >= 1`),
   ],
 )
+
+/**
+ * Spec 062 T006 — **o nonce anti-replay do webhook**, e ele é do processo inteiro, não de uma
+ * empresa.
+ *
+ * A Meta assina o corpo cru; uma entrega capturada e reenviada continua com assinatura **válida** —
+ * é a chave que marca a entrega como já vista. Ela precisa ser **compartilhada entre instâncias**:
+ * um cache em memória por processo deixaria a mesma entrega passar uma vez em cada réplica, que é
+ * exatamente o replay que ele existe para impedir. Não há Redis nesta instalação, e o Postgres já é
+ * o ponto compartilhado — `insert ... on conflict do nothing` é o `SET NX` atômico que a porta pede.
+ *
+ * ⚠️ **Sem `company_id`, e de propósito.** A chave é derivada da assinatura, e a assinatura é
+ * conferida **antes** de sabermos de que empresa é a entrega — escopar por empresa obrigaria a
+ * confiar no corpo não verificado para escolher o escopo. É a segunda exceção declarada ao tenant,
+ * ao lado de `fuel_price_references`, e por motivo diferente: lá é dado público de mercado, aqui é
+ * uma decisão que acontece antes de haver tenant.
+ *
+ * A linha expira: `expires_at` é o teto, e a varredura é preguiçosa (o `insert` que colide com uma
+ * chave vencida a substitui). Não há job de limpeza — a tabela é pequena e a janela é de minutos.
+ */
+export const whatsappWebhookNonces = pgTable(
+  'whatsapp_webhook_nonces',
+  {
+    key: text().primaryKey(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check('whatsapp_webhook_nonces_key_check', sql`length(${table.key}) between 1 and 512`),
+  ],
+)

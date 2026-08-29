@@ -63,6 +63,15 @@ export type ApiEnvironment = {
   readonly whatsapp: {
     readonly apiVersion: string
     readonly baseUrl: string | undefined
+    /**
+     * Os dois segredos do **aplicativo** da Meta, juntos ou nenhum: com um só, a rota do webhook ou
+     * não confere assinatura ou não responde ao desafio de verificação. Ausente o par, a rota não é
+     * registrada (spec 062 T006).
+     */
+    readonly webhook?: {
+      readonly appSecret: string
+      readonly verifyToken: string
+    }
   }
   /**
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço

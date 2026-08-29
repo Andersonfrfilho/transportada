@@ -107,6 +107,9 @@ import { createNfseFiscalDocumentArchiveGateway } from './nfse-invoices/infrastr
 import { createNfseInvoiceRoutes } from './nfse-invoices/presentation/nfse-invoices.routes.js'
 import { createNotifyNfseCallbackUseCase } from './nfse-callbacks/application/notify-nfse-callback.use-case.js'
 import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/drizzle-nfse-callback.repository.js'
+import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
+import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
+import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
@@ -620,6 +623,28 @@ function createAnonymousRoutes({
     }),
   })
   /**
+   * Spec 062 T006 — o webhook da Meta. Um endereço só para a instalação: a empresa é descoberta pelo
+   * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
+   * registrada.
+   */
+  const whatsappWebhookRoutes = createWhatsAppWebhookRoutes({
+    appSecret: config.whatsapp.webhook?.appSecret,
+    logger,
+    resolver: createMetaWhatsAppModuleResolver({
+      apiVersion: config.whatsapp.apiVersion,
+      appSecret: config.whatsapp.webhook?.appSecret ?? '',
+      baseUrl: config.whatsapp.baseUrl,
+      database,
+      nonceStore: createDrizzleWebhookNonceStore(database),
+      repository: new DrizzleWhatsAppChannelRepository(database),
+      secretService: createWhatsAppChannelSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      }),
+      verifyToken: config.whatsapp.webhook?.verifyToken ?? '',
+    }),
+    verifyToken: config.whatsapp.webhook?.verifyToken,
+  })
+  /**
    * ADR-0048 §7: a página de repasse do contratante. Ela existe sempre — o token é a credencial, e
    * um lote só nasce quando alguém fecha um período, então não há superfície ociosa a esconder.
    */
@@ -692,6 +717,7 @@ function createAnonymousRoutes({
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...whatsappWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
@@ -702,6 +728,7 @@ function createAnonymousRoutes({
 
   return [
     ...nfseCallbackRoutes,
+    ...whatsappWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
