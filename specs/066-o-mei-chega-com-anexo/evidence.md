@@ -1,15 +1,15 @@
 # 066 — o MEI chega com anexo · evidência
 
-> **Só o smoke da fase 1 (T007) ficou de fora.** Tudo o mais entrou: o caminho do **candidato** —
-> anexar no cadastro público, ler o CCMEI no navegador, guardar o rascunho, vincular à candidatura e
-> pôr a decisão na mão do operador — e a fila de revisão do agregado **já cadastrado**, que a fase 1
-> pedia.
+> **As tasks fechadas são T003–T010 e T017–T025.** Entrou o caminho do **candidato** — anexar no
+> cadastro público, ler o CCMEI no navegador, guardar o rascunho, vincular à candidatura e pôr a
+> decisão na mão do operador — e a fila de revisão do agregado **já cadastrado**. Ficaram de pé as
+> duas perguntas da fase 0 (T001–T002), e a fase 3 foi substituída pela 5.
 
 ## O que ficou de pé
 
 | Task      | O que entrou                                                                         |
 | --------- | ------------------------------------------------------------------------------------ |
-| T003–T006 | a aba de documentos do agregado: fila, divergência, decisão por linha, URL assinada  |
+| T003–T007 | a aba de documentos do agregado: fila, divergência, decisão por linha, URL assinada  |
 | T008–T010 | `GET /public/cnpj-info` e o bloco Empresa do `/cadastro`, preenchido no blur do CNPJ |
 | T017–T019 | `@adatechnology/document-intake` publicado, e a landing lendo PDF sem afrouxar a CSP |
 | T020–T021 | divergência CNPJ digitado × CNPJ impresso, e o smoke com CCMEI sintético             |
@@ -28,9 +28,23 @@ Recortes que provam esta spec em particular:
 | `fleet-application` + `fleet-http` + `fleet-schema` (API) | 239 passes         |
 | `fleet.contract.test.ts` (painel)                         | 444 passes         |
 | `aggregate-application-attachment-link.integration.ts`    | 4 passes, Postgres |
+| `responsive.smoke.spec.ts` (Playwright, painel)           | 45 passes          |
 
 O teste de integração é o que mede o que teste com repositório falso não mede: as três guardas do
 vínculo são cláusulas de um `UPDATE`, e num duplo elas são string que ninguém executa.
+
+### O smoke da T007 mede a tela, não a requisição
+
+O smoke que já existia nesta aba parava em `api.reviews()` — provava que a **requisição saiu**, e uma
+invalidação esquecida passaria por ele intocada. Por isso o duplo da API passou a guardar **estado**:
+a rota de revisão muda o documento na lista, e a listagem seguinte serve o estado novo. Sem isso a
+linha continuaria "Pendente" e o teste passaria assim mesmo, medindo a si próprio.
+
+O caso novo afirma três coisas depois do clique: a linha vira **Aprovado**, "Pendente" some, e os
+botões de decidir **saem da linha** — documento já decidido não se aprova de novo.
+
+**Provado por mutação:** com o `invalidateQueries` do `useAggregateDocuments.hook.ts` removido, o
+teste falha; com ele de volta, passa. Teste que nunca viu o defeito é decoração.
 
 ## Três correções ao plano, e por que elas existem
 
@@ -56,16 +70,6 @@ tipo por linha, e o CCMEI não é um deles. Encaixá-lo exigiria separar "docume
 candidatura, que é onde o operador o lê.
 
 ## O que não entrou
-
-**O smoke da fase 1 (T007).** A aba de documentos do agregado está de pé e coberta por sete
-contratos em `test/fleet/aggregate-documents-tab.contract.ts` — inclusive o que exige URL assinada em
-vez de link para o objeto, e o que impede a recusa sem motivo. O que falta é o passo em navegador
-real: aprovar e ver o estado mudar na tela servida. **Contrato não substitui isso** — ele prova o
-componente, não a página montada com a API do outro lado.
-
-⚠️ A tela nasceu como `AggregateDocumentsTab.component.tsx`, e não `AggregateDocumentsCard` como a
-T004 escreveu. É aba dentro da área de frota, não card solto; o nome do arquivo na task envelheceu, o
-comportamento pedido não.
 
 **A fase 0 (T001–T002).** O mapa de rótulos do CCMEI foi fechado contra amostra real conferida à mão,
 **fora do repositório** — a § Privacidade da 048 recusa PII versionada, e o teste usa PDF sintético

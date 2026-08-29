@@ -1173,6 +1173,44 @@ test('o operador revisa o anexo vendo onde ele discorda da ficha, e a recusa exi
 })
 
 /**
+ * Spec 066 T007 — **aprovar muda a tela**, não só manda a requisição. O contrato do componente prova
+ * que o clique chama `onReview`; o que só o navegador prova é o resto do caminho: a mutação
+ * invalida a consulta, o refetch traz o documento já decidido, e a linha para de oferecer decisão.
+ * Sem a segunda metade, uma invalidação esquecida deixaria o operador aprovando o mesmo documento
+ * duas vezes sem nada na tela contradizê-lo.
+ */
+test('aprovar o anexo muda o estado na tela, e a linha para de oferecer decisão', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  const api = await mockFleetWorkspaceApi({
+    documents: [PENDING_DOCUMENT],
+    page,
+    permissions: ['fleet.read', 'fleet.manage'],
+  })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Frota e motoristas' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Anexos' }).click()
+  await expect(page.getByText('Pendente')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Aprovar' }).click()
+
+  await expect(page.getByText('Aprovado')).toBeVisible()
+  await expect(page.getByText('Pendente')).toBeHidden()
+  // A decisão sai da linha junto com o estado: documento já decidido não se aprova de novo.
+  await expect(page.getByRole('button', { name: 'Aprovar' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Recusar' })).toBeHidden()
+
+  await expect.poll(() => api.reviews()).toEqual([{ decision: 'approved', rejectionReason: '' }])
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+/**
  * Spec 058 P2 — **a tela da distribuição, no navegador.** Os contratos de unidade provam o
  * agrupamento e a contagem; o que só o browser prova é o caminho do operador: selecionar a nota,
  * abrir o diálogo, escolher a frota, esperar o poll virar `ready`, ver uma coluna por veículo e o

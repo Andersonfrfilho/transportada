@@ -111,6 +111,13 @@ export async function mockFleetWorkspaceApi(
 ): Promise<Readonly<{ failures: () => readonly string[]; reviews: () => readonly unknown[] }>> {
   const failures: string[] = []
   const reviews: unknown[] = []
+  /**
+   * O duplo guarda estado porque é isso que o smoke da T007 mede: aprovar precisa **mudar a tela**,
+   * e com lista imutável a linha continuaria "Pendente" enquanto o teste passava por ter visto a
+   * requisição sair. Requisição enviada e tela atualizada são coisas diferentes — a segunda depende
+   * da invalidação e do refetch, que é justamente o que contrato de componente não alcança.
+   */
+  const documents = (input.documents ?? []).map((document) => ({ ...(document as object) }))
   input.page.on('requestfailed', (request) => {
     if (new URL(request.url()).origin === 'http://localhost:53001') {
       failures.push(`${request.url()} ${request.failure()?.errorText}`)
@@ -124,7 +131,19 @@ export async function mockFleetWorkspaceApi(
       await fulfillOptions(route)
       return
     }
-    reviews.push(route.request().postDataJSON())
+    const decision = route.request().postDataJSON() as Readonly<{
+      decision: string
+      rejectionReason: string
+    }>
+    reviews.push(decision)
+    const reviewedId = /\/aggregate-documents\/([^/]+)\/review$/u.exec(route.request().url())?.[1]
+    const reviewed = documents.find(
+      (document) => (document as Readonly<{ id?: string }>).id === reviewedId,
+    ) as { rejectionReason?: string; status?: string } | undefined
+    if (reviewed !== undefined) {
+      reviewed.status = decision.decision
+      reviewed.rejectionReason = decision.rejectionReason
+    }
     await fulfillJson(route, { data: {} })
   })
   await input.page.route(/\/aggregate-documents(?:\?.*)?$/, async (route) => {
@@ -132,7 +151,7 @@ export async function mockFleetWorkspaceApi(
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: input.documents ?? [] })
+    await fulfillJson(route, { data: documents })
   })
   await registerVehicleListMock({
     page: input.page,
