@@ -80,6 +80,9 @@ import { InvitationDeliveryOutboxPublisherService } from './identity/application
 import { InvitationDeliveryOutboxRelayService } from './identity/application/invitation-delivery-outbox-relay.service.js'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository.js'
 import { DrizzleInvitationDeliveryRepository } from './identity/infrastructure/drizzle-invitation.repository.js'
+import { createWhatsAppCodeSender } from './whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
+import { createWhatsAppChannelSecretGateway } from './whatsapp/infrastructure/whatsapp-channel-secret.gateway.js'
+import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
@@ -791,21 +794,42 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    /**
+     * Spec 062 T005 — o mesmo canal para os dois trilhos de código, com o template de cada um. A
+     * credencial é por empresa e vem do banco a cada envio; o que muda entre convite e recuperação
+     * é só qual template aprovado a Meta espera.
+     */
+    const buildWhatsAppCodeSender = (template: string | undefined) =>
+      createWhatsAppCodeSender({
+        apiVersion: config.whatsapp.apiVersion,
+        baseUrl: config.whatsapp.baseUrl,
+        channels: new DrizzleWhatsAppChannelRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        secrets: createWhatsAppChannelSecretGateway({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+        template:
+          template === undefined
+            ? undefined
+            : { languageCode: config.whatsapp.codeTemplateLanguage, name: template },
+      })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
       dependencies: {
         // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
-        channels: createInvitationChannelGateway(
-          config.emailDelivery === undefined
+        channels: createInvitationChannelGateway({
+          ...(config.emailDelivery === undefined
             ? {}
             : {
                 email: createSmtpEmailProvider({
                   from: config.emailDelivery.from,
                   smtpUrl: config.emailDelivery.smtpUrl,
                 }),
-              },
-        ),
+              }),
+          whatsapp: buildWhatsAppCodeSender(config.whatsapp.invitationTemplate),
+        }),
         envelopeProvider: createInvitationCodeSecretGateway({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),
@@ -822,16 +846,17 @@ export async function startWorkerRuntime(
       dependencies: {
         // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
         // válido para reenvio — quem falhou foi o transporte.
-        channels: createInvitationChannelGateway(
-          config.emailDelivery === undefined
+        channels: createInvitationChannelGateway({
+          ...(config.emailDelivery === undefined
             ? {}
             : {
                 email: createSmtpEmailProvider({
                   from: config.emailDelivery.from,
                   smtpUrl: config.emailDelivery.smtpUrl,
                 }),
-              },
-        ),
+              }),
+          whatsapp: buildWhatsAppCodeSender(config.whatsapp.passwordResetTemplate),
+        }),
         envelopeProvider: createPasswordResetCodeSecretGateway({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),

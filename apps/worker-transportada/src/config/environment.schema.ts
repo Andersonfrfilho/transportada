@@ -73,6 +73,21 @@ const workerEnvironmentSchema = z
     // Um endereço só: a Nota RP publica um servidor, e é o de produção (ADR-0035).
     NFSE_PROVIDER_BASE_URL: optionalUrl(),
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
+    // Spec 062 T005 — o convite e a recuperação de senha por WhatsApp. Sem segredo aqui: o token é
+    // por empresa e vive selado no banco, gravado pela API. A versão da Graph API tem padrão porque
+    // a Meta a exige no caminho e ela envelhece; a base existe para apontar para um mock local.
+    WHATSAPP_API_VERSION: z
+      .string()
+      .trim()
+      .regex(/^v[0-9]{1,3}\.[0-9]{1,3}$/u, { message: 'WHATSAPP_API_VERSION must look like v23.0' })
+      .default('v23.0'),
+    WHATSAPP_BASE_URL: optionalUrl(),
+    // ⚠️ Nome do template aprovado na Meta, com o código como único parâmetro do corpo. Ausente, o
+    // envio cai em texto livre — que a Meta **só aceita dentro da janela de 24 h**, e quem recebe um
+    // convite nunca escreveu para o número antes. Ver o buraco declarado na evidência da T005.
+    WHATSAPP_CODE_TEMPLATE_LANGUAGE: z.string().trim().min(2).max(10).default('pt_BR'),
+    WHATSAPP_INVITATION_TEMPLATE: optionalText(),
+    WHATSAPP_PASSWORD_RESET_TEMPLATE: optionalText(),
     QUEUE_PREFIX: z
       .string()
       .trim()
@@ -174,6 +189,13 @@ export function parseWorkerEnvironment(
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
       timeoutMilliseconds: result.data.NFSE_PROVIDER_TIMEOUT_MS,
+    },
+    whatsapp: {
+      apiVersion: result.data.WHATSAPP_API_VERSION,
+      baseUrl: result.data.WHATSAPP_BASE_URL,
+      codeTemplateLanguage: result.data.WHATSAPP_CODE_TEMPLATE_LANGUAGE,
+      invitationTemplate: result.data.WHATSAPP_INVITATION_TEMPLATE,
+      passwordResetTemplate: result.data.WHATSAPP_PASSWORD_RESET_TEMPLATE,
     },
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,

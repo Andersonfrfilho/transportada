@@ -74,7 +74,7 @@ dois:** quem manda WhatsApp é o módulo de notificação, como já é com e-mai
 - **Aceite:** notificação com canal `whatsapp` chega ao provider; sem canal cadastrado, cai no e-mail
 - **Verificação:** contrato do factory + integração com mock HTTP
 
-### T005 — Convite e recuperação de senha por WhatsApp
+### T005 ✅ — Convite e recuperação de senha por WhatsApp
 
 `DELIVERABLE_CHANNELS` já tem `'whatsapp'`, e o gateway recusa tudo que não é e-mail. Passa a
 aceitar, pelo mesmo trilho do worker.
@@ -307,3 +307,70 @@ typecheck · lint · format:check                       # limpos
 - **A credencial é aberta a cada envio** — uma chamada ao chaveiro por mensagem. Aceitável no volume
   de hoje; se virar gargalo, o cache é por `(companyId, version)`, nunca por tempo.
 - **Sem tela** para cadastrar o canal, e **sem rate limit**, como registrado na T003.
+
+### T005 — convite e recuperação de senha por WhatsApp (2026-08-29)
+
+`DELIVERABLE_CHANNELS` já listava `'whatsapp'` desde a spec 026, e o gateway recusava tudo que não era
+e-mail — o canal existia no banco e não existia no código. Agora entra pelo **mesmo trilho**:
+`createInvitationChannelGateway` roteia por canal, e os dois consumidores (convite e recuperação)
+usam o mesmo gateway, cada um com o seu template.
+
+⚠️ **Aqui a empresa é conhecida, e é o que torna este caminho diferente do driver da T004.** O
+envelope da mensagem carrega `companyId`, então a linha do canal é escolhida sem ambiguidade — o
+`channel_ambiguous` da T004 **não existe neste trilho**. É a mesma credencial, selada pela API e
+aberta aqui, e os dois caminhos divergem só em quem sabe de que empresa se trata.
+
+**Este não é o driver da T004, e não deveria ser.** Lá quem envia é o módulo de notificação, com
+template, preferência do destinatário e retry próprio; aqui é mensagem transacional do trilho de
+identidade, que **não passa pelo módulo de notificação em canal nenhum** — nem no e-mail. Fazer o
+convite atravessar o módulo para reusar o driver trocaria um caminho conhecido por dois.
+
+⚠️ **O caminho de produção é o template aprovado, não o texto livre.** A Meta recusa mensagem livre
+para quem não escreveu para o número nas últimas 24 horas — e **quem recebe um convite nunca
+escreveu**. Por isso `WHATSAPP_INVITATION_TEMPLATE` e `WHATSAPP_PASSWORD_RESET_TEMPLATE` levam o nome
+do template aprovado, com o código como único parâmetro do corpo; ausentes, o envio cai em texto
+livre, que é o caminho **degradado** (cliente já em conversa, mock local). Foi por isso que
+`channels.send` ganhou `code` ao lado de `body`: o corpo inteiro é a mensagem do e-mail, e o template
+precisa do código sozinho.
+
+**Três decisões que ficaram no código:**
+
+- **canal sem driver lança, e não marca entregue.** O código continua válido e reenviável porque quem
+  falhou foi o transporte — dar o convite por enviado sem ele ter saído é o defeito que ninguém
+  descobre até o cliente ligar. É o mesmo arranjo que o e-mail já tinha;
+- **o telefone é normalizado no último ponto antes do fio**, como no gateway da T004: o contato do
+  cadastro é digitado por gente, e o traço faz a Graph API recusar com um erro que parece de
+  credencial;
+- **nada de código em log**, em nenhum nível: o corpo da mensagem _é_ o segredo, e o erro daqui nomeia
+  a empresa, jamais o conteúdo (`security.md` §1).
+
+⚠️ **Três cópias por valor novas**, todas com o mesmo motivo de sempre — as apps não importam código
+uma da outra e quem faz migration é a API: o schema de `whatsapp_channels` (só as colunas que o envio
+lê), o repositório e **o AAD do envelope**. O AAD é o que dói se divergir: quem **sela** é a API, na
+rota de configuração, e quem **abre** é o worker, no envio; divergiu de um lado e o envelope não abre
+do outro, e a falha aparece só no primeiro convite por WhatsApp. `test/whatsapp-code/aad-parity.contract.ts`
+compara os dois arquivos-fonte.
+
+O contrato prova a rota do canal, a recusa sem driver, a falha subindo para o retry, o e-mail intacto
+ao lado, o envio por template com o código como parâmetro, o texto livre como degradação, a empresa
+sem canal (com o chaveiro **não** chamado) e — o que quebra em silêncio — **a fiação**: o serviço de
+entrega repassando empresa e código até o canal. Sem essa última, o gateway compila, o teste de rota
+passa, e o envio falha na primeira mensagem.
+
+```
+bun run --cwd apps/worker-transportada test   # 768 pass / 0 fail
+bun run --cwd apps/api-transportada test      # 3638 pass / 0 fail
+typecheck · lint · format:check               # limpos
+```
+
+#### Buracos declarados
+
+- **Sem template aprovado na Meta, o convite por WhatsApp não sai** para quem nunca escreveu — e é o
+  caso normal. As duas variáveis existem e estão vazias no `.env.example`; aprovar os templates é
+  trabalho de painel, do lado da Meta, e ninguém pode fazer por quem tem a conta.
+- **Nenhuma empresa está com `activation_channel = 'whatsapp'`** — a coluna aceita, e não há tela que
+  a mude. Trocar o canal hoje é `UPDATE` na mão.
+- **Sem integração contra a Graph API de verdade**: o contrato dubla o `fetch`. Um mock local por
+  `WHATSAPP_BASE_URL` é o caminho, e ele não existe no `compose.yaml`.
+- **A `WhatsAppChannelNotConfiguredError` nomeia a empresa na mensagem** — identificador opaco, então
+  está dentro da regra, mas é o tipo de campo que cresce sem querer.

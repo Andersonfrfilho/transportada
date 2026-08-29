@@ -19,6 +19,13 @@ export type InvitationDeliveryDependencies = {
     readonly send: (input: {
       readonly address: string
       readonly body: string
+      /**
+       * O código sozinho, para o canal que envia por **template aprovado** — a Meta só aceita
+       * mensagem livre dentro da janela de 24 h, e quem recebe um convite nunca escreveu antes.
+       * O e-mail ignora este campo: lá o corpo inteiro é a mensagem.
+       */
+      readonly code: string
+      readonly companyId: string
       readonly channel: InvitationContactChannel
       readonly subject: string
     }) => Promise<void>
@@ -82,6 +89,8 @@ export async function handleInvitationDelivery(
   try {
     await channels.send({
       address: invitation.contactAddress,
+      code,
+      companyId: invitation.companyId,
       body: buildInvitationMessageBody(code),
       channel: invitation.contactChannel,
       subject: DELIVERY_SUBJECT,

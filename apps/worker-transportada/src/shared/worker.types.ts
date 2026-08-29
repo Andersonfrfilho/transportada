@@ -68,6 +68,18 @@ export type WorkerEnvironment = {
   readonly foundationSyntheticEffectDelayMs: number
   readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
   readonly logLevel: LogLevel
+  /**
+   * Spec 062 T005 — a Graph API da Meta, sem segredo: o token é por empresa e vive selado no banco.
+   * Os dois nomes de template são opcionais, e ausentes o envio cai em texto livre — que só vale
+   * dentro da janela de 24 h.
+   */
+  readonly whatsapp: {
+    readonly apiVersion: string
+    readonly baseUrl: string | undefined
+    readonly codeTemplateLanguage: string
+    readonly invitationTemplate: string | undefined
+    readonly passwordResetTemplate: string | undefined
+  }
   readonly port: number
   readonly prefetch: number
   readonly queuePrefix: string
