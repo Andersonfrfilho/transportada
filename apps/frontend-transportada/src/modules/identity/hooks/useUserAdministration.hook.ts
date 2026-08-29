@@ -43,7 +43,15 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     users.inviteUserMutation.reset()
   }
 
+  /**
+   * O botão não gateia mais a tela: ele sempre clica, e é aqui que a falta vira erro ancorado no
+   * campo. Botão apagado sem explicação foi o que impediu de convidar usuário em homologação.
+   */
   async function submitInvite(): Promise<void> {
+    if (inviteForm.issues.length > 0) {
+      inviteForm.markSubmitAttempt()
+      return
+    }
     const invited = await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
     setFleetLinkNotice(invited.fleetLink === 'not-applicable' ? null : invited.fleetLink)
     inviteForm.reset()

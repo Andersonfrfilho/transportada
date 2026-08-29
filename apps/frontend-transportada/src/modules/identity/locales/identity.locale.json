@@ -72,20 +72,23 @@
       "close": "Fechar o convite",
       "name": "Nome completo",
       "channel": "Canal do convite",
-      "contact": "Contato",
-      "contactHint": "E-mail, ou telefone com DDD quando o canal for SMS ou WhatsApp.",
       "roles": "Papéis",
       "rolesHint": "Ao menos um papel. O papel decide o que a pessoa enxerga no sistema.",
       "cancel": "Cancelar",
       "confirm": "Enviar convite",
       "sending": "Enviando…",
       "email": "E-mail",
-      "emailInvalid": "E-mail inválido.",
       "phone": "Telefone",
-      "phoneInvalid": "Telefone incompleto — informe DDD e número.",
       "taxId": "CPF",
       "taxIdHint": "Opcional. Com papel de Motorista ou Agregado, é por ele que a ficha de frota é encontrada.",
-      "taxIdInvalid": "CPF incompleto — são onze dígitos."
+      "channelHint": "Por onde o código de ativação chega.",
+      "contactField": "É por aqui que o convite vai.",
+      "pending": "Falta preencher:",
+      "issue": {
+        "required": "{{field}} é obrigatório.",
+        "invalid": "{{field}} inválido.",
+        "incomplete": "{{field}} incompleto."
+      }
     },
     "editDialog": {
       "title": "Editar usuário",

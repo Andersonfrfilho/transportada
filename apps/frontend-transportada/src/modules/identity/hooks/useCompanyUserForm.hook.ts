@@ -1,16 +1,22 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useState } from 'react'
 
-import { isCompletePhone, stripPhone } from '@/modules/shared/phone.service'
+import { stripPhone } from '@/modules/shared/phone.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
-import { CPF_LENGTH, USERNAME_PATTERN } from '../shared/companyUsers.constant'
+import { USERNAME_PATTERN } from '../shared/companyUsers.constant'
 import type {
   CompanyUser,
   ContactChannel,
   InviteCompanyUserInput,
   UpdateCompanyUserProfileInput,
 } from '../shared/companyUsers.types'
+import type { InviteField, InviteIssue } from '../shared/companyUserInvite.service'
+import {
+  collectInviteIssues,
+  resolveInviteContact,
+  resolveInviteContactField,
+} from '../shared/companyUserInvite.service'
 import { buildRoleChoices } from '../shared/companyUsersViewModel.service'
 
 const DEFAULT_CHANNEL: ContactChannel = 'email'
@@ -18,20 +24,18 @@ const DEFAULT_ROLE = 'operator'
 
 export type CompanyUserInviteForm = Readonly<{
   channel: string
-  contact: string
+  contactField: InviteField
   email: string
-  isEmailValid: boolean
-  isPhoneValid: boolean
-  isReady: boolean
-  isTaxIdValid: boolean
+  hasSubmitAttempt: boolean
+  issues: readonly InviteIssue[]
   name: string
   phone: string
   roleChoices: readonly string[]
   roles: readonly string[]
   taxId: string
+  markSubmitAttempt: () => void
   reset: () => void
   setChannel: (value: string) => void
-  setContact: (value: string) => void
   setEmail: (value: string) => void
   setName: (value: string) => void
   setPhone: (value: string) => void
@@ -40,66 +44,41 @@ export type CompanyUserInviteForm = Readonly<{
   toInput: () => InviteCompanyUserInput
 }>
 
-/** Só formato: quem valida de verdade é a API, e acusar antes disso é conveniência, não regra. */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
-
-function isBlankOrValidEmail(value: string): boolean {
-  return value.trim() === '' || EMAIL_PATTERN.test(value.trim())
-}
-
-function isBlankOrCompletePhone(value: string): boolean {
-  return stripPhone(value) === '' || isCompletePhone(value)
-}
-
-function isBlankOrCompleteTaxId(value: string): boolean {
-  const digits = normalizeTaxId(value)
-  return digits === '' || digits.length === CPF_LENGTH
-}
-
 export function useCompanyUserInviteForm(): CompanyUserInviteForm {
   const [channel, setChannel] = useState<string>(DEFAULT_CHANNEL)
-  const [contact, setContact] = useState('')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [roles, setRoles] = useState<readonly string[]>([DEFAULT_ROLE])
   const [taxId, setTaxId] = useState('')
+  /** Campo vazio só vira erro depois da primeira tentativa: acusar antes é ralhar com quem chegou. */
+  const [hasSubmitAttempt, setSubmitAttempt] = useState(false)
 
   function reset(): void {
     setChannel(DEFAULT_CHANNEL)
-    setContact('')
     setEmail('')
     setName('')
     setPhone('')
     setRoles([DEFAULT_ROLE])
+    setSubmitAttempt(false)
     setTaxId('')
   }
 
-  const isEmailValid = isBlankOrValidEmail(email)
-  const isPhoneValid = isBlankOrCompletePhone(phone)
-  const isTaxIdValid = isBlankOrCompleteTaxId(taxId)
+  const draft = { channel, email, name, phone, roles, taxId }
 
   return {
     channel,
-    contact,
+    contactField: resolveInviteContactField(channel),
     email,
-    isEmailValid,
-    isPhoneValid,
-    isReady:
-      name.trim() !== '' &&
-      contact.trim() !== '' &&
-      roles.length > 0 &&
-      isEmailValid &&
-      isPhoneValid &&
-      isTaxIdValid,
-    isTaxIdValid,
+    hasSubmitAttempt,
+    issues: collectInviteIssues(draft),
+    markSubmitAttempt: () => setSubmitAttempt(true),
     name,
     phone,
     reset,
     roleChoices: buildRoleChoices([]),
     roles,
     setChannel,
-    setContact,
     setEmail,
     setName,
     setPhone,
@@ -109,7 +88,7 @@ export function useCompanyUserInviteForm(): CompanyUserInviteForm {
     /** A API guarda só dígito; mandar a máscara faria a mesma pessoa entrar duas vezes. */
     toInput: () => ({
       channel: channel as ContactChannel,
-      contact: contact.trim(),
+      contact: resolveInviteContact(draft),
       name: name.trim(),
       roles,
       ...(email.trim() === '' ? {} : { email: email.trim() }),

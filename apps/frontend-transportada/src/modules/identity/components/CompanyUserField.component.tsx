@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,6 +15,7 @@ type CompanyUserTextFieldProps = Readonly<{
   disabled?: boolean
   errorText?: string
   hint?: string
+  inputRef?: RefObject<HTMLInputElement | null>
   isWide?: boolean
   maxLength?: number
   placeholder?: string
@@ -28,6 +30,7 @@ type CompanyUserMaskedFieldProps = Readonly<{
   errorText?: string
   hint?: string
   inputMode?: 'numeric' | 'tel'
+  inputRef?: RefObject<HTMLInputElement | null>
   maxLength?: number
 }>
 
@@ -43,6 +46,7 @@ type CompanyUserSelectFieldProps = Readonly<{
 
 type CompanyUserRoleFieldProps = Readonly<{
   label: string
+  groupRef?: RefObject<HTMLFieldSetElement | null>
   onToggle: (role: string, checked: boolean) => void
   roles: readonly string[]
   selected: readonly string[]
@@ -55,6 +59,7 @@ export function CompanyUserTextField({
   disabled = false,
   errorText,
   hint,
+  inputRef,
   isWide = false,
   label,
   maxLength = 120,
@@ -76,6 +81,7 @@ export function CompanyUserTextField({
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        ref={inputRef}
         type="text"
         value={value}
       />
@@ -101,6 +107,7 @@ export function CompanyUserMaskedField({
   format,
   hint,
   inputMode,
+  inputRef,
   label,
   maxLength,
   onChange,
@@ -118,6 +125,7 @@ export function CompanyUserMaskedField({
         inputMode={inputMode}
         maxLength={maxLength}
         onChange={(event) => onChange(format(event.target.value))}
+        ref={inputRef}
         type="text"
         value={value}
       />
@@ -164,6 +172,7 @@ export function CompanyUserSelectField({
 
 export function CompanyUserRoleField({
   disabled = false,
+  groupRef,
   hint,
   label,
   onToggle,
@@ -173,7 +182,7 @@ export function CompanyUserRoleField({
   const { t } = useTranslation('identity')
 
   return (
-    <fieldset className={styles.roleGroup}>
+    <fieldset className={styles.roleGroup} ref={groupRef} tabIndex={-1}>
       <legend>{label}</legend>
       <div className={styles.roleOptions}>
         {roles.map((role) => (

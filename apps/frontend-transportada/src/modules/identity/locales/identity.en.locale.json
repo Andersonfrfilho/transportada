@@ -72,20 +72,23 @@
       "close": "Close the invitation",
       "name": "Full name",
       "channel": "Invitation channel",
-      "contact": "Contact",
-      "contactHint": "E-mail, or a phone number with area code when the channel is SMS or WhatsApp.",
       "roles": "Roles",
       "rolesHint": "At least one role. The role decides what the person can see.",
       "cancel": "Cancel",
       "confirm": "Send invitation",
       "sending": "Sending…",
       "email": "Email",
-      "emailInvalid": "Invalid email.",
       "phone": "Phone",
-      "phoneInvalid": "Incomplete phone — include the area code and number.",
       "taxId": "Tax id",
       "taxIdHint": "Optional. With a Driver or Aggregate role, it is what finds the fleet record.",
-      "taxIdInvalid": "Incomplete tax id — eleven digits are required."
+      "channelHint": "How the activation code is delivered.",
+      "contactField": "This is where the invitation goes.",
+      "pending": "Still missing:",
+      "issue": {
+        "required": "{{field}} is required.",
+        "invalid": "{{field}} is invalid.",
+        "incomplete": "{{field}} is incomplete."
+      }
     },
     "editDialog": {
       "title": "Edit user",
