@@ -16,10 +16,10 @@
 
 > 🤖 Modelo: `sonnet` — API pronta, é consumo
 
-- [ ] T003 [P] Hook e cliente de anexo no painel — `modules/fleet/shared/aggregateDocumentClient.service.ts`, `hooks/` — contrato de leitura
-- [ ] T004 Card de anexos na candidatura com ícone de tipo, badge de status e estado vazio — `AggregateDocumentsCard.component.tsx` — contratos de render
-- [ ] T005 Aprovar e reprovar por linha, motivo obrigatório na recusa — mesmo arquivo — contrato: recusa sem motivo é bloqueada na tela **e** na API
-- [ ] T006 Abrir o arquivo por URL assinada — contrato: nenhum link sem assinatura no DOM
+- [x] T003 [P] Hook e cliente de anexo no painel — `modules/fleet/shared/aggregateDocumentClient.service.ts`, `hooks/` — contrato de leitura
+- [x] T004 Card de anexos na candidatura com ícone de tipo, badge de status e estado vazio — `AggregateDocumentsCard.component.tsx` — contratos de render
+- [x] T005 Aprovar e reprovar por linha, motivo obrigatório na recusa — mesmo arquivo — contrato: recusa sem motivo é bloqueada na tela **e** na API
+- [x] T006 Abrir o arquivo por URL assinada — contrato: nenhum link sem assinatura no DOM
 - [ ] T007 Smoke: aprovar muda o estado na tela real — `bun run smoke`
 
 ## Fase 2 — O CNPJ preenche a empresa

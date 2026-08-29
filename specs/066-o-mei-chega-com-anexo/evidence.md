@@ -1,14 +1,15 @@
 # 066 — o MEI chega com anexo · evidência
 
-> **A fase 1 não entrou**, e é a primeira coisa a ler: o card de anexos do agregado já cadastrado
-> (T003–T007) continua de pé como trabalho não feito. O que entrou foi o caminho do **candidato** —
+> **Só o smoke da fase 1 (T007) ficou de fora.** Tudo o mais entrou: o caminho do **candidato** —
 > anexar no cadastro público, ler o CCMEI no navegador, guardar o rascunho, vincular à candidatura e
-> pôr a decisão na mão do operador.
+> pôr a decisão na mão do operador — e a fila de revisão do agregado **já cadastrado**, que a fase 1
+> pedia.
 
 ## O que ficou de pé
 
 | Task      | O que entrou                                                                         |
 | --------- | ------------------------------------------------------------------------------------ |
+| T003–T006 | a aba de documentos do agregado: fila, divergência, decisão por linha, URL assinada  |
 | T008–T010 | `GET /public/cnpj-info` e o bloco Empresa do `/cadastro`, preenchido no blur do CNPJ |
 | T017–T019 | `@adatechnology/document-intake` publicado, e a landing lendo PDF sem afrouxar a CSP |
 | T020–T021 | divergência CNPJ digitado × CNPJ impresso, e o smoke com CCMEI sintético             |
@@ -56,8 +57,15 @@ candidatura, que é onde o operador o lê.
 
 ## O que não entrou
 
-**A fase 1 inteira (T003–T007).** O card de anexos existe para a candidatura, não para o agregado já
-cadastrado. São telas diferentes com fila de revisão diferente.
+**O smoke da fase 1 (T007).** A aba de documentos do agregado está de pé e coberta por sete
+contratos em `test/fleet/aggregate-documents-tab.contract.ts` — inclusive o que exige URL assinada em
+vez de link para o objeto, e o que impede a recusa sem motivo. O que falta é o passo em navegador
+real: aprovar e ver o estado mudar na tela servida. **Contrato não substitui isso** — ele prova o
+componente, não a página montada com a API do outro lado.
+
+⚠️ A tela nasceu como `AggregateDocumentsTab.component.tsx`, e não `AggregateDocumentsCard` como a
+T004 escreveu. É aba dentro da área de frota, não card solto; o nome do arquivo na task envelheceu, o
+comportamento pedido não.
 
 **A fase 0 (T001–T002).** O mapa de rótulos do CCMEI foi fechado contra amostra real conferida à mão,
 **fora do repositório** — a § Privacidade da 048 recusa PII versionada, e o teste usa PDF sintético
