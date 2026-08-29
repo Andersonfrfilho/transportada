@@ -7,6 +7,7 @@ import type {
   CteTechnicalResponsibleEnvironment,
   MdfeAutoIssueEnvironment,
   FuelPricePullEnvironment,
+  IdentityDocumentBackfillEnvironment,
   WorkerEnvironment,
 } from '../shared/worker.types.js'
 
@@ -40,6 +41,9 @@ const workerEnvironmentSchema = z
   .object({
     ANEEL_BASE_URL: optionalUrl(),
     API_BASE_URL: optionalUrl(),
+    KEYCLOAK_ADMIN_CLIENT_ID: optionalText(),
+    KEYCLOAK_ADMIN_CLIENT_SECRET: optionalText(),
+    KEYCLOAK_ISSUER: optionalUrl(),
     KEYCLOAK_TOKEN_URL: optionalUrl(),
     WORKER_CLIENT_ID: optionalText(),
     WORKER_CLIENT_SECRET: optionalText(),
@@ -168,6 +172,7 @@ export function parseWorkerEnvironment(
   }
 
   const technicalResponsible = toTechnicalResponsible(result.data)
+  const identityDocumentBackfill = toIdentityDocumentBackfill(result.data)
   const mdfeAutoIssue = toMdfeAutoIssue(result.data)
 
   return {
@@ -178,6 +183,7 @@ export function parseWorkerEnvironment(
     databaseUrl: result.data.DATABASE_URL,
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     fuelPricePull: toFuelPricePull(result.data),
+    ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
       ? {}
       : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),
@@ -231,6 +237,34 @@ function toFuelPricePull(
     aneelTimeoutMilliseconds: data.ANEEL_TIMEOUT_MS,
     anpBaseUrl: data.ANP_BASE_URL,
     anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
+  }
+}
+
+/**
+ * As três juntas ou nenhuma. Ausentes, a rotina de backfill não é registrada e a janela dela pousa
+ * em `job_run_routine_missing` — que é a verdade: não há provedor para escrever atributo nenhum.
+ * Um grupo pela metade derruba o boot, como o da agência: credencial de admin incompleta é engano
+ * de configuração, não escolha de não usar.
+ */
+function toIdentityDocumentBackfill(
+  data: Readonly<{
+    KEYCLOAK_ADMIN_CLIENT_ID?: string | undefined
+    KEYCLOAK_ADMIN_CLIENT_SECRET?: string | undefined
+    KEYCLOAK_ISSUER?: string | undefined
+  }>,
+): IdentityDocumentBackfillEnvironment | undefined {
+  const values = [
+    data.KEYCLOAK_ADMIN_CLIENT_ID,
+    data.KEYCLOAK_ADMIN_CLIENT_SECRET,
+    data.KEYCLOAK_ISSUER,
+  ]
+  if (values.every((value) => value === undefined)) return undefined
+  if (values.some((value) => value === undefined)) throw new WorkerConfigurationError()
+
+  return {
+    clientId: data.KEYCLOAK_ADMIN_CLIENT_ID as string,
+    clientSecret: data.KEYCLOAK_ADMIN_CLIENT_SECRET as string,
+    issuer: data.KEYCLOAK_ISSUER as string,
   }
 }
 

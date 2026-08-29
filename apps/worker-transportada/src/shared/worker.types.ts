@@ -35,6 +35,13 @@ export type NfseFiscalEnvironment = 'homologation' | 'production'
  * Configuração do trilho de coleta do preço de referência, resolvida só quando o ambiente declara
  * alguma agência. São **duas** na mesma rotina: a ANP publica o litro e a ANEEL, o megawatt-hora.
  */
+/** Credencial de administração do realm, usada só pelo backfill do documento. */
+export type IdentityDocumentBackfillEnvironment = {
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly issuer: string
+}
+
 export type FuelPricePullEnvironment = {
   readonly aneelBaseUrl: string
   readonly aneelTimeoutMilliseconds: number
@@ -63,6 +70,7 @@ export type WorkerEnvironment = {
    */
   readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly fuelPricePull: FuelPricePullEnvironment | undefined
+  readonly identityDocumentBackfill?: IdentityDocumentBackfillEnvironment
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number

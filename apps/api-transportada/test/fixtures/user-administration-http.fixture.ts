@@ -23,6 +23,7 @@ type RouteDependencies = {
   readonly changeStatus: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly invite: { execute(input: ExecuteCall): Promise<typeof INVITED_COMPANY_USER> }
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
+  readonly backfillDocuments: { execute(input: ExecuteCall): Promise<typeof BACKFILL_RESULT> }
   readonly reconcile: { execute(input: ExecuteCall): Promise<typeof RECONCILIATION_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -85,6 +86,8 @@ export const COMPANY_USER = {
 export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
 
 /** A reconciliação responde os dois lados; o que a rota precisa provar é o recorte e a permissão. */
+export const BACKFILL_RESULT = { skipped: 1, written: 2 }
+
 export const RECONCILIATION_RESULT = {
   hasMoreRealmUsers: false,
   items: [
@@ -137,6 +140,7 @@ export async function createUserAdministrationHttpFixture(
   readonly handle: (request: Request) => Promise<Response>
   readonly inviteCalls: ExecuteCall[]
   readonly listCalls: ExecuteCall[]
+  readonly backfillCalls: ExecuteCall[]
   readonly reconcileCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
@@ -146,6 +150,7 @@ export async function createUserAdministrationHttpFixture(
   const changeStatusCalls: ExecuteCall[] = []
   const inviteCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
+  const backfillCalls: ExecuteCall[] = []
   const reconcileCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
@@ -169,6 +174,12 @@ export async function createUserAdministrationHttpFixture(
         inviteCalls.push(structuredClone(input))
         if (params.refusal) return refuse()
         return INVITED_COMPANY_USER
+      },
+    },
+    backfillDocuments: {
+      async execute(input) {
+        backfillCalls.push(structuredClone(input))
+        return BACKFILL_RESULT
       },
     },
     reconcile: {
@@ -229,6 +240,7 @@ export async function createUserAdministrationHttpFixture(
     handle: (request) => handleRequest(request, { timeout() {} }),
     inviteCalls,
     listCalls,
+    backfillCalls,
     reconcileCalls,
     removeMembershipCalls,
     replaceRolesCalls,

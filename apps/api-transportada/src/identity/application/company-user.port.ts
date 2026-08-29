@@ -3,6 +3,7 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 
 export type PendingInvitationSummary =
@@ -98,6 +99,15 @@ export type CompanyUserRepositoryPort = {
   readonly listForReconciliation: (input: {
     readonly companyId: string
   }) => Promise<readonly LocalIdentityRecord[]>
+  /** A execução manual entra na mesma trilha da agendada, com quem pediu e o que ela contou. */
+  readonly recordManualJobRun: (input: {
+    readonly companyId: string
+    readonly correlationId: string
+    readonly counters: Readonly<Record<string, number>>
+    readonly job: ScheduledJob
+    readonly outcome: JobOutcome
+    readonly requestedBy: string
+  }) => Promise<void>
   readonly removeMembership: (input: {
     readonly companyId: string
     readonly userId: string

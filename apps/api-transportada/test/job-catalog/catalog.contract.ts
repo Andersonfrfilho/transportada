@@ -74,6 +74,12 @@ const CATALOG = [
     job: 'trip.location.purge',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** O provedor é o único de fora que ela toca, e é a única coisa que pode faltar. */
+    failureOutcomes: ['identity_provider_unreachable'],
+    job: 'identity.document.backfill',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 /**
@@ -84,10 +90,11 @@ const CATALOG = [
 const SEED_MIGRATIONS = [
   '20260823175600_job_schedule_registry',
   '20260826101924_tough_killraven',
+  '20260829224254_identity_document_backfill_job',
 ] as const
 
 describe('job catalog', () => {
-  test('names the five routines, in the order the clock seeds them', () => {
+  test('names every routine, in the order the clock seeds them', () => {
     expect(JOB_CATALOG).toEqual(CATALOG)
     expect(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
   })

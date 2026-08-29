@@ -152,6 +152,10 @@ import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distributi
 import { createCryptoDistributionIdentifiers } from './nfe-distribution-pull/infrastructure/crypto-identifiers.js'
 import { createDrizzleDistributionCandidateSource } from './nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.js'
 import { createDrizzleDistributionEnqueueGateway } from './nfe-distribution-pull/infrastructure/drizzle-distribution-enqueue.gateway.js'
+import { createIdentityDocumentBackfillRoutine } from './identity-document-backfill/application/identity-document-backfill.routine.js'
+import { IDENTITY_DOCUMENT_BACKFILL_JOB } from './identity-document-backfill/domain/identity-document-backfill.constant.js'
+import { createDrizzleLocalDocumentSource } from './identity-document-backfill/infrastructure/drizzle-local-document.repository.js'
+import { createKeycloakRealmGateway } from './identity-document-backfill/infrastructure/keycloak-realm.gateway.js'
 import { createTripLocationPurgeRoutine } from './trip-location-purge/application/trip-location-purge.routine.js'
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import { createDrizzleRedactTripLocations } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
@@ -890,6 +894,21 @@ export async function startWorkerRuntime(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
           }),
+          /**
+           * Ausente quando a instalação não declara credencial de administração do realm: sem
+           * provedor não há atributo a escrever, e a janela pousa em `job_run_routine_missing`.
+           */
+          ...(config.identityDocumentBackfill === undefined
+            ? {}
+            : {
+                [IDENTITY_DOCUMENT_BACKFILL_JOB]: createIdentityDocumentBackfillRoutine({
+                  documents: createDrizzleLocalDocumentSource(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  logger,
+                  realm: createKeycloakRealmGateway(config.identityDocumentBackfill),
+                }),
+              }),
           [DISTRIBUTION_PULL_JOB]: createNfeDistributionPullRoutine({
             gateway: createDrizzleDistributionEnqueueGateway({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],

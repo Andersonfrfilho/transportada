@@ -302,6 +302,7 @@ import {
 } from './identity/infrastructure/keycloak-admin.gateway'
 import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
 import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
+import { createBackfillIdentityDocumentsUseCase } from './identity/application/backfill-identity-documents.use-case'
 import { createReconcileCompanyUsersUseCase } from './identity/application/reconcile-company-users.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
@@ -1168,6 +1169,10 @@ function createApplicationRoutes({
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
+  const backfillIdentityDocuments = createBackfillIdentityDocumentsUseCase({
+    gateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
   const reconcileCompanyUsers = createReconcileCompanyUsersUseCase({
     gateway: identityAccessGateway,
     repository: companyUserRepository,
@@ -1785,6 +1790,7 @@ function createApplicationRoutes({
       changeStatus: changeCompanyUserStatus,
       invite: inviteCompanyUser,
       list: listCompanyUsers,
+      backfillDocuments: backfillIdentityDocuments,
       reconcile: reconcileCompanyUsers,
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,

@@ -181,6 +181,7 @@ describe('Drizzle migrations', () => {
       '20260828002117_route_optimization_timezone',
       '20260828033159_whatsapp_channel',
       '20260829030742_whatsapp_webhook_nonce',
+      '20260829224254_identity_document_backfill_job',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

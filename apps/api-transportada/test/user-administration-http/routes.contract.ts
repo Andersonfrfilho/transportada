@@ -13,6 +13,7 @@ import {
   INVITE_BODY,
   INVITE_CONTACT,
   jsonRequest,
+  BACKFILL_RESULT,
   RECONCILIATION_RESULT,
   REPLACE_ROLES_BODY,
   responseApiError,
@@ -386,5 +387,43 @@ describe('rotas de administração de usuários — reconciliação com o Keyclo
 
     expect(fixture.reconcileCalls[0]?.['limit']).toBe(200)
     expect(fixture.reconcileCalls[1]?.['limit']).toBe(100)
+  })
+})
+
+describe('rotas de administração de usuários — backfill manual do documento', () => {
+  test('roda no escopo da empresa do token e devolve o que contou', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: BACKFILL_RESULT })
+    expect(fixture.backfillCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Sem correlação, a linha do histórico não se liga ao chamado que a pediu. */
+  test('leva a correlação do pedido, e inventa uma quando não vem', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(fixture.backfillCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  test('o caminho literal não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
   })
 })

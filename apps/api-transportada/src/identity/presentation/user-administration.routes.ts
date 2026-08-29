@@ -2,7 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { API_COMPANY_USERS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  API_COMPANY_USERS_PATH,
+  CORRELATION_ID_HEADER,
+  CORRELATION_ID_PATTERN,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
 import type {
   ChangeCompanyUserStatusInput,
   ChangeCompanyUserStatusUseCase,
@@ -31,6 +36,7 @@ import type {
   UpdateCompanyUserProfileInput,
   UpdateCompanyUserProfileUseCase,
 } from '../application/update-company-user-profile.use-case.js'
+import type { BackfillIdentityDocumentsUseCase } from '../application/backfill-identity-documents.use-case.js'
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
@@ -47,6 +53,7 @@ import {
  * precisa ser declarado antes do parametrizado para não ser lido como identificador.
  */
 const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
+const DOCUMENT_BACKFILL_PATH = `${API_COMPANY_USERS_PATH}/document-backfill`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
 const USER_INVITATION_PATH = `${USER_PATH}/invitation`
 const USER_STATUS_PATH = `${USER_PATH}/status`
@@ -57,6 +64,7 @@ type Dependencies = {
   readonly changeStatus: ChangeCompanyUserStatusUseCase
   readonly invite: InviteCompanyUserUseCase
   readonly list: ListCompanyUsersUseCase
+  readonly backfillDocuments: BackfillIdentityDocumentsUseCase
   readonly reconcile: ReconcileCompanyUsersUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
@@ -92,6 +100,29 @@ export function createUserAdministrationRoutes(
       method: 'GET',
       parse: ({ request }) => ({ limit: parseReconciliationLimit(new URL(request.url)) }),
       pathname: RECONCILIATION_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * O mesmo trabalho da rotina agendada, no recorte da empresa do token e no tempo do operador —
+     * a rotina converge sozinha em dias, e quem acabou de cadastrar não quer esperar a janela.
+     */
+    defineRoute<{ readonly correlationId: string }>({
+      async handle({ context, input }) {
+        const result = await dependencies.backfillDocuments.execute({
+          context: context.scope,
+          correlationId: input.correlationId,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      /**
+       * O identificador do pedido é o mesmo que atravessa o log; sem cabeçalho, a execução ganha o
+       * dela — linha de histórico sem correlação é linha que ninguém liga ao chamado depois.
+       */
+      parse: ({ request }) => ({
+        correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+      }),
+      pathname: DOCUMENT_BACKFILL_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
     defineRoute<Omit<InviteCompanyUserInput, 'context'>>({
@@ -228,4 +259,9 @@ function parseReconciliationLimit(url: URL): number {
   const parsed = Number(raw)
   if (!Number.isInteger(parsed) || parsed < 1) return RECONCILIATION_DEFAULT_LIMIT
   return Math.min(parsed, RECONCILIATION_MAX_LIMIT)
+}
+
+function readCorrelationId(request: Request): string | undefined {
+  const value = request.headers.get(CORRELATION_ID_HEADER)
+  return value !== null && CORRELATION_ID_PATTERN.test(value) ? value : undefined
 }

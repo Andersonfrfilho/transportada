@@ -2,9 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
+import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
+import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import {
   externalIdentities,
@@ -211,6 +213,40 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       userId: row.userId,
       ...(row.subject === null ? {} : { subject: row.subject }),
     }))
+  }
+
+  /**
+   * Mesmo padrão do disparo manual da importação: a linha do histórico e o adiamento da janela vão
+   * juntos. Gravar o clique sem reagendar deixaria a janela seguinte vencer minutos depois e repetir
+   * o que o operador acabou de pedir.
+   */
+  public async recordManualJobRun(input: {
+    readonly companyId: string
+    readonly correlationId: string
+    readonly counters: Readonly<Record<string, number>>
+    readonly job: ScheduledJob
+    readonly outcome: JobOutcome
+    readonly requestedBy: string
+  }): Promise<void> {
+    const startedAt = new Date()
+    await this.database.insert(jobExecutions).values({
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      counters: input.counters,
+      finishedAt: startedAt,
+      job: input.job,
+      origin: 'manual',
+      outcome: input.outcome,
+      requestedBy: input.requestedBy,
+      startedAt,
+    })
+    await this.database
+      .update(jobSchedules)
+      .set({
+        nextRunAt: sql`now() + make_interval(secs => ${jobSchedules.intervalSeconds})`,
+        updatedAt: startedAt,
+      })
+      .where(eq(jobSchedules.job, input.job))
   }
 
   public async listPage(input: ListCompanyUsersInput): Promise<CompanyUserPage> {

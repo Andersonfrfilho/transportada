@@ -67,6 +67,12 @@ const CATALOG = [
     job: 'trip.location.purge',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** O provedor é o único de fora que ela toca, e é a única coisa que pode faltar. */
+    failureOutcomes: ['identity_provider_unreachable'],
+    job: 'identity.document.backfill',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('cron job catalog', () => {
