@@ -10,6 +10,7 @@ import {
 } from '@adatechnology/keycloak-admin'
 
 import { DuplicateContactError } from '../domain/company-user.error.js'
+import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 
 import type {
   BootstrapIdentityGatewayPort,
@@ -63,9 +64,6 @@ export function createKeycloakAdminGateway(
 }
 
 export type IdentityUserAttributes = Readonly<Record<string, string | readonly string[]>>
-
-/** O atributo ainda não é escrito por ninguém: a leitura nasce pronta para quando passar a ser. */
-const TAX_ID_ATTRIBUTE = 'tax_id'
 
 /** O Keycloak devolve atributo como lista, mesmo quando o valor é um só. */
 function readAttribute(attributes: IdentityUserAttributes | undefined, name: string): string {
@@ -185,7 +183,7 @@ export function createIdentityAccessGateway(
           email: user.email ?? '',
           enabled: user.enabled ?? false,
           subject: user.id,
-          taxId: readAttribute(user.attributes, TAX_ID_ATTRIBUTE),
+          taxId: readAttribute(user.attributes, IDENTITY_USER_ATTRIBUTE.TAX_ID),
           username: user.username ?? '',
         })),
       }

@@ -403,6 +403,32 @@ Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do 
 **Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
 conscientemente.
 
+## CPF em claro no Keycloak, para casar a pessoa dos dois lados
+
+**Data:** 2026-08-29 · **Decidido conscientemente**
+
+A reconciliação entre os usuários da empresa e o realm precisa saber quando duas contas são a mesma
+pessoa. A pessoa tem **um documento e vários e-mails**, então o documento é a chave que funciona — e
+o realm não guardava documento nenhum: o produto só escrevia `company_id`.
+
+A partir de agora o CPF é gravado **em claro** no atributo `tax_id` do usuário do Keycloak, no
+convite, na edição de perfil e num backfill de quem já existe. Isso espalha PII para um segundo
+sistema: o CPF passa a existir no banco do Keycloak e nos backups dele, fora do alcance das nossas
+regras de retenção.
+
+**A alternativa que foi oferecida e recusada:** índice cego com HMAC, o mesmo padrão que a ADR-0039
+escolheu para a CNH do motorista. Ele casaria a pessoa igual — compara-se hash com hash — sem que o
+documento saísse da nossa base. O custo era uma chave nova para gerenciar e um valor ilegível no
+console do Keycloak. A escolha por valor em claro foi do dono do produto, com o risco declarado.
+
+**O que limita o estrago hoje:** o atributo não é lido por ninguém além da reconciliação, e ela
+mascara o documento na resposta (`***09`) — o valor cru é usado só para casar, dentro do servidor.
+O backfill não escreve documento vazio, e a escrita leva `company_id` junto porque o Admin API
+substitui o conjunto inteiro de atributos.
+
+**O que falta:** decidir a retenção do atributo no realm (hoje nada o expira), e reavaliar o índice
+cego se o Keycloak passar a ser acessado por mais gente do que hoje.
+
 ## Fechados
 
 _Nenhum ainda._

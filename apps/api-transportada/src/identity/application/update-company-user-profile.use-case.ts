@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 import { CompanyUserNotFoundError } from '../domain/company-user.error.js'
 import {
   splitPersonName,
@@ -26,6 +27,8 @@ export type UpdateCompanyUserProfileInput = {
   readonly context: { readonly companyId: string }
   readonly email?: string
   readonly name?: string
+  readonly phone?: string
+  readonly taxId?: string
   readonly userId: string
   readonly username?: string
 }
@@ -46,7 +49,7 @@ export function createUpdateCompanyUserProfileUseCase({
   repository,
 }: UpdateCompanyUserProfileDependencies): UpdateCompanyUserProfileUseCase {
   return {
-    async execute({ channel, contact, context, email, name, userId, username }) {
+    async execute({ channel, contact, context, email, name, phone, taxId, userId, username }) {
       const existing = await repository.findByUserId({ companyId: context.companyId, userId })
       if (existing === undefined) throw new CompanyUserNotFoundError()
 
@@ -54,7 +57,10 @@ export function createUpdateCompanyUserProfileUseCase({
         userId,
         ...(contact === undefined ? {} : { contactAddress: contact }),
         ...(channel === undefined ? {} : { contactChannel: channel }),
+        ...(email === undefined ? {} : { email }),
         ...(name === undefined ? {} : { name }),
+        ...(phone === undefined ? {} : { phone }),
+        ...(taxId === undefined ? {} : { taxId }),
         ...(username === undefined ? {} : { username }),
       })
 
@@ -68,11 +74,26 @@ export function createUpdateCompanyUserProfileUseCase({
         userId: subject,
       })
 
+      /**
+       * O atributo vai numa chamada própria e depois do perfil: o Admin API substitui o conjunto
+       * inteiro, então o `company_id` viaja junto — sem ele o login entraria sem empresa.
+       */
+      if (taxId !== undefined)
+        await identityGateway.updateAttributes({
+          attributes: {
+            [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
+            ...(taxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: taxId }),
+          },
+          userId: subject,
+        })
+
       return toCompanyUserView({
         ...existing,
         contactAddress: contact ?? existing.contactAddress,
         contactChannel: channel ?? existing.contactChannel,
         name: name ?? existing.name,
+        phone: phone ?? existing.phone,
+        taxId: taxId ?? existing.taxId,
         username: username ?? existing.username,
       })
     },

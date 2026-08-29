@@ -72,6 +72,57 @@ describe('sincronização com o Keycloak — convite', () => {
     const attributes = gateway.createUserCalls[0]?.attributes ?? {}
     expect(Object.values(attributes)).not.toContain('11999998888')
   })
+
+  /**
+   * O documento é o degrau que casa a pessoa dos dois lados na reconciliação: escrevê-lo só na
+   * edição deixaria todo convite novo fora do casamento, e o e-mail é ambíguo por natureza.
+   */
+  test('grava o documento como atributo, ao lado da empresa', async () => {
+    const gateway = createIdentityGatewayFake()
+
+    await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
+      identityGateway: gateway,
+      invitations: createInvitationRepositoryFake(),
+      issuer: 'https://keycloak.test/realms/transportada',
+      now: () => new Date('2026-08-06T12:00:00.000Z'),
+      repository: createCompanyUserRepositoryFake(),
+    }).execute({
+      channel: 'email',
+      contact: 'pessoa@empresa.test',
+      context: { companyId: COMPANY_ID },
+      name: 'Maria',
+      roles: ['operator'],
+      taxId: '12345678909',
+    })
+
+    expect(gateway.createUserCalls[0]?.attributes).toEqual({
+      company_id: COMPANY_ID,
+      tax_id: '12345678909',
+    })
+  })
+
+  /** Atributo vazio não é dado: gravá-lo faria a reconciliação casar dois brancos como a mesma. */
+  test('sem documento, o atributo não é inventado', async () => {
+    const gateway = createIdentityGatewayFake()
+
+    await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
+      identityGateway: gateway,
+      invitations: createInvitationRepositoryFake(),
+      issuer: 'https://keycloak.test/realms/transportada',
+      now: () => new Date('2026-08-06T12:00:00.000Z'),
+      repository: createCompanyUserRepositoryFake(),
+    }).execute({
+      channel: 'email',
+      contact: 'pessoa@empresa.test',
+      context: { companyId: COMPANY_ID },
+      name: 'Maria',
+      roles: ['operator'],
+    })
+
+    expect(gateway.createUserCalls[0]?.attributes).toEqual({ company_id: COMPANY_ID })
+  })
 })
 
 describe('sincronização com o Keycloak — ativação', () => {

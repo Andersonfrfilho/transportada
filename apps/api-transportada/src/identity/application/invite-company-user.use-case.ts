@@ -8,6 +8,7 @@ import {
   toCompanyUserView,
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
+import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
 import {
@@ -86,9 +87,16 @@ export function createInviteCompanyUserUseCase({
       const profileEmail = email ?? (channel === 'email' ? contact : '')
       const profilePhone = phone ?? (channel === 'email' ? '' : contact)
       const profileTaxId = taxId ?? ''
-      /** `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. */
+      /**
+       * `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. O
+       * documento vai junto porque é por ele que a reconciliação casa a pessoa dos dois lados —
+       * escrever só na edição deixaria todo convite novo fora do casamento.
+       */
       const { subject } = await identityGateway.createUser({
-        attributes: { company_id: context.companyId },
+        attributes: {
+          [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
+          ...(profileTaxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: profileTaxId }),
+        },
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,
         ...splitPersonName(name),
