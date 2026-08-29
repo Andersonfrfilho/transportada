@@ -159,6 +159,92 @@ afterAll(async () => {
   }
 })
 
+describe('o que o envio enxerga do banco (spec 062 T004)', () => {
+  /**
+   * ⚠️ Canal **desligado** e canal **sem token** não são a mesma coisa na tela — um está pausado, o
+   * outro está pela metade —, mas para o envio os dois são ausência: nenhum dos dois tem com que
+   * assinar a chamada à Meta. Sem isto, a instalação com um canal ativo e um rascunho pela metade
+   * pareceria ambígua ao driver, e **nenhuma** notificação sairia.
+   */
+  testWithPostgres('só canal ativo e com token selado é oferecido ao envio', async () => {
+    await withSharedDatabase(async (database) => {
+      const repository = new DrizzleWhatsAppChannelRepository(database.db)
+      await database.db.delete(whatsappChannels)
+
+      const active = await insertChannel(database, {
+        envelope: ENVELOPE,
+        phoneNumberId: '900000000000001',
+        status: 'active',
+      })
+      await insertChannel(database, {
+        envelope: ENVELOPE,
+        phoneNumberId: '900000000000002',
+        status: 'disabled',
+      })
+      await insertChannel(database, {
+        envelope: undefined,
+        phoneNumberId: '900000000000003',
+        status: 'active',
+      })
+
+      const credentials = await repository.findActiveCredentials()
+
+      expect(credentials).toHaveLength(1)
+      expect(credentials[0]?.companyId).toBe(active)
+      expect(credentials[0]?.phoneNumberId).toBe('900000000000001')
+      expect(credentials[0]?.envelope.ciphertext).toBe(ENVELOPE.ciphertext)
+    })
+  })
+
+  /** O teto existe para o driver distinguir "um" de "mais de um" sem varrer a instalação. */
+  testWithPostgres('duas empresas com canal chegam ao driver como ambiguidade', async () => {
+    await withSharedDatabase(async (database) => {
+      const repository = new DrizzleWhatsAppChannelRepository(database.db)
+      await database.db.delete(whatsappChannels)
+
+      await insertChannel(database, {
+        envelope: ENVELOPE,
+        phoneNumberId: '900000000000011',
+        status: 'active',
+      })
+      await insertChannel(database, {
+        envelope: ENVELOPE,
+        phoneNumberId: '900000000000012',
+        status: 'active',
+      })
+      await insertChannel(database, {
+        envelope: ENVELOPE,
+        phoneNumberId: '900000000000013',
+        status: 'active',
+      })
+
+      expect(await repository.findActiveCredentials()).toHaveLength(2)
+    })
+  })
+})
+
+async function insertChannel(
+  database: TestDatabase,
+  input: {
+    readonly envelope: typeof ENVELOPE | undefined
+    readonly phoneNumberId: string
+    readonly status: 'active' | 'disabled'
+  },
+): Promise<string> {
+  const companyId = crypto.randomUUID()
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(whatsappChannels).values({
+    companyId,
+    displayPhoneNumber: '',
+    phoneNumberId: input.phoneNumberId,
+    secretEnvelope: input.envelope ?? {},
+    status: input.status,
+    wabaId: '987654321098765',
+  })
+
+  return companyId
+}
+
 async function withSharedDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {

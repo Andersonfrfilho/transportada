@@ -65,7 +65,7 @@ o token, nem mascarado — máscara que permite confirmar um token é confirmaç
 - **Aceite:** o token não aparece em resposta nenhuma; contrato guarda isso por extenso
 - **Verificação:** `bun test ./test/whatsapp-channel-http.contract.test.ts`
 
-### T004 🧠 — O driver injetado no `notification-module`
+### T004 🧠 ✅ — O driver injetado no `notification-module`
 
 Gateway fino que satisfaz `WhatsAppSendingChannel` sobre o `WhatsAppMessageProvider`, e
 `createWhatsAppDriverFromChannel()` ligando `channels.whatsapp` no factory. **Um caminho de envio, não
@@ -234,3 +234,76 @@ o primeiro teste reusou o mesmo `phone_number_id` em duas empresas e **o unique 
 - **Não há tela** — o painel ainda não tem o formulário do canal. Cadastrar hoje é `PUT` na mão.
 - **Sem rate limit**, como o resto desta API (achado já em `docs/SECURITY.md`).
 - **Ninguém envia nada ainda**: `findSecret` existe e não tem chamador até a T004.
+
+### T004 — o driver injetado no `notification-module` (2026-08-28)
+
+**Um caminho de envio, não dois.** Quem manda WhatsApp é o módulo de notificação, como já é com
+e-mail: o produto injeta um `WhatsAppDriverPort` em `channels.whatsapp` e some do assunto. Nenhum
+caso de uso do produto fala com a Meta.
+
+Três peças, cada uma com um trabalho só:
+
+- **`meta-whatsapp-sending.gateway.ts`** traduz o `WhatsAppMessageProvider` para a forma
+  `WhatsAppSendingChannel` que o `notification-contracts` descreve. Os dois nomeiam a mesma coisa de
+  jeitos diferentes — `waMessageId` de um lado, `externalMessageId` do outro —, e traduzir aqui é o
+  que mantém os pacotes independentes: o de notificação não sabe o que é Meta, o da Meta não sabe o
+  que é entrega. O gateway **não engole erro**: quem classifica falha da Graph API é
+  `createWhatsAppDriverFromChannel`, que lê `code` e `statusCode` da exceção para decidir entre
+  tentar de novo, desistir e apagar o destino. Um `try/catch` ali apagaria essa informação e todo
+  erro viraria "desconhecido, tente de novo".
+- **`whatsapp-notification-driver.service.ts`** resolve a credencial e abre o envelope **a cada
+  envio**, não uma vez no boot: token rotacionado no painel da Meta passa a valer na próxima
+  mensagem, e canal desligado para de enviar na mesma hora. Cobrar restart por isso transformaria
+  "desligar o canal" num pedido de manutenção.
+- **`findActiveCredentials()`**, com teto de dois, é o que o envio enxerga do banco.
+
+⚠️ **O buraco central, e ele é do SDK, não nosso: `WhatsAppDriverPort.send` não recebe empresa.**
+O `notification-module` estreita a `delivery` para `{channel, deviceId}` antes de chamar o driver,
+mesmo tendo `job.companyId` na mão — então o driver não tem como escolher entre dois números. Com uma
+empresa só na instalação a escolha é única e não há o que errar; com duas, escolher qualquer uma
+mandaria a mensagem do cliente **pelo número da outra filial**, e ele responderia para lá. Por isso
+dois canais ativos é `permanent('channel_ambiguous')`, com o log dizendo quantos havia: silêncio
+declarado é melhor que a conversa no telefone errado.
+
+**Fechar isso é mudança no pacote, não aqui** (regra de módulos plugáveis: falta porta, muda-se o
+pacote com changeset). O patch é pequeno e está medido: `companyId` em `SendWhatsAppParams`
+(`notification-contracts/src/channelDrivers.ts`), o campo repassado em
+`DispatchDelivery.use-case.ts` a partir de `job.companyId`, e um
+`createWhatsAppDriverFromChannelResolver((companyId) => channel)` ao lado do factory de canal único —
+que os outros produtos, de um número só, continuam usando. Publicar isso alinha três produtos e não é
+decisão de uma task de produto.
+
+**Três decisões que ficaram no código:**
+
+- **envelope que não abre é `retriable`, não `permanent`.** Chaveiro fora do ar é indisponibilidade
+  de minutos, e `permanent` queimaria a notificação — notificação queimada não volta, porque a fila
+  já a deu por resolvida;
+- **o telefone é normalizado no gateway**, último ponto antes do fio: `+55 (16) 99999-1234` é a forma
+  normal do cadastro, e mandá-lo cru faz a Graph API recusar com um erro que **parece de credencial**
+  — o operador iria conferir o token quando o defeito estava no traço;
+- **o driver é registrado sempre**, e não sob sondagem de boot. `bootstrap()` é síncrono, e mais: o
+  fan-out cruza os canais disponíveis com a **preferência** do destinatário, então quem não pediu
+  WhatsApp continua recebendo por e-mail sem o driver precisar sumir. Instalação sem canal responde
+  `channel_not_configured` por entrega, e o chaveiro nem é chamado.
+
+O contrato prova o caminho feliz (texto livre e template), a ausência, a **ambiguidade**, o envelope
+ilegível e as duas classificações que vêm do pacote (`meta_131026` → destino inválido, erro sem
+código → nova tentativa). A integração prova o que só o banco prova: canal **desligado** e canal
+**sem token** são coisas diferentes na tela e a mesma coisa para o envio — sem isso, a instalação com
+um canal ativo e um rascunho pela metade pareceria ambígua ao driver e **nenhuma** notificação sairia.
+
+```
+bun run --cwd apps/api-transportada test              # 3638 pass / 0 fail
+bun run --cwd apps/api-transportada test:integration  # 181 pass / 0 fail
+typecheck · lint · format:check                       # limpos
+```
+
+#### Buracos declarados
+
+- **A empresa não chega ao driver** — patch do pacote descrito acima. Enquanto isso, instalação
+  multi-CNPJ com dois canais **não envia WhatsApp**, por recusa explícita.
+- **Nada dispara WhatsApp ainda**: não há template de canal `whatsapp` cadastrado nem preferência
+  apontando para ele. Convite e recuperação de senha são a T005.
+- **A credencial é aberta a cada envio** — uma chamada ao chaveiro por mensagem. Aceitável no volume
+  de hoje; se virar gargalo, o cache é por `(companyId, version)`, nunca por tempo.
+- **Sem tela** para cadastrar o canal, e **sem rate limit**, como registrado na T003.

@@ -41,10 +41,31 @@ export type WhatsAppChannelRecord = {
   readonly wabaId: string
 }
 
+/**
+ * O que o **envio** precisa: o envelope e o número, com a empresa junto — o AAD amarra o selo ao par
+ * `(companyId, channelId)`, e um credencial sem a empresa não abriria.
+ */
+export type WhatsAppChannelCredential = {
+  readonly channelId: string
+  readonly companyId: string
+  readonly envelope: SecretEnvelopeV1
+  readonly phoneNumberId: string
+}
+
 export type WhatsAppChannelRepositoryPort = {
+  /**
+   * Os canais ativos **da instalação inteira**, com teto de dois.
+   *
+   * ⚠️ Existe porque o `WhatsAppDriverPort` do `notification-module` recebe `{to, body, template}` e
+   * **não recebe empresa** — o módulo estreita a `delivery` antes de chamar o driver, mesmo tendo o
+   * `job.companyId` na mão. Sem a empresa, o driver não tem como escolher entre dois números; o teto
+   * de dois é o suficiente para distinguir "nenhum", "um" e "mais de um" numa consulta só, e o
+   * "mais de um" é recusa, nunca palpite. Ver o buraco declarado na evidência da T004.
+   */
+  findActiveCredentials(): Promise<readonly WhatsAppChannelCredential[]>
   /** `null` quando a empresa não tem canal — ausência, não erro: nem toda instalação usa WhatsApp. */
   find(input: { readonly companyId: string }): Promise<WhatsAppChannelSummary | null>
-  /** O envelope selado, para quem vai **enviar**. Só o driver chama isto. */
+  /** O envelope selado de **uma** empresa, para quem já sabe de quem é. */
   findSecret(input: {
     readonly companyId: string
   }): Promise<{ readonly channelId: string; readonly envelope: SecretEnvelopeV1 } | null>

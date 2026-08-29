@@ -89,6 +89,8 @@ import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/dri
 import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
 import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
 import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
+import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta-whatsapp-sending.gateway.js'
+import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
 import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
 import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
@@ -419,10 +421,35 @@ export function bootstrap(): Bun.Server<undefined> {
     // Sem broker o módulo usa a fila em memória dele: nada consome, e a entrega some no restart.
     logger.warn('notification.queue.not_configured')
   }
+  /**
+   * Spec 062 T004 — **um caminho de envio, não dois**: quem manda WhatsApp é o módulo de notificação,
+   * como já é com e-mail. O driver é registrado sempre, e é ele que descobre a cada envio se a
+   * instalação tem canal — a credencial mora no banco, por empresa, e ler isso no boot deixaria
+   * token rotacionado e canal desligado esperando um restart.
+   *
+   * Registrar sempre não força ninguém a receber por WhatsApp: o fan-out cruza os canais disponíveis
+   * com a **preferência** do destinatário, e quem não pediu WhatsApp continua recebendo por e-mail.
+   */
+  const whatsappChannelRepository = new DrizzleWhatsAppChannelRepository(database.db)
+  const whatsappDriver = createWhatsAppNotificationDriver({
+    buildChannel: (channel) =>
+      createMetaWhatsAppSendingChannel({
+        accessToken: channel.accessToken,
+        apiVersion: config.whatsapp.apiVersion,
+        baseUrl: config.whatsapp.baseUrl,
+        phoneNumberId: channel.phoneNumberId,
+      }),
+    logger,
+    repository: whatsappChannelRepository,
+    secretService: createWhatsAppChannelSecretService({
+      envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+    }),
+  })
   const notifications = createApiNotificationModule({
     config,
     db: database.db,
     ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
+    whatsappDriver,
   })
   const automaticManifestNotifier = createAutomaticManifestNotifier({
     database: database.db,

@@ -7,6 +7,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { whatsappChannels } from '../../database/whatsapp-channel.schema.js'
 import type {
+  WhatsAppChannelCredential,
   WhatsAppChannelRecord,
   WhatsAppChannelRepositoryPort,
   WhatsAppChannelSummary,
@@ -48,6 +49,31 @@ export class DrizzleWhatsAppChannelRepository implements WhatsAppChannelReposito
       .limit(1)
 
     return row === undefined ? null : toSummary(row)
+  }
+
+  /**
+   * Teto de dois de propósito: o driver só precisa distinguir nenhum, um e "mais de um", e trazer a
+   * instalação inteira para descobrir isso seria varredura por envio. Canal com envelope vazio não
+   * conta — ele existe na tela, mas não tem com que assinar a chamada à Meta.
+   */
+  public async findActiveCredentials(): Promise<readonly WhatsAppChannelCredential[]> {
+    const rows = await this.database
+      .select({
+        companyId: whatsappChannels.companyId,
+        envelope: whatsappChannels.secretEnvelope,
+        id: whatsappChannels.id,
+        phoneNumberId: whatsappChannels.phoneNumberId,
+      })
+      .from(whatsappChannels)
+      .where(and(eq(whatsappChannels.status, 'active'), HAS_SEALED_TOKEN))
+      .limit(2)
+
+    return rows.map((row) => ({
+      channelId: row.id,
+      companyId: row.companyId,
+      envelope: row.envelope as SecretEnvelopeV1,
+      phoneNumberId: row.phoneNumberId,
+    }))
   }
 
   public async findSecret(input: {

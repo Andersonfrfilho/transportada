@@ -19,6 +19,7 @@
         "@adatechnology/keycloak-admin": "1.0.0-rc.0",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
+        "@adatechnology/meta-whatsapp-provider": "0.1.0",
         "@adatechnology/module-http": "0.1.0-rc.3",
         "@adatechnology/notification-contracts": "0.1.0-rc.2",
         "@adatechnology/notification-module": "0.1.0-rc.3",
@@ -206,6 +207,10 @@
     "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.1", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg=="],
 
     "@adatechnology/logger": ["@adatechnology/logger@0.1.0-rc.0", "", {}, "sha512-OIA1YlWimL4oThdGpT975hXYZJXWEoEYskAHofPSD4KznOLX1lLIYHHkmLq+o9PNQW8K4y+lheQzrlI7AIT2cA=="],
+
+    "@adatechnology/meta-graph-core": ["@adatechnology/meta-graph-core@0.1.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-r0Ev5L0nmmRq+FZuciDgMESlvNdbmBdbfiBCVYA9azi9vp+iTBK40WHMKLkn9X+NxjeMNs5bsIa7XI7SOAysbw=="],
+
+    "@adatechnology/meta-whatsapp-provider": ["@adatechnology/meta-whatsapp-provider@0.1.0", "", { "dependencies": { "@adatechnology/meta-graph-core": "0.1.0", "zod": "^3.24.1" } }, "sha512-cpkxgQYYf1PNouQKJy6FyBaeYdqtn/6S+g8JJ33dQP1j28YLfnHeGGAuWodHoRFCg5FeuIhl/GEEtLvKE3SO8w=="],
 
     "@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.3", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-w1ZcbbVwGFpYbFDfyhegbpNvrxqWMTasg7QRUtpd40fRVWIz1fy3rss3RVWHEa72piHxkqs8T+L1MbaSpWQpsA=="],
 
@@ -1636,6 +1641,10 @@
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
+
+    "@adatechnology/meta-graph-core/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/meta-whatsapp-provider/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@adatechnology/module-http/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
