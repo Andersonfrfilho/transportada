@@ -5,6 +5,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
+import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import {
   externalIdentities,
   identityUserProfiles,
@@ -175,6 +176,41 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       .where(and(...buildCompanyAdministratorFilters(input)))
 
     return rows.map((row) => row.userId)
+  }
+
+  /**
+   * O `leftJoin` no perfil não é preferência de estilo: com `innerJoin`, membership cujo perfil
+   * ainda não existe — conta criada antes de o perfil passar a ser gravado — desaparece da leitura,
+   * e some justamente da tela feita para encontrá-la.
+   */
+  public async listForReconciliation(input: {
+    readonly companyId: string
+  }): Promise<readonly LocalIdentityRecord[]> {
+    const rows = await this.database
+      .select({
+        email: identityUserProfiles.email,
+        membershipId: userCompanyMemberships.id,
+        name: identityUserProfiles.name,
+        subject: externalIdentities.subject,
+        taxId: identityUserProfiles.taxId,
+        userId: userCompanyMemberships.userId,
+      })
+      .from(userCompanyMemberships)
+      .leftJoin(
+        identityUserProfiles,
+        eq(identityUserProfiles.userId, userCompanyMemberships.userId),
+      )
+      .leftJoin(externalIdentities, eq(externalIdentities.userId, userCompanyMemberships.userId))
+      .where(eq(userCompanyMemberships.companyId, input.companyId))
+
+    return rows.map((row) => ({
+      email: row.email ?? '',
+      membershipId: row.membershipId,
+      name: row.name ?? '',
+      taxId: row.taxId ?? '',
+      userId: row.userId,
+      ...(row.subject === null ? {} : { subject: row.subject }),
+    }))
   }
 
   public async listPage(input: ListCompanyUsersInput): Promise<CompanyUserPage> {

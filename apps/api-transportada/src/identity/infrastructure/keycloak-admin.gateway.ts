@@ -64,6 +64,16 @@ export function createKeycloakAdminGateway(
 
 export type IdentityUserAttributes = Readonly<Record<string, string | readonly string[]>>
 
+/** O atributo ainda não é escrito por ninguém: a leitura nasce pronta para quando passar a ser. */
+const TAX_ID_ATTRIBUTE = 'tax_id'
+
+/** O Keycloak devolve atributo como lista, mesmo quando o valor é um só. */
+function readAttribute(attributes: IdentityUserAttributes | undefined, name: string): string {
+  const value = attributes?.[name]
+  if (value === undefined) return ''
+  return (Array.isArray(value) ? (value.at(0) ?? '') : String(value)).trim()
+}
+
 export type CreateIdentityUserInput = {
   readonly attributes?: IdentityUserAttributes
   readonly email: string
@@ -92,10 +102,34 @@ export type FindIdentityUserResult = {
   readonly username: string | undefined
 }
 
+export type ListIdentityUsersInput = {
+  readonly first?: number
+  readonly limit?: number
+  readonly search?: string
+}
+
+/**
+ * O realm é a segunda metade da reconciliação. `taxId` sai do atributo do usuário e hoje vem vazio
+ * — o produto só grava `company_id` —, e a política de casamento trata chave vazia como ausência.
+ */
+export type ListedIdentityUser = {
+  readonly email: string
+  readonly enabled: boolean
+  readonly subject: string
+  readonly taxId: string
+  readonly username: string
+}
+
+export type ListIdentityUsersResult = {
+  readonly hasMore: boolean
+  readonly users: readonly ListedIdentityUser[]
+}
+
 export type IdentityAccessGatewayPort = {
   createUser(input: CreateIdentityUserInput): Promise<CreateIdentityUserResult>
   deleteUser(input: { readonly userId: string }): Promise<void>
   findUserByEmail(input: { readonly email: string }): Promise<FindIdentityUserResult | undefined>
+  listUsers(input?: ListIdentityUsersInput): Promise<ListIdentityUsersResult>
   setEnabled(input: { readonly enabled: boolean; readonly userId: string }): Promise<void>
   setPassword(input: {
     readonly password: string
@@ -142,6 +176,19 @@ export function createIdentityAccessGateway(
     async findUserByEmail({ email }): Promise<FindIdentityUserResult | undefined> {
       const found = await client.findUserByEmail({ email })
       return found === undefined ? undefined : { subject: found.id, username: found.username }
+    },
+    async listUsers(input = {}): Promise<ListIdentityUsersResult> {
+      const page = await client.listUsers(input)
+      return {
+        hasMore: page.hasMore,
+        users: page.users.map((user) => ({
+          email: user.email ?? '',
+          enabled: user.enabled ?? false,
+          subject: user.id,
+          taxId: readAttribute(user.attributes, TAX_ID_ATTRIBUTE),
+          username: user.username ?? '',
+        })),
+      }
     },
     async setEnabled({ enabled, userId }): Promise<void> {
       await client.setEnabled({ enabled, userId })

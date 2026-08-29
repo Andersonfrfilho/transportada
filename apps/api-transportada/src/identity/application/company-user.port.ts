@@ -3,6 +3,7 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 
 export type PendingInvitationSummary =
   | {
@@ -89,6 +90,14 @@ export type CompanyUserRepositoryPort = {
     readonly companyId: string
   }) => Promise<readonly string[]>
   readonly listPage: (input: ListCompanyUsersInput) => Promise<CompanyUserPage>
+  /**
+   * A reconciliação casa por e-mail e documento, e a view da listagem os entrega mascarados
+   * (`t***@e***.com.br`) — casar por máscara casaria todo mundo com todo mundo. Esta leitura devolve
+   * o valor cru, e é a única do módulo que o faz: a máscara volta na resposta, depois da regra.
+   */
+  readonly listForReconciliation: (input: {
+    readonly companyId: string
+  }) => Promise<readonly LocalIdentityRecord[]>
   readonly removeMembership: (input: {
     readonly companyId: string
     readonly userId: string

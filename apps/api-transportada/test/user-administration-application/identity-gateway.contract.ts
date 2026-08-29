@@ -45,6 +45,10 @@ function createClientFake(params: { readonly createUserError?: Error } = {}) {
       record('findUserByEmail', params)
       return { id: SUBJECT, username: 'pessoa' }
     },
+    async listUsers(params) {
+      record('listUsers', params ?? {})
+      return { hasMore: false, users: [{ id: SUBJECT, username: 'pessoa' }] }
+    },
     async setEnabled(params) {
       record('setEnabled', params)
     },

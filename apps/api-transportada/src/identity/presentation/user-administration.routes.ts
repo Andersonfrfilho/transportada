@@ -31,6 +31,7 @@ import type {
   UpdateCompanyUserProfileInput,
   UpdateCompanyUserProfileUseCase,
 } from '../application/update-company-user-profile.use-case.js'
+import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
@@ -41,6 +42,11 @@ import {
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
 
+/**
+ * Fora da árvore `/:id` de propósito: `reconciliation` não é um usuário, e como caminho literal ele
+ * precisa ser declarado antes do parametrizado para não ser lido como identificador.
+ */
+const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
 const USER_INVITATION_PATH = `${USER_PATH}/invitation`
 const USER_STATUS_PATH = `${USER_PATH}/status`
@@ -51,6 +57,7 @@ type Dependencies = {
   readonly changeStatus: ChangeCompanyUserStatusUseCase
   readonly invite: InviteCompanyUserUseCase
   readonly list: ListCompanyUsersUseCase
+  readonly reconcile: ReconcileCompanyUsersUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
   readonly resendCode: ResendCompanyUserCodeUseCase
@@ -75,6 +82,16 @@ export function createUserAdministrationRoutes(
       method: 'GET',
       parse: ({ request }) => parseCompanyUserListQuery(new URL(request.url)),
       pathname: API_COMPANY_USERS_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly limit: number }>({
+      async handle({ context, input }) {
+        const result = await dependencies.reconcile.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ request }) => ({ limit: parseReconciliationLimit(new URL(request.url)) }),
+      pathname: RECONCILIATION_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
     defineRoute<Omit<InviteCompanyUserInput, 'context'>>({
@@ -196,4 +213,19 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 
 function serializeCompanyUser(companyUser: CompanyUserView): object {
   return { ...companyUser }
+}
+
+const RECONCILIATION_DEFAULT_LIMIT = 100
+const RECONCILIATION_MAX_LIMIT = 200
+
+/**
+ * O recorte é do realm, não da empresa: pedir o realm inteiro numa tacada é o que torna a tela
+ * lenta em instalação grande, e um teto sem piso deixaria `limit=0` pedir nada e parecer vazio.
+ */
+function parseReconciliationLimit(url: URL): number {
+  const raw = url.searchParams.get('limit')
+  if (raw === null) return RECONCILIATION_DEFAULT_LIMIT
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed < 1) return RECONCILIATION_DEFAULT_LIMIT
+  return Math.min(parsed, RECONCILIATION_MAX_LIMIT)
 }

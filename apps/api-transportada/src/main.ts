@@ -302,6 +302,7 @@ import {
 } from './identity/infrastructure/keycloak-admin.gateway'
 import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
 import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
+import { createReconcileCompanyUsersUseCase } from './identity/application/reconcile-company-users.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
@@ -1167,6 +1168,10 @@ function createApplicationRoutes({
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
+  const reconcileCompanyUsers = createReconcileCompanyUsersUseCase({
+    gateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
   const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
     envelopeProvider: invitationCodeSecret,
     invitations: invitationRepository,
@@ -1780,6 +1785,7 @@ function createApplicationRoutes({
       changeStatus: changeCompanyUserStatus,
       invite: inviteCompanyUser,
       list: listCompanyUsers,
+      reconcile: reconcileCompanyUsers,
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,

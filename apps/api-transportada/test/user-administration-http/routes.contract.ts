@@ -13,6 +13,7 @@ import {
   INVITE_BODY,
   INVITE_CONTACT,
   jsonRequest,
+  RECONCILIATION_RESULT,
   REPLACE_ROLES_BODY,
   responseApiError,
   responseData,
@@ -339,5 +340,51 @@ describe('rotas de administração de usuários — remoção de vínculo', () =
 
     expect(response.status).toBe(400)
     expect(fixture.removeMembershipCalls).toEqual([])
+  })
+})
+
+describe('rotas de administração de usuários — reconciliação com o Keycloak', () => {
+  test('devolve os dois lados no escopo da empresa do token', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: RECONCILIATION_RESULT })
+    expect(fixture.reconcileCalls).toHaveLength(1)
+    expect(fixture.reconcileCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /**
+   * `reconciliation` não é um identificador de usuário. Sem o caminho literal declarado antes do
+   * parametrizado, a rota cairia em `/company-users/:id` e responderia 400 por UUID inválido.
+   */
+  test('o caminho literal não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation` }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
+  })
+
+  test('o recorte do realm tem teto, e valor inválido cai no padrão', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation?limit=5000` }),
+    )
+    await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation?limit=abacaxi` }),
+    )
+
+    expect(fixture.reconcileCalls[0]?.['limit']).toBe(200)
+    expect(fixture.reconcileCalls[1]?.['limit']).toBe(100)
   })
 })

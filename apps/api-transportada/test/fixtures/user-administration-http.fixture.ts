@@ -23,6 +23,7 @@ type RouteDependencies = {
   readonly changeStatus: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly invite: { execute(input: ExecuteCall): Promise<typeof INVITED_COMPANY_USER> }
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
+  readonly reconcile: { execute(input: ExecuteCall): Promise<typeof RECONCILIATION_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
@@ -83,6 +84,24 @@ export const COMPANY_USER = {
 
 export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
 
+/** A reconciliação responde os dois lados; o que a rota precisa provar é o recorte e a permissão. */
+export const RECONCILIATION_RESULT = {
+  hasMoreRealmUsers: false,
+  items: [
+    {
+      local: {
+        email: 't***@e***.com.br',
+        membershipId: COMPANY_USER.membershipId,
+        name: COMPANY_USER.name,
+        taxId: '***09',
+        userId: COMPANY_USER.id,
+      },
+      matchedBy: 'subject',
+      status: 'linked',
+    },
+  ],
+}
+
 /** O convite responde o que a listagem responde, mais o resultado do vínculo com a frota. */
 export const INVITED_COMPANY_USER = {
   ...COMPANY_USER,
@@ -118,6 +137,7 @@ export async function createUserAdministrationHttpFixture(
   readonly handle: (request: Request) => Promise<Response>
   readonly inviteCalls: ExecuteCall[]
   readonly listCalls: ExecuteCall[]
+  readonly reconcileCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
@@ -126,6 +146,7 @@ export async function createUserAdministrationHttpFixture(
   const changeStatusCalls: ExecuteCall[] = []
   const inviteCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
+  const reconcileCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
@@ -148,6 +169,12 @@ export async function createUserAdministrationHttpFixture(
         inviteCalls.push(structuredClone(input))
         if (params.refusal) return refuse()
         return INVITED_COMPANY_USER
+      },
+    },
+    reconcile: {
+      async execute(input) {
+        reconcileCalls.push(structuredClone(input))
+        return RECONCILIATION_RESULT
       },
     },
     list: {
@@ -202,6 +229,7 @@ export async function createUserAdministrationHttpFixture(
     handle: (request) => handleRequest(request, { timeout() {} }),
     inviteCalls,
     listCalls,
+    reconcileCalls,
     removeMembershipCalls,
     replaceRolesCalls,
     resendCodeCalls,

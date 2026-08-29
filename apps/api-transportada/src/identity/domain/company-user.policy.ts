@@ -137,6 +137,14 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
   }
 }
 
+export function maskIdentityEmail(value: string): string {
+  return maskEmailOrEmpty(value)
+}
+
+export function maskIdentityTaxId(value: string): string {
+  return maskTrailingDigits(value)
+}
+
 function maskEmailAddress(email: string): string {
   const [local, domain] = email.split('@')
   if (local === undefined || domain === undefined) return email
