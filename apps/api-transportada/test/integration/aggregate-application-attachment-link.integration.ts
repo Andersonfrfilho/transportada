@@ -28,6 +28,13 @@ const databaseUrl =
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
+/**
+ * Cada caso cria um banco descartável e roda todas as migrations — ~2s ocioso, e o teto padrão de
+ * 5s do Bun vira sorteio em runner concorrido. Medido: dois casos estouraram quando outra suíte de
+ * banco corria junto, e passaram sozinhos logo depois.
+ */
+const DISPOSABLE_DATABASE_TIMEOUT_MS = 60_000
+
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 async function seedCompany(db: TestDatabase['db']): Promise<string> {
@@ -103,74 +110,90 @@ async function readApplicationId(
 }
 
 describe('vínculo de anexo à candidatura, contra Postgres', () => {
-  testWithPostgres('amarra o rascunho da própria empresa', async () => {
-    await withDisposableDatabase(async ({ db }) => {
-      const companyId = await seedCompany(db)
-      const applicationId = await seedApplication(db, companyId)
-      const draftId = await seedDraft(db, { companyId })
+  testWithPostgres(
+    'amarra o rascunho da própria empresa',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const applicationId = await seedApplication(db, companyId)
+        const draftId = await seedDraft(db, { companyId })
 
-      await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
-        applicationId,
-        companyId,
-        draftIds: [draftId],
+        await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
+          applicationId,
+          companyId,
+          draftIds: [draftId],
+        })
+
+        expect(await readApplicationId(db, draftId)).toBe(applicationId)
       })
-
-      expect(await readApplicationId(db, draftId)).toBe(applicationId)
-    })
-  })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 
   /** `draft_id` é global e vem de cliente anônimo: sem o filtro de empresa, isto roubaria o anexo. */
-  testWithPostgres('não amarra rascunho de outra empresa, e não falha por isso', async () => {
-    await withDisposableDatabase(async ({ db }) => {
-      const companyId = await seedCompany(db)
-      const otherCompanyId = await seedCompany(db)
-      const applicationId = await seedApplication(db, companyId)
-      const foreignDraftId = await seedDraft(db, { companyId: otherCompanyId })
+  testWithPostgres(
+    'não amarra rascunho de outra empresa, e não falha por isso',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const applicationId = await seedApplication(db, companyId)
+        const foreignDraftId = await seedDraft(db, { companyId: otherCompanyId })
 
-      await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
-        applicationId,
-        companyId,
-        draftIds: [foreignDraftId],
+        await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
+          applicationId,
+          companyId,
+          draftIds: [foreignDraftId],
+        })
+
+        expect(await readApplicationId(db, foreignDraftId)).toBeNull()
       })
-
-      expect(await readApplicationId(db, foreignDraftId)).toBeNull()
-    })
-  })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 
   /** Rascunho já vinculado pertence a outra candidatura: reivindicá-lo seria roubo, não vínculo. */
-  testWithPostgres('não rouba rascunho já vinculado a outra candidatura', async () => {
-    await withDisposableDatabase(async ({ db }) => {
-      const companyId = await seedCompany(db)
-      const first = await seedApplication(db, companyId)
-      const second = await seedApplication(db, companyId, '98765432100')
-      const draftId = await seedDraft(db, { applicationId: first, companyId })
+  testWithPostgres(
+    'não rouba rascunho já vinculado a outra candidatura',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const first = await seedApplication(db, companyId)
+        const second = await seedApplication(db, companyId, '98765432100')
+        const draftId = await seedDraft(db, { applicationId: first, companyId })
 
-      await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
-        applicationId: second,
-        companyId,
-        draftIds: [draftId],
+        await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
+          applicationId: second,
+          companyId,
+          draftIds: [draftId],
+        })
+
+        expect(await readApplicationId(db, draftId)).toBe(first)
       })
-
-      expect(await readApplicationId(db, draftId)).toBe(first)
-    })
-  })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 
   /** Identificador que não existe é ausência, nunca erro — o submit responde 202 de qualquer modo. */
-  testWithPostgres('identificador desconhecido não derruba o vínculo', async () => {
-    await withDisposableDatabase(async ({ db }) => {
-      const companyId = await seedCompany(db)
-      const applicationId = await seedApplication(db, companyId)
-      const draftId = await seedDraft(db, { companyId })
+  testWithPostgres(
+    'identificador desconhecido não derruba o vínculo',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const applicationId = await seedApplication(db, companyId)
+        const draftId = await seedDraft(db, { companyId })
 
-      await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
-        applicationId,
-        companyId,
-        draftIds: [crypto.randomUUID(), draftId],
+        await createDrizzleAggregateApplicationRepository(db).linkAttachmentDrafts({
+          applicationId,
+          companyId,
+          draftIds: [crypto.randomUUID(), draftId],
+        })
+
+        expect(await readApplicationId(db, draftId)).toBe(applicationId)
       })
-
-      expect(await readApplicationId(db, draftId)).toBe(applicationId)
-    })
-  })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 })
 
 async function withDisposableDatabase(

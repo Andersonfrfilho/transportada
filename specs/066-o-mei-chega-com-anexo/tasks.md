@@ -26,11 +26,17 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T008 [P] Ampliar `CompanyProfileLookupResult` e o gateway com os campos hoje descartados — contratos de mapeamento
-- [ ] T009 `GET /public/cnpj-info` com projeção pública, rate limit e timeout curto — contrato: IE, e-mail e telefone **ausentes** do corpo
-- [ ] T010 Bloco Empresa no `/cadastro`, preenchido no blur do CNPJ, editável, com marca de origem — contratos + `docs/SECURITY.md`
+- [x] T008 [P] Ampliar `CompanyProfileLookupResult` e o gateway com os campos hoje descartados — contratos de mapeamento
+- [x] T009 `GET /public/cnpj-info` com projeção pública, rate limit e timeout curto — contrato: IE, e-mail e telefone **ausentes** do corpo
+- [x] T010 Bloco Empresa no `/cadastro`, preenchido no blur do CNPJ, editável, com marca de origem — contratos + `docs/SECURITY.md`
 
 ## Fase 3 — O anexo se vincula à candidatura
+
+> ⛔ **Fase substituída pela Fase 5.** As tasks T011–T014 nasceram de novo lá, com as duas
+> correções que a decisão de 2026-08-27 impôs (sem `expires_at`, cópia para `aggregate_documents` na
+> aprovação). Elas ficam sem marca aqui de propósito: marcá-las diria que o caminho descrito **nesta**
+> fase foi o percorrido, e não foi. T015 foi **cancelada** — sem prazo de validade não há o que expurgar.
+> T016 virou T025.
 
 > 🤖 Modelo: `opus` 🧠 — é onde mora o risco de sobrescrita e de sonda
 
@@ -45,11 +51,11 @@
 
 > 🤖 Modelo: `opus` 🧠 na T017 (mexe em app verde), `sonnet` no resto
 
-- [ ] T017 Extrair `document-intake` para `packages/document-intake/` **sem alterar comportamento** — gate: 2012 contratos + 36 smokes do painel verdes antes de seguir
-- [ ] T018 Mapa de rótulos do CCMEI + dígito verificador de CNPJ — contratos com PDF sintético de camada real
-- [ ] T019 Leitura no navegador da landing por `import()`, com a CSP intacta — gate: `dist/content-security-policy.txt` sem `unsafe-eval` e sem `blob:`
-- [ ] T020 Divergência CNPJ digitado × CNPJ do documento sinalizada, sem sobrescrever — contrato
-- [ ] T021 Smoke da landing: arquivo solto na tela real preenche os campos
+- [x] T017 Extrair `document-intake` para `packages/document-intake/` **sem alterar comportamento** — gate: 2012 contratos + 36 smokes do painel verdes antes de seguir
+- [x] T018 Mapa de rótulos do CCMEI + dígito verificador de CNPJ — contratos com PDF sintético de camada real
+- [x] T019 Leitura no navegador da landing por `import()`, com a CSP intacta — gate: `dist/content-security-policy.txt` sem `unsafe-eval` e sem `blob:`
+- [x] T020 Divergência CNPJ digitado × CNPJ do documento sinalizada, sem sobrescrever — contrato
+- [x] T021 Smoke da landing: arquivo solto na tela real preenche os campos
 
 ## Fase 5 — O anexo chega ao operador
 
@@ -71,7 +77,7 @@ casos-limite da spec pede que ela chegue ao **operador**, e o caminho é este.
       taxa, validação de bytes e armazenamento; teto real é o do transporte (2 MiB do servidor), não
       os 10 MiB do domínio, e a recusa diz isso
 - [x] T024 `attachmentDraftIds` no submit da candidatura, vinculando os rascunhos — contrato
-- [ ] T025 O operador vê os anexos da candidatura e decide um por um; aprovar copia para
+- [x] T025 O operador vê os anexos da candidatura e decide um por um; aprovar copia para
       `aggregate_documents`
 
 ## Gates de toda task
