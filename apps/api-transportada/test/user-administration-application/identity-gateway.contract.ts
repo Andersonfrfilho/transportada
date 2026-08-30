@@ -55,6 +55,9 @@ function createClientFake(params: { readonly createUserError?: Error } = {}) {
     async deleteGroup(params) {
       record('deleteGroup', params)
     },
+    async setProfilePicture(params) {
+      record('setProfilePicture', params)
+    },
     async listGroups(params) {
       record('listGroups', params ?? {})
       return { groups: [], hasMore: false }
