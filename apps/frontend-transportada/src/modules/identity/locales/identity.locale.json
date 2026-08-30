@@ -153,7 +153,8 @@
       "status": {
         "linked": "Sincronizado",
         "missing-in-realm": "Só aqui",
-        "missing-locally": "Só no Keycloak"
+        "missing-locally": "Só no Keycloak",
+        "profile-missing": "Sem ficha"
       },
       "match": {
         "subject": "Vínculo",
@@ -164,7 +165,9 @@
       "noProfile": "Cadastro incompleto",
       "createInRealm": "Criar no Keycloak",
       "createLocally": "Trazer para cá",
-      "createAll": "Criar os {{count}} que faltam"
+      "createAll": "Criar os {{count}} que faltam",
+      "fillProfile": "Preencher pelo provedor",
+      "fillAllProfiles": "Preencher {{count}} ficha(s) pelo provedor"
     },
     "noProfile": "Cadastro incompleto",
     "reveal": {

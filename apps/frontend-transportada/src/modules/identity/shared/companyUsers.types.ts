@@ -52,7 +52,16 @@ export type CompanyUserPage = Readonly<{
  * dois; `missing-in-realm` tem vínculo aqui e não consegue entrar; `missing-locally` é conta no
  * Keycloak que ninguém desta empresa reivindica.
  */
-export type ReconciliationStatus = 'linked' | 'missing-in-realm' | 'missing-locally'
+/**
+ * Os três primeiros falam de **existência**; `profile-missing` fala de **completude** — a conta
+ * existe dos dois lados e a ficha daqui está vazia. Sem ele a tela dizia "Sincronizado" para quem a
+ * listagem mostrava como "Cadastro incompleto".
+ */
+export type ReconciliationStatus =
+  | 'linked'
+  | 'missing-in-realm'
+  | 'missing-locally'
+  | 'profile-missing'
 export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'document'
 
 export type ReconciliationEntry = Readonly<{

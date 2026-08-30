@@ -22,6 +22,7 @@ function localOf(overrides: Partial<LocalIdentityRecord> = {}): LocalIdentityRec
     contactAddress: '',
     contactChannel: 'email',
     email: 'ana@transportada.test',
+    hasProfile: true,
     membershipId: 'membership-1',
     name: 'Ana Fiscal',
     taxId: '12345678909',

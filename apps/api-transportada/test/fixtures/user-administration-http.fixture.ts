@@ -29,6 +29,7 @@ type RouteDependencies = {
   readonly rolePermissions: { execute(): typeof ROLE_PERMISSIONS_MATRIX }
   readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
   readonly synchronize: { execute(input: ExecuteCall): Promise<typeof SYNC_RESULT> }
+  readonly fillProfiles: { execute(input: ExecuteCall): Promise<typeof PROFILE_FILL_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
@@ -98,6 +99,11 @@ export const SYNC_RESULT = {
   createdInRealm: [COMPANY_USER.id],
   createdLocally: [],
   skipped: [{ reason: 'service-account', subject: 'subject-robo' }],
+}
+
+export const PROFILE_FILL_RESULT = {
+  filled: [COMPANY_USER.id],
+  skipped: [{ reason: 'profile-exists', userId: 'user-com-perfil' }],
 }
 
 export const ROLE_PERMISSIONS_MATRIX = {
@@ -187,6 +193,7 @@ export async function createUserAdministrationHttpFixture(
   readonly assignRolesCalls: ExecuteCall[]
   readonly revealCalls: ExecuteCall[]
   readonly synchronizeCalls: ExecuteCall[]
+  readonly fillProfilesCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
@@ -200,6 +207,7 @@ export async function createUserAdministrationHttpFixture(
   const revealCalls: ExecuteCall[] = []
   const assignRolesCalls: ExecuteCall[] = []
   const synchronizeCalls: ExecuteCall[] = []
+  const fillProfilesCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
@@ -241,6 +249,12 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         synchronizeCalls.push(structuredClone(input))
         return SYNC_RESULT
+      },
+    },
+    fillProfiles: {
+      async execute(input) {
+        fillProfilesCalls.push(structuredClone(input))
+        return PROFILE_FILL_RESULT
       },
     },
     reveal: {
@@ -312,6 +326,7 @@ export async function createUserAdministrationHttpFixture(
     removeMembershipCalls,
     assignRolesCalls,
     revealCalls,
+    fillProfilesCalls,
     synchronizeCalls,
     replaceRolesCalls,
     resendCodeCalls,

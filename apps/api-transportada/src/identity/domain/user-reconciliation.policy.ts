@@ -31,6 +31,13 @@ export type LocalIdentityRecord = {
   readonly contactAddress: string
   readonly contactChannel: string
   readonly email: string
+  /**
+   * Se existe linha em `identity_user_profiles`. É o quarto estado da tela: a conta existe dos dois
+   * lados e ainda assim não tem nome nem contato para mostrar. Campo próprio, e não `name === ''`,
+   * porque a coluna tem CHECK de não vazio — nome em branco não é perfil pobre, é perfil ausente, e
+   * inferir isso do texto amarraria a tela a um detalhe que a tabela já proíbe.
+   */
+  readonly hasProfile: boolean
   readonly membershipId: string
   readonly name: string
   readonly subject?: string

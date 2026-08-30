@@ -114,6 +114,19 @@ export type CompanyUserRepositoryPort = {
     readonly roles: readonly CompanyRole[]
     readonly userIds: readonly string[]
   }) => Promise<{ readonly affectedUserIds: readonly string[] }>
+  /**
+   * Preenche a ficha de quem existe dos dois lados e não tem perfil. Nunca sobrescreve: perfil já
+   * gravado é trabalho humano, e a decisão de não tocar nele é do banco, não da leitura anterior.
+   */
+  readonly createProfileForExistingUser: (input: {
+    readonly contactAddress: string
+    readonly contactChannel: ContactChannel
+    readonly email: string
+    readonly name: string
+    readonly taxId: string
+    readonly userId: string
+    readonly username: string
+  }) => Promise<{ readonly created: boolean }>
   /** Liga o vínculo daqui ao `subject` recém-criado no provedor. */
   readonly linkIdentitySubject: (input: {
     readonly issuer: string

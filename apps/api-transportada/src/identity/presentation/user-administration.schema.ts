@@ -123,6 +123,15 @@ export const synchronizeIdentitiesSchema = z
   })
 export type SynchronizeIdentitiesBody = z.infer<typeof synchronizeIdentitiesSchema>
 
+/**
+ * Alvo explícito também aqui: preencher tudo escreveria a ficha de todo mundo a partir de um
+ * `username` que ninguém revisou.
+ */
+export const fillProfilesFromRealmSchema = z
+  .object({ userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT) })
+  .strict()
+export type FillProfilesFromRealmBody = z.infer<typeof fillProfilesFromRealmSchema>
+
 export const grantDirectPermissionsSchema = z
   .object({ permissions: z.array(companyPermissionSchema).min(1).max(120) })
   .strict()
@@ -184,6 +193,12 @@ export async function parseSynchronizeIdentitiesRequest(
   request: Request,
 ): Promise<SynchronizeIdentitiesBody> {
   return parseBody(synchronizeIdentitiesSchema, request)
+}
+
+export async function parseFillProfilesFromRealmRequest(
+  request: Request,
+): Promise<FillProfilesFromRealmBody> {
+  return parseBody(fillProfilesFromRealmSchema, request)
 }
 
 export async function parseRevealCompanyUsersRequest(

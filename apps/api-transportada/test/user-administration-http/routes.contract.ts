@@ -15,6 +15,7 @@ import {
   jsonRequest,
   ASSIGNED_ROLES_RESULT,
   BACKFILL_RESULT,
+  PROFILE_FILL_RESULT,
   RECONCILIATION_RESULT,
   REVEALED_USERS,
   ROLE_PERMISSIONS_MATRIX,
@@ -568,5 +569,76 @@ describe('rotas de administração de usuários — a matriz de papel e permiss�
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: ROLE_PERMISSIONS_MATRIX })
+  })
+})
+
+/**
+ * O quarto estado da reconciliação: a conta existe dos dois lados e a ficha daqui está vazia. O
+ * conserto é rota irmã do `sync`, com a mesma permissão — quem enxerga a divergência é quem a
+ * conserta.
+ */
+describe('rotas de administração de usuários — preencher perfil pelo provedor', () => {
+  test('preenche o lote pedido e devolve o que foi recusado', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: PROFILE_FILL_RESULT })
+    expect(fixture.fillProfilesCalls[0]).toMatchObject({ userIds: [TARGET_USER_ID] })
+    expect(fixture.fillProfilesCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Escrita sobre pessoa sem correlação é linha de trilha que não se liga ao chamado que a pediu. */
+  test('leva correlação para a trilha', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(fixture.fillProfilesCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  test('recusa lote vazio: pedido sem alvo é trilha sobre ninguém', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.fillProfilesCalls).toEqual([])
+  })
+
+  /** `reconciliation` é caminho literal: lido como identificador, viraria uma rota de usuário. */
+  test('o caminho literal não é confundido com um identificador', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
   })
 })

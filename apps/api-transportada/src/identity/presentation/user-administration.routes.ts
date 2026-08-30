@@ -42,6 +42,7 @@ import type { AssignCompanyUserRolesInput } from '../application/assign-company-
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
 import type { AssignCompanyUserRolesUseCase } from '../application/assign-company-user-roles.use-case.js'
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
+import type { FillProfilesFromRealmUseCase } from '../application/fill-profiles-from-realm.use-case.js'
 import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
@@ -52,6 +53,7 @@ import {
   parseAssignCompanyUserRolesRequest,
   parseRevealCompanyUsersRequest,
   parseSynchronizeIdentitiesRequest,
+  parseFillProfilesFromRealmRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
@@ -64,6 +66,8 @@ const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
 const DOCUMENT_BACKFILL_PATH = `${API_COMPANY_USERS_PATH}/document-backfill`
 const REVEAL_PATH = `${API_COMPANY_USERS_PATH}/reveal`
 const RECONCILIATION_SYNC_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/sync`
+/** Irmão do `sync`, e não `/:id/profile`: o alvo é o lote que a tela acabou de mostrar divergente. */
+const RECONCILIATION_PROFILES_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/profiles`
 const BULK_ROLES_PATH = `${API_COMPANY_USERS_PATH}/roles`
 const ROLE_PERMISSIONS_PATH = `${API_COMPANY_USERS_PATH}/role-permissions`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
@@ -86,6 +90,7 @@ type Dependencies = {
   readonly assignRoles: AssignCompanyUserRolesUseCase
   readonly rolePermissions: ListRolePermissionsUseCase
   readonly reveal: RevealCompanyUsersUseCase
+  readonly fillProfiles: FillProfilesFromRealmUseCase
   readonly synchronize: SynchronizeIdentitiesUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
@@ -147,6 +152,27 @@ export function createUserAdministrationRoutes(
         }
       },
       pathname: RECONCILIATION_SYNC_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * O quarto estado: a conta existe dos dois lados e a ficha daqui está vazia. Nome e contato já
+     * foram digitados no provedor; copiá-los é mais honesto do que pedir de novo a quem só queria
+     * ver a lista.
+     */
+    defineRoute<{ readonly correlationId: string; readonly userIds: readonly string[] }>({
+      async handle({ context, input }) {
+        const result = await dependencies.fillProfiles.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseFillProfilesFromRealmRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          userIds: body.userIds,
+        }
+      },
+      pathname: RECONCILIATION_PROFILES_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
     /**

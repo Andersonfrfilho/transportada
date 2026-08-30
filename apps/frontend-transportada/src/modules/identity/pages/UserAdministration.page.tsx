@@ -82,8 +82,10 @@ export function UserAdministrationPage() {
         {...withErrorCode(readErrorCode(screen.reconciliation.error))}
         hasMoreRealmUsers={screen.reconciliation.data?.hasMoreRealmUsers ?? false}
         isLoading={screen.reconciliation.isLoading}
+        isFillingProfiles={screen.reconciliation.fillProfilesMutation.isPending}
         isOpen={screen.isReconciliationOpen}
         isSynchronizing={screen.reconciliation.synchronizeMutation.isPending}
+        onFillProfiles={(userIds) => screen.reconciliation.fillProfilesMutation.mutate(userIds)}
         onRefresh={screen.refreshReconciliation}
         onSynchronize={(targets) => screen.reconciliation.synchronizeMutation.mutate(targets)}
         onToggle={screen.toggleReconciliation}

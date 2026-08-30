@@ -153,7 +153,8 @@
       "status": {
         "linked": "In sync",
         "missing-in-realm": "Here only",
-        "missing-locally": "Keycloak only"
+        "missing-locally": "Keycloak only",
+        "profile-missing": "Profile missing"
       },
       "match": {
         "subject": "Link",
@@ -164,7 +165,9 @@
       "noProfile": "Incomplete profile",
       "createInRealm": "Create in Keycloak",
       "createLocally": "Bring it here",
-      "createAll": "Create the {{count}} missing"
+      "createAll": "Create the {{count}} missing",
+      "fillProfile": "Fill from provider",
+      "fillAllProfiles": "Fill {{count}} profile(s) from the provider"
     },
     "noProfile": "Incomplete profile",
     "reveal": {

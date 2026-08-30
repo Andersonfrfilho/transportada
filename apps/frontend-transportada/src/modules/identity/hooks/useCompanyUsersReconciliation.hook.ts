@@ -53,5 +53,17 @@ export function useCompanyUsersReconciliation(
     },
   })
 
-  return Object.assign(query, { synchronizeMutation })
+  /**
+   * O conserto do quarto estado relê a listagem junto: a pessoa que estava como "Cadastro
+   * incompleto" passa a ter nome, e deixar a listagem velha faria parecer que nada aconteceu.
+   */
+  const fillProfilesMutation = useMutation({
+    mutationFn: (userIds: readonly string[]) => client.fillProfilesFromRealm({ userIds }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_RECONCILIATION_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_ADMINISTRATION_QUERY_KEY] })
+    },
+  })
+
+  return Object.assign(query, { fillProfilesMutation, synchronizeMutation })
 }

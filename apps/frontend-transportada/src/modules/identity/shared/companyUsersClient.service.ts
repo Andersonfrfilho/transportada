@@ -61,6 +61,8 @@ export type CompanyUsersClient = Readonly<{
   ) => Promise<void>
   saveGroup: (input: SaveCompanyGroupInput) => Promise<CompanyGroup>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
+  /** O conserto do quarto estado: copia nome e contato da conta que já existe no provedor. */
+  fillProfilesFromRealm: (input: Readonly<{ userIds: readonly string[] }>) => Promise<void>
   synchronizeIdentities: (
     input: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
   ) => Promise<void>
@@ -276,6 +278,14 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/roles`,
       })
       return toAssignedCompanyUserRoles(payload)
+    },
+    async fillProfilesFromRealm(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      })
     },
     async synchronizeIdentities(input) {
       await authorizedRequest({

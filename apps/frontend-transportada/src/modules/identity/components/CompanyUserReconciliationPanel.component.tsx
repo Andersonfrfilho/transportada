@@ -14,10 +14,12 @@ type CompanyUserReconciliationPanelProps = Readonly<{
   isLoading: boolean
   isOpen: boolean
   onRefresh: () => void
+  onFillProfiles: (userIds: readonly string[]) => void
   onSynchronize: (
     targets: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
   ) => void
   onToggle: () => void
+  isFillingProfiles?: boolean
   isSynchronizing?: boolean
   errorCode?: string
 }>
@@ -26,6 +28,7 @@ const STATUS_CLASS: Readonly<Record<ReconciliationStatus, keyof typeof styles>> 
   linked: 'statusActive',
   'missing-in-realm': 'statusInvited',
   'missing-locally': 'statusSuspended',
+  'profile-missing': 'statusInvited',
 }
 
 /**
@@ -36,15 +39,18 @@ export function CompanyUserReconciliationPanel({
   entries,
   errorCode,
   hasMoreRealmUsers,
+  isFillingProfiles = false,
   isLoading,
   isOpen,
   isSynchronizing = false,
+  onFillProfiles,
   onRefresh,
   onSynchronize,
   onToggle,
 }: CompanyUserReconciliationPanelProps) {
   const { t } = useTranslation('identity')
   const divergent = entries.filter((entry) => entry.status !== 'linked').length
+  const withoutProfile = entries.filter((entry) => entry.status === 'profile-missing')
 
   return (
     <section className={styles.panel}>
@@ -109,8 +115,23 @@ export function CompanyUserReconciliationPanel({
                     </td>
                     <td>{t(`users.sync.match.${entry.matchedBy}`)}</td>
                     <td>
-                      {/* O botão só existe onde há o que criar: linha sincronizada não oferece ação. */}
-                      {entry.status === 'linked' ? null : (
+                      {/*
+                        O botão só existe onde há o que fazer, e o que fazer não é o mesmo em toda
+                        divergência: faltar conta se conserta criando, e faltar ficha se conserta
+                        copiando o que o provedor já tem.
+                      */}
+                      {entry.status === 'linked' ? null : entry.status === 'profile-missing' ? (
+                        <Button
+                          disabled={isFillingProfiles}
+                          onClick={() => onFillProfiles([entry.local?.userId ?? ''])}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Icon name="download" />
+                          {t('users.sync.fillProfile')}
+                        </Button>
+                      ) : (
                         <Button
                           disabled={isSynchronizing}
                           onClick={() =>
@@ -139,6 +160,22 @@ export function CompanyUserReconciliationPanel({
 
           {/* O recorte é do realm: dizer que ele acabou quando não acabou esconde divergência. */}
           {/* Criar todos age sobre a divergência que está na tela, nunca sobre o realm inteiro. */}
+          {withoutProfile.length === 0 ? null : (
+            <div className={styles.bulkActions}>
+              <Button
+                disabled={isFillingProfiles}
+                onClick={() =>
+                  onFillProfiles(withoutProfile.map((entry) => entry.local?.userId ?? ''))
+                }
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="download" />
+                {t('users.sync.fillAllProfiles', { count: withoutProfile.length })}
+              </Button>
+            </div>
+          )}
+
           {divergent === 0 ? null : (
             <div className={styles.bulkActions}>
               <Button

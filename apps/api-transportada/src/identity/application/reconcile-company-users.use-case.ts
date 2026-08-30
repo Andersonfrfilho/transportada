@@ -4,8 +4,9 @@
 import { maskIdentityEmail, maskIdentityTaxId } from '../domain/company-user.policy.js'
 import {
   reconcileIdentities,
+  RECONCILIATION_STATUS,
+  type ReconciliationEntry,
   type ReconciliationMatch,
-  type ReconciliationStatus,
 } from '../domain/user-reconciliation.policy.js'
 import type { IdentityAccessGatewayPort } from '../infrastructure/keycloak-admin.gateway.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
@@ -24,6 +25,22 @@ export type ReconcileCompanyUsersInput = {
  * O valor cru é o que a regra casa; o que sai daqui é mascarado, como na listagem — a tela serve
  * para reconhecer a pessoa e decidir, não para exportar a ficha dela.
  */
+/**
+ * Os três primeiros vêm do pacote de vínculo e falam de **existência**. O quarto fala de
+ * **completude**, e por isso nasce aqui: `identity_user_profiles` é tabela deste produto, e um
+ * produto que federe login sem ter perfil próprio não teria o que reconciliar nesse eixo.
+ *
+ * Sem ele a tela dizia "Sincronizado" para uma conta que a listagem mostrava como "Cadastro
+ * incompleto" — as duas verdades, e nenhuma das duas dizendo o que fazer.
+ */
+export const RECONCILIATION_VIEW_STATUS = {
+  ...RECONCILIATION_STATUS,
+  PROFILE_MISSING: 'profile-missing',
+} as const
+
+export type ReconciliationViewStatus =
+  (typeof RECONCILIATION_VIEW_STATUS)[keyof typeof RECONCILIATION_VIEW_STATUS]
+
 export type ReconciliationEntryView = {
   readonly local?: {
     /** O que o convite gravou: é onde o e-mail mora na maioria das contas. */
@@ -41,7 +58,7 @@ export type ReconciliationEntryView = {
     readonly subject: string
     readonly username: string
   }
-  readonly status: ReconciliationStatus
+  readonly status: ReconciliationViewStatus
 }
 
 export type ReconcileCompanyUsersResult = {
@@ -71,7 +88,7 @@ export function createReconcileCompanyUsersUseCase({
         hasMoreRealmUsers: realm.hasMore,
         items: entries.map((entry) => ({
           matchedBy: entry.matchedBy,
-          status: entry.status,
+          status: resolveViewStatus(entry),
           ...(entry.local === undefined
             ? {}
             : {
@@ -98,6 +115,25 @@ export function createReconcileCompanyUsersUseCase({
       }
     },
   }
+}
+
+/**
+ * Só quem existe nos dois lados pode estar sem perfil: sem conta no provedor não há de onde copiar
+ * nome e e-mail, e ali o que importa continua sendo a existência — oferecer "preencher pelo
+ * provedor" seria oferecer um botão sem fonte.
+ *
+ * E não basta casar: é preciso o `subject` **gravado**. Quem casou por e-mail ou documento é palpite
+ * do algoritmo, não vínculo escrito — o conserto ali é ligar as duas contas (a sincronização), e
+ * preencher a ficha a partir de um casamento que ninguém confirmou seria escrever nome de pessoa com
+ * base num palpite.
+ */
+function resolveViewStatus(entry: ReconciliationEntry): ReconciliationViewStatus {
+  if (entry.status !== RECONCILIATION_STATUS.LINKED) return entry.status
+  if (entry.local?.subject === undefined) return RECONCILIATION_STATUS.LINKED
+
+  return entry.local.hasProfile
+    ? RECONCILIATION_STATUS.LINKED
+    : RECONCILIATION_VIEW_STATUS.PROFILE_MISSING
 }
 
 /**

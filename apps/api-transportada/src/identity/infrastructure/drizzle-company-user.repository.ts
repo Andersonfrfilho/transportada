@@ -25,6 +25,7 @@ import {
   userCompanyMemberships,
   userInvitations,
 } from '../../database/database.schema.js'
+import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { DuplicateTaxIdError, DuplicateUsernameError } from '../domain/company-user.error.js'
@@ -226,6 +227,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         email: identityUserProfiles.email,
         membershipId: userCompanyMemberships.id,
         name: identityUserProfiles.name,
+        profileUserId: identityUserProfiles.userId,
         subject: externalIdentities.subject,
         taxId: identityUserProfiles.taxId,
         userId: userCompanyMemberships.userId,
@@ -242,6 +244,9 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       contactAddress: row.contactAddress ?? '',
       contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
       email: row.email ?? '',
+      /** A chave do perfil, não o nome: a coluna tem CHECK de não vazio, então nome em branco não
+       * distingue perfil ausente de perfil pobre — a ausência da linha distingue. */
+      hasProfile: row.profileUserId !== null,
       membershipId: row.membershipId,
       name: row.name ?? '',
       taxId: row.taxId ?? '',
@@ -514,6 +519,36 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   }
 
   /** O `username` é único no realm inteiro: a colisão vem do índice, não de uma leitura prévia. */
+  /**
+   * O conserto do quarto estado. `onConflictDoNothing` e não `upsert`: perfil que já existe é
+   * trabalho humano, e sobrescrevê-lo apagaria o nome que alguém editou à mão. A corrida com a
+   * edição manual é resolvida pelo banco, não pela leitura que veio antes.
+   */
+  public async createProfileForExistingUser(input: {
+    readonly contactAddress: string
+    readonly contactChannel: ContactChannel
+    readonly email: string
+    readonly name: string
+    readonly taxId: string
+    readonly userId: string
+    readonly username: string
+  }): Promise<{ readonly created: boolean }> {
+    try {
+      const inserted = await this.database
+        .insert(identityUserProfiles)
+        .values(input)
+        .onConflictDoNothing({ target: identityUserProfiles.userId })
+        .returning({ userId: identityUserProfiles.userId })
+
+      return { created: inserted.length > 0 }
+    } catch (error) {
+      const constraint = violatedUniqueConstraint(error)
+      if (constraint === USERNAME_CONSTRAINT) throw new DuplicateUsernameError()
+      if (constraint === TAX_ID_CONSTRAINT) throw new DuplicateTaxIdError()
+      throw error
+    }
+  }
+
   public async updateProfile(input: UpdateCompanyUserProfileInput): Promise<void> {
     const changes = {
       ...(input.contactAddress === undefined ? {} : { contactAddress: input.contactAddress }),

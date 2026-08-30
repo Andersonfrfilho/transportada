@@ -121,7 +121,12 @@ export function toCompanyUserPage(value: unknown): CompanyUserPage {
   }
 }
 
-const RECONCILIATION_STATUSES = ['linked', 'missing-in-realm', 'missing-locally'] as const
+const RECONCILIATION_STATUSES = [
+  'linked',
+  'missing-in-realm',
+  'missing-locally',
+  'profile-missing',
+] as const
 const RECONCILIATION_MATCHES = ['email', 'none', 'subject', 'document'] as const
 
 /**
